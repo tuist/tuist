@@ -317,6 +317,113 @@ defmodule Tuist.AccountsTest do
     end
   end
 
+  describe "tuist_operator?/1" do
+    setup do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      :ok
+    end
+
+    test "true on a self-hosted instance for an operator-domain email (no Google check)" do
+      # Self-hosted has no Tuist Google Workspace; the operator-domain email
+      # match alone qualifies, with no Google identity required.
+      stub(Environment, :tuist_hosted?, fn -> false end)
+
+      user =
+        user_fixture(
+          email: "selfhosted-#{System.unique_integer([:positive])}@tuist.dev",
+          confirmed_at: nil
+        )
+
+      assert Accounts.tuist_operator?(user)
+    end
+
+    test "false on a self-hosted instance for a non-operator-domain email" do
+      stub(Environment, :tuist_hosted?, fn -> false end)
+
+      user =
+        user_fixture(
+          email: "ext-#{System.unique_integer([:positive])}@example.com",
+          confirmed_at: nil
+        )
+
+      refute Accounts.tuist_operator?(user)
+    end
+
+    test "true for an operator-domain email in the operator Google Workspace" do
+      # Google sign-ins never set confirmed_at; membership is proven by the
+      # hosted-domain (hd) claim stored as the identity's provider_organization_id.
+      user =
+        user_fixture(
+          email: "g-#{System.unique_integer([:positive])}@tuist.dev",
+          confirmed_at: nil
+        )
+
+      oauth2_identity_fixture(user: user, provider: :google, provider_organization_id: "tuist.dev")
+
+      assert Accounts.tuist_operator?(user)
+    end
+
+    test "false for an operator-domain email whose Google identity has no hosted domain" do
+      # The historical-row case: a Google identity without a captured hd does
+      # not prove Workspace membership, so it must not qualify.
+      user =
+        user_fixture(
+          email: "nohd-#{System.unique_integer([:positive])}@tuist.dev",
+          confirmed_at: nil
+        )
+
+      oauth2_identity_fixture(user: user, provider: :google, provider_organization_id: nil)
+
+      refute Accounts.tuist_operator?(user)
+    end
+
+    test "false for an operator-domain email signed into a different Google Workspace" do
+      user =
+        user_fixture(
+          email: "other-#{System.unique_integer([:positive])}@tuist.dev",
+          confirmed_at: nil
+        )
+
+      oauth2_identity_fixture(user: user, provider: :google, provider_organization_id: "evil.example")
+
+      refute Accounts.tuist_operator?(user)
+    end
+
+    test "false for an operator-domain email that only confirmed via the email flow" do
+      user =
+        user_fixture(
+          email: "op-#{System.unique_integer([:positive])}@tuist.dev",
+          confirmed_at: DateTime.utc_now()
+        )
+
+      refute Accounts.tuist_operator?(user)
+    end
+
+    test "false for an operator-domain email signed in with a non-Google provider" do
+      user =
+        user_fixture(
+          email: "gh-#{System.unique_integer([:positive])}@tuist.dev",
+          confirmed_at: nil
+        )
+
+      oauth2_identity_fixture(user: user, provider: :github)
+
+      refute Accounts.tuist_operator?(user)
+    end
+
+    test "false for a non-operator-domain email in its own Google Workspace" do
+      user =
+        user_fixture(
+          email: "ext-#{System.unique_integer([:positive])}@example.com",
+          confirmed_at: nil
+        )
+
+      oauth2_identity_fixture(user: user, provider: :google, provider_organization_id: "example.com")
+
+      refute Accounts.tuist_operator?(user)
+    end
+  end
+
   describe "organization_admin?/2" do
     test "organization_admin? returns false if the user is not an admin" do
       # Given
@@ -3394,6 +3501,45 @@ defmodule Tuist.AccountsTest do
       # Then
       assert Accounts.get_organization_by_id(organization.id) == {:error, :not_found}
       assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
+    end
+  end
+
+  describe "sso_configured?/0" do
+    test "returns false when no organization has SSO configured" do
+      AccountsFixtures.organization_fixture()
+
+      refute Accounts.sso_configured?()
+    end
+
+    test "returns true when an organization has Okta SSO configured" do
+      AccountsFixtures.organization_fixture(
+        sso_provider: :okta,
+        sso_organization_id: "company.okta.com",
+        oauth2_client_id: "client-id",
+        oauth2_client_secret: "client-secret"
+      )
+
+      assert Accounts.sso_configured?()
+    end
+
+    test "returns true when an organization has generic OAuth2 SSO configured" do
+      AccountsFixtures.organization_fixture(
+        sso_provider: :oauth2,
+        sso_organization_id: "https://id.company.com",
+        oauth2_client_id: "client-id",
+        oauth2_client_secret: "client-secret",
+        oauth2_authorize_url: "https://id.company.com/authorize",
+        oauth2_token_url: "https://id.company.com/token",
+        oauth2_user_info_url: "https://id.company.com/userinfo"
+      )
+
+      assert Accounts.sso_configured?()
+    end
+
+    test "returns false when the only SSO organization uses Google" do
+      AccountsFixtures.organization_fixture(sso_provider: :google, sso_organization_id: "company.com")
+
+      refute Accounts.sso_configured?()
     end
   end
 

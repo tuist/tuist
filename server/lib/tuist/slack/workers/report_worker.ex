@@ -3,8 +3,10 @@ defmodule Tuist.Slack.Workers.ReportWorker do
   An hourly job that sends scheduled Slack reports for projects.
 
   The cron job finds projects due for reports and enqueues individual
-  project-specific jobs. This allows tracking when the last report was
-  sent per project via the oban_jobs table.
+  project-specific jobs. Each successful send stamps
+  `project.last_reported_at`, which bounds the next report's window
+  independently of oban_jobs retention (reports fire days apart, so the
+  prior job is long pruned).
 
   Reports prefer the per-channel `slack_webhook_url`. Destinations created
   before the webhook flow existed fall back to `chat.postMessage` with the
@@ -80,24 +82,33 @@ defmodule Tuist.Slack.Workers.ReportWorker do
         :ok
 
       {:webhook, webhook_url} ->
-        last_report_at = get_last_report_time(project.id)
-        blocks = Reports.report(project, last_report_at: last_report_at)
+        blocks = Reports.report(project, last_report_at: project.last_reported_at)
 
         case SlackClient.post_to_webhook(webhook_url, blocks) do
-          :ok -> :ok
+          :ok -> mark_reported(project)
           {:error, :webhook_revoked} -> handle_revoked_webhook(project)
           {:error, reason} -> {:error, reason}
         end
 
       {:bot_token, %Installation{access_token: token}, channel_id} ->
-        last_report_at = get_last_report_time(project.id)
-        blocks = Reports.report(project, last_report_at: last_report_at)
+        blocks = Reports.report(project, last_report_at: project.last_reported_at)
 
         case SlackClient.post_message(token, channel_id, blocks) do
-          :ok -> :ok
+          :ok -> mark_reported(project)
           {:error, reason} -> handle_post_message_error(reason, project)
         end
     end
+  end
+
+  # Only a successful send advances the window; a failed/discarded attempt
+  # leaves last_reported_at untouched so the next run still covers the gap.
+  defp mark_reported(project) do
+    {:ok, _project} =
+      project
+      |> Ecto.Changeset.change(last_reported_at: DateTime.truncate(DateTime.utc_now(), :second))
+      |> Repo.update()
+
+    :ok
   end
 
   defp configured_destination(%Project{slack_webhook_url: url}) when is_binary(url) and url != "" do
@@ -151,23 +162,4 @@ defmodule Tuist.Slack.Workers.ReportWorker do
   end
 
   defp handle_post_message_error(reason, _project), do: {:error, reason}
-
-  defp get_last_report_time(project_id) do
-    worker_name = to_string(__MODULE__)
-    project_id_string = to_string(project_id)
-
-    from(j in "oban_jobs",
-      where: j.worker == ^worker_name,
-      where: j.state == "completed",
-      where: fragment("?->>'project_id' = ?", j.args, ^project_id_string),
-      order_by: [desc: j.completed_at],
-      limit: 1,
-      select: j.completed_at
-    )
-    |> Repo.one()
-    |> case do
-      nil -> nil
-      naive_dt -> DateTime.from_naive!(naive_dt, "Etc/UTC")
-    end
-  end
 end

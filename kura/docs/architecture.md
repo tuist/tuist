@@ -145,6 +145,8 @@ A node moves through three explicit traffic states (`src/runtime.rs`):
 - **`serving`** — `/ready` returns `200`. Public APIs handle traffic normally.
 - **`draining`** — public HTTP rejects new requests and closes HTTP/1.1 connections; gRPC stops accepting new RPCs and ages out long-lived connections. Inflight work continues until a shared **drain deadline** (`KURA_DRAIN_COMPLETION_TIMEOUT_MS`) elapses.
 
+The REAPI gRPC server (`src/reapi/mod.rs`) advertises raised HTTP/2 flow-control windows — a 4 MiB stream window and a 16 MiB connection window — so a single large `ByteStream.Write` is not throttled to roughly `window / RTT` under WAN latency (without them the kura hop becomes the next bottleneck after the gateway nginx window). It recycles connections with `max_connection_age` (300s, at which it sends `GOAWAY`) plus a `max_connection_age_grace` (900s) that lets an in-flight upload finish before the connection is force-closed: the same `GOAWAY` is how draining sheds long-lived connections, and the grace is what bounds an upload's lifetime. A per-upload stall timeout (60s, keyed on byte progress so trickled keepalive frames cannot hold a stalled stream open) reclaims a vanished or stalled writer — and its partial temp file — much sooner, without cutting an upload that keeps making progress. Note the grace can exceed the pod's `terminationGracePeriodSeconds` (derived from `KURA_DRAIN_COMPLETION_TIMEOUT_MS`), so an upload still in flight when a rolling deploy terminates the pod is bounded by the drain deadline, not by the 900s grace.
+
 `/up` is a liveness signal that does not depend on any of this — it stays healthy as long as the process is alive.
 
 ## Single-Writer Fencing

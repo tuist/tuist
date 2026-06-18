@@ -28,12 +28,17 @@ defmodule TuistOps.MixProject do
       {:bandit, "~> 1.5"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ecto_sql, "~> 3.10"},
+      {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
       {:floki, ">= 0.30.0", only: :test},
       {:jason, "~> 1.4"},
+      {:jose, "~> 1.11"},
       {:mimic, "~> 1.7", only: :test},
+      {:noora, "~> 0.81.4"},
       {:oban, "~> 2.18"},
       {:phoenix, "~> 1.7.12"},
       {:phoenix_ecto, "~> 4.4"},
+      {:phoenix_html, "~> 4.0"},
+      {:phoenix_live_view, "~> 1.0"},
       {:plug, "~> 1.18"},
       {:postgrex, "~> 0.20"},
       {:req, "~> 0.5"},
@@ -45,9 +50,12 @@ defmodule TuistOps.MixProject do
 
   defp aliases do
     [
-      setup: ["deps.get", "ecto.setup"],
+      setup: ["deps.get", "assets.setup", "ecto.setup", "assets.build"],
       "ecto.setup": ["ecto.create", "ecto.migrate"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
+      "assets.setup": ["esbuild.install --if-missing"],
+      "assets.build": ["esbuild tuist_ops"],
+      "assets.deploy": ["esbuild tuist_ops --minify"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"]
     ]
   end

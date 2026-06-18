@@ -105,6 +105,11 @@ config:
   tenantId: default
   region: fr-par
   tmpDirMaxBytes: 8589934592
+  # Artifact-body budget for the CAS segment ring. Leave unset to derive
+  # 50% of the data volume's filesystem size at startup; either way the
+  # runtime caps the budget at 80% of the filesystem so segment rotation
+  # can never run the disk full.
+  casCapacityBytes: null
   fileDescriptors:
     # Leave unset to derive from the process RLIMIT_NOFILE after Kura raises
     # the soft limit to the hard limit at startup.

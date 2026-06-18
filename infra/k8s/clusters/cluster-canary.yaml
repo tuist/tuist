@@ -45,6 +45,23 @@ spec:
           name: md-0
           replicas: 2
           failureDomain: fsn1
+        # Stable-egress gateway pool (HA, ≥2 nodes) — mirrors prod/staging so the
+        # failover controller + cutover are exercised in the deployment cascade
+        # before production. Nodes self-apply the candidate label; the controller
+        # keeps the Floating IP + active label on one Ready node.
+        - class: hcloud-worker
+          name: md-egress
+          replicas: 2
+          failureDomain: fsn1
+          metadata:
+            labels:
+              node.cluster.x-k8s.io/pool: egress
+          variables:
+            overrides:
+              - name: hcloudWorkerMachineType
+                value: cpx22
+              - name: workerNodeLabels
+                value: tuist.dev/stable-egress-candidate=server
         # Dedicated Kura pool. Kura StatefulSets default to this node
         # selector and use hard hostname spread, so keep three workers
         # for the default three replicas.

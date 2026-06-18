@@ -58,6 +58,11 @@ spec:
         secretAccessKey:
           name: {{ .Values.postgresql.backup.credentialsSecretName }}
           key: ACCESS_SECRET_KEY
+      wal:
+        compression: gzip
+        maxParallel: 8
+      data:
+        compression: gzip
     retentionPolicy: {{ .Values.postgresql.backup.retentionPolicy | quote }}
   {{- end }}
 {{- if .Values.postgresql.backup.enabled }}

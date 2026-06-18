@@ -307,14 +307,56 @@ defmodule Tuist.Environment do
     end
   end
 
-  def ops_user_handles(secrets \\ secrets()) do
-    case get([:ops_user_handles], secrets) do
-      user_handles when is_binary(user_handles) ->
-        user_handles |> String.split(",") |> Enum.map(&String.trim(&1))
+  @doc """
+  Email domain whose confirmed members are Tuist operators. Used only
+  as a routing heuristic (redirect a non-member operator to the ops
+  reason form vs. 404 a regular customer); the real gates are
+  ops.tuist.dev's Pomerium/Google-OIDC and the offline grant
+  verification. Defaults to `tuist.dev`.
+  """
+  def operator_email_domain(secrets \\ secrets()) do
+    get([:operator_email_domain], secrets, default_value: "tuist.dev")
+  end
 
-      _ ->
-        []
+  @doc """
+  PEM-encoded Ed25519 PUBLIC key used to verify operator access grant
+  tokens minted by ops.tuist.dev. nil when unset, in which case grant
+  verification fails closed (no operator grants are honoured).
+  """
+  def operator_grant_public_key(secrets \\ secrets()) do
+    get([:operator_grant, :public_key], secrets)
+  end
+
+  @doc """
+  The `aud` claim required on operator grant tokens. Pinned per
+  environment so a token minted for a different env can't be replayed.
+  Must match ops.tuist.dev's `OPERATOR_GRANT_AUDIENCE`.
+  """
+  def operator_grant_audience(secrets \\ secrets()) do
+    get([:operator_grant, :audience], secrets, default_value: "tuist-server")
+  end
+
+  @doc """
+  Maximum allowed lifetime (`exp - iat`, seconds) of an operator grant
+  token. A token claiming a longer lifetime is rejected, so a
+  compromised signer can't mint a long-lived grant. Defaults to 1h.
+  """
+  def operator_grant_max_ttl_seconds(secrets \\ secrets()) do
+    case get([:operator_grant, :max_ttl_seconds], secrets, default_value: 3600) do
+      value when is_integer(value) -> value
+      value when is_binary(value) -> String.to_integer(value)
     end
+  end
+
+  @doc """
+  Base URL of the ops.tuist.dev reason form a non-member operator is
+  redirected to before they can access a customer project. nil by
+  default: the redirect is opt-in per environment and stays off until
+  ops.tuist.dev is Pomerium-fronted and routes `/grants` with a
+  matching audience. Offline grant verification does not depend on this.
+  """
+  def ops_reason_form_url(secrets \\ secrets()) do
+    get([:ops, :reason_form_url], secrets, default_value: nil)
   end
 
   def posthog_api_key(secrets \\ secrets()) do
@@ -614,6 +656,14 @@ defmodule Tuist.Environment do
 
   def github_oauth_configured?(secrets \\ secrets()) do
     github_app_client_id(secrets) != nil and github_app_client_secret(secrets) != nil
+  end
+
+  # The GitHub App used for VCS integration shares its client id/secret with
+  # GitHub sign-in, so configuring VCS otherwise forces GitHub onto the login
+  # page. This lever lets a self-hosted operator keep the App while turning the
+  # sign-in method off.
+  def github_auth_enabled? do
+    truthy?(System.get_env("TUIST_GITHUB_AUTH_ENABLED", "1"))
   end
 
   def github_app_configured?(secrets \\ secrets()) do

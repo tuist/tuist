@@ -1,11 +1,11 @@
 ---
 {
-  "title": "Control plane",
+  "title": "Server",
   "titleTemplate": ":title | Self-hosting | Server | Guides | Tuist",
-  "description": "Learn how to deploy the Tuist control plane on your infrastructure."
+  "description": "Learn how to deploy the Tuist server on your infrastructure."
 }
 ---
-# Control plane {#control-plane}
+# Server {#server}
 
 We offer a self-hosted version of the Tuist server for organizations that require more control over their infrastructure. This version allows you to host Tuist on your own infrastructure, ensuring that your data remains secure and private.
 
@@ -150,7 +150,7 @@ As an on-premise user, you'll receive a license key that you'll need to expose a
 | `TUIST_GITHUB_APP_NAME` | The URL version of your GitHub app name | No | | `my-app` |
 | `TUIST_GITHUB_APP_PRIVATE_KEY_BASE64` | The base64-encoded private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments | No | `LS0tLS1CRUdJTiBSU0EgUFJJVkFUR...` | |
 | `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments. **We recommend using the base64-encoded version instead to avoid issues with special characters** | No | `-----BEGIN RSA...` | |
-| `TUIST_OPS_USER_HANDLES` | A comma-separated list of user handles that have access to the operations URLs | No | | `user1,user2` |
+| `TUIST_OPERATOR_EMAIL_DOMAIN` | Confirmed users whose email address ends in `@<this-domain>` can access the operations URLs (`/ops/*`) | No | `tuist.dev` | `example.com` |
 | `TUIST_SERVER_VERSION_IDENTIFIER` | A label displayed as a badge in the dashboard navbar to identify the server instance (e.g. a version number or branch name) | No | Git branch in dev | `v1.2.3` |
 | `TUIST_WEB` | Enable the web server endpoint | No | `1` | `1` or `0` |
 | `TUIST_OTEL_EXPORTER_OTLP_ENDPOINT` | The gRPC endpoint of an OpenTelemetry Collector to send traces to | No | | `http://localhost:4317` |
@@ -197,6 +197,7 @@ You'll then need to expose the following environment variables in the environmen
 | --- | --- | --- | --- | --- |
 | `TUIST_GITHUB_APP_CLIENT_ID` | The client ID of the GitHub application | Yes | | `Iv1.a629723000043722` |
 | `TUIST_GITHUB_APP_CLIENT_SECRET` | The client secret of the application | Yes | | `232f972951033b89799b0fd24566a04d83f44ccc` |
+| `TUIST_GITHUB_AUTH_ENABLED` | Whether GitHub can be used to sign in. The GitHub App you configure for platform integrations (PR comments, etc.) shares its client credentials with sign-in, so it otherwise appears as a login option. Set to `0` to keep the App while removing GitHub from the login page | No | `1` | `0` |
 
 #### Google {#google}
 
@@ -660,7 +661,7 @@ Tuist provides a set of utilities under `/ops/` that you can use to manage your 
 > [!WARNING]
 > **Authorization**
 >
-> Only people whose handles are listed in the `TUIST_OPS_USER_HANDLES` environment variable can access the `/ops/` endpoints.
+> Only confirmed users whose email domain matches `TUIST_OPERATOR_EMAIL_DOMAIN` (default `tuist.dev`) can access the `/ops/` endpoints.
 
 
 - **Errors (`/ops/errors`):** You can view unexpected errors that ocurred in the application. This is useful for debugging and understanding what went wrong and we might ask you to share this information with us if you're facing issues.

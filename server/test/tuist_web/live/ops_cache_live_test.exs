@@ -5,8 +5,8 @@ defmodule TuistWeb.OpsCacheLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Accounts
   alias Tuist.CacheEndpoints
-  alias Tuist.Environment
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup %{conn: conn} do
@@ -16,7 +16,7 @@ defmodule TuistWeb.OpsCacheLiveTest do
 
     conn = log_in_user(conn, user)
 
-    Mimic.stub(Environment, :ops_user_handles, fn -> [user.account.name] end)
+    Mimic.stub(Accounts, :tuist_operator?, fn _ -> true end)
 
     %{conn: conn, user: user}
   end

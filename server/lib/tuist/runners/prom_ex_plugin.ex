@@ -11,9 +11,10 @@ defmodule Tuist.Runners.PromExPlugin do
       `claim`, `running`, `completed`); histograms cover wall-clock
       durations (`queue_time_ms` at claim, `queue_to_running_ms` at
       mint, `run_time_ms` / `total_time_ms` at completion). The
-      dispatch endpoint emits its own latency histogram tagged by
-      outcome so a saturating poll loop is visible separately from
-      a slow CH/PG.
+      dispatch endpoint emits its own count + latency histogram
+      tagged by fleet and outcome so a real dispatch stall on one
+      shape is visible separately from an idle warm pool polling, and
+      separately from a slow CH/PG.
 
     * **Polling metrics.** Three poll loops at a coarse 30s cadence
       query authoritative state and emit gauges: queue length per
@@ -26,9 +27,9 @@ defmodule Tuist.Runners.PromExPlugin do
       boot duration histogram).
 
   Cardinality budget: `fleet` is bounded by the number of
-  RunnerPool CRs (currently 1 — `default`). Per-account fan-out is
-  *not* tagged on event metrics; account-level views are exposed
-  as polled aggregates only.
+  RunnerPool CRs (one per Linux shape + macOS Xcode image, O(10)).
+  Per-account fan-out is *not* tagged on event metrics; account-level
+  views are exposed as polled aggregates only.
   """
 
   use PromEx.Plugin
@@ -170,8 +171,11 @@ defmodule Tuist.Runners.PromExPlugin do
           counter(
             @metric_prefix ++ [:dispatch, :request, :count],
             event_name: Telemetry.event_name_dispatch_request() ++ [:stop],
-            description: "Polling Pod dispatch requests bucketed by outcome.",
-            tags: [:outcome]
+            description:
+              "Polling Pod dispatch requests bucketed by fleet and outcome. " <>
+                "`outcome` is granular: served, drain, empty (queue had nothing), " <>
+                "lost_race / pod_in_use (claim contention), plus SA/label errors.",
+            tags: [:fleet, :outcome]
           ),
           distribution(
             @metric_prefix ++ [:dispatch, :request, :duration, :milliseconds],
@@ -179,7 +183,7 @@ defmodule Tuist.Runners.PromExPlugin do
             measurement: :duration,
             description: "Wall-clock time the dispatch endpoint spent serving a polling Pod.",
             reporter_options: [buckets: @dispatch_duration_buckets],
-            tags: [:outcome],
+            tags: [:fleet, :outcome],
             unit: {:native, :millisecond}
           )
         ]

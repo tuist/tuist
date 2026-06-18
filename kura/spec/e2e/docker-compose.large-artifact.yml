@@ -1,0 +1,23 @@
+# Overrides for the large-artifact e2e suite (spec/e2e/large_artifact_spec.sh).
+#
+# Disables the replication bandwidth limiter on every node by setting the limit
+# to 0 (BandwidthLimiter::new returns None at 0 -> replication is unthrottled).
+#
+# The spec verifies replication *correctness* — a >512 MiB artifact round-trips
+# byte-for-byte to peers — not production rate-shaping. Left enabled, the adaptive
+# limiter divides replication bandwidth by the public-latency-pressure divisor
+# (up to 64x) once serving the 520 MiB GET inflates the latency EWMA, throttling
+# the transfer below the rate needed to clear the peer client's fixed 30s timeout,
+# so replication livelocks (it never lands and the outbox retries from scratch).
+# That timeout-vs-throughput limitation is a separate bug, tracked in
+# https://github.com/tuist/tuist/issues/11297.
+services:
+  kura-us:
+    environment:
+      KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND: "0"
+  kura-eu:
+    environment:
+      KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND: "0"
+  kura-ap:
+    environment:
+      KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND: "0"

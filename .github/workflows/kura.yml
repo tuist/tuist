@@ -192,8 +192,16 @@ jobs:
             specs: "spec/e2e/discovery_spec.sh spec/e2e/faults_spec.sh spec/e2e/handoff_spec.sh"
           - shard_name: extension-mtls
             specs: "spec/e2e/extension_spec.sh spec/e2e/mtls_spec.sh"
+          - shard_name: large-artifact
+            specs: "spec/e2e/large_artifact_spec.sh"
+          - shard_name: gateway-throughput
+            specs: "spec/e2e/grpc_upload_throughput_spec.sh"
+            throughput: "1"
     env:
       KURA_E2E_SKIP_BUILD: "1"
+      # Empty on normal shards; "1" opts the gateway-throughput spec in (it
+      # otherwise skips). Only that shard lists the throughput spec.
+      KURA_E2E_THROUGHPUT: ${{ matrix.throughput || '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -216,11 +224,15 @@ jobs:
 
       - name: Retag prebuilt Docker images for every suite project
         run: |
-          for project in kura-e2e kura-clients kura-discovery kura-faults kura-handoff kura-extension kura-mtls kura-rollout; do
+          for project in kura-e2e kura-clients kura-discovery kura-faults kura-handoff kura-extension kura-mtls kura-rollout kura-large-artifact; do
             for service in kura-us kura-eu kura-ap; do
               docker tag "kura-${service}" "${project}-${service}"
             done
           done
+          # The gateway-throughput harness defaults to image kura:e2e; reuse the
+          # CI-built kura so it runs against the CI version and never rebuilds
+          # from source. Harmless extra tag for the other shards.
+          docker tag kura-kura-us kura:e2e
 
       - name: Run end-to-end suite
         run: shellspec ${{ matrix.specs }}

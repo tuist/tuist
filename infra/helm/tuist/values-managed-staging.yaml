@@ -37,6 +37,23 @@ server:
       # nodes there for accounts with runner profiles, and runner
       # dispatch routes their build-cache traffic to it in-cluster.
       value: eu-central,hetzner-staging-runners
+    # Operator project-access grants — server half only. The public key
+    # is non-secret; its matching private key signs grants minted at
+    # ops.tuist.dev. This is a throwaway pair for the staging server-half
+    # e2e (verify offline EdDSA verification + SSO bypass on a token that
+    # arrives) until the 1Password-managed key lands. The redirect to ops
+    # is deliberately NOT wired here (no TUIST_OPS_REASON_FORM_URL): the
+    # single prod-only ops instance mints tuist-server audience tokens and
+    # does not publicly route /grants, so a staging redirect would dead-end.
+    # The redirect turns on per-env once ops is Pomerium-fronted with a
+    # matching audience + return_to allowlist.
+    - name: TUIST_OPERATOR_GRANT_PUBLIC_KEY
+      value: |-
+        -----BEGIN PUBLIC KEY-----
+        MCowBQYDK2VwAyEAh2RLuH3uKcpF8PsVE8CJI4onfajexC5RB/0ldQEeSO4=
+        -----END PUBLIC KEY-----
+    - name: TUIST_OPERATOR_GRANT_AUDIENCE
+      value: tuist-server-staging
 
   appUrl: https://staging.tuist.dev
 
@@ -155,6 +172,10 @@ postgresql:
     # an entry under `parameters`.
     sharedPreloadLibraries:
       - pg_stat_statements
+    # Expose pg_stat_statements as query-latency metrics. The library above
+    # is loaded; create the extension once via infra/cnpg/pg-stat-statements.sql.
+    queryStats:
+      enabled: true
     # Route the processor through the transaction-mode PgBouncer pooler so
     # this soak env matches production's post-CNPG-cutover topology
     # (processor pooled, web tier direct on -rw). CNPG's built-in
