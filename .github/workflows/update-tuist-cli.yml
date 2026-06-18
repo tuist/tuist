@@ -75,14 +75,23 @@ jobs:
           install_args: "tuist"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Mint a GitHub App token
+        id: app-token
+        if: steps.resolve.outputs.changed == 'true'
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.TUIST_AUTOMATION_APP_ID }}
+          private-key: ${{ secrets.TUIST_AUTOMATION_APP_PRIVATE_KEY }}
       - name: Open pull request
         id: pr
         if: steps.resolve.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
-          # A PAT (not GITHUB_TOKEN) so the PR's checks run; GITHUB_TOKEN-authored
-          # PRs don't trigger workflows. Reuses the release pipeline's token.
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+          # A GitHub App installation token, not GITHUB_TOKEN (whose pushes don't
+          # trigger checks) and not a tuistit PAT (whose account-wide REST limit is
+          # drained by deployments, so PR creation here failed every run). The App
+          # has its own rate-limit pool and its commits/PRs do trigger checks.
+          token: ${{ steps.app-token.outputs.token }}
           branch: automation/update-tuist-cli
           delete-branch: true
           commit-message: "chore(cli): update Tuist CLI to ${{ steps.resolve.outputs.version }}"
@@ -99,5 +108,5 @@ jobs:
       - name: Enable auto-merge
         if: steps.resolve.outputs.changed == 'true' && steps.pr.outputs.pull-request-number
         env:
-          GH_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: gh pr merge --squash --auto "${{ steps.pr.outputs.pull-request-number }}" || true
