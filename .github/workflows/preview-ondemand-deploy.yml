@@ -1,8 +1,10 @@
 name: On-Demand Preview Deploy
 
-# Slack-requested preview environments. tuist-ops dispatches this
-# workflow with action=create/delete; the workflow owns Kubernetes mutation so
-# tuist-ops does not need workload-cluster credentials.
+# Slack-requested preview environments. tuist-ops dispatches this workflow
+# with action=create/delete; this file is a thin wrapper that normalises
+# the Slack-side inputs (slug, pr_number or commit_sha, TTL, requester
+# audit fields) into the preview-deploy-impl input shape and delegates
+# the actual build/deploy/delete lifecycle.
 
 on:
   workflow_dispatch:
@@ -38,7 +40,7 @@ on:
         description: Request reason
         required: false
       kura_controller_image_tag:
-        description: ghcr.io/tuist/kura-controller tag
+        description: ghcr.io/tuist/kura-controller tag (cluster-wide controller install)
         required: false
         default: latest
       kura_runtime_image_tag:
@@ -46,7 +48,7 @@ on:
         required: false
         default: latest
       kura_instance_replicas:
-        description: Shared preview KuraInstance replicas, 0 disables
+        description: Shared preview KuraInstance replicas, 0 disables Kura
         required: false
         default: "1"
 
@@ -56,9 +58,6 @@ permissions:
   pull-requests: read
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: tuist/tuist
-  HELM_CHART_PATH: infra/helm/tuist
   PREVIEW_BASE_DOMAIN: preview.tuist.dev
 
 jobs:
@@ -72,9 +71,9 @@ jobs:
       namespace: ${{ steps.r.outputs.namespace }}
       host: ${{ steps.r.outputs.host }}
       ref: ${{ steps.r.outputs.ref }}
-      short_sha: ${{ steps.r.outputs.short_sha }}
       expires_at: ${{ steps.r.outputs.expires_at }}
       ttl_hours: ${{ steps.r.outputs.ttl_hours }}
+      profile: ${{ steps.r.outputs.profile }}
       kura_instance_replicas: ${{ steps.r.outputs.kura_instance_replicas }}
     steps:
       - id: r
@@ -122,335 +121,60 @@ jobs:
             else
               REF="${{ github.sha }}"
             fi
+            ACTION_OUT=deploy
           else
-            REF="${SHA:-${{ github.sha }}}"
-            TTL_HOURS="${TTL_HOURS:-1}"
+            REF=""
+            TTL_HOURS=1
             KURA_REPLICAS=0
+            ACTION_OUT=delete
           fi
 
           RELEASE="ondemand-${SLUG}"
           NAMESPACE="preview-ondemand-${SLUG}"
           HOST="${SLUG}.${PREVIEW_BASE_DOMAIN}"
           EXPIRES_AT=$(( $(date +%s) + TTL_HOURS * 3600 ))
-          SHORT_SHA="${REF:0:12}"
+          # Slack-requested previews are always "with Kura" by default
+          # (kura_instance_replicas=0 disables it). Reuse the same impl
+          # workflow with a different profile when a future request shape
+          # needs the bare-app profile.
+          if [ "$KURA_REPLICAS" = "0" ]; then
+            PROFILE=app
+          else
+            PROFILE=app-with-kura
+          fi
 
           {
-            echo "action=$ACTION"
+            echo "action=$ACTION_OUT"
             echo "slug=$SLUG"
             echo "release=$RELEASE"
             echo "namespace=$NAMESPACE"
             echo "host=$HOST"
             echo "ref=$REF"
-            echo "short_sha=$SHORT_SHA"
             echo "expires_at=$EXPIRES_AT"
             echo "ttl_hours=$TTL_HOURS"
+            echo "profile=$PROFILE"
             echo "kura_instance_replicas=$KURA_REPLICAS"
           } >> "$GITHUB_OUTPUT"
 
-  build:
-    name: Build + push
+  call-impl:
+    name: Lifecycle
     needs: resolve
-    if: needs.resolve.outputs.action == 'create'
-    runs-on: tuist-linux-large
-    timeout-minutes: 40
-    outputs:
-      image_tag: ${{ steps.tag.outputs.image_tag }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.resolve.outputs.ref }}
-          submodules: false
-      - id: tag
-        run: echo "image_tag=sha-${{ needs.resolve.outputs.short_sha }}" >> "$GITHUB_OUTPUT"
-      - id: apt-bust
-        run: echo "value=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./server/Dockerfile
-          target: runner
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
-          build-args: |
-            TUIST_HOSTED=1
-            MIX_ENV=prod
-            APT_CACHE_BUST=${{ steps.apt-bust.outputs.value }}
-
-  create:
-    name: Create ${{ needs.resolve.outputs.slug }}
-    needs: [resolve, build]
-    if: needs.resolve.outputs.action == 'create' && needs.build.result == 'success'
-    runs-on: tuist-linux
-    environment:
-      name: server-k8s-preview
-      url: https://${{ needs.resolve.outputs.host }}
-    concurrency:
-      group: preview-ondemand-${{ needs.resolve.outputs.slug }}
-      cancel-in-progress: false
-    timeout-minutes: 30
-    env:
-      KUBECONFIG: ${{ github.workspace }}/.kube/config
-      RELEASE: ${{ needs.resolve.outputs.release }}
-      NAMESPACE: ${{ needs.resolve.outputs.namespace }}
-      HOST: ${{ needs.resolve.outputs.host }}
-      SLUG: ${{ needs.resolve.outputs.slug }}
-      IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
-      EXPIRES_AT: ${{ needs.resolve.outputs.expires_at }}
-      KURA_REPLICAS: ${{ needs.resolve.outputs.kura_instance_replicas }}
-      KURA_INSTANCE: ${{ needs.resolve.outputs.release }}-kura
-      KURA_HOST: kura-${{ needs.resolve.outputs.slug }}.preview.tuist.dev
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.resolve.outputs.ref }}
-          fetch-depth: 0
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          install_args: "helm kubectl jq"
-          cache: "false"
-      - name: Load kubeconfig
-        run: |
-          mkdir -p "$(dirname "$KUBECONFIG")"
-          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
-          chmod 600 "$KUBECONFIG"
-      - name: Temporarily remove preview taint for platform hooks
-        run: |
-          kubectl taint nodes -l '!node-role.kubernetes.io/control-plane' role=preview:NoSchedule- || true
-      - name: Reconcile platform chart
-        run: |
-          set -euo pipefail
-          CLOUDFLARE_API_TOKEN="$(kubectl -n platform get secret cloudflare-api-token \
-            -o jsonpath='{.data.api-token}' | base64 -d)"
-          echo "::add-mask::$CLOUDFLARE_API_TOKEN"
-          export CLOUDFLARE_API_TOKEN
-          mise -C infra run k8s:install-platform "$KUBECONFIG" tuist-preview
-      - name: Re-apply preview node label and taint
-        if: always()
-        run: |
-          kubectl label nodes -l '!node-role.kubernetes.io/control-plane' role=preview --overwrite
-          kubectl taint nodes -l '!node-role.kubernetes.io/control-plane' role=preview:NoSchedule --overwrite
-      # Mark the namespace as in-progress before any chart mutation so the
-      # hourly sweep can tell a still-being-created preview from one with a
-      # missing expires-at label and skip it. The `expires-at` label is only
-      # written after helm upgrade succeeds (next step), at which point the
-      # `state=creating` marker is cleared.
-      - name: Mark namespace as creating
-        env:
-          REQUESTER_EMAIL: ${{ inputs.requester_email }}
-          REQUESTER_SLACK_ID: ${{ inputs.requester_slack_id }}
-          REQUEST_REASON: ${{ inputs.reason }}
-        run: |
-          set -euo pipefail
-          NOW=$(date +%s)
-          kubectl get namespace "$NAMESPACE" >/dev/null 2>&1 || kubectl create namespace "$NAMESPACE"
-          kubectl label namespace "$NAMESPACE" \
-            "tuist.dev/preview-source=slack" \
-            "tuist.dev/preview=true" \
-            "tuist.dev/slug=$SLUG" \
-            "tuist.dev/release=$RELEASE" \
-            "tuist.dev/state=creating" \
-            --overwrite
-          kubectl label namespace "$NAMESPACE" tuist.dev/expires-at- --ignore-not-found || true
-          kubectl annotate namespace "$NAMESPACE" \
-            "tuist.dev/owner-email=$REQUESTER_EMAIL" \
-            "tuist.dev/owner-slack-id=$REQUESTER_SLACK_ID" \
-            "tuist.dev/reason=$REQUEST_REASON" \
-            "tuist.dev/host=https://$HOST" \
-            "tuist.dev/created-at=$NOW" \
-            --overwrite
-      # Re-use any existing Kura introspection credentials in the preview
-      # namespace so re-runs of the create workflow don't churn the
-      # client_id/client_secret pair (which would invalidate every previously
-      # issued cache token). On first install, generate fresh random material
-      # — never commit working preview secrets to the chart.
-      # Re-use any existing Kura introspection credentials so re-runs of the
-      # create workflow don't churn the client_id/client_secret pair (which
-      # would invalidate every previously issued cache token). The kura
-      # controller runs in the per-preview namespace, so the Secret lives
-      # there too. On first install, generate fresh random material — never
-      # commit working preview secrets to the chart.
-      - name: Resolve Kura introspection credentials
-        id: kura_creds
-        run: |
-          set -euo pipefail
-          CLIENT_ID="$(kubectl -n "$NAMESPACE" get secret kura-shared-secrets \
-            -o jsonpath='{.data.KURA_CONTROL_PLANE_CLIENT_ID}' 2>/dev/null \
-            | base64 -d 2>/dev/null || true)"
-          CLIENT_SECRET="$(kubectl -n "$NAMESPACE" get secret kura-shared-secrets \
-            -o jsonpath='{.data.KURA_CONTROL_PLANE_CLIENT_SECRET}' 2>/dev/null \
-            | base64 -d 2>/dev/null || true)"
-          if [ -z "$CLIENT_ID" ]; then
-            CLIENT_ID="preview-${SLUG}-$(openssl rand -hex 4)"
-          fi
-          if [ -z "$CLIENT_SECRET" ]; then
-            CLIENT_SECRET="$(openssl rand -hex 32)"
-          fi
-          echo "::add-mask::$CLIENT_SECRET"
-          {
-            echo "client_id<<EOF"
-            echo "$CLIENT_ID"
-            echo "EOF"
-            echo "client_secret<<EOF"
-            echo "$CLIENT_SECRET"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-      - name: helm upgrade --install
-        env:
-          KURA_INTROSPECTION_CLIENT_ID: ${{ steps.kura_creds.outputs.client_id }}
-          KURA_INTROSPECTION_CLIENT_SECRET: ${{ steps.kura_creds.outputs.client_secret }}
-        run: |
-          args=(
-            "$RELEASE" "$HELM_CHART_PATH"
-            --namespace "$NAMESPACE" \
-            -f "$HELM_CHART_PATH/values-preview.yaml" \
-            -f "$HELM_CHART_PATH/values-preview-kura.yaml" \
-            --set server.image.tag="$IMAGE_TAG" \
-            --set server.ingress.enabled=true \
-            --set server.ingress.host="$HOST" \
-            --set "server.appUrl=https://$HOST" \
-            --set "kuraController.image.tag=${{ inputs.kura_controller_image_tag }}" \
-            --set "kuraRuntime.image.tag=${{ inputs.kura_runtime_image_tag }}" \
-            --set "kuraController.namespace=$NAMESPACE" \
-            --set-string "kuraController.sharedSecrets.kuraIntrospection.clientId=$KURA_INTROSPECTION_CLIENT_ID" \
-            --set-string "kuraController.sharedSecrets.kuraIntrospection.clientSecret=$KURA_INTROSPECTION_CLIENT_SECRET" \
-            --atomic --timeout 20m --wait
-          )
-
-          if [ "$KURA_REPLICAS" != "0" ]; then
-            args+=(--set "server.kuraEndpointUrls[0]=https://$KURA_HOST")
-          fi
-
-          helm upgrade --install "${args[@]}"
-      - name: Finalize namespace labels
-        run: |
-          set -euo pipefail
-          kubectl label namespace "$NAMESPACE" \
-            "tuist.dev/expires-at=$EXPIRES_AT" \
-            "tuist.dev/state=ready" \
-            --overwrite
-      - name: Create shared KuraInstance
-        if: env.KURA_REPLICAS != '0'
-        env:
-          KURA_RUNTIME_IMAGE_TAG: ${{ inputs.kura_runtime_image_tag }}
-        run: |
-          {
-            cat <<EOF
-          apiVersion: kura.tuist.dev/v1alpha1
-          kind: KuraInstance
-          metadata:
-            name: ${KURA_INSTANCE}
-            namespace: ${NAMESPACE}
-            labels:
-              tuist.dev/preview-source: slack
-              tuist.dev/slug: ${SLUG}
-              tuist.dev/shared: "true"
-          spec:
-            accountHandle: preview-${SLUG}
-            tenantID: preview-${SLUG}
-            region: preview
-            image: ghcr.io/tuist/kura:${KURA_RUNTIME_IMAGE_TAG}
-            replicas: ${KURA_REPLICAS}
-            publicHost: ${KURA_HOST}
-            ingressClassName: nginx
-            storageSize: 10Gi
-            extraEnv:
-              - name: KURA_CONTROL_PLANE_URL
-                value: http://${RELEASE}-tuist-server.${NAMESPACE}.svc.cluster.local:80
-              - name: KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL
-                value: http://${RELEASE}-tuist-server.${NAMESPACE}.svc.cluster.local:80
-              - name: KURA_EXTENSION_TUIST_ALLOW_SHARED_TENANTS
-                value: "1"
-            # Colocate the runtime on the generic preview pool: the preview
-            # lifecycle shouldn't depend on dedicated Kura-class capacity
-            # (which doesn't fit the bare-metal Kura direction). The preview
-            # pool carries role=preview:NoSchedule, so we tolerate it.
-            # A future explicit "infra/perf-test" preview profile can pin to
-            # a dedicated pool when it ships.
-            nodeSelector:
-              role: preview
-            tolerations:
-              - key: role
-                operator: Equal
-                value: preview
-                effect: NoSchedule
-            extensionScript: |
-          EOF
-            sed 's/^/    /' kura/ops/helm/kura/hooks/tuist.lua
-          } | kubectl apply -f -
-      - name: Wait for shared KuraInstance
-        if: env.KURA_REPLICAS != '0'
-        run: |
-          kubectl -n "$NAMESPACE" wait --for=jsonpath='{.status.phase}'=Ready "kurainstance/${KURA_INSTANCE}" --timeout=10m
-          for i in $(seq 1 60); do
-            if curl -fsSL --max-time 5 "https://${KURA_HOST}/ready" >/dev/null; then
-              echo "OK: https://${KURA_HOST}/ready returned 200"
-              exit 0
-            fi
-            echo "Attempt $i: https://${KURA_HOST}/ready not yet reachable; retrying in 10s..."
-            sleep 10
-          done
-          echo "::error::https://${KURA_HOST}/ready never returned 200 after about 10 min."
-          exit 1
-      - name: Smoke test
-        run: |
-          kubectl -n "$NAMESPACE" rollout status deploy/${RELEASE}-tuist-server --timeout=10m
-          for i in $(seq 1 60); do
-            if curl -fsSL --max-time 5 "https://${HOST}/ready" >/dev/null; then
-              echo "OK: https://${HOST}/ready returned 200"
-              exit 0
-            fi
-            echo "Attempt $i: https://${HOST}/ready not yet reachable; retrying in 10s..."
-            sleep 10
-          done
-          echo "::error::https://${HOST}/ready never returned 200 after about 10 min."
-          exit 1
-
-  delete:
-    name: Delete ${{ needs.resolve.outputs.slug }}
-    needs: resolve
-    if: needs.resolve.outputs.action == 'delete'
-    runs-on: tuist-linux
-    environment:
-      name: server-k8s-preview
-    concurrency:
-      group: preview-ondemand-${{ needs.resolve.outputs.slug }}
-      cancel-in-progress: false
-    timeout-minutes: 15
-    env:
-      KUBECONFIG: ${{ github.workspace }}/.kube/config
-      RELEASE: ${{ needs.resolve.outputs.release }}
-      NAMESPACE: ${{ needs.resolve.outputs.namespace }}
-    steps:
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          install_args: "helm kubectl"
-          cache: "false"
-      - name: Load kubeconfig
-        run: |
-          mkdir -p "$(dirname "$KUBECONFIG")"
-          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
-          chmod 600 "$KUBECONFIG"
-      - name: helm uninstall + delete namespace
-        run: |
-          set -euo pipefail
-          # Delete the KuraInstance with --wait *before* `helm uninstall` tears
-          # down the controller. The CR carries a finalizer the controller
-          # drains (public Ingress + cert-manager Certificate cleanup) — if the
-          # controller is gone first, the finalizer never fires and the CR
-          # ends up stuck terminating, blocking the namespace delete and
-          # leaking the LE-issued leaf cert across recreations.
-          if kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
-            kubectl -n "$NAMESPACE" delete kurainstance "${RELEASE}-kura" --ignore-not-found --wait=true --timeout 5m || true
-          fi
-          if helm status "$RELEASE" --namespace "$NAMESPACE" >/dev/null 2>&1; then
-            helm uninstall "$RELEASE" --namespace "$NAMESPACE" --wait --timeout 5m || true
-          fi
-          if kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
-            kubectl delete namespace "$NAMESPACE" --wait=true --timeout 5m || true
-          fi
+    uses: ./.github/workflows/preview-deploy-impl.yml
+    secrets: inherit
+    with:
+      action: ${{ needs.resolve.outputs.action }}
+      source: slack
+      slug: ${{ needs.resolve.outputs.slug }}
+      release: ${{ needs.resolve.outputs.release }}
+      namespace: ${{ needs.resolve.outputs.namespace }}
+      host: ${{ needs.resolve.outputs.host }}
+      ref: ${{ needs.resolve.outputs.ref }}
+      ttl_hours: ${{ fromJSON(needs.resolve.outputs.ttl_hours) }}
+      expires_at: ${{ needs.resolve.outputs.expires_at }}
+      profile: ${{ needs.resolve.outputs.profile }}
+      requester_email: ${{ inputs.requester_email }}
+      requester_slack_id: ${{ inputs.requester_slack_id }}
+      reason: ${{ inputs.reason }}
+      kura_instance_replicas: ${{ fromJSON(needs.resolve.outputs.kura_instance_replicas) }}
+      kura_controller_image_tag: ${{ inputs.kura_controller_image_tag }}
+      kura_runtime_image_tag: ${{ inputs.kura_runtime_image_tag }}
