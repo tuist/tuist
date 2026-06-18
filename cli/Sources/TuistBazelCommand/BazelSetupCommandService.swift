@@ -76,6 +76,7 @@ public struct BazelSetupCommandService: BazelSetupCommandServicing {
             .alert(
                 "Generated \(bazelrcPath.pathString)",
                 takeaways: [
+                    "Bazel remote cache: \(remoteCache)",
                     "Add 'try-import %workspace%/.bazelrc.tuist' to your .bazelrc to enable the Tuist remote cache",
                 ]
             )
@@ -96,7 +97,10 @@ public struct BazelSetupCommandService: BazelSetupCommandServicing {
         accountHandle: String?
     ) async throws -> (remoteCache: String, credentialHelperHost: String) {
         if let grpcEndpoint = Environment.current.variables["TUIST_CACHE_GRPC_ENDPOINT"] {
-            guard let host = URL(string: grpcEndpoint)?.host else {
+            guard let url = URL(string: grpcEndpoint),
+                  let host = url.host,
+                  url.scheme == "grpc" || url.scheme == "grpcs"
+            else {
                 throw BazelSetupCommandServiceError.invalidCacheEndpoint(grpcEndpoint)
             }
             return (grpcEndpoint, host)
@@ -156,7 +160,8 @@ public enum BazelSetupCommandServiceError: LocalizedError, Equatable {
             return
                 "The project full handle is required. Set 'project' in your tuist.toml or 'fullHandle' in your Tuist.swift."
         case let .invalidCacheEndpoint(endpoint):
-            return "The cache endpoint \(endpoint) is invalid."
+            return
+                "The cache endpoint \(endpoint) is invalid. Expected a valid URL with a host; gRPC overrides (TUIST_CACHE_GRPC_ENDPOINT) must use the grpc:// or grpcs:// scheme."
         }
     }
 }

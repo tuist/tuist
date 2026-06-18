@@ -187,6 +187,46 @@ struct BazelSetupCommandServiceTests {
     }
 
     @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
+    func run_short_circuits_to_the_grpc_endpoint_override_without_a_port() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let (subject, serverAuthenticationController, _) = makeSubject()
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("token"))
+        Environment.mocked?.variables["TUIST_CACHE_GRPC_ENDPOINT"] = "grpcs://custom-grpc.example.com"
+
+        // When
+        try await subject.run(directory: temporaryDirectory.pathString)
+
+        // Then
+        let scriptPath = try credentialHelperPath()
+        let bazelrcContent = try await fileSystem.readTextFile(
+            at: temporaryDirectory.appending(component: ".bazelrc.tuist")
+        )
+        #expect(bazelrcContent.contains("build --remote_cache=grpcs://custom-grpc.example.com"))
+        #expect(bazelrcContent.contains("build --credential_helper=custom-grpc.example.com=\(scriptPath.pathString)"))
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
+    func run_throws_when_the_grpc_endpoint_override_uses_a_non_grpc_scheme() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let (subject, serverAuthenticationController, _) = makeSubject()
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("token"))
+        // An http(s):// override would otherwise be written verbatim as the remote cache,
+        // sending credentials over a non-gRPC (and potentially plaintext) channel.
+        Environment.mocked?.variables["TUIST_CACHE_GRPC_ENDPOINT"] = "https://custom-grpc.example.com"
+
+        // When/Then
+        await #expect(throws: BazelSetupCommandServiceError.invalidCacheEndpoint("https://custom-grpc.example.com")) {
+            try await subject.run(directory: temporaryDirectory.pathString)
+        }
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
     func run_does_not_overwrite_an_existing_credential_helper_script() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
