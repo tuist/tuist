@@ -58,33 +58,33 @@ backend = "github:endevco/aube"
 
 [tools.aube."platforms.linux-arm64"]
 checksum = "sha256:1c47d2c0a50cf80f49aedcc2f58ce8abcbdf763092e772c8961c6e5b18916e8b"
-url = "https://github.com/endevco/aube/releases/download/v1.6.2/aube-v1.6.2-aarch64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/endevco/aube/releases/assets/410164231"
+url = "https://github.com/jdx/aube/releases/download/v1.6.2/aube-v1.6.2-aarch64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/jdx/aube/releases/assets/410164231"
 
 [tools.aube."platforms.linux-arm64-musl"]
 checksum = "sha256:9780776921db3a54fc3237f50b9686489d93115e26584c7a85d54ce96a8e9b39"
-url = "https://github.com/endevco/aube/releases/download/v1.6.2/aube-v1.6.2-aarch64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/endevco/aube/releases/assets/410164229"
+url = "https://github.com/jdx/aube/releases/download/v1.6.2/aube-v1.6.2-aarch64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/jdx/aube/releases/assets/410164229"
 
 [tools.aube."platforms.linux-x64"]
 checksum = "sha256:16fcc40dfbaac110ce8f4e88728a440f2366094a45fd6c189bcbcc2b3ea31f06"
-url = "https://github.com/endevco/aube/releases/download/v1.6.2/aube-v1.6.2-x86_64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/endevco/aube/releases/assets/410164107"
+url = "https://github.com/jdx/aube/releases/download/v1.6.2/aube-v1.6.2-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/jdx/aube/releases/assets/410164107"
 
 [tools.aube."platforms.linux-x64-musl"]
 checksum = "sha256:2ee3821fd62b56bb39cb2ceffe6ad38975e35f82311ca7f9ec6ee28bc6d284b8"
-url = "https://github.com/endevco/aube/releases/download/v1.6.2/aube-v1.6.2-x86_64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/endevco/aube/releases/assets/410164199"
+url = "https://github.com/jdx/aube/releases/download/v1.6.2/aube-v1.6.2-x86_64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/jdx/aube/releases/assets/410164199"
 
 [tools.aube."platforms.macos-arm64"]
 checksum = "sha256:4ce92482500f77f0779f288328cb7411f7ae2441b8618eae36a2ab5ea7591a32"
-url = "https://github.com/endevco/aube/releases/download/v1.6.2/aube-v1.6.2-aarch64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/endevco/aube/releases/assets/410166750"
+url = "https://github.com/jdx/aube/releases/download/v1.6.2/aube-v1.6.2-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/jdx/aube/releases/assets/410166750"
 
 [tools.aube."platforms.windows-x64"]
 checksum = "sha256:916594efae8f8b59fc898913f96d199a21d212c7037043853ee04df7264611d0"
-url = "https://github.com/endevco/aube/releases/download/v1.6.2/aube-v1.6.2-x86_64-pc-windows-msvc.zip"
-url_api = "https://api.github.com/repos/endevco/aube/releases/assets/410174742"
+url = "https://github.com/jdx/aube/releases/download/v1.6.2/aube-v1.6.2-x86_64-pc-windows-msvc.zip"
+url_api = "https://api.github.com/repos/jdx/aube/releases/assets/410174742"
 
 [[tools.bats]]
 version = "1.11.1"
@@ -188,10 +188,40 @@ url = "https://github.com/orhun/git-cliff/releases/download/v2.6.0/git-cliff-2.6
 version = "0.32.2"
 backend = "github:pomerium/cli"
 
+[tools."github:pomerium/cli"."platforms.linux-arm64"]
+checksum = "sha256:4af2532fc0a227a4547fdf81db1a2734b606fe1e11281729d359e234d47bb254"
+url = "https://github.com/pomerium/cli/releases/download/v0.32.2/pomerium-cli-linux-arm64.tar.gz"
+url_api = "https://api.github.com/repos/pomerium/cli/releases/assets/392602607"
+
+[tools."github:pomerium/cli"."platforms.linux-arm64-musl"]
+checksum = "sha256:4af2532fc0a227a4547fdf81db1a2734b606fe1e11281729d359e234d47bb254"
+url = "https://github.com/pomerium/cli/releases/download/v0.32.2/pomerium-cli-linux-arm64.tar.gz"
+url_api = "https://api.github.com/repos/pomerium/cli/releases/assets/392602607"
+
+[tools."github:pomerium/cli"."platforms.linux-x64"]
+checksum = "sha256:af40d1a73daa7fdca44c88add8a407014b36dc939588422e973998684dd88014"
+url = "https://github.com/pomerium/cli/releases/download/v0.32.2/pomerium-cli-linux-amd64.tar.gz"
+url_api = "https://api.github.com/repos/pomerium/cli/releases/assets/392602609"
+
+[tools."github:pomerium/cli"."platforms.linux-x64-musl"]
+checksum = "sha256:af40d1a73daa7fdca44c88add8a407014b36dc939588422e973998684dd88014"
+url = "https://github.com/pomerium/cli/releases/download/v0.32.2/pomerium-cli-linux-amd64.tar.gz"
+url_api = "https://api.github.com/repos/pomerium/cli/releases/assets/392602609"
+
 [tools."github:pomerium/cli"."platforms.macos-arm64"]
 checksum = "sha256:83140cab47cb8fbd0fd911d0d94a9d3ef9fc90ad506381aa84a1f298c0503f11"
 url = "https://github.com/pomerium/cli/releases/download/v0.32.2/pomerium-cli-darwin-arm64.zip"
 url_api = "https://api.github.com/repos/pomerium/cli/releases/assets/392607088"
+
+[tools."github:pomerium/cli"."platforms.macos-x64"]
+checksum = "sha256:3440b1a98db648292bf3cffab10850c2ee724a328d5fe520ce6f61813d7cb27f"
+url = "https://github.com/pomerium/cli/releases/download/v0.32.2/pomerium-cli-darwin-amd64.zip"
+url_api = "https://api.github.com/repos/pomerium/cli/releases/assets/392607114"
+
+[tools."github:pomerium/cli"."platforms.windows-x64"]
+checksum = "sha256:55f85cfc05fa4f62751f69f3a70d95c3dde25395ca9c56729ecf659212135e05"
+url = "https://github.com/pomerium/cli/releases/download/v0.32.2/pomerium-cli-windows-amd64.zip"
+url_api = "https://api.github.com/repos/pomerium/cli/releases/assets/392601582"
 
 [[tools."github:tuist/blick"]]
 version = "0.8.0"
@@ -307,30 +337,37 @@ backend = "aqua:jqlang/jq"
 [tools.jq."platforms.linux-arm64"]
 checksum = "sha256:6bc62f25981328edd3cfcfe6fe51b073f2d7e7710d7ef7fcdac28d4e384fc3d4"
 url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-arm64"
+provenance = "github-attestations"
 
 [tools.jq."platforms.linux-arm64-musl"]
 checksum = "sha256:6bc62f25981328edd3cfcfe6fe51b073f2d7e7710d7ef7fcdac28d4e384fc3d4"
 url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-arm64"
+provenance = "github-attestations"
 
 [tools.jq."platforms.linux-x64"]
 checksum = "sha256:020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d"
 url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-amd64"
+provenance = "github-attestations"
 
 [tools.jq."platforms.linux-x64-musl"]
 checksum = "sha256:020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d"
 url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-amd64"
+provenance = "github-attestations"
 
 [tools.jq."platforms.macos-arm64"]
 checksum = "sha256:a9fe3ea2f86dfc72f6728417521ec9067b343277152b114f4e98d8cb0e263603"
 url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-macos-arm64"
+provenance = "github-attestations"
 
 [tools.jq."platforms.macos-x64"]
 checksum = "sha256:e80dbe0d2a2597e3c11c404f03337b981d74b4a8504b70586c354b7697a7c27f"
 url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-macos-amd64"
+provenance = "github-attestations"
 
 [tools.jq."platforms.windows-x64"]
 checksum = "sha256:23cb60a1354eed6bcc8d9b9735e8c7b388cd1fdcb75726b93bc299ef22dd9334"
 url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-windows-amd64.exe"
+provenance = "github-attestations"
 
 [[tools.kubectl]]
 version = "1.36.1"

@@ -205,11 +205,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise-install
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "rust shellspec bazel aqua:facebook/buck2"
-          working_directory: kura
+          install: "rust shellspec bazel aqua:facebook/buck2"
+          working-directory: kura
 
       - name: Show Docker tooling
         run: docker compose version

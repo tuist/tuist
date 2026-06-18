@@ -82,7 +82,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "helm kubectl"
+          install_args: "--locked helm kubectl"
           cache: "false"
       - uses: 1password/install-cli-action@v2
       - name: Load kubeconfig from 1Password
