@@ -57,6 +57,10 @@ extension FileSystem {
 
     /// Remove the item at `url`. No-op if absent.
     func removePath(_ url: URL) async throws {
+        if isSymlink(url) {
+            try unlinkPath(url)
+            return
+        }
         try await remove(url.absolutePath)
     }
 
@@ -80,6 +84,26 @@ extension FileSystem {
     func existsIncludingSymlinks(_ url: URL) -> Bool {
         var stats = stat()
         return url.path.withCString { lstat($0, &stats) } == 0
+    }
+
+    func isSymlink(_ url: URL) -> Bool {
+        var stats = stat()
+        let result = url.path.withCString { lstat($0, &stats) }
+        guard result == 0 else { return false }
+        return (stats.st_mode & S_IFMT) == S_IFLNK
+    }
+
+    private func unlinkPath(_ url: URL) throws {
+        let result = url.path.withCString { unlink($0) }
+        guard result != -1 || errno == ENOENT else {
+            let message: String
+            if let cString = strerror(errno) {
+                message = String(cString: cString)
+            } else {
+                message = "unknown error"
+            }
+            throw ToolError.message("failed to remove \(url.path): \(message)")
+        }
     }
 
     /// Create a temporary directory underneath `parent` and return its URL.
