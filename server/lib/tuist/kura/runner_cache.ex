@@ -166,7 +166,7 @@ defmodule Tuist.Kura.RunnerCache do
 
   defp collect_enabled_candidates(_base, region_id, _cursor, enabled_ids, 0) do
     Logger.warning("kura.runner_cache: provision candidate scan hit the per-tick page cap",
-      pages: @max_provision_pages_per_tick,
+      cap: @max_provision_pages_per_tick,
       region: region_id
     )
 
