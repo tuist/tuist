@@ -982,33 +982,47 @@ func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 	if grpcIngress.Spec.IngressClassName == nil || *grpcIngress.Spec.IngressClassName != "kura-eu-central" {
 		t.Fatalf("expected gRPC ingress class kura-eu-central, got %v", grpcIngress.Spec.IngressClassName)
 	}
-	if got := grpcIngress.Spec.TLS[0].SecretName; got != grpcTLSSecretName(instance) {
-		t.Fatalf("expected gRPC ingress to terminate with cert-manager Secret, got %q", got)
+	// gRPC co-hosts on the public host: it declares no TLS of its own and
+	// relies on the public Ingress's certificate for the shared host.
+	if len(grpcIngress.Spec.TLS) != 0 {
+		t.Fatalf("expected gRPC ingress to declare no TLS (public ingress covers the host), got %v", grpcIngress.Spec.TLS)
 	}
-	if got := grpcIngress.Spec.Rules[0].Host; got != "grpc.tuist-eu-1.kura.tuist.dev" {
-		t.Fatalf("expected gRPC ingress host, got %q", got)
+	if got := grpcIngress.Spec.Rules[0].Host; got != "tuist-eu-1.kura.tuist.dev" {
+		t.Fatalf("expected gRPC ingress to co-host on the public host, got %q", got)
 	}
-	backend := grpcIngress.Spec.Rules[0].HTTP.Paths[0].Backend.Service
-	if backend == nil || backend.Name != instance.Name || backend.Port.Name != "grpc" {
-		t.Fatalf("expected gRPC ingress to route to %s:grpc, got %#v", instance.Name, backend)
+	gotPaths := []string{}
+	for _, p := range grpcIngress.Spec.Rules[0].HTTP.Paths {
+		gotPaths = append(gotPaths, p.Path)
+		if p.PathType == nil || *p.PathType != networkingv1.PathTypeImplementationSpecific {
+			t.Fatalf("expected gRPC ingress paths to be ImplementationSpecific, got %v", p.PathType)
+		}
+		backend := p.Backend.Service
+		if backend == nil || backend.Name != instance.Name || backend.Port.Name != "grpc" {
+			t.Fatalf("expected gRPC ingress path to route to %s:grpc, got %#v", instance.Name, backend)
+		}
+	}
+	wantPaths := []string{`^/build\.bazel\.remote\.execution\.v2\.`, `^/google\.bytestream\.`}
+	if len(gotPaths) != len(wantPaths) {
+		t.Fatalf("expected gRPC ingress to expose the REAPI/ByteStream prefixes, got %v", gotPaths)
+	}
+	for i, want := range wantPaths {
+		if gotPaths[i] != want {
+			t.Fatalf("expected gRPC ingress path %d to be %q, got %q", i, want, gotPaths[i])
+		}
 	}
 	if got := grpcIngress.Annotations["nginx.ingress.kubernetes.io/backend-protocol"]; got != "GRPC" {
 		t.Fatalf("expected gRPC ingress backend protocol, got %q", got)
 	}
+	if got := grpcIngress.Annotations["nginx.ingress.kubernetes.io/use-regex"]; got != "true" {
+		t.Fatalf("expected gRPC ingress to enable regex path matching, got %q", got)
+	}
 
+	// The dedicated gRPC certificate and its Secret are retired; the public
+	// certificate covers the shared host.
 	cert := &unstructured.Unstructured{}
 	cert.SetGroupVersionKind(certificateGVK())
-	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcTLSSecretName(instance), Namespace: instance.Namespace}, cert); err != nil {
-		t.Fatalf("expected cert-manager Certificate to be created: %v", err)
-	}
-	if got, _, _ := unstructured.NestedString(cert.Object, "spec", "secretName"); got != grpcTLSSecretName(instance) {
-		t.Fatalf("expected Certificate secretName, got %q", got)
-	}
-	if got, _, _ := unstructured.NestedString(cert.Object, "spec", "issuerRef", "name"); got != "letsencrypt-prod" {
-		t.Fatalf("expected ClusterIssuer ref, got %q", got)
-	}
-	if got, _, _ := unstructured.NestedStringSlice(cert.Object, "spec", "dnsNames"); len(got) != 1 || got[0] != "grpc.tuist-eu-1.kura.tuist.dev" {
-		t.Fatalf("expected gRPC Certificate dnsNames to include the regional host, got %v", got)
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcTLSSecretName(instance), Namespace: instance.Namespace}, cert); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected no dedicated gRPC Certificate, got %v", err)
 	}
 
 	sts := &appsv1.StatefulSet{}
@@ -1036,8 +1050,8 @@ func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, updated); err != nil {
 		t.Fatal(err)
 	}
-	if got := updated.Status.GRPCPublicURL; got != "grpcs://grpc.tuist-eu-1.kura.tuist.dev" {
-		t.Fatalf("expected gRPC public URL in status, got %q", got)
+	if got := updated.Status.GRPCPublicURL; got != "grpcs://tuist-eu-1.kura.tuist.dev" {
+		t.Fatalf("expected gRPC public URL in status to co-host on the public host, got %q", got)
 	}
 }
 
