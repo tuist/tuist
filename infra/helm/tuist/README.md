@@ -85,8 +85,19 @@ Some cluster-specific fixes are intentionally opt-in:
 
 - `cache.podSecurityContext` is empty by default. Set `fsGroup` only if your storage class needs it.
 - `clickhouse.embedded.service.nativePort` defaults to ClickHouse's standard `9000` service port and can be overridden for mesh or port-allocation conflicts.
+- `clickhouse.external.pingUrl` lets the migration job wait for an external ClickHouse instance through a dedicated `/ping` URL when `clickhouse.external.url` includes a database path.
 
-Example:
+External ClickHouse example:
+
+```yaml
+clickhouse:
+  mode: external
+  external:
+    url: http://user:password@clickhouse.example.com:8123/tuist
+    pingUrl: http://clickhouse.example.com:8123/ping
+```
+
+Embedded compatibility override example:
 
 ```yaml
 cache:

@@ -1524,6 +1524,11 @@ clickhouse:
   mode: embedded
   external:
     url: ""
+    # Optional separate URL for the readiness probe ping check.
+    # When external.url includes a database path (e.g. http://user@host:8123/db),
+    # the /ping endpoint returns 404. Set this to http://<host>:8123/ping to use
+    # a dedicated health-check URL instead.
+    pingUrl: ""
   embedded:
     image:
       repository: clickhouse/clickhouse-server

@@ -300,6 +300,8 @@ http://{{ include "tuist.componentName" (dict "root" . "component" "clickhouse")
 {{- define "tuist.clickhouseReadyUrl" -}}
 {{- if eq .Values.clickhouse.mode "embedded" -}}
 http://{{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }}:8123/ping
+{{- else if .Values.clickhouse.external.pingUrl -}}
+{{- .Values.clickhouse.external.pingUrl -}}
 {{- else -}}
 {{- .Values.clickhouse.external.url -}}
 {{- end -}}
