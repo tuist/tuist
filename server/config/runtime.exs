@@ -540,7 +540,14 @@ crontab = RuntimeConfig.crontab(mode, env, Tuist.Environment.tuist_hosted?())
 config :tuist, Oban,
   queues: oban_queues,
   plugins: [
-    {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
+    # Retain completed jobs just long enough to outlive the
+    # AutomationScheduler per-alert dedup window: it skips re-enqueuing an
+    # evaluation that ran within the alert's `cadence`, which is validated
+    # to <= 1h (Tuist.Automations.Alerts.Alert). 2h keeps a 2x margin over
+    # that cap while holding oban_jobs at tens of thousands of rows. `limit`
+    # lets one pass clear the steady churn (the :default queue alone
+    # produces millions/week).
+    {Oban.Plugins.Pruner, max_age: 60 * 60 * 2, limit: 50_000},
     {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
     {Oban.Plugins.Cron, crontab: crontab}
   ]

@@ -176,6 +176,11 @@ postgresql:
     # chart renders them to `spec.postgresql.shared_preload_libraries`.
     sharedPreloadLibraries:
       - pg_stat_statements
+    # Expose pg_stat_statements as query-latency metrics. The library above
+    # is loaded; create the extension once via infra/cnpg/pg-stat-statements.sql.
+    # Powers the dashboard's read/write query-latency panels.
+    queryStats:
+      enabled: true
     storage:
       # Steady-state usage is ~30-40 GiB; oversized to absorb WAL spikes
       # during large background operations (REINDEX, VACUUM FULL, bulk
