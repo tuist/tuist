@@ -574,7 +574,7 @@ kuraFleet:
     # finds the PN by name in the env's Scaleway project and creates it from the
     # CIDR if it doesn't exist. The name is shared across envs (each lives in its
     # own project, so there's no collision).
-    privateNetworkName: kura-runner-cache
+    privateNetworkName: tuist-runner-cache
     privateNetworkCIDR: 172.16.0.0/22
 
 # Scaling: `kubectl scale machinedeployment <name> --replicas=N`.
