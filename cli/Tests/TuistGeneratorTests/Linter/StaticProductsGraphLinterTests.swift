@@ -1235,6 +1235,55 @@ class StaticProductsGraphLinterTests: XCTestCase {
 //        XCTAssertEqual(results, [])
 //    }
 
+    func test_lint_whenLongDependencyChainDoesNotRecurse() throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let frameworkCount = 20000
+        let app = Target.test(name: "App")
+        let frameworkNames = (0 ..< frameworkCount).map { "Framework\($0)" }
+        let frameworks = frameworkNames.map { Target.test(name: $0, product: .framework) }
+        let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
+        let project = Project.test(
+            path: path,
+            name: "Project",
+            targets: [app] + frameworks + [staticFramework]
+        )
+
+        let targetDependency: (String) -> GraphDependency = {
+            GraphDependency.target(name: $0, path: path)
+        }
+        let appDependency = targetDependency(app.name)
+        let staticFrameworkDependency = targetDependency(staticFramework.name)
+        let frameworkDependencies = frameworkNames.map(targetDependency)
+
+        var dependencies: [GraphDependency: Set<GraphDependency>] = [:]
+        dependencies[appDependency] = [frameworkDependencies[0]]
+        dependencies[staticFrameworkDependency] = []
+
+        for index in 0 ..< frameworkCount {
+            let successor: GraphDependency
+            if index == frameworkCount - 1 {
+                successor = staticFrameworkDependency
+            } else {
+                successor = frameworkDependencies[index + 1]
+            }
+            dependencies[frameworkDependencies[index]] = [successor]
+        }
+
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let results = subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
+
+        // Then
+        XCTAssertEqual(results, [LintingIssue]())
+    }
+
     // MARK: - Helpers
 
     private func warning(product node: String, type: String = "Target", linkedBy: [GraphDependency]) -> LintingIssue {

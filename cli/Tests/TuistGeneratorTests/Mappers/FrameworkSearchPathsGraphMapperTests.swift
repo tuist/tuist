@@ -75,9 +75,6 @@ final class FrameworkSearchPathsGraphMapperTests: TuistUnitTestCase {
         let responseFileDirectory = projectPath.appending(components: "Derived", "FrameworkSearchPaths")
         let activeResponseFilePath = responseFileDirectory.appending(component: "App.resp")
         let staleResponseFilePath = responseFileDirectory.appending(component: "DeletedTarget.resp")
-        try await fileSystem.makeDirectory(at: responseFileDirectory)
-        try await fileSystem.touch(activeResponseFilePath)
-        try await fileSystem.touch(staleResponseFilePath)
 
         let app = Target.test(name: "App", product: .app)
         let project = Project.test(path: projectPath, sourceRootPath: projectPath, targets: [app])
@@ -102,12 +99,11 @@ final class FrameworkSearchPathsGraphMapperTests: TuistUnitTestCase {
         let (_, sideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        XCTAssertTrue(
-            sideEffects.contains(.file(.init(path: staleResponseFilePath, state: .absent)))
-        )
-        XCTAssertFalse(
-            sideEffects.contains(.file(.init(path: activeResponseFilePath, state: .absent)))
-        )
+        let cleanupDescriptor = try XCTUnwrap(generatedFilesCleanupDescriptor(in: sideEffects))
+        XCTAssertEqual(cleanupDescriptor.include, ["*.resp"])
+        XCTAssertTrue(cleanupDescriptor.directories.contains(responseFileDirectory))
+        XCTAssertEqual(cleanupDescriptor.activeFilesByDirectory[responseFileDirectory], Set([activeResponseFilePath]))
+        XCTAssertFalse(cleanupDescriptor.activeFilesByDirectory[responseFileDirectory]?.contains(staleResponseFilePath) ?? false)
         XCTAssertTrue(
             sideEffects.contains { sideEffect in
                 guard case let .file(fileDescriptor) = sideEffect else { return false }
@@ -140,7 +136,14 @@ final class FrameworkSearchPathsGraphMapperTests: TuistUnitTestCase {
         let settings = try XCTUnwrap(mappedGraph.projects[projectPath]?.targets["App"]?.settings)
         XCTAssertTrue(arrayValue(settings.base["FRAMEWORK_SEARCH_PATHS"]).contains("$(SRCROOT)/Frameworks/hash0"))
         XCTAssertNil(settings.base["OTHER_CFLAGS"])
-        XCTAssertTrue(sideEffects.isEmpty)
+        XCTAssertTrue(fileDescriptors(in: sideEffects).isEmpty)
+        let cleanupDescriptor = try XCTUnwrap(generatedFilesCleanupDescriptor(in: sideEffects))
+        XCTAssertEqual(cleanupDescriptor.include, ["*.resp"])
+        XCTAssertTrue(
+            cleanupDescriptor.directories.contains(
+                projectPath.appending(components: "Derived", "FrameworkSearchPaths")
+            )
+        )
     }
 
     private func arrayValue(_ value: SettingValue?) -> [String] {
@@ -149,5 +152,21 @@ final class FrameworkSearchPathsGraphMapperTests: TuistUnitTestCase {
         case let .string(value): return [value]
         case nil: return []
         }
+    }
+
+    private func fileDescriptors(in sideEffects: [SideEffectDescriptor]) -> [FileDescriptor] {
+        sideEffects.compactMap { sideEffect in
+            guard case let .file(descriptor) = sideEffect else { return nil }
+            return descriptor
+        }
+    }
+
+    private func generatedFilesCleanupDescriptor(
+        in sideEffects: [SideEffectDescriptor]
+    ) -> GeneratedFilesCleanupDescriptor? {
+        sideEffects.compactMap { sideEffect in
+            guard case let .generatedFilesCleanup(descriptor) = sideEffect else { return nil }
+            return descriptor
+        }.first
     }
 }

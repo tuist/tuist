@@ -111,6 +111,39 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// minis use whatever default tag the auth key carries.
 	TailscaleTags []string
 
+	// TailscaleAcceptRoutes makes every Mac mini run `tailscale up
+	// --accept-routes`, installing the subnet routes the cluster's
+	// Connector advertises (the Service CIDR) so Tart runner VMs can
+	// reach the in-cluster Kura runner-cache Service. See
+	// bootstrap.Config.TailscaleAcceptRoutes for the single-
+	// advertiser caveat.
+	TailscaleAcceptRoutes bool
+
+	// VMKuraEgressCIDR / VMClusterDNSIP parameterize the VM egress
+	// firewall's runner-cache carve-out (Kura ports on the Service
+	// CIDR + cluster DNS). Empty leaves the firewall as a pure
+	// blocklist. See the bootstrap.Config fields of the same names.
+	VMKuraEgressCIDR string
+	VMClusterDNSIP   string
+
+	// VMCachePNName / VMCachePNCIDR configure the Scaleway Private
+	// Network carrying the kura runner-cache NodePort endpoints.
+	// When both are set, the reconciler resolves the PN by name
+	// through VPC (creating it from the CIDR if absent), ensures every
+	// Mac mini is attached to it (Apple Silicon Private Networks API, a
+	// no-reboot operation), resolves the per-host VLAN, and bootstrap
+	// materializes the VLAN interface + firewall pass + VM NAT. Empty
+	// disables the PN data plane. See
+	// bootstrap.Config.VMCachePNCIDR / VMCachePNVLAN.
+	VMCachePNName string
+	VMCachePNCIDR string
+
+	// VPC find-or-creates the runner-cache Private Network the Mac
+	// fleet shares with the Elastic Metal cache node, resolving
+	// VMCachePNName to an ID. Same shared client as the EM reconciler,
+	// so the two fleets land on one PN per env.
+	VPC *scaleway.VPCClient
+
 	// TartKubelet host advertising — passed into bootstrap which bakes
 	// them into the launchd plist on each Mac mini.
 	TartKubeletHostCPU      int
@@ -502,7 +535,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 
-		identity, err := r.CredentialsManager.EnsureNodeIdentity(ctx, machine.Name)
+		identity, err := r.CredentialsManager.EnsureNodeIdentity(ctx, machine.Name, "")
 		if err != nil {
 			conditions.MarkFalse(machine, BootstrappedCondition, "NodeIdentityUnavailable",
 				clusterv1.ConditionSeverityWarning, "%v", err)
@@ -537,26 +570,38 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			}
 		}
 
+		vmCachePNVLAN, err := r.ensureVMCachePN(ctx, machine)
+		if err != nil {
+			conditions.MarkFalse(machine, BootstrappedCondition, "CachePrivateNetworkUnavailable",
+				clusterv1.ConditionSeverityWarning, "%v", err)
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+
 		fingerprint, err := bootstrap.Run(ctx, bootstrap.Config{
-			IP:                   ip,
-			SSHUser:              bootstrapCreds.SSHUsername,
-			UserPassword:         bootstrapCreds.SudoPassword,
-			SSHPrivateKey:        sshKey,
-			NodeName:             machine.Name,
-			ProviderID:           providerIDOf(machine),
-			Kubeconfig:           kubeconfigYAML,
-			TartKubeletBinary:    r.TartKubeletBinary,
-			TartTarball:          r.TartTarball,
-			TailscaleBinaries:    r.TailscaleBinaries,
-			TailscaleAuthKey:     tailscaleAuthKey,
-			TailscaleTags:        r.TailscaleTags,
-			NodeExporterBinary:   r.NodeExporterBinary,
-			HostCPU:              hostCPUFor(machine, r.TartKubeletHostCPU),
-			HostMemoryMB:         hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
-			MaxPods:              r.TartKubeletMaxPods,
-			NodeLabels:           machineNodeLabels(machine),
-			KnownHostFingerprint: bootstrapCreds.HostFingerprint,
-			GHActionsRunner:      ghRunner,
+			IP:                    ip,
+			SSHUser:               bootstrapCreds.SSHUsername,
+			UserPassword:          bootstrapCreds.SudoPassword,
+			SSHPrivateKey:         sshKey,
+			NodeName:              machine.Name,
+			ProviderID:            providerIDOf(machine),
+			Kubeconfig:            kubeconfigYAML,
+			TartKubeletBinary:     r.TartKubeletBinary,
+			TartTarball:           r.TartTarball,
+			TailscaleBinaries:     r.TailscaleBinaries,
+			TailscaleAuthKey:      tailscaleAuthKey,
+			TailscaleTags:         r.TailscaleTags,
+			TailscaleAcceptRoutes: r.TailscaleAcceptRoutes,
+			VMKuraEgressCIDR:      r.VMKuraEgressCIDR,
+			VMClusterDNSIP:        r.VMClusterDNSIP,
+			VMCachePNCIDR:         r.VMCachePNCIDR,
+			VMCachePNVLAN:         vmCachePNVLAN,
+			NodeExporterBinary:    r.NodeExporterBinary,
+			HostCPU:               hostCPUFor(machine, r.TartKubeletHostCPU),
+			HostMemoryMB:          hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
+			MaxPods:               r.TartKubeletMaxPods,
+			NodeLabels:            machineNodeLabels(machine),
+			KnownHostFingerprint:  bootstrapCreds.HostFingerprint,
+			GHActionsRunner:       ghRunner,
 		})
 		// Persist whatever fingerprint Run captured even on the error
 		// path, so a transient bootstrap failure doesn't lose the
@@ -607,7 +652,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		if ip == "" {
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
-		identity, err := r.CredentialsManager.EnsureNodeIdentity(ctx, machine.Name)
+		identity, err := r.CredentialsManager.EnsureNodeIdentity(ctx, machine.Name, "")
 		if err != nil {
 			recordUpdateFailure(machine, fmt.Errorf("ensure node identity: %w", err), r.TartKubeletMaxUpdateAttempts, logger, r.Recorder)
 			if machine.Status.FailureReason != nil {
@@ -638,6 +683,15 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 
+		vmCachePNVLAN, err := r.ensureVMCachePN(ctx, machine)
+		if err != nil {
+			// Zero VLAN skips interface management but keeps the
+			// firewall pass rule; don't let a transient Scaleway API
+			// error stall a kubelet binary roll.
+			logger.Error(err, "resolve cache private network VLAN; continuing drift update without interface management")
+			vmCachePNVLAN = 0
+		}
+
 		fingerprint, err := bootstrap.UpdateTartKubelet(ctx, bootstrap.Config{
 			IP:                ip,
 			SSHUser:           bootstrapCreds.SSHUsername,
@@ -648,6 +702,17 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			TartKubeletBinary: r.TartKubeletBinary,
 			TailscaleBinaries: r.TailscaleBinaries,
 			TailscaleAuthKey:  tailscaleAuthKey,
+			// Tailscale + firewall config rides the drift loop too —
+			// UpdateTartKubelet re-runs installTailscale and
+			// installVMEgressFirewall, so an accept-routes or
+			// carve-out values change lands on existing minis with
+			// the next operator-image roll instead of waiting for
+			// re-provisioning.
+			TailscaleAcceptRoutes: r.TailscaleAcceptRoutes,
+			VMKuraEgressCIDR:      r.VMKuraEgressCIDR,
+			VMClusterDNSIP:        r.VMClusterDNSIP,
+			VMCachePNCIDR:         r.VMCachePNCIDR,
+			VMCachePNVLAN:         vmCachePNVLAN,
 			// node_exporter is re-installed on every drift-loop run,
 			// not just on first bootstrap, so a chart-driven binary
 			// bump (NODE_EXPORTER_VERSION ARG in the operator
@@ -1162,6 +1227,21 @@ func machineIP(m *infrav1.ScalewayAppleSiliconMachine) string {
 // (scw-applesilicon://<zone>/<id>), set once the server is ordered or
 // adopted. Empty until then — bootstrap renders no --provider-id flag
 // and a later reconcile re-renders the plist once it's known.
+// ensureVMCachePN resolves the per-host VLAN of the runner-cache
+// Private Network attachment, attaching the server first if needed.
+// Returns 0 (and no error) when the PN data plane is not configured
+// or the machine has no Scaleway server yet.
+func (r *ScalewayAppleSiliconMachineReconciler) ensureVMCachePN(ctx context.Context, machine *infrav1.ScalewayAppleSiliconMachine) (uint32, error) {
+	if r.VMCachePNName == "" || r.VMCachePNCIDR == "" || machine.Status.ServerID == "" {
+		return 0, nil
+	}
+	pnID, err := r.VPC.EnsurePrivateNetworkByName(ctx, scaleway.RegionFromZoneString(machine.Spec.Zone), r.VMCachePNName, r.VMCachePNCIDR)
+	if err != nil {
+		return 0, err
+	}
+	return r.ScalewayClient.EnsureServerPrivateNetwork(ctx, machine.Status.ServerID, machine.Spec.Zone, pnID)
+}
+
 func providerIDOf(m *infrav1.ScalewayAppleSiliconMachine) string {
 	if m.Spec.ProviderID == nil {
 		return ""

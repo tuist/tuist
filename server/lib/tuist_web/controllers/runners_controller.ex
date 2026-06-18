@@ -32,10 +32,11 @@ defmodule TuistWeb.RunnersController do
             jit: jit,
             account: account,
             workflow_job_id: workflow_job_id,
-            fleet_on_cluster_network: on_cluster_network
+            fleet_on_cluster_network: on_cluster_network,
+            fleet_platform: fleet_platform
           }} <-
            Runners.dispatch_for_sa(ns, sa_name) do
-      json(conn, dispatch_response(jit, account, workflow_job_id, on_cluster_network))
+      json(conn, dispatch_response(jit, account, workflow_job_id, on_cluster_network, fleet_platform))
     else
       {:error, :no_work_yet} ->
         send_resp(conn, :no_content, "")
@@ -143,11 +144,18 @@ defmodule TuistWeb.RunnersController do
   # Only fleets on the cluster pod network get the URL: it's a
   # `*.svc.cluster.local` address, and clients treat
   # `TUIST_CACHE_ENDPOINT` as a hard override rather than a hint, so
-  # handing it to a runtime that can't reach it (today: macOS Tart VMs
-  # on vmnet) breaks caching instead of degrading it. The capability
-  # lives in `Catalog.fleet_on_cluster_network?/1` — macOS is excluded
-  # by its current runtime, not by policy.
-  defp dispatch_response(jit, account, workflow_job_id, fleet_on_cluster_network) do
+  # handing it to a runtime that can't reach it breaks caching instead
+  # of degrading it. Two gates compose here:
+  #
+  #   * reachability — `Catalog.fleet_on_cluster_network?/1`, threaded
+  #     in by `serve_claim`: can this fleet's runtime resolve and route
+  #     `*.svc.cluster.local` at all (Linux kata Pods always; macOS
+  #     Tart VMs only in environments that wired the tailnet route).
+  #   * locality — the fleet's platform, which
+  #     `runner_cache_endpoint_url/2` matches against the private
+  #     region's `runner_platforms`, so a node co-located with one
+  #     fleet never serves a fleet on the wrong side of a WAN.
+  defp dispatch_response(jit, account, workflow_job_id, fleet_on_cluster_network, fleet_platform) do
     base = %{
       encoded_jit_config: jit,
       owner: account.name,
@@ -155,7 +163,9 @@ defmodule TuistWeb.RunnersController do
     }
 
     with true <- fleet_on_cluster_network,
-         url when is_binary(url) and url != "" <- Tuist.Kura.runner_cache_endpoint_url(account) do
+         true <- fleet_platform in [:linux, :macos],
+         url when is_binary(url) and url != "" <-
+           Tuist.Kura.runner_cache_endpoint_url(account, fleet_platform) do
       Map.put(base, :cache_endpoint_url, url)
     else
       _ -> base

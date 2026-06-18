@@ -1,0 +1,67 @@
+load("@build_bazel_rules_swift//swift:swift.bzl", "swift_binary", "swift_library", "swift_test")
+load("@rules_apple//apple:macos.bzl", "macos_command_line_application")
+load("@rules_apple//apple:versioning.bzl", "apple_bundle_version")
+
+swift_library(
+    name = "swifterpm_sources",
+    srcs = glob([
+        "Sources/swifterpm/*.swift",
+    ]),
+    module_name = "SwifterPMCore",
+    deps = [
+        "@swift_argument_parser//:ArgumentParser",
+        "@swiftpkg_swift_subprocess//:Subprocess",
+        "@swiftpkg_filesystem//:FileSystem",
+        "@swiftpkg_path//:Path",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+swift_library(
+    name = "swifterpm_app_sources",
+    srcs = ["Sources/swifterpmCLI/main.swift"],
+    deps = [
+        ":swifterpm_sources",
+        "@swift_argument_parser//:ArgumentParser",
+    ],
+)
+
+swift_test(
+    name = "swifterpm_tests",
+    data = glob(["Tests/swifterpmTests/Fixtures/**"]),
+    discover_tests = False,
+    srcs = glob(["Tests/swifterpmTests/*.swift"]),
+    deps = [
+        ":swifterpm_sources",
+        "@swift_argument_parser//:ArgumentParser",
+        "@swiftpkg_swift_subprocess//:Subprocess",
+        "@swiftpkg_filesystem//:FileSystem",
+        "@swiftpkg_path//:Path",
+    ],
+)
+
+swift_binary(
+    name = "swifterpm",
+    srcs = ["Sources/swifterpmCLI/main.swift"],
+    deps = [
+        ":swifterpm_sources",
+        "@swift_argument_parser//:ArgumentParser",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+apple_bundle_version(
+    name = "swifterpm_version",
+    build_version = "0.9.0",
+    short_version_string = "0.9.0",
+)
+
+macos_command_line_application(
+    name = "swifterpm_macos",
+    bundle_id = "dev.tuist.swifterpm",
+    infoplists = [":Info.plist"],
+    minimum_os_version = "15.0",
+    version = ":swifterpm_version",
+    deps = [":swifterpm_app_sources"],
+    visibility = ["//visibility:public"],
+)

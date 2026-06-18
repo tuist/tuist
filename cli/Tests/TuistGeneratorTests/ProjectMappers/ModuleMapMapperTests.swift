@@ -179,7 +179,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         let b2ModuleMapPath = projectBPath.appending(components: "B2", "B2.module").pathString
 
         XCTAssertBetterEqual(
-            gotSideEffects.sorted(by: { $0.description < $1.description }),
+            fileSideEffects(from: gotSideEffects).sorted(by: { $0.description < $1.description }),
             [
                 .file(FileDescriptor(
                     path: combinedModuleMapPathA,
@@ -203,10 +203,6 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         let moduleMapDirectory = projectAPath.appending(components: "Derived", "ModuleMaps")
         let activeModuleMapPath = moduleMapDirectory.appending(component: "A-deps.modulemap")
         let staleModuleMapPath = moduleMapDirectory.appending(component: "DeletedTarget-deps.modulemap")
-
-        try await fileSystem.makeDirectory(at: moduleMapDirectory)
-        try await fileSystem.touch(activeModuleMapPath)
-        try await fileSystem.touch(staleModuleMapPath)
 
         let targetA = Target.test(
             name: "A",
@@ -253,18 +249,15 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertTrue(
-            gotSideEffects.contains(.file(.init(path: staleModuleMapPath, state: .absent)))
-        )
-        XCTAssertFalse(
-            gotSideEffects.contains(.file(.init(path: activeModuleMapPath, state: .absent)))
-        )
-        XCTAssertTrue(
-            gotSideEffects.contains { sideEffect in
-                guard case let .file(fileDescriptor) = sideEffect else { return false }
-                return fileDescriptor.path == activeModuleMapPath && fileDescriptor.state == .present
-            }
-        )
+        let cleanupDescriptor = try XCTUnwrap(generatedFilesCleanupDescriptor(in: gotSideEffects))
+        XCTAssertEqual(cleanupDescriptor.include, ["*-deps.modulemap"])
+        XCTAssertTrue(cleanupDescriptor.directories.contains(moduleMapDirectory))
+        XCTAssertEqual(cleanupDescriptor.activeFilesByDirectory[moduleMapDirectory], Set([activeModuleMapPath]))
+        XCTAssertFalse(cleanupDescriptor.activeFilesByDirectory[moduleMapDirectory]?.contains(staleModuleMapPath) ?? false)
+        XCTAssertTrue(fileSideEffects(from: gotSideEffects).contains { sideEffect in
+            guard case let .file(fileDescriptor) = sideEffect else { return false }
+            return fileDescriptor.path == activeModuleMapPath && fileDescriptor.state == .present
+        })
     }
 
     func test_maps_modulemap_build_flag_to_target_with_empty_settings() async throws {
@@ -388,7 +381,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         // Verify side effect: combined module map for A
         let bModuleMapPath = projectBPath.appending(components: "B", "B.module").pathString
         XCTAssertBetterEqual(
-            gotSideEffects,
+            fileSideEffects(from: gotSideEffects),
             [
                 .file(FileDescriptor(
                     path: combinedModuleMapPath,
@@ -520,7 +513,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         let combinedModuleMapPath = projectAPath.appending(components: "Derived", "ModuleMaps", "A-deps.modulemap")
         let bModuleMapPath = projectBPath.appending(components: "B", "B.module").pathString
         XCTAssertBetterEqual(
-            gotSideEffects,
+            fileSideEffects(from: gotSideEffects),
             [
                 .file(FileDescriptor(
                     path: combinedModuleMapPath,
@@ -645,14 +638,15 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
             "module-map paths under tuist-derived must not embed `..` segments through `.build/checkouts`"
         )
 
-        XCTAssertEqual(gotSideEffects.count, 1)
-        if case let .file(descriptor) = gotSideEffects.first {
-            XCTAssertEqual(descriptor.path, combinedModuleMapPath)
-            let content = try XCTUnwrap(String(data: try XCTUnwrap(descriptor.contents), encoding: .utf8))
-            XCTAssertEqual(content, "extern module B \"\(moduleMapPath.pathString)\"\n")
-        } else {
-            XCTFail("Expected file side effect for combined module map")
+        let fileDescriptors = gotSideEffects.compactMap { sideEffect -> FileDescriptor? in
+            guard case let .file(descriptor) = sideEffect else { return nil }
+            return descriptor
         }
+        XCTAssertEqual(fileDescriptors.count, 1)
+        let descriptor = try XCTUnwrap(fileDescriptors.first)
+        XCTAssertEqual(descriptor.path, combinedModuleMapPath)
+        let content = try XCTUnwrap(String(data: try XCTUnwrap(descriptor.contents), encoding: .utf8))
+        XCTAssertEqual(content, "extern module B \"\(moduleMapPath.pathString)\"\n")
     }
 
     func test_external_spm_projects_with_same_target_name_use_distinct_combined_module_maps() async throws {
@@ -795,5 +789,61 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                 derivedRoot.appending(components: "ModuleMaps", "PackageB", "Core-deps.modulemap"),
             ]
         )
+    }
+
+    func test_maps_long_dependency_chain_without_recursion() throws {
+        // Given
+        let workspace = Workspace.test()
+        let projectPath = try temporaryPath()
+        let nodeCount = 20000
+        let targets = (0 ..< nodeCount).map { index in
+            Target.test(
+                name: "Target\(index)",
+                dependencies: index + 1 < nodeCount ? [.target(name: "Target\(index + 1)")] : []
+            )
+        }
+        let project = Project.test(
+            path: projectPath,
+            name: "Project",
+            targets: targets
+        )
+        let dependencies = Dictionary(
+            uniqueKeysWithValues: (0 ..< nodeCount - 1).map { index in
+                (
+                    GraphDependency.target(name: "Target\(index)", path: projectPath),
+                    Set([GraphDependency.target(name: "Target\(index + 1)", path: projectPath)])
+                )
+            }
+        )
+
+        // Then
+        XCTAssertNoThrow(
+            try subject.map(
+                graph: .test(
+                    workspace: workspace,
+                    projects: [
+                        projectPath: project,
+                    ],
+                    dependencies: dependencies
+                ),
+                environment: MapperEnvironment()
+            )
+        )
+    }
+
+    private func fileSideEffects(from sideEffects: [SideEffectDescriptor]) -> [SideEffectDescriptor] {
+        sideEffects.compactMap { sideEffect in
+            guard case .file = sideEffect else { return nil }
+            return sideEffect
+        }
+    }
+
+    private func generatedFilesCleanupDescriptor(
+        in sideEffects: [SideEffectDescriptor]
+    ) -> GeneratedFilesCleanupDescriptor? {
+        sideEffects.compactMap { sideEffect in
+            guard case let .generatedFilesCleanup(descriptor) = sideEffect else { return nil }
+            return descriptor
+        }.first
     }
 }

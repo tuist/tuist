@@ -38,6 +38,8 @@ public struct SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
                 try await process(directory: directoryDescriptor)
             case let .testPlan(testPlanDescriptor):
                 try await process(testPlan: testPlanDescriptor)
+            case let .generatedFilesCleanup(descriptor):
+                try await process(generatedFilesCleanup: descriptor)
             }
         }
     }
@@ -87,6 +89,20 @@ public struct SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
         }
         let data = try testPlan.encode()
         try data.write(to: testPlan.path.url)
+    }
+
+    private func process(generatedFilesCleanup descriptor: GeneratedFilesCleanupDescriptor) async throws {
+        for directory in descriptor.directories.sorted(by: { $0.pathString < $1.pathString }) {
+            guard try await fileSystem.exists(directory, isDirectory: true) else { continue }
+
+            let activeFiles = descriptor.activeFilesByDirectory[directory] ?? []
+            let generatedFiles = try await fileSystem.glob(directory: directory, include: descriptor.include).collect()
+            for generatedFile in generatedFiles.sorted(by: { $0.pathString < $1.pathString })
+                where !activeFiles.contains(generatedFile)
+            {
+                try await fileSystem.remove(generatedFile)
+            }
+        }
     }
 }
 

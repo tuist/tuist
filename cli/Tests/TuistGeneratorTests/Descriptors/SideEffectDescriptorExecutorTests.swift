@@ -50,6 +50,31 @@ struct SideEffectDescriptorExecutorTests {
         #expect(try modificationDate(at: path) > oldDate)
     }
 
+    @Test(.inTemporaryDirectory) func execute_cleansStaleGeneratedFiles() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory).appending(component: "ModuleMaps")
+        let activeFile = directory.appending(component: "App-deps.modulemap")
+        let staleFile = directory.appending(component: "Deleted-deps.modulemap")
+        let preservedFile = directory.appending(component: "Package.modulemap")
+        try await fileSystem.makeDirectory(at: directory)
+        try await fileSystem.writeText("active", at: activeFile)
+        try await fileSystem.writeText("stale", at: staleFile)
+        try await fileSystem.writeText("preserved", at: preservedFile)
+
+        try await subject.execute(sideEffects: [
+            .generatedFilesCleanup(
+                GeneratedFilesCleanupDescriptor(
+                    directories: [directory],
+                    activeFilesByDirectory: [directory: [activeFile]],
+                    include: ["*-deps.modulemap"]
+                )
+            ),
+        ])
+
+        #expect(try await fileSystem.exists(activeFile))
+        #expect(try await !fileSystem.exists(staleFile))
+        #expect(try await fileSystem.exists(preservedFile))
+    }
+
     private func modificationDate(at path: AbsolutePath) throws -> Date {
         let attributes = try FileManager.default.attributesOfItem(atPath: path.pathString)
         return try #require(attributes[.modificationDate] as? Date)

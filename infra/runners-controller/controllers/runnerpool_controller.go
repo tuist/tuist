@@ -65,6 +65,17 @@ type RunnerPoolReconciler struct {
 	// (with a matching --insecure-registry, since it's http in-cluster).
 	// Empty leaves dockerd pulling docker.io directly.
 	RegistryMirror string
+
+	// ClusterDNSIP / ClusterDomain configure in-VM cluster DNS for
+	// macOS pools: when ClusterDNSIP is set, macOS runner Pods carry
+	// TUIST_CLUSTER_DNS_IP (+ TUIST_CLUSTER_DOMAIN) and
+	// dispatch-poll.sh inside the Tart VM writes an
+	// /etc/resolver/<domain> entry pointing at it, so the
+	// dispatch-provided `cache_endpoint_url`
+	// (`*.svc.cluster.local`) resolves. Linux Pods ride the CNI's
+	// DNS and never need these. Empty disables the env injection.
+	ClusterDNSIP  string
+	ClusterDomain string
 }
 
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools,verbs=get;list;watch;update;patch
@@ -348,7 +359,7 @@ func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.R
 		return fmt.Errorf("create sa: %w", err)
 	}
 
-	pod, err := podtemplate.Build(pool, name, name, r.DispatchURL, r.DispatchInternalURL, r.DindImage, r.RegistryMirror)
+	pod, err := podtemplate.Build(pool, name, name, r.DispatchURL, r.DispatchInternalURL, r.DindImage, r.RegistryMirror, r.ClusterDNSIP, r.ClusterDomain)
 	if err != nil {
 		return fmt.Errorf("build pod: %w", err)
 	}

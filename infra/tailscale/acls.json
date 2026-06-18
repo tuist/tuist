@@ -141,6 +141,34 @@
 			"ip":  ["tcp:5432"],
 		},
 
+		// Staging Mac mini fleet → the staging cluster's Service CIDR,
+		// through the cluster-side subnet-router Connector
+		// (infra/helm/tailscale-operator/values-staging.yaml advertises
+		// 10.128.0.0/12; infra/k8s/clusters/cluster-staging.yaml is the
+		// source of truth for the CIDR). This is the macOS runner-cache
+		// path: Tart runner VMs on the minis dial the account's private
+		// Kura node at its ClusterIP — 4000 (HTTP cache API) + 50051
+		// (gRPC), mirroring the Linux runner namespace's egress
+		// carve-out in infra/helm/tuist/templates/runners-namespace.yaml
+		// — plus cluster DNS on 53 (kube-dns ClusterIP lives in the same
+		// range) so the VM's /etc/resolver entry can resolve
+		// `*.svc.cluster.local` names. Subnet-routed destinations are
+		// matched by CIDR, not by the router's tag, hence the literal
+		// prefix in dst. Per-account isolation is enforced at the Kura
+		// app layer (the tuist.lua tenant hook verifies the build's JWT),
+		// same as for Linux runners.
+		//
+		// Staging only for now: all envs share this Service CIDR, so the
+		// CIDR-dst grant can't distinguish envs — it points at whichever
+		// env's Connector advertises the route. Keep this aligned with
+		// the single-advertiser rule documented in the tailscale-operator
+		// chart values before adding canary/production entries.
+		{
+			"src": ["tag:tuist-macmini-staging"],
+			"dst": ["10.128.0.0/12"],
+			"ip":  ["tcp:4000", "tcp:50051", "tcp:53", "udp:53"],
+		},
+
 		// Humans SSH into any Mac mini. Not load-bearing — the
 		// CAPI provider's per-fleet SSH key is the normal path the
 		// controller takes. tag:tuist-ops is env-agnostic because
@@ -173,6 +201,19 @@
 		// role-tier branching at this layer (Pomerium ext_authz
 		// owns that decision).
 	],
+
+	// Subnet-route auto-approval, so the staging Connector's
+	// advertised Service CIDR goes live on `helm upgrade` without a
+	// human clicking "approve" in the admin console (the Connector
+	// Pod re-advertises on every recreate; manual approval would
+	// break the route on each rollout). Scoped to the staging
+	// cluster tag — the 100.64.0.0/10 advertisement predates this
+	// file's autoApprovers section and stays manually approved.
+	"autoApprovers": {
+		"routes": {
+			"10.128.0.0/12": ["tag:tuist-k8s-staging"],
+		},
+	},
 
 	// Tailscale SSH (distinct from "grants"). The same-env
 	// k8s→macmini accept grants let the cluster-side subnet-router
@@ -300,6 +341,16 @@
 				"tag:tuist-macmini-staging:22",
 				"tag:tuist-macmini-canary:22",
 				"tag:tuist-macmini-production:22",
+			],
+		},
+		// macOS runner-cache path: staging minis reach the staging
+		// cluster's Service CIDR on the Kura + DNS ports.
+		{
+			"src": "tag:tuist-macmini-staging",
+			"accept": [
+				"10.128.0.10:4000",
+				"10.128.0.10:50051",
+				"10.128.0.10:53",
 			],
 		},
 		// Note: no test entries with autogroup-based src. Tailscale's

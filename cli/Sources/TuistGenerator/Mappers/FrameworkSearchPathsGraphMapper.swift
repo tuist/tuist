@@ -30,16 +30,12 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
         let targetName: String
     }
 
-    private let staleGeneratedFilesCleaner: StaleGeneratedFilesCleaner
-
-    public init() {
-        staleGeneratedFilesCleaner = StaleGeneratedFilesCleaner()
-    }
+    public init() {}
 
     public func map(
         graph: Graph,
         environment: MapperEnvironment
-    ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
+    ) throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
         Logger.current.debug("Transforming graph \(graph.name): Setting up framework search paths")
 
         let graphTraverser = GraphTraverser(graph: graph)
@@ -127,10 +123,15 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
             return (projectPath, project)
         })
 
-        var sideEffects = try await staleGeneratedFilesCleaner.sideEffects(
-            for: generatedResponseFileDirectories,
-            activeFilesByDirectory: activeFilesByDirectory
-        )
+        var sideEffects: [SideEffectDescriptor] = generatedResponseFileDirectories.isEmpty ? [] : [
+            .generatedFilesCleanup(
+                GeneratedFilesCleanupDescriptor(
+                    directories: generatedResponseFileDirectories,
+                    activeFilesByDirectory: activeFilesByDirectory,
+                    include: ["*.resp"]
+                )
+            ),
+        ]
         sideEffects.append(contentsOf: generatedFileSideEffects)
         return (graph, sideEffects, environment)
     }

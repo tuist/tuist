@@ -1,0 +1,63 @@
+name: mise install
+description: |
+  Install mise tools while keeping mise off the GitHub API. Source-built / registry
+  backends without a lockfile URL (erlang, elixir, ruby, rust, npm:, gem:, asdf:, ...)
+  are installed normally; everything else (aqua/github backends like tuist, helm,
+  ClickHouse, aube) is installed with --locked so mise downloads from the lockfile's
+  direct URLs instead of api.github.com, which gets rate-limited under CI concurrency.
+
+inputs:
+  version:
+    description: Version of mise to install
+    required: true
+  install:
+    description: Space-separated tools to install (same value you would pass to mise-action's install_args)
+    required: true
+  cache:
+    description: Whether mise-action should read/write its tool cache
+    required: false
+    default: "true"
+  working-directory:
+    description: Directory mise runs in (selects which mise.toml/mise.lock applies)
+    required: false
+    default: "."
+  github-token:
+    description: GitHub token for mise (falls back to MISE_GITHUB_TOKEN)
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Determine mise tool split
+      id: split
+      shell: bash
+      env:
+        MISE_INSTALL_TOOLS: ${{ inputs.install }}
+      run: |
+        core=""; locked=""
+        for t in $MISE_INSTALL_TOOLS; do
+          case "$t" in
+            erlang|elixir|ruby|rust|erlang@*|elixir@*|ruby@*|rust@*|npm:*|gem:*|asdf:*|pipx:*|cargo:*|vfox:*)
+              core="$core $t" ;;
+            *)
+              locked="$locked $t" ;;
+          esac
+        done
+        echo "core=${core# }" >> "$GITHUB_OUTPUT"
+        echo "locked=${locked# }" >> "$GITHUB_OUTPUT"
+    - uses: jdx/mise-action@v4.0.1
+      with:
+        version: ${{ inputs.version }}
+        install: ${{ steps.split.outputs.core != '' }}
+        install_args: ${{ steps.split.outputs.core }}
+        cache: ${{ inputs.cache }}
+        working_directory: ${{ inputs.working-directory }}
+        github_token: ${{ inputs.github-token || env.MISE_GITHUB_TOKEN }}
+    - name: Install lockable mise tools without GitHub API
+      if: ${{ steps.split.outputs.locked != '' }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        MISE_LOCKABLE_TOOLS: ${{ steps.split.outputs.locked }}
+      run: mise install --locked $MISE_LOCKABLE_TOOLS

@@ -107,9 +107,44 @@ k8s-monitoring:
 
   # Enables kube-state-metrics + kubelet + cAdvisor scraping. Pairs with
   # `telemetryServices.kube-state-metrics.deploy: true` below.
+  #
+  # All three of cAdvisor / kubelet / KSM ship a long tail of per-cgroup,
+  # per-runtime, and per-resource metrics that the Grafana Cloud Kubernetes
+  # integration dashboards and the standard kube-prometheus alert rules
+  # (KubePodCrashLooping, KubeMemoryOvercommit, KubeContainerWaiting,
+  # KubeNodeNotReady, …) never query. Grafana publishes a curated allow-list
+  # per component that keeps the ~30 metrics those dashboards/alerts actually
+  # need and drops the rest. cAdvisor on its own accounted for ~71% of total
+  # scraped samples on this stack before this block (998K / 1.4M per scrape).
+  #
+  # Pre-flight verified via the Grafana Cloud Assistant for each component:
+  #   - cAdvisor: 18 `container_*` metrics ingested, all in the default list.
+  #   - kubelet: 24 `kubelet_*` metrics ingested, all in the default list;
+  #     the one risky drop (`kubelet_runtime_operations_duration_seconds_bucket`)
+  #     isn't ingested on this stack.
+  #   - kubeStateMetrics: 96 `kube_*` metrics ingested; none of the explicit
+  #     high-churn omissions (`kube_lease_*`, `kube_endpointslice_*`,
+  #     `kube_mutatingwebhookconfiguration_*`,
+  #     `kube_configmap_metadata_resource_version`,
+  #     `kube_secret_metadata_resource_version`) are referenced by any
+  #     dashboard, alert, or recording rule.
+  #
+  # `includeMetrics` therefore stays empty for all three. If a future
+  # dashboard needs a dropped metric, add it under
+  # `<component>.metricsTuning.includeMetrics` — same pattern hostMetrics
+  # already uses above.
   clusterMetrics:
     enabled: true
     collector: alloy-metrics
+    cadvisor:
+      metricsTuning:
+        useDefaultAllowList: true
+    kubelet:
+      metricsTuning:
+        useDefaultAllowList: true
+    kubeStateMetrics:
+      metricsTuning:
+        useDefaultAllowList: true
 
   # Streams Kubernetes Events to Loki as structured logs. Cheap and
   # extremely useful for post-mortem ("what got evicted, when, why").
@@ -142,6 +177,11 @@ k8s-monitoring:
           - node_pressure_.*
           - node_vmstat_oom_kill
           - node_load.*
+          # Per-interface network counters (dropped by the default allow-list)
+          # so we can measure the Scaleway kura runner-cache node's PN
+          # throughput against the Hetzner kura nodes.
+          - node_network_receive_bytes_total
+          - node_network_transmit_bytes_total
 
   # DaemonSet-based pod log tailing via /var/log/pods hostPath. A
   # compromised Alloy pod can only read logs from the single node it
@@ -370,6 +410,17 @@ k8s-monitoring:
           job_name = "tuist-macos-node-exporter"
           scrape_interval = "30s"
           scrape_timeout = "10s"
+
+          // Without this block, every alloy-metrics replica scrapes the
+          // same target independently. The chart-default scrape blocks
+          // (cadvisor, kubelet, kube-state-metrics, …) all opt in; the
+          // five Tuist extraConfig blocks below did not, which manifested
+          // as 36 DPM (~18× the 2 DPM expected at 30s) on the `node_*` /
+          // `tart_kubelet_*` / `cnpg_*` series — a perfect match against
+          // the 18 alloy-metrics replicas the chart runs in production.
+          clustering {
+            enabled = true
+          }
         }
 
         // tart-kubelet's controller-runtime metrics endpoint. Carries
@@ -400,6 +451,10 @@ k8s-monitoring:
           job_name = "tuist-macos-tart-kubelet"
           scrape_interval = "30s"
           scrape_timeout = "10s"
+
+          clustering {
+            enabled = true
+          }
         }
 
         // CloudNativePG instance metrics. Managed clusters don't install
@@ -463,6 +518,10 @@ k8s-monitoring:
           job_name = "tuist-cnpg-instances"
           scrape_interval = "30s"
           scrape_timeout = "10s"
+
+          clustering {
+            enabled = true
+          }
         }
 
         // PgBouncer pooler metrics for the processor's transaction-mode
@@ -517,6 +576,10 @@ k8s-monitoring:
           job_name = "tuist-cnpg-pooler"
           scrape_interval = "30s"
           scrape_timeout = "10s"
+
+          clustering {
+            enabled = true
+          }
         }
 
         // CloudNativePG operator controller metrics. Kept separate from
@@ -563,6 +626,10 @@ k8s-monitoring:
           job_name = "tuist-cnpg-operator"
           scrape_interval = "30s"
           scrape_timeout = "10s"
+
+          clustering {
+            enabled = true
+          }
         }
     # filesystem-log-reader mounts /var/log so the DaemonSet can tail pod
     # logs from disk (matches the podLogsViaLoki feature).
