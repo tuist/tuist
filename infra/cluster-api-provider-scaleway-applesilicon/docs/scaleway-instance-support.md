@@ -1,27 +1,20 @@
 # Design: declarative Scaleway Linux nodes (Instance + Elastic Metal) via the in-house provider
 
-Status: **implemented and validated end-to-end on staging.** The kura
-runner-cache node (`kura-scw-fr-par`) is a declaratively-provisioned Scaleway
-**Elastic Metal** box; the original hand-joined PRO2-S is retired. This doc
-records the shipped design (it originally proposed an Instance/`kubeadm`-join
-approach that was superseded — see Architecture).
+Status: implemented. The kura runner-cache node (`kura-scw-fr-par`) is a
+declaratively-provisioned Scaleway **Elastic Metal** worker in the
+staging/canary/production clusters, managed by this provider.
 
-## Problem (solved)
+## Scope
 
-The Scaleway fr-par kura runner-cache node was originally `kubeadm`-joined to
-the staging cluster out-of-band (cloud-init, labels and `scaleway://`
-providerID applied by hand). Nothing in the repo managed it, so:
+The kura runner-cache node runs as a worker in the **same** cluster as the
+Hetzner kura nodes, provisioned and managed by this provider. Everything about
+it is declared in-repo (Helm values + the CR spec):
 
 - its node labels (`node.cluster.x-k8s.io/pool=kura-scw-fr-par`,
-  `tuist.dev/pn-ipv4`) and the `tuist.dev/runner-cache:NoSchedule` taint had no
-  durable, reviewable home — re-joining or replacing the node lost them;
-- there was no lifecycle (scale, replace, heal) the way the Hetzner kura pool
-  gets from CAPI;
-- prod couldn't be stood up reproducibly.
-
-This node (and the prod pool) is now under declarative CAPI management, in the
-**same** cluster as the Hetzner nodes, with labels + taint + PN attachment +
-providerID all declared in-repo.
+  `tuist.dev/pn-ipv4`) and the `tuist.dev/runner-cache:NoSchedule` taint;
+- the Private Network attachment and the `scaleway://` providerID;
+- CAPI lifecycle (scale, replace, heal) alongside the Hetzner kura pool, with
+  each environment's pool reproducible from values.
 
 ## Why extend this provider (not upstream CAPS, not cloud-init)
 
@@ -63,12 +56,11 @@ containerd/kubelet, write the kubeconfig, register with
 `system:node`). The MachineDeployment therefore carries a `noop-bootstrap`
 secret, exactly like the macOS fleets — there is no `KubeadmConfigTemplate`.
 
-**The kura runner-cache node runs on Elastic Metal, not a PRO2-S Instance.**
-The PR benchmark showed the PRO2-S PN is token-bucketed to ~1.5 Gbit/s under
-sustained load and `scw-bssd` caps disk at ~4 Gbit/s, while an `EM-B220E` gives
-~10 Gbit/s flat PN and local NVMe at ~27 Gbit/s — cheaper, with more RAM for
-warm-set page cache. The `ScalewayInstanceMachine` kind remains for any future
-Instance-class Linux pool.
+**The kura runner-cache node runs on Elastic Metal, not a PRO2-S Instance.** A
+PRO2-S PN is token-bucketed to ~1.5 Gbit/s under sustained load and `scw-bssd`
+caps disk at ~4 Gbit/s, while an `EM-B220E` gives ~10 Gbit/s flat PN and local
+NVMe at ~27 Gbit/s — cheaper, with more RAM for warm-set page cache. The
+`ScalewayInstanceMachine` kind remains for any future Instance-class Linux pool.
 
 ```
  ScalewayElasticMetalMachine CR (one EM box)
@@ -154,36 +146,34 @@ The taint rides `nodeTaints` (the reconciler passes it to the kubelet's
 No ClusterClass change — the Scaleway fleets are standalone MachineDeployments
 attached to the caph cluster, not ClusterClass topology entries.
 
-## Cross-cutting (shipped)
+## Cross-cutting
 
-- **apiserver `--kubelet-preferred-address-types`** now carries `InternalIP`,
+- **apiserver `--kubelet-preferred-address-types`** carries `InternalIP`,
   delivered as a ClusterClass `kubeletPreferredAddressTypes` variable + patch.
   The default equals the current value, so applying it is a no-op; each env
   flips the variable to insert `InternalIP` on its own control-plane rollout.
   Cross-cloud nodes (Elastic Metal + macOS PN) report a reachable `InternalIP`
   but no `ExternalIP` and a Hostname the Hetzner apiserver can't resolve, so
   this is what lets the apiserver reach those kubelets for `logs`/`exec`.
-- **Migration of the live node**: the hand-joined PRO2-S (`51.15.216.34`) was
-  cordoned, drained, and terminated once the managed node served; the
-  per-account-CA mesh re-bootstrapped onto the new node. On the EM box the
-  cache re-warms (local NVMe is not re-attachable like SBS), but the durable
-  mesh state is per-account and rebuilds — no data loss.
+- **Node replacement**: CAPI cordons and drains a removed Machine. A
+  replacement EM node re-warms its cache (local NVMe isn't re-attachable like
+  SBS) and the per-account-CA mesh re-bootstraps onto it; the durable mesh
+  state is per-account and rebuilds, so there's no data loss.
 - **Naming**: the provider binary/repo is `...-applesilicon`; with three
   machine kinds that's a misnomer, kept for now (a rename is broad churn:
-  image, chart, RBAC, CRD group) and noted; revisit if it keeps growing.
-- **IAM**: per-env provider keys carry `PrivateNetworksFullAccess` +
-  `IPAMReadOnly` (+ BlockStorage for SBS-backed Instance pools), verified live
-  on staging, canary, and production.
+  image, chart, RBAC, CRD group). Revisit if it keeps growing.
+- **IAM**: each env's provider key carries `PrivateNetworksFullAccess` +
+  `IPAMReadOnly` (+ BlockStorage for SBS-backed Instance pools).
 
-## Validation (staging)
+## End-to-end path
 
-The `kura-fleet` MachineDeployment ordered the EM box, the controller attached
-the PN as a VLAN and resolved it, the SSH self-join registered the node, and it
-reached Ready with providerID + `tuist.dev/pn-ipv4` + pool label + taint. The
-runner-cache pod scheduled onto it (local-NVMe PVC), meshed with the account's
-Hetzner peers, and a real macOS runner reached the cache over the PN NodePort
-(`runners-staging-smoke.yml`). Orphaned servers from failed provisions were
-reclaimed by the operator.
+The `kura-fleet` MachineDeployment orders the EM box; the controller attaches
+the PN as a VLAN and resolves it, the SSH self-join registers the node, and it
+reaches Ready with providerID + `tuist.dev/pn-ipv4` + pool label + taint. The
+runner-cache pod schedules onto it (local-NVMe PVC), meshes with the account's
+Hetzner peers, and macOS runners reach the cache over the PN NodePort
+(exercised by `runners-staging-smoke.yml`). The orphan reclaimer releases
+servers left behind by failed provisions.
 
 ## Out of scope
 
@@ -195,9 +185,9 @@ reclaimed by the operator.
 
 - **Storage-class migration isn't declarative**: a StatefulSet's
   `volumeClaimTemplates` are immutable and the controller updates in place, so
-  flipping a live KuraInstance's `storageClassName` (the `scw-bssd`→
-  `scw-local-nvme` pivot) silently no-ops and needs a delete+recreate. Done by
-  hand during the pivot; the controller should detect and recreate.
+  changing a live KuraInstance's `storageClassName` (e.g. `scw-bssd`→
+  `scw-local-nvme`) silently no-ops and needs a manual delete+recreate; the
+  controller should detect the change and recreate.
 - **Stuck-`:failed` runner-cache nodes aren't auto-retried** server-side
   (`nodes_to_retry` only self-heals servers with `current_image_tag == nil`),
   so a node that deployed then failed needs an operator reset.
