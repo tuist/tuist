@@ -131,6 +131,59 @@ type Config struct {
 	// uses the auth key's default tag.
 	TailscaleTags []string
 
+	// TailscaleAcceptRoutes adds `--accept-routes` to `tailscale up`,
+	// so the host installs subnet routes advertised into the tailnet
+	// by the cluster-side Connector (infra/helm/tailscale-operator) —
+	// today the cluster's Service CIDR, which is what lets Tart
+	// runner VMs on this host reach the in-cluster Kura runner-cache
+	// Service (the VM's traffic NATs through the host's routing
+	// table, so a host route via the tailnet is a VM route). Off by
+	// default: a host that accepts routes will steer 10.128.0.0/12
+	// into whichever env's Connector advertises it, and the shared
+	// Service CIDR across envs makes that ambiguous unless exactly
+	// one env advertises (see the tailscale-operator chart values).
+	TailscaleAcceptRoutes bool
+
+	// VMKuraEgressCIDR, when non-empty, carves a Kura allowance out
+	// of the VM egress firewall (installVMEgressFirewall): Tart VMs
+	// may reach this CIDR — the cluster's Service CIDR, where the
+	// per-account runner-cache Kura ClusterIPs live — on TCP 4000
+	// (cache HTTP API) + 50051 (gRPC), mirroring the Linux runner
+	// namespace's NetworkPolicy egress carve-out. Everything else in
+	// the RFC1918 blocklist stays blocked; per-account isolation is
+	// the Kura app layer's JWT tenant check, exactly as on Linux.
+	// Must parse as an IPv4 CIDR; bootstrap fails closed otherwise.
+	VMKuraEgressCIDR string
+
+	// VMClusterDNSIP, when non-empty (requires VMKuraEgressCIDR),
+	// additionally allows VM egress to this single IP on port 53
+	// (TCP+UDP) — the cluster's kube-dns ClusterIP, so the runner
+	// VM's /etc/resolver entry (written by dispatch-poll.sh when the
+	// runners-controller stages TUIST_CLUSTER_DNS_IP) can resolve
+	// `*.svc.cluster.local` names. Must parse as an IPv4 address.
+	VMClusterDNSIP string
+
+	// VMCachePNCIDR, when non-empty, allows VM egress to the Scaleway
+	// Private Network subnet where the kura runner-cache node pool
+	// publishes per-account NodePort endpoints — the addresses
+	// dispatch hands out as `cache_endpoint_url` for macOS fleets on
+	// node-port-data-plane regions. Only the Kubernetes NodePort
+	// range (30000-32767) is passed; the rest of the RFC1918
+	// blocklist stays blocked. Must parse as an IPv4 CIDR; bootstrap
+	// fails closed otherwise.
+	VMCachePNCIDR string
+
+	// VMCachePNVLAN is the VLAN ID of this server's Private Network
+	// attachment (per-host — Scaleway assigns it at attach time; the
+	// CAPI provider reads it from the Apple Silicon Private Networks
+	// API). When set together with VMCachePNCIDR, bootstrap creates
+	// the macOS VLAN interface on en0 and DHCPs it so Scaleway IPAM
+	// hands the host its PN address; the VM NAT leg derives the
+	// interface from the route this creates. 0 skips interface
+	// management (the firewall pass rule still applies if the CIDR
+	// is set, for hosts configured out-of-band).
+	VMCachePNVLAN uint32
+
 	// NodeExporterBinary is the darwin/arm64 node_exporter binary
 	// (cross-compiled in the operator image from
 	// github.com/prometheus/node_exporter at build time). Installed
@@ -234,7 +287,10 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := installTart(ctx, client, cfg.TartTarball); err != nil {
 		return hk.Observed(), fmt.Errorf("install tart: %w", err)
 	}
-	if err := installVMEgressFirewall(ctx, client); err != nil {
+	if err := installVMCachePNInterface(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install vm cache pn interface: %w", err)
+	}
+	if err := installVMEgressFirewall(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install vm egress firewall: %w", err)
 	}
 	if err := installTailscale(ctx, client, cfg); err != nil {
@@ -280,10 +336,15 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 // bumps via the same operator-image-bump → drift-reconcile path),
 // and reloads the launchd job.
 //
-// Skips one-shot host prep (sudo, auto-login, hostname, Tart, pf
-// firewall) — those don't change between updates and re-running them
-// would either be wasted SSH work or risk disrupting the running VMs
-// (Tart). The launchd `bootout`+`bootstrap` cycle runs unconditionally
+// Skips one-shot host prep (sudo, auto-login, hostname, Tart) —
+// those don't change between updates and re-running them would
+// either be wasted SSH work or risk disrupting the running VMs
+// (Tart). The pf VM-egress firewall IS re-run: its ruleset is now
+// config-shaped (the Kura/DNS carve-out CIDRs), the install is
+// idempotent, and `pfctl -f` swaps rulesets atomically without
+// dropping established states — so a values change reaches existing
+// hosts on the next drift roll instead of waiting for
+// re-provisioning. The launchd `bootout`+`bootstrap` cycle runs unconditionally
 // — it's a ~1-second agent restart and Tart VMs survive
 // `nohup`-detached, so workloads are unaffected. The kubelet's startup
 // state-recovery pass re-binds them on the new agent.
@@ -309,6 +370,12 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	}
 	if err := installTartKubelet(ctx, client, cfg.TartKubeletBinary); err != nil {
 		return hk.Observed(), fmt.Errorf("install tart-kubelet: %w", err)
+	}
+	if err := installVMCachePNInterface(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("refresh vm cache pn interface: %w", err)
+	}
+	if err := installVMEgressFirewall(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("refresh vm egress firewall: %w", err)
 	}
 	if err := installTailscale(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install tailscale: %w", err)
@@ -950,10 +1017,86 @@ sudo chmod 0755 /usr/local/bin/tart
 // on 192.168. Since cluster CIDRs in production are 10.x, the
 // blocklist is precise rather than maximal.
 //
+// One optional carve-out punches through the blocklist: when
+// cfg.VMKuraEgressCIDR is set, VMs may reach that CIDR (the
+// cluster's Service CIDR, advertised to the host over the tailnet
+// by the cluster-side subnet router) on the Kura cache ports
+// 4000/50051, plus — when cfg.VMClusterDNSIP is set — the kube-dns
+// ClusterIP on 53 so `*.svc.cluster.local` names resolve inside the
+// VM. pf is first-match-wins across `quick` rules, so the pass
+// lines render BEFORE the block lines. The inputs are validated as
+// CIDR/IP literals before being rendered into the root-owned pf
+// anchor (they come from operator flags, but a parse gate keeps a
+// chart typo from producing an unparseable — or worse, creative —
+// ruleset).
+//
+// The carve-out needs a second half: NAT. vmnet's built-in NAT only
+// translates VM egress toward the default-route interface, so
+// packets the host forwards into the tailscale utun keep their
+// 192.168.64.x source — pf passes them (observed: pass-rule
+// counters increment) but Tailscale's source filtering drops
+// foreign-source packets and replies can never route back. A pf
+// `nat` rule translates VM→cluster traffic to the host's tailnet
+// address. Translation rules must land in pf's translation slot,
+// which is ordered before all filter rules — appending a
+// `nat-anchor` to /etc/pf.conf would violate that order, so the
+// rule is loaded into a `com.apple/tuist.vmnat` sub-anchor instead:
+// the stock pf.conf's `nat-anchor "com.apple/*"` line evaluates it
+// at the right point. The tailscale utun device number can change
+// across daemon restarts, so a small re-arm script re-derives the
+// interface from the routing table and reloads the rule; a
+// StartInterval LaunchDaemon keeps it converged (the rule load is
+// idempotent and pfctl swaps anchor contents atomically).
+//
 // Idempotent: writes the same anchor file on every call. Enables
 // pf if not already enabled. The launchd plist re-loads the
 // rules on every boot so a reboot doesn't drop the filter.
-func installVMEgressFirewall(ctx context.Context, client *ssh.Client) error {
+func installVMEgressFirewall(ctx context.Context, client *ssh.Client, cfg Config) error {
+	carveOut := ""
+	if cfg.VMKuraEgressCIDR != "" {
+		ip, _, err := net.ParseCIDR(cfg.VMKuraEgressCIDR)
+		if err != nil || ip.To4() == nil {
+			return fmt.Errorf("vm kura egress cidr %q is not an IPv4 CIDR: %v", cfg.VMKuraEgressCIDR, err)
+		}
+		carveOut = fmt.Sprintf(`
+# Runner-cache carve-out: VMs may dial the cluster's Kura cache
+# Service ClusterIPs (HTTP 4000 + gRPC 50051) — and, when wired,
+# cluster DNS on 53 — through the host's tailnet route. These pass
+# rules are evaluated before the block rules below (first 'quick'
+# match wins). Per-account isolation is Kura's app-layer JWT tenant
+# check, mirroring the Linux runner namespace's NetworkPolicy
+# carve-out.
+pass out quick proto tcp from <vm_sources> to %s port { 4000, 50051 } keep state
+`, cfg.VMKuraEgressCIDR)
+
+		if cfg.VMClusterDNSIP != "" {
+			dnsIP := net.ParseIP(cfg.VMClusterDNSIP)
+			if dnsIP == nil || dnsIP.To4() == nil {
+				return fmt.Errorf("vm cluster dns ip %q is not an IPv4 address", cfg.VMClusterDNSIP)
+			}
+			carveOut += fmt.Sprintf(`pass out quick proto { tcp, udp } from <vm_sources> to %s port 53 keep state
+`, cfg.VMClusterDNSIP)
+		}
+	} else if cfg.VMClusterDNSIP != "" {
+		return fmt.Errorf("vm cluster dns ip set without vm kura egress cidr; refusing a DNS-only carve-out")
+	}
+
+	if cfg.VMCachePNCIDR != "" {
+		ip, _, err := net.ParseCIDR(cfg.VMCachePNCIDR)
+		if err != nil || ip.To4() == nil {
+			return fmt.Errorf("vm cache pn cidr %q is not an IPv4 CIDR: %v", cfg.VMCachePNCIDR, err)
+		}
+		carveOut += fmt.Sprintf(`
+# Runner-cache Private Network carve-out: VMs dial per-account Kura
+# NodePorts published by the kura node pool on the Scaleway Private
+# Network (the endpoint dispatch hands out on node-port regions).
+# 30000:32767 is Kubernetes' default NodePort range. The kura-side
+# NetworkPolicies admit only this subnet, and Kura's app-layer JWT
+# tenant check is the per-account boundary.
+pass out quick proto tcp from <vm_sources> to %s port 30000:32767 keep state
+`, cfg.VMCachePNCIDR)
+	}
+
 	script := `set -euo pipefail
 
 # Idempotent install of the pf anchor file. The anchor namespaces
@@ -973,7 +1116,7 @@ sudo tee /etc/pf.anchors/tuist.runners >/dev/null <<'PFCONF'
 
 table <vm_sources> { 192.168.64.0/22 }
 table <blocked_dst> { 10.0.0.0/8, 172.16.0.0/12, 169.254.0.0/16 }
-
+@CARVEOUT@
 # Drop VM→private destinations at the host edge.
 block drop out quick from <vm_sources> to <blocked_dst>
 
@@ -1067,6 +1210,125 @@ sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.pfctl-runners.plist
 sudo launchctl bootout system/dev.tuist.pfctl-runners 2>/dev/null || true
 sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-runners.plist
 `
+	script = strings.Replace(script, "@CARVEOUT@", carveOut, 1)
+	if err := RunCommand(ctx, client, script); err != nil {
+		return err
+	}
+	if cfg.VMKuraEgressCIDR == "" && cfg.VMCachePNCIDR == "" {
+		return nil
+	}
+	natScript := fmt.Sprintf(`set -euo pipefail
+sudo tee /usr/local/bin/tuist-pf-vmnat >/dev/null <<'VMNAT'
+#!/bin/sh
+# Loads the VM->cache NAT rules into the com.apple/tuist.vmnat pf
+# sub-anchor (see installVMEgressFirewall in macos-host-bootstrap).
+# Two legs, each skipped when unconfigured or its route is absent:
+#   - tailnet: VM -> cluster Service CIDR via the tailscale utun.
+#     MSS-clamped: the utun MTU (1280) is smaller than the VM's
+#     vmnet MTU (1500) and pf-NAT'd flows don't reliably deliver
+#     ICMP frag-needed back to the guest, so full-size segments
+#     blackhole (tiny /up probes work, bulk cache reads hang).
+#     1200 = 1280 - 40 (TCP/IP headers) with margin.
+#   - Private Network: VM -> PN subnet via the macOS VLAN
+#     interface (installVMCachePNInterface). No clamp: the VLAN
+#     runs at the same 1500 MTU as vmnet.
+# vmnet's built-in NAT only translates toward the default-route
+# interface, so both legs need explicit pf NAT. Idempotent and
+# cheap; re-run on an interval so a tailscaled restart (utun
+# renumber) or VLAN recreation re-converges within a minute.
+CIDR="%s"
+PNCIDR="%s"
+RULES=""
+NL="
+"
+if [ -n "$CIDR" ]; then
+  TSIF=$(route -n get "${CIDR%%%%/*}" 2>/dev/null | awk '/interface/{print $2}')
+  case "$TSIF" in
+    utun*)
+      RULES="${RULES}scrub from 192.168.64.0/22 to $CIDR max-mss 1200${NL}"
+      RULES="${RULES}scrub from $CIDR to 192.168.64.0/22 max-mss 1200${NL}"
+      RULES="${RULES}nat on $TSIF from 192.168.64.0/22 to $CIDR -> ($TSIF)${NL}"
+      ;;
+  esac
+fi
+if [ -n "$PNCIDR" ]; then
+  PNIF=$(route -n get "${PNCIDR%%%%/*}" 2>/dev/null | awk '/interface/{print $2}')
+  case "$PNIF" in
+    vlan*)
+      RULES="${RULES}nat on $PNIF from 192.168.64.0/22 to $PNCIDR -> ($PNIF)${NL}"
+      ;;
+  esac
+fi
+[ -z "$RULES" ] && exit 0
+# pf requires normalization (scrub) before translation (nat) within
+# a ruleset load; the legs above append in that order.
+printf '%%s' "$RULES" | cmp -s - /usr/local/etc/tuist-vmnat.loaded 2>/dev/null && exit 0
+printf '%%s' "$RULES" | pfctl -a "com.apple/tuist.vmnat" -f -
+mkdir -p /usr/local/etc
+printf '%%s' "$RULES" > /usr/local/etc/tuist-vmnat.loaded
+VMNAT
+sudo chmod 0755 /usr/local/bin/tuist-pf-vmnat
+# Force a reload with the freshly-rendered config on install; the
+# cache only short-circuits steady-state interval runs.
+sudo rm -f /usr/local/etc/tuist-vmnat.loaded
+sudo /usr/local/bin/tuist-pf-vmnat
+
+sudo tee /Library/LaunchDaemons/dev.tuist.pfctl-vmnat.plist >/dev/null <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.tuist.pfctl-vmnat</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/tuist-pf-vmnat</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>60</integer>
+  <key>StandardErrorPath</key>
+  <string>/var/log/tuist-pfctl-vmnat.log</string>
+</dict>
+</plist>
+PLIST
+sudo chown root:wheel /Library/LaunchDaemons/dev.tuist.pfctl-vmnat.plist
+sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.pfctl-vmnat.plist
+sudo launchctl bootout system/dev.tuist.pfctl-vmnat 2>/dev/null || true
+sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-vmnat.plist
+`, cfg.VMKuraEgressCIDR, cfg.VMCachePNCIDR)
+	return RunCommand(ctx, client, natScript)
+}
+
+// installVMCachePNInterface materializes the macOS side of the
+// server's Scaleway Private Network attachment: a VLAN interface on
+// en0 carrying the attachment's VLAN tag, configured for DHCP so
+// Scaleway IPAM hands the host its PN address. The VM NAT leg
+// (tuist-pf-vmnat) derives the interface from the route this
+// creates, and the kura runner-cache NodePort endpoints live behind
+// it. Recreates the interface when the tag changed (a re-attachment
+// gets a fresh VLAN). No-op unless both the PN CIDR and VLAN are
+// configured.
+func installVMCachePNInterface(ctx context.Context, client *ssh.Client, cfg Config) error {
+	if cfg.VMCachePNCIDR == "" || cfg.VMCachePNVLAN == 0 {
+		return nil
+	}
+	script := fmt.Sprintf(`set -euo pipefail
+VLAN_TAG=%d
+CURRENT_TAG=$(networksetup -listVLANs 2>/dev/null | awk '/^VLAN User Defined Name: pn$/{found=1; next} found && /^Tag: /{print $2; exit} found && /^VLAN User Defined Name: /{exit}')
+if [ "${CURRENT_TAG:-}" != "$VLAN_TAG" ]; then
+  if [ -n "${CURRENT_TAG:-}" ]; then
+    sudo networksetup -deleteVLAN pn en0 "$CURRENT_TAG" || true
+    sleep 2
+  fi
+  sudo networksetup -createVLAN pn en0 "$VLAN_TAG"
+  sleep 3
+fi
+# The VLAN surfaces as a network service whose name varies by macOS
+# version ("pn Configuration" on Tahoe). Force DHCP either way.
+sudo networksetup -setdhcp "pn Configuration" 2>/dev/null || sudo networksetup -setdhcp pn
+`, cfg.VMCachePNVLAN)
 	return RunCommand(ctx, client, script)
 }
 
@@ -1121,6 +1383,14 @@ sudo chmod 0600 /etc/tuist/tailscale-auth-key`
 	hostnameArg := ""
 	if cfg.NodeName != "" {
 		hostnameArg = fmt.Sprintf(" --hostname=%s", shellQuote(cfg.NodeName))
+	}
+	acceptRoutesArg := ""
+	if cfg.TailscaleAcceptRoutes {
+		// Install subnet routes the cluster-side Connector advertises
+		// (the Service CIDR for the runner-cache path). Host routes
+		// are VM routes: vmnet NATs VM egress through the host's
+		// routing table.
+		acceptRoutesArg = " --accept-routes"
 	}
 
 	// Stage 2: extract binaries, register daemon, bring up.
@@ -1242,7 +1512,7 @@ trap 'sudo rm -f /etc/tuist/tailscale-auth-key "$TS_UP_LOG"' EXIT
 if ! sudo /usr/local/bin/tailscale up \
     --authkey="$(sudo cat /etc/tuist/tailscale-auth-key)" \
     --reset \
-    --ssh=false%[1]s%[2]s >"$TS_UP_LOG" 2>&1; then
+    --ssh=false%[1]s%[2]s%[3]s >"$TS_UP_LOG" 2>&1; then
   echo "tailscale up failed (output below):" >&2
   sudo cat "$TS_UP_LOG" >&2
   exit 1
@@ -1261,7 +1531,7 @@ done
 echo "tailscale up returned but no tailnet IPv4 within 30s; current status:" >&2
 sudo /usr/local/bin/tailscale status >&2 || true
 exit 1
-`, hostnameArg, tagsArg)
+`, hostnameArg, tagsArg, acceptRoutesArg)
 	return RunCommandWithStdin(ctx, client, script, bytes.NewReader(cfg.TailscaleBinaries))
 }
 

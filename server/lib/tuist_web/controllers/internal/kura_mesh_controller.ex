@@ -30,6 +30,11 @@ defmodule TuistWeb.Internal.KuraMeshController do
             conn
             |> put_status(:unprocessable_entity)
             |> json(%{error: to_string(reason)})
+
+          {:error, :ca_unavailable} ->
+            conn
+            |> put_status(:service_unavailable)
+            |> json(%{error: "ca_unavailable"})
         end
 
       {:error, :unauthorized} ->

@@ -1,27 +1,31 @@
 defmodule Tuist.Kura.Mesh do
   @moduledoc """
-  Issues the per-account certificate authority and node certificates that let a
-  customer's self-hosted Kura nodes form a mutually-authenticated mesh.
+  Signs the node certificates that let a customer's self-hosted Kura nodes join
+  the account's mutually-authenticated mesh.
+
+  The per-account peer CA is owned by the Kura controller (the `kura-<handle>-peer-ca`
+  secret it maintains for an account whose managed instances run with `mesh`
+  enabled). Enrollment reads that CA and signs the self-hosted node's CSR with
+  it, so the node's leaf is trusted by the account's managed pods (which verify
+  against the same CA) and vice versa.
 
   Node enrollment is the onboarding primitive: a node boots with only its
   tenant-scoped credential, the control-plane URL, and its own URL. It generates
   a keypair locally (the private key never leaves the customer's infrastructure),
   sends a CSR, and gets back its signed certificate, the account CA, the
-  `tenant_id`, and the current peer list. Everything else self-configures.
+  `tenant_id`, and the current peer list.
   """
   import Ecto.Query
 
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
-  alias Tuist.FeatureFlags
+  alias Tuist.Kubernetes.Client
   alias Tuist.Kura
-  alias Tuist.Kura.MeshCertificateAuthority
   alias Tuist.Kura.Regions
   alias Tuist.Repo
   alias X509.Certificate.Extension
 
-  # Five years for the account CA; nodes hold shorter-lived leaves they renew.
-  @ca_validity_days 1825
+  @kura_namespace "kura"
   # There is no CRL/OCSP in Kura's peer verifier, so a node is revoked by no
   # longer re-signing its CSR and letting the leaf expire: the leaf lifetime is
   # the revocation latency. Nodes re-enroll on each boot today, so the leaf is
@@ -30,41 +34,41 @@ defmodule Tuist.Kura.Mesh do
   @leaf_validity_days 30
   @leaf_renew_after_seconds 1_296_000
 
-  @doc "Returns the account's mesh CA, generating it on first use."
-  def get_or_create_certificate_authority(%Account{} = account) do
-    case Repo.get_by(MeshCertificateAuthority, account_id: account.id) do
-      %MeshCertificateAuthority{} = ca -> {:ok, ca}
-      nil -> create_certificate_authority(account)
+  @doc """
+  Reads the account's controller-managed peer CA (the `kura-<handle>-peer-ca`
+  secret the Kura controller maintains once the account has a managed instance
+  running with `mesh` enabled). Returns `{:ok, %{certificate_pem, private_key_pem}}`,
+  or `{:error, :ca_unavailable}` when there is no shared CA yet for a self-hosted
+  node to join.
+  """
+  def read_account_peer_ca(%Account{} = account) do
+    with {:ok, opts} <- account_cluster_opts(account),
+         {:ok, %{"data" => data}} when is_map(data) <- Client.get(peer_ca_secret_path(account), opts: opts),
+         {:ok, cert_pem} <- decode_pem(data["ca.pem"]),
+         {:ok, key_pem} <- decode_pem(data["ca-key.pem"]) do
+      {:ok, %{certificate_pem: cert_pem, private_key_pem: key_pem}}
+    else
+      _ -> {:error, :ca_unavailable}
     end
   end
 
-  defp create_certificate_authority(%Account{} = account) do
-    ca_key = X509.PrivateKey.new_ec(:secp256r1)
-
-    ca_certificate =
-      X509.Certificate.self_signed(
-        ca_key,
-        "/CN=Tuist Kura Mesh CA/O=#{account.name}",
-        template: :root_ca,
-        validity: @ca_validity_days
-      )
-
-    attrs = %{
-      account_id: account.id,
-      certificate_pem: X509.Certificate.to_pem(ca_certificate),
-      encrypted_private_key: X509.PrivateKey.to_pem(ca_key),
-      not_after: days_from_now(@ca_validity_days)
-    }
-
-    case Repo.insert(MeshCertificateAuthority.create_changeset(attrs)) do
-      {:ok, ca} ->
-        {:ok, ca}
-
-      {:error, %Ecto.Changeset{}} ->
-        # Lost a race to create the single per-account CA; use the winner's.
-        {:ok, Repo.get_by!(MeshCertificateAuthority, account_id: account.id)}
-    end
+  defp account_cluster_opts(%Account{} = account) do
+    account.id
+    |> Kura.list_servers_for_account()
+    |> Enum.find_value({:error, :ca_unavailable}, fn server ->
+      case Regions.get(server.region) do
+        %Regions{provisioner_config: config} -> {:ok, Map.get(config, :kubernetes_client, [])}
+        _ -> nil
+      end
+    end)
   end
+
+  defp peer_ca_secret_path(%Account{name: name}) do
+    "/api/v1/namespaces/#{@kura_namespace}/secrets/kura-#{String.downcase(name)}-peer-ca"
+  end
+
+  defp decode_pem(value) when is_binary(value), do: Base.decode64(value)
+  defp decode_pem(_), do: :error
 
   @doc """
   Enrolls a node from its CSR, returning the signed certificate, the account CA,
@@ -95,11 +99,11 @@ defmodule Tuist.Kura.Mesh do
   request a certificate for a host it does not own.
   """
   def sign_node_certificate(%Account{} = account, csr_pem, [primary_host | _] = allowed_hosts) do
-    with {:ok, ca} <- get_or_create_certificate_authority(account),
+    with {:ok, ca} <- read_account_peer_ca(account),
          {:ok, csr} <- parse_csr(csr_pem),
          :ok <- validate_csr(csr) do
       ca_certificate = X509.Certificate.from_pem!(ca.certificate_pem)
-      ca_key = X509.PrivateKey.from_pem!(ca.encrypted_private_key)
+      ca_key = X509.PrivateKey.from_pem!(ca.private_key_pem)
 
       certificate =
         X509.Certificate.new(
@@ -124,50 +128,18 @@ defmodule Tuist.Kura.Mesh do
   end
 
   @doc """
-  Issues a node certificate for a node whose keypair Tuist generates, signed by
-  the account CA. Used for Tuist-managed mesh nodes (the customer's self-hosted
-  nodes keep their private keys and use the CSR-based `sign_node_certificate/3`
-  instead). Returns the certificate, its private key, and the account CA, all
-  PEM-encoded.
-  """
-  def issue_node_certificate(%Account{} = account, [primary_host | _] = dns_names) do
-    with {:ok, ca} <- get_or_create_certificate_authority(account) do
-      ca_certificate = X509.Certificate.from_pem!(ca.certificate_pem)
-      ca_key = X509.PrivateKey.from_pem!(ca.encrypted_private_key)
-      node_key = X509.PrivateKey.new_ec(:secp256r1)
+  Peer node URLs in the account's mesh: the account's enrolled self-hosted nodes.
 
-      certificate =
-        X509.Certificate.new(
-          X509.PublicKey.derive(node_key),
-          "/CN=#{primary_host}",
-          ca_certificate,
-          ca_key,
-          template: :server,
-          validity: @leaf_validity_days,
-          extensions: [
-            subject_alt_name: Extension.subject_alt_name(dns_names)
-          ]
-        )
-
-      {:ok,
-       %{
-         certificate_pem: X509.Certificate.to_pem(certificate),
-         private_key_pem: X509.PrivateKey.to_pem(node_key),
-         ca_certificate_pem: ca.certificate_pem
-       }}
-    end
-  end
-
-  @doc """
-  Peer node URLs in the account's mesh. Today this is the account's registered
-  self-hosted nodes; bridging in the Tuist-managed nodes' internal endpoints is
-  a later slice (it needs a public internal-plane ingress).
+  Bridging the Tuist-managed nodes' peer endpoint in is a follow-up: main's
+  controller-managed mesh discovers managed peers through an in-cluster account
+  peer Service, so seeding it to an internet-side self-hosted node needs that
+  peer plane exposed publicly first.
   """
   def mesh_peers(%Account{} = account, opts \\ []) do
     exclude = Keyword.get(opts, :exclude)
 
-    (self_hosted_peer_urls(account) ++ managed_peer_urls(account))
-    |> Enum.uniq()
+    account
+    |> self_hosted_peer_urls()
     |> Enum.reject(&(&1 == exclude))
   end
 
@@ -178,33 +150,6 @@ defmodule Tuist.Kura.Mesh do
         select: e.url
       )
     )
-  end
-
-  # When the account bridges into the managed mesh, its self-hosted nodes also
-  # need to reach the Tuist-managed regions, so we seed their peer list with each
-  # managed region's public internal endpoint. Discovery expands these seeds to
-  # the individual managed pods.
-  defp managed_peer_urls(%Account{} = account) do
-    if FeatureFlags.kura_enabled?(account) do
-      account.id
-      |> Kura.list_servers_for_account()
-      |> Enum.flat_map(&managed_server_peer_urls(account, &1))
-    else
-      []
-    end
-  end
-
-  defp managed_server_peer_urls(%Account{} = account, server) do
-    case Regions.get(server.region) do
-      %Regions{} = region ->
-        case Regions.internal_public_peer_url(account.name, region) do
-          nil -> []
-          url -> [url]
-        end
-
-      _ ->
-        []
-    end
   end
 
   # The enrolled node's internal peer URL, recorded only for mesh discovery.

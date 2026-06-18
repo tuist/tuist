@@ -1,7 +1,11 @@
 defmodule TuistWeb.Internal.KuraMeshControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
+  use Mimic
 
+  alias Tuist.Kubernetes.Client
+  alias Tuist.Kura
   alias Tuist.Kura.SelfHostedClients
+  alias Tuist.Kura.Server
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   defp csr_pem do
@@ -15,9 +19,24 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
     put_req_header(conn, "authorization", "Basic " <> Base.encode64("#{client_id}:#{secret}"))
   end
 
+  # Stubs the account's controller-managed peer CA so enrollment can sign leaves.
+  defp stub_account_peer_ca do
+    ca_key = X509.PrivateKey.new_ec(:secp256r1)
+    ca_cert = X509.Certificate.self_signed(ca_key, "/CN=kura test peer CA", template: :root_ca)
+
+    data = %{
+      "ca.pem" => Base.encode64(X509.Certificate.to_pem(ca_cert)),
+      "ca-key.pem" => Base.encode64(X509.PrivateKey.to_pem(ca_key))
+    }
+
+    stub(Kura, :list_servers_for_account, fn _ -> [%Server{region: "local-controller"}] end)
+    stub(Client, :get, fn _path, _opts -> {:ok, %{"data" => data}} end)
+  end
+
   setup do
     account = AccountsFixtures.organization_fixture().account
     {:ok, {client, secret}} = SelfHostedClients.create_self_hosted_client(account, %{name: "mesh"})
+    stub_account_peer_ca()
     %{account: account, client: client, secret: secret}
   end
 
@@ -71,6 +90,24 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
       })
 
     assert json_response(conn, 422)
+  end
+
+  test "returns 503 when the account has no controller-managed CA yet", %{
+    conn: conn,
+    client: client,
+    secret: secret
+  } do
+    stub(Kura, :list_servers_for_account, fn _ -> [] end)
+
+    conn =
+      conn
+      |> basic_auth(client.client_id, secret)
+      |> post(~p"/_internal/kura/mesh/enroll", %{
+        csr: csr_pem(),
+        node_url: "https://kura-1.acme.test:4433"
+      })
+
+    assert json_response(conn, 503) == %{"error" => "ca_unavailable"}
   end
 
   test "registers a heartbeat with a valid credential", %{conn: conn, account: account, client: client, secret: secret} do

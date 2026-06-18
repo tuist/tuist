@@ -1,9 +1,12 @@
 defmodule Tuist.Kura.MeshTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Kubernetes.Client
+  alias Tuist.Kura
   alias Tuist.Kura.Mesh
-  alias Tuist.Kura.MeshCertificateAuthority
+  alias Tuist.Kura.Server
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   defp csr_pem(subject \\ "/CN=node") do
@@ -13,32 +16,36 @@ defmodule Tuist.Kura.MeshTest do
     |> X509.CSR.to_pem()
   end
 
-  describe "get_or_create_certificate_authority/1" do
-    test "creates the CA once and reuses it" do
-      account = AccountsFixtures.organization_fixture().account
+  # Stubs the account's controller-managed peer CA (the `kura-<handle>-peer-ca`
+  # secret) and a managed server so the cluster that holds it can be resolved.
+  # Returns the CA certificate so the test can assert the leaf chains to it.
+  defp stub_account_peer_ca do
+    ca_key = X509.PrivateKey.new_ec(:secp256r1)
+    ca_cert = X509.Certificate.self_signed(ca_key, "/CN=kura test peer CA", template: :root_ca)
 
-      assert {:ok, %MeshCertificateAuthority{} = ca} =
-               Mesh.get_or_create_certificate_authority(account)
+    data = %{
+      "ca.pem" => Base.encode64(X509.Certificate.to_pem(ca_cert)),
+      "ca-key.pem" => Base.encode64(X509.PrivateKey.to_pem(ca_key))
+    }
 
-      assert ca.certificate_pem =~ "BEGIN CERTIFICATE"
+    stub(Kura, :list_servers_for_account, fn _ -> [%Server{region: "local-controller"}] end)
+    stub(Client, :get, fn _path, _opts -> {:ok, %{"data" => data}} end)
 
-      assert {:ok, %MeshCertificateAuthority{id: reused_id}} =
-               Mesh.get_or_create_certificate_authority(account)
-
-      assert reused_id == ca.id
-    end
+    ca_cert
   end
 
   describe "sign_node_certificate/3" do
     test "issues a leaf that chains to the account CA with an issuer-controlled SAN" do
       account = AccountsFixtures.organization_fixture().account
+      ca_cert = stub_account_peer_ca()
 
       assert {:ok, %{certificate_pem: leaf_pem, ca_certificate_pem: ca_pem}} =
                Mesh.sign_node_certificate(account, csr_pem(), ["kura-1.acme.test"])
 
       leaf_der = leaf_pem |> X509.Certificate.from_pem!() |> X509.Certificate.to_der()
-      ca_der = ca_pem |> X509.Certificate.from_pem!() |> X509.Certificate.to_der()
+      ca_der = X509.Certificate.to_der(ca_cert)
 
+      assert ca_pem == X509.Certificate.to_pem(ca_cert)
       assert {:ok, _} = :public_key.pkix_path_validation(ca_der, [leaf_der], [])
 
       {:Extension, _oid, _critical, san_entries} =
@@ -49,37 +56,22 @@ defmodule Tuist.Kura.MeshTest do
 
     test "rejects an invalid CSR" do
       account = AccountsFixtures.organization_fixture().account
+      stub_account_peer_ca()
       assert Mesh.sign_node_certificate(account, "not a csr", ["host"]) == {:error, :invalid_csr}
     end
-  end
 
-  describe "issue_node_certificate/2" do
-    test "issues a managed-node cert (server-generated key) chaining to the account CA" do
+    test "fails when the account has no controller-managed CA yet" do
       account = AccountsFixtures.organization_fixture().account
-      dns_names = ["*.kura-tuist-us-east-headless.kura.svc.cluster.local", "kura-tuist-us-east-headless"]
+      stub(Kura, :list_servers_for_account, fn _ -> [] end)
 
-      assert {:ok, %{certificate_pem: leaf_pem, private_key_pem: key_pem, ca_certificate_pem: ca_pem}} =
-               Mesh.issue_node_certificate(account, dns_names)
-
-      assert key_pem =~ "BEGIN EC PRIVATE KEY"
-
-      leaf_der = leaf_pem |> X509.Certificate.from_pem!() |> X509.Certificate.to_der()
-      ca_der = ca_pem |> X509.Certificate.from_pem!() |> X509.Certificate.to_der()
-      assert {:ok, _} = :public_key.pkix_path_validation(ca_der, [leaf_der], [])
-
-      {:Extension, _oid, _critical, san_entries} =
-        leaf_pem |> X509.Certificate.from_pem!() |> X509.Certificate.extension(:subject_alt_name)
-
-      assert {:dNSName, ~c"kura-tuist-us-east-headless"} in san_entries
-
-      # The issued key and certificate form a valid pair.
-      assert {:ok, _} = X509.Certificate.from_pem(leaf_pem)
+      assert Mesh.sign_node_certificate(account, csr_pem(), ["host"]) == {:error, :ca_unavailable}
     end
   end
 
   describe "enroll_node/2" do
     test "signs, registers the node endpoint, and returns the mesh config" do
       account = AccountsFixtures.organization_fixture().account
+      stub_account_peer_ca()
 
       assert {:ok, enrollment} =
                Mesh.enroll_node(account, %{
@@ -99,6 +91,7 @@ defmodule Tuist.Kura.MeshTest do
 
     test "a second node sees the first as a peer and re-enrollment is idempotent" do
       account = AccountsFixtures.organization_fixture().account
+      stub_account_peer_ca()
 
       {:ok, _} =
         Mesh.enroll_node(account, %{csr: csr_pem(), node_url: "https://kura-1.acme.test:4433"})
@@ -116,6 +109,7 @@ defmodule Tuist.Kura.MeshTest do
 
     test "rejects an invalid node URL" do
       account = AccountsFixtures.organization_fixture().account
+      stub_account_peer_ca()
 
       assert Mesh.enroll_node(account, %{csr: csr_pem(), node_url: "not-a-url"}) ==
                {:error, :invalid_node_url}

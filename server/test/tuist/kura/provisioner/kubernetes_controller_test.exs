@@ -2,7 +2,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   use ExUnit.Case, async: true
   use Mimic
 
-  alias Tuist.Accounts.Account
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura.Provisioner.KubernetesController
   alias Tuist.Kura.Regions
@@ -34,7 +33,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert manifest["metadata"]["namespace"] == "kura"
 
       assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] ==
-               KubernetesController.manifest_revision(%{name: "tuist"})
+               KubernetesController.manifest_revision()
 
       spec = manifest["spec"]
       assert spec["accountHandle"] == "tuist"
@@ -69,57 +68,70 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(env, "KURA_EXTENSION_JWT_VERIFIER_TUIST_SECRET")
     end
 
-    test "points managed nodes at the account mesh peer-TLS secret when bridging is enabled" do
+    test "emits the mesh flag only when the region enables the per-account peer mesh" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
       stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
         "00000000-0000-0000-0000-000000000001"
       end)
 
-      stub(Tuist.FeatureFlags, :kura_enabled?, fn _account -> true end)
-
-      manifest =
+      meshed =
         KubernetesController.manifest(
           "kura-tuist-eu-central-1",
           "0.5.2",
-          %Account{name: "tuist"},
+          %{name: "tuist"},
+          eu_region(%{mesh: true}),
+          %Server{},
+          "return true"
+        )
+
+      assert meshed["spec"]["mesh"] == true
+
+      unmeshed =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %{name: "tuist"},
           eu_region(),
           %Server{},
           "return true"
         )
 
-      assert manifest["spec"]["peerTLSSecretName"] == "kura-tuist-eu-central-1-mesh-peer-tls"
+      refute Map.has_key?(unmeshed["spec"], "mesh")
     end
 
-    test "shifts the manifest revision when bridging is enabled so a serving server re-rolls in place" do
+    test "emits tolerations only when the region declares them" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
       stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
         "00000000-0000-0000-0000-000000000001"
       end)
 
-      account = %Account{name: "tuist"}
+      tolerations = [%{"key" => "tuist.dev/runner-cache", "operator" => "Exists", "effect" => "NoSchedule"}]
 
-      stub(Tuist.FeatureFlags, :kura_enabled?, fn _account -> false end)
-      unbridged_revision = KubernetesController.manifest_revision(account)
-
-      stub(Tuist.FeatureFlags, :kura_enabled?, fn _account -> true end)
-      bridged_revision = KubernetesController.manifest_revision(account)
-
-      manifest =
+      tolerated =
         KubernetesController.manifest(
           "kura-tuist-eu-central-1",
           "0.5.2",
-          account,
+          %{name: "tuist"},
+          eu_region(%{tolerations: tolerations}),
+          %Server{},
+          "return true"
+        )
+
+      assert tolerated["spec"]["tolerations"] == tolerations
+
+      untolerated =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %{name: "tuist"},
           eu_region(),
           %Server{},
           "return true"
         )
 
-      assert bridged_revision == "#{unbridged_revision}-bridge"
-
-      assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] ==
-               bridged_revision
+      refute Map.has_key?(untolerated["spec"], "tolerations")
     end
 
     test "normalizes account handles for DNS-label KuraInstance fields" do
@@ -553,6 +565,79 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(spec, "publicHost")
       refute Map.has_key?(spec, "grpcPublicHost")
       refute Map.has_key?(spec, "ingressClassName")
+
+      # Node-port data plane: the controller publishes http/grpc at the
+      # node boundary, admits the PN client subnet through the instance
+      # NetworkPolicy, and caps per-account egress on the shared NIC.
+      assert spec["exposeNodePort"] == true
+      assert spec["clientCIDRs"] == ["172.16.0.0/22"]
+      assert spec["podAnnotations"] == %{"kubernetes.io/egress-bandwidth" => "750M"}
+    end
+
+    test "omits node-port fields for cluster-DNS private regions" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      region = %Regions{
+        id: "hetzner-staging-runners",
+        provisioner_config: %{
+          cluster_id: "staging",
+          private: true,
+          private_url_template: "http://{instance}.kura.svc.cluster.local:4000",
+          data_plane: :cluster_dns,
+          client_cidrs: [],
+          pod_annotations: %{},
+          node_selector: %{"node.cluster.x-k8s.io/pool" => "kura"},
+          storage_class: "hcloud-volumes",
+          replicas: 1
+        }
+      }
+
+      spec =
+        KubernetesController.manifest(
+          "kura-tuist-staging",
+          "0.5.2",
+          %{name: "tuist"},
+          region,
+          %Server{},
+          "return true"
+        )["spec"]
+
+      refute Map.has_key?(spec, "exposeNodePort")
+      refute Map.has_key?(spec, "clientCIDRs")
+      refute Map.has_key?(spec, "podAnnotations")
+    end
+  end
+
+  describe "external_endpoint/2" do
+    test "builds the node-published URL from the observed status" do
+      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", [] ->
+        {:ok, %{"status" => %{"nodeAddress" => "172.16.0.2", "nodePortHTTP" => 30_080}}}
+      end)
+
+      assert KubernetesController.external_endpoint("kura-tuist-scw-fr-par", scaleway_region()) ==
+               {:ok, "http://172.16.0.2:30080"}
+    end
+
+    test "is not ready until the controller observed the full chain" do
+      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", [] ->
+        {:ok, %{"status" => %{"nodePortHTTP" => 30_080}}}
+      end)
+
+      assert KubernetesController.external_endpoint("kura-tuist-scw-fr-par", scaleway_region()) ==
+               {:error, :node_port_endpoint_not_ready}
+    end
+
+    test "propagates client errors" do
+      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", [] ->
+        {:error, :timeout}
+      end)
+
+      assert KubernetesController.external_endpoint("kura-tuist-scw-fr-par", scaleway_region()) ==
+               {:error, :timeout}
     end
   end
 
@@ -570,6 +655,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         cluster_id: "scw-fr-par",
         private: true,
         private_url_template: "http://{instance}.kura.svc.cluster.local:4000",
+        data_plane: :node_port,
+        client_cidrs: ["172.16.0.0/22"],
+        pod_annotations: %{"kubernetes.io/egress-bandwidth" => "750M"},
         node_selector: %{"node.cluster.x-k8s.io/pool" => "kura-scw-fr-par"},
         storage_class: "scw-bssd",
         replicas: 1

@@ -20,7 +20,6 @@ defmodule Tuist.Kura.Provisioner do
   needs (region host template, API token, instance-type table, …).
   """
 
-  alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
@@ -89,16 +88,14 @@ defmodule Tuist.Kura.Provisioner do
   the control plane re-apply config-only changes independently from Kura
   runtime image changes.
   """
+  @callback external_endpoint(ref :: String.t(), Regions.t()) ::
+              {:ok, String.t()} | {:error, term()}
+
   @callback current_manifest_revision(ref :: String.t(), Regions.t()) ::
               {:ok, String.t() | nil} | {:error, term()}
 
-  @doc """
-  Returns the manifest revision the provisioner currently renders for the
-  account. The revision encodes account-dependent manifest content (such as
-  mesh bridging), so a config change shifts the revision and the reconciler
-  re-applies the manifest to a serving server in place.
-  """
-  @callback manifest_revision(Account.t()) :: String.t() | nil
+  @doc "Returns the manifest revision the provisioner currently renders."
+  @callback manifest_revision() :: String.t() | nil
 
   @doc "Returns the provisioner's default resource description for one Kura server."
   @callback resources_for(Server.t()) :: map()
@@ -140,6 +137,13 @@ defmodule Tuist.Kura.Provisioner do
     end
   end
 
+  @doc "Calls `external_endpoint/2` on the region's provisioner."
+  def external_endpoint(%Server{provisioner_node_ref: ref, region: region_id}) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provisioner.external_endpoint(ref, region)
+    end
+  end
+
   @doc "Calls `current_manifest_revision/2` on the region's provisioner."
   def current_manifest_revision(%Server{provisioner_node_ref: ref, region: region_id}) do
     with {:ok, region} <- Regions.fetch(region_id) do
@@ -147,11 +151,10 @@ defmodule Tuist.Kura.Provisioner do
     end
   end
 
-  @doc "Calls `manifest_revision/1` on the region's provisioner for the server's account."
-  def manifest_revision(%Server{region: region_id} = server) do
-    with {:ok, region} <- Regions.fetch(region_id),
-         {:ok, account} <- Accounts.get_account_by_id(server.account_id) do
-      {:ok, region.provisioner.manifest_revision(account)}
+  @doc "Calls `manifest_revision/0` on the region's provisioner."
+  def manifest_revision(%Server{region: region_id}) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      {:ok, region.provisioner.manifest_revision()}
     end
   end
 end

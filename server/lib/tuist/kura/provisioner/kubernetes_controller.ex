@@ -14,14 +14,12 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Accounts.Account
   alias Tuist.Billing.Entitlements
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.Kubernetes.Client
-  alias Tuist.Kura.Mesh
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
 
   @namespace "kura"
-  @manifest_revision "2026-06-13-env-scoped-public-host-v1"
+  @manifest_revision "2026-06-16-node-port-and-env-scoped-public-host-v1"
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
   @gateway_annotation "tuist.dev/kura-gateway"
   @gateway_controller_image "registry.k8s.io/ingress-nginx/controller:v1.11.3"
@@ -41,7 +39,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       case apply_manifests(
              [
                gateway_manifest(gateway, account, region),
-               peer_tls_secret_manifest(name, account, region),
                manifest(name, image_tag, account, region, server, hook_script, gateway)
              ],
              region
@@ -115,6 +112,30 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     end
   end
 
+  @doc """
+  The node-published URL a runner off the pod network dials:
+  `http://<node PN address>:<NodePort>`, from the KuraInstance status
+  the kura-controller maintains (node label + allocated Service port).
+  `{:error, :node_port_endpoint_not_ready}` until the whole chain —
+  Service allocated, primary pod placed, node labeled — is observed;
+  callers treat it like an unready public endpoint and retry on the
+  next reconcile tick.
+  """
+  @impl true
+  def external_endpoint(name, %Regions{} = region) do
+    case client_get_kura_instance(@namespace, name, region) do
+      {:ok, %{"status" => %{"nodeAddress" => address, "nodePortHTTP" => port}}}
+      when is_binary(address) and address != "" and is_integer(port) and port > 0 ->
+        {:ok, "http://#{address}:#{port}"}
+
+      {:ok, _} ->
+        {:error, :node_port_endpoint_not_ready}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
   @impl true
   def current_manifest_revision(name, %Regions{} = region) do
     case client_get_kura_instance(@namespace, name, region) do
@@ -125,16 +146,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @impl true
-  def manifest_revision(account), do: account_manifest_revision(account)
-
-  # The rendered manifest depends on whether the account bridges into the
-  # managed mesh, so the revision carries a suffix when bridging is on. A flag
-  # flip therefore shifts the revision and the reconciler re-applies the
-  # manifest to a serving server in place, with no destroy/recreate. Non-bridged
-  # accounts keep the bare revision, so they never re-roll on this account.
-  defp account_manifest_revision(account) do
-    if mesh_bridging_enabled?(account), do: "#{@manifest_revision}-bridge", else: @manifest_revision
-  end
+  def manifest_revision, do: @manifest_revision
 
   @impl true
   def resources_for(%Server{}), do: %{}
@@ -173,9 +185,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   @doc false
   def manifest(name, image_tag, account, %Regions{} = region, %Server{}, hook_script, gateway) do
     account_handle = dns_handle(account.name)
-
-    annotations =
-      maybe_put_gateway_annotation(%{@manifest_revision_annotation => account_manifest_revision(account)}, gateway)
+    annotations = maybe_put_gateway_annotation(%{@manifest_revision_annotation => @manifest_revision}, gateway)
 
     %{
       "apiVersion" => "kura.tuist.dev/v1alpha1",
@@ -200,14 +210,17 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "publicHost" => public_host(account_handle, region),
           "grpcPublicHost" => grpc_public_host(account_handle, region),
           "ingressClassName" => ingress_class_name(region, gateway),
-          "peerTLSSecretName" => peer_tls_secret_name(name, account, region),
-          "meshBridgingEnabled" => mesh_bridging_enabled?(account),
-          "internalPublicHost" => internal_public_host_for_spec(account, region),
+          "peerTLSSecretName" => peer_tls_secret_name(region),
+          "mesh" => mesh_enabled?(region),
           "private" => Regions.private?(region),
+          "exposeNodePort" => Regions.node_port_data_plane?(region),
+          "clientCIDRs" => client_cidrs(region),
+          "podAnnotations" => pod_annotations(region),
           "storageClassName" => storage_class(region),
           "storageSize" => storage_size(region),
           "replicas" => replicas(region),
           "nodeSelector" => node_selector(region),
+          "tolerations" => tolerations(region),
           "extensionScript" => hook_script,
           "extraEnv" => extension_env(region)
         }
@@ -271,98 +284,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp maybe_put_gateway_annotation(annotations, %{name: gateway_name}),
     do: Map.put(annotations, @gateway_annotation, gateway_name)
 
-  # When the account joins the managed mesh, its managed nodes use a peer-TLS
-  # secret issued from the account mesh CA so they trust the customer's
-  # self-hosted nodes. Otherwise the region's configured secret (if any) is used
-  # and the Go controller falls back to its per-instance self-signed secret, the
-  # behavior for every non-bridged account.
-  defp peer_tls_secret_name(name, account, region) do
-    if mesh_bridging_enabled?(account) do
-      mesh_peer_tls_secret_name(name)
-    else
-      peer_tls_secret_name(region)
-    end
-  end
-
-  defp mesh_bridging_enabled?(%Account{} = account), do: FeatureFlags.kura_enabled?(account)
-
-  defp mesh_bridging_enabled?(_account), do: false
-
-  # The base public host for the region's internal plane, only when the account
-  # bridges into the managed mesh. `nil` (and so dropped from the spec) otherwise.
-  defp internal_public_host_for_spec(%Account{} = account, %Regions{} = region) do
-    if mesh_bridging_enabled?(account), do: Regions.internal_public_host(account.name, region)
-  end
-
-  defp internal_public_host_for_spec(_account, _region), do: nil
-
   defp peer_tls_secret_name(%Regions{provisioner_config: %{peer_tls_secret_name: secret_name}})
        when is_binary(secret_name) and secret_name != "", do: secret_name
 
   defp peer_tls_secret_name(_region), do: nil
 
-  defp mesh_peer_tls_secret_name(name), do: "#{name}-mesh-peer-tls"
-
-  # Materializes the per-account-CA peer-TLS secret the managed nodes mount.
-  # Returns nil (and changes nothing) for accounts that have not joined the mesh.
-  defp peer_tls_secret_manifest(name, account, %Regions{} = region) do
-    if mesh_bridging_enabled?(account) do
-      build_peer_tls_secret_manifest(name, account, region)
-    end
-  end
-
-  defp build_peer_tls_secret_manifest(name, %Account{} = account, %Regions{} = region) do
-    dns_names = peer_tls_dns_names(name) ++ public_internal_dns_names(account, region)
-    {:ok, certificate} = Mesh.issue_node_certificate(account, dns_names)
-
-    %{
-      "apiVersion" => "v1",
-      "kind" => "Secret",
-      "type" => "Opaque",
-      "metadata" => %{
-        "name" => mesh_peer_tls_secret_name(name),
-        "namespace" => @namespace,
-        "labels" => %{
-          "app.kubernetes.io/name" => "kura",
-          "app.kubernetes.io/instance" => name,
-          "tuist.dev/account" => dns_handle(account.name),
-          "tuist.dev/region" => region.id
-        }
-      },
-      "stringData" => %{
-        "ca.pem" => certificate.ca_certificate_pem,
-        "tls.crt" => certificate.certificate_pem,
-        "tls.key" => certificate.private_key_pem
-      }
-    }
-  end
-
-  # The public internal hostnames a bridged account's managed pods are reached at
-  # from outside the cluster: the seed host plus a wildcard covering the per-pod
-  # hosts (`<pod>.internal.<account>-<cluster>.kura.tuist.dev`). Empty when the
-  # region has no internal public host.
-  defp public_internal_dns_names(%Account{} = account, %Regions{} = region) do
-    case Regions.internal_public_host(account.name, region) do
-      nil -> []
-      host -> [host, "*.#{host}"]
-    end
-  end
-
-  # The in-cluster DNS names managed peers reach each other by, mirroring the Go
-  # controller's `peerTLSDNSNames` (headless Service `<name>-headless`).
-  defp peer_tls_dns_names(name) do
-    headless = "#{name}-headless"
-
-    [
-      "*.#{headless}.#{@namespace}.svc.cluster.local",
-      "*.#{headless}.#{@namespace}.svc",
-      "*.#{headless}.#{@namespace}",
-      headless,
-      "#{headless}.#{@namespace}",
-      "#{headless}.#{@namespace}.svc",
-      "#{headless}.#{@namespace}.svc.cluster.local"
-    ]
-  end
+  defp mesh_enabled?(%Regions{provisioner_config: %{mesh: mesh}}) when is_boolean(mesh), do: mesh
+  defp mesh_enabled?(_region), do: false
 
   # Tuist-platform-wide secrets (JWT verifier, control-plane client
   # secret) are
@@ -432,6 +360,20 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp node_selector(%Regions{provisioner_config: %{node_selector: node_selector}}), do: node_selector
 
   defp node_selector(_), do: nil
+
+  defp tolerations(%Regions{provisioner_config: %{tolerations: [_ | _] = tolerations}}), do: tolerations
+
+  defp tolerations(_), do: nil
+
+  # nil (not []) when unset so the manifest builder's reject drops the
+  # key entirely.
+  defp client_cidrs(%Regions{provisioner_config: %{client_cidrs: [_ | _] = cidrs}}), do: cidrs
+  defp client_cidrs(_), do: nil
+
+  defp pod_annotations(%Regions{provisioner_config: %{pod_annotations: annotations}})
+       when is_map(annotations) and map_size(annotations) > 0, do: annotations
+
+  defp pod_annotations(_), do: nil
 
   # Private (runner-cache) regions never get a gateway: their whole
   # invariant is "no public endpoint, no LoadBalancer" — a dedicated

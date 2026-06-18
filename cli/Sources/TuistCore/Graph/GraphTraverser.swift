@@ -5,7 +5,6 @@ import TuistSupport
 import TuistThreadSafe
 import XcodeGraph
 
-import func TSCBasic.topologicalSort
 import func TSCBasic.transitiveClosure
 
 // swiftlint:disable type_body_length
