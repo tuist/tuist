@@ -10,6 +10,7 @@ defmodule Tuist.CommandEvents.Event do
       :id,
       :project_id,
       :name,
+      :command_arguments,
       :git_commit_sha,
       :git_ref,
       :git_branch,
