@@ -7,6 +7,8 @@ import TuistBuildCommand
 import TuistEnvironment
 import TuistSupport
 import TuistTesting
+import TuistXCResultService
+import XCResultParser
 
 @testable import TuistKit
 @testable import TuistTestCommand
@@ -378,6 +380,14 @@ struct TestAcceptanceTestShardWithRemoteTestProducts {
     }
 }
 
+/// Shards `MacFrameworkTests` from local test products (skipping the S3 upload), and doubles as the
+/// regression guard for suite-granularity Swift Testing selection.
+///
+/// `MacFrameworkTests` mixes one XCTest class with two Swift Testing suites. The shard runs with
+/// `--shard-granularity suite`, and the result bundle is parsed to assert the Swift Testing suites
+/// actually executed. Earlier the per-suite selection was written into the bundle's `.xctestrun` as
+/// `OnlyTestIdentifiers`, which can only ever *exclude* Swift Testing — so the suite ran zero tests
+/// yet reported success. With `-only-testing` selection they run.
 struct TestAcceptanceTestShardWithLocalTestProducts {
     @Test(
         .withFixtureConnectedToCanary("generated_ios_app_with_tests"),
@@ -396,13 +406,14 @@ struct TestAcceptanceTestShardWithLocalTestProducts {
         try await FileSystem().writeText("", at: githubOutputPath)
         Environment.mocked?.variables["GITHUB_OUTPUT"] = githubOutputPath.pathString
 
-        // Build phase: build tests and create shard plan, skip S3 upload
+        // Build phase: build tests and create a suite-granularity shard plan, skip S3 upload
         try await TuistTest.run(
             TestCommand.self,
             [
                 "MacFrameworkTests",
                 "--build-only",
                 "--shard-total", "1",
+                "--shard-granularity", "suite",
                 "--shard-skip-upload",
                 "--path", fixtureDirectory.pathString,
                 "--",
@@ -411,7 +422,8 @@ struct TestAcceptanceTestShardWithLocalTestProducts {
             ]
         )
 
-        // Test phase: run shard using local test products
+        // Test phase: run the shard using local test products, capturing a result bundle
+        let resultBundlePath = temporaryDirectory.appending(component: "shard.xcresult")
         try await TuistTest.run(
             TestCommand.self,
             [
@@ -419,10 +431,22 @@ struct TestAcceptanceTestShardWithLocalTestProducts {
                 "--without-building",
                 "--shard-index", "0",
                 "--path", fixtureDirectory.pathString,
+                "--result-bundle-path", resultBundlePath.pathString,
                 "--",
                 "-testProductsPath", testProductsPath.pathString,
                 "-destination", "platform=macOS",
             ]
+        )
+
+        let summary = try await XCResultService().parse(path: resultBundlePath, rootDirectory: nil)
+        let executedTestNames = Set(summary?.testCases.map(\.name) ?? [])
+        #expect(
+            executedTestNames.contains { $0.contains("greeting_isStable") },
+            "Swift Testing suite MacFrameworkGreetingTests did not run"
+        )
+        #expect(
+            executedTestNames.contains { $0.contains("greeting_isNotEmpty") },
+            "Swift Testing suite MacFrameworkValueTests did not run"
         )
     }
 }

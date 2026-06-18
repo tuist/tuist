@@ -42,6 +42,13 @@ rules:
   - apiGroups: [""]
     resources: [nodes, persistentvolumeclaims, configmaps, pods, pods/log]
     verbs: [get, list, watch]
+  # The provisioner creates a short-lived helper Pod on the target node to
+  # set up/tear down the hostPath directory backing each PV; without
+  # create/delete on pods every provision fails with a 403 and PVCs hang
+  # Pending (the helper Pod can't be launched).
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [create, delete]
   - apiGroups: [""]
     resources: [persistentvolumes]
     verbs: [get, list, watch, create, patch, update, delete]
