@@ -62,7 +62,7 @@
           }
         >
           <:col :let={cache_run} label={dgettext("dashboard_cache", "Command")}>
-            <.text_and_description_cell label={"tuist " <> (if cache_run.command_arguments, do: (cache_run.command_arguments |> String.split(" ") |> Enum.take(2) |> Enum.join(" ")), else: "")} />
+            <.text_and_description_cell label={format_command(cache_run)} />
           </:col>
           <:col
             :let={cache_run}
