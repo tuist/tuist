@@ -38,6 +38,15 @@ type ScalewayElasticMetalMachineSpec struct {
 	// capacity. Required: without it there is no pool to claim from.
 	AdoptNamePrefix string `json:"adoptNamePrefix"`
 
+	// FleetName groups Machines that share one SSH key, like the Apple Silicon
+	// kind. Set by the MachineTemplate so every Machine the MachineDeployment
+	// clones derives the SAME fleet key — the key the operator authorizes on the
+	// pre-ordered pool boxes. Without it the key is derived from the generated
+	// Machine name, which a pre-ordered box (named before any Machine exists)
+	// can't carry, so the controller could adopt a box it cannot SSH into.
+	// +optional
+	FleetName string `json:"fleetName,omitempty"`
+
 	// Zone is the Scaleway zone (fr-par-1, fr-par-2, ...).
 	// +kubebuilder:default=fr-par-1
 	Zone string `json:"zone,omitempty"`

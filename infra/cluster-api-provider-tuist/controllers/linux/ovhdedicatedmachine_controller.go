@@ -30,6 +30,7 @@ import (
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/credentials"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/kubeconfig"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/ovh"
+	"github.com/tuist/tuist/infra/macos-host-bootstrap"
 )
 
 const (
@@ -156,7 +157,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 	// restart re-finds it rather than double-claiming; providerID is set only
 	// once the bootstrap completes so a transient failure retries.
 	if machine.Spec.ProviderID == nil || *machine.Spec.ProviderID == "" {
-		fleet := machine.Namespace + "-" + machine.Name
+		fleet := firstNonEmpty(machine.Spec.FleetName, machine.Namespace+"-"+machine.Name)
 		privateKey, keyErr := r.CredentialsManager.EnsureFleetSSHKey(ctx, fleet)
 		if keyErr != nil {
 			conditions.MarkFalse(machine, shared.ProvisionedCondition, "SSHKeyUnavailable",
@@ -272,7 +273,23 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 		})
 
 		machine.Status.Phase = "Bootstrapping"
-		if bootErr := bootstrapOverSSH(ctx, ovhBootstrapUser, server.IP, privateKey, script); bootErr != nil {
+		// TOFU host-key pinning: persist the fingerprint observed on the first
+		// dial and verify it on every retry, so the bootstrap that ships the
+		// kubelet identity can't be MITM'd after the first contact.
+		known := ""
+		if creds, fpErr := r.CredentialsManager.GetMachineBootstrap(ctx, machine.Name); fpErr != nil {
+			return ctrl.Result{}, fmt.Errorf("read host fingerprint: %w", fpErr)
+		} else if creds != nil {
+			known = creds.HostFingerprint
+		}
+		hk := bootstrap.NewHostKeyState(known)
+		bootErr := bootstrapOverSSH(ctx, ovhBootstrapUser, server.IP, privateKey, script, hk)
+		if observed := hk.Observed(); observed != "" && observed != known {
+			if perr := r.CredentialsManager.SetMachineHostFingerprint(ctx, machine.Name, observed); perr != nil {
+				logger.Error(perr, "persist host fingerprint; will retry")
+			}
+		}
+		if bootErr != nil {
 			conditions.MarkFalse(machine, shared.ProvisionedCondition, "BootstrapFailed",
 				clusterv1.ConditionSeverityWarning, "%v", bootErr)
 			machine.Status.BootstrapAttempts++
@@ -354,6 +371,13 @@ func (r *OVHDedicatedMachineReconciler) reconcileDelete(ctx context.Context, mac
 		r.event(machine, "DeleteIdentityFailed", "delete node identity: %v (will retry)", err)
 		return ctrl.Result{}, err
 	}
+	// Drop the per-machine bootstrap Secret (the TOFU host fingerprint), so a
+	// replacement Machine re-pins the box's key fresh instead of failing against
+	// a stale pin keyed on the deleted Machine's name.
+	if err := r.CredentialsManager.DeleteMachineBootstrap(ctx, machine.Name); err != nil {
+		r.event(machine, "DeleteBootstrapFailed", "delete machine bootstrap secret: %v (will retry)", err)
+		return ctrl.Result{}, err
+	}
 	controllerutil.RemoveFinalizer(machine, OVHDedicatedMachineFinalizer)
 	return ctrl.Result{}, nil
 }
@@ -394,7 +418,7 @@ func sshPublicKey(privateKey []byte) (string, error) {
 // pipes the rendered self-join script to bash. The script is idempotent, so a
 // retried bootstrap after a partial run converges. Shared shape with the Elastic
 // Metal kind's SSH bootstrap.
-func bootstrapOverSSH(ctx context.Context, user, host string, privateKey []byte, script string) error {
+func bootstrapOverSSH(ctx context.Context, user, host string, privateKey []byte, script string, hk *bootstrap.HostKeyState) error {
 	signer, err := ssh.ParsePrivateKey(privateKey)
 	if err != nil {
 		return fmt.Errorf("parse ssh private key: %w", err)
@@ -402,7 +426,7 @@ func bootstrapOverSSH(ctx context.Context, user, host string, privateKey []byte,
 	cfg := &ssh.ClientConfig{
 		User:            user,
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: hk.Callback(),
 		Timeout:         30 * time.Second,
 	}
 

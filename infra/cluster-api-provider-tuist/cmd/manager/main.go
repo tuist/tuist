@@ -499,8 +499,10 @@ func main() {
 	// Same provider, separate reconciler: pre-ordered OVH boxes adopted by
 	// display-name prefix that pass through an OS install, then SSH-bootstrap
 	// the shared Linux self-join over their public IP (no Scaleway Private
-	// Network). Gated on OVH credentials being present so envs without the
-	// OVH_API item (and the OSS shape) don't crash-loop on a missing config.
+	// Network). Gated on OVH_APPLICATION_KEY so the reconciler stays dormant
+	// until an env wires OVH creds into this Deployment (an ESO-synced OVH_API
+	// secret + env lands with the chart's OVH enablement, not in this PR); envs
+	// without them (and the OSS shape) don't crash-loop on a missing config.
 	if os.Getenv("OVH_APPLICATION_KEY") != "" {
 		ovhClient, err := ovh.NewClientFromEnv()
 		if err != nil {

@@ -52,6 +52,15 @@ type OVHDedicatedMachineSpec struct {
 	// the controller has no pool to adopt from and OVH has no inline-order path.
 	AdoptDisplayNamePrefix string `json:"adoptDisplayNamePrefix"`
 
+	// FleetName groups Machines that share one SSH key, like the Apple Silicon
+	// kind. Set by the MachineTemplate so every Machine the MachineDeployment
+	// clones derives the SAME fleet key the operator authorizes on the
+	// pre-ordered pool boxes; without it the per-Machine-name key would not match
+	// a pre-ordered box (or a box re-adopted after a previous Machine released
+	// it), so the bootstrap SSH would fail.
+	// +optional
+	FleetName string `json:"fleetName,omitempty"`
+
 	// NodeTaints are passed to the kubelet's `--register-with-taints` in the
 	// generated self-join. Customer-facing Kura regions leave this empty (the
 	// region's nodeSelector + pool label do the placement); a dedicated-pool

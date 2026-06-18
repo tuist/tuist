@@ -42,8 +42,10 @@ type Client struct {
 }
 
 // NewClientFromEnv builds a Client from the standard OVH credential env vars
-// (OVH_ENDPOINT, OVH_APPLICATION_KEY, OVH_APPLICATION_SECRET, OVH_CONSUMER_KEY),
-// which the chart syncs from the per-env 1Password OVH_API item via ESO.
+// (OVH_ENDPOINT, OVH_APPLICATION_KEY, OVH_APPLICATION_SECRET, OVH_CONSUMER_KEY).
+// Wiring those into the operator Deployment (an ESO-synced OVH_API secret) lands
+// with the chart's OVH enablement, not in this PR; until then the reconciler
+// stays dormant behind the OVH_APPLICATION_KEY gate in cmd/manager.
 func NewClientFromEnv() (*Client, error) {
 	api, err := ovh.NewDefaultClient()
 	if err != nil {

@@ -96,6 +96,15 @@ spec:
                     matching NIC-level enforcement). Zero leaves the resource unadvertised.
                   format: int32
                   type: integer
+                fleetName:
+                  description: |-
+                    FleetName groups Machines that share one SSH key, like the Apple Silicon
+                    kind. Set by the MachineTemplate so every Machine the MachineDeployment
+                    clones derives the SAME fleet key the operator authorizes on the
+                    pre-ordered pool boxes; without it the per-Machine-name key would not match
+                    a pre-ordered box (or a box re-adopted after a previous Machine released
+                    it), so the bootstrap SSH would fail.
+                  type: string
                 nodeTaints:
                   description: |-
                     NodeTaints are passed to the kubelet's `--register-with-taints` in the

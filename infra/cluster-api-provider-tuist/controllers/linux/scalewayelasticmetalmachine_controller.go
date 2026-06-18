@@ -197,7 +197,7 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileNormal(
 	// providerID is set only once the bootstrap completes, so a transient
 	// failure retries instead of stranding a half-configured node.
 	if machine.Spec.ProviderID == nil || *machine.Spec.ProviderID == "" {
-		fleet := machine.Namespace + "-" + machine.Name
+		fleet := firstNonEmpty(machine.Spec.FleetName, machine.Namespace+"-"+machine.Name)
 		sshKey, _, keyErr := r.fleetSSHKey(ctx, fleet)
 		if keyErr != nil {
 			conditions.MarkFalse(machine, shared.ProvisionedCondition, "SSHKeyUnavailable",
@@ -466,7 +466,7 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileDelete(ctx context.Cont
 			// the operator owns, so reinstall it (wipe) back to a clean, claimable
 			// state — the Elastic Metal analog of the macOS ReleaseToPool. The
 			// fleet SSH key is re-authored so the box bootstraps on its next claim.
-			_, sshKeyID, keyErr := r.fleetSSHKey(ctx, machine.Namespace+"-"+machine.Name)
+			_, sshKeyID, keyErr := r.fleetSSHKey(ctx, firstNonEmpty(machine.Spec.FleetName, machine.Namespace+"-"+machine.Name))
 			if keyErr != nil {
 				return ctrl.Result{}, fmt.Errorf("read fleet ssh key for release: %w", keyErr)
 			}

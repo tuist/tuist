@@ -35,6 +35,9 @@ spec:
       # prefix out-of-band (never inline during a rollout); the controller claims
       # a free one and releases it back to the pool (reinstall) on delete.
       adoptNamePrefix: {{ .Values.kuraFleet.machine.adoptNamePrefix | default "tuist-kura-em-" | quote }}
+      # Stable fleet name so every Machine the MachineDeployment clones shares one
+      # SSH key — the key the operator authorizes on the pre-ordered pool boxes.
+      fleetName: {{ $fleetName | quote }}
       zone: {{ .Values.kuraFleet.machine.zone | default "fr-par-1" | quote }}
       os: {{ .Values.kuraFleet.machine.os | default "ubuntu_noble" | quote }}
       privateNetworkName: {{ .Values.kuraFleet.machine.privateNetworkName | default "tuist-runner-cache" | quote }}
