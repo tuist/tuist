@@ -48,6 +48,7 @@ defmodule Tuist.Kura.Reconciler do
   alias Tuist.Kura
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Provisioner
+  alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Repo
 
@@ -373,11 +374,29 @@ defmodule Tuist.Kura.Reconciler do
   # the mirror; once they match this is a no-op, so steady-state nodes are still
   # not re-written every tick. A non-binary render (e.g. unknown region) leaves
   # the existing `converged?` behaviour untouched.
-  defp endpoint_in_sync?(%Server{url: url} = server) do
-    case Provisioner.public_url(server.account, server) do
-      ^url -> true
-      rendered when is_binary(rendered) -> false
-      _ -> true
+  #
+  # Node-port regions are the exception: their dispatch `url` is the
+  # node-published `http://<pn-ip>:<node-port>`, which the cluster-DNS template
+  # `public_url/2` renders never matches, so this would report drift on every
+  # tick and route a converged node through `do_converge/2` (DB write +
+  # broadcast) instead of `refresh_node_port_url/1`. That refresh path owns
+  # tracking the moving endpoint, so report node-port regions as in sync here.
+  defp endpoint_in_sync?(%Server{} = server) do
+    if node_port_region?(server) do
+      true
+    else
+      case Provisioner.public_url(server.account, server) do
+        url when url == server.url -> true
+        rendered when is_binary(rendered) -> false
+        _ -> true
+      end
+    end
+  end
+
+  defp node_port_region?(%Server{region: region_id}) do
+    case Regions.fetch(region_id) do
+      {:ok, region} -> Regions.node_port_data_plane?(region)
+      _ -> false
     end
   end
 
