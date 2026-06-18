@@ -218,6 +218,24 @@ k8s-monitoring:
       deploy: true
     node-exporter:
       deploy: true
+      # The chart-default probe is httpGet `/` with timeoutSeconds: 1. On a
+      # loaded node (a bare-metal CI runner mid-build, a busy control-plane),
+      # node-exporter scraping /proc + /sys can take >1s, so the probe times
+      # out, the pod flaps to NotReady, and the DaemonSet briefly drops to
+      # 15/16. A deploy's readiness wait that happens to poll during the flap
+      # then fails. Give the probe headroom (and a small CPU request so it is
+      # not BestEffort-throttled first) so a momentarily slow node does not
+      # flip the pod out of Ready.
+      readinessProbe:
+        timeoutSeconds: 5
+        failureThreshold: 5
+      livenessProbe:
+        timeoutSeconds: 5
+        failureThreshold: 5
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
 
   # ───── Service integrations ─────
   #
