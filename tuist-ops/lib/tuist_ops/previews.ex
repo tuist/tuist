@@ -28,28 +28,14 @@ defmodule TuistOps.Previews do
       |> Map.put(:release, "ondemand-#{slug}")
       |> Map.put(:expires_at, DateTime.add(DateTime.utc_now(), ttl, :second))
 
-    with {:ok, request} <- attrs |> Request.create_changeset() |> Repo.insert(),
-         {:ok, ts} <-
-           SlackClient.post_message(
-             request.slack_channel_id,
-             SlackBlocks.provisioning(request),
-             fallback_text: "Preview requested"
-           ),
-         {:ok, workflow} <- dispatch_create(request),
-         {:ok, request} <-
-           request
-           |> Request.transition_changeset(%{
-             status: "provisioning",
-             slack_message_ts: ts,
-             workflow_id: workflow.workflow_id,
-             workflow_ref: workflow.workflow_ref
-           })
-           |> Repo.update() do
-      {:ok, request}
-    else
-      {:error, reason} ->
-        Logger.warning("preview: create request failed: #{inspect(reason)}")
-        {:error, reason}
+    with {:ok, request} <- attrs |> Request.create_changeset() |> Repo.insert() do
+      provision_after_insert(
+        request,
+        "provisioning",
+        "Preview requested",
+        &SlackBlocks.provisioning/1,
+        &dispatch_create/1
+      )
     end
   end
 
@@ -64,18 +50,40 @@ defmodule TuistOps.Previews do
       |> Map.put(:namespace, "preview-ondemand-#{slug}")
       |> Map.put(:release, "ondemand-#{slug}")
 
-    with {:ok, request} <- attrs |> Request.create_changeset() |> Repo.insert(),
-         {:ok, ts} <-
+    with {:ok, request} <- attrs |> Request.create_changeset() |> Repo.insert() do
+      provision_after_insert(
+        request,
+        "deleting",
+        "Preview deletion requested",
+        &SlackBlocks.deleting/1,
+        &dispatch_delete/1
+      )
+    end
+  end
+
+  # Posts the Slack status card, dispatches the GitHub workflow, and only
+  # transitions to the active status if both succeed. On any failure the
+  # request row is moved to `failed` (with the reason persisted) and the
+  # Slack card is replaced with the failure variant so operators see what
+  # happened instead of a stale "provisioning…" message.
+  defp provision_after_insert(
+         %Request{} = request,
+         active_status,
+         fallback_text,
+         render,
+         dispatch
+       ) do
+    with {:ok, ts} <-
            SlackClient.post_message(
              request.slack_channel_id,
-             SlackBlocks.deleting(request),
-             fallback_text: "Preview deletion requested"
+             render.(request),
+             fallback_text: fallback_text
            ),
-         {:ok, workflow} <- dispatch_delete(request),
+         {:ok, workflow} <- dispatch.(request),
          {:ok, request} <-
            request
            |> Request.transition_changeset(%{
-             status: "deleting",
+             status: active_status,
              slack_message_ts: ts,
              workflow_id: workflow.workflow_id,
              workflow_ref: workflow.workflow_ref
@@ -84,8 +92,39 @@ defmodule TuistOps.Previews do
       {:ok, request}
     else
       {:error, reason} ->
-        Logger.warning("preview: delete request failed: #{inspect(reason)}")
+        Logger.warning("preview: request failed: #{inspect(reason)}")
+        mark_failed(request, reason)
         {:error, reason}
+    end
+  end
+
+  defp mark_failed(%Request{} = request, reason) do
+    failure_reason = reason |> inspect() |> String.slice(0, 500)
+
+    {:ok, request} =
+      request
+      |> Request.transition_changeset(%{
+        status: "failed",
+        failed_at: DateTime.utc_now() |> DateTime.truncate(:second),
+        failure_reason: failure_reason
+      })
+      |> Repo.update()
+
+    case request.slack_message_ts do
+      ts when is_binary(ts) ->
+        SlackClient.update_message(
+          request.slack_channel_id,
+          ts,
+          SlackBlocks.failed(request, reason),
+          fallback_text: "Preview request failed"
+        )
+
+      _ ->
+        SlackClient.post_message(
+          request.slack_channel_id,
+          SlackBlocks.failed(request, reason),
+          fallback_text: "Preview request failed"
+        )
     end
   end
 

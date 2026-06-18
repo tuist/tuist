@@ -29,7 +29,6 @@ defmodule TuistOps.Previews.Request do
     field :workflow_id, :string
     field :workflow_ref, :string
     field :expires_at, :utc_datetime
-    field :deleted_at, :utc_datetime
     field :failed_at, :utc_datetime
     field :failure_reason, :string
 
@@ -56,7 +55,6 @@ defmodule TuistOps.Previews.Request do
       :workflow_id,
       :workflow_ref,
       :expires_at,
-      :deleted_at,
       :failed_at,
       :failure_reason
     ])
@@ -74,6 +72,7 @@ defmodule TuistOps.Previews.Request do
     |> validate_format(:slug, ~r/^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$/)
     |> validate_length(:reason, min: 5)
     |> validate_number(:ttl_seconds, greater_than: 0)
+    |> unique_constraint(:slug, name: :preview_requests_active_slug_index)
   end
 
   def transition_changeset(%__MODULE__{} = request, attrs) do
@@ -83,7 +82,6 @@ defmodule TuistOps.Previews.Request do
       :slack_message_ts,
       :workflow_id,
       :workflow_ref,
-      :deleted_at,
       :failed_at,
       :failure_reason
     ])

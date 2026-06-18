@@ -20,7 +20,6 @@ defmodule TuistOps.Repo.Migrations.CreatePreviewRequests do
       add :workflow_id, :string
       add :workflow_ref, :string
       add :expires_at, :utc_datetime
-      add :deleted_at, :utc_datetime
       add :failed_at, :utc_datetime
       add :failure_reason, :text
 
@@ -30,5 +29,16 @@ defmodule TuistOps.Repo.Migrations.CreatePreviewRequests do
     create index(:preview_requests, [:slug, :inserted_at])
     create index(:preview_requests, [:status])
     create index(:preview_requests, [:expires_at])
+
+    # Stop two concurrent `/preview create <slug>` calls from both racing
+    # past insert and dispatching workflows for the same namespace; the
+    # second one fails closed at the DB. Scoped to in-flight statuses so
+    # a previous failed/terminal row does not block a fresh request.
+    create unique_index(
+             :preview_requests,
+             [:slug],
+             where: "status IN ('requested', 'provisioning', 'deleting')",
+             name: :preview_requests_active_slug_index
+           )
   end
 end
