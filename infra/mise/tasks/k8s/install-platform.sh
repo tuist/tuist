@@ -134,8 +134,43 @@ esac
 
 if KUBECONFIG="$WL_KUBECONFIG" helm status platform --namespace platform >/dev/null 2>&1; then
   HAVE_ALL_ADMISSION_SECRETS=true
+
+  admission_webhook_matches_secret() {
+    local secret="$1"
+    local secret_ca
+    local webhook_cas
+    local ca
+
+    secret_ca="$(
+      KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform get secret "$secret" \
+        -o jsonpath='{.data.ca}' 2>/dev/null || true
+    )"
+    if [ -z "$secret_ca" ]; then
+      return 1
+    fi
+
+    webhook_cas="$(
+      KUBECONFIG="$WL_KUBECONFIG" kubectl get validatingwebhookconfiguration "$secret" \
+        -o jsonpath='{range .webhooks[*]}{.clientConfig.caBundle}{"\n"}{end}' 2>/dev/null || true
+    )"
+    if [ -z "$webhook_cas" ]; then
+      return 1
+    fi
+
+    while IFS= read -r ca; do
+      if [ -z "$ca" ] || [ "$ca" != "$secret_ca" ]; then
+        return 1
+      fi
+    done <<< "$webhook_cas"
+  }
+
   for secret in "${ADMISSION_SECRETS[@]}"; do
     if ! KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform get secret "$secret" >/dev/null 2>&1; then
+      HAVE_ALL_ADMISSION_SECRETS=false
+      break
+    fi
+    if ! admission_webhook_matches_secret "$secret"; then
+      log "Admission webhook $secret is missing or has a stale CA bundle; running Helm hooks"
       HAVE_ALL_ADMISSION_SECRETS=false
       break
     fi

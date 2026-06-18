@@ -207,6 +207,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.resolve.outputs.ref }}
+          fetch-depth: 0
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "helm kubectl jq"
@@ -216,6 +217,14 @@ jobs:
           mkdir -p "$(dirname "$KUBECONFIG")"
           echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
+      - name: Reconcile platform chart
+        run: |
+          set -euo pipefail
+          CLOUDFLARE_API_TOKEN="$(kubectl -n platform get secret cloudflare-api-token \
+            -o jsonpath='{.data.api-token}' | base64 -d)"
+          echo "::add-mask::$CLOUDFLARE_API_TOKEN"
+          export CLOUDFLARE_API_TOKEN
+          mise -C infra run k8s:install-platform "$KUBECONFIG" tuist-preview
       - name: Re-apply preview node label and taint
         run: |
           kubectl label nodes -l '!node-role.kubernetes.io/control-plane,node.cluster.x-k8s.io/pool!=kura' role=preview --overwrite

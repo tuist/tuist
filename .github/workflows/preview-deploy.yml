@@ -308,6 +308,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.resolve.outputs.ref }}
+          fetch-depth: 0
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "helm kubectl"
@@ -317,6 +318,15 @@ jobs:
           mkdir -p "$(dirname "$KUBECONFIG")"
           echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
+
+      - name: Reconcile platform chart
+        run: |
+          set -euo pipefail
+          CLOUDFLARE_API_TOKEN="$(kubectl -n platform get secret cloudflare-api-token \
+            -o jsonpath='{.data.api-token}' | base64 -d)"
+          echo "::add-mask::$CLOUDFLARE_API_TOKEN"
+          export CLOUDFLARE_API_TOKEN
+          mise -C infra run k8s:install-platform "$KUBECONFIG" tuist-preview
 
       - name: Re-apply role=preview label/taint on workers
         # The tuist-hcloud ClusterClass doesn't surface node labels via
