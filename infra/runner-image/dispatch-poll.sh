@@ -30,18 +30,6 @@ set -uo pipefail
 LOG=/var/log/tuist-runner/poll.log
 exec >>"${LOG}" 2>&1
 
-# Boot-to-ready: seconds from kernel boot to this agent starting. The
-# VM gets an IP (and the Pod flips Running) within seconds, but macOS
-# first-boot work can delay the launchd agent — and therefore the
-# first dispatch poll — by minutes. This line is the per-VM ground
-# truth for that gap; the image bake disables the first-boot work
-# that inflates it. tart_kubelet_vm_boot_duration_seconds stops at
-# first-IP and can't see this.
-_boot_epoch=$(sysctl -n kern.boottime 2>/dev/null | sed -n 's/.*sec = \([0-9][0-9]*\).*/\1/p')
-if [ -n "${_boot_epoch:-}" ]; then
-  echo "$(date -u +%FT%TZ) dispatch-poll: boot-to-ready $(( $(date +%s) - _boot_epoch ))s"
-fi
-
 # Always halt the VM on script exit. tart-kubelet observes `tart run`
 # exiting and transitions the Pod to a terminal phase; without this
 # trap a non-zero `./run.sh` (errexit), an early `exit 1`
