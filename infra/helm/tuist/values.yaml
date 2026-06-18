@@ -562,23 +562,13 @@ kuraFleet:
   kubernetesMinorVersion: "v1.34"
   kubernetesVersion: "v1.34.8"
   machine:
-    # `instance` (default) provisions a Scaleway Linux Instance and renders a
-    # ScalewayInstanceMachineTemplate; `elasticMetal` provisions a Scaleway
-    # Elastic Metal bare-metal server (10G+ PN NIC + local NVMe) and renders a
-    # ScalewayElasticMetalMachineTemplate. Default stays `instance` for
-    # backward compatibility.
-    kind: instance
-    # Instance-kind shape (used when kind=instance).
-    commercialType: PRO2-S
-    # Elastic-Metal-kind offer (used when kind=elasticMetal). EM-B220E-NVME is
-    # the benchmarked 10G-PN / local-NVMe runner-cache shape.
+    # The Scaleway Elastic Metal offer for the runner-cache node: a bare-metal
+    # server with a 10G+ PN NIC and local NVMe. EM-B220E-NVME is the benchmarked
+    # staging/canary shape; production uses EM-I220E-NVME.
     offerType: EM-B220E-NVME
     zone: fr-par-1
-    # OS label: `image` is the Instance image; `os` is the Elastic Metal OS
-    # install label. Both default to ubuntu_noble.
-    image: ubuntu_noble
+    # Elastic Metal OS install label.
     os: ubuntu_noble
-    rootVolumeGB: 50
     # Required when enabled: the VPC Private Network the node attaches to
     # (the runner-cache PN shared with the Mac fleet).
     privateNetworkID: ""

@@ -53,6 +53,19 @@ const (
 	// a host that has finished install but isn't answering SSH yet errors out
 	// and the reconcile retries on the normal cadence.
 	elasticMetalSSHTimeout = 5 * time.Minute
+
+	// pnIPv4Label is the node label dispatch reads as the Private-Network
+	// address of the runner-cache node. kubelet can't self-set tuist.dev/*
+	// labels under NodeRestriction, so the controller patches it.
+	pnIPv4Label = "tuist.dev/pn-ipv4"
+
+	// linuxNodeIdentityClusterRole binds the Linux kura node's kubelet identity
+	// to the built-in system:node ClusterRole — the complete, canonical kubelet
+	// permission set — instead of the chart's scoped tart-kubelet role (which
+	// only covers what the macOS shim exercises). A real Linux kubelet needs the
+	// full set (leases, services, PVCs, CSI, ...), and discovering those one
+	// forbidden error at a time is its own kind of outage.
+	linuxNodeIdentityClusterRole = "system:node"
 )
 
 // NodeReadyCondition is set True once the self-joined Node reports Ready. The
@@ -561,4 +574,22 @@ func truncate(b []byte, max int) string {
 		return string(b)
 	}
 	return string(b[:max]) + "…(truncated)"
+}
+
+func nodeReady(node *corev1.Node) bool {
+	for _, c := range node.Status.Conditions {
+		if c.Type == corev1.NodeReady && c.Status == corev1.ConditionTrue {
+			return true
+		}
+	}
+	return false
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }

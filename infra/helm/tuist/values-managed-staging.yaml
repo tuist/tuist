@@ -298,7 +298,6 @@ kuraFleet:
   enabled: true
   replicas: 1
   machine:
-    kind: elasticMetal
     # EM-B220E-NVME (~EUR120/mo) is the cheapest in-stock Elastic Metal box
     # that still mirrors the production NVMe + 10G PN path, so staging
     # validates the same local-NVMe + bare-metal-PN data plane prod runs on.

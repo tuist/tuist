@@ -28,8 +28,6 @@ rules:
       - scalewayapplesiliconmachines
       - scalewayapplesiliconmachinetemplates
       - scalewayapplesiliconclusters
-      - scalewayinstancemachines
-      - scalewayinstancemachinetemplates
       - scalewayelasticmetalmachines
       - scalewayelasticmetalmachinetemplates
     verbs: [get, list, watch, create, update, patch, delete]
@@ -38,8 +36,6 @@ rules:
       - scalewayapplesiliconmachines/status
       - scalewayapplesiliconmachines/finalizers
       - scalewayapplesiliconclusters/status
-      - scalewayinstancemachines/status
-      - scalewayinstancemachines/finalizers
       - scalewayelasticmetalmachines/status
       - scalewayelasticmetalmachines/finalizers
     verbs: [get, update, patch]

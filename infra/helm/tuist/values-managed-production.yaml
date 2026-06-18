@@ -319,7 +319,6 @@ kuraFleet:
   enabled: true
   replicas: 1
   machine:
-    kind: elasticMetal
     # EM-I220E-NVME (128GB RAM / 1.92TB NVMe / 25G PN) is the best RAM+NVMe
     # value for the cache pods: RAM (warm-set size = hit rate) and NVMe
     # capacity are the per-account density limiters here, not PN bandwidth or

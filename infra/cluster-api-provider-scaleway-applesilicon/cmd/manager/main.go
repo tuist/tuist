@@ -452,35 +452,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Linux Scaleway Instance machines (the kura runner-cache pool). Same
-	// provider, separate reconciler: regular Instances created on demand
-	// that self-join via the CAPI kubeadm cloud-init.
-	instanceClient, err := scaleway.NewInstanceClientFromEnv()
-	if err != nil {
-		setupLog.Error(err, "scaleway instance client")
-		os.Exit(1)
-	}
-	if err := (&controllers.ScalewayInstanceMachineReconciler{
-		Client:             mgr.GetClient(),
-		APIReader:          mgr.GetAPIReader(),
-		Scheme:             mgr.GetScheme(),
-		ScalewayClient:     instanceClient,
-		Recorder:           mgr.GetEventRecorderFor("scalewayinstancemachine-controller"),
-		CredentialsManager: credsManager,
-		Kubeconfig:         kubeconfigBuilder,
-		KubernetesMinor:    "v1.34",
-		DefaultImage:       "ubuntu_noble",
-		DefaultZone:        "fr-par-1",
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "setup ScalewayInstanceMachineReconciler")
-		os.Exit(1)
-	}
-
-	// Elastic Metal (bare-metal) machines (the kura runner-cache pool's
-	// high-throughput shape). Same provider, separate reconciler: bare-metal
-	// servers ordered through the Baremetal API that pass through an OS-install
-	// wait, attach the PN as a tagged VLAN, then SSH-bootstrap the same
-	// self-join the Instance kind delivers via cloud-init.
+	// Elastic Metal (bare-metal) machines: the kura runner-cache pool. Same
+	// provider, separate reconciler from Apple Silicon: bare-metal servers
+	// ordered through the Baremetal API that pass through an OS-install wait,
+	// attach the PN as a tagged VLAN, then SSH-bootstrap a rendered self-join.
 	baremetalClient, err := scaleway.NewBaremetalClientFromEnv()
 	if err != nil {
 		setupLog.Error(err, "scaleway baremetal client")
