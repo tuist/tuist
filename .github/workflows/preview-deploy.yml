@@ -310,7 +310,7 @@ jobs:
           ref: ${{ needs.resolve.outputs.ref }}
       - uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "helm kubectl"
+          install_args: "--locked helm kubectl"
           cache: "false"
       - name: Load kubeconfig
         run: |
@@ -475,7 +475,7 @@ jobs:
     steps:
       - uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "helm kubectl"
+          install_args: "--locked helm kubectl"
           cache: "false"
       - name: Load kubeconfig
         run: |

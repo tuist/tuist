@@ -35,36 +35,36 @@ url = "https://github.com/jdx/aube/releases/download/v1.6.2/aube-v1.6.2-x86_64-p
 url_api = "https://api.github.com/repos/jdx/aube/releases/assets/410174742"
 
 [[tools.node]]
-version = "20.12.0"
+version = "22.12.0"
 backend = "core:node"
 
 [tools.node."platforms.linux-arm64"]
-checksum = "sha256:8e180526df8ad4086a4df7bfaaa14d21eb2a6cf58b1c5493c639022c165c2884"
-url = "https://nodejs.org/dist/v20.12.0/node-v20.12.0-linux-arm64.tar.gz"
+checksum = "sha256:9e7905fdee722f9650a03ae644b51c4c6effd3b98ac93c588700072ab35c9ddb"
+url = "https://nodejs.org/dist/v22.12.0/node-v22.12.0-linux-arm64.tar.gz"
 
 [tools.node."platforms.linux-arm64-musl"]
-url = "https://unofficial-builds.nodejs.org/download/release/v20.12.0/node-v20.12.0-linux-arm64-musl.tar.gz"
+url = "https://unofficial-builds.nodejs.org/download/release/v22.12.0/node-v22.12.0-linux-arm64-musl.tar.gz"
 
 [tools.node."platforms.linux-x64"]
-checksum = "sha256:b6b998947595c9550d6b89c815a68d608f5920275f1b48812f89792de3fdd893"
-url = "https://nodejs.org/dist/v20.12.0/node-v20.12.0-linux-x64.tar.gz"
+checksum = "sha256:e05a4d65232ae2b27b3d77da2e368522fb46b923335b8e0d5f77624c32484044"
+url = "https://nodejs.org/dist/v22.12.0/node-v22.12.0-linux-x64.tar.gz"
 
 [tools.node."platforms.linux-x64-musl"]
-checksum = "sha256:666906bd84ef2c4fdefff1c9735ff8d4a57ab457a42f45e2557d88e4eeaff781"
-url = "https://unofficial-builds.nodejs.org/download/release/v20.12.0/node-v20.12.0-linux-x64-musl.tar.gz"
+checksum = "sha256:8d96de0293fc3978d09e2a3fee68c66bca4efcca90f52105e6f7463636e97308"
+url = "https://unofficial-builds.nodejs.org/download/release/v22.12.0/node-v22.12.0-linux-x64-musl.tar.gz"
 
 [tools.node."platforms.macos-arm64"]
-checksum = "sha256:422a74b7ede14b697a8c2ca887ea161fe79898a35f163fdfb98435c5ab25027b"
-url = "https://nodejs.org/dist/v20.12.0/node-v20.12.0-darwin-arm64.tar.gz"
+checksum = "sha256:293dcc6c2408da21562d135b0412525e381bb6fe150d688edb58fe850d0f3e13"
+url = "https://nodejs.org/dist/v22.12.0/node-v22.12.0-darwin-arm64.tar.gz"
 
 [tools.node."platforms.macos-x64"]
-checksum = "sha256:5c7d71a1c1cf613037432e0b6c3d913d96604d9293b3397ec70b344730c81daf"
-url = "https://nodejs.org/dist/v20.12.0/node-v20.12.0-darwin-x64.tar.gz"
+checksum = "sha256:52bc25dd026db7247c3c00439afdb83e95087248267f02d6c1a7250d1f896173"
+url = "https://nodejs.org/dist/v22.12.0/node-v22.12.0-darwin-x64.tar.gz"
 
 [tools.node."platforms.windows-x64"]
-checksum = "sha256:85db3df652459e380edbbc57973c00c1e15626d354a9ae6ddfc45d27cc573584"
-url = "https://nodejs.org/dist/v20.12.0/node-v20.12.0-win-x64.zip"
+checksum = "sha256:2b8f2256382f97ad51e29ff71f702961af466c4616393f767455501e6aece9b8"
+url = "https://nodejs.org/dist/v22.12.0/node-v22.12.0-win-x64.zip"
 
 [[tools."npm:wrangler"]]
-version = "4.30.0"
+version = "4.40.3"
 backend = "npm:wrangler"
