@@ -73,6 +73,9 @@ pub struct Store {
     rocksdb_write_buffer_manager: WriteBufferManager,
     segment_write_lock: Mutex<()>,
     segment_refresh_lock: Mutex<()>,
+    // Wrapped in `Arc` so readers clone the snapshot under a brief lock and then
+    // use it without holding the mutex (unlike the sibling caches below, which
+    // are read and mutated in place under their lock).
     segment_state_cache: StdMutex<Arc<SegmentStateSnapshot>>,
     segment_handles: Mutex<SegmentHandleCache>,
     manifest_cache: StdMutex<ManifestCache>,
@@ -366,6 +369,8 @@ impl Store {
             multipart_locks: std::array::from_fn(|_| Mutex::new(())),
             failpoints: Arc::new(FailpointSet::default()),
         };
+        // `load_segment_state_from_db` needs `&self`, so the store must be fully
+        // constructed (with a placeholder snapshot) before it can be seeded.
         let segment_state = store.load_segment_state_from_db()?;
         store.replace_segment_state_snapshot(segment_state);
         Ok(store)
@@ -1145,6 +1150,10 @@ impl Store {
             .expect("segment state cache lock poisoned") = snapshot;
     }
 
+    /// Persists `state` to RocksDB and then atomically replaces the in-memory
+    /// snapshot. Every segment-ring mutation must funnel through here; a direct
+    /// `put_cf` to `ROCKSDB_CF_SEGMENT_STATE` that bypasses this function would
+    /// leave [`Self::segment_state_snapshot`] stale until the next restart.
     fn save_segment_state(&self, state: &SegmentState) -> Result<(), String> {
         let bytes = serde_json::to_vec(state)
             .map_err(|error| format!("failed to encode segment state: {error}"))?;
