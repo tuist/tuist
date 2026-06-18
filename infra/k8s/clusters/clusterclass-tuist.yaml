@@ -238,6 +238,17 @@ spec:
         openAPIV3Schema:
           type: string
           default: ""
+    # apiserver --kubelet-preferred-address-types order. Default keeps Hetzner
+    # nodes on ExternalIP; envs with cross-cloud nodes (Scaleway Elastic Metal /
+    # macOS PN) that report no ExternalIP and an unresolvable Hostname set this
+    # to insert InternalIP so the apiserver can reach those kubelets (logs/exec).
+    # Flipping it rolls that cluster's control plane — do it per-env, deliberately.
+    - name: kubeletPreferredAddressTypes
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: ExternalIP,Hostname,InternalDNS,ExternalDNS
   patches:
     - name: HetznerClusterTemplateGeneral
       definitions:
@@ -402,6 +413,23 @@ spec:
               path: "/spec/template/spec/hostSelector/matchLabels/tuist.dev~1cluster"
               valueFrom:
                 variable: bareMetalCluster
+    # Rebuilds the apiserver extraArgs array (CAPI ClusterClass patches can't
+    # index array elements) with kubelet-preferred-address-types set from the
+    # per-cluster variable. No-op while the variable equals the template
+    # default, so applying this patch rolls nothing; setting the variable on a
+    # Cluster CR regenerates that KubeadmControlPlane and rolls its CP.
+    - name: KubeadmControlPlaneKubeletAddressTypes
+      definitions:
+        - selector:
+            apiVersion: controlplane.cluster.x-k8s.io/v1beta2
+            kind: KubeadmControlPlaneTemplate
+            matchResources:
+              controlPlane: true
+          jsonPatches:
+            - op: replace
+              path: "/spec/template/spec/kubeadmConfigSpec/clusterConfiguration/apiServer/extraArgs"
+              valueFrom:
+                template: '[{"name": "kubelet-preferred-address-types", "value": {{ .kubeletPreferredAddressTypes | quote }} }]'
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: HetznerClusterTemplate
@@ -456,13 +484,12 @@ spec:
         clusterConfiguration:
           apiServer:
             extraArgs:
-              # InternalIP must precede Hostname: cross-cloud nodes (Scaleway
-              # Elastic Metal + macOS PN fleets) report a reachable InternalIP
-              # but a Hostname the Hetzner apiserver can't resolve, so without
-              # it the apiserver falls through to the Hostname and logs/exec
-              # to those nodes' pods fail.
+              # Default value. The KubeadmControlPlaneKubeletAddressTypes patch
+              # rebuilds this whole extraArgs array from the
+              # kubeletPreferredAddressTypes variable, so keep
+              # kubelet-preferred-address-types the only apiServer extraArg.
               - name: kubelet-preferred-address-types
-                value: ExternalIP,InternalIP,Hostname,InternalDNS,ExternalDNS
+                value: ExternalIP,Hostname,InternalDNS,ExternalDNS
           controllerManager:
             extraArgs:
               - name: cloud-provider
