@@ -18,8 +18,14 @@ type KuraInstanceSpec struct {
 	StorageClassName  string            `json:"storageClassName,omitempty"`
 	StorageSize       string            `json:"storageSize,omitempty"`
 	NodeSelector      map[string]string `json:"nodeSelector,omitempty"`
-	ExtraEnv          []corev1.EnvVar   `json:"extraEnv,omitempty"`
-	ExtensionScript   string            `json:"extensionScript,omitempty"`
+	// Tolerations let the runtime pod schedule onto tainted nodes. Preview
+	// environments use this to colocate Kura on the generic preview pool
+	// (which carries role=preview:NoSchedule) instead of pinning to a
+	// dedicated Kura node pool, so the preview lifecycle does not depend on
+	// Kura-specific capacity.
+	Tolerations     []corev1.Toleration `json:"tolerations,omitempty"`
+	ExtraEnv        []corev1.EnvVar     `json:"extraEnv,omitempty"`
+	ExtensionScript string              `json:"extensionScript,omitempty"`
 
 	// Private marks a region with no public endpoint, reachable only
 	// over the cluster's internal Service DNS (today: the runner-cache

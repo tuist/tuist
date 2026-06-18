@@ -1021,6 +1021,7 @@ func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string,
 		Spec: corev1.PodSpec{
 			TerminationGracePeriodSeconds: ptr(terminationGracePeriodSeconds()),
 			NodeSelector:                  nodeSelector(instance),
+			Tolerations:                   instance.Spec.Tolerations,
 			TopologySpreadConstraints:     topologySpreadConstraints(instance),
 			Containers: []corev1.Container{{
 				Name:            "kura",
