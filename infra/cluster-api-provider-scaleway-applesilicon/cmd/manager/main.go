@@ -76,7 +76,7 @@ func main() {
 		tailscaleAcceptRoutes        bool
 		vmKuraEgressCIDR             string
 		vmClusterDNSIP               string
-		vmCachePNID                  string
+		vmCachePNName                string
 		vmCachePNCIDR                string
 		tartKubeletHostCPU           int
 		tartKubeletHostMemory        int
@@ -176,18 +176,22 @@ func main() {
 			"lets Tart VMs reach on port 53, so the runner VM's /etc/resolver "+
 			"entry can resolve *.svc.cluster.local. Requires --vm-kura-egress-cidr; "+
 			"flows from the chart's macosFleet.vmClusterEgress.clusterDNSIP.")
-	flag.StringVar(&vmCachePNID, "vm-cache-pn-id",
-		envOrDefault("CAPI_VM_CACHE_PN_ID", ""),
-		"Scaleway Private Network ID carrying the kura runner-cache NodePort "+
-			"endpoints. When set with --vm-cache-pn-cidr, the operator attaches "+
-			"every Mac mini to this PN, resolves the per-host VLAN, and bootstrap "+
-			"materializes the VLAN interface + VM egress pass + NAT. Flows from "+
-			"the chart's macosFleet.vmCachePrivateNetwork.id.")
+	flag.StringVar(&vmCachePNName, "vm-cache-pn-name",
+		envOrDefault("CAPI_VM_CACHE_PN_NAME", ""),
+		"Name of the Scaleway Private Network carrying the kura runner-cache "+
+			"NodePort endpoints. When set with --vm-cache-pn-cidr, the operator "+
+			"resolves it to an ID (creating the PN from the CIDR if absent), "+
+			"attaches every Mac mini to it, resolves the per-host VLAN, and "+
+			"bootstrap materializes the VLAN interface + VM egress pass + NAT. "+
+			"The same name as the kura fleet's privateNetworkName, so the Macs "+
+			"and the Elastic Metal cache node share one PN per env. Flows from "+
+			"the chart's macosFleet.vmCachePrivateNetwork.name.")
 	flag.StringVar(&vmCachePNCIDR, "vm-cache-pn-cidr",
 		envOrDefault("CAPI_VM_CACHE_PN_CIDR", ""),
-		"IPv4 subnet of the runner-cache Private Network (e.g. 172.16.0.0/22). "+
-			"The VM egress firewall lets Tart VMs reach it on the Kubernetes "+
-			"NodePort range only. Flows from the chart's "+
+		"IPv4 subnet of the runner-cache Private Network (e.g. 172.16.0.0/22), "+
+			"used only when the operator has to create the PN. The VM egress "+
+			"firewall also lets Tart VMs reach it on the Kubernetes NodePort "+
+			"range only. Flows from the chart's "+
 			"macosFleet.vmCachePrivateNetwork.cidr.")
 	flag.IntVar(&tartKubeletHostCPU, "tartkubelet-host-cpu", 8, "CPU cores tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletHostMemory, "tartkubelet-host-memory-mb", 16384, "Memory MB tart-kubelet advertises on its Node")
@@ -411,6 +415,14 @@ func main() {
 		Minter: ghAppClient,
 	}
 
+	// Shared by both reconcilers so the Apple Silicon and Elastic Metal fleets
+	// resolve the runner-cache Private Network by name to one PN per env.
+	vpcClient, err := scaleway.NewVPCClientFromEnv()
+	if err != nil {
+		setupLog.Error(err, "scaleway vpc client")
+		os.Exit(1)
+	}
+
 	if err := (&controllers.ScalewayAppleSiliconMachineReconciler{
 		Client:               mgr.GetClient(),
 		Scheme:               mgr.GetScheme(),
@@ -433,8 +445,9 @@ func main() {
 		TailscaleAcceptRoutes:        tailscaleAcceptRoutes,
 		VMKuraEgressCIDR:             vmKuraEgressCIDR,
 		VMClusterDNSIP:               vmClusterDNSIP,
-		VMCachePNID:                  vmCachePNID,
+		VMCachePNName:                vmCachePNName,
 		VMCachePNCIDR:                vmCachePNCIDR,
+		VPC:                          vpcClient,
 		TartKubeletHostCPU:           tartKubeletHostCPU,
 		TartKubeletHostMemoryMB:      tartKubeletHostMemory,
 		TartKubeletMaxPods:           tartKubeletMaxPods,
@@ -459,11 +472,6 @@ func main() {
 	baremetalClient, err := scaleway.NewBaremetalClientFromEnv()
 	if err != nil {
 		setupLog.Error(err, "scaleway baremetal client")
-		os.Exit(1)
-	}
-	vpcClient, err := scaleway.NewVPCClientFromEnv()
-	if err != nil {
-		setupLog.Error(err, "scaleway vpc client")
 		os.Exit(1)
 	}
 	if err := (&controllers.ScalewayElasticMetalMachineReconciler{

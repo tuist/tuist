@@ -263,7 +263,7 @@ macosFleet:
   # succeeds, since clients treat the cache endpoint as a hard override
   # and an unreachable URL breaks macOS caching outright.
   vmCachePrivateNetwork:
-    id: e92e14c5-65ff-4ffd-91c3-f8154f569caf
+    name: tuist-runner-cache
     cidr: 172.16.0.0/22
 
 # Customer-runner Mac mini fleet — sibling of macosFleet.

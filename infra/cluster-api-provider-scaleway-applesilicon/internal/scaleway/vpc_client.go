@@ -148,3 +148,9 @@ func RegionFromZone(zone scw.Zone) scw.Region {
 	}
 	return scw.Region(s)
 }
+
+// RegionFromZoneString is RegionFromZone for callers holding a plain zone
+// string (e.g. the Apple Silicon reconciler), so they don't pull in scw.
+func RegionFromZoneString(zone string) scw.Region {
+	return RegionFromZone(scw.Zone(zone))
+}

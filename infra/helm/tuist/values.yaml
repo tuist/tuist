@@ -789,12 +789,14 @@ macosFleet:
     clusterDNSIP: ""
   # Scaleway Private Network for the kura runner-cache node-port data
   # plane (per-account NodePorts on the kura-scw-fr-par pool). Both
-  # fields required to enable; the PN must exist in the env's Scaleway
-  # project and the kura node pool must be attached to it. The
-  # operator's IAM principal needs Apple Silicon Private Networks
-  # permissions to attach minis.
+  # fields required to enable. name is the same PN the kura fleet
+  # attaches to (kuraFleet.machine.privateNetworkName), so the minis
+  # and the cache node share one PN per env; the operator resolves it
+  # to an ID, creating it from cidr if absent. The operator's IAM
+  # principal needs Apple Silicon Private Networks permissions to
+  # attach minis.
   vmCachePrivateNetwork:
-    id: ""
+    name: ""
     cidr: ""
   machine:
     # M2-L (M2 Pro chip, 12 vCPU, 32 GB RAM) is our default SKU:

@@ -126,16 +126,23 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	VMKuraEgressCIDR string
 	VMClusterDNSIP   string
 
-	// VMCachePNID / VMCachePNCIDR configure the Scaleway Private
+	// VMCachePNName / VMCachePNCIDR configure the Scaleway Private
 	// Network carrying the kura runner-cache NodePort endpoints.
-	// When both are set, the reconciler ensures every Mac mini is
-	// attached to the PN (Apple Silicon Private Networks API, a
-	// no-reboot operation), resolves the per-host VLAN, and
-	// bootstrap materializes the VLAN interface + firewall pass +
-	// VM NAT. Empty disables the PN data plane. See
+	// When both are set, the reconciler resolves the PN by name
+	// through VPC (creating it from the CIDR if absent), ensures every
+	// Mac mini is attached to it (Apple Silicon Private Networks API, a
+	// no-reboot operation), resolves the per-host VLAN, and bootstrap
+	// materializes the VLAN interface + firewall pass + VM NAT. Empty
+	// disables the PN data plane. See
 	// bootstrap.Config.VMCachePNCIDR / VMCachePNVLAN.
-	VMCachePNID   string
+	VMCachePNName string
 	VMCachePNCIDR string
+
+	// VPC find-or-creates the runner-cache Private Network the Mac
+	// fleet shares with the Elastic Metal cache node, resolving
+	// VMCachePNName to an ID. Same shared client as the EM reconciler,
+	// so the two fleets land on one PN per env.
+	VPC *scaleway.VPCClient
 
 	// TartKubelet host advertising — passed into bootstrap which bakes
 	// them into the launchd plist on each Mac mini.
@@ -1225,10 +1232,14 @@ func machineIP(m *infrav1.ScalewayAppleSiliconMachine) string {
 // Returns 0 (and no error) when the PN data plane is not configured
 // or the machine has no Scaleway server yet.
 func (r *ScalewayAppleSiliconMachineReconciler) ensureVMCachePN(ctx context.Context, machine *infrav1.ScalewayAppleSiliconMachine) (uint32, error) {
-	if r.VMCachePNID == "" || r.VMCachePNCIDR == "" || machine.Status.ServerID == "" {
+	if r.VMCachePNName == "" || r.VMCachePNCIDR == "" || machine.Status.ServerID == "" {
 		return 0, nil
 	}
-	return r.ScalewayClient.EnsureServerPrivateNetwork(ctx, machine.Status.ServerID, machine.Spec.Zone, r.VMCachePNID)
+	pnID, err := r.VPC.EnsurePrivateNetworkByName(ctx, scaleway.RegionFromZoneString(machine.Spec.Zone), r.VMCachePNName, r.VMCachePNCIDR)
+	if err != nil {
+		return 0, err
+	}
+	return r.ScalewayClient.EnsureServerPrivateNetwork(ctx, machine.Status.ServerID, machine.Spec.Zone, pnID)
 }
 
 func providerIDOf(m *infrav1.ScalewayAppleSiliconMachine) string {

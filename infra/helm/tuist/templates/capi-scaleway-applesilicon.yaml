@@ -346,13 +346,16 @@ spec:
             # `kubectl -n kube-system get svc kube-dns`.
             - --vm-cluster-dns-ip={{ . }}
             {{- end }}
-            {{- with .Values.macosFleet.vmCachePrivateNetwork.id }}
-            # Scaleway Private Network carrying the kura runner-cache
-            # NodePort endpoints. The operator attaches every mini,
-            # resolves the per-host VLAN, and bootstrap materializes
-            # the VLAN interface + VM egress pass + NAT — the data
-            # plane dispatch's node-port cache_endpoint_url rides.
-            - --vm-cache-pn-id={{ . }}
+            {{- with .Values.macosFleet.vmCachePrivateNetwork.name }}
+            # Name of the Scaleway Private Network carrying the kura
+            # runner-cache NodePort endpoints — the same name the kura
+            # fleet attaches to, so the minis and the Elastic Metal
+            # cache node share one PN per env. The operator resolves it
+            # to an ID, attaches every mini, resolves the per-host VLAN,
+            # and bootstrap materializes the VLAN interface + VM egress
+            # pass + NAT — the data plane dispatch's node-port
+            # cache_endpoint_url rides.
+            - --vm-cache-pn-name={{ . }}
             {{- end }}
             {{- with .Values.macosFleet.vmCachePrivateNetwork.cidr }}
             - --vm-cache-pn-cidr={{ . }}
