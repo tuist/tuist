@@ -13,6 +13,26 @@ Noora Storybook ships from the standalone `infra/helm/noora-storybook/` chart so
 
 Each dependency defaults to `embedded` (deployed within the chart). To use an external provider instead, set its `mode` to `external` and configure the connection details under the corresponding section in `values.yaml`.
 
+External PostgreSQL with an existing Secret:
+
+```yaml
+postgresql:
+  mode: external
+  external:
+    port: 5432
+    database: tuist
+    existingSecret: tuist-postgresql
+    existingSecretKeys:
+      host: host
+      username: username
+      password: password
+```
+
+The chart reads `host`, `username`, and `password` from the named Secret and
+builds `DATABASE_URL` through Kubernetes env-var substitution, so the password
+does not appear in the rendered manifest. The Secret value for `password`
+should be URL-safe because it is interpolated into a database URL.
+
 ## Local validation
 
 Render manifests:
