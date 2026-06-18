@@ -20,7 +20,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_maps_modulemap_build_flag_to_setting() throws {
+    func test_maps_modulemap_build_flag_to_setting() async throws {
         // Given
         let workspace = Workspace.test()
         let projectAPath = try temporaryPath().appending(component: "A")
@@ -71,7 +71,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotGraph, gotSideEffects, _) = try subject.map(
+        let (gotGraph, gotSideEffects, _) = try await subject.map(
             graph: .test(
                 workspace: workspace,
                 projects: [
@@ -195,7 +195,79 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
     }
 
-    func test_maps_modulemap_build_flag_to_target_with_empty_settings() throws {
+    func test_map_deletesStaleGeneratedDependencyModuleMaps() async throws {
+        // Given
+        let workspace = Workspace.test()
+        let projectAPath = try temporaryPath().appending(component: "A")
+        let projectBPath = try temporaryPath().appending(component: "B")
+        let moduleMapDirectory = projectAPath.appending(components: "Derived", "ModuleMaps")
+        let activeModuleMapPath = moduleMapDirectory.appending(component: "A-deps.modulemap")
+        let staleModuleMapPath = moduleMapDirectory.appending(component: "DeletedTarget-deps.modulemap")
+
+        try await fileSystem.makeDirectory(at: moduleMapDirectory)
+        try await fileSystem.touch(activeModuleMapPath)
+        try await fileSystem.touch(staleModuleMapPath)
+
+        let targetA = Target.test(
+            name: "A",
+            dependencies: [
+                .project(target: "B", path: projectBPath),
+            ]
+        )
+        let projectA = Project.test(
+            path: projectAPath,
+            name: "A",
+            targets: [
+                targetA,
+            ]
+        )
+        let targetB = Target.test(
+            name: "B",
+            settings: .test(base: [
+                "MODULEMAP_FILE": .string(projectBPath.appending(components: "B", "B.module").pathString),
+            ])
+        )
+        let projectB = Project.test(
+            path: projectBPath,
+            name: "B",
+            targets: [
+                targetB,
+            ]
+        )
+
+        // When
+        let (_, gotSideEffects, _) = try await subject.map(
+            graph: .test(
+                workspace: workspace,
+                projects: [
+                    projectAPath: projectA,
+                    projectBPath: projectB,
+                ],
+                dependencies: [
+                    .target(name: targetA.name, path: projectAPath): [
+                        .target(name: targetB.name, path: projectBPath),
+                    ],
+                ]
+            ),
+            environment: MapperEnvironment()
+        )
+
+        // Then
+        XCTAssertTrue(
+            gotSideEffects.contains(.file(.init(path: staleModuleMapPath, state: .absent)))
+        )
+        XCTAssertFalse(
+            gotSideEffects.contains(.file(.init(path: activeModuleMapPath, state: .absent)))
+        )
+        XCTAssertTrue(
+            gotSideEffects.contains { sideEffect in
+                guard case let .file(fileDescriptor) = sideEffect else { return false }
+                return fileDescriptor.path == activeModuleMapPath && fileDescriptor.state == .present
+            }
+        )
+    }
+
+    func test_maps_modulemap_build_flag_to_target_with_empty_settings() async throws {
         // Given
         let workspace = Workspace.test()
         let projectAPath = try temporaryPath().appending(component: "A")
@@ -232,7 +304,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotGraph, gotSideEffects, _) = try subject.map(
+        let (gotGraph, gotSideEffects, _) = try await subject.map(
             graph: .test(
                 workspace: workspace,
                 projects: [
@@ -326,7 +398,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
     }
 
-    func test_maps_modulemap_flags_to_configurations_that_override_other_swift_flags() throws {
+    func test_maps_modulemap_flags_to_configurations_that_override_other_swift_flags() async throws {
         // Given
         let workspace = Workspace.test()
         let projectAPath = try temporaryPath().appending(component: "A")
@@ -380,7 +452,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotGraph, gotSideEffects, _) = try subject.map(
+        let (gotGraph, gotSideEffects, _) = try await subject.map(
             graph: .test(
                 workspace: workspace,
                 projects: [
@@ -458,7 +530,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
     }
 
-    func test_external_spm_project_anchors_tuist_derived_paths_on_project_dir() throws {
+    func test_external_spm_project_anchors_tuist_derived_paths_on_project_dir() async throws {
         // Given — mirrors how Tuist lays out external SwiftPM projects after
         // `ExternalDependencyPathWorkspaceMapper` runs: the SwiftPM checkout sits at
         // `<scratch>/checkouts/<Pkg>/` (and is what `$(SRCROOT)` resolves to at build time, due to
@@ -516,7 +588,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotGraph, gotSideEffects, _) = try subject.map(
+        let (gotGraph, gotSideEffects, _) = try await subject.map(
             graph: .test(
                 workspace: workspace,
                 projects: [
@@ -583,7 +655,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         }
     }
 
-    func test_external_spm_projects_with_same_target_name_use_distinct_combined_module_maps() throws {
+    func test_external_spm_projects_with_same_target_name_use_distinct_combined_module_maps() async throws {
         let workspace = Workspace.test()
         let scratch = try temporaryPath().appending(component: ".build")
         let derivedRoot = scratch.appending(component: "tuist-derived")
@@ -672,7 +744,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
             swiftPackageManagerScratchDirectory: scratch
         )
 
-        let (gotGraph, gotSideEffects, _) = try subject.map(
+        let (gotGraph, gotSideEffects, _) = try await subject.map(
             graph: .test(
                 workspace: workspace,
                 projects: [

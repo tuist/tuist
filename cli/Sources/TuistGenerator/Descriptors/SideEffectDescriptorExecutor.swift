@@ -49,8 +49,13 @@ public struct SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
         case .present:
             try await fileSystem.makeDirectory(at: file.path.parentDirectory)
             if let contents = file.contents {
+                if try await fileSystem.exists(file.path),
+                   try await fileSystem.readFile(at: file.path) == contents
+                {
+                    return
+                }
                 try contents.write(to: file.path.url)
-            } else {
+            } else if try await !fileSystem.exists(file.path) {
                 try await fileSystem.touch(file.path)
             }
         case .absent:

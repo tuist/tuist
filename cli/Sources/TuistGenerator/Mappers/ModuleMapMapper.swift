@@ -30,10 +30,17 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
         let headerSearchPaths: [String]
     }
 
-    public init() {}
+    private let staleGeneratedFilesCleaner: StaleGeneratedFilesCleaner
+
+    public init() {
+        staleGeneratedFilesCleaner = StaleGeneratedFilesCleaner()
+    }
 
     // swiftlint:disable function_body_length
-    public func map(graph: Graph, environment: MapperEnvironment) throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
+    public func map(
+        graph: Graph,
+        environment: MapperEnvironment
+    ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
         Logger.current
             .debug(
                 "Transforming graph \(graph.name): Mapping MODULE_MAP build setting to -fmodule-map-file compiler flag"
@@ -50,10 +57,13 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
         }
 
         var graph = graph
-        var sideEffects: [SideEffectDescriptor] = []
+        var generatedFileSideEffects: [SideEffectDescriptor] = []
+        var generatedModuleMapDirectories: Set<AbsolutePath> = []
+        var activeFilesByDirectory: [AbsolutePath: Set<AbsolutePath>] = [:]
 
         graph.projects = Dictionary(uniqueKeysWithValues: graph.projects.map { projectPath, project in
             var project = project
+            generatedModuleMapDirectories.insert(dependenciesModuleMapDirectory(for: project))
             let derivedDirectory = dependenciesDerivedDirectory(for: project)
             project.targets = Dictionary(uniqueKeysWithValues: project.targets.map { targetName, target in
                 var target = target
@@ -74,7 +84,11 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                 )
 
                 if let combinedModuleMap {
-                    sideEffects.append(
+                    activeFilesByDirectory[
+                        combinedModuleMap.path.parentDirectory,
+                        default: []
+                    ].insert(combinedModuleMap.path)
+                    generatedFileSideEffects.append(
                         .file(FileDescriptor(
                             path: combinedModuleMap.path,
                             contents: combinedModuleMap.content
@@ -129,8 +143,30 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
 
             return (projectPath, project)
         })
+        var sideEffects = try await staleGeneratedFilesCleaner.sideEffects(
+            for: generatedModuleMapDirectories,
+            activeFilesByDirectory: activeFilesByDirectory
+        )
+        sideEffects.append(contentsOf: generatedFileSideEffects)
         return (graph, sideEffects, environment)
     } // swiftlint:enable function_body_length
+
+    private func dependenciesModuleMapDirectory(for project: Project) -> AbsolutePath {
+        if case .external = project.type,
+           let scratch = project.swiftPackageManagerScratchDirectory
+        {
+            return scratch.appending(
+                components: Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                Constants.DerivedDirectory.dependenciesModuleMapsDirectory,
+                project.name.sanitizedModuleName
+            )
+        } else {
+            return project.path.appending(
+                components: Constants.DerivedDirectory.name,
+                Constants.DerivedDirectory.moduleMaps
+            )
+        }
+    }
 
     /// The `tuist-derived/` directory for an external SPM-generated project, or `nil` for local projects.
     /// Used as a gating condition for `referenceString` to decide whether a referenced path is one Tuist owns

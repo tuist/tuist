@@ -30,20 +30,32 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
         let targetName: String
     }
 
-    public init() {}
+    private let staleGeneratedFilesCleaner: StaleGeneratedFilesCleaner
+
+    public init() {
+        staleGeneratedFilesCleaner = StaleGeneratedFilesCleaner()
+    }
 
     public func map(
         graph: Graph,
         environment: MapperEnvironment
-    ) throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
+    ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
         Logger.current.debug("Transforming graph \(graph.name): Setting up framework search paths")
 
         let graphTraverser = GraphTraverser(graph: graph)
 
         var settingsByTarget: [TargetID: [(key: String, values: [String])]] = [:]
-        var sideEffects: [SideEffectDescriptor] = []
+        var generatedFileSideEffects: [SideEffectDescriptor] = []
+        var generatedResponseFileDirectories: Set<AbsolutePath> = []
+        var activeFilesByDirectory: [AbsolutePath: Set<AbsolutePath>] = [:]
 
         for (_, project) in graph.projects {
+            let responseFileDirectory = project.sourceRootPath.appending(
+                components: Constants.DerivedDirectory.name,
+                Constants.DerivedDirectory.frameworkSearchPaths
+            )
+            generatedResponseFileDirectories.insert(responseFileDirectory)
+
             for (_, target) in project.targets {
                 let linkableModules = try graphTraverser
                     .searchablePathDependencies(path: project.path, name: target.name).sorted()
@@ -62,11 +74,7 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
 
                 var additions: [(key: String, values: [String])] = []
                 if precompiledPaths.count >= Self.consolidationThreshold {
-                    let responseFilePath = project.sourceRootPath.appending(
-                        components: Constants.DerivedDirectory.name,
-                        Constants.DerivedDirectory.frameworkSearchPaths,
-                        "\(target.name).resp"
-                    )
+                    let responseFilePath = responseFileDirectory.appending(component: "\(target.name).resp")
                     let precompiledXcodeValues = precompiledPaths
                         .map { $0.xcodeValue(sourceRootPath: project.sourceRootPath) }
                         .uniqued()
@@ -77,7 +85,8 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
                         .map { "-F" + $0.replacingOccurrences(of: "$(SRCROOT)", with: project.sourceRootPath.pathString) }
                         .joined(separator: "\n")
                         + "\n"
-                    sideEffects.append(
+                    activeFilesByDirectory[responseFileDirectory, default: []].insert(responseFilePath)
+                    generatedFileSideEffects.append(
                         .file(FileDescriptor(path: responseFilePath, contents: Data(responseFileContents.utf8)))
                     )
 
@@ -118,6 +127,11 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
             return (projectPath, project)
         })
 
+        var sideEffects = try await staleGeneratedFilesCleaner.sideEffects(
+            for: generatedResponseFileDirectories,
+            activeFilesByDirectory: activeFilesByDirectory
+        )
+        sideEffects.append(contentsOf: generatedFileSideEffects)
         return (graph, sideEffects, environment)
     }
 
