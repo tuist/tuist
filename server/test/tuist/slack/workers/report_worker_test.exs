@@ -102,15 +102,14 @@ defmodule Tuist.Slack.Workers.ReportWorkerTest do
       assert persisted_job.completed_at == nil
     end
 
-    test "does not advance the report window for discarded cleanup jobs", %{
+    test "uses project.last_reported_at for the window and advances it on a successful send", %{
       project: project,
       slack_installation: slack_installation
     } do
       previous_report_at = ~U[2025-01-14 09:00:00Z]
-      discarded_at = ~U[2025-01-15 09:00:00Z]
       now = ~U[2025-01-16 09:00:00Z]
 
-      {:ok, _project} =
+      {:ok, project} =
         Projects.update_project(project, %{
           slack_channel_id: "C123456",
           slack_channel_name: "test-channel",
@@ -120,21 +119,10 @@ defmodule Tuist.Slack.Workers.ReportWorkerTest do
           report_timezone: "Etc/UTC"
         })
 
-      insert_report_job(project.id,
-        state: "completed",
-        completed_at: previous_report_at,
-        inserted_at: previous_report_at,
-        scheduled_at: previous_report_at
-      )
-
-      insert_report_job(project.id,
-        state: "discarded",
-        discarded_at: discarded_at,
-        inserted_at: discarded_at,
-        scheduled_at: discarded_at
-      )
-
-      assert Repo.aggregate(Oban.Job, :count, :id) == 2
+      {:ok, project} =
+        project
+        |> Ecto.Changeset.change(last_reported_at: DateTime.truncate(previous_report_at, :second))
+        |> Repo.update()
 
       stub_report_metrics(now)
 
@@ -151,6 +139,9 @@ defmodule Tuist.Slack.Workers.ReportWorkerTest do
       end)
 
       assert :ok = ReportWorker.perform(%Oban.Job{args: %{"project_id" => project.id}})
+
+      # The successful send advances the window to `now`.
+      assert DateTime.compare(Repo.reload!(project).last_reported_at, now) == :eq
     end
 
     test "clears the project slack channel when Slack returns channel_not_found", %{
@@ -364,31 +355,6 @@ defmodule Tuist.Slack.Workers.ReportWorkerTest do
     stub(Tuist.Bundles, :last_project_bundle, fn _project, _opts ->
       nil
     end)
-  end
-
-  defp insert_report_job(project_id, attrs) do
-    Repo.insert!(%Oban.Job{
-      state: Keyword.fetch!(attrs, :state),
-      queue: "default",
-      worker: to_string(Keyword.get(attrs, :worker, ReportWorker)),
-      args: %{"project_id" => project_id},
-      meta: %{},
-      tags: [],
-      errors: [],
-      attempt: 0,
-      max_attempts: 20,
-      priority: 0,
-      completed_at: truncate_datetime(Keyword.get(attrs, :completed_at)),
-      discarded_at: truncate_datetime(Keyword.get(attrs, :discarded_at)),
-      inserted_at: truncate_datetime(Keyword.fetch!(attrs, :inserted_at)),
-      scheduled_at: truncate_datetime(Keyword.fetch!(attrs, :scheduled_at))
-    })
-  end
-
-  defp truncate_datetime(nil), do: nil
-
-  defp truncate_datetime(datetime) do
-    %{DateTime.truncate(datetime, :microsecond) | microsecond: {elem(datetime.microsecond, 0), 6}}
   end
 
   defp report_period_text(current_period_start, current_period_end) do

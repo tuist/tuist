@@ -84,6 +84,19 @@ spec:
       encoding: UTF8
       localeCType: C
       localeCollate: C
+      {{- if .Values.postgresql.cnpg.queryStats.enabled }}
+      # Fresh clusters get pg_stat_statements (for the query-latency
+      # metrics) at bootstrap, so no manual step is needed for new envs.
+      # postInitSQL runs against `postgres` as superuser, which is where
+      # the instance-global view must live. It fires only at initdb, so
+      # the already-bootstrapped envs still need the one-time
+      # infra/cnpg/pg-stat-statements.sql run; the extension persists
+      # thereafter (it survives a physical restore). Full declarative
+      # reconciliation on existing clusters would need CNPG >= 1.26's
+      # Database.spec.extensions.
+      postInitSQL:
+        - CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+      {{- end }}
 
   # ESO syncs a server-side Secret holding the `tuist_app` (owner)
   # password into `{{ $clusterName }}-app`. CNPG also exposes a
@@ -114,9 +127,19 @@ spec:
     topologyKey: kubernetes.io/hostname
     podAntiAffinityType: required
 
-  {{- with .Values.postgresql.cnpg.monitoring }}
+  {{- if or .Values.postgresql.cnpg.monitoring .Values.postgresql.cnpg.queryStats.enabled }}
   monitoring:
+    {{- with .Values.postgresql.cnpg.monitoring }}
     {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if .Values.postgresql.cnpg.queryStats.enabled }}
+    # pg_stat_statements latency metrics (cnpg_tuist_query_stats_*). The
+    # ConfigMap and its prerequisites are described in
+    # templates/postgresql-cnpg-monitoring-queries.yaml.
+    customQueriesConfigMap:
+      - name: {{ include "tuist.componentName" (dict "root" . "component" "pg-monitoring-queries") }}
+        key: queries
+    {{- end }}
   {{- end }}
 
   # Managed roles. CNPG creates the role on bootstrap and rotates the

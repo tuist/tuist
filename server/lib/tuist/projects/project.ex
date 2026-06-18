@@ -31,6 +31,10 @@ defmodule Tuist.Projects.Project do
     field :report_days_of_week, {:array, :integer}, default: []
     field :report_schedule_time, :utc_datetime
     field :report_timezone, :string
+    # Stamped by ReportWorker on each successful send; bounds the next report
+    # window independently of oban_jobs retention. Set internally, not via the
+    # public changeset.
+    field :last_reported_at, :utc_datetime
     field :build_system, Ecto.Enum, values: [xcode: 0, gradle: 1], default: :xcode
 
     field :auto_quarantine_flaky_tests, :boolean, default: false
