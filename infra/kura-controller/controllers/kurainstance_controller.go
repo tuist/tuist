@@ -89,13 +89,12 @@ type KuraInstanceReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 
-	// GRPCClusterIssuer, when non-empty, makes the controller request
-	// cert-manager Certificates per instance with this ClusterIssuer for
-	// both the public HTTPS host and the gRPC host. The issued Secrets
-	// are referenced by the regional Kura ingress layer that terminates
-	// TLS for customer-facing traffic.
-	// The name is historical; the controller uses the same issuer for
-	// every cert it asks cert-manager to mint.
+	// GRPCClusterIssuer, when non-empty, makes the controller request a
+	// cert-manager Certificate per instance with this ClusterIssuer for the
+	// single public host (which serves both the HTTP cache and gRPC, see
+	// reconcileGRPCIngress). The issued Secret is referenced by the regional
+	// Kura ingress layer that terminates TLS for customer-facing traffic.
+	// The name is historical; there is no longer a separate gRPC certificate.
 	GRPCClusterIssuer   string
 	OTLPTracesEndpoint  string
 	Environment         string
@@ -245,7 +244,7 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcilePublicCertificate(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcileGRPCCertificate(ctx, instance); err != nil {
+	if err := r.retireLegacyGRPCCertificate(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcilePeerTLSSecret(ctx, instance); err != nil {
@@ -525,11 +524,13 @@ func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, ins
 // exact `= /build.bazel.remote.execution.v2.`, and the method path (no `/`
 // after the package prefix) matches neither, falling through to the HTTP
 // `/` location. Verified against ingress-nginx v1.11.3.
-func grpcREAPIPathPrefixes() []string {
-	return []string{
-		`^/build\.bazel\.remote\.execution\.v2\.`,
-		`^/google\.bytestream\.`,
-	}
+//
+// Note: only the REAPI and ByteStream packages are routed. Kura registers no
+// gRPC health or reflection service, so those paths intentionally fall to the
+// HTTP backend; add `^/grpc\.` here if Kura ever serves them.
+var grpcREAPIPathPrefixes = []string{
+	`^/build\.bazel\.remote\.execution\.v2\.`,
+	`^/google\.bytestream\.`,
 }
 
 // reconcileGRPCIngress co-hosts the gRPC (Bazel REAPI) backend on the public
@@ -558,8 +559,8 @@ func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, insta
 		ingress.Annotations = grpcIngressAnnotations()
 		ingress.Spec.IngressClassName = ptr(ingressClassName(instance))
 		ingress.Spec.TLS = nil
-		paths := make([]networkingv1.HTTPIngressPath, 0, len(grpcREAPIPathPrefixes()))
-		for _, prefix := range grpcREAPIPathPrefixes() {
+		paths := make([]networkingv1.HTTPIngressPath, 0, len(grpcREAPIPathPrefixes))
+		for _, prefix := range grpcREAPIPathPrefixes {
 			paths = append(paths, networkingv1.HTTPIngressPath{
 				Path:     prefix,
 				PathType: ptr(networkingv1.PathTypeImplementationSpecific),
@@ -817,24 +818,39 @@ func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context,
 	return err
 }
 
-// reconcileGRPCCertificate retires the legacy per-host gRPC certificate.
-// gRPC now co-hosts on the public host (see reconcileGRPCIngress), so the
-// public Certificate/Secret already covers it and no dedicated
-// <name>-grpc-tls certificate is provisioned. This unconditionally removes
-// any Certificate and Secret left over from before the single-host
-// migration; cert-manager does not garbage-collect the issued Secret when
-// its Certificate is deleted, so the Secret is cleaned up explicitly.
-func (r *KuraInstanceReconciler) reconcileGRPCCertificate(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+// retireLegacyGRPCCertificate removes the dedicated per-host gRPC
+// certificate left over from before the single-host migration. gRPC now
+// co-hosts on the public host (see reconcileGRPCIngress), so the public
+// Certificate/Secret already covers it and no dedicated <name>-grpc-tls
+// certificate is provisioned. cert-manager does not garbage-collect the
+// issued Secret when its Certificate is deleted, so the Secret is removed
+// explicitly. Get-before-Delete keeps a converged reconcile read-only
+// (the Gets are served from the controller-runtime cache) instead of
+// issuing DELETE writes on every loop forever.
+//
+// TODO(kura single-host migration): once every environment has converged
+// (no <name>-grpc-tls Certificate or Secret remains anywhere), drop the
+// call from Reconcile and delete this function.
+func (r *KuraInstanceReconciler) retireLegacyGRPCCertificate(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	cert := &unstructured.Unstructured{}
 	cert.SetGroupVersionKind(certificateGVK())
 	cert.SetName(grpcTLSSecretName(instance))
 	cert.SetNamespace(instance.Namespace)
-	if err := r.Delete(ctx, cert); err != nil && !apierrors.IsNotFound(err) {
-		return client.IgnoreNotFound(err)
+	if err := r.deleteIfExists(ctx, cert); err != nil {
+		return err
 	}
 
 	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: grpcTLSSecretName(instance), Namespace: instance.Namespace}}
-	if err := r.Delete(ctx, secret); err != nil && !apierrors.IsNotFound(err) {
+	return r.deleteIfExists(ctx, secret)
+}
+
+// deleteIfExists deletes obj when present, treating a missing object (on
+// either the cache read or the delete) as success.
+func (r *KuraInstanceReconciler) deleteIfExists(ctx context.Context, obj client.Object) error {
+	if err := r.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	if err := r.Delete(ctx, obj); err != nil {
 		return client.IgnoreNotFound(err)
 	}
 	return nil
