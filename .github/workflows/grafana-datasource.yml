@@ -37,11 +37,12 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise-install
         with:
           version: ${{ env.MISE_VERSION }}
-          working_directory: grafana-datasource
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+          install: "go node"
+          working-directory: grafana-datasource
+          github-token: ${{ env.MISE_GITHUB_TOKEN }}
       - run: npm ci
       - run: npm run typecheck
 
@@ -52,11 +53,12 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise-install
         with:
           version: ${{ env.MISE_VERSION }}
-          working_directory: grafana-datasource
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+          install: "go node"
+          working-directory: grafana-datasource
+          github-token: ${{ env.MISE_GITHUB_TOKEN }}
       - run: npm ci
       - run: npm run lint
 
@@ -67,11 +69,12 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise-install
         with:
           version: ${{ env.MISE_VERSION }}
-          working_directory: grafana-datasource
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+          install: "go node"
+          working-directory: grafana-datasource
+          github-token: ${{ env.MISE_GITHUB_TOKEN }}
       - run: npm ci
       - run: npm run test:ci
 
@@ -82,11 +85,12 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise-install
         with:
           version: ${{ env.MISE_VERSION }}
-          working_directory: grafana-datasource
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+          install: "go node"
+          working-directory: grafana-datasource
+          github-token: ${{ env.MISE_GITHUB_TOKEN }}
       - run: npm ci
       - run: npm run build
 
@@ -97,11 +101,12 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise-install
         with:
           version: ${{ env.MISE_VERSION }}
-          working_directory: grafana-datasource
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+          install: "go node"
+          working-directory: grafana-datasource
+          github-token: ${{ env.MISE_GITHUB_TOKEN }}
       - run: test -z "$(gofmt -l pkg/)" || { gofmt -l pkg/; exit 1; }
 
   go-vet:
@@ -111,11 +116,12 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise-install
         with:
           version: ${{ env.MISE_VERSION }}
-          working_directory: grafana-datasource
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+          install: "go node"
+          working-directory: grafana-datasource
+          github-token: ${{ env.MISE_GITHUB_TOKEN }}
       - run: go vet ./...
 
   go-test:
@@ -125,9 +131,10 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise-install
         with:
           version: ${{ env.MISE_VERSION }}
-          working_directory: grafana-datasource
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+          install: "go node"
+          working-directory: grafana-datasource
+          github-token: ${{ env.MISE_GITHUB_TOKEN }}
       - run: go test ./...

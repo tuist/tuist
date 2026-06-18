@@ -15,6 +15,7 @@ This file provides guidance to AI agents when working with code in this reposito
 - `noora/` - Noora design system (Elixir/Phoenix web components) - see `noora/AGENTS.md`
 - `mise/tasks/registry/` - Operational scripts for Swift package registry management (purge, sync)
 - `skills/` - Agent Skills (published to [tuist/agent-skills](https://github.com/tuist/agent-skills))
+- `swifterpm/` - SwifterPM Swift package restoration tool and Bazel/Buck integration helpers - see `swifterpm/AGENTS.md`
 - `server/native/xcactivitylog_nif/` - Swift NIF linked into the server release for xcactivitylog parsing. The build processor is no longer a standalone Elixir app; it's the same `ghcr.io/tuist/tuist` image booted with `TUIST_MODE=processor` to run the `:process_build` Oban queue consumer.
 - `server/native/xcresult_nif/` - Swift NIF for xcresult parsing (macOS-only — uses `xcresulttool`). Baked into a Tart VM image (`infra/xcresult-processor-image/`) that runs as a k8s `Deployment` scheduled onto a Mac mini node via tart-cri.
 - `infra/xcresult-processor-image/` - Packer template + launchd plist that produces the macOS Tart image hosting the Tuist server release with `TUIST_MODE=xcresult_processor`. See `infra/xcresult-processor-image/AGENTS.md`.

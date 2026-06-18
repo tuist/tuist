@@ -38,7 +38,7 @@ jobs:
     steps:
       - uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "helm kubectl jq"
+          install_args: "--locked helm kubectl jq"
           cache: "false"
       - name: Load kubeconfig
         run: |
