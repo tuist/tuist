@@ -566,6 +566,12 @@ kuraFleet:
     # server with a 10G+ PN NIC and local NVMe. EM-B220E-NVME is the benchmarked
     # staging/canary shape; production uses EM-I220E-NVME.
     offerType: EM-B220E-NVME
+    # Name prefix of the pre-ordered Elastic Metal pool. The operator orders the
+    # boxes out-of-band (named with this prefix, authorized with the fleet SSH
+    # key); the controller claims a free one rather than ordering inline, so a
+    # rollout never blocks on out-of-stock capacity, and releases it back to the
+    # pool (reinstall) on delete.
+    adoptNamePrefix: tuist-kura-em-
     zone: fr-par-1
     # Elastic Metal OS install label.
     os: ubuntu_noble

@@ -30,6 +30,14 @@ type ScalewayElasticMetalMachineSpec struct {
 	// +kubebuilder:default=EM-B220E-NVME
 	OfferType string `json:"offerType,omitempty"`
 
+	// AdoptNamePrefix is the Scaleway-side name prefix the controller scans to
+	// claim a pre-ordered, OS-installed Elastic Metal server for this Machine
+	// (the bare-metal analog of the Apple Silicon adoptPoolPrefix). The operator
+	// pre-orders boxes named with this prefix, authorized with the fleet SSH key;
+	// the controller never orders inline, so a deploy never blocks on out-of-stock
+	// capacity. Required: without it there is no pool to claim from.
+	AdoptNamePrefix string `json:"adoptNamePrefix"`
+
 	// Zone is the Scaleway zone (fr-par-1, fr-par-2, ...).
 	// +kubebuilder:default=fr-par-1
 	Zone string `json:"zone,omitempty"`

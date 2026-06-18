@@ -22,6 +22,7 @@ type BaremetalAPI interface {
 	ListOS(req *baremetal.ListOSRequest, opts ...scw.RequestOption) (*baremetal.ListOSResponse, error)
 	ListOptions(req *baremetal.ListOptionsRequest, opts ...scw.RequestOption) (*baremetal.ListOptionsResponse, error)
 	AddOptionServer(req *baremetal.AddOptionServerRequest, opts ...scw.RequestOption) (*baremetal.Server, error)
+	InstallServer(req *baremetal.InstallServerRequest, opts ...scw.RequestOption) (*baremetal.Server, error)
 }
 
 // BaremetalPrivateNetworkAPI is the slice of the baremetal PrivateNetwork API
@@ -115,6 +116,69 @@ func (c *BaremetalClient) FindServerByName(ctx context.Context, zone scw.Zone, n
 		}
 	}
 	return nil, nil
+}
+
+// FindAdoptableServer claims a pre-ordered Elastic Metal server for a fleet:
+// the first ready + OS-installed server whose name starts with namePrefix that
+// no sibling Machine has already claimed (claimed = the server IDs recorded on
+// sibling CR statuses). Returns nil when the pool is exhausted so the caller
+// requeues and the operator pre-orders more capacity. Claim state lives
+// cluster-side (the CR status), mirroring the OVH kind: bare-metal capacity
+// goes out of stock, so we never order a box inline during a reconcile/rollout.
+func (c *BaremetalClient) FindAdoptableServer(ctx context.Context, zone scw.Zone, namePrefix string, claimed map[string]bool) (*baremetal.Server, error) {
+	resp, err := c.Baremetal.ListServers(&baremetal.ListServersRequest{
+		Zone:      zone,
+		ProjectID: &c.ProjectID,
+	}, scw.WithContext(ctx), scw.WithAllPages())
+	if err != nil {
+		return nil, fmt.Errorf("list elastic metal servers: %w", err)
+	}
+	for _, s := range resp.Servers {
+		if claimed[s.ID] {
+			continue
+		}
+		if namePrefix != "" && !strings.HasPrefix(s.Name, namePrefix) {
+			continue
+		}
+		if !ServerInstalled(s) {
+			continue
+		}
+		return s, nil
+	}
+	return nil, nil
+}
+
+// ReinstallServer wipes a server back to a clean, claimable state by
+// reinstalling its OS — the Elastic Metal analog of the macOS ReleaseToPool.
+// Used on Machine delete to RETURN the pre-ordered box to the pool rather than
+// terminate it (the operator owns the pool's lifecycle). The sshKeyIDs re-author
+// the fleet key so the reinstalled box is bootstrappable on its next claim. An
+// absent server (deleted out of band) is treated as already released.
+func (c *BaremetalClient) ReinstallServer(ctx context.Context, zone scw.Zone, serverID, osLabel string, sshKeyIDs []string) error {
+	server, err := c.GetServer(ctx, zone, serverID)
+	if err != nil {
+		if IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+	osID, err := c.resolveOS(ctx, zone, server.OfferID, osLabel)
+	if err != nil {
+		return err
+	}
+	if _, err := c.Baremetal.InstallServer(&baremetal.InstallServerRequest{
+		Zone:      zone,
+		ServerID:  serverID,
+		OsID:      osID,
+		Hostname:  server.Name,
+		SSHKeyIDs: sshKeyIDs,
+	}, scw.WithContext(ctx)); err != nil {
+		if IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("reinstall elastic metal server %s: %w", serverID, err)
+	}
+	return nil
 }
 
 // CreateServer orders the Elastic Metal server and kicks off the OS install in

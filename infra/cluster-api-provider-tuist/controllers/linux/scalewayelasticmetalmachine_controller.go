@@ -198,7 +198,7 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileNormal(
 	// failure retries instead of stranding a half-configured node.
 	if machine.Spec.ProviderID == nil || *machine.Spec.ProviderID == "" {
 		fleet := machine.Namespace + "-" + machine.Name
-		sshKey, sshKeyID, keyErr := r.fleetSSHKey(ctx, fleet)
+		sshKey, _, keyErr := r.fleetSSHKey(ctx, fleet)
 		if keyErr != nil {
 			conditions.MarkFalse(machine, shared.ProvisionedCondition, "SSHKeyUnavailable",
 				clusterv1.ConditionSeverityError, "%v", keyErr)
@@ -206,34 +206,42 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileNormal(
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 
-		server, findErr := r.ScalewayClient.FindServerByName(ctx, zone, machine.Name)
-		if findErr != nil {
-			return ctrl.Result{}, findErr
-		}
-
-		if server == nil {
-			created, createErr := r.ScalewayClient.CreateServer(ctx, scaleway.CreateBaremetalParams{
-				Name:      machine.Name,
-				Zone:      zone,
-				OfferType: firstNonEmpty(machine.Spec.OfferType, r.DefaultOfferType),
-				OSLabel:   firstNonEmpty(machine.Spec.OS, r.DefaultOS),
-				Hostname:  machine.Name,
-				SSHKeyIDs: nonEmpty(sshKeyID),
-				Tags:      []string{"capi", "scalewayelasticmetalmachine=" + machine.Name},
-			})
-			if createErr != nil {
-				return ctrl.Result{}, createErr
+		// Claim a pre-ordered server rather than ordering one inline: bare-metal
+		// capacity goes out of stock, so the operator pre-orders boxes named with
+		// AdoptNamePrefix (authorized with the fleet key) and the controller claims
+		// a free, OS-installed one. Claim state lives cluster-side (the CR status),
+		// so a restart re-finds the box via GetServer instead of double-claiming,
+		// and a deploy/rollout never blocks on procurement.
+		var server *baremetal.Server
+		if machine.Status.ServerID == "" {
+			claimed, claimErr := r.claimedServerIDs(ctx, machine)
+			if claimErr != nil {
+				return ctrl.Result{}, claimErr
 			}
-			server = created
-			machine.Status.ServerID = server.ID
-			machine.Status.Phase = "Ordered"
-			conditions.MarkFalse(machine, shared.ProvisionedCondition, "Ordered",
-				clusterv1.ConditionSeverityInfo, "Ordered Elastic Metal server %s; awaiting OS install", server.ID)
-			logger.Info("ordered Elastic Metal server", "id", server.ID)
-			r.event(machine, "Provisioned", "Ordered Elastic Metal server %s", server.ID)
-			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+			adopted, adoptErr := r.ScalewayClient.FindAdoptableServer(ctx, zone, machine.Spec.AdoptNamePrefix, claimed)
+			if adoptErr != nil {
+				return ctrl.Result{}, adoptErr
+			}
+			if adopted == nil {
+				conditions.MarkFalse(machine, shared.ProvisionedCondition, "NoAdoptableServer",
+					clusterv1.ConditionSeverityInfo,
+					"no free pre-ordered Elastic Metal server under %q in %s; awaiting capacity", machine.Spec.AdoptNamePrefix, zone)
+				machine.Status.Phase = "Adopting"
+				logger.Info("no adoptable Elastic Metal server yet", "prefix", machine.Spec.AdoptNamePrefix, "zone", zone)
+				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+			}
+			machine.Status.ServerID = adopted.ID
+			machine.Status.Phase = "Adopting"
+			r.event(machine, "Adopted", "Adopted Elastic Metal server %s in %s", adopted.ID, zone)
+			logger.Info("adopted Elastic Metal server", "id", adopted.ID, "zone", zone)
+			server = adopted
+		} else {
+			got, getErr := r.ScalewayClient.GetServer(ctx, zone, machine.Status.ServerID)
+			if getErr != nil {
+				return ctrl.Result{}, getErr
+			}
+			server = got
 		}
-		machine.Status.ServerID = server.ID
 
 		// OS-install wait. A bare-metal server is delivered + OS-installed
 		// asynchronously before it is reachable, so poll install status and
@@ -428,18 +436,44 @@ func (r *ScalewayElasticMetalMachineReconciler) resolvePrivateNetwork(ctx contex
 	return r.VPC.EnsurePrivateNetworkByName(ctx, scaleway.RegionFromZone(zone), machine.Spec.PrivateNetworkName, machine.Spec.PrivateNetworkCIDR)
 }
 
+// claimedServerIDs is the set of Elastic Metal server IDs already held by other
+// ScalewayElasticMetalMachines in the namespace, so adoption never double-claims
+// a pre-ordered box. Claim state lives in the CR status (not Scaleway-side),
+// matching the OVH kind.
+func (r *ScalewayElasticMetalMachineReconciler) claimedServerIDs(ctx context.Context, self *infrav1.ScalewayElasticMetalMachine) (map[string]bool, error) {
+	list := &infrav1.ScalewayElasticMetalMachineList{}
+	if err := r.List(ctx, list, client.InNamespace(self.Namespace)); err != nil {
+		return nil, fmt.Errorf("list ScalewayElasticMetalMachines: %w", err)
+	}
+	claimed := make(map[string]bool, len(list.Items))
+	for i := range list.Items {
+		m := &list.Items[i]
+		if m.UID == self.UID {
+			continue
+		}
+		if m.Status.ServerID != "" {
+			claimed[m.Status.ServerID] = true
+		}
+	}
+	return claimed, nil
+}
+
 func (r *ScalewayElasticMetalMachineReconciler) reconcileDelete(ctx context.Context, machine *infrav1.ScalewayElasticMetalMachine) (ctrl.Result, error) {
 	if machine.Status.ServerID != "" {
 		zone, err := scw.ParseZone(firstNonEmpty(machine.Spec.Zone, r.DefaultZone))
 		if err == nil {
-			done, delErr := r.ScalewayClient.DeleteServer(ctx, zone, machine.Status.ServerID)
-			if delErr != nil {
-				r.event(machine, "DeleteFailed", "delete Elastic Metal server %s: %v (will retry)", machine.Status.ServerID, delErr)
-				return ctrl.Result{}, delErr
+			// Release to pool, don't terminate: the box is pre-ordered capacity
+			// the operator owns, so reinstall it (wipe) back to a clean, claimable
+			// state — the Elastic Metal analog of the macOS ReleaseToPool. The
+			// fleet SSH key is re-authored so the box bootstraps on its next claim.
+			_, sshKeyID, keyErr := r.fleetSSHKey(ctx, machine.Namespace+"-"+machine.Name)
+			if keyErr != nil {
+				return ctrl.Result{}, fmt.Errorf("read fleet ssh key for release: %w", keyErr)
 			}
-			if !done {
-				machine.Status.Phase = "Deleting"
-				return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
+			if relErr := r.ScalewayClient.ReinstallServer(ctx, zone, machine.Status.ServerID,
+				firstNonEmpty(machine.Spec.OS, r.DefaultOS), nonEmpty(sshKeyID)); relErr != nil {
+				r.event(machine, "ReleaseFailed", "release (reinstall) Elastic Metal server %s: %v (will retry)", machine.Status.ServerID, relErr)
+				return ctrl.Result{}, relErr
 			}
 		}
 	}
