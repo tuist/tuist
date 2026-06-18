@@ -516,8 +516,9 @@ func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, ins
 
 // grpcREAPIPathPrefixes are the disjoint, stable URL prefixes of the gRPC
 // services Kura serves: the Bazel Remote Execution API and ByteStream.
-// They are emitted as anchored nginx regex locations (paired with the
-// use-regex annotation, see grpcIngressAnnotations) so that a real method
+// Paired with the use-regex annotation (see grpcIngressAnnotations) they are
+// rendered by ingress-nginx as anchored regex locations
+// (`location ~* "^/build\.bazel\.remote\.execution\.v2\."`), so a real method
 // path such as /build.bazel.remote.execution.v2.Capabilities/GetCapabilities
 // routes to the gRPC backend. A plain Prefix/ImplementationSpecific path
 // would render as `location /build.bazel.remote.execution.v2./` plus an
@@ -525,12 +526,17 @@ func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, ins
 // after the package prefix) matches neither, falling through to the HTTP
 // `/` location. Verified against ingress-nginx v1.11.3.
 //
+// The values must start with `/` (the Kubernetes Ingress API rejects a path
+// that does not begin with a slash); ingress-nginx adds the leading `^`
+// anchor itself when use-regex is set, so it is not — and must not be —
+// included here.
+//
 // Note: only the REAPI and ByteStream packages are routed. Kura registers no
 // gRPC health or reflection service, so those paths intentionally fall to the
-// HTTP backend; add `^/grpc\.` here if Kura ever serves them.
+// HTTP backend; add `/grpc\.` here if Kura ever serves them.
 var grpcREAPIPathPrefixes = []string{
-	`^/build\.bazel\.remote\.execution\.v2\.`,
-	`^/google\.bytestream\.`,
+	`/build\.bazel\.remote\.execution\.v2\.`,
+	`/google\.bytestream\.`,
 }
 
 // reconcileGRPCIngress co-hosts the gRPC (Bazel REAPI) backend on the public
