@@ -265,6 +265,18 @@ defmodule Tuist.Environment do
     end
   end
 
+  @doc """
+  Whether the server should serve the configured `TUIST_KURA_ENDPOINTS` as a
+  shared Kura mesh for every account. Defense-in-depth gate on top of the env
+  var itself — production overlays do not set `TUIST_KURA_SHARED_MESH`, so a
+  stray endpoint env var leaking into production cannot bypass the per-account
+  `kura_cache_enabled?` opt-in and silently route every account through one
+  mesh.
+  """
+  def kura_shared_mesh? do
+    truthy?(System.get_env("TUIST_KURA_SHARED_MESH", "0"))
+  end
+
   def plain_authentication_secret(secrets \\ secrets()) do
     get([:plain, :authentication_secret], secrets)
   end
