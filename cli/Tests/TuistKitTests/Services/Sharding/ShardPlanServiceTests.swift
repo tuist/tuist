@@ -49,7 +49,7 @@ struct ShardPlanServiceTests {
                 shardMaxDuration: .any,
                 shardGranularity: .any,
                 buildRunId: .any,
-                startUpload: .any
+                startUpload: .value(false)
             )
             .willReturn(
                 Components.Schemas.ShardPlan(
@@ -60,7 +60,6 @@ struct ShardPlanServiceTests {
                 )
             )
 
-        let startShardUploadService = MockStartShardUploadServicing()
         let shardMatrixOutputService = MockShardMatrixOutputServicing()
         given(shardMatrixOutputService)
             .output(.any)
@@ -68,7 +67,6 @@ struct ShardPlanServiceTests {
 
         let subject = ShardPlanService(
             createShardPlanService: createShardPlanService,
-            startShardUploadService: startShardUploadService,
             fileSystem: fileSystem,
             shardMatrixOutputService: shardMatrixOutputService
         )
@@ -105,10 +103,6 @@ struct ShardPlanServiceTests {
 
         let dsymExists = try await fileSystem.exists(extractedPath.appending(component: "MyApp.framework.dSYM"))
         #expect(!dsymExists)
-
-        verify(startShardUploadService)
-            .startUpload(fullHandle: .any, serverURL: .any, reference: .any)
-            .called(0)
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
@@ -159,7 +153,6 @@ struct ShardPlanServiceTests {
                 )
             )
 
-        let startShardUploadService = MockStartShardUploadServicing()
         let multipartUploadArtifactService = MockMultipartUploadArtifactServicing()
         var generateUploadURLCallback: ((MultipartUploadArtifactPart) async throws -> String)?
         given(multipartUploadArtifactService)
@@ -206,7 +199,6 @@ struct ShardPlanServiceTests {
 
         let subject = ShardPlanService(
             createShardPlanService: createShardPlanService,
-            startShardUploadService: startShardUploadService,
             multipartUploadArtifactService: multipartUploadArtifactService,
             multipartUploadGenerateURLShardsService: multipartUploadGenerateURLShardsService,
             multipartUploadCompleteShardsService: multipartUploadCompleteShardsService,
@@ -238,10 +230,76 @@ struct ShardPlanServiceTests {
             )
         )
         #expect(uploadURL == "https://tuist.dev/upload")
+    }
 
-        verify(startShardUploadService)
-            .startUpload(fullHandle: .any, serverURL: .any, reference: .any)
-            .called(0)
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func plan_withRemoteUploadWithoutUploadId_throws() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        try await fileSystem.writeAsPlist(
+            XCTestRunFixture(
+                testConfigurations: [
+                    .init(
+                        testTargets: [
+                            .init(blueprintName: "AppTests"),
+                        ]
+                    ),
+                ]
+            ),
+            at: testProductsPath.appending(component: "MyApp.xctestrun"),
+            encoder: plistEncoder()
+        )
+
+        let createShardPlanService = MockCreateShardPlanServicing()
+        given(createShardPlanService)
+            .createShardPlan(
+                fullHandle: .any,
+                serverURL: .any,
+                reference: .any,
+                modules: .any,
+                testSuites: .any,
+                shardMin: .any,
+                shardMax: .any,
+                shardTotal: .any,
+                shardMaxDuration: .any,
+                shardGranularity: .any,
+                buildRunId: .any,
+                startUpload: .value(true)
+            )
+            .willReturn(
+                Components.Schemas.ShardPlan(
+                    id: "plan-id",
+                    reference: "ref",
+                    shard_count: 2,
+                    shards: []
+                )
+            )
+
+        let subject = ShardPlanService(
+            createShardPlanService: createShardPlanService,
+            fileSystem: fileSystem
+        )
+
+        await #expect(throws: ShardPlanServiceError.missingUploadId) {
+            _ = try await subject.plan(
+                xctestproductsPath: testProductsPath,
+                destination: nil,
+                reference: "ref",
+                shardGranularity: .module,
+                shardMin: nil,
+                shardMax: nil,
+                shardTotal: 2,
+                shardMaxDuration: nil,
+                fullHandle: "tuist/tuist",
+                serverURL: try #require(URL(string: "https://tuist.dev")),
+                buildRunId: nil,
+                skipUpload: false,
+                archivePath: nil
+            )
+        }
     }
 }
 

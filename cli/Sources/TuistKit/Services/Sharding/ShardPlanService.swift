@@ -35,6 +35,7 @@
         case noTestModulesFound
         case cannotDeriveSessionId
         case xcTestRunNotFound(AbsolutePath)
+        case missingUploadId
 
         public var errorDescription: String? {
             switch self {
@@ -45,6 +46,8 @@
                     "Cannot derive a shard plan reference. Pass --shard-reference explicitly or run in a supported CI environment (GitHub Actions, GitLab CI, CircleCI, Buildkite, Codemagic)."
             case let .xcTestRunNotFound(path):
                 return "No .xctestrun file found in \(path.pathString)"
+            case .missingUploadId:
+                return "The server did not return a shard upload ID after being asked to start the upload."
             }
         }
     }
@@ -52,7 +55,6 @@
     public struct ShardPlanService: ShardPlanServicing {
         private let xcTestEnumerator: XCTestEnumerating
         private let createShardPlanService: CreateShardPlanServicing
-        private let startShardUploadService: StartShardUploadServicing
         private let multipartUploadArtifactService: MultipartUploadArtifactServicing
         private let multipartUploadGenerateURLShardsService: MultipartUploadGenerateURLShardsServicing
         private let multipartUploadCompleteShardsService: MultipartUploadCompleteShardsServicing
@@ -65,7 +67,6 @@
         public init(
             xcTestEnumerator: XCTestEnumerating = XCTestEnumerator(),
             createShardPlanService: CreateShardPlanServicing = CreateShardPlanService(),
-            startShardUploadService: StartShardUploadServicing = StartShardUploadService(),
             multipartUploadArtifactService: MultipartUploadArtifactServicing = MultipartUploadArtifactService(),
             multipartUploadGenerateURLShardsService: MultipartUploadGenerateURLShardsServicing =
                 MultipartUploadGenerateURLShardsService(),
@@ -79,7 +80,6 @@
         ) {
             self.xcTestEnumerator = xcTestEnumerator
             self.createShardPlanService = createShardPlanService
-            self.startShardUploadService = startShardUploadService
             self.multipartUploadArtifactService = multipartUploadArtifactService
             self.multipartUploadGenerateURLShardsService = multipartUploadGenerateURLShardsService
             self.multipartUploadCompleteShardsService = multipartUploadCompleteShardsService
@@ -161,18 +161,8 @@
                 Logger.current
                     .notice("Skipping test products upload. Ensure shard runners can access the test products locally.")
             } else {
-                let uploadId: String
-                let shardPlanId: String?
-                if let planUploadId = shardPlan.upload_id {
-                    uploadId = planUploadId
-                    shardPlanId = shardPlan.id
-                } else {
-                    uploadId = try await startShardUploadService.startUpload(
-                        fullHandle: fullHandle,
-                        serverURL: serverURL,
-                        reference: reference
-                    )
-                    shardPlanId = nil
+                guard let uploadId = shardPlan.upload_id else {
+                    throw ShardPlanServiceError.missingUploadId
                 }
 
                 Logger.current.debug("Uploading test products bundle...")
@@ -185,7 +175,7 @@
                         try await multipartUploadGenerateURLShardsService.generateUploadURL(
                             fullHandle: fullHandle,
                             serverURL: serverURL,
-                            shardPlanId: shardPlanId,
+                            shardPlanId: shardPlan.id,
                             reference: reference,
                             uploadId: uploadId,
                             partNumber: part.number
@@ -199,7 +189,7 @@
                 try await multipartUploadCompleteShardsService.completeUpload(
                     fullHandle: fullHandle,
                     serverURL: serverURL,
-                    shardPlanId: shardPlanId,
+                    shardPlanId: shardPlan.id,
                     reference: reference,
                     uploadId: uploadId,
                     parts: parts.map { (partNumber: $0.partNumber, etag: $0.etag) }
