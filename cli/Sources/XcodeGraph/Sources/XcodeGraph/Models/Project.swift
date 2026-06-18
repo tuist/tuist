@@ -283,8 +283,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
                     run: ["App", "Demo"]
                 ),
                 codeCoverageEnabled: false,
-                parallelization: .none,
-                randomExecutionOrdering: false
+                testingOptions: []
             ),
             disableBundleAccessors: Bool = false,
             disableShowEnvironmentVarsInScriptPhases: Bool = false,

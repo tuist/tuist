@@ -22,7 +22,7 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
                 automaticSchemesOptions: .enabled(
                     targetSchemesGrouping: .byNameSuffix(build: ["build"], test: ["test"], run: ["run"]),
                     codeCoverageEnabled: true,
-                    parallelization: .enabled
+                    testingOptions: [.parallelizable]
                 ),
                 defaultKnownRegions: ["en-US", "Base"],
                 developmentRegion: "us",
@@ -71,8 +71,7 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
                     automaticSchemesOptions: .enabled(
                         targetSchemesGrouping: .byNameSuffix(build: ["build"], test: ["test"], run: ["run"]),
                         codeCoverageEnabled: true,
-                        parallelization: .all,
-                        randomExecutionOrdering: false
+                        testingOptions: [.parallelizable]
                     ),
                     disableBundleAccessors: true,
                     disableShowEnvironmentVarsInScriptPhases: true,
@@ -94,38 +93,5 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
                 type: .local
             )
         )
-    }
-
-    func test_from_mapsSwiftTestingOnlyParallelization() throws {
-        let manifest = ProjectDescription.Project.Options.options(
-            automaticSchemesOptions: .enabled(parallelization: .swiftTestingOnly)
-        )
-
-        let model = XcodeGraph.Project.Options.from(manifest: manifest)
-
-        XCTAssertEqual(model.parallelization, .swiftTestingOnly)
-        XCTAssertFalse(model.randomExecutionOrdering)
-    }
-
-    func test_from_mapsParallelizationEnabled() throws {
-        let manifest = ProjectDescription.Project.Options.options(
-            automaticSchemesOptions: .enabled(parallelization: .enabled, randomExecutionOrdering: true)
-        )
-
-        let model = XcodeGraph.Project.Options.from(manifest: manifest)
-
-        XCTAssertEqual(model.parallelization, .all)
-        XCTAssertTrue(model.randomExecutionOrdering)
-    }
-
-    func test_from_mapsDeprecatedTestingOptionsParallelizable() throws {
-        let manifest = ProjectDescription.Project.Options.options(
-            automaticSchemesOptions: .enabled(testingOptions: [.parallelizable, .randomExecutionOrdering])
-        )
-
-        let model = XcodeGraph.Project.Options.from(manifest: manifest)
-
-        XCTAssertEqual(model.parallelization, .all)
-        XCTAssertTrue(model.randomExecutionOrdering)
     }
 }

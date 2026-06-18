@@ -66,8 +66,7 @@ final class DumpServiceTests: TuistTestCase {
                         ]
                       }
                     },
-                    "parallelization": "disabled",
-                    "randomExecutionOrdering": false
+                    "testingOptions": 0
                   }
                 },
                 "disableBundleAccessors": false,
@@ -132,8 +131,7 @@ final class DumpServiceTests: TuistTestCase {
 
                       }
                     },
-                    "parallelization": "disabled",
-                    "randomExecutionOrdering": false
+                    "testingOptions": 0
                   }
                 },
                 "derivedDataPath": {

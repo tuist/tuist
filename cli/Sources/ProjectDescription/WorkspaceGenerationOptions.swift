@@ -17,40 +17,14 @@ extension Workspace {
 
             /// Tuist will not automatically generate any schemes
             case disabled
-
             /// Tuist will generate schemes with the associated testing options
             case enabled(
                 codeCoverageMode: CodeCoverageMode = .disabled,
-                parallelization: TestableTarget.Parallelization = .disabled,
-                randomExecutionOrdering: Bool = false,
+                testingOptions: TestingOptions = [],
                 testLanguage: SchemeLanguage? = nil,
                 testRegion: String? = nil,
                 testScreenCaptureFormat: ScreenCaptureFormat? = nil
             )
-
-            /// Deprecated overload preserving the legacy `testingOptions:` signature.
-            /// Forwards to the new case shape so existing manifests keep compiling.
-            @_disfavoredOverload
-            @available(
-                *, deprecated,
-                message: "testingOptions has been replaced by parallelization + randomExecutionOrdering. Use the new parameters directly on .enabled(...)."
-            )
-            public static func enabled(
-                codeCoverageMode: CodeCoverageMode = .disabled,
-                testingOptions: TestingOptions,
-                testLanguage: SchemeLanguage? = nil,
-                testRegion: String? = nil,
-                testScreenCaptureFormat: ScreenCaptureFormat? = nil
-            ) -> Self {
-                .enabled(
-                    codeCoverageMode: codeCoverageMode,
-                    parallelization: testingOptions.contains(.parallelizable) ? .enabled : .disabled,
-                    randomExecutionOrdering: testingOptions.contains(.randomExecutionOrdering),
-                    testLanguage: testLanguage,
-                    testRegion: testRegion,
-                    testScreenCaptureFormat: testScreenCaptureFormat
-                )
-            }
         }
 
         /// Enable or disable automatic generation of schemes by Xcode.
