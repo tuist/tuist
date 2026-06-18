@@ -7,9 +7,17 @@
 # accounts in the preview share that mesh without creating per-account
 # kura_servers rows.
 #
+# The controller is installed *into the per-preview namespace* (via
+# `--set kuraController.namespace=<preview-namespace>` from the deploy
+# workflow), not the shared `kura` namespace. Each preview therefore owns
+# its own Namespace, kura-shared-secrets Secret, ClusterRole bindings, and
+# Deployment, and two on-demand previews cannot collide on Helm ownership
+# or be torn down by another preview's `helm uninstall`.
+#
 # Required deploy-time image pins:
 #   --set kuraController.image.tag=<sha-or-release>
 #   --set kuraRuntime.image.tag=<release>
+#   --set kuraController.namespace=<preview-namespace>  (set by the workflow)
 global:
   commonLabels:
     tuist.dev/environment: preview
@@ -35,7 +43,10 @@ server:
 
 kuraController:
   enabled: true
-  namespace: kura
+  # namespace is set per-preview by the workflow via
+  # `--set kuraController.namespace=<preview-namespace>` so each on-demand
+  # preview owns its own controller resources and there is no shared `kura`
+  # namespace for two releases to fight over.
   replicaCount: 1
   tlsClusterIssuer: letsencrypt-cloudflare
   telemetry:

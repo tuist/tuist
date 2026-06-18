@@ -269,6 +269,12 @@ jobs:
       # client_id/client_secret pair (which would invalidate every previously
       # issued cache token). On first install, generate fresh random material
       # — never commit working preview secrets to the chart.
+      # Re-use any existing Kura introspection credentials so re-runs of the
+      # create workflow don't churn the client_id/client_secret pair (which
+      # would invalidate every previously issued cache token). The kura
+      # controller runs in the per-preview namespace, so the Secret lives
+      # there too. On first install, generate fresh random material — never
+      # commit working preview secrets to the chart.
       - name: Resolve Kura introspection credentials
         id: kura_creds
         run: |
@@ -310,6 +316,7 @@ jobs:
             --set "server.appUrl=https://$HOST" \
             --set "kuraController.image.tag=${{ inputs.kura_controller_image_tag }}" \
             --set "kuraRuntime.image.tag=${{ inputs.kura_runtime_image_tag }}" \
+            --set "kuraController.namespace=$NAMESPACE" \
             --set-string "kuraController.sharedSecrets.kuraIntrospection.clientId=$KURA_INTROSPECTION_CLIENT_ID" \
             --set-string "kuraController.sharedSecrets.kuraIntrospection.clientSecret=$KURA_INTROSPECTION_CLIENT_SECRET" \
             --atomic --timeout 20m --wait
@@ -338,7 +345,7 @@ jobs:
           kind: KuraInstance
           metadata:
             name: ${KURA_INSTANCE}
-            namespace: kura
+            namespace: ${NAMESPACE}
             labels:
               tuist.dev/preview-source: slack
               tuist.dev/slug: ${SLUG}
@@ -368,7 +375,7 @@ jobs:
       - name: Wait for shared KuraInstance
         if: env.KURA_REPLICAS != '0'
         run: |
-          kubectl -n kura wait --for=jsonpath='{.status.phase}'=Ready "kurainstance/${KURA_INSTANCE}" --timeout=10m
+          kubectl -n "$NAMESPACE" wait --for=jsonpath='{.status.phase}'=Ready "kurainstance/${KURA_INSTANCE}" --timeout=10m
           for i in $(seq 1 60); do
             if curl -fsSL --max-time 5 "https://${KURA_HOST}/ready" >/dev/null; then
               echo "OK: https://${KURA_HOST}/ready returned 200"
@@ -421,13 +428,18 @@ jobs:
       - name: helm uninstall + delete namespace
         run: |
           set -euo pipefail
+          # Delete the KuraInstance with --wait *before* `helm uninstall` tears
+          # down the controller. The CR carries a finalizer the controller
+          # drains (public Ingress + cert-manager Certificate cleanup) — if the
+          # controller is gone first, the finalizer never fires and the CR
+          # ends up stuck terminating, blocking the namespace delete and
+          # leaking the LE-issued leaf cert across recreations.
+          if kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
+            kubectl -n "$NAMESPACE" delete kurainstance "${RELEASE}-kura" --ignore-not-found --wait=true --timeout 5m || true
+          fi
           if helm status "$RELEASE" --namespace "$NAMESPACE" >/dev/null 2>&1; then
             helm uninstall "$RELEASE" --namespace "$NAMESPACE" --wait --timeout 5m || true
           fi
-          # Wait for the KuraInstance to terminate so the controller can clean
-          # up its public Ingress + cert-manager Certificate before the cert is
-          # orphaned (avoids leaking LE-issued leaf certs across recreations).
-          kubectl -n kura delete kurainstance "${RELEASE}-kura" --ignore-not-found --wait=true --timeout 5m || true
           if kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
             kubectl delete namespace "$NAMESPACE" --wait=true --timeout 5m || true
           fi
