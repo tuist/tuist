@@ -195,7 +195,7 @@ defmodule Tuist.Kura.RegionsTest do
     test "scaleway and hetzner-staging runner regions are registered as private" do
       assert %Regions{provisioner_config: scw_config} = Regions.get("scw-fr-par-runners")
       assert scw_config.private == true
-      assert scw_config.storage_class == "scw-bssd"
+      assert scw_config.storage_class == "scw-local-nvme"
       assert scw_config.replicas == 1
       assert scw_config.node_selector == %{"node.cluster.x-k8s.io/pool" => "kura-scw-fr-par"}
       refute Map.has_key?(scw_config, :public_host_template)
