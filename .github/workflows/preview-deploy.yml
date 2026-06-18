@@ -319,6 +319,10 @@ jobs:
           echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
 
+      - name: Temporarily remove preview taint for platform hooks
+        run: |
+          kubectl taint nodes -l '!node-role.kubernetes.io/control-plane' role=preview:NoSchedule- || true
+
       - name: Reconcile platform chart
         run: |
           set -euo pipefail
@@ -329,6 +333,7 @@ jobs:
           mise -C infra run k8s:install-platform "$KUBECONFIG" tuist-preview
 
       - name: Re-apply role=preview label/taint on workers
+        if: always()
         # The tuist-hcloud ClusterClass doesn't surface node labels via
         # topology variables, so workers come up un-labeled. Re-applying
         # every deploy makes the workflow idempotent and survives

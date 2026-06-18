@@ -217,6 +217,9 @@ jobs:
           mkdir -p "$(dirname "$KUBECONFIG")"
           echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
+      - name: Temporarily remove preview taint for platform hooks
+        run: |
+          kubectl taint nodes -l '!node-role.kubernetes.io/control-plane,node.cluster.x-k8s.io/pool!=kura' role=preview:NoSchedule- || true
       - name: Reconcile platform chart
         run: |
           set -euo pipefail
@@ -226,6 +229,7 @@ jobs:
           export CLOUDFLARE_API_TOKEN
           mise -C infra run k8s:install-platform "$KUBECONFIG" tuist-preview
       - name: Re-apply preview node label and taint
+        if: always()
         run: |
           kubectl label nodes -l '!node-role.kubernetes.io/control-plane,node.cluster.x-k8s.io/pool!=kura' role=preview --overwrite
           kubectl taint nodes -l '!node-role.kubernetes.io/control-plane,node.cluster.x-k8s.io/pool!=kura' role=preview:NoSchedule --overwrite
