@@ -72,4 +72,51 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
 
     assert json_response(conn, 422)
   end
+
+  test "registers a heartbeat with a valid credential", %{conn: conn, account: account, client: client, secret: secret} do
+    conn =
+      conn
+      |> basic_auth(client.client_id, secret)
+      |> post(~p"/_internal/kura/mesh/registrations", %{
+        node_id: "kura-0",
+        tenant_id: account.name,
+        advertised_http_url: "https://cache.acme.internal",
+        ready: true,
+        version: "0.5.2"
+      })
+
+    assert %{"accepted" => true, "lease_seconds" => lease, "heartbeat_interval_seconds" => interval} =
+             json_response(conn, 200)
+
+    assert is_integer(lease) and is_integer(interval)
+  end
+
+  test "rejects a registration heartbeat with invalid credentials", %{conn: conn} do
+    conn =
+      conn
+      |> basic_auth("cache_bogus", "wrong")
+      |> post(~p"/_internal/kura/mesh/registrations", %{
+        node_id: "kura-0",
+        advertised_http_url: "https://cache.acme.internal"
+      })
+
+    assert json_response(conn, 401)
+  end
+
+  test "rejects a registration heartbeat whose tenant does not match the account", %{
+    conn: conn,
+    client: client,
+    secret: secret
+  } do
+    conn =
+      conn
+      |> basic_auth(client.client_id, secret)
+      |> post(~p"/_internal/kura/mesh/registrations", %{
+        node_id: "kura-0",
+        tenant_id: "someone-else",
+        advertised_http_url: "https://cache.acme.internal"
+      })
+
+    assert json_response(conn, 409)
+  end
 end

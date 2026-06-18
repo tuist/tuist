@@ -2088,9 +2088,21 @@ defmodule Tuist.Accounts do
   defp kura_cache_endpoints(_), do: []
 
   defp kura_cache_endpoint_urls(%Account{} = account) do
-    account
-    |> kura_cache_endpoints()
-    |> Enum.map(& &1.url)
+    static_urls = account |> kura_cache_endpoints() |> Enum.map(& &1.url)
+    registered_urls = registered_kura_endpoint_urls(account)
+
+    Enum.uniq(static_urls ++ registered_urls)
+  end
+
+  # Client-facing URLs from registration heartbeats: customer-owned nodes that
+  # report a live, ready advertised endpoint. Lease-gated, so a node that stops
+  # heartbeating drops out. Gated on `:kura_cache` like the static endpoints.
+  defp registered_kura_endpoint_urls(%Account{} = account) do
+    if FeatureFlags.kura_cache_enabled?(account) do
+      Tuist.Kura.Registrations.active_advertised_urls(account)
+    else
+      []
+    end
   end
 
   @doc """

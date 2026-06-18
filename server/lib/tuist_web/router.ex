@@ -739,6 +739,7 @@ defmodule TuistWeb.Router do
 
     post "/kura/usage", KuraUsageController, :create
     post "/kura/mesh/enroll", KuraMeshController, :enroll
+    post "/kura/mesh/registrations", KuraMeshController, :register
   end
 
   scope "/oauth2", TuistWeb.Oauth do
