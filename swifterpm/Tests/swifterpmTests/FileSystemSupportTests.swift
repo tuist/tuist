@@ -69,4 +69,22 @@ struct FileSystemSupportTests {
             #expect(!(try await fileSystem.currentWorkingDirectory().pathString.isEmpty))
         }
     }
+
+    @Test
+    func removePathRemovesBrokenSymlink() async throws {
+        try await withTemporaryDirectory { root in
+            let link = root.appendingPathComponent("broken-link")
+            try await fileSystem.createSymbolicLink(
+                from: link.absolutePath,
+                to: try RelativePath(validating: "missing-target")
+            )
+
+            #expect(fileSystem.existsIncludingSymlinks(link))
+            #expect(!(try await fileSystem.exists(link.absolutePath)))
+
+            try await fileSystem.removePath(link)
+
+            #expect(!fileSystem.existsIncludingSymlinks(link))
+        }
+    }
 }

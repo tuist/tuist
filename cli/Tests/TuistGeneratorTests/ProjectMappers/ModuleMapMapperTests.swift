@@ -724,4 +724,44 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
             ]
         )
     }
+
+    func test_maps_long_dependency_chain_without_recursion() throws {
+        // Given
+        let workspace = Workspace.test()
+        let projectPath = try temporaryPath()
+        let nodeCount = 20000
+        let targets = (0 ..< nodeCount).map { index in
+            Target.test(
+                name: "Target\(index)",
+                dependencies: index + 1 < nodeCount ? [.target(name: "Target\(index + 1)")] : []
+            )
+        }
+        let project = Project.test(
+            path: projectPath,
+            name: "Project",
+            targets: targets
+        )
+        let dependencies = Dictionary(
+            uniqueKeysWithValues: (0 ..< nodeCount - 1).map { index in
+                (
+                    GraphDependency.target(name: "Target\(index)", path: projectPath),
+                    Set([GraphDependency.target(name: "Target\(index + 1)", path: projectPath)])
+                )
+            }
+        )
+
+        // Then
+        XCTAssertNoThrow(
+            try subject.map(
+                graph: .test(
+                    workspace: workspace,
+                    projects: [
+                        projectPath: project,
+                    ],
+                    dependencies: dependencies
+                ),
+                environment: MapperEnvironment()
+            )
+        )
+    }
 }

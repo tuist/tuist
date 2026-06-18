@@ -180,6 +180,16 @@ func (in *KuraInstanceSpec) DeepCopyInto(out *KuraInstanceSpec) {
 			in.ExtraEnv[i].DeepCopyInto(&out.ExtraEnv[i])
 		}
 	}
+	if in.ClientCIDRs != nil {
+		out.ClientCIDRs = make([]string, len(in.ClientCIDRs))
+		copy(out.ClientCIDRs, in.ClientCIDRs)
+	}
+	if in.PodAnnotations != nil {
+		out.PodAnnotations = make(map[string]string, len(in.PodAnnotations))
+		for key, value := range in.PodAnnotations {
+			out.PodAnnotations[key] = value
+		}
+	}
 }
 
 func (in *KuraInstanceSpec) DeepCopy() *KuraInstanceSpec {

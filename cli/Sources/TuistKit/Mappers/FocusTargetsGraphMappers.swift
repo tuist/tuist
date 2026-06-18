@@ -1,5 +1,4 @@
 import Foundation
-import TSCBasic
 import TuistConfig
 import TuistCore
 import TuistLogging

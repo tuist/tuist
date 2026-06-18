@@ -24,6 +24,36 @@ struct RestoreTests {
     }
 
     @Test
+    func restorePackageDoesNotInitializeGitSubmodules() async throws {
+        try await withTemporaryDirectory { root in
+            let repo = root.appendingPathComponent("BrokenSubmodule")
+            let scratch = root.appendingPathComponent("scratch")
+            let cache = try await Cache(root: root.appendingPathComponent("cache"))
+            let revision = try await writeGitPackageWithBrokenSubmodule(at: repo)
+            let pin = ResolvedPin(
+                identity: "broken-submodule",
+                kind: "localSourceControl",
+                location: repo.path,
+                state: ResolvedState(branch: nil, revision: revision, version: nil)
+            )
+            let resolved = ResolvedPins(originHash: "origin", pins: [pin], version: 3)
+
+            try await WorkspaceRestorer.restorePackage(
+                scratchDir: scratch,
+                cache: cache,
+                registryConfig: RegistryConfig(),
+                resolved: resolved,
+                progress: nil,
+                disableSandbox: true
+            )
+
+            let checkout = scratch.appendingPathComponent("checkouts/BrokenSubmodule")
+            #expect(try await fileSystem.exists(checkout.appendingPathComponent("DevOnly").absolutePath))
+            #expect(fileSystem.existsIncludingSymlinks(checkout.appendingPathComponent(".ruby_version")))
+        }
+    }
+
+    @Test
     func writeWorkspaceStateWritesSourceControlAndRegistryDependencies() async throws {
         try await withTemporaryDirectory { root in
             let package = root.appendingPathComponent("Package")
@@ -512,6 +542,48 @@ struct RestoreTests {
             #expect(artifacts.count == 1)
             #expect(artifact["path"] as? String == artifactPath.path)
         }
+    }
+
+    private func writeGitPackageWithBrokenSubmodule(at repo: URL) async throws -> String {
+        try await writeMinimalPackageManifest(at: repo, name: "BrokenSubmodule")
+        try await fileSystem.write(
+            Data("public enum BrokenSubmodule {}\n".utf8),
+            to: repo.appendingPathComponent("Sources/BrokenSubmodule/BrokenSubmodule.swift")
+        )
+        try await SystemProcess.run(
+            "/bin/ln", ["-s", "DevOnly/ruby", ".ruby_version"], workingDirectory: repo)
+        try await SystemProcess.run("/usr/bin/git", ["init", "-q"], workingDirectory: repo)
+        try await SystemProcess.run("/usr/bin/git", ["add", "."], workingDirectory: repo)
+        try await SystemProcess.run(
+            "/usr/bin/git",
+            [
+                "-c", "user.name=Repro",
+                "-c", "user.email=repro@example.com",
+                "commit", "-q", "-m", "initial",
+            ],
+            workingDirectory: repo
+        )
+        try await SystemProcess.run(
+            "/usr/bin/git",
+            [
+                "update-index", "--add", "--cacheinfo",
+                "160000,1111111111111111111111111111111111111111,DevOnly",
+            ],
+            workingDirectory: repo
+        )
+        try await SystemProcess.run(
+            "/usr/bin/git",
+            [
+                "-c", "user.name=Repro",
+                "-c", "user.email=repro@example.com",
+                "commit", "-q", "-m", "broken-submodule",
+            ],
+            workingDirectory: repo
+        )
+        return try await SystemProcess.output(
+            "/usr/bin/git", ["rev-parse", "HEAD"], workingDirectory: repo
+        )
+        .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func makeXCFrameworkZip(
