@@ -49,6 +49,39 @@ defmodule Tuist.Kubernetes.ClientTest do
                )
     end
 
+    @tag :tmp_dir
+    test "applies a core/v1 Secret at the core API path", %{tmp_dir: tmp_dir} do
+      token_path = Path.join(tmp_dir, "token")
+      ca_path = Path.join(tmp_dir, "ca.crt")
+      File.write!(token_path, "test-token\n")
+      File.write!(ca_path, "test-ca")
+
+      expect(Req, :request, fn opts ->
+        assert opts[:method] == :patch
+
+        assert opts[:url] ==
+                 "https://kubernetes.default.svc:443/api/v1/namespaces/kura/secrets/kura-tuist-eu-central-1-mesh-peer-tls"
+
+        assert opts[:body] =~ "kind: Secret"
+
+        {:ok, %Req.Response{status: 200, body: %{"metadata" => %{"name" => "kura-tuist-eu-central-1-mesh-peer-tls"}}}}
+      end)
+
+      assert {:ok, _} =
+               Client.apply(
+                 %{
+                   "apiVersion" => "v1",
+                   "kind" => "Secret",
+                   "type" => "Opaque",
+                   "metadata" => %{"namespace" => "kura", "name" => "kura-tuist-eu-central-1-mesh-peer-tls"},
+                   "stringData" => %{"ca.pem" => "x"}
+                 },
+                 env: Env,
+                 token_path: token_path,
+                 ca_path: ca_path
+               )
+    end
+
     test "can use a token-based explicit kubeconfig" do
       kubeconfig = kubeconfig(%{token: "region-token"})
 
