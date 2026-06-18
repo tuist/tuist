@@ -5,22 +5,29 @@ name: Runner Image
 # <branch>` when probing image contents or smoke-testing a Packer
 # change before merging.
 #
-# The push-on-main flow lives in release.yml's release-runner-image
-# job — that's the path that produces digest-pinned tags and rewrites
-# the runnersFleet.runnerImage value in the chart. This workflow's
-# `:<git-sha>` tag is dispatch-only and not consumed by the chart.
+# The push-on-main flow lives in server-production-deployment.yml's runner-image-build +
+# release-runner-image jobs — that's the path that publishes the
+# immutable per-release profile tags and pins
+# runnersFleet.runnerImage in the chart. This workflow's
+# `:macos-<dashes>-<git-sha>` tag is dispatch-only and not consumed
+# by the chart.
 #
-# Runs on the same self-hosted bare-metal Mac mini as the
-# xcresult-processor image — Tart needs a live GUI session for
+# Builds on top of `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`
+# (built by `infra/macos-xcode-image`). Xcode + dev tools + WWDR certs
+# live in the base; this build just adds the GitHub Actions runner
+# agent and dispatch loop on top, so a rebuild is ~2 min instead of
+# the ~30 min an all-in-one rebuild used to cost.
+#
+# Runs on the same self-hosted bare-metal Mac mini as the other
+# Tart images — Tart needs a live GUI session for
 # Virtualization.framework, so this can't run on hosted runners.
 
 on:
   workflow_dispatch:
     inputs:
-      base_image:
-        description: "Base Tart image"
-        required: false
-        default: "ghcr.io/cirruslabs/macos-tahoe-xcode:26.4.1"
+      xcode_version:
+        description: "Xcode version of the profile to (re)build (e.g. 26.5, 26.4.1). Use this to refresh a profile that's out of the server-production-deployment.yml matrix without bumping the chart pin."
+        required: true
       runner_version:
         description: "GitHub Actions runner version"
         required: false
@@ -38,101 +45,77 @@ jobs:
   build:
     runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
     timeout-minutes: 60
-    env:
-      PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
     steps:
       - uses: actions/checkout@v4
+
+      # Log in BEFORE Packer build so Tart's clone of the
+      # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
+      # authenticates. crane writes creds to ~/.docker/config.json,
+      # which Tart reads via the Docker credential-helper protocol
+      # for both pull (this build's clone of the base) and the push
+      # at the end of the job. Bypasses both the macOS keychain
+      # (which `tart login` would use, and which gates on a Tahoe-
+      # LaunchAgent-incompatible "User interaction" prompt) and
+      # Tart 2.32.1's env-var-only push path (which hangs with
+      # "Error: The request timed out").
+      - name: Log in to GHCR (crane)
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
 
       - name: Initialize Packer
         working-directory: infra/runner-image
         run: packer init -upgrade runner.pkr.hcl
 
-      # Same anonymous-pull dance as xcresult-processor-image.yml:
-      # the bare-metal runner has tuist-bot creds cached for ghcr.io
-      # which don't authorize ghcr.io/cirruslabs/* pulls. Tart also
-      # consults Docker credential helpers, and this runner can have
-      # the macOS helper installed without the Docker CLI — clear
-      # both stores before Packer clones ghcr.io/cirruslabs/*.
-      - name: Drop cached ghcr.io credentials
-        run: |
-          tart logout ghcr.io || true
-          if command -v docker >/dev/null 2>&1; then
-            docker logout ghcr.io || true
-          fi
-          for helper in docker-credential-osxkeychain docker-credential-desktop; do
-            if command -v "$helper" >/dev/null 2>&1; then
-              printf 'ghcr.io' | "$helper" erase || true
-              printf 'https://ghcr.io' | "$helper" erase || true
-            fi
-          done
-
-      - name: Reclaim Tart disk
-        # Delete every locally-cloned VM on this host, not just the
-        # one this workflow produces. The sibling
-        # `xcresult-processor-image` workflow runs on the same host
-        # and leaves its working VM behind (and vice versa); each
-        # VM is ~80 GB, and on an M1-M's 256 GB SSD they accumulate
-        # fast and the next `tart clone` fails with "The file
-        # couldn't be saved because there isn't enough space."
-        # Filtering on `Source=local` keeps the cached OCI base
-        # image (`ghcr.io/cirruslabs/macos-tahoe-xcode:26.4`,
-        # ~70 GB) so the next clone is still fast — `tart prune`
-        # below is what reclaims that cache when an image is
-        # upgraded. The `--older-than 1` vms prune doesn't catch
-        # the clones because `tart list` updates the access time.
-        # New image-bake workflows on this host don't need this
-        # step updated; their VMs get cleaned up the same way.
-        run: |
-          set -uo pipefail
-          tart list || true
-          df -h /
-          tart list | awk '$1 == "local" { print $2 }' | while read -r vm; do
-            tart stop "$vm" 2>/dev/null || true
-            tart delete "$vm" 2>/dev/null || true
-          done
-          tart prune --entries caches --older-than 0
-          df -h /
+      - uses: ./.github/actions/reclaim-tart-disk
 
       - name: Build image
+        id: build
         working-directory: infra/runner-image
+        env:
+          XCODE: ${{ inputs.xcode_version }}
         run: |
           set -euo pipefail
-          docker_config="$HOME/.docker/config.json"
-          docker_config_backup=""
-          restore_docker_config() {
-            if [ -n "$docker_config_backup" ] && [ -f "$docker_config_backup" ]; then
-              mkdir -p "$HOME/.docker"
-              mv "$docker_config_backup" "$docker_config"
-            fi
-          }
-          trap restore_docker_config EXIT
-
-          # Tart hardcodes ~/.docker/config.json when looking up Docker
-          # credential helpers. Move it aside so the public Cirrus image is
-          # pulled anonymously instead of through stale ghcr.io credentials.
-          if [ -f "$docker_config" ]; then
-            docker_config_backup="$(mktemp "${RUNNER_TEMP:-/tmp}/docker-config.XXXXXX")"
-            mv "$docker_config" "$docker_config_backup"
-          fi
-
+          # Single-profile dispatch. The multi-profile rebuild loop
+          # is in server-production-deployment.yml's runner-image-build matrix.
+          BASE_TAG="${XCODE//./-}"
+          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
+          PROFILE="macos-${BASE_TAG}"
+          echo "Xcode:      ${XCODE}"
+          echo "Base image: ${BASE_IMAGE}"
+          echo "Profile:    ${PROFILE}"
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
-            -var "base_image=${{ inputs.base_image || 'ghcr.io/cirruslabs/macos-tahoe-xcode:26.4' }}" \
+            -var "base_image=${BASE_IMAGE}" \
             -var "output_image=tuist-runner" \
             -var "runner_version=${{ inputs.runner_version || '2.334.0' }}" \
             runner.pkr.hcl
+          echo "profile=${PROFILE}" >> "$GITHUB_OUTPUT"
 
-      # GHCR auth for the Push step below. `crane` (installed by the
-      # builder bootstrap, alongside Tart and Packer) writes creds
-      # to ~/.docker/config.json; Tart's push reads from there via
-      # the Docker credential-helper protocol. Bypasses both the
-      # keychain (which `tart login` would use, and which gates on a
-      # Tahoe-LaunchAgent-incompatible "User interaction" prompt)
-      # and Tart 2.32.1's env-var-only push path (which hangs with
-      # "Error: The request timed out" — cause not investigated).
-      - name: Log in to GHCR (crane)
+      - name: Restore nvram.bin if missing
+        env:
+          XCODE: ${{ inputs.xcode_version }}
+        # packer-plugin-tart v1.20.0 builds leave the VM bundle
+        # without `nvram.bin`, so the very next `tart push` uploads
+        # config + disk successfully then fails with
+        # `Error: The file "nvram.bin" doesn't exist.` Restore it
+        # from a fresh clone of the base image (no provisioner ever
+        # mutates auxiliary storage from inside the guest, so the
+        # base's nvram is equivalent for our purposes).
         run: |
           set -euo pipefail
-          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
+          BUNDLE="$HOME/.tart/vms/tuist-runner"
+          echo "pre-push bundle contents:"
+          ls -la "$BUNDLE"
+          if [ ! -f "$BUNDLE/nvram.bin" ]; then
+            BASE_TAG="${XCODE//./-}"
+            BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
+            echo "nvram.bin missing — restoring from ${BASE_IMAGE}"
+            tart delete nvram-restore 2>/dev/null || true
+            tart clone "$BASE_IMAGE" nvram-restore
+            cp "$HOME/.tart/vms/nvram-restore/nvram.bin" "$BUNDLE/nvram.bin"
+            tart delete nvram-restore
+            echo "restored nvram.bin ($(du -h "$BUNDLE/nvram.bin" | cut -f1))"
+          fi
 
       - name: Push image to GHCR
         id: push
@@ -140,12 +123,39 @@ jobs:
           TART_REGISTRY_HOSTNAME: ghcr.io
           TART_REGISTRY_USERNAME: tuist-bot
           TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          # Tart's OCI-cache prune fires opportunistically during
+          # `tart push`'s internal staging step and races the push
+          # of the source VM bundle — when it loses, nvram.bin is
+          # truncated mid-upload (see cirruslabs/tart#860). Disable
+          # the prune for the duration of the push; the cache was
+          # already trimmed at the start of the job by the
+          # `reclaim-tart-disk` composite action and won't grow
+          # before push completes.
+          TART_NO_AUTO_PRUNE: "1"
+        # Direct tart push. Cirrus uses the same path to publish
+        # macos-tahoe-xcode at the same size; the prior bridge through
+        # a local registry was an unsuccessful workaround on a
+        # different host's structurally bad network. Outer 3× retry
+        # stays as belt-and-braces; blob uploads are content-
+        # addressed so a re-push only re-uploads layers that didn't
+        # make it on the previous attempt.
         run: |
           set -euo pipefail
           GIT_SHA="${GITHUB_SHA::8}"
-          tart push tuist-runner "ghcr.io/tuist/tuist-runner:${GIT_SHA}"
-          echo "Pushed ghcr.io/tuist/tuist-runner:${GIT_SHA}"
-          echo "tag=${GIT_SHA}" >> "$GITHUB_OUTPUT"
+          PROFILE="${{ steps.build.outputs.profile }}"
+          TAG="${PROFILE}-${GIT_SHA}"
+          for attempt in 1 2 3; do
+            echo "tart push attempt ${attempt} starting at $(date -u +%H:%M:%SZ)" >&2
+            if tart push tuist-runner "ghcr.io/tuist/tuist-runner:${TAG}"; then
+              echo "Pushed ghcr.io/tuist/tuist-runner:${TAG} on attempt ${attempt}"
+              echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "tart push attempt ${attempt} failed; sleeping 60s before retry" >&2
+            sleep 60
+          done
+          echo "tart push failed three times in a row" >&2
+          exit 1
 
       - name: Cleanup
         if: always()

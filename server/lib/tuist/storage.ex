@@ -2,9 +2,13 @@ defmodule Tuist.Storage do
   @moduledoc ~S"""
   A module that provides functions for storing and retrieving files from cloud storages
   """
+  import SweetXml, only: [sigil_x: 2]
+
   alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.Performance
+
+  @delete_objects_max_concurrency 4
 
   def multipart_generate_url(object_key, upload_id, part_number, actor, opts \\ []) do
     opts =
@@ -242,6 +246,130 @@ defmodule Tuist.Storage do
     :ok
   end
 
+  def delete_object(object_key, actor) do
+    delete_objects([object_key], actor)
+  end
+
+  def delete_objects(object_keys, actor, opts \\ [])
+
+  def delete_objects([], _actor, _opts), do: :ok
+
+  def delete_objects(object_keys, actor, opts) do
+    {config, bucket_name} = s3_config_and_bucket(actor)
+    delete_objects_from_bucket(object_keys, bucket_name, config, opts)
+  end
+
+  def delete_objects_from_bucket(object_keys, bucket_name, opts \\ [])
+
+  def delete_objects_from_bucket([], _bucket_name, _opts), do: :ok
+
+  def delete_objects_from_bucket(object_keys, bucket_name, opts) do
+    delete_objects_from_bucket(object_keys, bucket_name, ExAws.Config.new(:s3), opts)
+  end
+
+  def list_objects_from_bucket(bucket_name, opts \\ []) do
+    prefix = Keyword.get(opts, :prefix, "")
+    max_keys = Keyword.get(opts, :max_keys, 1000)
+    continuation_token = Keyword.get(opts, :continuation_token)
+
+    list_opts = maybe_put_continuation_token([prefix: prefix, max_keys: max_keys], continuation_token)
+
+    bucket_name
+    |> ExAws.S3.list_objects_v2(list_opts)
+    |> ExAws.request(Map.merge(ExAws.Config.new(:s3), fast_api_req_opts()))
+  end
+
+  defp delete_objects_from_bucket(object_keys, bucket_name, config, opts) do
+    max_concurrency = Keyword.get(opts, :max_concurrency, @delete_objects_max_concurrency)
+
+    object_keys
+    |> Enum.chunk_every(1000)
+    |> Task.async_stream(
+      fn object_keys_chunk ->
+        bucket_name
+        |> ExAws.S3.delete_multiple_objects(object_keys_chunk)
+        |> ExAws.request(Map.merge(config, fast_api_req_opts()))
+        |> handle_delete_objects_response()
+      end,
+      max_concurrency: max_concurrency,
+      ordered: false
+    )
+    |> Enum.reduce_while(:ok, fn
+      {:ok, :ok}, :ok ->
+        {:cont, :ok}
+
+      {:ok, {:error, reason}}, :ok ->
+        {:halt, {:error, reason}}
+
+      {:exit, reason}, :ok ->
+        {:halt, {:error, reason}}
+    end)
+  end
+
+  defp handle_delete_objects_response({:ok, response}) do
+    case delete_object_errors(response) do
+      [] ->
+        if successful_delete_objects_response?(response) do
+          :ok
+        else
+          {:error, {:unexpected_response, response}}
+        end
+
+      errors ->
+        {:error, {:delete_objects_failed, errors}}
+    end
+  end
+
+  defp handle_delete_objects_response({:error, reason}), do: {:error, reason}
+
+  defp successful_delete_objects_response?(%{status_code: status_code}) when status_code in 200..299, do: true
+  defp successful_delete_objects_response?(%{status_code: _status_code}), do: false
+  defp successful_delete_objects_response?(%{body: %{deleted: _deleted}}), do: true
+  defp successful_delete_objects_response?(%{body: %{"Deleted" => _deleted}}), do: true
+  defp successful_delete_objects_response?(_response), do: false
+
+  defp delete_object_errors(%{body: body}), do: delete_object_errors(body)
+  defp delete_object_errors(%{errors: errors}), do: normalize_delete_errors(errors)
+  defp delete_object_errors(%{error: error}), do: normalize_delete_errors(error)
+  defp delete_object_errors(%{"Errors" => errors}), do: normalize_delete_errors(errors)
+  defp delete_object_errors(%{"Error" => error}), do: normalize_delete_errors(error)
+  defp delete_object_errors(%{"errors" => errors}), do: normalize_delete_errors(errors)
+  defp delete_object_errors(%{"error" => error}), do: normalize_delete_errors(error)
+
+  defp delete_object_errors(body) when is_binary(body) do
+    SweetXml.xpath(body, ~x"//Error"l,
+      key: ~x"./Key/text()"s,
+      version_id: ~x"./VersionId/text()"s,
+      code: ~x"./Code/text()"s,
+      message: ~x"./Message/text()"s
+    )
+  rescue
+    _error -> []
+  end
+
+  defp delete_object_errors(_body), do: []
+
+  defp normalize_delete_errors(nil), do: []
+  defp normalize_delete_errors([]), do: []
+
+  defp normalize_delete_errors(errors) when is_list(errors) do
+    Enum.reject(errors, &empty_delete_error?/1)
+  end
+
+  defp normalize_delete_errors(error) do
+    if empty_delete_error?(error), do: [], else: [error]
+  end
+
+  defp empty_delete_error?(nil), do: true
+  defp empty_delete_error?(""), do: true
+  defp empty_delete_error?(%{} = error), do: map_size(error) == 0
+  defp empty_delete_error?(_error), do: false
+
+  defp maybe_put_continuation_token(opts, nil), do: opts
+
+  defp maybe_put_continuation_token(opts, continuation_token),
+    do: Keyword.put(opts, :continuation_token, continuation_token)
+
   def get_object_size(object_key, actor) do
     {config, bucket_name} = s3_config_and_bucket(actor)
 
@@ -283,14 +411,7 @@ defmodule Tuist.Storage do
     end
   end
 
-  defp has_custom_storage?(%Account{
-         s3_bucket_name: bucket,
-         s3_access_key_id: access_key,
-         s3_secret_access_key: secret_key
-       })
-       when not is_nil(bucket) and not is_nil(access_key) and not is_nil(secret_key), do: true
-
-  defp has_custom_storage?(_), do: false
+  defp has_custom_storage?(actor), do: Account.custom_s3_storage_configured?(actor)
 
   defp custom_s3_config(%Account{} = account) do
     base_config = %{

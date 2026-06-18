@@ -321,14 +321,22 @@ defmodule TuistWeb.AccountSettingsLive do
     |> assign(:kura_regions, [])
     |> assign(:available_kura_regions, [])
     |> assign(:latest_kura_version, nil)
-    |> assign(:kura_global_endpoint_url, nil)
     |> assign(:add_kura_server_form, default_kura_server_form([]))
   end
 
   defp load_kura_state(socket, opts \\ []) do
     account = socket.assigns.selected_account
-    servers = Kura.list_servers_for_account(account.id)
-    regions = Regions.available()
+
+    # Customer-facing list only. Private runner-cache nodes are
+    # control-plane-managed (provisioned/torn down by the identity
+    # rule) — surfacing them here would expose an in-cluster URL and a
+    # Destroy button that just fights the reconciler.
+    servers =
+      account.id
+      |> Kura.list_servers_for_account()
+      |> Enum.reject(&Regions.private?(Regions.get(&1.region)))
+
+    regions = Regions.selectable()
     available_regions = available_kura_regions(regions, servers)
     latest = Keyword.get_lazy(opts, :latest_kura_version, fn -> List.first(Kura.latest_versions(1)) end)
 
@@ -337,7 +345,6 @@ defmodule TuistWeb.AccountSettingsLive do
     |> assign(:kura_regions, regions)
     |> assign(:available_kura_regions, available_regions)
     |> assign(:latest_kura_version, latest)
-    |> assign(:kura_global_endpoint_url, Kura.global_cache_endpoint_url(account))
     |> assign(:add_kura_server_form, default_kura_server_form(available_regions))
   end
 
@@ -351,6 +358,12 @@ defmodule TuistWeb.AccountSettingsLive do
   end
 
   defp kura_region_from_params(params, available_regions) do
+    # Only honor a submitted region that is actually offered to this
+    # account right now — params are client-controlled, and a crafted
+    # LiveView event could otherwise name a private (runner-cache) or
+    # already-occupied region that `Kura.create_server/1` accepts.
+    available_ids = MapSet.new(available_regions, & &1.id)
+
     [
       get_in(params, ["server", "region"]),
       params["region"]
@@ -358,7 +371,7 @@ defmodule TuistWeb.AccountSettingsLive do
     |> Enum.find(&present?/1)
     |> case do
       nil -> single_available_kura_region_id(available_regions)
-      region -> region
+      region -> if MapSet.member?(available_ids, region), do: region
     end
   end
 
@@ -428,7 +441,6 @@ defmodule TuistWeb.AccountSettingsLive do
   attr(:available_kura_regions, :list, required: true)
   attr(:add_kura_server_form, Form, required: true)
   attr(:latest_kura_version, :map, default: nil)
-  attr(:global_endpoint_url, :string, default: nil)
 
   def kura_servers_section(assigns) do
     ~H"""
@@ -566,7 +578,7 @@ defmodule TuistWeb.AccountSettingsLive do
             />
           </:col>
           <:col :let={row} label={dgettext("dashboard_account", "Domain")}>
-            <.text_cell label={kura_row_domain_label(row, @global_endpoint_url)} />
+            <.text_cell label={kura_row_domain_label(row)} />
           </:col>
           <:col :let={row} label={dgettext("dashboard_account", "Version")}>
             <.text_cell label={kura_row_version_label(row)} />
@@ -650,17 +662,11 @@ defmodule TuistWeb.AccountSettingsLive do
   defp kura_row_status_color(%{type: :server, server: server}), do: kura_display_status_color(server)
   defp kura_row_status_color(%{type: :available_region}), do: "neutral"
 
-  defp kura_row_domain_label(%{type: :server}, global_endpoint_url)
-       when is_binary(global_endpoint_url) and global_endpoint_url != "" do
-    global_endpoint_url
-  end
-
-  defp kura_row_domain_label(%{type: :server, server: server}, _global_endpoint_url) do
+  defp kura_row_domain_label(%{type: :server, server: server}) do
     server.url || dgettext("dashboard_account", "Pending")
   end
 
-  defp kura_row_domain_label(%{type: :available_region}, _global_endpoint_url),
-    do: dgettext("dashboard_account", "Pending")
+  defp kura_row_domain_label(%{type: :available_region}), do: dgettext("dashboard_account", "Pending")
 
   # Prefer the image the cluster actually reports running
   # (`observed_image_tag`) over the last activated image, so a rollout

@@ -4,22 +4,22 @@ Describe 'actively supported protocol interoperability'
   Include spec/e2e/support.sh
 
   setup_suite() {
-    export COMPOSE_PROJECT_NAME="kura-clients"
-    export KURA_US_PORT=4401
-    export KURA_EU_PORT=4402
-    export KURA_AP_PORT=4403
-    export KURA_US_GRPC_PORT=5501
-    export KURA_EU_GRPC_PORT=5502
-    export KURA_AP_GRPC_PORT=5503
-    export KURA_US_URL="http://localhost:${KURA_US_PORT}"
-    export KURA_EU_URL="http://localhost:${KURA_EU_PORT}"
-    export KURA_AP_URL="http://localhost:${KURA_AP_PORT}"
-
     COMPOSE_FILES=(-f "${PROJECT_ROOT}/docker-compose.yml")
     setup_suite_tmpdir
 
+    suite_env COMPOSE_PROJECT_NAME kura-clients
+    ephemeral_ports KURA_US_PORT KURA_EU_PORT KURA_AP_PORT \
+      KURA_US_GRPC_PORT KURA_EU_GRPC_PORT KURA_AP_GRPC_PORT
+
     dc down -v --remove-orphans >/dev/null 2>&1 || true
     compose_up kura-us kura-eu kura-ap || return 1
+
+    resolve_http_node KURA_US kura-us
+    resolve_http_node KURA_EU kura-eu
+    resolve_http_node KURA_AP kura-ap
+    KURA_US_GRPC_PORT="$(resolve_host_port kura-us 50051)"
+    KURA_EU_GRPC_PORT="$(resolve_host_port kura-eu 50051)"
+    KURA_AP_GRPC_PORT="$(resolve_host_port kura-ap 50051)"
 
     wait_for_http "${KURA_US_URL}/up"
     wait_for_http "${KURA_EU_URL}/up"

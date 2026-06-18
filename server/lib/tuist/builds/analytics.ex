@@ -409,6 +409,114 @@ defmodule Tuist.Builds.Analytics do
     normalize_result(value)
   end
 
+  def build_duration_percentiles_analytics(project_id, opts \\ []) do
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    clickhouse_interval = clickhouse_interval_for_date_period(date_period)
+
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
+
+    series_query = """
+    SELECT
+      toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}, 'UTC') as date,
+      avgOrNull(duration) as average,
+      quantileOrNull(0.5)(duration) as p50,
+      quantileOrNull(0.9)(duration) as p90,
+      quantileOrNull(0.99)(duration) as p99
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at > {start_dt:DateTime64(6)}
+      AND inserted_at < {end_dt:DateTime64(6)}
+      #{filter_clauses}
+    GROUP BY date
+    ORDER BY date
+    """
+
+    params =
+      Map.merge(
+        %{project_id: project_id, start_dt: start_datetime, end_dt: end_datetime},
+        filter_params
+      )
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(series_query, params)
+
+    series =
+      Enum.map(rows, fn [date, average, p50, p90, p99] ->
+        %{date: date, average: average, p50: p50, p90: p90, p99: p99}
+      end)
+
+    average_durations = build_series_durations(series, :average, start_datetime, end_datetime, date_period)
+    p50_durations = build_series_durations(series, :p50, start_datetime, end_datetime, date_period)
+    p90_durations = build_series_durations(series, :p90, start_datetime, end_datetime, date_period)
+    p99_durations = build_series_durations(series, :p99, start_datetime, end_datetime, date_period)
+
+    current_period = build_period_aggregates(project_id, start_datetime, end_datetime, opts)
+
+    previous_period =
+      build_period_aggregates(
+        project_id,
+        DateTime.add(start_datetime, -days_delta, :day),
+        start_datetime,
+        opts
+      )
+
+    %{
+      trend: trend(previous_value: previous_period.average, current_value: current_period.average),
+      total_average_duration: current_period.average,
+      p50: current_period.p50,
+      p90: current_period.p90,
+      p99: current_period.p99,
+      dates: Enum.map(average_durations, & &1.date),
+      values: Enum.map(average_durations, & &1.value),
+      p50_values: Enum.map(p50_durations, & &1.value),
+      p90_values: Enum.map(p90_durations, & &1.value),
+      p99_values: Enum.map(p99_durations, & &1.value)
+    }
+  end
+
+  defp build_series_durations(series, key, start_datetime, end_datetime, date_period) do
+    series
+    |> Enum.map(fn row -> %{date: row.date, value: Map.get(row, key)} end)
+    |> process_durations_data(start_datetime, end_datetime, date_period)
+  end
+
+  defp build_period_aggregates(project_id, start_datetime, end_datetime, opts) do
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
+
+    query = """
+    SELECT
+      avgOrNull(duration) as average,
+      quantileOrNull(0.5)(duration) as p50,
+      quantileOrNull(0.9)(duration) as p90,
+      quantileOrNull(0.99)(duration) as p99
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at > {start_dt:DateTime64(6)}
+      AND inserted_at < {end_dt:DateTime64(6)}
+      #{filter_clauses}
+    """
+
+    params =
+      Map.merge(
+        %{project_id: project_id, start_dt: start_datetime, end_dt: end_datetime},
+        filter_params
+      )
+
+    {:ok, %{rows: [[average, p50, p90, p99]]}} = ClickHouseRepo.query(query, params)
+
+    %{
+      average: normalize_result(average),
+      p50: normalize_result(p50),
+      p90: normalize_result(p90),
+      p99: normalize_result(p99)
+    }
+  end
+
   def build_success_rate_analytics(project_id, opts \\ []) do
     start_datetime =
       Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
@@ -1056,6 +1164,8 @@ defmodule Tuist.Builds.Analytics do
     end
   end
 
+  @cas_actions ["download", "upload"]
+
   @doc """
   Gets CAS upload analytics for a project over a time period sourced from the
   per-task `cas_outputs` data already collected by the CAS plugin.
@@ -1077,9 +1187,11 @@ defmodule Tuist.Builds.Analytics do
   split preserved. The combined total/series are sums of downloads and uploads.
   """
   def cas_transfer_analytics(project_id, opts \\ []) do
-    downloads = cas_action_metrics(project_id, "download", opts)
-    uploads = cas_action_metrics(project_id, "upload", opts)
+    %{transfer: transfer} = cas_analytics(project_id, opts)
+    transfer
+  end
 
+  defp cas_transfer_analytics_from_metrics(downloads, uploads) do
     combined_values =
       downloads.size_values
       |> Enum.zip(uploads.size_values)
@@ -1104,9 +1216,11 @@ defmodule Tuist.Builds.Analytics do
   count.
   """
   def cas_latency_analytics(project_id, opts \\ []) do
-    downloads = cas_action_metrics(project_id, "download", opts)
-    uploads = cas_action_metrics(project_id, "upload", opts)
+    %{latency: latency} = cas_analytics(project_id, opts)
+    latency
+  end
 
+  defp cas_latency_analytics_from_metrics(downloads, uploads) do
     combined_values =
       [
         downloads.duration_values,
@@ -1147,9 +1261,11 @@ defmodule Tuist.Builds.Analytics do
   the sum of recorded durations across both actions.
   """
   def cas_throughput_analytics(project_id, opts \\ []) do
-    downloads = cas_action_metrics(project_id, "download", opts)
-    uploads = cas_action_metrics(project_id, "upload", opts)
+    %{throughput: throughput} = cas_analytics(project_id, opts)
+    throughput
+  end
 
+  defp cas_throughput_analytics_from_metrics(downloads, uploads) do
     combined_values =
       [
         downloads.size_values,
@@ -1184,6 +1300,18 @@ defmodule Tuist.Builds.Analytics do
     }
   end
 
+  def cas_analytics(project_id, opts \\ []) do
+    action_metrics = cas_action_metrics_by_action(project_id, opts)
+    downloads = Map.fetch!(action_metrics, "download")
+    uploads = Map.fetch!(action_metrics, "upload")
+
+    %{
+      transfer: cas_transfer_analytics_from_metrics(downloads, uploads),
+      latency: cas_latency_analytics_from_metrics(downloads, uploads),
+      throughput: cas_throughput_analytics_from_metrics(downloads, uploads)
+    }
+  end
+
   defp to_transfer_summary(metrics) do
     %{
       trend: trend(previous_value: metrics.previous_size, current_value: metrics.total_size),
@@ -1195,21 +1323,40 @@ defmodule Tuist.Builds.Analytics do
   end
 
   defp cas_action_metrics(project_id, action, opts) do
+    project_id
+    |> cas_action_metrics_by_action(opts)
+    |> Map.fetch!(action)
+  end
+
+  defp cas_action_metrics_by_action(project_id, opts) do
     {start_datetime, end_datetime, days_delta, date_period, interval_str} =
       cas_analytics_period(opts)
 
-    current_rows =
-      cas_action_metrics_rows(project_id, action, start_datetime, end_datetime, interval_str)
-
-    current_totals = cas_action_totals(project_id, action, start_datetime, end_datetime)
-
     previous_start_datetime = DateTime.add(start_datetime, -days_delta, :day)
 
-    previous_totals =
-      cas_action_totals(project_id, action, previous_start_datetime, start_datetime)
+    rows =
+      cas_action_metrics_rows(project_id, previous_start_datetime, start_datetime, end_datetime, interval_str)
+
+    rows_by_action = Enum.group_by(rows, fn [action | _] -> action end)
+
+    Map.new(@cas_actions, fn action ->
+      metrics =
+        rows_by_action
+        |> Map.get(action, [])
+        |> cas_action_metrics_from_rows(start_datetime, end_datetime, date_period)
+
+      {action, metrics}
+    end)
+  end
+
+  defp cas_action_metrics_from_rows(rows, start_datetime, end_datetime, date_period) do
+    current_rows = Enum.filter(rows, fn [_action, period_kind | _] -> period_kind == "current" end)
+    previous_rows = Enum.filter(rows, fn [_action, period_kind | _] -> period_kind == "previous" end)
+    current_totals = cas_rows_totals(current_rows)
+    previous_totals = cas_rows_totals(previous_rows)
 
     parsed_rows =
-      Enum.map(current_rows, fn [date, total_size, total_duration_ms, event_count] ->
+      Enum.map(current_rows, fn [_action, _period_kind, date, total_size, total_duration_ms, event_count] ->
         %{
           date: date,
           size: total_size || 0,
@@ -1250,69 +1397,50 @@ defmodule Tuist.Builds.Analytics do
     }
   end
 
-  defp cas_action_metrics_rows(project_id, action, start_datetime, end_datetime, interval_str) do
+  defp cas_rows_totals(rows) do
+    Enum.reduce(rows, %{total_size: 0, total_duration_ms: 0, event_count: 0}, fn row, acc ->
+      [_action, _period_kind, _date, total_size, total_duration_ms, event_count] = row
+
+      %{
+        total_size: acc.total_size + (total_size || 0),
+        total_duration_ms: acc.total_duration_ms + (total_duration_ms || 0),
+        event_count: acc.event_count + (event_count || 0)
+      }
+    end)
+  end
+
+  defp cas_action_metrics_rows(project_id, previous_start_datetime, start_datetime, end_datetime, interval_str) do
     %{rows: rows} =
       ClickHouseRepo.query!(
         """
         SELECT
-          toStartOfInterval(toDateTime(co.inserted_at), INTERVAL #{interval_str}, 'UTC') as period,
+          toString(co.operation) AS action,
+          if(co.inserted_at >= {start_dt:DateTime}, 'current', 'previous') AS period_kind,
+          if(
+            co.inserted_at >= {start_dt:DateTime},
+            toStartOfInterval(toDateTime(co.inserted_at), INTERVAL #{interval_str}, 'UTC'),
+            toDateTime(0)
+          ) AS period,
           SUM(co.size) as total_size,
           SUM(co.duration) as total_duration_ms,
           COUNT() as event_count
         FROM cas_outputs AS co
-        INNER JOIN build_runs AS br ON br.id = co.build_run_id
-        WHERE br.project_id = {project_id:Int64}
-          AND co.operation = {action:String}
-          AND co.inserted_at >= {start_dt:DateTime}
+        WHERE co.project_id = {project_id:Int64}
+          AND co.operation IN ('download', 'upload')
+          AND co.inserted_at >= {previous_start_dt:DateTime}
           AND co.inserted_at <= {end_dt:DateTime}
-        GROUP BY period
-        ORDER BY period
+        GROUP BY action, period_kind, period
+        ORDER BY action, period_kind, period
         """,
         %{
           project_id: project_id,
-          action: action,
+          previous_start_dt: previous_start_datetime,
           start_dt: start_datetime,
           end_dt: end_datetime
         }
       )
 
     rows
-  end
-
-  defp cas_action_totals(project_id, action, start_datetime, end_datetime) do
-    %{rows: rows} =
-      ClickHouseRepo.query!(
-        """
-        SELECT
-          SUM(co.size) as total_size,
-          SUM(co.duration) as total_duration_ms,
-          COUNT() as event_count
-        FROM cas_outputs AS co
-        INNER JOIN build_runs AS br ON br.id = co.build_run_id
-        WHERE br.project_id = {project_id:Int64}
-          AND co.operation = {action:String}
-          AND co.inserted_at >= {start_dt:DateTime}
-          AND co.inserted_at <= {end_dt:DateTime}
-        """,
-        %{
-          project_id: project_id,
-          action: action,
-          start_dt: start_datetime,
-          end_dt: end_datetime
-        }
-      )
-
-    case rows do
-      [[total_size, total_duration_ms, event_count]] ->
-        %{
-          total_size: total_size || 0,
-          total_duration_ms: total_duration_ms || 0,
-          event_count: event_count || 0
-        }
-
-      _ ->
-        %{total_size: 0, total_duration_ms: 0, event_count: 0}
-    end
   end
 
   defp fill_cas_series(parsed_rows, key, start_datetime, end_datetime, date_period) do

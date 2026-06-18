@@ -13,6 +13,7 @@ public protocol TargetContentHashing {
         hashedTargets: [GraphHashedTarget: String],
         hashedPaths: [AbsolutePath: String],
         destination: SimulatorDeviceAndRuntime?,
+        embeddedProductReferences: [String],
         additionalStrings: [String]
     ) async throws -> TargetContentHash
 }
@@ -122,8 +123,12 @@ public struct TargetContentHasher: TargetContentHashing {
         hashedTargets: [GraphHashedTarget: String],
         hashedPaths: [AbsolutePath: String],
         destination: SimulatorDeviceAndRuntime?,
+        embeddedProductReferences: [String] = [],
         additionalStrings: [String] = []
     ) async throws -> TargetContentHash {
+        let embeddedProductReferencesHash: String? = embeddedProductReferences.isEmpty
+            ? nil
+            : try contentHasher.hash(embeddedProductReferences.sorted())
         let projectHash: String? =
             switch graphTarget.project.type {
             case let .external(hash: hash): hash
@@ -156,6 +161,7 @@ public struct TargetContentHasher: TargetContentHashing {
                     projectSettingsHash,
                     settingsHash,
                     dependenciesHash.hash,
+                    embeddedProductReferencesHash,
                 ].compactMap { $0 } + destinations + additionalStrings
             )
 
@@ -168,6 +174,7 @@ public struct TargetContentHasher: TargetContentHashing {
                 projectSettings: \(projectSettingsHash)
                 targetSettings: \(settingsHash ?? "nil")
                 dependencies: \(dependenciesHash.hash)
+                embeddedProductReferences: \(embeddedProductReferencesHash ?? "nil")
                 destinations: \(destinations.joined(separator: ", "))
                 additionalStrings: \(additionalStrings.joined(separator: ", "))
             """)
@@ -177,7 +184,8 @@ public struct TargetContentHasher: TargetContentHashing {
                 projectSettings: projectSettingsHash,
                 targetSettings: settingsHash,
                 additionalStrings: additionalStrings,
-                external: projectHash
+                external: projectHash,
+                embeddedProductReferences: embeddedProductReferencesHash
             )
 
             return TargetContentHash(
@@ -251,9 +259,49 @@ public struct TargetContentHasher: TargetContentHashing {
                 }.sorted()
             }
 
-        let buildableFoldersHash: String? = buildableFolderHashes.isEmpty
+        // Files contributed to this target from sibling targets' buildable folders via additive cross-target
+        // membership (`.exception(target:included:)`). Without folding these in, adding/removing such a membership —
+        // or changing an included file's content or compiler flags — would not change this target's hash, so stale
+        // cache artifacts could be reused.
+        let targetName = graphTarget.target.name
+        let foreignBuildableFolderHashes: [String] = try await graphTarget.project.targets.values
+            .filter { $0.name != targetName }
+            .sorted(by: { $0.name < $1.name })
+            .concurrentFlatMap { (otherTarget: Target) -> [String] in
+                try await otherTarget.buildableFolders
+                    .sorted(by: { $0.path < $1.path })
+                    .concurrentFlatMap { (folder: BuildableFolder) -> [String] in
+                        let inclusions = folder.exceptions
+                            .filter { $0.target == targetName }
+                            .flatMap { exception in exception.included.map { (path: $0, exception: exception) } }
+                            .filter { hashingFilesFilter($0.path) }
+                            .sorted(by: { $0.path < $1.path })
+                        return try await inclusions.concurrentMap { inclusion in
+                            let fileHash = try await contentHasher.hash(path: inclusion.path)
+                            let compilerFlagsHash = try contentHasher.hash(
+                                inclusion.exception.compilerFlags[inclusion.path] ?? ""
+                            )
+                            var inclusionStrings = [
+                                otherTarget.name,
+                                inclusion.path.relative(to: folder.path).pathString,
+                                fileHash,
+                                compilerFlagsHash,
+                            ]
+                            if let condition = inclusion.exception.platformFilters[inclusion.path] {
+                                inclusionStrings.append(
+                                    contentsOf: condition.platformFilters.map(\.xcodeprojValue).sorted()
+                                )
+                            }
+                            return try contentHasher.hash(inclusionStrings)
+                        }
+                    }
+            }
+            .sorted()
+
+        let combinedBuildableFolderHashes = buildableFolderHashes + foreignBuildableFolderHashes
+        let buildableFoldersHash: String? = combinedBuildableFolderHashes.isEmpty
             ? nil
-            : try contentHasher.hash(buildableFolderHashes)
+            : try contentHasher.hash(combinedBuildableFolderHashes)
 
         var stringsToHash =
             [
@@ -325,6 +373,10 @@ public struct TargetContentHasher: TargetContentHashing {
             stringsToHash.append(foreignBuildHash)
         }
 
+        if let embeddedProductReferencesHash {
+            stringsToHash.append(embeddedProductReferencesHash)
+        }
+
         let hash = try contentHasher.hash(stringsToHash)
 
         Logger.current.debug("""
@@ -351,6 +403,7 @@ public struct TargetContentHasher: TargetContentHashing {
             deploymentTarget: \(deploymentTargetHash)
             infoPlist: \(infoPlistHash ?? "nil")
             entitlements: \(entitlementsHash ?? "nil")
+            embeddedProductReferences: \(embeddedProductReferencesHash ?? "nil")
         """)
 
         let subhashes = TargetContentHashSubhashes(
@@ -368,7 +421,8 @@ public struct TargetContentHasher: TargetContentHashing {
             projectSettings: projectSettingsHash,
             targetSettings: settingsHash,
             buildableFolders: buildableFoldersHash,
-            additionalStrings: additionalStrings
+            additionalStrings: additionalStrings,
+            embeddedProductReferences: embeddedProductReferencesHash
         )
 
         return TargetContentHash(

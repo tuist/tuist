@@ -140,161 +140,6 @@ defmodule Tuist.KuraTest do
 
       assert deployment.kura_server_id == server.id
     end
-
-    test "schedules global endpoint deployments for every managed server in the account" do
-      user = AccountsFixtures.user_fixture()
-      account = Accounts.get_account_from_user(user)
-
-      stub(Tuist.Environment, :dev?, fn -> false end)
-      stub(Tuist.Environment, :test?, fn -> false end)
-      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["us-east", "eu-central"] end)
-
-      {:ok, us_east_server} =
-        Kura.create_server(%{
-          account_id: account.id,
-          region: "us-east",
-          image_tag: "0.5.2"
-        })
-
-      {:ok, eu_central_server} =
-        Kura.create_server(%{
-          account_id: account.id,
-          region: "eu-central",
-          image_tag: "0.5.2"
-        })
-
-      [us_east_deployment] = us_east_server.deployments
-      [eu_central_deployment] = eu_central_server.deployments
-
-      us_east_deployment =
-        us_east_deployment
-        |> Deployment.status_changeset(%{status: :running, started_at: DateTime.utc_now()})
-        |> Repo.update!()
-
-      us_east_deployment
-      |> Deployment.status_changeset(%{status: :succeeded, finished_at: DateTime.utc_now()})
-      |> Repo.update!()
-
-      eu_central_deployment =
-        eu_central_deployment
-        |> Deployment.status_changeset(%{status: :running, started_at: DateTime.utc_now()})
-        |> Repo.update!()
-
-      eu_central_deployment
-      |> Deployment.status_changeset(%{status: :succeeded, finished_at: DateTime.utc_now()})
-      |> Repo.update!()
-
-      us_east_server =
-        us_east_server
-        |> Server.status_changeset(%{
-          status: :active,
-          url: "https://#{account.name}-us-east-1.kura.tuist.dev",
-          current_image_tag: "0.5.2"
-        })
-        |> Repo.update!()
-
-      eu_central_server =
-        eu_central_server
-        |> Server.status_changeset(%{
-          status: :active,
-          url: "https://#{account.name}-eu-central-1.kura.tuist.dev",
-          current_image_tag: "0.5.2"
-        })
-        |> Repo.update!()
-
-      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
-      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.5.2" end)
-
-      assert {:ok, deployments} = Kura.schedule_runtime_image_deployments()
-
-      assert deployments
-             |> Enum.map(& &1.kura_server_id)
-             |> Enum.sort() == Enum.sort([us_east_server.id, eu_central_server.id])
-
-      assert Enum.all?(deployments, &(&1.image_tag == "0.5.2"))
-    end
-
-    test "only schedules global endpoint deployments for accounts missing the active global endpoint" do
-      user_one = AccountsFixtures.user_fixture()
-      account_one = Accounts.get_account_from_user(user_one)
-
-      user_two = AccountsFixtures.user_fixture()
-      account_two = Accounts.get_account_from_user(user_two)
-
-      stub(Tuist.Environment, :dev?, fn -> false end)
-      stub(Tuist.Environment, :test?, fn -> false end)
-      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["us-east", "eu-central"] end)
-      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
-      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.5.2" end)
-
-      {:ok, account_one_server} =
-        Kura.create_server(%{
-          account_id: account_one.id,
-          region: "us-east",
-          image_tag: "0.5.2"
-        })
-
-      {:ok, account_two_server} =
-        Kura.create_server(%{
-          account_id: account_two.id,
-          region: "us-east",
-          image_tag: "0.5.2"
-        })
-
-      for server <- [account_one_server, account_two_server] do
-        [deployment] = server.deployments
-
-        deployment
-        |> Deployment.status_changeset(%{status: :running, started_at: DateTime.utc_now()})
-        |> Repo.update!()
-        |> Deployment.status_changeset(%{status: :succeeded, finished_at: DateTime.utc_now()})
-        |> Repo.update!()
-      end
-
-      account_one_server =
-        account_one_server
-        |> Server.status_changeset(%{
-          status: :active,
-          url: "https://#{account_one.name}-us-east-1.kura.tuist.dev",
-          current_image_tag: "0.5.2"
-        })
-        |> Repo.update!()
-
-      account_two_server =
-        account_two_server
-        |> Server.status_changeset(%{
-          status: :active,
-          url: "https://#{account_two.name}-us-east-1.kura.tuist.dev",
-          current_image_tag: "0.5.2"
-        })
-        |> Repo.update!()
-
-      for {account, regional_url} <- [
-            {account_one, account_one_server.url},
-            {account_two, account_two_server.url}
-          ] do
-        %AccountCacheEndpoint{}
-        |> AccountCacheEndpoint.create_changeset(%{
-          account_id: account.id,
-          technology: :kura,
-          url: regional_url
-        })
-        |> Repo.insert!()
-      end
-
-      %AccountCacheEndpoint{}
-      |> AccountCacheEndpoint.create_changeset(%{
-        account_id: account_one.id,
-        technology: :kura,
-        url: Kura.global_cache_endpoint_candidate_url(account_one)
-      })
-      |> Repo.insert!()
-
-      assert {:ok, [%Deployment{kura_server_id: kura_server_id, image_tag: "0.5.2"}]} =
-               Kura.schedule_runtime_image_deployments()
-
-      assert kura_server_id == account_two_server.id
-    end
   end
 
   describe "create_deployment/2" do
@@ -547,6 +392,56 @@ defmodule Tuist.KuraTest do
       assert active_again.current_image_tag == "0.5.3"
 
       assert [_] = Accounts.list_account_cache_endpoints(account, :kura)
+    end
+
+    test "prunes the superseded :kura endpoint when the server's public URL changes" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{account_id: account.id, region: "local-controller", image_tag: "0.5.2"})
+
+      stub(Provisioner, :public_url, fn _account, _server -> "http://localhost:4100" end)
+      {:ok, server} = Kura.activate_server(server, "0.5.2")
+      assert [%{url: "http://localhost:4100"}] = Accounts.list_account_cache_endpoints(account, :kura)
+
+      # Region template now renders a new host; re-activation must replace the
+      # mirror, not accumulate a second row.
+      stub(Provisioner, :public_url, fn _account, _server -> "http://localhost:4200" end)
+      {:ok, _server} = Kura.activate_server(server, "0.5.2")
+
+      assert [%{url: "http://localhost:4200"}] = Accounts.list_account_cache_endpoints(account, :kura)
+    end
+
+    test "leaves other regions' :kura endpoints and :default endpoints intact when pruning" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{account_id: account.id, region: "local-controller", image_tag: "0.5.2"})
+
+      stub(Provisioner, :public_url, fn _account, _server -> "http://localhost:4100" end)
+      {:ok, server} = Kura.activate_server(server, "0.5.2")
+
+      # Another region's Kura endpoint (distinct URL) and a user-configured
+      # default endpoint that happens to share the pruned URL.
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{
+          url: "https://other-region.example.com",
+          technology: :kura
+        })
+
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{url: "http://localhost:4100", technology: :default})
+
+      stub(Provisioner, :public_url, fn _account, _server -> "http://localhost:4200" end)
+      {:ok, _server} = Kura.activate_server(server, "0.5.2")
+
+      kura_urls =
+        account |> Accounts.list_account_cache_endpoints(:kura) |> Enum.map(& &1.url) |> Enum.sort()
+
+      assert kura_urls == ["http://localhost:4200", "https://other-region.example.com"]
+      assert [%{url: "http://localhost:4100"}] = Accounts.list_account_cache_endpoints(account, :default)
     end
   end
 

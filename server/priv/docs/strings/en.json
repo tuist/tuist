@@ -474,11 +474,11 @@
             "self-hosting": {
               "text": "Self-hosting",
               "items": {
-                "control-plane": {
-                  "text": "Control plane"
+                "server": {
+                  "text": "Server"
                 },
-                "kura": {
-                  "text": "Kura"
+                "cache": {
+                  "text": "Cache"
                 },
                 "telemetry": {
                   "text": "Telemetry"

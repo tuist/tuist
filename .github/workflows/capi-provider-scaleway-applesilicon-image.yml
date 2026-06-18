@@ -26,7 +26,8 @@ env:
 
 jobs:
   test:
-    runs-on: tuist-production-linux
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -49,7 +50,8 @@ jobs:
         run: go vet ./...
 
   test-macos-host-bootstrap:
-    runs-on: tuist-production-linux
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -72,7 +74,8 @@ jobs:
         run: go vet ./...
 
   test-tart-kubelet:
-    runs-on: tuist-production-linux
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -97,9 +100,7 @@ jobs:
   build:
     needs: [test, test-macos-host-bootstrap, test-tart-kubelet]
     if: github.event_name != 'pull_request'
-    # TODO: migrate to tuist-production-linux once the runner image ships
-    # a docker daemon — buildx requires a working docker engine.
-    runs-on: namespace-profile-default
+    runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3
@@ -113,7 +114,7 @@ jobs:
         id: tags
         run: |
           # SHA-tagged builds for ad-hoc deploys; semver tags + `:latest`
-          # are owned by release.yml's release-capi-operator job.
+          # are owned by server-production-deployment.yml's release-capi-operator job.
           GIT_SHA="${GITHUB_SHA::8}"
           echo "tags=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${GIT_SHA}" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6

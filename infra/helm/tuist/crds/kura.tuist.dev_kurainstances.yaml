@@ -82,22 +82,16 @@ spec:
                 grpcPublicHost:
                   type: string
                   maxLength: 253
-                globalPublicHost:
+                ingressClassName:
                   type: string
-                  maxLength: 253
-                globalGrpcPublicHost:
+                # Private marks an instance with no public endpoint:
+                # the controller skips the Ingress/external-dns surface
+                # and the in-cluster Service is the only access path
+                # (runner-cache nodes).
+                private:
+                  type: boolean
+                peerTLSSecretName:
                   type: string
-                  maxLength: 253
-                cloudflarePoolLatitude:
-                  type: number
-                  format: double
-                  minimum: -90
-                  maximum: 90
-                cloudflarePoolLongitude:
-                  type: number
-                  format: double
-                  minimum: -180
-                  maximum: 180
                 storageClassName:
                   type: string
                 storageSize:
@@ -121,10 +115,6 @@ spec:
                 publicURL:
                   type: string
                 grpcPublicURL:
-                  type: string
-                globalPublicURL:
-                  type: string
-                globalGrpcPublicURL:
                   type: string
                 observedImage:
                   type: string

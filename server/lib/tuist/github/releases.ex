@@ -1,16 +1,8 @@
 defmodule Tuist.GitHub.Releases do
   @moduledoc ~S"""
-  This module provides functionality to fetch and manage information about the latest CLI release
-  of Tuist from GitHub. It uses a GenServer to periodically fetch and cache the release data,
-  ensuring that the information is up-to-date while minimizing API calls.
-
-  The module offers the following main features:
-  - Fetches the latest CLI and App release information from the Tuist GitHub repository
-  - Caches the release data and refreshes it periodically
-  - Provides a function to retrieve the latest CLI release information
-
-  The GenServer runs with a 1-hour refresh interval, balancing between having recent data
-  and avoiding excessive API requests to GitHub.
+  Fetches and caches the latest Tuist App release from GitHub, used to surface
+  the macOS app download in the dashboard. Results are cached with a 1-hour TTL
+  to minimize API calls.
   """
 
   alias Tuist.GitHub.Retry
@@ -25,28 +17,6 @@ defmodule Tuist.GitHub.Releases do
     @releases_url
   end
 
-  def get_latest_cli_release(opts \\ []) do
-    if Tuist.Environment.dev?() do
-      nil
-    else
-      update_if_needed = Keyword.get(opts, :update_if_needed, true)
-
-      releases =
-        if update_if_needed do
-          fetch_releases(opts)
-        else
-          [__MODULE__, "github_releases"] |> KeyValueStore.get() |> List.wrap()
-        end
-
-      case Enum.find(releases, fn release ->
-             not String.contains?(release["name"], "@")
-           end) do
-        nil -> nil
-        release -> map_release(release)
-      end
-    end
-  end
-
   def get_latest_app_release(opts \\ []) do
     if Tuist.Environment.dev?() do
       nil
@@ -58,32 +28,6 @@ defmodule Tuist.GitHub.Releases do
           fetch_latest_app_release()
         end
       )
-    end
-  end
-
-  defp fetch_releases(opts) do
-    KeyValueStore.get_or_update(
-      [__MODULE__, "github_releases"],
-      [ttl: Keyword.get(opts, :ttl, @ttl)],
-      fn ->
-        req_releases()
-      end
-    )
-  end
-
-  defp req_releases do
-    headers = github_auth_headers()
-    req_opts = [finch: Tuist.Finch, headers: headers] ++ Retry.retry_options()
-
-    case Req.get(releases_url(), req_opts) do
-      {:ok, %Req.Response{status: 200, body: releases}} ->
-        releases
-
-      {:ok, %Req.Response{status: status}} when status in 500..599 ->
-        []
-
-      {:error, _reason} ->
-        []
     end
   end
 

@@ -4,6 +4,7 @@ on:
     types: [opened, synchronize]
     paths:
       - "server/**"
+      - "kura/**"
       - ".github/workflows/cla.yml"
 
 concurrency:
@@ -22,6 +23,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Determine CLA scopes
+        id: cla_scope
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pull_number = context.issue.number;
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner,
+              repo,
+              pull_number,
+              per_page: 100,
+            });
+
+            const changedPaths = files.map(file => file.filename);
+            const workflowChanged = changedPaths.includes('.github/workflows/cla.yml');
+            const serverRequired = workflowChanged || changedPaths.some(path => path.startsWith('server/'));
+            const kuraRequired = workflowChanged || changedPaths.some(path => path.startsWith('kura/'));
+
+            core.setOutput('server_required', String(serverRequired));
+            core.setOutput('kura_required', String(kuraRequired));
+
       - name: Check CLA Status
         id: cla_check
         run: |
@@ -35,6 +58,7 @@ jobs:
           if [[ "$PR_AUTHOR_TYPE" == "Bot" ]]; then
             echo "✅ PR author $PR_AUTHOR is a bot, CLA not required"
             echo "cla_required=false" >> $GITHUB_OUTPUT
+            echo "missing_scopes=" >> $GITHUB_OUTPUT
             exit 0
           fi
 
@@ -43,36 +67,79 @@ jobs:
           if echo "$ALLOWLIST" | grep -q "$PR_AUTHOR"; then
             echo "✅ User $PR_AUTHOR is in allowlist, CLA not required"
             echo "cla_required=false" >> $GITHUB_OUTPUT
+            echo "missing_scopes=" >> $GITHUB_OUTPUT
             exit 0
           fi
 
-          # Check if signatures file exists
-          if [[ ! -f "server/cla/signatures.json" ]]; then
-            echo "❌ Signatures file not found, CLA required"
-            echo "cla_required=true" >> $GITHUB_OUTPUT
-            exit 0
+          missing_scopes=()
+
+          check_component_cla() {
+            local scope="$1"
+            local signatures_file="$2"
+
+            if [[ ! -f "$signatures_file" ]]; then
+              echo "❌ $scope signatures file not found, CLA required"
+              missing_scopes+=("$scope")
+              return
+            fi
+
+            local signed
+            signed=$(jq -r --arg author_id "$PR_AUTHOR_ID" '.signedContributors[]? | select(.id == ($author_id | tonumber)) | .name' "$signatures_file" || echo "")
+
+            if [[ -n "$signed" ]]; then
+              echo "✅ User $PR_AUTHOR has signed the $scope CLA"
+            else
+              echo "❌ User $PR_AUTHOR has not signed the $scope CLA"
+              missing_scopes+=("$scope")
+            fi
+          }
+
+          if [[ "${{ steps.cla_scope.outputs.server_required }}" == "true" ]]; then
+            check_component_cla "server" "server/cla/signatures.json"
           fi
 
-          # Check if user has signed CLA
-          SIGNED=$(jq -r --arg author_id "$PR_AUTHOR_ID" '.signedContributors[]? | select(.id == ($author_id | tonumber)) | .name' server/cla/signatures.json || echo "")
+          if [[ "${{ steps.cla_scope.outputs.kura_required }}" == "true" ]]; then
+            check_component_cla "kura" "kura/cla/signatures.json"
+          fi
 
-          if [[ -n "$SIGNED" ]]; then
-            echo "✅ User $PR_AUTHOR has signed the CLA"
+          if [[ ${#missing_scopes[@]} -eq 0 ]]; then
+            echo "✅ User $PR_AUTHOR has signed all required CLAs"
             echo "cla_required=false" >> $GITHUB_OUTPUT
+            echo "missing_scopes=" >> $GITHUB_OUTPUT
           else
-            echo "❌ User $PR_AUTHOR has not signed the CLA"
+            missing_scopes_csv=$(IFS=,; echo "${missing_scopes[*]}")
+            echo "❌ User $PR_AUTHOR has not signed required CLAs: $missing_scopes_csv"
             echo "cla_required=true" >> $GITHUB_OUTPUT
+            echo "missing_scopes=$missing_scopes_csv" >> $GITHUB_OUTPUT
           fi
 
       - name: Update CLA comment
-        if: steps.cla_check.outputs.cla_required == 'true'
         uses: actions/github-script@v7
         with:
           script: |
-            const claRequired = '${{ steps.cla_check.outputs.cla_required }}' === 'true';
             const marker = '<!-- cla-check -->';
+            const prAuthor = '${{ github.event.pull_request.user.login }}';
             const { owner, repo } = context.repo;
             const issue_number = context.issue.number;
+            const missingScopes = '${{ steps.cla_check.outputs.missing_scopes }}'
+              .split(',')
+              .map(scope => scope.trim())
+              .filter(Boolean);
+
+            const scopeDetails = {
+              server: {
+                label: 'Tuist Server',
+                documentUrl: 'https://github.com/tuist/tuist/blob/main/server/cla/document.md',
+                command: 'mise run cla-sign',
+                signaturesPath: 'server/cla/signatures.json',
+              },
+              kura: {
+                label: 'Kura',
+                documentUrl: 'https://github.com/tuist/tuist/blob/main/kura/cla/document.md',
+                command: 'CLA_COMPONENT=kura mise run cla-sign',
+                signaturesPath: 'kura/cla/signatures.json',
+              },
+            };
 
             const { data: comments } = await github.rest.issues.listComments({
               owner,
@@ -82,36 +149,51 @@ jobs:
             });
             const existing = comments.filter(c => c.body && c.body.includes(marker)).pop();
 
-            if (claRequired) {
-              const comment = `${marker}
-            ## ✍️ CLA Signature Required
+            if (missingScopes.length > 0) {
+              const scopeList = missingScopes
+                .map(scope => `- ${scopeDetails[scope].label}`)
+                .join('\n');
 
-            Hi @${{ github.event.pull_request.user.login }}! 👋
+              const signingSections = missingScopes
+                .map(scope => {
+                  const detail = scopeDetails[scope];
+                  return [
+                    `### ${detail.label}`,
+                    '',
+                    `1. Read the CLA: [Contributor License Agreement](${detail.documentUrl})`,
+                    '2. Sign it with:',
+                    '```bash',
+                    detail.command,
+                    `git add ${detail.signaturesPath}`,
+                    `git commit -m "add CLA signature for ${prAuthor}"`,
+                    'git push',
+                    '```',
+                    `3. Or manually add your signature to \`${detail.signaturesPath}\``,
+                  ].join('\n');
+                })
+                .join('\n\n');
 
-            Thank you for your contribution to Tuist! Before we can merge your PR that modifies server code, you'll need to sign our Contributor License Agreement (CLA).
-
-            ### How to sign the CLA:
-
-            1. **Read the CLA document**: [📄 Contributor License Agreement](https://github.com/tuist/tuist/blob/main/server/cla/document.md)
-
-            2. **Sign using mise command** (if you have the repo locally):
-               \`\`\`bash
-               mise run cla-sign
-               git add server/cla/signatures.json
-               git commit -m "add CLA signature for ${{ github.event.pull_request.user.login }}"
-               git push
-               \`\`\`
-
-            3. **Or fork the repo and manually add your signature**:
-               - Fork this repository
-               - Edit \`server/cla/signatures.json\`
-               - Add your signature entry to the \`signedContributors\` array
-               - Submit a PR with your signature
-
-            Once you've signed the CLA, this check will automatically pass! 🎉
-
-            ---
-            <sub>This is an automated message. The CLA is required for all contributions to server code to ensure we can continue to maintain and distribute Tuist under our chosen license.</sub>`;
+              const comment = [
+                marker,
+                '## CLA Signature Required',
+                '',
+                `Hi @${prAuthor},`,
+                '',
+                'Before we can merge this PR, you need to sign the required Contributor License Agreement for the component your changes touch.',
+                '',
+                'Required CLA:',
+                '',
+                scopeList,
+                '',
+                'How to sign:',
+                '',
+                signingSections,
+                '',
+                "Once you've signed the required CLA, this check will automatically pass.",
+                '',
+                '---',
+                '<sub>This is an automated message. The CLA is required for contributions to server and Kura code so we can continue to maintain and distribute Tuist under the chosen component licenses.</sub>',
+              ].join('\n');
 
               if (existing) {
                 await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body: comment });
@@ -119,10 +201,12 @@ jobs:
                 await github.rest.issues.createComment({ owner, repo, issue_number, body: comment });
               }
             } else if (existing) {
-              const comment = `${marker}
-            ## ✅ CLA Check Passed
-
-            Thank you @${{ github.event.pull_request.user.login }}! Your contribution is ready to be reviewed. The CLA requirement has been satisfied.`;
+              const comment = [
+                marker,
+                '## CLA Check Passed',
+                '',
+                `Thank you @${prAuthor}! Your contribution is ready to be reviewed. The CLA requirement has been satisfied.`,
+              ].join('\n');
 
               await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body: comment });
             }

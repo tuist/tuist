@@ -35,8 +35,8 @@ defmodule TuistWeb.Oauth.IntrospectController do
   end
 
   defp dedicated_kura_client?(client_id) do
-    Environment.kura_introspection_configured?() and
-      client_id == Environment.kura_introspection_client_id()
+    Environment.kura_control_plane_configured?() and
+      client_id == Environment.kura_control_plane_client_id()
   end
 
   defp invalid_client(conn) do

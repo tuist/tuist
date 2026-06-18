@@ -25,11 +25,12 @@ defmodule Tuist.Kura do
   alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Provisioner
-  alias Tuist.Kura.Provisioner.KubernetesController
   alias Tuist.Kura.Reconciler
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Repo
+
+  require Logger
 
   @pubsub Tuist.PubSub
   @create_server_keys %{
@@ -67,25 +68,6 @@ defmodule Tuist.Kura do
     |> Enum.take(limit)
   end
 
-  def global_cache_endpoint_url(%Account{} = account) do
-    with url when is_binary(url) <- global_cache_endpoint_candidate_url(account),
-         true <- global_cache_endpoint_active?(account, url) do
-      url
-    else
-      _ -> nil
-    end
-  end
-
-  def global_cache_endpoint_candidate_url(%Account{name: handle}) do
-    if global_cache_endpoint_enabled?(),
-      do:
-        Enum.find_value(Regions.all(), fn region -> KubernetesController.global_public_url_for_handle(handle, region) end)
-  end
-
-  defp global_cache_endpoint_enabled? do
-    Tuist.Environment.tuist_hosted?() and not Tuist.Environment.dev?() and not Tuist.Environment.test?()
-  end
-
   def version_label(nil), do: nil
 
   def version_label("kura@" <> image_tag), do: image_tag
@@ -109,10 +91,7 @@ defmodule Tuist.Kura do
   end
 
   defp schedule_runtime_image_deployments(image_tag) do
-    with {:ok, version_deployments} <- schedule_version_deployments(image_tag),
-         {:ok, global_endpoint_deployments} <- schedule_global_endpoint_deployments(image_tag) do
-      {:ok, version_deployments ++ global_endpoint_deployments}
-    end
+    schedule_version_deployments(image_tag)
   end
 
   defp runtime_image_tag do
@@ -151,20 +130,6 @@ defmodule Tuist.Kura do
     end
   end
 
-  def schedule_global_endpoint_deployments(image_tag) when is_binary(image_tag) do
-    deployments =
-      image_tag
-      |> servers_needing_global_endpoint_query()
-      |> Repo.all()
-      |> Enum.filter(&server_needs_global_endpoint?/1)
-      |> Enum.map(&create_deployment(&1, image_tag))
-
-    case Enum.find(deployments, &match?({:error, _}, &1)) do
-      nil -> {:ok, Enum.map(deployments, fn {:ok, deployment} -> deployment end)}
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
   defp servers_needing_version_query(image_tag) do
     deployment_exists_query =
       from(d in Deployment,
@@ -178,63 +143,6 @@ defmodule Tuist.Kura do
       where: s.current_image_tag != ^image_tag,
       where: not exists(deployment_exists_query)
     )
-  end
-
-  defp servers_needing_global_endpoint_query(image_tag) do
-    open_deployment_exists_query =
-      from(d in Deployment,
-        where: parent_as(:server).id == d.kura_server_id and d.status in ^[:pending, :running],
-        select: 1
-      )
-
-    cache_endpoints_query =
-      from(e in AccountCacheEndpoint,
-        where: e.technology == :kura
-      )
-
-    from(s in Server,
-      as: :server,
-      join: a in assoc(s, :account),
-      where: s.region in ^region_ids_with_global_endpoint(),
-      where: s.status == :active,
-      where: s.current_image_tag == ^image_tag,
-      where: not exists(open_deployment_exists_query),
-      preload: [account: {a, cache_endpoints: ^cache_endpoints_query}]
-    )
-  end
-
-  def server_needs_global_endpoint?(%Server{} = server) do
-    account =
-      case server.account do
-        %Account{} = account -> account
-        _ -> Repo.preload(server, account: :cache_endpoints).account
-      end
-
-    account_needs_global_endpoint?(account) and region_has_global_endpoint?(server.region)
-  end
-
-  def server_requires_global_endpoint_readiness?(%Server{} = server) do
-    Tuist.Environment.kura_require_global_endpoints?() and server_needs_global_endpoint?(server)
-  end
-
-  def server_global_endpoint_observed?(%Server{} = server) do
-    case Provisioner.global_public_url(server) do
-      url when is_binary(url) and url != "" -> true
-      _ -> false
-    end
-  end
-
-  defp region_has_global_endpoint?(region_id) do
-    case Regions.fetch(region_id) do
-      {:ok, %Regions{provisioner_config: config}} -> is_binary(config[:global_public_host_template])
-      _ -> false
-    end
-  end
-
-  defp region_ids_with_global_endpoint do
-    Regions.all()
-    |> Enum.filter(fn %Regions{provisioner_config: config} -> is_binary(config[:global_public_host_template]) end)
-    |> Enum.map(& &1.id)
   end
 
   ## Servers
@@ -393,17 +301,136 @@ defmodule Tuist.Kura do
   propagated and TLS is serving a valid certificate; the reconciler
   retries on the next tick while the endpoint is not ready.
   """
-  def activate_server(%Server{} = server, image_tag) when is_binary(image_tag) do
+  def activate_server(%Server{region: region_id} = server, image_tag) when is_binary(image_tag) do
+    case Regions.fetch(region_id) do
+      {:ok, region} ->
+        if Regions.private?(region) do
+          activate_private_server(server, image_tag)
+        else
+          activate_public_server(server, image_tag)
+        end
+
+      {:error, _} ->
+        {:error, {:unknown_region, region_id}}
+    end
+  end
+
+  defp activate_public_server(%Server{} = server, image_tag) do
     with {:ok, account} <- Accounts.get_account_by_id(server.account_id),
          url when is_binary(url) <- Provisioner.public_url(account, server),
          :ok <- ensure_public_endpoint_ready(url),
-         {:ok, global_url} <- ready_global_public_url(server),
-         {:ok, server} <- activate_server_transaction(server, account, url, global_url, image_tag) do
+         {:ok, server} <- activate_server_transaction(server, account, url, image_tag) do
       broadcast_server(server, :updated)
       {:ok, server}
     else
       {:error, reason} -> {:error, reason}
       reason -> {:error, reason}
+    end
+  end
+
+  # Private (runner-cache) regions have no public endpoint, so the
+  # control plane skips the public DNS + HTTPS `/up` probe used for
+  # public regions. The reconciler only calls `activate_server/2` once
+  # it has observed the backing workload report the desired image
+  # (`current_image_tag == desired`), so that observation is the
+  # readiness authority here. The URL is the in-cluster Service DNS
+  # form built by `Provisioner.public_url/2`. We deliberately do *not*
+  # mirror it into `account_cache_endpoints`: that table is what the
+  # CLI resolves, and a developer machine can't reach the in-cluster
+  # endpoint. Runner builds get the URL through
+  # `runner_cache_endpoint_url/1` instead.
+  defp activate_private_server(%Server{} = server, image_tag) do
+    with {:ok, account} <- Accounts.get_account_by_id(server.account_id),
+         url when is_binary(url) <- Provisioner.public_url(account, server),
+         {:ok, server} <- activate_private_server_transaction(server, url, image_tag) do
+      broadcast_server(server, :updated)
+      {:ok, server}
+    else
+      {:error, reason} -> {:error, reason}
+      reason -> {:error, reason}
+    end
+  end
+
+  defp activate_private_server_transaction(server, url, image_tag) do
+    Repo.transaction(fn ->
+      case lock_server(server.id, server.account_id) do
+        nil ->
+          Repo.rollback(:not_found)
+
+        %Server{status: :destroying} ->
+          Repo.rollback(:server_destroying)
+
+        %Server{status: :destroyed} ->
+          Repo.rollback(:server_destroyed)
+
+        %Server{} = server ->
+          {:ok, server} =
+            server
+            |> Server.observation_changeset(%{
+              status: :active,
+              url: url,
+              current_image_tag: image_tag,
+              observed_image_tag: image_tag,
+              last_observed_at: now_truncated()
+            })
+            |> Repo.update()
+
+          server
+      end
+    end)
+  end
+
+  @doc """
+  In-cluster Kura URL a runner-as-a-service build should use, or `nil`
+  when the account has no active private (runner-cache) Kura node.
+
+  Builds executing on a runner pool resolve their cache through this so
+  traffic stays inside the cluster, next to the runners, instead of
+  crossing the public ingress dataplane. Auth is unchanged: the same
+  Guardian JWT is verified by the same `tuist.lua` hook on the private
+  node, which carries the same `tenantID`. This reads the active
+  private `Server` row directly — `account_cache_endpoints` is
+  CLI-facing and a developer machine can't reach the in-cluster
+  endpoint.
+  """
+  def runner_cache_endpoint_url(%Account{id: account_id}) do
+    # `available/0`, not `all/0`: if a private region is dropped from
+    # `TUIST_KURA_AVAILABLE_REGIONS` the controller stops reconciling
+    # it, and gating here too means dispatch stops handing out the now
+    # un-reconciled region's stale `url` — config drift self-heals
+    # instead of routing jobs to an endpoint that no longer exists.
+    private_region_ids = Enum.map(Enum.filter(Regions.available(), &Regions.private?/1), & &1.id)
+
+    if private_region_ids == [] do
+      nil
+    else
+      # "At most one active private node per account" is a reconciler
+      # invariant, not a DB constraint, so a race could leave two rows.
+      # Fetch up to two: a duplicate is logged loudly (it's a real
+      # regression) but dispatch still routes deterministically rather
+      # than crashing the hot path — both rows are the same account's
+      # valid caches, so either URL works.
+      Server
+      |> where([s], s.account_id == ^account_id and s.status == :active and s.region in ^private_region_ids)
+      |> order_by([s], asc: s.region)
+      |> limit(2)
+      |> select([s], s.url)
+      |> Repo.all()
+      |> case do
+        [] ->
+          nil
+
+        [url] ->
+          url
+
+        [url | _] = urls ->
+          Logger.error("kura: account has multiple active private cache nodes; routing to the first",
+            account_id: account_id,
+            urls: urls
+          )
+
+          url
+      end
     end
   end
 
@@ -452,23 +479,7 @@ defmodule Tuist.Kura do
 
   defp ensure_public_https_up(_uri), do: :ok
 
-  defp ready_global_public_url(%Server{} = server) do
-    if server_requires_global_endpoint_readiness?(server) do
-      case Provisioner.global_public_url(server) do
-        url when is_binary(url) and url != "" ->
-          with :ok <- ensure_public_endpoint_ready(url) do
-            {:ok, url}
-          end
-
-        _ ->
-          {:ok, nil}
-      end
-    else
-      {:ok, nil}
-    end
-  end
-
-  defp activate_server_transaction(server, account, url, global_url, image_tag) do
+  defp activate_server_transaction(server, account, url, image_tag) do
     Repo.transaction(fn ->
       case lock_server(server.id, server.account_id) do
         nil ->
@@ -480,7 +491,7 @@ defmodule Tuist.Kura do
         %Server{status: :destroyed} ->
           Repo.rollback(:server_destroyed)
 
-        %Server{} = server ->
+        %Server{url: previous_url} = server ->
           with {:ok, server} <-
                  server
                  |> Server.observation_changeset(%{
@@ -492,7 +503,7 @@ defmodule Tuist.Kura do
                  })
                  |> Repo.update(),
                :ok <- ensure_cache_endpoint(account, url),
-               :ok <- ensure_cache_endpoint(account, global_url) do
+               :ok <- prune_superseded_cache_endpoint(account, previous_url, url) do
             server
           else
             {:error, reason} -> Repo.rollback(reason)
@@ -658,33 +669,21 @@ defmodule Tuist.Kura do
     end
   end
 
-  defp global_cache_endpoint_active?(%Account{cache_endpoints: cache_endpoints}, url) when is_list(cache_endpoints) do
-    kura_urls =
-      cache_endpoints
-      |> Enum.filter(&(&1.technology == :kura))
-      |> Enum.map(& &1.url)
+  # Drops the endpoint row left behind when a server's `public_url` changes
+  # (e.g. an environment-scoped host rename). Scoped to the server's *previous*
+  # URL so an account's endpoints for other regions — which carry their own
+  # distinct URLs — are never touched. A no-op when the URL is unchanged or the
+  # stale row is already gone.
+  defp prune_superseded_cache_endpoint(_account, previous_url, url) when previous_url in [nil, url], do: :ok
 
-    Enum.any?(kura_urls, &(&1 != url)) and url in kura_urls
-  end
-
-  defp global_cache_endpoint_active?(%Account{} = account, url) do
-    regional_endpoint_exists =
+  defp prune_superseded_cache_endpoint(%Account{id: account_id}, previous_url, _url) do
+    Repo.delete_all(
       from(e in AccountCacheEndpoint,
-        where: e.account_id == ^account.id and e.technology == :kura and e.url != ^url,
-        select: 1
+        where: e.account_id == ^account_id and e.technology == :kura and e.url == ^previous_url
       )
+    )
 
-    global_endpoint_exists =
-      from(e in AccountCacheEndpoint,
-        where: e.account_id == ^account.id and e.technology == :kura and e.url == ^url,
-        select: 1
-      )
-
-    Repo.exists?(regional_endpoint_exists) and Repo.exists?(global_endpoint_exists)
-  end
-
-  defp account_needs_global_endpoint?(%Account{} = account) do
-    is_nil(global_cache_endpoint_url(account))
+    :ok
   end
 
   defp remove_cache_endpoint(%Server{url: nil}), do: :ok

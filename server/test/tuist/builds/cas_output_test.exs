@@ -5,6 +5,7 @@ defmodule Tuist.Builds.CASOutputTest do
 
   describe "changeset/2" do
     @valid_attrs %{
+      project_id: 1,
       node_id: "MyTarget",
       checksum: "abc123def456",
       size: 1024,
@@ -125,6 +126,14 @@ defmodule Tuist.Builds.CASOutputTest do
 
       refute changeset.valid?
       assert "can't be blank" in errors_on(changeset).build_run_id
+    end
+
+    test "requires project_id" do
+      attrs = Map.delete(@valid_attrs, :project_id)
+      changeset = CASOutput.changeset("B12673DA-1345-4077-BB30-D7576FEACE09", attrs)
+
+      refute changeset.valid?
+      assert "can't be blank" in errors_on(changeset).project_id
     end
 
     test "requires node_id" do

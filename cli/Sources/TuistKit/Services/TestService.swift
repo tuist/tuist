@@ -35,6 +35,7 @@ public enum TestServiceError: FatalError, Equatable {
     case unspecifiedPlatform(target: String, platforms: [String])
     case shardPlanningRequiresBuildOnly
     case shardIndexRequiresWithoutBuilding
+    case shardingRequiresFullHandle
 
     // Error description
 
@@ -84,6 +85,9 @@ public enum TestServiceError: FatalError, Equatable {
         case .shardIndexRequiresWithoutBuilding:
             return
                 "--shard-index only applies when executing a previously built shard. Pass --without-building to run the shard, or remove --shard-index to run tests normally."
+        case .shardingRequiresFullHandle:
+            return
+                "Test sharding requires a Tuist account. The 'Tuist.swift' file is missing a fullHandle. See how to set up a Tuist project at: https://tuist.dev/en/docs/guides/server/accounts-and-projects#projects"
         }
     }
 
@@ -94,7 +98,8 @@ public enum TestServiceError: FatalError, Equatable {
         case .schemeNotFound, .schemeWithoutTestableTargets, .testPlanNotFound,
              .testIdentifierInvalid, .duplicatedTestTargets,
              .nothingToSkip, .actionInvalid, .testProductsNotFound, .unspecifiedPlatform,
-             .shardPlanningRequiresBuildOnly, .shardIndexRequiresWithoutBuilding:
+             .shardPlanningRequiresBuildOnly, .shardIndexRequiresWithoutBuilding,
+             .shardingRequiresFullHandle:
             return .abort
         }
     }
@@ -564,9 +569,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 if isSharding,
                    let fullHandle = config.fullHandle
                 {
-                    let shardDestination = passedValue(for: "-destination", arguments: passthroughXcodeBuildArguments)
-                        ?? platform.map { "platform=\($0)" }
-                        ?? inferPlatformDestination(schemes: schemes, graphTraverser: graphTraverser)
+                    let shardDestination = try await shardPlanDestination(
+                        schemes: schemes,
+                        platform: platform,
+                        version: version,
+                        deviceName: deviceName,
+                        passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
+                        graphTraverser: graphTraverser
+                    )
 
                     let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
                     let buildRunId = await RunMetadataStorage.current.buildRunId
@@ -631,7 +641,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
     // swiftlint:disable:next function_body_length function_parameter_count
     private func runShard(
         shardIndex: Int,
-        schemeName _: String?,
+        schemeName: String?,
         path: AbsolutePath,
         config: Tuist,
         deviceName: String?,
@@ -652,7 +662,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         mode: TestProcessingMode
     ) async throws {
         guard let fullHandle = config.fullHandle else {
-            throw TestServiceError.actionInvalid
+            throw TestServiceError.shardingRequiresFullHandle
         }
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
@@ -689,16 +699,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         await RunMetadataStorage.current.restoreMetadata(from: shard.testProductsPath)
 
-        var shardPassthroughArguments = passthroughXcodeBuildArguments
-        if let xcTestRunPath = shard.xcTestRunPath {
-            shardPassthroughArguments = removeOption("-testProductsPath", from: shardPassthroughArguments)
-            shardPassthroughArguments += ["-xctestrun", xcTestRunPath.pathString]
-        }
-
         let xcodebuildArguments = try await buildTestWithoutBuildingArguments(
             testProductsPath: shard.testProductsPath,
             testTargets: testTargets,
             skipTestTargets: skipTestTargets,
+            shardTestIdentifiers: shard.testIdentifiers,
             testPlanConfiguration: testPlanConfiguration,
             deviceName: deviceName,
             platform: platform,
@@ -706,7 +711,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             rosetta: rosetta,
             resultBundlePath: resultBundlePath,
             derivedDataPath: derivedDataPath,
-            passthroughXcodeBuildArguments: shardPassthroughArguments
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         )
 
         var testError: Error?
@@ -726,6 +731,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
             action: .testWithoutBuilding,
+            scheme: schemeName,
             shardPlanId: shard.shardPlanId,
             shardIndex: shardIndex,
             mode: mode
@@ -743,9 +749,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             runResultBundlePath: runResultBundlePath,
             resultBundlePath: resultBundlePath
         )
-        if let xcTestRunPath = shard.xcTestRunPath {
-            try? await fileSystem.remove(xcTestRunPath)
-        } else {
+        // Only Tuist-owned products (downloaded or extracted) are cleaned up; user-provided local
+        // products (passed via -testProductsPath) are left in place.
+        if localTestProductsPath == nil {
             try? await fileSystem.remove(shard.testProductsPath)
         }
 
@@ -863,6 +869,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
             action: .testWithoutBuilding,
+            scheme: schemeName,
             mode: mode
         )
 
@@ -884,16 +891,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
         AlertController.current.success(.alert("The project tests ran successfully"))
     }
 
-    private func removeOption(_ option: String, from arguments: [String]) -> [String] {
-        guard let index = arguments.firstIndex(of: option) else { return arguments }
-        var result = arguments
-        result.remove(at: index)
-        if result.indices.contains(index) {
-            result.remove(at: index)
-        }
-        return result
-    }
-
     private func testProductsPathFromArguments(_ arguments: [String], relativeTo path: AbsolutePath) -> AbsolutePath? {
         guard let index = arguments.firstIndex(of: "-testProductsPath"),
               arguments.indices.contains(index + 1)
@@ -909,6 +906,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         testProductsPath: AbsolutePath,
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
+        shardTestIdentifiers: [String] = [],
         testPlanConfiguration: TestPlanConfiguration?,
         deviceName: String?,
         platform: String?,
@@ -927,6 +925,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         for testTarget in testTargets {
             arguments += ["-only-testing", testTarget.description]
+        }
+        for shardTestIdentifier in shardTestIdentifiers {
+            arguments += ["-only-testing", shardTestIdentifier]
         }
         for skipTarget in skipTestTargets {
             arguments += ["-skip-testing", skipTarget.description]
@@ -1572,6 +1573,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
             action: action
         )
         else {
+            if action == .build {
+                Logger.current.notice(
+                    "The scheme \(scheme.name) has no testable targets to build, skipping."
+                )
+                return
+            }
             throw TestServiceError.schemeWithoutTestableTargets(
                 scheme: scheme.name, testPlan: testPlanConfiguration?.testPlan
             )
@@ -1661,6 +1668,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,
                 action: action,
+                scheme: scheme.name,
                 quarantinedTests: quarantinedTests,
                 mode: mode
             )
@@ -1699,6 +1707,19 @@ public struct TestService { // swiftlint:disable:this type_body_length
         return testQuarantineService.markQuarantinedTests(testSummary: parsed, quarantinedTests: quarantinedTests)
     }
 
+    /// Captures a lightweight per-scheme test summary into `RunMetadataStorage` so the GitHub Actions
+    /// job summary can be rendered locally, without waiting for the server to finish parsing the
+    /// uploaded result bundle. Best-effort: any failure is ignored.
+    private func captureTestRunReport(scheme: String?, resultBundlePath: AbsolutePath?) async {
+        guard let scheme, let resultBundlePath,
+              let statuses = try? await xcResultService.parseTestStatuses(path: resultBundlePath)
+        else { return }
+
+        await RunMetadataStorage.current.add(
+            testRunReport: RunReportTestRun(scheme: scheme, testStatuses: statuses)
+        )
+    }
+
     private func uploadBuildRunIfNeeded(
         projectDerivedDataDirectory: AbsolutePath?,
         projectPath: AbsolutePath,
@@ -1735,6 +1756,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
         action: XcodeBuildTestAction,
+        scheme: String? = nil,
         quarantinedTests: [TestIdentifier] = [],
         shardPlanId: String? = nil,
         shardIndex: Int? = nil,
@@ -1742,6 +1764,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
     ) async {
         guard config.fullHandle != nil, action != .build
         else { return }
+
+        await captureTestRunReport(scheme: scheme, resultBundlePath: resultBundlePath)
 
         do {
             switch mode {
@@ -1895,6 +1919,183 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
             return resolvedPlatform.xcodebuildPlatformDestination
         }
+        return nil
+    }
+
+    private func shardPlanDestination(
+        schemes: [Scheme],
+        platform: String?,
+        version: Version?,
+        deviceName: String?,
+        passthroughXcodeBuildArguments: [String],
+        graphTraverser: GraphTraversing
+    ) async throws -> String? {
+        if let explicitDestination = passedValue(for: "-destination", arguments: passthroughXcodeBuildArguments) {
+            guard let simulatorPlatform = simulatorPlatform(from: explicitDestination),
+                  !hasConcreteDevice(in: explicitDestination)
+            else {
+                return explicitDestination
+            }
+
+            let destinationVersion = xcodebuildDestinationParameter("OS", in: explicitDestination)?.version() ?? version
+            return await concreteShardPlanDestinationIfAvailable(
+                schemes: schemes,
+                platform: simulatorPlatform,
+                version: destinationVersion,
+                deviceName: deviceName,
+                graphTraverser: graphTraverser
+            ) ?? explicitDestination
+        }
+
+        if let platform {
+            let buildPlatform = try XcodeGraph.Platform.from(commandLineValue: platform)
+            return await concreteShardPlanDestinationIfAvailable(
+                schemes: schemes,
+                platform: buildPlatform,
+                version: version,
+                deviceName: deviceName,
+                graphTraverser: graphTraverser
+            ) ?? buildPlatform.xcodebuildPlatformDestination
+        }
+
+        if let inferredDestination = inferPlatformDestination(schemes: schemes, graphTraverser: graphTraverser) {
+            guard let inferredPlatform = xcodebuildPlatform(from: inferredDestination) else {
+                return inferredDestination
+            }
+
+            return await concreteShardPlanDestinationIfAvailable(
+                schemes: schemes,
+                platform: inferredPlatform,
+                version: version,
+                deviceName: deviceName,
+                graphTraverser: graphTraverser
+            ) ?? inferredDestination
+        }
+
+        return nil
+    }
+
+    private func concreteShardPlanDestinationIfAvailable(
+        schemes: [Scheme],
+        platform: XcodeGraph.Platform,
+        version: Version?,
+        deviceName: String?,
+        graphTraverser: GraphTraversing
+    ) async -> String? {
+        do {
+            return try await concreteShardPlanDestination(
+                schemes: schemes,
+                platform: platform,
+                version: version,
+                deviceName: deviceName,
+                graphTraverser: graphTraverser
+            )
+        } catch {
+            return nil
+        }
+    }
+
+    private func concreteShardPlanDestination(
+        schemes: [Scheme],
+        platform: XcodeGraph.Platform,
+        version: Version?,
+        deviceName: String?,
+        graphTraverser: GraphTraversing
+    ) async throws -> String? {
+        for scheme in schemes {
+            guard let target = buildGraphInspector.testableTarget(
+                scheme: scheme,
+                testPlan: nil,
+                testTargets: [],
+                skipTestTargets: [],
+                graphTraverser: graphTraverser,
+                action: .build
+            ) else { continue }
+
+            guard target.target.supportedPlatforms.contains(platform) else { continue }
+
+            return try await xcodebuildDestination(
+                for: target,
+                scheme: scheme,
+                platform: platform,
+                version: version,
+                deviceName: deviceName,
+                graphTraverser: graphTraverser
+            )
+        }
+
+        return platform.xcodebuildPlatformDestination
+    }
+
+    private func xcodebuildDestination(
+        for target: GraphTarget,
+        scheme: Scheme,
+        platform: XcodeGraph.Platform,
+        version: Version?,
+        deviceName: String?,
+        graphTraverser: GraphTraversing
+    ) async throws -> String {
+        let destination = try await XcodeBuildDestination.find(
+            for: target.target,
+            on: platform,
+            scheme: scheme,
+            version: version,
+            deviceName: deviceName,
+            graphTraverser: graphTraverser,
+            simulatorController: simulatorController
+        )
+
+        switch destination {
+        case let .device(udid):
+            return "\(platform.xcodebuildPlatformDestination),id=\(udid)"
+        case .mac:
+            return try await simulatorController.macOSDestination(catalyst: false)
+        case .macCatalyst:
+            return try await simulatorController.macOSDestination(catalyst: true)
+        }
+    }
+
+    private func simulatorPlatform(from destination: String) -> XcodeGraph.Platform? {
+        guard let platform = xcodebuildPlatform(from: destination), platform != .macOS else { return nil }
+        return platform
+    }
+
+    private func xcodebuildPlatform(from destination: String) -> XcodeGraph.Platform? {
+        switch xcodebuildDestinationParameter("platform", in: destination)?.lowercased() {
+        case "ios simulator":
+            return .iOS
+        case "macos":
+            return .macOS
+        case "tvos simulator":
+            return .tvOS
+        case "watchos simulator":
+            return .watchOS
+        case "visionos simulator":
+            return .visionOS
+        default:
+            return nil
+        }
+    }
+
+    private func hasConcreteDevice(in destination: String) -> Bool {
+        xcodebuildDestinationParameter("id", in: destination) != nil
+            || xcodebuildDestinationParameter("name", in: destination) != nil
+    }
+
+    private func xcodebuildDestinationParameter(_ parameter: String, in destination: String) -> String? {
+        let expectedKey = parameter.lowercased()
+        for component in destination.components(separatedBy: ",") {
+            let pair = component.split(separator: "=", maxSplits: 1).map {
+                String($0).trimmingCharacters(in: .whitespaces)
+            }
+            guard pair.count == 2 else { continue }
+
+            let key = pair[0].lowercased()
+            if key == expectedKey {
+                return pair[1]
+            }
+        }
+
         return nil
     }
 }

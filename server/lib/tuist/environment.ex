@@ -177,26 +177,21 @@ defmodule Tuist.Environment do
     |> Enum.reject(&(&1 == ""))
   end
 
+  def kura_dedicated_gateway_account_handles do
+    "TUIST_KURA_DEDICATED_GATEWAY_ACCOUNTS"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.map(&String.downcase/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
   def kura_runtime_image_tag(secrets \\ secrets()) do
     System.get_env("TUIST_KURA_RUNTIME_IMAGE_TAG") || get([:kura, :runtime_image_tag], secrets)
   end
 
-  @doc """
-  Whether managed Kura servers must wait for the global Cloudflare-
-  fronted endpoint before being projected active.
-
-  Defaults to true. Set `TUIST_KURA_REQUIRE_GLOBAL_ENDPOINTS=0` to
-  degrade gracefully while the global load-balancer layer is
-  unavailable or quota-limited.
-  """
-  def kura_require_global_endpoints? do
-    "TUIST_KURA_REQUIRE_GLOBAL_ENDPOINTS"
-    |> System.get_env()
-    |> case do
-      nil -> true
-      "" -> true
-      value -> not falsey?(value)
-    end
+  def kura_tuist_base_url do
+    System.get_env("TUIST_KURA_TUIST_BASE_URL")
   end
 
   def prometheus_enabled? do
@@ -234,7 +229,8 @@ defmodule Tuist.Environment do
   def agent_auth_default_trusted_providers, do: @agent_auth_default_trusted_providers
 
   def agent_auth_trusted_providers(secrets \\ secrets()) do
-    case System.get_env("TUIST_AGENT_AUTH_TRUSTED_PROVIDERS_JSON") || get([:agent_auth, :trusted_providers], secrets) do
+    case System.get_env("TUIST_AGENT_AUTH_TRUSTED_PROVIDERS_JSON") ||
+           get([:agent_auth, :trusted_providers], secrets) do
       providers when is_list(providers) ->
         providers
 
@@ -265,43 +261,6 @@ defmodule Tuist.Environment do
         split_endpoints(endpoints)
 
       _ ->
-        nil
-    end
-  end
-
-  @doc """
-  Returns the kubeconfig (raw YAML string) for the given Kura cluster
-  ID, or `nil` if none is configured.
-
-  Used by managed Kura regions that run outside the server's own
-  Kubernetes cluster. Managed regions in the same cluster can still use
-  the server pod's in-cluster ServiceAccount instead.
-
-  Two sources are checked in order:
-
-    1. `TUIST_KURA_KUBECONFIG_PATH_<CLUSTER>` env var pointing at a
-       file on disk (the convenient dev path — devs use their own
-       `~/.kube/config` against a kind cluster).
-    2. `TUIST_KURA_KUBECONFIG_<CLUSTER>` env var with the kubeconfig
-       YAML inline.
-
-  In both forms the cluster ID is uppercased and `-` becomes `_` for
-  env vars.
-  """
-  def kura_kubeconfig(cluster_id, _secrets \\ secrets()) when is_binary(cluster_id) do
-    upper = cluster_id |> String.upcase() |> String.replace("-", "_")
-
-    cond do
-      path = System.get_env("TUIST_KURA_KUBECONFIG_PATH_#{upper}") ->
-        case File.read(path) do
-          {:ok, contents} -> contents
-          {:error, _reason} -> nil
-        end
-
-      inline = System.get_env("TUIST_KURA_KUBECONFIG_#{upper}") ->
-        inline
-
-      true ->
         nil
     end
   end
@@ -348,14 +307,56 @@ defmodule Tuist.Environment do
     end
   end
 
-  def ops_user_handles(secrets \\ secrets()) do
-    case get([:ops_user_handles], secrets) do
-      user_handles when is_binary(user_handles) ->
-        user_handles |> String.split(",") |> Enum.map(&String.trim(&1))
+  @doc """
+  Email domain whose confirmed members are Tuist operators. Used only
+  as a routing heuristic (redirect a non-member operator to the ops
+  reason form vs. 404 a regular customer); the real gates are
+  ops.tuist.dev's Pomerium/Google-OIDC and the offline grant
+  verification. Defaults to `tuist.dev`.
+  """
+  def operator_email_domain(secrets \\ secrets()) do
+    get([:operator_email_domain], secrets, default_value: "tuist.dev")
+  end
 
-      _ ->
-        []
+  @doc """
+  PEM-encoded Ed25519 PUBLIC key used to verify operator access grant
+  tokens minted by ops.tuist.dev. nil when unset, in which case grant
+  verification fails closed (no operator grants are honoured).
+  """
+  def operator_grant_public_key(secrets \\ secrets()) do
+    get([:operator_grant, :public_key], secrets)
+  end
+
+  @doc """
+  The `aud` claim required on operator grant tokens. Pinned per
+  environment so a token minted for a different env can't be replayed.
+  Must match ops.tuist.dev's `OPERATOR_GRANT_AUDIENCE`.
+  """
+  def operator_grant_audience(secrets \\ secrets()) do
+    get([:operator_grant, :audience], secrets, default_value: "tuist-server")
+  end
+
+  @doc """
+  Maximum allowed lifetime (`exp - iat`, seconds) of an operator grant
+  token. A token claiming a longer lifetime is rejected, so a
+  compromised signer can't mint a long-lived grant. Defaults to 1h.
+  """
+  def operator_grant_max_ttl_seconds(secrets \\ secrets()) do
+    case get([:operator_grant, :max_ttl_seconds], secrets, default_value: 3600) do
+      value when is_integer(value) -> value
+      value when is_binary(value) -> String.to_integer(value)
     end
+  end
+
+  @doc """
+  Base URL of the ops.tuist.dev reason form a non-member operator is
+  redirected to before they can access a customer project. nil by
+  default: the redirect is opt-in per environment and stays off until
+  ops.tuist.dev is Pomerium-fronted and routes `/grants` with a
+  matching audience. Offline grant verification does not depend on this.
+  """
+  def ops_reason_form_url(secrets \\ secrets()) do
+    get([:ops, :reason_form_url], secrets, default_value: nil)
   end
 
   def posthog_api_key(secrets \\ secrets()) do
@@ -487,6 +488,19 @@ defmodule Tuist.Environment do
     else
       "tuist-development"
     end
+  end
+
+  def cache_s3_bucket_name(secrets \\ secrets()) do
+    System.get_env("TUIST_CACHE_S3_BUCKET_NAME") ||
+      System.get_env("S3_BUCKET") ||
+      get([:cache, :s3, :bucket], secrets)
+  end
+
+  def cache_xcode_s3_bucket_name(secrets \\ secrets()) do
+    System.get_env("TUIST_CACHE_XCODE_S3_BUCKET_NAME") ||
+      System.get_env("S3_XCODE_CACHE_BUCKET") ||
+      get([:cache, :s3, :xcode_cache_bucket], secrets) ||
+      cache_s3_bucket_name(secrets)
   end
 
   def s3_endpoint(secrets \\ secrets()) do
@@ -644,6 +658,14 @@ defmodule Tuist.Environment do
     github_app_client_id(secrets) != nil and github_app_client_secret(secrets) != nil
   end
 
+  # The GitHub App used for VCS integration shares its client id/secret with
+  # GitHub sign-in, so configuring VCS otherwise forces GitHub onto the login
+  # page. This lever lets a self-hosted operator keep the App while turning the
+  # sign-in method off.
+  def github_auth_enabled? do
+    truthy?(System.get_env("TUIST_GITHUB_AUTH_ENABLED", "1"))
+  end
+
   def github_app_configured?(secrets \\ secrets()) do
     github_app_name(secrets) != nil and github_oauth_configured?(secrets) and
       github_app_private_key(secrets) != nil
@@ -782,10 +804,10 @@ defmodule Tuist.Environment do
 
   @doc """
   Whether the configured DATABASE_URL points at a transaction-mode pooler
-  (Supabase Supavisor, PgBouncer, etc.) rather than a direct Postgres
-  endpoint. Toggles `prepare: :unnamed` and drops `tcp_keepalives_*`
-  startup parameters in `runtime.exs` — both required for transaction-mode
-  poolers to work, both unnecessary cost on direct connections.
+  (PgBouncer, PgCat, etc.) rather than a direct Postgres endpoint. Toggles
+  `prepare: :unnamed` and drops `tcp_keepalives_*` startup parameters in
+  `runtime.exs` — both required for transaction-mode poolers to work,
+  both unnecessary cost on direct connections.
   """
   def database_pooled? do
     truthy?(System.get_env("TUIST_DATABASE_POOLED", "0"))
@@ -1014,18 +1036,31 @@ defmodule Tuist.Environment do
       oauth_private_key(secrets) != nil
   end
 
-  def kura_introspection_client_id(secrets \\ secrets()) do
-    get([:kura, :introspection_client_id], secrets)
+  # Kura-side env vars stay unprefixed so the implementation in Kura
+  # remains Tuist-agnostic. The encrypted `kura.*` secrets stay as a
+  # compatibility fallback for existing deployments and dev secrets.
+  def kura_control_plane_client_id(secrets \\ secrets()) do
+    System.get_env("KURA_CONTROL_PLANE_CLIENT_ID") ||
+      get([:kura, :control_plane_client_id], secrets) ||
+      get([:kura, :introspection_client_id], secrets)
   end
 
-  def kura_introspection_client_secret(secrets \\ secrets()) do
-    get([:kura, :introspection_client_secret], secrets)
+  def kura_control_plane_client_secret(secrets \\ secrets()) do
+    System.get_env("KURA_CONTROL_PLANE_CLIENT_SECRET") ||
+      get([:kura, :control_plane_client_secret], secrets) ||
+      get([:kura, :introspection_client_secret], secrets)
   end
 
-  def kura_introspection_configured?(secrets \\ secrets()) do
-    kura_introspection_client_id(secrets) != nil and
-      kura_introspection_client_secret(secrets) != nil
+  def kura_control_plane_configured?(secrets \\ secrets()) do
+    kura_control_plane_client_id(secrets) != nil and
+      kura_control_plane_client_secret(secrets) != nil
   end
+
+  def kura_introspection_client_id(secrets \\ secrets()), do: kura_control_plane_client_id(secrets)
+
+  def kura_introspection_client_secret(secrets \\ secrets()), do: kura_control_plane_client_secret(secrets)
+
+  def kura_introspection_configured?(secrets \\ secrets()), do: kura_control_plane_configured?(secrets)
 
   @doc """
   Returns the Namespace SSH private key used to establish secure SSH connections between the server and the Namespace runner.
@@ -1078,6 +1113,41 @@ defmodule Tuist.Environment do
   """
   def runners_namespace do
     System.get_env("TUIST_RUNNERS_NAMESPACE", "tuist-runners")
+  end
+
+  @doc """
+  Prefix the dispatch path prepends to a shape key when addressing a
+  Linux shape pool's `RunnerPool` CR (`<prefix>-<vcpus>vcpu-<gb>gb`).
+
+  Helm injects this from the same `tuist.componentName` helper that
+  names the CRs (`runner-pool.yaml`), so the server always resolves to
+  a pool a Pod actually polls regardless of the release name. The
+  default matches a chart whose fullname collapses to `tuist`; local
+  dev and tests (no real cluster) don't dispatch against it.
+  """
+  def runners_linux_pool_name_prefix do
+    System.get_env("TUIST_RUNNERS_LINUX_POOL_NAME_PREFIX", "tuist-runner-pool-linux")
+  end
+
+  @doc """
+  Same role as `runners_linux_pool_name_prefix/0`, for the macOS fleet.
+  Helm renders the prefix into the `RunnerPool` CR names and injects it
+  here so the server's enqueue target stays identical to the rendered CR
+  name regardless of helm release. Default mirrors the Linux side, with
+  `-macos` substituted for `-linux`.
+  """
+  def runners_macos_pool_name_prefix do
+    System.get_env("TUIST_RUNNERS_MACOS_POOL_NAME_PREFIX", "tuist-runner-pool-macos")
+  end
+
+  @doc """
+  Namespace where the CNPG `Cluster` and its `Backup` / `ScheduledBackup`
+  CRs live — the chart sets it to the release namespace when CNPG is
+  enabled. `nil` when unset (dev, or CNPG not provisioned), which makes
+  the `/ops/db` Backups tab skip the Kubernetes API lookup.
+  """
+  def cnpg_namespace do
+    System.get_env("TUIST_CNPG_NAMESPACE")
   end
 
   @doc """
@@ -1139,10 +1209,6 @@ defmodule Tuist.Environment do
   end
 
   defp safe_get_in(_data, _keys), do: nil
-
-  defp falsey?(value) when is_binary(value) do
-    String.downcase(value) in ["0", "false", "no", "off"]
-  end
 
   defp split_endpoints(endpoints) do
     endpoints

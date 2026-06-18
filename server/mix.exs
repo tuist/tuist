@@ -104,7 +104,11 @@ defmodule Tuist.MixProject do
       {:decorator, "~> 1.4"},
       {:jose, "~> 1.11"},
       {:ecto_psql_extras, "~> 0.8.1"},
-      {:cachex, "~> 4.0.4"},
+      # Pinned to the open PR `whitfin/cachex#433` (TBK145/cachex@patch-1),
+      # which renames cachex's internal `@type record` so it stops colliding
+      # with Elixir 1.19's new builtin `record/0` type. Revert to a hex
+      # version once the PR lands upstream.
+      {:cachex, github: "TBK145/cachex", ref: "72822750eacef403135ad7413f654d40719fbd9f", override: true},
       {:excellent_migrations, "~> 0.1.8"},
       {:ex_aws_sts, "~> 2.2"},
       {:qr_code, "~> 3.2.0"},
@@ -159,7 +163,12 @@ defmodule Tuist.MixProject do
       {:opentelemetry_phoenix, "~> 2.0"},
       {:opentelemetry_ecto,
        github: "open-telemetry/opentelemetry-erlang-contrib", sparse: "instrumentation/opentelemetry_ecto"},
-      {:opentelemetry_finch, "~> 0.2"},
+      # The hex package (bancolombia/opentelemetry_finch 0.2.0) is unmaintained since 2022 and
+      # crashes its [:finch, :request, :stop] handler on streamed requests (reads response.status
+      # off Req's {request, response} accumulator → BadMapError → handler permanently detached).
+      # The contrib monorepo version handles streaming results.
+      {:opentelemetry_finch,
+       github: "open-telemetry/opentelemetry-erlang-contrib", sparse: "instrumentation/opentelemetry_finch"},
       {:opentelemetry_logger_metadata, "~> 0.1"},
       {:opentelemetry_bandit, "~> 0.3"},
       {:opentelemetry_broadway, "~> 0.3"},

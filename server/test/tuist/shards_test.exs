@@ -1,5 +1,5 @@
 defmodule Tuist.ShardsTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   alias Tuist.Shards
@@ -52,6 +52,32 @@ defmodule Tuist.ShardsTest do
 
       result = Shards.create_shard_plan(project, params)
       assert result.shard_count == 2
+    end
+
+    test "uses timing data from non-default branches" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "feature/some-branch",
+        test_modules: [
+          %{name: "SlowTests", status: "success", duration: 100_000, test_cases: []}
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "session-non-default",
+        modules: ["SlowTests"],
+        shard_total: 1
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      [assignment] = result.shard_assignments
+      assert assignment["estimated_duration_ms"] == 100_000
     end
 
     test "creates a shard plan with suite-level granularity" do

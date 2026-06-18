@@ -29,10 +29,6 @@ name: Server Deployment
 #     as a Document item named `kubeconfig: tuist-<env>`. Each
 #     environment's secret value is the SA token for that environment's
 #     vault — staging deploys can't read canary/production kubeconfigs.
-#     Production also reads the Kura regional workload kubeconfigs from
-#     `kubeconfig: kura-us-east-1` and `kubeconfig: kura-us-west-1` in
-#     the production vault so the server can write KuraInstance CRs to
-#     the us-east and us-west clusters.
 # App secrets live inside the cluster (MASTER_KEY via ESO, DATABASE_URL /
 # ClickHouse / Tigris keys in priv/secrets/<env>.yml.enc baked into the
 # image).
@@ -58,6 +54,9 @@ on:
       kura_runtime_image_tag:
         description: Pre-built Kura runtime image tag to deploy
         required: false
+      linux_runner_image_tag:
+        description: Pre-built Linux runner image tag to pin (e.g. `sha-7ed4b250bfb5`); wins over the resolved `linux-runner-image@*` semver
+        required: false
   workflow_call:
     inputs:
       environment:
@@ -82,6 +81,15 @@ on:
           tag prefix before passing it to Helm.
         required: false
         type: string
+      linux_runner_image_tag:
+        description: >-
+          Pre-built Linux runner image tag to pin (e.g.
+          `sha-7ed4b250bfb5`). When unset, the deploy job resolves the
+          latest `linux-runner-image@*` semver tag. Useful for
+          validating an in-flight runner-image change on staging before
+          tagging a release.
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -91,6 +99,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist
   KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
+  KURA_RUNTIME_IMAGE_NAME: tuist/kura
   HELM_CHART_PATH: infra/helm/tuist
   HELM_RELEASE_NAME: tuist
   OBSERVABILITY_CHART_PATH: infra/helm/k8s-monitoring
@@ -98,15 +107,29 @@ env:
   OBSERVABILITY_NAMESPACE: observability
   DEPLOY_SHA: ${{ inputs.commit_sha || github.sha }}
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_ATTESTATIONS: 0
+  # Skip mise's SLSA provenance verification for github-backend tools
+  # only. The platform-install job runs `mise -C infra run`, which
+  # resolves the repo toolset including `github:tuist/blick` +
+  # `github:endevco/aube`; mise's SLSA check builds a malformed release
+  # URL for github-backend tools (releases/tags/<owner>/<repo>@<ver>
+  # instead of /<ver>) and 404s on cache-cold runners. GitHub artifact
+  # attestations still verify. Aqua-backend SLSA stays ON: mise.lock
+  # records slsa provenance for aqua tools (e.g. getsops/sops), and
+  # disabling it trips mise's downgrade-attack guard.
+  MISE_GITHUB_SLSA: false
 
 jobs:
   build:
     name: Build + push
     if: inputs.image_tag == ''
-    # TODO: migrate to tuist-production-linux once the runner image ships
-    # a docker daemon — buildx requires a working docker engine.
-    runs-on: namespace-profile-default-with-volume
-    timeout-minutes: 40
+    # Bigger shape: the server image build (Elixir release compile inside
+    # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM, killing the
+    # runner mid-build ("lost communication"). Mirrors server.yml's
+    # docker_build job.
+    runs-on: ubuntu-latest
+    # 60m absorbs a fully cold build (no buildcache hits).
+    timeout-minutes: 60
     outputs:
       image_tag: ${{ steps.tag.outputs.image_tag }}
     steps:
@@ -116,12 +139,40 @@ jobs:
           submodules: false
       - id: tag
         run: echo "image_tag=sha-${DEPLOY_SHA:0:12}" >> "$GITHUB_OUTPUT"
-      - uses: docker/setup-buildx-action@v3
+      - id: buildx
+        uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # Persist the OG-image render output across builds. The /og-cache
+      # `--mount=type=cache` is local to the BuildKit builder, so it is empty
+      # on every ephemeral runner and Chromium re-renders every OG image
+      # (~6 min, on the critical path that gates `mix release`). cache-dance
+      # round-trips the mount through actions/cache so unchanged images are
+      # skipped via their .cachekey sidecars. The registry cache below only
+      # exports layers, never cache-mount contents.
+      - name: Restore OG image render cache
+        id: og-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            og-cache-marketing
+            og-cache-docs
+          key: server-og-cache-${{ env.DEPLOY_SHA }}
+          restore-keys: |
+            server-og-cache-
+      - name: Seed OG cache mounts into BuildKit
+        uses: reproducible-containers/buildkit-cache-dance@v3.4.0
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          cache-map: |
+            {
+              "og-cache-marketing": { "target": "/og-cache/marketing", "id": "og-marketing" },
+              "og-cache-docs": { "target": "/og-cache/docs", "id": "og-docs" }
+            }
+          skip-extraction: ${{ steps.og-cache.outputs.cache-hit }}
       - uses: docker/build-push-action@v6
         name: Build and push server image
         with:
@@ -131,6 +182,11 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          # Shared `buildcache:server` ref, kept warm by the push-to-main
+          # build in server-production-deployment.yml. `mode=max` exports
+          # cache for every stage (deps.compile, builder, og-images).
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server,mode=max
           build-args: |
             TUIST_HOSTED=1
             MIX_ENV=prod
@@ -143,6 +199,40 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+      # The kura runtime image (the Rust mesh node, not the controller) is
+      # otherwise only published by release.yml on push-to-main. Building the
+      # per-commit `sha-<SHA>` image here lets staging run an in-flight kura
+      # change before it's released.
+      #
+      # Guarded to exactly the case the deploy job will consume this image, so
+      # nothing builds an image that won't be deployed:
+      #   - environment == 'staging': only staging pins kuraRuntime.image.tag to
+      #     this sha; canary/production resolve the released `kura@` tag and
+      #     never reference it (the production cascade also skips this whole job
+      #     via image_tag, so the env guard only bites a manual prod/canary run).
+      #   - kura_runtime_image_tag == '': when the caller pins an explicit kura
+      #     tag, the deploy uses that instead, so building the sha image is waste.
+      # Keep these two conditions in lockstep with the deploy precedence below.
+      # kura/Dockerfile builds from source (context = kura/); the staging node
+      # pool is amd64 (Hetzner ccx), so the runner-native build suffices.
+      - uses: docker/build-push-action@v6
+        name: Build and push Kura runtime image
+        if: inputs.environment == 'staging' && inputs.kura_runtime_image_tag == ''
+        with:
+          context: ./kura
+          file: ./kura/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.KURA_RUNTIME_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          # Self-warming registry layer cache across staging deploys: each
+          # deploy exports its layers, and the next one reuses them. Because the
+          # image layers are a pure function of kura/ (the build context), a
+          # staging deploy whose kura/ is unchanged from the last one is a full
+          # layer-cache hit — the expensive Rust + librocksdb-sys compile is
+          # pulled, not re-run. Only a deploy that actually changes kura/ pays a
+          # cold build (then re-warms the cache for the deploys after it).
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.KURA_RUNTIME_IMAGE_NAME }}-buildcache:staging
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.KURA_RUNTIME_IMAGE_NAME }}-buildcache:staging,mode=max
   observability-install:
     # Installs / upgrades the grafana/k8s-monitoring wrapper chart ahead of
     # the server rollout so the Alloy OTLP receiver is ready before the
@@ -158,7 +248,7 @@ jobs:
     needs: build
     # `build` is skipped when image_tag is supplied - keep running.
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
     concurrency:
@@ -224,7 +314,7 @@ jobs:
     name: Tailscale operator chart (${{ inputs.environment }})
     needs: build
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
     concurrency:
@@ -301,19 +391,22 @@ jobs:
     name: Platform chart (${{ inputs.environment }})
     needs: build
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
     concurrency:
       group: server-deploy-${{ inputs.environment }}-platform
       cancel-in-progress: false
-    timeout-minutes: 20
+    timeout-minutes: 40
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.DEPLOY_SHA }}
+          # Full history + tags so k8s:install-platform can resolve the
+          # stable-egress-controller@<semver> image tag reachable from this commit.
+          fetch-depth: 0
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "helm kubectl"
@@ -354,15 +447,19 @@ jobs:
     name: Deploy to ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
     needs: [build, observability-install, tailscale-operator-install, platform-install]
     # `build` may be skipped when image_tag is passed in - keep running.
+    # `platform-install` brings up CRDs (cert-manager, ESO,
+    # cloudnative-pg) the Tuist chart consumes; if it fails the chart
+    # deploy would silently no-op on those resources, so block.
     # `observability-install` always runs, so it must be a plain success.
     # `tailscale-operator-install` runs the install for managed envs and
     # short-circuits when a forked workflow has no env values file; either
     # way it must complete cleanly before the chart deploy.
     # `platform-install` reconciles cert-manager / ingress-nginx /
-    # external-dns / ESO / metrics-server so app-impacting platform settings
-    # land before the app chart upgrade.
+    # external-dns / ESO / metrics-server / cloudnative-pg so app-impacting
+    # platform settings (including CNPG CRDs the Tuist chart consumes for
+    # the in-cluster Postgres rollout) land before the app chart upgrade.
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && needs.observability-install.result == 'success' && needs.tailscale-operator-install.result == 'success' && needs.platform-install.result == 'success'
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
       url: https://${{ inputs.environment == 'production' && 'tuist.dev' || format('{0}.tuist.dev', inputs.environment) }}
@@ -372,19 +469,51 @@ jobs:
     concurrency:
       group: server-deploy-${{ inputs.environment }}-deploy
       cancel-in-progress: false
-    # helm-upgrade waits up to 30m and setup/teardown adds ~5m. 50m
-    # leaves a healthy buffer around that stack and keeps a
-    # SIGTERM-stuck helm from holding the slot indefinitely.
-    timeout-minutes: 50
+    # This ceiling MUST stay above the helm step's own timeout (70m =
+    # helm `--timeout 60m` + ~10m `--atomic` rollback) plus the ~5-10m
+    # of setup before it. Otherwise GitHub SIGKILLs helm mid-`--wait`,
+    # before its rollback can run, and the release is left wedged in
+    # pending-upgrade (the bug that drove the long pending-upgrade ->
+    # rollback churn: the ceiling had drifted to 50m, under helm's 60m,
+    # when helm was bumped from 30m). 80m keeps helm < step < job so a
+    # stuck deploy fails via helm's own clean path, not this ceiling.
+    timeout-minutes: 80
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
       NAMESPACE: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
       IMAGE_TAG: ${{ inputs.image_tag != '' && inputs.image_tag || needs.build.outputs.image_tag }}
       KURA_RUNTIME_IMAGE_TAG: ${{ inputs.kura_runtime_image_tag }}
+      LINUX_RUNNER_IMAGE_TAG_INPUT: ${{ inputs.linux_runner_image_tag }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.DEPLOY_SHA }}
+          # Full history + tags so the version-resolution step below can
+          # read every `<component>@<semver>` release tag.
+          fetch-depth: 0
+      - name: Resolve fleet and runtime image versions from git tags
+        # The version of each fleet/runtime image (xcresult-processor, CAPI
+        # provider, runners-controller, Kura runtime, macOS + Linux runner
+        # images) is the highest `<component>@<semver>` tag reachable from
+        # the deployed commit, so a release that cuts a new tag rolls forward
+        # on the next deploy. `--merged` makes a re-promote of an older SHA
+        # resolve the versions as they were at that commit.
+        run: |
+          set -euo pipefail
+          resolve() {
+            git tag --list "${1}*" --merged "$DEPLOY_SHA" \
+              | sed "s|^${1}||" \
+              | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
+              | sort -V | tail -n1
+          }
+          {
+            echo "XCRESULT_PROCESSOR_TAG=$(resolve 'xcresult-processor-image@')"
+            echo "CAPI_TAG=$(resolve 'capi-scaleway@')"
+            echo "RUNNERS_CONTROLLER_TAG=$(resolve 'runners-controller@')"
+            echo "KURA_RUNTIME_TAG=$(resolve 'kura@')"
+            echo "RUNNER_IMAGE_SEMVER=$(resolve 'runner-image@')"
+            echo "LINUX_RUNNER_IMAGE_VERSION=$(resolve 'linux-runner-image@')"
+          } >> "$GITHUB_ENV"
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "helm kubectl"
@@ -408,27 +537,6 @@ jobs:
           API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
           echo "Reaching apiserver at $API"
           kubectl --request-timeout=10s get --raw /version >/dev/null
-      - name: Sync Kura regional kubeconfigs
-        if: inputs.environment == 'production'
-        env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-        run: |
-          set -euo pipefail
-
-          dir="$RUNNER_TEMP/kura-kubeconfigs"
-          mkdir -p "$dir"
-
-          op document get "kubeconfig: kura-us-east-1" \
-            --vault "tuist-k8s-production" --output "$dir/us-east-1.yaml"
-          op document get "kubeconfig: kura-us-west-1" \
-            --vault "tuist-k8s-production" --output "$dir/us-west-1.yaml"
-          chmod 600 "$dir/us-east-1.yaml" "$dir/us-west-1.yaml"
-
-          kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
-          kubectl -n "$NAMESPACE" create secret generic tuist-kura-kubeconfigs \
-            --from-file=TUIST_KURA_KUBECONFIG_US_EAST_1="$dir/us-east-1.yaml" \
-            --from-file=TUIST_KURA_KUBECONFIG_US_WEST_1="$dir/us-west-1.yaml" \
-            --dry-run=client -o yaml | kubectl apply -f -
       - name: kubectl apply CRDs
         # Helm 3 installs `crds/*.yaml` on `helm install` and skips
         # them on `helm upgrade` (intentional — Helm refuses to manage
@@ -506,32 +614,6 @@ jobs:
           # so dependent pods (Pending or otherwise) go with the Job.
           echo "$stale_jobs" | xargs -r kubectl -n "$NAMESPACE" delete job \
             --ignore-not-found --cascade=foreground --timeout=2m
-      - name: Resolve Kura runtime image tag
-        run: |
-          set -euo pipefail
-
-          if [ -n "${KURA_RUNTIME_IMAGE_TAG:-}" ]; then
-            echo "Using configured Kura runtime image tag $KURA_RUNTIME_IMAGE_TAG"
-            exit 0
-          fi
-
-          refs="$(git ls-remote --tags --refs origin 'refs/tags/kura@*')"
-          tag="$(
-            printf '%s\n' "$refs" |
-              awk -F'refs/tags/kura@' 'NF == 2 { print $2 }' |
-              grep -E '^[0-9]+[.][0-9]+[.][0-9]+$' |
-              sort -V |
-              tail -n 1 ||
-              true
-          )"
-
-          if [ -z "$tag" ]; then
-            echo "No kura@ release tag found."
-            exit 1
-          fi
-
-          echo "KURA_RUNTIME_IMAGE_TAG=$tag" >> "$GITHUB_ENV"
-          echo "Resolved Kura runtime image tag $tag"
       - name: helm upgrade --install
         # App secrets never pass through --set: the chart runs in
         # `server.managedSecrets: true` mode, which reads DATABASE_URL /
@@ -540,20 +622,18 @@ jobs:
         # in-cluster ExternalSecret. Passing secrets through --set would
         # leak them into `helm get manifest`.
         #
-        # helm --timeout 30m is sized for the adoption path: Mac minis
-        # are pre-ordered by the operator under the `tuist-pool-` prefix
-        # and the CAPI controller claims them on demand. Adoption is
-        # cheap (rename + tart-kubelet bootstrap + Tart VM cold-boot)
-        # vs Scaleway CreateServer (~50 min). Steady-state deploys
-        # finish in 5-15 min once the Mac mini is already in the cluster.
-        # If we ever flip back to auto-order in an env, bump this back
-        # to ~90m to absorb a fresh Scaleway provisioning.
-        #
-        # 35 min = helm's `--timeout 30m` plus a 5-min cushion for the
-        # in-process `--atomic` rollback. A workflow-side timeout under
-        # 35 min risks killing helm after it has moved the release into
-        # pending-rollback, leaving the cluster wedged for the next run.
-        timeout-minutes: 35
+        # `--timeout 60m` is generous on purpose: a complex migration
+        # (the pre-upgrade hook runs inside this budget) plus the
+        # `--wait` rollout can genuinely take a while, and undershooting
+        # would kill a legitimately-slow deploy mid-migration. The 70m
+        # step timeout is helm's 60m plus a ~10m cushion for the
+        # in-process `--atomic` rollback. The job's `timeout-minutes`
+        # ceiling sits above this (helm < step < job): that ordering is
+        # what makes a stuck deploy hit helm's own timeout first (clean
+        # rollback + failure diagnostics) instead of the job ceiling
+        # SIGKILLing helm mid-wait and wedging the release in
+        # pending-upgrade.
+        timeout-minutes: 70
         run: |
           # Stream cluster state every 30s while helm waits. helm
           # --atomic --wait produces no stdout during the wait, so
@@ -572,14 +652,69 @@ jobs:
           watcher_pid=$!
           trap 'kill "$watcher_pid" 2>/dev/null || true; wait "$watcher_pid" 2>/dev/null || true' EXIT
 
+          # Fleet + runtime image versions come from the env (the "Resolve
+          # fleet and runtime image versions" step) and are passed to the
+          # chart via --set. add_set skips empties so an unreleased or
+          # disabled component keeps the chart default.
+          image_sets=()
+          add_set() {
+            if [ -n "$2" ]; then
+              image_sets+=(--set "$1=$2")
+              echo "Pinning $1=$2"
+            else
+              echo "WARNING: no version resolved for $1; leaving chart default."
+            fi
+          }
+          add_set "xcresultProcessor.image.tag" "${XCRESULT_PROCESSOR_TAG:-}"
+          add_set "macosFleet.image.tag" "${CAPI_TAG:-}"
+          add_set "runnersController.image.tag" "${RUNNERS_CONTROLLER_TAG:-}"
+          add_set "runnersFleet.runnerImageSemver" "${RUNNER_IMAGE_SEMVER:-}"
+          # The explicit linux_runner_image_tag input wins over the
+          # resolved linux-runner-image@ semver — same pattern as
+          # kura_runtime_image_tag below. Used to pin staging at an
+          # in-flight `:sha-<git-sha>` build before the runner image is
+          # tagged.
+          linux_runner_image_version="${LINUX_RUNNER_IMAGE_TAG_INPUT:-}"
+          if [ -n "$linux_runner_image_version" ]; then
+            echo "Overriding resolved Linux runner image tag with input ${linux_runner_image_version}"
+          else
+            linux_runner_image_version="${LINUX_RUNNER_IMAGE_VERSION:-}"
+          fi
+          if [ -n "$linux_runner_image_version" ]; then
+            add_set "runnersFleetLinux.shapeRunnerImage" \
+              "ghcr.io/tuist/tuist-linux-runner:${linux_runner_image_version}"
+          fi
+
+          # Kura runtime image tag precedence:
+          #   1. explicit kura_runtime_image_tag input (manual re-roll) wins.
+          #   2. staging tracks the per-commit sha-<SHA> image — but only when
+          #      THIS run actually built it (image_tag empty ⇒ the build job
+          #      ran). A staging re-roll of a prebuilt server image_tag skips
+          #      the build job, so the kura sha image may not exist; fall
+          #      through to (3) rather than pin a tag that ImagePullBackOffs.
+          #   3. canary/production — and staging re-rolls of a prebuilt image —
+          #      pin the released kura@ tag resolved from git, so they never
+          #      run an unreleased (or never-built) binary.
+          kura_runtime_tag="${KURA_RUNTIME_IMAGE_TAG:-}"
+          if [ -n "$kura_runtime_tag" ]; then
+            echo "Kura runtime: using explicit input tag ${kura_runtime_tag}"
+          elif [ "${{ inputs.environment }}" = "staging" ] && [ -z "${{ inputs.image_tag }}" ]; then
+            kura_runtime_tag="$IMAGE_TAG"
+            echo "Kura runtime: staging tracks per-commit image ${kura_runtime_tag}"
+          else
+            kura_runtime_tag="${KURA_RUNTIME_TAG:-}"
+            echo "Kura runtime: ${{ inputs.environment }} pins released tag ${kura_runtime_tag}"
+          fi
+          add_set "kuraRuntime.image.tag" "$kura_runtime_tag"
+
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \
             -f "$HELM_CHART_PATH/values-managed-common.yaml" \
             -f "$HELM_CHART_PATH/values-managed-${{ inputs.environment }}.yaml" \
             --set server.image.tag="$IMAGE_TAG" \
             --set kuraController.image.tag="$IMAGE_TAG" \
-            --set kuraRuntime.image.tag="$KURA_RUNTIME_IMAGE_TAG" \
-            --atomic --timeout 30m --wait
+            "${image_sets[@]}" \
+            --atomic --timeout 60m --wait
       - name: Diagnostics on failure
         # `--atomic` rolls back the release on timeout, so `helm history` and
         # most cluster state reflect the rolled-back revision rather than the

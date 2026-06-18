@@ -32,15 +32,10 @@ defmodule Tuist.Kura.Reconciler do
   the operator's explicit retry/destroy decision.
 
   Endpoint readiness is end-to-end: `Kura.activate_server/2` only marks
-  a server `:active` after the regional public endpoint *and* the
-  Cloudflare-fronted global endpoint answer `/up`. The controller's
-  `status.phase` attests workload readiness only, not public
-  reachability, so the projection deliberately keeps the live probe as
-  the readiness authority. This is what reconciles the Cloudflare
-  DNS-only load balancer: a server is not projected `:active` until the
-  proximity-steered DNS-only record actually resolves and serves, so
-  TTL/propagation of the new LB is respected without the projection
-  needing to know about Cloudflare at all.
+  a server `:active` after the regional public endpoint answers `/up`.
+  The controller's `status.phase` attests workload readiness only, not
+  public reachability, so the projection deliberately keeps the live
+  probe as the readiness authority.
 
   User actions only mutate Postgres intent. If a BEAM dies mid-action,
   this loop observes the same rows on the next tick and converges again.
@@ -72,6 +67,11 @@ defmodule Tuist.Kura.Reconciler do
   end
 
   def reconcile do
+    # Converge runner-cache nodes with runner enablement before the rest
+    # of the loop so a freshly enabled account's node enters the normal
+    # provisioning/observation path within the same tick.
+    Tuist.Kura.RunnerCache.reconcile()
+
     with {:ok, scheduled} <- Kura.schedule_runtime_image_deployments() do
       log_scheduled_deployments(scheduled)
       reconcile_destroying_servers()
@@ -150,12 +150,7 @@ defmodule Tuist.Kura.Reconciler do
   defp reconcile_deployment(%Deployment{kura_server: %Server{} = server} = deployment) do
     case Provisioner.current_image_tag(server) do
       {:ok, image_tag} when image_tag == deployment.image_tag ->
-        if Kura.server_requires_global_endpoint_readiness?(server) and
-             not Kura.server_global_endpoint_observed?(server) do
-          apply_deployment(deployment, server)
-        else
-          activate_and_mark_succeeded(deployment, server)
-        end
+        activate_and_mark_succeeded(deployment, server)
 
       {:ok, _other_image_tag} ->
         apply_deployment(deployment, server)
@@ -169,29 +164,33 @@ defmodule Tuist.Kura.Reconciler do
   end
 
   defp activate_and_mark_succeeded(%Deployment{} = deployment, %Server{} = server) do
-    case Kura.activate_server(server, deployment.image_tag) do
-      {:ok, _server} ->
-        {:ok, _deployment} = Kura.mark_succeeded(deployment)
-        :ok
+    with {:ok, deployment} <- ensure_running(deployment) do
+      case Kura.activate_server(server, deployment.image_tag) do
+        {:ok, _server} ->
+          {:ok, _deployment} = Kura.mark_succeeded(deployment)
+          :ok
 
-      {:error, status} when status in [:server_destroying, :server_destroyed] ->
-        cancel(deployment, "server #{server.id} became #{server_status(status)} during rollout; skipping activation")
+        {:error, status} when status in [:server_destroying, :server_destroyed] ->
+          cancel(deployment, "server #{server.id} became #{server_status(status)} during rollout; skipping activation")
 
-      {:error, {:public_host_not_resolvable, host, reason}} ->
-        # external-dns has not propagated yet. Leave the deployment in
-        # `:running` so the next reconciler tick retries instead of
-        # marking the server failed for what's a benign delay.
-        Logger.info("[Kura.Reconciler] waiting on DNS for server #{server.id} (#{host}): #{inspect(reason)}")
+        {:error, {:public_host_not_resolvable, host, reason}} ->
+          # external-dns has not propagated yet. Leave the deployment in
+          # `:running` so the next reconciler tick retries instead of
+          # marking the server failed for what's a benign delay.
+          Logger.info("[Kura.Reconciler] waiting on DNS for server #{server.id} (#{host}): #{inspect(reason)}")
 
-        :ok
+          :ok
 
-      {:error, {:public_endpoint_not_ready, host, reason}} ->
-        Logger.info("[Kura.Reconciler] waiting on public endpoint for server #{server.id} (#{host}): #{inspect(reason)}")
+        {:error, {:public_endpoint_not_ready, host, reason}} ->
+          Logger.info(
+            "[Kura.Reconciler] waiting on public endpoint for server #{server.id} (#{host}): #{inspect(reason)}"
+          )
 
-        :ok
+          :ok
 
-      {:error, reason} ->
-        fail(deployment, server, reason)
+        {:error, reason} ->
+          fail(deployment, server, reason)
+      end
     end
   end
 
@@ -232,6 +231,7 @@ defmodule Tuist.Kura.Reconciler do
       |> where([s], s.status in ^@present_intent_statuses)
       |> order_by([s], asc: s.updated_at, asc: s.id)
       |> limit(^@reconcile_batch_size)
+      |> preload(:account)
       |> Repo.all()
       |> Enum.reject(&MapSet.member?(handled_server_ids, &1.id))
 
@@ -266,10 +266,13 @@ defmodule Tuist.Kura.Reconciler do
   defp project_server(%Server{} = server, %Deployment{image_tag: desired, status: latest_status}) do
     case Provisioner.current_image_tag(server) do
       {:ok, observed} when observed == desired ->
-        converge(server, desired)
+        reconcile_manifest_revision(server, desired)
 
       {:ok, observed} ->
         record(server, derived_status(server, latest_status), observed, now())
+
+      {:error, :not_found} when latest_status == :succeeded ->
+        apply_current_manifest(server, desired)
 
       {:error, :not_found} ->
         record(server, derived_status(server, latest_status), nil, now())
@@ -280,20 +283,78 @@ defmodule Tuist.Kura.Reconciler do
     end
   end
 
+  defp reconcile_manifest_revision(%Server{} = server, desired) do
+    case {Provisioner.manifest_revision(server), Provisioner.current_manifest_revision(server)} do
+      {{:ok, nil}, _} ->
+        converge(server, desired)
+
+      {{:ok, desired_revision}, {:ok, desired_revision}} ->
+        converge(server, desired)
+
+      {{:ok, _desired_revision}, {:ok, _observed_revision}} ->
+        apply_current_manifest(server, desired)
+
+      {{:error, reason}, _} ->
+        Logger.warning(
+          "[Kura.Reconciler] could not resolve desired manifest revision for server #{server.id}: #{inspect(reason)}"
+        )
+
+        converge(server, desired)
+
+      {_, {:error, reason}} ->
+        Logger.warning(
+          "[Kura.Reconciler] could not observe manifest revision for server #{server.id}: #{inspect(reason)}"
+        )
+
+        converge(server, desired)
+    end
+  end
+
+  defp apply_current_manifest(%Server{} = server, image_tag) do
+    inputs = %{
+      image_tag: image_tag,
+      account: server.account,
+      server: server
+    }
+
+    case Provisioner.rollout(server, inputs) do
+      :ok ->
+        converge(server, image_tag)
+
+      {:error, reason} ->
+        Logger.warning("[Kura.Reconciler] could not re-apply manifest for server #{server.id}: #{inspect(reason)}")
+        converge(server, image_tag)
+    end
+  end
+
   defp converge(%Server{} = server, desired) do
-    if converged?(server, desired) do
+    if converged?(server, desired) and endpoint_in_sync?(server) do
       :ok
     else
       do_converge(server, desired)
     end
   end
 
-  defp converged?(%Server{status: :active, current_image_tag: tag, observed_image_tag: tag} = server, tag) do
-    not (Kura.server_requires_global_endpoint_readiness?(server) and
-           not Kura.server_global_endpoint_observed?(server))
-  end
+  defp converged?(%Server{status: :active, current_image_tag: tag, observed_image_tag: tag}, tag), do: true
 
   defp converged?(%Server{}, _desired), do: false
+
+  # The URL the region template renders can change without the image changing
+  # (e.g. an environment-scoped public-host rename). `kura_servers.url` and the
+  # `account_cache_endpoints` mirror are derived from it, but `converged?` only
+  # tracks the image, so a healthy node would otherwise never re-derive them.
+  # Treating a drifted URL as out of sync routes the server back through the
+  # endpoint-gated `activate_server`, which re-probes the new host and rewrites
+  # the mirror; once they match this is a no-op, so steady-state nodes are still
+  # not re-written every tick. A non-binary render (e.g. unknown region) leaves
+  # the existing `converged?` behaviour untouched.
+  defp endpoint_in_sync?(%Server{url: url} = server) do
+    case Provisioner.public_url(server.account, server) do
+      ^url -> true
+      rendered when is_binary(rendered) -> false
+      _ -> true
+    end
+  end
 
   # Already active on the observed image: a no-op. Skip the write and
   # broadcast so a healthy server is not re-locked, re-written, and

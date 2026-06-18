@@ -1,0 +1,90 @@
+# Production workload-cluster overlay. Loaded by k8s:install-platform when
+# CLUSTER_NAME=tuist.
+
+# Stable outbound source IP for hosted Tuist server traffic that reaches
+# customer infrastructure (for example GHES instances behind IP allowlists).
+# The IP is a Hetzner Floating IP in the tuist-workloads project. The gateway
+# role lives on the dedicated ≥2-node `md-egress` pool (see
+# cluster-production.yaml), whose nodes self-apply the
+# `tuist.dev/stable-egress-candidate=server` label at kubelet registration. The
+# failover controller keeps the Floating IP + the active gateway label on one
+# Ready candidate and fails over on node loss — so a node replacement
+# self-heals in seconds, instead of the manual failover that caused the
+# 2026-06-14 outage.
+ciliumEgressGateway:
+  server:
+    enabled: true
+    namespace: tuist
+    egressIP: 116.202.0.10
+    hostConfigurator:
+      enabled: true
+    failoverController:
+      # Enabled. The controller ADOPTS the node that currently holds the active
+      # label (today the hand-labelled general worker) on first reconcile — no
+      # Floating IP move, no Cilium reconvergence, no egress blip — and only
+      # fails over to an md-egress candidate when that node stops being Ready.
+      # So enabling is a no-op for the live datapath. The image tag is resolved
+      # at deploy time by k8s:install-platform (no pinned tag here).
+      enabled: true
+      floatingIpName: tuist-production-server-egress
+      # Reserved egress set customers allowlist: Hetzner Floating IPs
+      # tuist-production-server-egress (116.202.0.10, active) + -2
+      # (116.202.4.195, spare) in the tuist-workloads project. Active/standby —
+      # one is ever live; the spare lets the active migrate without a customer
+      # allowlist change. Keep in lockstep with the customer network guide
+      # (server/priv/docs/en/guides/server/network.md). To grow the set, reserve
+      # more Floating IPs and add their /32s to BOTH places before use.
+      egressIpAllowlist:
+        - 116.202.0.10/32
+        - 116.202.4.195/32
+
+# Main Tuist web/API ingress. Keep the Hetzner location explicit here instead
+# of deriving it from Nodes: production also carries regional Kura pools, and
+# the platform LoadBalancer should stay with the fsn1 general pool.
+ingress-nginx:
+  controller:
+    service:
+      annotations:
+        load-balancer.hetzner.cloud/location: fsn1
+        load-balancer.hetzner.cloud/node-selector: topology.kubernetes.io/region=fsn1
+
+# Dedicated Kura ingress dataplanes. These are shared per region, not
+# per customer: customer-specific hosts route through the regional
+# ingress class and then to the selected Kura pod. Keep the controller
+# pods on the same regional Kura pools so the Hetzner LoadBalancer,
+# ingress-nginx, and Kura pods stay local to the region.
+kura-eu-central-ingress-nginx:
+  enabled: true
+  controller:
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura
+    service:
+      annotations:
+        load-balancer.hetzner.cloud/location: fsn1
+        load-balancer.hetzner.cloud/name: tuist-kura-eu-central-ingress
+        load-balancer.hetzner.cloud/node-selector: node.cluster.x-k8s.io/pool=kura
+        load-balancer.hetzner.cloud/uses-proxyprotocol: "true"
+
+kura-us-east-ingress-nginx:
+  enabled: true
+  controller:
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-us-east
+    service:
+      annotations:
+        load-balancer.hetzner.cloud/location: ash
+        load-balancer.hetzner.cloud/name: tuist-kura-us-east-ingress
+        load-balancer.hetzner.cloud/node-selector: node.cluster.x-k8s.io/pool=kura-us-east
+        load-balancer.hetzner.cloud/uses-proxyprotocol: "true"
+
+kura-us-west-ingress-nginx:
+  enabled: true
+  controller:
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-us-west
+    service:
+      annotations:
+        load-balancer.hetzner.cloud/location: hil
+        load-balancer.hetzner.cloud/name: tuist-kura-us-west-ingress
+        load-balancer.hetzner.cloud/node-selector: node.cluster.x-k8s.io/pool=kura-us-west
+        load-balancer.hetzner.cloud/uses-proxyprotocol: "true"

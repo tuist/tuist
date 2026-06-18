@@ -99,15 +99,33 @@ spec:
               value: processor
             - name: TUIST_PROCESS_BUILD_QUEUE_CONCURRENCY
               value: {{ .Values.processor.queueConcurrency | quote }}
+            {{- if ne .Values.postgresql.mode "cnpg" }}
             # Tells runtime.exs to use transaction-mode pooler settings:
             # `prepare: :unnamed` and no tcp_keepalives_* startup parameters.
-            # Required because DATABASE_URL below points at Supavisor on 6543.
+            # Required because DATABASE_URL below points at an external
+            # transaction-mode pooler.
             - name: TUIST_DATABASE_POOLED
               value: "1"
+            {{- else }}
+            {{- if .Values.postgresql.cnpg.pooler.enabled }}
+            # Routed through the CNPG transaction-mode Pooler (PgBouncer):
+            # `prepare: :unnamed` and no tcp_keepalives_* startup parameters.
+            # DATABASE_URL below points at the `-pooler-rw` Service.
+            - name: TUIST_DATABASE_POOLED
+              value: "1"
+            {{- end }}
+            # Match the server / migration pods: the in-cluster Service is
+            # reached over plaintext. Without this, TUIST_USE_SSL_FOR_DATABASE
+            # defaults to "1" (runtime.exs) and only the processor would dial
+            # CNPG with SSL, diverging from the rest of the app's connection
+            # shape.
+            - name: TUIST_USE_SSL_FOR_DATABASE
+              value: "0"
+            {{- end }}
             # Override DATABASE_URL baked into priv/secrets/<env>.yml.enc with
             # the least-privilege tuist_processor role. Scope: SELECT/INSERT/
             # UPDATE/DELETE on oban_jobs + read-only on accounts/projects.
-            # See infra/supabase/tuist-processor-role.sql.
+            # See infra/cnpg/tuist-processor-grants.sql.
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:

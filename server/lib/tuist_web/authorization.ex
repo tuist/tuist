@@ -101,6 +101,18 @@ defmodule TuistWeb.Authorization do
   def require_user_can_read_project(%{user: user, account_handle: account_handle, project_handle: project_handle}) do
     project = Projects.get_project_by_account_and_project_handles(account_handle, project_handle)
 
+    authorize_project!(user, project)
+
+    project
+  end
+
+  def require_user_can_read_project(%{user: user, project: project}) do
+    authorize_project!(user, project)
+
+    project
+  end
+
+  defp authorize_project!(user, project) do
     if is_nil(project) or Authorization.authorize(:dashboard_read, user, project) != :ok do
       raise NotFoundError,
             "The page you are looking for doesn't exist or has been moved."

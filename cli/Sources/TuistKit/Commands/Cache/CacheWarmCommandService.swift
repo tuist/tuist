@@ -14,7 +14,6 @@ import TuistLoader
 import TuistPlugin
 import TuistServer
 import TuistSupport
-import TuistXCActivityLog
 import TuistXcodeBuildProducts
 import XcodeGraph
 #if canImport(TuistCacheEE)
@@ -42,7 +41,6 @@ import XcodeGraph
         private let fileSystem: FileSysteming
         private let contentHasher: ContentHashing
         private let cacheGraphContentHasher: CacheGraphContentHashing
-        private let activityLogController: XCActivityLogControlling
 
         public init() {
             let contentHasher = ContentHasher()
@@ -55,8 +53,7 @@ import XcodeGraph
                 xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocator(),
                 fileSystem: FileSystem(),
                 contentHasher: contentHasher,
-                cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
-                activityLogController: XCActivityLogController()
+                cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher)
             )
         }
 
@@ -69,8 +66,7 @@ import XcodeGraph
             xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating,
             fileSystem: FileSysteming,
             contentHasher: ContentHashing,
-            cacheGraphContentHasher: CacheGraphContentHashing,
-            activityLogController: XCActivityLogControlling
+            cacheGraphContentHasher: CacheGraphContentHashing
         ) {
             configLoader = ConfigLoader()
             manifestLoader = ManifestLoader.current
@@ -84,7 +80,6 @@ import XcodeGraph
             self.fileSystem = fileSystem
             self.contentHasher = contentHasher
             self.cacheGraphContentHasher = cacheGraphContentHasher
-            self.activityLogController = activityLogController
         }
 
         // swiftlint:disable:next function_body_length
@@ -230,10 +225,8 @@ import XcodeGraph
                 var artifactsToStore: [CacheGraphTargetBuiltArtifact] = []
 
                 let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
-                let activityLogsDirectory = temporaryDirectory.appending(component: "activity-logs")
 
                 try await fileSystem.makeDirectory(at: derivedDataPath)
-                try await fileSystem.makeDirectory(at: activityLogsDirectory)
 
                 let xcodebuildTarget = XcodeBuildTarget(with: projectPath)
 
@@ -263,8 +256,6 @@ import XcodeGraph
                     )
                 }
 
-                try await moveActivityLogs(derivedDataPath: derivedDataPath, activityLogsDirectory: activityLogsDirectory)
-
                 for (scheme, _) in bundlesSchemes {
                     artifactsToStore.append(contentsOf: try await buildBundles(
                         scheme,
@@ -274,8 +265,6 @@ import XcodeGraph
                         cacheableTargets: hashesByTargetToBeCached
                     ))
                 }
-
-                try await moveActivityLogs(derivedDataPath: derivedDataPath, activityLogsDirectory: activityLogsDirectory)
 
                 for (scheme, _) in macroSchemes {
                     artifactsToStore.append(contentsOf: try await buildMacros(
@@ -287,8 +276,6 @@ import XcodeGraph
                         temporaryDirectory: temporaryDirectory
                     ))
                 }
-
-                try await moveActivityLogs(derivedDataPath: derivedDataPath, activityLogsDirectory: activityLogsDirectory)
 
                 Logger.current.info("Creating XCFrameworks", metadata: .section)
                 artifactsToStore.append(contentsOf: try await buildXCFrameworks(
@@ -305,11 +292,7 @@ import XcodeGraph
                 Logger.current.info("Storing binaries to speed up workflows", metadata: .section)
 
                 let successfullyStoredTargets = try await store(
-                    try await artifactsWithBuildTimes(
-                        artifacts: artifactsToStore,
-                        projectDerivedDataDirectory: derivedDataPath,
-                        activityLogsDirectory: activityLogsDirectory
-                    ),
+                    artifactsToStore,
                     cacheStorage: cacheStorage,
                     temporaryDirectory: temporaryDirectory
                 )
@@ -322,17 +305,6 @@ import XcodeGraph
                 } else {
                     Logger.current.info("\(successfullyStoredTargets.count) targets stored: \(targetsStored)")
                 }
-            }
-        }
-
-        /// xcodebuild invocations might delete old activity logs, so to prevent that from happening, we copy them into a
-        /// temporary
-        /// directory.
-        private func moveActivityLogs(derivedDataPath: AbsolutePath, activityLogsDirectory: AbsolutePath) async throws {
-            let activityLogs = try await fileSystem.glob(directory: derivedDataPath, include: ["Logs/Build/*.xcactivitylog"])
-                .collect()
-            for activityLog in activityLogs {
-                try await fileSystem.move(from: activityLog, to: activityLogsDirectory.appending(component: activityLog.basename))
             }
         }
 
@@ -496,14 +468,24 @@ import XcodeGraph
             temporaryDirectory: AbsolutePath
         ) async throws -> [CacheGraphTargetBuiltArtifact] {
             var xcframeworks: [CacheGraphTargetBuiltArtifact] = []
-            let cacheableTargets = cacheableTargets.filter { $0.0.target.product.isFramework && !$0.0.target.isAggregate }
+            let cacheableTargets = cacheableTargets.filter {
+                $0.0.target.isXCFrameworkCacheableProduct && !$0.0.target.isAggregate
+            }
 
             for cacheableTarget in cacheableTargets {
                 let platforms = Array(cacheableTarget.0.target.supportedPlatforms)
                 let platformBinaryArtifacts = platforms.flatMap { Array(binaryArtifactDirectories[$0, default: Set()]) }
                 let artifactsIncludingTarget = try await platformBinaryArtifacts.concurrentCompactMap {
-                    let artifactPath = $0.appending(components: [cacheableTarget.0.target.productNameWithExtension])
-                    return try await fileSystem.exists(artifactPath) ? artifactPath : nil
+                    artifactDirectory -> (artifactPath: AbsolutePath, publicHeadersPath: AbsolutePath?)? in
+                    let artifactPath = artifactDirectory.appending(
+                        components: [cacheableTarget.0.target.productNameWithExtension]
+                    )
+                    guard try await fileSystem.exists(artifactPath) else { return nil }
+                    let publicHeadersPath = try await libraryPublicHeadersPath(
+                        for: cacheableTarget.0.target,
+                        artifactDirectory: artifactDirectory
+                    )
+                    return (artifactPath: artifactPath, publicHeadersPath: publicHeadersPath)
                 }
 
                 let xcframeworkPath = temporaryDirectory.appending(components: [
@@ -512,8 +494,19 @@ import XcodeGraph
                 ])
 
                 let xcodebuildArguments: [String] = artifactsIncludingTarget
-                    .flatMap { artifactPath in
-                        ["-framework", artifactPath.pathString]
+                    .flatMap { artifactPath -> [String] in
+                        switch cacheableTarget.0.target.product {
+                        case .framework, .staticFramework:
+                            return ["-framework", artifactPath.artifactPath.pathString]
+                        case .staticLibrary, .dynamicLibrary:
+                            var arguments = ["-library", artifactPath.artifactPath.pathString]
+                            if let publicHeadersPath = artifactPath.publicHeadersPath {
+                                arguments.append(contentsOf: ["-headers", publicHeadersPath.pathString])
+                            }
+                            return arguments
+                        default:
+                            return []
+                        }
                     } + ["-allow-internal-distribution"]
 
                 Logger.current.info("Creating XCFramework for \(cacheableTarget.0.target.name)", metadata: .section)
@@ -562,6 +555,27 @@ import XcodeGraph
             }
 
             return xcframeworks
+        }
+
+        private func libraryPublicHeadersPath(
+            for target: Target,
+            artifactDirectory: AbsolutePath
+        ) async throws -> AbsolutePath? {
+            guard [.staticLibrary, .dynamicLibrary].contains(target.product),
+                  let publicHeaders = target.headers?.public,
+                  !publicHeaders.isEmpty
+            else { return nil }
+
+            let builtHeadersPath = artifactDirectory.appending(components: "usr", "local", "include")
+            if try await fileSystem.exists(builtHeadersPath, isDirectory: true) {
+                return builtHeadersPath
+            }
+
+            return publicHeaders
+                .map(\.parentDirectory)
+                .reduce(publicHeaders[0].parentDirectory) { commonAncestor, headerDirectory in
+                    commonAncestor.commonAncestor(with: headerDirectory)
+                }
         }
 
         private func collectForeignBuildArtifacts(
@@ -793,31 +807,6 @@ import XcodeGraph
             )
         }
 
-        private func artifactsWithBuildTimes(
-            artifacts: [CacheGraphTargetBuiltArtifact],
-            projectDerivedDataDirectory _: AbsolutePath,
-            xcresultPaths _: [AbsolutePath] = [],
-            activityLogsDirectory: AbsolutePath
-        ) async throws -> [CacheGraphTargetBuiltArtifact] {
-            let activityLogs = try await fileSystem.glob(directory: activityLogsDirectory, include: ["*.xcactivitylog"]).collect()
-            let buildTimes = try await activityLogController
-                .buildTimesByTarget(activityLogPaths: activityLogs)
-            return artifacts.map { artifact in
-                if let buildTime = buildTimes[artifact.graphTarget.target.name] {
-                    var metadata = artifact.metadata
-                    metadata
-                        .buildTime = buildTime /
-                        1.5 // Divide by a factor to account for the additional time to build for multiple architectures or
-                    // destinations.
-                    var artifact = artifact
-                    artifact.metadata = metadata
-                    return artifact
-                } else {
-                    return artifact
-                }
-            }
-        }
-
         private func copyDerivedDataArtifacts(
             into: AbsolutePath,
             productsDirectory: AbsolutePath,
@@ -845,15 +834,14 @@ import XcodeGraph
             let storableTargets = Dictionary(
                 uniqueKeysWithValues: try await artifacts
                     .reduce(into: [CacheStorableTarget: [AbsolutePath]]()) { acc, next in
-                        acc[CacheStorableTarget(target: next.graphTarget, hash: next.hash, time: next.metadata.buildTime)] =
-                            [next.path]
+                        acc[CacheStorableTarget(target: next.graphTarget, hash: next.hash)] = [next.path]
                     }.concurrentMap { storableTarget, paths in
                         let metadataFilePath = temporaryDirectory.appending(
                             components: "Metadatas",
                             "\(storableTarget.name)-\(storableTarget.hash)",
                             "Metadata.plist"
                         )
-                        let metadata = CacheStorableItemMetadata(time: storableTarget.time)
+                        let metadata = CacheStorableItemMetadata()
                         try await fileSystem.makeDirectory(at: metadataFilePath.parentDirectory)
                         try await fileSystem.writeAsPlist(metadata, at: metadataFilePath)
                         var paths = paths
@@ -947,6 +935,19 @@ import XcodeGraph
             return cacheableTargets.compactMap {
                 existingTargetHashes.contains($0.hash) ? nil : ($0.target, $0.hash)
             }
+        }
+    }
+#endif
+
+#if canImport(TuistCacheEE)
+    extension Target {
+        fileprivate var isXCFrameworkCacheableProduct: Bool {
+            [
+                .framework,
+                .staticFramework,
+                .staticLibrary,
+                .dynamicLibrary,
+            ].contains(product)
         }
     }
 #endif

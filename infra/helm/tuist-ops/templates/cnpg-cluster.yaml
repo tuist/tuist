@@ -1,0 +1,82 @@
+{{- /*
+CNPG Cluster for tuist-ops. Single instance — internal-only tooling
+with low write volume; no HA needed. Backed up daily to S3 via
+barman. Bootstraps with a `tuist_ops` database owned by `tuist_ops`
+role; password materialised by ESO (next file).
+
+The `<cluster>-app` Secret CNPG itself emits carries a ready-to-use
+DATABASE_URL the Deployment consumes directly via envFrom.
+*/}}
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ include "tuist-ops.pgClusterName" . }}
+  labels:
+    {{- include "tuist-ops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  instances: {{ .Values.postgresql.instances }}
+  imageName: {{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}
+  primaryUpdateStrategy: unsupervised
+
+  enableSuperuserAccess: true
+
+  {{- with .Values.postgresql.parameters }}
+  postgresql:
+    parameters:
+      {{- range $key, $value := . }}
+      {{ $key }}: {{ $value | quote }}
+      {{- end }}
+  {{- end }}
+
+  bootstrap:
+    initdb:
+      database: {{ .Values.postgresql.database | quote }}
+      owner: {{ .Values.postgresql.owner | quote }}
+      encoding: UTF8
+      localeCType: C
+      localeCollate: C
+
+  storage:
+    size: {{ .Values.postgresql.storageSize | quote }}
+    {{- with .Values.postgresql.storageClass }}
+    storageClass: {{ . | quote }}
+    {{- end }}
+
+  resources:
+    {{- toYaml .Values.postgresql.resources | nindent 4 }}
+
+  {{- if .Values.postgresql.backup.enabled }}
+  backup:
+    barmanObjectStore:
+      destinationPath: {{ .Values.postgresql.backup.destinationPath | quote }}
+      endpointURL: {{ .Values.postgresql.backup.endpointURL | quote }}
+      s3Credentials:
+        accessKeyId:
+          name: {{ .Values.postgresql.backup.credentialsSecretName }}
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: {{ .Values.postgresql.backup.credentialsSecretName }}
+          key: ACCESS_SECRET_KEY
+      wal:
+        compression: gzip
+        maxParallel: 8
+      data:
+        compression: gzip
+    retentionPolicy: {{ .Values.postgresql.backup.retentionPolicy | quote }}
+  {{- end }}
+{{- if .Values.postgresql.backup.enabled }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: {{ include "tuist-ops.pgClusterName" . }}-daily
+  labels:
+    {{- include "tuist-ops.labels" . | nindent 4 }}
+spec:
+  # Daily at 03:00 UTC. Internal tool; nothing urgent to recover.
+  schedule: "0 0 3 * * *"
+  backupOwnerReference: self
+  cluster:
+    name: {{ include "tuist-ops.pgClusterName" . }}
+{{- end }}

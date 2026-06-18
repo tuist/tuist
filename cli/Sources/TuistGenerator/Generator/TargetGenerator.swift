@@ -25,6 +25,13 @@ protocol TargetGenerating {
         nativeTargets: [String: PBXTarget],
         graphTraverser: GraphTraversing
     ) throws
+
+    func generateBuildableFolderForeignExceptions(
+        targets: [Target],
+        nativeTargets: [String: PBXTarget],
+        fileElements: ProjectFileElements,
+        pbxproj: PBXProj
+    ) throws
 }
 
 struct TargetGenerator: TargetGenerating {
@@ -122,6 +129,18 @@ struct TargetGenerator: TargetGenerating {
             sourceRootPath: project.sourceRootPath
         )
 
+        if target.isAggregate {
+            Logger.current.debug("TargetGenerator: Generating post-scripts for aggregate target \(target.name)")
+            try await buildPhaseGenerator.generateScripts(
+                target.scripts.postScripts,
+                pbxTarget: pbxTarget,
+                pbxproj: pbxproj,
+                sourceRootPath: project.sourceRootPath
+            )
+            Logger.current.debug("TargetGenerator: Finished generation for aggregate target \(target.name)")
+            return (pbxTarget, [])
+        }
+
         // Build phases
         Logger.current.debug("TargetGenerator: Generating build phases for \(target.name)")
         try await buildPhaseGenerator.generateBuildPhases(
@@ -181,7 +200,10 @@ struct TargetGenerator: TargetGenerating {
 
             var explicitFolders: [String] = []
 
-            for exception in buildableFolder.exceptions {
+            // Exceptions addressed to a foreign target (additive cross-target membership) are handled after every
+            // target has been generated, in `generateBuildableFolderForeignExceptions`, where the foreign PBXTarget
+            // exists.
+            for exception in buildableFolder.exceptions where exception.target == nil {
                 let membershipExceptions = exception.excluded.compactMap {
                     $0.isDescendant(of: buildableFolder.path) ? $0.relative(to: buildableFolder.path).pathString : nil
                 }
@@ -248,6 +270,66 @@ struct TargetGenerator: TargetGenerating {
 
             if !explicitFolders.isEmpty {
                 synchronizedGroup.explicitFolders = explicitFolders
+            }
+        }
+    }
+
+    func generateBuildableFolderForeignExceptions(
+        targets: [Target],
+        nativeTargets: [String: PBXTarget],
+        fileElements: ProjectFileElements,
+        pbxproj: PBXProj
+    ) throws {
+        for target in targets {
+            for buildableFolder in target.buildableFolders {
+                guard let fileElement = fileElements.elements[buildableFolder.path],
+                      let synchronizedGroup = fileElement as? PBXFileSystemSynchronizedRootGroup else { continue }
+
+                for exception in buildableFolder.exceptions {
+                    guard let foreignTargetName = exception.target else { continue }
+                    guard let foreignTarget = nativeTargets[foreignTargetName] else {
+                        Logger.current
+                            .warning(
+                                "Target '\(target.name)' references unknown target '\(foreignTargetName)' in a buildable folder exception. Skipping."
+                            )
+                        continue
+                    }
+
+                    let membershipExceptions = exception.included.compactMap {
+                        $0.isDescendant(of: buildableFolder.path) ? $0.relative(to: buildableFolder.path).pathString : nil
+                    }
+
+                    let additionalCompilerFlagsByRelativePath = Dictionary(
+                        uniqueKeysWithValues: exception.compilerFlags.compactMap { path, compilerFlags -> (String, String)? in
+                            guard path.isDescendant(of: buildableFolder.path) else { return nil }
+                            return (path.relative(to: buildableFolder.path).pathString, compilerFlags)
+                        }
+                    )
+
+                    let platformFiltersByRelativePath = Dictionary(
+                        uniqueKeysWithValues: exception.platformFilters.compactMap { path, condition -> (String, [String])? in
+                            guard path.isDescendant(of: buildableFolder.path) else { return nil }
+                            return (path.relative(to: buildableFolder.path).pathString, condition.platformFilters.xcodeprojValue)
+                        }
+                    )
+
+                    guard !membershipExceptions.isEmpty || !additionalCompilerFlagsByRelativePath.isEmpty else { continue }
+
+                    let exceptionSet = PBXFileSystemSynchronizedBuildFileExceptionSet(
+                        target: foreignTarget,
+                        membershipExceptions: membershipExceptions,
+                        publicHeaders: [],
+                        privateHeaders: [],
+                        additionalCompilerFlagsByRelativePath: additionalCompilerFlagsByRelativePath,
+                        attributesByRelativePath: nil,
+                        platformFiltersByRelativePath: platformFiltersByRelativePath.isEmpty ? nil : platformFiltersByRelativePath
+                    )
+                    pbxproj.add(object: exceptionSet)
+                    if synchronizedGroup.exceptions == nil {
+                        synchronizedGroup.exceptions = []
+                    }
+                    synchronizedGroup.exceptions?.append(exceptionSet)
+                }
             }
         }
     }

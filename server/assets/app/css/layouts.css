@@ -1,27 +1,31 @@
 @import "./layouts/account.css";
 @import "./layouts/header_bar.css";
 
+/* App shell: the document never scrolls. The headerbar and sidebar are
+   regular flex children that always fit the window, and the content pane
+   scrolls in its own container — no sticky positioning anywhere, so nothing
+   can drift or jitter with the scroll. */
 .layout {
   display: flex;
   flex-direction: column;
-  min-width: 100vw;
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 .layout__main {
   display: flex;
   flex: 1;
   flex-direction: row;
+  min-height: 0;
   background: var(--noora-surface-background-primary);
 
   & .noora-sidebar {
-    position: sticky;
-    top: 0;
     flex-shrink: 0;
     align-self: stretch;
-    border-right: 1px solid light-dark(var(--noora-neutral-light-400), var(--noora-neutral-dark-900));
-    max-height: 100vh;
-    overflow-y: auto;
+    border-right: 1px solid var(--noora-content-divider-line);
+    /* Scrolling happens on the inner viewport with an overlay scrollbar. */
+    overflow: hidden;
   }
 }
 
@@ -35,8 +39,10 @@
 
 .layout__content {
   flex: 1;
-
-  padding: var(--noora-spacing-5);
   min-width: 0;
-  overflow: hidden;
+  /* Explicit overflow-x: an auto-scrolling axis forces the other axis from
+     visible to auto, which would surface a horizontal scrollbar for content
+     the old overflow: hidden used to clip. */
+  overflow-x: hidden;
+  overflow-y: auto;
 }

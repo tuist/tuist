@@ -82,6 +82,7 @@
                             command_arguments: commandEvent.commandArguments,
                             duration: commandEvent.durationInMs,
                             error_message: errorMessage,
+                            id: commandEvent.generationId,
                             git_branch: commandEvent.gitBranch,
                             git_commit_sha: commandEvent.gitCommitSHA,
                             git_ref: commandEvent.gitRef,
@@ -147,7 +148,6 @@
                                             .miss
                                         }
                                         return .init(
-                                            build_duration: binaryCacheMetadata.buildDuration.map { Int($0) },
                                             hash: binaryCacheMetadata.hash,
                                             hit: hit,
                                             subhashes: binaryCacheMetadata.subhashes.map { subhashes in

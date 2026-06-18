@@ -45,6 +45,7 @@ defmodule Tuist.Runners.Billing do
 
   alias Tuist.Repo
   alias Tuist.Runners.Analytics
+  alias Tuist.Runners.Catalog
   alias Tuist.Runners.RunnerSession
 
   @default_window_days 30
@@ -219,8 +220,8 @@ defmodule Tuist.Runners.Billing do
         bucket in fragment(
           """
           (SELECT generate_series(
-            GREATEST(?, ?::timestamptz)::date,
-            LEAST(?, ?::timestamptz)::date,
+            (GREATEST(?, ?::timestamptz) AT TIME ZONE 'UTC')::date,
+            (LEAST(?, ?::timestamptz) AT TIME ZONE 'UTC')::date,
             '1 day'::interval
           )::date AS day)
           """,
@@ -236,8 +237,8 @@ defmodule Tuist.Runners.Billing do
           fragment(
             """
             GREATEST(0, (EXTRACT(EPOCH FROM (
-              LEAST(?, (?::date + INTERVAL '1 day')::timestamptz, ?) -
-              GREATEST(?, ?::timestamptz, ?)
+              LEAST(?, (?::date + INTERVAL '1 day') AT TIME ZONE 'UTC', ?) -
+              GREATEST(?, ?::date::timestamp AT TIME ZONE 'UTC', ?)
             )) * 1000)::bigint)
             """,
             o.effective_end,
@@ -316,16 +317,34 @@ defmodule Tuist.Runners.Billing do
 
   defp maybe_eq(query, :workflow_name, value) when is_binary(value), do: where(query, [s], s.workflow_name == ^value)
 
+  # Platform filter narrows on the `fleet_name` prefix. Each
+  # platform's `Catalog.fleet_name_prefixes/1` returns both the legacy
+  # `<platform>-…` per-env pool prefix and the catalog-derived
+  # `<runners_<platform>_pool_name_prefix>-…` prefix, so profile-
+  # dispatched and legacy jobs surface together under the right
+  # filter bucket.
   defp maybe_platform(query, nil), do: query
   defp maybe_platform(query, ""), do: query
   defp maybe_platform(query, "any"), do: query
 
-  defp maybe_platform(query, platform) when platform in ["macos", "linux"] do
-    prefix = platform <> "-"
-    where(query, [s], fragment("starts_with(?, ?)", s.fleet_name, ^prefix))
-  end
+  defp maybe_platform(query, "linux"), do: filter_by_prefixes(query, Catalog.fleet_name_prefixes(:linux))
+
+  defp maybe_platform(query, "macos"), do: filter_by_prefixes(query, Catalog.fleet_name_prefixes(:macos))
 
   defp maybe_platform(query, _), do: query
+
+  # OR `starts_with(fleet_name, prefix)` across every prefix as a
+  # single `where`. `or_where` would OR against the *whole* prior
+  # chain (account scope, time window, etc.), wiping them out; the
+  # dynamic stays nested inside the surrounding ANDs.
+  defp filter_by_prefixes(query, [first | rest]) do
+    predicate =
+      Enum.reduce(rest, dynamic([s], fragment("starts_with(?, ?)", s.fleet_name, ^first)), fn prefix, acc ->
+        dynamic([s], ^acc or fragment("starts_with(?, ?)", s.fleet_name, ^prefix))
+      end)
+
+    where(query, ^predicate)
+  end
 
   defp window(opts) do
     end_dt = Keyword.get(opts, :end_datetime, DateTime.utc_now())

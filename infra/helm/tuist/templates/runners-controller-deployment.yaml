@@ -32,6 +32,13 @@ rules:
   - apiGroups: [apiextensions.k8s.io]
     resources: [customresourcedefinitions]
     verbs: [get, list, watch]
+  # The fleet-aware autoscaler sums allocatable memory across the
+  # bare-metal Linux node pool to bin-pack shape replicas against real
+  # host capacity. Nodes are cluster-scoped, so this read can't live in
+  # the namespaced Role below.
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get, list, watch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -174,6 +181,21 @@ spec:
             # Autoscaler reconciler runs in the cluster; always use
             # the in-cluster Service URL for the same reason.
             - --scaling-signals-url=http://{{ include "tuist.componentName" (dict "root" . "component" "server") }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.server.service.port | default 80 }}/api/internal/runners/desired_replicas
+            {{- if .Values.runnersController.features.dindImage }}
+            # dockerd sidecar image stamped on every Linux runner Pod.
+            # Gated on the controller binary recognising the flag —
+            # see `runnersController.features.dindImage` in values.yaml.
+            - --dind-image={{ .Values.runnersController.dindImage }}
+            {{- end }}
+            {{- if .Values.runnersController.features.registryMirror }}
+            # In-cluster pull-through cache the dind dockerd mirrors
+            # docker.io through. Gated on the controller binary
+            # recognising --registry-mirror-url (see features.registryMirror).
+            # Defaults to this release's registry-cache Service, so an env
+            # only flips the feature gate; override registryMirror to point
+            # elsewhere.
+            - --registry-mirror-url={{ .Values.runnersController.registryMirror | default (printf "http://%s.%s.svc.cluster.local:5000" (include "tuist.componentName" (dict "root" . "component" "registry-cache")) .Release.Namespace) }}
+            {{- end }}
             # Pod-lifecycle reconciler reports terminal-phase
             # transitions to the server's RunnerSessions store so
             # billing closes off K8s-authoritative timestamps

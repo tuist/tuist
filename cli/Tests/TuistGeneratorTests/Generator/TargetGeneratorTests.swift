@@ -234,6 +234,68 @@ struct TargetGeneratorTests {
         #expect(exception.membershipExceptions == ["ExcludedFolder", "ExcludedFile.swift"])
     }
 
+    @Test func generateBuildableFolderForeignExceptions_addsMembershipForForeignTarget() async throws {
+        // Given
+        let buildableFolderPath = path.appending(component: "App")
+        let sharedStub = buildableFolderPath.appending(component: "SharedStub.swift")
+        let appTarget = Target.test(
+            name: "App",
+            product: .app,
+            buildableFolders: [
+                BuildableFolder(
+                    path: buildableFolderPath,
+                    exceptions: BuildableFolderExceptions(exceptions: [
+                        BuildableFolderException(
+                            excluded: [],
+                            compilerFlags: [:],
+                            publicHeaders: [],
+                            privateHeaders: [],
+                            platformFilters: [:],
+                            target: "AppTests",
+                            included: [sharedStub]
+                        ),
+                    ]),
+                    resolvedFiles: []
+                ),
+            ]
+        )
+        let testsTarget = Target.test(name: "AppTests", product: .unitTests)
+        let project = Project.test(
+            path: path,
+            sourceRootPath: path,
+            xcodeProjPath: path.appending(component: "Test.xcodeproj"),
+            targets: [appTarget, testsTarget]
+        )
+        let graph = Graph.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
+        try fileElements.generateProjectFiles(
+            project: project,
+            graphTraverser: graphTraverser,
+            groups: groups,
+            pbxproj: pbxproj
+        )
+        let appPBXTarget = PBXNativeTarget(name: "App")
+        let testsPBXTarget = PBXNativeTarget(name: "AppTests")
+        pbxproj.add(object: appPBXTarget)
+        pbxproj.add(object: testsPBXTarget)
+
+        // When
+        try subject.generateBuildableFolderForeignExceptions(
+            targets: [appTarget, testsTarget],
+            nativeTargets: ["App": appPBXTarget, "AppTests": testsPBXTarget],
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        // Then: the foreign exception set lives on the App folder but targets AppTests, with no flat file reference.
+        let group = try #require(fileElements.elements[buildableFolderPath] as? PBXFileSystemSynchronizedRootGroup)
+        let exception = try #require(group.exceptions?.first as? PBXFileSystemSynchronizedBuildFileExceptionSet)
+        #expect(exception.membershipExceptions == ["SharedStub.swift"])
+        #expect(exception.target?.name == "AppTests")
+        #expect(fileElements.file(path: sharedStub) == nil)
+    }
+
     @Test func generateTarget_productName() async throws {
         // Given
         let target = Target.test(
@@ -416,6 +478,70 @@ struct TargetGeneratorTests {
         #expect(postBuildPhase?.name == "post")
         #expect(postBuildPhase?.shellPath == "/bin/sh")
         #expect(postBuildPhase?.shellScript == "\"$SRCROOT\"/script.sh arg")
+    }
+
+    @Test func generateTarget_whenAggregateTarget_generatesOnlyScriptPhases() async throws {
+        // Given
+        let outputPath = path.appending(component: "SharedKMP.xcframework")
+        let target = Target.test(
+            name: "SharedKMP",
+            product: .framework,
+            sources: [],
+            resources: .init([]),
+            scripts: [
+                TargetScript(
+                    name: "Foreign Build: SharedKMP",
+                    order: .pre,
+                    script: .embedded("gradle build")
+                ),
+                TargetScript(
+                    name: "post",
+                    order: .post,
+                    script: .embedded("echo post")
+                ),
+            ],
+            foreignBuild: ForeignBuild(
+                script: "gradle build",
+                inputs: [],
+                output: .xcframework(path: outputPath, linking: .dynamic)
+            )
+        )
+        let project = Project.test(
+            path: path,
+            sourceRootPath: path,
+            xcodeProjPath: path.appending(component: "Project.xcodeproj"),
+            targets: [target]
+        )
+        let graph = Graph.test(path: project.path, projects: [project.path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+        let groups = ProjectGroups.generate(
+            project: project,
+            pbxproj: pbxproj
+        )
+        try fileElements.generateProjectFiles(
+            project: project,
+            graphTraverser: graphTraverser,
+            groups: groups,
+            pbxproj: pbxproj
+        )
+
+        // When
+        let (pbxTarget, _) = try await subject.generateTarget(
+            target: target,
+            project: project,
+            pbxproj: pbxproj,
+            pbxProject: pbxProject,
+            projectSettings: project.settings,
+            fileElements: fileElements,
+            path: path,
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        #expect(pbxTarget is PBXAggregateTarget)
+        #expect(pbxTarget.buildPhases.count == 2)
+        #expect(pbxTarget.buildPhases.compactMap { $0 as? PBXShellScriptBuildPhase }.count == 2)
+        #expect(pbxTarget.buildPhases.map { $0.name() } == ["Foreign Build: SharedKMP", "post"])
     }
 
     // MARK: - Helpers

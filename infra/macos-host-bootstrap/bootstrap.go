@@ -44,6 +44,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"net"
 	"sort"
 	"strings"
@@ -70,6 +71,13 @@ type Config struct {
 	// Typically matches the CAPI Machine CR name so `kubectl get
 	// nodes` reflects the inventory.
 	NodeName string
+
+	// ProviderID is the CAPI machine ID (scw-applesilicon://<zone>/<id>)
+	// rendered into tart-kubelet's --provider-id flag so it sets
+	// Node.spec.providerID — the field CAPI core matches to bind the
+	// Machine to its Node. Empty omits the flag (Node left unbound until
+	// patched by hand).
+	ProviderID string
 
 	// Kubeconfig is the YAML kubeconfig the controller built for this
 	// host (contains a long-lived ServiceAccount token + the API
@@ -169,11 +177,13 @@ type Config struct {
 	// vm-image-builder fleet; pure Node hosts leave this nil.
 	//
 	// The runner agent runs as a LaunchAgent under cfg.SSHUser and
-	// picks up image-bake workflow jobs from GitHub. It coexists
-	// peacefully with tart-kubelet on the same host because no Pods
-	// are ever scheduled to builder Nodes (the per-fleet
-	// `tuist.dev/fleet` NodeLabel scopes Pod selection away from
-	// the builder fleet name).
+	// picks up image-bake workflow jobs from GitHub. No Pods are ever
+	// scheduled to builder Nodes (the per-fleet `tuist.dev/fleet`
+	// NodeLabel scopes Pod selection away from the builder fleet
+	// name). That same property means tart-kubelet's orphan-VM GC
+	// would treat the host-baked build VM as collectable and reap it
+	// mid-`tart push`, so renderLaunchdPlist passes `--disable-vm-gc`
+	// when this is set.
 	//
 	// The reconciler is responsible for resolving the registration
 	// token from a Secret before populating
@@ -336,7 +346,7 @@ sudo mkdir -p /etc/tart-kubelet
 sudo tee /etc/tart-kubelet/kubeconfig >/dev/null
 sudo chmod 0600 /etc/tart-kubelet/kubeconfig
 `
-	return RunCommandWithStdin(ctx, client, script, kubeconfig)
+	return RunCommandWithStdin(ctx, client, script, strings.NewReader(kubeconfig))
 }
 
 // installTartKubelet uploads the operator-baked tart-kubelet binary
@@ -357,22 +367,54 @@ func installTartKubelet(ctx context.Context, client *ssh.Client, binary []byte) 
 sudo mkdir -p /usr/local/bin
 sudo tee /usr/local/bin/tart-kubelet >/dev/null
 sudo chmod 0755 /usr/local/bin/tart-kubelet
+# Re-sign in place. The binary already carries a valid Go linker ad-hoc
+# signature, but overwriting /usr/local/bin/tart-kubelet at the same inode
+# leaves macOS's AMFI validating the new pages against the previous
+# binary's cached cdhash — a mismatch the kernel kills as
+# OS_REASON_CODESIGNING on the next launch, stranding the Node NotReady.
+# A forced ad-hoc re-sign refreshes the signature and invalidates that
+# stale cache so the rolled binary actually runs.
+sudo codesign --force --sign - /usr/local/bin/tart-kubelet
 `
-	return RunCommandWithStdin(ctx, client, script, string(binary))
+	return RunCommandWithStdin(ctx, client, script, bytes.NewReader(binary))
 }
 
 // loadTartKubeletLaunchd writes /Library/LaunchDaemons/dev.tuist.tart-kubelet.plist
 // with this host's flags substituted in, fixes ownership on the
 // kubelet's writable paths so the SSH user owns them (the launchd job
 // runs as that user — see the comment in renderLaunchdPlist), then
-// `launchctl bootstrap`s it. Idempotent across reruns.
+// reloads the launchd job and verifies it actually came up. Idempotent
+// across reruns.
+//
+// The reload is the fragile part on a headless Mac, and getting it
+// wrong is what strands a fleet Node NotReady:
+//
+//   - Re-registration churn: every `bootout`+`bootstrap` re-registers
+//     the plist with macOS Background Task Management. BTM caps "legacy
+//     daemon" notifications and, once exceeded, stops honouring the
+//     job's KeepAlive automatic respawn — so a later clean exit never
+//     restarts and the Node goes NotReady. We avoid this by only
+//     rewriting + bootout/bootstrapping when the plist content actually
+//     changed; a binary-only roll (the common drift case) leaves the
+//     launchd args identical, so we restart in place with `kickstart -k`
+//     instead, which re-execs the new binary without touching BTM.
+//
+//   - Silent reload failure: `bootout` immediately followed by
+//     `bootstrap` can race (or be BTM-throttled) and leave the job
+//     booted-out, which KeepAlive cannot recover. The old code returned
+//     success regardless, so the reconciler recorded the SHA roll as
+//     done and never retried, leaving the Node NotReady indefinitely.
+//     We now poll for a live PID, force a `kickstart` if it didn't come
+//     up, and exit non-zero if it still won't run — so the caller keeps
+//     the drift set and retries instead of recording a roll that never
+//     took.
 func loadTartKubeletLaunchd(ctx context.Context, client *ssh.Client, cfg Config) error {
 	plist := renderLaunchdPlist(cfg)
 	script := fmt.Sprintf(`set -euo pipefail
 PLIST=/Library/LaunchDaemons/dev.tuist.tart-kubelet.plist
-sudo tee "$PLIST" >/dev/null
-sudo chown root:wheel "$PLIST"
-sudo chmod 0644 "$PLIST"
+NEW="$(mktemp)"
+trap 'rm -f "$NEW"' EXIT
+cat >"$NEW"
 # Apple's Virtualization.framework requires the calling process to be
 # owned by the user with the live GUI console session — see
 # renderLaunchdPlist's UserName field. Hand kubelet-writable paths to
@@ -382,12 +424,52 @@ sudo touch /var/log/tart-kubelet.log
 sudo chown -R %[1]s:staff /var/log/tart-vms /var/lib/tart-userdata /var/log/tart-kubelet.log
 sudo chown %[1]s:staff /etc/tart-kubelet/kubeconfig
 sudo chmod 0600 /etc/tart-kubelet/kubeconfig
-# launchctl bootstrap is the modern API; bootout first to make this
-# idempotent across reruns with new args.
-sudo launchctl bootout system "$PLIST" 2>/dev/null || true
-sudo launchctl bootstrap system "$PLIST"
+
+# pid prints the launchd-tracked PID (empty when not running). settled
+# waits for a NEW pid (different from the pre-reload one) and confirms it
+# is still the same a few seconds later. That rules out two false
+# positives: a no-op kickstart that leaves the old process running, and a
+# crash-looping launch (e.g. an OS_REASON_CODESIGNING kill) that briefly
+# shows a transient pid on each respawn — neither must be mistaken for a
+# successful roll into the freshly-uploaded binary.
+pid() { sudo launchctl print system/dev.tuist.tart-kubelet 2>/dev/null | awk '/^[[:space:]]*pid = [0-9]+/{print $3; exit}' || true; }
+OLD="$(pid)"
+settled() {
+  for _ in $(seq 1 20); do
+    p="$(pid)"
+    if [ -n "$p" ] && [ "$p" != "$OLD" ]; then
+      sleep 5
+      [ "$(pid)" = "$p" ] && return 0 || return 1
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+# Restart in place when the plist is unchanged and a process is running
+# (avoids BTM re-registration churn); otherwise rewrite it and
+# bootout+bootstrap to pick up the new args / start it fresh.
+if cmp -s "$NEW" "$PLIST" && [ -n "$OLD" ]; then
+  sudo launchctl kickstart -k system/dev.tuist.tart-kubelet 2>/dev/null || true
+else
+  sudo cp "$NEW" "$PLIST"
+  sudo chown root:wheel "$PLIST"
+  sudo chmod 0644 "$PLIST"
+  sudo launchctl bootout system "$PLIST" 2>/dev/null || true
+  sudo launchctl bootstrap system "$PLIST" 2>/dev/null || true
+fi
+
+# Require a fresh, stable process — then force a kickstart and re-check if
+# the reload didn't restart it. Exit non-zero if it never settles so the
+# reconciler keeps the drift set and retries instead of recording a roll
+# that never took.
+settled && exit 0
+sudo launchctl kickstart -k system/dev.tuist.tart-kubelet 2>/dev/null || true
+settled && exit 0
+echo "tart-kubelet did not reach a running state after launchd reload" >&2
+exit 1
 `, shellQuote(cfg.SSHUser))
-	return RunCommandWithStdin(ctx, client, script, plist)
+	return RunCommandWithStdin(ctx, client, script, strings.NewReader(plist))
 }
 
 func renderLaunchdPlist(cfg Config) string {
@@ -450,6 +532,26 @@ func renderLaunchdPlist(cfg Config) string {
 	if len(cfg.TailscaleBinaries) > 0 && cfg.TailscaleAuthKey != "" {
 		nodeIPSourceArg = "\n    <string>--node-ip-source=tailscale</string>"
 	}
+	// providerID binds the Node to its CAPI Machine. Rendered as a flag so
+	// freshly-provisioned and re-rolled nodes self-bind without a manual
+	// `kubectl patch node ... providerID`. Empty (e.g. before the server
+	// is ordered) omits it; tart-kubelet then leaves spec.providerID unset
+	// and a later reconcile re-renders the plist once it's known.
+	providerIDArg := ""
+	if cfg.ProviderID != "" {
+		providerIDArg = fmt.Sprintf("\n    <string>--provider-id=%s</string>", cfg.ProviderID)
+	}
+	// Builder-fleet hosts (GHActionsRunner set) never have Pods
+	// scheduled but bake images with a host-level Packer/`tart`
+	// process. tart-kubelet's orphan-VM GC treats every local VM not
+	// backed by a Pod as collectable, so it would reap the in-flight
+	// build VM mid-`tart push` (the push then fails at the NVRAM layer
+	// with `nvram.bin doesn't exist`). Disable the GC there; the
+	// image-bake workflow reclaims its own Tart disk.
+	disableVMGCArg := ""
+	if cfg.GHActionsRunner != nil {
+		disableVMGCArg = "\n    <string>--disable-vm-gc</string>"
+	}
 	// Run tart-kubelet as the SSH user (m1). Apple's
 	// Virtualization.framework requires the calling process to be the
 	// same user that holds the live GUI console session — Tart's
@@ -472,7 +574,7 @@ func renderLaunchdPlist(cfg Config) string {
     <string>--kubeconfig=/etc/tart-kubelet/kubeconfig</string>
     <string>--host-cpu=%[2]d</string>
     <string>--host-memory-mb=%[3]d</string>
-    <string>--max-pods=%[4]d</string>%[6]s%[7]s
+    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -486,7 +588,7 @@ func renderLaunchdPlist(cfg Config) string {
   </dict>
 </dict>
 </plist>
-`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg)
+`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg)
 }
 
 func shellQuote(s string) string {
@@ -810,7 +912,7 @@ EOF
 sudo chmod 0755 /usr/local/bin/tart
 /usr/local/bin/tart --version
 `
-	return RunCommandWithStdin(ctx, client, script, string(tarball))
+	return RunCommandWithStdin(ctx, client, script, bytes.NewReader(tarball))
 }
 
 // installVMEgressFirewall configures pfctl rules that drop egress
@@ -1005,7 +1107,7 @@ func installTailscale(ctx context.Context, client *ssh.Client, cfg Config) error
 sudo mkdir -p /etc/tuist
 sudo tee /etc/tuist/tailscale-auth-key >/dev/null
 sudo chmod 0600 /etc/tuist/tailscale-auth-key`
-	if err := RunCommandWithStdin(ctx, client, keyScript, cfg.TailscaleAuthKey); err != nil {
+	if err := RunCommandWithStdin(ctx, client, keyScript, strings.NewReader(cfg.TailscaleAuthKey)); err != nil {
 		return fmt.Errorf("stage tailscale auth key: %w", err)
 	}
 
@@ -1160,7 +1262,7 @@ echo "tailscale up returned but no tailnet IPv4 within 30s; current status:" >&2
 sudo /usr/local/bin/tailscale status >&2 || true
 exit 1
 `, hostnameArg, tagsArg)
-	return RunCommandWithStdin(ctx, client, script, string(cfg.TailscaleBinaries))
+	return RunCommandWithStdin(ctx, client, script, bytes.NewReader(cfg.TailscaleBinaries))
 }
 
 // installNodeExporter drops the cross-compiled darwin/arm64 binary,
@@ -1236,24 +1338,29 @@ sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.node-exporter.plist
 sudo launchctl bootout system /Library/LaunchDaemons/dev.tuist.node-exporter.plist 2>/dev/null || true
 sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.node-exporter.plist
 `
-	return RunCommandWithStdin(ctx, client, script, string(cfg.NodeExporterBinary))
+	return RunCommandWithStdin(ctx, client, script, bytes.NewReader(cfg.NodeExporterBinary))
 }
 
 // === SSH helpers ===========================================================
 
 func RunCommand(ctx context.Context, client *ssh.Client, cmd string) error {
-	return RunCommandWithStdin(ctx, client, cmd, "")
+	return RunCommandWithStdin(ctx, client, cmd, nil)
 }
 
-func RunCommandWithStdin(ctx context.Context, client *ssh.Client, cmd, stdin string) error {
+// stdin is an io.Reader rather than a string so callers streaming the
+// multi-MB bootstrap binaries can pass bytes.NewReader over the
+// operator's resident slice — no per-call copy. The reader is read
+// once and never mutated, so concurrent reconciles can share the same
+// backing slice safely.
+func RunCommandWithStdin(ctx context.Context, client *ssh.Client, cmd string, stdin io.Reader) error {
 	session, err := client.NewSession()
 	if err != nil {
 		return err
 	}
 	defer session.Close()
 
-	if stdin != "" {
-		session.Stdin = strings.NewReader(stdin)
+	if stdin != nil {
+		session.Stdin = stdin
 	}
 
 	var stderr bytes.Buffer

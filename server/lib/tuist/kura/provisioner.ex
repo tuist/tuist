@@ -65,13 +65,6 @@ defmodule Tuist.Kura.Provisioner do
               String.t()
 
   @doc """
-  Global public URL once the backing platform has reconciled it, or
-  `nil` while the platform has not reported it as ready.
-  """
-  @callback global_public_url(ref :: String.t(), Regions.t()) ::
-              String.t() | nil
-
-  @doc """
   Public gRPC (Bazel REAPI) URL for the server, or `nil` if the region
   doesn't expose gRPC publicly. Returned with a `grpcs://` scheme when
   TLS is terminated by the runtime.
@@ -87,6 +80,19 @@ defmodule Tuist.Kura.Provisioner do
   """
   @callback current_image_tag(ref :: String.t(), Regions.t()) ::
               {:ok, String.t() | nil} | {:error, term()}
+
+  @doc """
+  Returns the manifest revision currently applied to the backing resource.
+
+  Provisioners that render declarative resources should use this to let
+  the control plane re-apply config-only changes independently from Kura
+  runtime image changes.
+  """
+  @callback current_manifest_revision(ref :: String.t(), Regions.t()) ::
+              {:ok, String.t() | nil} | {:error, term()}
+
+  @doc "Returns the manifest revision the provisioner currently renders."
+  @callback manifest_revision() :: String.t() | nil
 
   @doc "Returns the provisioner's default resource description for one Kura server."
   @callback resources_for(Server.t()) :: map()
@@ -114,13 +120,6 @@ defmodule Tuist.Kura.Provisioner do
     end
   end
 
-  @doc "Calls `global_public_url/2` on the region's provisioner."
-  def global_public_url(%Server{provisioner_node_ref: ref, region: region_id}) do
-    with {:ok, region} <- Regions.fetch(region_id) do
-      region.provisioner.global_public_url(ref, region)
-    end
-  end
-
   @doc "Calls `grpc_public_url/3` on the region's provisioner."
   def grpc_public_url(%Account{name: handle}, %Server{provisioner_node_ref: ref, region: region_id}) do
     with {:ok, region} <- Regions.fetch(region_id) do
@@ -132,6 +131,20 @@ defmodule Tuist.Kura.Provisioner do
   def current_image_tag(%Server{provisioner_node_ref: ref, region: region_id}) do
     with {:ok, region} <- Regions.fetch(region_id) do
       region.provisioner.current_image_tag(ref, region)
+    end
+  end
+
+  @doc "Calls `current_manifest_revision/2` on the region's provisioner."
+  def current_manifest_revision(%Server{provisioner_node_ref: ref, region: region_id}) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provisioner.current_manifest_revision(ref, region)
+    end
+  end
+
+  @doc "Calls `manifest_revision/0` on the region's provisioner."
+  def manifest_revision(%Server{region: region_id}) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      {:ok, region.provisioner.manifest_revision()}
     end
   end
 end

@@ -7,25 +7,30 @@ on:
       - App
       - Cache
       - Cache Deploy
+      - Cache Release
       - CLI
       - CLI Cache EE
+      - CNPG Restore Drill
       - Gradle
       - Gradle Cache Acceptance
+      - Gradle Release
       - Handbook
+      - Hetzner Robot Controller Release
       - Kura
       - Mgmt Cluster Apply
       - Noora
       - Noora Storybook Deployment
       - Processor
       - Processor Deploy
-      - Release
       - Secret Scanning
+      - Skills Release
       - Slack
       - Slack Deployment
       - Server
       - Server Deployment
       - Server Kura Regional Deployment
       - Server Production Deployment
+      - Tuist Ops Deployment
       - Xcode Processor
       - Xcode Processor Deploy
     branches: [main]

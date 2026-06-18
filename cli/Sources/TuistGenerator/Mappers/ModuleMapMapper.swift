@@ -407,7 +407,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
         )
         mappedOtherSwiftFlags.append(contentsOf: [
             "-Xcc",
-            "-fmodule-map-file=\(reference)",
+            "-fmodule-map-file=\"\(reference)\"",
         ])
 
         return .array(mappedOtherSwiftFlags)
@@ -437,7 +437,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
             xcodeProjParent: xcodeProjParent
         )
         mappedOtherCFlags.append(
-            "-fmodule-map-file=\(reference)"
+            "-fmodule-map-file=\"\(reference)\""
         )
 
         return .array(mappedOtherCFlags)

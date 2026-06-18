@@ -1,10 +1,69 @@
 # Workload Cluster Onboarding — Tuist Server on Kubernetes
 
-Stand up a new Tuist workload cluster (staging / canary / production / preview, or a production Kura regional cluster) on Hetzner via our self-hosted CAPI management cluster, and deploy the Tuist server or Kura controller to it.
+Stand up a new Tuist workload cluster (staging / canary / production / preview) on Hetzner via our self-hosted CAPI management cluster, and deploy the Tuist server to it. Production Kura regions are node pools inside the production workload cluster, not separate clusters.
 
 We run a **management cluster** (a single-node Talos VM in Hetzner project `tuist-mgmt`) that hosts CAPI v1.13 + caph v1.1. You apply [Cluster API](https://cluster-api.sigs.k8s.io/) CRs against it; caph spins up workload nodes in the workload Hetzner project. The mgmt cluster's manifests live in [`infra/k8s/mgmt/`](mgmt/); workload Cluster CRs (and the shared `tuist-hcloud` ClusterClass) live in [`infra/k8s/clusters/`](clusters/) and are auto-applied to the mgmt cluster on push to `main` by [`mgmt-cluster-apply.yml`](../../.github/workflows/mgmt-cluster-apply.yml).
 
 This doc is the runbook for onboarding **a new workload cluster** end-to-end. The mgmt cluster itself is bootstrapped by the migration PR's runbook; re-bootstrapping it is documented inline in [`mgmt/tailscale.yaml`](mgmt/tailscale.yaml).
+
+If you just want to **read** an existing cluster (the day-to-day case — `kubectl get pods`, `logs`, `describe`), you don't need any of the cluster-provisioning steps below. Jump to [Engineer read access](#engineer-read-access-pomerium-kubeconfig).
+
+---
+
+## Engineer read access (Pomerium kubeconfig)
+
+Every engineer's Google Workspace identity already carries `view`-tier read access to all three workload clusters through the Pomerium gateway — no grant, no per-person provisioning. There's nothing secret to download: you assemble a small kubeconfig locally that registers `pomerium-cli` as an [exec credential plugin](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#client-go-credential-plugins). On the first call the plugin opens a browser for Google OIDC and caches the session for ~24h. The full identity flow is documented in [`infra/helm/pomerium/NOTES.md`](../helm/pomerium/NOTES.md); the agent-facing rules (read is always allowed, writes go through the JIT Slack flow) are in [`infra/AGENTS.md`](../AGENTS.md#cluster-access-for-agents).
+
+`view` deliberately excludes `Secret`s, so `MASTER_KEY`, `DATABASE_URL`, and ESO-synced secrets stay out of reach on this path. Mutating operations (`apply`, `delete`, `scale`, `patch`, `create`) return `403` until you elevate via `/elevate <env>` in Slack.
+
+### Setup
+
+1. `pomerium-cli` is pinned in the root [`mise.toml`](../../mise.toml) — `mise install` from the repo root puts it on your `PATH`.
+2. Merge the three contexts below into your `~/.kube/config`. They contain no secrets — the hostnames are public and all auth happens at call time. Each env needs its own gateway host in the exec `args`, so there's one user per env. Production's host is `kube-prod`, not `kube-production`.
+
+   ```yaml
+   clusters:
+     - name: tuist-k8s-staging
+       cluster: { server: https://kube-staging.tuist.dev }
+     - name: tuist-k8s-canary
+       cluster: { server: https://kube-canary.tuist.dev }
+     - name: tuist-k8s-production
+       cluster: { server: https://kube-prod.tuist.dev }
+   contexts:
+     - name: tuist-k8s-staging
+       context: { cluster: tuist-k8s-staging, user: pomerium-staging }
+     - name: tuist-k8s-canary
+       context: { cluster: tuist-k8s-canary, user: pomerium-canary }
+     - name: tuist-k8s-production
+       context: { cluster: tuist-k8s-production, user: pomerium-production }
+   users:
+     - name: pomerium-staging
+       user:
+         exec:
+           apiVersion: client.authentication.k8s.io/v1beta1
+           command: pomerium-cli
+           args: ["k8s", "exec-credential", "https://kube-staging.tuist.dev"]
+     - name: pomerium-canary
+       user:
+         exec:
+           apiVersion: client.authentication.k8s.io/v1beta1
+           command: pomerium-cli
+           args: ["k8s", "exec-credential", "https://kube-canary.tuist.dev"]
+     - name: pomerium-production
+       user:
+         exec:
+           apiVersion: client.authentication.k8s.io/v1beta1
+           command: pomerium-cli
+           args: ["k8s", "exec-credential", "https://kube-prod.tuist.dev"]
+   ```
+
+3. Verify (a browser opens once per env for the Google login):
+
+   ```bash
+   kubectl --context tuist-k8s-staging get pods -A
+   ```
+
+> **This is not the admin kubeconfig.** The cluster-admin kubeconfigs in the `tuist-k8s-<env>` 1Password vaults bypass Pomerium and impersonation entirely; they're break-glass only and gated behind 1Password biometric on purpose. Don't reach for them for routine reads, and never have an agent fetch one. See [Workload-cluster incident recovery](#workload-cluster-incident-recovery).
 
 ---
 
@@ -13,7 +72,7 @@ This doc is the runbook for onboarding **a new workload cluster** end-to-end. Th
 - Tailscale on the `tuist.dev` tailnet, with `talosctl` reachable on the mgmt VM at `100.92.208.109:50000` (see [`mgmt/tailscale.yaml`](mgmt/tailscale.yaml) for tailnet onboarding).
 - Mgmt cluster kubeconfig in 1Password as `kubeconfig: tuist-mgmt` in the `tuist-k8s-mgmt` vault.
 - Hetzner Cloud project `tuist-workloads` (separate from `tuist-mgmt`) with API access. Token in 1Password as `tuist-workloads`.
-- A Cloudflare account with an API token stored as `cloudflare-tuist-dns`. Local bootstrap reads it from the `Founders` vault; production Kura regional deploys also need the same item in `tuist-k8s-production` so CI and the Kura controller can read it.
+- A Cloudflare account with an API token stored as `cloudflare-tuist-dns`. Local bootstrap reads it from the `Founders` vault.
 - The `cloudflare-tuist-dns` token must be able to edit DNS for `tuist.dev`, read `tuist.dev` zone metadata, manage zone Load Balancers, and manage account-level Load Balancing pools/monitors.
 - Per-env 1Password vault (`tuist-k8s-staging` / `tuist-k8s-canary` / `tuist-k8s-production` / `tuist-k8s-preview`) holding the runtime secrets (`MASTER_KEY`, `TUIST_LICENSE_KEY` for preview, Grafana Cloud tokens) and a Service Account token scoped to the vault.
 - CLI tools installed via mise:
@@ -42,8 +101,6 @@ Each workload cluster is a `Cluster` CR in topology mode referencing the `tuist-
 - [`clusters/cluster-staging.yaml`](clusters/cluster-staging.yaml)
 - [`clusters/cluster-canary.yaml`](clusters/cluster-canary.yaml)
 - [`clusters/cluster-production.yaml`](clusters/cluster-production.yaml)
-- [`clusters/cluster-production-us-east.yaml`](clusters/cluster-production-us-east.yaml)
-- [`clusters/cluster-production-us-west.yaml`](clusters/cluster-production-us-west.yaml)
 - [`clusters/cluster-preview.yaml`](clusters/cluster-preview.yaml)
 
 For a new cluster, copy the closest existing file and adjust `metadata.name`, replica counts, machine types, and any per-pool labels/taints. Variables exposed by the ClusterClass are documented in [`clusters/README.md`](clusters/README.md). Run `mise run k8s:lint-version-drift` to confirm `topology.version` matches the ClusterClass's `KUBERNETES_VERSION` before applying.
@@ -60,21 +117,18 @@ kubectl -n org-tuist get cluster <name> -w
 
 ## 4. Bootstrap the workload cluster
 
-Run the `k8s:bootstrap-workload` task. It is idempotent and handles every step the workload cluster needs before CI deploys can target it. App-serving clusters get the full path (Cilium, HCCM, hcloud-csi, the `hetzner` Secret on the workload, the platform chart, ESO + the per-env `onepassword` ClusterSecretStore, the monitoring chart, the app namespace + the Cloudflare origin TLS Secret, and a final ingress smoke test). Production Kura regional clusters install only the shared platform pieces they need, then upload the workload kubeconfig:
+Run the `k8s:bootstrap-workload` task. It is idempotent and handles every step the workload cluster needs before CI deploys can target it: Cilium, HCCM, hcloud-csi, the `hetzner` Secret on the workload, the platform chart, ESO + the per-env `onepassword` ClusterSecretStore, the monitoring chart, the app namespace + the Cloudflare origin TLS Secret, and a final ingress smoke test.
 
 ```bash
 mise run k8s:bootstrap-workload <cluster_name> <env> [kubeconfig_item]
 # e.g. mise run k8s:bootstrap-workload tuist-canary-2 canary
-# e.g. mise run k8s:bootstrap-workload tuist-kura-us-east production "kubeconfig: kura-us-east-1"
 ```
 
-On success the script uploads the freshly-minted workload kubeconfig to the per-env 1Password vault. App clusters use the default `kubeconfig: tuist-<env>` title. Production Kura regional clusters pass explicit titles matching the product cluster IDs: `kubeconfig: kura-us-east-1` and `kubeconfig: kura-us-west-1`.
+On success the script uploads the freshly-minted workload kubeconfig to the per-env 1Password vault. Clusters use the default `kubeconfig: tuist-<env>` title unless you explicitly pass a different document title.
 
 ## 5. Wire the GitHub Actions deployer
 
 CI uses a namespace-scoped ServiceAccount with a long-lived token, defined in [`mgmt/ci-service-account.yaml`](mgmt/ci-service-account.yaml). Apply it on the workload cluster, mint a kubeconfig, and load it into the GitHub Environment secret:
-
-Skip this section for production Kura regional clusters. The production server deploy workflow reads `kubeconfig: kura-us-east-1` and `kubeconfig: kura-us-west-1` from the production 1Password vault, syncs them into the main production server namespace for runtime CR writes, and deploys the Kura controller to those regional clusters directly.
 
 ```bash
 WL_KUBECONFIG=~/.kube/<cluster_name>.yaml
@@ -119,6 +173,32 @@ shred -u /tmp/ci-kubeconfig.yaml
 # embeds `clusters[].cluster.server`, so it does not follow endpoint
 # changes automatically.
 ```
+
+## 5b. CAPI workload kubeconfig (Mac-mini fleets only)
+
+Skip this for clusters without a Mac-mini fleet (`macosFleet.enabled: false` and `runnersFleet.enabled: false`).
+
+The chart runs an in-cluster CAPI that manages the Mac minis as `Machine`/`MachineDeployment` objects in this same cluster. CAPI core's cluster cache reaches the cluster through a `<release>-capi-kubeconfig` Secret; the chart's [`capi-cluster.yaml`](../helm/tuist/templates/capi-cluster.yaml) sets a stub `controlPlaneEndpoint` (`127.0.0.1`), so that Secret has to be supplied. Without it CAPI can't bind Machines to Nodes, every fleet `MachineDeployment` stays unavailable, and the server deploy's `helm --wait` times out on them.
+
+The chart creates the identity (`capi-remote` SA + scoped `ClusterRole` + non-expiring token Secret) and an `ExternalSecret` that syncs the kubeconfig from 1Password (`capi.remoteKubeconfig.externalSecrets`, on for managed envs). You populate the 1Password item once.
+
+The kubeconfig's `server` **must be the in-cluster API endpoint** (the kubernetes Service ClusterIP). CAPI core's cluster cache ([`controllers/clustercache`](https://github.com/kubernetes-sigs/cluster-api/blob/v1.10.4/controllers/clustercache/cluster_accessor_client.go)) builds its REST config from this Secret and runs an initial reachability probe with the Secret's `server` *before* it overrides `Host`/`CAData` with the controller's own in-cluster config. So the `server` has to be reachable + TLS-valid from inside the cluster — the external control-plane LB IP is unroutable from a Pod (instant "no route"), and `kubernetes.default.svc` risks a cert-SAN mismatch. The ClusterIP is exactly what the controller's own client uses, so the probe is guaranteed to pass.
+
+```bash
+export KUBECONFIG=~/.kube/<cluster_name>.yaml
+NS=tuist-<env>   # production uses tuist
+APISERVER="https://$(kubectl -n default get svc kubernetes -o jsonpath='{.spec.clusterIP}'):443"
+TOKEN=$(kubectl -n "$NS" get secret tuist-tuist-capi-remote-token -o jsonpath='{.data.token}' | base64 -d)
+CA=$(kubectl -n "$NS" get secret tuist-tuist-capi-remote-token -o jsonpath='{.data.ca\.crt}')   # already base64
+KCFG=$(printf 'apiVersion: v1\nkind: Config\nclusters:\n- name: tuist-tuist-capi\n  cluster: { server: %s, certificate-authority-data: %s }\ncontexts:\n- name: tuist-tuist-capi\n  context: { cluster: tuist-tuist-capi, user: tuist-tuist-capi }\ncurrent-context: tuist-tuist-capi\nusers:\n- name: tuist-tuist-capi\n  user: { token: %s }\n' "$APISERVER" "$CA" "$TOKEN")
+op item create --vault tuist-k8s-<env> --category "Secure Note" --title capi-workload-kubeconfig "kubeconfig[password]=$KCFG"
+unset TOKEN KCFG
+```
+
+ESO then materializes `<release>-capi-kubeconfig` and CAPI binds the fleet. The `capi-remote-token` Secret is non-expiring, so this is a one-time step per cluster.
+
+> **Node `providerID`:** CAPI binds a Node to its Machine by matching `Node.spec.providerID` to `Machine.spec.providerID` (`scw-applesilicon://<zone>/<id>`). tart-kubelet does not yet set this, so a freshly-bootstrapped fleet node needs a one-time patch until that ships:
+> `kubectl patch node <node> --type merge -p '{"spec":{"providerID":"<machine providerID>"}}'`
 
 ## 6. First deploy
 

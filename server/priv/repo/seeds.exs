@@ -22,6 +22,8 @@ alias Tuist.Projects.Project
 alias Tuist.Repo
 alias Tuist.Runners.Job
 alias Tuist.Runners.Jobs
+alias Tuist.Runners.JobSteps
+alias Tuist.Runners.Profile
 alias Tuist.Runners.RunnerSession
 alias Tuist.Shards.ShardPlan
 alias Tuist.Shards.ShardPlanModule
@@ -264,6 +266,15 @@ _account =
   end
 
 {:ok, user} = Accounts.get_user_by_email(email)
+
+# Re-stamp the seeded password on every run. Bcrypt hashing depends on
+# `Tuist.Environment.secret_key_password()`; if that secret has rotated
+# since the user was first created, the original hash no longer matches
+# the documented credentials and the "Log in as test user" button fails.
+# Always overwriting on seed makes the dev flow self-healing.
+user
+|> Tuist.Accounts.User.password_changeset(%{password: password, password_confirmation: password})
+|> Repo.update!()
 
 organization =
   if Accounts.get_organization_by_handle("tuist") do
@@ -590,6 +601,7 @@ cas_output_generator = fn build ->
     compressed_size = trunc(size * (0.3 + :rand.uniform() * 0.6))
 
     %{
+      project_id: build.project_id,
       build_run_id: build.id,
       node_id: generate_cas_node_id.(),
       checksum: generate_checksum.(),
@@ -3278,6 +3290,45 @@ IO.puts("  - Xcode machine metrics: #{length(xcode_machine_metrics)} data points
 IO.puts("  - Gradle machine metrics: #{length(gradle_machine_metrics)} data points")
 
 # =============================================================================
+# Runner Profiles (customer-facing vCPU/RAM bundles)
+# =============================================================================
+
+# Seed a few profiles per dev account so the sidebar Profiles tab is
+# non-empty for both the personal account (where the seed login lands)
+# and the `tuist` organization (the context most demo flows switch
+# into). Runners are enabled for every account outside prod via
+# `FeatureFlags.runners_enabled?`, so there's nothing else to flip.
+runner_profile_accounts = Enum.uniq_by([user.account, organization.account], & &1.id)
+
+runner_profile_seeds = [
+  # `linux` is auto-bootstrapped by `Accounts.create_user` /
+  # `Accounts.create_organization`; only seed the user-created
+  # extras so the table still shows the typical "default + a few
+  # bigger shapes" mix in dev.
+  %{name: "large", vcpus: 8, memory_gb: 32},
+  %{name: "xlarge", vcpus: 16, memory_gb: 32}
+]
+
+now_seconds = DateTime.truncate(DateTime.utc_now(), :second)
+
+for account <- runner_profile_accounts, shape <- runner_profile_seeds do
+  case Repo.get_by(Profile, account_id: account.id, name: shape.name) do
+    nil ->
+      Repo.insert!(%Profile{
+        account_id: account.id,
+        name: shape.name,
+        vcpus: shape.vcpus,
+        memory_gb: shape.memory_gb,
+        inserted_at: now_seconds,
+        updated_at: now_seconds
+      })
+
+    _existing ->
+      :ok
+  end
+end
+
+# =============================================================================
 # Runner Jobs (GitHub Actions on Tuist-hosted runners)
 # =============================================================================
 
@@ -3298,6 +3349,48 @@ now = DateTime.utc_now()
 
 random_sha = fn ->
   20 |> :crypto.strong_rand_bytes() |> Base.encode16(case: :lower)
+end
+
+# Builds a realistic GitHub Actions step breakdown for a completed
+# job, mirroring the JSON `Tuist.Runners.Dispatch` captures from the
+# `workflow_job.completed` webhook. The step window is spread across
+# the job's runtime; for non-success jobs the test step carries the
+# job's conclusion while the trailing cleanup step still succeeds.
+runner_job_step_names = [
+  "Set up job",
+  "Run actions/checkout@v4",
+  "Set up runner",
+  "Restore cache",
+  "Run mise run install",
+  "Build",
+  "Run tests",
+  "Complete job"
+]
+
+build_runner_job_steps = fn workflow_job_id, account_id, started_at, completed_at, conclusion ->
+  names = runner_job_step_names
+  step_count = length(names)
+  total_seconds = max(DateTime.diff(completed_at, started_at, :second), step_count)
+  per_step = max(div(total_seconds, step_count), 1)
+  outcome_index = if conclusion == "success", do: nil, else: step_count - 2
+
+  names
+  |> Enum.with_index()
+  |> Enum.map(fn {name, index} ->
+    step_started = DateTime.add(started_at, index * per_step, :second)
+    step_completed = DateTime.add(step_started, per_step, :second)
+
+    %{
+      workflow_job_id: workflow_job_id,
+      account_id: account_id,
+      number: index + 1,
+      name: name,
+      status: "completed",
+      conclusion: if(index == outcome_index, do: conclusion, else: "success"),
+      started_at: step_started,
+      completed_at: step_completed
+    }
+  end)
 end
 
 # Completed jobs — history (most recent first by `enqueued_at`)
@@ -3477,7 +3570,19 @@ completed_jobs
     )
 
   :ok = Jobs.record_running(workflow_job_id, "tuist-tuist-runner-pod-#{rem(idx, 4)}")
+
   {:ok, _} = Jobs.complete(workflow_job_id, job.conclusion)
+
+  :ok =
+    JobSteps.record(
+      build_runner_job_steps.(
+        workflow_job_id,
+        runner_jobs_account_id,
+        started_at,
+        completed_at,
+        job.conclusion
+      )
+    )
 
   # In production `Tuist.Runners.serve_claim/5` opens a billing
   # session AFTER `record_running_safe` succeeds (so failed
@@ -3710,6 +3815,105 @@ IO.puts(
   "  - runner jobs: #{length(completed_jobs)} completed, #{length(running_jobs)} running, #{length(claimed_jobs)} claimed, #{length(queued_jobs)} queued"
 )
 
+# A "smoke" job whose runner_job_logs rows mirror a real GitHub log
+# fetched via the Actions Logs API. Lets us iterate on the Logs +
+# Steps rendering without paying the round-trip to staging for every
+# CSS / HEEx tweak. The fixture is captured verbatim — ANSI escapes,
+# `##[group]Run …` markers, microsecond timestamps and all.
+runner_smoke_log_path = Path.join([__DIR__, "fixtures", "runner_smoke.log"])
+
+if File.exists?(runner_smoke_log_path) do
+  smoke_workflow_job_id = 4_900_001
+  smoke_workflow_run_id = 4_900_010
+  smoke_started_at = DateTime.add(now, -60, :second)
+  smoke_completed_at = DateTime.add(now, -45, :second)
+
+  :ok =
+    Jobs.enqueue(%{
+      workflow_job_id: smoke_workflow_job_id,
+      account_id: runner_jobs_account_id,
+      fleet_name: "linux-amd64",
+      repository: "tuist/tuist",
+      workflow_run_id: smoke_workflow_run_id,
+      workflow_name: "Linux Runners Staging Smoke Test",
+      run_attempt: 1,
+      job_name: "smoke",
+      head_branch: "main",
+      head_sha: random_sha.(),
+      enqueued_at: DateTime.add(smoke_started_at, -10, :second)
+    })
+
+  {:ok, smoke_candidate} = Jobs.pick_queued("linux-amd64", [])
+  :ok = Jobs.record_claimed(smoke_candidate, "runner-pod-smoke", smoke_started_at)
+  :ok = Jobs.record_running(smoke_workflow_job_id, "tuist-runner-smoke")
+  {:ok, _} = Jobs.complete(smoke_workflow_job_id, "success")
+
+  smoke_lines =
+    runner_smoke_log_path
+    |> File.read!()
+    |> Tuist.Runners.Workers.FetchLogsWorker.parse_lines(smoke_workflow_job_id, runner_jobs_account_id)
+
+  :ok = Tuist.Runners.JobLogs.append(smoke_lines)
+
+  :ok =
+    JobSteps.record([
+      %{
+        workflow_job_id: smoke_workflow_job_id,
+        account_id: runner_jobs_account_id,
+        number: 1,
+        name: "Set up job",
+        status: "completed",
+        conclusion: "success",
+        started_at: smoke_started_at,
+        completed_at: smoke_started_at
+      },
+      %{
+        workflow_job_id: smoke_workflow_job_id,
+        account_id: runner_jobs_account_id,
+        number: 2,
+        name: "Show environment",
+        status: "completed",
+        conclusion: "success",
+        started_at: DateTime.add(smoke_started_at, 1, :second),
+        completed_at: DateTime.add(smoke_started_at, 1, :second)
+      },
+      %{
+        workflow_job_id: smoke_workflow_job_id,
+        account_id: runner_jobs_account_id,
+        number: 3,
+        name: "Public reachability check",
+        status: "completed",
+        conclusion: "success",
+        started_at: DateTime.add(smoke_started_at, 2, :second),
+        completed_at: DateTime.add(smoke_started_at, 2, :second)
+      },
+      %{
+        workflow_job_id: smoke_workflow_job_id,
+        account_id: runner_jobs_account_id,
+        number: 4,
+        name: "Cluster-internal egress should be denied",
+        status: "completed",
+        conclusion: "success",
+        started_at: DateTime.add(smoke_started_at, 3, :second),
+        completed_at: DateTime.add(smoke_started_at, 6, :second)
+      },
+      %{
+        workflow_job_id: smoke_workflow_job_id,
+        account_id: runner_jobs_account_id,
+        number: 5,
+        name: "Complete job",
+        status: "completed",
+        conclusion: "success",
+        started_at: smoke_completed_at,
+        completed_at: smoke_completed_at
+      }
+    ])
+
+  IO.puts(
+    "  - runner smoke job seeded: /#{organization.account.name}/runners/runs/#{smoke_workflow_run_id}/jobs/#{smoke_workflow_job_id}"
+  )
+end
+
 # =============================================================================
 # Webhook endpoints and deliveries
 # =============================================================================
@@ -3831,6 +4035,93 @@ end)
 
 IO.puts("  - webhook endpoints: #{length(webhook_endpoints_with_events)}")
 IO.puts("  - webhook delivery attempts: #{length(webhook_attempts)}")
+
+# =============================================================================
+# Kura usage events
+# =============================================================================
+#
+# Synthetic hourly rollups across a handful of Kura nodes in multiple regions
+# so the Usage page renders a non-empty chart and per-node table in dev. We
+# spread events across the seeded projects of the `tuist` organization so the
+# project filter dropdown has more than one selectable option.
+
+kura_seed_projects = [
+  {tuist_project, organization.account.name},
+  {android_project, organization.account.name}
+]
+
+kura_seed_nodes = [
+  {"kura-us-east-1-a", "us-east-1"},
+  {"kura-us-east-1-b", "us-east-1"},
+  {"kura-eu-west-1-a", "eu-west-1"},
+  {"kura-ap-south-1-a", "ap-south-1"}
+]
+
+kura_window_seconds = 3600
+kura_hours_back = 30 * 24
+
+# Wipe any prior rollups for the seeded account so re-seeding doesn't
+# stack up against the previous run.
+IngestRepo.query!(
+  "DELETE FROM kura_usage_events WHERE account_id = {account_id:Int64}",
+  %{account_id: organization.account.id}
+)
+
+now_naive = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+
+# Egress (downloads) is the dominant traffic plane for a cache; ingress
+# (uploads) is much smaller. The directions also pair with distinct
+# operations so the underlying schema reflects what Kura actually emits.
+kura_directions = [
+  {"egress", "download", 1.0},
+  {"ingress", "upload", 0.15}
+]
+
+kura_events =
+  for hour_offset <- 1..kura_hours_back,
+      {project, _account_handle} <- kura_seed_projects,
+      {node_id, region} <- kura_seed_nodes,
+      {direction, operation, scale} <- kura_directions do
+    window_start =
+      now_naive
+      |> NaiveDateTime.add(-hour_offset * 3600, :second)
+      |> Map.put(:minute, 0)
+      |> Map.put(:second, 0)
+
+    # Mild diurnal pattern so the chart isn't a flat line.
+    hour_of_day = window_start.hour
+    diurnal_factor = 1.0 + 0.5 * :math.sin(hour_of_day / 24 * 2 * :math.pi())
+
+    base_bytes = Enum.random(50_000_000..250_000_000)
+    bytes = trunc(base_bytes * diurnal_factor * scale)
+    request_count = trunc(Enum.random(80..400) * scale)
+
+    %{
+      event_id: "seed-#{hour_offset}-#{project.id}-#{node_id}-#{direction}",
+      account_id: organization.account.id,
+      project_id: project.id,
+      node_id: node_id,
+      region: region,
+      traffic_plane: "public",
+      direction: direction,
+      operation: operation,
+      protocol: "http",
+      artifact_kind: "xcframework",
+      bytes: bytes,
+      request_count: request_count,
+      window_start: window_start,
+      window_seconds: kura_window_seconds,
+      inserted_at: now_naive
+    }
+  end
+
+kura_events
+|> Enum.chunk_every(2_000)
+|> Enum.each(fn chunk ->
+  IngestRepo.insert_all(Tuist.Kura.UsageEvent, chunk, timeout: 120_000)
+end)
+
+IO.puts("  - kura usage events: #{length(kura_events)}")
 
 IO.puts("")
 IO.puts("=== Seed Complete (scale: #{seed_scale}) ===")

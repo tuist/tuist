@@ -31,6 +31,14 @@ spec:
     spec:
       serviceAccountName: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
       {{- include "tuist.podScheduling" . | nindent 6 }}
+      {{- with .Values.server.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.server.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       restartPolicy: Never
       {{- if not .Values.server.managedSecrets }}
       # Only wait for embedded Postgres / ClickHouse to come up when chart
@@ -72,11 +80,22 @@ spec:
             - eval
             - Tuist.Release.migrate
           env:
+            {{- if eq .Values.postgresql.mode "cnpg" }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.cnpgAppSecretName" . }}
+                  key: uri
+            - name: TUIST_USE_SSL_FOR_DATABASE
+              value: "0"
+            {{- end }}
             {{- if not .Values.server.managedSecrets }}
+            {{- if ne .Values.postgresql.mode "cnpg" }}
             - name: DATABASE_URL
               value: {{ include "tuist.databaseUrl" . | quote }}
             - name: TUIST_USE_SSL_FOR_DATABASE
               value: {{ .Values.server.database.ssl | ternary "1" "0" | quote }}
+            {{- end }}
             - name: TUIST_CLICKHOUSE_URL
               value: {{ include "tuist.clickhouseUrl" . | quote }}
             - name: TUIST_SECRET_KEY_BASE

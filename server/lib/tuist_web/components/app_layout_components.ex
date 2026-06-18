@@ -33,12 +33,8 @@ defmodule TuistWeb.AppLayoutComponents do
         id="sidebar-builds"
         label={dgettext("dashboard", "Builds")}
         icon="versions"
-        navigate={
-          @current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/builds" &&
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"
-        }
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
         selected={@current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
-        disabled={@current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
         default_open={
           String.starts_with?(
             @current_path,
@@ -64,12 +60,8 @@ defmodule TuistWeb.AppLayoutComponents do
         id="sidebar-tests"
         label={dgettext("dashboard", "Tests")}
         icon="subtask"
-        navigate={
-          @current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/tests" &&
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"
-        }
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests"}
         selected={@current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"}
-        disabled={@current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"}
         default_open={
           String.starts_with?(
             @current_path,
@@ -147,15 +139,9 @@ defmodule TuistWeb.AppLayoutComponents do
         id="sidebar-module-cache"
         label={dgettext("dashboard", "Module Cache")}
         icon="database"
-        navigate={
-          @current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache" &&
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache"
-        }
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache"}
         selected={
           @current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache"
-        }
-        disabled={
-          @current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache"
         }
         default_open={
           String.starts_with?(
@@ -208,12 +194,8 @@ defmodule TuistWeb.AppLayoutComponents do
         id="sidebar-gradle-builds"
         label={dgettext("dashboard", "Builds")}
         icon="versions"
-        navigate={
-          @current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/builds" &&
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"
-        }
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
         selected={@current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
-        disabled={@current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
         default_open={
           String.starts_with?(
             @current_path,
@@ -239,12 +221,8 @@ defmodule TuistWeb.AppLayoutComponents do
         id="sidebar-gradle-tests"
         label={dgettext("dashboard", "Tests")}
         icon="subtask"
-        navigate={
-          @current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/tests" &&
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"
-        }
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests"}
         selected={@current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"}
-        disabled={@current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"}
         default_open={
           String.starts_with?(
             @current_path,
@@ -378,6 +356,7 @@ defmodule TuistWeb.AppLayoutComponents do
       <% runners_path = ~p"/#{@selected_account.name}/runners" %>
       <% runner_workflows_path = ~p"/#{@selected_account.name}/runners/workflows" %>
       <% runner_jobs_path = ~p"/#{@selected_account.name}/runners/jobs" %>
+      <% runner_profiles_path = ~p"/#{@selected_account.name}/runners/profiles" %>
       <.sidebar_item
         label={dgettext("dashboard", "Projects")}
         icon="folders"
@@ -392,9 +371,8 @@ defmodule TuistWeb.AppLayoutComponents do
         id="sidebar-runners"
         label={dgettext("dashboard", "Runners")}
         icon="server"
-        navigate={@current_path != runners_path && runners_path}
+        navigate={runners_path}
         selected={@current_path == runners_path}
-        disabled={@current_path == runners_path}
         default_open={String.starts_with?(@current_path, runners_path)}
         phx-update="ignore"
       >
@@ -409,6 +387,12 @@ defmodule TuistWeb.AppLayoutComponents do
           icon="stack_2"
           navigate={runner_jobs_path}
           selected={String.starts_with?(@current_path, runner_jobs_path)}
+        />
+        <.sidebar_item
+          label={dgettext("dashboard", "Profiles")}
+          icon="category"
+          navigate={runner_profiles_path}
+          selected={String.starts_with?(@current_path, runner_profiles_path)}
         />
       </.sidebar_group>
       <.sidebar_item
@@ -431,6 +415,13 @@ defmodule TuistWeb.AppLayoutComponents do
         icon="credit_card"
         navigate={~p"/#{@selected_account.name}/billing"}
         selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/billing")}
+      />
+      <.sidebar_item
+        :if={FeatureFlags.kura_enabled?(@selected_account)}
+        label={dgettext("dashboard", "Usage")}
+        icon="chart_column"
+        navigate={~p"/#{@selected_account.name}/usage"}
+        selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/usage")}
       />
       <.sidebar_item
         :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
@@ -496,6 +487,12 @@ defmodule TuistWeb.AppLayoutComponents do
         selected={String.starts_with?(@current_path, "/ops/accounts")}
       />
       <.sidebar_item
+        label={dgettext("dashboard", "Database")}
+        icon="database"
+        navigate={~p"/ops/db"}
+        selected={String.starts_with?(@current_path, "/ops/db")}
+      />
+      <.sidebar_item
         label={dgettext("dashboard", "LiveDashboard")}
         icon="dashboard"
         navigate={~p"/ops/dashboard"}
@@ -552,7 +549,6 @@ defmodule TuistWeb.AppLayoutComponents do
   attr(:breadcrumbs, :list, required: true)
   attr(:current_user, :map, required: true)
   attr(:selected_account, :map, required: true)
-  attr(:latest_cli_release, :map, required: true)
   attr(:latest_app_release, :map, required: true)
   attr(:title, :string, default: nil)
 
@@ -622,7 +618,6 @@ defmodule TuistWeb.AppLayoutComponents do
         <.headerbar_breadcrumbs breadcrumbs={@breadcrumbs} id="mobile-headerbar-breadcrumbs" />
       </div>
     </header>
-    <.line_divider />
     """
   end
 
@@ -636,6 +631,9 @@ defmodule TuistWeb.AppLayoutComponents do
         <.breadcrumb
           id={"#{@id}-#{index}"}
           label={breadcrumb.label}
+          href={
+            Map.get(breadcrumb, :href) || (Enum.find(breadcrumb.items, & &1.selected) || %{})[:href]
+          }
           show_avatar={Map.get(breadcrumb, :show_avatar, false)}
           avatar_color={Map.get(breadcrumb, :avatar_color)}
           badge_label={breadcrumb[:badge] && breadcrumb.badge.label}

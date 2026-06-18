@@ -1,0 +1,17 @@
+{{- if .Values.registryCache.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "registry-cache") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: registry-cache
+spec:
+  type: {{ .Values.registryCache.service.type }}
+  selector:
+    {{- include "tuist.componentLabels" (dict "root" . "component" "registry-cache") | nindent 4 }}
+  ports:
+    - name: registry
+      port: {{ .Values.registryCache.service.port }}
+      targetPort: registry
+{{- end }}

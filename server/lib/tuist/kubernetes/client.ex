@@ -6,7 +6,7 @@ defmodule Tuist.Kubernetes.Client do
     * **Kura provisioner / Kura controller**: generic verbs
       (`get/2`, `replace/3`, `patch/3`, `delete/2`, `apply/2`) +
       Kura-instance helpers, with both in-cluster ServiceAccount
-      auth and cross-cluster kubeconfig support.
+      auth and explicit kubeconfig support for local controller/dev use.
 
     * **Runner dispatch**: domain-specific helpers
       (`create_token_review/1`, `get_service_account/2`,
@@ -17,8 +17,8 @@ defmodule Tuist.Kubernetes.Client do
   Both surfaces share the same auth + request infrastructure
   (`request/3` + `config/1`). In-cluster auth uses the projected
   ServiceAccount mount at `/var/run/secrets/kubernetes.io/serviceaccount`;
-  cross-cluster paths (Kura) load a kubeconfig from the runtime
-  environment or local files via `opts[:mode] = :kubeconfig`.
+  local controller/dev paths can pass an explicit kubeconfig via
+  `opts[:mode] = :kubeconfig`.
   """
 
   @service_account_dir "/var/run/secrets/kubernetes.io/serviceaccount"
@@ -75,6 +75,10 @@ defmodule Tuist.Kubernetes.Client do
 
   def delete_kura_instance(namespace, name, opts \\ []) do
     delete("/apis/kura.tuist.dev/v1alpha1/namespaces/#{namespace}/kurainstances/#{name}", opts)
+  end
+
+  def delete_kura_gateway(namespace, name, opts \\ []) do
+    delete("/apis/kura.tuist.dev/v1alpha1/namespaces/#{namespace}/kuragateways/#{name}", opts)
   end
 
   # ----- Runner dispatch helpers -----
@@ -275,6 +279,34 @@ defmodule Tuist.Kubernetes.Client do
     )
   end
 
+  @doc """
+  Deletes a runner Pod and its same-named per-Pod ServiceAccount.
+  The runner-pool reconciler creates the two as RunnerPool siblings
+  sharing one name (not parent/child), so deleting the Pod alone
+  orphans the SA — mirror the controller's `reapRunner` and delete
+  both. Used by `OrphanedStampedPodsWorker` to reclaim a Pod the
+  reconciler can't scale down (it only reaps idle, un-stamped Pods,
+  so an owner-stamped Pod whose claim has been released is otherwise
+  pinned forever, holding its node's memory).
+
+  Idempotent: a 404 on either resource (already gone) counts as
+  success. Returns `:ok` when both deletes succeed or 404, otherwise
+  `{:error, {pod_result, sa_result}}`.
+  """
+  def delete_runner(namespace, name, opts \\ []) when is_binary(namespace) and is_binary(name) do
+    pod_result = delete("/api/v1/namespaces/#{namespace}/pods/#{name}", opts)
+    sa_result = delete("/api/v1/namespaces/#{namespace}/serviceaccounts/#{name}", opts)
+
+    case {ok_or_absent(pod_result), ok_or_absent(sa_result)} do
+      {:ok, :ok} -> :ok
+      _ -> {:error, {pod_result, sa_result}}
+    end
+  end
+
+  defp ok_or_absent(:ok), do: :ok
+  defp ok_or_absent({:error, :not_found}), do: :ok
+  defp ok_or_absent(other), do: other
+
   # ----- Manifest dispatch -----
 
   defp manifest_path(%{
@@ -283,6 +315,14 @@ defmodule Tuist.Kubernetes.Client do
          "metadata" => %{"namespace" => namespace, "name" => name}
        }) do
     {:ok, "/apis/kura.tuist.dev/v1alpha1/namespaces/#{namespace}/kurainstances/#{name}"}
+  end
+
+  defp manifest_path(%{
+         "apiVersion" => "kura.tuist.dev/v1alpha1",
+         "kind" => "KuraGateway",
+         "metadata" => %{"namespace" => namespace, "name" => name}
+       }) do
+    {:ok, "/apis/kura.tuist.dev/v1alpha1/namespaces/#{namespace}/kuragateways/#{name}"}
   end
 
   defp manifest_path(%{"kind" => kind}), do: {:error, "unsupported Kubernetes manifest kind #{kind}"}
@@ -371,8 +411,7 @@ defmodule Tuist.Kubernetes.Client do
     cond do
       contents = Keyword.get(opts, :kubeconfig) -> {:ok, contents}
       path = Keyword.get(opts, :kubeconfig_path) -> kubeconfig_from_path(path)
-      cluster_id = Keyword.get(opts, :cluster_id) -> kubeconfig_from_cluster(cluster_id)
-      true -> {:error, "Kubernetes kubeconfig client mode requires :kubeconfig, :kubeconfig_path, or :cluster_id"}
+      true -> {:error, "Kubernetes kubeconfig client mode requires :kubeconfig or :kubeconfig_path"}
     end
   end
 
@@ -380,19 +419,6 @@ defmodule Tuist.Kubernetes.Client do
     case File.read(path) do
       {:ok, contents} -> {:ok, contents}
       {:error, reason} -> {:error, "cannot read Kubernetes kubeconfig #{path}: #{inspect(reason)}"}
-    end
-  end
-
-  defp kubeconfig_from_cluster(cluster_id) do
-    case Tuist.Environment.kura_kubeconfig(cluster_id) do
-      contents when is_binary(contents) and contents != "" ->
-        {:ok, contents}
-
-      _ ->
-        suffix = cluster_id |> String.upcase() |> String.replace("-", "_")
-
-        {:error,
-         "missing Kubernetes kubeconfig for Kura cluster #{cluster_id}; set TUIST_KURA_KUBECONFIG_#{suffix} or TUIST_KURA_KUBECONFIG_PATH_#{suffix}"}
     end
   end
 

@@ -43,7 +43,10 @@ let package = Package(
         ),
         .testTarget(
             name: "XCResultParserTests",
-            dependencies: ["XCResultParser"],
+            dependencies: [
+                "XCResultParser",
+                .product(name: "Command", package: "tuist.Command"),
+            ],
             resources: [.copy("../Fixtures")]
         ),
     ]

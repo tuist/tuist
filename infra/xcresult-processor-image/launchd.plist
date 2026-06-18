@@ -39,7 +39,7 @@
     <array>
         <string>/bin/bash</string>
         <string>-c</string>
-        <string>/opt/tuist/inject-env.sh &amp;&amp; source /etc/tuist.env &amp;&amp; exec /opt/tuist/release/bin/tuist start</string>
+        <string>/opt/tuist/inject-env.sh &amp;&amp; source /etc/tuist.env &amp;&amp; /opt/tuist/tailscale-up.sh &amp;&amp; exec /opt/tuist/release/bin/tuist start</string>
     </array>
 
     <key>RunAtLoad</key>

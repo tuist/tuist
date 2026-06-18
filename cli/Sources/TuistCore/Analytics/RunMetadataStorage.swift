@@ -33,7 +33,9 @@ public actor RunMetadataStorage {
     }
 
     /// A unique ID associated with a specific run
-    public var runId: String { Environment.current.processId }
+    public var runId: String {
+        Environment.current.processId
+    }
 
     /// Graph associated with the current run
     public private(set) var graph: Graph?
@@ -92,6 +94,14 @@ public actor RunMetadataStorage {
         self.testRunId = testRunId
     }
 
+    /// The generate command event's id, minted client-side. `tuist generate` sends it as the command
+    /// event id (so the server stores the graph under it) and persists it; a later local Xcode build
+    /// references it so the build page can resolve the generation's graph for its Module Cache breakdown.
+    public private(set) var generationId: String?
+    public func update(generationId: String?) {
+        self.generationId = generationId
+    }
+
     /// The URL of the uploaded build run.
     public private(set) var buildRunURL: URL?
     public func update(buildRunURL: URL?) {
@@ -102,6 +112,20 @@ public actor RunMetadataStorage {
     public private(set) var cacheEndpoint: String = ""
     public func update(cacheEndpoint: String) {
         self.cacheEndpoint = cacheEndpoint
+    }
+
+    /// Per-scheme test run summaries captured locally, used to render the GitHub Actions job
+    /// summary without waiting for the server to finish processing the uploaded result bundle.
+    public private(set) var testRunReports: [RunReportTestRun] = []
+    public func add(testRunReport: RunReportTestRun) {
+        testRunReports.append(testRunReport)
+    }
+
+    /// Per-scheme build run summaries captured locally, used to render the GitHub Actions job
+    /// summary without waiting for the server to finish processing the uploaded activity log.
+    public private(set) var buildRunReports: [RunReportBuildRun] = []
+    public func add(buildRunReport: RunReportBuildRun) {
+        buildRunReports.append(buildRunReport)
     }
 
     /// Canonical command metadata derived during command execution.

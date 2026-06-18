@@ -3,7 +3,11 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import SwifterPMCore
 import TSCUtility
+import TuistConstants
+import TuistEnvironment
+import TuistLogging
 
 /// Protocol that defines an interface to interact with the Swift Package Manager.
 @Mockable
@@ -62,27 +66,75 @@ public protocol SwiftPackageManagerControlling {
     ) async throws
 }
 
+protocol SwifterPMResolving: Sendable {
+    func resolveDependencies(_ request: SwifterPMResolutionRequest) async throws
+    func updateDependencies(_ request: SwifterPMResolutionRequest) async throws
+}
+
+extension SwifterPM: SwifterPMResolving {
+    func resolveDependencies(_ request: SwifterPMResolutionRequest) async throws {
+        _ = try await resolve(request)
+    }
+
+    func updateDependencies(_ request: SwifterPMResolutionRequest) async throws {
+        _ = try await update(request)
+    }
+}
+
+public enum SwiftPackageManagerControllerError: FatalError, Equatable {
+    case unexpectedSwifterPMCommand(String)
+
+    public var type: ErrorType {
+        .abort
+    }
+
+    public var description: String {
+        switch self {
+        case let .unexpectedSwifterPMCommand(command):
+            return "Expected SwifterPM to parse a \(command) command."
+        }
+    }
+}
+
 public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
     private let fileSystem: FileSysteming
     private let commandRunner: () -> CommandRunning
+    private let swifterPM: SwifterPMResolving
+    private let environmentVariables: @Sendable () -> [String: String]
 
     public init() {
         self.init(
             fileSystem: FileSystem(),
-            commandRunner: { CommandRunner() }
+            commandRunner: { CommandRunner() },
+            swifterPM: SwifterPM()
         )
     }
 
     init(
         fileSystem: FileSysteming,
-        commandRunner: @escaping () -> CommandRunning
+        commandRunner: @escaping () -> CommandRunning,
+        swifterPM: SwifterPMResolving = SwifterPM(),
+        environmentVariables: @escaping @Sendable () -> [String: String] = { Environment.current.variables }
     ) {
         self.fileSystem = fileSystem
         self.commandRunner = commandRunner
+        self.swifterPM = swifterPM
+        self.environmentVariables = environmentVariables
     }
 
     public func resolve(at path: AbsolutePath, arguments: [String], printOutput: Bool) async throws {
-        let command = buildSwiftPackageCommand(
+        if swifterPMIsEnabled {
+            let request = try await swifterPMRequest(
+                command: "resolve",
+                packagePath: path,
+                arguments: arguments,
+                printOutput: printOutput
+            )
+            try await swifterPM.resolveDependencies(request)
+            return
+        }
+
+        let command = try await buildResolveOrUpdateCommand(
             packagePath: path,
             extraArguments: arguments + ["resolve"]
         )
@@ -93,7 +145,18 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
     }
 
     public func update(at path: AbsolutePath, arguments: [String], printOutput: Bool) async throws {
-        let command = buildSwiftPackageCommand(
+        if swifterPMIsEnabled {
+            let request = try await swifterPMRequest(
+                command: "update",
+                packagePath: path,
+                arguments: arguments,
+                printOutput: printOutput
+            )
+            try await swifterPM.updateDependencies(request)
+            return
+        }
+
+        let command = try await buildResolveOrUpdateCommand(
             packagePath: path,
             extraArguments: arguments + ["update"]
         )
@@ -204,5 +267,55 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
             packagePath.pathString,
         ]
             + extraArguments
+    }
+
+    private func buildResolveOrUpdateCommand(packagePath: AbsolutePath, extraArguments: [String]) async throws -> [String] {
+        buildSwiftPackageCommand(packagePath: packagePath, extraArguments: extraArguments)
+    }
+
+    private var swifterPMIsEnabled: Bool {
+        Environment(variables: environmentVariables()).isVariableTruthy(Constants.EnvironmentVariables.useSwifterPM)
+    }
+
+    private func swifterPMRequest(
+        command: String,
+        packagePath: AbsolutePath,
+        arguments: [String],
+        printOutput: Bool
+    ) async throws -> SwifterPMResolutionRequest {
+        let parserArguments = swifterPMArguments(
+            command: command,
+            packagePath: packagePath,
+            arguments: arguments
+        )
+        let parsedCommand = try await SwifterPMCommandParser.parse(parserArguments)
+
+        var request: SwifterPMResolutionRequest
+        switch (command, parsedCommand) {
+        case let ("resolve", .resolve(parsedRequest)),
+             let ("update", .update(parsedRequest)):
+            request = parsedRequest
+        default:
+            throw SwiftPackageManagerControllerError.unexpectedSwifterPMCommand(command)
+        }
+
+        request.quiet = request.quiet || !printOutput
+        return request
+    }
+
+    private func swifterPMArguments(command: String, packagePath: AbsolutePath, arguments: [String]) -> [String] {
+        var parserArguments = arguments
+        if !parserArguments.containsPackagePathArgument {
+            parserArguments = ["--package-path", packagePath.pathString] + parserArguments
+        }
+        return parserArguments + [command]
+    }
+}
+
+extension [String] {
+    fileprivate var containsPackagePathArgument: Bool {
+        contains { argument in
+            argument == "--package-path" || argument.hasPrefix("--package-path=")
+        }
     }
 }

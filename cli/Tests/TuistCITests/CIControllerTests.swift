@@ -33,6 +33,24 @@ struct CIControllerTests {
             projectHandle: "owner/repo",
             host: nil
         ))
+        #expect(ciInfo?.shardReference == "github-123456789")
+    }
+
+    @Test(.withMockedEnvironment()) func ciInfo_github_shard_reference_is_stable_across_attempts() throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.variables = [
+            "GITHUB_ACTIONS": "true",
+            "GITHUB_REPOSITORY": "owner/repo",
+            "GITHUB_RUN_ID": "123456789",
+            "GITHUB_RUN_ATTEMPT": "2",
+        ]
+
+        // When
+        let ciInfo = subject.ciInfo()
+
+        // Then
+        #expect(ciInfo?.shardReference == "github-123456789")
     }
 
     @Test(.withMockedEnvironment()) func ciInfo_returns_gitlab_info_with_default_host() throws {

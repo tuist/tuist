@@ -1,8 +1,9 @@
 # Tuist ClusterClass + Cluster CRs
 
 Self-hosted Kubernetes manifests for the Tuist workload clusters
-(staging / canary / production / preview, plus production Kura regional
-clusters), reconciled by our own management cluster running CAPI + caph.
+(staging / canary / production / preview), reconciled by our own
+management cluster running CAPI + caph. Production Kura regions are
+dedicated node pools inside the production workload cluster.
 
 ## Why a ClusterClass
 
@@ -23,8 +24,6 @@ clusters/
 ├── cluster-staging.yaml       per-env Cluster CRs in topology mode
 ├── cluster-canary.yaml
 ├── cluster-production.yaml
-├── cluster-production-us-east.yaml
-├── cluster-production-us-west.yaml
 └── cluster-preview.yaml
 ```
 
@@ -33,10 +32,8 @@ clusters/
 | Cluster | CP | Workers |
 |---|---|---|
 | `tuist-staging` | 3× cpx22 | md-0: 2× cpx31 |
-| `tuist-canary` | 3× cpx22 | md-0: 2× cpx31 |
-| `tuist` (production) | 3× cpx22 | md-0: 2× ccx23 (`pool=general`); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12) |
-| `tuist-kura-us-east` (production Kura `us-east-1`) | 3× ccx13 in `ash` | kura: 3× ccx13 (`pool=kura`, autoscaled 3→12) |
-| `tuist-kura-us-west` (production Kura `us-west-1`) | 3× ccx13 in `hil` | kura: 3× ccx13 (`pool=kura`, autoscaled 3→12) |
+| `tuist-canary` | 3× cpx22 | md-0: 2× cpx32; kura: 3× ccx13 (`pool=kura`) |
+| `tuist` (production) | 3× cpx22 | md-0: 3× ccx23 (`pool=general`); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12) |
 | `tuist-preview` | 1× cpx22 | md-0: 1× cpx42 |
 
 Variables exposed by the ClusterClass: control plane replicas + machine
@@ -47,9 +44,9 @@ Managed Kura region mapping is:
 
 | Product region | Cluster ID | CAPI Cluster | Hetzner location |
 |---|---|---|---|
-| `eu-central` | `eu-central-1` | `tuist` | `fsn1` |
-| `us-east` | `us-east-1` | `tuist-kura-us-east` | `ash` |
-| `us-west` | `us-west-1` | `tuist-kura-us-west` | `hil` |
+| `eu-central` | `eu-central-1` | `tuist` node pool `kura` | `fsn1` |
+| `us-east` | `us-east-1` | `tuist` node pool `kura-us-east` | `ash` |
+| `us-west` | `us-west-1` | `tuist` node pool `kura-us-west` | `hil` |
 
 ## Image strategy
 

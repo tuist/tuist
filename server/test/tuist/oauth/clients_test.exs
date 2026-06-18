@@ -1,5 +1,5 @@
 defmodule Tuist.OAuth.ClientsTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   alias Boruta.Oauth.Client
@@ -23,21 +23,21 @@ defmodule Tuist.OAuth.ClientsTest do
   end
 
   describe "get_client/1" do
-    test "returns the dedicated Kura introspection client" do
-      stub(Environment, :kura_introspection_configured?, fn -> true end)
-      stub(Environment, :kura_introspection_client_id, fn -> "kura-introspect" end)
-      stub(Environment, :kura_introspection_client_secret, fn -> "kura-secret" end)
+    test "returns the dedicated Kura control-plane client" do
+      stub(Environment, :kura_control_plane_configured?, fn -> true end)
+      stub(Environment, :kura_control_plane_client_id, fn -> "00000000-0000-0000-0000-000000000001" end)
+      stub(Environment, :kura_control_plane_client_secret, fn -> "kura-secret" end)
 
-      assert %Client{} = client = Clients.get_client("kura-introspect")
-      assert client.id == "kura-introspect"
+      assert %Client{} = client = Clients.get_client("00000000-0000-0000-0000-000000000001")
+      assert client.id == "00000000-0000-0000-0000-000000000001"
       assert client.secret == "kura-secret"
       assert client.confidential == true
-      assert client.supported_grant_types == ["introspect"]
+      assert client.supported_grant_types == ["introspect", "kura_usage"]
       assert client.token_endpoint_auth_methods == ["client_secret_basic", "client_secret_post"]
     end
 
     test "keeps the Tuist CLI OAuth client separate from introspection" do
-      stub(Environment, :kura_introspection_configured?, fn -> false end)
+      stub(Environment, :kura_control_plane_configured?, fn -> false end)
       stub(Environment, :oauth_client_id, fn -> "tuist-cli" end)
       stub(Environment, :oauth_client_secret, fn -> "tuist-cli-secret" end)
       stub(Environment, :oauth_client_name, fn -> "Tuist CLI" end)

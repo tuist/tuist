@@ -2,7 +2,18 @@ package controllers
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/json"
+	"encoding/pem"
 	"fmt"
+	"hash/fnv"
+	"math/big"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -20,9 +31,14 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
 )
@@ -30,11 +46,9 @@ import (
 const (
 	KuraInstanceFinalizer = "kurainstances.kura.tuist.dev/finalizer"
 
-	httpPort        int32 = 4000
-	httpsPort       int32 = 443
-	httpsTargetPort int32 = 4443
-	grpcPort        int32 = 50051
-	peerPort        int32 = 7443
+	httpPort int32 = 4000
+	grpcPort int32 = 50051
+	peerPort int32 = 7443
 
 	// drainCompletionTimeoutMs and preStopDelaySeconds together set how
 	// long a Kura pod is given to bleed connections off before SIGTERM.
@@ -45,18 +59,27 @@ const (
 	preStopDelaySeconds      int64 = 20
 	terminationGraceExtra    int64 = 15
 
-	sharedSecretsName        = "kura-shared-secrets"
-	otlpTracesEndpointEnvVar = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
+	// podNameLabel is the per-pod label the StatefulSet controller stamps
+	// on every pod (<statefulset>-<ordinal>). The public backend Service
+	// selects a single pod through it so steady-state cache traffic for a
+	// region lands on one node, giving read-after-write consistency
+	// without fanning the read path across the eventually-consistent mesh.
+	podNameLabel = "statefulset.kubernetes.io/pod-name"
 
-	grpcTLSVolumeName = "grpc-tls"
-	grpcTLSMountPath  = "/etc/kura/grpc-tls"
-	grpcTLSCertFile   = "tls.crt"
-	grpcTLSKeyFile    = "tls.key"
+	// minPrimaryPodAge gives a restarted pod time to bootstrap from peers
+	// before the public Services can route cache reads to it.
+	minPrimaryPodAge = 10 * time.Minute
 
-	publicTLSVolumeName = "public-tls"
-	publicTLSMountPath  = "/etc/kura/public-tls"
-	publicTLSCertFile   = "tls.crt"
-	publicTLSKeyFile    = "tls.key"
+	sharedSecretsName         = "kura-shared-secrets"
+	otlpTracesEndpointEnvVar  = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
+	environmentEnvVar         = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT"
+	sharedSecretsRVAnnotation = "kura.tuist.dev/shared-secrets-resource-version"
+
+	peerTLSVolumeName = "peer-tls"
+	peerTLSMountPath  = "/etc/kura/peer-tls"
+	peerTLSCAFile     = "ca.pem"
+	peerTLSCertFile   = "tls.crt"
+	peerTLSKeyFile    = "tls.key"
 )
 
 type KuraInstanceReconciler struct {
@@ -66,14 +89,29 @@ type KuraInstanceReconciler struct {
 	// GRPCClusterIssuer, when non-empty, makes the controller request
 	// cert-manager Certificates per instance with this ClusterIssuer for
 	// both the public HTTPS host and the gRPC host. The issued Secrets
-	// are mounted into the Kura pod so the runtime can terminate TLS
-	// for both the public HTTPS LoadBalancer and the gRPC LoadBalancer.
+	// are referenced by the regional Kura ingress layer that terminates
+	// TLS for customer-facing traffic.
 	// The name is historical; the controller uses the same issuer for
 	// every cert it asks cert-manager to mint.
-	GRPCClusterIssuer  string
-	OTLPTracesEndpoint string
+	GRPCClusterIssuer   string
+	OTLPTracesEndpoint  string
+	Environment         string
+	RuntimeStatusClient RuntimeStatusClient
+}
 
-	CloudflareLoadBalancing CloudflareLoadBalancingConfig
+type RuntimeStatusClient interface {
+	Status(ctx context.Context, pod corev1.Pod) (runtimeStatus, error)
+}
+
+type runtimeStatus struct {
+	Ready           bool   `json:"ready"`
+	State           string `json:"state"`
+	RingMembers     int    `json:"ring_members"`
+	WriterLockOwned bool   `json:"writer_lock_owned"`
+}
+
+type httpRuntimeStatusClient struct {
+	client *http.Client
 }
 
 func certificateGVK() schema.GroupVersionKind {
@@ -88,8 +126,23 @@ func publicTLSSecretName(instance *kurav1alpha1.KuraInstance) string {
 	return instance.Name + "-public-tls"
 }
 
+func peerTLSSecretName(instance *kurav1alpha1.KuraInstance) string {
+	if instance.Spec.PeerTLSSecretName != "" {
+		return instance.Spec.PeerTLSSecretName
+	}
+	return instance.Name + "-peer-tls"
+}
+
 func grpcServiceName(instance *kurav1alpha1.KuraInstance) string {
 	return instance.Name + "-grpc"
+}
+
+func peerServiceName(instance *kurav1alpha1.KuraInstance) string {
+	return instance.Name + "-peer"
+}
+
+func crossRegionRuntimeEnabled(instance *kurav1alpha1.KuraInstance) bool {
+	return instance.Spec.PeerTLSSecretName != ""
 }
 
 func terminationGracePeriodSeconds() int64 {
@@ -101,6 +154,9 @@ func terminationGracePeriodSeconds() int64 {
 // +kubebuilder:rbac:groups=kura.tuist.dev,resources=kurainstances/finalizers,verbs=update
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services;configmaps,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses;networkpolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=policy,resources=poddisruptionbudgets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=get;list;watch;create;update;patch;delete
@@ -117,11 +173,6 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	if !instance.DeletionTimestamp.IsZero() {
-		if r.CloudflareLoadBalancing.Enabled() {
-			if err := newCloudflareClient(r.CloudflareLoadBalancing).deleteKuraLoadBalancers(ctx, instance); err != nil {
-				return ctrl.Result{}, err
-			}
-		}
 		controllerutil.RemoveFinalizer(instance, KuraInstanceFinalizer)
 		return ctrl.Result{}, r.Update(ctx, instance)
 	}
@@ -139,10 +190,26 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcileHeadlessService(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcileService(ctx, instance); err != nil {
+	if err := r.reconcileAccountPeerService(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcileGRPCService(ctx, instance); err != nil {
+	primaryPod, err := r.selectPrimaryPod(ctx, instance)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileService(ctx, instance, primaryPod); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileGRPCService(ctx, instance, primaryPod); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcilePeerService(ctx, instance, primaryPod); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcilePublicIngress(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileGRPCIngress(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcilePublicCertificate(ctx, instance); err != nil {
@@ -151,7 +218,7 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcileGRPCCertificate(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.deleteLegacyIngress(ctx, instance); err != nil {
+	if err := r.reconcilePeerTLSSecret(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileNetworkPolicy(ctx, instance); err != nil {
@@ -163,21 +230,6 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcileStatefulSet(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
-	statusGlobalPublicURL := ""
-	statusGlobalGRPCPublicURL := ""
-	globalStatusWarnings := []string{}
-	if r.CloudflareLoadBalancing.Enabled() && r.CloudflareLoadBalancing.ReconcileGlobalEndpoints {
-		if err := newCloudflareClient(r.CloudflareLoadBalancing).reconcileKuraLoadBalancers(ctx, instance); err != nil {
-			if r.CloudflareLoadBalancing.RequireGlobalEndpoints {
-				return ctrl.Result{}, err
-			}
-			logger.Error(err, "global endpoint reconciliation degraded; continuing with workload status update")
-			globalStatusWarnings = append(globalStatusWarnings, fmt.Sprintf("global endpoint reconciliation degraded: %v", err))
-		} else {
-			statusGlobalPublicURL = globalPublicURL(instance)
-			statusGlobalGRPCPublicURL = globalGRPCPublicURL(instance)
-		}
-	}
 
 	rollout, err := r.rolloutStatus(ctx, instance)
 	if err != nil {
@@ -187,11 +239,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	instance.Status.Phase = rollout.phase
 	instance.Status.PublicURL = publicURL(instance)
 	instance.Status.GRPCPublicURL = grpcPublicURL(instance)
-	instance.Status.GlobalPublicURL = statusGlobalPublicURL
-	instance.Status.GlobalGRPCPublicURL = statusGlobalGRPCPublicURL
 	instance.Status.ObservedImage = rollout.observedImage
 	instance.Status.ReadyReplicas = rollout.readyReplicas
-	instance.Status.Message = joinStatusMessage(rollout.message, globalStatusWarnings...)
+	instance.Status.Message = rollout.message
 	instance.Status.LastReconciledAt = &now
 
 	if err := r.Status().Update(ctx, instance); err != nil {
@@ -200,19 +250,6 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	logger.Info("reconciled Kura instance", "phase", rollout.phase, "readyReplicas", rollout.readyReplicas)
 	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
-}
-
-func joinStatusMessage(primary string, extras ...string) string {
-	parts := make([]string, 0, 1+len(extras))
-	if primary != "" {
-		parts = append(parts, primary)
-	}
-	for _, extra := range extras {
-		if extra != "" {
-			parts = append(parts, extra)
-		}
-	}
-	return strings.Join(parts, "; ")
 }
 
 func (r *KuraInstanceReconciler) reconcileConfigMap(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
@@ -247,78 +284,342 @@ func (r *KuraInstanceReconciler) reconcileHeadlessService(ctx context.Context, i
 	return err
 }
 
-func (r *KuraInstanceReconciler) reconcileService(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+func (r *KuraInstanceReconciler) reconcileAccountPeerService(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	if !crossRegionRuntimeEnabled(instance) {
+		return nil
+	}
+
+	service := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: accountPeerServiceName(instance), Namespace: instance.Namespace}}
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, service, func() error {
+		service.Labels = map[string]string{
+			"app.kubernetes.io/name":       "kura",
+			"app.kubernetes.io/managed-by": "kura-controller",
+			"tuist.dev/account":            instance.Spec.AccountHandle,
+		}
+		service.Spec.ClusterIP = corev1.ClusterIPNone
+		service.Spec.PublishNotReadyAddresses = true
+		service.Spec.Selector = map[string]string{
+			"app.kubernetes.io/name": "kura",
+			"tuist.dev/account":      instance.Spec.AccountHandle,
+		}
+		service.Spec.Ports = []corev1.ServicePort{
+			{Name: "peer", Port: peerPort, TargetPort: intstr.FromString("peer")},
+		}
+		return nil
+	})
+	return err
+}
+
+func (r *KuraInstanceReconciler) reconcileService(ctx context.Context, instance *kurav1alpha1.KuraInstance, primaryPod string) error {
 	service := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, service, func() error {
 		if err := controllerutil.SetControllerReference(instance, service, r.Scheme); err != nil {
 			return err
 		}
 		service.Labels = labels(instance)
-		service.Spec.Selector = selectorLabels(instance)
-		service.Annotations = publicServiceAnnotations(instance)
-
-		if instance.Spec.PublicHost == "" {
-			service.Spec.Type = corev1.ServiceTypeClusterIP
-			service.Spec.ExternalTrafficPolicy = ""
-			service.Spec.Ports = []corev1.ServicePort{
-				{Name: "http", Port: httpPort, TargetPort: intstr.FromString("http")},
-				{Name: "grpc", Port: grpcPort, TargetPort: intstr.FromString("grpc")},
-			}
-			return nil
-		}
-
-		service.Spec.Type = corev1.ServiceTypeLoadBalancer
-		service.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyLocal
-		service.Spec.Ports = []corev1.ServicePort{
-			{Name: "https", Port: httpsPort, TargetPort: intstr.FromString("https"), Protocol: corev1.ProtocolTCP},
-		}
+		service.Spec.Selector = primaryServiceSelector(instance, primaryPod)
+		service.Annotations = nil
+		service.Spec.Type = corev1.ServiceTypeClusterIP
+		service.Spec.ExternalTrafficPolicy = ""
+		service.Spec.Ports = ports()
 		return nil
 	})
 	return err
 }
 
-// reconcileGRPCService exposes the runtime's gRPC port via a separate
-// Hetzner Cloud LoadBalancer in tcp-passthrough mode. Hetzner managed
-// certificates only work with the http/https LB protocol (HTTP/1.1
-// downstream), so gRPC is incompatible with them — Kura terminates TLS
-// itself using the cert-manager Certificate produced by
-// reconcileGRPCCertificate.
-func (r *KuraInstanceReconciler) reconcileGRPCService(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
-	service := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: grpcServiceName(instance), Namespace: instance.Namespace}}
+func (r *KuraInstanceReconciler) reconcileGRPCService(ctx context.Context, instance *kurav1alpha1.KuraInstance, primaryPod string) error {
+	return r.deleteLegacyServiceIfExists(ctx, grpcServiceName(instance), instance.Namespace)
+}
 
-	if instance.Spec.GRPCPublicHost == "" {
-		if err := r.Delete(ctx, service); err != nil && !apierrors.IsNotFound(err) {
+func (r *KuraInstanceReconciler) reconcilePeerService(ctx context.Context, instance *kurav1alpha1.KuraInstance, primaryPod string) error {
+	return r.deleteLegacyServiceIfExists(ctx, peerServiceName(instance), instance.Namespace)
+}
+
+func (r *KuraInstanceReconciler) deleteLegacyServiceIfExists(ctx context.Context, name string, namespace string) error {
+	service := &corev1.Service{}
+	if err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, service); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+	return r.Delete(ctx, service)
+}
+
+func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	ingress := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
+	if instance.Spec.PublicHost == "" {
+		if err := r.Delete(ctx, ingress); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
 		return nil
 	}
 
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, service, func() error {
-		if err := controllerutil.SetControllerReference(instance, service, r.Scheme); err != nil {
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, ingress, func() error {
+		if err := controllerutil.SetControllerReference(instance, ingress, r.Scheme); err != nil {
 			return err
 		}
-		service.Labels = labels(instance)
-		service.Annotations = grpcServiceAnnotations(instance)
-		service.Spec.Type = corev1.ServiceTypeLoadBalancer
-		service.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyLocal
-		service.Spec.Selector = selectorLabels(instance)
-		service.Spec.Ports = []corev1.ServicePort{
-			{Name: "grpcs", Port: httpsPort, TargetPort: intstr.FromString("grpc"), Protocol: corev1.ProtocolTCP},
-		}
+		ingress.Labels = labels(instance)
+		ingress.Annotations = publicIngressAnnotations()
+		ingress.Spec.IngressClassName = ptr(ingressClassName(instance))
+		ingress.Spec.TLS = []networkingv1.IngressTLS{{
+			Hosts:      []string{instance.Spec.PublicHost},
+			SecretName: publicTLSSecretName(instance),
+		}}
+		ingress.Spec.Rules = []networkingv1.IngressRule{{
+			Host: instance.Spec.PublicHost,
+			IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
+				Paths: []networkingv1.HTTPIngressPath{{
+					Path:     "/",
+					PathType: ptr(networkingv1.PathTypePrefix),
+					Backend:  ingressBackend(instance.Name, "http"),
+				}},
+			}},
+		}}
 		return nil
 	})
 	return err
 }
 
-// reconcilePublicCertificate provisions a cert-manager Certificate so
-// the runtime can terminate TLS for the public HTTPS LoadBalancer. The
-// LB is configured as TCP-passthrough; TLS termination happens in the
-// Kura pod from a cert-manager-issued Secret. When DNS-only global
-// steering is enabled, the global hostname is added as a SAN because
-// clients connect directly to this regional origin with the global SNI.
-// No-ops when either GRPCClusterIssuer or spec.publicHost is unset.
-// cert-manager must be installed in the cluster before
-// --grpc-cluster-issuer is set.
+func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	ingress := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: grpcServiceName(instance), Namespace: instance.Namespace}}
+	if instance.Spec.GRPCPublicHost == "" {
+		if err := r.Delete(ctx, ingress); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+		return nil
+	}
+
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, ingress, func() error {
+		if err := controllerutil.SetControllerReference(instance, ingress, r.Scheme); err != nil {
+			return err
+		}
+		ingress.Labels = labels(instance)
+		ingress.Annotations = grpcIngressAnnotations()
+		ingress.Spec.IngressClassName = ptr(ingressClassName(instance))
+		ingress.Spec.TLS = []networkingv1.IngressTLS{{
+			Hosts:      []string{instance.Spec.GRPCPublicHost},
+			SecretName: grpcTLSSecretName(instance),
+		}}
+		ingress.Spec.Rules = []networkingv1.IngressRule{{
+			Host: instance.Spec.GRPCPublicHost,
+			IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
+				Paths: []networkingv1.HTTPIngressPath{{
+					Path:     "/",
+					PathType: ptr(networkingv1.PathTypePrefix),
+					Backend:  ingressBackend(instance.Name, "grpc"),
+				}},
+			}},
+		}}
+		return nil
+	})
+	return err
+}
+
+func ingressBackend(serviceName string, servicePortName string) networkingv1.IngressBackend {
+	return networkingv1.IngressBackend{Service: &networkingv1.IngressServiceBackend{
+		Name: serviceName,
+		Port: networkingv1.ServiceBackendPort{Name: servicePortName},
+	}}
+}
+
+func ingressClassName(instance *kurav1alpha1.KuraInstance) string {
+	if strings.TrimSpace(instance.Spec.IngressClassName) != "" {
+		return strings.TrimSpace(instance.Spec.IngressClassName)
+	}
+	return "nginx"
+}
+
+// primaryServiceSelector pins a public Service to a single pod by adding
+// the StatefulSet per-pod label to the instance selector. The headless
+// Service keeps the broad selector so peer replication still reaches
+// every pod.
+func primaryServiceSelector(instance *kurav1alpha1.KuraInstance, primaryPod string) map[string]string {
+	selector := selectorLabels(instance)
+	selector[podNameLabel] = primaryPod
+	return selector
+}
+
+// selectPrimaryPod resolves which pod the public Services should route
+// to. The currently routed pod is read back from the existing Service
+// selector so the choice is sticky across reconciles and survives a
+// controller restart without a dedicated status field.
+func (r *KuraInstanceReconciler) selectPrimaryPod(ctx context.Context, instance *kurav1alpha1.KuraInstance) (string, error) {
+	current := ""
+	service := &corev1.Service{}
+	switch err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, service); {
+	case err == nil:
+		current = service.Spec.Selector[podNameLabel]
+	case apierrors.IsNotFound(err):
+	default:
+		return "", err
+	}
+
+	pods := &corev1.PodList{}
+	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
+		return "", err
+	}
+	return choosePrimaryPod(current, instance.Name, pods.Items, r.primaryPodHealth(ctx, instance, pods.Items)), nil
+}
+
+func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) map[string]bool {
+	kubernetesReady := map[string]bool{}
+	now := time.Now()
+	for i := range pods {
+		if podReady(&pods[i]) && podOldEnoughForPrimary(&pods[i], now, replicas(instance)) {
+			kubernetesReady[pods[i].Name] = true
+		}
+	}
+
+	statusClient := r.RuntimeStatusClient
+	if statusClient == nil {
+		statusClient = defaultRuntimeStatusClient()
+	}
+
+	runtimeHealthy := map[string]bool{}
+	runtimeStatuses := 0
+	for i := range pods {
+		if !kubernetesReady[pods[i].Name] {
+			continue
+		}
+		status, err := statusClient.Status(ctx, pods[i])
+		if err != nil {
+			log.FromContext(ctx).V(1).Info("failed to read Kura pod rollout status", "pod", pods[i].Name, "error", err)
+			continue
+		}
+		runtimeStatuses++
+		runtimeHealthy[pods[i].Name] = runtimeStatusRoutable(status, replicas(instance))
+	}
+
+	if runtimeStatuses == 0 {
+		return kubernetesReady
+	}
+	return runtimeHealthy
+}
+
+func defaultRuntimeStatusClient() RuntimeStatusClient {
+	return &httpRuntimeStatusClient{client: &http.Client{Timeout: 2 * time.Second}}
+}
+
+func (c *httpRuntimeStatusClient) Status(ctx context.Context, pod corev1.Pod) (runtimeStatus, error) {
+	if pod.Status.PodIP == "" {
+		return runtimeStatus{}, fmt.Errorf("pod has no IP")
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("http://%s:%d/status/rollout", pod.Status.PodIP, httpPort), nil)
+	if err != nil {
+		return runtimeStatus{}, err
+	}
+	response, err := c.client.Do(request)
+	if err != nil {
+		return runtimeStatus{}, err
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		return runtimeStatus{}, fmt.Errorf("unexpected status %d", response.StatusCode)
+	}
+	var status runtimeStatus
+	if err := json.NewDecoder(response.Body).Decode(&status); err != nil {
+		return runtimeStatus{}, err
+	}
+	return status, nil
+}
+
+func runtimeStatusRoutable(status runtimeStatus, replicas int32) bool {
+	if !status.Ready || status.State != "serving" || !status.WriterLockOwned {
+		return false
+	}
+	return status.RingMembers >= requiredPrimaryRingMembers(replicas)
+}
+
+func requiredPrimaryRingMembers(replicas int32) int {
+	if replicas <= 1 {
+		return 1
+	}
+	return 2
+}
+
+// choosePrimaryPod picks the pod the public Services route to. It is
+// sticky: the current primary is kept while it stays routable so a
+// recovered lower-ordinal pod does not steal traffic back, because every
+// handoff costs a brief read-after-write inconsistency window during
+// async replication catch-up and we want to minimise them. Otherwise it
+// falls to the lowest-ordinal routable pod, and before any pod is
+// routable it defaults to ordinal 0 so the Service has a stable selector.
+func choosePrimaryPod(current, instanceName string, pods []corev1.Pod, routable map[string]bool) string {
+	if routable == nil {
+		routable = map[string]bool{}
+		for i := range pods {
+			if podReady(&pods[i]) {
+				routable[pods[i].Name] = true
+			}
+		}
+	}
+
+	if current != "" && routable[current] {
+		return current
+	}
+
+	best := ""
+	bestOrdinal := -1
+	for name, ok := range routable {
+		if !ok {
+			continue
+		}
+		ordinal, ok := podOrdinal(name, instanceName)
+		if !ok {
+			continue
+		}
+		if best == "" || ordinal < bestOrdinal {
+			best = name
+			bestOrdinal = ordinal
+		}
+	}
+	if best != "" {
+		return best
+	}
+
+	if current != "" {
+		return current
+	}
+	return fmt.Sprintf("%s-0", instanceName)
+}
+
+func podReady(pod *corev1.Pod) bool {
+	if pod.DeletionTimestamp != nil {
+		return false
+	}
+	for _, condition := range pod.Status.Conditions {
+		if condition.Type == corev1.PodReady {
+			return condition.Status == corev1.ConditionTrue
+		}
+	}
+	return false
+}
+
+func podOldEnoughForPrimary(pod *corev1.Pod, now time.Time, replicas int32) bool {
+	if replicas <= 1 || pod.CreationTimestamp.IsZero() {
+		return true
+	}
+	return now.Sub(pod.CreationTimestamp.Time) >= minPrimaryPodAge
+}
+
+func podOrdinal(podName, instanceName string) (int, bool) {
+	prefix := instanceName + "-"
+	if !strings.HasPrefix(podName, prefix) {
+		return 0, false
+	}
+	ordinal, err := strconv.Atoi(strings.TrimPrefix(podName, prefix))
+	if err != nil {
+		return 0, false
+	}
+	return ordinal, true
+}
+
+// reconcilePublicCertificate provisions a cert-manager Certificate for
+// the regional Kura ingress that terminates public HTTPS. No-ops when either
+// GRPCClusterIssuer or spec.publicHost is unset. cert-manager must be
+// installed in the cluster before --grpc-cluster-issuer is set.
 func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	cert := &unstructured.Unstructured{}
 	cert.SetGroupVersionKind(certificateGVK())
@@ -339,7 +640,7 @@ func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context,
 		cert.SetLabels(labels(instance))
 		spec := map[string]any{
 			"secretName": publicTLSSecretName(instance),
-			"dnsNames":   dnsNames(instance.Spec.PublicHost, instance.Spec.GlobalPublicHost),
+			"dnsNames":   dnsNames(instance.Spec.PublicHost),
 			"issuerRef": map[string]any{
 				"name": r.GRPCClusterIssuer,
 				"kind": "ClusterIssuer",
@@ -355,11 +656,10 @@ func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context,
 	return err
 }
 
-// reconcileGRPCCertificate provisions a cert-manager Certificate so the
-// runtime can terminate TLS for the gRPC LoadBalancer. The global gRPC
-// hostname is added as a SAN for DNS-only global steering. No-ops when
-// either GRPCClusterIssuer or spec.grpcPublicHost is unset. cert-manager
-// must be installed in the cluster before --grpc-cluster-issuer is set.
+// reconcileGRPCCertificate provisions a cert-manager Certificate for
+// the regional Kura ingress that terminates public gRPC. No-ops when either
+// GRPCClusterIssuer or spec.grpcPublicHost is unset. cert-manager must
+// be installed in the cluster before --grpc-cluster-issuer is set.
 func (r *KuraInstanceReconciler) reconcileGRPCCertificate(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	cert := &unstructured.Unstructured{}
 	cert.SetGroupVersionKind(certificateGVK())
@@ -380,7 +680,7 @@ func (r *KuraInstanceReconciler) reconcileGRPCCertificate(ctx context.Context, i
 		cert.SetLabels(labels(instance))
 		spec := map[string]any{
 			"secretName": grpcTLSSecretName(instance),
-			"dnsNames":   dnsNames(instance.Spec.GRPCPublicHost, instance.Spec.GlobalGRPCPublicHost),
+			"dnsNames":   dnsNames(instance.Spec.GRPCPublicHost),
 			"issuerRef": map[string]any{
 				"name": r.GRPCClusterIssuer,
 				"kind": "ClusterIssuer",
@@ -396,6 +696,145 @@ func (r *KuraInstanceReconciler) reconcileGRPCCertificate(ctx context.Context, i
 	return err
 }
 
+func (r *KuraInstanceReconciler) reconcilePeerTLSSecret(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	if instance.Spec.PeerTLSSecretName != "" {
+		return nil
+	}
+
+	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: peerTLSSecretName(instance), Namespace: instance.Namespace}}
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
+		if err := controllerutil.SetControllerReference(instance, secret, r.Scheme); err != nil {
+			return err
+		}
+		secret.Labels = labels(instance)
+		secret.Type = corev1.SecretTypeOpaque
+		if peerTLSSecretDataValid(secret.Data, instance) {
+			return nil
+		}
+		data, err := generatePeerTLSSecretData(instance)
+		if err != nil {
+			return err
+		}
+		secret.Data = data
+		return nil
+	})
+	return err
+}
+
+func peerTLSSecretDataValid(data map[string][]byte, instance *kurav1alpha1.KuraInstance) bool {
+	if len(data[peerTLSCAFile]) == 0 || len(data[peerTLSCertFile]) == 0 || len(data[peerTLSKeyFile]) == 0 {
+		return false
+	}
+
+	roots := x509.NewCertPool()
+	if !roots.AppendCertsFromPEM(data[peerTLSCAFile]) {
+		return false
+	}
+	if _, err := tls.X509KeyPair(data[peerTLSCertFile], data[peerTLSKeyFile]); err != nil {
+		return false
+	}
+	block, _ := pem.Decode(data[peerTLSCertFile])
+	if block == nil || block.Type != "CERTIFICATE" {
+		return false
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return false
+	}
+	_, err = cert.Verify(x509.VerifyOptions{
+		DNSName:   firstPodDNSName(instance),
+		Roots:     roots,
+		KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+	})
+	return err == nil && hasExtKeyUsage(cert, x509.ExtKeyUsageClientAuth)
+}
+
+func generatePeerTLSSecretData(instance *kurav1alpha1.KuraInstance) (map[string][]byte, error) {
+	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("generate peer CA key: %w", err)
+	}
+	leafKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("generate peer certificate key: %w", err)
+	}
+
+	now := time.Now().UTC()
+	caTemplate := &x509.Certificate{
+		SerialNumber:          randomSerialNumber(),
+		Subject:               pkix.Name{CommonName: instance.Name + " peer CA"},
+		NotBefore:             now.Add(-time.Hour),
+		NotAfter:              now.AddDate(10, 0, 0),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}
+	caDER, err := x509.CreateCertificate(rand.Reader, caTemplate, caTemplate, &caKey.PublicKey, caKey)
+	if err != nil {
+		return nil, fmt.Errorf("generate peer CA certificate: %w", err)
+	}
+
+	leafTemplate := &x509.Certificate{
+		SerialNumber: randomSerialNumber(),
+		Subject:      pkix.Name{CommonName: instance.Name + " peer"},
+		DNSNames:     peerTLSDNSNames(instance),
+		NotBefore:    now.Add(-time.Hour),
+		NotAfter:     now.AddDate(2, 0, 0),
+		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+	}
+	leafDER, err := x509.CreateCertificate(rand.Reader, leafTemplate, caTemplate, &leafKey.PublicKey, caKey)
+	if err != nil {
+		return nil, fmt.Errorf("generate peer certificate: %w", err)
+	}
+
+	leafPKCS8, err := x509.MarshalPKCS8PrivateKey(leafKey)
+	if err != nil {
+		return nil, fmt.Errorf("marshal peer private key: %w", err)
+	}
+
+	return map[string][]byte{
+		peerTLSCAFile:   pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caDER}),
+		peerTLSCertFile: pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: leafDER}),
+		peerTLSKeyFile:  pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: leafPKCS8}),
+	}, nil
+}
+
+func randomSerialNumber() *big.Int {
+	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	if err != nil {
+		return big.NewInt(time.Now().UnixNano())
+	}
+	return serial
+}
+
+func hasExtKeyUsage(cert *x509.Certificate, usage x509.ExtKeyUsage) bool {
+	for _, certUsage := range cert.ExtKeyUsage {
+		if certUsage == usage {
+			return true
+		}
+	}
+	return false
+}
+
+func peerTLSDNSNames(instance *kurav1alpha1.KuraInstance) []string {
+	headless := headlessServiceName(instance)
+	namespace := instance.Namespace
+	return []string{
+		fmt.Sprintf("*.%s.%s.svc.cluster.local", headless, namespace),
+		fmt.Sprintf("*.%s.%s.svc", headless, namespace),
+		fmt.Sprintf("*.%s.%s", headless, namespace),
+		headless,
+		fmt.Sprintf("%s.%s", headless, namespace),
+		fmt.Sprintf("%s.%s.svc", headless, namespace),
+		fmt.Sprintf("%s.%s.svc.cluster.local", headless, namespace),
+	}
+}
+
+func firstPodDNSName(instance *kurav1alpha1.KuraInstance) string {
+	return fmt.Sprintf("%s-0.%s.%s.svc.cluster.local", instance.Name, headlessServiceName(instance), instance.Namespace)
+}
+
 func dnsNames(names ...string) []any {
 	seen := map[string]bool{}
 	result := make([]any, 0, len(names))
@@ -407,14 +846,6 @@ func dnsNames(names ...string) []any {
 		result = append(result, name)
 	}
 	return result
-}
-
-func (r *KuraInstanceReconciler) deleteLegacyIngress(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
-	ingress := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
-	if err := r.Delete(ctx, ingress); err != nil && !apierrors.IsNotFound(err) {
-		return err
-	}
-	return nil
 }
 
 func (r *KuraInstanceReconciler) reconcilePodDisruptionBudget(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
@@ -440,7 +871,12 @@ func (r *KuraInstanceReconciler) reconcilePodDisruptionBudget(ctx context.Contex
 
 func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	sts := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, sts, func() error {
+	sharedSecretsResourceVersion, err := r.sharedSecretsResourceVersion(ctx, instance.Namespace)
+	if err != nil {
+		return err
+	}
+	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, sts, func() error {
+		existingVolumeClaimTemplates := sts.Spec.VolumeClaimTemplates
 		if err := controllerutil.SetControllerReference(instance, sts, r.Scheme); err != nil {
 			return err
 		}
@@ -449,8 +885,12 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 		sts.Spec.Replicas = ptr(replicas(instance))
 		sts.Spec.PodManagementPolicy = appsv1.ParallelPodManagement
 		sts.Spec.Selector = &metav1.LabelSelector{MatchLabels: selectorLabels(instance)}
-		sts.Spec.Template = podTemplate(instance, r.OTLPTracesEndpoint)
-		sts.Spec.VolumeClaimTemplates = []corev1.PersistentVolumeClaim{dataVolumeClaim(instance)}
+		sts.Spec.Template = podTemplate(instance, r.OTLPTracesEndpoint, r.Environment, sharedSecretsResourceVersion)
+		if len(existingVolumeClaimTemplates) > 0 {
+			sts.Spec.VolumeClaimTemplates = existingVolumeClaimTemplates
+		} else {
+			sts.Spec.VolumeClaimTemplates = []corev1.PersistentVolumeClaim{dataVolumeClaim(instance)}
+		}
 		// Drop the PVC when the StatefulSet itself is deleted (server
 		// destroy), but keep it around when scaling down so a replica
 		// can rejoin with its existing cache.
@@ -460,7 +900,50 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 		}
 		return nil
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	return r.reconcileDataPersistentVolumeClaims(ctx, instance)
+}
+
+func (r *KuraInstanceReconciler) reconcileDataPersistentVolumeClaims(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	desiredStorage := storageQuantity(instance)
+	for ordinal := int32(0); ordinal < replicas(instance); ordinal++ {
+		pvc := &corev1.PersistentVolumeClaim{}
+		name := fmt.Sprintf("data-%s-%d", instance.Name, ordinal)
+		if err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: instance.Namespace}, pvc); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return err
+		}
+
+		currentStorage := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
+		if desiredStorage.Cmp(currentStorage) <= 0 {
+			continue
+		}
+
+		before := pvc.DeepCopy()
+		if pvc.Spec.Resources.Requests == nil {
+			pvc.Spec.Resources.Requests = corev1.ResourceList{}
+		}
+		pvc.Spec.Resources.Requests[corev1.ResourceStorage] = desiredStorage.DeepCopy()
+		if err := r.Patch(ctx, pvc, client.MergeFrom(before)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *KuraInstanceReconciler) sharedSecretsResourceVersion(ctx context.Context, namespace string) (string, error) {
+	secret := &corev1.Secret{}
+	if err := r.Get(ctx, types.NamespacedName{Name: sharedSecretsName, Namespace: namespace}, secret); err != nil {
+		if apierrors.IsNotFound(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	return secret.ResourceVersion, nil
 }
 
 type rolloutState struct {
@@ -522,11 +1005,11 @@ func rolloutStatusFromStatefulSet(instance *kurav1alpha1.KuraInstance, sts *apps
 	}
 }
 
-func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string) corev1.PodTemplateSpec {
+func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, environment string, sharedSecretsResourceVersion string) corev1.PodTemplateSpec {
 	return corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      labels(instance),
-			Annotations: podAnnotations(),
+			Annotations: podAnnotations(sharedSecretsResourceVersion),
 		},
 		Spec: corev1.PodSpec{
 			TerminationGracePeriodSeconds: ptr(terminationGracePeriodSeconds()),
@@ -537,7 +1020,7 @@ func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string)
 				Image:           instance.Spec.Image,
 				ImagePullPolicy: corev1.PullIfNotPresent,
 				Ports:           containerPorts(instance),
-				Env:             append(baseEnv(instance, otlpTracesEndpoint), instance.Spec.ExtraEnv...),
+				Env:             append(baseEnv(instance, otlpTracesEndpoint, environment), instance.Spec.ExtraEnv...),
 				EnvFrom:         sharedSecretsEnvFrom(),
 				Resources:       defaultResources(),
 				VolumeMounts:    volumeMounts(instance),
@@ -555,12 +1038,16 @@ func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string)
 // clusters' Alloy annotation autodiscovery pipeline. Keep this aligned
 // with kura/ops/helm/kura/values.yaml so controller-managed Kura pods
 // publish the same telemetry surface as chart-managed ones.
-func podAnnotations() map[string]string {
-	return map[string]string{
+func podAnnotations(sharedSecretsResourceVersion string) map[string]string {
+	annotations := map[string]string{
 		"prometheus.io/scrape":    "true",
 		"prometheus.io/port-name": "http",
 		"prometheus.io/path":      "/metrics",
 	}
+	if sharedSecretsResourceVersion != "" {
+		annotations[sharedSecretsRVAnnotation] = sharedSecretsResourceVersion
+	}
+	return annotations
 }
 
 // preStopLifecycle sends SIGUSR1 to the kura process so it begins
@@ -597,11 +1084,15 @@ func sharedSecretsEnvFrom() []corev1.EnvFromSource {
 	}}
 }
 
+// The memory request matches the limit because Kura sizes its memory
+// budget from the cgroup limit (soft limit 70%, hard limit 85% of it)
+// and routinely operates above 1Gi, so the full 2Gi must be reserved
+// at scheduling time to avoid node overcommit.
 func defaultResources() corev1.ResourceRequirements {
 	return corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
 			corev1.ResourceCPU:    resource.MustParse("500m"),
-			corev1.ResourceMemory: resource.MustParse("1Gi"),
+			corev1.ResourceMemory: resource.MustParse("2Gi"),
 		},
 		Limits: corev1.ResourceList{
 			corev1.ResourceMemory: resource.MustParse("2Gi"),
@@ -609,48 +1100,31 @@ func defaultResources() corev1.ResourceRequirements {
 	}
 }
 
-// publicServiceAnnotations returns the Hetzner Cloud LoadBalancer
-// annotations for the public Service. The LB runs in tcp-passthrough
-// mode and TLS is terminated inside the Kura pod from a cert-manager-
-// issued Secret. Health checks use TCP against the Service NodePort
-// because Hetzner targets nodes, not pods; HTTP health checks would
-// speak cleartext to the TLS passthrough port.
-func publicServiceAnnotations(instance *kurav1alpha1.KuraInstance) map[string]string {
-	if instance.Spec.PublicHost == "" {
-		return nil
-	}
-
-	return map[string]string{
-		"external-dns.alpha.kubernetes.io/hostname":         instance.Spec.PublicHost,
-		"load-balancer.hetzner.cloud/name":                  instance.Name,
-		"load-balancer.hetzner.cloud/protocol":              "tcp",
-		"load-balancer.hetzner.cloud/algorithm-type":        "least_connections",
-		"load-balancer.hetzner.cloud/node-selector":         "node.cluster.x-k8s.io/pool=kura",
-		"load-balancer.hetzner.cloud/health-check-protocol": "tcp",
-	}
+func publicIngressAnnotations() map[string]string {
+	return streamingIngressAnnotations("HTTP")
 }
 
-func grpcServiceAnnotations(instance *kurav1alpha1.KuraInstance) map[string]string {
-	if instance.Spec.GRPCPublicHost == "" {
-		return nil
-	}
+func grpcIngressAnnotations() map[string]string {
+	return streamingIngressAnnotations("GRPC")
+}
 
+func streamingIngressAnnotations(backendProtocol string) map[string]string {
 	return map[string]string{
-		"external-dns.alpha.kubernetes.io/hostname":         instance.Spec.GRPCPublicHost,
-		"load-balancer.hetzner.cloud/name":                  grpcServiceName(instance),
-		"load-balancer.hetzner.cloud/protocol":              "tcp",
-		"load-balancer.hetzner.cloud/algorithm-type":        "least_connections",
-		"load-balancer.hetzner.cloud/node-selector":         "node.cluster.x-k8s.io/pool=kura",
-		"load-balancer.hetzner.cloud/health-check-protocol": "tcp",
+		"nginx.ingress.kubernetes.io/backend-protocol":        backendProtocol,
+		"nginx.ingress.kubernetes.io/proxy-body-size":         "0",
+		"nginx.ingress.kubernetes.io/proxy-buffering":         "off",
+		"nginx.ingress.kubernetes.io/proxy-request-buffering": "off",
+		"nginx.ingress.kubernetes.io/proxy-read-timeout":      "3600",
+		"nginx.ingress.kubernetes.io/proxy-send-timeout":      "3600",
 	}
 }
 
 // reconcileNetworkPolicy keeps inter-tenant traffic off the Kura pods on
 // the shared kura node pool. Selector traffic is allowed only between
-// pods of the same KuraInstance (peer replication, internal status) and
-// from Services in the same namespace (ingress LoadBalancer health
-// probes). Egress is left default-allow because the runtime needs to
-// reach the Tuist API for license/JWT validation and the OTLP collector.
+// pods of the same KuraInstance, from same-account Kura peers, and from
+// in-cluster Services such as the regional Kura ingress. Egress is left
+// default-allow because the runtime needs to reach the Tuist API for
+// license/JWT validation and the OTLP collector.
 func (r *KuraInstanceReconciler) reconcileNetworkPolicy(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	policy := &networkingv1.NetworkPolicy{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, policy, func() error {
@@ -660,12 +1134,22 @@ func (r *KuraInstanceReconciler) reconcileNetworkPolicy(ctx context.Context, ins
 		policy.Labels = labels(instance)
 		policy.Spec.PodSelector = metav1.LabelSelector{MatchLabels: selectorLabels(instance)}
 		policy.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeIngress}
-		policy.Spec.Ingress = []networkingv1.NetworkPolicyIngressRule{
+		ingress := []networkingv1.NetworkPolicyIngressRule{
 			{
 				// Ingress from this instance's own pods (peer
 				// replication, headless DNS bootstrap).
 				From: []networkingv1.NetworkPolicyPeer{
 					{PodSelector: &metav1.LabelSelector{MatchLabels: selectorLabels(instance)}},
+				},
+			},
+			{
+				// Same-account Kura peers in other regions share
+				// artifacts through the internal mTLS peer port.
+				From: []networkingv1.NetworkPolicyPeer{
+					{PodSelector: &metav1.LabelSelector{MatchLabels: accountPeerSelectorLabels(instance)}},
+				},
+				Ports: []networkingv1.NetworkPolicyPort{
+					{Port: ptr(intstr.FromString("peer")), Protocol: ptr(corev1.ProtocolTCP)},
 				},
 			},
 			{
@@ -681,16 +1165,8 @@ func (r *KuraInstanceReconciler) reconcileNetworkPolicy(ctx context.Context, ins
 					{Port: ptr(intstr.FromString("grpc")), Protocol: ptr(corev1.ProtocolTCP)},
 				},
 			},
-			{
-				// Public LoadBalancer traffic. With externalTrafficPolicy=Local
-				// the original client/LB source IP is preserved, so these ports
-				// need an explicit all-sources rule.
-				Ports: []networkingv1.NetworkPolicyPort{
-					{Port: ptr(intstr.FromString("https")), Protocol: ptr(corev1.ProtocolTCP)},
-					{Port: ptr(intstr.FromString("grpc")), Protocol: ptr(corev1.ProtocolTCP)},
-				},
-			},
 		}
+		policy.Spec.Ingress = ingress
 		return nil
 	})
 	return err
@@ -727,7 +1203,10 @@ func topologySpreadConstraints(instance *kurav1alpha1.KuraInstance) []corev1.Top
 // are derived from the pod's cgroup and rlimit at runtime startup, so
 // the controller deliberately doesn't override them. See
 // kura/src/config.rs::DerivedRuntimeDefaults.
-func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string) []corev1.EnvVar {
+func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, environment string) []corev1.EnvVar {
+	if environment == "" {
+		environment = "production"
+	}
 	env := []corev1.EnvVar{
 		{Name: "POD_NAME", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"}}},
 		{Name: "POD_NAMESPACE", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"}}},
@@ -735,14 +1214,19 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string) []c
 		{Name: "KURA_GRPC_PORT", Value: fmt.Sprintf("%d", grpcPort)},
 		{Name: "KURA_TENANT_ID", Value: instance.Spec.TenantID},
 		{Name: "KURA_REGION", Value: instance.Spec.Region},
-		{Name: "KURA_TMP_DIR", Value: "/tmp/kura"},
+		{Name: "KURA_TMP_DIR", Value: "/var/cache/kura/tmp"},
 		{Name: "KURA_DATA_DIR", Value: "/var/cache/kura"},
-		{Name: "KURA_NODE_URL", Value: fmt.Sprintf("http://$(POD_NAME).%s.$(POD_NAMESPACE).svc.cluster.local:%d", headlessServiceName(instance), peerPort)},
+		{Name: "KURA_NODE_URL", Value: fmt.Sprintf("https://$(POD_NAME).%s.$(POD_NAMESPACE).svc.cluster.local:%d", headlessServiceName(instance), peerPort)},
 		{Name: "KURA_DISCOVERY_DNS_NAME", Value: fmt.Sprintf("%s.$(POD_NAMESPACE).svc.cluster.local", headlessServiceName(instance))},
 		{Name: "KURA_INTERNAL_PORT", Value: fmt.Sprintf("%d", peerPort)},
+		{Name: "KURA_INTERNAL_TLS_CA_CERT_PATH", Value: peerTLSMountPath + "/" + peerTLSCAFile},
+		{Name: "KURA_INTERNAL_TLS_CERT_PATH", Value: peerTLSMountPath + "/" + peerTLSCertFile},
+		{Name: "KURA_INTERNAL_TLS_KEY_PATH", Value: peerTLSMountPath + "/" + peerTLSKeyFile},
 		{Name: "KURA_DRAIN_COMPLETION_TIMEOUT_MS", Value: strconv.FormatInt(drainCompletionTimeoutMs, 10)},
 		{Name: "KURA_OTEL_SERVICE_NAME", Value: "$(POD_NAME)"},
-		{Name: "KURA_OTEL_DEPLOYMENT_ENVIRONMENT", Value: "production"},
+	}
+	if !hasEnvVar(instance.Spec.ExtraEnv, environmentEnvVar) {
+		env = append(env, corev1.EnvVar{Name: environmentEnvVar, Value: environment})
 	}
 	if otlpTracesEndpoint != "" && !hasEnvVar(instance.Spec.ExtraEnv, otlpTracesEndpointEnvVar) {
 		env = append(env, corev1.EnvVar{Name: otlpTracesEndpointEnvVar, Value: otlpTracesEndpoint})
@@ -753,18 +1237,8 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string) []c
 			corev1.EnvVar{Name: "KURA_EXTENSION_SCRIPT_PATH", Value: "/etc/kura/extensions/hooks.lua"},
 		)
 	}
-	if instance.Spec.GRPCPublicHost != "" {
-		env = append(env,
-			corev1.EnvVar{Name: "KURA_GRPC_TLS_CERT_PATH", Value: grpcTLSMountPath + "/" + grpcTLSCertFile},
-			corev1.EnvVar{Name: "KURA_GRPC_TLS_KEY_PATH", Value: grpcTLSMountPath + "/" + grpcTLSKeyFile},
-		)
-	}
-	if instance.Spec.PublicHost != "" {
-		env = append(env,
-			corev1.EnvVar{Name: "KURA_HTTPS_PORT", Value: fmt.Sprintf("%d", httpsTargetPort)},
-			corev1.EnvVar{Name: "KURA_PUBLIC_TLS_CERT_PATH", Value: publicTLSMountPath + "/" + publicTLSCertFile},
-			corev1.EnvVar{Name: "KURA_PUBLIC_TLS_KEY_PATH", Value: publicTLSMountPath + "/" + publicTLSKeyFile},
-		)
+	if crossRegionRuntimeEnabled(instance) {
+		env = append(env, corev1.EnvVar{Name: "KURA_GLOBAL_DISCOVERY_DNS_NAME", Value: accountPeerServiceDNSName(instance)})
 	}
 	return env
 }
@@ -778,67 +1252,40 @@ func hasEnvVar(env []corev1.EnvVar, name string) bool {
 	return false
 }
 
-// containerPorts always exposes the plain HTTP, gRPC, and peer ports;
-// it additionally exposes the TLS-terminating HTTPS port whenever the
-// instance has a public host, so the Hetzner LoadBalancer in tcp-
-// passthrough mode can target it.
+// containerPorts exposes only the plain HTTP, gRPC, and internal mTLS
+// peer ports. Customer-facing TLS terminates at the regional Kura ingress, not
+// inside each Kura runtime pod.
 func containerPorts(instance *kurav1alpha1.KuraInstance) []corev1.ContainerPort {
-	ports := []corev1.ContainerPort{
+	return []corev1.ContainerPort{
 		{Name: "http", ContainerPort: httpPort},
 		{Name: "grpc", ContainerPort: grpcPort},
 		{Name: "peer", ContainerPort: peerPort},
 	}
-	if instance.Spec.PublicHost != "" {
-		ports = append(ports, corev1.ContainerPort{Name: "https", ContainerPort: httpsTargetPort})
-	}
-	return ports
 }
 
 func volumeMounts(instance *kurav1alpha1.KuraInstance) []corev1.VolumeMount {
-	mounts := []corev1.VolumeMount{{Name: "tmp", MountPath: "/tmp/kura"}, {Name: "data", MountPath: "/var/cache/kura"}}
+	mounts := []corev1.VolumeMount{
+		{Name: "data", MountPath: "/var/cache/kura"},
+		{Name: peerTLSVolumeName, MountPath: peerTLSMountPath, ReadOnly: true},
+	}
 	if instance.Spec.ExtensionScript != "" {
 		mounts = append(mounts, corev1.VolumeMount{Name: "extension-script", MountPath: "/etc/kura/extensions", ReadOnly: true})
-	}
-	if instance.Spec.GRPCPublicHost != "" {
-		mounts = append(mounts, corev1.VolumeMount{Name: grpcTLSVolumeName, MountPath: grpcTLSMountPath, ReadOnly: true})
-	}
-	if instance.Spec.PublicHost != "" {
-		mounts = append(mounts, corev1.VolumeMount{Name: publicTLSVolumeName, MountPath: publicTLSMountPath, ReadOnly: true})
 	}
 	return mounts
 }
 
 func volumes(instance *kurav1alpha1.KuraInstance) []corev1.Volume {
-	tmpSize := resource.MustParse("4Gi")
 	volumes := []corev1.Volume{{
-		Name: "tmp",
-		VolumeSource: corev1.VolumeSource{
-			EmptyDir: &corev1.EmptyDirVolumeSource{SizeLimit: &tmpSize},
-		},
+		Name: peerTLSVolumeName,
+		VolumeSource: corev1.VolumeSource{Secret: &corev1.SecretVolumeSource{
+			SecretName: peerTLSSecretName(instance),
+		}},
 	}}
 	if instance.Spec.ExtensionScript != "" {
 		volumes = append(volumes, corev1.Volume{
 			Name: "extension-script",
 			VolumeSource: corev1.VolumeSource{ConfigMap: &corev1.ConfigMapVolumeSource{
 				LocalObjectReference: corev1.LocalObjectReference{Name: extensionConfigMapName(instance)},
-			}},
-		})
-	}
-	if instance.Spec.GRPCPublicHost != "" {
-		volumes = append(volumes, corev1.Volume{
-			Name: grpcTLSVolumeName,
-			VolumeSource: corev1.VolumeSource{Secret: &corev1.SecretVolumeSource{
-				SecretName: grpcTLSSecretName(instance),
-				Optional:   ptr(true),
-			}},
-		})
-	}
-	if instance.Spec.PublicHost != "" {
-		volumes = append(volumes, corev1.Volume{
-			Name: publicTLSVolumeName,
-			VolumeSource: corev1.VolumeSource{Secret: &corev1.SecretVolumeSource{
-				SecretName: publicTLSSecretName(instance),
-				Optional:   ptr(true),
 			}},
 		})
 	}
@@ -907,26 +1354,19 @@ func grpcPublicURL(instance *kurav1alpha1.KuraInstance) string {
 	return "grpcs://" + instance.Spec.GRPCPublicHost
 }
 
-func globalPublicURL(instance *kurav1alpha1.KuraInstance) string {
-	if instance.Spec.GlobalPublicHost == "" {
-		return ""
-	}
-	return "https://" + instance.Spec.GlobalPublicHost
-}
-
-func globalGRPCPublicURL(instance *kurav1alpha1.KuraInstance) string {
-	if instance.Spec.GlobalGRPCPublicHost == "" {
-		return ""
-	}
-	return "grpcs://" + instance.Spec.GlobalGRPCPublicHost
-}
-
 func labels(instance *kurav1alpha1.KuraInstance) map[string]string {
 	labels := selectorLabels(instance)
 	labels["app.kubernetes.io/managed-by"] = "kura-controller"
 	labels["tuist.dev/account"] = instance.Spec.AccountHandle
 	labels["tuist.dev/region"] = instance.Spec.Region
 	return labels
+}
+
+func accountPeerSelectorLabels(instance *kurav1alpha1.KuraInstance) map[string]string {
+	return map[string]string{
+		"app.kubernetes.io/name": "kura",
+		"tuist.dev/account":      instance.Spec.AccountHandle,
+	}
 }
 
 func selectorLabels(instance *kurav1alpha1.KuraInstance) map[string]string {
@@ -940,6 +1380,22 @@ func headlessServiceName(instance *kurav1alpha1.KuraInstance) string {
 	return instance.Name + "-headless"
 }
 
+func accountPeerServiceDNSName(instance *kurav1alpha1.KuraInstance) string {
+	return fmt.Sprintf("%s.%s.svc.cluster.local", accountPeerServiceName(instance), instance.Namespace)
+}
+
+func accountPeerServiceName(instance *kurav1alpha1.KuraInstance) string {
+	name := "kura-" + instance.Spec.AccountHandle + "-peers"
+	if len(name) <= 63 {
+		return name
+	}
+
+	hash := fnv.New32a()
+	_, _ = hash.Write([]byte(instance.Spec.AccountHandle))
+	suffix := fmt.Sprintf("-%x", hash.Sum32())
+	return strings.TrimRight(name[:63-len(suffix)], "-") + suffix
+}
+
 func extensionConfigMapName(instance *kurav1alpha1.KuraInstance) string {
 	return instance.Name + "-extension"
 }
@@ -951,11 +1407,80 @@ func ptr[T any](v T) *T {
 func (r *KuraInstanceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&kurav1alpha1.KuraInstance{}).
+		Watches(
+			&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(r.kuraInstancesForSharedSecret),
+			builder.WithPredicates(predicate.NewPredicateFuncs(func(object client.Object) bool {
+				return object.GetName() == sharedSecretsName
+			})),
+		).
+		Watches(
+			&corev1.Pod{},
+			handler.EnqueueRequestsFromMapFunc(r.kuraInstanceForPod),
+			builder.WithPredicates(predicate.And(kuraPodPredicate(), podRoutabilityChangedPredicate())),
+		).
 		Owns(&appsv1.StatefulSet{}).
 		Owns(&corev1.Service{}).
 		Owns(&corev1.ConfigMap{}).
+		Owns(&corev1.Secret{}).
 		Owns(&networkingv1.Ingress{}).
 		Owns(&networkingv1.NetworkPolicy{}).
 		Owns(&policyv1.PodDisruptionBudget{}).
 		Complete(r)
+}
+
+// kuraInstanceForPod maps a Kura pod back to its owning KuraInstance so a
+// pod readiness change re-runs primary selection and fails the public
+// Services over to a healthy pod.
+func (r *KuraInstanceReconciler) kuraInstanceForPod(_ context.Context, object client.Object) []reconcile.Request {
+	labels := object.GetLabels()
+	instanceName := labels["app.kubernetes.io/instance"]
+	if labels["app.kubernetes.io/name"] != "kura" || instanceName == "" {
+		return nil
+	}
+	return []reconcile.Request{{
+		NamespacedName: types.NamespacedName{Name: instanceName, Namespace: object.GetNamespace()},
+	}}
+}
+
+func kuraPodPredicate() predicate.Predicate {
+	return predicate.NewPredicateFuncs(func(object client.Object) bool {
+		return object.GetLabels()["app.kubernetes.io/name"] == "kura"
+	})
+}
+
+// podRoutabilityChangedPredicate keeps the controller from re-running on
+// every pod heartbeat: it only enqueues when a pod appears, disappears,
+// or crosses the Ready/terminating boundary that primary selection cares
+// about.
+func podRoutabilityChangedPredicate() predicate.Predicate {
+	return predicate.Funcs{
+		CreateFunc:  func(event.CreateEvent) bool { return true },
+		DeleteFunc:  func(event.DeleteEvent) bool { return true },
+		GenericFunc: func(event.GenericEvent) bool { return false },
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldPod, ok := e.ObjectOld.(*corev1.Pod)
+			newPod, okNew := e.ObjectNew.(*corev1.Pod)
+			if !ok || !okNew {
+				return false
+			}
+			return podReady(oldPod) != podReady(newPod)
+		},
+	}
+}
+
+func (r *KuraInstanceReconciler) kuraInstancesForSharedSecret(ctx context.Context, object client.Object) []reconcile.Request {
+	instances := &kurav1alpha1.KuraInstanceList{}
+	if err := r.List(ctx, instances, client.InNamespace(object.GetNamespace())); err != nil {
+		log.FromContext(ctx).Error(err, "list Kura instances for shared secret update", "namespace", object.GetNamespace())
+		return nil
+	}
+
+	requests := make([]reconcile.Request, 0, len(instances.Items))
+	for _, instance := range instances.Items {
+		requests = append(requests, reconcile.Request{
+			NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace},
+		})
+	}
+	return requests
 }

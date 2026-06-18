@@ -18,11 +18,17 @@ This file provides guidance to AI agents when working with code in this reposito
 - `server/native/xcactivitylog_nif/` - Swift NIF linked into the server release for xcactivitylog parsing. The build processor is no longer a standalone Elixir app; it's the same `ghcr.io/tuist/tuist` image booted with `TUIST_MODE=processor` to run the `:process_build` Oban queue consumer.
 - `server/native/xcresult_nif/` - Swift NIF for xcresult parsing (macOS-only — uses `xcresulttool`). Baked into a Tart VM image (`infra/xcresult-processor-image/`) that runs as a k8s `Deployment` scheduled onto a Mac mini node via tart-cri.
 - `infra/xcresult-processor-image/` - Packer template + launchd plist that produces the macOS Tart image hosting the Tuist server release with `TUIST_MODE=xcresult_processor`. See `infra/xcresult-processor-image/AGENTS.md`.
+- `infra/macos-xcode-image/` - Packer template that builds the in-house macOS + Xcode Tart image (Layer 1 base for `tuist-runner` and `tuist-xcresult-processor`). Drops the dependency on Cirrus Labs' `macos-tahoe-xcode:N` catalog. See `infra/macos-xcode-image/AGENTS.md`.
 - `infra/tart-cri/` - Container Runtime Interface (CRI) implementation that drives Tart on macOS, plus a CNI plugin. Lets a Mac mini join a Kubernetes cluster as a real node so macOS workloads schedule via standard `Deployment` / `Job` with `nodeSelector: kubernetes.io/os=darwin` + `tuist.dev/runtime=tart`. See `infra/tart-cri/AGENTS.md`.
 - `infra/cluster-api-provider-scaleway-applesilicon/` - Cluster API infrastructure provider that manages Scaleway Apple Silicon Mac minis declaratively. Watches `ScalewayAppleSiliconMachine` CRs, calls Scaleway's API to order/release machines, SSHes in to bootstrap kubelet + tart-cri. Scaling the fleet is `kubectl scale machinedeployment`. See `infra/cluster-api-provider-scaleway-applesilicon/AGENTS.md`.
+- `infra/stable-egress-controller/` - Go controller (Hetzner Cloud) that makes the hosted server's stable egress IP highly available: keeps the Floating IP + active gateway label on one Ready node of the ≥2-node `md-egress` pool and fails over on node loss, so the Cilium egress gateway has no single-node SPOF. See `infra/stable-egress-controller/AGENTS.md`.
 - `search/` - Search infrastructure (TypeSense) - see `search/AGENTS.md`
 - `status/` - Public status page (Cloudflare Worker + Hono) backed by Grafana IRM - see `status/AGENTS.md`
+- `grafana-datasource/` - Grafana data source plugin (Go backend + React) exposing Tuist build/test duration metrics. Thin client over the server's `/builds/metrics/duration` + `/tests/metrics/duration` API - see `grafana-datasource/AGENTS.md`
 - `infra/` - Infrastructure and deployment assets - see `infra/AGENTS.md`
+- `infra/cnpg/` - CloudNativePG bootstrap SQL for the in-cluster Postgres on managed envs. The chart renders the cluster CR whenever `postgresql.cnpg.enabled` is true or `postgresql.mode == "cnpg"`. See `infra/cnpg/README.md`.
+- `tuist-ops/` - Internal ops Phoenix app: Slack-driven JIT elevation bot (`/webhooks/slack/*`) plus the impersonation policy endpoint (`/api/v1/policy`) called by the kubectl gateway. Single-replica deploy in the production cluster, decoupled from `server/`. See `tuist-ops/AGENTS.md`.
+- `kube-impersonator/` - Tiny Go sidecar deployed alongside Pomerium in each env's `pomerium` namespace. Reads `X-Pomerium-Claim-Email` per kubectl request, calls `tuist-ops/api/v1/policy` over the tailnet to resolve the right `Impersonate-User` + `Impersonate-Group(s)`, attaches the pod SA bearer, reverse-proxies to the apiserver. Fails closed if the policy call fails. See `kube-impersonator/AGENTS.md`.
 
 ## Global Guardrails
 - Do not modify `CHANGELOG.md` (auto-generated).
@@ -46,6 +52,7 @@ When creating commits and pull requests, use these conventional commit scopes:
 - `skills` - Changes to the Agent Skills package
 - `search` - Changes to the search infrastructure (TypeSense)
 - `status` - Changes to the public status page (Cloudflare Worker)
+- `grafana-datasource` - Changes to the Grafana data source plugin
 - `docs` - Changes to documentation
 - `handbook` - Changes to the handbook/guides
 
@@ -336,7 +343,7 @@ When creating or modifying security policies:
 3. **Key considerations**:
    - Keep policies practical for a 4-person company
    - Reference the [shared responsibility model](/security/shared-responsibility-model) when discussing infrastructure
-   - Infrastructure providers (Render, Supabase, Tigris, Cloudflare) handle their own layer security
+   - Infrastructure providers (Hetzner, Tigris, Cloudflare) handle their own layer security
    - Focus on application-layer responsibilities
 
 ## Navigation Configuration
@@ -386,8 +393,8 @@ description: Brief description of the page content
    - Practical implementation requirements
 
 3. **Infrastructure responsibilities**: Remember that Tuist relies on:
-   - Render for application hosting
-   - Supabase for database services
+   - Hetzner for compute (CAPI-managed Kubernetes clusters)
+   - CloudNativePG for in-cluster Postgres
    - Tigris for data storage
    - Cloudflare for CDN and edge services
 

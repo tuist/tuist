@@ -63,6 +63,85 @@ ingress-nginx:
     metrics:
       enabled: true
 
+kura-eu-central-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-eu-central-ingress-nginx-leader
+    ingressClass: kura-eu-central
+    ingressClassResource:
+      name: kura-eu-central
+      controllerValue: k8s.io/kura-eu-central-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    # Anchored so all three regional Kura gateways share ONE nginx config
+    # source. The e2e throughput test (kura/test/e2e/grpc-upload-throughput)
+    # derives its patched nginx config from the window keys here, and the
+    # dedicated-gateway ConfigMap in infra/kura-controller is asserted equal to
+    # every shared key in a unit test (TestGatewayNginxConfigMatchesChart) — so
+    # these settings cannot silently drift between the two render paths.
+    config: &kuraGatewayNginxConfig
+      use-forwarded-headers: "true"
+      use-proxy-protocol: "true"
+      compute-full-forwarded-for: "true"
+      upstream-keepalive-timeout: "10"
+      # HTTP/2 request-body flow control. nginx's 64KB default window caps
+      # every upload stream (gRPC ByteStream writes and HTTP/2 CLI uploads
+      # alike) at ~window/RTT — ~310KB/s from a 193ms-RTT client. Both knobs
+      # must move together: http2_body_preread_size is the window advertised
+      # before the body is consumed, client-body-buffer-size paces
+      # WINDOW_UPDATEs while streaming to the upstream. The stream cap bounds
+      # worst-case nginx memory at 32 x 4m = 128MB per client connection.
+      # Keep in sync with the dedicated gateway ConfigMap in
+      # infra/kura-controller (reconcileGatewayConfigMap).
+      client-body-buffer-size: "4m"
+      http2-max-concurrent-streams: "32"
+      http-snippet: "http2_body_preread_size 4m;"
+    metrics:
+      enabled: true
+
+kura-us-east-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-us-east-ingress-nginx-leader
+    ingressClass: kura-us-east
+    ingressClassResource:
+      name: kura-us-east
+      controllerValue: k8s.io/kura-us-east-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    config: *kuraGatewayNginxConfig
+    metrics:
+      enabled: true
+
+kura-us-west-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-us-west-ingress-nginx-leader
+    ingressClass: kura-us-west
+    ingressClassResource:
+      name: kura-us-west
+      controllerValue: k8s.io/kura-us-west-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    config: *kuraGatewayNginxConfig
+    metrics:
+      enabled: true
+
 external-dns:
   enabled: true
   provider: cloudflare
@@ -109,6 +188,104 @@ metrics-server:
     limits:
       cpu: 200m
       memory: 200Mi
+
+# CloudNativePG — operator that owns the postgresql.cnpg.io/v1 Cluster +
+# Backup + ScheduledBackup CRs the Tuist chart renders. Installed
+# cluster-wide on every workload cluster so the next `helm upgrade
+# tuist` can declare a Cluster without an out-of-band step.
+#
+# Self-hosters running the Tuist chart with `postgresql.mode: embedded`
+# (the default) or `postgresql.mode: external` don't need this — flip
+# it off in the same overlay that flips the Tuist chart's
+# `postgresql.mode` off the cnpg path.
+cloudnative-pg:
+  enabled: true
+  # PodMonitor stays off: managed clusters run Grafana Alloy via
+  # k8s-monitoring with annotation autodiscovery
+  # (prometheus.io/scrape + prometheus.io/port), not prometheus-operator,
+  # so the `monitoring.coreos.com/v1` PodMonitor CRD isn't installed.
+  # Enabling this would crash `helm upgrade platform` with
+  # "no matches for kind PodMonitor".
+  monitoring:
+    podMonitorEnabled: false
+
+# Optional Cilium egress gateway policy for managed-cluster workloads that
+# need a stable outbound source IP for customer allowlists.
+#
+# This chart only renders the policy. The egress IP itself must already be
+# provisioned in the cloud provider and assigned to the selected gateway node's
+# network interface; otherwise Cilium will drop matching traffic.
+ciliumEgressGateway:
+  server:
+    enabled: false
+    name: tuist-server-stable-egress
+    namespace: tuist
+    podSelector:
+      app.kubernetes.io/component: server
+      app.kubernetes.io/instance: tuist
+      app.kubernetes.io/name: tuist
+    destinationCIDRs:
+      - 0.0.0.0/0
+    # Keep private/link-local/tailnet destinations on their normal route.
+    # Cilium already excludes in-cluster Pod/Service/Node IPs, but keeping
+    # these here makes the policy's intended public-internet boundary obvious.
+    excludedCIDRs:
+      - 10.0.0.0/8
+      - 100.64.0.0/10
+      - 169.254.0.0/16
+      - 172.16.0.0/12
+      - 192.168.0.0/16
+    gatewayNodeSelector:
+      tuist.dev/stable-egress-gateway: server
+    egressIP: ""
+    hostConfigurator:
+      enabled: false
+      image: quay.io/cilium/cilium:v1.18.7
+      imagePullPolicy: IfNotPresent
+      interface: eth0
+      gateway: 172.31.1.1
+      routeTable: "2010"
+      rulePriority: "2010"
+      reconcileIntervalSeconds: 60
+    # Stable-egress failover controller (see templates/stable-egress-controller.yaml).
+    # Keeps the Floating IP + the gateway label (`gatewayNodeSelector`) on a
+    # single Ready node from the egress candidate pool and fails over on node
+    # loss. Pair with a ≥2-node egress pool whose kubelet self-applies the
+    # candidate label (`tuist.dev/stable-egress-candidate=server`).
+    failoverController:
+      enabled: false
+      image:
+        repository: ghcr.io/tuist/tuist-stable-egress-controller
+        # Fallback only. Real deploys resolve the released
+        # stable-egress-controller@<semver> tag at deploy time
+        # (k8s:install-platform --set), like the fleet/runtime images, so this
+        # `latest` is never used in CI deploys.
+        tag: latest
+        pullPolicy: IfNotPresent
+      # HA via leader election — keep ≥2 so the controller itself isn't a SPOF.
+      replicas: 2
+      # Name of the Hetzner Cloud Floating IP the controller keeps on the
+      # active node. Required when enabled.
+      floatingIpName: ""
+      # Documented set of egress CIDRs customers allowlist (the reserved
+      # Floating-IP pool). When non-empty the controller fails closed if the
+      # active Floating IP's address falls outside it, so we can never activate
+      # an un-allowlisted egress IP. Keep this in lockstep with the customer
+      # network guide (server/priv/docs/en/guides/server/network.md).
+      egressIpAllowlist: []
+      resources:
+        requests:
+          cpu: 25m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 128Mi
+      tokenSecretRef:
+        # caph writes this Secret into kube-system once the first
+        # control-plane node is up; HCCM + hcloud-csi read the same one.
+        # `token` is the canonical key bootstrap-workload waits for.
+        name: hcloud
+        key: token
 
 # Whether to emit the ClusterIssuer template below. Turn off if you manage
 # cert-manager issuers with a separate GitOps process.

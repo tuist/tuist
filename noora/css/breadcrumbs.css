@@ -1,7 +1,7 @@
 .noora-breadcrumbs {
   --noora-breadcrumb-icon: light-dark(
-    var(--noora-neutral-light-700),
-    var(--noora-neutral-dark-300)
+    var(--noora-neutral-light-800),
+    var(--noora-neutral-dark-200)
   );
   --noora-breadcrumb-label: light-dark(
     var(--nora-neutral-light-1100),
@@ -41,31 +41,20 @@
 .noora-breadcrumb {
   position: relative;
   display: flex;
-  flex-direction: column;
-  gap: var(--noora-spacing-2);
+  flex-wrap: wrap;
+  align-items: center;
   z-index: var(--noora-z-index-8);
 
-  & [data-part="trigger"] {
+  & [data-part="link"] {
     display: flex;
     align-items: center;
     gap: var(--noora-spacing-2);
-    cursor: pointer;
-    outline: unset;
-    border: unset;
-    background: unset;
     padding: var(--noora-spacing-2);
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+    border-radius: var(--noora-radius-3);
     font: var(--noora-font-body-medium);
-
-    &:not(:has([data-part="icon"], [data-part="avatar"])) {
-      padding: var(--noora-spacing-2) var(--noora-spacing-2)
-        var(--noora-spacing-2) var(--noora-spacing-4);
-    }
-
-    &:not(
-      :has([data-part="icon"], [data-part="avatar"], [data-part="selector"])
-    ) {
-      padding: var(--noora-spacing-2);
-    }
 
     & [data-part="icon"] {
       flex-shrink: 0;
@@ -83,16 +72,32 @@
       color: var(--noora-breadcrumb-label);
       font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
     }
+  }
 
-    &[data-state="open"],
+  & [data-part="trigger"] {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    padding: var(--noora-spacing-3);
+    border-radius: var(--noora-radius-3);
+    border: unset;
+    background: unset;
+    cursor: pointer;
+    outline: unset;
+    color: var(--noora-breadcrumb-icon);
+
+    & svg {
+      width: var(--noora-icon-size-medium);
+      height: var(--noora-icon-size-medium);
+    }
+
+    &:hover,
     &:active,
-    &:hover {
+    &[data-state="open"] {
       box-shadow: var(--noora-border-light-default);
-      border-radius: var(--noora-radius-3);
       background-color: var(--noora-breadcrumb-background);
     }
 
-    /* Fixing layout shift by initially hiding the positioner */
     & + [data-part="positioner"] {
       display: none;
     }
@@ -102,27 +107,22 @@
     }
   }
 
-  & [data-part="selector"] {
-    display: inline-flex;
-    flex-shrink: 0;
-    align-items: center;
-    width: var(--noora-icon-size-medium);
-    height: var(--noora-icon-size-medium);
-    color: var(--noora-breadcrumb-icon);
-
-    & svg {
-      width: 100%;
-      height: 100%;
-    }
-  }
-
   & [data-part="positioner"] {
     z-index: var(--noora-z-index-12);
+    transition: display 150ms allow-discrete;
   }
 
   & .noora-dropdown-content,
   & [data-part="positioner"] > [data-part="content"] {
+    /* zag sets `hidden` + `data-state="closed"` on the content the instant it
+       closes, and dropdown.css hides `.noora-dropdown-content` when not open —
+       both force `display: none` immediately and kill the exit transition. The
+       positioner (which zag never hides) is the single presence gate via
+       `allow-discrete`, so keep the content rendered and let opacity/transform
+       animate out underneath it. */
+    display: block;
     width: max-content;
+    min-width: 320px;
     box-shadow:
       0 0 0 1px
         light-dark(oklch(31.8% 0.011 248.2 / 0.12), oklch(54.9% 0 0 / 0.25)),
@@ -131,6 +131,11 @@
     border-radius: var(--noora-radius-4);
     background: var(--noora-surface-background-primary);
     overflow: hidden;
+    opacity: 0;
+    transform: translateY(-0.25rem);
+    transition:
+      opacity 150ms var(--ease-out-cubic),
+      transform 150ms var(--ease-out-cubic);
 
     & > [data-part="items"] {
       padding: var(--noora-spacing-4);
@@ -154,18 +159,58 @@
   }
 
   &
-    [data-part="item"]:not([data-selected])
-    [data-part="right-icon"]:not(:has(.noora-badge)) {
+    [data-part="trigger"][data-state="open"]
+    + [data-part="positioner"]
+    > [data-part="content"] {
+    opacity: 1;
+    transform: translateY(0);
+    transition:
+      opacity 200ms var(--ease-out-cubic),
+      transform 200ms var(--ease-out-cubic);
+
+    @starting-style {
+      opacity: 0;
+      transform: translateY(-0.25rem);
+    }
+  }
+
+  & [data-part="item"]:not([data-selected]) [data-part="check"] {
     visibility: hidden;
   }
 
-  & [data-part="right-icon"]:has(.noora-badge) {
+  & [data-part="right-icon"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+  }
+
+  & [data-part="right-icon"]:has(.noora-badge),
+  & [data-part="right-icon"]:has([data-part="check"]) {
     width: auto;
     height: auto;
+  }
+
+  & [data-part="check"] {
+    display: inline-flex;
+    flex-shrink: 0;
+    width: var(--noora-icon-size-large);
+    height: var(--noora-icon-size-large);
+
+    & svg {
+      width: 100%;
+      height: 100%;
+    }
   }
 
   & [data-part="left-icon"],
   & [data-part="right-icon"] {
     color: var(--noora-surface-label-primary);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .noora-breadcrumb [data-part="positioner"],
+  .noora-breadcrumb [data-part="positioner"] > [data-part="content"] {
+    transition: none;
   }
 }

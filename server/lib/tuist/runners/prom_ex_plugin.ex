@@ -11,24 +11,25 @@ defmodule Tuist.Runners.PromExPlugin do
       `claim`, `running`, `completed`); histograms cover wall-clock
       durations (`queue_time_ms` at claim, `queue_to_running_ms` at
       mint, `run_time_ms` / `total_time_ms` at completion). The
-      dispatch endpoint emits its own latency histogram tagged by
-      outcome so a saturating poll loop is visible separately from
-      a slow CH/PG.
+      dispatch endpoint emits its own count + latency histogram
+      tagged by fleet and outcome so a real dispatch stall on one
+      shape is visible separately from an idle warm pool polling, and
+      separately from a slow CH/PG.
 
     * **Polling metrics.** Three poll loops at a coarse 30s cadence
       query authoritative state and emit gauges: queue length per
       fleet from ClickHouse, inflight claim counts per fleet /
-      lifecycle state from Postgres, RunnerPool desired-vs-observed
-      replica counts from the K8s apiserver. Polled gauges are
+      lifecycle state from Postgres, RunnerPool desired / observed /
+      capacity-ceiling replica counts from the K8s apiserver. Polled gauges are
       deliberately separate from the event counters —
       `runner_pool_replicas` is a level (current capacity), not a
       flux (boot/teardown rate already covered by tart-kubelet's
       boot duration histogram).
 
   Cardinality budget: `fleet` is bounded by the number of
-  RunnerPool CRs (currently 1 — `default`). Per-account fan-out is
-  *not* tagged on event metrics; account-level views are exposed
-  as polled aggregates only.
+  RunnerPool CRs (one per Linux shape + macOS Xcode image, O(10)).
+  Per-account fan-out is *not* tagged on event metrics; account-level
+  views are exposed as polled aggregates only.
   """
 
   use PromEx.Plugin
@@ -170,8 +171,11 @@ defmodule Tuist.Runners.PromExPlugin do
           counter(
             @metric_prefix ++ [:dispatch, :request, :count],
             event_name: Telemetry.event_name_dispatch_request() ++ [:stop],
-            description: "Polling Pod dispatch requests bucketed by outcome.",
-            tags: [:outcome]
+            description:
+              "Polling Pod dispatch requests bucketed by fleet and outcome. " <>
+                "`outcome` is granular: served, drain, empty (queue had nothing), " <>
+                "lost_race / pod_in_use (claim contention), plus SA/label errors.",
+            tags: [:fleet, :outcome]
           ),
           distribution(
             @metric_prefix ++ [:dispatch, :request, :duration, :milliseconds],
@@ -179,7 +183,7 @@ defmodule Tuist.Runners.PromExPlugin do
             measurement: :duration,
             description: "Wall-clock time the dispatch endpoint spent serving a polling Pod.",
             reporter_options: [buckets: @dispatch_duration_buckets],
-            tags: [:outcome],
+            tags: [:fleet, :outcome],
             unit: {:native, :millisecond}
           )
         ]
@@ -260,6 +264,13 @@ defmodule Tuist.Runners.PromExPlugin do
             event_name: Telemetry.event_name_pool_replicas(),
             description: "Observed RunnerPool replicas (status.observedReplicas).",
             measurement: :observed,
+            tags: [:fleet]
+          ),
+          last_value(
+            @metric_prefix ++ [:pool, :replicas, :max],
+            event_name: Telemetry.event_name_pool_replicas(),
+            description: "RunnerPool capacity ceiling (max(spec.autoscaling.maxReplicas, spec.replicas)).",
+            measurement: :max,
             tags: [:fleet]
           )
         ]
@@ -398,10 +409,10 @@ defmodule Tuist.Runners.PromExPlugin do
         current_fleets = current |> Map.keys() |> MapSet.new()
         previous_fleets = Process.get(@pool_replicas_seen_key, MapSet.new())
 
-        Enum.each(current, fn {fleet, {desired, observed}} ->
+        Enum.each(current, fn {fleet, {desired, observed, max}} ->
           :telemetry.execute(
             Telemetry.event_name_pool_replicas(),
-            %{desired: desired, observed: observed},
+            %{desired: desired, observed: observed, max: max},
             %{fleet: fleet}
           )
         end)
@@ -411,7 +422,7 @@ defmodule Tuist.Runners.PromExPlugin do
         |> Enum.each(fn fleet ->
           :telemetry.execute(
             Telemetry.event_name_pool_replicas(),
-            %{desired: 0, observed: 0},
+            %{desired: 0, observed: 0, max: 0},
             %{fleet: fleet}
           )
         end)
@@ -434,8 +445,11 @@ defmodule Tuist.Runners.PromExPlugin do
         name ->
           spec = Map.get(pool, "spec", %{})
           status = Map.get(pool, "status", %{})
+          replicas = Map.get(spec, "replicas", 0)
+          autoscaling = Map.get(spec, "autoscaling", %{})
+          ceiling = Kernel.max(Map.get(autoscaling, "maxReplicas", 0), replicas)
 
-          [{name, {Map.get(spec, "replicas", 0), Map.get(status, "observedReplicas", 0)}}]
+          [{name, {replicas, Map.get(status, "observedReplicas", 0), ceiling}}]
       end
     end)
     |> Map.new()

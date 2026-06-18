@@ -8,7 +8,8 @@ the chart's release namespace. Reasons:
 1. Blast radius. The runners-controller's ServiceAccount needs
    Pod create/delete + SA create/delete to materialize per-Pod
    credentials; the server's SA needs RunnerPool read + Pod
-   patch + cluster-scoped TokenReview to mint JITs. Both are
+   patch + Pod/SA delete (to reap leaked stamped Pods) +
+   cluster-scoped TokenReview to mint JITs. Both are
    scoped to exactly what they need. Pinning the runner workload
    to a dedicated namespace keeps a controller or server
    compromise from reaching the chart's other workloads.
@@ -42,7 +43,8 @@ metadata:
 # RunnerPool to discover the fleet name, reads SAs to resolve a
 # Pod's pool via its `tuist.dev/runner-pool` label, lists Pods
 # to count per-customer concurrency, and patches the polling
-# Pod with owner labels at JIT-mint time.
+# Pod with owner labels at JIT-mint time. `OrphanedStampedPodsWorker`
+# also deletes leaked stamped Pods and their sibling SAs.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -60,17 +62,22 @@ rules:
     verbs: [get, list, watch]
   - apiGroups: [""]
     resources: [serviceaccounts]
-    # Read SA labels (`tuist.dev/runner-pool`) during the
-    # TokenReview-mediated JIT mint to resolve which fleet the
-    # caller is polling for.
-    verbs: [get, list]
+    # `get`/`list` read SA labels (`tuist.dev/runner-pool`) during
+    # the TokenReview-mediated JIT mint to resolve which fleet the
+    # caller is polling for. `delete` lets `OrphanedStampedPodsWorker`
+    # reap the per-Pod SA alongside a leaked stamped Pod — Pod and SA
+    # are RunnerPool siblings, so deleting the Pod alone orphans it.
+    verbs: [get, list, delete]
   - apiGroups: [""]
     resources: [pods]
     # `list` is used to count Pods labeled with a customer's name
     # (`tuist.dev/runner-pool-owner=<account>`) for max_concurrent
     # enforcement at queue-claim time. `patch` stamps owner labels
-    # on the polling Pod the moment it claims a queue entry.
-    verbs: [get, list, patch]
+    # on the polling Pod the moment it claims a queue entry. `delete`
+    # lets `OrphanedStampedPodsWorker` reap a Pod left owner-stamped
+    # after its claim was released (the runner-pool reconciler only
+    # scales down idle, un-stamped Pods, so it never reaps these).
+    verbs: [get, list, patch, delete]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -153,42 +160,43 @@ roleRef:
 {{- end }}
 {{- if .Values.runnersFleet.networkPolicy.enabled }}
 ---
-# Pod-network policy for the runner Pod shell. Selects every Pod
-# in tuist-runners (the runners-controller stamps
-# `tuist.dev/runner=true` on every Pod it creates).
+# Base runner Pod-network policy. Selects every Pod in
+# tuist-runners (the runners-controller stamps `tuist.dev/runner=true`
+# on every Pod it creates) and holds the rules whose peer set is
+# CONSTANT across deploys: ingress default-deny, DNS, and public
+# internet egress.
 #
 # Scope (what this gates):
-#   * The Pod's own network namespace: the tart-cri-hosted process
-#     that owns the VM, the dispatch-poll curl, projected-SA-token
-#     requests to apiserver, etc.
-#   * Ingress: default-deny. The polling model doesn't need any
-#     inbound connection to the Pod.
-#   * Egress: HTTPS / HTTP to the public internet, with
-#     `exceptCIDRs` carving out cluster-internal ranges (Pod
-#     CIDR, Service CIDR, Node CIDR). Closes the lateral-pivot
-#     path from the Pod into ClickHouse / Postgres / the
-#     server's admin endpoints.
+#   * The Pod's own network namespace: the dispatch-poll curl,
+#     projected-SA-token requests to apiserver, and, for Linux kata
+#     Pods, the GitHub Actions runner's own egress (those Pods live
+#     in the CNI network namespace, so this policy is their real
+#     egress gate).
+#   * Ingress: default-deny. The polling model needs no inbound
+#     connection to the Pod.
+#   * Egress: DNS + HTTPS/HTTP to the public internet, with
+#     `exceptCIDRs` carving out cluster-internal ranges (Pod CIDR,
+#     Service CIDR, Node CIDR). Closes the lateral-pivot path from
+#     the Pod into ClickHouse / Postgres / the server's admin
+#     endpoints.
 #
-# **What this DOES NOT gate**: the Tart VM's own network traffic.
-# Tart VMs do not live in the Pod network namespace — vmnet /
-# bridged networking on the macOS host puts the VM's interface
-# alongside the host's, NAT'd by Tart, and CNI-based NetworkPolicy
-# does not see that traffic. The "Customer CI workflow reaches
-# api.github.com / GHCR / npm / Homebrew" egress happens from
-# inside the VM and is unaffected by these rules.
+# macOS Tart VMs: their own traffic is NOT gated here. Tart VMs do
+# not live in the Pod network namespace (vmnet / bridged networking
+# on the macOS host puts the VM's interface alongside the host's,
+# NAT'd by Tart), so CNI NetworkPolicy never sees it. The customer
+# CI workflow's reach to api.github.com / GHCR / npm / Homebrew
+# happens from inside the VM and is gated separately by the pfctl
+# ruleset that `macos-host-bootstrap`'s `installVMEgressFirewall`
+# step installs (drops vmnet 192.168.64.0/22 to 10.0.0.0/8,
+# 172.16.0.0/12, 169.254.0.0/16 incl. metadata 169.254.169.254; a
+# launchd daemon re-arms it at boot). An L7 domain-allowlist proxy
+# is on the v2 hardening list; until then VM egress is RFC1918-
+# blocked but otherwise open.
 #
-# That gap is intentional for v1 — customer CI workflows
-# legitimately reach a long tail of third-party hosts, so any
-# closed allowlist would break real workloads. The real VM
-# egress gate lives on the Mac mini itself as a pfctl ruleset
-# installed by `macos-host-bootstrap`'s
-# `installVMEgressFirewall` step: it drops VM-source packets
-# (vmnet 192.168.64.0/22) destined for 10.0.0.0/8, 172.16.0.0/12,
-# and 169.254.0.0/16 (incl. cloud metadata 169.254.169.254). A
-# launchd daemon re-arms the ruleset at every host boot so the
-# filter survives reboots. An L7 domain-allowlist proxy is on
-# the v2 hardening list; until then VM egress is RFC1918-blocked
-# but otherwise unconstrained on the public internet.
+# The dispatch egress (reaching the in-cluster server) is split into
+# `runners-dispatch-egress` below precisely so a server rollout
+# cannot perturb the egress program of a Pod that is mid-job. See
+# that policy for the full rationale.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -217,11 +225,15 @@ spec:
           port: 53
         - protocol: TCP
           port: 53
-    # Public internet egress for HTTP(S) — required for the GH
-    # Actions runner binary to reach api.github.com, the actions
-    # cache, and the customer's package registries during builds.
-    # An L7 allowlist proxy (deferred to v2 hardening) tightens
-    # this; for v1 we accept "all of HTTPS".
+    # Public internet egress for HTTP(S): the GH Actions runner
+    # reaches api.github.com, the actions cache, and the customer's
+    # package registries through here. This rule has no churning
+    # peer (a pure ipBlock) and lives in this all-runners policy
+    # whose selected-Pod set is constant across deploys, so a
+    # server rollout never forces Cilium to regenerate the egress
+    # datapath of a mid-job Pod and drop its connection to GitHub.
+    # An L7 allowlist proxy (deferred to v2 hardening) tightens the
+    # `0.0.0.0/0` later.
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
@@ -236,14 +248,91 @@ spec:
           port: 443
         - protocol: TCP
           port: 80
-    # In-cluster Tuist server. Linux runner Pods (CNI-attached)
-    # call the dispatch endpoint via the in-cluster Service URL
-    # because Hetzner Cloud LBs don't hairpin — they can't reach
-    # the public ingress IP from inside the cluster. macOS Tart
-    # VMs use the public path (vmnet bypasses CNI), so this rule
-    # is essentially "Linux runners only," scoped to the server's
-    # Pod label so it doesn't widen access to ClickHouse / Postgres
-    # / Kura on the cluster network.
+    # Kura runner-cache egress: lets a runner Pod reach the account's
+    # in-cluster Kura node on the cache ports. Without this rule the
+    # in-cluster cache URL (`TUIST_CACHE_ENDPOINT=<svc-dns>:4000`,
+    # staged by the server dispatch when the account has a runner-cache
+    # node) would DNS-resolve but TCP-connect-fail against the cluster
+    # Service CIDR carve-out above. Auth is unchanged: the same
+    # `tuist.lua` hook on the Kura pod authenticates per-tenant via the
+    # Tuist server, exactly as it does behind the public ingress. The
+    # peer set is constant across server rollouts (Kura Pods don't roll
+    # on every Helm `upgrade`), so a mid-job Pod's egress datapath
+    # never churns from this rule. Scoped to Kura Pods by
+    # `app.kubernetes.io/name: kura` so it doesn't widen access to
+    # anything else in the namespace.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kura
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kura
+      ports:
+        - protocol: TCP
+          port: 4000
+        - protocol: TCP
+          port: 50051
+---
+# Dispatch-egress policy: lets a runner Pod reach the in-cluster
+# Tuist server's dispatch endpoint. Split out from the base policy
+# so the server's churning peer set (its identity changes on every
+# deploy, the image tag is `sha-<commit>`) never forces an egress
+# regeneration of the constant base policy's selection.
+#
+# Selects ALL runner Pods, including claimed ones. This used to be
+# scoped to idle Pods only (`runner-pool-owner DoesNotExist`, the
+# label the server stamps at JIT-mint), as a network-level guard
+# against untrusted workflow code calling the internal dispatch API.
+# That scoping caused a livelock in practice: the stamp lands while
+# the poller's claim response is still in flight, Cilium recomputes
+# the Pod's identity and revokes dispatch egress, and when the
+# revocation wins the race the response is lost — leaving a stamped
+# Pod whose retries are POLICY_DENIED forever. Such zombie pollers
+# pin the pool's warm floor (the reconciler counts them as healthy)
+# and every real claim falls through to cold on-demand capacity.
+#
+# Dropping the idle-only scoping is sound under the split-container
+# shape: the dispatch endpoint requires the audience-scoped SA token
+# as Bearer, and only the `poller` init container mounts it. The
+# `runner` container that executes untrusted workflow code holds no
+# token, so network reachability alone does not grant API access —
+# authentication is the control, the egress rule is reachability.
+#
+# Selecting claimed (mid-job) Pods too does NOT reintroduce the old
+# "runner lost communication" rollout disruption. That failure would
+# require the server's Cilium identity to churn on each deploy, forcing
+# every owned Pod's egress map to regenerate. It doesn't: the server
+# Pod's identity-relevant labels are app.kubernetes.io/{name,instance,
+# component} — all deploy-stable. The image tag (sha-<commit>) is a
+# container-spec field, not a label, and pod-template-hash is excluded
+# from Cilium identity by default. Verified on staging: rolling the
+# server keeps identity constant (id 6770), so a new server Pod reuses
+# it and no runner egress map regenerates. The GitHub control-plane
+# WebSocket is runner->github.com:443, governed by the default-deny
+# ipBlock rule, not this server-peer rule, so this policy never gates
+# it. The one regeneration that does occur — the runner's OWN identity
+# churning when the server stamps the owner label — happens once at
+# claim time, before the job's WebSocket exists.
+#
+# Linux runners only in practice: Hetzner Cloud LBs don't hairpin,
+# so CNI Pods hit the in-cluster Service URL, while macOS uses the
+# public path (vmnet bypasses CNI). Scoped to the server's Pod
+# label so it doesn't widen access to ClickHouse / Postgres / Kura.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "runners-dispatch-egress") }}
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners
+spec:
+  podSelector:
+    matchLabels:
+      tuist.dev/runner: "true"
+  policyTypes: [Egress]
+  egress:
     - to:
         - namespaceSelector:
             matchLabels:
@@ -251,5 +340,51 @@ spec:
           podSelector:
             matchLabels:
               app.kubernetes.io/component: server
+{{- if .Values.registryCache.enabled }}
+---
+# Cache-egress policy: lets a runner Pod reach the in-cluster Docker
+# Hub pull-through cache (registry-cache) on :5000 so its dind dockerd
+# can mirror docker.io through it. The base runners-default-deny policy
+# excepts the cluster Service CIDR from its 0.0.0.0/0 allow, so without
+# this the cache's ClusterIP is unreachable from a runner Pod, same
+# reason the dispatch endpoint needs its own allow above.
+#
+# MUST stay inside the networkPolicy.enabled guard with the base
+# policies: any egress NetworkPolicy selecting a runner Pod makes its
+# egress default-deny, so this policy alone (without runners-default-deny)
+# would isolate the Pod to only the cache and break DNS, GitHub, and
+# dispatch.
+#
+# Unlike dispatch-egress this is NOT idle-only: a mid-job Pod pulls
+# images during the job, so owned Pods need it too. Safe because the
+# cache pod is stable — its image tag is static (not `sha-<commit>`
+# like the server), so a helm upgrade doesn't roll it and it doesn't
+# churn the selected Pods' egress datapath the way an every-deploy
+# server roll would.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "runners-cache-egress") }}
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners
+spec:
+  podSelector:
+    matchLabels:
+      tuist.dev/runner: "true"
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/component: registry-cache
+      ports:
+        - protocol: TCP
+          port: 5000
+{{- end }}
 {{- end }}
 {{- end }}

@@ -10,7 +10,6 @@ import TuistOpener
 import TuistServer
 import TuistSupport
 import XcodeProj
-
 @testable import TuistConfigLoader
 @testable import TuistKit
 @testable import TuistLoader
@@ -24,12 +23,16 @@ struct GenerateServiceTests {
     private var cacheStorageFactory: MockCacheStorageFactorying!
     private var clock: StubClock!
     private var configLoader: MockConfigLoading!
+    private var generationMetadataStore: MockGenerationMetadataStoring!
 
     init() {
         opener = .init()
         generator = .init()
         generatorFactory = .init()
         configLoader = .init()
+        generationMetadataStore = .init()
+        given(generationMetadataStore).store(generationId: .any, for: .any).willReturn()
+        given(generationMetadataStore).prune().willReturn()
         given(generatorFactory)
             .generation(
                 config: .any,
@@ -49,11 +52,12 @@ struct GenerateServiceTests {
             generatorFactory: generatorFactory,
             clock: clock,
             opener: opener,
-            configLoader: configLoader
+            configLoader: configLoader,
+            generationMetadataStore: generationMetadataStore
         )
     }
 
-    @Test func throws_when_the_configuration_is_not_for_a_generated_project() async throws {
+    @Test func throws_when_the_configuration_is_not_for_a_generated_project() async {
         given(configLoader).loadConfig(path: .any).willReturn(.test(project: .testXcodeProject()))
 
         await #expect(
@@ -77,7 +81,7 @@ struct GenerateServiceTests {
         )
     }
 
-    @Test func run_fatalErrors_when_theworkspaceGenerationFails() async throws {
+    @Test func run_fatalErrors_when_theworkspaceGenerationFails() async {
         let expectedError = NSError.test()
         given(configLoader).loadConfig(path: .any).willReturn(
             .test(project: .testGeneratedProject())
@@ -137,6 +141,38 @@ struct GenerateServiceTests {
         verify(opener)
             .open(path: .value(workspacePath))
             .called(1)
+    }
+
+    @Test func run_persists_generation_metadata_keyed_by_workspace() async throws {
+        try await RunMetadataStorage.$current.withValue(RunMetadataStorage()) {
+            // Given
+            let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
+            given(configLoader).loadConfig(path: .any).willReturn(
+                .test(project: .testGeneratedProject())
+            )
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willReturn((workspacePath, .test(), MapperEnvironment()))
+
+            // When
+            try await subject.run(
+                path: nil,
+                includedTargets: [],
+                noOpen: true,
+                configuration: nil,
+                ignoreBinaryCache: false,
+                cacheProfile: nil
+            )
+
+            // Then
+            let generationId = try #require(await RunMetadataStorage.current.generationId)
+            verify(generationMetadataStore)
+                .store(generationId: .value(generationId), for: .value(workspacePath))
+                .called(1)
+            verify(generationMetadataStore)
+                .prune()
+                .called(1)
+        }
     }
 
     @Test func run_timeIsPrinted() async throws {

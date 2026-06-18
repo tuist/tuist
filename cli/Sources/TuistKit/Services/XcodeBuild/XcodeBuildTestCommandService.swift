@@ -94,7 +94,6 @@ struct XcodeBuildTestCommandService {
 
         var shardPlanId: String?
         var shardTestProductsPath: AbsolutePath?
-        var shardXCTestRunPath: AbsolutePath?
         if let shardIndex, let fullHandle = config.fullHandle {
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
@@ -120,15 +119,17 @@ struct XcodeBuildTestCommandService {
             passthroughXcodebuildArguments = removeOption("-scheme", from: passthroughXcodebuildArguments)
             passthroughXcodebuildArguments = removeOption("-project", from: passthroughXcodebuildArguments)
 
-            if let xcTestRunPath = shard.xcTestRunPath {
-                shardXCTestRunPath = xcTestRunPath
-                passthroughXcodebuildArguments = removeOption("-testProductsPath", from: passthroughXcodebuildArguments)
-                passthroughXcodebuildArguments = removeOption("-xctestrun", from: passthroughXcodebuildArguments)
-                passthroughXcodebuildArguments += ["-xctestrun", xcTestRunPath.pathString]
-            } else {
+            // Downloaded or extracted products need an explicit `-testProductsPath` (and get cleaned up
+            // afterwards); user-provided local products are already referenced via the passed-through
+            // `-testProductsPath` and are left in place.
+            if testProductsPath == nil {
                 shardTestProductsPath = shard.testProductsPath
                 passthroughXcodebuildArguments += ["-testProductsPath", shard.testProductsPath.pathString]
             }
+
+            // Selection is delegated to `-only-testing` because xctestrun-level `OnlyTestIdentifiers`
+            // does not filter Swift Testing tests.
+            passthroughXcodebuildArguments += shard.testIdentifiers.flatMap { ["-only-testing", $0] }
         }
 
         let xcodeBuildArguments = try await xcodeBuildArgumentParser.parse(passthroughXcodebuildArguments)
@@ -177,6 +178,7 @@ struct XcodeBuildTestCommandService {
                 quarantinedTests: allQuarantinedTests,
                 shardPlanId: shardPlanId,
                 shardIndex: shardIndex,
+                scheme: passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments),
                 mode: mode
             )
 
@@ -197,13 +199,10 @@ struct XcodeBuildTestCommandService {
                 if let shardTestProductsPath {
                     try? await fileSystem.remove(shardTestProductsPath)
                 }
-                if let shardXCTestRunPath {
-                    try? await fileSystem.remove(shardXCTestRunPath)
-                }
                 return
             }
 
-            try? await cleanUpShardArtifacts(testProductsPath: shardTestProductsPath, xcTestRunPath: shardXCTestRunPath)
+            try? await cleanUpShardArtifacts(testProductsPath: shardTestProductsPath)
             throw error
         }
 
@@ -234,22 +233,17 @@ struct XcodeBuildTestCommandService {
             quarantinedTests: allQuarantinedTests,
             shardPlanId: shardPlanId,
             shardIndex: shardIndex,
+            scheme: passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments),
             mode: mode
         )
         if let shardTestProductsPath {
             try? await fileSystem.remove(shardTestProductsPath)
         }
-        if let shardXCTestRunPath {
-            try? await fileSystem.remove(shardXCTestRunPath)
-        }
     }
 
-    private func cleanUpShardArtifacts(testProductsPath: AbsolutePath?, xcTestRunPath: AbsolutePath?) async {
+    private func cleanUpShardArtifacts(testProductsPath: AbsolutePath?) async {
         if let testProductsPath {
             try? await fileSystem.remove(testProductsPath)
-        }
-        if let xcTestRunPath {
-            try? await fileSystem.remove(xcTestRunPath)
         }
     }
 
@@ -376,9 +370,12 @@ extension XcodeBuildTestCommandService {
         quarantinedTests: [TestIdentifier] = [],
         shardPlanId: String? = nil,
         shardIndex: Int? = nil,
+        scheme: String? = nil,
         mode: TestProcessingMode = .local
     ) async {
         guard config.fullHandle != nil else { return }
+
+        await captureTestRunReport(scheme: scheme, resultBundlePath: resultBundlePath)
 
         do {
             switch mode {
@@ -412,6 +409,19 @@ extension XcodeBuildTestCommandService {
         } catch {
             AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))
         }
+    }
+
+    /// Captures a lightweight per-scheme test summary into `RunMetadataStorage` so the GitHub Actions
+    /// job summary can be rendered locally, without waiting for the server to finish parsing the
+    /// uploaded result bundle. Best-effort: any failure is ignored.
+    private func captureTestRunReport(scheme: String?, resultBundlePath: AbsolutePath?) async {
+        guard let scheme, let resultBundlePath,
+              let statuses = try? await xcResultService.parseTestStatuses(path: resultBundlePath)
+        else { return }
+
+        await RunMetadataStorage.current.add(
+            testRunReport: RunReportTestRun(scheme: scheme, testStatuses: statuses)
+        )
     }
 
     private func loadQuarantinedTests(

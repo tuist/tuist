@@ -1,8 +1,7 @@
 name: Linux Runner Image
 
 # PR validation + on-demand build of the Tuist Linux runner OCI image
-# consumed by `runnersFleetLinux.pools[].runnerImage` in the helm
-# chart.
+# consumed by `runnersFleetLinux.shapeRunnerImage` in the helm chart.
 #
 # PR: builds without pushing — catches Dockerfile / shell-syntax
 #     breakage before merge.
@@ -10,7 +9,7 @@ name: Linux Runner Image
 #     branch can be validated against a real cluster before merging.
 #
 # The semver / `:latest` / chart-digest-rewrite flow lives in
-# release.yml's `release-linux-runner-image` job — pushed on main.
+# server-production-deployment.yml's `release-linux-runner-image` job — pushed on main.
 # This workflow deliberately doesn't touch `:latest` or any semver
 # tag; only the release job does.
 #
@@ -45,18 +44,16 @@ env:
 
 jobs:
   build:
-    # TODO: migrate to tuist-production-linux once the runner image ships
-    # a docker daemon — buildx requires a working docker engine. Note:
-    # this workflow builds that same runner image, so the migration has
-    # to land in two steps: first add docker to the image and rebuild
-    # from a Namespace runner, then flip this job to use the in-house
-    # fleet.
-    runs-on: namespace-profile-default
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
 
-      - name: Syntax-check dispatch-poll.sh
-        run: bash -n infra/linux-runner-image/dispatch-poll.sh
+      - name: Syntax-check runner scripts
+        run: |
+          bash -n infra/linux-runner-image/dispatch-poll.sh
+          bash -n infra/linux-runner-image/run-job.sh
+          bash -n infra/linux-runner-image/vitals.sh
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3

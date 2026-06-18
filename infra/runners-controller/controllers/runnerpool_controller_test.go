@@ -6,11 +6,13 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 )
@@ -98,6 +100,88 @@ func TestIsStaleImage_EmptyContainers(t *testing.T) {
 	}
 }
 
+func TestIsIdle(t *testing.T) {
+	withPoller := func(name string, state corev1.ContainerState) *corev1.Pod {
+		p := newRunnerPod(name, "img", corev1.PodPending, "p")
+		p.Status.InitContainerStatuses = []corev1.ContainerStatus{
+			{Name: "dind", State: corev1.ContainerState{Running: &corev1.ContainerStateRunning{}}},
+			{Name: "poller", State: state},
+		}
+		return p
+	}
+	owner := newRunnerPod("p-owner", "img", corev1.PodPending, "p")
+	owner.Labels["tuist.dev/runner-pool-owner"] = "acme"
+
+	cases := []struct {
+		name string
+		pod  *corev1.Pod
+		want bool
+	}{
+		{"warm, no label, no init status", newRunnerPod("p-warm", "img", corev1.PodPending, "p"), true},
+		{"owner label set", owner, false},
+		// The poller exits the moment it stages a claim, so a
+		// terminated poller means "claimed" even without the
+		// best-effort owner label.
+		{"poller terminated, no label", withPoller("p-claimed", corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{ExitCode: 0}}), false},
+		{"poller still running, no label", withPoller("p-polling", corev1.ContainerState{Running: &corev1.ContainerStateRunning{}}), true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isIdle(tc.pod); got != tc.want {
+				t.Fatalf("isIdle = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRunnerTerminated(t *testing.T) {
+	withRunner := func(state corev1.ContainerState) *corev1.Pod {
+		p := newRunnerPod("p", "img", corev1.PodFailed, "p")
+		p.Status.ContainerStatuses = []corev1.ContainerStatus{
+			{Name: "dind", State: corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{ExitCode: 0}}},
+			{Name: "runner", State: state},
+		}
+		return p
+	}
+
+	t.Run("guest-OOM fingerprint (137/Error) is captured", func(t *testing.T) {
+		got := runnerTerminated(withRunner(corev1.ContainerState{
+			Terminated: &corev1.ContainerStateTerminated{ExitCode: 137, Signal: 9, Reason: "Error"},
+		}))
+		if got == nil || got.ExitCode != 137 || got.Reason != "Error" {
+			t.Fatalf("runnerTerminated = %+v, want exitCode=137 reason=Error", got)
+		}
+	})
+
+	t.Run("falls back to LastTerminationState", func(t *testing.T) {
+		p := newRunnerPod("p", "img", corev1.PodRunning, "p")
+		p.Status.ContainerStatuses = []corev1.ContainerStatus{
+			{Name: "runner", LastTerminationState: corev1.ContainerState{
+				Terminated: &corev1.ContainerStateTerminated{ExitCode: 1},
+			}},
+		}
+		if got := runnerTerminated(p); got == nil || got.ExitCode != 1 {
+			t.Fatalf("runnerTerminated = %+v, want exitCode=1 from LastTerminationState", got)
+		}
+	})
+
+	t.Run("no runner container returns nil", func(t *testing.T) {
+		p := newRunnerPod("p", "img", corev1.PodRunning, "p")
+		p.Status.ContainerStatuses = []corev1.ContainerStatus{
+			{Name: "dind", State: corev1.ContainerState{Running: &corev1.ContainerStateRunning{}}},
+		}
+		if got := runnerTerminated(p); got != nil {
+			t.Fatalf("runnerTerminated = %+v, want nil", got)
+		}
+	})
+
+	t.Run("running runner returns nil", func(t *testing.T) {
+		if got := runnerTerminated(withRunner(corev1.ContainerState{Running: &corev1.ContainerStateRunning{}})); got != nil {
+			t.Fatalf("runnerTerminated = %+v, want nil", got)
+		}
+	})
+}
+
 // TestReconcile_DeletesStalePendingPodAndCreatesReplacement is the
 // behaviour that fixes the operator-side dance we hit while rolling
 // out runner-image bumps: when the chart rewrites the digest pin,
@@ -160,6 +244,99 @@ func TestReconcile_DeletesStalePendingPodAndCreatesReplacement(t *testing.T) {
 	err = c.Get(context.Background(), nn("tuist-runners", "p-runner-stale"), sa)
 	if err == nil {
 		t.Fatalf("expected stale SA p-runner-stale to be deleted, still present")
+	}
+}
+
+// TestReconcile_LeavesStalePendingClaimedPodAlone covers the
+// isIdle guard on the stale-Pending reap. With the Linux
+// token-isolation Pod shape the poller runs as an init container, so
+// a Pod that has just claimed a job is briefly Pending (poller init
+// exiting, runner main starting). The server stamps
+// `runner-pool-owner` at claim time; the reap must skip such Pods or
+// an image roll racing a claim would kill the job mid-flight.
+func TestReconcile_LeavesStalePendingClaimedPodAlone(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newPool("p", "ghcr.io/tuist/tuist-runner@sha256:new", 1)
+	claimed := newRunnerPod("p-runner-claimed", "ghcr.io/tuist/tuist-runner@sha256:old", corev1.PodPending, "p")
+	claimed.Labels["tuist.dev/runner-pool-owner"] = "acme"
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, claimed).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: nn(pool.Namespace, pool.Name),
+	}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	pods := &corev1.PodList{}
+	if err := c.List(context.Background(), pods); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	var survived bool
+	for _, p := range pods.Items {
+		if p.Name == "p-runner-claimed" {
+			survived = true
+		}
+	}
+	if !survived {
+		t.Fatalf("claimed stale pending pod was reaped; the isIdle guard should protect a just-claimed Pod")
+	}
+	// alive=1 (the claimed pod counts), gap=0 — no replacement.
+	if len(pods.Items) != 1 {
+		t.Fatalf("expected no replacement while claimed pod is alive, got %d: %+v", len(pods.Items), podNames(pods.Items))
+	}
+}
+
+// TestReconcile_LeavesStalePendingPollerExitedPodAlone covers the
+// label-independent half of the stale-Pending guard. The server's
+// owner-label stamp is best-effort (it degrades to "running without
+// the label" if the apiserver patch keeps failing), so a genuinely
+// claimed Pod can be Pending with no owner label while the poller
+// exits and the runner starts. The terminated poller is the reliable
+// "claimed" signal, and the reap must honor it.
+func TestReconcile_LeavesStalePendingPollerExitedPodAlone(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newPool("p", "ghcr.io/tuist/tuist-runner@sha256:new", 1)
+	claiming := newRunnerPod("p-runner-claiming", "ghcr.io/tuist/tuist-runner@sha256:old", corev1.PodPending, "p")
+	// No owner label (stamp failed), but the poller has staged the JIT
+	// and exited.
+	claiming.Status.InitContainerStatuses = []corev1.ContainerStatus{
+		{Name: "poller", State: corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{ExitCode: 0}}},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, claiming).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: nn(pool.Namespace, pool.Name),
+	}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	pods := &corev1.PodList{}
+	if err := c.List(context.Background(), pods); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	var survived bool
+	for _, p := range pods.Items {
+		if p.Name == "p-runner-claiming" {
+			survived = true
+		}
+	}
+	if !survived {
+		t.Fatalf("stale Pending pod with an exited poller was reaped; the poller-terminated signal should protect a just-claimed Pod even without the owner label")
+	}
+	if len(pods.Items) != 1 {
+		t.Fatalf("expected no replacement while the claiming pod is alive, got %d: %+v", len(pods.Items), podNames(pods.Items))
 	}
 }
 
@@ -349,6 +526,98 @@ func TestReconcile_LeavesImageRolledAtAloneWhenImageUnchanged(t *testing.T) {
 	}
 	if !updated.Status.ImageRolledAt.Equal(&priorRoll) {
 		t.Fatalf("ImageRolledAt = %v, expected unchanged %v", updated.Status.ImageRolledAt, priorRoll)
+	}
+}
+
+// TestReconcile_DrainsPoolOnDeleteWithoutKillingRunningPod is the
+// regression test for the cascade-GC kill: a helm upgrade that drops
+// or renames a RunnerPool deletes the CR, and because Pods carry an
+// owner reference to it, Kubernetes GC would otherwise cascade-delete
+// every Pod the pool owns — including runners mid-job. The drain
+// finalizer must hold the CR Terminating while a mid-job Pod is still
+// running, reap only the idle Pods, and release the CR once the last
+// in-flight runner has exited.
+func TestReconcile_DrainsPoolOnDeleteWithoutKillingRunningPod(t *testing.T) {
+	scheme := mustScheme(t)
+	image := "ghcr.io/tuist/tuist-runner@sha256:current"
+	pool := newPool("p", image, 2)
+
+	// Idle pod: warm-polling, no owner label — safe to reap on drain.
+	idle := newRunnerPod("p-runner-idle", image, corev1.PodRunning, "p")
+	idleSA := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: "p-runner-idle", Namespace: "tuist-runners"}}
+	// Mid-job pod: the server stamped the owner label at claim time —
+	// must survive the drain.
+	busy := newRunnerPod("p-runner-busy", image, corev1.PodRunning, "p")
+	busy.Labels["tuist.dev/runner-pool-owner"] = "acme"
+	busySA := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: "p-runner-busy", Namespace: "tuist-runners"}}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, idle, idleSA, busy, busySA).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	ctx := context.Background()
+
+	// First reconcile installs the drain finalizer.
+	if _, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	got := &tuistv1.RunnerPool{}
+	if err := c.Get(ctx, nn(pool.Namespace, pool.Name), got); err != nil {
+		t.Fatalf("get pool: %v", err)
+	}
+	if !controllerutil.ContainsFinalizer(got, runnerPoolFinalizer) {
+		t.Fatalf("expected drain finalizer to be installed")
+	}
+
+	// helm-style delete: the finalizer holds the CR Terminating.
+	if err := c.Delete(ctx, got); err != nil {
+		t.Fatalf("delete pool: %v", err)
+	}
+
+	// Drain reconcile: idle pod reaped, mid-job pod survives, CR remains.
+	if _, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("drain reconcile: %v", err)
+	}
+	if err := c.Get(ctx, nn("tuist-runners", "p-runner-busy"), &corev1.Pod{}); err != nil {
+		t.Fatalf("expected mid-job pod to survive drain: %v", err)
+	}
+	if err := c.Get(ctx, nn("tuist-runners", "p-runner-idle"), &corev1.Pod{}); err == nil {
+		t.Fatalf("expected idle pod to be reaped during drain")
+	}
+	if err := c.Get(ctx, nn(pool.Namespace, pool.Name), got); err != nil {
+		t.Fatalf("expected pool to remain Terminating while a runner is mid-job: %v", err)
+	}
+
+	// The job finishes: the single-shot pod exits and goes away. With
+	// no live runner left, the next reconcile finds running == 0 and
+	// releases the finalizer, so the CR (and the now-unblocked GC) can
+	// finalize.
+	busyLive := &corev1.Pod{}
+	if err := c.Get(ctx, nn("tuist-runners", "p-runner-busy"), busyLive); err != nil {
+		t.Fatalf("get busy pod: %v", err)
+	}
+	if err := c.Delete(ctx, busyLive); err != nil {
+		t.Fatalf("remove finished busy pod: %v", err)
+	}
+
+	if _, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("final drain reconcile: %v", err)
+	}
+	// The controller's contract is to release the finalizer once the
+	// pool is drained; the apiserver then GCs the CR. Assert the
+	// finalizer is gone (the CR is either deleted or no longer holds
+	// it) rather than the fake client's GC behaviour.
+	drained := &tuistv1.RunnerPool{}
+	switch err := c.Get(ctx, nn(pool.Namespace, pool.Name), drained); {
+	case apierrors.IsNotFound(err):
+		// CR collected — fully drained.
+	case err != nil:
+		t.Fatalf("get pool after drain: %v", err)
+	case controllerutil.ContainsFinalizer(drained, runnerPoolFinalizer):
+		t.Fatalf("expected drain finalizer to be released after the drain completed")
 	}
 }
 

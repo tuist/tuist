@@ -105,6 +105,97 @@ func TestScalewayServerToServer_LeavesPasswordEmptyWhenBothSourcesEmpty(t *testi
 	}
 }
 
+func TestScalewayServerToServer_FallsBackToVncURLWhenSudoPasswordIsSealed(t *testing.T) {
+	// macOS Tahoe seals the OS-managed auto-login credential after
+	// adopt; Scaleway returns the literal "<sealed>" marker on
+	// `sudo_password` but vnc_url can still carry the real value
+	// (observed empirically during a fresh adopt: top-level field
+	// sealed, vnc_url returned the plaintext password).
+	in := &applesilicon.Server{
+		ID:           "server-id",
+		Status:       applesilicon.ServerStatusReady,
+		SudoPassword: SealedSecretMarker,
+		SSHUsername:  "m1",
+		VncURL:       "vnc://m1:realpwd@host:59010",
+	}
+	out := scalewayServerToServer(in)
+	if out.SudoPassword != "realpwd" {
+		t.Fatalf("expected vnc_url password to override <sealed>, got %q", out.SudoPassword)
+	}
+}
+
+func TestScalewayServerToServer_RejectsSealedMarkerFromVncURL(t *testing.T) {
+	// When the sealed window is in effect across both surfaces (post-
+	// reboot, mid-reinstall), `vnc_url` either equals the marker
+	// outright (URL parsing returns empty) or embeds it as the
+	// password component (URL parsing surfaces it verbatim). Both
+	// must resolve to empty so the controller's MissingSudoPassword
+	// gate fires honestly rather than handing "<sealed>" to sudo.
+	cases := []struct {
+		name   string
+		vncURL string
+	}{
+		{name: "vnc_url is the marker itself", vncURL: SealedSecretMarker},
+		{name: "vnc_url embeds the marker as password", vncURL: "vnc://m1:%3Csealed%3E@host:59010"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			in := &applesilicon.Server{
+				ID:           "server-id",
+				Status:       applesilicon.ServerStatusReady,
+				SudoPassword: SealedSecretMarker,
+				SSHUsername:  "m1",
+				VncURL:       tc.vncURL,
+			}
+			out := scalewayServerToServer(in)
+			if out.SudoPassword != "" {
+				t.Fatalf("expected SudoPassword to be empty when both sources carry the sealed marker, got %q", out.SudoPassword)
+			}
+		})
+	}
+}
+
+func TestClientRebootServer_SwallowsNotFound(t *testing.T) {
+	// Deletion races: the operator just removed the host via
+	// ReleaseToPool's reinstall path, and a concurrent recovery
+	// reboot fires against the gone serverID. NotFound should be
+	// success — the host the caller wanted rebooted no longer
+	// exists for them to act on.
+	api := &fakeAppleSiliconAPI{
+		rebootErrors: map[int]error{1: &scw.ResourceNotFoundError{Resource: "server", ResourceID: "srv-gone"}},
+	}
+	c := &Client{API: api}
+	if err := c.RebootServer(context.Background(), "srv-gone", "fr-par-1"); err != nil {
+		t.Fatalf("expected NotFound to be swallowed, got %v", err)
+	}
+}
+
+func TestClientRebootServer_SwallowsTransientState(t *testing.T) {
+	// Rebooting a server that's already mid-reboot/install is a
+	// no-op from the caller's perspective; the typed transient-state
+	// error shouldn't trigger downstream recovery.
+	api := &fakeAppleSiliconAPI{
+		rebootErrors: map[int]error{1: &scw.TransientStateError{Resource: "server", ResourceID: "srv-1", CurrentState: "rebooting"}},
+	}
+	c := &Client{API: api}
+	if err := c.RebootServer(context.Background(), "srv-1", "fr-par-1"); err != nil {
+		t.Fatalf("expected transient-state error to be swallowed, got %v", err)
+	}
+}
+
+func TestClientRebootServer_HappyPathRecordsCall(t *testing.T) {
+	api := &fakeAppleSiliconAPI{
+		servers: []*applesilicon.Server{{ID: "srv-1", Status: applesilicon.ServerStatusReady}},
+	}
+	c := &Client{API: api}
+	if err := c.RebootServer(context.Background(), "srv-1", "fr-par-1"); err != nil {
+		t.Fatalf("RebootServer: %v", err)
+	}
+	if len(api.rebootedIDs) != 1 || api.rebootedIDs[0] != "srv-1" {
+		t.Fatalf("expected one reboot of srv-1, got %v", api.rebootedIDs)
+	}
+}
+
 // --- two-phase adoption tests ---------------------------------------------
 //
 // The two-phase claim in AdoptFromPool is what keeps two concurrent
@@ -151,6 +242,14 @@ type fakeAppleSiliconAPI struct {
 	reinstallErrors map[int]error
 	reinstallCalls  int
 	reinstalledIDs  []string
+
+	// rebootErrors / rebootedIDs mirror the reinstall shape for
+	// RebootServer. Tests exercising the BootstrapFailed reboot tier
+	// assert on rebootedIDs and use rebootErrors to force NotFound /
+	// TransientState shapes.
+	rebootErrors map[int]error
+	rebootCalls  int
+	rebootedIDs  []string
 }
 
 func (f *fakeAppleSiliconAPI) ListServers(req *applesilicon.ListServersRequest, _ ...scw.RequestOption) (*applesilicon.ListServersResponse, error) {
@@ -204,6 +303,21 @@ func (f *fakeAppleSiliconAPI) ReinstallServer(req *applesilicon.ReinstallServerR
 		if s.ID == req.ServerID {
 			f.reinstalledIDs = append(f.reinstalledIDs, s.ID)
 			s.Status = applesilicon.ServerStatusReinstalling
+			return s, nil
+		}
+	}
+	return nil, errors.New("not found")
+}
+
+func (f *fakeAppleSiliconAPI) RebootServer(req *applesilicon.RebootServerRequest, _ ...scw.RequestOption) (*applesilicon.Server, error) {
+	f.rebootCalls++
+	if err, ok := f.rebootErrors[f.rebootCalls]; ok {
+		return nil, err
+	}
+	for _, s := range f.servers {
+		if s.ID == req.ServerID {
+			f.rebootedIDs = append(f.rebootedIDs, s.ID)
+			s.Status = applesilicon.ServerStatusRebooting
 			return s, nil
 		}
 	}
@@ -684,5 +798,50 @@ func TestReleaseToPool_PropagatesNonRecoverableReinstallError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "reinstall server") {
 		t.Fatalf("expected error to identify reinstall step, got %v", err)
+	}
+}
+
+func TestListServers_ReturnsIDAndName(t *testing.T) {
+	api := &fakeAppleSiliconAPI{servers: []*applesilicon.Server{
+		{ID: "a", Name: "tuist-pool-1", Status: applesilicon.ServerStatusReady},
+		{ID: "b", Name: "tuist-tuist-macos-fleet-0", Status: applesilicon.ServerStatusReady},
+	}}
+	c := newTestClient(api)
+
+	got, err := c.ListServers(context.Background(), "fr-par-1")
+	if err != nil {
+		t.Fatalf("ListServers: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected 2 servers, got %d", len(got))
+	}
+	if got[0].ID != "a" || got[0].Name != "tuist-pool-1" {
+		t.Fatalf("unexpected first server: %+v", got[0])
+	}
+	if got[1].ID != "b" || got[1].Name != "tuist-tuist-macos-fleet-0" {
+		t.Fatalf("unexpected second server: %+v", got[1])
+	}
+}
+
+func TestIsPoolOrAdopting(t *testing.T) {
+	cases := []struct {
+		name   string
+		server string
+		prefix string
+		want   bool
+	}{
+		{"pool host", "tuist-pool-abc", "tuist-pool-", true},
+		{"claim-pending host", "tuist-claim-pending-xyz", "tuist-pool-", true},
+		{"claimed host", "tuist-tuist-macos-fleet-0", "tuist-pool-", false},
+		{"foreign default name", "apple-silicon-romantic-x", "tuist-pool-", false},
+		{"empty pool prefix still catches claim-pending", "tuist-claim-pending-1", "", true},
+		{"empty pool prefix does not blanket-match pool names", "tuist-pool-abc", "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := IsPoolOrAdopting(tc.server, tc.prefix); got != tc.want {
+				t.Fatalf("IsPoolOrAdopting(%q, %q) = %v, want %v", tc.server, tc.prefix, got, tc.want)
+			}
+		})
 	}
 }

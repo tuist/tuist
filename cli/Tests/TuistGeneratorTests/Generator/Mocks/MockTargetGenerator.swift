@@ -28,4 +28,11 @@ class MockTargetGenerator: TargetGenerating {
         nativeTargets _: [String: PBXTarget],
         graphTraverser _: GraphTraversing
     ) throws {}
+
+    func generateBuildableFolderForeignExceptions(
+        targets _: [Target],
+        nativeTargets _: [String: PBXTarget],
+        fileElements _: ProjectFileElements,
+        pbxproj _: PBXProj
+    ) throws {}
 }

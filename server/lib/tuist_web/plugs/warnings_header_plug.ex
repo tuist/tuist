@@ -6,12 +6,12 @@ defmodule TuistWeb.WarningsHeaderPlug do
   """
   use TuistWeb, :controller
 
-  alias Tuist.GitHub.Releases
+  alias Tuist.CLIVersions
   alias TuistWeb.Headers
 
   @assign_key :warnings
 
-  @minimum_supported_cli_version Version.parse!("4.118.1")
+  @minimum_supported_cli_version Version.parse!(CLIVersions.minimum_supported_version())
 
   def init(opts), do: opts
 
@@ -23,8 +23,7 @@ defmodule TuistWeb.WarningsHeaderPlug do
     warnings = conn.assigns[@assign_key] || []
     cli_version = Headers.get_cli_version(conn)
 
-    latest_cli_version = get_latest_cli_version()
-    warnings = maybe_add_cli_deprecation_warning(warnings, cli_version, latest_cli_version)
+    warnings = maybe_add_cli_deprecation_warning(warnings, cli_version)
 
     cond do
       is_nil(cli_version) ->
@@ -49,21 +48,10 @@ defmodule TuistWeb.WarningsHeaderPlug do
     end
   end
 
-  defp get_latest_cli_version do
-    case Releases.get_latest_cli_release(update_if_needed: false) do
-      nil -> nil
-      release -> release.name
-    end
-  end
-
-  defp maybe_add_cli_deprecation_warning(warnings, cli_version, latest_cli_version) do
+  defp maybe_add_cli_deprecation_warning(warnings, cli_version) do
     if should_show_cli_deprecation_warning?(cli_version) do
       message =
-        if latest_cli_version do
-          "Your Tuist version #{cli_version} is deprecated. Please upgrade to version #{latest_cli_version} for server-side features to continue working."
-        else
-          "Your Tuist version #{cli_version} is deprecated. Please upgrade to the latest version for server-side features to continue working."
-        end
+        "Your Tuist version #{cli_version} is deprecated. Please upgrade to the latest version for server-side features to continue working."
 
       [message | warnings]
     else

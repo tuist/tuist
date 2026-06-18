@@ -3,21 +3,20 @@ use std::{
     path::{Path, PathBuf},
     pin::Pin,
     sync::{Arc, Mutex as StdMutex},
+    task::{Context, Poll},
     time::{Duration, Instant},
 };
 
 use bytes::Bytes;
-use futures_util::stream;
 use rocksdb::{
     BlockBasedOptions, Cache, ColumnFamily, ColumnFamilyDescriptor, DB, IteratorMode, Options,
     WriteBatch, WriteBufferManager, WriteOptions,
 };
 use serde::{Deserialize, Serialize};
 use tokio::{
-    io::{AsyncRead, AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
+    io::{AsyncRead, AsyncWriteExt, ReadBuf},
     sync::Mutex,
 };
-use tokio_util::io::StreamReader;
 use uuid::Uuid;
 
 use crate::{
@@ -28,11 +27,12 @@ use crate::{
     },
     config::Config,
     constants::{
-        DESIRED_CURRENT_SEGMENTS, DESIRED_NEW_SEGMENTS, DESIRED_OLD_SEGMENTS,
-        MAX_MODULE_TOTAL_BYTES, MAX_SEGMENT_BYTES, ROCKSDB_BYTES_PER_SYNC, ROCKSDB_CF_KEY_VALUE,
-        ROCKSDB_CF_MANIFESTS, ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
+        CAS_CAPACITY_DEFAULT_DISK_PERCENT, CAS_CAPACITY_MAX_DISK_PERCENT, DESIRED_CURRENT_SEGMENTS,
+        DESIRED_NEW_SEGMENTS, DESIRED_OLD_SEGMENTS, MAX_DESIRED_SEGMENTS, MAX_MODULE_TOTAL_BYTES,
+        MAX_SEGMENT_BYTES, ROCKSDB_BYTES_PER_SYNC, ROCKSDB_CF_KEY_VALUE, ROCKSDB_CF_MANIFESTS,
+        ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
         ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX, ROCKSDB_CF_SEGMENT_ARTIFACTS,
-        ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_HARD_PENDING_COMPACTION_BYTES,
+        ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX, ROCKSDB_HARD_PENDING_COMPACTION_BYTES,
         ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER, ROCKSDB_LEVEL0_STOP_TRIGGER,
         ROCKSDB_SOFT_PENDING_COMPACTION_BYTES, ROCKSDB_WAL_BYTES_PER_SYNC,
         SEGMENT_FREE_SPACE_MARGIN,
@@ -40,15 +40,18 @@ use crate::{
     failpoints::{FailpointName, FailpointSet},
     io::{IoController, PersistentFile},
     memory::MemoryController,
+    mmap::map_file_region,
     multipart::{error::MultipartError, part::MultipartPart, upload::MultipartUpload},
     replication::{operation::ReplicationOperation, outbox_message::OutboxMessage},
     segment::{
         generation::SegmentGeneration, reader::SegmentReader, reference::SegmentReference,
         state::SegmentState,
     },
+    usage::UsageRollup,
     utils::{
-        artifact_storage_id, module_key, namespace_artifact_index_key, now_ms,
-        segment_artifact_index_key, segment_artifact_index_prefix, segment_path, temp_file_path,
+        artifact_storage_id, ensure_tmp_dir_capacity, module_key, namespace_artifact_index_key,
+        now_ms, segment_artifact_index_key, segment_artifact_index_prefix, segment_path,
+        temp_file_path,
     },
 };
 
@@ -62,7 +65,9 @@ pub struct Store {
     memory: MemoryController,
     tenant_id: String,
     tmp_dir: PathBuf,
+    tmp_dir_max_bytes: u64,
     data_dir: PathBuf,
+    segment_ring_limits: SegmentRingLimits,
     rocksdb_block_cache_capacity_bytes: usize,
     rocksdb_block_cache: Cache,
     rocksdb_write_buffer_manager: WriteBufferManager,
@@ -84,6 +89,41 @@ pub struct StoreSnapshot {
     pub rocksdb_block_cache_capacity_bytes: u64,
     pub rocksdb_write_buffer_usage_bytes: u64,
     pub rocksdb_write_buffer_capacity_bytes: u64,
+}
+
+pub enum ArtifactReader {
+    Inline { bytes: Bytes, offset: usize },
+    FileRange(SegmentReader),
+}
+
+#[derive(Clone)]
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub struct AcceleratedArtifactFile {
+    pub handle: Arc<PersistentFile>,
+    pub offset: u64,
+    pub size: u64,
+    pub content_type: String,
+}
+
+impl AsyncRead for ArtifactReader {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        match &mut *self {
+            Self::Inline { bytes, offset } => {
+                if *offset >= bytes.len() {
+                    return Poll::Ready(Ok(()));
+                }
+                let copy_len = (bytes.len() - *offset).min(buf.remaining());
+                buf.put_slice(&bytes[*offset..*offset + copy_len]);
+                *offset += copy_len;
+                Poll::Ready(Ok(()))
+            }
+            Self::FileRange(reader) => Pin::new(reader).poll_read(cx, buf),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -244,6 +284,14 @@ impl Store {
                 ),
             ),
             ColumnFamilyDescriptor::new(
+                ROCKSDB_CF_USAGE_OUTBOX,
+                rocksdb_column_family_options(
+                    config,
+                    &rocksdb_block_cache,
+                    &rocksdb_write_buffer_manager,
+                ),
+            ),
+            ColumnFamilyDescriptor::new(
                 ROCKSDB_CF_SEGMENT_ARTIFACTS,
                 rocksdb_column_family_options(
                     config,
@@ -281,13 +329,27 @@ impl Store {
             rocksdb_write_buffer_manager.get_buffer_size() as u64,
         );
 
+        let segment_ring_limits = resolve_segment_ring_limits(
+            config.cas_capacity_bytes,
+            total_disk_bytes(&config.data_dir),
+        );
+        tracing::info!(
+            desired_old_segments = segment_ring_limits.desired_old_segments,
+            desired_current_segments = segment_ring_limits.desired_current_segments,
+            desired_new_segments = segment_ring_limits.desired_new_segments,
+            capacity_bytes = segment_ring_limits.capacity_bytes(),
+            "resolved CAS segment ring limits"
+        );
+
         Ok(Self {
             db,
             io,
             memory,
             tenant_id: config.tenant_id.clone(),
             tmp_dir: config.tmp_dir.clone(),
+            tmp_dir_max_bytes: config.tmp_dir_max_bytes,
             data_dir: config.data_dir.clone(),
+            segment_ring_limits,
             rocksdb_block_cache_capacity_bytes: config.rocksdb_block_cache_bytes,
             rocksdb_block_cache,
             rocksdb_write_buffer_manager,
@@ -541,9 +603,95 @@ impl Store {
     pub async fn open_artifact_reader(
         &self,
         manifest: &ArtifactManifest,
-    ) -> Result<Pin<Box<dyn AsyncRead + Send>>, String> {
+    ) -> Result<ArtifactReader, String> {
         self.open_manifest_reader_with_range(manifest, 0, None)
             .await
+    }
+
+    pub async fn open_accelerated_artifact_file(
+        &self,
+        manifest: &ArtifactManifest,
+    ) -> Result<Option<AcceleratedArtifactFile>, String> {
+        if manifest.inline {
+            return Ok(None);
+        }
+
+        if let Some(segment_id) = &manifest.segment_id {
+            let offset = manifest
+                .segment_offset
+                .ok_or_else(|| "segment-backed manifest is missing segment offset".to_string())?;
+            let handle = self.segment_handle(segment_id).await?;
+            self.note_artifact_exists(&manifest.artifact_id);
+            return Ok(Some(AcceleratedArtifactFile {
+                handle,
+                offset,
+                size: manifest.size,
+                content_type: manifest.content_type.clone(),
+            }));
+        }
+
+        if let Some(blob_path) = &manifest.blob_path {
+            let handle = self.blob_handle(blob_path).await?;
+            self.note_artifact_exists(&manifest.artifact_id);
+            return Ok(Some(AcceleratedArtifactFile {
+                handle,
+                offset: 0,
+                size: manifest.size,
+                content_type: manifest.content_type.clone(),
+            }));
+        }
+
+        Ok(None)
+    }
+
+    /// Opportunistically maps an artifact's bytes for zero-copy serving.
+    ///
+    /// Returns `Ok(None)` whenever mmap serving is not appropriate, so callers
+    /// fall back to the streaming reader path: inline artifacts, artifacts
+    /// larger than the serving budget, no memory headroom, or a region whose
+    /// pages are not already resident in the page cache. The residency gate
+    /// means serving never faults disk I/O onto async workers; cold artifacts go
+    /// through [`Self::read_artifact_bytes`], which isolates blocking reads with
+    /// `spawn_blocking`. The mappings rely on segment and blob files being
+    /// append-only and reclaimed by unlink, never truncated; see [`crate::mmap`]
+    /// for the SIGBUS invariant this upholds.
+    pub async fn try_mmap_artifact_bytes(
+        &self,
+        manifest: &ArtifactManifest,
+    ) -> Result<Option<Bytes>, String> {
+        if manifest.inline || manifest.size > self.memory.mmap_serving_pool_bytes() as u64 {
+            return Ok(None);
+        }
+        let Ok(requested_bytes) = usize::try_from(manifest.size) else {
+            return Ok(None);
+        };
+        let Some(permit) = self.memory.try_acquire_mmap_serving(requested_bytes) else {
+            return Ok(None);
+        };
+
+        if let Some(segment_id) = &manifest.segment_id {
+            let offset = manifest
+                .segment_offset
+                .ok_or_else(|| "segment-backed manifest is missing segment offset".to_string())?;
+            let handle = self.segment_handle(segment_id).await?;
+            let Some(bytes) = map_file_region(handle.as_std(), offset, manifest.size, permit)?
+            else {
+                return Ok(None);
+            };
+            self.note_artifact_exists(&manifest.artifact_id);
+            return Ok(Some(bytes));
+        }
+
+        if let Some(blob_path) = &manifest.blob_path {
+            let handle = self.blob_handle(blob_path).await?;
+            let Some(bytes) = map_file_region(handle.as_std(), 0, manifest.size, permit)? else {
+                return Ok(None);
+            };
+            self.note_artifact_exists(&manifest.artifact_id);
+            return Ok(Some(bytes));
+        }
+
+        Ok(None)
     }
 
     pub async fn read_artifact_bytes(
@@ -577,15 +725,12 @@ impl Store {
         }
 
         if let Some(blob_path) = &manifest.blob_path {
-            let file = self
-                .io
-                .open_persistent_read_file(Path::new(blob_path))
-                .await
-                .map_err(|error| format!("failed to open blob {blob_path} for read: {error}"))?;
+            let handle = self.blob_handle(blob_path).await?;
             let size = manifest.size;
-            let bytes = tokio::task::spawn_blocking(move || read_bytes_at(file.as_std(), 0, size))
-                .await
-                .map_err(|error| format!("failed to join blob read task: {error}"))??;
+            let bytes =
+                tokio::task::spawn_blocking(move || read_bytes_at(handle.as_std(), 0, size))
+                    .await
+                    .map_err(|error| format!("failed to join blob read task: {error}"))??;
             self.hit_failpoint(FailpointName::AfterReadArtifactBytesBeforeReturn)
                 .await?;
             self.note_artifact_exists(&manifest.artifact_id);
@@ -600,7 +745,7 @@ impl Store {
         manifest: &ArtifactManifest,
         read_offset: u64,
         read_limit: Option<u64>,
-    ) -> Result<Pin<Box<dyn AsyncRead + Send>>, String> {
+    ) -> Result<ArtifactReader, String> {
         self.open_manifest_reader_with_range(manifest, read_offset, read_limit)
             .await
     }
@@ -608,7 +753,7 @@ impl Store {
     async fn open_manifest_reader(
         &self,
         manifest: &ArtifactManifest,
-    ) -> Result<Pin<Box<dyn AsyncRead + Send>>, String> {
+    ) -> Result<ArtifactReader, String> {
         self.open_manifest_reader_with_range(manifest, 0, None)
             .await
     }
@@ -618,7 +763,7 @@ impl Store {
         manifest: &ArtifactManifest,
         read_offset: u64,
         read_limit: Option<u64>,
-    ) -> Result<Pin<Box<dyn AsyncRead + Send>>, String> {
+    ) -> Result<ArtifactReader, String> {
         if read_offset > manifest.size {
             return Err(format!(
                 "requested read offset {read_offset} exceeds artifact size {}",
@@ -634,9 +779,11 @@ impl Store {
             let start = read_offset as usize;
             let end = start.saturating_add(limit as usize).min(bytes.len());
             let chunk = Bytes::from(bytes).slice(start..end);
-            let stream = stream::once(async move { Ok::<Bytes, std::io::Error>(chunk) });
             self.note_artifact_exists(&manifest.artifact_id);
-            return Ok(Box::pin(StreamReader::new(stream)));
+            return Ok(ArtifactReader::Inline {
+                bytes: chunk,
+                offset: 0,
+            });
         }
 
         if let Some(segment_id) = &manifest.segment_id {
@@ -645,7 +792,7 @@ impl Store {
                 .ok_or_else(|| "segment-backed manifest is missing segment offset".to_string())?;
             let handle = self.segment_handle(segment_id).await?;
             self.note_artifact_exists(&manifest.artifact_id);
-            return Ok(Box::pin(SegmentReader::new(
+            return Ok(ArtifactReader::FileRange(SegmentReader::new(
                 handle,
                 offset + read_offset,
                 limit,
@@ -653,16 +800,13 @@ impl Store {
         }
 
         if let Some(blob_path) = &manifest.blob_path {
-            let mut file = self
-                .io
-                .open_file(Path::new(blob_path))
-                .await
-                .map_err(|error| format!("failed to open blob {blob_path} for read: {error}"))?;
-            file.seek(std::io::SeekFrom::Start(read_offset))
-                .await
-                .map_err(|error| format!("failed to seek blob {blob_path}: {error}"))?;
+            let handle = self.blob_handle(blob_path).await?;
             self.note_artifact_exists(&manifest.artifact_id);
-            return Ok(Box::pin(file.take(limit)));
+            return Ok(ArtifactReader::FileRange(SegmentReader::new(
+                handle,
+                read_offset,
+                limit,
+            )));
         }
 
         Err("manifest does not have a readable storage location".to_string())
@@ -932,7 +1076,7 @@ impl Store {
         };
 
         if needs_new_segment {
-            let required_bytes = MAX_SEGMENT_BYTES.saturating_mul(SEGMENT_FREE_SPACE_MARGIN);
+            let required_bytes = segment_rotation_required_bytes(incoming_size);
             if let Some(available) = available_disk_bytes(&self.data_dir)
                 && available < required_bytes
             {
@@ -944,9 +1088,9 @@ impl Store {
             let segment = SegmentReference::new(Uuid::now_v7().to_string(), now_ms());
             let evicted_segments = state.push_new(
                 segment.clone(),
-                DESIRED_OLD_SEGMENTS,
-                DESIRED_CURRENT_SEGMENTS,
-                DESIRED_NEW_SEGMENTS,
+                self.segment_ring_limits.desired_old_segments,
+                self.segment_ring_limits.desired_current_segments,
+                self.segment_ring_limits.desired_new_segments,
             );
             self.save_segment_state(&state)?;
             Ok((segment, evicted_segments))
@@ -1057,12 +1201,83 @@ impl Store {
         Ok(())
     }
 
+    /// Removes segment files that the segment ring state no longer
+    /// references, along with any metadata still pointing at them.
+    ///
+    /// Rotation persists the ring state without the evicted segment before
+    /// the file is unlinked, so a crash (or an error) in that window strands
+    /// the file — and the manifests of the artifacts inside it — with no code
+    /// path left to reclaim them. Must run at startup, under the data-dir
+    /// writer lock and before any traffic, so it cannot race a rotation
+    /// creating a segment whose state entry is not yet visible.
+    pub async fn sweep_orphaned_segments(&self) -> Result<usize, String> {
+        let segments_dir = self.data_dir.join("segments");
+        let mut entries = match tokio::fs::read_dir(&segments_dir).await {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+            Err(error) => {
+                return Err(format!(
+                    "failed to list segments directory {}: {error}",
+                    segments_dir.display()
+                ));
+            }
+        };
+
+        let state = self.load_segment_state()?;
+        let mut swept = 0;
+        loop {
+            let entry = entries.next_entry().await.map_err(|error| {
+                format!(
+                    "failed to read segments directory {}: {error}",
+                    segments_dir.display()
+                )
+            })?;
+            let Some(entry) = entry else {
+                break;
+            };
+            let file_name = entry.file_name();
+            let Some(segment_id) = file_name
+                .to_str()
+                .and_then(|name| name.strip_suffix(".seg"))
+            else {
+                continue;
+            };
+            if state.generation_of(segment_id).is_some() {
+                continue;
+            }
+            tracing::warn!(segment_id, "removing orphaned segment");
+            self.evict_segment(segment_id).await?;
+            swept += 1;
+        }
+
+        Ok(swept)
+    }
+
     fn segment_path(&self, segment_id: &str) -> PathBuf {
         segment_path(&self.data_dir, segment_id)
     }
 
     async fn segment_handle(&self, segment_id: &str) -> Result<Arc<PersistentFile>, String> {
-        let cache_key = segment_handle_cache_key(segment_id);
+        let path = self.segment_path(segment_id);
+        self.persistent_file_handle(segment_handle_cache_key(segment_id), &path, "segment")
+            .await
+    }
+
+    async fn blob_handle(&self, blob_path: &str) -> Result<Arc<PersistentFile>, String> {
+        self.persistent_file_handle(
+            blob_handle_cache_key(blob_path),
+            Path::new(blob_path),
+            "blob",
+        )
+        .await
+    }
+
+    async fn persistent_file_handle(
+        &self,
+        cache_key: String,
+        path: &Path,
+        storage_kind: &'static str,
+    ) -> Result<Arc<PersistentFile>, String> {
         if let Some(handle) = self.segment_handle_cache_get(&cache_key).await {
             self.io.metrics().record_segment_handle_cache_lookup("hit");
             return Ok(handle);
@@ -1071,8 +1286,14 @@ impl Store {
 
         let handle = Arc::new(
             self.io
-                .open_persistent_read_file(&self.segment_path(segment_id))
-                .await?,
+                .open_persistent_read_file(path)
+                .await
+                .map_err(|error| {
+                    format!(
+                        "failed to open {storage_kind} persistent file {}: {error}",
+                        path.display()
+                    )
+                })?,
         );
         let mut cache = self.segment_handles.lock().await;
         if let Some(existing) = cache.touch(&cache_key) {
@@ -1089,15 +1310,23 @@ impl Store {
     }
 
     async fn remove_segment_handle(&self, segment_id: &str) {
+        self.remove_cached_file_handle(&segment_handle_cache_key(segment_id), "segment_eviction")
+            .await;
+    }
+
+    async fn remove_blob_handle(&self, blob_path: &str) {
+        self.remove_cached_file_handle(&blob_handle_cache_key(blob_path), "blob_delete")
+            .await;
+    }
+
+    async fn remove_cached_file_handle(&self, cache_key: &str, reason: &str) {
         let mut cache = self.segment_handles.lock().await;
-        let removed = cache.remove(&segment_handle_cache_key(segment_id));
+        let removed = cache.remove(cache_key);
         let cached = cache.len();
         drop(cache);
         self.io.metrics().update_segment_handles_cached(cached);
         if removed {
-            self.io
-                .metrics()
-                .record_segment_handle_evictions("segment_eviction", 1);
+            self.io.metrics().record_segment_handle_evictions(reason, 1);
         }
     }
 
@@ -1374,7 +1603,7 @@ impl Store {
                     batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), artifact_id.as_bytes());
                 }
                 if let Some(blob_path) = manifest.blob_path {
-                    blob_paths.push(PathBuf::from(blob_path));
+                    blob_paths.push(blob_path);
                 }
                 if let Some(segment_id) = manifest.segment_id {
                     batch.delete_cf(
@@ -1402,7 +1631,8 @@ impl Store {
         self.remove_manifest_cache_keys(&removed_artifact_ids);
 
         for path in blob_paths {
-            self.io.remove_file_if_exists(&path).await;
+            self.remove_blob_handle(&path).await;
+            self.io.remove_file_if_exists(Path::new(&path)).await;
         }
 
         self.hit_failpoint(FailpointName::AfterApplyReplicatedTombstone)
@@ -1566,6 +1796,10 @@ impl Store {
         if uploaded.is_empty() || uploaded != expected_parts {
             return Err(MultipartError::PartsMismatch);
         }
+        let upload_size: u64 = upload.parts.values().map(|part| part.size).sum();
+        ensure_tmp_dir_capacity(&self.tmp_dir, upload_size, self.tmp_dir_max_bytes)
+            .await
+            .map_err(MultipartError::Other)?;
 
         let assembled_path = temp_file_path(&self.tmp_dir.join("uploads"), "module");
         let mut assembled = self
@@ -1579,14 +1813,22 @@ impl Store {
                 .parts
                 .get(part_number)
                 .ok_or(MultipartError::PartsMismatch)?;
-            let bytes = self
+            let mut part_file = self
                 .io
-                .read(Path::new(&part.path))
+                .open_file(Path::new(&part.path))
                 .await
                 .map_err(MultipartError::Other)?;
-            assembled.write_all(&bytes).await.map_err(|error| {
-                MultipartError::Other(format!("failed to assemble multipart artifact: {error}"))
-            })?;
+            let copied = tokio::io::copy(&mut part_file, &mut assembled)
+                .await
+                .map_err(|error| {
+                    MultipartError::Other(format!("failed to assemble multipart artifact: {error}"))
+                })?;
+            if copied != part.size {
+                return Err(MultipartError::Other(format!(
+                    "multipart part {part_number} expected {} bytes but copied {copied}",
+                    part.size
+                )));
+            }
         }
         assembled.flush().await.map_err(|error| {
             MultipartError::Other(format!("failed to flush assembled artifact: {error}"))
@@ -1673,6 +1915,60 @@ impl Store {
 
     pub fn outbox_message_count(&self) -> Result<usize, String> {
         self.count_cf_entries(ROCKSDB_CF_OUTBOX)
+    }
+
+    pub fn append_usage_rollups(&self, rollups: &[UsageRollup]) -> Result<(), String> {
+        if rollups.is_empty() {
+            return Ok(());
+        }
+
+        let mut batch = WriteBatch::default();
+        for rollup in rollups {
+            let value = serde_json::to_vec(rollup)
+                .map_err(|error| format!("failed to encode usage rollup: {error}"))?;
+            batch.put_cf(
+                self.cf(ROCKSDB_CF_USAGE_OUTBOX),
+                rollup.event_id.as_bytes(),
+                value,
+            );
+        }
+        self.write_batch_sync(batch, "usage rollups")
+    }
+
+    pub fn next_usage_rollups(&self, limit: usize) -> Result<Vec<(Vec<u8>, UsageRollup)>, String> {
+        let mut rollups = Vec::new();
+        let iter = self
+            .db
+            .iterator_cf(self.cf(ROCKSDB_CF_USAGE_OUTBOX), IteratorMode::Start);
+
+        for item in iter {
+            let (key, value) =
+                item.map_err(|error| format!("failed to iterate usage outbox: {error}"))?;
+            let rollup = serde_json::from_slice::<UsageRollup>(&value)
+                .map_err(|error| format!("failed to decode usage rollup: {error}"))?;
+            rollups.push((key.to_vec(), rollup));
+            if rollups.len() >= limit {
+                break;
+            }
+        }
+
+        Ok(rollups)
+    }
+
+    pub fn usage_outbox_message_count(&self) -> Result<usize, String> {
+        self.count_cf_entries(ROCKSDB_CF_USAGE_OUTBOX)
+    }
+
+    pub fn delete_usage_rollups(&self, keys: &[Vec<u8>]) -> Result<(), String> {
+        if keys.is_empty() {
+            return Ok(());
+        }
+
+        let mut batch = WriteBatch::default();
+        for key in keys {
+            batch.delete_cf(self.cf(ROCKSDB_CF_USAGE_OUTBOX), key);
+        }
+        self.write_batch_sync(batch, "usage rollup deletes")
     }
 
     #[cfg(test)]
@@ -2336,6 +2632,19 @@ pub fn is_disk_full_error(error: &str) -> bool {
     error.contains(DISK_FULL_MARKER)
 }
 
+/// Free bytes a rotation must see before creating a new segment: room for the
+/// incoming artifact, which is appended whole and can exceed
+/// `MAX_SEGMENT_BYTES`, plus the same again as slack for writers the rotation
+/// check cannot see (metadata store flushes and compactions, the evicted
+/// segment that is not yet unlinked, and tmp staging when it shares the
+/// filesystem — the staged source and the segment copy coexist during the
+/// append).
+fn segment_rotation_required_bytes(incoming_size: u64) -> u64 {
+    MAX_SEGMENT_BYTES
+        .max(incoming_size)
+        .saturating_mul(SEGMENT_FREE_SPACE_MARGIN)
+}
+
 #[cfg(unix)]
 fn available_disk_bytes(path: &Path) -> Option<u64> {
     use std::ffi::CString;
@@ -2357,6 +2666,101 @@ fn available_disk_bytes(path: &Path) -> Option<u64> {
 #[cfg(not(unix))]
 fn available_disk_bytes(_path: &Path) -> Option<u64> {
     None
+}
+
+#[cfg(unix)]
+fn total_disk_bytes(path: &Path) -> Option<u64> {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+
+    let path = CString::new(path.as_os_str().as_bytes()).ok()?;
+    let mut stat: libc::statvfs = unsafe { std::mem::zeroed() };
+    let result = unsafe { libc::statvfs(path.as_ptr(), &mut stat) };
+    if result != 0 {
+        return None;
+    }
+    #[allow(clippy::unnecessary_cast)]
+    let f_blocks = stat.f_blocks as u64;
+    #[allow(clippy::unnecessary_cast)]
+    let f_frsize = stat.f_frsize as u64;
+    Some(f_blocks.saturating_mul(f_frsize))
+}
+
+#[cfg(not(unix))]
+fn total_disk_bytes(_path: &Path) -> Option<u64> {
+    None
+}
+
+/// Resolved generation counts for the CAS segment ring.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct SegmentRingLimits {
+    pub desired_old_segments: usize,
+    pub desired_current_segments: usize,
+    pub desired_new_segments: usize,
+}
+
+impl SegmentRingLimits {
+    fn legacy_floor() -> Self {
+        Self {
+            desired_old_segments: DESIRED_OLD_SEGMENTS,
+            desired_current_segments: DESIRED_CURRENT_SEGMENTS,
+            desired_new_segments: DESIRED_NEW_SEGMENTS,
+        }
+    }
+
+    fn total_segments(&self) -> usize {
+        self.desired_old_segments + self.desired_current_segments + self.desired_new_segments
+    }
+
+    fn capacity_bytes(&self) -> u64 {
+        (self.total_segments() as u64).saturating_mul(MAX_SEGMENT_BYTES)
+    }
+}
+
+/// Resolves the segment-ring generation counts from the operator-configured
+/// capacity and the data-dir filesystem size.
+///
+/// The budget is `configured_capacity_bytes` when set, otherwise
+/// `CAS_CAPACITY_DEFAULT_DISK_PERCENT` of the filesystem. Either way it is
+/// capped at `CAS_CAPACITY_MAX_DISK_PERCENT` of the filesystem so resident
+/// segments plus the extra segment a rotation appends before evicting the
+/// oldest one can never run the disk full, and floored at the legacy 1/2/2
+/// ring so small disks (or hosts where the filesystem size cannot be
+/// determined) keep the pre-existing behavior. Generations keep the legacy
+/// 1:2:2 old/current/new proportions.
+fn resolve_segment_ring_limits(
+    configured_capacity_bytes: Option<u64>,
+    disk_total_bytes: Option<u64>,
+) -> SegmentRingLimits {
+    let floor = SegmentRingLimits::legacy_floor();
+
+    let ceiling_bytes = disk_total_bytes.map(|total| total / 100 * CAS_CAPACITY_MAX_DISK_PERCENT);
+    let budget_bytes = match (configured_capacity_bytes, ceiling_bytes) {
+        (Some(configured), Some(ceiling)) => Some(configured.min(ceiling)),
+        (Some(configured), None) => Some(configured),
+        (None, Some(_)) => {
+            disk_total_bytes.map(|total| total / 100 * CAS_CAPACITY_DEFAULT_DISK_PERCENT)
+        }
+        (None, None) => None,
+    };
+    let Some(budget_bytes) = budget_bytes else {
+        return floor;
+    };
+
+    let total_segments = usize::try_from(budget_bytes / MAX_SEGMENT_BYTES)
+        .unwrap_or(MAX_DESIRED_SEGMENTS)
+        .clamp(floor.total_segments(), MAX_DESIRED_SEGMENTS);
+
+    let desired_old_segments = (total_segments / 5).max(DESIRED_OLD_SEGMENTS);
+    let remainder = total_segments - desired_old_segments;
+    let desired_current_segments = (remainder / 2).max(DESIRED_CURRENT_SEGMENTS);
+    let desired_new_segments = (remainder - desired_current_segments).max(DESIRED_NEW_SEGMENTS);
+
+    SegmentRingLimits {
+        desired_old_segments,
+        desired_current_segments,
+        desired_new_segments,
+    }
 }
 
 fn rocksdb_column_family_options(
@@ -2467,7 +2871,11 @@ impl SegmentHandleCache {
 }
 
 fn segment_handle_cache_key(segment_id: &str) -> String {
-    segment_id.to_owned()
+    format!("segment:{segment_id}")
+}
+
+fn blob_handle_cache_key(blob_path: &str) -> String {
+    format!("blob:{blob_path}")
 }
 
 fn manifest_version_ms(manifest: &ArtifactManifest) -> u64 {
@@ -2546,7 +2954,7 @@ mod tests {
     use tempfile::TempDir;
 
     use crate::{
-        config::Config,
+        config::{AcceleratedFileServingConfig, AcceleratedFileServingMode, Config},
         failpoints::{FailpointAction, FailpointName},
         io::IoController,
         memory::MemoryController,
@@ -2554,6 +2962,69 @@ mod tests {
         replication::operation::ReplicationOperation,
         segment::{reference::SegmentReference, state::SegmentState},
     };
+
+    const GIB: u64 = 1024 * 1024 * 1024;
+
+    #[test]
+    fn segment_ring_limits_fall_back_to_legacy_floor_without_disk_information() {
+        let limits = resolve_segment_ring_limits(None, None);
+
+        assert_eq!(limits, SegmentRingLimits::legacy_floor());
+    }
+
+    #[test]
+    fn segment_ring_limits_derive_from_disk_size_when_unconfigured() {
+        // 50% of 100 GiB = 50 GiB = 100 segments, split 1:2:2.
+        let limits = resolve_segment_ring_limits(None, Some(100 * GIB));
+
+        assert_eq!(limits.desired_old_segments, 20);
+        assert_eq!(limits.desired_current_segments, 40);
+        assert_eq!(limits.desired_new_segments, 40);
+        assert_eq!(limits.capacity_bytes(), 50 * GIB);
+    }
+
+    #[test]
+    fn segment_ring_limits_use_configured_capacity() {
+        // 20 GiB = 40 segments.
+        let limits = resolve_segment_ring_limits(Some(20 * GIB), Some(100 * GIB));
+
+        assert_eq!(limits.desired_old_segments, 8);
+        assert_eq!(limits.desired_current_segments, 16);
+        assert_eq!(limits.desired_new_segments, 16);
+    }
+
+    #[test]
+    fn segment_ring_limits_cap_configured_capacity_below_disk_size() {
+        // 80% of 10 GiB rounds down to 15 whole segments, regardless of the
+        // configured 1 TiB.
+        let limits = resolve_segment_ring_limits(Some(1024 * GIB), Some(10 * GIB));
+
+        assert_eq!(limits.total_segments(), 15);
+        assert!(limits.capacity_bytes() <= 10 * GIB * 80 / 100);
+    }
+
+    #[test]
+    fn segment_ring_limits_never_drop_below_legacy_floor() {
+        let tiny_configured = resolve_segment_ring_limits(Some(1), Some(100 * GIB));
+        assert_eq!(
+            tiny_configured.total_segments(),
+            SegmentRingLimits::legacy_floor().total_segments()
+        );
+
+        // 50% of 1 GiB = 512 MiB = 1 segment, floored to the legacy ring.
+        let tiny_disk = resolve_segment_ring_limits(None, Some(GIB));
+        assert_eq!(
+            tiny_disk.total_segments(),
+            SegmentRingLimits::legacy_floor().total_segments()
+        );
+    }
+
+    #[test]
+    fn segment_ring_limits_use_configured_capacity_without_disk_information() {
+        let limits = resolve_segment_ring_limits(Some(20 * GIB), None);
+
+        assert_eq!(limits.total_segments(), 40);
+    }
 
     fn temp_store() -> (TempDir, Config, Store) {
         temp_store_with(|_| {})
@@ -2572,13 +3043,23 @@ mod tests {
             region: "local".into(),
             tmp_dir: temp_dir.path().join("tmp"),
             data_dir: temp_dir.path().join("data"),
+            tmp_dir_max_bytes: 8 * 1024 * 1024 * 1024,
+            cas_capacity_bytes: None,
             node_url: "http://127.0.0.1:7443".into(),
+            peer_gateway_url: None,
             peers: vec!["http://127.0.0.1:7443".into()],
             discovery_dns_name: None,
+            global_discovery_dns_name: None,
             peer_tls: None,
             grpc_tls: None,
             public_tls: None,
             https_port: 0,
+            accelerated_file_serving: AcceleratedFileServingConfig {
+                enabled: true,
+                mode: AcceleratedFileServingMode::Splice,
+                max_concurrent: 32,
+                chunk_bytes: 1024 * 1024,
+            },
             file_descriptor_pool_size: 32,
             file_descriptor_acquire_timeout_ms: 5_000,
             drain_completion_timeout_ms: 240_000,
@@ -2594,11 +3075,14 @@ mod tests {
             rocksdb_write_buffer_size_bytes: 8 * 1024 * 1024,
             rocksdb_max_write_buffer_number: 4,
             outbox_max_depth: 100_000,
+            replication_bandwidth_limit_bytes_per_second: 0,
+            replication_public_latency_target_ms: 100,
             multipart_upload_ttl_ms: 24 * 60 * 60 * 1000,
             multipart_janitor_interval_ms: 10 * 60 * 1000,
             bootstrap_timeout_ms: 30 * 60 * 1000,
             bootstrap_max_concurrent_peers: 8,
             analytics: None,
+            usage: None,
             otlp_traces_endpoint: Some("http://127.0.0.1:4318/v1/traces".into()),
             otel_service_name: "kura-test".into(),
             otel_deployment_environment: "test".into(),
@@ -2684,6 +3168,81 @@ mod tests {
             raw[0], 2,
             "segment-backed manifest should use compact record"
         );
+    }
+
+    #[tokio::test]
+    async fn mmap_artifact_bytes_is_opportunistic_under_memory_pressure() {
+        let (_temp_dir, config, store) = temp_store();
+
+        let manifest = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-1",
+                "application/octet-stream",
+                b"hello",
+            )
+            .await
+            .expect("failed to persist artifact");
+
+        let mmap_bytes = store
+            .try_mmap_artifact_bytes(&manifest)
+            .await
+            .expect("mmap lookup should not fail")
+            .expect("normal memory pressure should permit mmap serving");
+        assert_eq!(&mmap_bytes[..], b"hello");
+
+        store.memory.observe(config.memory_soft_limit_bytes);
+        let mmap_bytes = store
+            .try_mmap_artifact_bytes(&manifest)
+            .await
+            .expect("mmap lookup should not fail");
+
+        assert!(mmap_bytes.is_none());
+    }
+
+    #[tokio::test]
+    async fn mmap_artifact_bytes_maps_non_zero_segment_offsets() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        let first = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-first",
+                "application/octet-stream",
+                b"first-artifact-payload",
+            )
+            .await
+            .expect("failed to persist first artifact");
+
+        let second = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-second",
+                "application/octet-stream",
+                b"second-artifact-payload",
+            )
+            .await
+            .expect("failed to persist second artifact");
+
+        assert_eq!(
+            first.segment_id, second.segment_id,
+            "both artifacts should share the same append-only segment"
+        );
+        assert!(
+            second.segment_offset.unwrap_or(0) > first.segment_offset.unwrap_or(0),
+            "second artifact should land at a non-zero offset within the segment"
+        );
+
+        let mmap_bytes = store
+            .try_mmap_artifact_bytes(&second)
+            .await
+            .expect("mmap lookup should not fail")
+            .expect("normal memory pressure should permit mmap serving");
+
+        assert_eq!(&mmap_bytes[..], b"second-artifact-payload");
     }
 
     #[tokio::test]
@@ -3057,6 +3616,82 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[tokio::test]
+    async fn blob_handle_cache_is_bounded_and_dropped_before_namespace_delete() {
+        let (_temp_dir, config, store) = temp_store_with(|config| {
+            config.segment_handle_cache_size = 1;
+        });
+        let blob_path = config.data_dir.join("blobs").join("legacy-blob");
+        std::fs::write(&blob_path, b"legacy-blob-payload").expect("failed to write blob");
+        let blob_path_string = blob_path.to_string_lossy().into_owned();
+        let artifact_id = artifact_storage_id(
+            ArtifactProducer::Module,
+            &config.tenant_id,
+            "ios",
+            "legacy-key",
+        );
+        let manifest = ArtifactManifest {
+            artifact_id: artifact_id.clone(),
+            producer: ArtifactProducer::Module,
+            namespace_id: "ios".to_owned(),
+            key: "legacy-key".to_owned(),
+            content_type: "application/octet-stream".to_owned(),
+            inline: false,
+            blob_path: Some(blob_path_string.clone()),
+            segment_id: None,
+            segment_offset: None,
+            size: b"legacy-blob-payload".len() as u64,
+            version_ms: 100,
+            created_at_ms: 100,
+        };
+
+        store
+            .db
+            .put_cf(
+                store.cf(ROCKSDB_CF_MANIFESTS),
+                artifact_id.as_bytes(),
+                encode_manifest_record(&manifest).expect("manifest should encode"),
+            )
+            .expect("failed to persist manifest");
+        store
+            .db
+            .put_cf(
+                store.cf(ROCKSDB_CF_NAMESPACE_ARTIFACTS),
+                namespace_artifact_index_key("ios", &artifact_id).as_bytes(),
+                [],
+            )
+            .expect("failed to persist namespace index");
+
+        assert_eq!(
+            read_manifest_bytes(&store, &manifest).await,
+            b"legacy-blob-payload"
+        );
+        {
+            let cache = store.segment_handles.lock().await;
+            assert_eq!(cache.len(), 1);
+            assert!(
+                cache
+                    .entries
+                    .contains_key(&blob_handle_cache_key(&blob_path_string))
+            );
+        }
+
+        store
+            .delete_namespace("ios")
+            .await
+            .expect("failed to delete namespace");
+
+        {
+            let cache = store.segment_handles.lock().await;
+            assert!(
+                !cache
+                    .entries
+                    .contains_key(&blob_handle_cache_key(&blob_path_string))
+            );
+        }
+        assert!(!blob_path.exists());
     }
 
     #[tokio::test]
@@ -3865,5 +4500,104 @@ mod tests {
         assert_eq!(second_manifest.version_ms, 200);
         assert_eq!(read_manifest_bytes(&first, &first_manifest).await, b"v2");
         assert_eq!(read_manifest_bytes(&second, &second_manifest).await, b"v2");
+    }
+
+    #[test]
+    fn segment_rotation_requires_margin_for_oversized_artifacts() {
+        assert_eq!(
+            segment_rotation_required_bytes(0),
+            MAX_SEGMENT_BYTES * SEGMENT_FREE_SPACE_MARGIN
+        );
+        assert_eq!(
+            segment_rotation_required_bytes(MAX_SEGMENT_BYTES),
+            MAX_SEGMENT_BYTES * SEGMENT_FREE_SPACE_MARGIN
+        );
+        assert_eq!(
+            segment_rotation_required_bytes(3 * MAX_SEGMENT_BYTES),
+            3 * MAX_SEGMENT_BYTES * SEGMENT_FREE_SPACE_MARGIN
+        );
+    }
+
+    #[tokio::test]
+    async fn sweep_orphaned_segments_returns_zero_without_segments_dir() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        let swept = store
+            .sweep_orphaned_segments()
+            .await
+            .expect("sweep should succeed");
+
+        assert_eq!(swept, 0);
+    }
+
+    #[tokio::test]
+    async fn sweep_orphaned_segments_removes_stray_files_and_keeps_live_segments() {
+        let (_temp_dir, config, store) = temp_store();
+        let manifest = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("artifact should persist");
+        let stray_path = config.data_dir.join("segments").join("stray.seg");
+        std::fs::write(&stray_path, b"junk").expect("stray segment should be written");
+
+        let swept = store
+            .sweep_orphaned_segments()
+            .await
+            .expect("sweep should succeed");
+
+        assert_eq!(swept, 1);
+        assert!(!stray_path.exists());
+        let bytes = store
+            .read_artifact_bytes(&manifest)
+            .await
+            .expect("live artifact should remain readable");
+        assert_eq!(bytes, b"payload");
+    }
+
+    #[tokio::test]
+    async fn sweep_orphaned_segments_reclaims_crash_window_segment_and_metadata() {
+        let (_temp_dir, _config, store) = temp_store();
+        let manifest = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("artifact should persist");
+        let segment_id = manifest
+            .segment_id
+            .clone()
+            .expect("artifact should be segment-backed");
+        let segment_file = store.segment_path(&segment_id);
+        assert!(segment_file.exists());
+
+        // Simulate the crash window: rotation saved the ring state without
+        // the evicted segment, but the process died before the unlink.
+        let mut state = store.load_segment_state().expect("state should load");
+        assert!(state.remove_segment(&segment_id));
+        store.save_segment_state(&state).expect("state should save");
+
+        let swept = store
+            .sweep_orphaned_segments()
+            .await
+            .expect("sweep should succeed");
+
+        assert_eq!(swept, 1);
+        assert!(!segment_file.exists());
+        assert!(
+            store
+                .manifest(&manifest.artifact_id)
+                .expect("manifest lookup should succeed")
+                .is_none()
+        );
     }
 }

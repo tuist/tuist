@@ -48,14 +48,51 @@ spec:
         value: production
     workers:
       machineDeployments:
-        # General-purpose pool: Phoenix server, redis, system DaemonSets.
+        # General-purpose pool: Phoenix server, redis, system DaemonSets,
+        # plus the 3-instance CloudNativePG cluster — its hard pod
+        # anti-affinity (`topologyKey: kubernetes.io/hostname,
+        # podAntiAffinityType: required`) needs one CNPG instance per
+        # host, so the pool size has to match the configured instance
+        # count to avoid leaving a CNPG pod permanently Pending.
         - class: hcloud-worker
           name: md-0
-          replicas: 2
+          replicas: 3
           failureDomain: fsn1
           metadata:
             labels:
               node.cluster.x-k8s.io/pool: general
+        # Dedicated stable-egress gateway pool (HA, ≥2 nodes). The Phoenix
+        # server's public egress is SNAT'd through the active node's Hetzner
+        # Floating IP by the CiliumEgressGatewayPolicy in the platform chart.
+        # Every node here self-applies the candidate label
+        # `tuist.dev/stable-egress-candidate=server` at kubelet registration
+        # via `workerNodeLabels` (survives MachineHealthCheck remediation,
+        # unlike CAPI metadata-label sync). The stable-egress failover
+        # controller picks one Ready candidate as active — moving the Floating
+        # IP (Hetzner API) and the active `tuist.dev/stable-egress-gateway`
+        # label together — and fails over to the other on node loss. The
+        # host-configurer DaemonSet configures eth0 on the active node.
+        #
+        # An outage on 2026-06-14 traced to this binding being a single
+        # hand-labelled node: it got remediated, neither the label nor the IP
+        # migrated, and server egress black-holed. Two candidates + automated
+        # failover removes both the SPOF and the manual runbook.
+        - class: hcloud-worker
+          name: md-egress
+          replicas: 2
+          failureDomain: fsn1
+          metadata:
+            labels:
+              node.cluster.x-k8s.io/pool: egress
+          variables:
+            overrides:
+              # Forwards/SNATs server egress only — runs no application
+              # workload, so it doesn't need the general pool's dedicated
+              # vCPU shape.
+              - name: hcloudWorkerMachineType
+                value: cpx22
+              - name: workerNodeLabels
+                value: tuist.dev/stable-egress-candidate=server
         # Dedicated processor pool: xcactivitylog parsing.
         # CA annotations declared here propagate to the rendered
         # MachineDeployment via topology mode. Without them the
@@ -79,8 +116,8 @@ spec:
             overrides:
               - name: hcloudWorkerMachineType
                 value: cpx62
-        # Dedicated Kura pool. Kura StatefulSets use RWO PVCs and a
-        # hard hostname spread constraint, so the minimum is three
+        # Dedicated eu-central Kura pool. Kura StatefulSets use RWO PVCs
+        # and a hard hostname spread constraint, so the minimum is three
         # workers to keep each account's three replicas on distinct
         # nodes. The pool label propagates to the MachineDeployment and
         # node template, so cluster-autoscaler can scale this group for
@@ -90,9 +127,87 @@ spec:
         - class: hcloud-worker
           name: kura
           failureDomain: fsn1
+          healthCheck:
+            checks:
+              nodeStartupTimeoutSeconds: 600
+              unhealthyNodeConditions:
+                - type: Ready
+                  status: Unknown
+                  timeoutSeconds: 300
+                - type: Ready
+                  status: "False"
+                  timeoutSeconds: 300
+            remediation:
+              triggerIf:
+                unhealthyLessThanOrEqualTo: 100%
           metadata:
             labels:
+              autoscaling.tuist.dev/group: kura
               node.cluster.x-k8s.io/pool: kura
+            annotations:
+              cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size: "3"
+              cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size: "12"
+              cluster.x-k8s.io/cluster-autoscaler-node-group-min-size: "3"
+              cluster.x-k8s.io/cluster-autoscaler-node-group-max-size: "12"
+          variables:
+            overrides:
+              - name: hcloudWorkerMachineType
+                value: ccx13
+        # US East Kura capacity lives in the production workload
+        # cluster as a regional node pool instead of a separate cluster.
+        # The region catalog pins us-east KuraInstances to this pool.
+        - class: hcloud-worker
+          name: kura-us-east
+          failureDomain: ash
+          healthCheck:
+            checks:
+              nodeStartupTimeoutSeconds: 600
+              unhealthyNodeConditions:
+                - type: Ready
+                  status: Unknown
+                  timeoutSeconds: 300
+                - type: Ready
+                  status: "False"
+                  timeoutSeconds: 300
+            remediation:
+              triggerIf:
+                unhealthyLessThanOrEqualTo: 100%
+          metadata:
+            labels:
+              autoscaling.tuist.dev/group: kura-us-east
+              node.cluster.x-k8s.io/pool: kura-us-east
+            annotations:
+              cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size: "3"
+              cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size: "32"
+              cluster.x-k8s.io/cluster-autoscaler-node-group-min-size: "3"
+              cluster.x-k8s.io/cluster-autoscaler-node-group-max-size: "32"
+          variables:
+            overrides:
+              - name: hcloudWorkerMachineType
+                value: ccx13
+        # US West Kura capacity lives in the production workload
+        # cluster as a regional node pool instead of a separate cluster.
+        # The region catalog pins us-west KuraInstances to this pool.
+        - class: hcloud-worker
+          name: kura-us-west
+          failureDomain: hil
+          healthCheck:
+            checks:
+              nodeStartupTimeoutSeconds: 600
+              unhealthyNodeConditions:
+                - type: Ready
+                  status: Unknown
+                  timeoutSeconds: 300
+                - type: Ready
+                  status: "False"
+                  timeoutSeconds: 300
+            remediation:
+              triggerIf:
+                unhealthyLessThanOrEqualTo: 100%
+          metadata:
+            labels:
+              autoscaling.tuist.dev/group: kura-us-west
+              node.cluster.x-k8s.io/pool: kura-us-west
             annotations:
               cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size: "3"
               cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size: "12"

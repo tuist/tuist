@@ -6,6 +6,7 @@ defmodule TuistWeb.Router do
   import Redirect
   import TuistWeb.Authentication
   import TuistWeb.Authorization
+  import TuistWeb.OperatorGrant
   import TuistWeb.RateLimit.InMemory
 
   alias TuistWeb.Marketing.Localization
@@ -66,6 +67,10 @@ defmodule TuistWeb.Router do
     plug :put_secure_browser_headers
     plug UeberauthHostPlug
     plug :fetch_current_user
+    # Before Sentry/Observability log the query string: take a
+    # `?operator_grant=` token off the redirect-back, stash it in the
+    # session, and redirect to strip it from the URL.
+    plug :accept_operator_grant
     plug SentryContextPlug
     plug ObservabilityContextPlug
     plug :content_security_policy
@@ -551,6 +556,11 @@ defmodule TuistWeb.Router do
         scope "/tests" do
           get "/", TestsController, :index
 
+          scope "/metrics" do
+            get "/duration", MetricsController, :test_duration
+            get "/dimensions/:dimension/values", MetricsController, :test_dimension_values
+          end
+
           scope "/test-cases" do
             get "/", TestCasesController, :index
 
@@ -594,6 +604,12 @@ defmodule TuistWeb.Router do
 
         scope "/builds" do
           get "/", BuildsController, :index
+
+          scope "/metrics" do
+            get "/duration", MetricsController, :build_duration
+            get "/dimensions/:dimension/values", MetricsController, :build_dimension_values
+          end
+
           get "/:build_id", BuildsController, :show
           post "/", BuildsController, :create
           post "/upload/start", BuildsController, :multipart_start
@@ -718,6 +734,12 @@ defmodule TuistWeb.Router do
     post "/runners/pods/stopped", RunnerPodsController, :stopped
   end
 
+  scope "/_internal", TuistWeb.Internal do
+    pipe_through [:non_authenticated_api]
+
+    post "/kura/usage", KuraUsageController, :create
+  end
+
   scope "/oauth2", TuistWeb.Oauth do
     pipe_through [:browser_app, :fetch_current_user]
 
@@ -789,6 +811,8 @@ defmodule TuistWeb.Router do
       live "/accounts", TuistWeb.OpsAccountsLive
       live "/accounts/:id", TuistWeb.OpsAccountLive
       live "/accounts/:id/kura/deployments/:deployment_id", TuistWeb.OpsAccountKuraDeploymentLive
+      live "/db", TuistWeb.OpsDatabaseLive
+      live "/db/tables/:schema/:name", TuistWeb.OpsDatabaseTableLive
     end
   end
 
@@ -954,6 +978,8 @@ defmodule TuistWeb.Router do
     pipe_through [
       :open_api,
       :browser_app,
+      :load_operator_grant,
+      :redirect_to_ops_if_operator,
       :require_authenticated_user,
       :require_sso_authentication,
       :analytics
@@ -962,10 +988,15 @@ defmodule TuistWeb.Router do
     get "/billing/manage", BillingController, :manage
     get "/billing/upgrade", BillingController, :upgrade
 
+    get "/runners/runs/:workflow_run_id/jobs/:workflow_job_id/logs/download",
+        RunnerJobLogsController,
+        :download
+
     live_session :account,
       layout: {TuistWeb.Layouts, :account},
       on_mount: [
         {TuistWeb.Authentication, :ensure_authenticated},
+        {TuistWeb.OperatorGrant, :load},
         {TuistWeb.Locale, :assign_locale},
         {TuistWeb.LayoutLive, :account}
       ] do
@@ -976,11 +1007,13 @@ defmodule TuistWeb.Router do
       live "/runners/workflows/:repo_owner/:repo_name/:workflow_name", RunnerWorkflowLive
       live "/runners/jobs", RunnerJobsLive
       live "/runners/runs/:workflow_run_id/jobs/:workflow_job_id", RunnerJobLive
+      live "/runners/profiles", RunnerProfilesLive
       live "/members", MembersLive
       live "/webhooks", WebhooksLive
       live "/webhooks/:id", WebhookLive
       live "/webhooks/:id/events/:attempt_id", WebhookEventLive
       live "/billing", BillingLive
+      live "/usage", UsageLive
       live "/settings", AccountSettingsLive
       live "/settings/integrations", IntegrationsLive
       live "/settings/authentication", AuthenticationSettingsLive
@@ -992,6 +1025,8 @@ defmodule TuistWeb.Router do
       :open_api,
       :browser_app,
       :rate_limit,
+      :load_operator_grant,
+      :redirect_to_ops_if_operator,
       :require_authenticated_user_for_private_projects,
       :require_sso_authentication,
       :analytics,
@@ -1002,6 +1037,7 @@ defmodule TuistWeb.Router do
       layout: {TuistWeb.Layouts, :project},
       on_mount: [
         {TuistWeb.Authentication, :mount_current_user},
+        {TuistWeb.OperatorGrant, :load},
         {TuistWeb.Locale, :assign_locale},
         {TuistWeb.LayoutLive, :project}
       ] do

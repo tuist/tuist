@@ -378,8 +378,8 @@ defmodule Tuist.Docs.Sidebar do
           %Item{
             label: "Self-hosting",
             items: [
-              %Item{label: "Control plane", slug: "/en/guides/server/self-host/control-plane"},
-              %Item{label: "Kura", slug: "/en/guides/server/self-host/kura"},
+              %Item{label: "Server", slug: "/en/guides/server/self-host/server"},
+              %Item{label: "Cache", slug: "/en/guides/features/cache/self-hosting"},
               %Item{label: "Telemetry", slug: "/en/guides/server/self-host/telemetry"}
             ]
           }
@@ -485,6 +485,8 @@ defmodule Tuist.Docs.Sidebar do
       %Group{
         label: "CLI",
         items: [
+          %Item{label: "Release channels", slug: "/en/cli/release-channels"},
+          %Item{label: "Compatibility", slug: "/en/cli/compatibility"},
           %Item{label: "Debugging", slug: "/en/cli/debugging"},
           %Item{label: "Directories", slug: "/en/cli/directories"},
           %Item{label: "Shell completions", slug: "/en/cli/shell-completions"}

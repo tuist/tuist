@@ -125,65 +125,77 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
     ) async throws -> (TuistLoader.DependenciesGraph, [LintingIssue]) {
         let path = scratchDirectory
         let checkoutsFolder = path.appending(component: "checkouts")
+        let packageInfoCache = await SwifterPMPackageInfoCache.load(
+            scratchDirectory: scratchDirectory,
+            fileSystem: fileSystem
+        )
 
-        let rootPackage = try await manifestLoader.loadPackage(at: packagePath.parentDirectory, disableSandbox: disableSandbox)
-
-        var packageInfos: [
-            // swiftlint:disable:next large_tuple
-            (
-                id: String,
-                name: String,
-                folder: AbsolutePath,
-                targetToArtifactPaths: [String: AbsolutePath],
-                info: PackageInfo,
-                hash: String?,
-                kind: String
-            )
-        ] = try await workspaceState.object.dependencies.concurrentMap { dependency in
-            let name = dependency.packageRef.name
-            let packageFolder: AbsolutePath
-            let hash: String?
-            switch dependency.packageRef.kind {
-            case "remote", "remoteSourceControl":
-                packageFolder = checkoutsFolder.appending(component: dependency.subpath)
-                hash = dependency.state?.checkoutState?.revision
-            case "local", "fileSystem", "localSourceControl":
-                // Depending on the swift version, the information is available either in `path` or in `location`
-                guard let path = dependency.packageRef.path ?? dependency.packageRef.location else {
-                    throw SwiftPackageManagerGraphGeneratorError.missingPathInLocalSwiftPackage(name)
-                }
-                // There's a bug in the `relative` implementation that produces the wrong path when using a symbolic link.
-                // This leads to nonexisting path in the `ModuleMapMapper` that relies on that method.
-                // To get around this, we're aligning paths from `workspace-state.json` with the /var temporary directory.
-                packageFolder = try AbsolutePath(
-                    validating: path.replacingOccurrences(of: "/private/var", with: "/var")
-                )
-                hash = nil
-            case "registry":
-                let registryFolder = path.appending(try RelativePath(validating: "registry/downloads"))
-                packageFolder = registryFolder.appending(try RelativePath(validating: dependency.subpath))
-                hash = try dependency.state?.version.map { try contentHasher.hash([dependency.packageRef.identity, $0]) }
-            default:
-                throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
-            }
-
-            let packageInfo = try await manifestLoader.loadPackage(at: packageFolder, disableSandbox: disableSandbox)
-            let targetToArtifactPaths = try workspaceState.object.artifacts
-                .filter { $0.packageRef.identity == dependency.packageRef.identity }
-                .reduce(into: [:]) { result, artifact in
-                    result[artifact.targetName] = try AbsolutePath(validating: artifact.path)
-                }
-
-            return (
-                id: dependency.packageRef.identity.lowercased(),
-                name: name,
-                folder: packageFolder,
-                targetToArtifactPaths: targetToArtifactPaths,
-                info: packageInfo,
-                hash: hash,
-                kind: dependency.packageRef.kind
-            )
+        let rootPackage = if let packageInfoCache,
+                             let rootPackageInfo = packageInfoCache.rootPackageInfo(for: packagePath.parentDirectory)
+        {
+            rootPackageInfo
+        } else {
+            try await manifestLoader.loadPackage(at: packagePath.parentDirectory, disableSandbox: disableSandbox)
         }
+
+        var packageInfos: [SwiftPackageManagerResolvedPackageInfo] = try await workspaceState.object.dependencies
+            .concurrentMap { dependency in
+                let name = dependency.packageRef.name
+                let packageFolder: AbsolutePath
+                let hash: String?
+                switch dependency.packageRef.kind {
+                case "remote", "remoteSourceControl":
+                    packageFolder = checkoutsFolder.appending(component: dependency.subpath)
+                    hash = dependency.state?.checkoutState?.revision
+                case "local", "fileSystem", "localSourceControl":
+                    // Depending on the swift version, the information is available either in `path` or in `location`
+                    guard let path = dependency.packageRef.path ?? dependency.packageRef.location else {
+                        throw SwiftPackageManagerGraphGeneratorError.missingPathInLocalSwiftPackage(name)
+                    }
+                    // There's a bug in the `relative` implementation that produces the wrong path when using a symbolic link.
+                    // This leads to nonexisting path in the `ModuleMapMapper` that relies on that method.
+                    // To get around this, we're aligning paths from `workspace-state.json` with the /var temporary directory.
+                    // Anchor against `scratchDirectory` so swifterpm's relative-path encoding resolves correctly;
+                    // absolute paths from older swifterpm output pass through unchanged.
+                    packageFolder = try AbsolutePath(
+                        validating: path.replacingOccurrences(of: "/private/var", with: "/var"),
+                        relativeTo: scratchDirectory
+                    )
+                    hash = nil
+                case "registry":
+                    let registryFolder = path.appending(try RelativePath(validating: "registry/downloads"))
+                    packageFolder = registryFolder.appending(try RelativePath(validating: dependency.subpath))
+                    hash = try dependency.state?.version.map { try contentHasher.hash([dependency.packageRef.identity, $0]) }
+                default:
+                    throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
+                }
+
+                let packageInfo = if let packageInfoCache,
+                                     let cachedPackageInfo = packageInfoCache.packageInfo(for: packageFolder)
+                {
+                    cachedPackageInfo
+                } else {
+                    try await manifestLoader.loadPackage(at: packageFolder, disableSandbox: disableSandbox)
+                }
+                let targetToArtifactPaths = try workspaceState.object.artifacts
+                    .filter { $0.packageRef.identity == dependency.packageRef.identity }
+                    .reduce(into: [:]) { result, artifact in
+                        result[artifact.targetName] = try AbsolutePath(
+                            validating: artifact.path,
+                            relativeTo: scratchDirectory
+                        )
+                    }
+
+                return SwiftPackageManagerResolvedPackageInfo(
+                    id: dependency.packageRef.identity.lowercased(),
+                    name: name,
+                    folder: packageFolder,
+                    targetToArtifactPaths: targetToArtifactPaths,
+                    info: packageInfo,
+                    hash: hash,
+                    kind: dependency.packageRef.kind
+                )
+            }
 
         // When the same package appears from multiple sources (e.g. local path, registry, or source control),
         // we keep a single entry to avoid duplicates. Selection is based on the following precedence:
@@ -222,6 +234,11 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         let packageToTargetsToArtifactPaths = Dictionary(uniqueKeysWithValues: packageInfos.map {
             ($0.name, $0.targetToArtifactPaths)
         })
+        let packagePrebuilts = try mapPackagePrebuilts(
+            packageInfos: packageInfos,
+            prebuilts: workspaceState.object.prebuilts,
+            scratchDirectory: scratchDirectory
+        )
 
         var mutablePackageModuleAliases: [String: [String: String]] = [:]
 
@@ -273,7 +290,8 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                     path: packageInfo.folder,
                     packageType: .external(
                         origin: Self.packageOrigin(for: packageInfo.kind),
-                        artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:]
+                        artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:],
+                        packagePrebuilts: packagePrebuilts
                     ),
                     packageSettings: packageSettings,
                     packageModuleAliases: packageModuleAliases,
@@ -416,6 +434,204 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             environment: Environment.current.variables,
             workingDirectory: try await Environment.current.currentWorkingDirectory()
         )
+    }
+}
+
+private struct SwiftPackageManagerResolvedPackageInfo {
+    let id: String
+    let name: String
+    let folder: AbsolutePath
+    let targetToArtifactPaths: [String: AbsolutePath]
+    let info: PackageInfo
+    let hash: String?
+    let kind: String
+}
+
+private func mapPackagePrebuilts(
+    packageInfos: [SwiftPackageManagerResolvedPackageInfo],
+    prebuilts: [SwiftPackageManagerWorkspaceState.Prebuilt],
+    scratchDirectory: AbsolutePath
+) throws -> [String: [String: SwiftPackageManagerPrebuilt]] {
+    try packageInfos.reduce(into: [:]) { result, packageInfo in
+        let packagePrebuilts = prebuilts.filter { $0.identity.lowercased() == packageInfo.id.lowercased() }
+        guard !packagePrebuilts.isEmpty else { return }
+
+        let packageKeys = Set([
+            packageInfo.id,
+            packageInfo.name,
+            packageInfo.name.lowercased(),
+            packageInfo.folder.basename,
+            packageInfo.folder.basename.lowercased(),
+        ])
+
+        for prebuilt in packagePrebuilts {
+            let mappedPrebuilt = SwiftPackageManagerPrebuilt(
+                identity: prebuilt.identity,
+                version: prebuilt.version,
+                libraryName: prebuilt.libraryName,
+                path: try AbsolutePath(validating: prebuilt.path, relativeTo: scratchDirectory),
+                checkoutPath: try prebuilt.checkoutPath
+                    .map { try AbsolutePath(validating: $0, relativeTo: scratchDirectory) },
+                products: prebuilt.products,
+                includePath: try prebuilt.includePath?.map { try RelativePath(validating: $0) },
+                cModules: prebuilt.cModules
+            )
+
+            for packageKey in packageKeys {
+                for product in prebuilt.products {
+                    result[packageKey, default: [:]][product] = mappedPrebuilt
+                }
+            }
+        }
+    }
+}
+
+private struct SwifterPMPackageInfoCache {
+    private struct Index: Decodable {
+        let schemaVersion: Int
+        let root: Entry
+        let packages: [Entry]
+
+        enum CodingKeys: String, CodingKey {
+            case schemaVersion = "schema_version"
+            case root
+            case packages
+        }
+    }
+
+    private struct Entry: Decodable {
+        let kind: String
+        let packagePath: String
+        let packageInfoPath: String
+
+        enum CodingKeys: String, CodingKey {
+            case kind
+            case packagePath = "package_path"
+            case packageInfoPath = "package_info_path"
+        }
+    }
+
+    private struct CachedPackageInfo {
+        let packagePath: AbsolutePath
+        let packageInfo: PackageInfo
+    }
+
+    private let root: CachedPackageInfo?
+    private let packagesByPath: [String: CachedPackageInfo]
+
+    /// schema_version 1: paths in the index are absolute strings (older swifterpm output).
+    /// schema_version 2: paths are relative to `scratchDirectory` so `.build/` is portable
+    /// across hosts. `AbsolutePath(validating:relativeTo:)` accepts either form, so both
+    /// schemas are handled by the same code path.
+    private static let supportedSchemaVersions: Set<Int> = [1, 2]
+
+    static func load(
+        scratchDirectory: AbsolutePath,
+        fileSystem: FileSysteming
+    ) async -> SwifterPMPackageInfoCache? {
+        let cacheDirectory = scratchDirectory.appending(components: "swifterpm", "package-info")
+        let indexPath = cacheDirectory.appending(component: "index.json")
+        guard (try? await fileSystem.exists(indexPath)) == true,
+              let indexData = try? await fileSystem.readFile(at: indexPath),
+              let index = try? JSONDecoder().decode(Index.self, from: indexData),
+              supportedSchemaVersions.contains(index.schemaVersion)
+        else {
+            return nil
+        }
+
+        let root = await cachedPackageInfo(
+            for: index.root,
+            scratchDirectory: scratchDirectory,
+            fileSystem: fileSystem
+        )
+        var packagesByPath: [String: CachedPackageInfo] = [:]
+        for entry in index.packages {
+            guard let cachedPackageInfo = await cachedPackageInfo(
+                for: entry,
+                scratchDirectory: scratchDirectory,
+                fileSystem: fileSystem
+            ) else {
+                continue
+            }
+            packagesByPath[normalizedPackagePath(cachedPackageInfo.packagePath.pathString)] = cachedPackageInfo
+        }
+
+        return SwifterPMPackageInfoCache(
+            root: root,
+            packagesByPath: packagesByPath
+        )
+    }
+
+    func rootPackageInfo(for packagePath: AbsolutePath) -> PackageInfo? {
+        guard let root,
+              Self.normalizedPackagePath(root.packagePath.pathString)
+              == Self.normalizedPackagePath(packagePath.pathString)
+        else {
+            return nil
+        }
+        return root.packageInfo
+    }
+
+    func packageInfo(for packagePath: AbsolutePath) -> PackageInfo? {
+        packagesByPath[Self.normalizedPackagePath(packagePath.pathString)]?.packageInfo
+    }
+
+    private static func cachedPackageInfo(
+        for entry: Entry,
+        scratchDirectory: AbsolutePath,
+        fileSystem: FileSysteming
+    ) async -> CachedPackageInfo? {
+        guard let packagePath = absolutePath(entry.packagePath, scratchDirectory: scratchDirectory),
+              let packageInfoPath = absolutePath(entry.packageInfoPath, scratchDirectory: scratchDirectory),
+              await isFreshPackageInfo(
+                  kind: entry.kind,
+                  packageInfoPath: packageInfoPath,
+                  packagePath: packagePath,
+                  fileSystem: fileSystem
+              ),
+              let data = try? await fileSystem.readFile(at: packageInfoPath),
+              let packageInfo = try? JSONDecoder().decode(PackageInfo.self, from: data)
+        else {
+            return nil
+        }
+
+        return CachedPackageInfo(packagePath: packagePath, packageInfo: packageInfo)
+    }
+
+    private static func isFreshPackageInfo(
+        kind: String,
+        packageInfoPath: AbsolutePath,
+        packagePath: AbsolutePath,
+        fileSystem: FileSysteming
+    ) async -> Bool {
+        do {
+            guard let packageInfoDate = try await fileSystem.fileMetadata(at: packageInfoPath)?.lastModificationDate
+            else {
+                return false
+            }
+
+            guard let manifestDate = try await fileSystem.fileMetadata(
+                at: packagePath.appending(component: "Package.swift")
+            )?.lastModificationDate
+            else {
+                return kind == "registry"
+            }
+
+            return packageInfoDate >= manifestDate
+        } catch {
+            return false
+        }
+    }
+
+    private static func absolutePath(_ path: String, scratchDirectory: AbsolutePath) -> AbsolutePath? {
+        try? AbsolutePath(
+            validating: normalizedPackagePath(path),
+            relativeTo: scratchDirectory
+        )
+    }
+
+    private static func normalizedPackagePath(_ path: String) -> String {
+        path.replacingOccurrences(of: "/private/var", with: "/var")
     }
 }
 

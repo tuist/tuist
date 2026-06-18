@@ -8,6 +8,12 @@
       "initial_version": "0.0.0",
       "include_paths": [
         "cli/**/*",
+        "mise/tasks/cli/**/*",
+        "mise/tasks/release/components.json",
+        ".github/workflows/cli-release.yml",
+        ".github/workflows/cli-build-publish.yml",
+        ".github/workflows/cli-rc.yml",
+        ".github/workflows/cli-promote.yml",
         ".xcode-version-releases",
         "Package.swift",
         "Package.resolved"
@@ -117,7 +123,7 @@
       "initial_version": "0.1.0",
       "include_paths": [
         "infra/xcresult-processor-image/**/*",
-        "server/lib/**/*",
+        "server/lib/tuist/**/*",
         "server/native/xcresult_nif/**/*",
         "server/mix.exs",
         "server/mix.lock"
@@ -154,6 +160,22 @@
       "cliff_config": "infra/hetzner-robot-controller/cliff.toml",
       "initial_version": "0.1.0",
       "include_paths": ["infra/hetzner-robot-controller/**/*"]
+    },
+    {
+      "name": "stable-egress-controller",
+      "tag_prefix": "stable-egress-controller@",
+      "tag_regex": "^stable-egress-controller@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "infra/stable-egress-controller/cliff.toml",
+      "initial_version": "0.1.0",
+      "include_paths": ["infra/stable-egress-controller/**/*"]
+    },
+    {
+      "name": "grafana-datasource",
+      "tag_prefix": "grafana-datasource@",
+      "tag_regex": "^grafana-datasource@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "grafana-datasource/cliff.toml",
+      "initial_version": "0.1.0",
+      "include_paths": ["grafana-datasource/**/*"]
     }
   ]
 }

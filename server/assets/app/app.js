@@ -37,6 +37,10 @@ import StopRowNavigate from "./js/StopRowNavigate.js";
 import SelectSlackChannelPopup from "./js/SelectSlackChannelPopup.js";
 import PublicProjectCTABanner from "./js/PublicProjectCTABanner.js";
 import TextAttachmentContent from "./js/hooks/TextAttachmentContent.js";
+import SubmitOnCmdEnter from "./js/SubmitOnCmdEnter.js";
+import CopyToClipboard from "./js/CopyToClipboard.js";
+import DownloadAsFile from "./js/DownloadAsFile.js";
+import ScrollToTail from "./js/ScrollToTail.js";
 import { setupQueryMemory } from "./js/QueryMemory.js";
 import { getUserLocale } from "./js/UserLocale.js";
 import { getUserTimezone } from "./js/UserTimezone.js";
@@ -58,13 +62,22 @@ Hooks.StopRowNavigate = StopRowNavigate;
 Hooks.SelectSlackChannelPopup = SelectSlackChannelPopup;
 Hooks.PublicProjectCTABanner = PublicProjectCTABanner;
 Hooks.TextAttachmentContent = TextAttachmentContent;
+Hooks.SubmitOnCmdEnter = SubmitOnCmdEnter;
+Hooks.CopyToClipboard = CopyToClipboard;
+Hooks.DownloadAsFile = DownloadAsFile;
+Hooks.ScrollToTail = ScrollToTail;
 
 observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;
 Hooks.ThemeToggle = ThemeToggle;
 
+// On localhost, the WS drops every time the dev server restarts or the
+// live reloader fires. With longpoll fallback enabled, the client gives
+// up on WS too quickly and pins itself to longpoll, which then loops
+// into `exceeded 10 consecutive reloads. Entering failsafe mode`. See
+// https://elixirforum.com/t/liveview-falls-back-to-longpoll-after-dev-server-restart/61736
 let liveSocket = new LiveSocket("/live", Socket, {
-  longPollFallbackMs: 2500,
+  longPollFallbackMs: window.location.host.startsWith("localhost") ? undefined : 2500,
   params: {
     _csrf_token: csrfToken,
     _csp_nonce: cspNonce,
@@ -75,12 +88,36 @@ let liveSocket = new LiveSocket("/live", Socket, {
 });
 
 // Show progress bar on live navigation and form submits
+// topbar draws on a canvas and can't resolve var() or light-dark(), so
+// resolve the color through a probe element, which the browser evaluates
+// against the current color scheme. Resolved on every show so runtime theme
+// switches are picked up.
+function loadingBarColor() {
+  const probe = document.createElement("div");
+  probe.style.color =
+    "light-dark(var(--noora-purple-500), var(--noora-purple-400))";
+  document.body.appendChild(probe);
+  const color = getComputedStyle(probe).color;
+  probe.remove();
+  return color || "#29d";
+}
+
 topbar.config({
-  barColors: { 0: "#29d" },
   shadowColor: "rgba(0, 0, 0, .3)",
 });
-window.addEventListener("phx:page-loading-start", (_info) => topbar.show(300));
-window.addEventListener("phx:page-loading-stop", (_info) => topbar.hide());
+window.addEventListener("phx:page-loading-start", (_info) => {
+  topbar.config({ barColors: { 0: loadingBarColor() } });
+  topbar.show(300);
+});
+window.addEventListener("phx:page-loading-stop", (info) => {
+  topbar.hide();
+  // The content pane is its own scroll container, so LiveView's document
+  // scroll reset on live navigation doesn't reach it. Patches keep their
+  // scroll position, matching document behavior.
+  if (info.detail?.kind === "redirect") {
+    document.querySelector(".layout__content")?.scrollTo(0, 0);
+  }
+});
 
 // connect if there are any LiveViews on the page
 liveSocket.connect();

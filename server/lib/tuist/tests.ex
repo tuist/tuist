@@ -668,6 +668,16 @@ defmodule Tuist.Tests do
     updated_test
   end
 
+  defp enqueue_flaky_alert_evaluations(test, test_case_runs) do
+    test_case_ids =
+      test_case_runs
+      |> Enum.map(& &1.test_case_id)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    Automations.enqueue_flaky_alert_evaluations(test.project_id, test_case_ids)
+  end
+
   defp has_any_flaky_test_case?(test_modules) do
     test_modules
     |> Enum.flat_map(&Map.get(&1, :test_cases, []))
@@ -785,10 +795,12 @@ defmodule Tuist.Tests do
     |> Enum.uniq()
   end
 
-  # Batch size for multipart `id IN ^ids` lookups. The generated SQL still
-  # contains one placeholder per test case ID, so we keep the batches small
-  # enough to stay below ClickHouse query/form limits on large reports.
-  @existing_test_cases_batch_size 5_000
+  # Batch size for the existing-test-case lookup. The IDs travel as a single
+  # ClickHouse array parameter (see existing_test_cases_chunk_query/2), so the
+  # multipart request always carries one form field for them regardless of batch
+  # size. We still chunk to keep that parameter's encoded value below
+  # ClickHouse's per-field value-length limit on large reports.
+  @existing_test_cases_batch_size 2_000
 
   defp get_existing_test_cases(_project_id, []), do: %{}
 
@@ -812,9 +824,15 @@ defmodule Tuist.Tests do
     |> ClickHouseRepo.all(multipart: true)
   end
 
+  # Binds the IDs as a single `Array(UUID)` parameter via a fragment instead of
+  # `tc.id in ^ids_chunk`. `in` expands to one bound parameter per ID, and in
+  # multipart mode each parameter becomes its own form field, which overflows
+  # ClickHouse's form-field limit on large reports.
   defp existing_test_cases_chunk_query(project_id, ids_chunk) do
     from(tc in TestCase,
-      where: tc.project_id == ^project_id and tc.id in ^ids_chunk,
+      where:
+        tc.project_id == ^project_id and
+          fragment("? IN (?)", tc.id, type(^ids_chunk, {:array, Ecto.UUID})),
       select: %{
         id: tc.id,
         recent_durations: tc.recent_durations,
@@ -1482,6 +1500,48 @@ defmodule Tuist.Tests do
     |> MapSet.new()
   end
 
+  # Chunk size for the default-branch validation lookup. An alert's triggered
+  # set can be large (a `flakiness_rate < threshold` cleanup rule matches most
+  # of a project's test cases, which can run into tens of thousands). The ids
+  # travel as a single ClickHouse array parameter, so chunking keeps that
+  # parameter's encoded value below ClickHouse's per-request limits.
+  @default_branch_validation_batch_size 2_000
+
+  @doc """
+  Given a list of test case ids, returns the subset that has at least one
+  successful, non-flaky run on the project's default branch. A test case with
+  no such run has never been validated on the trusted branch (for example, a
+  brand-new test that has only ever run on a pull-request branch) and should
+  not be eligible for automated quarantine.
+  """
+  def test_case_ids_with_successful_default_branch_run(_project_id, [], _default_branch), do: []
+
+  def test_case_ids_with_successful_default_branch_run(project_id, test_case_ids, default_branch) do
+    test_case_ids
+    |> Enum.chunk_every(@default_branch_validation_batch_size)
+    |> Enum.flat_map(&fetch_validated_test_case_ids_chunk(project_id, &1, default_branch))
+  end
+
+  # Binds the ids as a single `Array(UUID)` parameter via a fragment instead of
+  # `tcr.test_case_id in ^ids_chunk`. `in` expands to one bound parameter per
+  # id, which overflows ClickHouse's request limits when the triggered set is
+  # large. Chunks are disjoint, so the per-chunk `distinct` already yields a
+  # distinct union.
+  defp fetch_validated_test_case_ids_chunk(project_id, ids_chunk, default_branch) do
+    ClickHouseRepo.all(
+      from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
+        where: fragment("? IN (?)", tcr.test_case_id, type(^ids_chunk, {:array, Ecto.UUID})),
+        where: tcr.git_branch == ^default_branch,
+        where: fragment("? = 'success'", tcr.status),
+        where: tcr.is_flaky == false,
+        distinct: true,
+        select: tcr.test_case_id
+      ),
+      multipart: true
+    )
+  end
+
   defp create_test_suites(test, module_id, test_suites, test_cases, test_case_run_data, shard_plan, shard_index) do
     test_cases_by_suite =
       Enum.group_by(test_cases, fn case_attrs ->
@@ -1645,6 +1705,8 @@ defmodule Tuist.Tests do
       if Enum.any?(all_arguments) do
         TestCaseRunArgument.Buffer.insert_all(all_arguments)
       end
+
+      enqueue_flaky_alert_evaluations(test, test_case_runs)
     end)
 
     # The audit-log row and the outbound webhook fire on the same set:

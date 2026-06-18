@@ -1,5 +1,5 @@
 defmodule Tuist.Runners.AnalyticsTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   import TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -231,6 +231,24 @@ defmodule Tuist.Runners.AnalyticsTest do
 
       assert %{count: 1} = Analytics.jobs_count(account.id, platform: "macos")
       assert %{count: 1} = Analytics.jobs_count(account.id, platform: "linux")
+    end
+
+    test "jobs_count counts shape-catalog Linux pools under platform=linux" do
+      # Profile-dispatched + legacy-alias jobs store `fleet_name` from
+      # `Catalog.pool_name/2`, which doesn't start with `linux-` —
+      # `tuist-runner-pool-linux-4vcpu-16gb` would silently fall into
+      # "Other" if the filter only matched the legacy prefix. Both
+      # naming conventions must surface under Linux.
+      account = account_fixture()
+
+      completed_job(account, 78_001, "success", fleet: "linux-amd64")
+
+      completed_job(account, 78_002, "success",
+        fleet: Tuist.Runners.Catalog.pool_name(%{platform: :linux, vcpus: 4, memory_gb: 16})
+      )
+
+      assert %{count: 2} = Analytics.jobs_count(account.id, platform: "linux")
+      assert %{count: 0} = Analytics.jobs_count(account.id, platform: "macos")
     end
   end
 end

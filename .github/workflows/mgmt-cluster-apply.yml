@@ -39,6 +39,7 @@ on:
     branches: [main]
     paths:
       - 'infra/k8s/clusters/**'
+      - 'infra/k8s/mgmt/cluster-autoscaler.yaml'
       - 'infra/k8s/mgmt/etcd-snapshot.yaml'
       - 'infra/k8s/mgmt/tailscale.yaml'
       - 'infra/k8s/mgmt/hetzner-robot-controller.yaml'
@@ -58,12 +59,16 @@ permissions: {}
 jobs:
   apply:
     name: kubectl apply
-    runs-on: tuist-production-linux
+    # The self-hosted tuist-linux runners are customer runner Pods
+    # governed by a NetworkPolicy that only allows public egress on
+    # ports 80/443. The mgmt apiserver is reached on 6443, so this
+    # deploy job needs a GitHub-hosted runner outside that policy.
+    runs-on: ubuntu-latest
     environment:
       name: mgmt-cluster-apply
-    # The apply path normally finishes in under 2 min; 5 min
-    # leaves slack for slow `kubectl diff` against large CRDs.
-    timeout-minutes: 5
+    # `kubectl diff` can be slow against the Cluster API CRDs when many
+    # Machines are changing, so leave enough room for the visibility step.
+    timeout-minutes: 15
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
@@ -109,6 +114,9 @@ jobs:
           echo "::endgroup::"
           echo "::group::hetzner-robot-controller.yaml diff"
           kubectl diff -f infra/k8s/mgmt/hetzner-robot-controller.yaml || true
+          echo "::endgroup::"
+          echo "::group::cluster-autoscaler.yaml diff"
+          kubectl diff -f infra/k8s/mgmt/cluster-autoscaler.yaml || true
           echo "::endgroup::"
       - name: Apply ClusterClass first (Cluster CRs reference it)
         run: |
@@ -160,5 +168,6 @@ jobs:
         # CRs. Independent of the CAPI manifests above.
         run: |
           kubectl apply -f infra/k8s/mgmt/hetzner-robot-controller.yaml
+          kubectl apply -f infra/k8s/mgmt/cluster-autoscaler.yaml
           kubectl apply -f infra/k8s/mgmt/etcd-snapshot.yaml
           kubectl apply -f infra/k8s/mgmt/tailscale.yaml

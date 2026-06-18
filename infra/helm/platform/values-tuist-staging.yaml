@@ -1,0 +1,41 @@
+# Staging workload-cluster overlay. Loaded by k8s:install-platform when
+# CLUSTER_NAME=tuist-staging.
+
+# Stable outbound source IP for staging Tuist server traffic. The IP is a
+# Hetzner Floating IP. The gateway runs HA across the md-egress pool: the
+# failover controller keeps the Floating IP + active label on one Ready node
+# and fails over on loss; the host-configurer configures eth0 on the active
+# node. Staging mirrors production so the whole flow is validated here first.
+ciliumEgressGateway:
+  server:
+    enabled: true
+    namespace: tuist-staging
+    egressIP: 78.47.186.71
+    hostConfigurator:
+      enabled: true
+    failoverController:
+      enabled: true
+      # Image tag is resolved at deploy time by k8s:install-platform (the
+      # highest stable-egress-controller@<semver> reachable from the commit).
+      floatingIpName: tuist-staging-server-egress
+      egressIpAllowlist:
+        - 78.47.186.71/32
+
+ingress-nginx:
+  controller:
+    service:
+      annotations:
+        load-balancer.hetzner.cloud/location: fsn1
+        load-balancer.hetzner.cloud/node-selector: topology.kubernetes.io/region=fsn1
+
+kura-eu-central-ingress-nginx:
+  enabled: true
+  controller:
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura
+    service:
+      annotations:
+        load-balancer.hetzner.cloud/location: fsn1
+        load-balancer.hetzner.cloud/name: tuist-staging-kura-eu-central-ingress
+        load-balancer.hetzner.cloud/node-selector: node.cluster.x-k8s.io/pool=kura
+        load-balancer.hetzner.cloud/uses-proxyprotocol: "true"

@@ -8,10 +8,12 @@ Platform-level Helm umbrella chart installed **once per Kubernetes cluster** tha
 |---|---|
 | `cert-manager` | TLS certificate issuance via Let's Encrypt + Cloudflare DNS-01 |
 | `ingress-nginx` | Ingress controller backed by a cloud LoadBalancer |
+| `kura-*-ingress-nginx` | Optional region-local Kura ingress controllers backed by shared regional cloud LoadBalancers |
 | `external-dns` | Sync Ingress / Service hostnames into Cloudflare DNS |
 | `external-secrets` | Pull secrets from external stores (1Password, SOPS, etc.) into the cluster |
 | `metrics-server` | Resource metrics API (`pods.metrics.k8s.io`) consumed by HPAs and `kubectl top` |
 | `ClusterIssuer` | Shared Let's Encrypt issuer wired to Cloudflare DNS-01 |
+| `CiliumEgressGatewayPolicy` | Optional stable outbound source IP for hosted Tuist server traffic |
 
 ## Bootstrap
 
@@ -35,7 +37,17 @@ helm upgrade --install platform infra/helm/platform \
 
 Other clouds can plug in by adding a `values-<provider>.yaml` overlay that
 sets the provider-specific LoadBalancer annotations + any LB-specific
-ingress-nginx config.
+ingress-nginx config. The production `values-tuist.yaml` overlay also enables
+three Kura-specific ingress-nginx aliases (`kura-eu-central`, `kura-us-east`,
+`kura-us-west`) so cache artifact traffic has dedicated regional gateways
+instead of sharing the main Tuist web ingress dataplane.
+Customer-dedicated Kura gateways are intentionally not chart aliases here:
+the Tuist server emits opaque `KuraGateway` resources and the Kura controller
+reconciles the dedicated ingress-nginx + LoadBalancer lifecycle.
+
+`k8s:install-platform` also loads `values-<cluster-name>.yaml` when present.
+Use that cluster overlay for static environment configuration such as stable
+egress IPs and managed-cluster LoadBalancer locations.
 
 ## Local validation
 
@@ -45,8 +57,120 @@ helm template platform infra/helm/platform | kubectl apply --dry-run=client -f -
 helm lint infra/helm/platform
 ```
 
+## Stable Server Egress
+
+Server pods use a Cilium egress gateway so customer-facing outbound traffic
+leaves from a stable environment-specific address. These addresses are Hetzner
+Floating IPs in the `tuist-workloads` project.
+
+| Cluster | Namespace | Egress IP | HCloud resource | Host configurer | Status |
+|---|---|---|---|---|---|
+| `tuist-staging` | `tuist-staging` | `78.47.186.71` | Floating IP `tuist-staging-server-egress` | Enabled | Active and verified |
+| `tuist-canary` | `tuist-canary` | `78.47.174.50` | Floating IP `tuist-canary-server-egress` | Enabled | Active and verified |
+| `tuist` | `tuist` | `116.202.0.10` | Floating IP `tuist-production-server-egress` | Enabled | Active and verified |
+
+When enabled, a `values-<cluster-name>.yaml` overlay renders:
+
+- `CiliumEgressGatewayPolicy/tuist-server-stable-egress`, which selects server
+  pods in the configured namespace and SNATs public-internet traffic to the
+  configured egress IP via the node carrying the **active** label
+  `tuist.dev/stable-egress-gateway=server`.
+- `DaemonSet/kube-system/tuist-server-stable-egress-host-configurer`, which runs
+  on the active node and keeps the Floating IP + source route present on its
+  `eth0`.
+- When `failoverController.enabled`, the
+  `Deployment/kube-system/stable-egress-controller` (see
+  [`infra/stable-egress-controller/`](../../stable-egress-controller/)).
+
+### HA failover (no single point of failure)
+
+The gateway runs **active/standby across a dedicated ≥2-node egress pool**, with
+automatic failover — no manual steps and no SPOF:
+
+- **Candidate pool:** the `md-egress` pool (`cluster-production.yaml`,
+  `replicas: 2`) self-applies `tuist.dev/stable-egress-candidate=server` via the
+  ClusterClass `workerNodeLabels` variable. kubelet sets it at registration, so
+  it survives MachineHealthCheck remediation (CAPI's metadata-label sync would
+  not — it only passes node-role/node-restriction/node.cluster prefixes).
+- **Election + IP:** the stable-egress controller (leader-elected, 2 replicas)
+  keeps the Hetzner Floating IP (Cloud API) **and** the active
+  `tuist.dev/stable-egress-gateway` label on one node. It **adopts** whatever
+  node already holds the active label as long as that node is Ready — even one
+  outside the candidate pool — so it never disturbs a working gateway (enabling
+  the controller, or any steady state, moves nothing: no blip). Only when there
+  is no healthy active node does it fail over to a Ready `md-egress` candidate,
+  moving the IP + label together (~30–60s: node-NotReady detection + reassign;
+  faster on deletion).
+- **Datapath:** Cilium re-selects the gateway (1s reconcile) and the
+  host-configurer reschedules onto the new active node automatically.
+
+Why Cilium alone isn't enough: our Cilium 1.18 OSS egress gateway selects a
+gateway node by lexical order with no health-based failover (cilium/cilium#30157
+— HA is Enterprise), and it has no concept of the Hetzner Floating IP, which
+must be reassigned via the Cloud API. The controller owns both.
+
+### Reserved egress set (stable customer allowlist)
+
+Customers allowlist a **fixed, reserved set** of egress IPs, not a single one,
+so migrating the active address never forces an allowlist change on their side
+(allowlist changes are slow, high-friction enterprise operations). The
+controller's `egressIpAllowlist` lists the set's CIDRs and **fails closed** if
+the active Floating IP falls outside it — egress can only ever originate from a
+documented, allowlisted address.
+
+The prod set is `tuist-production-server-egress` + `-2` (two reserved Floating
+IPs in the `tuist-workloads` project: `116.202.0.10` active + `116.202.4.195`
+spare). Two is enough because it's active/standby — only one IP is ever live;
+the spare exists so the active can be migrated (Hetzner reclaim, region change)
+without a customer allowlist change. To grow the set, reserve more Floating IPs
+and add their `/32`s to **both** `egressIpAllowlist` (here) and the customer
+network guide (`server/priv/docs/en/guides/server/network.md`) *before* they are
+used.
+
+#### Why a set of `/32`s, not a single CIDR
+
+A contiguous block customers could allowlist as one line isn't available on
+Hetzner Cloud: `hcloud floating-ip create` has no range/subnet parameter —
+addresses come from Hetzner's pools, scattered. The alternatives, none of which
+fit today:
+
+- **Hetzner Robot** can order contiguous subnets (`/29`…`/24`) — but only for
+  *dedicated* servers, not the Cloud nodes the egress pool runs on.
+- **BYOIP** (own a PI `/24` + announce via BGP) — fully portable, the gold
+  standard, but a real project (IPv4 `/24` acquisition + ASN + BGP). Only worth
+  it if a stable egress *range* becomes a hard enterprise-sales requirement.
+- **IPv6** Cloud Floating IPs are a `/64` (a real range) — but customer
+  allowlists are virtually always IPv4.
+
+So the set of `/32`s is the right shape here; BYOIP is the someday-if-needed path.
+
+> Background: a 2026-06-14 production outage traced to this binding being a
+> single hand-labelled general worker. It got remediated; neither the label nor
+> the Floating IP migrated, so all server egress black-holed and the server
+> crash-looped on its first outbound call. The HA pool + controller remove both
+> the SPOF and the manual runbook.
+
+### Manual failover (fallback)
+
+Only needed if the controller is disabled or unavailable mid-incident:
+
+```bash
+export KUBECONFIG=~/.kube/tuist-production.yaml
+export FLOATING_IP_NAME=tuist-production-server-egress
+export NEW_NODE=<a-ready-md-egress-node>
+
+# Move the cloud route in Hetzner, then the active label; the host-configurer
+# follows the label and Cilium re-selects within ~1s.
+hcloud floating-ip assign "$FLOATING_IP_NAME" "$NEW_NODE"
+kubectl label node "$NEW_NODE" tuist.dev/stable-egress-gateway=server --overwrite
+
+# Verify from any server pod (should print the configured egress IP).
+kubectl -n tuist exec deploy/tuist-tuist-server -- curl -fsS https://api.ipify.org
+```
+
 ## Notes
 
-- The ingress-nginx LoadBalancer is annotated for Hetzner Cloud (Nuremberg region) by default. Adjust `ingress-nginx.controller.service.annotations` when the cluster lands on a different provider.
+- The main ingress-nginx LoadBalancer is annotated for Hetzner Cloud (Nuremberg region) by default. Managed Tuist cluster overlays pin it explicitly to `fsn1`, matching the general worker pools; regional Kura LoadBalancers are pinned separately.
+- Production Kura ingress controllers are shared per region by default. Their LoadBalancers are placed in `fsn1`, `ash`, and `hil` and their pods are pinned to the matching Kura node pools. Customer-dedicated gateways are server-driven `KuraGateway` resources with opaque names, not customer-specific Helm values.
 - external-dns is scoped by `txtOwnerId: tuist-platform` — one cluster, one TXT prefix. Run it with `policy: sync` only if you're happy with it deleting DNS records that aren't tracked by any Ingress.
 - cert-manager CRDs are installed by the subchart (`installCRDs: true`). If another tool manages them, turn that off.

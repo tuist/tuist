@@ -39,12 +39,18 @@ defmodule Noora.Sidebar do
   import Noora.Icon
   import Noora.TabMenu
 
+  attr(:id, :string, default: "sidebar")
   slot(:inner_block, required: true)
 
   def sidebar(assigns) do
     ~H"""
-    <div class="noora-sidebar" data-part="sidebar">
-      {render_slot(@inner_block)}
+    <div class="noora-sidebar" data-part="sidebar" id={@id} phx-hook="NooraScrollArea">
+      <div data-part="viewport">
+        {render_slot(@inner_block)}
+      </div>
+      <div id={@id <> "-scrollbar"} data-part="scrollbar" phx-update="ignore">
+        <div data-part="thumb"></div>
+      </div>
     </div>
     """
   end
@@ -71,42 +77,46 @@ defmodule Noora.Sidebar do
         data-part="collapsible-group"
         phx-hook="NooraCollapsible"
         data-open={@default_open}
+        data-persist-key={@id}
         data-disabled={@disabled}
         {@rest}
       >
         <div data-part="root">
           <%= if @navigate || @patch || @href do %>
-            <.link navigate={@navigate} patch={@patch} href={@href} data-part="trigger">
-              <.tab_menu_vertical label={@label} data-selected={@selected}>
-                <:icon_left><.icon name={@icon} /></:icon_left>
-                <:icon_right>
-                  <div data-part="indicator">
-                    <div data-part="indicator-down">
-                      <.chevron_down />
-                    </div>
-                    <div data-part="indicator-up">
-                      <.chevron_up />
-                    </div>
-                  </div>
-                </:icon_right>
-              </.tab_menu_vertical>
-            </.link>
+            <div class="noora-tab-menu-vertical" data-part="header" data-selected={@selected}>
+              <.link navigate={@navigate} patch={@patch} href={@href} data-part="link">
+                <div data-part="icon-left"><.icon name={@icon} /></div>
+                <span data-part="label">{@label}</span>
+              </.link>
+              <button type="button" data-part="trigger" aria-label={"Toggle #{@label}"}>
+                <div data-part="indicator">
+                  <.icon
+                    id={@id <> "-indicator"}
+                    name="chevron_right"
+                    active_name="chevron_down"
+                    transition="crossfade_rotate"
+                    active_state="open"
+                  />
+                </div>
+              </button>
+            </div>
           <% else %>
             <.tab_menu_vertical label={@label} data-part="trigger" data-selected={@selected}>
               <:icon_left><.icon name={@icon} /></:icon_left>
               <:icon_right>
                 <div data-part="indicator">
-                  <div data-part="indicator-down">
-                    <.chevron_down />
-                  </div>
-                  <div data-part="indicator-up">
-                    <.chevron_up />
-                  </div>
+                  <.icon
+                    id={@id <> "-indicator"}
+                    name="chevron_right"
+                    active_name="chevron_down"
+                    transition="crossfade_rotate"
+                    active_state="open"
+                  />
                 </div>
               </:icon_right>
             </.tab_menu_vertical>
           <% end %>
-          <div data-part="content">
+          <div data-part="content" hidden={!@default_open}>
             {render_slot(@inner_block)}
           </div>
         </div>

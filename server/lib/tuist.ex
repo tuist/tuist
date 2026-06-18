@@ -22,6 +22,9 @@ defmodule Tuist do
       Docs.Paths,
       Docs.Redirects,
       Locale,
+      # Single source of truth for the oldest supported CLI version, referenced by
+      # the deprecation warning plug (TuistWeb), the docs, and the gate.
+      CLIVersions,
       Docs.Sidebar,
       Marketing.Changelog,
       Marketing.Changelog.OgImage,
@@ -32,6 +35,8 @@ defmodule Tuist do
       Marketing.BlogContentProcessor,
       Marketing.Customers,
       Marketing.Stats,
+      # Read-only database inspection backing the /ops/db LiveView.
+      Ops.Database,
       # App
       # -----
       # This module contains Tuist features that are not expected to have inter-dependencies
@@ -48,6 +53,8 @@ defmodule Tuist do
       Kura,
       Kura.Deployment,
       Kura.Server,
+      Kura.Usage,
+      Kura.UsageEvent,
       Kura.Provisioner,
       Kura.Provisioner.KubernetesController,
       Kura.Regions,
@@ -178,13 +185,24 @@ defmodule Tuist do
       Runners,
       Runners.Analytics,
       Runners.Billing,
+      Runners.Catalog,
       Runners.Dispatch,
       Runners.Workers.DispatchWorker,
       Runners.Workers.WebhookRedeliveryWorker,
+      Runners.Workers.ArchiveLogsWorker,
+      Runners.Workers.FetchLogsWorker,
+      Runners.Workers.PruneArchivedLogsWorker,
       Runners.Claims,
       Runners.Claim,
       Runners.Jobs,
       Runners.Job,
+      Runners.JobLogs,
+      Runners.JobLog,
+      Runners.LogFormatter,
+      Runners.JobSteps,
+      Runners.JobStep,
+      Runners.Profile,
+      Runners.Profiles,
       Runners.RunnerSession,
       Runners.RunnerSessions,
       Runners.PromExPlugin,

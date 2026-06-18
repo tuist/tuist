@@ -31,6 +31,7 @@ defmodule Tuist.Runners.Analytics do
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
+  alias Tuist.Runners.Catalog
   alias Tuist.Runners.Job
   alias Tuist.Utilities.DateFormatter
 
@@ -912,13 +913,20 @@ defmodule Tuist.Runners.Analytics do
 
   # Same prefix-derivation the page-level Platform filter uses, so
   # the Group by partition aligns with the dropdown filter scope.
-  # Anything outside the two named OSes falls into "Other" so legacy
-  # rows stay visible without being lumped in with the known fleets.
+  # Linux jobs write `fleet_name` from either the legacy `linux-…`
+  # per-env pool or the shape catalog
+  # (`<runners_linux_pool_name_prefix>-…`); macOS still uses the
+  # legacy `macos-…` prefix today. Anything else lands in "Other".
   defp platform_from_fleet(name) when is_binary(name) do
     cond do
-      String.starts_with?(name, "macos-") -> dgettext("dashboard_runners", "macOS")
-      String.starts_with?(name, "linux-") -> dgettext("dashboard_runners", "Linux")
-      true -> dgettext("dashboard_runners", "Other")
+      String.starts_with?(name, Catalog.fleet_name_prefixes(:macos)) ->
+        dgettext("dashboard_runners", "macOS")
+
+      String.starts_with?(name, Catalog.fleet_name_prefixes(:linux)) ->
+        dgettext("dashboard_runners", "Linux")
+
+      true ->
+        dgettext("dashboard_runners", "Other")
     end
   end
 
@@ -1126,16 +1134,34 @@ defmodule Tuist.Runners.Analytics do
     |> maybe_platform(Keyword.get(opts, :platform))
   end
 
+  # Platform filter narrows on the `fleet_name` prefix. Each
+  # platform's `Catalog.fleet_name_prefixes/1` returns both the legacy
+  # `<platform>-…` per-env pool prefix and the catalog-derived
+  # `<runners_<platform>_pool_name_prefix>-…` prefix, so profile-
+  # dispatched and legacy jobs surface together under the right
+  # filter bucket.
   defp maybe_platform(query, nil), do: query
   defp maybe_platform(query, ""), do: query
   defp maybe_platform(query, "any"), do: query
 
-  defp maybe_platform(query, platform) when platform in ["macos", "linux"] do
-    prefix = platform <> "-"
-    where(query, [j], fragment("startsWith(?, ?)", j.fleet_name, ^prefix))
-  end
+  defp maybe_platform(query, "linux"), do: filter_by_fleet_prefixes(query, Catalog.fleet_name_prefixes(:linux))
+
+  defp maybe_platform(query, "macos"), do: filter_by_fleet_prefixes(query, Catalog.fleet_name_prefixes(:macos))
 
   defp maybe_platform(query, _), do: query
+
+  # OR `startsWith(fleet_name, prefix)` across every prefix as a
+  # single `where`. `or_where` would OR against the *whole* prior
+  # chain (account scope, time window, etc.), wiping them out; the
+  # dynamic stays nested inside the surrounding ANDs.
+  defp filter_by_fleet_prefixes(query, [first | rest]) do
+    predicate =
+      Enum.reduce(rest, dynamic([j], fragment("startsWith(?, ?)", j.fleet_name, ^first)), fn prefix, acc ->
+        dynamic([j], ^acc or fragment("startsWith(?, ?)", j.fleet_name, ^prefix))
+      end)
+
+    where(query, ^predicate)
+  end
 
   defp maybe_eq(query, _field, nil), do: query
   defp maybe_eq(query, _field, ""), do: query

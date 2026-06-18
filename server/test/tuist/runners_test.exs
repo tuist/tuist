@@ -2,9 +2,15 @@ defmodule Tuist.RunnersTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
   import Mimic
+  import TuistTestSupport.Fixtures.AccountsFixtures
 
+  alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners
+  alias Tuist.Runners.Claims
+  alias Tuist.Runners.Dispatch
+  alias Tuist.Runners.Jobs
+  alias Tuist.VCS
 
   setup :verify_on_exit!
 
@@ -177,6 +183,117 @@ defmodule Tuist.RunnersTest do
       end)
 
       assert {:error, :no_work_yet} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+  end
+
+  describe "dispatch_for_sa/2 dispatch-label carry-through" do
+    # The candidate the claim path serves. `requested_dispatch_label`
+    # is the only field these tests vary — everything else is just
+    # enough to satisfy `serve_claim/5` + `RunnerSessions.open/1`.
+    defp candidate_with_label(account, requested_dispatch_label) do
+      %{
+        workflow_job_id: 90_001,
+        account_id: account.id,
+        fleet_name: "fleet-a",
+        repository: "acme/cli",
+        workflow_name: "CI",
+        requested_dispatch_label: requested_dispatch_label,
+        enqueued_at: DateTime.utc_now()
+      }
+    end
+
+    # Stub every collaborator `dispatch_for_sa/2` touches except the
+    # JIT mint, whose `labels` the caller asserts on. The PG-backed
+    # `RunnerSessions.open/1` and `Accounts.get_account_by_id/1` run
+    # for real against the sandboxed repo.
+    defp stub_dispatch_path(account, candidate, test_pid) do
+      expect(K8sClient, :get_service_account, fn "tuist-runners", "pod-1" ->
+        {:ok, sa_with_pool_label("pod-1", "fleet-a")}
+      end)
+
+      # Missing RunnerPool downgrades the stale-image check to :ok.
+      expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" ->
+        {:error, :not_found}
+      end)
+
+      expect(Jobs, :pick_queued, fn "fleet-a", _ineligible -> {:ok, candidate} end)
+      expect(Claims, :attempt, fn 90_001, _account_id, "fleet-a", "pod-1" -> {:ok, %{claimed_at: DateTime.utc_now()}} end)
+      expect(Jobs, :record_claimed, fn ^candidate, "pod-1", _claimed_at -> :ok end)
+
+      expect(Dispatch, :pool_summary_by_name, fn "fleet-a" ->
+        {:ok, %{dispatch_label: "shape-linux-4vcpu-16gb", runner_labels: ["self-hosted", "Linux", "X64"]}}
+      end)
+
+      stub(K8sClient, :patch_pod, fn _ns, _pod, _patch -> {:ok, %{}} end)
+
+      stub(VCS, :get_github_app_installation_for_account, fn account_id ->
+        assert account_id == account.id
+        {:ok, %{installation_id: 42, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :generate_jit_config, fn _installation, _login, %{labels: labels} ->
+        send(test_pid, {:jit_labels, labels})
+        {:ok, %{encoded_jit_config: "jit-blob", runner_name: "pod-1"}}
+      end)
+
+      expect(Claims, :mark_running, fn 90_001, "pod-1" -> :ok end)
+      expect(Jobs, :record_running, fn 90_001, "pod-1" -> :ok end)
+    end
+
+    test "stamps the candidate's requested_dispatch_label on the minted JIT" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default")
+      stub_dispatch_path(account, candidate, self())
+
+      assert {:ok, %{runner_name: "pod-1"}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+
+      assert_receive {:jit_labels, labels}
+      # The customer's profile label wins; the pool's internal
+      # dispatchLabel must NOT leak onto the runner or GitHub never
+      # binds the job to `runs-on: tuist-default`.
+      assert "tuist-default" in labels
+      refute "shape-linux-4vcpu-16gb" in labels
+    end
+
+    test "falls back to the pool dispatchLabel when the candidate has no requested label (legacy row)" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "")
+      stub_dispatch_path(account, candidate, self())
+
+      assert {:ok, %{runner_name: "pod-1"}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+
+      assert_receive {:jit_labels, labels}
+      assert "shape-linux-4vcpu-16gb" in labels
+    end
+
+    test "retries the owner-label stamp on a transient patch failure and still dispatches" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default")
+      stub_dispatch_path(account, candidate, self())
+
+      # Two transient failures then success. The owner label gates the
+      # dispatch-egress NetworkPolicy, so a flaky patch must not leave
+      # the Pod unstamped. Sequential expects are consumed in order,
+      # ahead of the stub stub_dispatch_path installed.
+      expect(K8sClient, :patch_pod, fn _ns, _pod, _patch -> {:error, :timeout} end)
+      expect(K8sClient, :patch_pod, fn _ns, _pod, _patch -> {:error, :timeout} end)
+      expect(K8sClient, :patch_pod, fn _ns, _pod, _patch -> {:ok, %{}} end)
+
+      assert {:ok, %{runner_name: "pod-1"}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert_receive {:jit_labels, _labels}
+    end
+
+    test "gives up after the stamp retry budget but still dispatches (non-fatal)" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default")
+      stub_dispatch_path(account, candidate, self())
+
+      # Every attempt fails. Dispatch must still succeed (the claim is
+      # already won) and the stamp must be bounded at @owner_label_stamp_attempts,
+      # not retried forever — verify_on_exit! asserts exactly 3 calls.
+      expect(K8sClient, :patch_pod, 3, fn _ns, _pod, _patch -> {:error, :timeout} end)
+
+      assert {:ok, %{runner_name: "pod-1"}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
     end
   end
 
