@@ -2010,35 +2010,23 @@ defmodule Tuist.Accounts do
   Returns cache endpoint URLs for the given account handle and cache technology.
 
   The `technology` argument is driven by the `kura` client feature flag header.
-  When `:kura` and the install is in shared-mesh mode
-  (`TUIST_KURA_SHARED_MESH=1`) with `TUIST_KURA_ENDPOINTS` configured, those
-  endpoints are returned for every account. Preview and self-hosted installs
-  use this for a shared Kura mesh that is not represented by per-account
-  `kura_servers` rows. The shared-mesh flag is a defense-in-depth gate so that
-  a stray endpoints env var on a production overlay cannot silently bypass the
-  per-account opt-in.
-
-  When `:kura` and the install is not in shared-mesh mode, ready account Kura
-  endpoints are returned only if the account has the `:kura_cache` flag enabled.
-  In every other case (technology is `:default`, no opt-in, or no ready Kura
-  endpoint), the custom and default endpoint fallback behavior is preserved.
+  When `:kura`, ready account Kura endpoints are returned only if the account
+  has the `:kura_cache` flag enabled. In every other case (technology is
+  `:default`, no opt-in, or no ready Kura endpoint), the custom and default
+  endpoint fallback behavior is preserved.
 
   Custom endpoints are only returned when:
   - The account exists
   - The account is on the enterprise plan when Tuist-hosted
   - The account has `custom_cache_endpoints_enabled` set to `true`
   - The account has at least one custom cache endpoint configured
+
+  Preview environments use the same routing as production: a `kura_servers`
+  row per account points at the preview's `KuraInstance`, and the Lua hook
+  enforces tenant matching strictly. The earlier "shared mesh" override that
+  short-circuited per-account routing is gone (see PR #11348 review).
   """
-  def get_cache_endpoints_for_handle(account_handle, technology \\ :default)
-
-  def get_cache_endpoints_for_handle(account_handle, :kura) do
-    case shared_mesh_kura_endpoint_urls() do
-      [] -> cache_endpoints_for_handle(account_handle, :kura)
-      endpoints -> endpoints
-    end
-  end
-
-  def get_cache_endpoints_for_handle(account_handle, technology) do
+  def get_cache_endpoints_for_handle(account_handle, technology \\ :default) do
     cache_endpoints_for_handle(account_handle, technology)
   end
 
@@ -2051,17 +2039,6 @@ defmodule Tuist.Accounts do
   end
 
   defp cache_endpoints_for_handle(_, _), do: CacheEndpoints.active_endpoint_urls()
-
-  defp shared_mesh_kura_endpoint_urls do
-    if Environment.kura_shared_mesh?() do
-      case Environment.kura_endpoints() do
-        endpoints when is_list(endpoints) -> endpoints
-        _ -> []
-      end
-    else
-      []
-    end
-  end
 
   defp hosted_cache_endpoints_for_handle(account_handle, technology) do
     case get_account_by_handle(account_handle) do

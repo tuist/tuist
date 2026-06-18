@@ -1,9 +1,16 @@
 # Overlay for Slack-requested preview environments.
 #
 # Layer this after values-preview.yaml. It keeps the preview-class dependency
-# shape (embedded Postgres, ClickHouse, and MinIO) and points the server at
-# a shared Kura mesh through server.kuraEndpointUrls, so all accounts in the
-# preview share that mesh without creating per-account kura_servers rows.
+# shape (embedded Postgres, ClickHouse, and MinIO) and provisions a Kura
+# runtime per preview. The server routes accounts to it via the same
+# `kura_servers` rows production uses; no shared-mesh override and no
+# preview-only authorization relaxation (the Lua hook enforces tenant
+# matching strictly here too).
+#
+# Testers wanting to exercise the server↔Kura path in a fresh preview need
+# to seed a `kura_servers` row for their account that points at
+# https://kura-<slug>.preview.tuist.dev — see
+# infra/k8s/onboarding.md §8 for the one-time setup.
 #
 # The Kura controller is *not* installed by the per-preview release: it lives
 # in the cluster-wide `kura` namespace and is installed once per cluster by
@@ -36,13 +43,6 @@ server:
   extraEnv:
     - name: TUIST_DATABASE_POOL_SIZE
       value: "10"
-    # Opts this install into the shared Kura mesh routing path: every
-    # account is served the configured TUIST_KURA_ENDPOINTS instead of
-    # going through per-account `kura_servers` rows. Defense-in-depth
-    # flag — production overlays do not set this, so a stray endpoints
-    # env var leaking there cannot bypass the per-account opt-in.
-    - name: TUIST_KURA_SHARED_MESH
-      value: "1"
   kuraIntrospection:
     # Routes the server's KURA_CONTROL_PLANE_CLIENT_ID/SECRET env vars to
     # the kura-shared-secrets Secret in this release's namespace. The

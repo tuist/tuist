@@ -233,6 +233,22 @@ Preview environments live on the `tuist-preview` workload cluster, which runs Po
 
 Slack-requested previews use the same cluster and the same embedded dependency shape, but layer `infra/helm/tuist/values-preview-kura.yaml` after `values-preview.yaml` to enable a shared Kura runtime. App pods and the preview's Kura runtime pods both land on the tainted preview worker pool — Kura previews colocate on `role=preview` with a matching toleration, not a dedicated Kura node pool. The Kura controller is installed cluster-wide in the `kura` namespace once per cluster by `mise -C infra run k8s:install-kura-platform`, and each preview's `KuraInstance` is created in that `kura` namespace; the preview server reaches the runtime over cross-namespace Service DNS. Requests enter through `/preview` in Slack, are audited in `tuist-ops`, and dispatch `.github/workflows/preview-ondemand-deploy.yml` (which delegates the lifecycle to `preview-deploy-impl.yml`); TTL cleanup is handled by `.github/workflows/preview-sweep.yml`.
 
+Slack previews use the same routing as production: the Lua hook enforces tenant matching strictly and the server looks the account's Kura endpoint up via a `kura_servers` row. A fresh preview has no such rows, so testers exercising the server↔Kura path need a one-time seed against the preview's server:
+
+```bash
+kubectl -n preview-ondemand-<slug> exec deploy/ondemand-<slug>-tuist-server -c server -- \
+  /app/bin/tuist eval '
+    {:ok, account} = Tuist.Accounts.get_account_by_handle("tuistrocks") |> then(&{:ok, &1})
+    {:ok, _} = Tuist.Accounts.create_account_cache_endpoint(account, %{
+      url: "https://kura-<slug>.preview.tuist.dev",
+      technology: :kura
+    })
+    Tuist.FeatureFlags.enable(:kura_cache, for_actor: account)
+  '
+```
+
+The earlier shared-mesh override (`TUIST_KURA_SHARED_MESH` + the Lua hook's `KURA_EXTENSION_TUIST_ALLOW_SHARED_TENANTS`) is gone — previews are production-shaped at the cache-routing layer (see PR #11348 review).
+
 ### 8.1 Wildcard DNS + cert
 
 In Cloudflare's `tuist.dev` zone, create a single A record pointing `*.preview.tuist.dev` at the preview cluster's ingress LB IP (the bootstrap task prints it at the end of step 12). The platform chart issues the wildcard cert via cert-manager DNS-01 against Cloudflare; ingress-nginx picks it up via the `--default-ssl-certificate` flag set in the chart values.

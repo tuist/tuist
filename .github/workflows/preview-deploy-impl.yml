@@ -335,8 +335,6 @@ jobs:
                 value: http://${RELEASE}-tuist-server.${NAMESPACE}.svc.cluster.local:80
               - name: KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL
                 value: http://${RELEASE}-tuist-server.${NAMESPACE}.svc.cluster.local:80
-              - name: KURA_EXTENSION_TUIST_ALLOW_SHARED_TENANTS
-                value: "1"
             nodeSelector:
               role: preview
             tolerations:
