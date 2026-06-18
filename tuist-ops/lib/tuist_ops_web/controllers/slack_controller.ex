@@ -290,7 +290,7 @@ defmodule TuistOpsWeb.SlackController do
     result =
       case parse_preview_slash(raw_text) do
         {:ok, :create, parsed} ->
-          Previews.request_create(%{
+          Previews.create(%{
             requester_email: requester_email,
             requester_slack_id: requester_slack_id,
             slack_channel_id: channel_id,
@@ -302,7 +302,7 @@ defmodule TuistOpsWeb.SlackController do
           })
 
         {:ok, :delete, parsed} ->
-          Previews.request_delete(%{
+          Previews.delete(%{
             requester_email: requester_email,
             requester_slack_id: requester_slack_id,
             slack_channel_id: channel_id,
@@ -332,7 +332,7 @@ defmodule TuistOpsWeb.SlackController do
   end
 
   defp do_preview_delete(conn, slug, actor_slack_id, actor_email, channel_id) do
-    case Previews.request_delete(%{
+    case Previews.delete(%{
            requester_email: actor_email,
            requester_slack_id: actor_slack_id,
            slack_channel_id: channel_id || previews_channel(),
@@ -542,6 +542,12 @@ defmodule TuistOpsWeb.SlackController do
   defp preview_human_error(:preview_too_many_refs),
     do: "Provide at most one `pr:<number>` or `sha:<sha>`."
 
+  defp preview_human_error(:already_exists),
+    do:
+      "A preview with that slug already exists. Delete it (`/preview delete <slug>`) before creating a new one for the same slug."
+
+  defp preview_human_error(:not_found), do: "No preview with that slug exists."
+
   defp preview_human_error(reason), do: "Internal error: #{inspect(reason)}"
 
   defp preview_usage_message do
@@ -572,7 +578,7 @@ defmodule TuistOpsWeb.SlackController do
   defp slack_user_to_email(_), do: nil
 
   defp approvals_channel do
-    Environment.approvals_channel_id() || "#tailscale-jit-approvals"
+    Environment.approvals_channel_id() || "#eng-ops"
   end
 
   defp previews_channel do

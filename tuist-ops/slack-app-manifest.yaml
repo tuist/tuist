@@ -1,9 +1,10 @@
-# Source-of-truth Slack app manifest for the "Tuist JIT" app that
-# fronts the JIT elevation flow (`/elevate`) and preview
-# requests (`/preview`).
+# Source-of-truth Slack app manifest for the "Tuist Ops" app that
+# fronts JIT elevation (`/elevate`), preview requests (`/preview`), and
+# any other operational slash commands we add later. The app used to be
+# scoped to JIT only — renamed to reflect the wider surface.
 #
 # Paste this YAML into:
-#   https://api.slack.com/apps → Tuist JIT → App Manifest →
+#   https://api.slack.com/apps → Tuist Ops → App Manifest →
 #   replace contents → Save Changes
 #
 # Slack diffs against the live config and applies the deltas; the
@@ -15,13 +16,13 @@
 # file — repo is documentation, console is the live state.
 
 display_information:
-  name: Tuist JIT
-  description: Just-in-time elevation and previews for Tuist operations
+  name: Tuist Ops
+  description: Slack-driven operations for the Tuist team (JIT elevation, previews, ...)
   background_color: "#101010"
 
 features:
   bot_user:
-    display_name: Tuist JIT
+    display_name: Tuist Ops
     always_online: true
 
   slash_commands:
@@ -41,10 +42,10 @@ oauth_config:
     bot:
       # Slash command + interactive callbacks
       - commands
-      # Post + update approval cards in the approvals channel
+      # Post + update approval cards in the ops channel
       - chat:write
       # Allow posting to channels the bot isn't a member of (so
-      # approvals can land in #tailscale-jit-approvals without
+      # approvals + preview cards land in #eng-ops without
       # re-invite each time the bot reinstalls)
       - chat:write.public
       # Resolve Slack user id -> email for the policy gate
