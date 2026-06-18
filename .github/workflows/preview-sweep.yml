@@ -89,12 +89,12 @@ jobs:
 
             if [ "$EXP" -le "$NOW" ]; then
               echo "==> Deleting: $NS (expired $((NOW - EXP))s ago)"
-              # Delete the KuraInstance with --wait *before* tearing down the
-              # release, so the controller (also installed into $NS by the
-              # on-demand chart) is still running to drain the CR's finalizer.
-              # Deleting after the controller is gone leaves the CR stuck
-              # terminating and orphans the LE-issued leaf cert.
-              kubectl -n "$NS" delete kurainstance "${RELEASE}-kura" --ignore-not-found --wait=true --timeout 5m || true
+              # The cluster-wide Kura controller in the `kura` namespace
+              # owns the KuraInstance for this preview; delete it with
+              # --wait so the finalizer drains the public Ingress and the
+              # cert-manager Certificate before we drop the preview's
+              # helm release and namespace.
+              kubectl -n kura delete kurainstance "${RELEASE}-kura" --ignore-not-found --wait=true --timeout 5m || true
               helm uninstall "$RELEASE" --namespace "$NS" --wait --timeout 5m || true
               kubectl delete namespace "$NS" --wait=true --timeout 5m || true
             else

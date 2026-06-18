@@ -1,23 +1,26 @@
 # Overlay for Slack-requested preview environments.
 #
 # Layer this after values-preview.yaml. It keeps the preview-class dependency
-# shape (embedded Postgres, ClickHouse, and MinIO) but turns on the Kura
-# controller. The workflow creates one preview-scoped KuraInstance and points
-# the server at its public endpoint through server.kuraEndpointUrls, so all
-# accounts in the preview share that mesh without creating per-account
-# kura_servers rows.
+# shape (embedded Postgres, ClickHouse, and MinIO) and points the server at
+# a shared Kura mesh through server.kuraEndpointUrls, so all accounts in the
+# preview share that mesh without creating per-account kura_servers rows.
 #
-# The controller is installed *into the per-preview namespace* (via
-# `--set kuraController.namespace=<preview-namespace>` from the deploy
-# workflow), not the shared `kura` namespace. Each preview therefore owns
-# its own Namespace, kura-shared-secrets Secret, ClusterRole bindings, and
-# Deployment, and two on-demand previews cannot collide on Helm ownership
-# or be torn down by another preview's `helm uninstall`.
+# The Kura controller is *not* installed by the per-preview release: it lives
+# in the cluster-wide `kura` namespace and is installed once per cluster by
+# `mise -C infra run k8s:install-kura-platform` (see
+# .github/workflows/preview-ondemand-deploy.yml). That keeps a single
+# controller managing every preview's KuraInstance — no per-release
+# ownership of cluster-scoped resources, no Helm collisions when two
+# previews coexist, and uninstalling one preview never touches another's
+# controller.
 #
-# Required deploy-time image pins:
-#   --set kuraController.image.tag=<sha-or-release>
+# The kura-shared-secrets Secret is materialised in the `kura` namespace
+# by the platform install and copied into the preview namespace by the
+# deploy workflow before `helm upgrade`. server.kuraIntrospection.use-
+# SharedSecret routes the helper to that copy.
+#
+# Required deploy-time image pin:
 #   --set kuraRuntime.image.tag=<release>
-#   --set kuraController.namespace=<preview-namespace>  (set by the workflow)
 global:
   commonLabels:
     tuist.dev/environment: preview
@@ -40,30 +43,21 @@ server:
     # env var leaking there cannot bypass the per-account opt-in.
     - name: TUIST_KURA_SHARED_MESH
       value: "1"
+  kuraIntrospection:
+    # Routes the server's KURA_CONTROL_PLANE_CLIENT_ID/SECRET env vars to
+    # the kura-shared-secrets Secret in this release's namespace. The
+    # workflow copies that Secret from the cluster-wide `kura` namespace
+    # (where the platform install materialises it) into the per-preview
+    # namespace before `helm upgrade`. The per-preview release does not
+    # install the kuraController, so the chart's default helper path
+    # (which requires kuraController.enabled) would otherwise miss the env.
+    useSharedSecret: true
 
-kuraController:
-  enabled: true
-  # namespace is set per-preview by the workflow via
-  # `--set kuraController.namespace=<preview-namespace>` so each on-demand
-  # preview owns its own controller resources and there is no shared `kura`
-  # namespace for two releases to fight over.
-  replicaCount: 1
-  tlsClusterIssuer: letsencrypt-cloudflare
-  telemetry:
-    deploymentEnvironment: preview
-    otlpTracesEndpoint: ""
-  sharedSecrets:
-    enabled: true
-    kuraIntrospection:
-      enabled: true
-      # clientId / clientSecret are injected at install time by
-      # preview-ondemand-deploy.yml. The workflow reuses any existing
-      # `kura-shared-secrets` Secret in the preview namespace so re-installs
-      # do not churn credentials, and generates fresh random material on
-      # first install. Leaving them committed in plaintext would publish
-      # working preview credentials in the git history.
-      clientId: ""
-      clientSecret: ""
+# kuraController stays disabled in the per-preview release. The
+# cluster-wide controller is installed by
+# `mise -C infra run k8s:install-kura-platform` (called from the deploy
+# workflow). Avoids two ondemand previews fighting for ownership of the
+# kura namespace's shared resources.
 
 kuraRuntime:
   image:

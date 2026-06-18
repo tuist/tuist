@@ -322,16 +322,29 @@ http://{{ include "tuist.componentName" (dict "root" . "component" "otel-collect
 {{- end -}}
 
 {{/*
-Kura OAuth introspection client env vars. The values are synced from
-1Password into the server-external-secrets Secret when
-server.externalSecrets.kuraIntrospection.item is set, or from the
-kura-shared-secrets Secret when
-kuraController.sharedSecrets.kuraIntrospection.enabled is true.
+Kura OAuth introspection client env vars. The values are sourced from
+one of:
+
+  1. The kura-shared-secrets Secret in this release's namespace when this
+     release installs the kuraController (managed envs: one release runs
+     both server and controller in their respective namespaces, the
+     chart mirrors the Secret into the server namespace).
+
+  2. The kura-shared-secrets Secret in this release's namespace when
+     server.kuraIntrospection.useSharedSecret is true (preview envs:
+     the kuraController is installed once at platform level into the
+     `kura` namespace, and the deploy workflow copies the Secret into
+     this release's namespace before installing the chart).
+
+  3. The server-external-secrets ESO Secret when
+     server.externalSecrets.kuraIntrospection.item is set.
+
 */}}
 {{- define "tuist.kuraIntrospectionEnv" -}}
 {{- $esoSecret := include "tuist.componentName" (dict "root" . "component" "server-external-secrets") -}}
 {{- $kuraSharedSecret := "kura-shared-secrets" -}}
-{{- if and .Values.kuraController.enabled .Values.kuraController.sharedSecrets.enabled .Values.kuraController.sharedSecrets.kuraIntrospection.enabled }}
+{{- $useShared := or (and .Values.kuraController.enabled .Values.kuraController.sharedSecrets.enabled .Values.kuraController.sharedSecrets.kuraIntrospection.enabled) .Values.server.kuraIntrospection.useSharedSecret -}}
+{{- if $useShared }}
 - name: KURA_CONTROL_PLANE_CLIENT_ID
   valueFrom:
     secretKeyRef:

@@ -38,9 +38,10 @@ KURA_CONTROLLER_REPO="${usage_kura_controller_image}"
 KURA_RUNTIME_REPO="${usage_kura_runtime_image}"
 KURA_IMAGE_TAG="${usage_kura_image_tag}"
 KURA_INSTANCE_NAME="${RELEASE_NAME}-kura"
-# Kura runtime now colocates in the preview release's namespace (default
-# for the local kind test), so the Service DNS resolves there too.
-KURA_ENDPOINT_URL="http://${KURA_INSTANCE_NAME}.default.svc.cluster.local:4000"
+# The KuraInstance lives in the cluster-wide `kura` namespace (the same
+# place the platform install puts the controller); the preview server
+# reaches it cross-namespace.
+KURA_ENDPOINT_URL="http://${KURA_INSTANCE_NAME}.kura.svc.cluster.local:4000"
 
 if [ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]; then
     LICENSE_MODE="eso"
@@ -166,7 +167,7 @@ if helm status "$RELEASE_NAME" >/dev/null 2>&1; then
     kubectl delete pvc -l app.kubernetes.io/instance="$RELEASE_NAME" --wait=true 2>/dev/null || true
 fi
 if [ "$WITH_KURA" = "true" ]; then
-    kubectl delete kurainstance "$KURA_INSTANCE_NAME" --ignore-not-found --wait=true 2>/dev/null || true
+    kubectl -n kura delete kurainstance "$KURA_INSTANCE_NAME" --ignore-not-found --wait=true 2>/dev/null || true
 fi
 
 HELM_VALUES_ARGS=(-f "$REPO_ROOT/infra/helm/tuist/values-preview.yaml")
@@ -180,6 +181,17 @@ if [ "$WITH_KURA" = "true" ]; then
         --set "kuraRuntime.image.tag=${KURA_IMAGE_TAG}"
         --set "server.kuraEndpointUrls[0]=${KURA_ENDPOINT_URL}"
     )
+fi
+
+if [ "$WITH_KURA" = "true" ]; then
+    echo "==> Installing cluster-wide Kura controller into the kura namespace..."
+    KURA_CONTROLLER_IMAGE_TAG="$KURA_IMAGE_TAG" \
+      mise -C "$REPO_ROOT/infra" run k8s:install-kura-platform "${KUBECONFIG:-$HOME/.kube/config}"
+
+    echo "==> Copying kura-shared-secrets into preview namespace (default)..."
+    kubectl -n kura get secret kura-shared-secrets -o json \
+      | jq 'del(.metadata.namespace, .metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp, .metadata.ownerReferences, .metadata.labels, .metadata.annotations)' \
+      | kubectl -n default apply -f -
 fi
 
 echo "==> Installing preview release..."
@@ -196,13 +208,14 @@ helm install "$RELEASE_NAME" "$REPO_ROOT/infra/helm/tuist" \
     --wait --timeout 5m
 
 if [ "$WITH_KURA" = "true" ]; then
-    echo "==> Creating shared private KuraInstance '${KURA_INSTANCE_NAME}' colocated on role=preview workers..."
+    echo "==> Creating shared private KuraInstance '${KURA_INSTANCE_NAME}' in the kura namespace..."
     {
         cat <<EOF
 apiVersion: kura.tuist.dev/v1alpha1
 kind: KuraInstance
 metadata:
   name: ${KURA_INSTANCE_NAME}
+  namespace: kura
   labels:
     tuist.dev/preview-source: slack
     app.kubernetes.io/instance: ${RELEASE_NAME}
@@ -234,15 +247,15 @@ EOF
         sed 's/^/    /' "$REPO_ROOT/kura/ops/helm/kura/hooks/tuist.lua"
     } | kubectl apply -f -
 
-    echo "==> Waiting for KuraInstance controller output..."
-    kubectl wait --for=condition=Available deployment/"${RELEASE_NAME}-tuist-kura-controller" --timeout=3m
+    echo "==> Waiting for the cluster-wide Kura controller to surface the StatefulSet..."
+    kubectl -n kura wait --for=condition=Available deployment/kura-platform-tuist-kura-controller --timeout=3m
     for _ in $(seq 1 60); do
-        if kubectl get statefulset "$KURA_INSTANCE_NAME" >/dev/null 2>&1; then
+        if kubectl -n kura get statefulset "$KURA_INSTANCE_NAME" >/dev/null 2>&1; then
             break
         fi
         sleep 2
     done
-    kubectl rollout status statefulset/"$KURA_INSTANCE_NAME" --timeout=10m
+    kubectl -n kura rollout status statefulset/"$KURA_INSTANCE_NAME" --timeout=10m
 fi
 
 echo ""
@@ -270,8 +283,8 @@ echo "    OK: all preview pods landed on role=preview workers."
 if [ "$WITH_KURA" = "true" ]; then
     echo ""
     echo "==> Kura pod placement (Kura runtime pods should colocate on role=preview workers):"
-    kubectl get pods -l app.kubernetes.io/instance="$KURA_INSTANCE_NAME" -o wide
-    KURA_UNEXPECTED=$(kubectl get pods -l app.kubernetes.io/instance="$KURA_INSTANCE_NAME" \
+    kubectl -n kura get pods -l app.kubernetes.io/instance="$KURA_INSTANCE_NAME" -o wide
+    KURA_UNEXPECTED=$(kubectl -n kura get pods -l app.kubernetes.io/instance="$KURA_INSTANCE_NAME" \
         -o json | jq -r '.items[] | select(.spec.nodeName != null) |
         "\(.metadata.name) \(.spec.nodeName)"' \
         | while read -r pod node; do
