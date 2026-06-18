@@ -27,7 +27,7 @@ rules:
     resources:
       - scalewayapplesiliconmachines
       - scalewayapplesiliconmachinetemplates
-      - scalewayapplesiliconclusters
+      - tuistclusters
       - scalewayelasticmetalmachines
       - scalewayelasticmetalmachinetemplates
       - ovhdedicatedmachines
@@ -37,7 +37,7 @@ rules:
     resources:
       - scalewayapplesiliconmachines/status
       - scalewayapplesiliconmachines/finalizers
-      - scalewayapplesiliconclusters/status
+      - tuistclusters/status
       - scalewayelasticmetalmachines/status
       - scalewayelasticmetalmachines/finalizers
       - ovhdedicatedmachines/status

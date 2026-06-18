@@ -3,7 +3,7 @@
 
 # Single source of truth for the CAPI provider's CRDs is the
 # annotated Go types in
-# infra/cluster-api-provider-scaleway-applesilicon/api/v1alpha1/.
+# infra/cluster-api-provider-tuist/api/v1alpha1/.
 # This task runs controller-gen to regenerate
 #   - api/v1alpha1/zz_generated.deepcopy.go
 #   - infra/helm/tuist/crds/scalewayapplesilicon*.yaml
@@ -19,7 +19,7 @@
 set -euo pipefail
 
 CONTROLLER_GEN_VERSION="v0.16.5"
-PROVIDER_DIR="infra/cluster-api-provider-scaleway-applesilicon"
+PROVIDER_DIR="infra/cluster-api-provider-tuist"
 CRD_OUT_DIR="infra/helm/tuist/crds"
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
@@ -44,7 +44,7 @@ echo "→ Generating CRD manifests (${CRD_OUT_DIR}/)"
 # doesn't emit that on its own; patch it in here so CAPI core
 # discovers our CRDs.
 echo "→ Adding CAPI provider label to generated CRDs"
-for f in "${REPO_ROOT}/${CRD_OUT_DIR}"/infrastructure.cluster.x-k8s.io_{scaleway,ovh}*.yaml; do
+for f in "${REPO_ROOT}/${CRD_OUT_DIR}"/infrastructure.cluster.x-k8s.io_{scaleway,ovh,tuist}*.yaml; do
   yq -i '.metadata.labels."cluster.x-k8s.io/v1beta1" = "v1alpha1"' "$f"
 done
 

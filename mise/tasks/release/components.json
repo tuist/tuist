@@ -107,10 +107,10 @@
       "name": "capi-scaleway",
       "tag_prefix": "capi-scaleway@",
       "tag_regex": "^capi-scaleway@[0-9]+\\.[0-9]+\\.[0-9]+$",
-      "cliff_config": "infra/cluster-api-provider-scaleway-applesilicon/cliff.toml",
+      "cliff_config": "infra/cluster-api-provider-tuist/cliff.toml",
       "initial_version": "0.1.0",
       "include_paths": [
-        "infra/cluster-api-provider-scaleway-applesilicon/**/*",
+        "infra/cluster-api-provider-tuist/**/*",
         "infra/macos-host-bootstrap/**/*",
         "infra/tart-kubelet/**/*"
       ]

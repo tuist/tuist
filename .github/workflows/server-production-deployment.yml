@@ -637,24 +637,24 @@ jobs:
           LATEST_VERSION=$(git tag -l | grep -E "^capi-scaleway@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
 
           INCLUDE_PATHS=(
-            --include-path "infra/cluster-api-provider-scaleway-applesilicon/**/*"
+            --include-path "infra/cluster-api-provider-tuist/**/*"
             --include-path "infra/macos-host-bootstrap/**/*"
             --include-path "infra/tart-kubelet/**/*"
           )
 
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
           if [ -n "$LATEST_VERSION" ]; then
-            git cliff "${INCLUDE_PATHS[@]}" --config infra/cluster-api-provider-scaleway-applesilicon/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+            git cliff "${INCLUDE_PATHS[@]}" --config infra/cluster-api-provider-tuist/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
           else
-            git cliff "${INCLUDE_PATHS[@]}" --config infra/cluster-api-provider-scaleway-applesilicon/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+            git cliff "${INCLUDE_PATHS[@]}" --config infra/cluster-api-provider-tuist/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
           fi
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Update CHANGELOG.md
-        working-directory: infra/cluster-api-provider-scaleway-applesilicon
+        working-directory: infra/cluster-api-provider-tuist
         run: |
           INCLUDE_PATHS=(
-            --include-path "infra/cluster-api-provider-scaleway-applesilicon/**/*"
+            --include-path "infra/cluster-api-provider-tuist/**/*"
             --include-path "infra/macos-host-bootstrap/**/*"
             --include-path "infra/tart-kubelet/**/*"
           )
@@ -675,7 +675,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: infra/cluster-api-provider-scaleway-applesilicon/Dockerfile
+          file: infra/cluster-api-provider-tuist/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
@@ -690,7 +690,7 @@ jobs:
           # by tag-infra-releases), so there is no chart pin to bump.
           name: capi-scaleway-artifacts
           path: |
-            infra/cluster-api-provider-scaleway-applesilicon/CHANGELOG.md
+            infra/cluster-api-provider-tuist/CHANGELOG.md
           retention-days: 1
 
   release-runners-controller:
@@ -1432,7 +1432,7 @@ jobs:
 
       - name: Download CAPI operator artifacts
         # `path:` matches the upload's LCA so CHANGELOG.md lands back at
-        # `infra/cluster-api-provider-scaleway-applesilicon/CHANGELOG.md`
+        # `infra/cluster-api-provider-tuist/CHANGELOG.md`
         # for the later `git add` to find. upload-artifact@v4 strips the
         # LCA from each entry's archive path, so a workspace-root
         # download would put it at `<workspace>/CHANGELOG.md`.
@@ -1440,7 +1440,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: capi-scaleway-artifacts
-          path: infra/cluster-api-provider-scaleway-applesilicon
+          path: infra/cluster-api-provider-tuist
 
       - name: Download runners-controller artifacts
         # The upload contains only files rooted at

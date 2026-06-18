@@ -411,7 +411,7 @@ xcresultProcessor:
   #
   # Requires at least one Mac mini joined to the cluster. Tuist-managed
   # deployments declare the fleet via `macosFleet.enabled=true` (see
-  # below) and the cluster-api-provider-scaleway-applesilicon operator
+  # below) and the cluster-api-provider-tuist operator
   # provisions hosts from Scaleway and bootstraps Tart + tart-kubelet
   # over SSH. Self-hosters without a macOS fleet should leave this off;
   # xcresult ingestion silently no-ops for them (acceptable — Linux-only
@@ -811,7 +811,7 @@ macosFleet:
     os: macos-tahoe-26.3
 
 # Customer-runner Mac mini fleet — sibling of macosFleet, hosted by
-# the same cluster-api-provider-scaleway-applesilicon operator and
+# the same cluster-api-provider-tuist operator and
 # the same tart-kubelet binary. Split out so customer-bought
 # concurrency lives on its own hardware and isn't preempted by
 # internal queue consumers (xcresult-processor, etc.).
