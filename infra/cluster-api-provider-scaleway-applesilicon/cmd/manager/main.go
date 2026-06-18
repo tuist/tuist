@@ -461,11 +461,17 @@ func main() {
 		setupLog.Error(err, "scaleway baremetal client")
 		os.Exit(1)
 	}
+	vpcClient, err := scaleway.NewVPCClientFromEnv()
+	if err != nil {
+		setupLog.Error(err, "scaleway vpc client")
+		os.Exit(1)
+	}
 	if err := (&controllers.ScalewayElasticMetalMachineReconciler{
 		Client:             mgr.GetClient(),
 		APIReader:          mgr.GetAPIReader(),
 		Scheme:             mgr.GetScheme(),
 		ScalewayClient:     baremetalClient,
+		VPC:                vpcClient,
 		Recorder:           mgr.GetEventRecorderFor("scalewayelasticmetalmachine-controller"),
 		CredentialsManager: credsManager,
 		Kubeconfig:         kubeconfigBuilder,

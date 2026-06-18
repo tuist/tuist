@@ -324,7 +324,6 @@ kuraFleet:
     # capacity are the per-account density limiters here, not PN bandwidth or
     # CPU, so we pay for memory + disk rather than a bigger NIC.
     offerType: EM-I220E-NVME
-    privateNetworkID: 6e4d95e8-d8cd-487c-9a3e-fc92136790e7
 
 # Mac mini fleet — declarative via CAPI. Production keeps 2 hosts so
 # a single-host Scaleway BMC reboot or macOS upgrade doesn't take all

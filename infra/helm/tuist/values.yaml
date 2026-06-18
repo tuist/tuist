@@ -569,9 +569,13 @@ kuraFleet:
     zone: fr-par-1
     # Elastic Metal OS install label.
     os: ubuntu_noble
-    # Required when enabled: the VPC Private Network the node attaches to
-    # (the runner-cache PN shared with the Mac fleet).
-    privateNetworkID: ""
+    # The VPC Private Network the node attaches to (the runner-cache PN shared
+    # with the Mac fleet). Declared by name + CIDR, not a UUID: the operator
+    # finds the PN by name in the env's Scaleway project and creates it from the
+    # CIDR if it doesn't exist. The name is shared across envs (each lives in its
+    # own project, so there's no collision).
+    privateNetworkName: tuist-runner-cache
+    privateNetworkCIDR: 172.16.0.0/22
 
 # Scaling: `kubectl scale machinedeployment <name> --replicas=N`.
 macosFleet:

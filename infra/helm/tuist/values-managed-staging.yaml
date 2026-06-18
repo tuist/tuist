@@ -302,7 +302,6 @@ kuraFleet:
     # that still mirrors the production NVMe + 10G PN path, so staging
     # validates the same local-NVMe + bare-metal-PN data plane prod runs on.
     offerType: EM-B220E-NVME
-    privateNetworkID: 8c9cf4c1-74f0-4303-9061-fa9d9591e7b8
 
 # Mac mini fleet. The chart renders one ScalewayAppleSiliconMachine
 # CR per replica; the cluster-api-provider-scaleway-applesilicon

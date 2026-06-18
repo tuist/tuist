@@ -33,7 +33,8 @@ spec:
       offerType: {{ .Values.kuraFleet.machine.offerType | default "EM-B220E-NVME" | quote }}
       zone: {{ .Values.kuraFleet.machine.zone | default "fr-par-1" | quote }}
       os: {{ .Values.kuraFleet.machine.os | default "ubuntu_noble" | quote }}
-      privateNetworkID: {{ required "kuraFleet.machine.privateNetworkID is required" .Values.kuraFleet.machine.privateNetworkID | quote }}
+      privateNetworkName: {{ .Values.kuraFleet.machine.privateNetworkName | default "tuist-runner-cache" | quote }}
+      privateNetworkCIDR: {{ .Values.kuraFleet.machine.privateNetworkCIDR | default "172.16.0.0/22" | quote }}
       nodeTaints:
         - key: tuist.dev/runner-cache
           value: "true"

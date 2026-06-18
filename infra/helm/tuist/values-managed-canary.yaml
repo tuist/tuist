@@ -238,7 +238,6 @@ kuraFleet:
     # that still mirrors the production NVMe + 10G PN path, so canary validates
     # the same local-NVMe + bare-metal-PN data plane prod runs on.
     offerType: EM-B220E-NVME
-    privateNetworkID: e92e14c5-65ff-4ffd-91c3-f8154f569caf
 
 # Mac mini fleet — declarative via CAPI.
 macosFleet:
