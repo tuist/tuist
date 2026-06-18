@@ -199,6 +199,10 @@ postgresql:
     # an entry under `parameters`.
     sharedPreloadLibraries:
       - pg_stat_statements
+    # Expose pg_stat_statements as query-latency metrics. The library above
+    # is loaded; create the extension once via infra/cnpg/pg-stat-statements.sql.
+    queryStats:
+      enabled: true
     # Route the processor through the transaction-mode PgBouncer pooler so
     # this soak env matches production's post-CNPG-cutover topology
     # (processor pooled, web tier direct on -rw). CNPG's built-in
@@ -298,12 +302,10 @@ kuraFleet:
   enabled: true
   replicas: 1
   machine:
-    kind: elasticMetal
     # EM-B220E-NVME (~EUR120/mo) is the cheapest in-stock Elastic Metal box
     # that still mirrors the production NVMe + 10G PN path, so staging
     # validates the same local-NVMe + bare-metal-PN data plane prod runs on.
     offerType: EM-B220E-NVME
-    privateNetworkID: 8c9cf4c1-74f0-4303-9061-fa9d9591e7b8
 
 # Mac mini fleet. The chart renders one ScalewayAppleSiliconMachine
 # CR per replica; the cluster-api-provider-scaleway-applesilicon
@@ -339,11 +341,12 @@ macosFleet:
   vmClusterEgress:
     kuraServiceCIDR: "10.128.0.0/12"
     clusterDNSIP: "10.128.0.10"
-  # Staging PN kura-runner-cache (172.16.0.0/22) in the staging
+  # Staging PN tuist-runner-cache (172.16.0.0/22) in the staging
   # Scaleway project: minis + the kura-scw-fr-par node are attached;
   # dispatch hands VMs http://<node PN address>:<account NodePort>.
+  # Resolved by name (same PN the kura fleet attaches to).
   vmCachePrivateNetwork:
-    id: 8c9cf4c1-74f0-4303-9061-fa9d9591e7b8
+    name: tuist-runner-cache
     cidr: 172.16.0.0/22
   machine:
     # Staging tracks the chart default (M2-L on Scaleway: M2 Pro

@@ -2,31 +2,22 @@
 {{- $fleetName := include "tuist.componentName" (dict "root" . "component" "kura-fleet") }}
 {{- $clusterName := include "tuist.componentName" (dict "root" . "component" "capi") }}
 {{- $bootstrapSecret := include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
-{{- $machineKind := .Values.kuraFleet.machine.kind | default "instance" }}
-{{- $infraKind := ternary "ScalewayElasticMetalMachineTemplate" "ScalewayInstanceMachineTemplate" (eq $machineKind "elasticMetal") }}
 {{- /*
-Kura runner-cache fleet — declarative Scaleway node co-located with the Mac
-fleet, replacing the hand-joined node.
-
-Two machine kinds, selected by `kuraFleet.machine.kind`:
-  - instance     (default): a Scaleway Linux Instance (PRO2-S class), block
-    storage via scw-bssd CSI.
-  - elasticMetal: a Scaleway Elastic Metal bare-metal server with a 10G+ PN
-    NIC and local NVMe (~4.4-6.5x the PRO2-S sustained PN throughput). Elastic
-    Metal can't attach scw-bssd, so the cache PVCs use a local-NVMe
-    StorageClass on the node (see infra/k8s/mgmt/bootstrap/local-path-*).
+Kura runner-cache fleet — a declarative Scaleway Elastic Metal node co-located
+with the Mac fleet: a bare-metal server with a 10G+ PN NIC and local NVMe.
+Elastic Metal can't attach scw-bssd, so the cache PVCs use a local-NVMe
+StorageClass on the node (see infra/k8s/mgmt/bootstrap/local-path-*).
 
 Like the macOS fleet, bootstrap is `noop-bootstrap` (no CAPI kubeadm join):
 this cluster's control plane is externally managed (Hetzner/caph), so CABPK
 has no cluster CA to mint a kubeadm join. Instead the reconciler mints a
-kubelet token kubeconfig and renders a self-join cloud-init itself — the same
-machinery the Apple Silicon kind uses, as cloud-init.
+kubelet token kubeconfig and SSH-delivers a self-join script — the same
+machinery the Apple Silicon kind uses over SSH.
 
 The runner-cache taint rides nodeTaints on the MachineTemplate (the reconciler
 passes it to the kubelet's --register-with-taints); the pool label rides CAPI
 Machine→Node propagation. OnDelete strategy: don't auto-churn the cache node.
 */ -}}
-{{- if eq $machineKind "elasticMetal" }}
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: ScalewayElasticMetalMachineTemplate
 metadata:
@@ -42,34 +33,12 @@ spec:
       offerType: {{ .Values.kuraFleet.machine.offerType | default "EM-B220E-NVME" | quote }}
       zone: {{ .Values.kuraFleet.machine.zone | default "fr-par-1" | quote }}
       os: {{ .Values.kuraFleet.machine.os | default "ubuntu_noble" | quote }}
-      privateNetworkID: {{ required "kuraFleet.machine.privateNetworkID is required" .Values.kuraFleet.machine.privateNetworkID | quote }}
+      privateNetworkName: {{ .Values.kuraFleet.machine.privateNetworkName | default "tuist-runner-cache" | quote }}
+      privateNetworkCIDR: {{ .Values.kuraFleet.machine.privateNetworkCIDR | default "172.16.0.0/22" | quote }}
       nodeTaints:
         - key: tuist.dev/runner-cache
           value: "true"
           effect: NoSchedule
-{{- else }}
-apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
-kind: ScalewayInstanceMachineTemplate
-metadata:
-  name: {{ $fleetName }}
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: kura-fleet
-    tuist.dev/fleet: {{ $fleetName }}
-spec:
-  template:
-    spec:
-      commercialType: {{ .Values.kuraFleet.machine.commercialType | default "PRO2-S" | quote }}
-      zone: {{ .Values.kuraFleet.machine.zone | default "fr-par-1" | quote }}
-      image: {{ .Values.kuraFleet.machine.image | default "ubuntu_noble" | quote }}
-      rootVolumeGB: {{ .Values.kuraFleet.machine.rootVolumeGB | default 50 }}
-      privateNetworkID: {{ required "kuraFleet.machine.privateNetworkID is required" .Values.kuraFleet.machine.privateNetworkID | quote }}
-      nodeTaints:
-        - key: tuist.dev/runner-cache
-          value: "true"
-          effect: NoSchedule
-{{- end }}
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineDeployment
@@ -106,6 +75,6 @@ spec:
         dataSecretName: {{ $bootstrapSecret }}
       infrastructureRef:
         apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
-        kind: {{ $infraKind }}
+        kind: ScalewayElasticMetalMachineTemplate
         name: {{ $fleetName }}
 {{- end }}

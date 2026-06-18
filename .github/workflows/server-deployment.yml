@@ -287,7 +287,7 @@ jobs:
           ref: ${{ env.DEPLOY_SHA }}
       - uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "helm kubectl"
+          install_args: "--locked helm kubectl"
           cache: "false"
       - uses: 1password/install-cli-action@v2
       - name: Load kubeconfig from 1Password
@@ -369,7 +369,7 @@ jobs:
       - if: steps.check-values.outputs.exists == 'true'
         uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "helm kubectl"
+          install_args: "--locked helm kubectl"
           cache: "false"
       - if: steps.check-values.outputs.exists == 'true'
         uses: 1password/install-cli-action@v2
@@ -433,7 +433,7 @@ jobs:
           fetch-depth: 0
       - uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "helm kubectl"
+          install_args: "--locked helm kubectl"
           cache: "false"
       - uses: 1password/install-cli-action@v2
       - name: Load kubeconfig from 1Password
@@ -542,7 +542,7 @@ jobs:
           } >> "$GITHUB_ENV"
       - uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "helm kubectl"
+          install_args: "--locked helm kubectl"
           cache: "false"
       - uses: 1password/install-cli-action@v2
       - name: Load kubeconfig from 1Password

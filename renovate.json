@@ -40,6 +40,15 @@
       "datasourceTemplate": "maven",
       "depNameTemplate": "dev.tuist:dev.tuist.gradle.plugin",
       "registryUrlTemplate": "https://plugins.gradle.org/m2/"
+    },
+    {
+      "customType": "regex",
+      "description": "Single source for the mise CLI version pinned across every GitHub Actions workflow (MISE_VERSION env). Renovate tracks jdx/mise releases and bumps all MISE_VERSION literals together in one PR, keeping the whole repo on one version. Stay on mise >= 2026.5.15: only there do --locked installs download from the lockfile's direct CDN URLs; older mise still hits api.github.com for github-backend tools and gets rate-limited.",
+      "fileMatch": ["^\\.github/workflows/[^/]+\\.ya?ml$"],
+      "matchStrings": ["MISE_VERSION:\\s*\"(?<currentValue>[^\"]+)\""],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "jdx/mise",
+      "extractVersionTemplate": "^v?(?<version>.+)$"
     }
   ],
   "packageRules": [
@@ -80,6 +89,14 @@
       "matchManagers": ["gradle"],
       "matchPackageNames": ["dev.tuist", "dev.tuist:dev.tuist.gradle.plugin"],
       "commitMessagePrefix": "chore(android):",
+      "automerge": true
+    },
+    {
+      "description": "mise CLI version shared across all workflows (MISE_VERSION). One PR bumps every literal; CI on that PR exercises all workflows before it can automerge.",
+      "matchManagers": ["custom.regex"],
+      "matchPackageNames": ["jdx/mise"],
+      "commitMessagePrefix": "chore(infra):",
+      "commitMessageTopic": "mise",
       "automerge": true
     }
   ]

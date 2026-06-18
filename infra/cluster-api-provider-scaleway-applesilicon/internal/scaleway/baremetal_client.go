@@ -31,6 +31,13 @@ type BaremetalPrivateNetworkAPI interface {
 	AddServerPrivateNetwork(req *baremetal.PrivateNetworkAPIAddServerPrivateNetworkRequest, opts ...scw.RequestOption) (*baremetal.ServerPrivateNetwork, error)
 }
 
+// IPAMAPI is the slice of the SDK's IPAM API the reconciler touches to read the
+// Private-Network address Scaleway assigned a server's NIC. Interface so tests
+// drop in a fake.
+type IPAMAPI interface {
+	ListIPs(req *ipam.ListIPsRequest, opts ...scw.RequestOption) (*ipam.ListIPsResponse, error)
+}
+
 // BaremetalClient talks to Scaleway's Elastic Metal + IPAM APIs for the
 // bare-metal machine kind. Construct with NewBaremetalClient; in tests the API
 // fields take fakes.
@@ -315,7 +322,7 @@ func (c *BaremetalClient) ensurePrivateNetworkOption(ctx context.Context, zone s
 func (c *BaremetalClient) DeleteServer(ctx context.Context, zone scw.Zone, serverID string) (bool, error) {
 	server, err := c.GetServer(ctx, zone, serverID)
 	if err != nil {
-		if isNotFound(err) {
+		if IsNotFound(err) {
 			return true, nil
 		}
 		return false, err
@@ -324,7 +331,7 @@ func (c *BaremetalClient) DeleteServer(ctx context.Context, zone scw.Zone, serve
 		return false, nil
 	}
 	if _, err := c.Baremetal.DeleteServer(&baremetal.DeleteServerRequest{Zone: zone, ServerID: serverID}, scw.WithContext(ctx)); err != nil {
-		if isNotFound(err) {
+		if IsNotFound(err) {
 			return true, nil
 		}
 		return false, fmt.Errorf("delete elastic metal server %s: %w", serverID, err)

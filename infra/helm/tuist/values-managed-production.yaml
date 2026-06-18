@@ -32,8 +32,19 @@ server:
     # Exposes the managed Kura regions in account settings. Regions now
     # reconcile inside this workload cluster; per-region Kura node pools
     # decide placement.
+    # scw-fr-par-runners is the macOS-serving private (runner-cache)
+    # region: this cluster's Elastic Metal node (kuraFleet) hosts the
+    # per-account cache pods and dispatch routes the Mac fleet's build
+    # cache to it over the Private Network.
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      value: eu-central,us-east,us-west
+      value: eu-central,us-east,us-west,scw-fr-par-runners
+    # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
+    # resolves to the node-port form (http://<node PN address>:<NodePort>
+    # on scw-fr-par-runners), reached over the PN the minis attach to
+    # (macosFleet.vmCachePrivateNetwork below). linux is the default and
+    # stays inert here (prod advertises no Linux private cache region).
+    - name: TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS
+      value: linux,macos
     # Operator project-access grants. The public key verifies grants
     # signed by ops (private half: TUIST_OPS_BOT 1P `project_access_signing_key`,
     # which MUST be stored before this deploys). The reason-form URL turns
@@ -176,6 +187,11 @@ postgresql:
     # chart renders them to `spec.postgresql.shared_preload_libraries`.
     sharedPreloadLibraries:
       - pg_stat_statements
+    # Expose pg_stat_statements as query-latency metrics. The library above
+    # is loaded; create the extension once via infra/cnpg/pg-stat-statements.sql.
+    # Powers the dashboard's read/write query-latency panels.
+    queryStats:
+      enabled: true
     storage:
       # Steady-state usage is ~30-40 GiB; oversized to absorb WAL spikes
       # during large background operations (REINDEX, VACUUM FULL, bulk
@@ -319,13 +335,11 @@ kuraFleet:
   enabled: true
   replicas: 1
   machine:
-    kind: elasticMetal
     # EM-I220E-NVME (128GB RAM / 1.92TB NVMe / 25G PN) is the best RAM+NVMe
     # value for the cache pods: RAM (warm-set size = hit rate) and NVMe
     # capacity are the per-account density limiters here, not PN bandwidth or
     # CPU, so we pay for memory + disk rather than a bigger NIC.
     offerType: EM-I220E-NVME
-    privateNetworkID: 6e4d95e8-d8cd-487c-9a3e-fc92136790e7
 
 # Mac mini fleet — declarative via CAPI. Production keeps 2 hosts so
 # a single-host Scaleway BMC reboot or macOS upgrade doesn't take all
@@ -357,6 +371,19 @@ macosFleet:
     hostMemoryMB: 14336
   controlPlane:
     host: api.tuist.dev
+  # Runner-cache data plane: attach the minis to the same Private
+  # Network as the kura node (kuraFleet.machine.privateNetworkName), so
+  # the CAPI operator resolves each host's VLAN and bootstrap
+  # materializes the VLAN interface + VM egress pass + NAT. Dispatch
+  # hands the Mac fleet the node-port endpoint because
+  # TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS includes `macos` above.
+  # Clients treat the cache endpoint as a hard override, so until a mini
+  # is attached/bootstrapped runner_cache_endpoint_url/2 returns nil (no
+  # active KuraInstance) and the build falls back to the public cache, so
+  # the cutover degrades rather than breaks while it converges.
+  vmCachePrivateNetwork:
+    name: tuist-runner-cache
+    cidr: 172.16.0.0/22
 
 # Customer-runner Mac mini fleet. Sized to 9 hosts = 9 concurrent
 # customer runs. Apple's SLA permits up to two VMs per host; v1

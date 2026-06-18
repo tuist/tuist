@@ -243,48 +243,5 @@ defmodule TuistWeb.RunnersControllerTest do
 
       refute Map.has_key?(off_cluster, "cache_endpoint_url")
     end
-
-    test "includes cache_endpoint_url only for cluster-networked fleets with an active node",
-         %{conn: conn} do
-      account = account_fixture()
-
-      stub(K8sClient, :create_token_review, fn "valid-token" ->
-        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
-      end)
-
-      stub(Tuist.Kura, :runner_cache_endpoint_url, fn _account ->
-        "http://kura-acme.kura.svc.cluster.local:4000"
-      end)
-
-      base = %{jit: "JITCONFIG", account: account, runner_name: "pod-1", workflow_job_id: 4242}
-
-      # Cluster-networked fleet (Linux): the in-cluster URL is handed out.
-      stub(Runners, :dispatch_for_sa, fn _, _ ->
-        {:ok, Map.put(base, :fleet_on_cluster_network, true)}
-      end)
-
-      on_cluster =
-        conn
-        |> put_req_header("authorization", "Bearer valid-token")
-        |> post("/api/internal/runners/dispatch")
-        |> json_response(200)
-
-      assert on_cluster["cache_endpoint_url"] == "http://kura-acme.kura.svc.cluster.local:4000"
-
-      # Off-cluster fleet (e.g. macOS Tart on vmnet): URL withheld so the
-      # client falls back to default cache resolution instead of getting
-      # an unreachable hard override.
-      stub(Runners, :dispatch_for_sa, fn _, _ ->
-        {:ok, Map.put(base, :fleet_on_cluster_network, false)}
-      end)
-
-      off_cluster =
-        build_conn()
-        |> put_req_header("authorization", "Bearer valid-token")
-        |> post("/api/internal/runners/dispatch")
-        |> json_response(200)
-
-      refute Map.has_key?(off_cluster, "cache_endpoint_url")
-    end
   end
 end

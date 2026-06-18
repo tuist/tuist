@@ -53,6 +53,19 @@ const (
 	// a host that has finished install but isn't answering SSH yet errors out
 	// and the reconcile retries on the normal cadence.
 	elasticMetalSSHTimeout = 5 * time.Minute
+
+	// pnIPv4Label is the node label dispatch reads as the Private-Network
+	// address of the runner-cache node. kubelet can't self-set tuist.dev/*
+	// labels under NodeRestriction, so the controller patches it.
+	pnIPv4Label = "tuist.dev/pn-ipv4"
+
+	// linuxNodeIdentityClusterRole binds the Linux kura node's kubelet identity
+	// to the built-in system:node ClusterRole — the complete, canonical kubelet
+	// permission set — instead of the chart's scoped tart-kubelet role (which
+	// only covers what the macOS shim exercises). A real Linux kubelet needs the
+	// full set (leases, services, PVCs, CSI, ...), and discovering those one
+	// forbidden error at a time is its own kind of outage.
+	linuxNodeIdentityClusterRole = "system:node"
 )
 
 // NodeReadyCondition is set True once the self-joined Node reports Ready. The
@@ -80,7 +93,11 @@ type ScalewayElasticMetalMachineReconciler struct {
 	APIReader      client.Reader
 	Scheme         *runtime.Scheme
 	ScalewayClient *scaleway.BaremetalClient
-	Recorder       record.EventRecorder
+	// VPC find-or-creates the per-env runner-cache Private Network by name (the
+	// Elastic Metal + Apple Silicon fleets share it), so the spec carries a name
+	// + CIDR instead of a hand-pasted UUID.
+	VPC      *scaleway.VPCClient
+	Recorder record.EventRecorder
 
 	// CredentialsManager mints the kubelet node identity (token + CA) and the
 	// per-fleet SSH key the bootstrap authenticates with; Kubeconfig renders
@@ -233,10 +250,19 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileNormal(
 			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 		}
 
-		// PN-as-VLAN bring-up: attach the runner-cache Private Network and
-		// resolve its VLAN. Scaleway can lag stamping the VLAN, so requeue on
-		// error (rather than bootstrapping a host without its cache interface).
-		vlan, pnErr := r.ScalewayClient.EnsurePrivateNetwork(ctx, zone, server.ID, machine.Spec.PrivateNetworkID)
+		// PN-as-VLAN bring-up: resolve (find-or-create) the runner-cache Private
+		// Network by name, attach the server, and resolve its VLAN. Scaleway can
+		// lag stamping the VLAN, so requeue on error (rather than bootstrapping a
+		// host without its cache interface).
+		pnID, pnResolveErr := r.resolvePrivateNetwork(ctx, machine, zone)
+		if pnResolveErr != nil {
+			conditions.MarkFalse(machine, ProvisionedCondition, "PrivateNetworkPending",
+				clusterv1.ConditionSeverityInfo, "%v", pnResolveErr)
+			machine.Status.Phase = "Provisioning"
+			logger.Info("resolving Private Network", "id", server.ID, "err", pnResolveErr.Error())
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+		vlan, pnErr := r.ScalewayClient.EnsurePrivateNetwork(ctx, zone, server.ID, pnID)
 		if pnErr != nil {
 			conditions.MarkFalse(machine, ProvisionedCondition, "PrivateNetworkPending",
 				clusterv1.ConditionSeverityInfo, "%v", pnErr)
@@ -323,7 +349,7 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileNormal(
 	// until the pn-ipv4 label is stamped — otherwise a node that becomes Ready
 	// before its address resolves would never get labelled (dispatch needs it
 	// to route runner cache traffic over the Private Network).
-	pnLabelPending := machine.Spec.PrivateNetworkID != "" && node.Labels[pnIPv4Label] == ""
+	pnLabelPending := machine.Spec.PrivateNetworkName != "" && node.Labels[pnIPv4Label] == ""
 
 	if nodeReady(node) {
 		machine.Status.Ready = true
@@ -352,7 +378,7 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileNode(ctx context.Contex
 		changed = true
 	}
 
-	if machine.Spec.PrivateNetworkID != "" && node.Labels[pnIPv4Label] == "" {
+	if machine.Spec.PrivateNetworkName != "" && node.Labels[pnIPv4Label] == "" {
 		logger := log.FromContext(ctx)
 		ip, ipErr := r.privateNetworkIP(ctx, machine)
 		switch {
@@ -381,11 +407,24 @@ func (r *ScalewayElasticMetalMachineReconciler) privateNetworkIP(ctx context.Con
 	if err != nil {
 		return "", err
 	}
+	pnID, err := r.resolvePrivateNetwork(ctx, machine, zone)
+	if err != nil {
+		return "", err
+	}
 	server, err := r.ScalewayClient.GetServer(ctx, zone, machine.Status.ServerID)
 	if err != nil {
 		return "", err
 	}
-	return r.ScalewayClient.PrivateNetworkIP(ctx, server, machine.Spec.PrivateNetworkID)
+	return r.ScalewayClient.PrivateNetworkIP(ctx, server, pnID)
+}
+
+// resolvePrivateNetwork find-or-creates the runner-cache Private Network named
+// in the spec and returns its ID; an empty name (PN not configured) yields "".
+func (r *ScalewayElasticMetalMachineReconciler) resolvePrivateNetwork(ctx context.Context, machine *infrav1.ScalewayElasticMetalMachine, zone scw.Zone) (string, error) {
+	if machine.Spec.PrivateNetworkName == "" {
+		return "", nil
+	}
+	return r.VPC.EnsurePrivateNetworkByName(ctx, scaleway.RegionFromZone(zone), machine.Spec.PrivateNetworkName, machine.Spec.PrivateNetworkCIDR)
 }
 
 func (r *ScalewayElasticMetalMachineReconciler) reconcileDelete(ctx context.Context, machine *infrav1.ScalewayElasticMetalMachine) (ctrl.Result, error) {
@@ -561,4 +600,22 @@ func truncate(b []byte, max int) string {
 		return string(b)
 	}
 	return string(b[:max]) + "…(truncated)"
+}
+
+func nodeReady(node *corev1.Node) bool {
+	for _, c := range node.Status.Conditions {
+		if c.Type == corev1.NodeReady && c.Status == corev1.ConditionTrue {
+			return true
+		}
+	}
+	return false
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }

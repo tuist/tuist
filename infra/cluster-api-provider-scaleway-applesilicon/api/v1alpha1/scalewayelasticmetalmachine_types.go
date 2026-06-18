@@ -39,14 +39,22 @@ type ScalewayElasticMetalMachineSpec struct {
 	// +kubebuilder:default=ubuntu_noble
 	OS string `json:"os,omitempty"`
 
-	// PrivateNetworkID is the Scaleway VPC Private Network the server is
-	// attached to. Elastic Metal delivers the PN as a tagged VLAN on the
-	// primary NIC (not an auto-configured second interface like Instances),
-	// so the controller records the attachment's VLAN in status and the
-	// self-join cloud-init materializes the VLAN interface and DHCPs it to
-	// pick up the PN address.
+	// PrivateNetworkName is the name of the Scaleway VPC Private Network the
+	// server attaches to. The controller resolves it to an ID, creating the PN
+	// with PrivateNetworkCIDR if no PN by that name exists in the project — so
+	// the per-env network is declared by a stable name rather than a hand-pasted
+	// UUID and the operator owns its lifecycle. Elastic Metal delivers the PN as
+	// a tagged VLAN on the primary NIC; the controller records the VLAN in
+	// status and the self-join materializes the VLAN interface to pick up the
+	// address.
 	// +optional
-	PrivateNetworkID string `json:"privateNetworkID,omitempty"`
+	PrivateNetworkName string `json:"privateNetworkName,omitempty"`
+
+	// PrivateNetworkCIDR is the subnet used only when the controller has to
+	// create the Private Network named PrivateNetworkName (ignored when a PN by
+	// that name already exists).
+	// +optional
+	PrivateNetworkCIDR string `json:"privateNetworkCIDR,omitempty"`
 
 	// NodeTaints are passed to the kubelet's `--register-with-taints` in the
 	// generated join cloud-init. The kura runner-cache pool carries
