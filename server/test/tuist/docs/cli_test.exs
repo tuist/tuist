@@ -4,6 +4,8 @@ defmodule Tuist.Docs.CLITest do
 
   alias Tuist.Docs.CLI
 
+  @moduletag capture_log: true
+
   @spec_fixture %{
     "command" => %{
       "commandName" => "tuist",

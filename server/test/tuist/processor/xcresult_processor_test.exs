@@ -431,11 +431,13 @@ defmodule Tuist.Processor.XCResultProcessorTest do
         project_handle: "MyProject"
       ]
 
-      assert {:ok, result} = XCResultProcessor.process_local(fixture_zip, opts)
+      capture_log(fn ->
+        assert {:ok, result} = XCResultProcessor.process_local(fixture_zip, opts)
 
-      [module] = result["test_modules"]
-      [test_case] = module["test_cases"]
-      assert test_case["attachments"] == []
+        [module] = result["test_modules"]
+        [test_case] = module["test_cases"]
+        assert test_case["attachments"] == []
+      end)
 
       state = Agent.get(counters, & &1)
       assert state.part == 3
