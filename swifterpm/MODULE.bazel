@@ -1,0 +1,37 @@
+module(
+    name = "swifterpm",
+    version = "0.9.0",
+)
+
+bazel_dep(name = "apple_support", version = "2.5.4")
+bazel_dep(name = "bazel_skylib", version = "1.9.0")
+bazel_dep(name = "rules_apple", version = "4.3.3")
+bazel_dep(name = "rules_swift_package_manager", version = "1.18.1")
+bazel_dep(name = "swift_argument_parser", version = "1.7.0")
+bazel_dep(
+    name = "rules_swift",
+    version = "3.6.1",
+    repo_name = "build_bazel_rules_swift",
+)
+
+apple_cc_configure = use_extension(
+    "@apple_support//crosstool:setup.bzl",
+    "apple_cc_configure_extension",
+)
+use_repo(apple_cc_configure, "local_config_apple_cc")
+
+nio_swift_deps = use_extension(
+    "@rules_swift_package_manager//:extensions.bzl",
+    "swift_deps",
+)
+nio_swift_deps.from_package(
+    declare_swift_package = False,
+    resolved = "//third_party/nio:Package.resolved",
+    swift = "//third_party/nio:Package.swift",
+)
+use_repo(
+    nio_swift_deps,
+    "swiftpkg_filesystem",
+    "swiftpkg_path",
+    "swiftpkg_swift_subprocess",
+)

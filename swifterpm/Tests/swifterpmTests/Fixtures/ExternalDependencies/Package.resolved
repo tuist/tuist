@@ -1,0 +1,119 @@
+{
+  "pins" : [
+    {
+      "identity" : "aws-sdk-ios-spm",
+      "kind" : "remoteSourceControl",
+      "location" : "git@github.com:aws-amplify/aws-sdk-ios-spm",
+      "state" : {
+        "revision" : "f7e79d076556210b1aec4289cc0028d7ac785959",
+        "version" : "2.36.3"
+      }
+    },
+    {
+      "identity" : "bugsnag-cocoa",
+      "kind" : "remoteSourceControl",
+      "location" : "git@github.com:bugsnag/bugsnag-cocoa.git",
+      "state" : {
+        "revision" : "16b9145fc66e5296f16e733f6feb5d0e450574e8",
+        "version" : "6.28.1"
+      }
+    },
+    {
+      "identity" : "cltokeninputview",
+      "kind" : "remoteSourceControl",
+      "location" : "git@github.com:modmed-public/CLTokenInputView.git",
+      "state" : {
+        "revision" : "0092aaa65a6a766fd456613efb2c0f13eb01113c"
+      }
+    },
+    {
+      "identity" : "dd-sdk-ios",
+      "kind" : "remoteSourceControl",
+      "location" : "git@github.com:Datadog/dd-sdk-ios.git",
+      "state" : {
+        "revision" : "8d67e973ff4a958cb536263cb816646ee904c508",
+        "version" : "3.3.0"
+      }
+    },
+    {
+      "identity" : "factory",
+      "kind" : "remoteSourceControl",
+      "location" : "git@github.com:hmlongco/Factory.git",
+      "state" : {
+        "revision" : "587995f7d5cc667951d635fbf6b4252324ba0439",
+        "version" : "2.3.2"
+      }
+    },
+    {
+      "identity" : "ios-library",
+      "kind" : "remoteSourceControl",
+      "location" : "git@github.com:urbanairship/ios-library.git",
+      "state" : {
+        "revision" : "9911b1cfd82d7e4783a3cd9905d3a6bf7ad124fc",
+        "version" : "19.11.8"
+      }
+    },
+    {
+      "identity" : "iosdk",
+      "kind" : "remoteSourceControl",
+      "location" : "git@github.com:abbiio/iosdk",
+      "state" : {
+        "revision" : "1724a03642c99d48c0f72eb52a73dd219599e018",
+        "version" : "2.20.4"
+      }
+    },
+    {
+      "identity" : "opentelemetry-swift-packages",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/DataDog/opentelemetry-swift-packages.git",
+      "state" : {
+        "revision" : "4a7295600d4ebb9525a23c11586c5fdb74ae8b7e",
+        "version" : "1.13.1"
+      }
+    },
+    {
+      "identity" : "plcrashreporter",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/microsoft/plcrashreporter.git",
+      "state" : {
+        "revision" : "0254f941c646b1ed17b243654723d0f071e990d0",
+        "version" : "1.12.2"
+      }
+    },
+    {
+      "identity" : "svprogresshud",
+      "kind" : "remoteSourceControl",
+      "location" : "git@github.com:modmed-public/SVProgressHUD.git",
+      "state" : {
+        "revision" : "bce16007b87ec1540652da6cc135aadda6e2745f",
+        "version" : "4.1.0"
+      }
+    },
+    {
+      "identity" : "swift-collections",
+      "kind" : "remoteSourceControl",
+      "location" : "git@github.com:apple/swift-collections.git",
+      "state" : {
+        "revision" : "7b847a3b7008b2dc2f47ca3110d8c782fb2e5c7e",
+        "version" : "1.3.0"
+      }
+    },
+    {
+      "identity" : "tpkeyboardavoiding",
+      "kind" : "remoteSourceControl",
+      "location" : "git@github.com:modmed-public/TPKeyboardAvoiding.git",
+      "state" : {
+        "revision" : "1f44bf6f72ae14453187c91708390a92b15d388b"
+      }
+    },
+    {
+      "identity" : "tsmessages",
+      "kind" : "remoteSourceControl",
+      "location" : "git@github.com:modmed-public/TSMessages.git",
+      "state" : {
+        "revision" : "aecac0baa900a9d440fc12f383194f52b4637d8f"
+      }
+    }
+  ],
+  "version" : 2
+}

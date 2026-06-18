@@ -80,6 +80,12 @@ defmodule Tuist.Automations.Alerts.Alert do
     timestamps(type: :utc_datetime)
   end
 
+  # AutomationScheduler dedupes per-alert evaluations against the completed
+  # Oban job within `cadence`, and completed jobs are pruned at 2h, so the
+  # cadence must stay well under that window. Lifting this cap means
+  # decoupling that dedup from Oban retention first.
+  @max_cadence_seconds 3600
+
   def changeset(alert \\ %__MODULE__{}, attrs) do
     alert
     |> cast(attrs, [
@@ -97,11 +103,33 @@ defmodule Tuist.Automations.Alerts.Alert do
     ])
     |> validate_required([:project_id, :name, :monitor_type])
     |> validate_inclusion(:monitor_type, @monitor_types)
+    |> validate_cadence()
     |> validate_actions(:trigger_actions, require_present: true)
     |> validate_actions(:recovery_actions, require_present: false)
     |> validate_config()
     |> foreign_key_constraint(:project_id)
   end
+
+  defp validate_cadence(changeset) do
+    validate_change(changeset, :cadence, fn :cadence, cadence ->
+      case parse_cadence_seconds(cadence) do
+        {:ok, seconds} when seconds >= 1 and seconds <= @max_cadence_seconds -> []
+        {:ok, _} -> [cadence: "must be between 1 second and 1 hour"]
+        :error -> [cadence: ~s(must be a duration like "5m", "30s", or "1h")]
+      end
+    end)
+  end
+
+  defp parse_cadence_seconds(cadence) when is_binary(cadence) do
+    case Integer.parse(cadence) do
+      {value, "s"} -> {:ok, value}
+      {value, "m"} -> {:ok, value * 60}
+      {value, "h"} -> {:ok, value * 3600}
+      _ -> :error
+    end
+  end
+
+  defp parse_cadence_seconds(_), do: :error
 
   defp validate_actions(changeset, field, opts) do
     case get_field(changeset, field) do

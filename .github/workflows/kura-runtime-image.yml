@@ -1,0 +1,22 @@
+name: Kura Runtime Image
+
+# Stub. This only registers the workflow_dispatch trigger on the default branch
+# (GitHub requires a dispatch workflow to exist on the default branch before it
+# can be triggered against any other ref). The real dispatchable build — which
+# compiles the Kura binary at a chosen commit and pushes ghcr.io/tuist/kura —
+# ships in #11294, where it gets a proper review. Because workflow_dispatch runs
+# the workflow file from the dispatched ref, dispatching this against the #11294
+# branch executes that real build.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  noop:
+    name: Stub
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Stub. The real Kura runtime image build ships in #11294."

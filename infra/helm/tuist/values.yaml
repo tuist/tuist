@@ -1556,6 +1556,14 @@ postgresql:
     # annotation-emit support on the instance Pods (it doesn't today).
     monitoring:
       enablePodMonitor: false
+    # Per-query latency observability. When enabled, the chart renders a
+    # custom CNPG monitoring query over pg_stat_statements
+    # (cnpg_tuist_query_stats_*) for the dashboard's query-latency panels.
+    # Requires `pg_stat_statements` in sharedPreloadLibraries above and the
+    # extension created once via infra/cnpg/pg-stat-statements.sql. Off by
+    # default (local/preview clusters do not preload the library).
+    queryStats:
+      enabled: false
     roles:
       # Least-privilege Oban-queue consumer. CNPG creates the role;
       # per-table GRANTs run via the bootstrap SQL in

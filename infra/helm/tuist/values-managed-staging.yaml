@@ -199,6 +199,10 @@ postgresql:
     # an entry under `parameters`.
     sharedPreloadLibraries:
       - pg_stat_statements
+    # Expose pg_stat_statements as query-latency metrics. The library above
+    # is loaded; create the extension once via infra/cnpg/pg-stat-statements.sql.
+    queryStats:
+      enabled: true
     # Route the processor through the transaction-mode PgBouncer pooler so
     # this soak env matches production's post-CNPG-cutover topology
     # (processor pooled, web tier direct on -rw). CNPG's built-in
