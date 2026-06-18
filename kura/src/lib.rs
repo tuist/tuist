@@ -18,6 +18,7 @@ mod multipart;
 mod node_location;
 mod peer_tls;
 mod reapi;
+mod registration;
 mod replication;
 mod runtime;
 mod segment;

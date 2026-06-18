@@ -173,6 +173,13 @@ async fn run_with_config(
     spawn_membership_task(state.clone());
     spawn_outbox_task(state.clone());
     Usage::spawn_tasks(state.clone());
+
+    if let Some(registration) =
+        crate::registration::RegistrationConfig::from_env(&state.config.node_url)
+    {
+        crate::registration::spawn(state.clone(), registration);
+    }
+
     spawn_snapshot_task(state.clone());
     spawn_runtime_metrics_task(state.clone());
     spawn_drain_signal_task(state.clone());
