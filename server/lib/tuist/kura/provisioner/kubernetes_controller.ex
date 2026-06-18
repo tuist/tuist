@@ -125,7 +125,16 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @impl true
-  def manifest_revision, do: @manifest_revision
+  def manifest_revision(account), do: account_manifest_revision(account)
+
+  # The rendered manifest depends on whether the account bridges into the
+  # managed mesh, so the revision carries a suffix when bridging is on. A flag
+  # flip therefore shifts the revision and the reconciler re-applies the
+  # manifest to a serving server in place, with no destroy/recreate. Non-bridged
+  # accounts keep the bare revision, so they never re-roll on this account.
+  defp account_manifest_revision(account) do
+    if mesh_bridging_enabled?(account), do: "#{@manifest_revision}-bridge", else: @manifest_revision
+  end
 
   @impl true
   def resources_for(%Server{}), do: %{}
@@ -164,7 +173,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   @doc false
   def manifest(name, image_tag, account, %Regions{} = region, %Server{}, hook_script, gateway) do
     account_handle = dns_handle(account.name)
-    annotations = maybe_put_gateway_annotation(%{@manifest_revision_annotation => @manifest_revision}, gateway)
+
+    annotations =
+      maybe_put_gateway_annotation(%{@manifest_revision_annotation => account_manifest_revision(account)}, gateway)
 
     %{
       "apiVersion" => "kura.tuist.dev/v1alpha1",

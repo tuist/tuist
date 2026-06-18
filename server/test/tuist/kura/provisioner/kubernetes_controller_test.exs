@@ -2,6 +2,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   use ExUnit.Case, async: true
   use Mimic
 
+  alias Tuist.Accounts.Account
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura.Provisioner.KubernetesController
   alias Tuist.Kura.Regions
@@ -33,7 +34,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert manifest["metadata"]["namespace"] == "kura"
 
       assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] ==
-               KubernetesController.manifest_revision()
+               KubernetesController.manifest_revision(%{name: "tuist"})
 
       spec = manifest["spec"]
       assert spec["accountHandle"] == "tuist"
@@ -81,13 +82,44 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         KubernetesController.manifest(
           "kura-tuist-eu-central-1",
           "0.5.2",
-          %Tuist.Accounts.Account{name: "tuist"},
+          %Account{name: "tuist"},
           eu_region(),
           %Server{},
           "return true"
         )
 
       assert manifest["spec"]["peerTLSSecretName"] == "kura-tuist-eu-central-1-mesh-peer-tls"
+    end
+
+    test "shifts the manifest revision when bridging is enabled so a serving server re-rolls in place" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      account = %Account{name: "tuist"}
+
+      stub(Tuist.FeatureFlags, :kura_enabled?, fn _account -> false end)
+      unbridged_revision = KubernetesController.manifest_revision(account)
+
+      stub(Tuist.FeatureFlags, :kura_enabled?, fn _account -> true end)
+      bridged_revision = KubernetesController.manifest_revision(account)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          account,
+          eu_region(),
+          %Server{},
+          "return true"
+        )
+
+      assert bridged_revision == "#{unbridged_revision}-bridge"
+
+      assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] ==
+               bridged_revision
     end
 
     test "normalizes account handles for DNS-label KuraInstance fields" do
