@@ -38,7 +38,9 @@ KURA_CONTROLLER_REPO="${usage_kura_controller_image}"
 KURA_RUNTIME_REPO="${usage_kura_runtime_image}"
 KURA_IMAGE_TAG="${usage_kura_image_tag}"
 KURA_INSTANCE_NAME="${RELEASE_NAME}-kura"
-KURA_ENDPOINT_URL="http://${KURA_INSTANCE_NAME}.kura.svc.cluster.local:4000"
+# Kura runtime now colocates in the preview release's namespace (default
+# for the local kind test), so the Service DNS resolves there too.
+KURA_ENDPOINT_URL="http://${KURA_INSTANCE_NAME}.default.svc.cluster.local:4000"
 
 if [ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]; then
     LICENSE_MODE="eso"
@@ -164,7 +166,7 @@ if helm status "$RELEASE_NAME" >/dev/null 2>&1; then
     kubectl delete pvc -l app.kubernetes.io/instance="$RELEASE_NAME" --wait=true 2>/dev/null || true
 fi
 if [ "$WITH_KURA" = "true" ]; then
-    kubectl -n kura delete kurainstance "$KURA_INSTANCE_NAME" --ignore-not-found --wait=true 2>/dev/null || true
+    kubectl delete kurainstance "$KURA_INSTANCE_NAME" --ignore-not-found --wait=true 2>/dev/null || true
 fi
 
 HELM_VALUES_ARGS=(-f "$REPO_ROOT/infra/helm/tuist/values-preview.yaml")
@@ -194,14 +196,13 @@ helm install "$RELEASE_NAME" "$REPO_ROOT/infra/helm/tuist" \
     --wait --timeout 5m
 
 if [ "$WITH_KURA" = "true" ]; then
-    echo "==> Creating shared private KuraInstance '${KURA_INSTANCE_NAME}' on role=kura nodes..."
+    echo "==> Creating shared private KuraInstance '${KURA_INSTANCE_NAME}' colocated on role=preview workers..."
     {
         cat <<EOF
 apiVersion: kura.tuist.dev/v1alpha1
 kind: KuraInstance
 metadata:
   name: ${KURA_INSTANCE_NAME}
-  namespace: kura
   labels:
     tuist.dev/preview-source: slack
     app.kubernetes.io/instance: ${RELEASE_NAME}
@@ -222,21 +223,26 @@ spec:
     - name: KURA_EXTENSION_TUIST_ALLOW_SHARED_TENANTS
       value: "1"
   nodeSelector:
-    role: kura
+    role: preview
+  tolerations:
+    - key: role
+      operator: Equal
+      value: preview
+      effect: NoSchedule
   extensionScript: |
 EOF
         sed 's/^/    /' "$REPO_ROOT/kura/ops/helm/kura/hooks/tuist.lua"
     } | kubectl apply -f -
 
     echo "==> Waiting for KuraInstance controller output..."
-    kubectl -n kura wait --for=condition=Available deployment/"${RELEASE_NAME}-tuist-kura-controller" --timeout=3m
+    kubectl wait --for=condition=Available deployment/"${RELEASE_NAME}-tuist-kura-controller" --timeout=3m
     for _ in $(seq 1 60); do
-        if kubectl -n kura get statefulset "$KURA_INSTANCE_NAME" >/dev/null 2>&1; then
+        if kubectl get statefulset "$KURA_INSTANCE_NAME" >/dev/null 2>&1; then
             break
         fi
         sleep 2
     done
-    kubectl -n kura rollout status statefulset/"$KURA_INSTANCE_NAME" --timeout=10m
+    kubectl rollout status statefulset/"$KURA_INSTANCE_NAME" --timeout=10m
 fi
 
 echo ""
@@ -263,23 +269,23 @@ echo "    OK: all preview pods landed on role=preview workers."
 
 if [ "$WITH_KURA" = "true" ]; then
     echo ""
-    echo "==> Kura pod placement (Kura runtime pods should land on role=kura workers):"
-    kubectl -n kura get pods -l app.kubernetes.io/instance="$KURA_INSTANCE_NAME" -o wide
-    KURA_UNEXPECTED=$(kubectl -n kura get pods -l app.kubernetes.io/instance="$KURA_INSTANCE_NAME" \
+    echo "==> Kura pod placement (Kura runtime pods should colocate on role=preview workers):"
+    kubectl get pods -l app.kubernetes.io/instance="$KURA_INSTANCE_NAME" -o wide
+    KURA_UNEXPECTED=$(kubectl get pods -l app.kubernetes.io/instance="$KURA_INSTANCE_NAME" \
         -o json | jq -r '.items[] | select(.spec.nodeName != null) |
         "\(.metadata.name) \(.spec.nodeName)"' \
         | while read -r pod node; do
             role="$(kubectl get node "$node" -o jsonpath='{.metadata.labels.role}')"
-            if [ "$role" != "kura" ]; then
+            if [ "$role" != "preview" ]; then
                 echo "$pod $node role=$role"
             fi
         done)
     if [ -n "$KURA_UNEXPECTED" ]; then
-        echo "    FAIL: Kura pods scheduled outside role=kura workers:"
+        echo "    FAIL: Kura pods scheduled outside role=preview workers:"
         echo "$KURA_UNEXPECTED"
         exit 1
     fi
-    echo "    OK: Kura runtime pods landed on role=kura workers."
+    echo "    OK: Kura runtime pods landed on role=preview workers."
 fi
 
 echo ""

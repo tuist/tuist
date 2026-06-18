@@ -221,7 +221,7 @@ jobs:
           chmod 600 "$KUBECONFIG"
       - name: Temporarily remove preview taint for platform hooks
         run: |
-          kubectl taint nodes -l '!node-role.kubernetes.io/control-plane,node.cluster.x-k8s.io/pool!=kura' role=preview:NoSchedule- || true
+          kubectl taint nodes -l '!node-role.kubernetes.io/control-plane' role=preview:NoSchedule- || true
       - name: Reconcile platform chart
         run: |
           set -euo pipefail
@@ -233,8 +233,8 @@ jobs:
       - name: Re-apply preview node label and taint
         if: always()
         run: |
-          kubectl label nodes -l '!node-role.kubernetes.io/control-plane,node.cluster.x-k8s.io/pool!=kura' role=preview --overwrite
-          kubectl taint nodes -l '!node-role.kubernetes.io/control-plane,node.cluster.x-k8s.io/pool!=kura' role=preview:NoSchedule --overwrite
+          kubectl label nodes -l '!node-role.kubernetes.io/control-plane' role=preview --overwrite
+          kubectl taint nodes -l '!node-role.kubernetes.io/control-plane' role=preview:NoSchedule --overwrite
       # Mark the namespace as in-progress before any chart mutation so the
       # hourly sweep can tell a still-being-created preview from one with a
       # missing expires-at label and skip it. The `expires-at` label is only
@@ -366,8 +366,19 @@ jobs:
                 value: http://${RELEASE}-tuist-server.${NAMESPACE}.svc.cluster.local:80
               - name: KURA_EXTENSION_TUIST_ALLOW_SHARED_TENANTS
                 value: "1"
+            # Colocate the runtime on the generic preview pool: the preview
+            # lifecycle shouldn't depend on dedicated Kura-class capacity
+            # (which doesn't fit the bare-metal Kura direction). The preview
+            # pool carries role=preview:NoSchedule, so we tolerate it.
+            # A future explicit "infra/perf-test" preview profile can pin to
+            # a dedicated pool when it ships.
             nodeSelector:
-              node.cluster.x-k8s.io/pool: kura
+              role: preview
+            tolerations:
+              - key: role
+                operator: Equal
+                value: preview
+                effect: NoSchedule
             extensionScript: |
           EOF
             sed 's/^/    /' kura/ops/helm/kura/hooks/tuist.lua

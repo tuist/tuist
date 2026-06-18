@@ -1,13 +1,13 @@
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 name: tuist-preview
-# Five-node layout that mirrors how preview environments run on the
+# Three-node layout that mirrors how preview environments run on the
 # managed cluster: a control plane, a "general" worker for shared
-# workloads, a dedicated worker labeled `role=preview` and tainted so only
-# ephemeral preview releases land on it, plus two Kura workers. The Kura
-# workers let local preview-ondemand validation create multi-replica
-# controller-managed KuraInstance StatefulSets with the same hostname spread
-# constraint used in managed clusters.
+# workloads, and a dedicated worker labeled `role=preview` and tainted so
+# only ephemeral preview releases land on it. Kura preview runtimes
+# colocate on the preview worker with a role=preview toleration; an
+# explicit infra/perf-test profile can re-introduce dedicated kura
+# workers when it ships.
 nodes:
   - role: control-plane
   - role: worker
@@ -22,11 +22,3 @@ nodes:
         nodeRegistration:
           kubeletExtraArgs:
             register-with-taints: "role=preview:NoSchedule"
-  - role: worker
-    labels:
-      role: kura
-      node.cluster.x-k8s.io/pool: kura
-  - role: worker
-    labels:
-      role: kura
-      node.cluster.x-k8s.io/pool: kura

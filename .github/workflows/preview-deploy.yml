@@ -320,13 +320,8 @@ jobs:
           chmod 600 "$KUBECONFIG"
 
       - name: Temporarily remove preview taint for platform hooks
-        # Exclude the dedicated kura pool (added by cluster-preview.yaml) so
-        # this workflow only touches the generic preview workers. Controller-
-        # managed Kura pods select `pool=kura` with no `role=preview` toleration
-        # — labeling/tainting them here would make the kura pool unschedulable
-        # for Slack-preview Kura pods.
         run: |
-          kubectl taint nodes -l '!node-role.kubernetes.io/control-plane,node.cluster.x-k8s.io/pool!=kura' role=preview:NoSchedule- || true
+          kubectl taint nodes -l '!node-role.kubernetes.io/control-plane' role=preview:NoSchedule- || true
 
       - name: Reconcile platform chart
         run: |
@@ -342,11 +337,10 @@ jobs:
         # The tuist-hcloud ClusterClass doesn't surface node labels via
         # topology variables, so workers come up un-labeled. Re-applying
         # every deploy makes the workflow idempotent and survives
-        # MachineDeployment scale events that bring up fresh nodes. The
-        # kura pool is excluded for the same reason as above.
+        # MachineDeployment scale events that bring up fresh nodes.
         run: |
-          kubectl label nodes -l '!node-role.kubernetes.io/control-plane,node.cluster.x-k8s.io/pool!=kura' role=preview --overwrite
-          kubectl taint nodes -l '!node-role.kubernetes.io/control-plane,node.cluster.x-k8s.io/pool!=kura' role=preview:NoSchedule --overwrite
+          kubectl label nodes -l '!node-role.kubernetes.io/control-plane' role=preview --overwrite
+          kubectl taint nodes -l '!node-role.kubernetes.io/control-plane' role=preview:NoSchedule --overwrite
 
       - name: helm upgrade --install
         run: |

@@ -1,8 +1,13 @@
 # Preview workload Cluster, topology mode against tuist-hcloud.
-# Single CP, one preview app worker pool, and an autoscaled Kura worker
-# pool for Slack-requested previews. The app worker pool
-# replica count is managed by the preview-deploy / preview-sweep workflows,
-# not by this manifest.
+# Single CP and one preview app worker pool. Kura preview runtimes
+# colocate on the same `md-0` pool with a role=preview toleration, so
+# the preview lifecycle does not depend on dedicated Kura capacity.
+# (See preview-ondemand-deploy.yml for the KuraInstance spec.) An
+# explicit infra/performance-test preview profile can re-add a dedicated
+# Kura MachineDeployment when it ships.
+#
+# The app worker pool replica count is managed by the preview-deploy /
+# preview-sweep workflows, not by this manifest.
 #
 # DO NOT `kubectl apply` THIS FILE AFTER INITIAL BOOTSTRAP.
 # The `replicas: 1` on the worker MachineDeployment will fight the
@@ -14,8 +19,7 @@
 # controller reconcile only the diff. Long-term fix: server-side
 # apply with a field manager that explicitly excludes
 # `workers.machineDeployments[?(@.name=="md-0")].replicas` from the
-# managed-fields set. The Kura pool intentionally keeps replicas unset and
-# relies on Cluster Autoscaler min/max annotations.
+# managed-fields set.
 apiVersion: cluster.x-k8s.io/v1beta2
 kind: Cluster
 metadata:
@@ -52,37 +56,3 @@ spec:
           name: md-0
           replicas: 1
           failureDomain: fsn1
-        # Dedicated Kura pool for previews. Controller-managed
-        # KuraInstance StatefulSets default to
-        # `node.cluster.x-k8s.io/pool=kura` and use hard hostname spreading.
-        # Keep this autoscaled so Kura nodes only exist while a preview creates
-        # Kura pods.
-        - class: hcloud-worker
-          name: kura
-          failureDomain: fsn1
-          healthCheck:
-            checks:
-              nodeStartupTimeoutSeconds: 600
-              unhealthyNodeConditions:
-                - type: Ready
-                  status: Unknown
-                  timeoutSeconds: 300
-                - type: Ready
-                  status: "False"
-                  timeoutSeconds: 300
-            remediation:
-              triggerIf:
-                unhealthyLessThanOrEqualTo: 100%
-          metadata:
-            labels:
-              node.cluster.x-k8s.io/pool: kura
-              autoscaling.tuist.dev/group: kura-preview
-            annotations:
-              cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size: "0"
-              cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size: "6"
-              cluster.x-k8s.io/cluster-autoscaler-node-group-min-size: "0"
-              cluster.x-k8s.io/cluster-autoscaler-node-group-max-size: "6"
-          variables:
-            overrides:
-              - name: hcloudWorkerMachineType
-                value: ccx13
