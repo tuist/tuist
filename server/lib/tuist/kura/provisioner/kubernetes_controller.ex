@@ -273,7 +273,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     end
   end
 
-  defp mesh_bridging_enabled?(%Account{} = account), do: FeatureFlags.kura_mesh_bridging_enabled?(account)
+  defp mesh_bridging_enabled?(%Account{} = account), do: FeatureFlags.kura_enabled?(account)
 
   defp mesh_bridging_enabled?(_account), do: false
 

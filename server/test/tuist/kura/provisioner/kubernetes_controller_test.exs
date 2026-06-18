@@ -75,7 +75,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         "00000000-0000-0000-0000-000000000001"
       end)
 
-      stub(Tuist.FeatureFlags, :kura_mesh_bridging_enabled?, fn _account -> true end)
+      stub(Tuist.FeatureFlags, :kura_enabled?, fn _account -> true end)
 
       manifest =
         KubernetesController.manifest(

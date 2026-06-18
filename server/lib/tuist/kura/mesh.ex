@@ -185,7 +185,7 @@ defmodule Tuist.Kura.Mesh do
   # managed region's public internal endpoint. Discovery expands these seeds to
   # the individual managed pods.
   defp managed_peer_urls(%Account{} = account) do
-    if FeatureFlags.kura_mesh_bridging_enabled?(account) do
+    if FeatureFlags.kura_enabled?(account) do
       account.id
       |> Kura.list_servers_for_account()
       |> Enum.flat_map(&managed_server_peer_urls(account, &1))
