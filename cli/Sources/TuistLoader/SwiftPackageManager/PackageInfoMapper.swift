@@ -1558,7 +1558,8 @@ extension ProjectDescription.Settings {
         let mapper = SettingsMapper(
             headerSearchPaths: dependencyHeaderSearchPaths,
             mainRelativePath: mainRelativePath,
-            settings: settings
+            settings: settings,
+            enabledTraits: enabledTraits
         )
 
         var settingsDictionary: XcodeGraph.SettingsDictionary = [
@@ -1601,7 +1602,19 @@ extension ProjectDescription.Settings {
         ]
 
         let resolvedSettings = try mapper.mapSettings()
-        settingsDictionary.merge(resolvedSettings) { $1 }
+        settingsDictionary.merge(resolvedSettings) { current, new in
+            // Trait names and trait-conditional swift defines both end up in
+            // SWIFT_ACTIVE_COMPILATION_CONDITIONS — union them so neither side is lost.
+            if case let .array(currentArray) = current, case let .array(newArray) = new {
+                var seen = Set<String>()
+                var merged: [String] = []
+                for value in currentArray + newArray where seen.insert(value).inserted {
+                    merged.append(value)
+                }
+                return .array(merged)
+            }
+            return new
+        }
 
         if moduleName != productName {
             settingsDictionary["PRODUCT_MODULE_NAME"] = .string(moduleName)

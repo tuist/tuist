@@ -8,16 +8,19 @@ struct SettingsMapper {
     init(
         headerSearchPaths: [String],
         mainRelativePath: RelativePath,
-        settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting]
+        settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
+        enabledTraits: Set<String> = []
     ) {
         self.headerSearchPaths = headerSearchPaths
         self.settings = settings
         self.mainRelativePath = mainRelativePath
+        self.enabledTraits = enabledTraits
     }
 
     private let headerSearchPaths: [String]
     private let mainRelativePath: RelativePath
     private let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting]
+    private let enabledTraits: Set<String>
 
     func mapSettings() throws -> XcodeGraph.SettingsDictionary {
         var resolvedSettings = try settingsDictionary()
@@ -193,24 +196,45 @@ struct SettingsMapper {
         return settingsDictionary
     }
 
-    /// `nil` means settings without a condition.
+    /// `nil` means settings without a platform restriction.
+    ///
+    /// A setting is included when both its platform and trait conditions are
+    /// satisfied by the current context. A `.when(traits:)` setting whose trait
+    /// intersects `enabledTraits` is treated as unconditional w.r.t. traits,
+    /// mirroring SwiftPM's own evaluation of trait-conditional build settings
+    /// (SE-0450).
     private func settings(for platformName: String?) throws
         -> [PackageInfo.Target.TargetBuildSettingDescription.Setting]
     {
         settings.filter { setting in
-            if let platformName, setting.hasConditions {
-                let hasMacCatalystPlatform = setting.condition?.platformNames.contains("maccatalyst") == true
-                let platformNames: [String]
-                if hasMacCatalystPlatform {
-                    platformNames = (setting.condition?.platformNames ?? []) + ["ios"]
-                } else {
-                    platformNames = setting.condition?.platformNames ?? []
-                }
-                return platformNames.contains(platformName)
+            // Config-conditional settings are handled by `settingsForBuildConfiguration`.
+            if setting.condition?.config != nil { return false }
+            guard traitConditionMatches(setting.condition) else { return false }
+
+            let platformNames = expandedPlatformNames(in: setting.condition)
+            let hasPlatformRestriction = !platformNames.isEmpty
+
+            if let platformName {
+                return !hasPlatformRestriction || platformNames.contains(platformName)
             } else {
-                return !setting.hasConditions
+                return !hasPlatformRestriction
             }
         }
+    }
+
+    private func traitConditionMatches(_ condition: PackageInfo.PackageConditionDescription?) -> Bool {
+        guard let traits = condition?.traits, !traits.isEmpty else { return true }
+        return !enabledTraits.isDisjoint(with: traits)
+    }
+
+    private func expandedPlatformNames(
+        in condition: PackageInfo.PackageConditionDescription?
+    ) -> [String] {
+        let platformNames = condition?.platformNames ?? []
+        if platformNames.contains("maccatalyst") {
+            return platformNames + ["ios"]
+        }
+        return platformNames
     }
 }
 
