@@ -35,7 +35,6 @@
         case noTestModulesFound
         case cannotDeriveSessionId
         case xcTestRunNotFound(AbsolutePath)
-        case missingUploadId
 
         public var errorDescription: String? {
             switch self {
@@ -46,8 +45,6 @@
                     "Cannot derive a shard plan reference. Pass --shard-reference explicitly or run in a supported CI environment (GitHub Actions, GitLab CI, CircleCI, Buildkite, Codemagic)."
             case let .xcTestRunNotFound(path):
                 return "No .xctestrun file found in \(path.pathString)"
-            case .missingUploadId:
-                return "The server did not return a shard upload ID after being asked to start the upload."
             }
         }
     }
@@ -137,33 +134,23 @@
             Logger.current.notice("Creating shard plan with \(modules.count) test module(s)", metadata: .section)
 
             let shouldUpload = archivePath == nil && !skipUpload
-            let shardPlan = try await createShardPlanService.createShardPlan(
-                fullHandle: fullHandle,
-                serverURL: serverURL,
-                reference: reference,
-                modules: modules,
-                testSuites: testSuites,
-                shardMin: shardMin,
-                shardMax: shardMax,
-                shardTotal: shardTotal,
-                shardMaxDuration: shardMaxDuration,
-                shardGranularity: shardGranularity,
-                buildRunId: buildRunId,
-                startUpload: shouldUpload
-            )
+            if shouldUpload {
+                let shardPlanUpload = try await createShardPlanService.createShardPlanAndStartUpload(
+                    fullHandle: fullHandle,
+                    serverURL: serverURL,
+                    reference: reference,
+                    modules: modules,
+                    testSuites: testSuites,
+                    shardMin: shardMin,
+                    shardMax: shardMax,
+                    shardTotal: shardTotal,
+                    shardMaxDuration: shardMaxDuration,
+                    shardGranularity: shardGranularity,
+                    buildRunId: buildRunId
+                )
+                let shardPlan = shardPlanUpload.shardPlan
 
-            Logger.current.notice("Shard plan created: \(shardPlan.shard_count) shards", metadata: .section)
-
-            if let archivePath {
-                try await archiveXCTestProducts(xctestproductsPath, to: archivePath)
-                Logger.current.notice("Shard archive written to \(archivePath.pathString)", metadata: .section)
-            } else if skipUpload {
-                Logger.current
-                    .notice("Skipping test products upload. Ensure shard runners can access the test products locally.")
-            } else {
-                guard let uploadId = shardPlan.upload_id else {
-                    throw ShardPlanServiceError.missingUploadId
-                }
+                Logger.current.notice("Shard plan created: \(shardPlan.shard_count) shards", metadata: .section)
 
                 Logger.current.debug("Uploading test products bundle...")
                 let archiveDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-archive")
@@ -177,7 +164,7 @@
                             serverURL: serverURL,
                             shardPlanId: shardPlan.id,
                             reference: reference,
-                            uploadId: uploadId,
+                            uploadId: shardPlanUpload.uploadId,
                             partNumber: part.number
                         )
                     },
@@ -191,11 +178,38 @@
                     serverURL: serverURL,
                     shardPlanId: shardPlan.id,
                     reference: reference,
-                    uploadId: uploadId,
+                    uploadId: shardPlanUpload.uploadId,
                     parts: parts.map { (partNumber: $0.partNumber, etag: $0.etag) }
                 )
 
                 Logger.current.debug("Upload complete. Shard matrix ready.")
+                try await shardMatrixOutputService.output(shardPlan)
+
+                return shardPlan
+            }
+
+            let shardPlan = try await createShardPlanService.createShardPlan(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                reference: reference,
+                modules: modules,
+                testSuites: testSuites,
+                shardMin: shardMin,
+                shardMax: shardMax,
+                shardTotal: shardTotal,
+                shardMaxDuration: shardMaxDuration,
+                shardGranularity: shardGranularity,
+                buildRunId: buildRunId
+            )
+
+            Logger.current.notice("Shard plan created: \(shardPlan.shard_count) shards", metadata: .section)
+
+            if let archivePath {
+                try await archiveXCTestProducts(xctestproductsPath, to: archivePath)
+                Logger.current.notice("Shard archive written to \(archivePath.pathString)", metadata: .section)
+            } else if skipUpload {
+                Logger.current
+                    .notice("Skipping test products upload. Ensure shard runners can access the test products locally.")
             }
             try await shardMatrixOutputService.output(shardPlan)
 

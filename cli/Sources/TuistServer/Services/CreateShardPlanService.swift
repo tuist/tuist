@@ -2,6 +2,19 @@ import Foundation
 import Mockable
 import TuistHTTP
 
+public struct ShardPlanUpload: Equatable, Sendable {
+    public let shardPlan: Components.Schemas.ShardPlan
+    public let uploadId: String
+
+    public init(
+        shardPlan: Components.Schemas.ShardPlan,
+        uploadId: String
+    ) {
+        self.shardPlan = shardPlan
+        self.uploadId = uploadId
+    }
+}
+
 @Mockable
 public protocol CreateShardPlanServicing {
     func createShardPlan(
@@ -15,9 +28,22 @@ public protocol CreateShardPlanServicing {
         shardTotal: Int?,
         shardMaxDuration: Int?,
         shardGranularity: Components.Schemas.CreateShardPlanParams.granularityPayload,
-        buildRunId: String?,
-        startUpload: Bool
+        buildRunId: String?
     ) async throws -> Components.Schemas.ShardPlan
+
+    func createShardPlanAndStartUpload(
+        fullHandle: String,
+        serverURL: URL,
+        reference: String,
+        modules: [String]?,
+        testSuites: [String]?,
+        shardMin: Int?,
+        shardMax: Int?,
+        shardTotal: Int?,
+        shardMaxDuration: Int?,
+        shardGranularity: Components.Schemas.CreateShardPlanParams.granularityPayload,
+        buildRunId: String?
+    ) async throws -> ShardPlanUpload
 }
 
 public enum CreateShardPlanServiceError: LocalizedError, Equatable {
@@ -26,6 +52,7 @@ public enum CreateShardPlanServiceError: LocalizedError, Equatable {
     case notFound(String)
     case unauthorized(String)
     case badRequest(String)
+    case missingUploadId
 
     public var errorDescription: String? {
         switch self {
@@ -34,6 +61,8 @@ public enum CreateShardPlanServiceError: LocalizedError, Equatable {
         case let .forbidden(message), let .notFound(message), let .unauthorized(message),
              let .badRequest(message):
             return message
+        case .missingUploadId:
+            return "The server did not return a shard upload ID after being asked to start the upload."
         }
     }
 }
@@ -48,6 +77,70 @@ public struct CreateShardPlanService: CreateShardPlanServicing {
     }
 
     public func createShardPlan(
+        fullHandle: String,
+        serverURL: URL,
+        reference: String,
+        modules: [String]?,
+        testSuites: [String]?,
+        shardMin: Int?,
+        shardMax: Int?,
+        shardTotal: Int?,
+        shardMaxDuration: Int?,
+        shardGranularity: Components.Schemas.CreateShardPlanParams.granularityPayload,
+        buildRunId: String?
+    ) async throws -> Components.Schemas.ShardPlan {
+        try await createShardPlan(
+            fullHandle: fullHandle,
+            serverURL: serverURL,
+            reference: reference,
+            modules: modules,
+            testSuites: testSuites,
+            shardMin: shardMin,
+            shardMax: shardMax,
+            shardTotal: shardTotal,
+            shardMaxDuration: shardMaxDuration,
+            shardGranularity: shardGranularity,
+            buildRunId: buildRunId,
+            startUpload: false
+        )
+    }
+
+    public func createShardPlanAndStartUpload(
+        fullHandle: String,
+        serverURL: URL,
+        reference: String,
+        modules: [String]?,
+        testSuites: [String]?,
+        shardMin: Int?,
+        shardMax: Int?,
+        shardTotal: Int?,
+        shardMaxDuration: Int?,
+        shardGranularity: Components.Schemas.CreateShardPlanParams.granularityPayload,
+        buildRunId: String?
+    ) async throws -> ShardPlanUpload {
+        let shardPlan = try await createShardPlan(
+            fullHandle: fullHandle,
+            serverURL: serverURL,
+            reference: reference,
+            modules: modules,
+            testSuites: testSuites,
+            shardMin: shardMin,
+            shardMax: shardMax,
+            shardTotal: shardTotal,
+            shardMaxDuration: shardMaxDuration,
+            shardGranularity: shardGranularity,
+            buildRunId: buildRunId,
+            startUpload: true
+        )
+
+        guard let uploadId = shardPlan.upload_id else {
+            throw CreateShardPlanServiceError.missingUploadId
+        }
+
+        return ShardPlanUpload(shardPlan: shardPlan, uploadId: uploadId)
+    }
+
+    private func createShardPlan(
         fullHandle: String,
         serverURL: URL,
         reference: String,
