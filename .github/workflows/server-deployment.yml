@@ -288,11 +288,19 @@ jobs:
       - name: helm dependency update
         run: helm dependency update "$OBSERVABILITY_CHART_PATH"
       - name: helm upgrade --install k8s-monitoring
+        # Apply without --wait. The chart ships a node-exporter DaemonSet, so a
+        # single unschedulable or NotReady node leaves it permanently short of
+        # full readiness; `--wait` would then burn the whole --timeout and fail,
+        # which (via the deploy gate) skips the server rollout entirely.
+        # Observability is best-effort infra and must never block shipping the
+        # app: the Alloy OTLP receiver comes up well within the server's own
+        # rollout window. Apply-time errors still surface (helm fails on a bad
+        # manifest); only the all-resources-ready gate is dropped.
         run: |
           helm upgrade --install "$OBSERVABILITY_RELEASE_NAME" "$OBSERVABILITY_CHART_PATH" \
             --namespace "$OBSERVABILITY_NAMESPACE" --create-namespace \
             -f "$OBSERVABILITY_CHART_PATH/values-${{ inputs.environment }}.yaml" \
-            --timeout 10m --wait
+            --timeout 10m
 
   tailscale-operator-install:
     # Installs / upgrades the tailscale-operator wrapper chart ahead of
