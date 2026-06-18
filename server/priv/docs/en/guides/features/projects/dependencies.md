@@ -242,6 +242,9 @@ The tradeoff is that Xcode owns that plugin integration:
 - Tuist cannot give the plugin the same level of control, validation, caching, and selective-testing behavior that it can provide for statically mapped package products.
 - CI and local builds must allow Xcode's package resolution for those plugin packages.
 
+Because of these implications, we generally don't recommend using SPM build tool plugins in Tuist projects.
+When possible, prefer a build phase script declared in the target, or run the tool from a script outside the generated Xcode project before invoking Tuist or Xcode.
+
 A practical application of an SPM build tool plugin is performing code linting during Xcode's "Run Build Tool Plug-ins" build phase.
 To generate an Xcode project with the build tool plugin intact, declare the package in the project manifest's `packages` array, and then include a package with type `.plugin` in a target's dependencies.
 
