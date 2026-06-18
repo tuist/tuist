@@ -1,5 +1,6 @@
 # Source-of-truth Slack app manifest for the "Tuist JIT" app that
-# fronts the JIT elevation flow (`/elevate`).
+# fronts the JIT elevation flow (`/elevate`) and preview
+# requests (`/preview`).
 #
 # Paste this YAML into:
 #   https://api.slack.com/apps → Tuist JIT → App Manifest →
@@ -15,7 +16,7 @@
 
 display_information:
   name: Tuist JIT
-  description: Just-in-time elevation for kubectl access to Tuist Kubernetes clusters
+  description: Just-in-time elevation and previews for Tuist operations
   background_color: "#101010"
 
 features:
@@ -28,6 +29,11 @@ features:
       url: https://ops.tuist.dev/webhooks/slack/slash
       description: Request just-in-time elevation for a cluster
       usage_hint: <env> [duration] <intent>
+      should_escape: false
+    - command: /preview
+      url: https://ops.tuist.dev/webhooks/slack/slash
+      description: Request or delete a preview
+      usage_hint: create <slug> [duration] [pr:<number>|sha:<sha>] <reason>
       should_escape: false
 
 oauth_config:

@@ -15,6 +15,7 @@ defmodule TuistOpsWeb.SlackControllerTest do
   use Mimic
 
   alias TuistOps.JIT.Approvals
+  alias TuistOps.Previews
   alias TuistOps.JIT.Request
   alias TuistOps.JIT.SlackClient
   alias TuistOps.JIT.TailscaleClient
@@ -24,6 +25,7 @@ defmodule TuistOpsWeb.SlackControllerTest do
 
   setup do
     stub(Environment, :approvals_channel_id, fn -> "C_APPROVALS" end)
+    stub(Environment, :previews_channel_id, fn -> "C_PREVIEWS" end)
 
     # Slack-user → email lookup is needed by every controller path.
     # Map known fixtures by slack id; unknown ids resolve to the
@@ -113,6 +115,57 @@ defmodule TuistOpsWeb.SlackControllerTest do
       assert conn.status == 200
       {:ok, body} = JSON.decode(conn.resp_body)
       assert body["response_type"] == "ephemeral"
+    end
+
+    test "valid /preview create dispatches preview request" do
+      expect(Previews, :request_create, fn attrs ->
+        assert attrs.requester_email == "marek@tuist.dev"
+        assert attrs.requester_slack_id == "U_MAREK"
+        assert attrs.slack_channel_id == "C_PREVIEWS"
+        assert attrs.slug == "demo"
+        assert attrs.ttl_seconds == 7200
+        assert attrs.ref_kind == "pr"
+        assert attrs.ref_value == "123"
+        assert attrs.reason == "test branch with Kura"
+        {:ok, %TuistOps.Previews.Request{}}
+      end)
+
+      conn =
+        TuistOpsWeb.SlackController.slash(
+          build_conn(),
+          %{
+            "command" => "/preview",
+            "user_id" => "U_MAREK",
+            "text" => "create demo 2h pr:123 test branch with Kura"
+          }
+        )
+
+      assert conn.status == 200
+      {:ok, body} = JSON.decode(conn.resp_body)
+      assert body["response_type"] == "ephemeral"
+      assert body["text"] =~ "C_PREVIEWS"
+    end
+
+    test "valid /preview delete dispatches preview deletion" do
+      expect(Previews, :request_delete, fn attrs ->
+        assert attrs.requester_email == "marek@tuist.dev"
+        assert attrs.requester_slack_id == "U_MAREK"
+        assert attrs.slack_channel_id == "C_PREVIEWS"
+        assert attrs.slug == "demo"
+        assert attrs.reason == "done testing"
+        {:ok, %TuistOps.Previews.Request{}}
+      end)
+
+      conn =
+        TuistOpsWeb.SlackController.slash(
+          build_conn(),
+          %{"command" => "/preview", "user_id" => "U_MAREK", "text" => "delete demo done testing"}
+        )
+
+      assert conn.status == 200
+      {:ok, body} = JSON.decode(conn.resp_body)
+      assert body["response_type"] == "ephemeral"
+      assert body["text"] =~ "C_PREVIEWS"
     end
   end
 
@@ -226,6 +279,28 @@ defmodule TuistOpsWeb.SlackControllerTest do
               "user" => %{"id" => "U_X"},
               "channel" => %{"id" => "C_APPROVALS"},
               "actions" => [%{"action_id" => "unknown", "value" => "x"}]
+            })
+        })
+
+      assert conn.status == 200
+    end
+
+    test "preview_delete action dispatches preview deletion and 200s" do
+      expect(Previews, :request_delete, fn attrs ->
+        assert attrs.requester_email == "pedro@tuist.dev"
+        assert attrs.requester_slack_id == "U_PEDRO"
+        assert attrs.slack_channel_id == "C_APPROVALS"
+        assert attrs.slug == "demo"
+        {:ok, %TuistOps.Previews.Request{}}
+      end)
+
+      conn =
+        TuistOpsWeb.SlackController.interactive(build_conn(), %{
+          "payload" =>
+            JSON.encode!(%{
+              "user" => %{"id" => "U_PEDRO"},
+              "channel" => %{"id" => "C_APPROVALS"},
+              "actions" => [%{"action_id" => "preview_delete", "value" => "demo"}]
             })
         })
 
