@@ -3,9 +3,9 @@ defmodule TuistOps.Previews.SlackBlocks do
   Slack Block Kit cards for preview environments.
   """
 
-  alias TuistOps.Previews.Request
+  alias TuistOps.Previews.Preview
 
-  def provisioning(%Request{} = request) do
+  def provisioning(%Preview{} = preview) do
     [
       %{
         type: "section",
@@ -13,12 +13,12 @@ defmodule TuistOps.Previews.SlackBlocks do
           type: "mrkdwn",
           text: """
           *Preview requested*
-          *Requester:* <@#{request.requester_slack_id}>
-          *Preview:* `#{request.slug}`
-          *URL:* https://#{request.host}
-          *Ref:* #{format_ref(request)}
-          *TTL:* #{format_seconds(request.ttl_seconds)}
-          *Reason:* #{request.reason}
+          *Requester:* <@#{preview.requester_slack_id}>
+          *Preview:* `#{preview.slug}`
+          *URL:* https://#{preview.host}
+          *Ref:* #{format_ref(preview)}
+          *TTL:* #{format_seconds(preview.ttl_seconds)}
+          *Reason:* #{preview.reason}
           """
         }
       },
@@ -28,7 +28,7 @@ defmodule TuistOps.Previews.SlackBlocks do
           %{
             type: "mrkdwn",
             text:
-              "GitHub Actions is provisioning it. It expires <!date^#{DateTime.to_unix(request.expires_at)}^{date_short_pretty} at {time}|soon>."
+              "GitHub Actions is provisioning it. It expires <!date^#{DateTime.to_unix(preview.expires_at)}^{date_short_pretty} at {time}|soon>."
           }
         ]
       },
@@ -41,14 +41,14 @@ defmodule TuistOps.Previews.SlackBlocks do
             style: "danger",
             text: %{type: "plain_text", text: "Delete"},
             action_id: "preview_delete",
-            value: request.slug
+            value: preview.slug
           }
         ]
       }
     ]
   end
 
-  def deleting(%Request{} = request) do
+  def deleting(%Preview{} = preview) do
     [
       %{
         type: "section",
@@ -56,16 +56,16 @@ defmodule TuistOps.Previews.SlackBlocks do
           type: "mrkdwn",
           text: """
           *Preview deletion requested*
-          *Requester:* <@#{request.requester_slack_id}>
-          *Preview:* `#{request.slug}`
-          *Reason:* #{request.reason}
+          *Requester:* <@#{preview.requester_slack_id}>
+          *Preview:* `#{preview.slug}`
+          *Reason:* #{preview.reason}
           """
         }
       }
     ]
   end
 
-  def failed(%Request{} = request, reason) do
+  def failed(%Preview{} = preview, reason) do
     [
       %{
         type: "section",
@@ -73,9 +73,9 @@ defmodule TuistOps.Previews.SlackBlocks do
           type: "mrkdwn",
           text: """
           *Preview request failed*
-          *Requester:* <@#{request.requester_slack_id}>
-          *Preview:* `#{request.slug}`
-          *Reason:* #{request.reason}
+          *Requester:* <@#{preview.requester_slack_id}>
+          *Preview:* `#{preview.slug}`
+          *Reason:* #{preview.reason}
           *Error:* #{inspect(reason)}
           """
         }
@@ -83,8 +83,8 @@ defmodule TuistOps.Previews.SlackBlocks do
     ]
   end
 
-  defp format_ref(%Request{ref_kind: nil}), do: "`workflow default`"
-  defp format_ref(%Request{ref_kind: kind, ref_value: value}), do: "`#{kind}:#{value}`"
+  defp format_ref(%Preview{ref_kind: nil}), do: "`workflow default`"
+  defp format_ref(%Preview{ref_kind: kind, ref_value: value}), do: "`#{kind}:#{value}`"
 
   defp format_seconds(nil), do: "n/a"
   defp format_seconds(seconds) when seconds < 3600, do: "#{div(seconds, 60)} min"

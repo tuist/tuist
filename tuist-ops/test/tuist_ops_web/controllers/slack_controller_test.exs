@@ -118,7 +118,7 @@ defmodule TuistOpsWeb.SlackControllerTest do
     end
 
     test "valid /preview create dispatches preview request" do
-      expect(Previews, :request_create, fn attrs ->
+      expect(Previews, :create, fn attrs ->
         assert attrs.requester_email == "marek@tuist.dev"
         assert attrs.requester_slack_id == "U_MAREK"
         assert attrs.slack_channel_id == "C_PREVIEWS"
@@ -127,7 +127,7 @@ defmodule TuistOpsWeb.SlackControllerTest do
         assert attrs.ref_kind == "pr"
         assert attrs.ref_value == "123"
         assert attrs.reason == "test branch with Kura"
-        {:ok, %TuistOps.Previews.Request{}}
+        {:ok, %TuistOps.Previews.Preview{}}
       end)
 
       conn =
@@ -147,13 +147,13 @@ defmodule TuistOpsWeb.SlackControllerTest do
     end
 
     test "valid /preview delete dispatches preview deletion" do
-      expect(Previews, :request_delete, fn attrs ->
+      expect(Previews, :delete, fn attrs ->
         assert attrs.requester_email == "marek@tuist.dev"
         assert attrs.requester_slack_id == "U_MAREK"
         assert attrs.slack_channel_id == "C_PREVIEWS"
         assert attrs.slug == "demo"
         assert attrs.reason == "done testing"
-        {:ok, %TuistOps.Previews.Request{}}
+        {:ok, %TuistOps.Previews.Preview{}}
       end)
 
       conn =
@@ -286,12 +286,12 @@ defmodule TuistOpsWeb.SlackControllerTest do
     end
 
     test "preview_delete action dispatches preview deletion and 200s" do
-      expect(Previews, :request_delete, fn attrs ->
+      expect(Previews, :delete, fn attrs ->
         assert attrs.requester_email == "pedro@tuist.dev"
         assert attrs.requester_slack_id == "U_PEDRO"
         assert attrs.slack_channel_id == "C_APPROVALS"
         assert attrs.slug == "demo"
-        {:ok, %TuistOps.Previews.Request{}}
+        {:ok, %TuistOps.Previews.Preview{}}
       end)
 
       conn =

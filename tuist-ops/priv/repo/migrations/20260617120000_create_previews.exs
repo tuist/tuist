@@ -1,11 +1,17 @@
-defmodule TuistOps.Repo.Migrations.CreatePreviewRequests do
+defmodule TuistOps.Repo.Migrations.CreatePreviews do
   use Ecto.Migration
 
   def change do
-    create table(:preview_requests) do
+    # One row per preview slug, mutated as state evolves. Modeling create /
+    # update / delete as separate request rows for the same slug (the
+    # original shape of this table) leaks lifecycle into the schema and
+    # forces the partial-unique-index gymnastics Marek called out — see PR
+    # #11348. State-table keeps the data model honest: the row is the
+    # preview; status describes what we last asked the workflow to do
+    # with it.
+    create table(:previews) do
       add :slug, :string, null: false
-      add :action, :string, null: false
-      add :status, :string, null: false, default: "requested"
+      add :status, :string, null: false, default: "creating"
       add :requester_email, :string, null: false
       add :requester_slack_id, :string, null: false
       add :ref_kind, :string
@@ -20,31 +26,17 @@ defmodule TuistOps.Repo.Migrations.CreatePreviewRequests do
       add :workflow_id, :string
       add :workflow_ref, :string
       add :expires_at, :utc_datetime
+      add :deleted_at, :utc_datetime
       add :failed_at, :utc_datetime
       add :failure_reason, :text
 
       timestamps(type: :utc_datetime)
     end
 
-    create index(:preview_requests, [:slug, :inserted_at])
-    create index(:preview_requests, [:status])
-    create index(:preview_requests, [:expires_at])
-
-    # Stop two concurrent `/preview create <slug>` calls from both racing
-    # past insert and dispatching workflows for the same namespace. Scoped
-    # to *create* requests because the GitHub Actions workflow has no
-    # completion callback into tuist-ops yet — the first successful create
-    # leaves a row at `provisioning` indefinitely, and a wider index (one
-    # that also blocked subsequent deletes / updates / re-creates) would
-    # break the documented lifecycle after the first dispatch. Drops to
-    # tuist-ops, not Postgres, get to evolve the lifecycle further (mutable
-    # row per slug, completion callbacks, etc.) without re-shaping the
-    # index.
-    create unique_index(
-             :preview_requests,
-             [:slug],
-             where: "action = 'create' AND status IN ('requested', 'provisioning')",
-             name: :preview_requests_active_create_slug_index
-           )
+    # Slug is the natural key — `/preview create demo` and a later
+    # `/preview delete demo` should always converge to the same row.
+    create unique_index(:previews, [:slug])
+    create index(:previews, [:status])
+    create index(:previews, [:expires_at])
   end
 end
