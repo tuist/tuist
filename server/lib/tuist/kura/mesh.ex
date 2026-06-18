@@ -174,7 +174,7 @@ defmodule Tuist.Kura.Mesh do
   defp self_hosted_peer_urls(%Account{} = account) do
     Repo.all(
       from(e in AccountCacheEndpoint,
-        where: e.account_id == ^account.id and e.technology == :kura_self_hosted,
+        where: e.account_id == ^account.id and e.technology == :kura_self_hosted_peer,
         select: e.url
       )
     )
@@ -207,12 +207,16 @@ defmodule Tuist.Kura.Mesh do
     end
   end
 
+  # The enrolled node's internal peer URL, recorded only for mesh discovery.
+  # It is never a client-facing cache endpoint (that is the node's advertised
+  # HTTP URL, reported via registration heartbeats), so it is stored under the
+  # `kura_self_hosted_peer` technology and excluded from CLI endpoint lookup.
   defp register_node_endpoint(%Account{} = account, node_url) do
     %AccountCacheEndpoint{}
     |> AccountCacheEndpoint.create_changeset(%{
       account_id: account.id,
       url: node_url,
-      technology: :kura_self_hosted
+      technology: :kura_self_hosted_peer
     })
     |> Repo.insert(on_conflict: :nothing, conflict_target: [:account_id, :technology, :url])
   end

@@ -93,7 +93,7 @@ defmodule Tuist.Kura.MeshTest do
       assert is_integer(enrollment.renew_after_seconds)
       assert enrollment.peers == []
 
-      assert [endpoint] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted)
+      assert [endpoint] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
       assert endpoint.url == "https://kura-1.acme.test:4433"
     end
 
@@ -111,7 +111,7 @@ defmodule Tuist.Kura.MeshTest do
       {:ok, _} =
         Mesh.enroll_node(account, %{csr: csr_pem(), node_url: "https://kura-1.acme.test:4433"})
 
-      assert length(Accounts.list_account_cache_endpoints(account, :kura_self_hosted)) == 2
+      assert length(Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)) == 2
     end
 
     test "rejects an invalid node URL" do

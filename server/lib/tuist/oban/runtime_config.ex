@@ -31,6 +31,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"15 3 * * *", Tuist.Storage.Workers.DeleteExpiredXcodeModuleCacheArtifactsWorker},
     {"30 3 * * *", Tuist.Storage.Workers.DeleteExpiredGradleCacheArtifactsWorker},
     {"* * * * *", Tuist.Kura.Reconciler},
+    {"*/5 * * * *", Tuist.Kura.Workers.ExpiredRegistrationsWorker},
     {"* * * * *", Tuist.Runners.Workers.StaleClaimsWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedRunnersWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedStampedPodsWorker},
