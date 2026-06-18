@@ -122,6 +122,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert bridged["spec"]["meshPublicPeerHost"] == "peer.tuist-eu-central-1.kura.tuist.dev"
       assert bridged["spec"]["meshExternalPeers"] == ["https://kura.acme.example:7443"]
 
+      assert bridged["spec"]["meshPublicPeerLoadBalancerAnnotations"] == %{
+               "load-balancer.hetzner.cloud/location" => "fsn1",
+               "load-balancer.hetzner.cloud/node-selector" => "node.cluster.x-k8s.io/pool=kura"
+             }
+
       unbridged =
         KubernetesController.manifest(
           "kura-tuist-eu-central-1",
@@ -548,6 +553,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         Map.merge(
           %{
             cluster_id: "eu-central-1",
+            hetzner_location: "fsn1",
             public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
             grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
             peer_public_host_template: "peer.{account_handle}-{cluster_id}.kura.tuist.dev",

@@ -124,6 +124,13 @@ spec:
                   type: array
                   items:
                     type: string
+                # Provider-specific annotations for the public peer LoadBalancer
+                # (e.g. hcloud location + node-selector restricting LB targets to
+                # the account's node pool).
+                meshPublicPeerLoadBalancerAnnotations:
+                  type: object
+                  additionalProperties:
+                    type: string
                 storageClassName:
                   type: string
                 storageSize:

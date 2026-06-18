@@ -371,6 +371,9 @@ func (r *KuraInstanceReconciler) reconcileAccountPublicPeerService(ctx context.C
 		if service.Annotations == nil {
 			service.Annotations = map[string]string{}
 		}
+		for k, v := range instance.Spec.MeshPublicPeerLoadBalancerAnnotations {
+			service.Annotations[k] = v
+		}
 		service.Annotations["external-dns.alpha.kubernetes.io/hostname"] = instance.Spec.MeshPublicPeerHost
 		service.Spec.Type = corev1.ServiceTypeLoadBalancer
 		service.Spec.Selector = map[string]string{

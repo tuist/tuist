@@ -20,7 +20,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Kura.Server
 
   @namespace "kura"
-  @manifest_revision "2026-06-16-node-port-and-env-scoped-public-host-v1"
+  @manifest_revision "2026-06-18-mesh-two-way-public-peer-lb-v1"
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
   @gateway_annotation "tuist.dev/kura-gateway"
   @gateway_controller_image "registry.k8s.io/ingress-nginx/controller:v1.11.3"
@@ -217,6 +217,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "mesh" => mesh_enabled?(region),
           "meshPublicPeerHost" => mesh_public_peer_host(account_handle, region),
           "meshExternalPeers" => mesh_external_peers(region, external_peers),
+          "meshPublicPeerLoadBalancerAnnotations" => mesh_public_peer_lb_annotations(region),
           "private" => Regions.private?(region),
           "exposeNodePort" => Regions.node_port_data_plane?(region),
           "clientCIDRs" => client_cidrs(region),
@@ -305,6 +306,35 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     case mesh_enabled?(region) && external_peers do
       [_ | _] = urls -> urls
       _ -> nil
+    end
+  end
+
+  # Targeting annotations for the public peer LoadBalancer: pin it to the
+  # region's hcloud location and restrict its targets to the account's node pool
+  # (otherwise the cloud controller targets every node, including ones that
+  # can't route to the account's pods). Mirrors the gateway LoadBalancer.
+  defp mesh_public_peer_lb_annotations(%Regions{provisioner_config: config} = region) do
+    location = Map.get(config, :hetzner_location)
+
+    if mesh_enabled?(region) and is_binary(location) and location != "" do
+      annotations = %{"load-balancer.hetzner.cloud/location" => location}
+
+      case node_selector_annotation(region) do
+        nil -> annotations
+        selector -> Map.put(annotations, "load-balancer.hetzner.cloud/node-selector", selector)
+      end
+    end
+  end
+
+  defp mesh_public_peer_lb_annotations(_region), do: nil
+
+  defp node_selector_annotation(region) do
+    case node_selector(region) do
+      %{} = selector when map_size(selector) > 0 ->
+        Enum.map_join(selector, ",", fn {key, value} -> "#{key}=#{value}" end)
+
+      _ ->
+        nil
     end
   end
 

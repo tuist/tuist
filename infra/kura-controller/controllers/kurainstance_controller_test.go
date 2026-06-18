@@ -898,6 +898,10 @@ func TestKuraInstanceReconcileMeshPublicPeerExposure(t *testing.T) {
 	instance := meshInstance("kura-tuist-eu-1", "tuist")
 	instance.Spec.MeshPublicPeerHost = "peer.tuist-eu-central-1.kura.tuist.dev"
 	instance.Spec.MeshExternalPeers = []string{"https://kura.acme.example:7443"}
+	instance.Spec.MeshPublicPeerLoadBalancerAnnotations = map[string]string{
+		"load-balancer.hetzner.cloud/location":      "fsn1",
+		"load-balancer.hetzner.cloud/node-selector": "node.cluster.x-k8s.io/pool=kura",
+	}
 	reconciler := &KuraInstanceReconciler{
 		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).WithStatusSubresource(instance).Build(),
 		Scheme: scheme,
@@ -915,6 +919,12 @@ func TestKuraInstanceReconcileMeshPublicPeerExposure(t *testing.T) {
 	}
 	if got := lb.Annotations["external-dns.alpha.kubernetes.io/hostname"]; got != instance.Spec.MeshPublicPeerHost {
 		t.Fatalf("expected external-dns hostname annotation, got %q", got)
+	}
+	if got := lb.Annotations["load-balancer.hetzner.cloud/node-selector"]; got != "node.cluster.x-k8s.io/pool=kura" {
+		t.Fatalf("expected node-selector annotation to restrict LB targets, got %q", got)
+	}
+	if got := lb.Annotations["load-balancer.hetzner.cloud/location"]; got != "fsn1" {
+		t.Fatalf("expected hcloud location annotation, got %q", got)
 	}
 	if got := lb.Spec.Selector["tuist.dev/account"]; got != "tuist" {
 		t.Fatalf("expected public peer Service to select all account pods, got %q", got)

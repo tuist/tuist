@@ -194,6 +194,12 @@ func (in *KuraInstanceSpec) DeepCopyInto(out *KuraInstanceSpec) {
 		out.MeshExternalPeers = make([]string, len(in.MeshExternalPeers))
 		copy(out.MeshExternalPeers, in.MeshExternalPeers)
 	}
+	if in.MeshPublicPeerLoadBalancerAnnotations != nil {
+		out.MeshPublicPeerLoadBalancerAnnotations = make(map[string]string, len(in.MeshPublicPeerLoadBalancerAnnotations))
+		for key, value := range in.MeshPublicPeerLoadBalancerAnnotations {
+			out.MeshPublicPeerLoadBalancerAnnotations[key] = value
+		}
+	}
 }
 
 func (in *KuraInstanceSpec) DeepCopy() *KuraInstanceSpec {

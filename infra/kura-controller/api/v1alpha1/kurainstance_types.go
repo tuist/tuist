@@ -84,6 +84,14 @@ type KuraInstanceSpec struct {
 	// two-way cross-mesh replication). The self-hosted->managed leg is
 	// seeded server-side through the enrollment peer list. Requires Mesh.
 	MeshExternalPeers []string `json:"meshExternalPeers,omitempty"`
+
+	// MeshPublicPeerLoadBalancerAnnotations are provider-specific annotations
+	// applied to the public peer LoadBalancer Service. They are infra/region
+	// specific (e.g. the hcloud `location` and a `node-selector` restricting the
+	// LB's targets to the account's node pool — without the latter the cloud
+	// controller targets every node, including ones that can't route to the
+	// account's pods), so the control plane supplies them.
+	MeshPublicPeerLoadBalancerAnnotations map[string]string `json:"meshPublicPeerLoadBalancerAnnotations,omitempty"`
 }
 
 type KuraInstanceStatus struct {
