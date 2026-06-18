@@ -1848,7 +1848,11 @@ jobs:
   # cascade.
   canary:
     needs: build
-    if: ${{ !contains(github.event.head_commit.message, '(hotfix)') }}
+    # `build` runs under `if: always()` so it survives the many skipped sibling
+    # release jobs. A plain-`if` dependent of an `always()`-guarded job gets
+    # caught by skip-propagation and is itself skipped even when `build`
+    # succeeded, so the whole deploy tail must re-assert success explicitly.
+    if: ${{ always() && needs.build.result == 'success' && !contains(github.event.head_commit.message, '(hotfix)') }}
     uses: ./.github/workflows/server-deployment.yml
     with:
       environment: canary
@@ -1859,6 +1863,7 @@ jobs:
   acceptance-tests:
     name: Acceptance Tests
     needs: canary
+    if: ${{ always() && needs.canary.result == 'success' }}
     runs-on: tuist-macos
     timeout-minutes: 15
     environment: server-k8s-canary
@@ -1905,6 +1910,7 @@ jobs:
   backward-compatibility-acceptance:
     name: Backward-Compatibility Acceptance
     needs: canary
+    if: ${{ always() && needs.canary.result == 'success' }}
     runs-on: tuist-macos-26-3
     timeout-minutes: 15
     environment: server-k8s-canary
@@ -1957,10 +1963,21 @@ jobs:
         run: mise run --no-deps e2e module_cache_backward_compat
 
   # Production leg - standard path: canary ready + tests green. Promotes the
-  # same image bytes tests ran against. Skipped on a hotfix.
+  # same image bytes tests ran against. Skipped on a hotfix. The
+  # `always() && needs.*.result == 'success'` guard is required for the
+  # skip-propagation reason documented on `canary` above.
   production:
-    needs: [build, acceptance-tests, backward-compatibility-acceptance]
-    if: ${{ !contains(github.event.head_commit.message, '(hotfix)') }}
+    # `canary` is listed explicitly (not just relied on transitively through the
+    # acceptance jobs) so the "canary must be green before prod" invariant is
+    # encoded in this job's own gate, not in the acceptance jobs' needs.
+    needs: [build, canary, acceptance-tests, backward-compatibility-acceptance]
+    if: >-
+      always() &&
+      needs.build.result == 'success' &&
+      needs.canary.result == 'success' &&
+      needs.acceptance-tests.result == 'success' &&
+      needs.backward-compatibility-acceptance.result == 'success' &&
+      !contains(github.event.head_commit.message, '(hotfix)')
     uses: ./.github/workflows/server-deployment.yml
     with:
       environment: production
@@ -1971,10 +1988,12 @@ jobs:
   # Hotfix fast-path: "(hotfix)" in the commit subject ships production without
   # waiting for canary + acceptance tests. Kept independent of the cascade so a
   # flaky acceptance test can't block an urgent fix; canary is skipped above on
-  # hotfix so the fast-path is the only deploy in flight.
+  # hotfix so the fast-path is the only deploy in flight. The
+  # `always() && needs.build.result == 'success'` guard mirrors `canary`
+  # (see its comment) so this leg is not skip-propagated away.
   production-hotfix:
     needs: build
-    if: ${{ contains(github.event.head_commit.message, '(hotfix)') }}
+    if: ${{ always() && needs.build.result == 'success' && contains(github.event.head_commit.message, '(hotfix)') }}
     uses: ./.github/workflows/server-deployment.yml
     with:
       environment: production

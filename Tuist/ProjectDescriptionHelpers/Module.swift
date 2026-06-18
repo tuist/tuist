@@ -413,6 +413,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.buildCommand.targetName),
                     .target(name: Module.generateCommand.targetName),
                     .target(name: Module.testCommand.targetName),
+                    .target(name: Module.xcResultService.targetName),
+                    .target(name: "XCResultParser"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                     .external(name: "XcodeProj"),

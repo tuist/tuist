@@ -37,7 +37,11 @@
   & > [data-part="rename-card-section"],
   & > [data-part="delete-project-card-section"] {
     box-shadow: var(--noora-border-light-error);
+  }
 
+  & > [data-part="rename-card-section"],
+  & > [data-part="delete-project-card-section"],
+  & > [data-part="default-branch-card-section"] {
     & .noora-modal {
       & [data-part="body"] {
         display: flex;
@@ -54,9 +58,34 @@
     }
   }
 
+  & > [data-part="default-branch-card-section"] {
+    & > [data-part="content"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+
+      & .noora-badge {
+        padding: var(--noora-spacing-2) var(--noora-spacing-4);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+    }
+
+    & .noora-modal [data-part="body"] {
+      padding: var(--noora-spacing-2) var(--noora-spacing-7);
+
+      & > div {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-7);
+      }
+    }
+  }
+
   & > [data-part="rename-card-section"],
   & > [data-part="delete-project-card-section"],
-  & > [data-part="preview-access-card-section"] {
+  & > [data-part="preview-access-card-section"],
+  & > [data-part="default-branch-card-section"] {
     display: flex;
     flex-direction: row;
     align-items: center;
