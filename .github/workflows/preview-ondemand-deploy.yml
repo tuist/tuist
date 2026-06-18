@@ -46,9 +46,9 @@ on:
         required: false
         default: latest
       kura_instance_replicas:
-        description: Optional warm private KuraInstance replicas, 0 disables
+        description: Shared preview KuraInstance replicas, 0 disables
         required: false
-        default: "0"
+        default: "1"
 
 permissions:
   contents: read
@@ -203,6 +203,8 @@ jobs:
       IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
       EXPIRES_AT: ${{ needs.resolve.outputs.expires_at }}
       KURA_REPLICAS: ${{ needs.resolve.outputs.kura_instance_replicas }}
+      KURA_INSTANCE: ${{ needs.resolve.outputs.release }}-kura
+      KURA_HOST: kura-${{ needs.resolve.outputs.slug }}.preview.tuist.dev
     steps:
       - uses: actions/checkout@v4
         with:
@@ -235,7 +237,8 @@ jobs:
           kubectl taint nodes -l '!node-role.kubernetes.io/control-plane,node.cluster.x-k8s.io/pool!=kura' role=preview:NoSchedule --overwrite
       - name: helm upgrade --install
         run: |
-          helm upgrade --install "$RELEASE" "$HELM_CHART_PATH" \
+          args=(
+            "$RELEASE" "$HELM_CHART_PATH"
             --namespace "$NAMESPACE" --create-namespace \
             -f "$HELM_CHART_PATH/values-preview.yaml" \
             -f "$HELM_CHART_PATH/values-preview-kura.yaml" \
@@ -246,6 +249,13 @@ jobs:
             --set "kuraController.image.tag=${{ inputs.kura_controller_image_tag }}" \
             --set "kuraRuntime.image.tag=${{ inputs.kura_runtime_image_tag }}" \
             --atomic --timeout 20m --wait
+          )
+
+          if [ "$KURA_REPLICAS" != "0" ]; then
+            args+=(--set "server.kuraEndpointUrls[0]=https://$KURA_HOST")
+          fi
+
+          helm upgrade --install "${args[@]}"
       - name: Label namespace
         env:
           REQUESTER_EMAIL: ${{ inputs.requester_email }}
@@ -268,34 +278,58 @@ jobs:
             "tuist.dev/created-at=$NOW" \
             "tuist.dev/last-active-at=$NOW" \
             --overwrite
-      - name: Optionally create warm KuraInstance
+      - name: Create shared KuraInstance
         if: env.KURA_REPLICAS != '0'
         env:
           KURA_RUNTIME_IMAGE_TAG: ${{ inputs.kura_runtime_image_tag }}
         run: |
-          cat <<EOF | kubectl apply -f -
+          {
+            cat <<EOF
           apiVersion: kura.tuist.dev/v1alpha1
           kind: KuraInstance
           metadata:
-            name: ${RELEASE}-kura
+            name: ${KURA_INSTANCE}
             namespace: kura
             labels:
               tuist.dev/preview-source: slack
               tuist.dev/slug: ${SLUG}
+              tuist.dev/shared: "true"
           spec:
-            accountHandle: ${SLUG}
-            tenantID: ${SLUG}
-            region: eu-central
+            accountHandle: preview-${SLUG}
+            tenantID: preview-${SLUG}
+            region: preview
             image: ghcr.io/tuist/kura:${KURA_RUNTIME_IMAGE_TAG}
             replicas: ${KURA_REPLICAS}
-            private: true
+            publicHost: ${KURA_HOST}
+            ingressClassName: nginx
             storageSize: 10Gi
             extraEnv:
               - name: KURA_CONTROL_PLANE_URL
-                value: https://${HOST}
+                value: http://${RELEASE}-tuist-server.${NAMESPACE}.svc.cluster.local:80
+              - name: KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL
+                value: http://${RELEASE}-tuist-server.${NAMESPACE}.svc.cluster.local:80
+              - name: KURA_EXTENSION_TUIST_ALLOW_SHARED_TENANTS
+                value: "1"
             nodeSelector:
               node.cluster.x-k8s.io/pool: kura
+            extensionScript: |
           EOF
+            sed 's/^/    /' kura/ops/helm/kura/hooks/tuist.lua
+          } | kubectl apply -f -
+      - name: Wait for shared KuraInstance
+        if: env.KURA_REPLICAS != '0'
+        run: |
+          kubectl -n kura wait --for=jsonpath='{.status.phase}'=Ready "kurainstance/${KURA_INSTANCE}" --timeout=10m
+          for i in $(seq 1 60); do
+            if curl -fsSL --max-time 5 "https://${KURA_HOST}/ready" >/dev/null; then
+              echo "OK: https://${KURA_HOST}/ready returned 200"
+              exit 0
+            fi
+            echo "Attempt $i: https://${KURA_HOST}/ready not yet reachable; retrying in 10s..."
+            sleep 10
+          done
+          echo "::error::https://${KURA_HOST}/ready never returned 200 after about 10 min."
+          exit 1
       - name: Smoke test
         run: |
           kubectl -n "$NAMESPACE" rollout status deploy/${RELEASE}-tuist-server --timeout=10m

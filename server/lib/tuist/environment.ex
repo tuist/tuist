@@ -255,8 +255,8 @@ defmodule Tuist.Environment do
     end
   end
 
-  def kura_endpoints(secrets \\ secrets()) do
-    case get([:kura, :endpoints], secrets) do
+  def kura_endpoints(secrets \\ secrets(), env_value \\ System.get_env("TUIST_KURA_ENDPOINTS")) do
+    case endpoint_env_value(env_value) || get([:kura, :endpoints], secrets) do
       endpoints when is_binary(endpoints) ->
         split_endpoints(endpoints)
 
@@ -1216,6 +1216,15 @@ defmodule Tuist.Environment do
     |> Enum.map(&String.trim/1)
     |> Enum.reject(&(&1 == ""))
   end
+
+  defp endpoint_env_value(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      value -> value
+    end
+  end
+
+  defp endpoint_env_value(_), do: nil
 
   def secrets do
     Application.get_env(:tuist, :secrets) || %{}

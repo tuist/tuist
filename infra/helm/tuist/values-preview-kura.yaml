@@ -2,8 +2,10 @@
 #
 # Layer this after values-preview.yaml. It keeps the preview-class dependency
 # shape (embedded Postgres, ClickHouse, and MinIO) but turns on the Kura
-# control plane so each preview can provision in-cluster Kura
-# nodes without touching ClickHouse Cloud or Tigris.
+# controller. The workflow creates one preview-scoped KuraInstance and points
+# the server at its public endpoint through server.kuraEndpointUrls, so all
+# accounts in the preview share that mesh without creating per-account
+# kura_servers rows.
 #
 # Required deploy-time image pins:
 #   --set kuraController.image.tag=<sha-or-release>
@@ -21,8 +23,6 @@ server:
     limits:
       memory: 4Gi
   extraEnv:
-    - name: TUIST_KURA_AVAILABLE_REGIONS
-      value: eu-central
     - name: TUIST_DATABASE_POOL_SIZE
       value: "10"
 
@@ -30,7 +30,7 @@ kuraController:
   enabled: true
   namespace: kura
   replicaCount: 1
-  tlsClusterIssuer: ""
+  tlsClusterIssuer: letsencrypt-cloudflare
   telemetry:
     deploymentEnvironment: preview
     otlpTracesEndpoint: ""

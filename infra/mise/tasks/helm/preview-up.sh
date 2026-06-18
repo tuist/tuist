@@ -4,7 +4,7 @@
 #USAGE flag "--release <name>" help="Helm release name" default="pr-demo"
 #USAGE flag "--remote" help="Use pre-built images from ghcr.io instead of building locally"
 #USAGE flag "--version <version>" help="Image version tag when using --remote" default="latest"
-#USAGE flag "--with-kura" help="Also enable the Kura controller and create a private two-node KuraInstance"
+#USAGE flag "--with-kura" help="Also enable the Kura controller and create a shared private two-node KuraInstance"
 #USAGE flag "--kura-controller-image <image>" help="Kura controller image repository for local kind" default="tuist-kura-controller"
 #USAGE flag "--kura-runtime-image <image>" help="Kura runtime image repository for local kind" default="tuist-kura"
 #USAGE flag "--kura-image-tag <tag>" help="Kura controller/runtime image tag for local kind" default="kind"
@@ -38,6 +38,7 @@ KURA_CONTROLLER_REPO="${usage_kura_controller_image}"
 KURA_RUNTIME_REPO="${usage_kura_runtime_image}"
 KURA_IMAGE_TAG="${usage_kura_image_tag}"
 KURA_INSTANCE_NAME="${RELEASE_NAME}-kura"
+KURA_ENDPOINT_URL="http://${KURA_INSTANCE_NAME}.kura.svc.cluster.local:4000"
 
 if [ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]; then
     LICENSE_MODE="eso"
@@ -175,6 +176,7 @@ if [ "$WITH_KURA" = "true" ]; then
         --set "kuraController.image.tag=${KURA_IMAGE_TAG}"
         --set "kuraRuntime.image.repository=${KURA_RUNTIME_REPO}"
         --set "kuraRuntime.image.tag=${KURA_IMAGE_TAG}"
+        --set "server.kuraEndpointUrls[0]=${KURA_ENDPOINT_URL}"
     )
 fi
 
@@ -192,8 +194,9 @@ helm install "$RELEASE_NAME" "$REPO_ROOT/infra/helm/tuist" \
     --wait --timeout 5m
 
 if [ "$WITH_KURA" = "true" ]; then
-    echo "==> Creating private KuraInstance '${KURA_INSTANCE_NAME}' on role=kura nodes..."
-    cat <<EOF | kubectl apply -f -
+    echo "==> Creating shared private KuraInstance '${KURA_INSTANCE_NAME}' on role=kura nodes..."
+    {
+        cat <<EOF
 apiVersion: kura.tuist.dev/v1alpha1
 kind: KuraInstance
 metadata:
@@ -202,9 +205,10 @@ metadata:
   labels:
     tuist.dev/preview-source: slack
     app.kubernetes.io/instance: ${RELEASE_NAME}
+    tuist.dev/shared: "true"
 spec:
-  accountHandle: demo
-  tenantID: demo
+  accountHandle: preview-${RELEASE_NAME}
+  tenantID: preview-${RELEASE_NAME}
   region: kind-local
   image: ${KURA_RUNTIME_REPO}:${KURA_IMAGE_TAG}
   replicas: 2
@@ -212,10 +216,17 @@ spec:
   storageSize: 1Gi
   extraEnv:
     - name: KURA_CONTROL_PLANE_URL
-      value: http://${RELEASE_NAME}.preview.local
+      value: http://${RELEASE_NAME}-tuist-server.default.svc.cluster.local:80
+    - name: KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL
+      value: http://${RELEASE_NAME}-tuist-server.default.svc.cluster.local:80
+    - name: KURA_EXTENSION_TUIST_ALLOW_SHARED_TENANTS
+      value: "1"
   nodeSelector:
     role: kura
+  extensionScript: |
 EOF
+        sed 's/^/    /' "$REPO_ROOT/kura/ops/helm/kura/hooks/tuist.lua"
+    } | kubectl apply -f -
 
     echo "==> Waiting for KuraInstance controller output..."
     kubectl -n kura wait --for=condition=Available deployment/"${RELEASE_NAME}-tuist-kura-controller" --timeout=3m

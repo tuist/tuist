@@ -19,8 +19,11 @@
 --
 --   2. authorize — resolve the request target from `ctx.tenant_id` /
 --      `ctx.namespace_id`, require the requested tenant to match
---      `ctx.server_tenant_id`, then check the target against first-
---      class account/project cache grants for the requested action.
+--      `ctx.server_tenant_id` by default, then check the target against
+--      first-class account/project cache grants for the requested action.
+--      Preview environments may set
+--      KURA_EXTENSION_TUIST_ALLOW_SHARED_TENANTS=1 so one preview-scoped
+--      Kura mesh can serve every account in that preview instance.
 --
 -- Required Kura extension config (set by the chart / rollout worker):
 --   * KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL              → https://tuist.dev (or staging)
@@ -50,6 +53,19 @@ local function env_value(key)
   end
 
   return kura.env(key)
+end
+
+local function truthy(value)
+  if value == nil then
+    return false
+  end
+
+  local normalized = string.lower(tostring(value))
+  return normalized == "1" or normalized == "true" or normalized == "yes"
+end
+
+local function shared_tenants_enabled()
+  return truthy(env_value("KURA_EXTENSION_TUIST_ALLOW_SHARED_TENANTS"))
 end
 
 local function normalized_handles(handles)
@@ -214,19 +230,24 @@ local function request_target(ctx)
   local tenant = server_tenant(ctx)
   local requested_tenant = request_tenant(ctx)
   local namespace = request_namespace(ctx)
+  local shared_tenants = shared_tenants_enabled()
 
   if tenant == nil then
     return nil, { status = 503, message = "Server tenant is unavailable" }
   end
 
   if requested_tenant ~= nil and requested_tenant ~= tenant then
-    return nil, {
-      status = 403,
-      message = "Forbidden: tenant '" .. requested_tenant .. "' is routed to server for '" .. tenant .. "'",
-    }
+    if shared_tenants then
+      tenant = requested_tenant
+    else
+      return nil, {
+        status = 403,
+        message = "Forbidden: tenant '" .. requested_tenant .. "' is routed to server for '" .. tenant .. "'",
+      }
+    end
   end
 
-  if requested_tenant == nil and ctx.transport ~= "grpc" then
+  if requested_tenant == nil and (ctx.transport ~= "grpc" or shared_tenants) then
     return nil, { status = 400, message = "Missing tenant_id/account_handle" }
   end
 

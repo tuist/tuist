@@ -4217,6 +4217,30 @@ defmodule Tuist.AccountsTest do
       assert endpoints == ["https://kura-cache.example.com"]
     end
 
+    test "returns configured global Kura endpoints when the client requests Kura" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      stub(Environment, :kura_endpoints, fn -> ["https://shared-kura.preview.tuist.dev"] end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+
+      # Then
+      assert endpoints == ["https://shared-kura.preview.tuist.dev"]
+    end
+
+    test "returns configured global Kura endpoints for unknown accounts when the client requests Kura" do
+      # Given
+      stub(Environment, :kura_endpoints, fn -> ["https://shared-kura.preview.tuist.dev"] end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle("missing-account", :kura)
+
+      # Then
+      assert endpoints == ["https://shared-kura.preview.tuist.dev"]
+    end
+
     test "returns custom endpoints when the client requests Kura but the account is not opted in" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
