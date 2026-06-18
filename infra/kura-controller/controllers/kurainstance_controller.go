@@ -1548,6 +1548,23 @@ func (r *KuraInstanceReconciler) reconcileNetworkPolicy(ctx context.Context, ins
 				},
 			})
 		}
+		if meshManagedPeerTLS(instance) && instance.Spec.MeshPublicPeerHost != "" {
+			// The public peer plane accepts mesh connections from off-cluster
+			// self-hosted nodes through the LoadBalancer. With
+			// externalTrafficPolicy: Cluster the source is SNATed to a node IP,
+			// so no pod/namespace selector matches — allow the peer port from
+			// anywhere. The mutual-TLS client-cert check against the account CA
+			// is the auth boundary; a connection without a valid account-CA leaf
+			// fails the handshake.
+			ingress = append(ingress, networkingv1.NetworkPolicyIngressRule{
+				From: []networkingv1.NetworkPolicyPeer{
+					{IPBlock: &networkingv1.IPBlock{CIDR: "0.0.0.0/0"}},
+				},
+				Ports: []networkingv1.NetworkPolicyPort{
+					{Port: ptr(intstr.FromString("peer")), Protocol: ptr(corev1.ProtocolTCP)},
+				},
+			})
+		}
 		policy.Spec.Ingress = ingress
 		return nil
 	})

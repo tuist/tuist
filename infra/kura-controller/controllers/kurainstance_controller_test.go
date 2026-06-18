@@ -945,6 +945,26 @@ func TestKuraInstanceReconcileMeshPublicPeerExposure(t *testing.T) {
 		t.Fatalf("expected KURA_PEERS to seed the self-hosted peer, got %q", got)
 	}
 
+	policy := &networkingv1.NetworkPolicy{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, policy); err != nil {
+		t.Fatal(err)
+	}
+	publicPeerAllowed := false
+	for _, rule := range policy.Spec.Ingress {
+		for _, from := range rule.From {
+			if from.IPBlock != nil && from.IPBlock.CIDR == "0.0.0.0/0" {
+				for _, p := range rule.Ports {
+					if p.Port != nil && p.Port.StrVal == "peer" {
+						publicPeerAllowed = true
+					}
+				}
+			}
+		}
+	}
+	if !publicPeerAllowed {
+		t.Fatal("expected NetworkPolicy to allow the peer port from off-cluster (public peer plane)")
+	}
+
 	caSecret := &corev1.Secret{}
 	if err := reconciler.Get(ctx, types.NamespacedName{Name: accountPeerCASecretName(instance), Namespace: instance.Namespace}, caSecret); err != nil {
 		t.Fatal(err)
