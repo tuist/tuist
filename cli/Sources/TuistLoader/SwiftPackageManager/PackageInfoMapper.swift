@@ -1106,7 +1106,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
         let infoPath = artifactBundlePath.appending(component: "info.json")
         guard try await fileSystem.exists(infoPath) else { return nil }
 
-        let info: StaticLibraryArtifactBundleInfo = try await fileSystem.readJSONFile(at: infoPath)
+        let infoData = try await fileSystem.readFile(at: infoPath)
+        let info = try JSONDecoder().decode(StaticLibraryArtifactBundleInfo.self, from: infoData)
         guard let artifact = info.artifacts[targetName] ?? (info.artifacts.count == 1 ? info.artifacts.values.first : nil),
               artifact.type == "staticLibrary"
         else {
@@ -1116,9 +1117,14 @@ public struct PackageInfoMapper: PackageInfoMapping {
         guard let derivedXCFrameworksPath = derivedXCFrameworksPath
             ?? Self.derivedXCFrameworksPath(containingArtifact: artifactBundlePath)
         else { return nil }
+        let contentHasher = ContentHasher()
+        let sourceFingerprint = try contentHasher.hash([
+            artifactBundlePath.pathString,
+            contentHasher.hash(infoData),
+        ])
         let xcframeworkPath = derivedXCFrameworksPath
             .appending(component: Self.sanitize(targetName: packageName))
-            .appending(component: "\(Self.sanitize(targetName: targetName)).xcframework")
+            .appending(component: "\(Self.sanitize(targetName: targetName))-\(sourceFingerprint).xcframework")
         let infoPlistPath = xcframeworkPath.appending(component: "Info.plist")
         if try await fileSystem.exists(infoPlistPath) {
             return xcframeworkPath

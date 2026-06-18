@@ -78,11 +78,11 @@ struct PackageInfoMapperTests {
             components: "artifacts", "Package", "Target_1", "Target_1.artifactbundle"
         )
         try await makeStaticLibraryArtifactBundle(at: artifactBundlePath, targetName: "Target_1")
-        let generatedXCFrameworkPath = basePath.appending(
-            components: Constants.DerivedDirectory.dependenciesDerivedDirectory,
-            Constants.DerivedDirectory.dependenciesXCFrameworkDirectory,
-            "Package",
-            "Target_1.xcframework"
+        let generatedXCFrameworkPath = try await generatedStaticLibraryArtifactBundleXCFrameworkPath(
+            basePath: basePath,
+            packageName: "Package",
+            targetName: "Target_1",
+            artifactBundlePath: artifactBundlePath
         )
 
         let resolvedDependencies = try await subject.resolveExternalDependencies(
@@ -158,6 +158,53 @@ struct PackageInfoMapperTests {
                 generatedXCFrameworkPath.appending(components: "apple-ios-device", "Headers", "Target_1.h")
             ) ==
                 artifactBundlePath.appending(components: "include", "Target_1.h")
+        )
+
+        let updatedInfo = try await fileSystem.readTextFile(at: artifactBundlePath.appending(component: "info.json"))
+            .replacingOccurrences(of: "\"version\": \"1.0.0\"", with: "\"version\": \"2.0.0\"")
+        try await fileSystem.writeText(updatedInfo, at: artifactBundlePath.appending(component: "info.json"))
+        let updatedGeneratedXCFrameworkPath = try await generatedStaticLibraryArtifactBundleXCFrameworkPath(
+            basePath: basePath,
+            packageName: "Package",
+            targetName: "Target_1",
+            artifactBundlePath: artifactBundlePath
+        )
+        #expect(updatedGeneratedXCFrameworkPath != generatedXCFrameworkPath)
+
+        let updatedResolvedDependencies = try await subject.resolveExternalDependencies(
+            path: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target_1", "Target_2"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target_1",
+                            type: .binary,
+                            url: "https://binary.target.com/target1.artifactbundle.zip"
+                        ),
+                        .test(name: "Target_2"),
+                    ],
+                    platforms: [.ios]
+                ),
+            ],
+            packageToFolder: ["Package": basePath],
+            packageToTargetsToArtifactPaths: ["Package": [
+                "Target_1": artifactBundlePath,
+            ]],
+            packageModuleAliases: [:],
+            packageSettings: .test()
+        )
+        #expect(
+            updatedResolvedDependencies ==
+                [
+                    "Product1": [
+                        .xcframework(path: .path(updatedGeneratedXCFrameworkPath.pathString)),
+                        .project(target: "Target_2", path: .relativeToManifest(basePath.pathString)),
+                    ],
+                ]
         )
     }
 
@@ -3915,11 +3962,11 @@ struct PackageInfoMapperTests {
         try await fileSystem.makeDirectory(at: sourcesPath)
         try await fileSystem.makeDirectory(at: dependenciesPath)
         try await makeStaticLibraryArtifactBundle(at: artifactBundlePath, targetName: "Dependency1")
-        let generatedXCFrameworkPath = basePath.appending(
-            components: Constants.DerivedDirectory.dependenciesDerivedDirectory,
-            Constants.DerivedDirectory.dependenciesXCFrameworkDirectory,
-            "Package",
-            "Dependency1.xcframework"
+        let generatedXCFrameworkPath = try await generatedStaticLibraryArtifactBundleXCFrameworkPath(
+            basePath: basePath,
+            packageName: "Package",
+            targetName: "Dependency1",
+            artifactBundlePath: artifactBundlePath
         )
 
         let project = try await subject.map(
@@ -7540,6 +7587,26 @@ struct PackageInfoMapperTests {
 }
 
 extension PackageInfoMapperTests {
+    private func generatedStaticLibraryArtifactBundleXCFrameworkPath(
+        basePath: AbsolutePath,
+        packageName: String,
+        targetName: String,
+        artifactBundlePath: AbsolutePath
+    ) async throws -> AbsolutePath {
+        let infoData = try await fileSystem.readFile(at: artifactBundlePath.appending(component: "info.json"))
+        let contentHasher = ContentHasher()
+        let sourceFingerprint = try contentHasher.hash([
+            artifactBundlePath.pathString,
+            contentHasher.hash(infoData),
+        ])
+        return basePath.appending(
+            components: Constants.DerivedDirectory.dependenciesDerivedDirectory,
+            Constants.DerivedDirectory.dependenciesXCFrameworkDirectory,
+            packageName,
+            "\(targetName)-\(sourceFingerprint).xcframework"
+        )
+    }
+
     private func makeStaticLibraryArtifactBundle(
         at artifactBundlePath: AbsolutePath,
         targetName: String
