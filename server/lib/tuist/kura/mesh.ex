@@ -128,28 +128,46 @@ defmodule Tuist.Kura.Mesh do
   end
 
   @doc """
-  Peer node URLs in the account's mesh: the account's enrolled self-hosted nodes.
+  Peer node URLs in the account's mesh: the account's enrolled self-hosted nodes
+  plus the public peer endpoint of each managed region the account runs in.
 
-  Bridging the Tuist-managed nodes' peer endpoint in is a follow-up: main's
-  controller-managed mesh discovers managed peers through an in-cluster account
-  peer Service, so seeding it to an internet-side self-hosted node needs that
-  peer plane exposed publicly first.
+  Returning the managed endpoints seeds the self-hosted node to dial the managed
+  mesh (the self-hosted->managed replication leg); the reverse leg is the
+  controller injecting the self-hosted URLs into managed pods' `KURA_PEERS` (see
+  `Tuist.Kura.Provisioner.KubernetesController`).
   """
   def mesh_peers(%Account{} = account, opts \\ []) do
     exclude = Keyword.get(opts, :exclude)
 
-    account
-    |> self_hosted_peer_urls()
+    (self_hosted_peer_urls(account) ++ managed_peer_urls(account))
+    |> Enum.uniq()
     |> Enum.reject(&(&1 == exclude))
   end
 
-  defp self_hosted_peer_urls(%Account{} = account) do
+  @doc """
+  The account's enrolled self-hosted node peer URLs. These are the nodes' own
+  `KURA_NODE_URL`s (recorded at enrollment), used both as mesh peers and as the
+  external peers the managed pods dial back.
+  """
+  def self_hosted_peer_urls(%Account{} = account) do
     Repo.all(
       from(e in AccountCacheEndpoint,
         where: e.account_id == ^account.id and e.technology == :kura_self_hosted_peer,
         select: e.url
       )
     )
+  end
+
+  defp managed_peer_urls(%Account{} = account) do
+    account.id
+    |> Kura.list_servers_for_account()
+    |> Enum.map(fn server ->
+      case Regions.get(server.region) do
+        %Regions{} = region -> Regions.peer_public_url(account.name, region)
+        _ -> nil
+      end
+    end)
+    |> Enum.reject(&is_nil/1)
   end
 
   # The enrolled node's internal peer URL, recorded only for mesh discovery.

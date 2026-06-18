@@ -66,6 +66,24 @@ type KuraInstanceSpec struct {
 	// `PeerTLSSecretName` takes precedence when set (externally managed
 	// peer TLS); Mesh is the in-cluster, controller-issued path.
 	Mesh bool `json:"mesh,omitempty"`
+
+	// MeshPublicPeerHost is the public hostname the account peer plane is
+	// reachable at from outside the cluster. When set (Mesh mode), the
+	// controller provisions a LoadBalancer Service for the account peer
+	// port (TLS-passthrough: the peer connection is end-to-end mTLS, so the
+	// LB only forwards L4) and adds the host to every managed instance's
+	// peer-cert SAN. That lets a customer's self-hosted Kura node dial into
+	// the managed mesh over the internet and verify the managed peers
+	// against the shared account CA. The reverse leg (managed dialing the
+	// self-hosted nodes) is `MeshExternalPeers`.
+	MeshPublicPeerHost string `json:"meshPublicPeerHost,omitempty"`
+
+	// MeshExternalPeers are peer URLs of the account's self-hosted Kura
+	// nodes, injected into every managed pod's `KURA_PEERS` so the managed
+	// mesh dials them for replication (the managed->self-hosted leg of
+	// two-way cross-mesh replication). The self-hosted->managed leg is
+	// seeded server-side through the enrollment peer list. Requires Mesh.
+	MeshExternalPeers []string `json:"meshExternalPeers,omitempty"`
 }
 
 type KuraInstanceStatus struct {

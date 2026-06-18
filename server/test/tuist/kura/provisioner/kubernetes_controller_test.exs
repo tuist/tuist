@@ -100,6 +100,65 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(unmeshed["spec"], "mesh")
     end
 
+    test "emits the public peer host and external peers for a meshed region" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      bridged =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{mesh: true}),
+          %Server{},
+          "return true",
+          nil,
+          ["https://kura.acme.example:7443"]
+        )
+
+      assert bridged["spec"]["meshPublicPeerHost"] == "peer.tuist-eu-central-1.kura.tuist.dev"
+      assert bridged["spec"]["meshExternalPeers"] == ["https://kura.acme.example:7443"]
+
+      unbridged =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(),
+          %Server{},
+          "return true"
+        )
+
+      refute Map.has_key?(unbridged["spec"], "meshPublicPeerHost")
+      refute Map.has_key?(unbridged["spec"], "meshExternalPeers")
+    end
+
+    test "omits external peers for a meshed region with no self-hosted nodes" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{mesh: true}),
+          %Server{},
+          "return true",
+          nil,
+          []
+        )
+
+      assert manifest["spec"]["meshPublicPeerHost"] == "peer.tuist-eu-central-1.kura.tuist.dev"
+      refute Map.has_key?(manifest["spec"], "meshExternalPeers")
+    end
+
     test "emits tolerations only when the region declares them" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
@@ -491,6 +550,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
             cluster_id: "eu-central-1",
             public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
             grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
+            peer_public_host_template: "peer.{account_handle}-{cluster_id}.kura.tuist.dev",
             ingress_class_name: "kura-eu-central",
             storage_class: "hcloud-volumes",
             node_selector: %{"node.cluster.x-k8s.io/pool" => "kura"}

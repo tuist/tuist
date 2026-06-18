@@ -220,6 +220,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcileAccountPeerService(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
+	if err := r.reconcileAccountPublicPeerService(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
 	primaryPod, err := r.selectPrimaryPod(ctx, instance)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -345,6 +348,52 @@ func (r *KuraInstanceReconciler) reconcileAccountPeerService(ctx context.Context
 		return nil
 	})
 	return err
+}
+
+// reconcileAccountPublicPeerService exposes the account peer plane to the
+// internet so a customer's self-hosted Kura node can dial in for two-way
+// replication. It is a plain L4 LoadBalancer: the peer connection is
+// end-to-end mTLS, so nothing terminates TLS here. external-dns publishes
+// MeshPublicPeerHost to the assigned address. Only created when the controller
+// owns the account CA (meshManagedPeerTLS) and a public host is requested.
+func (r *KuraInstanceReconciler) reconcileAccountPublicPeerService(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	if !meshManagedPeerTLS(instance) || instance.Spec.MeshPublicPeerHost == "" {
+		return r.deleteLegacyServiceIfExists(ctx, accountPublicPeerServiceName(instance), instance.Namespace)
+	}
+
+	service := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: accountPublicPeerServiceName(instance), Namespace: instance.Namespace}}
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, service, func() error {
+		service.Labels = map[string]string{
+			"app.kubernetes.io/name":       "kura",
+			"app.kubernetes.io/managed-by": "kura-controller",
+			"tuist.dev/account":            instance.Spec.AccountHandle,
+		}
+		if service.Annotations == nil {
+			service.Annotations = map[string]string{}
+		}
+		service.Annotations["external-dns.alpha.kubernetes.io/hostname"] = instance.Spec.MeshPublicPeerHost
+		service.Spec.Type = corev1.ServiceTypeLoadBalancer
+		service.Spec.Selector = map[string]string{
+			"app.kubernetes.io/name": "kura",
+			"tuist.dev/account":      instance.Spec.AccountHandle,
+		}
+		service.Spec.Ports = []corev1.ServicePort{
+			{Name: "peer", Port: peerPort, TargetPort: intstr.FromString("peer")},
+		}
+		return nil
+	})
+	return err
+}
+
+func accountPublicPeerServiceName(instance *kurav1alpha1.KuraInstance) string {
+	name := "kura-" + instance.Spec.AccountHandle + "-peers-public"
+	if len(name) <= 63 {
+		return name
+	}
+	hash := fnv.New32a()
+	_, _ = hash.Write([]byte(instance.Spec.AccountHandle))
+	suffix := fmt.Sprintf("-%x", hash.Sum32())
+	return strings.TrimRight(name[:63-len(suffix)], "-") + suffix
 }
 
 func (r *KuraInstanceReconciler) reconcileService(ctx context.Context, instance *kurav1alpha1.KuraInstance, primaryPod string) error {
@@ -1006,12 +1055,26 @@ func peerTLSSecretDataValid(data map[string][]byte, instance *kurav1alpha1.KuraI
 	if caCertPEM != nil {
 		dnsName = accountPeerServiceDNSName(instance)
 	}
-	_, err = cert.Verify(x509.VerifyOptions{
+	if _, err := cert.Verify(x509.VerifyOptions{
 		DNSName:   dnsName,
 		Roots:     roots,
 		KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-	})
-	return err == nil && hasExtKeyUsage(cert, x509.ExtKeyUsageClientAuth)
+	}); err != nil {
+		return false
+	}
+	// In mesh mode the stored leaf must also cover the public peer host so
+	// external nodes can verify it; a leaf predating MeshPublicPeerHost is
+	// reissued rather than served.
+	if caCertPEM != nil && instance.Spec.MeshPublicPeerHost != "" {
+		if _, err := cert.Verify(x509.VerifyOptions{
+			DNSName:   instance.Spec.MeshPublicPeerHost,
+			Roots:     roots,
+			KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		}); err != nil {
+			return false
+		}
+	}
+	return hasExtKeyUsage(cert, x509.ExtKeyUsageClientAuth)
 }
 
 func generateSelfSignedPeerTLSSecretData(instance *kurav1alpha1.KuraInstance) (map[string][]byte, error) {
@@ -1096,7 +1159,7 @@ func peerTLSDNSNames(instance *kurav1alpha1.KuraInstance) []string {
 	headless := headlessServiceName(instance)
 	account := accountPeerServiceName(instance)
 	namespace := instance.Namespace
-	return []string{
+	names := []string{
 		fmt.Sprintf("*.%s.%s.svc.cluster.local", headless, namespace),
 		fmt.Sprintf("*.%s.%s.svc", headless, namespace),
 		fmt.Sprintf("*.%s.%s", headless, namespace),
@@ -1114,6 +1177,13 @@ func peerTLSDNSNames(instance *kurav1alpha1.KuraInstance) []string {
 		fmt.Sprintf("%s.%s.svc.cluster.local", account, namespace),
 		fmt.Sprintf("*.%s.%s.svc.cluster.local", account, namespace),
 	}
+	// The public peer host is the SNI a self-hosted node verifies the
+	// managed peers against when dialing in over the internet, so the leaf
+	// must cover it too.
+	if instance.Spec.MeshPublicPeerHost != "" {
+		names = append(names, instance.Spec.MeshPublicPeerHost)
+	}
+	return names
 }
 
 func firstPodDNSName(instance *kurav1alpha1.KuraInstance) string {
@@ -1543,6 +1613,13 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 	}
 	if crossRegionRuntimeEnabled(instance) {
 		env = append(env, corev1.EnvVar{Name: "KURA_GLOBAL_DISCOVERY_DNS_NAME", Value: accountPeerServiceDNSName(instance)})
+	}
+	// Seed the account's self-hosted nodes as static peers so the managed
+	// mesh dials them (the managed->self-hosted replication leg). In-cluster
+	// peers are still discovered through the headless Services above; these
+	// are additive.
+	if len(instance.Spec.MeshExternalPeers) > 0 {
+		env = append(env, corev1.EnvVar{Name: "KURA_PEERS", Value: strings.Join(instance.Spec.MeshExternalPeers, ",")})
 	}
 	return env
 }

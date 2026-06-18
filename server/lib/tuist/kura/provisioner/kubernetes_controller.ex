@@ -15,6 +15,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Billing.Entitlements
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client
+  alias Tuist.Kura.Mesh
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
 
@@ -36,10 +37,12 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     with {:ok, hook_script} <- hook_script(inputs) do
       gateway = gateway_assignment(account, region)
 
+      external_peers = mesh_enabled?(region) && Mesh.self_hosted_peer_urls(account)
+
       case apply_manifests(
              [
                gateway_manifest(gateway, account, region),
-               manifest(name, image_tag, account, region, server, hook_script, gateway)
+               manifest(name, image_tag, account, region, server, hook_script, gateway, external_peers || [])
              ],
              region
            ) do
@@ -183,7 +186,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @doc false
-  def manifest(name, image_tag, account, %Regions{} = region, %Server{}, hook_script, gateway) do
+  def manifest(name, image_tag, account, %Regions{} = region, %Server{}, hook_script, gateway, external_peers \\ []) do
     account_handle = dns_handle(account.name)
     annotations = maybe_put_gateway_annotation(%{@manifest_revision_annotation => @manifest_revision}, gateway)
 
@@ -212,6 +215,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "ingressClassName" => ingress_class_name(region, gateway),
           "peerTLSSecretName" => peer_tls_secret_name(region),
           "mesh" => mesh_enabled?(region),
+          "meshPublicPeerHost" => mesh_public_peer_host(account_handle, region),
+          "meshExternalPeers" => mesh_external_peers(region, external_peers),
           "private" => Regions.private?(region),
           "exposeNodePort" => Regions.node_port_data_plane?(region),
           "clientCIDRs" => client_cidrs(region),
@@ -291,6 +296,17 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp mesh_enabled?(%Regions{provisioner_config: %{mesh: mesh}}) when is_boolean(mesh), do: mesh
   defp mesh_enabled?(_region), do: false
+
+  defp mesh_public_peer_host(handle, region) do
+    if mesh_enabled?(region), do: Regions.peer_public_host(handle, region)
+  end
+
+  defp mesh_external_peers(region, external_peers) do
+    case mesh_enabled?(region) && external_peers do
+      [_ | _] = urls -> urls
+      _ -> nil
+    end
+  end
 
   # Tuist-platform-wide secrets (JWT verifier, control-plane client
   # secret) are

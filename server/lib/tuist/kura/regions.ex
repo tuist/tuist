@@ -38,6 +38,11 @@ defmodule Tuist.Kura.Regions do
   # distinct hostnames (e.g. `acme-eu-central-1-staging.kura.tuist.dev`).
   @managed_region_public_host_template "{account_handle}-{cluster_id}{env_suffix}.kura.tuist.dev"
   @managed_region_grpc_public_host_template "grpc.{account_handle}-{cluster_id}{env_suffix}.kura.tuist.dev"
+  @managed_region_peer_public_host_template "peer.{account_handle}-{cluster_id}{env_suffix}.kura.tuist.dev"
+
+  # The peer/replication port managed Kura instances listen on (matches the
+  # controller's peerPort). Self-hosted nodes dial the public peer host here.
+  @peer_port 7443
   @managed_region_storage_class "hcloud-volumes"
   @managed_region_specs [
     %{
@@ -194,6 +199,35 @@ defmodule Tuist.Kura.Regions do
   def node_port_data_plane?(_), do: false
 
   @doc """
+  The public hostname this region's account peer plane is reachable at from
+  outside the cluster, or `nil` for regions without a peer host template (the
+  local controller and the private runner-cache regions). The controller
+  publishes this host (`meshPublicPeerHost`) and covers it in the peer-cert SAN.
+  """
+  def peer_public_host(handle, %__MODULE__{
+        provisioner_config: %{peer_public_host_template: template, cluster_id: cluster_id}
+      })
+      when is_binary(handle) do
+    template
+    |> String.replace("{account_handle}", String.downcase(handle))
+    |> String.replace("{cluster_id}", cluster_id)
+  end
+
+  def peer_public_host(_handle, _region), do: nil
+
+  @doc """
+  The public peer URL (`https://<peer_public_host>:<peer_port>`) a self-hosted
+  node dials to join this region's managed mesh, or `nil` when the region has
+  no public peer host.
+  """
+  def peer_public_url(handle, %__MODULE__{} = region) do
+    case peer_public_host(handle, region) do
+      nil -> nil
+      host -> "https://#{host}:#{@peer_port}"
+    end
+  end
+
+  @doc """
   True iff this region's runner-cache nodes serve runner fleets of the
   given platform (`:linux` | `:macos`). Always `false` for public
   regions — they have no `runner_platforms` and are CLI-facing, not
@@ -249,6 +283,7 @@ defmodule Tuist.Kura.Regions do
         hetzner_location: spec.hetzner_location,
         public_host_template: String.replace(@managed_region_public_host_template, "{env_suffix}", host_suffix),
         grpc_public_host_template: String.replace(@managed_region_grpc_public_host_template, "{env_suffix}", host_suffix),
+        peer_public_host_template: String.replace(@managed_region_peer_public_host_template, "{env_suffix}", host_suffix),
         ingress_class_name: spec.ingress_class_name,
         storage_class: @managed_region_storage_class,
         tuist_base_url: Tuist.Environment.kura_tuist_base_url(),

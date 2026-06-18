@@ -190,6 +190,10 @@ func (in *KuraInstanceSpec) DeepCopyInto(out *KuraInstanceSpec) {
 			out.PodAnnotations[key] = value
 		}
 	}
+	if in.MeshExternalPeers != nil {
+		out.MeshExternalPeers = make([]string, len(in.MeshExternalPeers))
+		copy(out.MeshExternalPeers, in.MeshExternalPeers)
+	}
 }
 
 func (in *KuraInstanceSpec) DeepCopy() *KuraInstanceSpec {

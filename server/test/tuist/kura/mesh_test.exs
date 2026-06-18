@@ -114,5 +114,26 @@ defmodule Tuist.Kura.MeshTest do
       assert Mesh.enroll_node(account, %{csr: csr_pem(), node_url: "not-a-url"}) ==
                {:error, :invalid_node_url}
     end
+
+    test "seeds the managed region's public peer endpoint so the node dials the managed mesh" do
+      account = AccountsFixtures.organization_fixture().account
+
+      ca_key = X509.PrivateKey.new_ec(:secp256r1)
+      ca_cert = X509.Certificate.self_signed(ca_key, "/CN=kura test peer CA", template: :root_ca)
+
+      data = %{
+        "ca.pem" => Base.encode64(X509.Certificate.to_pem(ca_cert)),
+        "ca-key.pem" => Base.encode64(X509.PrivateKey.to_pem(ca_key))
+      }
+
+      stub(Kura, :list_servers_for_account, fn _ -> [%Server{region: "eu-central"}] end)
+      stub(Client, :get, fn _path, _opts -> {:ok, %{"data" => data}} end)
+
+      {:ok, enrollment} =
+        Mesh.enroll_node(account, %{csr: csr_pem(), node_url: "https://kura-1.acme.test:4433"})
+
+      expected = "https://peer.#{String.downcase(account.name)}-eu-central-1.kura.tuist.dev:7443"
+      assert expected in enrollment.peers
+    end
   end
 end

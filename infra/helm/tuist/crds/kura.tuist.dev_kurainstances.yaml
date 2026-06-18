@@ -111,6 +111,19 @@ spec:
                 # pods replicate to each other and no other account can.
                 mesh:
                   type: boolean
+                # Public hostname for the account peer plane. When set (mesh
+                # mode) the controller provisions a LoadBalancer for the peer
+                # port and adds the host to each instance's peer-cert SAN, so a
+                # self-hosted node can dial the managed mesh over the internet.
+                meshPublicPeerHost:
+                  type: string
+                # Self-hosted node peer URLs injected into managed pods'
+                # KURA_PEERS so the managed mesh dials them (managed->self-hosted
+                # replication leg).
+                meshExternalPeers:
+                  type: array
+                  items:
+                    type: string
                 storageClassName:
                   type: string
                 storageSize:
