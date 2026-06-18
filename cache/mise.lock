@@ -19,17 +19,14 @@ backend = "core:ruby"
 [tools.ruby."platforms.linux-arm64"]
 checksum = "sha256:3b0d5ddc24d7d988ef3f95d092a8066216c39d11b94de2ac957c360e3c589f85"
 url = "https://github.com/jdx/ruby/releases/download/3.3.10/ruby-3.3.10.arm64_linux.tar.gz"
-provenance = "github-attestations"
 
 [tools.ruby."platforms.linux-x64"]
 checksum = "sha256:743c7b4774279a50658ff91af2fb0c99efef48d909dd9cf9d40c1fbcba742504"
 url = "https://github.com/jdx/ruby/releases/download/3.3.10/ruby-3.3.10.x86_64_linux.tar.gz"
-provenance = "github-attestations"
 
 [tools.ruby."platforms.macos-arm64"]
 checksum = "sha256:0c6bce9bcdc4ecabb4d8bc5f37f099745035194b71b74411dabe34ef5fd2aa12"
 url = "https://github.com/jdx/ruby/releases/download/3.3.10/ruby-3.3.10.macos.tar.gz"
-provenance = "github-attestations"
 
 [tools.ruby."platforms.macos-x64"]
 checksum = "sha256:b555baa467a306cfc8e6c6ed24d0d27b27e9a1bed1d91d95509859eac6b0e928"
