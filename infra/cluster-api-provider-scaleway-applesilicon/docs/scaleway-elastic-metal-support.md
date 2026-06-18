@@ -162,6 +162,32 @@ Hetzner peers, and macOS runners reach the cache over the PN NodePort (exercised
 by `runners-staging-smoke.yml`). The orphan reclaimer releases servers left
 behind by failed provisions.
 
+## Bringing up the macOS runner cache in an environment
+
+`kuraFleet.enabled` provisions the EM node, but routing the Mac fleet's build
+cache to it needs three gates flipped together in that env's values (see
+`values-managed-{staging,canary,production}.yaml`):
+
+1. advertise the macOS-serving private region: add `scw-fr-par-runners` to
+   `TUIST_KURA_AVAILABLE_REGIONS`;
+2. enable macOS cluster-network dispatch:
+   `TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS=linux,macos`;
+3. attach the minis to the PN: `macosFleet.vmCachePrivateNetwork.{name,cidr}`.
+
+Two prerequisites are not in the deploy pipeline and must exist per cluster, or
+dispatch returns no endpoint and builds fall back to the public cache (the
+cutover degrades rather than breaks while they are missing):
+
+- **`scw-local-nvme` StorageClass** (local-path provisioner on the EM node's
+  NVMe). Apply once per cluster after the EM node joins:
+  `kubectl apply -f infra/k8s/mgmt/bootstrap/local-path-provisioner.yaml`.
+  Without it the per-account cache PVCs hang `Pending` and no KuraInstance goes
+  active.
+- **A Private Network named `tuist-runner-cache`** in the env's Scaleway
+  project. The operator find-or-creates it from `172.16.0.0/22`, but rename the
+  env's existing runner-cache PN to that name so the EM node and the minis share
+  the one you already set up rather than landing on a fresh one.
+
 ## Out of scope
 
 - Renaming the provider.
