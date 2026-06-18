@@ -32,6 +32,7 @@ import (
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/credentials"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/kubeconfig"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/scaleway"
+	"github.com/tuist/tuist/infra/macos-host-bootstrap"
 )
 
 const (
@@ -272,7 +273,22 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileNormal(
 		})
 
 		machine.Status.Phase = "Bootstrapping"
-		if bootErr := r.bootstrap(ctx, host, sshKey, bootstrapScript); bootErr != nil {
+		// Pinned host fingerprint (empty on first reconcile); persist what the
+		// dial observes even on script failure so a retry verifies the same key.
+		known := ""
+		if creds, fpErr := r.CredentialsManager.GetMachineBootstrap(ctx, machine.Name); fpErr != nil {
+			return ctrl.Result{}, fmt.Errorf("read host fingerprint: %w", fpErr)
+		} else if creds != nil {
+			known = creds.HostFingerprint
+		}
+		hk := bootstrap.NewHostKeyState(known)
+		bootErr := r.sshBootstrap(ctx, host, sshKey, bootstrapScript, hk)
+		if observed := hk.Observed(); observed != "" && observed != known {
+			if perr := r.CredentialsManager.SetMachineHostFingerprint(ctx, machine.Name, observed); perr != nil {
+				logger.Error(perr, "persist host fingerprint; will retry")
+			}
+		}
+		if bootErr != nil {
 			conditions.MarkFalse(machine, ProvisionedCondition, "BootstrapFailed",
 				clusterv1.ConditionSeverityWarning, "%v", bootErr)
 			machine.Status.BootstrapAttempts++
@@ -396,6 +412,14 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileDelete(ctx context.Cont
 		return ctrl.Result{}, err
 	}
 
+	// Wipe the per-machine bootstrap Secret (the TOFU host fingerprint), so a
+	// future machine reusing this name doesn't fail bootstrap against a stale
+	// pin from the released server.
+	if err := r.CredentialsManager.DeleteMachineBootstrap(ctx, machine.Name); err != nil {
+		r.event(machine, "DeleteBootstrapFailed", "delete machine bootstrap secret: %v (will retry)", err)
+		return ctrl.Result{}, err
+	}
+
 	controllerutil.RemoveFinalizer(machine, ElasticMetalMachineFinalizer)
 	return ctrl.Result{}, nil
 }
@@ -422,15 +446,19 @@ func (r *ScalewayElasticMetalMachineReconciler) fleetSSHKey(ctx context.Context,
 // user-data channel (unlike Instances), so the same self-join logic is rendered
 // as a standalone bash script and piped to the host's shell instead; the script
 // escalates with sudo because the login user isn't root.
-func (r *ScalewayElasticMetalMachineReconciler) bootstrap(ctx context.Context, host string, privateKey []byte, script string) error {
+func (r *ScalewayElasticMetalMachineReconciler) sshBootstrap(ctx context.Context, host string, privateKey []byte, script string, hk *bootstrap.HostKeyState) error {
 	signer, err := ssh.ParsePrivateKey(privateKey)
 	if err != nil {
 		return fmt.Errorf("parse ssh private key: %w", err)
 	}
+	// TOFU host-key verification (shared with the Apple Silicon reconciler):
+	// hk pins the host fingerprint on first contact and rejects a changed key
+	// thereafter, so the self-join script — which carries the kubelet node
+	// identity — isn't delivered over a blindly-trusted channel on retries.
 	cfg := &ssh.ClientConfig{
 		User:            elasticMetalBootstrapUser,
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: hk.Callback(),
 		Timeout:         30 * time.Second,
 	}
 
