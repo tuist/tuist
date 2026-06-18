@@ -145,8 +145,8 @@ source "tart-cli" "runner" {
   # tight values held for years on the original Mac mini but timed out
   # on newly-onboarded hosts. 15m gives headroom for the cold path on a
   # cirruslabs Tahoe base; the warm path returns long before then.
-  ssh_timeout  = "15m"
-  headless     = true
+  ssh_timeout = "15m"
+  headless    = true
 }
 
 build {
@@ -295,6 +295,35 @@ build {
       "rm -f /tmp/dev.tuist.runner.plist",
       "sudo mkdir -p /var/log/tuist-runner",
       "sudo chown runner:staff /var/log/tuist-runner"
+    ]
+  }
+
+  # Pre-warm the image so a freshly-cloned runner VM reaches the
+  # dispatch poll in seconds rather than minutes. A fresh clone pays
+  # macOS first-time setup *after* the network is up — Spotlight
+  # indexing the cloned volume, the asset-cache locator and the
+  # software-update scan waking on first boot — which is the gap
+  # between the VM getting an IP (seconds; that's when the Pod flips
+  # Running) and the launchd agent actually polling for work. These
+  # settings live on the volume / system override store, which Tart
+  # clones inherit, so every runtime clone skips the work. All are
+  # safe for an ephemeral single-tenant CI VM that runs one job and
+  # halts: nothing here is read by a customer workflow.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      # Spotlight is the dominant per-clone cost. Disable indexing on
+      # every volume and erase any existing store so a cloned volume
+      # never reindexes. The first sudo primes the admin timestamp
+      # cache for the bare sudo calls below.
+      "echo 'admin' | sudo -S mdutil -a -i off",
+      "sudo mdutil -a -E || true",
+      # First-boot background services a runner never uses. launchctl
+      # disable writes the system override store, inherited by clones.
+      # `|| true` tolerates service-label drift across macOS releases —
+      # a renamed/absent label must not fail the whole bake.
+      "sudo launchctl disable system/com.apple.AssetCacheLocatorService || true",
+      "sudo softwareupdate --schedule off || true"
     ]
   }
 
