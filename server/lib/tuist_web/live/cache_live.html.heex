@@ -25,6 +25,8 @@
       self_hosted_endpoints={@self_hosted_endpoints}
       add_self_hosted_endpoint_form={@add_self_hosted_endpoint_form}
     />
+
+    <.registered_nodes_section registered_endpoints={@registered_endpoints} />
   <% else %>
     <.card_section data-part="cache-disabled-card">
       <.alert

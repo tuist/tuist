@@ -12,6 +12,7 @@ defmodule TuistWeb.CacheLive do
   alias Tuist.Environment
   alias Tuist.Kura
   alias Tuist.Kura.Regions
+  alias Tuist.Kura.Registrations
   alias Tuist.Kura.SelfHostedClients
   alias Tuist.Kura.Server
 
@@ -244,12 +245,14 @@ defmodule TuistWeb.CacheLive do
     socket
     |> assign(:self_hosted_endpoints, [])
     |> assign(:self_hosted_clients, [])
+    |> assign(:registered_endpoints, [])
   end
 
   defp load_self_hosted_state(%{assigns: %{selected_account: account}} = socket) do
     socket
     |> assign(:self_hosted_endpoints, Accounts.list_account_cache_endpoints(account, :kura_self_hosted))
     |> assign(:self_hosted_clients, SelfHostedClients.list_self_hosted_clients(account))
+    |> assign(:registered_endpoints, Registrations.list_endpoints(account))
   end
 
   defp cache_enabled?(account) do
@@ -834,4 +837,63 @@ defmodule TuistWeb.CacheLive do
     </.card_section>
     """
   end
+
+  def registered_nodes_section(assigns) do
+    ~H"""
+    <.card_section data-part="registered-nodes-card">
+      <div data-part="header">
+        <div data-part="title-group">
+          <span data-part="title">{dgettext("dashboard_account", "Registered nodes")}</span>
+          <span data-part="subtitle">
+            {dgettext(
+              "dashboard_account",
+              "Self-hosted nodes currently reporting in via registration heartbeats. A node drops off this list when it stops heartbeating."
+            )}
+          </span>
+        </div>
+      </div>
+      <.table id="registered-nodes-table" rows={@registered_endpoints}>
+        <:col :let={node} label={dgettext("dashboard_account", "Node")}>
+          <.text_cell label={node.node_id} />
+        </:col>
+        <:col :let={node} label={dgettext("dashboard_account", "Endpoint")}>
+          <.text_cell label={node.advertised_http_url} />
+        </:col>
+        <:col :let={node} label={dgettext("dashboard_account", "Region")}>
+          <.text_cell label={node.region || "—"} />
+        </:col>
+        <:col :let={node} label={dgettext("dashboard_account", "Version")}>
+          <.text_cell label={node.version || "—"} />
+        </:col>
+        <:col :let={node} label={dgettext("dashboard_account", "Status")}>
+          <.badge_cell
+            label={registered_status_label(node)}
+            color={registered_status_color(node)}
+            style="light-fill"
+          />
+        </:col>
+        <:col :let={node} label={dgettext("dashboard_account", "Last heartbeat")}>
+          <.text_cell label={Tuist.Utilities.DateFormatter.from_now(node.last_heartbeat_at)} />
+        </:col>
+        <:empty_state>
+          <.table_empty_state
+            title={dgettext("dashboard_account", "No registered nodes")}
+            subtitle={
+              dgettext(
+                "dashboard_account",
+                "Self-hosted nodes appear here once they start sending registration heartbeats."
+              )
+            }
+          />
+        </:empty_state>
+      </.table>
+    </.card_section>
+    """
+  end
+
+  defp registered_status_label(%{ready: true}), do: dgettext("dashboard_account", "Ready")
+  defp registered_status_label(_), do: dgettext("dashboard_account", "Not ready")
+
+  defp registered_status_color(%{ready: true}), do: "success"
+  defp registered_status_color(_), do: "warning"
 end

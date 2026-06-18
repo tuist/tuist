@@ -39,6 +39,26 @@ defmodule TuistWeb.CacheLiveTest do
     assert html =~ "Cache · #{account.name} · Tuist"
   end
 
+  test "lists registered self-hosted nodes", %{conn: conn, account: account} do
+    enable_cache(account)
+    stub(Kura, :latest_versions, fn 1 -> [] end)
+
+    {:ok, _endpoint} =
+      Tuist.Kura.Registrations.register_heartbeat(account, %{
+        node_id: "kura-office-0",
+        advertised_http_url: "https://cache.acme.internal",
+        region: "us-office",
+        ready: true,
+        version: "0.5.2"
+      })
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/cache")
+
+    assert html =~ "Registered nodes"
+    assert html =~ "kura-office-0"
+    assert html =~ "https://cache.acme.internal"
+  end
+
   test "raises UnauthorizedError when the user is not authorized", %{conn: conn} do
     organization = AccountsFixtures.organization_fixture(preload: [:account])
     user = AccountsFixtures.user_fixture()
