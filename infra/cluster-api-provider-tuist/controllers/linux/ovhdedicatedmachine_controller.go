@@ -1,4 +1,4 @@
-package controllers
+package linux
 
 import (
 	"context"
@@ -26,6 +26,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/controllers/shared"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/credentials"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/kubeconfig"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/ovh"
@@ -158,7 +159,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 		fleet := machine.Namespace + "-" + machine.Name
 		privateKey, keyErr := r.CredentialsManager.EnsureFleetSSHKey(ctx, fleet)
 		if keyErr != nil {
-			conditions.MarkFalse(machine, ProvisionedCondition, "SSHKeyUnavailable",
+			conditions.MarkFalse(machine, shared.ProvisionedCondition, "SSHKeyUnavailable",
 				clusterv1.ConditionSeverityError, "%v", keyErr)
 			machine.Status.Phase = "Pending"
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
@@ -183,7 +184,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 				return ctrl.Result{}, adoptErr
 			}
 			if server == nil {
-				conditions.MarkFalse(machine, ProvisionedCondition, "NoAdoptableServer",
+				conditions.MarkFalse(machine, shared.ProvisionedCondition, "NoAdoptableServer",
 					clusterv1.ConditionSeverityInfo,
 					"no free pre-ordered OVH server in %s under %q; awaiting capacity", datacenter, machine.Spec.AdoptDisplayNamePrefix)
 				machine.Status.Phase = "Adopting"
@@ -228,12 +229,12 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 				conditions.MarkTrue(machine, OSInstallRequestedCondition)
 				r.event(machine, "Installing", "Started OS install %q on %s", template, machine.Status.ServiceName)
 			}
-			conditions.MarkFalse(machine, ProvisionedCondition, "Installing",
+			conditions.MarkFalse(machine, shared.ProvisionedCondition, "Installing",
 				clusterv1.ConditionSeverityInfo, "server %s installing", machine.Status.ServiceName)
 			machine.Status.Phase = "Installing"
 			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 		case ovh.InstallRunning:
-			conditions.MarkFalse(machine, ProvisionedCondition, "Installing",
+			conditions.MarkFalse(machine, shared.ProvisionedCondition, "Installing",
 				clusterv1.ConditionSeverityInfo, "server %s installing", machine.Status.ServiceName)
 			machine.Status.Phase = "Installing"
 			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
@@ -272,7 +273,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 
 		machine.Status.Phase = "Bootstrapping"
 		if bootErr := bootstrapOverSSH(ctx, ovhBootstrapUser, server.IP, privateKey, script); bootErr != nil {
-			conditions.MarkFalse(machine, ProvisionedCondition, "BootstrapFailed",
+			conditions.MarkFalse(machine, shared.ProvisionedCondition, "BootstrapFailed",
 				clusterv1.ConditionSeverityWarning, "%v", bootErr)
 			machine.Status.BootstrapAttempts++
 			logger.Info("bootstrap over SSH failed, will retry", "host", server.IP, "err", bootErr.Error())
@@ -282,7 +283,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 
 		providerID := ovh.ProviderID(datacenter, machine.Status.ServiceName)
 		machine.Spec.ProviderID = &providerID
-		conditions.MarkTrue(machine, ProvisionedCondition)
+		conditions.MarkTrue(machine, shared.ProvisionedCondition)
 		r.event(machine, "Bootstrapped", "Bootstrapped OVH server %s as %s@%s", machine.Status.ServiceName, ovhBootstrapUser, server.IP)
 		return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
 	}
@@ -361,7 +362,7 @@ func (r *OVHDedicatedMachineReconciler) fail(machine *infrav1.OVHDedicatedMachin
 	machine.Status.Phase = "Failed"
 	machine.Status.FailureReason = &reason
 	machine.Status.FailureMessage = &message
-	conditions.MarkFalse(machine, ProvisionedCondition, reason, clusterv1.ConditionSeverityError, "%s", message)
+	conditions.MarkFalse(machine, shared.ProvisionedCondition, reason, clusterv1.ConditionSeverityError, "%s", message)
 	r.event(machine, reason, "%s", message)
 	return ctrl.Result{}, nil
 }

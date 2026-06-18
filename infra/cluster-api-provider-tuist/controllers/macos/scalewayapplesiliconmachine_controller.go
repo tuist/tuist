@@ -1,6 +1,6 @@
-// Package controllers contains the reconcilers for the Scaleway Apple
-// Silicon CAPI provider's CRDs.
-package controllers
+// Package macos contains the reconcilers for the macOS (Apple Silicon)
+// machine kind and its fleet controllers (fleet-spread, orphan reclaim).
+package macos
 
 import (
 	"context"
@@ -29,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/controllers/shared"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/credentials"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/kubeconfig"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/runner"
@@ -42,8 +43,8 @@ const (
 	// 24h floor means leaks cost money — this matters).
 	MachineFinalizer = "scalewayapplesilicon.cluster.x-k8s.io/finalizer"
 
-	// Conditions surfaced on the CR for operator visibility.
-	ProvisionedCondition  clusterv1.ConditionType = "Provisioned"
+	// BootstrappedCondition is macOS-specific (the tart-kubelet SSH bootstrap
+	// step); the cross-cutting shared.ProvisionedCondition lives in the shared package.
 	BootstrappedCondition clusterv1.ConditionType = "Bootstrapped"
 )
 
@@ -409,13 +410,13 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		// RBAC and never exposed via the CR's wider read surface
 		// (etcd backups, audit logs, `kubectl describe`).
 		if err := r.CredentialsManager.SetMachineCredentials(ctx, machine.Name, srv.SudoPassword, srv.SSHUsername); err != nil {
-			conditions.MarkFalse(machine, ProvisionedCondition, "CredentialsPersistFailed",
+			conditions.MarkFalse(machine, shared.ProvisionedCondition, "CredentialsPersistFailed",
 				clusterv1.ConditionSeverityError, "%v", err)
 			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ProvisioningFailed",
 				"persist machine credentials: %v", err)
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
-		conditions.MarkTrue(machine, ProvisionedCondition)
+		conditions.MarkTrue(machine, shared.ProvisionedCondition)
 		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Provisioned",
 			"Mac mini %s ready, IP=%s", srv.ID, srv.IP)
 		logger.Info("provisioned Scaleway Mac mini", "id", srv.ID, "ip", srv.IP)
@@ -1040,7 +1041,7 @@ type bootstrapSecretCleaner interface {
 // SSH-verify against the replacement host's key, locking us into a
 // fingerprint-mismatch bootstrap failure on the new mini.
 // Outwardly-visible state tied to the discarded host (Status.Ready,
-// Status.Phase, Spec.ProviderID, Status.Addresses, ProvisionedCondition)
+// Status.Phase, Spec.ProviderID, Status.Addresses, shared.ProvisionedCondition)
 // is reset to its pre-adoption shape so CAPI and operators don't
 // momentarily see a stale "Ready" Machine pointing at a server we no
 // longer control.
@@ -1111,7 +1112,7 @@ func handleBootstrapFailure(
 		machine.Status.Addresses = nil
 		machine.Status.Phase = "Pending"
 		machine.Spec.ProviderID = nil
-		conditions.MarkFalse(machine, ProvisionedCondition, "HostReleased",
+		conditions.MarkFalse(machine, shared.ProvisionedCondition, "HostReleased",
 			clusterv1.ConditionSeverityWarning,
 			"released Scaleway server %s after %d bootstrap failures; awaiting fresh adopt",
 			releasedID, attempts)
@@ -1155,7 +1156,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) acquireServer(
 		machine.Spec.AdoptPoolPrefix,
 	)
 	if errors.Is(err, scaleway.ErrNoAvailableHost) {
-		conditions.MarkFalse(machine, ProvisionedCondition, "NoAvailableHost",
+		conditions.MarkFalse(machine, shared.ProvisionedCondition, "NoAvailableHost",
 			clusterv1.ConditionSeverityWarning,
 			"no server with prefix %q matching %s/%s/%s in zone %s; pre-order more capacity",
 			machine.Spec.AdoptPoolPrefix, machine.Spec.Type, machine.Spec.OS,
@@ -1166,7 +1167,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) acquireServer(
 		return nil, 60 * time.Second, nil
 	}
 	if err != nil {
-		conditions.MarkFalse(machine, ProvisionedCondition, "ScalewayAdoptFailed",
+		conditions.MarkFalse(machine, shared.ProvisionedCondition, "ScalewayAdoptFailed",
 			clusterv1.ConditionSeverityError, "%v", err)
 		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ProvisioningFailed",
 			"Scaleway AdoptFromPool: %v", err)

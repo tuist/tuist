@@ -1,4 +1,4 @@
-package controllers
+package linux
 
 import (
 	"context"
@@ -29,6 +29,7 @@ import (
 	"github.com/scaleway/scaleway-sdk-go/scw"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/controllers/shared"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/credentials"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/kubeconfig"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/scaleway"
@@ -199,7 +200,7 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileNormal(
 		fleet := machine.Namespace + "-" + machine.Name
 		sshKey, sshKeyID, keyErr := r.fleetSSHKey(ctx, fleet)
 		if keyErr != nil {
-			conditions.MarkFalse(machine, ProvisionedCondition, "SSHKeyUnavailable",
+			conditions.MarkFalse(machine, shared.ProvisionedCondition, "SSHKeyUnavailable",
 				clusterv1.ConditionSeverityError, "%v", keyErr)
 			machine.Status.Phase = "Pending"
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
@@ -226,7 +227,7 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileNormal(
 			server = created
 			machine.Status.ServerID = server.ID
 			machine.Status.Phase = "Ordered"
-			conditions.MarkFalse(machine, ProvisionedCondition, "Ordered",
+			conditions.MarkFalse(machine, shared.ProvisionedCondition, "Ordered",
 				clusterv1.ConditionSeverityInfo, "Ordered Elastic Metal server %s; awaiting OS install", server.ID)
 			logger.Info("ordered Elastic Metal server", "id", server.ID)
 			r.event(machine, "Provisioned", "Ordered Elastic Metal server %s", server.ID)
@@ -244,7 +245,7 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileNormal(
 		}
 		if !scaleway.ServerInstalled(server) {
 			machine.Status.Phase = installPhase(server)
-			conditions.MarkFalse(machine, ProvisionedCondition, "Installing",
+			conditions.MarkFalse(machine, shared.ProvisionedCondition, "Installing",
 				clusterv1.ConditionSeverityInfo, "Server %s installing (status %s)", server.ID, installStatus(server))
 			logger.Info("waiting for Elastic Metal OS install", "id", server.ID, "status", installStatus(server))
 			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
@@ -256,7 +257,7 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileNormal(
 		// host without its cache interface).
 		pnID, pnResolveErr := r.resolvePrivateNetwork(ctx, machine, zone)
 		if pnResolveErr != nil {
-			conditions.MarkFalse(machine, ProvisionedCondition, "PrivateNetworkPending",
+			conditions.MarkFalse(machine, shared.ProvisionedCondition, "PrivateNetworkPending",
 				clusterv1.ConditionSeverityInfo, "%v", pnResolveErr)
 			machine.Status.Phase = "Provisioning"
 			logger.Info("resolving Private Network", "id", server.ID, "err", pnResolveErr.Error())
@@ -264,7 +265,7 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileNormal(
 		}
 		vlan, pnErr := r.ScalewayClient.EnsurePrivateNetwork(ctx, zone, server.ID, pnID)
 		if pnErr != nil {
-			conditions.MarkFalse(machine, ProvisionedCondition, "PrivateNetworkPending",
+			conditions.MarkFalse(machine, shared.ProvisionedCondition, "PrivateNetworkPending",
 				clusterv1.ConditionSeverityInfo, "%v", pnErr)
 			machine.Status.Phase = "Provisioning"
 			logger.Info("waiting for Private Network VLAN", "id", server.ID, "err", pnErr.Error())
@@ -315,7 +316,7 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileNormal(
 			}
 		}
 		if bootErr != nil {
-			conditions.MarkFalse(machine, ProvisionedCondition, "BootstrapFailed",
+			conditions.MarkFalse(machine, shared.ProvisionedCondition, "BootstrapFailed",
 				clusterv1.ConditionSeverityWarning, "%v", bootErr)
 			machine.Status.BootstrapAttempts++
 			logger.Info("bootstrap over SSH failed, will retry", "host", host, "err", bootErr.Error())
@@ -325,7 +326,7 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileNormal(
 
 		providerID := scaleway.BaremetalProviderID(zone, server.ID)
 		machine.Spec.ProviderID = &providerID
-		conditions.MarkTrue(machine, ProvisionedCondition)
+		conditions.MarkTrue(machine, shared.ProvisionedCondition)
 		machine.Status.Phase = "Bootstrapping"
 		r.event(machine, "Bootstrapped", "Bootstrapped Elastic Metal server %s as %s@%s", server.ID, elasticMetalBootstrapUser, host)
 		return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
@@ -541,7 +542,7 @@ func (r *ScalewayElasticMetalMachineReconciler) fail(machine *infrav1.ScalewayEl
 	machine.Status.Phase = "Failed"
 	machine.Status.FailureReason = &reason
 	machine.Status.FailureMessage = &message
-	conditions.MarkFalse(machine, ProvisionedCondition, reason, clusterv1.ConditionSeverityError, "%s", message)
+	conditions.MarkFalse(machine, shared.ProvisionedCondition, reason, clusterv1.ConditionSeverityError, "%s", message)
 	r.event(machine, reason, "%s", message)
 	return ctrl.Result{}, nil
 }

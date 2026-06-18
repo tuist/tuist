@@ -1,4 +1,4 @@
-package controllers
+package macos
 
 import (
 	"context"
@@ -18,6 +18,8 @@ import (
 	"k8s.io/client-go/tools/record"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
+
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/controllers/shared"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -819,7 +821,7 @@ func TestHandleBootstrapFailure_ReleasesToPoolAtMax(t *testing.T) {
 	// previous host's TOFU fingerprint can't poison the next
 	// adopt), counters reset, and outwardly-visible state tied to
 	// the discarded host (Status.Ready, Status.Phase,
-	// Spec.ProviderID, Status.Addresses, ProvisionedCondition)
+	// Spec.ProviderID, Status.Addresses, shared.ProvisionedCondition)
 	// reverts to its pre-adoption shape.
 	machine := newBootstrapFailureMachine("srv-1", "tuist-pool-")
 	machine.Status.BootstrapAttempts = 7        // next call lands at 8 = maxAttempts
@@ -838,7 +840,7 @@ func TestHandleBootstrapFailure_ReleasesToPoolAtMax(t *testing.T) {
 		Type:    clusterv1.MachineExternalIP,
 		Address: "62.210.0.1",
 	}}
-	conditions.MarkTrue(machine, ProvisionedCondition)
+	conditions.MarkTrue(machine, shared.ProvisionedCondition)
 
 	stub := &recoveryStub{}
 	secrets := &secretCleanerStub{}
@@ -872,8 +874,8 @@ func TestHandleBootstrapFailure_ReleasesToPoolAtMax(t *testing.T) {
 	if len(machine.Status.Addresses) != 0 {
 		t.Fatalf("Status.Addresses must clear on release, got %+v", machine.Status.Addresses)
 	}
-	if !conditions.IsFalse(machine, ProvisionedCondition) {
-		t.Fatal("ProvisionedCondition must flip False on release; the host is gone")
+	if !conditions.IsFalse(machine, shared.ProvisionedCondition) {
+		t.Fatal("shared.ProvisionedCondition must flip False on release; the host is gone")
 	}
 }
 

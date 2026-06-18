@@ -39,7 +39,9 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
-	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/controllers"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/controllers/linux"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/controllers/macos"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/controllers/shared"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/credentials"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/githubapp"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/kubeconfig"
@@ -386,7 +388,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := (&controllers.TuistClusterReconciler{
+	if err := (&shared.TuistClusterReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
@@ -424,7 +426,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := (&controllers.ScalewayAppleSiliconMachineReconciler{
+	if err := (&macos.ScalewayAppleSiliconMachineReconciler{
 		Client:               mgr.GetClient(),
 		Scheme:               mgr.GetScheme(),
 		ScalewayClient:       scwClient,
@@ -475,7 +477,7 @@ func main() {
 		setupLog.Error(err, "scaleway baremetal client")
 		os.Exit(1)
 	}
-	if err := (&controllers.ScalewayElasticMetalMachineReconciler{
+	if err := (&linux.ScalewayElasticMetalMachineReconciler{
 		Client:             mgr.GetClient(),
 		APIReader:          mgr.GetAPIReader(),
 		Scheme:             mgr.GetScheme(),
@@ -505,7 +507,7 @@ func main() {
 			setupLog.Error(err, "ovh client")
 			os.Exit(1)
 		}
-		if err := (&controllers.OVHDedicatedMachineReconciler{
+		if err := (&linux.OVHDedicatedMachineReconciler{
 			Client:             mgr.GetClient(),
 			APIReader:          mgr.GetAPIReader(),
 			Scheme:             mgr.GetScheme(),
@@ -528,7 +530,7 @@ func main() {
 		if ns == "" {
 			ns = secretsNamespace
 		}
-		if err := (&controllers.FleetSpreadReconciler{
+		if err := (&macos.FleetSpreadReconciler{
 			Client:         mgr.GetClient(),
 			APIReader:      mgr.GetAPIReader(),
 			DeploymentName: fleetSpreadDeployment,
@@ -546,7 +548,7 @@ func main() {
 	// until a claim-name prefix is also set; see the flag help.
 	if defaultAdoptPoolPrefix != "" {
 		reclaimZones := parseCommaList(orphanReclaimZonesRaw)
-		if err := mgr.Add(&controllers.OrphanReclaimer{
+		if err := mgr.Add(&macos.OrphanReclaimer{
 			Client:          mgr.GetClient(),
 			APIReader:       mgr.GetAPIReader(),
 			Scaleway:        scwClient,
