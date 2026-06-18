@@ -288,19 +288,31 @@ jobs:
       - name: helm dependency update
         run: helm dependency update "$OBSERVABILITY_CHART_PATH"
       - name: helm upgrade --install k8s-monitoring
-        # Apply without --wait. The chart ships a node-exporter DaemonSet, so a
-        # single unschedulable or NotReady node leaves it permanently short of
-        # full readiness; `--wait` would then burn the whole --timeout and fail,
-        # which (via the deploy gate) skips the server rollout entirely.
-        # Observability is best-effort infra and must never block shipping the
-        # app: the Alloy OTLP receiver comes up well within the server's own
-        # rollout window. Apply-time errors still surface (helm fails on a bad
-        # manifest); only the all-resources-ready gate is dropped.
+        # Apply the chart, then wait on the one resource this deploy actually
+        # depends on: the Alloy OTLP receiver the server pushes spans to. We do
+        # NOT use `helm --wait`, which blocks on every resource in the chart —
+        # including the node-exporter DaemonSet. A DaemonSet can never reach
+        # full readiness while a single node is rebooting, memory-pressured, or
+        # being replaced by CAPI, so `--wait` turns any transient node-health
+        # blip into a failed deploy (it gates the server rollout). The OTLP
+        # receiver is a Deployment and is the real ordering dependency; waiting
+        # on it keeps the "receiver ready before the server pushes spans"
+        # guarantee without coupling the app rollout to whole-fleet DaemonSet
+        # health. Apply-time errors still surface (helm fails on a bad manifest).
         run: |
+          set -euo pipefail
           helm upgrade --install "$OBSERVABILITY_RELEASE_NAME" "$OBSERVABILITY_CHART_PATH" \
             --namespace "$OBSERVABILITY_NAMESPACE" --create-namespace \
             -f "$OBSERVABILITY_CHART_PATH/values-${{ inputs.environment }}.yaml" \
             --timeout 10m
+          receiver="$OBSERVABILITY_RELEASE_NAME-alloy-receiver"
+          for _ in $(seq 1 24); do
+            if kubectl -n "$OBSERVABILITY_NAMESPACE" get deployment "$receiver" >/dev/null 2>&1; then
+              break
+            fi
+            sleep 5
+          done
+          kubectl -n "$OBSERVABILITY_NAMESPACE" rollout status "deployment/$receiver" --timeout=5m
 
   tailscale-operator-install:
     # Installs / upgrades the tailscale-operator wrapper chart ahead of
