@@ -3,17 +3,24 @@ defmodule Tuist.Kura.RunnerCache do
   Keeps a private runner-cache Kura node provisioned for exactly the
   accounts that have runners-as-a-service turned on.
 
-  The identity rule converges both directions every tick:
+  The identity rule converges both directions every tick, per private
+  region:
 
-    * an account with at least one Runner Profile AND an explicit
+    * an account with at least one Runner Profile whose platform the
+      region serves (`Regions.runner_platforms`) AND an explicit
       `:runners` FunWithFlags toggle should have exactly one
-      non-destroyed Kura server in the active runner-cache region, and
-    * an account with no profiles — or without the flag — should have
-      none.
+      non-destroyed Kura server in that region, and
+    * an account with no such profiles — or without the flag — should
+      have none there.
 
   Profiles are the durable "this account uses runners" marker: dispatch
   resolves every `runs-on` through them, so an account without profiles
-  cannot receive jobs and a cache node would idle.
+  cannot receive jobs and a cache node would idle. The platform match
+  keeps the node next to the fleet it serves: a region pinned beside
+  the Scaleway Mac mini fleet provisions only for accounts with macOS
+  profiles, and an account that drops its last macOS profile frees that
+  node even while its Linux profiles keep a node in a Linux-serving
+  region.
 
   The flag check is the explicit `FunWithFlags.enabled?(:runners, for:
   account)` gate, deliberately NOT `FeatureFlags.runners_enabled?/1` —
@@ -31,7 +38,7 @@ defmodule Tuist.Kura.RunnerCache do
   environments stay inert.
 
   Provisioning the node does not, by itself, route any traffic to it —
-  `Tuist.Kura.runner_cache_endpoint_url/1` only returns a URL once the
+  `Tuist.Kura.runner_cache_endpoint_url/2` only returns a URL once the
   node is `:active`, and runner dispatch resolves that lazily.
   """
 
@@ -46,30 +53,32 @@ defmodule Tuist.Kura.RunnerCache do
 
   require Logger
 
-  @max_provision_candidates_per_tick 100
+  @provision_page_size 100
+  # Backstop against a pathological candidate set (e.g. the flag
+  # globally enabled in an env where every auto-profile account
+  # matches): a tick scans at most this many pages before deferring
+  # the rest to the next tick.
+  @max_provision_pages_per_tick 50
 
   @doc """
   Converges runner-cache nodes with runner enablement. Safe to call on
   every reconciler tick; returns `:ok`.
   """
   def reconcile do
-    case runner_cache_region() do
-      nil -> :ok
-      %Regions{id: region_id} -> reconcile_region(region_id)
-    end
+    Enum.each(runner_cache_regions(), &reconcile_region/1)
   end
 
-  defp reconcile_region(region_id) do
+  defp reconcile_region(%Regions{id: region_id} = region) do
     # Tear down first so an account that flips runners off frees its node
     # even when no image tag is configured to provision new ones.
-    Enum.each(nodes_to_tear_down(region_id), &tear_down/1)
+    Enum.each(nodes_to_tear_down(region), &tear_down/1)
 
     case image_tag() do
       nil ->
         :ok
 
       image_tag ->
-        Enum.each(accounts_needing_node(region_id), &provision(&1, region_id, image_tag))
+        Enum.each(accounts_needing_node(region), &provision(&1, region_id, image_tag))
         # A node that failed before its first successful deployment
         # (transient apiserver error, missing CRD field, ...) would
         # otherwise strand its account forever: the server row exists,
@@ -81,32 +90,25 @@ defmodule Tuist.Kura.RunnerCache do
     :ok
   end
 
-  # The private (runner-cache) region available in this runtime, or
-  # nil. `available/0` is env-gated, so this stays nil until a private
-  # region is wired into `TUIST_KURA_AVAILABLE_REGIONS`.
-  #
-  # Exactly one private region per env is the supported configuration.
-  # If two are ever wired at once (e.g. mid-migration between regions),
-  # reconcile only the first deterministically but log loudly — the
-  # other would otherwise be silently un-reconciled (no provisioning,
-  # no teardown), which is the failure shape worth surfacing.
-  defp runner_cache_region do
-    case Enum.sort_by(Enum.filter(Regions.available(), &Regions.private?/1), & &1.id) do
-      [] ->
-        nil
-
-      [region] ->
-        region
-
-      [region | _rest] = regions ->
-        Logger.error("kura.runner_cache: multiple private regions configured; reconciling only the first",
-          configured: Enum.map(regions, & &1.id),
-          reconciling: region.id
-        )
-
-        region
-    end
+  # The private (runner-cache) regions available in this runtime —
+  # usually zero or one per environment, but an environment may run one
+  # region per fleet locality (e.g. a Linux-serving node pool in the
+  # umbrella cluster plus a macOS-serving pool in Scaleway fr-par).
+  # Multi-region went from unsupported-and-logged to a first-class
+  # shape when regions gained `runner_platforms`: each region now
+  # reconciles independently against the accounts whose profiles it
+  # serves, so none is ever silently un-reconciled. `available/0` is
+  # env-gated, so this stays empty until a private region is wired
+  # into `TUIST_KURA_AVAILABLE_REGIONS`.
+  defp runner_cache_regions do
+    Enum.filter(Regions.available(), &Regions.private?/1)
   end
+
+  # Platforms a region's nodes serve. Private regions always declare
+  # `runner_platforms`; the fallback keeps a malformed region from
+  # matching every profile.
+  defp region_platforms(%Regions{runner_platforms: platforms}) when is_list(platforms), do: platforms
+  defp region_platforms(_), do: []
 
   defp image_tag do
     case Tuist.Environment.kura_runtime_image_tag() do
@@ -121,7 +123,9 @@ defmodule Tuist.Kura.RunnerCache do
     end
   end
 
-  defp accounts_needing_node(region_id) do
+  defp accounts_needing_node(%Regions{id: region_id} = region) do
+    platforms = region_platforms(region)
+
     server_exists =
       from(s in Server,
         where:
@@ -133,44 +137,71 @@ defmodule Tuist.Kura.RunnerCache do
     profile_exists =
       from(p in Profile,
         where: p.account_id == parent_as(:account).id,
+        where: p.platform in ^platforms,
         select: 1
       )
 
     # The SQL narrows to "has profiles, lacks a node"; the flag check
     # runs per account in Elixir because FunWithFlags gates are
     # actor-scoped (and can be set via a global boolean gate, so they
-    # can't be pre-joined as a column). In prod the candidate set is
-    # tiny (runner customers), but in an env with the flag globally on
-    # and many auto-profile accounts it isn't — cap the SQL load so a
-    # tick reads a bounded number of rows into BEAM. Provisioning is
-    # convergent, so any overflow is picked up on the next tick; a
-    # capped tick is logged so a growing backlog is visible.
-    candidates =
-      Repo.all(
-        from(a in Account,
-          as: :account,
-          where: exists(profile_exists),
-          where: not exists(server_exists),
-          limit: @max_provision_candidates_per_tick
-        )
+    # can't be pre-joined as a column). Since default profiles are
+    # auto-created for every account, non-enabled accounts dominate
+    # the candidate set and never leave it (no node ever gets
+    # provisioned for them) — so a single capped page would return
+    # the same non-enabled rows every tick and permanently starve an
+    # enabled account that sorts after them. Keyset-page through the
+    # whole set instead, with a page backstop so a pathological env
+    # still yields a bounded tick.
+    base =
+      from(a in Account,
+        as: :account,
+        where: exists(profile_exists),
+        where: not exists(server_exists),
+        order_by: [asc: a.id],
+        limit: @provision_page_size
       )
 
-    if length(candidates) == @max_provision_candidates_per_tick do
-      Logger.warning("kura.runner_cache: provision candidate query hit the per-tick cap",
-        cap: @max_provision_candidates_per_tick,
-        region: region_id
-      )
-    end
-
-    candidates
-    |> Enum.filter(&runner_cache_enabled?/1)
-    |> Enum.map(& &1.id)
+    collect_enabled_candidates(base, region_id, nil, [], @max_provision_pages_per_tick)
   end
 
-  defp nodes_to_tear_down(region_id) do
+  defp collect_enabled_candidates(_base, region_id, _cursor, enabled_ids, 0) do
+    Logger.warning("kura.runner_cache: provision candidate scan hit the per-tick page cap",
+      cap: @max_provision_pages_per_tick,
+      region: region_id
+    )
+
+    Enum.reverse(enabled_ids)
+  end
+
+  defp collect_enabled_candidates(base, region_id, cursor, enabled_ids, pages_left) do
+    page =
+      base
+      |> after_cursor(cursor)
+      |> Repo.all()
+
+    enabled_ids =
+      page
+      |> Enum.filter(&runner_cache_enabled?/1)
+      |> Enum.map(& &1.id)
+      |> Enum.reverse(enabled_ids)
+
+    if length(page) < @provision_page_size do
+      Enum.reverse(enabled_ids)
+    else
+      collect_enabled_candidates(base, region_id, List.last(page).id, enabled_ids, pages_left - 1)
+    end
+  end
+
+  defp after_cursor(query, nil), do: query
+  defp after_cursor(query, cursor), do: where(query, [a], a.id > ^cursor)
+
+  defp nodes_to_tear_down(%Regions{id: region_id} = region) do
+    platforms = region_platforms(region)
+
     profile_exists =
       from(p in Profile,
         where: p.account_id == parent_as(:server).account_id,
+        where: p.platform in ^platforms,
         select: 1
       )
 

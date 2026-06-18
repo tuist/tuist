@@ -69,7 +69,18 @@ server:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      value: eu-central
+      # scw-fr-par-runners is the macOS-serving private (runner-cache)
+      # region: the canary cluster's Elastic Metal node (kuraFleet) hosts
+      # the per-account cache pods and dispatch routes the Mac fleet's
+      # build cache to it over the Private Network.
+      value: eu-central,scw-fr-par-runners
+    # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
+    # resolves to the node-port form (http://<node PN address>:<NodePort>
+    # on scw-fr-par-runners), reached over the PN the minis attach to
+    # (macosFleet.vmCachePrivateNetwork below). linux is the default and
+    # stays inert here (canary advertises no Linux private cache region).
+    - name: TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS
+      value: linux,macos
 
 objectStorage:
   external:
@@ -228,6 +239,21 @@ xcresultProcessor:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
 
+# Declarative Scaleway Elastic Metal kura runner-cache node, co-located with the
+# Mac fleet in fr-par. The provider orders the bare-metal server, attaches it to
+# the runner-cache PN, mints a kubelet identity, and renders a self-join
+# cloud-init that registers the Node with the runner-cache taint. The control
+# plane is externally managed, so there's no CAPI kubeadm join; the reconciler
+# bootstraps the node itself.
+kuraFleet:
+  enabled: true
+  replicas: 1
+  machine:
+    # EM-B220E-NVME (~EUR120/mo) is the cheapest in-stock Elastic Metal box
+    # that still mirrors the production NVMe + 10G PN path, so canary validates
+    # the same local-NVMe + bare-metal-PN data plane prod runs on.
+    offerType: EM-B220E-NVME
+
 # Mac mini fleet — declarative via CAPI.
 macosFleet:
   replicas: 1
@@ -240,6 +266,19 @@ macosFleet:
     tags: ["tag:tuist-macmini-canary"]
   controlPlane:
     host: api-canary.tuist.dev
+  # Runner-cache data plane: attach the minis to the same Private
+  # Network as the kura node (kuraFleet.machine.privateNetworkName), so
+  # the CAPI operator resolves each host's VLAN and bootstrap
+  # materializes the VLAN interface + VM egress pass + NAT. Dispatch
+  # hands the Mac fleet the node-port endpoint because
+  # TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS includes `macos` above.
+  # Note clients treat the cache endpoint as a hard override: if a mini
+  # isn't yet attached/bootstrapped, runner_cache_endpoint_url/2 returns
+  # nil (no active KuraInstance) and the build falls back to the public
+  # cache, so the cutover degrades rather than breaks while it converges.
+  vmCachePrivateNetwork:
+    name: tuist-runner-cache
+    cidr: 172.16.0.0/22
 
 # Customer-runner Mac mini fleet — sibling of macosFleet.
 # Canary keeps one warm runner so the production rollout can be

@@ -28,12 +28,16 @@ rules:
       - scalewayapplesiliconmachines
       - scalewayapplesiliconmachinetemplates
       - scalewayapplesiliconclusters
+      - scalewayelasticmetalmachines
+      - scalewayelasticmetalmachinetemplates
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
     resources:
       - scalewayapplesiliconmachines/status
       - scalewayapplesiliconmachines/finalizers
       - scalewayapplesiliconclusters/status
+      - scalewayelasticmetalmachines/status
+      - scalewayelasticmetalmachines/finalizers
     verbs: [get, update, patch]
   - apiGroups: ["cluster.x-k8s.io"]
     resources: [machines, machinesets, machinedeployments, clusters]
@@ -54,7 +58,9 @@ rules:
     # host is released back to Scaleway (the kubelet can't deregister
     # itself once the VM is gone).
     resources: [nodes]
-    verbs: [get, list, watch, delete]
+    # `patch` lets the Instance reconciler stamp the foreign providerID
+    # (so CAPI links Machine<->Node) and the dynamic tuist.dev/pn-ipv4 label.
+    verbs: [get, list, watch, patch, delete]
   - apiGroups: [""]
     # The operator owns four Secret families in its own namespace:
     #   - <fleet>-ssh: per-fleet Ed25519 keypair, generated once
@@ -79,16 +85,17 @@ rules:
     resources: [clusterrolebindings]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: ["rbac.authorization.k8s.io"]
-    # `bind` verb on the specific tart-kubelet ClusterRole — k8s's
-    # privilege-escalation rule otherwise blocks the operator's SA
-    # from creating a ClusterRoleBinding to a Role whose permissions
-    # it doesn't hold itself (Pod read, Node create, etc.). The
-    # `bind` meta-verb is the documented escape hatch for exactly
-    # this controller-creates-binding pattern. Scoped to the one role
-    # by name so the operator can't bind itself to anything broader.
+    # `bind` verb on the two ClusterRoles the operator binds node identities to:
+    # the chart's tart-kubelet role (the macOS shim) and the built-in system:node
+    # (the Linux kura nodes). k8s's privilege-escalation rule otherwise blocks the
+    # operator's SA from creating a ClusterRoleBinding to a role whose permissions
+    # it doesn't hold itself (Pod read, Node create, ...). The `bind` meta-verb is
+    # the documented escape hatch for this controller-creates-binding pattern;
+    # scoped to these roles by name so it can't bind to anything broader.
     resources: [clusterroles]
     resourceNames:
       - {{ include "tuist.componentName" (dict "root" . "component" "tart-kubelet") }}
+      - system:node
     verbs: [bind]
   - apiGroups: ["coordination.k8s.io"]
     resources: [leases]
@@ -190,6 +197,45 @@ subjects:
     namespace: {{ .Release.Namespace }}
 {{- end }}
 ---
+# Namespaced Role granting the operator's SA read on the single
+# kube-system/kube-dns Service. The Linux self-join reads its
+# ClusterIP (discoverClusterDNS) to set the kubelet's clusterDNS, so
+# cache pods resolve in-cluster DNS for the peer mesh. Scoped to
+# kube-system as a Role rather than a ClusterRole with
+# resourceNames (which would match a kube-dns Service in any
+# namespace); read via the uncached APIReader since the manager's
+# Services cache is scoped to the egress namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}-cluster-dns
+  namespace: kube-system
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+rules:
+  - apiGroups: [""]
+    resources: [services]
+    resourceNames: [kube-dns]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}-cluster-dns
+  namespace: kube-system
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-scaleway-applesilicon
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}-cluster-dns
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -272,6 +318,47 @@ spec:
             # infra/tailscale/acls.json's tagOwners block.
             - --tailscale-tags={{ join "," . }}
             {{- end }}
+            {{- if .Values.macosFleet.tailscale.acceptRoutes }}
+            # Install the subnet routes this env's cluster-side
+            # Connector advertises into the tailnet (the cluster's
+            # Service CIDR — see infra/helm/tailscale-operator's
+            # per-env values). Host routes are VM routes (vmnet NATs
+            # VM egress through the host routing table), so this is
+            # the route half of the macOS runner-cache path; the
+            # firewall carve-out below is the policy half.
+            - --tailscale-accept-routes=true
+            {{- end }}
+            {{- end }}
+            {{- with .Values.macosFleet.vmClusterEgress.kuraServiceCIDR }}
+            # Punch the runner-cache carve-out through the VM egress
+            # firewall: Tart VMs may reach the cluster's Service CIDR
+            # on the Kura cache ports (4000 HTTP / 50051 gRPC),
+            # mirroring the Linux runner namespace's NetworkPolicy
+            # egress rule. Source of truth for the CIDR:
+            # infra/k8s/clusters/cluster-<env>.yaml
+            # (.spec.clusterNetwork.services).
+            - --vm-kura-egress-cidr={{ . }}
+            {{- end }}
+            {{- with .Values.macosFleet.vmClusterEgress.clusterDNSIP }}
+            # kube-dns ClusterIP, additionally reachable on :53 so the
+            # runner VM's /etc/resolver entry resolves
+            # `*.svc.cluster.local`. Verify with
+            # `kubectl -n kube-system get svc kube-dns`.
+            - --vm-cluster-dns-ip={{ . }}
+            {{- end }}
+            {{- with .Values.macosFleet.vmCachePrivateNetwork.name }}
+            # Name of the Scaleway Private Network carrying the kura
+            # runner-cache NodePort endpoints — the same name the kura
+            # fleet attaches to, so the minis and the Elastic Metal
+            # cache node share one PN per env. The operator resolves it
+            # to an ID, attaches every mini, resolves the per-host VLAN,
+            # and bootstrap materializes the VLAN interface + VM egress
+            # pass + NAT — the data plane dispatch's node-port
+            # cache_endpoint_url rides.
+            - --vm-cache-pn-name={{ . }}
+            {{- end }}
+            {{- with .Values.macosFleet.vmCachePrivateNetwork.cidr }}
+            - --vm-cache-pn-cidr={{ . }}
             {{- end }}
             {{- if .Values.xcresultProcessor.enabled }}
             # Auto-roll the xcresult-processor Deployment whenever the
