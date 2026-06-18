@@ -25,6 +25,13 @@ server:
   extraEnv:
     - name: TUIST_DATABASE_POOL_SIZE
       value: "10"
+    # Opts this install into the shared Kura mesh routing path: every
+    # account is served the configured TUIST_KURA_ENDPOINTS instead of
+    # going through per-account `kura_servers` rows. Defense-in-depth
+    # flag — production overlays do not set this, so a stray endpoints
+    # env var leaking there cannot bypass the per-account opt-in.
+    - name: TUIST_KURA_SHARED_MESH
+      value: "1"
 
 kuraController:
   enabled: true
@@ -38,8 +45,14 @@ kuraController:
     enabled: true
     kuraIntrospection:
       enabled: true
-      clientId: preview-kura
-      clientSecret: preview-kura-secret
+      # clientId / clientSecret are injected at install time by
+      # preview-ondemand-deploy.yml. The workflow reuses any existing
+      # `kura-shared-secrets` Secret in the preview namespace so re-installs
+      # do not churn credentials, and generates fresh random material on
+      # first install. Leaving them committed in plaintext would publish
+      # working preview credentials in the git history.
+      clientId: ""
+      clientSecret: ""
 
 kuraRuntime:
   image:

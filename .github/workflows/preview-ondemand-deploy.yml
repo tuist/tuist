@@ -235,11 +235,73 @@ jobs:
         run: |
           kubectl label nodes -l '!node-role.kubernetes.io/control-plane,node.cluster.x-k8s.io/pool!=kura' role=preview --overwrite
           kubectl taint nodes -l '!node-role.kubernetes.io/control-plane,node.cluster.x-k8s.io/pool!=kura' role=preview:NoSchedule --overwrite
+      # Mark the namespace as in-progress before any chart mutation so the
+      # hourly sweep can tell a still-being-created preview from one with a
+      # missing expires-at label and skip it. The `expires-at` label is only
+      # written after helm upgrade succeeds (next step), at which point the
+      # `state=creating` marker is cleared.
+      - name: Mark namespace as creating
+        env:
+          REQUESTER_EMAIL: ${{ inputs.requester_email }}
+          REQUESTER_SLACK_ID: ${{ inputs.requester_slack_id }}
+          REQUEST_REASON: ${{ inputs.reason }}
+        run: |
+          set -euo pipefail
+          NOW=$(date +%s)
+          kubectl get namespace "$NAMESPACE" >/dev/null 2>&1 || kubectl create namespace "$NAMESPACE"
+          kubectl label namespace "$NAMESPACE" \
+            "tuist.dev/preview-source=slack" \
+            "tuist.dev/preview=true" \
+            "tuist.dev/slug=$SLUG" \
+            "tuist.dev/release=$RELEASE" \
+            "tuist.dev/state=creating" \
+            --overwrite
+          kubectl label namespace "$NAMESPACE" tuist.dev/expires-at- --ignore-not-found || true
+          kubectl annotate namespace "$NAMESPACE" \
+            "tuist.dev/owner-email=$REQUESTER_EMAIL" \
+            "tuist.dev/owner-slack-id=$REQUESTER_SLACK_ID" \
+            "tuist.dev/reason=$REQUEST_REASON" \
+            "tuist.dev/host=https://$HOST" \
+            "tuist.dev/created-at=$NOW" \
+            --overwrite
+      # Re-use any existing Kura introspection credentials in the preview
+      # namespace so re-runs of the create workflow don't churn the
+      # client_id/client_secret pair (which would invalidate every previously
+      # issued cache token). On first install, generate fresh random material
+      # — never commit working preview secrets to the chart.
+      - name: Resolve Kura introspection credentials
+        id: kura_creds
+        run: |
+          set -euo pipefail
+          CLIENT_ID="$(kubectl -n "$NAMESPACE" get secret kura-shared-secrets \
+            -o jsonpath='{.data.KURA_CONTROL_PLANE_CLIENT_ID}' 2>/dev/null \
+            | base64 -d 2>/dev/null || true)"
+          CLIENT_SECRET="$(kubectl -n "$NAMESPACE" get secret kura-shared-secrets \
+            -o jsonpath='{.data.KURA_CONTROL_PLANE_CLIENT_SECRET}' 2>/dev/null \
+            | base64 -d 2>/dev/null || true)"
+          if [ -z "$CLIENT_ID" ]; then
+            CLIENT_ID="preview-${SLUG}-$(openssl rand -hex 4)"
+          fi
+          if [ -z "$CLIENT_SECRET" ]; then
+            CLIENT_SECRET="$(openssl rand -hex 32)"
+          fi
+          echo "::add-mask::$CLIENT_SECRET"
+          {
+            echo "client_id<<EOF"
+            echo "$CLIENT_ID"
+            echo "EOF"
+            echo "client_secret<<EOF"
+            echo "$CLIENT_SECRET"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
       - name: helm upgrade --install
+        env:
+          KURA_INTROSPECTION_CLIENT_ID: ${{ steps.kura_creds.outputs.client_id }}
+          KURA_INTROSPECTION_CLIENT_SECRET: ${{ steps.kura_creds.outputs.client_secret }}
         run: |
           args=(
             "$RELEASE" "$HELM_CHART_PATH"
-            --namespace "$NAMESPACE" --create-namespace \
+            --namespace "$NAMESPACE" \
             -f "$HELM_CHART_PATH/values-preview.yaml" \
             -f "$HELM_CHART_PATH/values-preview-kura.yaml" \
             --set server.image.tag="$IMAGE_TAG" \
@@ -248,6 +310,8 @@ jobs:
             --set "server.appUrl=https://$HOST" \
             --set "kuraController.image.tag=${{ inputs.kura_controller_image_tag }}" \
             --set "kuraRuntime.image.tag=${{ inputs.kura_runtime_image_tag }}" \
+            --set-string "kuraController.sharedSecrets.kuraIntrospection.clientId=$KURA_INTROSPECTION_CLIENT_ID" \
+            --set-string "kuraController.sharedSecrets.kuraIntrospection.clientSecret=$KURA_INTROSPECTION_CLIENT_SECRET" \
             --atomic --timeout 20m --wait
           )
 
@@ -256,27 +320,12 @@ jobs:
           fi
 
           helm upgrade --install "${args[@]}"
-      - name: Label namespace
-        env:
-          REQUESTER_EMAIL: ${{ inputs.requester_email }}
-          REQUESTER_SLACK_ID: ${{ inputs.requester_slack_id }}
-          REQUEST_REASON: ${{ inputs.reason }}
+      - name: Finalize namespace labels
         run: |
-          NOW=$(date +%s)
+          set -euo pipefail
           kubectl label namespace "$NAMESPACE" \
-            "tuist.dev/preview-source=slack" \
-            "tuist.dev/preview=true" \
-            "tuist.dev/slug=$SLUG" \
-            "tuist.dev/release=$RELEASE" \
             "tuist.dev/expires-at=$EXPIRES_AT" \
-            --overwrite
-          kubectl annotate namespace "$NAMESPACE" \
-            "tuist.dev/owner-email=$REQUESTER_EMAIL" \
-            "tuist.dev/owner-slack-id=$REQUESTER_SLACK_ID" \
-            "tuist.dev/reason=$REQUEST_REASON" \
-            "tuist.dev/host=https://$HOST" \
-            "tuist.dev/created-at=$NOW" \
-            "tuist.dev/last-active-at=$NOW" \
+            "tuist.dev/state=ready" \
             --overwrite
       - name: Create shared KuraInstance
         if: env.KURA_REPLICAS != '0'
@@ -375,7 +424,10 @@ jobs:
           if helm status "$RELEASE" --namespace "$NAMESPACE" >/dev/null 2>&1; then
             helm uninstall "$RELEASE" --namespace "$NAMESPACE" --wait --timeout 5m || true
           fi
-          kubectl -n kura delete kurainstance "${RELEASE}-kura" --ignore-not-found --wait=false || true
+          # Wait for the KuraInstance to terminate so the controller can clean
+          # up its public Ingress + cert-manager Certificate before the cert is
+          # orphaned (avoids leaking LE-issued leaf certs across recreations).
+          kubectl -n kura delete kurainstance "${RELEASE}-kura" --ignore-not-found --wait=true --timeout 5m || true
           if kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
             kubectl delete namespace "$NAMESPACE" --wait=true --timeout 5m || true
           fi

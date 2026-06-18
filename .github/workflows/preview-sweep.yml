@@ -16,11 +16,6 @@ on:
   schedule:
     - cron: "0 * * * *"
   workflow_dispatch:
-    inputs:
-      idle_hours:
-        description: Delete previews with tuist.dev/last-active-at older than this many hours, 0 disables
-        required: false
-        default: "0"
 
 permissions:
   contents: read
@@ -34,7 +29,6 @@ jobs:
     timeout-minutes: 15
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
-      IDLE_HOURS: ${{ inputs.idle_hours || '0' }}
     steps:
       - uses: jdx/mise-action@v3.2.0
         with:
@@ -51,11 +45,13 @@ jobs:
         # chance to run, then drop the namespace. `kubectl delete namespace`
         # is itself a backstop — if helm uninstall fails, the namespace
         # delete cascades through anyway.
+        #
+        # Namespaces in `state=creating` are skipped: the deploy workflow
+        # writes that label before any chart mutation and replaces it with
+        # `state=ready` once helm upgrade returns, so the sweep cannot race
+        # a partial create.
         run: |
           set -euo pipefail
-          if ! [[ "$IDLE_HOURS" =~ ^[0-9]+$ ]]; then
-            echo "::error::idle_hours must be an integer."; exit 1
-          fi
 
           NOW=$(date +%s)
           MAPPING=$(kubectl get namespaces -l tuist.dev/preview=true -o json | jq -r '
@@ -64,7 +60,7 @@ jobs:
               .metadata.name,
               (.metadata.labels["tuist.dev/release"] // ""),
               (.metadata.labels["tuist.dev/expires-at"] // ""),
-              (.metadata.annotations["tuist.dev/last-active-at"] // "")
+              (.metadata.labels["tuist.dev/state"] // "")
             ] | @tsv
           ')
           if [ -z "$MAPPING" ]; then
@@ -74,32 +70,31 @@ jobs:
           echo "Found preview namespaces:"
           echo "$MAPPING"
 
-          while IFS=$'\t' read -r NS RELEASE EXP LAST_ACTIVE; do
+          while IFS=$'\t' read -r NS RELEASE EXP STATE; do
             [ -z "$NS" ] && continue
             if [ -z "$RELEASE" ]; then
               # Strip the `preview-` prefix to get the helm release name.
               RELEASE="${NS#preview-}"
             fi
 
-            DELETE_REASON=""
-            if [ -n "$EXP" ] && [[ "$EXP" =~ ^[0-9]+$ ]] && [ "$EXP" -le "$NOW" ]; then
-              DELETE_REASON="expired $((NOW - EXP))s ago"
-            elif [ "$IDLE_HOURS" -gt 0 ] && [ -n "$LAST_ACTIVE" ] && [[ "$LAST_ACTIVE" =~ ^[0-9]+$ ]]; then
-              IDLE_SECONDS=$((IDLE_HOURS * 3600))
-              if [ $((NOW - LAST_ACTIVE)) -ge "$IDLE_SECONDS" ]; then
-                DELETE_REASON="idle for $((NOW - LAST_ACTIVE))s"
-              fi
+            if [ "$STATE" = "creating" ]; then
+              echo "    Skipping mid-create: $NS"
+              continue
             fi
 
-            if [ -z "$DELETE_REASON" ] && { [ -z "$EXP" ] || ! [[ "$EXP" =~ ^[0-9]+$ ]]; }; then
+            if [ -z "$EXP" ] || ! [[ "$EXP" =~ ^[0-9]+$ ]]; then
               echo "::warning::namespace $NS has missing/invalid expires-at label; skipping"
               continue
             fi
 
-            if [ -n "$DELETE_REASON" ]; then
-              echo "==> Deleting: $NS ($DELETE_REASON)"
+            if [ "$EXP" -le "$NOW" ]; then
+              echo "==> Deleting: $NS (expired $((NOW - EXP))s ago)"
               helm uninstall "$RELEASE" --namespace "$NS" --wait --timeout 5m || true
-              kubectl -n kura delete kurainstance "${RELEASE}-kura" --ignore-not-found --wait=false || true
+              # Wait on KuraInstance deletion so the controller can release
+              # its public Ingress + cert-manager Certificate before we drop
+              # the namespace — orphaned LE leaf certs would otherwise pile
+              # up across recreations.
+              kubectl -n kura delete kurainstance "${RELEASE}-kura" --ignore-not-found --wait=true --timeout 5m || true
               kubectl delete namespace "$NS" --wait=true --timeout 5m || true
             else
               echo "    Live: $NS (expires in $((EXP - NOW))s)"
