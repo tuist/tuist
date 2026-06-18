@@ -80,7 +80,7 @@ for warm-set page cache.
 
 | Kind | Purpose |
 |---|---|
-| `ScalewayElasticMetalMachine(Template)` | One Scaleway Elastic Metal server. Spec: `offerType`, `zone`, `os`, `privateNetworkID`, `nodeTaints`; status: `providerID`, `serverID`, `privateNetworkVLAN`, `phase`. |
+| `ScalewayElasticMetalMachine(Template)` | One Scaleway Elastic Metal server. Spec: `offerType`, `zone`, `os`, `privateNetworkName`, `privateNetworkCIDR`, `nodeTaints`; status: `providerID`, `serverID`, `privateNetworkVLAN`, `phase`. |
 | (reuse) `ScalewayAppleSiliconCluster` | Generic stub satisfying CAPI parent-Cluster validation, shared by both machine kinds. |
 
 API group is `infrastructure.cluster.x-k8s.io/v1alpha1`.
@@ -124,7 +124,10 @@ covers `baremetal`, `vpc`, and `ipam`.
   Node.
 
 Per-env values live in `values-managed-<env>.yaml`: staging/canary
-`EM-B220E-NVME`, production `EM-I220E`, each with its own `privateNetworkID`.
+`EM-B220E-NVME`, production `EM-I220E`. The Private Network is named
+(`privateNetworkName`, default `tuist-runner-cache`) rather than referenced by
+UUID; the operator find-or-creates it per env, and the macOS fleet attaches to
+the same name so both share one PN.
 The taint rides `nodeTaints` (the reconciler passes it to the kubelet's
 `--register-with-taints`); the pool label rides CAPI Machine→Node propagation.
 No ClusterClass change — the Scaleway fleet is a standalone MachineDeployment
