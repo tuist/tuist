@@ -2269,6 +2269,54 @@ base_date = DateTime.utc_now()
 cmd_project_id = tuist_project.id
 cmd_user_id = user.id
 
+command_arguments_by_name = %{
+  "generate" => [
+    "generate",
+    "generate App",
+    "generate App Widgets",
+    "generate --configuration Debug",
+    "generate --configuration DebugStaging",
+    "generate --configuration Release --no-open",
+    "generate --configuration Debug --cache-profile development --no-open",
+    "generate tag:feature-auth --configuration DebugStaging",
+    "generate --path Examples/App --configuration Release",
+    "generate FrameworkKit --cache-profile only-external",
+    "generate --cache-profile none --no-open",
+    "generate App AppTests --configuration Debug"
+  ],
+  "cache" => [
+    "cache",
+    "cache App",
+    "cache warm",
+    "cache warm App",
+    "cache warm App FrameworkKit --configuration Debug",
+    "cache warm --configuration DebugStaging",
+    "cache warm --configuration Release --cache-profile only-external",
+    "cache warm tag:feature-auth --configuration Debug",
+    "cache warm --path Examples/App --configuration Release",
+    "cache warm AppTests --generate-only",
+    "cache warm Core Networking --cache-profile development",
+    "cache warm --print-hashes"
+  ],
+  "test" => [
+    "test App",
+    "test AppTests",
+    "test --scheme App",
+    "test --scheme App --configuration Debug",
+    "test --scheme App --test-plan Regression",
+    "test --scheme App --skip-ui-tests",
+    "test --scheme FrameworkKit --configuration DebugStaging",
+    "test --path Examples/App",
+    "test tag:unit",
+    "test tag:feature-auth --configuration Debug"
+  ]
+}
+
+command_arguments_for_name = fn name, index ->
+  arguments = Map.fetch!(command_arguments_by_name, name)
+  Enum.at(arguments, rem(index, length(arguments)))
+end
+
 event_counter = :counters.new(1, [:atomics])
 generate_cache_event_counter = :counters.new(1, [:atomics])
 
@@ -2285,7 +2333,7 @@ all_generate_cache_events = :ets.new(:generate_cache_events, [:bag, :public])
 |> Stream.chunk_every(cmd_chunk_size)
 |> Enum.each(fn chunk_indices ->
   events =
-    Enum.map(chunk_indices, fn _i ->
+    Enum.map(chunk_indices, fn i ->
       name = Enum.random(["test", "cache", "generate"])
       status = Enum.random([0, 1])
       is_ci = Enum.random([true, false])
@@ -2322,7 +2370,7 @@ all_generate_cache_events = :ets.new(:generate_cache_events, [:bag, :public])
         swift_version: "5.2",
         macos_version: "10.15",
         subcommand: "",
-        command_arguments: "",
+        command_arguments: command_arguments_for_name.(name, i),
         is_ci: is_ci,
         user_id: if(is_ci, do: nil, else: cmd_user_id),
         client_id: "client-id",

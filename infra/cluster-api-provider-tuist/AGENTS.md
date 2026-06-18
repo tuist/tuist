@@ -146,15 +146,24 @@ Day-1 operator runbook:
    Each env gets its own Scaleway IAM application scoped to that
    cluster's needs; a leaked staging key rotates without disrupting
    production. The IAM policy attached to that application needs
-   exactly two permission sets:
+   these permission sets, all at project scope:
 
-   - `AppleSiliconFullAccess` (project scope) — order/release Mac
-     minis, list server types and OS images.
-   - `SSHKeysFullAccess` (project scope) — register the per-fleet
-     Ed25519 public key the operator generates on first reconcile.
-     **Do not use `IAMManager`** despite the name suggesting it
-     covers SSH keys; Scaleway gates `ssh_key` write under
-     `SSHKeysFullAccess` specifically.
+   - `AppleSiliconFullAccess` — order/release Mac minis, list server
+     types and OS images (the Apple Silicon fleets).
+   - `ElasticMetalFullAccess` — list/order/release Elastic Metal
+     servers (the kura runner-cache fleet). Elastic Metal is a
+     **separate Scaleway product** from Apple Silicon; without this
+     set the EM reconciler 403s on its first `list elastic metal
+     servers` call and never orders a node, so the cache stays down
+     and a deploy waiting on the fleet hangs.
+   - `PrivateNetworksFullAccess` — attach servers to the runner-cache
+     Private Network (find-or-created by name).
+   - `IPAMReadOnly` — read the PN-assigned address the self-join uses.
+   - `SSHKeysFullAccess` — register the per-fleet Ed25519 public key
+     the operator generates on first reconcile. **Do not use
+     `IAMManager`** despite the name suggesting it covers SSH keys;
+     Scaleway gates `ssh_key` write under `SSHKeysFullAccess`
+     specifically.
 
    Each cluster's pre-configured `ClusterSecretStore "onepassword"` is
    already scoped to the right vault, so the chart references the

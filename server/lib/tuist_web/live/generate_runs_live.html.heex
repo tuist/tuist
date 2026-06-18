@@ -56,7 +56,7 @@
         }
       >
         <:col :let={generate_run} label={dgettext("dashboard_builds", "Command")}>
-          <.text_and_description_cell label={"tuist " <> (if generate_run.command_arguments, do: (generate_run.command_arguments |> String.split(" ") |> Enum.take(2) |> Enum.join(" ")), else: generate_run.name)} />
+          <.text_and_description_cell label={format_command(generate_run)} />
         </:col>
         <:col :let={generate_run} label={dgettext("dashboard_builds", "Hit rate")}>
           <.text_cell label={

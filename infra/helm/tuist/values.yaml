@@ -1436,6 +1436,17 @@ postgresql:
     database: tuist
     username: tuist
     password: tuist
+    # Name of an existing Kubernetes Secret containing the external
+    # Postgres connection values. When set, server and migration pods
+    # read host, username, and password from this Secret and compose
+    # DATABASE_URL through Kubernetes env-var substitution so the password
+    # is not rendered into the Helm manifest. `port` and `database` remain
+    # chart values. Leave empty to keep the legacy literal DATABASE_URL path.
+    existingSecret: ""
+    existingSecretKeys:
+      host: host
+      username: username
+      password: password
   embedded:
     image:
       repository: postgres
@@ -1771,4 +1782,3 @@ observability:
       accessModes:
         - ReadWriteOnce
       size: 20Gi
-
