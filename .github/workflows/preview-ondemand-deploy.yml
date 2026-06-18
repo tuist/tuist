@@ -299,7 +299,7 @@ jobs:
       - name: Smoke test
         run: |
           kubectl -n "$NAMESPACE" rollout status deploy/${RELEASE}-tuist-server --timeout=10m
-          for i in $(seq 1 20); do
+          for i in $(seq 1 60); do
             if curl -fsSL --max-time 5 "https://${HOST}/ready" >/dev/null; then
               echo "OK: https://${HOST}/ready returned 200"
               exit 0
@@ -307,7 +307,7 @@ jobs:
             echo "Attempt $i: https://${HOST}/ready not yet reachable; retrying in 10s..."
             sleep 10
           done
-          echo "::error::https://${HOST}/ready never returned 200 after about 3 min."
+          echo "::error::https://${HOST}/ready never returned 200 after about 10 min."
           exit 1
 
   delete:

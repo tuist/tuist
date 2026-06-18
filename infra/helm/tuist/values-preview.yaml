@@ -51,9 +51,8 @@ server:
   #   pr-<number>      for PR builds (stable across pushes; redeploys upgrade)
   #   sha-<7chars>     for one-off commits / branches without a PR
   #
-  # TLS comes from a wildcard cert for *.preview.tuist.dev pre-issued at
-  # cluster bootstrap (cert-manager DNS-01 against Cloudflare). Two ways to
-  # plug it in — pick one when bootstrapping the preview cluster:
+  # TLS comes from a wildcard cert for *.preview.tuist.dev issued by the
+  # platform chart's tuist-preview overlay. Two ways to plug it in:
   #
   #   1. ingress-nginx default-ssl-certificate: start the controller with
   #      --default-ssl-certificate=ingress-nginx/preview-tuist-dev-wildcard-tls
@@ -62,7 +61,9 @@ server:
   #   2. cert-manager + reflector: mirror the wildcard Secret into each
   #      preview-* namespace and set tlsSecretName below to its name.
   #
-  # No external-dns annotations are needed: a single A record
+  # The managed preview cluster uses option 1 through
+  # infra/helm/platform/values-tuist-preview.yaml. No external-dns annotations
+  # are needed: a single A record
   #   *.preview.tuist.dev -> <preview ingress IP>
   # already resolves every per-PR subdomain.
   ingress:

@@ -1,0 +1,10 @@
+ingressCertificate:
+  enabled: true
+  secretName: preview-tuist-dev-wildcard-tls
+  dnsNames:
+    - "*.preview.tuist.dev"
+
+ingress-nginx:
+  controller:
+    extraArgs:
+      default-ssl-certificate: platform/preview-tuist-dev-wildcard-tls
