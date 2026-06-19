@@ -226,7 +226,6 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
             )
         }
     }
-    }
 
     /// The `tuist-derived/` directory for an external SPM-generated project, or `nil` for local projects.
     /// Used as a gating condition for `referenceString` to decide whether a referenced path is one Tuist owns
