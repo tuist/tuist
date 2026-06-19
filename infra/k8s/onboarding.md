@@ -233,21 +233,7 @@ Preview environments live on the `tuist-preview` workload cluster, which runs Po
 
 Slack-requested previews use the same cluster and the same embedded dependency shape, but layer `infra/helm/tuist/values-preview-kura.yaml` after `values-preview.yaml` to enable a shared Kura runtime. App pods and the preview's Kura runtime pods both land on the tainted preview worker pool — Kura previews colocate on `role=preview` with a matching toleration, not a dedicated Kura node pool. The Kura controller is installed cluster-wide in the `kura` namespace once per cluster by `mise -C infra run k8s:install-kura-platform`, and each preview's `KuraInstance` is created in that `kura` namespace; the preview server reaches the runtime over cross-namespace Service DNS. Requests enter through `/preview` in Slack, are audited in `tuist-ops`, and dispatch `.github/workflows/preview-ondemand-deploy.yml` (which delegates the lifecycle to `preview-deploy-impl.yml`); TTL cleanup is handled by `.github/workflows/preview-sweep.yml`.
 
-Slack previews use the same routing as production: the Lua hook enforces tenant matching strictly and the server looks the account's Kura endpoint up via a `kura_servers` row. A fresh preview has no such rows, so testers exercising the server↔Kura path need a one-time seed against the preview's server:
-
-```bash
-kubectl -n preview-ondemand-<slug> exec deploy/ondemand-<slug>-tuist-server -c server -- \
-  /app/bin/tuist eval '
-    {:ok, account} = Tuist.Accounts.get_account_by_handle("tuistrocks") |> then(&{:ok, &1})
-    {:ok, _} = Tuist.Accounts.create_account_cache_endpoint(account, %{
-      url: "https://kura-<slug>.preview.tuist.dev",
-      technology: :kura
-    })
-    Tuist.FeatureFlags.enable(:kura_cache, for_actor: account)
-  '
-```
-
-The earlier shared-mesh override (`TUIST_KURA_SHARED_MESH` + the Lua hook's `KURA_EXTENSION_TUIST_ALLOW_SHARED_TENANTS`) is gone — previews are production-shaped at the cache-routing layer (see PR #11348 review).
+Slack previews use the same routing as production: the Lua hook enforces tenant matching strictly and the server looks each account's Kura endpoint up via a `kura_servers` row. The deploy workflow auto-seeds a single `preview` account in the fresh preview DB and wires it to the KuraInstance, so the preview is Kura-ready out of the box — log in as `preview@preview.tuist.dev` (password `preview-temp-password`) to exercise the server↔Kura path. Seeding is idempotent and is also what `mise run helm:preview-up` does locally.
 
 ### 8.1 Wildcard DNS + cert
 
@@ -257,18 +243,7 @@ In Cloudflare's `tuist.dev` zone, create a single A record pointing `*.preview.t
 
 In the `tuist-k8s-preview` vault: `TUIST_LICENSE_KEY` (Login or Password category, `password` field). The `Service Account Auth Token: tuist-preview-k8s` 1P item authorizes ESO to read it.
 
-### 8.3 Scaler ServiceAccount (management cluster)
-
-The preview-deploy / preview-sweep workflows scale the preview MachineDeployment from CI via [`mgmt/preview-mgmt-rbac.yaml`](mgmt/preview-mgmt-rbac.yaml). Apply it against the mgmt cluster:
-
-```bash
-sed 's/__ORG_NS__/org-tuist/g' infra/k8s/mgmt/preview-mgmt-rbac.yaml \
-  | KUBECONFIG=~/.kube/tuist-mgmt.yaml kubectl apply -f -
-```
-
-Mint a kubeconfig from the `preview-scaler-token` Secret (same recipe as §5, swapping the SA name + namespace), base64 it into the `KUBECONFIG_MGMT` GitHub Environment secret on the `server-k8s-preview` environment, then drop the `replicas: 1` pin on `cluster-preview.yaml` if you want elastic scale-to-zero.
-
-### 8.4 First preview
+### 8.3 First preview
 
 ```bash
 gh workflow run preview-deploy.yml -f pr_number=1234 -f ttl_hours=24
@@ -276,7 +251,7 @@ gh workflow run preview-deploy.yml -f pr_number=1234 -f ttl_hours=24
 gh workflow run preview-deploy.yml -f commit_sha=abc1234567890... -f ttl_hours=4
 ```
 
-The hourly `preview-sweep.yml` workflow handles deletion + scale-down.
+The hourly `preview-sweep.yml` workflow handles deletion (and any future scale-down once an elastic worker pool is wired up).
 
 ## 9. Teardown
 

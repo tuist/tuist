@@ -320,10 +320,13 @@ jobs:
             labels:
               tuist.dev/preview-source: ${SOURCE}
               tuist.dev/slug: ${SLUG}
-              tuist.dev/shared: "true"
           spec:
-            accountHandle: preview-${SLUG}
-            tenantID: preview-${SLUG}
+            # Single-tenant preview KuraInstance. The seed step below
+            # creates an account with handle=preview in this preview's
+            # DB, so server-issued JWTs carry tenant=preview and the Lua
+            # hook's strict tenant check passes.
+            accountHandle: preview
+            tenantID: preview
             region: preview
             image: ghcr.io/tuist/kura:${KURA_RUNTIME_IMAGE_TAG}
             replicas: ${KURA_REPLICAS}
@@ -368,13 +371,27 @@ jobs:
           for i in $(seq 1 60); do
             if curl -fsSL --max-time 5 "https://${HOST}/ready" >/dev/null; then
               echo "OK: https://${HOST}/ready returned 200"
-              exit 0
+              break
             fi
             echo "Attempt $i: https://${HOST}/ready not yet reachable; retrying in 10s..."
             sleep 10
+            if [ "$i" = "60" ]; then
+              echo "::error::https://${HOST}/ready never returned 200 after about 10 min."
+              exit 1
+            fi
           done
-          echo "::error::https://${HOST}/ready never returned 200 after about 10 min."
-          exit 1
+      - name: Seed preview account
+        # Auto-seed a `preview` account in the fresh preview DB and wire
+        # it to the KuraInstance's `kura_servers` row. The KuraInstance's
+        # tenantID matches the account handle so the Lua hook's strict
+        # tenant check passes. Idempotent on re-runs.
+        if: inputs.profile == 'app-with-kura' && inputs.kura_instance_replicas != 0
+        env:
+          PREVIEW_ACCOUNT_HANDLE: preview
+          KURA_ENDPOINT_URL: https://${{ env.KURA_HOST }}
+          RELEASE_NAME: ${{ inputs.release }}
+        run: |
+          mise -C infra run preview:seed-account --namespace "$NAMESPACE"
       - name: Diagnostics on failure
         if: failure()
         run: |

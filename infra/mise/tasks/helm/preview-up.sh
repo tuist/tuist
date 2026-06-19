@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-#MISE description="Spin up a multi-node kind cluster and deploy a preview release (with Kura by default) onto the role=preview worker"
+#MISE description="Spin up a multi-node kind cluster and deploy a preview release (server + cache + Kura) onto the role=preview worker. Auto-seeds a `preview` test account wired to the preview KuraInstance."
 #USAGE flag "--cluster <name>" help="Kind cluster name" default="tuist-preview"
 #USAGE flag "--release <name>" help="Helm release name" default="pr-demo"
 #USAGE flag "--remote" help="Use pre-built images from ghcr.io instead of building locally"
 #USAGE flag "--version <version>" help="Image version tag when using --remote" default="latest"
-#USAGE flag "--without-kura" help="Skip the cluster-wide Kura controller install and the shared KuraInstance. Use only for fast app-only local loops; the default matches the Slack preview shape."
 #USAGE flag "--kura-controller-image <image>" help="Kura controller image repository for local kind" default="tuist-kura-controller"
 #USAGE flag "--kura-runtime-image <image>" help="Kura runtime image repository for local kind" default="tuist-kura"
 #USAGE flag "--kura-image-tag <tag>" help="Kura controller/runtime image tag for local kind" default="kind"
@@ -33,14 +32,6 @@ CLUSTER_NAME="${usage_cluster}"
 RELEASE_NAME="${usage_release}"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 PLATFORM="linux/$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')"
-# Kura is part of the default preview shape so the local kind validation
-# matches what Slack previews actually run. --without-kura is an escape
-# hatch for fast app-only iteration when the change can't affect Kura.
-if [ "${usage_without_kura:-false}" = "true" ]; then
-    WITH_KURA="false"
-else
-    WITH_KURA="true"
-fi
 KURA_CONTROLLER_REPO="${usage_kura_controller_image}"
 KURA_RUNTIME_REPO="${usage_kura_runtime_image}"
 KURA_IMAGE_TAG="${usage_kura_image_tag}"
@@ -49,6 +40,10 @@ KURA_INSTANCE_NAME="${RELEASE_NAME}-kura"
 # place the platform install puts the controller); the preview server
 # reaches it cross-namespace.
 KURA_ENDPOINT_URL="http://${KURA_INSTANCE_NAME}.kura.svc.cluster.local:4000"
+# Single test tenant per preview, matching the auto-seeded account.
+# Server JWTs for this account carry tenant=preview; the Lua hook enforces
+# strict matching against the KuraInstance's tenantID.
+PREVIEW_ACCOUNT_HANDLE="preview"
 
 if [ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]; then
     LICENSE_MODE="eso"
@@ -68,33 +63,29 @@ if [ "${usage_remote:-}" = "true" ]; then
     echo "==> Pulling remote images for ${PLATFORM}..."
     docker pull --platform "$PLATFORM" "${SERVER_REPO}:${IMAGE_TAG}"
     docker pull --platform "$PLATFORM" "${CACHE_REPO}:${IMAGE_TAG}"
-    if [ "$WITH_KURA" = "true" ]; then
-        KURA_CONTROLLER_REPO="ghcr.io/tuist/kura-controller"
-        KURA_RUNTIME_REPO="ghcr.io/tuist/kura"
-        KURA_IMAGE_TAG="${usage_version}"
-        docker pull --platform "$PLATFORM" "${KURA_CONTROLLER_REPO}:${KURA_IMAGE_TAG}"
-        docker pull --platform "$PLATFORM" "${KURA_RUNTIME_REPO}:${KURA_IMAGE_TAG}"
-    fi
+    KURA_CONTROLLER_REPO="ghcr.io/tuist/kura-controller"
+    KURA_RUNTIME_REPO="ghcr.io/tuist/kura"
+    KURA_IMAGE_TAG="${usage_version}"
+    docker pull --platform "$PLATFORM" "${KURA_CONTROLLER_REPO}:${KURA_IMAGE_TAG}"
+    docker pull --platform "$PLATFORM" "${KURA_RUNTIME_REPO}:${KURA_IMAGE_TAG}"
 else
     SERVER_REPO="tuist-server"
     CACHE_REPO="tuist-cache"
     IMAGE_TAG="latest"
     echo "==> Building images locally..."
     mise run helm:build
-    if [ "$WITH_KURA" = "true" ]; then
-        echo "==> Building Kura controller image locally..."
-        docker build \
-            --platform "$PLATFORM" \
-            -f "$REPO_ROOT/infra/kura-controller/Dockerfile" \
-            -t "${KURA_CONTROLLER_REPO}:${KURA_IMAGE_TAG}" \
-            "$REPO_ROOT"
+    echo "==> Building Kura controller image locally..."
+    docker build \
+        --platform "$PLATFORM" \
+        -f "$REPO_ROOT/infra/kura-controller/Dockerfile" \
+        -t "${KURA_CONTROLLER_REPO}:${KURA_IMAGE_TAG}" \
+        "$REPO_ROOT"
 
-        echo "==> Building Kura runtime image locally..."
-        docker build \
-            --platform "$PLATFORM" \
-            -t "${KURA_RUNTIME_REPO}:${KURA_IMAGE_TAG}" \
-            "$REPO_ROOT/kura"
-    fi
+    echo "==> Building Kura runtime image locally..."
+    docker build \
+        --platform "$PLATFORM" \
+        -t "${KURA_RUNTIME_REPO}:${KURA_IMAGE_TAG}" \
+        "$REPO_ROOT/kura"
 fi
 
 echo "==> Creating multi-node kind cluster '$CLUSTER_NAME' (control-plane + general worker + preview worker)..."
@@ -110,12 +101,10 @@ kubectl get nodes -o json | jq -r '.items[] | select(.spec.taints) | "\(.metadat
 
 echo "==> Loading images into kind..."
 kind load docker-image "${SERVER_REPO}:${IMAGE_TAG}" "${CACHE_REPO}:${IMAGE_TAG}" --name "$CLUSTER_NAME"
-if [ "$WITH_KURA" = "true" ]; then
-    kind load docker-image \
-        "${KURA_CONTROLLER_REPO}:${KURA_IMAGE_TAG}" \
-        "${KURA_RUNTIME_REPO}:${KURA_IMAGE_TAG}" \
-        --name "$CLUSTER_NAME"
-fi
+kind load docker-image \
+    "${KURA_CONTROLLER_REPO}:${KURA_IMAGE_TAG}" \
+    "${KURA_RUNTIME_REPO}:${KURA_IMAGE_TAG}" \
+    --name "$CLUSTER_NAME"
 
 HELM_LICENSE_ARGS=()
 
@@ -173,33 +162,28 @@ if helm status "$RELEASE_NAME" >/dev/null 2>&1; then
     helm uninstall "$RELEASE_NAME" --wait 2>/dev/null || true
     kubectl delete pvc -l app.kubernetes.io/instance="$RELEASE_NAME" --wait=true 2>/dev/null || true
 fi
-if [ "$WITH_KURA" = "true" ]; then
-    kubectl -n kura delete kurainstance "$KURA_INSTANCE_NAME" --ignore-not-found --wait=true 2>/dev/null || true
-fi
+kubectl -n kura delete kurainstance "$KURA_INSTANCE_NAME" --ignore-not-found --wait=true 2>/dev/null || true
 
-HELM_VALUES_ARGS=(-f "$REPO_ROOT/infra/helm/tuist/values-preview.yaml")
-HELM_KURA_ARGS=()
-if [ "$WITH_KURA" = "true" ]; then
-    HELM_VALUES_ARGS+=(-f "$REPO_ROOT/infra/helm/tuist/values-preview-kura.yaml")
-    HELM_KURA_ARGS=(
-        --set "kuraController.image.repository=${KURA_CONTROLLER_REPO}"
-        --set "kuraController.image.tag=${KURA_IMAGE_TAG}"
-        --set "kuraRuntime.image.repository=${KURA_RUNTIME_REPO}"
-        --set "kuraRuntime.image.tag=${KURA_IMAGE_TAG}"
-        --set "server.kuraEndpointUrls[0]=${KURA_ENDPOINT_URL}"
-    )
-fi
+HELM_VALUES_ARGS=(
+    -f "$REPO_ROOT/infra/helm/tuist/values-preview.yaml"
+    -f "$REPO_ROOT/infra/helm/tuist/values-preview-kura.yaml"
+)
+HELM_KURA_ARGS=(
+    --set "kuraController.image.repository=${KURA_CONTROLLER_REPO}"
+    --set "kuraController.image.tag=${KURA_IMAGE_TAG}"
+    --set "kuraRuntime.image.repository=${KURA_RUNTIME_REPO}"
+    --set "kuraRuntime.image.tag=${KURA_IMAGE_TAG}"
+    --set "server.kuraEndpointUrls[0]=${KURA_ENDPOINT_URL}"
+)
 
-if [ "$WITH_KURA" = "true" ]; then
-    echo "==> Installing cluster-wide Kura controller into the kura namespace..."
-    KURA_CONTROLLER_IMAGE_TAG="$KURA_IMAGE_TAG" \
-      mise -C "$REPO_ROOT/infra" run k8s:install-kura-platform "${KUBECONFIG:-$HOME/.kube/config}"
+echo "==> Installing cluster-wide Kura controller into the kura namespace..."
+KURA_CONTROLLER_IMAGE_TAG="$KURA_IMAGE_TAG" \
+  mise -C "$REPO_ROOT/infra" run k8s:install-kura-platform "${KUBECONFIG:-$HOME/.kube/config}"
 
-    echo "==> Copying kura-shared-secrets into preview namespace (default)..."
-    kubectl -n kura get secret kura-shared-secrets -o json \
-      | jq 'del(.metadata.namespace, .metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp, .metadata.ownerReferences, .metadata.labels, .metadata.annotations)' \
-      | kubectl -n default apply -f -
-fi
+echo "==> Copying kura-shared-secrets into preview namespace (default)..."
+kubectl -n kura get secret kura-shared-secrets -o json \
+  | jq 'del(.metadata.namespace, .metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp, .metadata.ownerReferences, .metadata.labels, .metadata.annotations)' \
+  | kubectl -n default apply -f -
 
 echo "==> Installing preview release..."
 helm install "$RELEASE_NAME" "$REPO_ROOT/infra/helm/tuist" \
@@ -214,10 +198,9 @@ helm install "$RELEASE_NAME" "$REPO_ROOT/infra/helm/tuist" \
     "${HELM_KURA_ARGS[@]}" \
     --wait --timeout 5m
 
-if [ "$WITH_KURA" = "true" ]; then
-    echo "==> Creating shared private KuraInstance '${KURA_INSTANCE_NAME}' in the kura namespace..."
-    {
-        cat <<EOF
+echo "==> Creating KuraInstance '${KURA_INSTANCE_NAME}' for the '${PREVIEW_ACCOUNT_HANDLE}' tenant..."
+{
+    cat <<EOF
 apiVersion: kura.tuist.dev/v1alpha1
 kind: KuraInstance
 metadata:
@@ -226,10 +209,9 @@ metadata:
   labels:
     tuist.dev/preview-source: slack
     app.kubernetes.io/instance: ${RELEASE_NAME}
-    tuist.dev/shared: "true"
 spec:
-  accountHandle: preview-${RELEASE_NAME}
-  tenantID: preview-${RELEASE_NAME}
+  accountHandle: ${PREVIEW_ACCOUNT_HANDLE}
+  tenantID: ${PREVIEW_ACCOUNT_HANDLE}
   region: kind-local
   image: ${KURA_RUNTIME_REPO}:${KURA_IMAGE_TAG}
   replicas: 2
@@ -240,8 +222,6 @@ spec:
       value: http://${RELEASE_NAME}-tuist-server.default.svc.cluster.local:80
     - name: KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL
       value: http://${RELEASE_NAME}-tuist-server.default.svc.cluster.local:80
-    - name: KURA_EXTENSION_TUIST_ALLOW_SHARED_TENANTS
-      value: "1"
   nodeSelector:
     role: preview
   tolerations:
@@ -251,19 +231,24 @@ spec:
       effect: NoSchedule
   extensionScript: |
 EOF
-        sed 's/^/    /' "$REPO_ROOT/kura/ops/helm/kura/hooks/tuist.lua"
-    } | kubectl apply -f -
+    sed 's/^/    /' "$REPO_ROOT/kura/ops/helm/kura/hooks/tuist.lua"
+} | kubectl apply -f -
 
-    echo "==> Waiting for the cluster-wide Kura controller to surface the StatefulSet..."
-    kubectl -n kura wait --for=condition=Available deployment/kura-platform-tuist-kura-controller --timeout=3m
-    for _ in $(seq 1 60); do
-        if kubectl -n kura get statefulset "$KURA_INSTANCE_NAME" >/dev/null 2>&1; then
-            break
-        fi
-        sleep 2
-    done
-    kubectl -n kura rollout status statefulset/"$KURA_INSTANCE_NAME" --timeout=10m
-fi
+echo "==> Waiting for the cluster-wide Kura controller to surface the StatefulSet..."
+kubectl -n kura wait --for=condition=Available deployment/kura-platform-tuist-kura-controller --timeout=3m
+for _ in $(seq 1 60); do
+    if kubectl -n kura get statefulset "$KURA_INSTANCE_NAME" >/dev/null 2>&1; then
+        break
+    fi
+    sleep 2
+done
+kubectl -n kura rollout status statefulset/"$KURA_INSTANCE_NAME" --timeout=10m
+
+echo "==> Seeding the '${PREVIEW_ACCOUNT_HANDLE}' test account..."
+PREVIEW_ACCOUNT_HANDLE="$PREVIEW_ACCOUNT_HANDLE" \
+KURA_ENDPOINT_URL="$KURA_ENDPOINT_URL" \
+RELEASE_NAME="$RELEASE_NAME" \
+  bash "$REPO_ROOT/infra/mise/tasks/preview/seed-account.sh"
 
 echo ""
 echo "==> Pod placement (every pod should land on a role=preview worker):"
@@ -287,26 +272,24 @@ if [ -n "$UNEXPECTED" ]; then
 fi
 echo "    OK: all preview pods landed on role=preview workers."
 
-if [ "$WITH_KURA" = "true" ]; then
-    echo ""
-    echo "==> Kura pod placement (Kura runtime pods should colocate on role=preview workers):"
-    kubectl -n kura get pods -l app.kubernetes.io/instance="$KURA_INSTANCE_NAME" -o wide
-    KURA_UNEXPECTED=$(kubectl -n kura get pods -l app.kubernetes.io/instance="$KURA_INSTANCE_NAME" \
-        -o json | jq -r '.items[] | select(.spec.nodeName != null) |
-        "\(.metadata.name) \(.spec.nodeName)"' \
-        | while read -r pod node; do
-            role="$(kubectl get node "$node" -o jsonpath='{.metadata.labels.role}')"
-            if [ "$role" != "preview" ]; then
-                echo "$pod $node role=$role"
-            fi
-        done)
-    if [ -n "$KURA_UNEXPECTED" ]; then
-        echo "    FAIL: Kura pods scheduled outside role=preview workers:"
-        echo "$KURA_UNEXPECTED"
-        exit 1
-    fi
-    echo "    OK: Kura runtime pods landed on role=preview workers."
+echo ""
+echo "==> Kura pod placement (Kura runtime pods should colocate on role=preview workers):"
+kubectl -n kura get pods -l app.kubernetes.io/instance="$KURA_INSTANCE_NAME" -o wide
+KURA_UNEXPECTED=$(kubectl -n kura get pods -l app.kubernetes.io/instance="$KURA_INSTANCE_NAME" \
+    -o json | jq -r '.items[] | select(.spec.nodeName != null) |
+    "\(.metadata.name) \(.spec.nodeName)"' \
+    | while read -r pod node; do
+        role="$(kubectl get node "$node" -o jsonpath='{.metadata.labels.role}')"
+        if [ "$role" != "preview" ]; then
+            echo "$pod $node role=$role"
+        fi
+    done)
+if [ -n "$KURA_UNEXPECTED" ]; then
+    echo "    FAIL: Kura pods scheduled outside role=preview workers:"
+    echo "$KURA_UNEXPECTED"
+    exit 1
 fi
+echo "    OK: Kura runtime pods landed on role=preview workers."
 
 echo ""
 echo "Tear down with: mise run helm:preview-down"

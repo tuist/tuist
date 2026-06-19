@@ -50,6 +50,11 @@ fi
 echo "::add-mask::$CLIENT_SECRET"
 
 log "Rendering Kura controller manifests for namespace=$KURA_NAMESPACE tag=$KURA_CONTROLLER_IMAGE_TAG"
+# Every non-control-plane worker on the preview cluster carries the
+# `role=preview:NoSchedule` taint, so the controller pod needs the
+# matching toleration to land. (The previous untaint/retaint dance is
+# gone — see the platform tolerations in
+# infra/helm/platform/values-tuist-preview.yaml.)
 helm template kura-platform "$CHART_PATH" \
   --namespace "$KURA_NAMESPACE" \
   --show-only templates/kura-controller.yaml \
@@ -60,6 +65,10 @@ helm template kura-platform "$CHART_PATH" \
   --set kuraController.sharedSecrets.kuraIntrospection.enabled=true \
   --set-string "kuraController.sharedSecrets.kuraIntrospection.clientId=$CLIENT_ID" \
   --set-string "kuraController.sharedSecrets.kuraIntrospection.clientSecret=$CLIENT_SECRET" \
+  --set "kuraController.tolerations[0].key=role" \
+  --set "kuraController.tolerations[0].operator=Equal" \
+  --set "kuraController.tolerations[0].value=preview" \
+  --set "kuraController.tolerations[0].effect=NoSchedule" \
   | kubectl apply -f -
 
 log "Waiting for Kura controller rollout"
