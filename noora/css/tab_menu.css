@@ -5,7 +5,7 @@
   cursor: pointer;
   border-radius: var(--noora-radius-3);
   padding: var(--noora-spacing-3) var(--noora-spacing-4);
-  color: var(--noora-surface-label-primary);
+  color: var(--noora-surface-label-secondary);
 
   & [data-part="icon-left"],
   & [data-part="icon-right"] {
@@ -23,11 +23,13 @@
   }
 
   &:hover {
-    background: var(--noora-surface-background-tertiary);
+    background: var(--noora-surface-background-secondary);
+    color: var(--noora-surface-label-primary);
   }
 
   &[data-selected] {
     background: var(--noora-surface-background-secondary);
+    color: var(--noora-surface-label-primary);
   }
 }
 
