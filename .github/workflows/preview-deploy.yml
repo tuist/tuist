@@ -3,8 +3,10 @@ name: Preview Deploy
 # Deploy / refresh / tear down an ephemeral preview environment. Single
 # workflow behind every preview lifecycle in this repo — PR labels,
 # manual dispatch, and Slack-driven dispatch from tuist-ops all land
-# here. PR-specific decoration (GitHub Deployments, PR comments) and
-# Slack-specific audit metadata are conditional on the trigger source.
+# here. Every preview includes Kura (server + cache + embedded
+# Postgres/ClickHouse/MinIO + KuraInstance + seeded test account), so
+# PR-driven previews catch Kura regressions and the Slack/CI/local
+# shapes don't diverge.
 #
 # Triggers:
 #
@@ -17,8 +19,7 @@ name: Preview Deploy
 #   workflow_dispatch:
 #     Manual run for a PR/commit, or Slack dispatch from tuist-ops.
 #     Inputs:
-#       action          deploy | delete (required for Slack flow;
-#                       deploy is the default for "give me a one-off")
+#       action          deploy | delete (default deploy)
 #       slug            DNS-safe slug (Slack flow). For PR/SHA flow we
 #                       derive from pr_number or commit_sha.
 #       pr_number       PR to deploy (mutually exclusive with commit_sha)
@@ -26,9 +27,6 @@ name: Preview Deploy
 #       ttl_hours       Auto-delete after N hours (max 168)
 #       requester_*     Audit metadata (Slack flow)
 #       reason          Audit reason (Slack flow)
-#       profile         app | app-with-kura. Default: app for
-#                       PR/SHA-driven flow, app-with-kura for Slack.
-#       kura_*          Image tags + replicas for the Kura profile.
 #
 # Naming convention:
 #   pr_number=1234   → slug=pr-1234, release=pr-1234,
@@ -39,6 +37,13 @@ name: Preview Deploy
 #   slack            → slug=<requested>, release=ondemand-<slug>,
 #                      namespace=preview-ondemand-<slug>,
 #                      host=<slug>.preview.tuist.dev
+#
+# Kura image tags: when the deploying ref touches `infra/kura-controller/**`
+# or `kura/**` the workflow builds + pushes a `sha-<short>` image and
+# the deploy uses it. When the ref does not touch those paths the
+# deploy uses `latest` (last main build) — so server-only PRs don't pay
+# the ~10 min Rust build cost while Kura-touching PRs validate the
+# PR's actual Kura bits.
 #
 # Required GitHub Environment secret (server-k8s-preview):
 #   KUBECONFIG  - base64 kubeconfig for the preview workload cluster.
@@ -76,22 +81,6 @@ on:
       reason:
         description: Audit reason (Slack flow)
         required: false
-      profile:
-        description: app | app-with-kura
-        required: false
-        default: ""
-      kura_instance_replicas:
-        description: KuraInstance replicas (app-with-kura profile)
-        required: false
-        default: "1"
-      kura_controller_image_tag:
-        description: ghcr.io/tuist/kura-controller tag override
-        required: false
-        default: ""
-      kura_runtime_image_tag:
-        description: ghcr.io/tuist/kura tag override
-        required: false
-        default: ""
   pull_request:
     types: [labeled, synchronize, unlabeled, closed]
 
@@ -108,6 +97,7 @@ env:
   KURA_RUNTIME_IMAGE_NAME: tuist/kura
   HELM_CHART_PATH: infra/helm/tuist
   PREVIEW_BASE_DOMAIN: preview.tuist.dev
+  KURA_INSTANCE_REPLICAS: "1"
 
 jobs:
   resolve:
@@ -140,10 +130,6 @@ jobs:
       ttl_hours: ${{ steps.r.outputs.ttl_hours }}
       expires_at: ${{ steps.r.outputs.expires_at }}
       pr_number: ${{ steps.r.outputs.pr_number }}
-      profile: ${{ steps.r.outputs.profile }}
-      kura_replicas: ${{ steps.r.outputs.kura_replicas }}
-      kura_controller_tag: ${{ steps.r.outputs.kura_controller_tag }}
-      kura_runtime_tag: ${{ steps.r.outputs.kura_runtime_tag }}
     steps:
       - id: r
         env:
@@ -156,10 +142,6 @@ jobs:
           DISPATCH_PR: ${{ inputs.pr_number }}
           DISPATCH_SHA: ${{ inputs.commit_sha }}
           DISPATCH_TTL: ${{ inputs.ttl_hours }}
-          DISPATCH_PROFILE: ${{ inputs.profile }}
-          DISPATCH_KURA_REPLICAS: ${{ inputs.kura_instance_replicas }}
-          DISPATCH_KURA_CONTROLLER_TAG: ${{ inputs.kura_controller_image_tag }}
-          DISPATCH_KURA_RUNTIME_TAG: ${{ inputs.kura_runtime_image_tag }}
           REQUESTER_EMAIL: ${{ inputs.requester_email }}
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -227,21 +209,6 @@ jobs:
             else
               echo "::error::Provide slug OR pr_number OR commit_sha."; exit 1
             fi
-
-            # Profile defaults: Slack flow expects Kura, PR/manual flow
-            # the bare app unless explicitly overridden.
-            PROFILE="$DISPATCH_PROFILE"
-            if [ -z "$PROFILE" ]; then
-              if [ "$SOURCE" = "slack" ]; then
-                PROFILE=app-with-kura
-              else
-                PROFILE=app
-              fi
-            fi
-            KURA_REPLICAS="${DISPATCH_KURA_REPLICAS:-1}"
-            if ! [[ "$KURA_REPLICAS" =~ ^[0-9]+$ ]] || [ "$KURA_REPLICAS" -gt 3 ]; then
-              echo "::error::kura_instance_replicas must be 0..3."; exit 1
-            fi
           else
             # pull_request — auto-deploy on label/sync, teardown on
             # unlabel/close. TTL defaults to a long horizon; teardown is
@@ -258,15 +225,11 @@ jobs:
             RELEASE="$SLUG"
             NAMESPACE="preview-${SLUG}"
             PR_OUT="$EVENT_PR"
-            PROFILE=app
-            KURA_REPLICAS=0
           fi
 
           HOST="${SLUG}.${PREVIEW_BASE_DOMAIN}"
           SHORT_SHA="${REF:0:12}"
           EXPIRES_AT=$(( $(date +%s) + TTL_HOURS * 3600 ))
-          KURA_CONTROLLER_TAG="${DISPATCH_KURA_CONTROLLER_TAG:-sha-${SHORT_SHA}}"
-          KURA_RUNTIME_TAG="${DISPATCH_KURA_RUNTIME_TAG:-sha-${SHORT_SHA}}"
 
           {
             echo "action=$ACTION"
@@ -280,10 +243,6 @@ jobs:
             echo "ttl_hours=$TTL_HOURS"
             echo "expires_at=$EXPIRES_AT"
             echo "pr_number=$PR_OUT"
-            echo "profile=$PROFILE"
-            echo "kura_replicas=$KURA_REPLICAS"
-            echo "kura_controller_tag=$KURA_CONTROLLER_TAG"
-            echo "kura_runtime_tag=$KURA_RUNTIME_TAG"
           } >> "$GITHUB_OUTPUT"
 
           {
@@ -293,15 +252,14 @@ jobs:
             echo "- Namespace: \`$NAMESPACE\`"
             echo "- Host: https://$HOST"
             if [ "$ACTION" = "deploy" ]; then
-              echo "- Profile: \`$PROFILE\`"
               echo "- Ref: \`$REF\`"
               echo "- Expires: $(date -u -d "@$EXPIRES_AT" '+%Y-%m-%d %H:%M UTC')"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # Detect whether the deploying ref touches Kura paths. When it does we
-  # build PR-scoped controller/runtime images so the preview validates
-  # actual Kura changes; otherwise we reuse :latest and skip the builds.
+  # Detect whether the deploying ref touches Kura paths. Drives the
+  # conditional `build-kura-*` jobs below; the deploy uses sha-<short>
+  # tags when the PR built fresh images, otherwise `latest` from main.
   paths-changed:
     name: Detect Kura path changes
     needs: resolve
@@ -325,8 +283,8 @@ jobs:
             BASE="$(git merge-base origin/main "$REF" 2>/dev/null || true)"
           fi
           if [ -z "$BASE" ]; then
-            # No base — Slack-dispatched against a SHA without a PR.
-            # Build the Kura images so the preview validates the SHA's bits.
+            # No base — Slack/manual dispatch against a SHA without a PR.
+            # Build the Kura images so the preview validates the SHA.
             echo "kura_controller=true" >> "$GITHUB_OUTPUT"
             echo "kura_runtime=true" >> "$GITHUB_OUTPUT"
             exit 0
@@ -379,14 +337,17 @@ jobs:
     needs: [resolve, paths-changed]
     if: |
       needs.resolve.outputs.action == 'deploy'
-      && needs.resolve.outputs.profile == 'app-with-kura'
       && needs.paths-changed.outputs.kura_controller == 'true'
     runs-on: tuist-linux
     timeout-minutes: 20
+    outputs:
+      image_tag: ${{ steps.tag.outputs.image_tag }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.resolve.outputs.ref }}
+      - id: tag
+        run: echo "image_tag=sha-${{ needs.resolve.outputs.short_sha }}" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -398,21 +359,24 @@ jobs:
           context: .
           file: ./infra/kura-controller/Dockerfile
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ needs.resolve.outputs.kura_controller_tag }}
+          tags: ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
 
   build-kura-runtime:
     name: Build kura runtime image
     needs: [resolve, paths-changed]
     if: |
       needs.resolve.outputs.action == 'deploy'
-      && needs.resolve.outputs.profile == 'app-with-kura'
       && needs.paths-changed.outputs.kura_runtime == 'true'
     runs-on: tuist-linux-large
     timeout-minutes: 30
+    outputs:
+      image_tag: ${{ steps.tag.outputs.image_tag }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.resolve.outputs.ref }}
+      - id: tag
+        run: echo "image_tag=sha-${{ needs.resolve.outputs.short_sha }}" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -423,11 +387,9 @@ jobs:
         with:
           context: ./kura
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.KURA_RUNTIME_IMAGE_NAME }}:${{ needs.resolve.outputs.kura_runtime_tag }}
+          tags: ${{ env.REGISTRY }}/${{ env.KURA_RUNTIME_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
 
   start-deployment:
-    # Per-PR GitHub Deployment so the PR timeline shows a "Preview – PR #N"
-    # card. PR-driven flow only.
     name: Start GitHub Deployment
     needs: resolve
     if: needs.resolve.outputs.action == 'deploy' && needs.resolve.outputs.source == 'github-pr' && needs.resolve.outputs.pr_number != ''
@@ -471,7 +433,7 @@ jobs:
 
   deploy:
     name: Deploy ${{ needs.resolve.outputs.release }}
-    needs: [resolve, build-server, build-kura-controller, build-kura-runtime]
+    needs: [resolve, paths-changed, build-server, build-kura-controller, build-kura-runtime]
     if: |
       always()
       && needs.resolve.outputs.action == 'deploy'
@@ -482,8 +444,6 @@ jobs:
     environment:
       name: server-k8s-preview
       url: https://${{ needs.resolve.outputs.host }}
-    # Per-release lane so two runs against the same slug don't race on
-    # the Helm release. Different slugs deploy in parallel.
     concurrency:
       group: preview-deploy-${{ needs.resolve.outputs.release }}
       cancel-in-progress: false
@@ -495,12 +455,10 @@ jobs:
       HOST: ${{ needs.resolve.outputs.host }}
       SLUG: ${{ needs.resolve.outputs.slug }}
       SOURCE: ${{ needs.resolve.outputs.source }}
-      PROFILE: ${{ needs.resolve.outputs.profile }}
       IMAGE_TAG: ${{ needs.build-server.outputs.image_tag }}
       EXPIRES_AT: ${{ needs.resolve.outputs.expires_at }}
-      KURA_REPLICAS: ${{ needs.resolve.outputs.kura_replicas }}
-      KURA_CONTROLLER_TAG: ${{ needs.resolve.outputs.kura_controller_tag }}
-      KURA_RUNTIME_TAG: ${{ needs.resolve.outputs.kura_runtime_tag }}
+      KURA_CONTROLLER_TAG: ${{ needs.build-kura-controller.outputs.image_tag || 'latest' }}
+      KURA_RUNTIME_TAG: ${{ needs.build-kura-runtime.outputs.image_tag || 'latest' }}
       KURA_INSTANCE: ${{ needs.resolve.outputs.release }}-kura
       KURA_HOST: kura-${{ needs.resolve.outputs.slug }}.preview.tuist.dev
     steps:
@@ -521,17 +479,12 @@ jobs:
         run: |
           kubectl label nodes -l '!node-role.kubernetes.io/control-plane' role=preview --overwrite
       - name: Reconcile platform chart
-        # Platform pods + admission Jobs have a role=preview toleration in
-        # values-tuist-preview.yaml, so we don't untaint workers here. The
-        # task skips reading the Cloudflare token when the Secret already
-        # exists, so normal preview deploys don't propagate the credential.
         run: |
           set -euo pipefail
           mise -C infra run k8s:install-platform "$KUBECONFIG" tuist-preview
       - name: Reconcile Kura platform (cluster-wide controller)
-        if: env.PROFILE == 'app-with-kura'
         env:
-          KURA_CONTROLLER_IMAGE_TAG: ${{ needs.resolve.outputs.kura_controller_tag }}
+          KURA_CONTROLLER_IMAGE_TAG: ${{ env.KURA_CONTROLLER_TAG }}
         run: |
           set -euo pipefail
           mise -C infra run k8s:install-kura-platform "$KUBECONFIG"
@@ -566,7 +519,6 @@ jobs:
             kubectl annotate namespace "$NAMESPACE" "tuist.dev/reason=$REQUEST_REASON" --overwrite
           fi
       - name: Copy Kura introspection Secret into preview namespace
-        if: env.PROFILE == 'app-with-kura'
         run: |
           set -euo pipefail
           kubectl -n kura get secret kura-shared-secrets -o json \
@@ -575,26 +527,17 @@ jobs:
       - name: helm upgrade --install
         run: |
           set -euo pipefail
-          args=(
-            "$RELEASE" "$HELM_CHART_PATH"
-            --namespace "$NAMESPACE"
-            -f "$HELM_CHART_PATH/values-preview.yaml"
-            --set "server.image.tag=$IMAGE_TAG"
-            --set server.ingress.enabled=true
-            --set "server.ingress.host=$HOST"
-            --set "server.appUrl=https://$HOST"
+          helm upgrade --install "$RELEASE" "$HELM_CHART_PATH" \
+            --namespace "$NAMESPACE" \
+            -f "$HELM_CHART_PATH/values-preview.yaml" \
+            -f "$HELM_CHART_PATH/values-preview-kura.yaml" \
+            --set "server.image.tag=$IMAGE_TAG" \
+            --set server.ingress.enabled=true \
+            --set "server.ingress.host=$HOST" \
+            --set "server.appUrl=https://$HOST" \
+            --set "kuraRuntime.image.tag=$KURA_RUNTIME_TAG" \
+            --set "server.kuraEndpointUrls[0]=https://$KURA_HOST" \
             --atomic --timeout 20m --wait
-          )
-          if [ "$PROFILE" = "app-with-kura" ]; then
-            args+=(
-              -f "$HELM_CHART_PATH/values-preview-kura.yaml"
-              --set "kuraRuntime.image.tag=$KURA_RUNTIME_TAG"
-            )
-            if [ "$KURA_REPLICAS" != "0" ]; then
-              args+=(--set "server.kuraEndpointUrls[0]=https://$KURA_HOST")
-            fi
-          fi
-          helm upgrade --install "${args[@]}"
       - name: Finalize namespace labels
         run: |
           set -euo pipefail
@@ -604,7 +547,6 @@ jobs:
           fi
           kubectl label namespace "$NAMESPACE" "${ARGS[@]}"
       - name: Create KuraInstance
-        if: env.PROFILE == 'app-with-kura' && env.KURA_REPLICAS != '0'
         run: |
           set -euo pipefail
           {
@@ -626,7 +568,7 @@ jobs:
             tenantID: preview
             region: preview
             image: ghcr.io/tuist/kura:${KURA_RUNTIME_TAG}
-            replicas: ${KURA_REPLICAS}
+            replicas: ${KURA_INSTANCE_REPLICAS}
             publicHost: ${KURA_HOST}
             ingressClassName: nginx
             storageSize: 10Gi
@@ -647,7 +589,6 @@ jobs:
             sed 's/^/    /' kura/ops/helm/kura/hooks/tuist.lua
           } | kubectl apply -f -
       - name: Wait for KuraInstance
-        if: env.PROFILE == 'app-with-kura' && env.KURA_REPLICAS != '0'
         run: |
           set -euo pipefail
           kubectl -n kura wait --for=jsonpath='{.status.phase}'=Ready "kurainstance/${KURA_INSTANCE}" --timeout=10m
@@ -680,7 +621,6 @@ jobs:
             fi
           done
       - name: Seed preview account
-        if: env.PROFILE == 'app-with-kura' && env.KURA_REPLICAS != '0'
         env:
           PREVIEW_ACCOUNT_HANDLE: preview
           KURA_ENDPOINT_URL: https://${{ env.KURA_HOST }}
@@ -731,9 +671,6 @@ jobs:
       - name: Delete KuraInstance, helm uninstall, drop namespace
         run: |
           set -euo pipefail
-          # KuraInstance first so the cluster-wide controller drains the
-          # finalizer (public Ingress + cert-manager Certificate cleanup)
-          # before we remove the helm release and namespace.
           kubectl -n kura delete kurainstance "${RELEASE}-kura" --ignore-not-found --wait=true --timeout 5m || true
           if helm status "$RELEASE" --namespace "$NAMESPACE" >/dev/null 2>&1; then
             helm uninstall "$RELEASE" --namespace "$NAMESPACE" --wait --timeout 5m || true
