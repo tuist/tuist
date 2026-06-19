@@ -32,6 +32,12 @@ server:
     enabled: false
   cluster:
     enabled: false
+  # Run the migration Job as a pre-install/pre-upgrade Helm hook so
+  # `helm upgrade` between two image tags doesn't try to mutate the
+  # prior Job's immutable spec.template (managed envs do the same via
+  # values-managed-common.yaml).
+  migrationJob:
+    asHook: true
   # License is synced from 1Password via ESO into the chart's
   # server-external-secrets Secret. The 1P item must exist in the vault that
   # the ClusterSecretStore (default name: onepassword) is bound to. ESO and
