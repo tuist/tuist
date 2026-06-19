@@ -42,7 +42,7 @@ Pomerium).
 - `lib/tuist_ops/previews/` — Ecto schema, Slack Block Kit,
   and GitHub Actions workflow-dispatch client
 - `/preview create <slug> [duration] [pr:<number>|sha:<sha>] <reason>` dispatches
-  `.github/workflows/preview-ondemand-deploy.yml` with `action=create`
+  `.github/workflows/preview-deploy.yml` with `action=deploy`
 - `/preview delete <slug> [reason]` and the Slack Delete button dispatch the same
   workflow with `action=delete`
 - The app records the Slack/audit trail in Postgres; Kubernetes mutation stays

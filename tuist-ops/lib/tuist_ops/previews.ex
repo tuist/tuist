@@ -175,7 +175,7 @@ defmodule TuistOps.Previews do
       }
       |> maybe_put_ref(preview)
 
-    GitHubActionsClient.dispatch("create", inputs)
+    GitHubActionsClient.dispatch("deploy", inputs)
   end
 
   defp dispatch_delete(%Preview{} = preview) do

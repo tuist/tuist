@@ -22,7 +22,7 @@ defmodule TuistOps.Environment do
   def github_workflow_ref, do: System.get_env("GITHUB_WORKFLOW_REF") || "main"
 
   def preview_workflow_id do
-    System.get_env("PREVIEW_WORKFLOW_ID") || "preview-ondemand-deploy.yml"
+    System.get_env("PREVIEW_WORKFLOW_ID") || "preview-deploy.yml"
   end
 
   # --- Operator project-access grants -----------------------------------

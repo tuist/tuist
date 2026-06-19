@@ -5,7 +5,7 @@ defmodule TuistOps.Previews.GitHubActionsClient do
 
   alias TuistOps.Environment
 
-  def dispatch(action, inputs) when action in ["create", "delete"] and is_map(inputs) do
+  def dispatch(action, inputs) when action in ["deploy", "delete"] and is_map(inputs) do
     repo = Environment.github_repository()
     workflow_id = Environment.preview_workflow_id()
     ref = Environment.github_workflow_ref()
