@@ -26,7 +26,7 @@ use crate::{
     state::SharedState,
     store::{ArtifactApplyOutcome, ManifestPage, NamespaceTombstonePage},
     telemetry::{inject_current_trace_context, record_trace_context},
-    utils::{ensure_tmp_dir_capacity, replication_target_label, temp_file_path, url_encode},
+    utils::{replication_target_label, temp_file_path, url_encode},
 };
 
 use self::{operation::ReplicationOperation, outbox_message::OutboxMessage};
@@ -415,16 +415,13 @@ async fn bootstrap_artifact_from_peer(
         .size
         .max(declared_bytes.unwrap_or(0))
         .min(MAX_REPLICATION_BODY_BYTES);
+    // reserve() waits when the budget is full, so peak concurrent staging never
+    // exceeds it however large the account is. A whole-dir hard check here is
+    // wrong: when bootstrap legitimately fills the budget it would reject the
+    // next artifact and fail the whole bootstrap, reintroducing the stall this
+    // reservation exists to prevent. (The node is out of the Service while
+    // bootstrapping, so non-bootstrap tmp occupants are negligible.)
     let _staging_reservation = state.bootstrap_staging_budget.reserve(reserved_bytes).await;
-    // The reservation bounds concurrent bootstraps against each other; this
-    // guards the shared tmp dir against non-bootstrap occupants (uploads,
-    // multipart assembly, leftovers) so the on-disk total can't exceed budget.
-    ensure_tmp_dir_capacity(
-        &state.config.tmp_dir,
-        reserved_bytes,
-        state.config.tmp_dir_max_bytes,
-    )
-    .await?;
     let temp_path = temp_file_path(&state.config.tmp_dir.join("bootstrap"), "bootstrap");
     stream_response_to_temp(state, response, &temp_path, reserved_bytes).await?;
     state
@@ -1609,55 +1606,6 @@ mod tests {
                 .expect("artifact fetch should succeed")
                 .is_none(),
             "the rejected artifact must not be persisted"
-        );
-    }
-
-    #[tokio::test]
-    async fn bootstrap_accounts_for_non_bootstrap_tmp_usage() {
-        // A non-bootstrap occupant already fills most of the tmp dir. The
-        // bootstrap reservation alone would admit the artifact, but the
-        // whole-dir guard must refuse it so the shared tmp dir can't exceed
-        // its budget.
-        let artifact_len = 64 * 1024_u64;
-        let tmp_budget = artifact_len * 2;
-        let chunk = vec![5_u8; artifact_len as usize];
-        let app = Router::new().route(
-            "/_internal/bootstrap/artifacts/{artifact_id}",
-            get(move |AxumPath(_artifact_id): AxumPath<String>| {
-                let chunk = chunk.clone();
-                async move { chunk }
-            }),
-        );
-        let (remote_url, _server) = spawn_server(app).await;
-
-        let local = test_context(move |config| {
-            config.tmp_dir_max_bytes = tmp_budget;
-        })
-        .await;
-
-        std::fs::create_dir_all(&local.state.config.tmp_dir).expect("tmp dir should be creatable");
-        std::fs::write(
-            local.state.config.tmp_dir.join("upload-in-progress"),
-            vec![1_u8; (tmp_budget - artifact_len / 2) as usize],
-        )
-        .expect("filler write should succeed");
-
-        let manifest = bootstrap_test_manifest(
-            ArtifactProducer::Gradle,
-            false,
-            "ios",
-            "blocked",
-            "application/octet-stream",
-            artifact_len,
-            100,
-        );
-
-        let error = bootstrap_artifact_from_peer(&local.state, &remote_url, &manifest)
-            .await
-            .expect_err("bootstrap must refuse to overrun the shared tmp budget");
-        assert!(
-            error.contains("tmp dir budget exhausted"),
-            "expected a tmp-dir budget rejection, got: {error}"
         );
     }
 }
