@@ -119,6 +119,7 @@ Mimic.copy(TuistWeb.RateLimit.Auth)
 Mimic.copy(TuistWeb.RateLimit.AgentAuth)
 Mimic.copy(TuistWeb.RateLimit.InMemory)
 Mimic.copy(TuistWeb.RateLimit.MCP)
+Mimic.copy(TuistWeb.RateLimit.Metrics)
 Mimic.copy(TuistWeb.RateLimit.PersistentTokenBucket)
 Mimic.copy(TuistWeb.RemoteIp)
 Mimic.copy(UAParser)
@@ -138,6 +139,42 @@ Mimic.copy(Tuist.Runners.RunnerSessions)
 Mimic.copy(Tuist.Kubernetes.Client)
 Mimic.copy(Tuist.Tasks)
 
-ExUnit.start(exclude: [:skip])
+defmodule TuistTestSupport.LoggerFilters do
+  @moduledoc false
+
+  def filter_db_connection_sandbox_teardown(%{level: :error} = log_event, _extra) do
+    message = log_event_message(log_event)
+
+    if String.contains?(message, "disconnected: ** (DBConnection.ConnectionError)") and
+         String.contains?(message, " exited") and
+         (String.contains?(message, "client #PID<") or String.contains?(message, "owner #PID<")) do
+      :stop
+    else
+      :ignore
+    end
+  end
+
+  def filter_db_connection_sandbox_teardown(_log_event, _extra), do: :ignore
+
+  defp log_event_message(%{msg: {:string, message}}), do: IO.iodata_to_binary(message)
+
+  defp log_event_message(%{msg: {:report, report}}), do: inspect(report)
+
+  defp log_event_message(%{msg: {:format, format, args}}) do
+    format
+    |> :io_lib.format(args)
+    |> IO.iodata_to_binary()
+  end
+
+  defp log_event_message(%{msg: message}) when is_binary(message), do: message
+  defp log_event_message(log_event), do: inspect(log_event)
+end
+
+:logger.add_primary_filter(
+  :db_connection_sandbox_teardown,
+  {&TuistTestSupport.LoggerFilters.filter_db_connection_sandbox_teardown/2, []}
+)
+
+ExUnit.start(capture_log: true, exclude: [:skip])
 Sandbox.mode(Tuist.Repo, :manual)
 Sandbox.mode(Tuist.IngestRepo, :manual)

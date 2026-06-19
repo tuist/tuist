@@ -1,0 +1,147 @@
+name: Gradle Release
+
+# Releases the Tuist Gradle plugin. Extracted from release.yml: the plugin is a
+# client artifact independent of the server, so it gets its own lane and is
+# never queued behind a server deploy. Gradle releases by commit scope
+# (feat(gradle) etc., filtered in gradle/cliff.toml), so the workflow runs on
+# gradle source changes and release:check decides whether to publish.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - gradle/**
+      - mise/tasks/release/components.json
+      - .github/workflows/gradle-release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  # Serialize gradle publishing through one ref-independent group: it derives
+  # the next version from the gradle@ tag set and creates a tag, so two runs
+  # must never overlap. Queue rather than cancel so an in-flight publish is
+  # never torn.
+  group: gradle-release
+  cancel-in-progress: false
+
+env:
+  MISE_VERSION: "2026.5.15"
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+
+jobs:
+  check:
+    name: Check for releasable changes
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    outputs:
+      should-release: ${{ steps.check.outputs.gradle-should-release }}
+      next-version: ${{ steps.check.outputs.gradle-next-version }}
+      next-version-number: ${{ steps.check.outputs.gradle-next-version-number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "--locked git-cliff jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - id: check
+        run: mise run release:check gradle
+
+  release:
+    name: Release Gradle Plugin
+    needs: check
+    if: needs.check.outputs.should-release == 'true'
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "--locked java gradle git-cliff 1password-cli"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-disabled: true
+
+      - name: Get release notes
+        id: release-notes
+        run: |
+          # Get the latest gradle version tag
+          LATEST_VERSION=$(git tag -l | grep -E "^gradle@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
+
+          if [ -n "$LATEST_VERSION" ]; then
+            RELEASE_NOTES=$(git cliff --config gradle/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2)
+          else
+            RELEASE_NOTES=$(git cliff --config gradle/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2)
+          fi
+
+          if [ -z "$(echo "$RELEASE_NOTES" | tr -d '[:space:]')" ]; then
+            echo "Gradle release notes are empty. Refusing to publish a release without notes." >&2
+            exit 1
+          fi
+
+          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$RELEASE_NOTES" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Update CHANGELOG.md
+        working-directory: gradle
+        run: git cliff --include-path "gradle/**/*" --config cliff.toml --repository "../" --tag "${{ needs.check.outputs.next-version }}" -o CHANGELOG.md 2>/dev/null
+
+      - name: Publish to Gradle Plugin Portal
+        working-directory: gradle
+        run: |
+          PUBLISH_KEY=$(op read "op://tuist/GRADLE_PUBLISH_KEY/password")
+          PUBLISH_SECRET=$(op read "op://tuist/GRADLE_PUBLISH_SECRET/password")
+          ./gradlew publishPlugins -Pversion=${{ needs.check.outputs.next-version-number }} -Pgradle.publish.key="$PUBLISH_KEY" -Pgradle.publish.secret="$PUBLISH_SECRET"
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+
+      - name: Update version in settings.gradle.kts
+        run: |
+          sed -i 's/id("dev.tuist") version ".*"/id("dev.tuist") version "${{ needs.check.outputs.next-version-number }}"/' gradle/settings.gradle.kts
+
+      - name: Tag Gradle release
+        run: |
+          TAG=${{ needs.check.outputs.next-version }}
+
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          if git ls-remote --tags --exit-code origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists on origin"
+            exit 0
+          fi
+
+          git tag "$TAG"
+          git push origin "refs/tags/$TAG"
+
+      - name: Create Gradle GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          repository: tuist/tuist
+          name: Gradle Plugin ${{ needs.check.outputs.next-version-number }}
+          tag_name: ${{ needs.check.outputs.next-version }}
+          body: |
+            Gradle Plugin Portal: `dev.tuist:${{ needs.check.outputs.next-version-number }}`
+
+            ${{ steps.release-notes.outputs.RELEASE_NOTES }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}

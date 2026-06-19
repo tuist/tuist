@@ -39,13 +39,13 @@ runs:
     - name: Tune Mix dependency compilation parallelism
       shell: bash
       run: echo "MIX_OS_DEPS_COMPILE_PARTITION_COUNT=${{ inputs.mix-os-deps-compile-partition-count }}" >> "$GITHUB_ENV"
-    - uses: jdx/mise-action@v4.0.1
+    - uses: ./.github/actions/mise-install
       with:
         version: ${{ inputs.mise-version }}
-        install_args: ${{ inputs.mise-install-args }}
+        install: ${{ inputs.mise-install-args }}
         cache: "true"
-        working_directory: server
-        github_token: ${{ inputs.github-token || env.MISE_GITHUB_TOKEN }}
+        working-directory: server
+        github-token: ${{ inputs.github-token || env.MISE_GITHUB_TOKEN }}
     - name: Restore Mix Cache
       if: ${{ inputs['restore-mix-cache'] == 'true' }}
       uses: actions/cache@v4

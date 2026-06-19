@@ -5,13 +5,13 @@ defmodule TuistWeb.AccountDropdownTest do
 
   import Phoenix.LiveViewTest
 
-  alias Tuist.Environment
+  alias Tuist.Accounts
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture(preload: [:account])
 
-    Mimic.stub(Environment, :ops_user_handles, fn -> [] end)
+    Mimic.stub(Accounts, :tuist_operator?, fn _ -> false end)
 
     conn = log_in_user(conn, user)
 

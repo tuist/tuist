@@ -134,6 +134,7 @@ let project = Project(
                 .target(name: "TuistNoora", condition: .when([.ios])),
                 .target(name: "TuistMenuBar", condition: .when([.macos])),
                 .external(name: "FluidMenuBarExtra", condition: .when([.macos])),
+                .external(name: "Sparkle", condition: .when([.macos])),
                 .target(name: "TuistPreviews", condition: .when([.ios])),
                 .target(name: "TuistOnboarding", condition: .when([.ios])),
                 .target(name: "TuistErrorHandling", condition: .when([.ios])),

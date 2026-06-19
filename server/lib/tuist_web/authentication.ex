@@ -332,18 +332,26 @@ defmodule TuistWeb.Authentication do
   end
 
   def require_sso_authentication(%{params: %{"account_handle" => account_handle}} = conn, _opts) do
-    with account when not is_nil(account) <- Accounts.get_account_by_handle(account_handle),
-         organization_id when not is_nil(organization_id) <- account.organization_id,
-         {:ok, organization} <- Accounts.get_organization_by_id(organization_id),
-         true <- organization.sso_enforced and not is_nil(organization.sso_provider),
-         auth_method = get_session(conn, :auth_method),
-         false <- auth_method == organization.sso_provider do
+    if TuistWeb.OperatorGrant.active_grant?(conn, account_handle) do
+      # An operator holding a valid grant for this account bypasses the
+      # customer's SSO enforcement: they authenticated out-of-band at
+      # ops.tuist.dev and the access is reason-logged and time-boxed.
+      # This is the path that makes SSO-enforced orgs reachable.
       conn
-      |> put_session(:oauth_return_to, current_path(conn))
-      |> redirect(to: sso_provider_path(organization))
-      |> halt()
     else
-      _ -> conn
+      with account when not is_nil(account) <- Accounts.get_account_by_handle(account_handle),
+           organization_id when not is_nil(organization_id) <- account.organization_id,
+           {:ok, organization} <- Accounts.get_organization_by_id(organization_id),
+           true <- organization.sso_enforced and not is_nil(organization.sso_provider),
+           auth_method = get_session(conn, :auth_method),
+           false <- auth_method == organization.sso_provider do
+        conn
+        |> put_session(:oauth_return_to, current_path(conn))
+        |> redirect(to: sso_provider_path(organization))
+        |> halt()
+      else
+        _ -> conn
+      end
     end
   end
 

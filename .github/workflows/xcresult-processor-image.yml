@@ -5,7 +5,7 @@ name: Xcresult Processor Image
 # xcresult-processor-image.yml --ref <branch>` when probing image
 # contents or smoke-testing a Packer change before merging.
 #
-# The push-on-main flow lives in release.yml's
+# The push-on-main flow lives in server-production-deployment.yml's
 # release-xcresult-processor job — that's the path that produces
 # versioned tags (`:<version>` + `:latest`) and rewrites the
 # xcresultProcessor image tag in `values-managed-common.yaml`. This
@@ -46,7 +46,7 @@ jobs:
     timeout-minutes: 60
     env:
       PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
-      MISE_VERSION: "2026.4.18"
+      MISE_VERSION: "2026.5.15"
       MISE_GITHUB_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
@@ -141,7 +141,7 @@ jobs:
           TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # SHA-tagged builds for ad-hoc deploys; semver tags + `:latest`
-          # are owned by release.yml's release-xcresult-processor job.
+          # are owned by server-production-deployment.yml's release-xcresult-processor job.
           set -euo pipefail
           GIT_SHA="${GITHUB_SHA::8}"
           tart push tuist-xcresult-processor "ghcr.io/tuist/tuist-xcresult-processor:${GIT_SHA}"

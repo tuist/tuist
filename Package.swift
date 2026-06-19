@@ -24,7 +24,8 @@ let differenceDependency: Target.Dependency = .product(name: "Difference", packa
 let anyCodableDependency: Target.Dependency = .product(name: "AnyCodable", package: "flight-school.AnyCodable")
 let tomlDecoderDependency: Target.Dependency = .product(name: "TOMLDecoder", package: "dduan.TOMLDecoder")
 let algorithmsDependency: Target.Dependency = .product(name: "Algorithms", package: "apple.swift-algorithms")
-let swifterPMCoreDependency: Target.Dependency = .product(name: "SwifterPMCore", package: "swifterpm")
+let subprocessDependency: Target.Dependency = .product(name: "Subprocess", package: "swiftlang.swift-subprocess")
+let swifterPMCoreDependency: Target.Dependency = "SwifterPMCore"
 
 // MARK: - Targets
 
@@ -456,6 +457,30 @@ var targets: [Target] = [
         dependencies: tuistDependencies,
         path: "cli/Sources/tuist",
         exclude: ["AGENTS.md"]
+    ),
+    .executableTarget(
+        name: "swifterpm",
+        dependencies: [
+            "SwifterPMCore",
+        ],
+        path: "swifterpm/Sources/swifterpmCLI",
+        swiftSettings: [
+            .swiftLanguageMode(.v6),
+        ]
+    ),
+    .target(
+        name: "SwifterPMCore",
+        dependencies: [
+            argumentParserDependency,
+            .product(name: "Crypto", package: "apple.swift-crypto", condition: .when(platforms: [.linux])),
+            subprocessDependency,
+            fileSystemDependency,
+            pathDependency,
+        ],
+        path: "swifterpm/Sources/swifterpm",
+        swiftSettings: [
+            .swiftLanguageMode(.v6),
+        ]
     ),
     .target(
         name: "TuistConstants",
@@ -1652,7 +1677,6 @@ targets.append(contentsOf: [
             "TSCLibc": .staticFramework,
             "ArgumentParser": .staticFramework,
             "Mockable": .staticFramework,
-            "SwifterPMCore": .staticFramework,
             "Subprocess": .staticFramework,
             "_NIOFileSystem": .staticFramework,
         ],
@@ -1664,6 +1688,7 @@ targets.append(contentsOf: [
 
 var products: [Product] = [
     .executable(name: "tuist", targets: ["tuist"]),
+    .executable(name: "swifterpm", targets: ["swifterpm"]),
     .library(
         name: "TuistServer",
         targets: ["TuistServer"]
@@ -1786,6 +1811,7 @@ let package = Package(
         .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.17.3")),
         .package(id: "tuist.Command", .upToNextMajor(from: "0.14.8")),
         .package(id: "apple.swift-crypto", from: "3.0.0"),
+        .package(id: "swiftlang.swift-subprocess", exact: "0.4.0"),
         .package(id: "crspybits.swift-log-file", .upToNextMajor(from: "0.1.0")),
         .package(id: "tuist.Noora", from: "0.55.0"),
         .package(
@@ -1819,10 +1845,6 @@ let package = Package(
         .package(id: "swiftlang.swift-docc-plugin", from: "1.4.6"),
         .package(name: "XCResultNIF", path: "server/native/xcresult_nif"),
         .package(id: "stephencelis.SQLite_swift", from: "0.16.0"),
-        .package(
-            url: "https://github.com/tuist/swifterpm",
-            revision: "672a723f962cf243f1b6de65274c744c51e82acc"
-        ),
     ],
     targets: targets,
     swiftLanguageModes: [.v5]

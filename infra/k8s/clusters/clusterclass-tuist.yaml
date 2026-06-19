@@ -211,6 +211,19 @@ spec:
         openAPIV3Schema:
           type: string
           default: ""
+    # Extra kubelet node-labels for a worker pool, in kubelet's
+    # `k=v,k=v` form. Set as a per-MachineDeployment override so a pool
+    # self-applies role labels at registration. Unlike MachineDeployment
+    # metadata labels (which CAPI only syncs for the
+    # node-role/node-restriction/node.cluster.x-k8s.io prefixes), this
+    # reaches the node directly and survives node replacement — which is
+    # why the stable-egress gateway role is pinned this way.
+    - name: workerNodeLabels
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: ""
     # Bare-metal cluster gate. Each per-cluster topology sets this
     # to its own env (`staging` / `canary` / `production`) so the
     # `HetznerBareMetalMachineTemplateClusterSelector` patch below
@@ -225,6 +238,17 @@ spec:
         openAPIV3Schema:
           type: string
           default: ""
+    # apiserver --kubelet-preferred-address-types order. Default keeps Hetzner
+    # nodes on ExternalIP; envs with cross-cloud nodes (Scaleway Elastic Metal /
+    # macOS PN) that report no ExternalIP and an unresolvable Hostname set this
+    # to insert InternalIP so the apiserver can reach those kubelets (logs/exec).
+    # Flipping it rolls that cluster's control plane — do it per-env, deliberately.
+    - name: kubeletPreferredAddressTypes
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: ExternalIP,Hostname,InternalDNS,ExternalDNS
   patches:
     - name: HetznerClusterTemplateGeneral
       definitions:
@@ -344,6 +368,27 @@ spec:
               path: "/spec/template/spec/placementGroupName"
               valueFrom:
                 variable: hcloudWorkerMachinePlacementGroupName
+    # Append per-pool kubelet node-labels to the worker bootstrap. The
+    # shared worker KubeadmConfigTemplate carries only cloud-provider +
+    # config args; this appends `--node-labels=<workerNodeLabels>` for any
+    # MachineDeployment that overrides the variable (no-op otherwise). It
+    # is how the stable-egress gateway pool self-labels its node so the
+    # role survives MachineHealthCheck remediation.
+    - name: KubeadmConfigTemplateWorkerNodeLabels
+      enabledIf: '{{ if ne .workerNodeLabels "" }}true{{end}}'
+      definitions:
+        - selector:
+            apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+            kind: KubeadmConfigTemplate
+            matchResources:
+              machineDeploymentClass:
+                names:
+                  - hcloud-worker
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/joinConfiguration/nodeRegistration/kubeletExtraArgs/-"
+              valueFrom:
+                template: '{"name":"node-labels","value":{{ .workerNodeLabels | quote }}}'
     # Inject the per-cluster gate into the shared bare-metal HBMM
     # template. `hetzner-robot-controller` stamps each HBM with
     # `tuist.dev/cluster=<env>` based on the Robot server name; the
@@ -368,6 +413,23 @@ spec:
               path: "/spec/template/spec/hostSelector/matchLabels/tuist.dev~1cluster"
               valueFrom:
                 variable: bareMetalCluster
+    # Rebuilds the apiserver extraArgs array (CAPI ClusterClass patches can't
+    # index array elements) with kubelet-preferred-address-types set from the
+    # per-cluster variable. No-op while the variable equals the template
+    # default, so applying this patch rolls nothing; setting the variable on a
+    # Cluster CR regenerates that KubeadmControlPlane and rolls its CP.
+    - name: KubeadmControlPlaneKubeletAddressTypes
+      definitions:
+        - selector:
+            apiVersion: controlplane.cluster.x-k8s.io/v1beta2
+            kind: KubeadmControlPlaneTemplate
+            matchResources:
+              controlPlane: true
+          jsonPatches:
+            - op: replace
+              path: "/spec/template/spec/kubeadmConfigSpec/clusterConfiguration/apiServer/extraArgs"
+              valueFrom:
+                template: '[{"name": "kubelet-preferred-address-types", "value": {{ .kubeletPreferredAddressTypes | quote }} }]'
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: HetznerClusterTemplate
@@ -422,6 +484,10 @@ spec:
         clusterConfiguration:
           apiServer:
             extraArgs:
+              # Default value. The KubeadmControlPlaneKubeletAddressTypes patch
+              # rebuilds this whole extraArgs array from the
+              # kubeletPreferredAddressTypes variable, so keep
+              # kubelet-preferred-address-types the only apiServer extraArg.
               - name: kubelet-preferred-address-types
                 value: ExternalIP,Hostname,InternalDNS,ExternalDNS
           controllerManager:

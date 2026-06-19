@@ -6,6 +6,7 @@ defmodule TuistWeb.Router do
   import Redirect
   import TuistWeb.Authentication
   import TuistWeb.Authorization
+  import TuistWeb.OperatorGrant
   import TuistWeb.RateLimit.InMemory
 
   alias TuistWeb.Marketing.Localization
@@ -66,6 +67,10 @@ defmodule TuistWeb.Router do
     plug :put_secure_browser_headers
     plug UeberauthHostPlug
     plug :fetch_current_user
+    # Before Sentry/Observability log the query string: take a
+    # `?operator_grant=` token off the redirect-back, stash it in the
+    # session, and redirect to strip it from the URL.
+    plug :accept_operator_grant
     plug SentryContextPlug
     plug ObservabilityContextPlug
     plug :content_security_policy
@@ -551,6 +556,11 @@ defmodule TuistWeb.Router do
         scope "/tests" do
           get "/", TestsController, :index
 
+          scope "/metrics" do
+            get "/duration", MetricsController, :test_duration
+            get "/dimensions/:dimension/values", MetricsController, :test_dimension_values
+          end
+
           scope "/test-cases" do
             get "/", TestCasesController, :index
 
@@ -594,6 +604,12 @@ defmodule TuistWeb.Router do
 
         scope "/builds" do
           get "/", BuildsController, :index
+
+          scope "/metrics" do
+            get "/duration", MetricsController, :build_duration
+            get "/dimensions/:dimension/values", MetricsController, :build_dimension_values
+          end
+
           get "/:build_id", BuildsController, :show
           post "/", BuildsController, :create
           post "/upload/start", BuildsController, :multipart_start
@@ -962,6 +978,8 @@ defmodule TuistWeb.Router do
     pipe_through [
       :open_api,
       :browser_app,
+      :load_operator_grant,
+      :redirect_to_ops_if_operator,
       :require_authenticated_user,
       :require_sso_authentication,
       :analytics
@@ -978,6 +996,7 @@ defmodule TuistWeb.Router do
       layout: {TuistWeb.Layouts, :account},
       on_mount: [
         {TuistWeb.Authentication, :ensure_authenticated},
+        {TuistWeb.OperatorGrant, :load},
         {TuistWeb.Locale, :assign_locale},
         {TuistWeb.LayoutLive, :account}
       ] do
@@ -1006,6 +1025,8 @@ defmodule TuistWeb.Router do
       :open_api,
       :browser_app,
       :rate_limit,
+      :load_operator_grant,
+      :redirect_to_ops_if_operator,
       :require_authenticated_user_for_private_projects,
       :require_sso_authentication,
       :analytics,
@@ -1016,6 +1037,7 @@ defmodule TuistWeb.Router do
       layout: {TuistWeb.Layouts, :project},
       on_mount: [
         {TuistWeb.Authentication, :mount_current_user},
+        {TuistWeb.OperatorGrant, :load},
         {TuistWeb.Locale, :assign_locale},
         {TuistWeb.LayoutLive, :project}
       ] do

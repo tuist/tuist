@@ -5,6 +5,7 @@ defmodule TuistWeb.GenerateRunsLive do
 
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Runs.CacheEndpointFormatter
+  import TuistWeb.Runs.CommandFormatter
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
@@ -195,6 +196,7 @@ defmodule TuistWeb.GenerateRunsLive do
 
     flop_filters =
       filters
+      |> Enum.map(&normalize_command_filter/1)
       |> Enum.map(&normalize_text_filter_operator/1)
       |> Filter.Operations.convert_filters_to_flop()
 
@@ -216,6 +218,12 @@ defmodule TuistWeb.GenerateRunsLive do
   defp normalize_text_filter_operator(%Filter.Filter{operator: :"!=~"} = filter), do: %{filter | operator: :not_ilike}
 
   defp normalize_text_filter_operator(filter), do: filter
+
+  defp normalize_command_filter(%Filter.Filter{id: "name", value: value} = filter) when is_binary(value) do
+    %{filter | value: normalize_command_filter_value(value)}
+  end
+
+  defp normalize_command_filter(filter), do: filter
 
   def sort_icon("desc") do
     "square_rounded_arrow_down"
@@ -262,7 +270,7 @@ defmodule TuistWeb.GenerateRunsLive do
     base = [
       %Filter.Filter{
         id: "name",
-        field: :name,
+        field: :command_arguments,
         display_name: dgettext("dashboard_builds", "Command"),
         type: :text,
         operator: :=~,

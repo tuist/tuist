@@ -1,0 +1,80 @@
+name: CLI Promote to Stable
+
+# Promote a soaked release candidate to the stable X.Y.0 release.
+#
+# Prerequisite: the line's releases/<major>.<minor>.x branch has published at
+# least one RC (cli-rc.yml) and soaked cleanly. This builds the branch HEAD
+# (which includes any fixes cherry-picked during the soak) and publishes the
+# bare semver tag X.Y.0 with make_latest=true, moving the GitHub "Latest" pointer
+# and the Homebrew formula. From here on, fixes for the line ship as patches via
+# cli-backport.yml.
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Release branch to promote (releases/<major>.<minor>.x)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: read
+  statuses: write
+  packages: write
+  # Capped down into the reusable workflow's release-cli job (which mints an
+  # OIDC token); a called workflow's job permissions can't exceed the caller's.
+  id-token: write
+
+concurrency:
+  # Shared with cli-release.yml / cli-rc.yml / cli-backport.yml so version
+  # resolution and tag creation never race.
+  group: cli-publish
+  cancel-in-progress: false
+
+env:
+  MISE_VERSION: "2026.5.15"
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_ATTESTATIONS: 0
+
+jobs:
+  prepare:
+    name: Resolve stable version
+    runs-on: tuist-linux
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      sha: ${{ steps.resolve.outputs.sha }}
+      changelog_from: ${{ steps.resolve.outputs.changelog_from }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+          fetch-depth: 0
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "--locked git-cliff jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - id: resolve
+        env:
+          BRANCH: ${{ inputs.branch }}
+        run: |
+          set -euo pipefail
+          mise run --no-deps cli:release:channel-version -- promote "$BRANCH"
+
+  build-publish:
+    name: Build and publish stable
+    needs: prepare
+    uses: ./.github/workflows/cli-build-publish.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+      # An immutable SHA so every job builds and tags the identical commit.
+      ref: ${{ needs.prepare.outputs.sha }}
+      changelog_from: ${{ needs.prepare.outputs.changelog_from }}
+      # The promotion is the moment the line becomes the recommended install.
+      make_latest: true
+      update_homebrew: true
+    secrets: inherit

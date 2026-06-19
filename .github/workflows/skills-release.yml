@@ -1,0 +1,123 @@
+name: Skills Release
+
+# Releases the Tuist agent skills (published to tuist/agent-skills). Extracted
+# from release.yml: the skills package is independent of the server, so it gets
+# its own lane and is never queued behind a server deploy. Its skills@ tag +
+# GitHub Release used to be created by release.yml's shared publish-releases
+# job; that creation moved here so the tag still advances.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - skills/**
+      - mise/tasks/release/components.json
+      - .github/workflows/skills-release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  # Serialize skills publishing through one ref-independent group: it derives
+  # the next version from the skills@ tag set and creates a tag, so two runs
+  # must never overlap. Queue rather than cancel so an in-flight publish is
+  # never torn.
+  group: skills-release
+  cancel-in-progress: false
+
+env:
+  MISE_VERSION: "2026.5.15"
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+
+jobs:
+  check:
+    name: Check for releasable changes
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    outputs:
+      should-release: ${{ steps.check.outputs.skills-should-release }}
+      next-version: ${{ steps.check.outputs.skills-next-version }}
+      next-version-number: ${{ steps.check.outputs.skills-next-version-number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "--locked git-cliff jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - id: check
+        run: mise run release:check skills
+
+  release:
+    name: Release Skills
+    needs: check
+    if: needs.check.outputs.should-release == 'true'
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    env:
+      GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "--locked git-cliff"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+
+      - name: Get release notes
+        id: release-notes
+        run: |
+          # Get the latest skills version tag
+          LATEST_VERSION=$(git tag -l | grep -E "^skills@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
+
+          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
+          if [ -n "$LATEST_VERSION" ]; then
+            git cliff --include-path "skills/**/*" --config skills/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          else
+            git cliff --include-path "skills/**/*" --config skills/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          fi
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Update CHANGELOG.md
+        working-directory: skills
+        run: git cliff --include-path "skills/**/*" --config cliff.toml --repository "../" --tag "${{ needs.check.outputs.next-version }}" -o CHANGELOG.md 2>/dev/null
+
+      - name: Push to tuist/agent-skills
+        run: |
+          VERSION="${{ needs.check.outputs.next-version-number }}"
+          git clone https://x-access-token:${GITHUB_TOKEN}@github.com/tuist/agent-skills.git /tmp/agent-skills
+          rm -rf /tmp/agent-skills/skills
+          cp -r skills/skills /tmp/agent-skills/skills
+          cd /tmp/agent-skills
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "Release ${VERSION}"
+            git tag "${VERSION}"
+            git push origin main --tags
+          else
+            echo "No changes to push"
+          fi
+
+      - name: Create Skills GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          repository: tuist/tuist
+          target_commitish: ${{ github.sha }}
+          name: Skills ${{ needs.check.outputs.next-version-number }}
+          tag_name: ${{ needs.check.outputs.next-version }}
+          body: |
+            GitHub: https://github.com/tuist/agent-skills/releases/tag/${{ needs.check.outputs.next-version-number }}
+
+            ${{ steps.release-notes.outputs.RELEASE_NOTES }}

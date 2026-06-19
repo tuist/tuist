@@ -53,7 +53,14 @@ scheduling:
   nodeSelector:
     katacontainers.io/kata-runtime: "true"
 overhead:
+  # Per-VM host cost the kube-scheduler adds on top of each Pod's request
+  # (guest RAM). The ~50 MiB figure above is the idle VMM footprint; under
+  # a real CI compile the QEMU process + virtiofsd + kata-shim resident set
+  # runs several hundred MiB and a couple of emulator/vhost threads. The
+  # earlier 100Mi undercounted that, so a fully-packed host overcommitted
+  # and co-located guests were SIGBUS-killed. Size the overhead to the
+  # busy-VMM cost so packing leaves real host memory free.
   podFixed:
-    cpu: "50m"
-    memory: "100Mi"
+    cpu: "250m"
+    memory: "512Mi"
 {{- end }}

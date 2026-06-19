@@ -1,5 +1,16 @@
-name: CLI Release
+name: CLI Canary Release
 
+# Every CLI-touching commit to main publishes a canary prerelease
+# (X.Y.0-canary.N). Canaries are the bleeding edge: marked as a GitHub
+# prerelease, never moved to "Latest", and never pushed to Homebrew, so package
+# managers that exclude prereleases by default (mise, Homebrew) never resolve
+# them unless a user opts in explicitly.
+#
+# Stable releases are NOT cut from main. A line is frozen onto a
+# releases/<major>.<minor>.x branch and published as an RC (cli-rc.yml), soaks,
+# then is promoted to stable X.Y.0 (cli-promote.yml). Patches on a stable line
+# come from cli-backport.yml. Canary always targets the next unreleased minor:
+# once an RC line is cut, main's canary advances to the following minor.
 on:
   push:
     branches:
@@ -10,6 +21,8 @@ on:
       - mise/tasks/release/components.json
       - .github/workflows/cli-release.yml
       - .github/workflows/cli-build-publish.yml
+      - .github/workflows/cli-rc.yml
+      - .github/workflows/cli-promote.yml
       - .xcode-version-releases
       - Package.swift
       - Package.resolved
@@ -24,11 +37,11 @@ permissions:
   id-token: write
 
 concurrency:
-  # Serialize all CLI publishing — normal releases AND backports — through one
-  # ref-independent group. check-releases derives the next version from the
-  # latest cli tag, and both paths create tags and push the Homebrew formula,
-  # so they must never run concurrently. Queue rather than cancel so each
-  # release publishes atomically. cli-backport.yml shares this group.
+  # Serialize all CLI publishing — canaries, RCs, promotions, and backports —
+  # through one ref-independent group. They all derive the next version from the
+  # tag set and create tags, so they must never run concurrently. Queue rather
+  # than cancel so each release publishes atomically. cli-rc.yml, cli-promote.yml
+  # and cli-backport.yml share this group.
   group: cli-publish
   cancel-in-progress: false
 
@@ -40,14 +53,14 @@ env:
   MISE_GITHUB_ATTESTATIONS: 0
 
 jobs:
-  check-releases:
-    name: Check for releasable changes
+  resolve:
+    name: Resolve canary version
     runs-on: tuist-linux
     timeout-minutes: 5
     outputs:
-      cli-should-release: ${{ steps.check.outputs.cli-should-release }}
-      cli-next-version: ${{ steps.check.outputs.cli-next-version }}
-      cli-next-version-number: ${{ steps.check.outputs.cli-next-version-number }}
+      version: ${{ steps.resolve.outputs.version }}
+      changelog_from: ${{ steps.resolve.outputs.changelog_from }}
+      should_publish: ${{ steps.resolve.outputs.should_publish }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -55,21 +68,34 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "git-cliff jq"
+          install_args: "--locked git-cliff jq"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
-      - id: check
-        run: mise run release:check
+      - id: resolve
+        run: |
+          set -euo pipefail
+          # Skip if HEAD is already published as a canary (e.g. a re-run): the
+          # build is expensive and would only mint a duplicate at the same SHA.
+          if git tag --points-at HEAD | grep -qE -- '-canary\.[0-9]+$'; then
+            echo "HEAD already has a canary tag; skipping."
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "should_publish=true" >> "$GITHUB_OUTPUT"
+          mise run --no-deps cli:release:channel-version -- canary
 
   build-publish:
-    name: Build and publish CLI
-    needs: check-releases
-    if: needs.check-releases.outputs.cli-should-release == 'true'
+    name: Build and publish canary
+    needs: resolve
+    if: needs.resolve.outputs.should_publish == 'true'
     uses: ./.github/workflows/cli-build-publish.yml
     with:
-      version: ${{ needs.check-releases.outputs.cli-next-version }}
+      version: ${{ needs.resolve.outputs.version }}
       # Build and tag the exact commit that triggered this run.
       ref: ${{ github.sha }}
-      make_latest: true
-      update_homebrew: true
+      changelog_from: ${{ needs.resolve.outputs.changelog_from }}
+      # Canaries are prereleases: never "Latest", never Homebrew.
+      make_latest: false
+      prerelease: true
+      update_homebrew: false
     secrets: inherit

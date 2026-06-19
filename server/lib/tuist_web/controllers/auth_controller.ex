@@ -9,6 +9,7 @@ defmodule TuistWeb.AuthController do
   alias Tuist.Accounts.Organization
   alias Tuist.OAuth2.SSOClient
   alias TuistWeb.Authentication
+  alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Errors.UnauthorizedError
   alias Ueberauth.Auth
   alias Ueberauth.Auth.Credentials
@@ -25,7 +26,7 @@ defmodule TuistWeb.AuthController do
   end
 
   def request(_conn, _params) do
-    raise TuistWeb.Errors.NotFoundError,
+    raise NotFoundError,
           dgettext("dashboard", "The authentication URL is not supported")
   end
 
@@ -134,6 +135,11 @@ defmodule TuistWeb.AuthController do
   end
 
   def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
+    if auth.provider == :github and not Tuist.Environment.github_auth_enabled?() do
+      raise NotFoundError,
+            dgettext("dashboard", "The authentication URL is not supported")
+    end
+
     complete_oauth_callback(conn, auth)
   end
 

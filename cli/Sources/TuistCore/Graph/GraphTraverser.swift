@@ -5,7 +5,6 @@ import TuistSupport
 import TuistThreadSafe
 import XcodeGraph
 
-import func TSCBasic.topologicalSort
 import func TSCBasic.transitiveClosure
 
 // swiftlint:disable type_body_length
@@ -841,14 +840,24 @@ public class GraphTraverser: GraphTraversing {
     public func librariesPublicHeadersFolders(path: Path.AbsolutePath, name: String) -> Set<
         Path.AbsolutePath
     > {
-        let dependencies = graph.dependencies[.target(name: name, path: path), default: []]
+        let targetDependency = GraphDependency.target(name: name, path: path)
+        let dependencies = graph.dependencies[targetDependency, default: []]
+            .union(filterDependencies(from: targetDependency))
         let libraryPublicHeaders = dependencies.compactMap { dependency -> Path.AbsolutePath? in
             guard case let GraphDependency.library(_, publicHeaders, _, _, _) = dependency else {
                 return nil
             }
             return publicHeaders
         }
-        return Set(libraryPublicHeaders)
+        let xcframeworkLibraryPublicHeaders = dependencies.flatMap { dependency -> [Path.AbsolutePath] in
+            guard case let GraphDependency.xcframework(xcframework) = dependency else { return [] }
+            return xcframework.infoPlist.libraries.compactMap { library in
+                guard let headersPath = library.headersPath else { return nil }
+                return try? AbsolutePath(validating: library.identifier, relativeTo: xcframework.path)
+                    .appending(headersPath)
+            }
+        }
+        return Set(libraryPublicHeaders + xcframeworkLibraryPublicHeaders)
     }
 
     public func librariesSearchPaths(path: Path.AbsolutePath, name: String) throws -> Set<
@@ -888,14 +897,35 @@ public class GraphTraverser: GraphTraversing {
     public func librariesSwiftIncludePaths(path: Path.AbsolutePath, name: String) -> Set<
         Path.AbsolutePath
     > {
-        let dependencies = graph.dependencies[.target(name: name, path: path), default: []]
+        let targetDependency = GraphDependency.target(name: name, path: path)
+        let dependencies = graph.dependencies[targetDependency, default: []]
+            .union(filterDependencies(from: targetDependency))
         let librarySwiftModuleMapPaths = dependencies.compactMap {
             dependency -> Path.AbsolutePath? in
             guard case let GraphDependency.library(_, _, _, _, swiftModuleMapPath) = dependency
             else { return nil }
             return swiftModuleMapPath
         }
-        return Set(librarySwiftModuleMapPaths.compactMap { $0.removingLastComponent() })
+        let xcframeworkLibrarySwiftModulePaths = dependencies.flatMap {
+            dependency -> [Path.AbsolutePath] in
+            guard case let GraphDependency.xcframework(xcframework) = dependency,
+                  xcframework.infoPlist.libraries.contains(where: {
+                      ["a", "dylib"].contains($0.path.extension)
+                  })
+            else { return [] }
+
+            return xcframework.swiftModules.map { swiftModulePath in
+                if swiftModulePath.parentDirectory.extension == "swiftmodule" {
+                    return swiftModulePath.parentDirectory.parentDirectory
+                } else {
+                    return swiftModulePath.parentDirectory
+                }
+            }
+        }
+        return Set(
+            librarySwiftModuleMapPaths.map { $0.removingLastComponent() }
+                + xcframeworkLibrarySwiftModulePaths
+        )
     }
 
     public func runPathSearchPaths(path: Path.AbsolutePath, name: String) -> Set<Path.AbsolutePath> {

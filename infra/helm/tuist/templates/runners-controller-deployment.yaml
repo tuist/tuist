@@ -181,6 +181,14 @@ spec:
             # Autoscaler reconciler runs in the cluster; always use
             # the in-cluster Service URL for the same reason.
             - --scaling-signals-url=http://{{ include "tuist.componentName" (dict "root" . "component" "server") }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.server.service.port | default 80 }}/api/internal/runners/desired_replicas
+            {{- with .Values.runnersController.clusterDNS.ip }}
+            # kube-dns ClusterIP staged into macOS pool Pods as
+            # TUIST_CLUSTER_DNS_IP so the Tart VM can point an
+            # /etc/resolver entry at cluster DNS and resolve the
+            # dispatch-provided in-cluster cache_endpoint_url.
+            - --cluster-dns-ip={{ . }}
+            - --cluster-domain={{ $.Values.runnersController.clusterDNS.domain | default "cluster.local" }}
+            {{- end }}
             {{- if .Values.runnersController.features.dindImage }}
             # dockerd sidecar image stamped on every Linux runner Pod.
             # Gated on the controller binary recognising the flag —

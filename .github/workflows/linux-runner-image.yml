@@ -9,7 +9,7 @@ name: Linux Runner Image
 #     branch can be validated against a real cluster before merging.
 #
 # The semver / `:latest` / chart-digest-rewrite flow lives in
-# release.yml's `release-linux-runner-image` job — pushed on main.
+# server-production-deployment.yml's `release-linux-runner-image` job — pushed on main.
 # This workflow deliberately doesn't touch `:latest` or any semver
 # tag; only the release job does.
 #

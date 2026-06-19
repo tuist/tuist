@@ -25,6 +25,11 @@ on:
         required: false
         type: boolean
         default: true
+      prerelease:
+        description: "Whether GitHub marks this release as a prerelease (canary/RC)"
+        required: false
+        type: boolean
+        default: false
       update_homebrew:
         description: "Whether to trigger the Homebrew formula update"
         required: false
@@ -66,7 +71,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "tuist git-cliff 1password-cli"
+          install_args: "--locked tuist git-cliff 1password-cli"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
@@ -95,6 +100,8 @@ jobs:
             --include-path "mise/tasks/release/components.json"
             --include-path ".github/workflows/cli-release.yml"
             --include-path ".github/workflows/cli-build-publish.yml"
+            --include-path ".github/workflows/cli-rc.yml"
+            --include-path ".github/workflows/cli-promote.yml"
             --include-path ".xcode-version-releases"
             --include-path "Package.swift"
             --include-path "Package.resolved"
@@ -120,6 +127,8 @@ jobs:
             --include-path "mise/tasks/release/components.json"
             --include-path ".github/workflows/cli-release.yml"
             --include-path ".github/workflows/cli-build-publish.yml"
+            --include-path ".github/workflows/cli-rc.yml"
+            --include-path ".github/workflows/cli-promote.yml"
             --include-path ".xcode-version-releases"
             --include-path "Package.swift"
             --include-path "Package.resolved"
@@ -201,7 +210,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "git-cliff"
+          install_args: "--locked git-cliff"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Download CLI artifacts
@@ -241,6 +250,10 @@ jobs:
           # Backports publish off an older line and must not move GitHub's
           # "Latest" pointer; the caller passes "false" for those.
           make_latest: ${{ inputs.make_latest }}
+          # Canary and RC builds are prereleases: this is what makes package
+          # managers (mise, Homebrew) exclude them from default resolution.
+          # make_latest alone only suppresses the "Latest" badge.
+          prerelease: ${{ inputs.prerelease }}
           name: CLI ${{ inputs.version }}
           tag_name: ${{ inputs.version }}
           body: ${{ needs.release-cli.outputs.release-notes }}

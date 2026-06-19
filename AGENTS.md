@@ -15,14 +15,17 @@ This file provides guidance to AI agents when working with code in this reposito
 - `noora/` - Noora design system (Elixir/Phoenix web components) - see `noora/AGENTS.md`
 - `mise/tasks/registry/` - Operational scripts for Swift package registry management (purge, sync)
 - `skills/` - Agent Skills (published to [tuist/agent-skills](https://github.com/tuist/agent-skills))
+- `swifterpm/` - SwifterPM Swift package restoration tool and Bazel/Buck integration helpers - see `swifterpm/AGENTS.md`
 - `server/native/xcactivitylog_nif/` - Swift NIF linked into the server release for xcactivitylog parsing. The build processor is no longer a standalone Elixir app; it's the same `ghcr.io/tuist/tuist` image booted with `TUIST_MODE=processor` to run the `:process_build` Oban queue consumer.
 - `server/native/xcresult_nif/` - Swift NIF for xcresult parsing (macOS-only — uses `xcresulttool`). Baked into a Tart VM image (`infra/xcresult-processor-image/`) that runs as a k8s `Deployment` scheduled onto a Mac mini node via tart-cri.
 - `infra/xcresult-processor-image/` - Packer template + launchd plist that produces the macOS Tart image hosting the Tuist server release with `TUIST_MODE=xcresult_processor`. See `infra/xcresult-processor-image/AGENTS.md`.
 - `infra/macos-xcode-image/` - Packer template that builds the in-house macOS + Xcode Tart image (Layer 1 base for `tuist-runner` and `tuist-xcresult-processor`). Drops the dependency on Cirrus Labs' `macos-tahoe-xcode:N` catalog. See `infra/macos-xcode-image/AGENTS.md`.
 - `infra/tart-cri/` - Container Runtime Interface (CRI) implementation that drives Tart on macOS, plus a CNI plugin. Lets a Mac mini join a Kubernetes cluster as a real node so macOS workloads schedule via standard `Deployment` / `Job` with `nodeSelector: kubernetes.io/os=darwin` + `tuist.dev/runtime=tart`. See `infra/tart-cri/AGENTS.md`.
-- `infra/cluster-api-provider-scaleway-applesilicon/` - Cluster API infrastructure provider that manages Scaleway Apple Silicon Mac minis declaratively. Watches `ScalewayAppleSiliconMachine` CRs, calls Scaleway's API to order/release machines, SSHes in to bootstrap kubelet + tart-cri. Scaling the fleet is `kubectl scale machinedeployment`. See `infra/cluster-api-provider-scaleway-applesilicon/AGENTS.md`.
+- `infra/cluster-api-provider-scaleway-applesilicon/` - Cluster API infrastructure provider that joins Scaleway nodes as workers into the existing caph/Hetzner clusters. Watches two machine kinds — `ScalewayAppleSiliconMachine` (Mac minis/Tart) and `ScalewayElasticMetalMachine` (Linux bare metal, e.g. the `kura-scw-fr-par` runner-cache node) — orders/releases via Scaleway's API, and bootstraps each with an operator-minted kubelet identity + SSH self-join. Scaling a fleet is `kubectl scale machinedeployment`. See `infra/cluster-api-provider-scaleway-applesilicon/AGENTS.md`.
+- `infra/stable-egress-controller/` - Go controller (Hetzner Cloud) that makes the hosted server's stable egress IP highly available: keeps the Floating IP + active gateway label on one Ready node of the ≥2-node `md-egress` pool and fails over on node loss, so the Cilium egress gateway has no single-node SPOF. See `infra/stable-egress-controller/AGENTS.md`.
 - `search/` - Search infrastructure (TypeSense) - see `search/AGENTS.md`
 - `status/` - Public status page (Cloudflare Worker + Hono) backed by Grafana IRM - see `status/AGENTS.md`
+- `grafana-datasource/` - Grafana data source plugin (Go backend + React) exposing Tuist build/test duration metrics. Thin client over the server's `/builds/metrics/duration` + `/tests/metrics/duration` API - see `grafana-datasource/AGENTS.md`
 - `infra/` - Infrastructure and deployment assets - see `infra/AGENTS.md`
 - `infra/cnpg/` - CloudNativePG bootstrap SQL for the in-cluster Postgres on managed envs. The chart renders the cluster CR whenever `postgresql.cnpg.enabled` is true or `postgresql.mode == "cnpg"`. See `infra/cnpg/README.md`.
 - `tuist-ops/` - Internal ops Phoenix app: Slack-driven JIT elevation bot (`/webhooks/slack/*`) plus the impersonation policy endpoint (`/api/v1/policy`) called by the kubectl gateway. Single-replica deploy in the production cluster, decoupled from `server/`. See `tuist-ops/AGENTS.md`.
@@ -50,6 +53,7 @@ When creating commits and pull requests, use these conventional commit scopes:
 - `skills` - Changes to the Agent Skills package
 - `search` - Changes to the search infrastructure (TypeSense)
 - `status` - Changes to the public status page (Cloudflare Worker)
+- `grafana-datasource` - Changes to the Grafana data source plugin
 - `docs` - Changes to documentation
 - `handbook` - Changes to the handbook/guides
 

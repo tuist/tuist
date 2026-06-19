@@ -57,6 +57,12 @@ on:
       linux_runner_image_tag:
         description: Pre-built Linux runner image tag to pin (e.g. `sha-7ed4b250bfb5`); wins over the resolved `linux-runner-image@*` semver
         required: false
+      capi_image_tag:
+        description: Pre-built CAPI provider image tag to pin (e.g. `05057033`); wins over the resolved `capi-scaleway@*` semver. Use when a chart change adds operator flags before the provider image is released.
+        required: false
+      runners_controller_image_tag:
+        description: Pre-built runners-controller image tag to pin (e.g. `sha-040775324f48`); wins over the resolved `runners-controller@*` semver. Same pre-release-flag use as capi_image_tag.
+        required: false
   workflow_call:
     inputs:
       environment:
@@ -90,6 +96,24 @@ on:
           tagging a release.
         required: false
         type: string
+      capi_image_tag:
+        description: >-
+          Pre-built CAPI provider image tag to pin (e.g. `05057033`).
+          When unset, the deploy job resolves the latest `capi-scaleway@*`
+          semver tag. Use when deploying chart changes that add operator
+          flags before the provider image is released, so the old binary
+          doesn't CrashLoop on an unknown flag and trip the --atomic
+          rollback.
+        required: false
+        type: string
+      runners_controller_image_tag:
+        description: >-
+          Pre-built runners-controller image tag to pin (e.g.
+          `sha-040775324f48`). When unset, the deploy job resolves the
+          latest `runners-controller@*` semver tag. Same pre-release-flag
+          use as capi_image_tag.
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -99,6 +123,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist
   KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
+  KURA_RUNTIME_IMAGE_NAME: tuist/kura
   HELM_CHART_PATH: infra/helm/tuist
   HELM_RELEASE_NAME: tuist
   OBSERVABILITY_CHART_PATH: infra/helm/k8s-monitoring
@@ -198,6 +223,40 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+      # The kura runtime image (the Rust mesh node, not the controller) is
+      # otherwise only published by release.yml on push-to-main. Building the
+      # per-commit `sha-<SHA>` image here lets staging run an in-flight kura
+      # change before it's released.
+      #
+      # Guarded to exactly the case the deploy job will consume this image, so
+      # nothing builds an image that won't be deployed:
+      #   - environment == 'staging': only staging pins kuraRuntime.image.tag to
+      #     this sha; canary/production resolve the released `kura@` tag and
+      #     never reference it (the production cascade also skips this whole job
+      #     via image_tag, so the env guard only bites a manual prod/canary run).
+      #   - kura_runtime_image_tag == '': when the caller pins an explicit kura
+      #     tag, the deploy uses that instead, so building the sha image is waste.
+      # Keep these two conditions in lockstep with the deploy precedence below.
+      # kura/Dockerfile builds from source (context = kura/); the staging node
+      # pool is amd64 (Hetzner ccx), so the runner-native build suffices.
+      - uses: docker/build-push-action@v6
+        name: Build and push Kura runtime image
+        if: inputs.environment == 'staging' && inputs.kura_runtime_image_tag == ''
+        with:
+          context: ./kura
+          file: ./kura/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.KURA_RUNTIME_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          # Self-warming registry layer cache across staging deploys: each
+          # deploy exports its layers, and the next one reuses them. Because the
+          # image layers are a pure function of kura/ (the build context), a
+          # staging deploy whose kura/ is unchanged from the last one is a full
+          # layer-cache hit — the expensive Rust + librocksdb-sys compile is
+          # pulled, not re-run. Only a deploy that actually changes kura/ pays a
+          # cold build (then re-warms the cache for the deploys after it).
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.KURA_RUNTIME_IMAGE_NAME }}-buildcache:staging
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.KURA_RUNTIME_IMAGE_NAME }}-buildcache:staging,mode=max
   observability-install:
     # Installs / upgrades the grafana/k8s-monitoring wrapper chart ahead of
     # the server rollout so the Alloy OTLP receiver is ready before the
@@ -228,7 +287,7 @@ jobs:
           ref: ${{ env.DEPLOY_SHA }}
       - uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "helm kubectl"
+          install_args: "--locked helm kubectl"
           cache: "false"
       - uses: 1password/install-cli-action@v2
       - name: Load kubeconfig from 1Password
@@ -310,7 +369,7 @@ jobs:
       - if: steps.check-values.outputs.exists == 'true'
         uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "helm kubectl"
+          install_args: "--locked helm kubectl"
           cache: "false"
       - if: steps.check-values.outputs.exists == 'true'
         uses: 1password/install-cli-action@v2
@@ -369,9 +428,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.DEPLOY_SHA }}
+          # Full history + tags so k8s:install-platform can resolve the
+          # stable-egress-controller@<semver> image tag reachable from this commit.
+          fetch-depth: 0
       - uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "helm kubectl"
+          install_args: "--locked helm kubectl"
           cache: "false"
       - uses: 1password/install-cli-action@v2
       - name: Load kubeconfig from 1Password
@@ -446,6 +508,8 @@ jobs:
       IMAGE_TAG: ${{ inputs.image_tag != '' && inputs.image_tag || needs.build.outputs.image_tag }}
       KURA_RUNTIME_IMAGE_TAG: ${{ inputs.kura_runtime_image_tag }}
       LINUX_RUNNER_IMAGE_TAG_INPUT: ${{ inputs.linux_runner_image_tag }}
+      CAPI_IMAGE_TAG_INPUT: ${{ inputs.capi_image_tag }}
+      RUNNERS_CONTROLLER_IMAGE_TAG_INPUT: ${{ inputs.runners_controller_image_tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -470,15 +534,15 @@ jobs:
           }
           {
             echo "XCRESULT_PROCESSOR_TAG=$(resolve 'xcresult-processor-image@')"
-            echo "CAPI_TAG=$(resolve 'capi-scaleway@')"
-            echo "RUNNERS_CONTROLLER_TAG=$(resolve 'runners-controller@')"
             echo "KURA_RUNTIME_TAG=$(resolve 'kura@')"
             echo "RUNNER_IMAGE_SEMVER=$(resolve 'runner-image@')"
             echo "LINUX_RUNNER_IMAGE_VERSION=$(resolve 'linux-runner-image@')"
+            echo "CAPI_TAG=$(resolve 'capi-scaleway@')"
+            echo "RUNNERS_CONTROLLER_TAG=$(resolve 'runners-controller@')"
           } >> "$GITHUB_ENV"
       - uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "helm kubectl"
+          install_args: "--locked helm kubectl"
           cache: "false"
       - uses: 1password/install-cli-action@v2
       - name: Load kubeconfig from 1Password
@@ -628,8 +692,6 @@ jobs:
             fi
           }
           add_set "xcresultProcessor.image.tag" "${XCRESULT_PROCESSOR_TAG:-}"
-          add_set "macosFleet.image.tag" "${CAPI_TAG:-}"
-          add_set "runnersController.image.tag" "${RUNNERS_CONTROLLER_TAG:-}"
           add_set "runnersFleet.runnerImageSemver" "${RUNNER_IMAGE_SEMVER:-}"
           # The explicit linux_runner_image_tag input wins over the
           # resolved linux-runner-image@ semver — same pattern as
@@ -647,15 +709,47 @@ jobs:
               "ghcr.io/tuist/tuist-linux-runner:${linux_runner_image_version}"
           fi
 
-          # The explicit kura_runtime_image_tag input (manual re-roll) wins
-          # over the resolved kura@ tag.
+          # Kura runtime image tag precedence:
+          #   1. explicit kura_runtime_image_tag input (manual re-roll) wins.
+          #   2. staging tracks the per-commit sha-<SHA> image — but only when
+          #      THIS run actually built it (image_tag empty ⇒ the build job
+          #      ran). A staging re-roll of a prebuilt server image_tag skips
+          #      the build job, so the kura sha image may not exist; fall
+          #      through to (3) rather than pin a tag that ImagePullBackOffs.
+          #   3. canary/production — and staging re-rolls of a prebuilt image —
+          #      pin the released kura@ tag resolved from git, so they never
+          #      run an unreleased (or never-built) binary.
           kura_runtime_tag="${KURA_RUNTIME_IMAGE_TAG:-}"
           if [ -n "$kura_runtime_tag" ]; then
-            echo "Overriding resolved Kura runtime tag with input ${kura_runtime_tag}"
+            echo "Kura runtime: using explicit input tag ${kura_runtime_tag}"
+          elif [ "${{ inputs.environment }}" = "staging" ] && [ -z "${{ inputs.image_tag }}" ]; then
+            kura_runtime_tag="$IMAGE_TAG"
+            echo "Kura runtime: staging tracks per-commit image ${kura_runtime_tag}"
           else
             kura_runtime_tag="${KURA_RUNTIME_TAG:-}"
+            echo "Kura runtime: ${{ inputs.environment }} pins released tag ${kura_runtime_tag}"
           fi
           add_set "kuraRuntime.image.tag" "$kura_runtime_tag"
+          # The explicit capi_image_tag / runners_controller_image_tag
+          # inputs win over the resolved release tags — same pattern as the
+          # runner images above. Needed when a chart change adds operator
+          # flags the released binary can't parse: it would CrashLoop on the
+          # unknown flag, blow the Deployment's progress deadline, and
+          # --atomic would roll the whole release back.
+          capi_image_tag="${CAPI_IMAGE_TAG_INPUT:-}"
+          if [ -n "$capi_image_tag" ]; then
+            echo "Overriding resolved CAPI provider tag with input ${capi_image_tag}"
+          else
+            capi_image_tag="${CAPI_TAG:-}"
+          fi
+          add_set "macosFleet.image.tag" "$capi_image_tag"
+          runners_controller_image_tag="${RUNNERS_CONTROLLER_IMAGE_TAG_INPUT:-}"
+          if [ -n "$runners_controller_image_tag" ]; then
+            echo "Overriding resolved runners-controller tag with input ${runners_controller_image_tag}"
+          else
+            runners_controller_image_tag="${RUNNERS_CONTROLLER_TAG:-}"
+          fi
+          add_set "runnersController.image.tag" "$runners_controller_image_tag"
 
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \

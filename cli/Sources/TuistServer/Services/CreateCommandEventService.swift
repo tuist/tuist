@@ -82,11 +82,11 @@
                             command_arguments: commandEvent.commandArguments,
                             duration: commandEvent.durationInMs,
                             error_message: errorMessage,
-                            id: commandEvent.generationId,
                             git_branch: commandEvent.gitBranch,
                             git_commit_sha: commandEvent.gitCommitSHA,
                             git_ref: commandEvent.gitRef,
                             git_remote_url_origin: commandEvent.gitRemoteURLOrigin,
+                            id: commandEvent.generationId,
                             is_ci: commandEvent.isCI,
                             macos_version: commandEvent.macOSVersion,
                             name: commandEvent.name,
@@ -148,7 +148,6 @@
                                             .miss
                                         }
                                         return .init(
-                                            build_duration: binaryCacheMetadata.buildDuration.map { Int($0) },
                                             hash: binaryCacheMetadata.hash,
                                             hit: hit,
                                             subhashes: binaryCacheMetadata.subhashes.map { subhashes in

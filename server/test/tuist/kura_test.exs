@@ -393,6 +393,189 @@ defmodule Tuist.KuraTest do
 
       assert [_] = Accounts.list_account_cache_endpoints(account, :kura)
     end
+
+    test "prunes the superseded :kura endpoint when the server's public URL changes" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{account_id: account.id, region: "local-controller", image_tag: "0.5.2"})
+
+      stub(Provisioner, :public_url, fn _account, _server -> "http://localhost:4100" end)
+      {:ok, server} = Kura.activate_server(server, "0.5.2")
+      assert [%{url: "http://localhost:4100"}] = Accounts.list_account_cache_endpoints(account, :kura)
+
+      # Region template now renders a new host; re-activation must replace the
+      # mirror, not accumulate a second row.
+      stub(Provisioner, :public_url, fn _account, _server -> "http://localhost:4200" end)
+      {:ok, _server} = Kura.activate_server(server, "0.5.2")
+
+      assert [%{url: "http://localhost:4200"}] = Accounts.list_account_cache_endpoints(account, :kura)
+    end
+
+    test "leaves other regions' :kura endpoints and :default endpoints intact when pruning" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{account_id: account.id, region: "local-controller", image_tag: "0.5.2"})
+
+      stub(Provisioner, :public_url, fn _account, _server -> "http://localhost:4100" end)
+      {:ok, server} = Kura.activate_server(server, "0.5.2")
+
+      # Another region's Kura endpoint (distinct URL) and a user-configured
+      # default endpoint that happens to share the pruned URL.
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{
+          url: "https://other-region.example.com",
+          technology: :kura
+        })
+
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{url: "http://localhost:4100", technology: :default})
+
+      stub(Provisioner, :public_url, fn _account, _server -> "http://localhost:4200" end)
+      {:ok, _server} = Kura.activate_server(server, "0.5.2")
+
+      kura_urls =
+        account |> Accounts.list_account_cache_endpoints(:kura) |> Enum.map(& &1.url) |> Enum.sort()
+
+      assert kura_urls == ["http://localhost:4200", "https://other-region.example.com"]
+      assert [%{url: "http://localhost:4100"}] = Accounts.list_account_cache_endpoints(account, :default)
+    end
+  end
+
+  describe "activate_server/2 for node-port private regions" do
+    # Private regions are env-gated; expose the real catalog entries so
+    # `create_server` accepts them (same pattern as RunnerCacheTest).
+    setup do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["scw-fr-par-runners", "hetzner-staging-runners"]
+      end)
+
+      :ok
+    end
+
+    test "activates with the node-published endpoint instead of cluster DNS" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "scw-fr-par-runners",
+          image_tag: "0.5.2"
+        })
+
+      expect(Provisioner, :external_endpoint, fn %Server{id: id} ->
+        assert id == server.id
+        {:ok, "http://172.16.0.2:30080"}
+      end)
+
+      assert {:ok, active} = Kura.activate_server(server, "0.5.2")
+      assert active.status == :active
+      assert active.url == "http://172.16.0.2:30080"
+      # Private servers never mirror into the CLI-facing endpoint
+      # table; a developer machine can't reach the PN address.
+      assert Accounts.list_account_cache_endpoints(account, :kura) == []
+    end
+
+    test "does not activate until the node-port chain is observed" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "scw-fr-par-runners",
+          image_tag: "0.5.2"
+        })
+
+      expect(Provisioner, :external_endpoint, fn %Server{} ->
+        {:error, :node_port_endpoint_not_ready}
+      end)
+
+      assert {:error, :node_port_endpoint_not_ready} = Kura.activate_server(server, "0.5.2")
+      assert %Server{status: :provisioning, url: nil} = Repo.get!(Server, server.id)
+    end
+  end
+
+  describe "refresh_private_server_url/1" do
+    setup do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["scw-fr-par-runners", "hetzner-staging-runners"]
+      end)
+
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "scw-fr-par-runners",
+          image_tag: "0.5.2"
+        })
+
+      expect(Provisioner, :external_endpoint, fn %Server{} -> {:ok, "http://172.16.0.2:30080"} end)
+      {:ok, active} = Kura.activate_server(server, "0.5.2")
+      %{server: active}
+    end
+
+    test "updates the URL when the primary pod moved nodes", %{server: server} do
+      expect(Provisioner, :external_endpoint, fn %Server{id: id} ->
+        assert id == server.id
+        {:ok, "http://172.16.0.5:30080"}
+      end)
+
+      assert :ok = Kura.refresh_private_server_url(server)
+      assert %Server{url: "http://172.16.0.5:30080"} = Repo.get!(Server, server.id)
+    end
+
+    test "keeps the last known URL while the endpoint is unobservable", %{server: server} do
+      expect(Provisioner, :external_endpoint, fn %Server{} ->
+        {:error, :node_port_endpoint_not_ready}
+      end)
+
+      assert :ok = Kura.refresh_private_server_url(server)
+      assert %Server{url: "http://172.16.0.2:30080"} = Repo.get!(Server, server.id)
+    end
+
+    test "skips the cluster write when the endpoint is unchanged", %{server: server} do
+      expect(Provisioner, :external_endpoint, fn %Server{} ->
+        {:ok, "http://172.16.0.2:30080"}
+      end)
+
+      assert :ok = Kura.refresh_private_server_url(server)
+      assert %Server{url: "http://172.16.0.2:30080"} = Repo.get!(Server, server.id)
+    end
+
+    test "is a no-op for cluster-DNS private servers" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "hetzner-staging-runners",
+          image_tag: "0.5.2"
+        })
+
+      reject(&Provisioner.external_endpoint/1)
+
+      assert :ok = Kura.refresh_private_server_url(%{server | status: :active})
+    end
+
+    test "is a no-op for non-active servers", %{server: server} do
+      reject(&Provisioner.external_endpoint/1)
+
+      assert :ok = Kura.refresh_private_server_url(%{server | status: :provisioning})
+    end
   end
 
   describe "destroy_server/1" do

@@ -88,6 +88,9 @@ defmodule Tuist.Kura.Provisioner do
   the control plane re-apply config-only changes independently from Kura
   runtime image changes.
   """
+  @callback external_endpoint(ref :: String.t(), Regions.t()) ::
+              {:ok, String.t()} | {:error, term()}
+
   @callback current_manifest_revision(ref :: String.t(), Regions.t()) ::
               {:ok, String.t() | nil} | {:error, term()}
 
@@ -131,6 +134,13 @@ defmodule Tuist.Kura.Provisioner do
   def current_image_tag(%Server{provisioner_node_ref: ref, region: region_id}) do
     with {:ok, region} <- Regions.fetch(region_id) do
       region.provisioner.current_image_tag(ref, region)
+    end
+  end
+
+  @doc "Calls `external_endpoint/2` on the region's provisioner."
+  def external_endpoint(%Server{provisioner_node_ref: ref, region: region_id}) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provisioner.external_endpoint(ref, region)
     end
   end
 

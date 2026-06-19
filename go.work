@@ -19,6 +19,7 @@ use (
 	./infra/kura-controller
 	./infra/macos-host-bootstrap
 	./infra/runners-controller
+	./infra/stable-egress-controller
 	./infra/tart-kubelet
 	./kube-impersonator
 )

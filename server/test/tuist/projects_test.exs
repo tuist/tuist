@@ -100,10 +100,12 @@ defmodule Tuist.ProjectsTest do
 
   test "returns all projects associated with a user's based on a google hosted domain" do
     # Given
+    domain = "tuist-#{TuistTestSupport.Utilities.unique_integer(6)}.io"
+
     organization =
       AccountsFixtures.organization_fixture(
         sso_provider: :google,
-        sso_organization_id: "tuist.io"
+        sso_organization_id: domain
       )
 
     account = Accounts.get_account_from_organization(organization)
@@ -112,14 +114,14 @@ defmodule Tuist.ProjectsTest do
     user =
       Accounts.find_or_create_user_from_oauth2(%{
         provider: :google,
-        uid: 123,
+        uid: System.unique_integer([:positive]),
         info: %{
-          email: "tuist@tuist.dev"
+          email: "tuist-#{TuistTestSupport.Utilities.unique_integer(6)}@#{domain}"
         },
         extra: %{
           raw_info: %{
             user: %{
-              "hd" => "tuist.io"
+              "hd" => domain
             }
           }
         }

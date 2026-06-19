@@ -24,6 +24,19 @@ Pomerium).
 - `lib/tuist_ops_web/controllers/slack_controller.ex` — Slack slash + interactive endpoints (`/webhooks/slack/*`)
 - `lib/tuist_ops_web/controllers/policy_controller.ex` — impersonation policy endpoint (`/api/v1/policy`)
 
+**Operator project-access (reason-gated access to customer projects)** (current):
+- `lib/tuist_ops/project_access/` — core business logic
+  - `request.ex`, `grant.ex` — Ecto schemas (request lifecycle + minted grant)
+  - `approvals.ex` — state machine: read = self-serve grant; admin = Slack-approved
+  - `policy.ex` — read self-serve / admin-approver gates (reuses `JIT.TailscaleClient`)
+  - `token.ex` — mints the Ed25519 grant the customer `server/` verifies offline
+  - `slack_blocks.ex` — admin-tier approval card (reuses `JIT.SlackClient`)
+- `lib/tuist_ops_web/controllers/grant_controller.ex` — the `/grants/*` reason form,
+  identity from `X-Pomerium-Claim-Email`. **MUST be Pomerium-fronted** (the header is
+  the auth and is spoofable on a raw ingress). Admin-tier approve/deny is handled by
+  the shared `slack_controller.ex` (`pa_approve`/`pa_deny` actions).
+- Audit + deployment runbook: `infra/k8s/operator-project-access-audit.md`.
+
 **Planned migrations from `server/`** (not yet moved, structure ready to receive):
 - `/ops/db` LiveView (read-only Postgres inspection) — will land as
   `lib/tuist_ops_web/live/database_live.ex` plus any business-logic

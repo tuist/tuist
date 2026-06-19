@@ -194,6 +194,132 @@ struct TuistCacheEEAcceptanceTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_ios_app_with_cached_xctest_support")
+    ) func generated_ios_app_with_cached_xctest_support() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let mockedEnvironment = try #require(Environment.mocked)
+        let fileSystem = FileSystem()
+        let xcodeprojPath = fixtureDirectory.appending(component: "CachedXCTestSupport.xcodeproj")
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+
+        let cachedFeatureArtifacts = try await fileSystem.glob(
+            directory: mockedEnvironment.cacheDirectory,
+            include: ["**/Feature.xcframework"]
+        ).collect()
+        let cachedTestSupportArtifacts = try await fileSystem.glob(
+            directory: mockedEnvironment.cacheDirectory,
+            include: ["**/TestSupport.xcframework"]
+        ).collect()
+        let cachedSwiftTestingSupportArtifacts = try await fileSystem.glob(
+            directory: mockedEnvironment.cacheDirectory,
+            include: ["**/SwiftTestingSupport.xcframework"]
+        ).collect()
+        let cachedTestBundleArtifacts = try await fileSystem.glob(
+            directory: mockedEnvironment.cacheDirectory,
+            include: ["**/AppTests.xcframework"]
+        ).collect()
+        #expect(!cachedFeatureArtifacts.isEmpty)
+        #expect(!cachedTestSupportArtifacts.isEmpty)
+        #expect(!cachedSwiftTestingSupportArtifacts.isEmpty)
+        #expect(cachedTestBundleArtifacts.isEmpty)
+
+        try await TuistTest.run(
+            TestCommand.self,
+            [
+                "App",
+                "--build-only",
+                "--no-upload",
+                "--no-selective-testing",
+                "--path",
+                fixtureDirectory.pathString,
+                "--",
+                "-destination",
+                "generic/platform=iOS Simulator",
+                "-derivedDataPath",
+                temporaryDirectory.pathString,
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO",
+            ]
+        )
+
+        try TuistAcceptanceTest.expectXCFrameworkLinked("Feature", by: "App", xcodeprojPath: xcodeprojPath)
+        try TuistAcceptanceTest.expectXCFrameworkLinked("Feature", by: "AppTests", xcodeprojPath: xcodeprojPath)
+        try TuistAcceptanceTest.expectXCFrameworkLinked("TestSupport", by: "AppTests", xcodeprojPath: xcodeprojPath)
+        try TuistAcceptanceTest.expectXCFrameworkLinked("SwiftTestingSupport", by: "AppTests", xcodeprojPath: xcodeprojPath)
+        try TuistAcceptanceTest.expectXCFrameworkNotLinked("TestSupport", by: "App", xcodeprojPath: xcodeprojPath)
+        try TuistAcceptanceTest.expectXCFrameworkNotLinked("SwiftTestingSupport", by: "App", xcodeprojPath: xcodeprojPath)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_macos_tool_with_cached_libraries_and_frameworks")
+    ) func generated_macos_tool_with_cached_libraries_and_frameworks() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let mockedEnvironment = try #require(Environment.mocked)
+        let fileSystem = FileSystem()
+        let xcodeprojPath = fixtureDirectory.appending(component: "CachedLibrariesAndFrameworks.xcodeproj")
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+
+        for target in [
+            "CoreCLibrary",
+            "CoreStaticLibrary",
+            "DiagnosticsDynamicLibrary",
+            "FeatureStaticLibrary",
+            "FeatureFramework",
+            "ModelsStaticFramework",
+            "NetworkingFramework",
+        ] {
+            let cachedArtifacts = try await fileSystem.glob(
+                directory: mockedEnvironment.cacheDirectory,
+                include: ["**/\(target).xcframework"]
+            ).collect()
+            #expect(!cachedArtifacts.isEmpty, "\(target) should be stored as an xcframework")
+        }
+
+        try await TuistTest.run(
+            GenerateCommand.self,
+            ["--no-open", "--path", fixtureDirectory.pathString, "Tool"]
+        )
+
+        try TuistAcceptanceTest.expectXCFrameworkLinked("FeatureFramework", by: "Tool", xcodeprojPath: xcodeprojPath)
+        try TuistAcceptanceTest.expectXCFrameworkLinked("DiagnosticsDynamicLibrary", by: "Tool", xcodeprojPath: xcodeprojPath)
+        try TuistAcceptanceTest.expectXCFrameworkLinked("CoreCLibrary", by: "Tool", xcodeprojPath: xcodeprojPath)
+
+        try await TuistTest.run(
+            XcodeBuildBuildCommand.self,
+            [
+                "-project",
+                xcodeprojPath.pathString,
+                "-scheme",
+                "Tool",
+                "-derivedDataPath",
+                temporaryDirectory.pathString,
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO",
+            ]
+        )
+    }
+
+    @Test(
         .disabled("Requires SPM install"),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),

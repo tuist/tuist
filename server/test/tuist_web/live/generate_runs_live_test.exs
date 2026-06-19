@@ -138,6 +138,92 @@ defmodule TuistWeb.GenerateRunsLiveTest do
       refute has_element?(lv, "span", "generate OtherUserApp")
     end
 
+    test "filters generate runs by displayed command", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      project: project
+    } do
+      matching_run =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          user_id: user.id,
+          name: "generate",
+          command_arguments: ["generate", "--configuration", "DebugStaging"]
+        )
+
+      other_run =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          user_id: user.id,
+          name: "generate",
+          command_arguments: ["generate", "--configuration", "Release"]
+        )
+
+      query =
+        URI.encode_query(%{
+          "filter_name_op" => "==",
+          "filter_name_val" => "tuist generate --configuration DebugStaging"
+        })
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          "/#{organization.account.name}/#{project.name}/module-cache/generate-runs?#{query}"
+        )
+
+      assert has_element?(lv, "tr##{matching_run.id}")
+      refute has_element?(lv, "tr##{other_run.id}")
+    end
+
+    test "filters generate runs when the command filter contains only the tuist prefix", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      project: project
+    } do
+      generate_run =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          user_id: user.id,
+          name: "generate",
+          command_arguments: ["generate", "--configuration", "DebugStaging"]
+        )
+
+      query =
+        URI.encode_query(%{
+          "filter_name_op" => "=~",
+          "filter_name_val" => "tuist"
+        })
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          "/#{organization.account.name}/#{project.name}/module-cache/generate-runs?#{query}"
+        )
+
+      assert has_element?(lv, "tr##{generate_run.id}")
+    end
+
+    test "displays the command name when generate run arguments are empty", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      project: project
+    } do
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        user_id: user.id,
+        name: "generate",
+        command_arguments: []
+      )
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/generate-runs")
+
+      assert has_element?(lv, "span", "tuist generate")
+    end
+
     test "filters generate runs whose branch does not contain a substring", %{
       conn: conn,
       user: user,

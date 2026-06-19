@@ -51,6 +51,22 @@ defmodule Tuist.Kura.RegionsTest do
       end
     end
 
+    test "enables the per-account peer mesh on managed and private regions" do
+      for id <- ["us-east", "us-west", "eu-central", "scw-fr-par-runners", "hetzner-staging-runners"] do
+        assert Regions.get(id).provisioner_config.mesh == true,
+               "expected region #{id} to enable the peer mesh"
+      end
+    end
+
+    test "tolerates the runner-cache node taint only on the scaleway runner-cache region" do
+      assert Regions.get("scw-fr-par-runners").provisioner_config.tolerations == [
+               %{"key" => "tuist.dev/runner-cache", "operator" => "Exists", "effect" => "NoSchedule"}
+             ]
+
+      # The Hetzner runner-cache pool isn't tainted, so its region carries no toleration.
+      assert Regions.get("hetzner-staging-runners").provisioner_config.tolerations == []
+    end
+
     test "exposes a local controller-backed region for kind smoke tests" do
       assert %Regions{
                id: "local-controller",
@@ -66,6 +82,38 @@ defmodule Tuist.Kura.RegionsTest do
       assert config.replicas == 1
       assert config.storage_size == "10Gi"
       assert config.node_selector == %{"kubernetes.io/os" => "linux"}
+    end
+
+    test "weaves a per-environment suffix into managed-region public hostnames" do
+      stub(Tuist.Environment, :env, fn -> :stag end)
+
+      config = Regions.get("eu-central").provisioner_config
+
+      assert config.public_host_template == "{account_handle}-{cluster_id}-staging.kura.tuist.dev"
+
+      assert config.grpc_public_host_template ==
+               "grpc.{account_handle}-{cluster_id}-staging.kura.tuist.dev"
+
+      stub(Tuist.Environment, :env, fn -> :can end)
+
+      canary_config = Regions.get("us-east").provisioner_config
+
+      assert canary_config.public_host_template ==
+               "{account_handle}-{cluster_id}-canary.kura.tuist.dev"
+
+      assert canary_config.grpc_public_host_template ==
+               "grpc.{account_handle}-{cluster_id}-canary.kura.tuist.dev"
+    end
+
+    test "omits the environment suffix from managed-region public hostnames in production" do
+      stub(Tuist.Environment, :env, fn -> :prod end)
+
+      config = Regions.get("eu-central").provisioner_config
+
+      assert config.public_host_template == "{account_handle}-{cluster_id}.kura.tuist.dev"
+
+      assert config.grpc_public_host_template ==
+               "grpc.{account_handle}-{cluster_id}.kura.tuist.dev"
     end
 
     test "reads the managed-region Tuist base URL from the environment adapter" do
@@ -147,7 +195,7 @@ defmodule Tuist.Kura.RegionsTest do
     test "scaleway and hetzner-staging runner regions are registered as private" do
       assert %Regions{provisioner_config: scw_config} = Regions.get("scw-fr-par-runners")
       assert scw_config.private == true
-      assert scw_config.storage_class == "scw-bssd"
+      assert scw_config.storage_class == "scw-local-nvme"
       assert scw_config.replicas == 1
       assert scw_config.node_selector == %{"node.cluster.x-k8s.io/pool" => "kura-scw-fr-par"}
       refute Map.has_key?(scw_config, :public_host_template)
@@ -168,6 +216,37 @@ defmodule Tuist.Kura.RegionsTest do
       refute Regions.private?(Regions.get("eu-central"))
       refute Regions.private?(Regions.get("local-controller"))
       refute Regions.private?(nil)
+    end
+  end
+
+  describe "serves_runner_platform?/2" do
+    test "scaleway region serves only the co-located macOS fleet" do
+      scw = Regions.get("scw-fr-par-runners")
+
+      assert scw.runner_platforms == [:macos]
+      assert Regions.serves_runner_platform?(scw, :macos)
+      refute Regions.serves_runner_platform?(scw, :linux)
+    end
+
+    test "staging hetzner region serves only the co-located linux fleet" do
+      staging = Regions.get("hetzner-staging-runners")
+
+      assert staging.runner_platforms == [:linux]
+      assert Regions.serves_runner_platform?(staging, :linux)
+      refute Regions.serves_runner_platform?(staging, :macos)
+    end
+
+    test "scw region uses the node-port data plane; hetzner stays on cluster DNS" do
+      assert Regions.node_port_data_plane?(Regions.get("scw-fr-par-runners"))
+      refute Regions.node_port_data_plane?(Regions.get("hetzner-staging-runners"))
+      refute Regions.node_port_data_plane?(Regions.get("eu-central"))
+      refute Regions.node_port_data_plane?(nil)
+    end
+
+    test "public regions and nil serve no runner platform" do
+      refute Regions.serves_runner_platform?(Regions.get("eu-central"), :linux)
+      refute Regions.serves_runner_platform?(Regions.get("local-controller"), :macos)
+      refute Regions.serves_runner_platform?(nil, :linux)
     end
   end
 

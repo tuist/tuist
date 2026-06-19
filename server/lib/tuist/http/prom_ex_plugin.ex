@@ -17,6 +17,7 @@ defmodule Tuist.HTTP.PromExPlugin do
           counter(
             [:tuist, :http, :request, :count],
             event_name: [:finch, :request, :stop],
+            keep: &keep_tuist_finch?/1,
             tag_values: &request_metadata_to_tag_values/1,
             tags: [:response_status, :request_method, :request_host],
             description: "Counts the number of HTTP requests."
@@ -24,6 +25,7 @@ defmodule Tuist.HTTP.PromExPlugin do
           sum(
             [:tuist, :http, :request, :duration, :nanoseconds, :sum],
             event_name: [:finch, :request, :stop],
+            keep: &keep_tuist_finch?/1,
             tag_values: &request_metadata_to_tag_values/1,
             tags: [:response_status, :request_method, :request_host],
             description:
@@ -34,6 +36,7 @@ defmodule Tuist.HTTP.PromExPlugin do
           distribution(
             [:tuist, :http, :request, :duration, :nanoseconds],
             event_name: [:finch, :request, :stop],
+            keep: &keep_tuist_finch?/1,
             tag_values: &request_metadata_to_tag_values/1,
             tags: [:response_status, :request_method, :request_host],
             description:
@@ -52,6 +55,7 @@ defmodule Tuist.HTTP.PromExPlugin do
           counter(
             [:tuist, :http, :queue, :count],
             event_name: [:finch, :queue, :stop],
+            keep: &keep_tuist_finch?/1,
             tag_values: &queue_metadata_to_tag_values/1,
             tags: [:request_method, :request_host],
             description: "Counts the number of HTTP requests that have been retrieved from the pool."
@@ -59,6 +63,7 @@ defmodule Tuist.HTTP.PromExPlugin do
           sum(
             [:tuist, :http, :queue, :duration, :nanoseconds, :sum],
             event_name: [:finch, :queue, :stop],
+            keep: &keep_tuist_finch?/1,
             tag_values: &queue_metadata_to_tag_values/1,
             tags: [:request_method, :request_host],
             description: "Sums the time it takes to take a connection from the pool.",
@@ -68,35 +73,12 @@ defmodule Tuist.HTTP.PromExPlugin do
           sum(
             [:tuist, :http, :queue, :idle_time, :nanoseconds, :sum],
             event_name: [:finch, :queue, :stop],
+            keep: &keep_tuist_finch?/1,
             tag_values: &queue_metadata_to_tag_values/1,
             tags: [:request_method, :request_host],
             description: "Sums the time the connection has been idle waiting to be retrieved.",
             measurement: :idle_time,
             unit: {:native, :nanosecond}
-          ),
-          distribution(
-            [:tuist, :http, :queue, :duration, :nanoseconds],
-            event_name: [:finch, :queue, :stop],
-            tag_values: &queue_metadata_to_tag_values/1,
-            tags: [:request_method, :request_host],
-            description: "Sums the time it takes to take a connection from the pool.",
-            measurement: :duration,
-            unit: {:native, :nanosecond},
-            reporter_options: [
-              buckets: exponential!(2_000_000, 2.15, 15)
-            ]
-          ),
-          distribution(
-            [:tuist, :http, :queue, :idle_time, :nanoseconds],
-            event_name: [:finch, :queue, :stop],
-            tag_values: &queue_metadata_to_tag_values/1,
-            tags: [:request_method, :request_host],
-            description: "Sums the time the connection has been idle waiting to be retrieved.",
-            measurement: :idle_time,
-            unit: {:native, :nanosecond},
-            reporter_options: [
-              buckets: exponential!(2_000_000, 2.15, 15)
-            ]
           )
         ]
       ),
@@ -106,27 +88,18 @@ defmodule Tuist.HTTP.PromExPlugin do
           counter(
             [:tuist, :http, :connection, :count],
             event_name: [:finch, :connect, :stop],
+            keep: &keep_tuist_finch?/1,
             tag_values: &connection_metadata_to_tag_values/1,
             description: "Counts the number of connections that have been established"
           ),
           sum(
             [:tuist, :http, :connection, :duration, :nanoseconds, :sum],
             event_name: [:finch, :connect, :stop],
+            keep: &keep_tuist_finch?/1,
             tag_values: &connection_metadata_to_tag_values/1,
             description: "Summary of the time it takes to establish connections against the host.",
             measurement: :duration,
             unit: {:native, :nanosecond}
-          ),
-          distribution(
-            [:tuist, :http, :connection, :duration, :nanoseconds],
-            event_name: [:finch, :connect, :stop],
-            tag_values: &connection_metadata_to_tag_values/1,
-            description: "Summary of the time it takes to establish connections against the host.",
-            measurement: :duration,
-            unit: {:native, :nanosecond},
-            reporter_options: [
-              buckets: exponential!(2_000_000, 2.15, 15)
-            ]
           )
         ]
       ),
@@ -136,6 +109,7 @@ defmodule Tuist.HTTP.PromExPlugin do
           counter(
             [:tuist, :http, :send, :count],
             event_name: [:finch, :send, :stop],
+            keep: &keep_tuist_finch?/1,
             tag_values: &send_metadata_to_tag_values/1,
             tags: [:status, :request_method, :request_host],
             description: "Counts the number of requests that have been sent."
@@ -143,23 +117,12 @@ defmodule Tuist.HTTP.PromExPlugin do
           sum(
             [:tuist, :http, :send, :duration, :nanoseconds, :sum],
             event_name: [:finch, :send, :stop],
+            keep: &keep_tuist_finch?/1,
             tag_values: &send_metadata_to_tag_values/1,
             tags: [:request_method, :request_host],
             description: "Summary of the time it takes to finish sending the request to the server.",
             measurement: :duration,
             unit: {:native, :nanosecond}
-          ),
-          distribution(
-            [:tuist, :http, :send, :duration, :nanoseconds],
-            event_name: [:finch, :send, :stop],
-            tag_values: &send_metadata_to_tag_values/1,
-            tags: [:request_method, :request_host],
-            description: "Summary of the time it takes to finish sending the request to the server.",
-            measurement: :duration,
-            unit: {:native, :nanosecond},
-            reporter_options: [
-              buckets: exponential!(2_000_000, 2.15, 15)
-            ]
           )
         ]
       ),
@@ -169,6 +132,7 @@ defmodule Tuist.HTTP.PromExPlugin do
           counter(
             [:tuist, :http, :receive, :count],
             event_name: [:finch, :recv, :stop],
+            keep: &keep_tuist_finch?/1,
             tag_values: &receive_metadata_to_tag_values/1,
             tags: [:status, :request_host, :request_method],
             description: "Counts the number of responses that have been received."
@@ -176,23 +140,12 @@ defmodule Tuist.HTTP.PromExPlugin do
           sum(
             [:tuist, :http, :receive, :duration, :nanoseconds, :sum],
             event_name: [:finch, :recv, :stop],
+            keep: &keep_tuist_finch?/1,
             tag_values: &receive_metadata_to_tag_values/1,
             tags: [:status, :request_host, :request_method],
             description: "Summary of the time it takes to receive responses.",
             measurement: :duration,
             unit: {:native, :nanosecond}
-          ),
-          distribution(
-            [:tuist, :http, :receive, :duration, :nanoseconds],
-            event_name: [:finch, :recv, :stop],
-            tag_values: &receive_metadata_to_tag_values/1,
-            tags: [:status, :request_host, :request_method],
-            description: "Summary of the time it takes to receive responses.",
-            measurement: :duration,
-            unit: {:native, :nanosecond},
-            reporter_options: [
-              buckets: exponential!(2_000_000, 2.15, 15)
-            ]
           )
         ]
       )
@@ -201,7 +154,7 @@ defmodule Tuist.HTTP.PromExPlugin do
 
   @impl true
   def polling_metrics(opts) do
-    poll_rate = Keyword.get(opts, :poll_rate, to_timeout(millisecond: 100))
+    poll_rate = Keyword.get(opts, :poll_rate, to_timeout(second: 5))
 
     [
       Polling.build(
@@ -268,6 +221,15 @@ defmodule Tuist.HTTP.PromExPlugin do
       request_to_tag_values(metadata.request)
     )
   end
+
+  # PromEx subscribes to the global `[:finch, :request|queue|connect|send|recv, :stop]`
+  # telemetry events, which fire for every Finch instance in the BEAM, including
+  # Req's default `Req.Finch` pool used by webhook delivery, OIDC JWKS fetches,
+  # and SSO flows. Those carry per-customer hostnames in `request.host`, which
+  # blow up active-series cardinality through the `request_host` label. Keep the
+  # metrics scoped to `Tuist.Finch` so per-host visibility stays on for our
+  # bounded internal endpoints (GitHub, Tigris, PostHog, Namespace) only.
+  defp keep_tuist_finch?(metadata), do: Map.get(metadata, :name) == Tuist.Finch
 
   defp request_to_tag_values(request) do
     %{

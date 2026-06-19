@@ -5,6 +5,7 @@ import Path
 import Synchronization
 import Testing
 import TSCBasic
+import TuistConstants
 import TuistCore
 import TuistNooraTesting
 import TuistSupport
@@ -578,7 +579,12 @@ struct SwiftPackageManagerGraphLoaderTests {
                         packageInfo: .any,
                         path: .any,
                         packageType: .matching { packageType in
-                            if case .external(origin: .remote, artifactPaths: _, packagePrebuilts: _) = packageType {
+                            if case .external(
+                                origin: .remote,
+                                artifactPaths: _,
+                                packagePrebuilts: _,
+                                derivedXCFrameworksPath: _
+                            ) = packageType {
                                 return true
                             }
                             return false
@@ -691,7 +697,8 @@ struct SwiftPackageManagerGraphLoaderTests {
                             guard case let .external(
                                 origin: .remote,
                                 artifactPaths: _,
-                                packagePrebuilts: packagePrebuilts
+                                packagePrebuilts: packagePrebuilts,
+                                derivedXCFrameworksPath: _
                             ) = packageType,
                                 let prebuilt = packagePrebuilts["swift-syntax"]?["SwiftSyntax"]
                             else {
@@ -709,6 +716,148 @@ struct SwiftPackageManagerGraphLoaderTests {
                     .called(1)
             }
         }
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func load_whenWorkspaceStatePathsAreRelativeToScratchDirectory_resolvesAgainstScratchDir() async throws {
+        // Regression: swifterpm now emits paths in workspace-state.json relative to the
+        // scratch directory so a cached `.build/` stays portable across hosts. The loader
+        // must anchor those relative strings against scratchDirectory when resolving.
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        let packageSettings = PackageSettings.test()
+        let workspacePath = temporaryDirectory.appending(components: [
+            ".build", "workspace-state.json",
+        ])
+        try await fileSystem.makeDirectory(at: workspacePath.parentDirectory)
+
+        let localPackagePath = temporaryDirectory.appending(component: "LocalDep")
+        try await fileSystem.makeDirectory(at: localPackagePath)
+
+        let scratchDirectory = temporaryDirectory.appending(component: ".build")
+        let expectedArtifactPath = scratchDirectory.appending(
+            try RelativePath(validating: "swifterpm/artifacts/foo/Foo/Foo.xcframework")
+        )
+
+        // packageRef.path and state.path are written by swifterpm as
+        // `localPackagePath.relative(to: scratchDirectory)` (= "../LocalDep" when
+        // scratch is `<temp>/.build`). artifact.path is "swifterpm/artifacts/...".
+        try await fileSystem.writeText(
+            """
+            {
+              "object" : {
+                "artifacts" : [
+                  {
+                    "kind" : { "xcframework" : {} },
+                    "packageRef" : {
+                      "identity" : "foo",
+                      "kind" : "remoteSourceControl",
+                      "location" : "https://github.com/example/foo.git",
+                      "name" : "foo"
+                    },
+                    "path" : "swifterpm/artifacts/foo/Foo/Foo.xcframework",
+                    "source" : {
+                      "checksum" : "deadbeef",
+                      "type" : "remote",
+                      "url" : "https://example.com/Foo.zip"
+                    },
+                    "targetName" : "Foo"
+                  }
+                ],
+                "dependencies" : [
+                  {
+                    "basedOn" : null,
+                    "packageRef" : {
+                      "identity" : "foo",
+                      "kind" : "remoteSourceControl",
+                      "location" : "https://github.com/example/foo.git",
+                      "name" : "foo"
+                    },
+                    "state" : {
+                      "checkoutState" : {
+                        "revision" : "abcdef1234567890",
+                        "version" : "1.0.0"
+                      },
+                      "name" : "sourceControlCheckout"
+                    },
+                    "subpath" : "foo"
+                  },
+                  {
+                    "basedOn" : null,
+                    "packageRef" : {
+                      "identity" : "local-dep",
+                      "kind" : "fileSystem",
+                      "path" : "../LocalDep",
+                      "name" : "LocalDep"
+                    },
+                    "state" : {
+                      "name" : "fileSystem",
+                      "path" : "../LocalDep"
+                    },
+                    "subpath" : "local-dep"
+                  }
+                ]
+              }
+            }
+            """,
+            at: workspacePath
+        )
+
+        try await fileSystem.makeDirectory(
+            at: temporaryDirectory.appending(components: [".build", "Derived"])
+        )
+        try await fileSystem.touch(
+            temporaryDirectory.appending(components: [".build", "Derived", "Package.resolved"])
+        )
+        try await fileSystem.touch(
+            temporaryDirectory.appending(component: "Package.resolved")
+        )
+
+        given(packageInfoMapper)
+            .resolveExternalDependencies(
+                path: .any,
+                packagePath: .any,
+                packageInfos: .any,
+                packageToFolder: .any,
+                packageToTargetsToArtifactPaths: .any,
+                packageModuleAliases: .any,
+                packageSettings: .any
+            )
+            .willReturn([:])
+
+        // When
+        _ = try await subject.load(
+            packagePath: temporaryDirectory.appending(component: "Package.swift"),
+            packageSettings: packageSettings,
+            disableSandbox: true
+        )
+
+        // Then: artifact paths arrive at the mapper resolved against scratchDirectory.
+        let expectedDerivedXCFrameworksPath = temporaryDirectory.appending(
+            components: ".build",
+            Constants.DerivedDirectory.dependenciesDerivedDirectory,
+            Constants.DerivedDirectory.dependenciesXCFrameworkDirectory
+        )
+        verify(packageInfoMapper)
+            .map(
+                packageInfo: .any,
+                path: .any,
+                packageType: .matching { packageType in
+                    guard case let .external(
+                        origin: _,
+                        artifactPaths: artifactPaths,
+                        packagePrebuilts: _,
+                        derivedXCFrameworksPath: derivedXCFrameworksPath
+                    ) = packageType
+                    else { return false }
+                    return artifactPaths["Foo"] == expectedArtifactPath
+                        && derivedXCFrameworksPath == expectedDerivedXCFrameworksPath
+                },
+                packageSettings: .any,
+                packageModuleAliases: .any,
+                enabledTraits: .any
+            )
+            .called(1)
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
@@ -825,7 +974,12 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageInfo: .any,
                 path: .any,
                 packageType: .matching { packageType in
-                    if case .external(origin: .local, artifactPaths: _, packagePrebuilts: _) = packageType {
+                    if case .external(
+                        origin: .local,
+                        artifactPaths: _,
+                        packagePrebuilts: _,
+                        derivedXCFrameworksPath: _
+                    ) = packageType {
                         return true
                     }
                     return false

@@ -125,6 +125,36 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         XCTAssertTrue(request.skipUpdate)
         XCTAssertTrue(request.quiet)
         XCTAssertEqual(request.scmToRegistryTransformation, .replaceSCMWithRegistry)
+        XCTAssertNil(request.cachedDirectoryMaterialization)
+    }
+
+    func test_resolve_when_swifterpm_is_not_truthy_usesSwiftPackageManager() async throws {
+        // Given
+        let path = try temporaryPath()
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            swifterPM: swifterPM,
+            environmentVariables: { ["TUIST_USE_SWIFTERPM": "0"] }
+        )
+        mockCommandRunner.succeedCommand([
+            "swift",
+            "package",
+            "--package-path",
+            path.pathString,
+            "--replace-scm-with-registry",
+            "resolve",
+        ])
+
+        // When
+        try await subject.resolve(
+            at: path,
+            arguments: ["--replace-scm-with-registry"],
+            printOutput: false
+        )
+
+        // Then
+        XCTAssertTrue(swifterPM.resolveRequests.isEmpty)
     }
 
     func test_resolve_when_swifterpm_is_enabled_and_packagePathArgument_is_passed_usesIt() async throws {
@@ -148,6 +178,30 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         // Then
         let request = try XCTUnwrap(swifterPM.resolveRequests.first)
         XCTAssertEqual(request.packageDirectory, URL(fileURLWithPath: overriddenPath.pathString).standardizedFileURL)
+    }
+
+    func test_resolve_when_swifterpm_is_enabled_and_cached_directory_materialization_argument_is_passed_usesIt()
+        async throws
+    {
+        // Given
+        let path = try temporaryPath()
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            swifterPM: swifterPM,
+            environmentVariables: { ["TUIST_USE_SWIFTERPM": "1"] }
+        )
+
+        // When
+        try await subject.resolve(
+            at: path,
+            arguments: ["--cached-directory-materialization", "symlink"],
+            printOutput: true
+        )
+
+        // Then
+        let request = try XCTUnwrap(swifterPM.resolveRequests.first)
+        XCTAssertEqual(request.cachedDirectoryMaterialization, .symlink)
     }
 
     func test_resolve_when_swifterpm_is_enabled_and_printOutput_is_false_setsQuiet() async throws {
@@ -251,6 +305,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         XCTAssertTrue(request.forceResolvedVersions)
         XCTAssertTrue(request.quiet)
         XCTAssertEqual(request.scmToRegistryTransformation, .useRegistryIdentityForSCM)
+        XCTAssertNil(request.cachedDirectoryMaterialization)
     }
 
     func test_update() async throws {

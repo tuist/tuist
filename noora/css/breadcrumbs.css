@@ -1,7 +1,7 @@
 .noora-breadcrumbs {
   --noora-breadcrumb-icon: light-dark(
-    var(--noora-neutral-light-700),
-    var(--noora-neutral-dark-300)
+    var(--noora-neutral-light-800),
+    var(--noora-neutral-dark-200)
   );
   --noora-breadcrumb-label: light-dark(
     var(--nora-neutral-light-1100),
