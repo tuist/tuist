@@ -9,6 +9,11 @@ defmodule Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker do
 
   @page_size 100
 
+  # PostgreSQL's wire protocol caps a single statement at 65535 bind parameters.
+  # Oban binds 9 columns per job, so we insert in batches well under that ceiling
+  # to avoid `Postgrex.QueryError` when the backlog of accounts is large.
+  @insert_batch_size 1_000
+
   @impl Oban.Worker
   def perform(%{args: args}) do
     page_size = Map.get(args, "page_size", @page_size)
@@ -19,7 +24,10 @@ defmodule Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker do
     }
     |> Accounts.list_accounts_with_usage_not_updated_today()
     |> map_accounts_to_workers()
-    |> Oban.insert_all()
+    |> Enum.chunk_every(@insert_batch_size)
+    |> Enum.each(&Oban.insert_all/1)
+
+    :ok
   end
 
   def map_accounts_to_workers({[], _meta}) do
