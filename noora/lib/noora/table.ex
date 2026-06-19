@@ -106,6 +106,11 @@ defmodule Noora.Table do
     doc: "A list of row keys/IDs that are currently expanded."
   )
 
+  attr(:expand_label, :string,
+    default: "Toggle row details",
+    doc: "Accessible label for the disclosure button that expands/collapses a row."
+  )
+
   slot(:empty_state, required: false)
 
   slot :col, required: true do
@@ -178,15 +183,16 @@ defmodule Noora.Table do
               <% is_expandable = @row_expandable && @row_expandable.(row) %>
               <% is_expanded = row_key in @expanded_rows %>
 
-              <%!-- Expansion is purely presentational, so it's toggled client-side: one
-              attribute flip on this row, no round trip and no patch. The expanded sibling
-              row, the row background, and the chevron all derive from this attribute. --%>
+              <%!-- Expansion is presentational, toggled client-side via the disclosure button
+              in the first cell — not a click handler on the row. A passive row keeps text
+              selectable (so cache keys can be copied without collapsing), lets controls inside
+              the row work without double-firing, and routes keyboard users through a real
+              focusable button. The button flips `data-state` on this row; the expanded sibling
+              row, the row background, and the chevron all derive from that attribute. --%>
               <tr
                 id={row_key}
                 {if is_expandable,
-               do: %{
-                 "phx-click" => JS.toggle_attribute({"data-state", "expanded", "collapsed"})
-               },
+               do: %{},
                else: if(@row_click, do: @row_click.(row) || %{}, else: %{})}
                 data-expandable={is_expandable}
                 data-state={is_expandable && if(is_expanded, do: "expanded", else: "collapsed")}
@@ -199,26 +205,43 @@ defmodule Noora.Table do
                          (not is_nil(@row_click) && not is_nil(@row_click.(row))))
                   }
                 >
-                  <%= if is_expandable && index == 0 do %>
-                    <div data-part="expand-cell">
-                      <.icon
-                        id={"#{row_key}-expand-chevron"}
-                        name="chevron_right"
-                        active_name="chevron_down"
-                        transition="crossfade_rotate"
-                        watch="tr[data-expandable]"
-                        active_state="expanded"
-                      />
-                      {render_slot(col, row)}
-                    </div>
-                  <% else %>
-                    <%= if @row_navigate do %>
-                      <.link navigate={@row_navigate.(row)} data-part="link">
+                  <%= cond do %>
+                    <% is_expandable && index == 0 -> %>
+                      <div data-part="expand-cell">
+                        <button
+                          type="button"
+                          data-part="expand-toggle"
+                          aria-expanded={to_string(is_expanded)}
+                          aria-controls={"#{row_key}-expanded"}
+                          aria-label={@expand_label}
+                          phx-click={
+                            JS.toggle_attribute({"data-state", "expanded", "collapsed"},
+                              to: "##{row_key}"
+                            )
+                            |> JS.toggle_attribute({"aria-expanded", "true", "false"})
+                          }
+                        >
+                          <.icon
+                            id={"#{row_key}-expand-chevron"}
+                            name="chevron_right"
+                            active_name="chevron_down"
+                            transition="crossfade_rotate"
+                            watch="tr[data-expandable]"
+                            active_state="expanded"
+                          />
+                        </button>
+                        {render_slot(col, row)}
+                      </div>
+                    <% @row_navigate && index == 0 -> %>
+                      <%!-- Whole-row navigation via a single stretched anchor: only the first
+                      cell carries the link, and its `::after` overlay (see table.css) extends the
+                      hit area across the row. The row reads as one link — one tab stop, announced
+                      once — instead of one duplicate link per cell. --%>
+                      <.link navigate={@row_navigate.(row)} data-part="row-link">
                         {render_slot(col, row)}
                       </.link>
-                    <% else %>
+                    <% true -> %>
                       {render_slot(col, row)}
-                    <% end %>
                   <% end %>
                 </td>
               </tr>

@@ -1234,7 +1234,6 @@
                         size="small"
                         icon_only
                         phx-hook="Clipboard"
-                        phx-click={JS.exec("event.stopPropagation()", to: "window")}
                         data-clipboard-value={task.key}
                       >
                         <.copy />

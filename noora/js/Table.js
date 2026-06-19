@@ -1,16 +1,20 @@
 // Floating header and horizontal scrollbar for tables.
 //
-// Header: once the table's top scrolls past the viewport, a fixed-position clone of the `thead`
-// is pinned to the viewport top, until the table's end pushes it back out. `position: fixed` is
-// pinned by the compositor, so the header doesn't wobble during scrolling the way a JS-translated
+// Both pin to the edges of the element that actually scrolls the table (the app's content pane,
+// or the window when nothing else scrolls — see `findScrollParent`), not to the window's edges,
+// so they sit within the scroll area rather than over the navbar or chrome around it.
+//
+// Header: once the table's top scrolls past the scroll area's top, a fixed-position clone of the
+// `thead` is pinned there, until the table's end pushes it back out. `position: fixed` is pinned
+// by the compositor, so the header doesn't wobble during scrolling the way a JS-translated
 // element does (scroll happens on the compositor thread; JS catches up a frame late). The clone
 // lives on `document.body` so LiveView patches never touch it, and its column widths and
 // horizontal scroll position are synced from the real table.
 //
 // Scrollbar: while a horizontally scrollable table is on screen but its own scrollbar is below
-// the viewport, a proxy scrollbar is fixed to the viewport bottom and kept in sync with the
-// table. Once the table's bottom (and its native scrollbar) scrolls into view, the proxy hides
-// and the native scrollbar takes over.
+// the scroll area's bottom, a proxy scrollbar is fixed there and kept in sync with the table.
+// Once the table's bottom (and its native scrollbar) scrolls into view, the proxy hides and the
+// native scrollbar takes over.
 //
 // Both use `position: fixed` with measured coordinates instead of `position: sticky`, since
 // sticky breaks whenever any ancestor has a non-visible overflow (as app layouts commonly do).
@@ -30,6 +34,12 @@ export default {
     // doesn't (Firefox), the native bar cannot match the design and the custom bar takes over.
     this.webkitScrollbars = CSS.supports("selector(::-webkit-scrollbar)");
     if (!this.container || !this.scrollbar || !this.spacer) return;
+
+    // The element that actually scrolls the table vertically — the app's content pane, not the
+    // window, in the current shell. The floating header and scrollbar pin to this element's
+    // viewport edges (just below a fixed navbar, say), not to the window's, so they don't land
+    // on top of the chrome around the scroll area. Cached here and refreshed on patch.
+    this.scrollParent = this.findScrollParent();
 
     if (this.overlayThumb) {
       this.onThumbDown = (e) => {
@@ -61,7 +71,13 @@ export default {
 
     this.header = document.createElement("div");
     this.header.className = "noora-table noora-table-floating-header";
+    // The clone is purely decorative — the real header stays the accessible, interactive one.
+    // `inert` removes the clone's cloned sort links/controls from the focus order and a11y tree
+    // and blocks pointer events on them (without it, focus could land on AT-hidden controls, and
+    // a cloned `patch` link — living outside the LiveView root — would full-navigate on click).
+    // `aria-hidden` stays as a fallback for engines without `inert`.
     this.header.setAttribute("aria-hidden", "true");
+    this.header.inert = true;
     document.body.appendChild(this.header);
 
     this.onContainerScroll = () => {
@@ -128,9 +144,30 @@ export default {
 
   updated() {
     this.thead = this.container?.querySelector("thead");
+    this.scrollParent = this.findScrollParent();
     this.applyColumnWidths();
     if (this.header?.hasAttribute("data-visible")) this.refreshHeader();
     this.sync();
+  },
+
+  // Nearest ancestor that scrolls vertically. The search starts above `.noora-table` so it skips
+  // the table's own horizontal scroll container (whose `overflow-y` computes to `auto` but never
+  // scrolls). Returns null when nothing between here and the document scrolls — i.e. the window
+  // is the scroller — in which case the viewport edges are used.
+  findScrollParent() {
+    let el = this.el.parentElement;
+    while (el && el !== document.body && el !== document.documentElement) {
+      const overflowY = getComputedStyle(el).overflowY;
+      if (
+        overflowY === "auto" ||
+        overflowY === "scroll" ||
+        overflowY === "overlay"
+      ) {
+        return el;
+      }
+      el = el.parentElement;
+    }
+    return null;
   },
 
   destroyed() {
@@ -154,6 +191,14 @@ export default {
   // columns never shrink back on an update, and longer content can still widen them, so nothing
   // is ever clipped. Runs after every patch since LiveView wipes the inline styles, and before
   // paint, so no shifted frame is visible.
+  //
+  // The pin is deliberately ONE-WAY (grow-only). It tracks the widest content a column has shown
+  // for the lifetime of this hook instance and never lowers the pin, which is what stops the
+  // back-and-forth jitter across stream/sort/filter updates. The trade-off: once a batch widens
+  // a column, a later batch with narrower content stays at the wider width rather than tightening
+  // back. That's intended — re-tightening is exactly the shift this is here to prevent — but it
+  // means column widths reflect the widest data seen, not the current page's data. The pin only
+  // resets when the hook remounts (full navigation) or the column count changes.
   applyColumnWidths() {
     const cells = this.thead?.rows[0]?.cells ?? [];
     if (cells.length === 0) return;
@@ -189,7 +234,15 @@ export default {
     }
     const table = document.createElement("table");
     table.style.tableLayout = "fixed";
-    table.appendChild(this.thead.cloneNode(true));
+    const clonedThead = this.thead.cloneNode(true);
+    // Strip IDs from the decorative clone so it can't duplicate the real header's IDs (sort
+    // indicators, icon SVGs), which would otherwise break ID lookups, ARIA references, and SVG
+    // `<use href="#…">` resolution.
+    if (clonedThead.id) clonedThead.removeAttribute("id");
+    for (const node of clonedThead.querySelectorAll("[id]")) {
+      node.removeAttribute("id");
+    }
+    table.appendChild(clonedThead);
     this.header.replaceChildren(table);
     this.headerTable = table;
     this.syncHeaderWidths();
@@ -267,15 +320,27 @@ export default {
     const gutter = this.container.offsetHeight - this.container.clientHeight;
     const contentBottom = rect.bottom - gutter;
 
+    // Top and bottom edges of the scrolling viewport, in viewport coordinates. When a content
+    // pane scrolls (rather than the window), these are its edges — below the navbar and above
+    // the window bottom — so the floating header and scrollbar stay within the scroll area
+    // instead of pinning to the window and overlapping the surrounding chrome.
+    let viewTop = 0;
+    let viewBottom = window.innerHeight;
+    if (this.scrollParent) {
+      const parentRect = this.scrollParent.getBoundingClientRect();
+      viewTop = parentRect.top;
+      viewBottom = parentRect.bottom;
+    }
+
     if (this.thead) {
-      const floatingHeader = rect.top < 0 && contentBottom > 0;
+      const floatingHeader = rect.top < viewTop && contentBottom > viewTop;
       if (floatingHeader) {
         if (!this.header.hasAttribute("data-visible")) this.refreshHeader();
         const headerHeight = this.thead.offsetHeight;
         this.header.style.left = `${rect.left}px`;
         this.header.style.width = `${rect.width}px`;
-        // Let the table's end push the header out of the viewport as it scrolls past.
-        this.header.style.top = `${Math.min(0, contentBottom - headerHeight)}px`;
+        // Let the table's end push the header up out of the scroll area as it scrolls past.
+        this.header.style.top = `${Math.min(viewTop, contentBottom - headerHeight)}px`;
         this.header.setAttribute("data-visible", "");
       } else {
         this.header.removeAttribute("data-visible");
@@ -283,9 +348,7 @@ export default {
     }
 
     const floating =
-      scrollable &&
-      contentBottom > window.innerHeight &&
-      rect.top < window.innerHeight;
+      scrollable && contentBottom > viewBottom && rect.top < viewBottom;
 
     if (this.overlayBar) {
       if (custom) {
@@ -297,7 +360,9 @@ export default {
           this.overlayBar.style.left = `${rect.left + 8}px`;
           this.overlayBar.style.right = "auto";
           this.overlayBar.style.width = `${rect.width - 16}px`;
-          this.overlayBar.style.bottom = "2px";
+          // `bottom` is measured from the window bottom; offset by the gap between the window
+          // and the scroll area's bottom so the bar sits at the scroll area's edge.
+          this.overlayBar.style.bottom = `${window.innerHeight - viewBottom + 2}px`;
         } else {
           this.overlayBar.style.position = "";
           this.overlayBar.style.left = "";
@@ -316,6 +381,7 @@ export default {
       this.spacer.style.width = `${this.container.scrollWidth}px`;
       this.scrollbar.style.left = `${rect.left}px`;
       this.scrollbar.style.width = `${rect.width}px`;
+      this.scrollbar.style.bottom = `${window.innerHeight - viewBottom}px`;
       this.scrollbar.setAttribute("data-visible", "");
       if (this.scrollbar.scrollLeft !== this.container.scrollLeft) {
         this.scrollbar.scrollLeft = this.container.scrollLeft;

@@ -16,6 +16,19 @@
     width: 100%;
     overflow-x: auto;
     overscroll-behavior-x: none;
+
+    /* Browsers make a horizontally scrollable region keyboard-focusable so it can be scrolled
+     * with the arrow keys. Replace the default full-bleed focus ring with a restrained inset
+     * one that follows the table's rounded corners, so a focused scroll area reads as a focused
+     * control rather than a selected table. */
+    &:focus-visible {
+      outline: 2px solid
+        light-dark(
+          var(--noora-neutral-light-1000),
+          var(--noora-neutral-dark-1200)
+        );
+      outline-offset: -2px;
+    }
   }
 
   /* Floating horizontal scrollbar, driven by the `NooraTable` hook. While the table is on screen
@@ -152,9 +165,9 @@
         &[data-state="expanded"] td {
           background-color: var(--noora-surface-background-secondary);
         }
+        /* No pointer cursor: the row is passive and only the disclosure button toggles it.
+         * The hover tint stays as a lightweight affordance that the row is interactive. */
         &[data-expandable] {
-          cursor: pointer;
-
           &:hover td {
             background-color: var(--noora-surface-background-secondary);
           }
@@ -175,17 +188,30 @@
             align-items: center;
             gap: var(--noora-spacing-5);
             padding-left: var(--noora-spacing-5);
-            & > svg {
-              flex-shrink: 0;
-              width: 16px;
-              height: 16px;
-            }
 
-            /* The animated chevron (crossfade transition) wraps its two icons in a span, so the
-             * direct-svg sizing above doesn't reach them. */
-            & > .noora-icon-transition {
+            /* The disclosure trigger: a bare, icon-only button wrapping the chevron. It carries
+             * the interaction (focus, click) so the row can stay passive. */
+            & > [data-part="expand-toggle"] {
+              display: inline-flex;
               flex-shrink: 0;
+              align-items: center;
+              justify-content: center;
+              margin: 0;
+              padding: 0;
+              border: 0;
+              border-radius: var(--noora-radius-2);
+              background: none;
+              color: inherit;
+              cursor: pointer;
+              appearance: none;
 
+              &:focus-visible {
+                outline: none;
+                box-shadow: var(--noora-button-border-secondary-focus);
+              }
+
+              /* The chevron is a 16px icon; the crossfade transition wraps it in a span, so the
+               * size is applied to the nested svg rather than a direct child. */
               & svg {
                 width: 16px;
                 height: 16px;
@@ -373,8 +399,45 @@
     }
   }
 
-  & [data-part="link"] {
+  /* Whole-row navigation. A single anchor in the first cell carries the link; its `::after`
+   * overlay stretches across the row (which is the positioning context) so the entire row is the
+   * click target, while the DOM holds just one link per row. Trade-off: the overlay sits over the
+   * row's text, so text in navigable rows isn't selectable. */
+  & tr:has([data-part="row-link"]) {
+    position: relative;
+  }
+
+  & [data-part="row-link"] {
+    color: inherit;
     text-decoration: none;
+
+    &::after {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      content: "";
+    }
+
+    &:focus-visible {
+      outline: none;
+
+      &::after {
+        outline: 2px solid
+          light-dark(
+            var(--noora-neutral-light-1000),
+            var(--noora-neutral-dark-1200)
+          );
+        outline-offset: -2px;
+      }
+    }
+  }
+
+  /* Controls in the row's other cells must sit above the overlay to stay clickable. */
+  &
+    tr:has([data-part="row-link"])
+    :is(a, button, input, select, [tabindex]):not([data-part="row-link"]) {
+    position: relative;
+    z-index: 1;
   }
 
   & [data-part="cell"] {
