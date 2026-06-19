@@ -11,7 +11,7 @@ use axum::{
     Json, Router,
     body::{Body, to_bytes},
     extract::{MatchedPath, Path as AxumPath, Query, Request, State},
-    http::{HeaderValue, StatusCode, Version},
+    http::{HeaderMap, HeaderValue, StatusCode, Version},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{delete, get, head, post, put},
@@ -1674,18 +1674,40 @@ async fn clean_namespace(
     }
 }
 
+/// Whether a status request arrived through the public peer gateway (its `Host`
+/// header matches the gateway URL's host). An off-cluster node reaches a managed
+/// peer only via the gateway, so this is how a peer knows to advertise the
+/// gateway URL (which the caller can reach) rather than its in-cluster `node_url`
+/// (which it can't) — regardless of discovery scope.
+fn request_reached_via_gateway(headers: &HeaderMap, gateway_url: &str) -> bool {
+    let Some(gateway_host) = reqwest::Url::parse(gateway_url)
+        .ok()
+        .and_then(|url| url.host_str().map(str::to_owned))
+    else {
+        return false;
+    };
+    let Some(host_header) = headers
+        .get(axum::http::header::HOST)
+        .and_then(|value| value.to_str().ok())
+    else {
+        return false;
+    };
+    let request_host = host_header.split(':').next().unwrap_or(host_header);
+    request_host.eq_ignore_ascii_case(&gateway_host)
+}
+
 async fn internal_status(
+    headers: HeaderMap,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
 ) -> impl IntoResponse {
-    let node_url = if params.get("scope").map(String::as_str) == Some("global") {
-        state
-            .config
-            .peer_gateway_url
-            .clone()
-            .unwrap_or_else(|| state.config.node_url.clone())
-    } else {
-        state.config.node_url.clone()
+    let advertise_gateway = state.config.peer_gateway_url.as_deref().is_some_and(|gateway| {
+        params.get("scope").map(String::as_str) == Some("global")
+            || request_reached_via_gateway(&headers, gateway)
+    });
+    let node_url = match (&state.config.peer_gateway_url, advertise_gateway) {
+        (Some(gateway), true) => gateway.clone(),
+        _ => state.config.node_url.clone(),
     };
 
     Json(serde_json::json!({
@@ -2913,6 +2935,26 @@ mod tests {
             .expect("failed to decode global status response");
         assert_eq!(
             global_body["node_url"],
+            "https://peer.tuist-eu-1.kura.tuist.dev:7443"
+        );
+
+        // A Local-scope request that arrived via the gateway host (an
+        // off-cluster node querying KURA_PEERS) also gets the gateway URL.
+        let via_gateway_response = internal_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/_internal/status")
+                    .header("host", "peer.tuist-eu-1.kura.tuist.dev:7443")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+        let via_gateway_body: Value =
+            serde_json::from_str(&response_text(via_gateway_response).await)
+                .expect("failed to decode via-gateway status response");
+        assert_eq!(
+            via_gateway_body["node_url"],
             "https://peer.tuist-eu-1.kura.tuist.dev:7443"
         );
     }
