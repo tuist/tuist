@@ -299,7 +299,7 @@ xcresultProcessor:
 # managed, so there's no CAPI kubeadm join; the reconciler bootstraps the node
 # itself.
 kuraFleet:
-  enabled: true
+  enabled: false
   replicas: 1
   machine:
     # EM-B220E-NVME (~EUR120/mo) is the cheapest in-stock Elastic Metal box
