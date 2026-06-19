@@ -10,6 +10,8 @@ defmodule Tuist.Kura.SelfHostedClient do
 
   Only the Bcrypt hash of the secret is persisted; the plaintext secret is
   shown once at creation, mirroring `Tuist.Accounts.AccountToken`.
+  `secret_last_four` keeps the trailing four characters so the dashboard can
+  render a masked preview, the same hint webhook signing secrets expose.
   """
   use Ecto.Schema
 
@@ -21,6 +23,7 @@ defmodule Tuist.Kura.SelfHostedClient do
   schema "kura_self_hosted_clients" do
     field :client_id, :string
     field :encrypted_secret_hash, :string
+    field :secret_last_four, :string
     field :name, :string
     field :last_used_at, :utc_datetime
 
@@ -31,13 +34,16 @@ defmodule Tuist.Kura.SelfHostedClient do
 
   def create_changeset(attrs) do
     %__MODULE__{}
-    |> cast(attrs, [:account_id, :client_id, :encrypted_secret_hash, :name])
-    |> validate_required([:account_id, :client_id, :encrypted_secret_hash, :name])
+    |> cast(attrs, [:account_id, :client_id, :encrypted_secret_hash, :secret_last_four, :name])
+    |> validate_required([:account_id, :client_id, :encrypted_secret_hash, :secret_last_four, :name])
     |> validate_name()
     |> foreign_key_constraint(:account_id)
     |> unique_constraint(:client_id)
     |> unique_constraint([:account_id, :name], message: "has already been taken")
   end
+
+  @doc "The trailing four characters of `secret`, persisted as a masked-preview hint."
+  def last_four(secret) when is_binary(secret), do: String.slice(secret, -4, 4)
 
   defp validate_name(changeset) do
     changeset

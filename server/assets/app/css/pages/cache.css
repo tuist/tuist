@@ -124,9 +124,10 @@
       }
     }
 
-    /* Pin the row's icon-only revoke action to the right edge. */
-    & #self-hosted-clients-table tbody td:last-child {
-      text-align: right;
+    /* Right-align the row's icon-only revoke action; the button cell keeps
+       its standard padding so the icon stays inset from the table edge. */
+    & #self-hosted-clients-table [data-part="cell"][data-type="button"] {
+      justify-content: flex-end;
     }
   }
 }
@@ -206,6 +207,13 @@
       }
     }
   }
+}
+
+/* Revoke-credential confirmation modal: give the message room between the
+   header/footer dividers (the Noora body only adds minimal vertical padding). */
+[id^="revoke-credential-modal-"] [data-part="revoke-credential-message"] {
+  margin: 0;
+  padding-block: var(--noora-spacing-5);
 }
 
 /* Deploy-server modal lives on this page. */

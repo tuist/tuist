@@ -155,6 +155,8 @@ defmodule TuistWeb.CacheLive do
   def handle_event("self_hosted_client_modal_open_change", _params, socket), do: {:noreply, socket}
 
   def handle_event("revoke_self_hosted_client", %{"id" => id}, socket) do
+    socket = push_event(socket, "close-modal", %{id: "revoke-credential-modal-#{id}"})
+
     case Enum.find(socket.assigns.self_hosted_clients, &(&1.id == id)) do
       nil ->
         {:noreply, socket}
@@ -163,6 +165,10 @@ defmodule TuistWeb.CacheLive do
         {:ok, _} = SelfHostedClients.revoke_self_hosted_client(client)
         {:noreply, load_self_hosted_state(socket)}
     end
+  end
+
+  def handle_event("close-revoke-credential-modal-" <> id, _params, socket) do
+    {:noreply, push_event(socket, "close-modal", %{id: "revoke-credential-modal-#{id}"})}
   end
 
   def handle_event("close-add-self-hosted-client-modal", _params, socket) do
@@ -752,24 +758,66 @@ defmodule TuistWeb.CacheLive do
           <:col :let={client} label={dgettext("dashboard_account", "Client ID")}>
             <.text_cell label={client.client_id} />
           </:col>
+          <:col :let={client} label={dgettext("dashboard_account", "Secret")}>
+            <.text_cell label={masked_secret(client.secret_last_four)} />
+          </:col>
           <:col :let={client} label="">
-            <.button
-              type="button"
-              variant="secondary"
-              size="small"
-              icon_only
-              phx-click="revoke_self_hosted_client"
-              phx-value-id={client.id}
-              aria-label={dgettext("dashboard_account", "Revoke credential")}
-              data-confirm={
-                dgettext(
-                  "dashboard_account",
-                  "Revoke this credential? Nodes using it will stop authenticating."
-                )
-              }
-            >
-              <.trash />
-            </.button>
+            <.button_cell>
+              <:button>
+                <.modal
+                  id={"revoke-credential-modal-#{client.id}"}
+                  title={dgettext("dashboard_account", "Revoke credential")}
+                  header_type="icon"
+                  header_size="small"
+                  on_dismiss={"close-revoke-credential-modal-#{client.id}"}
+                >
+                  <:trigger :let={attrs}>
+                    <.button
+                      type="button"
+                      variant="secondary"
+                      size="small"
+                      icon_only
+                      aria-label={dgettext("dashboard_account", "Revoke credential")}
+                      {attrs}
+                    >
+                      <.trash />
+                    </.button>
+                  </:trigger>
+                  <:header_icon>
+                    <.trash />
+                  </:header_icon>
+                  <.line_divider />
+                  <p data-part="revoke-credential-message">
+                    {dgettext(
+                      "dashboard_account",
+                      "Revoke %{name}? Self-hosted nodes using it will stop authenticating.",
+                      name: client.name
+                    )}
+                  </p>
+                  <:footer>
+                    <.modal_footer>
+                      <:action>
+                        <.button
+                          label={dgettext("dashboard_account", "Cancel")}
+                          variant="secondary"
+                          type="button"
+                          phx-click={"close-revoke-credential-modal-#{client.id}"}
+                        />
+                      </:action>
+                      <:action>
+                        <.button
+                          label={dgettext("dashboard_account", "Revoke")}
+                          variant="destructive"
+                          type="button"
+                          phx-click="revoke_self_hosted_client"
+                          phx-value-id={client.id}
+                        />
+                      </:action>
+                    </.modal_footer>
+                  </:footer>
+                </.modal>
+              </:button>
+            </.button_cell>
           </:col>
           <:empty_state>
             <.table_empty_state
@@ -841,4 +889,9 @@ defmodule TuistWeb.CacheLive do
 
   defp registered_status_color(%{ready: true}), do: "success"
   defp registered_status_color(_), do: "warning"
+
+  # Suffix-only preview so a customer can match a credential against a secret
+  # stored elsewhere; credentials issued before the hint existed show fully masked.
+  defp masked_secret(tail) when is_binary(tail) and tail != "", do: String.duplicate("•", 12) <> tail
+  defp masked_secret(_), do: String.duplicate("•", 16)
 end

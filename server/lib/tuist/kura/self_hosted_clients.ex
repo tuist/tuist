@@ -45,6 +45,7 @@ defmodule Tuist.Kura.SelfHostedClients do
         account_id: account.id,
         client_id: generate_client_id(),
         encrypted_secret_hash: encrypted_secret_hash,
+        secret_last_four: SelfHostedClient.last_four(client_secret),
         name: attrs[:name] || attrs["name"]
       })
 

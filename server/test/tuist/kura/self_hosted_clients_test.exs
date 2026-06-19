@@ -17,6 +17,7 @@ defmodule Tuist.Kura.SelfHostedClientsTest do
       assert String.starts_with?(client.client_id, "cache_")
       assert is_binary(secret) and secret != ""
       refute client.encrypted_secret_hash == secret
+      assert client.secret_last_four == String.slice(secret, -4, 4)
     end
 
     test "rejects a blank name" do

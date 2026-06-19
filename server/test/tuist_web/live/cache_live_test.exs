@@ -141,6 +141,27 @@ defmodule TuistWeb.CacheLiveTest do
     html = render_click(lv, "dismiss_self_hosted_client_secret")
     refute html =~ "Client secret"
     assert html =~ "production"
+
+    # The list hints at the secret with a suffix-only masked preview.
+    assert html =~ "••••••••••••#{client.secret_last_four}"
+  end
+
+  test "revokes a credential through the confirmation modal", %{conn: conn, account: account} do
+    enable_cache(account)
+    stub(Kura, :latest_versions, fn 1 -> [] end)
+    {:ok, {client, _secret}} = SelfHostedClients.create_self_hosted_client(account, %{name: "production"})
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/cache")
+
+    # The revoke action is a Noora confirmation modal, not a browser confirm.
+    assert html =~ "revoke-credential-modal-#{client.id}"
+    assert html =~ "Self-hosted nodes using it will stop authenticating"
+    refute html =~ ~s(data-confirm)
+
+    html = render_click(lv, "revoke_self_hosted_client", %{"id" => client.id})
+
+    refute html =~ "production"
+    assert SelfHostedClients.list_self_hosted_clients(account) == []
   end
 
   test "shows the cache server endpoint in the table" do
