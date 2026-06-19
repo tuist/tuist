@@ -16,6 +16,7 @@ defmodule Tuist.OAuth.Clients do
   alias Tuist.Environment
 
   @max_service_access_token_ttl 3600
+  @uuid_pattern ~r/\A[0-9a-fA-F]{8}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{12}\z/
 
   @impl Clients
   def get_client(client_id) do
@@ -132,7 +133,7 @@ defmodule Tuist.OAuth.Clients do
     access_token_ttl = min(configured_ttl, @max_service_access_token_ttl)
     scopes = service_client_scopes(config)
 
-    if is_binary(id) and is_binary(secret) do
+    if service_client_id?(id) and is_binary(secret) do
       %Client{
         id: id,
         secret: secret,
@@ -143,6 +144,7 @@ defmodule Tuist.OAuth.Clients do
         authorize_scope: true,
         authorized_scopes: Enum.map(scopes, &%Scope{name: &1}),
         confidential: true,
+        enforce_dpop: false,
         token_endpoint_auth_methods: [
           "client_secret_basic",
           "client_secret_post"
@@ -152,6 +154,9 @@ defmodule Tuist.OAuth.Clients do
   end
 
   defp oauth_service_client_from_config(_config), do: nil
+
+  defp service_client_id?(id) when is_binary(id), do: Regex.match?(@uuid_pattern, id)
+  defp service_client_id?(_id), do: false
 
   defp service_client_scopes(config) do
     case Map.get(config, "scopes") || Map.get(config, :scopes) do

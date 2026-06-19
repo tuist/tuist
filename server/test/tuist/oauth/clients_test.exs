@@ -6,6 +6,8 @@ defmodule Tuist.OAuth.ClientsTest do
   alias Tuist.Environment
   alias Tuist.OAuth.Clients
 
+  @service_client_id "00000000-0000-0000-0000-000000000099"
+
   setup :set_mimic_from_context
 
   describe "create_client/1" do
@@ -58,7 +60,7 @@ defmodule Tuist.OAuth.ClientsTest do
       stub(Environment, :oauth_service_clients, fn ->
         [
           %{
-            "id" => "service-client",
+            "id" => @service_client_id,
             "secret" => "service-secret",
             "name" => "Service client",
             "access_token_ttl" => 120
@@ -66,16 +68,17 @@ defmodule Tuist.OAuth.ClientsTest do
         ]
       end)
 
-      assert %Client{} = client = Clients.get_client("service-client")
-      assert client.id == "service-client"
+      assert %Client{} = client = Clients.get_client(@service_client_id)
+      assert client.id == @service_client_id
       assert client.secret == "service-secret"
       assert client.name == "Service client"
       assert client.access_token_ttl == 120
       assert client.refresh_token_ttl == 120
       assert client.confidential == true
+      assert client.enforce_dpop == false
       assert client.supported_grant_types == ["client_credentials"]
       assert client.token_endpoint_auth_methods == ["client_secret_basic", "client_secret_post"]
-      assert Clients.service_client?("service-client")
+      assert Clients.service_client?(@service_client_id)
       refute Clients.service_client?("tuist-cli")
     end
 
@@ -88,14 +91,14 @@ defmodule Tuist.OAuth.ClientsTest do
       stub(Environment, :oauth_service_clients, fn ->
         [
           %{
-            "id" => "service-client",
+            "id" => @service_client_id,
             "secret" => "service-secret",
             "scopes" => ["account:service:read:any"]
           }
         ]
       end)
 
-      client = Clients.get_client("service-client")
+      client = Clients.get_client(@service_client_id)
 
       assert client.authorize_scope == true
       assert Enum.map(client.authorized_scopes, & &1.name) == ["account:service:read:any"]
@@ -109,14 +112,36 @@ defmodule Tuist.OAuth.ClientsTest do
       stub(Environment, :oauth_client_name, fn -> "Tuist CLI" end)
 
       stub(Environment, :oauth_service_clients, fn ->
-        [%{"id" => "service-client", "secret" => "service-secret"}]
+        [%{"id" => @service_client_id, "secret" => "service-secret"}]
       end)
 
-      client = Clients.get_client("service-client")
+      client = Clients.get_client(@service_client_id)
 
       assert client.authorize_scope == true
       assert client.authorized_scopes == []
       assert Clients.authorized_scopes(client) == []
+    end
+
+    test "ignores service clients whose ids are not accepted by the token endpoint" do
+      stub(Environment, :kura_control_plane_configured?, fn -> false end)
+      stub(Environment, :oauth_client_id, fn -> "tuist-cli" end)
+      stub(Environment, :oauth_client_secret, fn -> "tuist-cli-secret" end)
+      stub(Environment, :oauth_client_name, fn -> "Tuist CLI" end)
+      stub(Environment, :oauth_jwt_public_key, fn -> nil end)
+      stub(Environment, :oauth_private_key, fn -> nil end)
+
+      stub(Environment, :oauth_service_clients, fn ->
+        [
+          %{
+            "id" => "service-client",
+            "secret" => "service-secret",
+            "scopes" => ["account:service:read:any"]
+          }
+        ]
+      end)
+
+      refute Clients.service_client?("service-client")
+      assert Clients.get_client("service-client") == nil
     end
 
     test "ignores a service client whose id collides with the Tuist CLI client" do
@@ -153,14 +178,14 @@ defmodule Tuist.OAuth.ClientsTest do
       stub(Environment, :oauth_service_clients, fn ->
         [
           %{
-            "id" => "service-client",
+            "id" => @service_client_id,
             "secret" => "service-secret",
             "access_token_ttl" => 99_999
           }
         ]
       end)
 
-      client = Clients.get_client("service-client")
+      client = Clients.get_client(@service_client_id)
 
       assert client.access_token_ttl == 3600
       assert client.refresh_token_ttl == 3600
