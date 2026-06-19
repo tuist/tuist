@@ -65,18 +65,18 @@ commit_preprocessors = [
 ]
 # regex for parsing and grouping commits
 commit_parsers = [
-    # Include commits with (helm) scope (supports multi-scope like "feat(helm,server)")
-    { message = "^feat\\([^)]*\\bhelm\\b[^)]*\\)", group = "<!-- 0 -->⛰️  Features" },
-    { message = "^fix\\([^)]*\\bhelm\\b[^)]*\\)", group = "<!-- 1 -->🐛 Bug Fixes" },
-    { message = "^docs?\\([^)]*\\bhelm\\b[^)]*\\)", group = "<!-- 3 -->📚 Documentation" },
-    { message = "^perf\\([^)]*\\bhelm\\b[^)]*\\)", group = "<!-- 4 -->⚡ Performance" },
-    { message = "^refactor\\([^)]*\\bhelm\\b[^)]*\\)", group = "<!-- 2 -->🚜 Refactor" },
-    { message = "^style\\([^)]*\\bhelm\\b[^)]*\\)", group = "<!-- 5 -->🎨 Styling" },
-    { message = "^test\\([^)]*\\bhelm\\b[^)]*\\)", group = "<!-- 6 -->🧪 Testing" },
-    { message = "^chore\\([^)]*\\bhelm\\b[^)]*\\)", skip = true },
-    { message = "^ci\\([^)]*\\bhelm\\b[^)]*\\)", skip = true },
-    # Skip any other scoped commits
-    { message = "^[a-z]+\\([^)]+\\)", skip = true },
+    # The release workflow already restricts this changelog to chart paths,
+    # so accept conventional commits regardless of their scope. Chart changes
+    # often land under broader scopes such as `infra` or `kura`.
+    { message = "^feat(\\([^)]*\\))?!?:", group = "<!-- 0 -->⛰️  Features" },
+    { message = "^fix(\\([^)]*\\))?!?:", group = "<!-- 1 -->🐛 Bug Fixes" },
+    { message = "^docs?(\\([^)]*\\))?!?:", group = "<!-- 3 -->📚 Documentation" },
+    { message = "^perf(\\([^)]*\\))?!?:", group = "<!-- 4 -->⚡ Performance" },
+    { message = "^refactor(\\([^)]*\\))?!?:", group = "<!-- 2 -->🚜 Refactor" },
+    { message = "^style(\\([^)]*\\))?!?:", group = "<!-- 5 -->🎨 Styling" },
+    { message = "^test(\\([^)]*\\))?!?:", group = "<!-- 6 -->🧪 Testing" },
+    { message = "^chore(\\([^)]*\\))?!?:", skip = true },
+    { message = "^ci(\\([^)]*\\))?!?:", skip = true },
 ]
 # protect breaking changes from being skipped due to matching a skipping commit_parser
 protect_breaking_commits = false
