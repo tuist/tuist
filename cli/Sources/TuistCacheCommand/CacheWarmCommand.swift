@@ -58,7 +58,8 @@
 
         @Option(
             name: .long,
-            help: "Cache profile to use for warming. Accepts built-in profiles (\(BaseCacheProfile.allCases.map(\.rawValue).joined(separator: ", "))) or a custom profile name defined in your Tuist configuration. Applies the same profile-based target filtering as `tuist generate`, including base behavior, targetQueries, and exceptTargetQueries."
+            help: "Cache profile to use for warming. Accepts built-in profiles (\(BaseCacheProfile.allCases.map(\.rawValue).joined(separator: ", "))) or a custom profile name defined in your Tuist configuration. Applies the same profile-based target filtering as `tuist generate`, including base behavior, targetQueries, and exceptTargetQueries.",
+            envKey: .cacheProfile
         )
         var cacheProfile: String?
 

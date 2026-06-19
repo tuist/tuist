@@ -921,16 +921,16 @@ struct CommandEnvironmentVariableTests {
 
     @Test(.withMockedEnvironment()) func cacheWarmCommandUsesEnvVars() throws {
         setVariable(.cacheExternalOnly, value: "true")
+        setVariable(.cacheProfile, value: "development")
         setVariable(.cacheGenerateOnly, value: "true")
         setVariable(.cachePrintHashes, value: "true")
         setVariable(.cacheConfiguration, value: "CacheConfig")
         setVariable(.cachePath, value: "/cache/path")
         setVariable(.cacheTargets, value: "Fmk1,Fmk2")
-        Environment.mocked?.variables["TUIST_CACHE_PROFILE"] = "none"
 
         let commandWithEnvVars = try CacheWarmCommand.parse([])
         #expect(commandWithEnvVars.externalOnly == true)
-        #expect(commandWithEnvVars.cacheProfile == nil)
+        #expect(commandWithEnvVars.cacheProfile == "development")
         #expect(commandWithEnvVars.generateOnly == true)
         #expect(commandWithEnvVars.printHashes == true)
         #expect(commandWithEnvVars.configuration == "CacheConfig")
@@ -956,7 +956,7 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.targets == ["Fmk1", "Fmk2"])
     }
 
-    @Test(.withMockedEnvironment()) func tuistVariablesFiltersTuistAndCIOnly() {
+    @Test(.withMockedEnvironment()) func tuistVariablesFiltersTuistAndCIOnly() throws {
         Environment.mocked?.variables = [
             "TUIST_FOO": "1",
             "TUIST_BAR": "abc",
