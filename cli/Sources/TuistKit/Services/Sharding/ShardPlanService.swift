@@ -134,7 +134,83 @@
             Logger.current.notice("Creating shard plan with \(modules.count) test module(s)", metadata: .section)
 
             let shouldUpload = archivePath == nil && !skipUpload
-            if shouldUpload {
+            let createdShardPlan = try await createShardPlan(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                reference: reference,
+                modules: modules,
+                testSuites: testSuites,
+                shardMin: shardMin,
+                shardMax: shardMax,
+                shardTotal: shardTotal,
+                shardMaxDuration: shardMaxDuration,
+                shardGranularity: shardGranularity,
+                buildRunId: buildRunId,
+                startUpload: shouldUpload
+            )
+            let shardPlan = createdShardPlan.shardPlan
+
+            Logger.current.notice("Shard plan created: \(shardPlan.shard_count) shards", metadata: .section)
+
+            if let archivePath {
+                try await archiveXCTestProducts(xctestproductsPath, to: archivePath)
+                Logger.current.notice("Shard archive written to \(archivePath.pathString)", metadata: .section)
+            } else if skipUpload {
+                Logger.current
+                    .notice("Skipping test products upload. Ensure shard runners can access the test products locally.")
+            } else {
+                try await uploadXCTestProducts(
+                    xctestproductsPath,
+                    fullHandle: fullHandle,
+                    serverURL: serverURL,
+                    reference: reference,
+                    shardPlan: shardPlan,
+                    uploadId: createdShardPlan.uploadId
+                )
+            }
+            try await shardMatrixOutputService.output(shardPlan)
+
+            return shardPlan
+        }
+
+        private enum CreatedShardPlan {
+            case withoutUpload(Components.Schemas.ShardPlan)
+            case withUpload(ShardPlanUpload)
+
+            var shardPlan: Components.Schemas.ShardPlan {
+                switch self {
+                case let .withoutUpload(shardPlan):
+                    return shardPlan
+                case let .withUpload(shardPlanUpload):
+                    return shardPlanUpload.shardPlan
+                }
+            }
+
+            var uploadId: String {
+                switch self {
+                case let .withUpload(shardPlanUpload):
+                    return shardPlanUpload.uploadId
+                case .withoutUpload:
+                    preconditionFailure("Shard products upload requires creating the shard plan with upload started.")
+                }
+            }
+        }
+
+        private func createShardPlan(
+            fullHandle: String,
+            serverURL: URL,
+            reference: String,
+            modules: [String]?,
+            testSuites: [String]?,
+            shardMin: Int?,
+            shardMax: Int?,
+            shardTotal: Int?,
+            shardMaxDuration: Int?,
+            shardGranularity: ShardGranularity,
+            buildRunId: String?,
+            startUpload: Bool
+        ) async throws -> CreatedShardPlan {
+            if startUpload {
                 let shardPlanUpload = try await createShardPlanService.createShardPlanAndStartUpload(
                     fullHandle: fullHandle,
                     serverURL: serverURL,
@@ -148,72 +224,64 @@
                     shardGranularity: shardGranularity,
                     buildRunId: buildRunId
                 )
-                let shardPlan = shardPlanUpload.shardPlan
-
-                Logger.current.notice("Shard plan created: \(shardPlan.shard_count) shards", metadata: .section)
-
-                Logger.current.debug("Uploading test products bundle...")
-                let archiveDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-archive")
-                let archivePath = archiveDirectory.appending(component: "bundle.aar")
-                try await archiveXCTestProducts(xctestproductsPath, to: archivePath)
-                let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
-                    artifactPath: archivePath,
-                    generateUploadURL: { part in
-                        try await multipartUploadGenerateURLShardsService.generateUploadURL(
-                            fullHandle: fullHandle,
-                            serverURL: serverURL,
-                            shardPlanId: shardPlan.id,
-                            reference: reference,
-                            uploadId: shardPlanUpload.uploadId,
-                            partNumber: part.number
-                        )
-                    },
-                    updateProgress: { progress in
-                        Logger.current.debug("Upload progress: \(Int(progress * 100))%")
-                    }
-                )
-
-                try await multipartUploadCompleteShardsService.completeUpload(
+                return .withUpload(shardPlanUpload)
+            } else {
+                let shardPlan = try await createShardPlanService.createShardPlan(
                     fullHandle: fullHandle,
                     serverURL: serverURL,
-                    shardPlanId: shardPlan.id,
                     reference: reference,
-                    uploadId: shardPlanUpload.uploadId,
-                    parts: parts.map { (partNumber: $0.partNumber, etag: $0.etag) }
+                    modules: modules,
+                    testSuites: testSuites,
+                    shardMin: shardMin,
+                    shardMax: shardMax,
+                    shardTotal: shardTotal,
+                    shardMaxDuration: shardMaxDuration,
+                    shardGranularity: shardGranularity,
+                    buildRunId: buildRunId
                 )
-
-                Logger.current.debug("Upload complete. Shard matrix ready.")
-                try await shardMatrixOutputService.output(shardPlan)
-
-                return shardPlan
+                return .withoutUpload(shardPlan)
             }
+        }
 
-            let shardPlan = try await createShardPlanService.createShardPlan(
-                fullHandle: fullHandle,
-                serverURL: serverURL,
-                reference: reference,
-                modules: modules,
-                testSuites: testSuites,
-                shardMin: shardMin,
-                shardMax: shardMax,
-                shardTotal: shardTotal,
-                shardMaxDuration: shardMaxDuration,
-                shardGranularity: shardGranularity,
-                buildRunId: buildRunId
+        private func uploadXCTestProducts(
+            _ xctestproductsPath: AbsolutePath,
+            fullHandle: String,
+            serverURL: URL,
+            reference: String,
+            shardPlan: Components.Schemas.ShardPlan,
+            uploadId: String
+        ) async throws {
+            Logger.current.debug("Uploading test products bundle...")
+            let archiveDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-archive")
+            let archivePath = archiveDirectory.appending(component: "bundle.aar")
+            try await archiveXCTestProducts(xctestproductsPath, to: archivePath)
+            let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
+                artifactPath: archivePath,
+                generateUploadURL: { part in
+                    try await multipartUploadGenerateURLShardsService.generateUploadURL(
+                        fullHandle: fullHandle,
+                        serverURL: serverURL,
+                        shardPlanId: shardPlan.id,
+                        reference: reference,
+                        uploadId: uploadId,
+                        partNumber: part.number
+                    )
+                },
+                updateProgress: { progress in
+                    Logger.current.debug("Upload progress: \(Int(progress * 100))%")
+                }
             )
 
-            Logger.current.notice("Shard plan created: \(shardPlan.shard_count) shards", metadata: .section)
+            try await multipartUploadCompleteShardsService.completeUpload(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                shardPlanId: shardPlan.id,
+                reference: reference,
+                uploadId: uploadId,
+                parts: parts.map { (partNumber: $0.partNumber, etag: $0.etag) }
+            )
 
-            if let archivePath {
-                try await archiveXCTestProducts(xctestproductsPath, to: archivePath)
-                Logger.current.notice("Shard archive written to \(archivePath.pathString)", metadata: .section)
-            } else if skipUpload {
-                Logger.current
-                    .notice("Skipping test products upload. Ensure shard runners can access the test products locally.")
-            }
-            try await shardMatrixOutputService.output(shardPlan)
-
-            return shardPlan
+            Logger.current.debug("Upload complete. Shard matrix ready.")
         }
 
         /// Creates a compressed archive of the test products bundle, excluding dSYMs
