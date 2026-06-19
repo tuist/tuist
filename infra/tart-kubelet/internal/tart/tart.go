@@ -84,6 +84,9 @@ var (
 	setTimeout    = 1 * time.Minute
 	deleteTimeout = 5 * time.Minute
 	queryTimeout  = 30 * time.Second
+	// runWaitDelay bounds how long Wait blocks for the I/O pipes to
+	// close after the timeout context kills the process (see run).
+	runWaitDelay = 2 * time.Second
 )
 
 // Pull invokes `tart pull <image>`. Idempotent — Tart skips re-download
@@ -450,6 +453,13 @@ func (c *Client) CleanupVMUserData(name string) error {
 
 func (c *Client) run(ctx context.Context, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
+	// Bound how long Wait blocks after the timeout context kills the
+	// process. A hung `tart` that spawned children which inherited the
+	// stdout/stderr pipe would otherwise keep Wait — and the single
+	// reconcile worker — blocked until those children close it (the
+	// exact wedge the per-op timeout is meant to prevent). WaitDelay
+	// force-closes the pipes and returns shortly after the kill.
+	cmd.WaitDelay = runWaitDelay
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
