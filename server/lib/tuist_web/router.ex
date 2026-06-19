@@ -737,7 +737,7 @@ defmodule TuistWeb.Router do
   scope "/api/internal", TuistWeb.Internal do
     pipe_through [:non_authenticated_api]
 
-    get "/atlas/organizations/:organization_name/usage", AtlasUsageController, :usage
+    get "/atlas/accounts/:account_handle/usage", AtlasUsageController, :usage
   end
 
   scope "/_internal", TuistWeb.Internal do

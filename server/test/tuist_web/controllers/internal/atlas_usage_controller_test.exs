@@ -13,8 +13,8 @@ defmodule TuistWeb.Internal.AtlasUsageControllerTest do
     end)
   end
 
-  describe "GET /api/internal/atlas/organizations/:organization_name/usage" do
-    test "returns the curated organization usage read model", %{conn: conn} do
+  describe "GET /api/internal/atlas/accounts/:account_handle/usage" do
+    test "returns the curated account usage read model", %{conn: conn} do
       AccountsFixtures.organization_fixture(
         name: "tuist-org",
         current_month_remote_cache_hits_count: 42
@@ -25,24 +25,24 @@ defmodule TuistWeb.Internal.AtlasUsageControllerTest do
       conn =
         conn
         |> put_req_header("authorization", "Bearer valid-token")
-        |> get("/api/internal/atlas/organizations/tuist-org/usage")
+        |> get("/api/internal/atlas/accounts/tuist-org/usage")
 
       assert %{"current_month_remote_cache_hits" => 42} = json_response(conn, 200)
     end
 
-    test "returns 404 when the organization does not exist", %{conn: conn} do
+    test "returns 404 when the account does not exist", %{conn: conn} do
       ok_tokenreview_stub()
 
       conn =
         conn
         |> put_req_header("authorization", "Bearer valid-token")
-        |> get("/api/internal/atlas/organizations/missing/usage")
+        |> get("/api/internal/atlas/accounts/missing/usage")
 
-      assert %{"error" => "organization_not_found"} = json_response(conn, 404)
+      assert %{"error" => "account_not_found"} = json_response(conn, 404)
     end
 
     test "returns 401 when bearer token is missing", %{conn: conn} do
-      conn = get(conn, "/api/internal/atlas/organizations/tuist-org/usage")
+      conn = get(conn, "/api/internal/atlas/accounts/tuist-org/usage")
 
       assert json_response(conn, 401)["error"] =~ "bearer"
     end
@@ -53,7 +53,7 @@ defmodule TuistWeb.Internal.AtlasUsageControllerTest do
       conn =
         conn
         |> put_req_header("authorization", "Bearer bad-token")
-        |> get("/api/internal/atlas/organizations/tuist-org/usage")
+        |> get("/api/internal/atlas/accounts/tuist-org/usage")
 
       assert json_response(conn, 401)["error"] =~ "invalid"
     end
@@ -66,7 +66,7 @@ defmodule TuistWeb.Internal.AtlasUsageControllerTest do
       conn =
         conn
         |> put_req_header("authorization", "Bearer other-token")
-        |> get("/api/internal/atlas/organizations/tuist-org/usage")
+        |> get("/api/internal/atlas/accounts/tuist-org/usage")
 
       assert json_response(conn, 401)["error"] =~ "unauthorized"
     end
@@ -77,7 +77,7 @@ defmodule TuistWeb.Internal.AtlasUsageControllerTest do
       conn =
         conn
         |> put_req_header("authorization", "Bearer any-token")
-        |> get("/api/internal/atlas/organizations/tuist-org/usage")
+        |> get("/api/internal/atlas/accounts/tuist-org/usage")
 
       assert json_response(conn, 503)["error"] =~ "kubernetes"
     end

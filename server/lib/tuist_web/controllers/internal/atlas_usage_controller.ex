@@ -10,23 +10,23 @@ defmodule TuistWeb.Internal.AtlasUsageController do
   use TuistWeb, :controller
 
   alias Tuist.Accounts
-  alias Tuist.Accounts.Organization
+  alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
 
   require Logger
 
-  def usage(conn, %{"organization_name" => organization_name}) do
+  def usage(conn, %{"account_handle" => account_handle}) do
     with {:ok, token} <- bearer_token(conn),
          {:ok, principal} <- K8sClient.create_atlas_token_review(token),
          :ok <- ensure_atlas_principal(principal),
-         %Organization{} = organization <- Accounts.get_organization_by_handle(organization_name) do
+         %Account{} = account <- Accounts.get_account_by_handle(account_handle) do
       json(conn, %{
-        current_month_remote_cache_hits: organization.account.current_month_remote_cache_hits_count
+        current_month_remote_cache_hits: account.current_month_remote_cache_hits_count
       })
     else
       nil ->
-        conn |> put_status(:not_found) |> json(%{error: "organization_not_found"})
+        conn |> put_status(:not_found) |> json(%{error: "account_not_found"})
 
       {:error, :missing_bearer} ->
         conn |> put_status(:unauthorized) |> json(%{error: "missing bearer token"})
