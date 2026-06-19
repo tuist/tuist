@@ -1776,7 +1776,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 projectPath: graphTraverser.workspace.xcWorkspacePath,
                 config: config,
                 scheme: scheme.name,
-                configuration: configuration
+                configuration: configuration ?? scheme.testAction?.configurationName
             )
             let summary = mode == .local
                 ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
@@ -1799,7 +1799,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             projectPath: graphTraverser.workspace.xcWorkspacePath,
             config: config,
             scheme: scheme.name,
-            configuration: configuration
+            configuration: configuration ?? scheme.testAction?.configurationName
         )
         let summary = mode == .local
             ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
