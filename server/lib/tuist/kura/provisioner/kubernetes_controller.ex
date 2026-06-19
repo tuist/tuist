@@ -20,7 +20,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Kura.Server
 
   @namespace "kura"
-  @manifest_revision "2026-06-18-mesh-two-way-public-peer-lb-v1"
+  @manifest_revision "2026-06-19-single-host-grpc-and-two-way-public-peer-lb-v1"
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
   @gateway_annotation "tuist.dev/kura-gateway"
   @gateway_controller_image "registry.k8s.io/ingress-nginx/controller:v1.11.3"

@@ -271,6 +271,7 @@ func main() {
 		Store:              store,
 		TokenMinter:        &satoken.ClientMinter{Client: typedClient, ExpirationSeconds: 3600},
 		GC:                 gcCollector,
+		Recorder:           mgr.GetEventRecorderFor("tart-kubelet"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup pod reconciler")
 		os.Exit(1)

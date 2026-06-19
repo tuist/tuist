@@ -696,6 +696,66 @@ struct CacheRemoteStorageTests {
     }
 
     @Test(.inTemporaryDirectory, .withScopedAlertController())
+    func store_when_multipart_upload_complete_cache_service_throws_conflict() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let macroPath = temporaryDirectory.appending(component: "macro.macro")
+        try await fileSystem.touch(macroPath)
+        given(multipartUploadStartCacheService).uploadCache(
+            serverURL: .value(Constants.URLs.production),
+            projectId: .value(fullHandle),
+            hash: .value("hash"),
+            name: .value("target"),
+            cacheCategory: .value(.binaries)
+        ).willReturn("upload-id")
+        given(multipartUploadGenerateURLCacheService)
+            .uploadCache(
+                serverURL: .value(Constants.URLs.production),
+                projectId: .value(fullHandle),
+                hash: .value("hash"),
+                name: .value("target"),
+                cacheCategory: .value(.binaries),
+                uploadId: .value("upload-id"),
+                partNumber: .value(1),
+                contentLength: .value(20)
+            )
+            .willReturn("https://tuist.dev/upload")
+        given(multipartUploadArtifactService)
+            .multipartUploadArtifact(
+                artifactPath: .any,
+                generateUploadURL: .any,
+                updateProgress: .any
+            )
+            .willReturn([(etag: "etag", partNumber: 1)])
+        given(multipartUploadCompleteCacheService).uploadCache(
+            serverURL: .value(Constants.URLs.production),
+            projectId: .value(fullHandle),
+            hash: .value("hash"),
+            name: .value("target"),
+            cacheCategory: .value(.binaries),
+            uploadId: .value("upload-id"),
+            parts: .matching { values in
+                values.contains(where: { $0.etag == "etag" && $0.partNumber == 1 })
+            }
+        ).willThrow(
+            MultipartUploadCompleteCacheServiceError.conflict(
+                "The multipart upload is no longer active. Start a new upload and retry."
+            )
+        )
+
+        // When
+        let result = try await subject.store(
+            [.init(name: "target", hash: "hash"): [macroPath]], cacheCategory: .binaries
+        )
+
+        // Then
+        #expect(result.isEmpty)
+        #expect(AlertController.current.warnings()
+            .contains { $0.message.plain().contains("Failed to upload target with hash hash due to unexpected error:") }
+        )
+    }
+
+    @Test(.inTemporaryDirectory, .withScopedAlertController())
     func store_when_multipart_upload_start_cache_service_throws_internal_server_error()
         async throws
     {

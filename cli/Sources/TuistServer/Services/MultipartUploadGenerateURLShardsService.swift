@@ -7,6 +7,7 @@ public protocol MultipartUploadGenerateURLShardsServicing {
     func generateUploadURL(
         fullHandle: String,
         serverURL: URL,
+        shardPlanId: String?,
         reference: String,
         uploadId: String,
         partNumber: Int
@@ -15,6 +16,7 @@ public protocol MultipartUploadGenerateURLShardsServicing {
 
 public enum MultipartUploadGenerateURLShardsServiceError: LocalizedError, Equatable {
     case unknownError(Int)
+    case badRequest(String)
     case notFound(String)
     case forbidden(String)
     case unauthorized(String)
@@ -23,7 +25,7 @@ public enum MultipartUploadGenerateURLShardsServiceError: LocalizedError, Equata
         switch self {
         case let .unknownError(statusCode):
             return "Failed to generate shard upload URL due to an unknown server response of \(statusCode)."
-        case let .notFound(message), let .forbidden(message), let .unauthorized(message):
+        case let .badRequest(message), let .notFound(message), let .forbidden(message), let .unauthorized(message):
             return message
         }
     }
@@ -41,6 +43,7 @@ public struct MultipartUploadGenerateURLShardsService: MultipartUploadGenerateUR
     public func generateUploadURL(
         fullHandle: String,
         serverURL: URL,
+        shardPlanId: String?,
         reference: String,
         uploadId: String,
         partNumber: Int
@@ -57,6 +60,7 @@ public struct MultipartUploadGenerateURLShardsService: MultipartUploadGenerateUR
                 .init(
                     part_number: partNumber,
                     reference: reference,
+                    shard_plan_id: shardPlanId,
                     upload_id: uploadId
                 )
             )
@@ -80,6 +84,11 @@ public struct MultipartUploadGenerateURLShardsService: MultipartUploadGenerateUR
             switch unauthorized.body {
             case let .json(error):
                 throw MultipartUploadGenerateURLShardsServiceError.unauthorized(error.message)
+            }
+        case let .badRequest(badRequestResponse):
+            switch badRequestResponse.body {
+            case let .json(error):
+                throw MultipartUploadGenerateURLShardsServiceError.badRequest(error.message)
             }
         case let .undocumented(statusCode, _):
             throw MultipartUploadGenerateURLShardsServiceError.unknownError(statusCode)

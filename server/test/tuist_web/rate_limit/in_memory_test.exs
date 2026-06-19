@@ -9,6 +9,7 @@ defmodule TuistWeb.RateLimit.InMemoryTest do
   describe "rate_limit/2" do
     test "allows the request when the rate limit is not reached" do
       # Given
+      expect(Environment, :tuist_hosted?, fn -> true end)
       expect(FixWindow, :hit, fn _table, _ip, _window, _limit, _increment -> {:allow, 1} end)
       conn = build_conn()
 
@@ -21,6 +22,7 @@ defmodule TuistWeb.RateLimit.InMemoryTest do
 
     test "raises TooManyRequestsError when the rate limit is reached" do
       # Given
+      expect(Environment, :tuist_hosted?, fn -> true end)
       expect(FixWindow, :hit, fn _table, _ip, _window, _limit, _increment -> {:deny, 1} end)
       conn = build_conn()
 

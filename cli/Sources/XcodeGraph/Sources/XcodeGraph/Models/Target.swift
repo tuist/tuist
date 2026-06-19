@@ -11,7 +11,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable, Sendable {
         "playground", "rcproject", "mlpackage", "docc",
     ]
     public static let validSourceExtensions: [String] = [
-        "m", "swift", "mm", "cpp", "c++", "cc", "c", "d", "s", "intentdefinition", "metal", "mlmodel", "clp",
+        "m", "swift", "mm", "cpp", "c++", "cc", "c", "d", "s", "intentdefinition", "metal", "mlmodel", "clp", "proto",
     ]
     public static let validResourceExtensions: [String] = [
         // Resource

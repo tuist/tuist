@@ -3,6 +3,8 @@ defmodule TuistWeb.API.BuildsControllerTest do
   use Mimic
 
   alias Tuist.Builds
+  alias Tuist.Builds.Build
+  alias Tuist.Builds.Workers.ProcessBuildWorker
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -487,7 +489,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
 
       stub(Builds, :create_build, fn _attrs ->
         {:ok,
-         %Tuist.Builds.Build{
+         %Build{
            id: build_id,
            status: "success",
            duration: 1000,
@@ -508,6 +510,50 @@ defmodule TuistWeb.API.BuildsControllerTest do
 
       response = json_response(conn, 200)
       assert response["id"] == build_id
+    end
+
+    test "enqueues processing with the project account for organization projects", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(creator: user, preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+      conn = Authentication.put_current_user(conn, user)
+      build_id = UUIDv7.generate()
+
+      stub(Builds, :get_build, fn _id, _opts -> {:error, :not_found} end)
+
+      stub(Builds, :create_build, fn attrs ->
+        assert attrs.account_id == organization.account.id
+
+        {:ok,
+         %Build{
+           id: build_id,
+           status: "processing",
+           duration: 0,
+           project_id: project.id,
+           account_id: attrs.account_id,
+           project: %{project | account: organization.account}
+         }}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{organization.account.name}/#{project.name}/builds", %{
+          id: build_id,
+          status: "processing",
+          is_ci: false
+        })
+
+      assert json_response(conn, 200)
+
+      assert_enqueued(
+        worker: ProcessBuildWorker,
+        args: %{
+          "build_id" => build_id,
+          "account_id" => organization.account.id,
+          "storage_key" => "#{organization.account.name}/#{project.name}/builds/#{build_id}/build.zip"
+        }
+      )
     end
   end
 

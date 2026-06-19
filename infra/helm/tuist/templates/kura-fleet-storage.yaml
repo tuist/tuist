@@ -1,28 +1,24 @@
-# local-path-provisioner — serves per-account cache PVCs from local NVMe on
-# the `kura-scw-fr-par` Elastic Metal node(s).
-#
-# Why not scaleway-csi here: Elastic Metal bare-metal servers can't attach
-# scw-bssd block volumes (that's an Instance-only feature), so the cache PVCs
-# have to live on the node's local NVMe. Each PVC becomes a hostPath-backed PV
-# under /opt/local-path-provisioner on the node — per-account isolation by
-# directory, capacity bounded by the box's NVMe (EM-I220E = 1.92TB).
-#
-# The StorageClass name `scw-local-nvme` is load-bearing: the server's
-# `scw-fr-par-runners` kura region spec will provision PVCs with this class
-# (server/lib/tuist/kura/regions.ex, storage_class). That server-side switch
-# from `scw-bssd` to `scw-local-nvme` is handled separately — see the kura
-# region spec change in the parallel server work.
-#
-# Applied out-of-band on the workload cluster the same way as
-# scaleway-csi-values.yaml (the macOS-runner-cache bootstrap), pinned to the
-# Rancher local-path-provisioner v0.0.31 manifest with the storage path,
-# nodeSelector, taint toleration, and StorageClass adapted for this pool.
-#
-#   kubectl --kubeconfig ~/.kube/tuist-<env>.yaml apply -f \
-#     infra/k8s/mgmt/bootstrap/local-path-provisioner.yaml
-#
-# Re-apply after any pinned-version bump.
----
+{{- if and .Values.capi.enabled .Values.kuraFleet.enabled }}
+{{- /*
+local-path-provisioner for the kura runner-cache Elastic Metal pool. Elastic
+Metal can't attach scw-bssd block volumes, so per-account cache PVCs live on the
+node's local NVMe: each becomes a hostPath-backed PV under
+/opt/local-path-provisioner. The StorageClass name `scw-local-nvme` is
+load-bearing — the `scw-fr-par-runners` kura region spec provisions PVCs with
+exactly this class (server/lib/tuist/kura/regions.ex, storage_class).
+
+This used to be a manual per-cluster bootstrap (infra/k8s/mgmt/bootstrap/), which
+meant a cluster could enable the kura fleet but silently lack the StorageClass
+its cache PVCs need (the pod hangs Pending). It now ships with the chart, gated
+on the same kuraFleet.enabled flag as the fleet itself, so the two can't drift.
+
+The provisioner controller is deliberately NOT pinned to the EM pool (unlike the
+old bootstrap manifest): it only watches PVCs and launches a short-lived helper
+Pod on the *target* node to set up/tear down each PV directory, so it can run on
+any node. Pinning it to the cache pool would make the release `--wait` block on
+it whenever the EM node isn't up yet. The helper Pod (configured below) still
+tolerates the runner-cache taint so it lands on the cache node.
+*/ -}}
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -88,13 +84,9 @@ spec:
         app: local-path-provisioner
     spec:
       serviceAccountName: local-path-provisioner-service-account
-      # The provisioner only manages PVs for the kura Elastic Metal pool, so
-      # pin it there. It runs a helper Pod per provision/delete on the target
-      # node (the node where the consuming pod is scheduled), so it must
-      # tolerate the runner-cache taint to land its helper Pods on the cache
-      # node alongside the cache pods.
-      nodeSelector:
-        node.cluster.x-k8s.io/pool: kura-scw-fr-par
+      # Tolerate the runner-cache taint so the controller is free to land on
+      # the cache node if the scheduler picks it, but it is not pinned there —
+      # it runs its helper Pods on the target node regardless of where it sits.
       tolerations:
         - key: tuist.dev/runner-cache
           operator: Exists
@@ -132,8 +124,7 @@ spec:
 # (the kura pod's nodeSelector + toleration already pin it to this pool).
 # reclaimPolicy: Delete — cache volumes are disposable; the kura RunnerCache
 # reconciler tears instances down when accounts lose runner profiles, and a
-# retained orphan dir wastes NVMe until hand-deleted. Mirrors the scw-bssd
-# class the Instance path used.
+# retained orphan dir wastes NVMe until hand-deleted.
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
@@ -154,7 +145,7 @@ data:
   # Single path on the Elastic Metal NVMe root filesystem. The provisioner
   # creates one sub-directory per PV here. nodePathMap with a single
   # DEFAULT_PATH_FOR_NON_LISTED_NODES entry applies to every node the
-  # provisioner runs on (gated to this pool by the Deployment nodeSelector).
+  # provisioner runs on (gated to this pool by the helper Pod's placement).
   config.json: |-
     {
       "nodePathMap": [
@@ -179,7 +170,7 @@ data:
       name: helper-pod
     spec:
       # The helper Pod runs on the target cache node to create/remove the PV
-      # directory, so it has to tolerate the runner-cache taint too.
+      # directory, so it has to tolerate the runner-cache taint.
       tolerations:
         - key: tuist.dev/runner-cache
           operator: Exists
@@ -188,3 +179,4 @@ data:
         - name: helper-pod
           image: busybox
           imagePullPolicy: IfNotPresent
+{{- end }}

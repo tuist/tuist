@@ -62,16 +62,13 @@
           }
         >
           <:col :let={cache_run} label={dgettext("dashboard_cache", "Command")}>
-            <.text_and_description_cell label={"tuist " <> (if cache_run.command_arguments, do: (cache_run.command_arguments |> String.split(" ") |> Enum.take(2) |> Enum.join(" ")), else: "")} />
+            <.text_and_description_cell label={format_command(cache_run)} />
           </:col>
           <:col
             :let={cache_run}
             label={dgettext("dashboard_cache", "Hit rate")}
             patch={@cache_runs_sort_by == "hit_rate" && column_patch_sort(assigns, "hit_rate")}
-            icon={
-              @cache_runs_sort_by == "hit_rate" &&
-                sort_icon(@cache_runs_sort_order)
-            }
+            sort_order={@cache_runs_sort_by == "hit_rate" && @cache_runs_sort_order}
           >
             <.text_cell label={
               dgettext("dashboard_cache", "%{hit_rate}%",
@@ -103,10 +100,7 @@
             :let={cache_run}
             label={dgettext("dashboard_cache", "Duration")}
             patch={@cache_runs_sort_by == "duration" && column_patch_sort(assigns, "duration")}
-            icon={
-              @cache_runs_sort_by == "duration" &&
-                sort_icon(@cache_runs_sort_order)
-            }
+            sort_order={@cache_runs_sort_by == "duration" && @cache_runs_sort_order}
           >
             <.text_cell
               label={
@@ -122,10 +116,7 @@
             :let={cache_run}
             label={dgettext("dashboard_cache", "Ran at")}
             patch={@cache_runs_sort_by == "ran_at" && column_patch_sort(assigns, "ran_at")}
-            icon={
-              @cache_runs_sort_by == "ran_at" &&
-                sort_icon(@cache_runs_sort_order)
-            }
+            sort_order={@cache_runs_sort_by == "ran_at" && @cache_runs_sort_order}
           >
             <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(cache_run.ran_at)} />
           </:col>

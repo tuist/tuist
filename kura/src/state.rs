@@ -24,6 +24,7 @@ use crate::{
     runtime::{DataDirLock, HttpTrafficClass, InflightGuard, RuntimeState, TrafficState},
     store::Store,
     usage::Usage,
+    utils::TmpBudget,
 };
 
 const READINESS_SETTLE_WINDOW: Duration = Duration::from_secs(5);
@@ -54,6 +55,7 @@ pub struct AppState {
     pub notify: Notify,
     pub readiness: Mutex<ReadinessState>,
     pub bootstrap_semaphore: Arc<Semaphore>,
+    pub bootstrap_staging_budget: Arc<TmpBudget>,
 }
 
 impl AppState {

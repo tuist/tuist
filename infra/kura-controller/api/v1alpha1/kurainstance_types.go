@@ -6,12 +6,17 @@ import (
 )
 
 type KuraInstanceSpec struct {
-	AccountHandle     string              `json:"accountHandle"`
-	TenantID          string              `json:"tenantID"`
-	Region            string              `json:"region"`
-	Image             string              `json:"image"`
-	Replicas          *int32              `json:"replicas,omitempty"`
-	PublicHost        string              `json:"publicHost,omitempty"`
+	AccountHandle string `json:"accountHandle"`
+	TenantID      string `json:"tenantID"`
+	Region        string `json:"region"`
+	Image         string `json:"image"`
+	Replicas      *int32 `json:"replicas,omitempty"`
+	PublicHost    string `json:"publicHost,omitempty"`
+	// Deprecated: the value is ignored — gRPC co-hosts on PublicHost (see
+	// reconcileGRPCIngress), so this is a redundant "gRPC enabled" flag the
+	// provisioner always sets equal to PublicHost. Retained for backward
+	// compatibility; slated for removal in favor of gating gRPC on PublicHost.
+	// See https://github.com/tuist/tuist/issues/11390.
 	GRPCPublicHost    string              `json:"grpcPublicHost,omitempty"`
 	IngressClassName  string              `json:"ingressClassName,omitempty"`
 	PeerTLSSecretName string              `json:"peerTLSSecretName,omitempty"`

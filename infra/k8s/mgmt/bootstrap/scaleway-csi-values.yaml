@@ -12,7 +12,7 @@
 # Only needed while the `kura-scw-fr-par` pool runs Scaleway Instances. The
 # managed envs moved this pool to Elastic Metal (bare metal can't attach
 # scw-bssd), where the cache PVCs come from local NVMe via the
-# local-path-provisioner (local-path-provisioner.yaml, StorageClass
+# local-path-provisioner (chart `templates/kura-fleet-storage.yaml`, StorageClass
 # `scw-local-nvme`) instead. Keep this installed only on clusters whose
 # kuraFleet still uses `machine.kind: instance`.
 storageClasses:

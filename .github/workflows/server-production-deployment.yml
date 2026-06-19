@@ -102,6 +102,13 @@ jobs:
       stable-egress-controller-next-version-number: ${{ steps.check.outputs.stable-egress-controller-next-version-number }}
       should-release-any: ${{ steps.check.outputs.should-release-any }}
       deployable-changed: ${{ steps.deployable.outputs.deployable-changed }}
+      # Single source of truth for hotfix routing. "(hotfix)" in the commit
+      # subject ships straight to production via the production-hotfix leg and
+      # skips the canary cascade. The deploy-tail jobs (canary, production,
+      # production-hotfix) all gate on this one output, so the marker format
+      # lives in exactly one place instead of three inline contains() checks
+      # with inverted logic.
+      is-hotfix: ${{ contains(github.event.head_commit.message, '(hotfix)') }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -1847,12 +1854,12 @@ jobs:
   # fast-path ships straight to production without waiting on the canary
   # cascade.
   canary:
-    needs: build
+    needs: [check-releases, build]
     # `build` runs under `if: always()` so it survives the many skipped sibling
     # release jobs. A plain-`if` dependent of an `always()`-guarded job gets
     # caught by skip-propagation and is itself skipped even when `build`
     # succeeded, so the whole deploy tail must re-assert success explicitly.
-    if: ${{ always() && needs.build.result == 'success' && !contains(github.event.head_commit.message, '(hotfix)') }}
+    if: ${{ always() && needs.build.result == 'success' && needs.check-releases.outputs.is-hotfix != 'true' }}
     uses: ./.github/workflows/server-deployment.yml
     with:
       environment: canary
@@ -1970,14 +1977,14 @@ jobs:
     # `canary` is listed explicitly (not just relied on transitively through the
     # acceptance jobs) so the "canary must be green before prod" invariant is
     # encoded in this job's own gate, not in the acceptance jobs' needs.
-    needs: [build, canary, acceptance-tests, backward-compatibility-acceptance]
+    needs: [check-releases, build, canary, acceptance-tests, backward-compatibility-acceptance]
     if: >-
       always() &&
       needs.build.result == 'success' &&
       needs.canary.result == 'success' &&
       needs.acceptance-tests.result == 'success' &&
       needs.backward-compatibility-acceptance.result == 'success' &&
-      !contains(github.event.head_commit.message, '(hotfix)')
+      needs.check-releases.outputs.is-hotfix != 'true'
     uses: ./.github/workflows/server-deployment.yml
     with:
       environment: production
@@ -1992,8 +1999,8 @@ jobs:
   # `always() && needs.build.result == 'success'` guard mirrors `canary`
   # (see its comment) so this leg is not skip-propagated away.
   production-hotfix:
-    needs: build
-    if: ${{ always() && needs.build.result == 'success' && contains(github.event.head_commit.message, '(hotfix)') }}
+    needs: [check-releases, build]
+    if: ${{ always() && needs.build.result == 'success' && needs.check-releases.outputs.is-hotfix == 'true' }}
     uses: ./.github/workflows/server-deployment.yml
     with:
       environment: production

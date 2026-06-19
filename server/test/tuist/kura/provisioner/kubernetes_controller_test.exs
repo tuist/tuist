@@ -41,7 +41,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert spec["region"] == "eu-central"
       assert spec["image"] == "ghcr.io/tuist/kura:0.5.2"
       assert spec["publicHost"] == "tuist-eu-central-1.kura.tuist.dev"
-      assert spec["grpcPublicHost"] == "grpc.tuist-eu-central-1.kura.tuist.dev"
+      # gRPC co-hosts on the single public host: grpcPublicHost == publicHost.
+      assert spec["grpcPublicHost"] == "tuist-eu-central-1.kura.tuist.dev"
       assert spec["ingressClassName"] == "kura-eu-central"
       refute Map.has_key?(spec, "peerTLSSecretName")
       refute Map.has_key?(spec, "tlsSecretName")
@@ -221,7 +222,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert spec["accountHandle"] == "bumble"
       assert spec["tenantID"] == "bumble"
       assert spec["publicHost"] == "bumble-eu-central-1.kura.tuist.dev"
-      assert spec["grpcPublicHost"] == "grpc.bumble-eu-central-1.kura.tuist.dev"
+      assert spec["grpcPublicHost"] == "bumble-eu-central-1.kura.tuist.dev"
     end
 
     test "uses an opaque dedicated gateway class when the account is assigned to dedicated Kura ingress" do
@@ -490,7 +491,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   describe "grpc_public_url/3" do
     test "interpolates the gRPC host template with the account handle" do
       assert KubernetesController.grpc_public_url("TUIST", eu_region(), "any-ref") ==
-               "grpcs://grpc.tuist-eu-central-1.kura.tuist.dev"
+               "grpcs://tuist-eu-central-1.kura.tuist.dev"
     end
 
     test "returns nil when the region has no gRPC host configured" do
@@ -555,7 +556,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
             cluster_id: "eu-central-1",
             hetzner_location: "fsn1",
             public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
-            grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
+            grpc_public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
             peer_public_host_template: "peer.{account_handle}-{cluster_id}.kura.tuist.dev",
             ingress_class_name: "kura-eu-central",
             storage_class: "hcloud-volumes",
@@ -575,7 +576,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
             cluster_id: "us-east-1",
             hetzner_location: "ash",
             public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
-            grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
+            grpc_public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
             ingress_class_name: "kura-us-east",
             storage_class: "hcloud-volumes",
             node_selector: %{"node.cluster.x-k8s.io/pool" => "kura-us-east"}

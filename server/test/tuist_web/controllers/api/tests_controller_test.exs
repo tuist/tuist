@@ -709,6 +709,57 @@ defmodule TuistWeb.API.TestsControllerTest do
       )
     end
 
+    test "enqueues processing with the project account for organization projects", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(creator: user, preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+      conn = Authentication.put_current_user(conn, user)
+      test_run_id = UUIDv7.generate()
+
+      expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
+
+      expect(Tests, :create_test, fn attrs ->
+        assert attrs.account_id == organization.account.id
+
+        {:ok,
+         %Test{
+           id: attrs.id,
+           duration: attrs.duration,
+           project_id: project.id,
+           account_id: attrs.account_id,
+           is_ci: false,
+           build_system: "xcode",
+           status: "processing",
+           test_case_runs: []
+         }}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/projects/#{organization.account.name}/#{project.name}/tests",
+          %{
+            id: test_run_id,
+            duration: 0,
+            is_ci: false,
+            status: "processing",
+            test_modules: []
+          }
+        )
+
+      assert json_response(conn, 200)
+
+      assert_enqueued(
+        worker: ProcessXcresultWorker,
+        args: %{
+          "test_run_id" => test_run_id,
+          "account_id" => organization.account.id,
+          "storage_key" => "#{organization.account.name}/#{project.name}/runs/#{test_run_id}/result_bundle.zip"
+        }
+      )
+    end
+
     test "uses the request body id (not the merged run id) for storage_key on sharded runs", %{
       conn: conn,
       user: user,

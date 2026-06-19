@@ -138,6 +138,7 @@ where
     )
     .map(Arc::new);
     let bootstrap_semaphore = Arc::new(Semaphore::new(config.bootstrap_max_concurrent_peers));
+    let bootstrap_staging_budget = crate::utils::TmpBudget::new(config.tmp_dir_max_bytes);
     let state = Arc::new(AppState {
         config,
         _data_dir_lock: data_dir_lock,
@@ -158,6 +159,7 @@ where
         notify: Notify::new(),
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
         bootstrap_semaphore,
+        bootstrap_staging_budget,
     });
     state.sync_runtime_metrics().await;
 

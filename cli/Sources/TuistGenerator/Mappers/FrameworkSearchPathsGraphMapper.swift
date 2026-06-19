@@ -41,9 +41,17 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
         let graphTraverser = GraphTraverser(graph: graph)
 
         var settingsByTarget: [TargetID: [(key: String, values: [String])]] = [:]
-        var sideEffects: [SideEffectDescriptor] = []
+        var generatedFileSideEffects: [SideEffectDescriptor] = []
+        var generatedResponseFileDirectories: Set<AbsolutePath> = []
+        var activeFilesByDirectory: [AbsolutePath: Set<AbsolutePath>] = [:]
 
         for (_, project) in graph.projects {
+            let responseFileDirectory = project.sourceRootPath.appending(
+                components: Constants.DerivedDirectory.name,
+                Constants.DerivedDirectory.frameworkSearchPaths
+            )
+            generatedResponseFileDirectories.insert(responseFileDirectory)
+
             for (_, target) in project.targets {
                 let linkableModules = try graphTraverser
                     .searchablePathDependencies(path: project.path, name: target.name).sorted()
@@ -62,11 +70,7 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
 
                 var additions: [(key: String, values: [String])] = []
                 if precompiledPaths.count >= Self.consolidationThreshold {
-                    let responseFilePath = project.sourceRootPath.appending(
-                        components: Constants.DerivedDirectory.name,
-                        Constants.DerivedDirectory.frameworkSearchPaths,
-                        "\(target.name).resp"
-                    )
+                    let responseFilePath = responseFileDirectory.appending(component: "\(target.name).resp")
                     let precompiledXcodeValues = precompiledPaths
                         .map { $0.xcodeValue(sourceRootPath: project.sourceRootPath) }
                         .uniqued()
@@ -77,11 +81,12 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
                         .map { "-F" + $0.replacingOccurrences(of: "$(SRCROOT)", with: project.sourceRootPath.pathString) }
                         .joined(separator: "\n")
                         + "\n"
-                    sideEffects.append(
+                    activeFilesByDirectory[responseFileDirectory, default: []].insert(responseFilePath)
+                    generatedFileSideEffects.append(
                         .file(FileDescriptor(path: responseFilePath, contents: Data(responseFileContents.utf8)))
                     )
 
-                    let responseFileReference = "@$(SRCROOT)/\(responseFilePath.relative(to: project.sourceRootPath))"
+                    let responseFileReference = "\"@$(SRCROOT)/\(responseFilePath.relative(to: project.sourceRootPath))\""
                     // FRAMEWORK_SEARCH_PATHS keeps only the SDK paths; clang and ld read the precompiled
                     // paths from the response file via @file to stay under ARG_MAX.
                     additions.append((
@@ -118,6 +123,16 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
             return (projectPath, project)
         })
 
+        var sideEffects: [SideEffectDescriptor] = generatedResponseFileDirectories.isEmpty ? [] : [
+            .generatedFilesCleanup(
+                GeneratedFilesCleanupDescriptor(
+                    directories: generatedResponseFileDirectories,
+                    activeFilesByDirectory: activeFilesByDirectory,
+                    include: ["*.resp"]
+                )
+            ),
+        ]
+        sideEffects.append(contentsOf: generatedFileSideEffects)
         return (graph, sideEffects, environment)
     }
 

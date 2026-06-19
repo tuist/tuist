@@ -7,6 +7,7 @@ defmodule CacheWeb.RegistryController do
   alias Cache.Registry.AlternateManifests
   alias Cache.Registry.EventsPipeline
   alias Cache.Registry.KeyNormalizer
+  alias Cache.Registry.ManifestVariants
   alias Cache.Registry.Metadata
   alias Cache.Registry.RepositoryURL
   alias Cache.S3
@@ -415,7 +416,7 @@ defmodule CacheWeb.RegistryController do
 
   defp build_alternate_manifests_link(scope, name, version, manifests) do
     manifests
-    |> Enum.filter(fn manifest -> not is_nil(manifest["swift_version"]) end)
+    |> ManifestVariants.linkable_alternates()
     |> Enum.map_join(", ", fn manifest ->
       swift_version = manifest["swift_version"]
       swift_tools_version = manifest["swift_tools_version"]

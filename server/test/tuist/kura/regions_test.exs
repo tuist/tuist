@@ -91,8 +91,8 @@ defmodule Tuist.Kura.RegionsTest do
 
       assert config.public_host_template == "{account_handle}-{cluster_id}-staging.kura.tuist.dev"
 
-      assert config.grpc_public_host_template ==
-               "grpc.{account_handle}-{cluster_id}-staging.kura.tuist.dev"
+      # gRPC co-hosts on the single public host (no separate grpc. hostname).
+      assert config.grpc_public_host_template == config.public_host_template
 
       stub(Tuist.Environment, :env, fn -> :can end)
 
@@ -101,8 +101,7 @@ defmodule Tuist.Kura.RegionsTest do
       assert canary_config.public_host_template ==
                "{account_handle}-{cluster_id}-canary.kura.tuist.dev"
 
-      assert canary_config.grpc_public_host_template ==
-               "grpc.{account_handle}-{cluster_id}-canary.kura.tuist.dev"
+      assert canary_config.grpc_public_host_template == canary_config.public_host_template
     end
 
     test "omits the environment suffix from managed-region public hostnames in production" do
@@ -112,8 +111,7 @@ defmodule Tuist.Kura.RegionsTest do
 
       assert config.public_host_template == "{account_handle}-{cluster_id}.kura.tuist.dev"
 
-      assert config.grpc_public_host_template ==
-               "grpc.{account_handle}-{cluster_id}.kura.tuist.dev"
+      assert config.grpc_public_host_template == config.public_host_template
     end
 
     test "reads the managed-region Tuist base URL from the environment adapter" do
