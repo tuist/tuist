@@ -214,4 +214,79 @@ final class SchemeLinterTests: TuistUnitTestCase {
         // Then
         XCTAssertEmpty(got)
     }
+
+    func test_lint_codeCoverageTargets_externalReferenceIsNotFlagged() async throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let externalProjectPath = try AbsolutePath(validating: "/Project/../SPMPackage")
+        let project = Project.test(
+            path: projectPath,
+            schemes: [
+                .init(
+                    name: "Scheme",
+                    shared: true,
+                    buildAction: .init(targets: [.init(projectPath: projectPath, name: "LocalTarget")]),
+                    testAction: .init(
+                        targets: [.init(target: .init(projectPath: projectPath, name: "LocalTarget"))],
+                        arguments: nil,
+                        configurationName: "Debug",
+                        attachDebugger: true,
+                        coverage: true,
+                        codeCoverageTargets: [
+                            .init(projectPath: externalProjectPath, name: "SPMTarget"),
+                        ],
+                        expandVariableFromTarget: nil,
+                        preActions: [],
+                        postActions: [],
+                        diagnosticsOptions: SchemeDiagnosticsOptions()
+                    )
+                ),
+            ]
+        )
+
+        // When
+        let got = try await subject.lint(project: project)
+
+        // Then
+        XCTAssertTrue(got.isEmpty, "Expected no issues; got: \(got)")
+    }
+
+    func test_lint_codeCoverageTargets_missingLocalReferenceIsFlagged() async throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let project = Project.test(
+            path: projectPath,
+            schemes: [
+                .init(
+                    name: "Scheme",
+                    shared: true,
+                    buildAction: .init(targets: [.init(projectPath: projectPath, name: "LocalTarget")]),
+                    testAction: .init(
+                        targets: [.init(target: .init(projectPath: projectPath, name: "LocalTarget"))],
+                        arguments: nil,
+                        configurationName: "Debug",
+                        attachDebugger: true,
+                        coverage: true,
+                        codeCoverageTargets: [
+                            .init(projectPath: projectPath, name: "MissingTarget"),
+                        ],
+                        expandVariableFromTarget: nil,
+                        preActions: [],
+                        postActions: [],
+                        diagnosticsOptions: SchemeDiagnosticsOptions()
+                    )
+                ),
+            ]
+        )
+
+        // When
+        let got = try await subject.lint(project: project)
+
+        // Then
+        XCTAssertEqual(got.first?.severity, .error)
+        XCTAssertEqual(
+            got.first?.reason,
+            "The target 'MissingTarget' specified in Scheme code coverage targets list isn't defined in the project."
+        )
+    }
 }
