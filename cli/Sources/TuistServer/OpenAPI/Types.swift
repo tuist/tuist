@@ -4703,10 +4703,6 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/shard_total`.
             public var shard_total: Swift.Int?
-            /// Whether to start the shard bundle multipart upload while creating the plan.
-            ///
-            /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/start_upload`.
-            public var start_upload: Swift.Bool?
             /// Test suite names (for suite-level granularity).
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/test_suites`.
@@ -4723,7 +4719,6 @@ public enum Components {
             ///   - shard_max_duration: Target maximum duration per shard in milliseconds.
             ///   - shard_min: Minimum number of shards.
             ///   - shard_total: Exact number of shards.
-            ///   - start_upload: Whether to start the shard bundle multipart upload while creating the plan.
             ///   - test_suites: Test suite names (for suite-level granularity).
             public init(
                 build_run_id: Swift.String? = nil,
@@ -4735,7 +4730,6 @@ public enum Components {
                 shard_max_duration: Swift.Int? = nil,
                 shard_min: Swift.Int? = nil,
                 shard_total: Swift.Int? = nil,
-                start_upload: Swift.Bool? = nil,
                 test_suites: [Swift.String]? = nil
             ) {
                 self.build_run_id = build_run_id
@@ -4747,7 +4741,6 @@ public enum Components {
                 self.shard_max_duration = shard_max_duration
                 self.shard_min = shard_min
                 self.shard_total = shard_total
-                self.start_upload = start_upload
                 self.test_suites = test_suites
             }
             public enum CodingKeys: String, CodingKey {
@@ -4760,7 +4753,6 @@ public enum Components {
                 case shard_max_duration
                 case shard_min
                 case shard_total
-                case start_upload
                 case test_suites
             }
         }
@@ -9266,10 +9258,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/ShardPlan/shards`.
             public var shards: Components.Schemas.ShardPlan.shardsPayload
-            /// The multipart upload ID when shard bundle upload was started with plan creation.
+            /// The API URL to start a multipart upload for the shard bundle.
             ///
-            /// - Remark: Generated from `#/components/schemas/ShardPlan/upload_id`.
-            public var upload_id: Swift.String?
+            /// - Remark: Generated from `#/components/schemas/ShardPlan/upload_url`.
+            public var upload_url: Swift.String
             /// Creates a new `ShardPlan`.
             ///
             /// - Parameters:
@@ -9277,26 +9269,26 @@ public enum Components {
             ///   - reference: A unique shard plan reference, typically derived from CI environment.
             ///   - shard_count: The number of shards.
             ///   - shards: The shard assignments.
-            ///   - upload_id: The multipart upload ID when shard bundle upload was started with plan creation.
+            ///   - upload_url: The API URL to start a multipart upload for the shard bundle.
             public init(
                 id: Swift.String,
                 reference: Swift.String,
                 shard_count: Swift.Int,
                 shards: Components.Schemas.ShardPlan.shardsPayload,
-                upload_id: Swift.String? = nil
+                upload_url: Swift.String
             ) {
                 self.id = id
                 self.reference = reference
                 self.shard_count = shard_count
                 self.shards = shards
-                self.upload_id = upload_id
+                self.upload_url = upload_url
             }
             public enum CodingKeys: String, CodingKey {
                 case id
                 case reference
                 case shard_count
                 case shards
-                case upload_id
+                case upload_url
             }
         }
         /// List of available cache endpoints
@@ -9725,16 +9717,26 @@ public enum Components {
             /// The shard plan reference.
             ///
             /// - Remark: Generated from `#/components/schemas/StartShardUploadParams/reference`.
-            public var reference: Swift.String
+            public var reference: Swift.String?
+            /// The shard plan id returned by createShardPlan.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StartShardUploadParams/shard_plan_id`.
+            public var shard_plan_id: Swift.String?
             /// Creates a new `StartShardUploadParams`.
             ///
             /// - Parameters:
             ///   - reference: The shard plan reference.
-            public init(reference: Swift.String) {
+            ///   - shard_plan_id: The shard plan id returned by createShardPlan.
+            public init(
+                reference: Swift.String? = nil,
+                shard_plan_id: Swift.String? = nil
+            ) {
                 self.reference = reference
+                self.shard_plan_id = shard_plan_id
             }
             public enum CodingKeys: String, CodingKey {
                 case reference
+                case shard_plan_id
             }
         }
         /// The maximum number of generations to return in a single page.
@@ -18270,14 +18272,14 @@ public enum Operations {
             public var path: Operations.listBundles.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query`.
             public struct Query: Sendable, Hashable {
-                /// Filter bundles by git branch.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
-                public var git_branch: Swift.String?
                 /// Page number for pagination.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
                 public var page: Swift.Int?
+                /// Filter bundles by git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
+                public var git_branch: Swift.String?
                 /// Number of items per page.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
@@ -18285,16 +18287,16 @@ public enum Operations {
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - git_branch: Filter bundles by git branch.
                 ///   - page: Page number for pagination.
+                ///   - git_branch: Filter bundles by git branch.
                 ///   - page_size: Number of items per page.
                 public init(
-                    git_branch: Swift.String? = nil,
                     page: Swift.Int? = nil,
+                    git_branch: Swift.String? = nil,
                     page_size: Swift.Int? = nil
                 ) {
-                    self.git_branch = git_branch
                     self.page = page
+                    self.git_branch = git_branch
                     self.page_size = page_size
                 }
             }
@@ -35314,16 +35316,26 @@ public enum Operations {
                     /// The shard plan reference.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/requestBody/json/reference`.
-                    public var reference: Swift.String
+                    public var reference: Swift.String?
+                    /// The shard plan id returned by createShardPlan.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/requestBody/json/shard_plan_id`.
+                    public var shard_plan_id: Swift.String?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
                     ///   - reference: The shard plan reference.
-                    public init(reference: Swift.String) {
+                    ///   - shard_plan_id: The shard plan id returned by createShardPlan.
+                    public init(
+                        reference: Swift.String? = nil,
+                        shard_plan_id: Swift.String? = nil
+                    ) {
                         self.reference = reference
+                        self.shard_plan_id = shard_plan_id
                     }
                     public enum CodingKeys: String, CodingKey {
                         case reference
+                        case shard_plan_id
                     }
                 }
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/requestBody/content/application\/json`.
@@ -35428,6 +35440,57 @@ public enum Operations {
                     }
                 }
             }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.startShardUpload.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.startShardUpload.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid parameters
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/post(startShardUpload)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.startShardUpload.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.startShardUpload.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
             public struct Unauthorized: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/responses/401/content`.
                 @frozen public enum Body: Sendable, Hashable {
@@ -35525,6 +35588,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.startShardUpload.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.startShardUpload.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The shard plan was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/post(startShardUpload)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.startShardUpload.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.startShardUpload.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
                             response: self
                         )
                     }
@@ -52162,10 +52276,6 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/shard_total`.
                     public var shard_total: Swift.Int?
-                    /// Whether to start the shard bundle multipart upload while creating the plan.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/start_upload`.
-                    public var start_upload: Swift.Bool?
                     /// Test suite names (for suite-level granularity).
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/test_suites`.
@@ -52182,7 +52292,6 @@ public enum Operations {
                     ///   - shard_max_duration: Target maximum duration per shard in milliseconds.
                     ///   - shard_min: Minimum number of shards.
                     ///   - shard_total: Exact number of shards.
-                    ///   - start_upload: Whether to start the shard bundle multipart upload while creating the plan.
                     ///   - test_suites: Test suite names (for suite-level granularity).
                     public init(
                         build_run_id: Swift.String? = nil,
@@ -52194,7 +52303,6 @@ public enum Operations {
                         shard_max_duration: Swift.Int? = nil,
                         shard_min: Swift.Int? = nil,
                         shard_total: Swift.Int? = nil,
-                        start_upload: Swift.Bool? = nil,
                         test_suites: [Swift.String]? = nil
                     ) {
                         self.build_run_id = build_run_id
@@ -52206,7 +52314,6 @@ public enum Operations {
                         self.shard_max_duration = shard_max_duration
                         self.shard_min = shard_min
                         self.shard_total = shard_total
-                        self.start_upload = start_upload
                         self.test_suites = test_suites
                     }
                     public enum CodingKeys: String, CodingKey {
@@ -52219,7 +52326,6 @@ public enum Operations {
                         case shard_max_duration
                         case shard_min
                         case shard_total
-                        case start_upload
                         case test_suites
                     }
                 }

@@ -2,6 +2,7 @@ import Command
 import Foundation
 import Mockable
 import Path
+import struct TSCUtility.Version
 import TuistAlert
 import TuistAutomation
 import TuistCache
@@ -23,9 +24,6 @@ import TuistXCResultService
 import XcodeGraph
 import XCResultParser
 import XCTest
-
-import struct TSCUtility.Version
-
 @testable import TuistKit
 @testable import TuistTesting
 
@@ -381,7 +379,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_throws_when_shard_planning_flags_are_passed_without_build_only() async throws {
+    func test_throws_when_shard_planning_flags_are_passed_without_build_only() async {
         await XCTAssertThrowsSpecific(
             {
                 try await testRun(
@@ -394,7 +392,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_throws_when_shard_index_is_passed_without_without_building() async throws {
+    func test_throws_when_shard_index_is_passed_without_without_building() async {
         await XCTAssertThrowsSpecific(
             {
                 try await testRun(
@@ -407,7 +405,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_throws_when_shard_index_is_passed_without_full_handle() async throws {
+    func test_throws_when_shard_index_is_passed_without_full_handle() async {
         // Given
         given(configLoader)
             .loadConfig(path: .any)
@@ -843,7 +841,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 .test(
                     project: .testGeneratedProject(),
                     fullHandle: "tuist/tuist",
-                    url: URL(string: "https://example.com")!
+                    url: try XCTUnwrap(URL(string: "https://example.com"))
                 )
             )
 
@@ -869,7 +867,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 scheme: .any,
                 configuration: .any
             )
-            .willReturn(URL(string: "https://tuist.dev/test")!)
+            .willReturn(try XCTUnwrap(URL(string: "https://tuist.dev/test")))
 
         // When
         try await testRun(
@@ -4346,7 +4344,8 @@ final class TestServiceTests: TuistUnitTestCase {
                     id: "plan-id",
                     reference: "ref",
                     shard_count: 2,
-                    shards: []
+                    shards: [],
+                    upload_url: "https://tuist.dev/api/projects/tuist/tuist/tests/shards/upload/start"
                 )
             }
 
@@ -4601,7 +4600,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 .test(
                     project: .testGeneratedProject(),
                     fullHandle: "tuist/tuist",
-                    url: URL(string: "https://tuist.dev")!
+                    url: try XCTUnwrap(URL(string: "https://tuist.dev"))
                 )
             )
         given(xcodebuildController)
@@ -4951,7 +4950,8 @@ final class TestServiceTests: TuistUnitTestCase {
                     id: "plan-id",
                     reference: "ref",
                     shard_count: 2,
-                    shards: []
+                    shards: [],
+                    upload_url: "https://tuist.dev/api/projects/tuist/tuist/tests/shards/upload/start"
                 )
             )
 
@@ -5043,7 +5043,8 @@ final class TestServiceTests: TuistUnitTestCase {
                     id: "plan-id",
                     reference: "ref",
                     shard_count: 2,
-                    shards: []
+                    shards: [],
+                    upload_url: "https://tuist.dev/api/projects/tuist/tuist/tests/shards/upload/start"
                 )
             )
 

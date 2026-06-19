@@ -1643,11 +1643,6 @@ components:
           type: integer
           x-struct:
           x-validate:
-        start_upload:
-          description: Whether to start the shard bundle multipart upload while creating the plan.
-          type: boolean
-          x-struct:
-          x-validate:
         test_suites:
           description: Test suite names (for suite-level granularity).
           items:
@@ -4771,8 +4766,8 @@ components:
           type: array
           x-struct:
           x-validate:
-        upload_id:
-          description: The multipart upload ID when shard bundle upload was started with plan creation.
+        upload_url:
+          description: The API URL to start a multipart upload for the shard bundle.
           type: string
           x-struct:
           x-validate:
@@ -4780,6 +4775,7 @@ components:
         - id
         - reference
         - shard_count
+        - upload_url
         - shards
       title: ShardPlan
       type: object
@@ -5141,8 +5137,12 @@ components:
           type: string
           x-struct:
           x-validate:
-      required:
-        - reference
+        shard_plan_id:
+          description: The shard plan id returned by createShardPlan.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
       title: StartShardUploadParams
       type: object
       x-struct:
@@ -8725,20 +8725,20 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: Page number for pagination.
           in: query
           name: page
           required: false
           schema:
             type: integer
+            x-struct:
+            x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
             x-struct:
             x-validate:
         - description: The handle of the account.
@@ -13816,8 +13816,12 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
-              required:
-                - reference
+                shard_plan_id:
+                  description: The shard plan id returned by createShardPlan.
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
               title: StartShardUploadParams
               type: object
               x-struct:
@@ -13843,6 +13847,12 @@ paths:
                 x-struct:
                 x-validate:
           description: The upload ID
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid parameters
         '401':
           content:
             application/json:
@@ -13855,6 +13865,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The shard plan was not found
       summary: Start a multipart upload for the test products bundle.
       tags:
         - Shards
@@ -19651,11 +19667,6 @@ paths:
                 shard_total:
                   description: Exact number of shards.
                   type: integer
-                  x-struct:
-                  x-validate:
-                start_upload:
-                  description: Whether to start the shard bundle multipart upload while creating the plan.
-                  type: boolean
                   x-struct:
                   x-validate:
                 test_suites:

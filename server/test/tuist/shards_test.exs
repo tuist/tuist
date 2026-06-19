@@ -249,6 +249,19 @@ defmodule Tuist.ShardsTest do
       assert {:ok, "test-upload-id"} = Shards.start_upload_for_plan(project, account, plan)
     end
 
+    test "starts a multipart upload for a shard plan id without reading the plan" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+      plan_id = Ecto.UUID.generate()
+
+      stub(Tuist.Storage, :multipart_start, fn key, _account ->
+        assert key == Shards.bundle_object_key(account, project, plan_id)
+        "test-upload-id"
+      end)
+
+      assert {:ok, "test-upload-id"} = Shards.start_upload_for_plan_id(project, account, plan_id)
+    end
+
     test "returns not_found when plan does not exist" do
       project = ProjectsFixtures.project_fixture()
       account = project.account

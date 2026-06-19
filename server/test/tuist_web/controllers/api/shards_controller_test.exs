@@ -33,10 +33,11 @@ defmodule TuistWeb.API.ShardsControllerTest do
       response = json_response(conn, :ok)
       assert response["reference"] == "github-123-1"
       assert response["shard_count"] == 2
+      assert response["upload_url"] =~ "/api/projects/#{project.account.name}/#{project.name}/tests/shards/upload/start"
       assert is_list(response["shards"])
     end
 
-    test "starts upload when requested", %{conn: conn, user: user, project: project} do
+    test "returns upload start URL", %{conn: conn, user: user, project: project} do
       conn =
         conn
         |> Authentication.put_current_user(user)
@@ -46,14 +47,13 @@ defmodule TuistWeb.API.ShardsControllerTest do
           %{
             reference: "github-123-upload",
             modules: ["AppTests", "CoreTests"],
-            shard_max: 2,
-            start_upload: true
+            shard_max: 2
           }
         )
 
       response = json_response(conn, :ok)
       assert response["reference"] == "github-123-upload"
-      assert response["upload_id"] == "upload-id-123"
+      assert response["upload_url"] =~ "/api/projects/#{project.account.name}/#{project.name}/tests/shards/upload/start"
     end
 
     test "returns forbidden when user doesn't have access", %{conn: conn} do
@@ -204,6 +204,60 @@ defmodule TuistWeb.API.ShardsControllerTest do
       response = json_response(conn, :ok)
       assert is_binary(response["id"])
       assert {:ok, _} = Ecto.UUID.cast(response["id"])
+    end
+  end
+
+  describe "POST /api/projects/:account/:project/tests/shards/upload/start" do
+    test "starts upload for a shard plan id", %{conn: conn, user: user, project: project} do
+      plan_id = Ecto.UUID.generate()
+
+      stub(Tuist.Shards, :start_upload_for_plan_id, fn _project, _account, ^plan_id ->
+        {:ok, "upload-id-123"}
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/upload/start",
+          %{shard_plan_id: plan_id}
+        )
+
+      response = json_response(conn, :ok)
+      assert response["data"]["upload_id"] == "upload-id-123"
+    end
+
+    test "keeps reference-based upload start for older clients", %{conn: conn, user: user, project: project} do
+      stub(Tuist.Shards, :start_upload, fn _project, _account, "session-1" ->
+        {:ok, "upload-id-123"}
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/upload/start",
+          %{reference: "session-1"}
+        )
+
+      response = json_response(conn, :ok)
+      assert response["data"]["upload_id"] == "upload-id-123"
+    end
+
+    test "returns bad request when shard plan identifier is missing", %{conn: conn, user: user, project: project} do
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/upload/start",
+          %{}
+        )
+
+      response = json_response(conn, :bad_request)
+      assert response["message"] =~ "shard_plan_id or reference"
     end
   end
 

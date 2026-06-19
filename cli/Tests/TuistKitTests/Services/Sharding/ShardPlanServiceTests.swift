@@ -55,7 +55,8 @@ struct ShardPlanServiceTests {
                     id: "plan-id",
                     reference: "ref",
                     shard_count: 2,
-                    shards: []
+                    shards: [],
+                    upload_url: "https://tuist.dev/api/projects/tuist/tuist/tests/shards/upload/start"
                 )
             )
 
@@ -128,7 +129,7 @@ struct ShardPlanServiceTests {
 
         let createShardPlanService = MockCreateShardPlanServicing()
         given(createShardPlanService)
-            .createShardPlanAndStartUpload(
+            .createShardPlan(
                 fullHandle: .any,
                 serverURL: .any,
                 reference: .any,
@@ -142,17 +143,24 @@ struct ShardPlanServiceTests {
                 buildRunId: .any
             )
             .willReturn(
-                ShardPlanUpload(
-                    shardPlan: Components.Schemas.ShardPlan(
-                        id: "plan-id",
-                        reference: "ref",
-                        shard_count: 2,
-                        shards: [],
-                        upload_id: "upload-id"
-                    ),
-                    uploadId: "upload-id"
+                Components.Schemas.ShardPlan(
+                    id: "plan-id",
+                    reference: "ref",
+                    shard_count: 2,
+                    shards: [],
+                    upload_url: "https://tuist.dev/api/projects/tuist/tuist/tests/shards/upload/start"
                 )
             )
+
+        let startShardUploadService = MockStartShardUploadServicing()
+        given(startShardUploadService)
+            .startUpload(
+                fullHandle: .any,
+                serverURL: .any,
+                shardPlanId: .value("plan-id"),
+                reference: .value("ref")
+            )
+            .willReturn("upload-id")
 
         let multipartUploadArtifactService = MockMultipartUploadArtifactServicing()
         var generateUploadURLCallback: ((MultipartUploadArtifactPart) async throws -> String)?
@@ -200,6 +208,7 @@ struct ShardPlanServiceTests {
 
         let subject = ShardPlanService(
             createShardPlanService: createShardPlanService,
+            startShardUploadService: startShardUploadService,
             multipartUploadArtifactService: multipartUploadArtifactService,
             multipartUploadGenerateURLShardsService: multipartUploadGenerateURLShardsService,
             multipartUploadCompleteShardsService: multipartUploadCompleteShardsService,

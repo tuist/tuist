@@ -8,7 +8,6 @@ import TuistCI
 import TuistEnvironment
 import TuistEnvironmentTesting
 import TuistServer
-
 @testable import TuistKit
 
 struct ShardMatrixOutputServiceTests {
@@ -193,7 +192,8 @@ extension Components.Schemas.ShardPlan {
                     index: index,
                     test_targets: ["Target\(index)"]
                 )
-            }
+            },
+            upload_url: "https://tuist.dev/api/projects/tuist/tuist/tests/shards/upload/start"
         )
     }
 }

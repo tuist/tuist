@@ -22,9 +22,9 @@ defmodule TuistWeb.API.Schemas.Shards.ShardPlan do
         type: :integer,
         description: "The number of shards."
       },
-      upload_id: %Schema{
+      upload_url: %Schema{
         type: :string,
-        description: "The multipart upload ID when shard bundle upload was started with plan creation."
+        description: "The API URL to start a multipart upload for the shard bundle."
       },
       shards: %Schema{
         type: :array,
@@ -47,6 +47,6 @@ defmodule TuistWeb.API.Schemas.Shards.ShardPlan do
         }
       }
     },
-    required: [:id, :reference, :shard_count, :shards]
+    required: [:id, :reference, :shard_count, :upload_url, :shards]
   })
 end

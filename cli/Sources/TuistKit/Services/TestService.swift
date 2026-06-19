@@ -1304,7 +1304,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private func outputEmptyShardMatrixIfNeeded(isSharding: Bool, action: XcodeBuildTestAction) async throws {
         if isSharding, action == .build {
             try await shardMatrixOutputService.output(
-                Components.Schemas.ShardPlan(id: "", reference: "", shard_count: 0, shards: [])
+                Components.Schemas.ShardPlan(
+                    id: "",
+                    reference: "",
+                    shard_count: 0,
+                    shards: [],
+                    upload_url: ""
+                )
             )
         }
     }

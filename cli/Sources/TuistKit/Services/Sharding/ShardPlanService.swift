@@ -52,6 +52,7 @@
     public struct ShardPlanService: ShardPlanServicing {
         private let xcTestEnumerator: XCTestEnumerating
         private let createShardPlanService: CreateShardPlanServicing
+        private let startShardUploadService: StartShardUploadServicing
         private let multipartUploadArtifactService: MultipartUploadArtifactServicing
         private let multipartUploadGenerateURLShardsService: MultipartUploadGenerateURLShardsServicing
         private let multipartUploadCompleteShardsService: MultipartUploadCompleteShardsServicing
@@ -64,6 +65,7 @@
         public init(
             xcTestEnumerator: XCTestEnumerating = XCTestEnumerator(),
             createShardPlanService: CreateShardPlanServicing = CreateShardPlanService(),
+            startShardUploadService: StartShardUploadServicing = StartShardUploadService(),
             multipartUploadArtifactService: MultipartUploadArtifactServicing = MultipartUploadArtifactService(),
             multipartUploadGenerateURLShardsService: MultipartUploadGenerateURLShardsServicing =
                 MultipartUploadGenerateURLShardsService(),
@@ -77,6 +79,7 @@
         ) {
             self.xcTestEnumerator = xcTestEnumerator
             self.createShardPlanService = createShardPlanService
+            self.startShardUploadService = startShardUploadService
             self.multipartUploadArtifactService = multipartUploadArtifactService
             self.multipartUploadGenerateURLShardsService = multipartUploadGenerateURLShardsService
             self.multipartUploadCompleteShardsService = multipartUploadCompleteShardsService
@@ -133,8 +136,7 @@
 
             Logger.current.notice("Creating shard plan with \(modules.count) test module(s)", metadata: .section)
 
-            let shouldUpload = archivePath == nil && !skipUpload
-            let createdShardPlan = try await createShardPlan(
+            let shardPlan = try await createShardPlanService.createShardPlan(
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 reference: reference,
@@ -145,10 +147,8 @@
                 shardTotal: shardTotal,
                 shardMaxDuration: shardMaxDuration,
                 shardGranularity: shardGranularity,
-                buildRunId: buildRunId,
-                startUpload: shouldUpload
+                buildRunId: buildRunId
             )
-            let shardPlan = createdShardPlan.shardPlan
 
             Logger.current.notice("Shard plan created: \(shardPlan.shard_count) shards", metadata: .section)
 
@@ -159,88 +159,25 @@
                 Logger.current
                     .notice("Skipping test products upload. Ensure shard runners can access the test products locally.")
             } else {
+                let uploadId = try await startShardUploadService.startUpload(
+                    fullHandle: fullHandle,
+                    serverURL: serverURL,
+                    shardPlanId: shardPlan.id,
+                    reference: reference
+                )
+
                 try await uploadXCTestProducts(
                     xctestproductsPath,
                     fullHandle: fullHandle,
                     serverURL: serverURL,
                     reference: reference,
                     shardPlan: shardPlan,
-                    uploadId: createdShardPlan.uploadId
+                    uploadId: uploadId
                 )
             }
             try await shardMatrixOutputService.output(shardPlan)
 
             return shardPlan
-        }
-
-        private enum CreatedShardPlan {
-            case withoutUpload(Components.Schemas.ShardPlan)
-            case withUpload(ShardPlanUpload)
-
-            var shardPlan: Components.Schemas.ShardPlan {
-                switch self {
-                case let .withoutUpload(shardPlan):
-                    return shardPlan
-                case let .withUpload(shardPlanUpload):
-                    return shardPlanUpload.shardPlan
-                }
-            }
-
-            var uploadId: String {
-                switch self {
-                case let .withUpload(shardPlanUpload):
-                    return shardPlanUpload.uploadId
-                case .withoutUpload:
-                    preconditionFailure("Shard products upload requires creating the shard plan with upload started.")
-                }
-            }
-        }
-
-        private func createShardPlan(
-            fullHandle: String,
-            serverURL: URL,
-            reference: String,
-            modules: [String]?,
-            testSuites: [String]?,
-            shardMin: Int?,
-            shardMax: Int?,
-            shardTotal: Int?,
-            shardMaxDuration: Int?,
-            shardGranularity: ShardGranularity,
-            buildRunId: String?,
-            startUpload: Bool
-        ) async throws -> CreatedShardPlan {
-            if startUpload {
-                let shardPlanUpload = try await createShardPlanService.createShardPlanAndStartUpload(
-                    fullHandle: fullHandle,
-                    serverURL: serverURL,
-                    reference: reference,
-                    modules: modules,
-                    testSuites: testSuites,
-                    shardMin: shardMin,
-                    shardMax: shardMax,
-                    shardTotal: shardTotal,
-                    shardMaxDuration: shardMaxDuration,
-                    shardGranularity: shardGranularity,
-                    buildRunId: buildRunId
-                )
-                return .withUpload(shardPlanUpload)
-            } else {
-                let shardPlan = try await createShardPlanService.createShardPlan(
-                    fullHandle: fullHandle,
-                    serverURL: serverURL,
-                    reference: reference,
-                    modules: modules,
-                    testSuites: testSuites,
-                    shardMin: shardMin,
-                    shardMax: shardMax,
-                    shardTotal: shardTotal,
-                    shardMaxDuration: shardMaxDuration,
-                    shardGranularity: shardGranularity,
-                    buildRunId: buildRunId
-                )
-                return .withoutUpload(shardPlan)
-            }
         }
 
         private func uploadXCTestProducts(
