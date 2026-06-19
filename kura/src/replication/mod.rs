@@ -11,7 +11,10 @@ use std::{
 use futures_util::StreamExt;
 use reqwest::header::{CONTENT_TYPE, HeaderValue};
 use serde::Deserialize;
-use tokio::{io::AsyncWriteExt, time::sleep};
+use tokio::{
+    io::AsyncWriteExt,
+    time::{Instant, sleep},
+};
 use tokio_util::io::ReaderStream;
 use tracing::{Instrument, field, warn};
 
@@ -648,12 +651,22 @@ struct BootstrapStats {
 pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
     let mut after = None::<Vec<u8>>;
     while let Some((message_key, message)) = state.store.next_outbox_message(after.as_deref())? {
+        after = Some(message_key.clone());
+
+        if state
+            .replication_target_backed_off(&message.target, Instant::now())
+            .await
+        {
+            continue;
+        }
+
         let started_at = std::time::Instant::now();
         let operation_name = message.operation.name();
         let result = replicate_message(state, &message).await;
 
         match result {
             Ok(()) => {
+                state.note_replication_success(&message.target).await;
                 match state
                     .store
                     .hit_failpoint(FailpointName::BeforeDeleteOutboxMessageAfterSuccess)
@@ -680,6 +693,9 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
                 }
             }
             Err(error) => {
+                state
+                    .note_replication_failure(&message.target, Instant::now())
+                    .await;
                 state.metrics.record_replication(
                     &message.target,
                     operation_name,
@@ -689,7 +705,6 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
                 warn!("replication to {} failed: {error}", message.target);
             }
         }
-        after = Some(message_key);
     }
 
     Ok(())
@@ -1049,6 +1064,175 @@ mod tests {
         assert!(
             queued.is_empty(),
             "successful replication should clear outbox"
+        );
+    }
+
+    #[tokio::test]
+    async fn process_outbox_backs_off_unreachable_target() {
+        let local = test_context(|_| {}).await;
+        let unreachable = "http://127.0.0.1:1".to_string();
+        local
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("artifact should persist");
+        let artifact = local
+            .state
+            .store
+            .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact")
+            .await
+            .expect("artifact fetch should succeed")
+            .expect("artifact should exist");
+        local
+            .state
+            .store
+            .enqueue(OutboxMessage {
+                target: unreachable.clone(),
+                operation: ReplicationOperation::UpsertArtifact {
+                    producer: ArtifactProducer::Gradle,
+                    namespace_id: "ios".into(),
+                    key: "artifact".into(),
+                    content_type: "application/octet-stream".into(),
+                    artifact_id: artifact.artifact_id,
+                    version_ms: artifact.version_ms,
+                    inline: false,
+                },
+            })
+            .expect("upsert should enqueue");
+
+        assert!(
+            !local
+                .state
+                .replication_target_backed_off(&unreachable, Instant::now())
+                .await
+        );
+
+        process_outbox(&local.state)
+            .await
+            .expect("outbox processing should not error on a failed peer");
+
+        assert!(
+            local
+                .state
+                .replication_target_backed_off(&unreachable, Instant::now())
+                .await,
+            "a failed replication target should be backed off"
+        );
+        assert_eq!(
+            local
+                .state
+                .store
+                .outbox_messages()
+                .expect("outbox should load")
+                .len(),
+            1,
+            "a failed message must stay in the outbox"
+        );
+    }
+
+    #[tokio::test]
+    async fn process_outbox_skips_backed_off_target() {
+        let remote = test_context(|_| {}).await;
+        let (remote_url, _server) = spawn_server(router(remote.state.clone())).await;
+
+        let local = test_context(|_| {}).await;
+        local
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("artifact should persist");
+        let artifact = local
+            .state
+            .store
+            .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact")
+            .await
+            .expect("artifact fetch should succeed")
+            .expect("artifact should exist");
+        local
+            .state
+            .store
+            .enqueue(OutboxMessage {
+                target: remote_url.clone(),
+                operation: ReplicationOperation::UpsertArtifact {
+                    producer: ArtifactProducer::Gradle,
+                    namespace_id: "ios".into(),
+                    key: "artifact".into(),
+                    content_type: "application/octet-stream".into(),
+                    artifact_id: artifact.artifact_id,
+                    version_ms: artifact.version_ms,
+                    inline: false,
+                },
+            })
+            .expect("upsert should enqueue");
+
+        local
+            .state
+            .note_replication_failure(&remote_url, Instant::now())
+            .await;
+
+        process_outbox(&local.state)
+            .await
+            .expect("outbox processing should succeed");
+
+        assert!(
+            remote
+                .state
+                .store
+                .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact")
+                .await
+                .expect("artifact fetch should succeed")
+                .is_none(),
+            "a backed-off target must not be contacted"
+        );
+        assert_eq!(
+            local
+                .state
+                .store
+                .outbox_messages()
+                .expect("outbox should load")
+                .len(),
+            1,
+            "a skipped message must remain in the outbox"
+        );
+
+        local.state.note_replication_success(&remote_url).await;
+
+        process_outbox(&local.state)
+            .await
+            .expect("outbox processing should succeed");
+
+        assert!(
+            remote
+                .state
+                .store
+                .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact")
+                .await
+                .expect("artifact fetch should succeed")
+                .is_some(),
+            "after backoff clears, replication should proceed"
+        );
+        assert!(
+            local
+                .state
+                .store
+                .outbox_messages()
+                .expect("outbox should load")
+                .is_empty(),
+            "successful replication should clear the outbox"
         );
     }
 
