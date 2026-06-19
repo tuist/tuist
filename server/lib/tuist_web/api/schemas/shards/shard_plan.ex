@@ -47,6 +47,6 @@ defmodule TuistWeb.API.Schemas.Shards.ShardPlan do
         }
       }
     },
-    required: [:id, :reference, :shard_count, :upload_url, :shards]
+    required: [:id, :reference, :shard_count, :shards]
   })
 end

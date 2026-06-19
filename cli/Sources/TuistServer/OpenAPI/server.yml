@@ -4775,7 +4775,6 @@ components:
         - id
         - reference
         - shard_count
-        - upload_url
         - shards
       title: ShardPlan
       type: object

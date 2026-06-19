@@ -9261,7 +9261,7 @@ public enum Components {
             /// The API URL to start a multipart upload for the shard bundle.
             ///
             /// - Remark: Generated from `#/components/schemas/ShardPlan/upload_url`.
-            public var upload_url: Swift.String
+            public var upload_url: Swift.String?
             /// Creates a new `ShardPlan`.
             ///
             /// - Parameters:
@@ -9275,7 +9275,7 @@ public enum Components {
                 reference: Swift.String,
                 shard_count: Swift.Int,
                 shards: Components.Schemas.ShardPlan.shardsPayload,
-                upload_url: Swift.String
+                upload_url: Swift.String? = nil
             ) {
                 self.id = id
                 self.reference = reference
