@@ -162,8 +162,7 @@
                 let uploadId = try await startShardUploadService.startUpload(
                     fullHandle: fullHandle,
                     serverURL: serverURL,
-                    shardPlanId: shardPlan.id,
-                    reference: reference
+                    shardPlanId: shardPlan.id
                 )
 
                 try await uploadXCTestProducts(

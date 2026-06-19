@@ -157,8 +157,7 @@ struct ShardPlanServiceTests {
             .startUpload(
                 fullHandle: .any,
                 serverURL: .any,
-                shardPlanId: .value("plan-id"),
-                reference: .value("ref")
+                shardPlanId: .value("plan-id")
             )
             .willReturn("upload-id")
 
