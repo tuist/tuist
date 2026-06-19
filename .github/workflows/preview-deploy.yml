@@ -468,7 +468,7 @@ jobs:
           fetch-depth: 0
       - uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "--locked helm kubectl jq"
+          install_args: "helm kubectl jq"
           cache: "false"
       - name: Load kubeconfig
         run: |
@@ -661,7 +661,7 @@ jobs:
     steps:
       - uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "--locked helm kubectl"
+          install_args: "helm kubectl"
           cache: "false"
       - name: Load kubeconfig
         run: |
