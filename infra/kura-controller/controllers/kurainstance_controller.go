@@ -1434,6 +1434,13 @@ func grpcIngressAnnotations() map[string]string {
 	// The gRPC service paths are anchored regexes (see grpcREAPIPathPrefixes);
 	// use-regex makes ingress-nginx render them as `location ~* ...` so real
 	// REAPI/ByteStream method paths match.
+	//
+	// The whole path-split scheme (use-regex + per-location backend-protocol on
+	// a host shared with the public Ingress) is ingress-nginx specific. A
+	// non-nginx controller (Traefik/Contour/HAProxy/Cilium) ignores these
+	// nginx.ingress.kubernetes.io/* annotations and routes gRPC to the HTTP
+	// backend, so the IngressClass the Kura Ingress targets must be served by
+	// ingress-nginx.
 	annotations["nginx.ingress.kubernetes.io/use-regex"] = "true"
 	return annotations
 }
