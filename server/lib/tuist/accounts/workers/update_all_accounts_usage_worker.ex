@@ -17,27 +17,28 @@ defmodule Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker do
   @impl Oban.Worker
   def perform(%{args: args}) do
     page_size = Map.get(args, "page_size", @page_size)
+    now = DateTime.utc_now()
 
     %{
       page: 1,
       page_size: page_size
     }
     |> Accounts.list_accounts_with_usage_not_updated_today()
-    |> map_accounts_to_workers()
+    |> map_accounts_to_workers(now)
     |> Enum.chunk_every(@insert_batch_size)
     |> Enum.each(&Oban.insert_all/1)
 
     :ok
   end
 
-  def map_accounts_to_workers({[], _meta}) do
+  def map_accounts_to_workers({[], _meta}, _now) do
     []
   end
 
-  def map_accounts_to_workers({accounts, meta}) do
+  def map_accounts_to_workers({accounts, meta}, now) do
     workers =
       Enum.map(accounts, fn %{id: account_id} ->
-        UpdateAccountUsageWorker.new(%{account_id: account_id, updated_at: DateTime.utc_now()})
+        UpdateAccountUsageWorker.new(%{account_id: account_id, updated_at: now})
       end)
 
     current_page = meta.current_page
@@ -50,7 +51,7 @@ defmodule Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker do
         workers ++
           (next_page
            |> Accounts.list_accounts_with_usage_not_updated_today()
-           |> map_accounts_to_workers())
+           |> map_accounts_to_workers(now))
     end
   end
 end

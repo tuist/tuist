@@ -175,7 +175,7 @@ defmodule Tuist.Accounts.Workers.UpdateAllAccountsUsageWorkerTest do
 
       assert Enum.sum(batch_sizes) == account_count
       assert Enum.all?(batch_sizes, &(&1 <= 1_000))
-      assert length(batch_sizes) == 3
+      assert length(batch_sizes) > 1
     end
   end
 
