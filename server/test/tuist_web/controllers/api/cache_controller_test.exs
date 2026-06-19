@@ -1008,6 +1008,43 @@ defmodule TuistWeb.API.CacheControllerTest do
       assert response["data"] == %{}
     end
 
+    test "returns a conflict when the multipart upload no longer exists", %{conn: conn, cache: cache} do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      {:ok, account} = Accounts.get_account_by_id(project.account_id)
+      hash = "hash"
+      name = "name"
+      project_slug = "#{account.name}/#{project.name}"
+      cache_category = "builds"
+      upload_id = "1234"
+
+      parts = [
+        %{part_number: 1, etag: "etag1"},
+        %{part_number: 2, etag: "etag2"}
+      ]
+
+      stub(Storage, :multipart_complete_upload, fn _object_key, _upload_id, _parts, _actor ->
+        {:error, :multipart_upload_not_found}
+      end)
+
+      conn = Authentication.put_current_project(conn, project)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> assign(:cache, cache)
+        |> post(
+          ~p"/api/cache/multipart/complete?hash=#{hash}&name=#{name}&project_id=#{project_slug}&cache_category=#{cache_category}&upload_id=#{upload_id}",
+          parts: parts
+        )
+
+      # Then
+      response = json_response(conn, :conflict)
+
+      assert response["message"] == "The multipart upload is no longer active. Start a new upload and retry."
+    end
+
     test "succeeds even when object size cannot be retrieved (eventual consistency)", %{
       conn: conn,
       cache: cache

@@ -291,7 +291,11 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                     packageType: .external(
                         origin: Self.packageOrigin(for: packageInfo.kind),
                         artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:],
-                        packagePrebuilts: packagePrebuilts
+                        packagePrebuilts: packagePrebuilts,
+                        derivedXCFrameworksPath: scratchDirectory.appending(
+                            components: Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                            Constants.DerivedDirectory.dependenciesXCFrameworkDirectory
+                        )
                     ),
                     packageSettings: packageSettings,
                     packageModuleAliases: packageModuleAliases,

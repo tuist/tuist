@@ -68,12 +68,20 @@ subjects:
 # Read-only extension to the `view` tier. The upstream `view` ClusterRole
 # omits cluster-scoped and custom resources, so a view-tier identity (every
 # member + their agents) can't observe the infra it routinely needs to:
-# nodes, CAPI machines, our Scaleway provider CRs, the Kura CRs, and CRDs.
-# This aggregates into `view` via the label below (no extra binding; both
-# tuist-admins and tuist-eng inherit it), and is strictly `get`/`list`/`watch`
-# with no `secrets` rule, so the view tier's deliberate Secret exclusion is
-# untouched. None of these resource kinds embed secret data (CAPI/Kura
-# reference Secrets by name, never inline).
+# nodes, CAPI machines, our Scaleway provider CRs, the Kura CRs, CRDs, and
+# RBAC objects. This aggregates into `view` via the label below (no extra
+# binding; both tuist-admins and tuist-eng inherit it), and is strictly
+# `get`/`list`/`watch` with no `secrets` rule, so the view tier's deliberate
+# Secret exclusion is untouched. None of these resource kinds embed secret
+# data (CAPI/Kura reference Secrets by name, never inline).
+#
+# RBAC read (clusterroles/rolebindings) is the one deliberate widening of the
+# upstream `view` shape: it exposes the authorization graph, which `view`
+# normally hides as anti-recon. We accept that here because the whole
+# cluster-access design contains agents on *mutation*, not reads, and being
+# able to diagnose a `NotFound`/misbound RBAC object during a deploy is worth
+# more than hiding the grant list from a read-only identity. Still read-only,
+# still no Secrets.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -93,4 +101,7 @@ rules:
       - infrastructure.cluster.x-k8s.io
       - kura.tuist.dev
     resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["clusterroles", "clusterrolebindings", "roles", "rolebindings"]
     verbs: ["get", "list", "watch"]
