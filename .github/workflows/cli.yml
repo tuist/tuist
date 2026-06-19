@@ -63,8 +63,7 @@ concurrency:
 # .build cache keys: restore-keys hashes Package.swift (not Package.resolved) so the
 # fallback never crosses structural changes. See #10510 / e8fa267 for the incidents
 # (stale workspace state pointing at moved local SPM paths; Linux linker failures
-# from partial-artifact reuse) that motivate the narrower scope. Linux keys also
-# include the Swift toolchain because the swift:6.2 image tag moves over time.
+# from partial-artifact reuse) that motivate the narrower scope.
 jobs:
   cli-lint:
     name: Lint
@@ -380,19 +379,14 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - name: Compute Swift cache key
-        id: swift-cache
-        run: |
-          swift --version
-          echo "version=$(swift --version | sha256sum | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
       - name: Restore cache
         id: cache-restore
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: linux-cli-${{ steps.swift-cache.outputs.version }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          key: linux-cli-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
-            linux-cli-${{ steps.swift-cache.outputs.version }}-${{ hashFiles('Package.swift') }}-
+            linux-cli-${{ hashFiles('Package.swift') }}-
       - name: Resolve dependencies
         run: swift package resolve --replace-scm-with-registry
       - name: Build tuist CLI
@@ -414,19 +408,14 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - name: Compute Swift cache key
-        id: swift-cache
-        run: |
-          swift --version
-          echo "version=$(swift --version | sha256sum | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
       - name: Restore cache
         id: cache-restore
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: linux-cli-${{ steps.swift-cache.outputs.version }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          key: linux-cli-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
-            linux-cli-${{ steps.swift-cache.outputs.version }}-${{ hashFiles('Package.swift') }}-
+            linux-cli-${{ hashFiles('Package.swift') }}-
       - name: Resolve dependencies
         run: swift package resolve --replace-scm-with-registry
       - name: Run unit tests
