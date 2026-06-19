@@ -24,9 +24,10 @@ kuraController:
     limits:
       cpu: "500m"
       memory: "512Mi"
-  # cert-manager ClusterIssuer to use for the per-instance public HTTPS
-  # and gRPC TLS Certificates. Leave empty only when the runtime does not
-  # mount public TLS certificates, for example kind/dev clusters.
+  # cert-manager ClusterIssuer to use for the single per-instance public
+  # Certificate (`<name>-public-tls`). gRPC co-hosts on the public host, so
+  # there is no separate gRPC certificate. Leave empty only when the runtime
+  # does not mount public TLS certificates, for example kind/dev clusters.
   tlsClusterIssuer: ""
   # Deprecated alias for tlsClusterIssuer. Kept so existing overlays do
   # not break while the controller flag is still named grpc-cluster-issuer.
