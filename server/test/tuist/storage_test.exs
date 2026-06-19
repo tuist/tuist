@@ -597,6 +597,36 @@ defmodule Tuist.StorageTest do
       assert Storage.delete_object(object_key, :test) == :ok
     end
 
+    test "passes custom timeout options to the bulk deletion API" do
+      # Given
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      stub(Environment, :s3_bucket_name, fn -> bucket_name end)
+      stub(ExAws.Config, :new, fn :s3 -> config end)
+
+      delete_operation = %S3{body: UUIDv7.generate()}
+
+      expect(ExAws.S3, :delete_multiple_objects, fn ^bucket_name, [^object_key] ->
+        delete_operation
+      end)
+
+      expect(ExAws, :request, fn ^delete_operation, opts ->
+        assert Map.get(opts, :receive_timeout) == 60_000
+        assert Map.get(opts, :pool_timeout) == 2_000
+        assert Map.get(opts, :test) == :config
+        {:ok, %{status_code: 204}}
+      end)
+
+      # When/Then
+      assert Storage.delete_objects([object_key], :test,
+               receive_timeout: 60_000,
+               pool_timeout: 2_000,
+               task_timeout: 65_000
+             ) == :ok
+    end
+
     test "returns an error on unexpected S3 responses" do
       # Given
       object_key = UUIDv7.generate()

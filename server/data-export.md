@@ -109,7 +109,7 @@ The following data is stored in ClickHouse for analytics purposes:
 ## Binary Files
 
 All uploaded files associated with the account are included:
-- **Cache artifacts**: Build caches and compiled binaries
+- **Cache artifacts**: Build caches and compiled binaries, including Xcode, legacy CAS, module, and Gradle artifacts
 - **App previews**: iOS app bundles (.app/.ipa files) and icons  
 - **Shard bundles**: Shared `.xctestproducts` bundles stored at `{account_id}/{project_id}/shards/{shard_plan_id}/`
 - **Runner job log archives**: gzipped runner logs stored at `runners/{account_id}/{workflow_job_id}/runner.log.gz`
@@ -124,7 +124,7 @@ intact. Retention windows, in days, by plan:
 
 | Artifact | Air / Open Source | Pro | Enterprise |
 | --- | --- | --- | --- |
-| Cache artifacts (Xcode compilation, module, Gradle) | 14 | 30 | 90 |
+| Cache artifacts (Xcode compilation, legacy CAS, module, Gradle) | 14 | 30 | 90 |
 | App preview builds and icons | 60 | 180 | 365 |
 | Build archives | 30 | 90 | 365 |
 | Test run attachments | 30 | 90 | 365 |

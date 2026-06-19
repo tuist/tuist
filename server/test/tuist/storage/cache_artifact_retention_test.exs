@@ -35,11 +35,38 @@ defmodule Tuist.Storage.CacheArtifactRetentionTest do
 
       expect_accounts_and_plans([%Account{id: 1, name: "tuist"}])
 
-      expect(Storage, :delete_objects_from_bucket, fn [^expired_xcode_key], "xcode-cache-bucket" ->
-        :ok
-      end)
+      expect_delete_objects([expired_xcode_key], "xcode-cache-bucket")
 
       assert CacheArtifactRetention.delete_expired(:xcode_cache) == {:ok, "next-page"}
+    end
+
+    test "deletes expired legacy CAS objects from the cache bucket" do
+      expired_cas_key = "tuist/app/cas/AB/CD/ABCD"
+      recent_cas_key = "tuist/app/cas/EF/GH/EFGH"
+      expired_module_key = "tuist/app/module/builds/AB/CD/ABCD/module.zip"
+
+      expect(Environment, :cache_s3_bucket_name, fn -> "cache-bucket" end)
+
+      expect(Storage, :list_objects_from_bucket, fn "cache-bucket",
+                                                    [prefix: "", max_keys: 1000, continuation_token: nil] ->
+        {:ok,
+         %{
+           body: %{
+             contents: [
+               %{key: expired_cas_key, last_modified: DateTime.add(DateTime.utc_now(), -15, :day)},
+               %{key: recent_cas_key, last_modified: DateTime.add(DateTime.utc_now(), -13, :day)},
+               %{key: expired_module_key, last_modified: DateTime.add(DateTime.utc_now(), -15, :day)}
+             ],
+             is_truncated: false
+           }
+         }}
+      end)
+
+      expect_accounts_and_plans([%Account{id: 1, name: "tuist"}])
+
+      expect_delete_objects([expired_cas_key], "cache-bucket")
+
+      assert CacheArtifactRetention.delete_expired(:cas) == {:ok, nil}
     end
 
     test "uses the cache bucket for module artifacts" do
@@ -64,9 +91,7 @@ defmodule Tuist.Storage.CacheArtifactRetentionTest do
 
       expect_accounts_and_plans([%Account{id: 1, name: "tuist"}])
 
-      expect(Storage, :delete_objects_from_bucket, fn [^expired_module_key], "cache-bucket" ->
-        :ok
-      end)
+      expect_delete_objects([expired_module_key], "cache-bucket")
 
       assert CacheArtifactRetention.delete_expired(:xcode_module, continuation_token: "cursor") == {:ok, nil}
     end
@@ -93,9 +118,7 @@ defmodule Tuist.Storage.CacheArtifactRetentionTest do
 
       expect_accounts_and_plans([%Account{id: 1, name: "tuist"}])
 
-      expect(Storage, :delete_objects_from_bucket, fn [^expired_gradle_key], "cache-bucket" ->
-        :ok
-      end)
+      expect_delete_objects([expired_gradle_key], "cache-bucket")
 
       assert CacheArtifactRetention.delete_expired(:gradle) == {:ok, nil}
     end
@@ -121,9 +144,7 @@ defmodule Tuist.Storage.CacheArtifactRetentionTest do
 
       expect_accounts_and_plans([%Account{id: 1, name: "tuist"}])
 
-      expect(Storage, :delete_objects_from_bucket, fn [^expired_xcode_key], "xcode-cache-bucket" ->
-        :ok
-      end)
+      expect_delete_objects([expired_xcode_key], "xcode-cache-bucket")
 
       assert CacheArtifactRetention.delete_expired(:xcode_cache) == {:ok, "next-page"}
     end
@@ -148,7 +169,7 @@ defmodule Tuist.Storage.CacheArtifactRetentionTest do
 
       expect(Repo, :all, fn _query -> [] end)
 
-      expect(Storage, :delete_objects_from_bucket, fn [], "xcode-cache-bucket" -> :ok end)
+      expect_delete_objects([], "xcode-cache-bucket")
 
       assert CacheArtifactRetention.delete_expired(:xcode_cache) == {:ok, nil}
     end
@@ -184,7 +205,32 @@ defmodule Tuist.Storage.CacheArtifactRetentionTest do
         %Account{id: 2, name: "managed-storage-account"}
       ])
 
-      expect(Storage, :delete_objects_from_bucket, fn [^managed_storage_key], "xcode-cache-bucket" -> :ok end)
+      expect_delete_objects([managed_storage_key], "xcode-cache-bucket")
+
+      assert CacheArtifactRetention.delete_expired(:xcode_cache) == {:ok, nil}
+    end
+
+    test "resolves mixed-case object account handles to managed accounts" do
+      mixed_case_key = "TUIST/app/xcode/AB/CD/ABCD"
+
+      expect(Environment, :cache_xcode_s3_bucket_name, fn -> "xcode-cache-bucket" end)
+
+      expect(Storage, :list_objects_from_bucket, fn "xcode-cache-bucket",
+                                                    [prefix: "", max_keys: 1000, continuation_token: nil] ->
+        {:ok,
+         %{
+           body: %{
+             contents: [
+               %{key: mixed_case_key, last_modified: DateTime.add(DateTime.utc_now(), -15, :day)}
+             ],
+             is_truncated: false
+           }
+         }}
+      end)
+
+      expect_accounts_and_plans([%Account{id: 1, name: "tuist"}])
+
+      expect_delete_objects([mixed_case_key], "xcode-cache-bucket")
 
       assert CacheArtifactRetention.delete_expired(:xcode_cache) == {:ok, nil}
     end
@@ -203,6 +249,14 @@ defmodule Tuist.Storage.CacheArtifactRetentionTest do
 
       %Ecto.Query{from: %{source: {"subscriptions", Subscription}}} ->
         Map.to_list(plans_by_account_id)
+    end)
+  end
+
+  defp expect_delete_objects(keys, bucket_name) do
+    expect(Storage, :delete_objects_from_bucket, fn ^keys, ^bucket_name, opts ->
+      assert opts[:receive_timeout] == 60_000
+      assert opts[:task_timeout] == 65_000
+      :ok
     end)
   end
 end
