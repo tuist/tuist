@@ -176,6 +176,37 @@ defmodule Cache.Registry.AlternateManifestsTest do
     assert log =~ "Failed to fetch alternate manifest"
   end
 
+  test "does not cache fallback results when the listed root manifest fails to fetch",
+       %{cache_name: cache_name} do
+    expect(ExAws.S3, :list_objects_v2, 2, fn "test-bucket", _opts ->
+      %S3{bucket: "test-bucket", path: "list"}
+    end)
+
+    expect(ExAws, :stream!, 2, fn %S3{} ->
+      [
+        %{key: "registry/swift/foo/bar/1.0.0/Package.swift"},
+        %{key: "registry/swift/foo/bar/1.0.0/Package@swift-6.0.swift"}
+      ]
+    end)
+
+    expect(ExAws.S3, :get_object, 2, fn "test-bucket", key ->
+      assert String.ends_with?(key, "/Package.swift")
+      %S3{bucket: "test-bucket", path: key}
+    end)
+
+    expect(ExAws, :request, 2, fn %S3{} ->
+      {:error, {:http_error, 503, %{}}}
+    end)
+
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert AlternateManifests.list("foo", "bar", "1.0.0", cache_name: cache_name) == []
+        assert AlternateManifests.list("foo", "bar", "1.0.0", cache_name: cache_name) == []
+      end)
+
+    assert log =~ "Failed to fetch default manifest"
+  end
+
   test "returns empty list and logs warning when S3 raises", %{cache_name: cache_name} do
     expect(ExAws.S3, :list_objects_v2, fn "test-bucket", _opts ->
       %S3{bucket: "test-bucket", path: "list"}
