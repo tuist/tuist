@@ -112,9 +112,20 @@ export default {
       capture: true,
       passive: true,
     });
-    window.addEventListener("resize", this.onViewportChange, {
-      passive: true,
-    });
+
+    // A resize can change which ancestor scrolls — content that fit at load (so the window was
+    // the scroller) can start overflowing the content pane when the window shrinks, making the
+    // pane the scroller. Re-resolve the scroll parent on resize (kept off the scroll path, which
+    // must stay cheap, since scrolling never changes the scroller). Throttled to one frame.
+    this.onResize = () => {
+      if (this.resizeFrame) return;
+      this.resizeFrame = requestAnimationFrame(() => {
+        this.resizeFrame = null;
+        this.scrollParent = this.findScrollParent();
+        this.sync();
+      });
+    };
+    window.addEventListener("resize", this.onResize, { passive: true });
 
     // Header widths only depend on horizontal geometry, and syncing them measures every header
     // cell and writes to the body-level clone — a forced full-page reflow. Height-only resizes
@@ -150,19 +161,26 @@ export default {
     this.sync();
   },
 
-  // Nearest ancestor that scrolls vertically. The search starts above `.noora-table` so it skips
-  // the table's own horizontal scroll container (whose `overflow-y` computes to `auto` but never
-  // scrolls). Returns null when nothing between here and the document scrolls — i.e. the window
-  // is the scroller — in which case the viewport edges are used.
+  // Nearest ancestor that actually scrolls vertically. The search starts above `.noora-table` so
+  // it skips the table's own horizontal scroll container. Returns null when nothing between here
+  // and the document scrolls — i.e. the window is the scroller — in which case the viewport edges
+  // are used.
+  //
+  // Two false positives have to be filtered out, both stemming from the CSS rule that a non-
+  // `visible` value on one axis forces the other axis from `visible` to `auto`: the table's own
+  // `overflow-x: auto` container, and any ancestor with `overflow-x: hidden` (a card that only
+  // clips horizontally). Both report a computed `overflow-y: auto` while having no vertical scroll
+  // room. Requiring `scrollHeight > clientHeight` excludes them — otherwise the floating header
+  // would pin to a box that merely scrolls away with the table and would never detach.
   findScrollParent() {
     let el = this.el.parentElement;
     while (el && el !== document.body && el !== document.documentElement) {
       const overflowY = getComputedStyle(el).overflowY;
-      if (
+      const scrollable =
         overflowY === "auto" ||
         overflowY === "scroll" ||
-        overflowY === "overlay"
-      ) {
+        overflowY === "overlay";
+      if (scrollable && el.scrollHeight > el.clientHeight) {
         return el;
       }
       el = el.parentElement;
@@ -172,13 +190,14 @@ export default {
 
   destroyed() {
     if (this.frame) cancelAnimationFrame(this.frame);
+    if (this.resizeFrame) cancelAnimationFrame(this.resizeFrame);
     this.resizeObserver?.disconnect();
     this.container?.removeEventListener("scroll", this.onContainerScroll);
     this.scrollbar?.removeEventListener("scroll", this.onScrollbarScroll);
     window.removeEventListener("scroll", this.onViewportChange, {
       capture: true,
     });
-    window.removeEventListener("resize", this.onViewportChange);
+    window.removeEventListener("resize", this.onResize);
     this.overlayThumb?.removeEventListener("pointerdown", this.onThumbDown);
     this.overlayThumb?.removeEventListener("pointermove", this.onThumbMove);
     this.overlayThumb?.removeEventListener("pointerup", this.onThumbUp);
@@ -339,8 +358,17 @@ export default {
         const headerHeight = this.thead.offsetHeight;
         this.header.style.left = `${rect.left}px`;
         this.header.style.width = `${rect.width}px`;
-        // Let the table's end push the header up out of the scroll area as it scrolls past.
-        this.header.style.top = `${Math.min(viewTop, contentBottom - headerHeight)}px`;
+        // As the table's end scrolls up to meet the header, push the header up with it so it
+        // leaves with the table rather than hovering over the content below. Its top can rise
+        // above the scroll area's top edge — but the clone lives on `document.body`, where the
+        // scroll area can't clip it, so it would otherwise paint over the navbar/chrome above.
+        // Pin the top no higher than `viewTop` and clip the overshoot, so the header slides up
+        // under the top edge instead.
+        const top = contentBottom - headerHeight;
+        const clipTop = Math.max(0, viewTop - top);
+        this.header.style.top = `${Math.min(viewTop, top)}px`;
+        this.header.style.clipPath =
+          clipTop > 0 ? `inset(${clipTop}px 0 0 0)` : "";
         this.header.setAttribute("data-visible", "");
       } else {
         this.header.removeAttribute("data-visible");
