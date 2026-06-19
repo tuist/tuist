@@ -86,7 +86,7 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
                         .file(FileDescriptor(path: responseFilePath, contents: Data(responseFileContents.utf8)))
                     )
 
-                    let responseFileReference = "@$(SRCROOT)/\(responseFilePath.relative(to: project.sourceRootPath))"
+                    let responseFileReference = "\"@$(SRCROOT)/\(responseFilePath.relative(to: project.sourceRootPath))\""
                     // FRAMEWORK_SEARCH_PATHS keeps only the SDK paths; clang and ld read the precompiled
                     // paths from the response file via @file to stay under ARG_MAX.
                     additions.append((
