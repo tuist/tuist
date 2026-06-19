@@ -120,10 +120,7 @@
               @build_runs_sort_by == "duration" &&
                 TuistWeb.GradleBuildRunsLive.column_patch_sort(assigns, "duration")
             }
-            icon={
-              @build_runs_sort_by == "duration" &&
-                TuistWeb.GradleBuildRunsLive.sort_icon(@build_runs_sort_order)
-            }
+            sort_order={@build_runs_sort_by == "duration" && @build_runs_sort_order}
           >
             <.text_cell
               label={
@@ -168,10 +165,7 @@
               @build_runs_sort_by == "ran-at" &&
                 TuistWeb.GradleBuildRunsLive.column_patch_sort(assigns, "ran-at")
             }
-            icon={
-              @build_runs_sort_by == "ran-at" &&
-                TuistWeb.GradleBuildRunsLive.sort_icon(@build_runs_sort_order)
-            }
+            sort_order={@build_runs_sort_by == "ran-at" && @build_runs_sort_order}
           >
             <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(build.inserted_at)} />
           </:col>

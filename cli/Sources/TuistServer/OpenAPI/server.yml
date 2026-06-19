@@ -278,6 +278,7 @@ components:
           enum:
             - flakiness_rate
             - flaky_run_count
+            - reliability_rate
           type: string
           x-struct:
           x-validate:
@@ -3469,6 +3470,131 @@ components:
       type: string
       x-struct:
       x-validate:
+    DurationMetrics:
+      description: Time-bucketed duration metrics for build or test runs. The bucket granularity (hour, day, or month) is derived from the requested time range.
+      properties:
+        average:
+          description: A duration series. Values are aligned with the `dates` array and expressed in milliseconds.
+          properties:
+            total:
+              description: Duration aggregated across the whole time range, in milliseconds.
+              type: number
+              x-struct:
+              x-validate:
+            values:
+              description: Duration per time bucket, in milliseconds. Buckets with no runs are 0.
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+          required:
+            - values
+            - total
+          type: object
+          x-struct:
+          x-validate:
+        dates:
+          description: Unix timestamps in seconds for the start of each time bucket.
+          items:
+            format: int64
+            type: integer
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        p50:
+          description: A duration series. Values are aligned with the `dates` array and expressed in milliseconds.
+          properties:
+            total:
+              description: Duration aggregated across the whole time range, in milliseconds.
+              type: number
+              x-struct:
+              x-validate:
+            values:
+              description: Duration per time bucket, in milliseconds. Buckets with no runs are 0.
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+          required:
+            - values
+            - total
+          type: object
+          x-struct:
+          x-validate:
+        p90:
+          description: A duration series. Values are aligned with the `dates` array and expressed in milliseconds.
+          properties:
+            total:
+              description: Duration aggregated across the whole time range, in milliseconds.
+              type: number
+              x-struct:
+              x-validate:
+            values:
+              description: Duration per time bucket, in milliseconds. Buckets with no runs are 0.
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+          required:
+            - values
+            - total
+          type: object
+          x-struct:
+          x-validate:
+        p99:
+          description: A duration series. Values are aligned with the `dates` array and expressed in milliseconds.
+          properties:
+            total:
+              description: Duration aggregated across the whole time range, in milliseconds.
+              type: number
+              x-struct:
+              x-validate:
+            values:
+              description: Duration per time bucket, in milliseconds. Buckets with no runs are 0.
+              items:
+                nullable: true
+                type: number
+                x-struct:
+                x-validate:
+              type: array
+              x-struct:
+              x-validate:
+          required:
+            - values
+            - total
+          type: object
+          x-struct:
+          x-validate:
+        trend:
+          description: Percentage change in the average duration compared to the immediately preceding period of the same length.
+          type: number
+          x-struct:
+          x-validate:
+      required:
+        - dates
+        - average
+        - p50
+        - p90
+        - p99
+        - trend
+      title: DurationMetrics
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.DurationMetrics
+      x-validate:
     GradleBuildsIndexPageSize:
       default: 20
       description: The maximum number of builds to return in a single page.
@@ -4640,6 +4766,11 @@ components:
           type: array
           x-struct:
           x-validate:
+        upload_url:
+          description: The API URL to start a multipart upload for the shard bundle.
+          type: string
+          x-struct:
+          x-validate:
       required:
         - id
         - reference
@@ -4703,13 +4834,18 @@ components:
           type: string
           x-struct:
           x-validate:
+        shard_plan_id:
+          description: The shard plan id returned by createShardPlan.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
         upload_id:
           description: The multipart upload ID.
           type: string
           x-struct:
           x-validate:
       required:
-        - reference
         - upload_id
         - parts
       title: CompleteShardUploadParams
@@ -5000,8 +5136,12 @@ components:
           type: string
           x-struct:
           x-validate:
-      required:
-        - reference
+        shard_plan_id:
+          description: The shard plan id returned by createShardPlan.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
       title: StartShardUploadParams
       type: object
       x-struct:
@@ -5991,13 +6131,18 @@ components:
           type: string
           x-struct:
           x-validate:
+        shard_plan_id:
+          description: The shard plan id returned by createShardPlan.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
         upload_id:
           description: The multipart upload ID.
           type: string
           x-struct:
           x-validate:
       required:
-        - reference
         - upload_id
         - part_number
       title: GenerateShardUploadURLParams
@@ -6485,13 +6630,18 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                shard_plan_id:
+                  description: The shard plan id returned by createShardPlan.
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
                 upload_id:
                   description: The multipart upload ID.
                   type: string
                   x-struct:
                   x-validate:
               required:
-                - reference
                 - upload_id
                 - parts
               title: CompleteShardUploadParams
@@ -6514,6 +6664,12 @@ paths:
                 x-struct:
                 x-validate:
           description: Upload completed
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid parameters
         '401':
           content:
             application/json:
@@ -6529,6 +6685,73 @@ paths:
       summary: Complete the multipart upload and trigger per-shard xctestrun creation.
       tags:
         - Shards
+  /api/projects/{account_handle}/{project_handle}/builds/metrics/dimensions/{dimension}/values:
+    get:
+      callbacks: {}
+      operationId: buildMetricDimensionValues
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The build dimension to list values for.
+          in: path
+          name: dimension
+          required: true
+          schema:
+            enum:
+              - scheme
+              - configuration
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  values:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - values
+                type: object
+                x-struct:
+                x-validate:
+          description: Dimension values
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was invalid
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+      summary: List the values seen for a build filter dimension.
+      tags:
+        - Metrics
   /api/analytics:
     post:
       callbacks: {}
@@ -8137,6 +8360,83 @@ paths:
       summary: List events for a test case.
       tags:
         - Test Cases
+  /api/projects/{account_handle}/{project_handle}/tests/metrics/duration:
+    get:
+      callbacks: {}
+      operationId: testDurationMetrics
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Start of the time range as a Unix timestamp in seconds.
+          in: query
+          name: from
+          required: true
+          schema:
+            format: int64
+            type: integer
+            x-struct:
+            x-validate:
+        - description: End of the time range as a Unix timestamp in seconds.
+          in: query
+          name: to
+          required: true
+          schema:
+            format: int64
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Filter to runs executed on CI (true) or locally (false).
+          in: query
+          name: is_ci
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
+        - description: Filter by scheme.
+          in: query
+          name: scheme
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DurationMetrics'
+          description: Test duration metrics
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was invalid
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+      summary: Time-bucketed test run duration percentiles for a project.
+      tags:
+        - Metrics
   /api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}:
     get:
       callbacks: {}
@@ -8438,14 +8738,6 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -8460,6 +8752,14 @@ paths:
           required: false
           schema:
             type: integer
+            x-struct:
+            x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
             x-struct:
             x-validate:
         - description: The handle of the project.
@@ -11866,6 +12166,72 @@ paths:
       summary: Create a new build.
       tags:
         - Builds
+  /api/projects/{account_handle}/{project_handle}/tests/metrics/dimensions/{dimension}/values:
+    get:
+      callbacks: {}
+      operationId: testMetricDimensionValues
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The test dimension to list values for.
+          in: path
+          name: dimension
+          required: true
+          schema:
+            enum:
+              - scheme
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  values:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - values
+                type: object
+                x-struct:
+                x-validate:
+          description: Dimension values
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was invalid
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+      summary: List the values seen for a test filter dimension.
+      tags:
+        - Metrics
   /api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/attachments:
     get:
       callbacks: {}
@@ -12001,13 +12367,18 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                shard_plan_id:
+                  description: The shard plan id returned by createShardPlan.
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
                 upload_id:
                   description: The multipart upload ID.
                   type: string
                   x-struct:
                   x-validate:
               required:
-                - reference
                 - upload_id
                 - part_number
               title: GenerateShardUploadURLParams
@@ -12035,6 +12406,12 @@ paths:
                 x-struct:
                 x-validate:
           description: The signed URL
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid parameters
         '401':
           content:
             application/json:
@@ -12204,6 +12581,7 @@ paths:
                   enum:
                     - flakiness_rate
                     - flaky_run_count
+                    - reliability_rate
                   type: string
                   x-struct:
                   x-validate:
@@ -13443,8 +13821,12 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
-              required:
-                - reference
+                shard_plan_id:
+                  description: The shard plan id returned by createShardPlan.
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
               title: StartShardUploadParams
               type: object
               x-struct:
@@ -13470,6 +13852,12 @@ paths:
                 x-struct:
                 x-validate:
           description: The upload ID
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid parameters
         '401':
           content:
             application/json:
@@ -13482,6 +13870,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The authenticated subject is not authorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The shard plan was not found
       summary: Start a multipart upload for the test products bundle.
       tags:
         - Shards
@@ -15754,6 +16148,121 @@ paths:
       summary: Updates a project
       tags:
         - Projects
+  /api/projects/{account_handle}/{project_handle}/builds/metrics/duration:
+    get:
+      callbacks: {}
+      operationId: buildDurationMetrics
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Start of the time range as a Unix timestamp in seconds.
+          in: query
+          name: from
+          required: true
+          schema:
+            format: int64
+            type: integer
+            x-struct:
+            x-validate:
+        - description: End of the time range as a Unix timestamp in seconds.
+          in: query
+          name: to
+          required: true
+          schema:
+            format: int64
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Filter to runs executed on CI (true) or locally (false).
+          in: query
+          name: is_ci
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
+        - description: Filter by scheme.
+          in: query
+          name: scheme
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by build configuration.
+          in: query
+          name: configuration
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by build category.
+          in: query
+          name: category
+          required: false
+          schema:
+            enum:
+              - clean
+              - incremental
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by build status.
+          in: query
+          name: status
+          required: false
+          schema:
+            enum:
+              - success
+              - failure
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by a custom tag.
+          in: query
+          name: tag
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DurationMetrics'
+          description: Build duration metrics
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was invalid
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+      summary: Time-bucketed build duration percentiles for a project.
+      tags:
+        - Metrics
   /api/projects/{account_handle}/{project_handle}/runs:
     get:
       callbacks: {}

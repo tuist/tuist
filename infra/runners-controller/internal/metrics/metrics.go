@@ -56,10 +56,40 @@ var (
 		Name: "tuist_runners_autoscaler_min_warm_floor_replicas",
 		Help: "Configured minWarmPoolFloor per pool (spec.autoscaling.minWarmPoolFloor).",
 	}, []string{poolLabel})
+
+	// rollingPods is how many of a pool's Pods are mid-roll right now:
+	// drain-eligible stale-image Pods (committed to retire) plus
+	// current-image Pods not yet Ready (pulling/booting a replacement).
+	// This is the throttled quantity and must stay <= rollCap. Pinned at
+	// the cap with stalePods > 0 is a healthy in-progress roll;
+	// rollingPods > rollCap means the cap isn't being enforced (a bug).
+	rollingPods = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_pool_rolling_pods",
+		Help: "Pods mid-roll (drain-eligible stale + current-image not-Ready) per pool.",
+	}, []string{poolLabel})
+
+	// stalePods is how many alive Pods are still on a superseded image —
+	// the roll backlog. It decreases to 0 as the roll completes. Stuck
+	// > 0 (flat, not draining) while rollingPods is pinned is the
+	// "roll wedged" signal: a replacement isn't reaching Ready, so the
+	// cap never frees and the rollout can't advance.
+	stalePods = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_pool_stale_pods",
+		Help: "Alive Pods still on a superseded spec.image (image-roll backlog) per pool.",
+	}, []string{poolLabel})
+
+	// rollCap is the computed concurrency ceiling:
+	// max(1, floor(MaxConcurrentPercent/100 * replicas)). Exported so a
+	// dashboard/alert can compare rollingPods against the cap without
+	// re-deriving the policy.
+	rollCap = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_pool_roll_concurrency_cap",
+		Help: "Max Pods allowed mid-roll at once per pool (max(1, floor(pct/100 * replicas))).",
+	}, []string{poolLabel})
 )
 
 func init() {
-	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor)
+	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor, rollingPods, stalePods, rollCap)
 }
 
 // RecordAllocation publishes one pool's allocation outcome for this
@@ -74,6 +104,16 @@ func RecordAllocation(pool string, load, floor, targetReplicas, allocatedReplica
 	warmDeficitReplicas.WithLabelValues(pool).Set(float64(warmDeficit(load, floor, targetReplicas, allocatedReplicas)))
 }
 
+// RecordRoll publishes a pool's image-roll progress for this reconcile
+// tick: how many Pods are mid-roll, how many remain on the old image,
+// and the concurrency cap they're throttled against. Steady state
+// (no roll) reports rolling=0, stale=0.
+func RecordRoll(pool string, rolling, stale, capacity int) {
+	rollingPods.WithLabelValues(pool).Set(float64(rolling))
+	stalePods.WithLabelValues(pool).Set(float64(stale))
+	rollCap.WithLabelValues(pool).Set(float64(capacity))
+}
+
 // Clear drops a pool's series so a deleted (or opted-out) pool stops
 // reporting stale gauges. Safe to call for an unknown pool.
 func Clear(pool string) {
@@ -81,6 +121,9 @@ func Clear(pool string) {
 	allocated.DeleteLabelValues(pool)
 	warmDeficitReplicas.DeleteLabelValues(pool)
 	minWarmFloor.DeleteLabelValues(pool)
+	rollingPods.DeleteLabelValues(pool)
+	stalePods.DeleteLabelValues(pool)
+	rollCap.DeleteLabelValues(pool)
 }
 
 // warmDeficit is the warm-pool capacity the fleet allocator wanted to

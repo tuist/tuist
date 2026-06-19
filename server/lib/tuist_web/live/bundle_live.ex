@@ -560,14 +560,6 @@ defmodule TuistWeb.BundleLive do
     }
   end
 
-  def sort_icon("desc") do
-    "square_rounded_arrow_down"
-  end
-
-  def sort_icon("asc") do
-    "square_rounded_arrow_up"
-  end
-
   defp sort_file_breakdown_artifacts(artifacts, "path", "asc") do
     Enum.sort_by(artifacts, & &1.path, :desc)
   end

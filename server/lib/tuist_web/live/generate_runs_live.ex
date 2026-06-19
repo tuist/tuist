@@ -225,14 +225,6 @@ defmodule TuistWeb.GenerateRunsLive do
 
   defp normalize_command_filter(filter), do: filter
 
-  def sort_icon("desc") do
-    "square_rounded_arrow_down"
-  end
-
-  def sort_icon("asc") do
-    "square_rounded_arrow_up"
-  end
-
   def column_patch_sort(
         %{uri: uri, generate_runs_sort_by: generate_runs_sort_by, generate_runs_sort_order: generate_runs_sort_order} =
           _assigns,

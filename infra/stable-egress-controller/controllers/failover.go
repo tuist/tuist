@@ -12,20 +12,24 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 // FloatingIPManager assigns a Hetzner Cloud Floating IP to a server. Kept as an
 // interface so the reconciler is testable without the Hetzner API.
 type FloatingIPManager interface {
-	// CurrentServerID returns the server id the Floating IP is currently
-	// assigned to, or 0 if it is unassigned.
-	CurrentServerID(ctx context.Context, floatingIPName string) (int64, error)
-	// Address returns the Floating IP's address (e.g. "116.202.0.10").
-	Address(ctx context.Context, floatingIPName string) (string, error)
+	// Get returns the Floating IP's address (e.g. "116.202.0.10") and the
+	// server id it is currently assigned to (0 if unassigned), read together in
+	// a single Hetzner API call. The reconciler runs on every relevant node
+	// event against a rate-limited token shared with cluster-api, so collapsing
+	// the per-reconcile reads to one call keeps it well under the budget.
+	Get(ctx context.Context, floatingIPName string) (address string, serverID int64, err error)
 	// Assign assigns the Floating IP to the given server id and waits for the
 	// assignment to take effect.
 	Assign(ctx context.Context, floatingIPName string, serverID int64) error
@@ -91,14 +95,18 @@ func (r *FailoverReconciler) Reconcile(ctx context.Context, _ reconcile.Request)
 		return ctrl.Result{}, fmt.Errorf("resolving server id for node %q: %w", desiredNode.Name, err)
 	}
 
+	// Read the Floating IP's address and current assignment in one API call:
+	// both the allowlist gate and the assignment check need it, and this read is
+	// the controller's hot path against a rate-limited, shared Hetzner token.
+	addr, currentServer, err := r.FIP.Get(ctx, r.FloatingIPName)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("reading Floating IP: %w", err)
+	}
+
 	// Fail closed if the Floating IP is not within the documented egress set —
 	// activating an un-allowlisted source IP would silently break customers
 	// who allowlist our egress. Better a gap than a leak.
 	if len(r.EgressIPAllowlist) > 0 {
-		addr, err := r.FIP.Address(ctx, r.FloatingIPName)
-		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("reading Floating IP address: %w", err)
-		}
 		ok, err := ipInAllowlist(addr, r.EgressIPAllowlist)
 		if err != nil {
 			return ctrl.Result{}, err
@@ -112,10 +120,6 @@ func (r *FailoverReconciler) Reconcile(ctx context.Context, _ reconcile.Request)
 	}
 
 	// 1) Make the Floating IP follow the elected node (idempotent).
-	currentServer, err := r.FIP.CurrentServerID(ctx, r.FloatingIPName)
-	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("reading Floating IP assignment: %w", err)
-	}
 	if currentServer != serverID {
 		logger.Info("reassigning Floating IP", "floatingIP", r.FloatingIPName,
 			"fromServer", currentServer, "toServer", serverID, "node", desiredNode.Name)
@@ -176,8 +180,32 @@ func (r *FailoverReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("stable-egress-failover").
-		Watches(&corev1.Node{}, handler.EnqueueRequestsFromMapFunc(mapToSingleton)).
+		Watches(&corev1.Node{},
+			handler.EnqueueRequestsFromMapFunc(mapToSingleton),
+			builder.WithPredicates(r.nodeEventPredicate())).
 		Complete(r)
+}
+
+// nodeEventPredicate drops the Node updates the reconciler does not key on —
+// chiefly the kubelet status heartbeats and lease renewals that fire every few
+// seconds per node — so a reconcile (and its Hetzner API read against a shared,
+// rate-limited token) only runs when gateway eligibility can actually change: a
+// Ready transition, a candidate/active label change, or the node entering
+// termination. Create, Delete, and Generic events always reconcile.
+func (r *FailoverReconciler) nodeEventPredicate() predicate.Predicate {
+	return predicate.Funcs{
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldNode, ok1 := e.ObjectOld.(*corev1.Node)
+			newNode, ok2 := e.ObjectNew.(*corev1.Node)
+			if !ok1 || !ok2 {
+				return true
+			}
+			return isNodeReady(oldNode) != isNodeReady(newNode) ||
+				oldNode.Labels[r.CandidateLabelKey] != newNode.Labels[r.CandidateLabelKey] ||
+				oldNode.Labels[r.ActiveLabelKey] != newNode.Labels[r.ActiveLabelKey] ||
+				(oldNode.DeletionTimestamp == nil) != (newNode.DeletionTimestamp == nil)
+		},
+	}
 }
 
 // selectGateway picks the node that should hold the egress gateway. It adopts a

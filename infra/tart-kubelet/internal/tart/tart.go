@@ -70,15 +70,38 @@ type VM struct {
 	Size   int64  `json:"Size"`
 }
 
+// Per-operation timeouts bound how long a single `tart` invocation may
+// run before exec.CommandContext kills it. A hung `tart` call (observed
+// in prod stalling a node's VM provisioning for minutes — pod stuck
+// Pending, zero events) would otherwise block the single-concurrency
+// reconcile worker indefinitely; with a deadline the caller gets an
+// error and retries on its normal cadence, so a wedged op self-heals
+// instead of stranding the Pod. Package-level vars (not consts) so
+// tests can shrink them.
+var (
+	pullTimeout   = 20 * time.Minute
+	cloneTimeout  = 5 * time.Minute
+	setTimeout    = 1 * time.Minute
+	deleteTimeout = 5 * time.Minute
+	queryTimeout  = 30 * time.Second
+	// runWaitDelay bounds how long Wait blocks for the I/O pipes to
+	// close after the timeout context kills the process (see run).
+	runWaitDelay = 2 * time.Second
+)
+
 // Pull invokes `tart pull <image>`. Idempotent — Tart skips re-download
 // when the image is already cached.
 func (c *Client) Pull(ctx context.Context, image string) error {
+	ctx, cancel := context.WithTimeout(ctx, pullTimeout)
+	defer cancel()
 	_, err := c.run(ctx, c.Binary, "pull", image)
 	return err
 }
 
 // Clone invokes `tart clone <source> <name>`.
 func (c *Client) Clone(ctx context.Context, source, name string) error {
+	ctx, cancel := context.WithTimeout(ctx, cloneTimeout)
+	defer cancel()
 	_, err := c.run(ctx, c.Binary, "clone", source, name)
 	return err
 }
@@ -96,6 +119,8 @@ func (c *Client) Set(ctx context.Context, name string, cpu, memoryMB int) error 
 	if len(args) == 2 {
 		return nil
 	}
+	ctx, cancel := context.WithTimeout(ctx, setTimeout)
+	defer cancel()
 	_, err := c.run(ctx, c.Binary, args...)
 	return err
 }
@@ -252,18 +277,28 @@ func (c *Client) Stop(ctx context.Context, name string, gracePeriod time.Duratio
 	if gracePeriod > 0 {
 		args = append(args, "--timeout", fmt.Sprintf("%d", int(gracePeriod.Seconds())))
 	}
+	to := 2 * time.Minute
+	if gracePeriod > 0 && gracePeriod+30*time.Second > to {
+		to = gracePeriod + 30*time.Second
+	}
+	ctx, cancel := context.WithTimeout(ctx, to)
+	defer cancel()
 	_, err := c.run(ctx, c.Binary, args...)
 	return err
 }
 
 // Delete removes a VM's filesystem.
 func (c *Client) Delete(ctx context.Context, name string) error {
+	ctx, cancel := context.WithTimeout(ctx, deleteTimeout)
+	defer cancel()
 	_, err := c.run(ctx, c.Binary, "delete", name)
 	return err
 }
 
 // Get returns one VM's metadata, or (nil, nil) if it doesn't exist.
 func (c *Client) Get(ctx context.Context, name string) (*VM, error) {
+	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
+	defer cancel()
 	out, err := c.run(ctx, c.Binary, "get", name, "--format", "json")
 	if err != nil {
 		if isNotFound(err) {
@@ -281,6 +316,8 @@ func (c *Client) Get(ctx context.Context, name string) (*VM, error) {
 
 // List returns every VM Tart knows about on this host.
 func (c *Client) List(ctx context.Context) ([]VM, error) {
+	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
+	defer cancel()
 	out, err := c.run(ctx, c.Binary, "list", "--format", "json")
 	if err != nil {
 		return nil, err
@@ -416,6 +453,13 @@ func (c *Client) CleanupVMUserData(name string) error {
 
 func (c *Client) run(ctx context.Context, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
+	// Bound how long Wait blocks after the timeout context kills the
+	// process. A hung `tart` that spawned children which inherited the
+	// stdout/stderr pipe would otherwise keep Wait — and the single
+	// reconcile worker — blocked until those children close it (the
+	// exact wedge the per-op timeout is meant to prevent). WaitDelay
+	// force-closes the pipes and returns shortly after the kill.
+	cmd.WaitDelay = runWaitDelay
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
