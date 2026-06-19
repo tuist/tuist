@@ -26,7 +26,7 @@ use crate::{
     state::SharedState,
     store::{ArtifactApplyOutcome, ManifestPage, NamespaceTombstonePage},
     telemetry::{inject_current_trace_context, record_trace_context},
-    utils::{replication_target_label, temp_file_path, url_encode},
+    utils::{ensure_tmp_dir_capacity, replication_target_label, temp_file_path, url_encode},
 };
 
 use self::{operation::ReplicationOperation, outbox_message::OutboxMessage};
@@ -401,10 +401,32 @@ async fn bootstrap_artifact_from_peer(
             .await;
     }
 
-    let reserved_bytes = manifest.size.min(MAX_REPLICATION_BODY_BYTES);
+    let declared_bytes = response.content_length();
+    if let Some(declared) = declared_bytes
+        && declared > MAX_REPLICATION_BODY_BYTES
+    {
+        return Err(format!(
+            "bootstrap artifact response declared {declared} bytes, exceeds limit of {MAX_REPLICATION_BODY_BYTES}"
+        ));
+    }
+    // Reserve for the larger of the manifest size and the peer's declared body
+    // so an inconsistent peer can't stage more bytes than we accounted for.
+    let reserved_bytes = manifest
+        .size
+        .max(declared_bytes.unwrap_or(0))
+        .min(MAX_REPLICATION_BODY_BYTES);
     let _staging_reservation = state.bootstrap_staging_budget.reserve(reserved_bytes).await;
+    // The reservation bounds concurrent bootstraps against each other; this
+    // guards the shared tmp dir against non-bootstrap occupants (uploads,
+    // multipart assembly, leftovers) so the on-disk total can't exceed budget.
+    ensure_tmp_dir_capacity(
+        &state.config.tmp_dir,
+        reserved_bytes,
+        state.config.tmp_dir_max_bytes,
+    )
+    .await?;
     let temp_path = temp_file_path(&state.config.tmp_dir.join("bootstrap"), "bootstrap");
-    stream_response_to_temp(state, response, &temp_path).await?;
+    stream_response_to_temp(state, response, &temp_path, reserved_bytes).await?;
     state
         .store
         .hit_failpoint(FailpointName::AfterBootstrapArtifactFetchBeforePersist)
@@ -426,33 +448,26 @@ async fn stream_response_to_temp(
     state: &SharedState,
     response: reqwest::Response,
     path: &Path,
+    staging_limit: u64,
 ) -> Result<(), String> {
     let parent = path
         .parent()
         .ok_or_else(|| "bootstrap temp path is missing a parent directory".to_string())?;
     state.io.create_dir_all(parent).await?;
-    if let Some(content_length) = response.content_length()
-        && content_length > MAX_REPLICATION_BODY_BYTES
-    {
-        return Err(format!(
-            "bootstrap artifact response declared {content_length} bytes, exceeds limit of {MAX_REPLICATION_BODY_BYTES}"
-        ));
-    }
-    // Peak tmp staging is bounded by the caller's `bootstrap_staging_budget`
-    // reservation, so concurrent bootstraps can never collectively overshoot
-    // the budget. The per-body `MAX_REPLICATION_BODY_BYTES` ceiling below still
-    // caps each individual artifact.
+    // The staged file must not exceed the caller's `bootstrap_staging_budget`
+    // reservation: an inconsistent peer serving a body larger than its manifest
+    // advertised is rejected here instead of overrunning the budget.
     let mut destination = state.io.create_file(path).await?;
     let mut stream = response.bytes_stream();
     let mut total: u64 = 0;
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.map_err(|error| format!("failed to stream bootstrap body: {error}"))?;
         total = total.saturating_add(chunk.len() as u64);
-        if total > MAX_REPLICATION_BODY_BYTES {
+        if total > staging_limit {
             drop(destination);
             state.io.remove_file_if_exists(path).await;
             return Err(format!(
-                "bootstrap artifact response exceeded limit of {MAX_REPLICATION_BODY_BYTES} bytes"
+                "bootstrap artifact response exceeded reserved {staging_limit} bytes"
             ));
         }
         if let Some(limiter) = state.replication_bandwidth_limiter.as_ref() {
@@ -1540,5 +1555,110 @@ mod tests {
                 "every concurrently bootstrapped artifact should be present"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn bootstrap_rejects_body_larger_than_reserved() {
+        // An inconsistent peer streams a chunked body larger than its manifest
+        // advertised (no Content-Length). The staged file is capped at the
+        // reservation, so it is rejected instead of overrunning the tmp budget.
+        let declared_len = 64 * 1024_u64;
+        let chunk = vec![7_u8; declared_len as usize];
+        let app = Router::new().route(
+            "/_internal/bootstrap/artifacts/{artifact_id}",
+            get({
+                let chunk = chunk.clone();
+                move |AxumPath(_artifact_id): AxumPath<String>| {
+                    let chunk = chunk.clone();
+                    async move {
+                        let stream = futures_util::stream::iter(0..4).then(move |_| {
+                            let chunk = chunk.clone();
+                            async move { Ok::<_, std::io::Error>(chunk) }
+                        });
+                        axum::body::Body::from_stream(stream)
+                    }
+                }
+            }),
+        );
+        let (remote_url, _server) = spawn_server(app).await;
+
+        let local = test_context(|_config| {}).await;
+        let manifest = bootstrap_test_manifest(
+            ArtifactProducer::Gradle,
+            false,
+            "ios",
+            "oversized",
+            "application/octet-stream",
+            declared_len,
+            100,
+        );
+
+        let error = bootstrap_artifact_from_peer(&local.state, &remote_url, &manifest)
+            .await
+            .expect_err("a body larger than the manifest must be rejected");
+        assert!(
+            error.contains("exceeded reserved"),
+            "expected a reservation-overflow rejection, got: {error}"
+        );
+        assert!(
+            local
+                .state
+                .store
+                .fetch_artifact(ArtifactProducer::Gradle, "ios", "oversized")
+                .await
+                .expect("artifact fetch should succeed")
+                .is_none(),
+            "the rejected artifact must not be persisted"
+        );
+    }
+
+    #[tokio::test]
+    async fn bootstrap_accounts_for_non_bootstrap_tmp_usage() {
+        // A non-bootstrap occupant already fills most of the tmp dir. The
+        // bootstrap reservation alone would admit the artifact, but the
+        // whole-dir guard must refuse it so the shared tmp dir can't exceed
+        // its budget.
+        let artifact_len = 64 * 1024_u64;
+        let tmp_budget = artifact_len * 2;
+        let chunk = vec![5_u8; artifact_len as usize];
+        let app = Router::new().route(
+            "/_internal/bootstrap/artifacts/{artifact_id}",
+            get(move |AxumPath(_artifact_id): AxumPath<String>| {
+                let chunk = chunk.clone();
+                async move { chunk }
+            }),
+        );
+        let (remote_url, _server) = spawn_server(app).await;
+
+        let local = test_context(move |config| {
+            config.tmp_dir_max_bytes = tmp_budget;
+        })
+        .await;
+
+        std::fs::create_dir_all(&local.state.config.tmp_dir)
+            .expect("tmp dir should be creatable");
+        std::fs::write(
+            local.state.config.tmp_dir.join("upload-in-progress"),
+            vec![1_u8; (tmp_budget - artifact_len / 2) as usize],
+        )
+        .expect("filler write should succeed");
+
+        let manifest = bootstrap_test_manifest(
+            ArtifactProducer::Gradle,
+            false,
+            "ios",
+            "blocked",
+            "application/octet-stream",
+            artifact_len,
+            100,
+        );
+
+        let error = bootstrap_artifact_from_peer(&local.state, &remote_url, &manifest)
+            .await
+            .expect_err("bootstrap must refuse to overrun the shared tmp budget");
+        assert!(
+            error.contains("tmp dir budget exhausted"),
+            "expected a tmp-dir budget rejection, got: {error}"
+        );
     }
 }
