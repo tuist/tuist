@@ -247,6 +247,63 @@ func TestReconcile_DeletesStalePendingPodAndCreatesReplacement(t *testing.T) {
 	}
 }
 
+// TestReconcile_ThrottlesStalePendingReapToRollCap guards the roll
+// concurrency cap on the stale-Pending reap path. Before, every stale
+// Pending Pod was reaped in a single reconcile, so a digest roll made
+// the whole fleet `tart pull` the new image at once. Now the reap shares
+// the roll budget: with 5 replicas and a 40% cap (floor = 2), only 2
+// stale Pods retire per reconcile and the rest keep serving the old
+// image until the budget frees.
+func TestReconcile_ThrottlesStalePendingReapToRollCap(t *testing.T) {
+	scheme := mustScheme(t)
+	const (
+		oldImage = "ghcr.io/tuist/tuist-runner@sha256:old"
+		newImage = "ghcr.io/tuist/tuist-runner@sha256:new"
+	)
+	pool := newPool("p", newImage, 5)
+	pool.Spec.Rollout = &tuistv1.RunnerPoolRollout{MaxConcurrentPercent: 40}
+	p0 := newRunnerPod("p-runner-s0", oldImage, corev1.PodPending, "p")
+	p1 := newRunnerPod("p-runner-s1", oldImage, corev1.PodPending, "p")
+	p2 := newRunnerPod("p-runner-s2", oldImage, corev1.PodPending, "p")
+	p3 := newRunnerPod("p-runner-s3", oldImage, corev1.PodPending, "p")
+	p4 := newRunnerPod("p-runner-s4", oldImage, corev1.PodPending, "p")
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, p0, p1, p2, p3, p4).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	pods := &corev1.PodList{}
+	if err := c.List(context.Background(), pods); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	oldCount, newCount := 0, 0
+	for i := range pods.Items {
+		if pods.Items[i].Spec.Containers[0].Image == oldImage {
+			oldCount++
+		} else {
+			newCount++
+		}
+	}
+	// cap = floor(40% * 5) = 2: exactly 2 stale Pods retired + replaced
+	// this tick; the other 3 keep serving the old image.
+	if oldCount != 3 {
+		t.Fatalf("expected 3 stale pods remaining (cap=2 reaped), got %d", oldCount)
+	}
+	if newCount != 2 {
+		t.Fatalf("expected 2 current-image replacements, got %d", newCount)
+	}
+	if len(pods.Items) != 5 {
+		t.Fatalf("expected pool to stay at 5 pods, got %d", len(pods.Items))
+	}
+}
+
 // TestReconcile_LeavesStalePendingClaimedPodAlone covers the
 // isIdle guard on the stale-Pending reap. With the Linux
 // token-isolation Pod shape the poller runs as an init container, so

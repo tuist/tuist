@@ -1,6 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "description": "Non-CLI dependencies are batched on a weekly schedule; the tuist CLI pin overrides this to run at any time (see its packageRule) so the dev-tooling version tracks releases quickly.",
+  "description": "Dependencies are batched on a weekly schedule. The tuist CLI dev-tooling pin in mise.toml is handled out-of-band by the update-tuist-cli workflow, not Renovate, because the bump must regenerate mise.lock in the same commit (six per-platform checksums) and Renovate's hosted app can't run mise lock.",
   "schedule": ["before 6am on monday"],
   "customManagers": [
     {
@@ -40,6 +40,15 @@
       "datasourceTemplate": "maven",
       "depNameTemplate": "dev.tuist:dev.tuist.gradle.plugin",
       "registryUrlTemplate": "https://plugins.gradle.org/m2/"
+    },
+    {
+      "customType": "regex",
+      "description": "Single source for the mise CLI version pinned across every GitHub Actions workflow (MISE_VERSION env). Renovate tracks jdx/mise releases and bumps all MISE_VERSION literals together in one PR, keeping the whole repo on one version. Stay on mise >= 2026.5.15: only there do --locked installs download from the lockfile's direct CDN URLs; older mise still hits api.github.com for github-backend tools and gets rate-limited.",
+      "fileMatch": ["^\\.github/workflows/[^/]+\\.ya?ml$"],
+      "matchStrings": ["MISE_VERSION:\\s*\"(?<currentValue>[^\"]+)\""],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "jdx/mise",
+      "extractVersionTemplate": "^v?(?<version>.+)$"
     }
   ],
   "packageRules": [
@@ -58,15 +67,6 @@
       "matchFileNames": ["infra/linux-runner-image/Dockerfile"],
       "matchPackageNames": ["actions/runner", "kubernetes/kubernetes", "helm/helm", "cli/cli"],
       "commitMessagePrefix": "fix(linux-runner-image):",
-      "automerge": true
-    },
-    {
-      "description": "Tuist CLI dev-tooling pin in mise.toml. Runs at any time (more often than the weekly default) so the pin tracks new CLI releases quickly, and auto-merges.",
-      "matchManagers": ["mise"],
-      "matchPackageNames": ["tuist"],
-      "schedule": ["at any time"],
-      "commitMessagePrefix": "chore(cli):",
-      "commitMessageTopic": "Tuist CLI",
       "automerge": true
     },
     {
@@ -89,6 +89,14 @@
       "matchManagers": ["gradle"],
       "matchPackageNames": ["dev.tuist", "dev.tuist:dev.tuist.gradle.plugin"],
       "commitMessagePrefix": "chore(android):",
+      "automerge": true
+    },
+    {
+      "description": "mise CLI version shared across all workflows (MISE_VERSION). One PR bumps every literal; CI on that PR exercises all workflows before it can automerge.",
+      "matchManagers": ["custom.regex"],
+      "matchPackageNames": ["jdx/mise"],
+      "commitMessagePrefix": "chore(infra):",
+      "commitMessageTopic": "mise",
       "automerge": true
     }
   ]

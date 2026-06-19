@@ -43,11 +43,21 @@ type AppleSiliconAPI interface {
 	RebootServer(req *applesilicon.RebootServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
 }
 
+// AppleSiliconPrivateNetworkAPI is the slice of the SDK's
+// `applesilicon.PrivateNetworkAPI` the provider touches (Private
+// Network attachment for the runner-cache data plane). Interface for
+// the same fake-in-tests reason as AppleSiliconAPI.
+type AppleSiliconPrivateNetworkAPI interface {
+	ListServerPrivateNetworks(req *applesilicon.PrivateNetworkAPIListServerPrivateNetworksRequest, opts ...scw.RequestOption) (*applesilicon.ListServerPrivateNetworksResponse, error)
+	AddServerPrivateNetwork(req *applesilicon.PrivateNetworkAPIAddServerPrivateNetworkRequest, opts ...scw.RequestOption) (*applesilicon.ServerPrivateNetwork, error)
+}
+
 // Client talks to Scaleway's Apple Silicon + IAM APIs. Construct with
 // NewClient; in tests, the API fields can be replaced with fakes
 // (see AppleSiliconAPI).
 type Client struct {
 	API AppleSiliconAPI
+	PN  AppleSiliconPrivateNetworkAPI
 	IAM *iam.API
 
 	// DefaultProjectID is the SCW_DEFAULT_PROJECT_ID the underlying
@@ -92,7 +102,7 @@ func NewClient() (*Client, error) {
 			return nil, fmt.Errorf("scaleway client: %w", err)
 		}
 		projectID, _ := client.GetDefaultProjectID()
-		return &Client{API: applesilicon.NewAPI(client), IAM: iam.NewAPI(client), DefaultProjectID: projectID}, nil
+		return &Client{API: applesilicon.NewAPI(client), PN: applesilicon.NewPrivateNetworkAPI(client), IAM: iam.NewAPI(client), DefaultProjectID: projectID}, nil
 	}
 	profile, err := cfg.GetActiveProfile()
 	if err != nil {
@@ -103,7 +113,7 @@ func NewClient() (*Client, error) {
 		return nil, fmt.Errorf("scaleway client: %w", err)
 	}
 	projectID, _ := client.GetDefaultProjectID()
-	return &Client{API: applesilicon.NewAPI(client), IAM: iam.NewAPI(client), DefaultProjectID: projectID}, nil
+	return &Client{API: applesilicon.NewAPI(client), PN: applesilicon.NewPrivateNetworkAPI(client), IAM: iam.NewAPI(client), DefaultProjectID: projectID}, nil
 }
 
 // EnsureSSHKey registers `publicKey` with Scaleway under `name`.
@@ -476,6 +486,60 @@ func (c *Client) GetServer(ctx context.Context, id, zone string) (*Server, error
 // considering a host irrecoverable — clears in-memory PAM lockouts,
 // sshd connection throttling, and other state that survives across
 // failed SSH attempts but not across a clean boot.
+// EnsureServerPrivateNetwork attaches the server to the given Private
+// Network and returns the VLAN ID of the attachment — the per-host
+// value macos-host-bootstrap needs to create the VLAN interface the
+// runner VMs' cache traffic egresses through. Idempotent: enables
+// the server's VPC option if it is still disabled (a no-reboot
+// toggle) and returns the existing attachment's VLAN when already
+// attached. Returns an error while Scaleway has not yet assigned the
+// VLAN (attachment still syncing) so the caller retries on its next
+// reconcile rather than bootstrapping a host without the interface.
+func (c *Client) EnsureServerPrivateNetwork(ctx context.Context, serverID, zone, privateNetworkID string) (uint32, error) {
+	scwZone := scw.Zone(zone)
+
+	server, err := c.API.GetServer(&applesilicon.GetServerRequest{Zone: scwZone, ServerID: serverID}, scw.WithContext(ctx))
+	if err != nil {
+		return 0, fmt.Errorf("get server %s: %w", serverID, err)
+	}
+	if server.VpcStatus == applesilicon.ServerPrivateNetworkStatusVpcDisabled {
+		enable := true
+		if _, err := c.API.UpdateServer(&applesilicon.UpdateServerRequest{Zone: scwZone, ServerID: serverID, EnableVpc: &enable}, scw.WithContext(ctx)); err != nil {
+			return 0, fmt.Errorf("enable vpc on server %s: %w", serverID, err)
+		}
+	}
+
+	list, err := c.PN.ListServerPrivateNetworks(&applesilicon.PrivateNetworkAPIListServerPrivateNetworksRequest{
+		Zone:     scwZone,
+		ServerID: &serverID,
+	}, scw.WithContext(ctx), scw.WithAllPages())
+	if err != nil {
+		return 0, fmt.Errorf("list private networks of server %s: %w", serverID, err)
+	}
+	for _, attachment := range list.ServerPrivateNetworks {
+		if attachment.PrivateNetworkID != privateNetworkID {
+			continue
+		}
+		if attachment.Vlan == nil || *attachment.Vlan == 0 {
+			return 0, fmt.Errorf("server %s attachment to %s has no VLAN yet (status %s)", serverID, privateNetworkID, attachment.Status)
+		}
+		return *attachment.Vlan, nil
+	}
+
+	created, err := c.PN.AddServerPrivateNetwork(&applesilicon.PrivateNetworkAPIAddServerPrivateNetworkRequest{
+		Zone:             scwZone,
+		ServerID:         serverID,
+		PrivateNetworkID: privateNetworkID,
+	}, scw.WithContext(ctx))
+	if err != nil {
+		return 0, fmt.Errorf("attach server %s to private network %s: %w", serverID, privateNetworkID, err)
+	}
+	if created.Vlan == nil || *created.Vlan == 0 {
+		return 0, fmt.Errorf("server %s attachment to %s has no VLAN yet (status %s)", serverID, privateNetworkID, created.Status)
+	}
+	return *created.Vlan, nil
+}
+
 func (c *Client) RebootServer(ctx context.Context, id, zone string) error {
 	_, err := c.API.RebootServer(&applesilicon.RebootServerRequest{
 		ServerID: id,

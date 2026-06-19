@@ -1,0 +1,42 @@
+[agent]
+kind = "opencode"
+model = "fireworks-ai/accounts/fireworks/models/kimi-k2p7-code"
+
+[defaults]
+base = "origin/main"
+max_concurrency = 2
+
+[[skills]]
+name = "swifterpm-swift-review"
+source = "./.blick/skills/swifterpm-swift-review"
+
+[[reviews]]
+name = "swift"
+skills = ["swifterpm-swift-review"]
+include = [
+  "*.swift",
+  "Sources/**/*.swift",
+  "Tests/**/*.swift",
+  "e2e/**/*.swift",
+  "e2e/**/Package.swift",
+  "Package.swift",
+  "Package.resolved",
+  "BUILD.bazel",
+  "MODULE.bazel",
+  "MODULE.bazel.lock",
+  "swifterpm/**/*.bzl",
+  "swifterpm/**/*.bazel",
+  "third_party/nio/Package.swift",
+  "third_party/nio/Package.resolved",
+  "third_party/nio/**/*.swift",
+  ".github/workflows/*.yml",
+]
+
+[learn]
+lookback_days = 7
+min_signal = 3
+team_reviewers = ["tuist/engineering"]
+labels = []
+base = "main"
+draft = true
+branch = "blick/learn"

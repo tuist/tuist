@@ -146,6 +146,20 @@ final class GraphCircularDetectorTests: XCTestCase {
         XCTAssertNoThrow(try subject.complete())
     }
 
+    func test_noCycleDetected_longChainDoesNotRecurse() throws {
+        // Given
+        let nodeCount = 20000
+        let nodes = (0 ..< nodeCount).map { node("\($0)") }
+
+        // When
+        for index in 0 ..< nodeCount - 1 {
+            subject.start(from: nodes[index], to: nodes[index + 1])
+        }
+
+        // Then
+        XCTAssertNoThrow(try subject.complete())
+    }
+
     func test_cycleDetected_detachedGraphs() throws {
         // Given
         let a = node("a")

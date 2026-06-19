@@ -2441,6 +2441,119 @@
         ],
         "title": "Server Regions & Request Traffic",
         "type": "geomap"
+      },
+      {
+        "id": 56,
+        "type": "row",
+        "title": "Node Bandwidth (host NIC)",
+        "collapsed": false,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 125
+        },
+        "panels": []
+      },
+      {
+        "id": 57,
+        "type": "timeseries",
+        "title": "Kura node throughput (rx+tx)",
+        "description": "Total host NIC throughput per kura node. Compare the Scaleway PN node against the Hetzner kura nodes here. Needs node_network_* in hostMetrics (k8s-monitoring).",
+        "datasource": "$datasource",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 126
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "bps",
+            "min": 0,
+            "custom": {
+              "drawStyle": "line",
+              "lineWidth": 1,
+              "fillOpacity": 10,
+              "showPoints": "never",
+              "spanNulls": false,
+              "axisLabel": "bits/sec (rx+tx)"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "bottom",
+            "calcs": [
+              "mean",
+              "max"
+            ]
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": "$datasource",
+            "expr": "(sum by (instance) (rate(node_network_receive_bytes_total{instance=~\".*kura.*\", device=~\"e(n|th).*\"}[$__rate_interval])) + sum by (instance) (rate(node_network_transmit_bytes_total{instance=~\".*kura.*\", device=~\"e(n|th).*\"}[$__rate_interval]))) * 8",
+            "legendFormat": "{{instance}}"
+          }
+        ]
+      },
+      {
+        "id": 58,
+        "type": "timeseries",
+        "title": "Scaleway kura node by interface  (ens6 = PN \u00b7 PRO2-S PN ceiling 1.5 Gbps)",
+        "description": "Scaleway kura runner-cache node throughput split by NIC: ens6 is the Private Network (the runner hot path), ens2 the public IP. The PRO2-S PN allocation is 1.5 Gbps.",
+        "datasource": "$datasource",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 126
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "bps",
+            "min": 0,
+            "custom": {
+              "drawStyle": "line",
+              "lineWidth": 1,
+              "fillOpacity": 10,
+              "showPoints": "never",
+              "spanNulls": false,
+              "axisLabel": "bits/sec (rx+tx)"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "bottom",
+            "calcs": [
+              "mean",
+              "max"
+            ]
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": "$datasource",
+            "expr": "sum by (device) (rate(node_network_receive_bytes_total{instance=~\".*kura-fleet.*\", device=~\"e(n|th).*\"}[$__rate_interval]) + rate(node_network_transmit_bytes_total{instance=~\".*kura-fleet.*\", device=~\"e(n|th).*\"}[$__rate_interval])) * 8",
+            "legendFormat": "{{device}}"
+          }
+        ]
       }
     ],
     "refresh": "",

@@ -1,10 +1,22 @@
 # cluster-api-provider-scaleway-applesilicon
 
-Cluster API infrastructure provider that manages Scaleway Apple
-Silicon Mac minis as Kubernetes nodes. Watches CRs, calls Scaleway's
-API to order machines, SSHes in to bootstrap kubelet + tart-cri,
-waits for `Node.Ready`, surfaces all of it through CAPI's standard
-Machine/MachineDeployment shape.
+Cluster API infrastructure provider that joins Scaleway nodes as
+workers into the existing caph/Hetzner clusters, surfaced through
+CAPI's standard Machine/MachineDeployment shape. It manages two
+machine kinds:
+
+- `ScalewayAppleSiliconMachine` — Mac minis (Tart), SSH-bootstrapped
+  with tart-cri/tart-kubelet.
+- `ScalewayElasticMetalMachine` — Linux bare metal (e.g. the
+  `kura-scw-fr-par` runner-cache node), SSH self-join (Elastic Metal
+  has no user-data channel).
+
+Both order/release via Scaleway's API and bootstrap with an
+operator-minted kubelet identity + SSH self-join, then wait for
+`Node.Ready`. The Elastic Metal kind binds that identity to
+`system:node`; Apple Silicon uses the `tart-kubelet` role. The Elastic
+Metal kind is designed in `docs/scaleway-elastic-metal-support.md`; the
+sections below detail the Apple Silicon kind.
 
 ## CRDs
 
@@ -12,7 +24,8 @@ Machine/MachineDeployment shape.
 |---|---|
 | `ScalewayAppleSiliconMachine` | One Mac mini. Has the Scaleway server type, zone, OS, per-host pod CIDR, fleet name (ties Machines on the same fleet to one shared SSH key), and kubelet version. SSH and bootstrap material are operator-managed — no Secret refs in the spec. |
 | `ScalewayAppleSiliconMachineTemplate` | Template MachineDeployments / MachineSets clone from. |
-| `ScalewayAppleSiliconCluster` | Cluster-level stub (CAPI core requires it for the parent Cluster to validate). Sets `Status.Ready=true` once it exists. |
+| `ScalewayElasticMetalMachine` (+ `…Template`) | One Scaleway Elastic Metal server (Linux bare metal): offer type, zone, OS, PN id, node taints. SSH self-join (no user-data channel); local-NVMe (`scw-local-nvme`) cache. |
+| `ScalewayAppleSiliconCluster` | Cluster-level stub (CAPI core requires it for the parent Cluster to validate). Sets `Status.Ready=true` once it exists. Shared by all machine kinds. |
 
 API group: `infrastructure.cluster.x-k8s.io/v1alpha1`. Short names:
 `samm`, `sammt`, `sasc`.
@@ -133,15 +146,24 @@ Day-1 operator runbook:
    Each env gets its own Scaleway IAM application scoped to that
    cluster's needs; a leaked staging key rotates without disrupting
    production. The IAM policy attached to that application needs
-   exactly two permission sets:
+   these permission sets, all at project scope:
 
-   - `AppleSiliconFullAccess` (project scope) — order/release Mac
-     minis, list server types and OS images.
-   - `SSHKeysFullAccess` (project scope) — register the per-fleet
-     Ed25519 public key the operator generates on first reconcile.
-     **Do not use `IAMManager`** despite the name suggesting it
-     covers SSH keys; Scaleway gates `ssh_key` write under
-     `SSHKeysFullAccess` specifically.
+   - `AppleSiliconFullAccess` — order/release Mac minis, list server
+     types and OS images (the Apple Silicon fleets).
+   - `ElasticMetalFullAccess` — list/order/release Elastic Metal
+     servers (the kura runner-cache fleet). Elastic Metal is a
+     **separate Scaleway product** from Apple Silicon; without this
+     set the EM reconciler 403s on its first `list elastic metal
+     servers` call and never orders a node, so the cache stays down
+     and a deploy waiting on the fleet hangs.
+   - `PrivateNetworksFullAccess` — attach servers to the runner-cache
+     Private Network (find-or-created by name).
+   - `IPAMReadOnly` — read the PN-assigned address the self-join uses.
+   - `SSHKeysFullAccess` — register the per-fleet Ed25519 public key
+     the operator generates on first reconcile. **Do not use
+     `IAMManager`** despite the name suggesting it covers SSH keys;
+     Scaleway gates `ssh_key` write under `SSHKeysFullAccess`
+     specifically.
 
    Each cluster's pre-configured `ClusterSecretStore "onepassword"` is
    already scoped to the right vault, so the chart references the

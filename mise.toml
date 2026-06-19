@@ -1,8 +1,7 @@
 [tools]
     aube = "1.6.2"
-    # Temporarily pinned to 4.192.4 until the SwiftPM deadlock from PR #10729 is released.
-    # See https://github.com/tuist/tuist/issues/10754.
-    tuist = "4.197.1"
+    # Auto-bumped to the latest Tuist CLI release (incl. canary) by the update-tuist-cli workflow.
+    tuist = "4.201.0-canary.13"
     swiftlint = "0.59.1"
     "elixir" = "1.19.5"
     "erlang" = "28.4.3"

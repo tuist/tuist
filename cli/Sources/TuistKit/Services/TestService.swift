@@ -571,6 +571,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 {
                     let shardDestination = try await shardPlanDestination(
                         schemes: schemes,
+                        testPlan: testPlanConfiguration?.testPlan,
                         platform: platform,
                         version: version,
                         deviceName: deviceName,
@@ -699,16 +700,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         await RunMetadataStorage.current.restoreMetadata(from: shard.testProductsPath)
 
-        var shardPassthroughArguments = passthroughXcodeBuildArguments
-        if let xcTestRunPath = shard.xcTestRunPath {
-            shardPassthroughArguments = removeOption("-testProductsPath", from: shardPassthroughArguments)
-            shardPassthroughArguments += ["-xctestrun", xcTestRunPath.pathString]
-        }
-
         let xcodebuildArguments = try await buildTestWithoutBuildingArguments(
             testProductsPath: shard.testProductsPath,
             testTargets: testTargets,
             skipTestTargets: skipTestTargets,
+            shardTestIdentifiers: shard.testIdentifiers,
             testPlanConfiguration: testPlanConfiguration,
             deviceName: deviceName,
             platform: platform,
@@ -716,7 +712,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             rosetta: rosetta,
             resultBundlePath: resultBundlePath,
             derivedDataPath: derivedDataPath,
-            passthroughXcodeBuildArguments: shardPassthroughArguments
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         )
 
         var testError: Error?
@@ -754,9 +750,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             runResultBundlePath: runResultBundlePath,
             resultBundlePath: resultBundlePath
         )
-        if let xcTestRunPath = shard.xcTestRunPath {
-            try? await fileSystem.remove(xcTestRunPath)
-        } else {
+        // Only Tuist-owned products (downloaded or extracted) are cleaned up; user-provided local
+        // products (passed via -testProductsPath) are left in place.
+        if localTestProductsPath == nil {
             try? await fileSystem.remove(shard.testProductsPath)
         }
 
@@ -896,16 +892,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
         AlertController.current.success(.alert("The project tests ran successfully"))
     }
 
-    private func removeOption(_ option: String, from arguments: [String]) -> [String] {
-        guard let index = arguments.firstIndex(of: option) else { return arguments }
-        var result = arguments
-        result.remove(at: index)
-        if result.indices.contains(index) {
-            result.remove(at: index)
-        }
-        return result
-    }
-
     private func testProductsPathFromArguments(_ arguments: [String], relativeTo path: AbsolutePath) -> AbsolutePath? {
         guard let index = arguments.firstIndex(of: "-testProductsPath"),
               arguments.indices.contains(index + 1)
@@ -921,6 +907,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         testProductsPath: AbsolutePath,
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
+        shardTestIdentifiers: [String] = [],
         testPlanConfiguration: TestPlanConfiguration?,
         deviceName: String?,
         platform: String?,
@@ -939,6 +926,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         for testTarget in testTargets {
             arguments += ["-only-testing", testTarget.description]
+        }
+        for shardTestIdentifier in shardTestIdentifiers {
+            arguments += ["-only-testing", shardTestIdentifier]
         }
         for skipTarget in skipTestTargets {
             arguments += ["-skip-testing", skipTarget.description]
@@ -1913,11 +1903,15 @@ public struct TestService { // swiftlint:disable:this type_body_length
         return arguments[valueIndex]
     }
 
-    func inferPlatformDestination(schemes: [Scheme], graphTraverser: GraphTraversing) -> String? {
+    func inferPlatformDestination(
+        schemes: [Scheme],
+        testPlan: String? = nil,
+        graphTraverser: GraphTraversing
+    ) -> String? {
         for scheme in schemes {
             guard let target = buildGraphInspector.testableTarget(
                 scheme: scheme,
-                testPlan: nil,
+                testPlan: testPlan,
                 testTargets: [],
                 skipTestTargets: [],
                 graphTraverser: graphTraverser,
@@ -1933,8 +1927,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
         return nil
     }
 
-    private func shardPlanDestination(
+    func shardPlanDestination(
         schemes: [Scheme],
+        testPlan: String?,
         platform: String?,
         version: Version?,
         deviceName: String?,
@@ -1951,6 +1946,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             let destinationVersion = xcodebuildDestinationParameter("OS", in: explicitDestination)?.version() ?? version
             return await concreteShardPlanDestinationIfAvailable(
                 schemes: schemes,
+                testPlan: testPlan,
                 platform: simulatorPlatform,
                 version: destinationVersion,
                 deviceName: deviceName,
@@ -1962,6 +1958,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             let buildPlatform = try XcodeGraph.Platform.from(commandLineValue: platform)
             return await concreteShardPlanDestinationIfAvailable(
                 schemes: schemes,
+                testPlan: testPlan,
                 platform: buildPlatform,
                 version: version,
                 deviceName: deviceName,
@@ -1969,13 +1966,18 @@ public struct TestService { // swiftlint:disable:this type_body_length
             ) ?? buildPlatform.xcodebuildPlatformDestination
         }
 
-        if let inferredDestination = inferPlatformDestination(schemes: schemes, graphTraverser: graphTraverser) {
+        if let inferredDestination = inferPlatformDestination(
+            schemes: schemes,
+            testPlan: testPlan,
+            graphTraverser: graphTraverser
+        ) {
             guard let inferredPlatform = xcodebuildPlatform(from: inferredDestination) else {
                 return inferredDestination
             }
 
             return await concreteShardPlanDestinationIfAvailable(
                 schemes: schemes,
+                testPlan: testPlan,
                 platform: inferredPlatform,
                 version: version,
                 deviceName: deviceName,
@@ -1988,6 +1990,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
     private func concreteShardPlanDestinationIfAvailable(
         schemes: [Scheme],
+        testPlan: String?,
         platform: XcodeGraph.Platform,
         version: Version?,
         deviceName: String?,
@@ -1996,6 +1999,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         do {
             return try await concreteShardPlanDestination(
                 schemes: schemes,
+                testPlan: testPlan,
                 platform: platform,
                 version: version,
                 deviceName: deviceName,
@@ -2008,6 +2012,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
     private func concreteShardPlanDestination(
         schemes: [Scheme],
+        testPlan: String?,
         platform: XcodeGraph.Platform,
         version: Version?,
         deviceName: String?,
@@ -2016,7 +2021,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         for scheme in schemes {
             guard let target = buildGraphInspector.testableTarget(
                 scheme: scheme,
-                testPlan: nil,
+                testPlan: testPlan,
                 testTargets: [],
                 skipTestTargets: [],
                 graphTraverser: graphTraverser,

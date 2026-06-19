@@ -373,36 +373,6 @@ defmodule TuistWeb.BuildRunLive do
     {:noreply, socket}
   end
 
-  def handle_event(
-        "toggle-expand",
-        %{"row-key" => row_key},
-        %{assigns: %{selected_tab: "module-cache", expanded_target_names: expanded_target_names}} = socket
-      ) do
-    updated_expanded_names =
-      if MapSet.member?(expanded_target_names, row_key) do
-        MapSet.delete(expanded_target_names, row_key)
-      else
-        MapSet.put(expanded_target_names, row_key)
-      end
-
-    {:noreply, assign(socket, :expanded_target_names, updated_expanded_names)}
-  end
-
-  def handle_event(
-        "toggle-expand",
-        %{"row-key" => task_key},
-        %{assigns: %{expanded_task_keys: expanded_task_keys}} = socket
-      ) do
-    updated_expanded_keys =
-      if MapSet.member?(expanded_task_keys, task_key) do
-        MapSet.delete(expanded_task_keys, task_key)
-      else
-        MapSet.put(expanded_task_keys, task_key)
-      end
-
-    {:noreply, assign(socket, :expanded_task_keys, updated_expanded_keys)}
-  end
-
   defp handle_event_xcode(
          "search-cacheable-tasks",
          %{"search" => search},
@@ -846,14 +816,6 @@ defmodule TuistWeb.BuildRunLive do
       end
 
     issue_title(title, issue, run)
-  end
-
-  def sort_icon("desc") do
-    "square_rounded_arrow_down"
-  end
-
-  def sort_icon("asc") do
-    "square_rounded_arrow_up"
   end
 
   def file_breakdown_column_patch_sort(

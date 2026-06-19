@@ -1,0 +1,11 @@
+[tool_alias]
+buck2 = "github:facebook/buck2"
+
+[tools]
+bazel = "8.7.0"
+buck2 = { version = "2026-06-01", version_prefix = "" }
+git-cliff = "2.12.0"
+hyperfine = "1.19.0"
+"1password-cli" = "2.32.0"
+jq = "1.8.1"
+shellspec = "0.28.1"

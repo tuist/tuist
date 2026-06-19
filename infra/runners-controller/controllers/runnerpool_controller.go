@@ -21,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
+	"github.com/tuist/tuist/infra/runners-controller/internal/metrics"
 	"github.com/tuist/tuist/infra/runners-controller/internal/podtemplate"
 )
 
@@ -30,6 +31,17 @@ import (
 // cascade-delete the owned Pods, killing runners mid-job. See
 // reconcileDelete.
 const runnerPoolFinalizer = "tuist.dev/runner-pool-drain"
+
+// drainEligibleLabel marks a stale-image Pod the controller has
+// selected to retire in the current roll wave. The Tuist server 410s a
+// stale Pod only when it carries this label, so the controller — which
+// sees Pod readiness and can bound concurrency — paces the rollout
+// rather than the server draining every stale Pod on the same tick.
+const drainEligibleLabel = "tuist.dev/drain-eligible"
+
+// defaultRollMaxConcurrentPercent applies when a pool omits
+// spec.rollout.maxConcurrentPercent.
+const defaultRollMaxConcurrentPercent = 5
 
 // RunnerPoolReconciler maintains a fleet of runner Pods + per-Pod
 // ServiceAccounts. Pods are owned directly by the RunnerPool (no
@@ -65,11 +77,22 @@ type RunnerPoolReconciler struct {
 	// (with a matching --insecure-registry, since it's http in-cluster).
 	// Empty leaves dockerd pulling docker.io directly.
 	RegistryMirror string
+
+	// ClusterDNSIP / ClusterDomain configure in-VM cluster DNS for
+	// macOS pools: when ClusterDNSIP is set, macOS runner Pods carry
+	// TUIST_CLUSTER_DNS_IP (+ TUIST_CLUSTER_DOMAIN) and
+	// dispatch-poll.sh inside the Tart VM writes an
+	// /etc/resolver/<domain> entry pointing at it, so the
+	// dispatch-provided `cache_endpoint_url`
+	// (`*.svc.cluster.local`) resolves. Linux Pods ride the CNI's
+	// DNS and never need these. Empty disables the env injection.
+	ClusterDNSIP  string
+	ClusterDomain string
 }
 
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;delete
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;patch;delete
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;delete
 
 func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -78,6 +101,10 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	pool := &tuistv1.RunnerPool{}
 	if err := r.Get(ctx, req.NamespacedName, pool); err != nil {
 		if apierrors.IsNotFound(err) {
+			// Pool object is gone — drop its metric series so deleted
+			// pools (including static, non-autoscaling ones the autoscaler
+			// never tracks) stop reporting stale roll/allocation gauges.
+			metrics.Clear(req.Name)
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
@@ -126,59 +153,51 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	alive := 0
 	reaped := 0
-	staleDeleted := 0
+	staleAlive := 0
+	markedStale := 0
+	newNotReady := 0
 	var idleAlive []*corev1.Pod
+	// Stale idle Pods are retired under the roll cap (below), not all at
+	// once: Running ones (macOS) get the drain-eligible label so the
+	// server 410s them; Pending ones (Linux warm pollers, or macOS that
+	// rolled mid-boot) are reaped directly. Both share one budget so a
+	// digest roll can't make the whole fleet pull the new image at once.
+	var drainCandidates []*corev1.Pod
+	var stalePendingCandidates []*corev1.Pod
 	for i := range pods.Items {
 		p := &pods.Items[i]
-
-		// Drop stale, idle Pending Pods immediately so the gap-fill
-		// below can create replacements on the current spec.image.
-		// Stale here means the Pod's image differs from the
-		// RunnerPool's, which happens whenever `runnerImage` in the
-		// chart rolls to a new digest. Pending is the safe phase to
-		// delete: the runner isn't running a customer job yet.
-		//
-		// The `isIdle` guard matters because of the Linux
-		// token-isolation Pod shape: the poller runs as an init
-		// container, so a warm-standby Pod sits in Pending (not
-		// Running) for its whole pre-claim life, and a just-claimed
-		// Pod is also briefly Pending while the poller init exits and
-		// the runner main container starts. `isIdle` treats both the
-		// `runner-pool-owner` label and a terminated poller as
-		// "claimed" (see its doc), so an image roll that races a
-		// claim won't reap a Pod mid-job even if the best-effort
-		// label stamp hasn't landed. macOS warm Pods are Running
-		// (tart-kubelet), so this path only ever matched idle Pods
-		// for them anyway.
-		//
-		// Idle Running stale Pods (macOS) are instead picked up by
-		// the server-side drain signal in
-		// Tuist.Runners.dispatch_for_sa: on the next idle poll, the
-		// server compares the Pod's image to the RunnerPool's and
-		// returns HTTP 410, which the dispatch-poll script treats as
-		// a clean exit. The reap path then replaces the Pod with a
-		// current-image one. In-flight customer jobs aren't disrupted
-		// because the 410 check fires only on idle polls (before
-		// claim).
-		if isAlive(p) && p.Status.Phase == corev1.PodPending && isIdle(p) && isStaleImage(p, pool) {
-			// Reuse the reap path so the sibling SA goes with the
-			// Pod. Pod and SA are owned by the RunnerPool as
-			// siblings (not parent/child), so deleting the Pod
-			// alone leaves the SA behind to accumulate on every
-			// image roll.
-			if err := r.reapRunner(ctx, p); err != nil {
-				logger.Error(err, "delete stale pending pod; will retry", "pod", p.Name)
-				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
-			}
-			staleDeleted++
-			continue
-		}
 
 		switch {
 		case isAlive(p):
 			alive++
-			if isIdle(p) {
-				idleAlive = append(idleAlive, p)
+			switch {
+			case isStaleImage(p, pool):
+				staleAlive++
+				if p.Labels[drainEligibleLabel] == "true" {
+					markedStale++
+				} else if isIdle(p) {
+					// Pending stale idle Pods (Linux warm pollers, macOS
+					// rolled mid-boot) are reaped directly; Running ones
+					// (macOS warm) get the drain-eligible label for the
+					// server to 410. Both retire under the shared roll cap.
+					if p.Status.Phase == corev1.PodPending {
+						stalePendingCandidates = append(stalePendingCandidates, p)
+					} else {
+						drainCandidates = append(drainCandidates, p)
+					}
+				}
+			default:
+				// Current-image Pod. Idle ones are scale-down candidates;
+				// not-yet-Ready ones are booting (a roll's replacement when
+				// one is active) and consume roll-concurrency budget. Stale
+				// Pods are excluded from idleAlive on purpose — they're
+				// retired by the roll throttle, not scale-down.
+				if isIdle(p) {
+					idleAlive = append(idleAlive, p)
+				}
+				if !isReady(p) {
+					newNotReady++
+				}
 			}
 		case p.DeletionTimestamp.IsZero():
 			// Terminal Pod (Succeeded/Failed) with no deletion in
@@ -216,6 +235,48 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 	}
 
+	// Image-roll throttle (runs before the gap-fill so a reaped Pending
+	// Pod's current-image replacement is created this same reconcile).
+	// Retire stale Pods up to a concurrency cap so a digest roll doesn't
+	// make the whole fleet `tart pull` the new ~tens-of-GB image at once
+	// and collapse the warm pool. In-flight = stale Pods already committed
+	// to drain, plus — while a roll is active — current-image Pods not yet
+	// Ready (booting replacements); we retire more only as those reach
+	// Ready. Both paths share the budget: reap idle Pending Pods directly,
+	// mark idle Running Pods drain-eligible for the server to 410.
+	// Best-effort: a failed reap/patch just retries next tick.
+	rollPct := int32(defaultRollMaxConcurrentPercent)
+	if pool.Spec.Rollout != nil && pool.Spec.Rollout.MaxConcurrentPercent > 0 {
+		rollPct = pool.Spec.Rollout.MaxConcurrentPercent
+	}
+	capN := rollConcurrencyCap(pool.Spec.Replicas, rollPct)
+	rolling := markedStale
+	if staleAlive > 0 {
+		rolling += newNotReady
+	}
+	for _, p := range stalePendingCandidates {
+		if rolling >= capN {
+			break
+		}
+		if err := r.reapRunner(ctx, p); err != nil {
+			logger.Error(err, "reap stale pending pod; will retry next tick", "pod", p.Name)
+			continue
+		}
+		alive--
+		rolling++
+	}
+	for _, p := range drainCandidates {
+		if rolling >= capN {
+			break
+		}
+		if err := r.markDrainEligible(ctx, p); err != nil {
+			logger.Error(err, "mark drain-eligible; will retry next tick", "pod", p.Name)
+			continue
+		}
+		rolling++
+	}
+	metrics.RecordRoll(pool.Name, rolling, staleAlive, capN)
+
 	gap := int(pool.Spec.Replicas) - alive
 	overflow := 0
 	if gap < 0 {
@@ -227,7 +288,6 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		"target", pool.Spec.Replicas,
 		"observed", alive,
 		"reaped", reaped,
-		"staleDeleted", staleDeleted,
 		"gap", gap,
 		"overflow", overflow,
 		"idleAlive", len(idleAlive),
@@ -348,7 +408,7 @@ func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.R
 		return fmt.Errorf("create sa: %w", err)
 	}
 
-	pod, err := podtemplate.Build(pool, name, name, r.DispatchURL, r.DispatchInternalURL, r.DindImage, r.RegistryMirror)
+	pod, err := podtemplate.Build(pool, name, name, r.DispatchURL, r.DispatchInternalURL, r.DindImage, r.RegistryMirror, r.ClusterDNSIP, r.ClusterDomain)
 	if err != nil {
 		return fmt.Errorf("build pod: %w", err)
 	}
@@ -484,6 +544,48 @@ func isStaleImage(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
 		return false
 	}
 	return pod.Spec.Containers[0].Image != pool.Spec.Image
+}
+
+// isReady reports whether the Pod's Ready condition is True. macOS Pods
+// have no per-container readiness (tart-kubelet runs the VM as one
+// opaque unit), but tart-kubelet sets the PodReady condition once the
+// guest has an IP — so this works for both runtimes.
+func isReady(pod *corev1.Pod) bool {
+	for _, c := range pod.Status.Conditions {
+		if c.Type == corev1.PodReady {
+			return c.Status == corev1.ConditionTrue
+		}
+	}
+	return false
+}
+
+// rollConcurrencyCap is max(1, floor(pct/100 * replicas)): at least one
+// Pod may always roll (so a rollout never wedges), at most ~pct% of the
+// pool mid-roll at once.
+func rollConcurrencyCap(replicas, pct int32) int {
+	if replicas <= 0 || pct <= 0 {
+		return 1
+	}
+	n := int(replicas) * int(pct) / 100
+	if n < 1 {
+		return 1
+	}
+	return n
+}
+
+// markDrainEligible stamps drainEligibleLabel on a stale Pod so the
+// server will 410-drain it. Idempotent; a merge patch avoids clobbering
+// concurrent label writes (e.g. the server's owner stamp).
+func (r *RunnerPoolReconciler) markDrainEligible(ctx context.Context, pod *corev1.Pod) error {
+	if pod.Labels[drainEligibleLabel] == "true" {
+		return nil
+	}
+	patch := client.MergeFrom(pod.DeepCopy())
+	if pod.Labels == nil {
+		pod.Labels = map[string]string{}
+	}
+	pod.Labels[drainEligibleLabel] = "true"
+	return r.Patch(ctx, pod, patch)
 }
 
 // runnerLabelPredicate filters the Pod watch down to Pods carrying

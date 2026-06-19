@@ -26,7 +26,7 @@ defaults:
     working-directory: kura
 
 env:
-  MISE_VERSION: "2026.4.18"
+  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
 
 jobs:
@@ -194,16 +194,22 @@ jobs:
             specs: "spec/e2e/extension_spec.sh spec/e2e/mtls_spec.sh"
           - shard_name: large-artifact
             specs: "spec/e2e/large_artifact_spec.sh"
+          - shard_name: gateway-throughput
+            specs: "spec/e2e/grpc_upload_throughput_spec.sh"
+            throughput: "1"
     env:
       KURA_E2E_SKIP_BUILD: "1"
+      # Empty on normal shards; "1" opts the gateway-throughput spec in (it
+      # otherwise skips). Only that shard lists the throughput spec.
+      KURA_E2E_THROUGHPUT: ${{ matrix.throughput || '' }}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise-install
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "rust shellspec bazel aqua:facebook/buck2"
-          working_directory: kura
+          install: "rust shellspec bazel aqua:facebook/buck2"
+          working-directory: kura
 
       - name: Show Docker tooling
         run: docker compose version
@@ -223,6 +229,10 @@ jobs:
               docker tag "kura-${service}" "${project}-${service}"
             done
           done
+          # The gateway-throughput harness defaults to image kura:e2e; reuse the
+          # CI-built kura so it runs against the CI version and never rebuilds
+          # from source. Harmless extra tag for the other shards.
+          docker tag kura-kura-us kura:e2e
 
       - name: Run end-to-end suite
         run: shellspec ${{ matrix.specs }}

@@ -239,11 +239,49 @@ carries `username`, `password`, `uri`, `jdbc-uri`, `host`, `port`,
 {{- printf "%s-pooler-rw" (include "tuist.cnpgClusterName" .) -}}
 {{- end -}}
 
+{{- define "tuist.externalPostgresqlHostEnv" -}}
+TUIST_POSTGRESQL_HOST
+{{- end -}}
+
+{{- define "tuist.externalPostgresqlUsernameEnv" -}}
+TUIST_POSTGRESQL_USERNAME
+{{- end -}}
+
+{{- define "tuist.externalPostgresqlPasswordEnv" -}}
+TUIST_POSTGRESQL_PASSWORD
+{{- end -}}
+
+{{- define "tuist.externalPostgresqlSecretEnv" -}}
+{{- if and (eq .Values.postgresql.mode "external") .Values.postgresql.external.existingSecret -}}
+{{- $secretName := .Values.postgresql.external.existingSecret -}}
+{{- $keys := .Values.postgresql.external.existingSecretKeys | default dict -}}
+- name: {{ include "tuist.externalPostgresqlHostEnv" . }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secretName | quote }}
+      key: {{ required "postgresql.external.existingSecretKeys.host is required when postgresql.external.existingSecret is set" $keys.host | quote }}
+- name: {{ include "tuist.externalPostgresqlUsernameEnv" . }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secretName | quote }}
+      key: {{ required "postgresql.external.existingSecretKeys.username is required when postgresql.external.existingSecret is set" $keys.username | quote }}
+- name: {{ include "tuist.externalPostgresqlPasswordEnv" . }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secretName | quote }}
+      key: {{ required "postgresql.external.existingSecretKeys.password is required when postgresql.external.existingSecret is set" $keys.password | quote }}
+{{- end -}}
+{{- end -}}
+
 {{- define "tuist.databaseUrl" -}}
 {{- if eq .Values.postgresql.mode "embedded" -}}
 ecto://{{ .Values.postgresql.embedded.username }}:{{ .Values.postgresql.embedded.password }}@{{ include "tuist.componentName" (dict "root" . "component" "postgresql") }}:5432/{{ .Values.postgresql.embedded.database }}
 {{- else if eq .Values.postgresql.mode "external" -}}
+{{- if .Values.postgresql.external.existingSecret -}}
+ecto://$({{ include "tuist.externalPostgresqlUsernameEnv" . }}):$({{ include "tuist.externalPostgresqlPasswordEnv" . }})@$({{ include "tuist.externalPostgresqlHostEnv" . }}):{{ .Values.postgresql.external.port }}/{{ .Values.postgresql.external.database }}
+{{- else -}}
 ecto://{{ .Values.postgresql.external.username }}:{{ .Values.postgresql.external.password }}@{{ .Values.postgresql.external.host }}:{{ .Values.postgresql.external.port }}/{{ .Values.postgresql.external.database }}
+{{- end -}}
 {{- else if eq .Values.postgresql.mode "cnpg" -}}
 {{- fail "tuist.databaseUrl is not literal under postgresql.mode=cnpg — wire DATABASE_URL from the CNPG-generated Secret via envFrom or secretKeyRef instead." -}}
 {{- end -}}
@@ -254,8 +292,12 @@ ecto://{{ .Values.postgresql.external.username }}:{{ .Values.postgresql.external
 {{ include "tuist.componentName" (dict "root" . "component" "postgresql") }}
 {{- else if eq .Values.postgresql.mode "cnpg" -}}
 {{ include "tuist.cnpgServiceRW" . }}
+{{- else if eq .Values.postgresql.mode "external" -}}
+{{- if .Values.postgresql.external.existingSecret -}}
+$({{ include "tuist.externalPostgresqlHostEnv" . }})
 {{- else -}}
 {{- .Values.postgresql.external.host -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 
@@ -284,8 +326,12 @@ ecto://{{ .Values.postgresql.external.username }}:{{ .Values.postgresql.external
 {{- .Values.postgresql.embedded.username -}}
 {{- else if eq .Values.postgresql.mode "cnpg" -}}
 {{- .Values.postgresql.cnpg.owner -}}
+{{- else if eq .Values.postgresql.mode "external" -}}
+{{- if .Values.postgresql.external.existingSecret -}}
+$({{ include "tuist.externalPostgresqlUsernameEnv" . }})
 {{- else -}}
 {{- .Values.postgresql.external.username -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 
@@ -300,6 +346,8 @@ http://{{ include "tuist.componentName" (dict "root" . "component" "clickhouse")
 {{- define "tuist.clickhouseReadyUrl" -}}
 {{- if eq .Values.clickhouse.mode "embedded" -}}
 http://{{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }}:8123/ping
+{{- else if .Values.clickhouse.external.pingUrl -}}
+{{- .Values.clickhouse.external.pingUrl -}}
 {{- else -}}
 {{- .Values.clickhouse.external.url -}}
 {{- end -}}

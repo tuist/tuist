@@ -547,6 +547,36 @@ capi:
         name: onepassword
         kind: ClusterSecretStore
 
+# Kura runner-cache fleet — declarative Scaleway node co-located with the
+# Mac fleet. Off by default; managed envs that run the runner cache enable
+# it and set the PN id. Scale with
+# `kubectl scale machinedeployment <name> --replicas=N`.
+kuraFleet:
+  enabled: false
+  replicas: 1
+  # Propagated to the Node as node.cluster.x-k8s.io/pool; the runner-cache
+  # region's nodeSelector pins the cache pods here.
+  nodePool: kura-scw-fr-par
+  # Kubernetes apt repo minor (pkgs.k8s.io channel) + the joined kubelet
+  # version. Keep both in step with the cluster's control-plane version.
+  kubernetesMinorVersion: "v1.34"
+  kubernetesVersion: "v1.34.8"
+  machine:
+    # The Scaleway Elastic Metal offer for the runner-cache node: a bare-metal
+    # server with a 10G+ PN NIC and local NVMe. EM-B220E-NVME is the benchmarked
+    # staging/canary shape; production uses EM-I220E-NVME.
+    offerType: EM-B220E-NVME
+    zone: fr-par-1
+    # Elastic Metal OS install label.
+    os: ubuntu_noble
+    # The VPC Private Network the node attaches to (the runner-cache PN shared
+    # with the Mac fleet). Declared by name + CIDR, not a UUID: the operator
+    # finds the PN by name in the env's Scaleway project and creates it from the
+    # CIDR if it doesn't exist. The name is shared across envs (each lives in its
+    # own project, so there's no collision).
+    privateNetworkName: tuist-runner-cache
+    privateNetworkCIDR: 172.16.0.0/22
+
 # Scaling: `kubectl scale machinedeployment <name> --replicas=N`.
 macosFleet:
   enabled: false
@@ -680,6 +710,19 @@ macosFleet:
     # load-bearing rather than auth-key-shape-derived. See
     # infra/tailscale/acls.json for the full taxonomy.
     tags: []
+    # `tailscale up --accept-routes` on every Mac mini: installs the
+    # subnet routes the env's cluster-side Connector advertises into
+    # the tailnet (the cluster's Service CIDR — see the
+    # infra/helm/tailscale-operator wrapper chart). This is the route
+    # half of the macOS runner-cache path: a host route via the
+    # tailnet is a Tart-VM route, because vmnet NATs VM egress
+    # through the host's routing table. Enable per env ONLY when that
+    # env's Connector is the single advertiser of the Service CIDR on
+    # the shared tailnet (all envs use 10.128.0.0/12, so two
+    # advertisers would route ambiguously — today staging is the only
+    # one). Pair with `vmClusterEgress` below, or the VMs' packets
+    # will route but the pf firewall will still drop them.
+    acceptRoutes: false
     # Name of the Secret with key `auth-key` holding the Tailscale
     # pre-auth key. ESO populates it from 1Password by default; set
     # to a manually-created Secret name to opt out.
@@ -722,6 +765,39 @@ macosFleet:
     # device, e.g. `taild6d7bb.ts.net`. Per-env overlays set the
     # actual value.
     magicDNSSuffix: ""
+  # Runner-cache carve-out in the Mac minis' VM egress firewall
+  # (infra/macos-host-bootstrap installVMEgressFirewall). By default
+  # Tart VMs are blocked from all RFC1918 destinations; these knobs
+  # open exactly the in-cluster Kura cache path:
+  #   kuraServiceCIDR — the cluster's Service CIDR
+  #     (infra/k8s/clusters/cluster-<env>.yaml,
+  #     .spec.clusterNetwork.services; 10.128.0.0/12 in managed
+  #     envs), reachable on TCP 4000 (Kura cache HTTP) + 50051
+  #     (gRPC). Mirrors the Linux runner namespace's NetworkPolicy
+  #     egress carve-out; per-account isolation stays at Kura's
+  #     app layer (JWT tenant check), same as for Linux runners.
+  #   clusterDNSIP — kube-dns's ClusterIP (`kubectl -n kube-system
+  #     get svc kube-dns`; 10.128.0.10 in managed envs), reachable
+  #     on 53 so the runner VM's /etc/resolver entry can resolve
+  #     `*.svc.cluster.local` names.
+  # Both empty (the default) keeps the firewall a pure blocklist.
+  # Only useful together with `tailscale.acceptRoutes` above and the
+  # runnersController.clusterDNS knobs that hand the VM its resolver
+  # config.
+  vmClusterEgress:
+    kuraServiceCIDR: ""
+    clusterDNSIP: ""
+  # Scaleway Private Network for the kura runner-cache node-port data
+  # plane (per-account NodePorts on the kura-scw-fr-par pool). Both
+  # fields required to enable. name is the same PN the kura fleet
+  # attaches to (kuraFleet.machine.privateNetworkName), so the minis
+  # and the cache node share one PN per env; the operator resolves it
+  # to an ID, creating it from cidr if absent. The operator's IAM
+  # principal needs Apple Silicon Private Networks permissions to
+  # attach minis.
+  vmCachePrivateNetwork:
+    name: ""
+    cidr: ""
   machine:
     # M2-L (M2 Pro chip, 12 vCPU, 32 GB RAM) is our default SKU:
     # it has the most reliable inventory in fr-par-1 and the
@@ -1147,6 +1223,20 @@ runnersController:
     repository: ghcr.io/tuist/tuist-runners-controller
     tag: ""
     pullPolicy: IfNotPresent
+  # In-VM cluster DNS for macOS pools (the runner-cache path). When
+  # `ip` is set, macOS runner Pods carry TUIST_CLUSTER_DNS_IP /
+  # TUIST_CLUSTER_DOMAIN and the Tart VM's dispatch-poll.sh writes an
+  # /etc/resolver/<domain> entry from them, so the dispatch-provided
+  # `cache_endpoint_url` (`*.svc.cluster.local`) resolves inside the
+  # VM. Set `ip` to kube-dns's ClusterIP (`kubectl -n kube-system get
+  # svc kube-dns`; 10.128.0.10 in managed envs). Only meaningful
+  # together with the macosFleet.tailscale.acceptRoutes +
+  # macosFleet.vmClusterEgress route/firewall halves; empty (default)
+  # skips the env injection. Linux pools always use the CNI's DNS and
+  # ignore these.
+  clusterDNS:
+    ip: ""
+    domain: "cluster.local"
   # OCI ref of the dockerd sidecar stamped on every Linux runner
   # Pod (`docker:dind`). Required for any `runnersFleetLinux` pool;
   # empty disables the sidecar so Pods come up with no `DOCKER_HOST`.
@@ -1346,6 +1436,17 @@ postgresql:
     database: tuist
     username: tuist
     password: tuist
+    # Name of an existing Kubernetes Secret containing the external
+    # Postgres connection values. When set, server and migration pods
+    # read host, username, and password from this Secret and compose
+    # DATABASE_URL through Kubernetes env-var substitution so the password
+    # is not rendered into the Helm manifest. `port` and `database` remain
+    # chart values. Leave empty to keep the legacy literal DATABASE_URL path.
+    existingSecret: ""
+    existingSecretKeys:
+      host: host
+      username: username
+      password: password
   embedded:
     image:
       repository: postgres
@@ -1466,6 +1567,14 @@ postgresql:
     # annotation-emit support on the instance Pods (it doesn't today).
     monitoring:
       enablePodMonitor: false
+    # Per-query latency observability. When enabled, the chart renders a
+    # custom CNPG monitoring query over pg_stat_statements
+    # (cnpg_tuist_query_stats_*) for the dashboard's query-latency panels.
+    # Requires `pg_stat_statements` in sharedPreloadLibraries above and the
+    # extension created once via infra/cnpg/pg-stat-statements.sql. Off by
+    # default (local/preview clusters do not preload the library).
+    queryStats:
+      enabled: false
     roles:
       # Least-privilege Oban-queue consumer. CNPG creates the role;
       # per-table GRANTs run via the bootstrap SQL in
@@ -1516,6 +1625,11 @@ clickhouse:
   mode: embedded
   external:
     url: ""
+    # Optional separate URL for the readiness probe ping check.
+    # When external.url includes a database path (e.g. http://user@host:8123/db),
+    # the /ping endpoint returns 404. Set this to http://<host>:8123/ping to use
+    # a dedicated health-check URL instead.
+    pingUrl: ""
   embedded:
     image:
       repository: clickhouse/clickhouse-server
@@ -1668,4 +1782,3 @@ observability:
       accessModes:
         - ReadWriteOnce
       size: 20Gi
-

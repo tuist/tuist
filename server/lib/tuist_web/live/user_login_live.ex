@@ -6,6 +6,7 @@ defmodule TuistWeb.UserLoginLive do
   import TuistWeb.AppAuthComponents
 
   alias Phoenix.Flash
+  alias Tuist.Accounts
   alias Tuist.Environment
 
   def mount(_params, _session, socket) do
@@ -16,10 +17,11 @@ defmodule TuistWeb.UserLoginLive do
       socket
       |> assign(:head_title, "#{dgettext("dashboard_auth", "Log in")} · Tuist")
       |> assign(:form, form)
-      |> assign(:github_configured?, Environment.github_oauth_configured?())
+      |> assign(:github_configured?, Environment.github_oauth_configured?() and Environment.github_auth_enabled?())
       |> assign(:google_configured?, Environment.google_oauth_configured?())
       |> assign(:okta_configured?, Environment.okta_oauth_configured?())
       |> assign(:apple_configured?, Environment.apple_oauth_configured?())
+      |> assign(:sso_configured?, Accounts.sso_configured?())
       |> assign(:tuist_hosted?, Environment.tuist_hosted?())
       |> assign(:dev?, Environment.dev?())
 
@@ -50,7 +52,7 @@ defmodule TuistWeb.UserLoginLive do
               {dgettext("dashboard_auth", "Welcome back! Please log in to continue")}
             </span>
           </div>
-          <div :if={oauth_configured?()} data-part="oauth-providers">
+          <div :if={oauth_configured?(assigns)} data-part="oauth-providers">
             <div
               :if={social_oauth_configured?(assigns)}
               data-part="oauth"
@@ -96,7 +98,7 @@ defmodule TuistWeb.UserLoginLive do
                 </:icon_left>
               </.button>
             </div>
-            <div :if={@okta_configured? or @tuist_hosted?} data-part="sso">
+            <div :if={sso_login_available?(assigns)} data-part="sso">
               <.button
                 href={~p"/users/log_in/sso"}
                 variant="secondary"
@@ -109,7 +111,7 @@ defmodule TuistWeb.UserLoginLive do
               </.button>
             </div>
           </div>
-          <.line_divider :if={oauth_configured?()} text="OR" />
+          <.line_divider :if={oauth_configured?(assigns)} text="OR" />
           <.alert
             :if={Flash.get(@flash, :info)}
             id="flash"
@@ -218,10 +220,12 @@ defmodule TuistWeb.UserLoginLive do
     """
   end
 
-  defp oauth_configured? do
-    Environment.github_oauth_configured?() || Environment.google_oauth_configured?() ||
-      Environment.okta_oauth_configured?() || Environment.apple_oauth_configured?() ||
-      Environment.tuist_hosted?()
+  defp oauth_configured?(assigns) do
+    social_oauth_configured?(assigns) or sso_login_available?(assigns)
+  end
+
+  defp sso_login_available?(assigns) do
+    assigns.okta_configured? or assigns.tuist_hosted? or assigns.sso_configured?
   end
 
   defp social_oauth_configured?(assigns) do

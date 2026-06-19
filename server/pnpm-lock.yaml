@@ -9,7 +9,7 @@ overrides:
   ajv: 8.18.0
   axios: 1.16.0
   defu: 6.1.5
-  dompurify: 3.4.10
+  dompurify: 3.4.11
   fast-uri: 3.1.2
   flatted: 3.4.2
   follow-redirects: 1.16.0
@@ -27,7 +27,7 @@ time:
   '@protobufjs/fetch@1.1.1': 2026-05-17T12:41:02.731Z
   '@protobufjs/utf8@1.1.1': 2026-04-27T20:31:28.490Z
   axios@1.16.0: 2026-05-02T15:04:00.274Z
-  dompurify@3.4.10: 2026-06-12T12:49:46.101Z
+  dompurify@3.4.11: 2026-06-17T10:33:28.065Z
   fast-uri@3.1.2: 2026-05-05T08:31:31.849Z
   form-data@4.0.6: 2026-06-12T17:37:53.689Z
   hasown@2.0.4: 2026-05-28T18:11:39.940Z
@@ -702,8 +702,8 @@ packages:
   devlop@1.1.0:
     resolution: {integrity: sha512-RWmIqhcFf1lRYBvNmr7qTNuyCt/7/ns2jbpp1+PalgE/rDQcBT0fioSMUpJ93irlUhC5hrg4cYqe6U+0ImW0rA==}
 
-  dompurify@3.4.10:
-    resolution: {integrity: sha512-0xzNv0e7oYC6yyuOGZIABPM4qtg3QxLFniDNPP4ZP90wR8Yq3zgwpRbrNiT4N3IKqDbbYFEJLV+JWEs19aZ//w==}
+  dompurify@3.4.11:
+    resolution: {integrity: sha512-zhlUV12GsaRzMsf9q5M254YhA4+VuF0fG+QFqu6aYpoGlKtz+w8//jBcGVYBgQkR5GHjUomejY84AV+/uPbWdw==}
 
   dunder-proto@1.0.1:
     resolution: {integrity: sha512-KIN/nDJBQRcXw0MLVhZE9iQHmG68qAVIBg9CqmUYjmQIhgij9U5MFvrqkUL5FbtyyzZuOeOt0zdeRe4UY7ct+A==}
@@ -2441,7 +2441,7 @@ snapshots:
     dependencies:
       dequal: 2.0.3
 
-  dompurify@3.4.10:
+  dompurify@3.4.11:
     optionalDependencies:
       '@types/trusted-types': 2.0.7
 
@@ -3071,7 +3071,7 @@ snapshots:
 
   monaco-editor@0.54.0:
     dependencies:
-      dompurify: 3.4.10
+      dompurify: 3.4.11
       marked: 14.0.0
 
   monaco-languageserver-types@0.4.0:
@@ -3159,7 +3159,7 @@ snapshots:
       '@posthog/core': 1.24.1
       '@posthog/types': 1.363.2
       core-js: 3.49.0
-      dompurify: 3.4.10
+      dompurify: 3.4.11
       fflate: 0.4.8
       preact: 10.29.0
       query-selector-shadow-dom: 1.0.1

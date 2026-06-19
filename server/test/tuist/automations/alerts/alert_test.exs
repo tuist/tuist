@@ -435,6 +435,37 @@ defmodule Tuist.Automations.Alerts.AlertTest do
     end
   end
 
+  describe "cadence validation" do
+    test "accepts cadences at or under one hour" do
+      project = ProjectsFixtures.project_fixture()
+
+      for cadence <- ["30s", "5m", "60m", "1h"] do
+        changeset = Alert.changeset(%Alert{}, valid_attrs(project, %{"cadence" => cadence}))
+        assert changeset.valid?, "expected #{cadence} to be valid"
+      end
+    end
+
+    test "rejects cadences over one hour" do
+      project = ProjectsFixtures.project_fixture()
+
+      for cadence <- ["90m", "2h", "24h"] do
+        changeset = Alert.changeset(%Alert{}, valid_attrs(project, %{"cadence" => cadence}))
+        refute changeset.valid?, "expected #{cadence} to be rejected"
+        assert errors_on(changeset).cadence
+      end
+    end
+
+    test "rejects malformed cadences" do
+      project = ProjectsFixtures.project_fixture()
+
+      for cadence <- ["abc", "5", "5d"] do
+        changeset = Alert.changeset(%Alert{}, valid_attrs(project, %{"cadence" => cadence}))
+        refute changeset.valid?, "expected #{inspect(cadence)} to be rejected"
+        assert errors_on(changeset).cadence
+      end
+    end
+  end
+
   describe "trigger_actions validation" do
     test "accepts a change_state action with valid state" do
       project = ProjectsFixtures.project_fixture()

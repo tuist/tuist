@@ -321,7 +321,7 @@
             :let={job}
             label={dgettext("dashboard_runners", "Job")}
             patch={TuistWeb.RunnerWorkflowLive.column_sort_patch(assigns, "job")}
-            icon={@sort_by == "job" && TuistWeb.RunnerWorkflowLive.sort_icon(@sort_order)}
+            sort_order={@sort_by == "job" && @sort_order}
           >
             <.text_cell label={if(job.job_name == "", do: "–", else: job.job_name)} />
           </:col>
@@ -354,7 +354,7 @@
             :let={job}
             label={dgettext("dashboard_runners", "Duration")}
             patch={TuistWeb.RunnerWorkflowLive.column_sort_patch(assigns, "duration")}
-            icon={@sort_by == "duration" && TuistWeb.RunnerWorkflowLive.sort_icon(@sort_order)}
+            sort_order={@sort_by == "duration" && @sort_order}
           >
             <.text_cell
               icon="history"
@@ -369,7 +369,7 @@
             :let={job}
             label={dgettext("dashboard_runners", "Enqueued at")}
             patch={TuistWeb.RunnerWorkflowLive.column_sort_patch(assigns, "enqueued")}
-            icon={@sort_by == "enqueued" && TuistWeb.RunnerWorkflowLive.sort_icon(@sort_order)}
+            sort_order={@sort_by == "enqueued" && @sort_order}
           >
             <.text_cell label={Tuist.Utilities.DateFormatter.from_now(job.enqueued_at)} />
           </:col>

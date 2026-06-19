@@ -791,6 +791,23 @@ defmodule TuistWeb.AuthControllerTest do
       assert get_session(conn, :pending_oauth_signup)
     end
 
+    test "rejects the GitHub callback when GitHub auth is disabled", %{conn: conn} do
+      stub(Tuist.Environment, :github_auth_enabled?, fn -> false end)
+
+      auth = %Ueberauth.Auth{
+        provider: :github,
+        uid: "github-uid-123",
+        info: %Info{email: "github-user@example.com"},
+        extra: %{raw_info: %{user: %{}}}
+      }
+
+      conn = conn |> init_test_session(%{}) |> assign(:ueberauth_auth, auth)
+
+      assert_raise TuistWeb.Errors.NotFoundError, fn ->
+        TuistWeb.AuthController.callback(conn, %{})
+      end
+    end
+
     test "logs in existing OAuth user directly", %{conn: conn} do
       # Given: A user with an existing OAuth identity
       user = AccountsFixtures.user_fixture(email: "oauth-user@example.com")

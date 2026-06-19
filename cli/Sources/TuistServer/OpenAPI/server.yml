@@ -1156,6 +1156,11 @@ components:
           type: array
           x-struct:
           x-validate:
+        generation_id:
+          description: The command event id of the `tuist generate` whose graph backs this build's module cache breakdown. Stamped from the last generation of the project.
+          type: string
+          x-struct:
+          x-validate:
         git_branch:
           description: The git branch.
           type: string
@@ -1867,6 +1872,8 @@ components:
                     - ci
                     - mcp
                     - account:scim:write
+                    - account:cache:read
+                    - account:cache:write
                     - account:members:read
                     - account:members:write
                     - account:registry:read
@@ -2006,7 +2013,7 @@ components:
       x-struct: Elixir.TuistWeb.API.Schemas.CommandEventArtifact
       x-validate:
     WebhookPreviewCreatedEvent:
-      description: Fires when a new preview is created in the account (once the app build has finished uploading). The `object` is a snapshot of the newly-created preview.
+      description: Fires when a new preview row is created in the account. The `object` is a snapshot of the newly-created preview.
       properties:
         created:
           description: Unix timestamp (seconds) at which Tuist enqueued the delivery.
@@ -2317,6 +2324,32 @@ components:
         - test_case_run_id
         - file_name
       title: TestCaseRunAttachmentParams
+      type: object
+      x-struct:
+      x-validate:
+    CacheAccess:
+      description: Account-scoped and project-scoped cache access handles
+      properties:
+        accounts:
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+        projects:
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - accounts
+        - projects
+      title: CacheAccess
       type: object
       x-struct:
       x-validate:
@@ -5906,7 +5939,7 @@ components:
         scopes:
           description: The scopes for the new account token.
           example:
-            - project:cache:read
+            - account:cache:write
             - project:builds:write
           items:
             description: A scope string in format entity:object:access_level.
@@ -5914,6 +5947,8 @@ components:
               - ci
               - mcp
               - account:scim:write
+              - account:cache:read
+              - account:cache:write
               - account:members:read
               - account:members:write
               - account:registry:read
@@ -6150,6 +6185,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The multipart upload is no longer active
       summary: It completes a multi-part upload.
       tags:
         - Cache
@@ -6346,6 +6387,52 @@ paths:
       summary: Get a build by ID.
       tags:
         - Builds
+  /api/cache/access:
+    get:
+      callbacks: {}
+      description: Returns the authenticated subject's account-scoped and project-scoped cache access handles.
+      operationId: getCacheAccess
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: Account-scoped and project-scoped cache access handles
+                properties:
+                  accounts:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  projects:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - accounts
+                  - projects
+                title: CacheAccess
+                type: object
+                x-struct:
+                x-validate:
+          description: Cache access handles
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+      summary: Get first-class cache access scopes.
+      tags:
+        - Cache
   /api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete:
     post:
       callbacks: {}
@@ -6494,11 +6581,6 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
-                id:
-                  description: Optional client-provided UUID for the command event. `tuist generate` sets this so a later local Xcode build can reference the generation's graph by command event id.
-                  type: string
-                  x-struct:
-                  x-validate:
                 git_branch:
                   description: The git branch.
                   type: string
@@ -6516,6 +6598,11 @@ paths:
                   x-validate:
                 git_remote_url_origin:
                   description: The git remote URL origin.
+                  type: string
+                  x-struct:
+                  x-validate:
+                id:
+                  description: Optional client-provided UUID for the command event. `tuist generate` sets this so a later local Xcode build can reference the generation's graph by command event id; when omitted the server assigns one.
                   type: string
                   x-struct:
                   x-validate:
@@ -8351,6 +8438,14 @@ paths:
             type: integer
             x-struct:
             x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -8365,14 +8460,6 @@ paths:
           required: false
           schema:
             type: integer
-            x-struct:
-            x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
             x-struct:
             x-validate:
         - description: The handle of the project.
@@ -11462,7 +11549,7 @@ paths:
                   x-struct:
                   x-validate:
                 generation_id:
-                  description: The identifier of the generation whose graph backs this build's module cache breakdown. Stamped from the last `tuist generate` of the project.
+                  description: The command event id of the `tuist generate` whose graph backs this build's module cache breakdown. Stamped from the last generation of the project.
                   type: string
                   x-struct:
                   x-validate:
@@ -12782,6 +12869,8 @@ paths:
                               - ci
                               - mcp
                               - account:scim:write
+                              - account:cache:read
+                              - account:cache:write
                               - account:members:read
                               - account:members:write
                               - account:registry:read
@@ -12888,7 +12977,7 @@ paths:
                 scopes:
                   description: The scopes for the new account token.
                   example:
-                    - project:cache:read
+                    - account:cache:write
                     - project:builds:write
                   items:
                     description: A scope string in format entity:object:access_level.
@@ -12896,6 +12985,8 @@ paths:
                       - ci
                       - mcp
                       - account:scim:write
+                      - account:cache:read
+                      - account:cache:write
                       - account:members:read
                       - account:members:write
                       - account:registry:read
@@ -17986,7 +18077,7 @@ paths:
                   x-struct:
                   x-validate:
                 generation_id:
-                  description: The identifier of the generation whose graph backs this build's module cache breakdown. Stamped from the last `tuist generate` of the project.
+                  description: The command event id of the `tuist generate` whose graph backs this build's module cache breakdown. Stamped from the last generation of the project.
                   type: string
                   x-struct:
                   x-validate:
@@ -19227,6 +19318,14 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: Search query for richer filtering. Supports exact matches with `field:"value"` and substring matches with `field~"value"`. Prefix a field with `-` to negate the filter, for example `-git_branch~"gh-readonly-queue"`. Query filters compose with the explicit query parameters using AND semantics.
+          in: query
+          name: query
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: Filter by test run status.
           in: query
           name: status
@@ -19373,6 +19472,12 @@ paths:
                 x-struct:
                 x-validate:
           description: List of test runs
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request parameters are invalid
         '403':
           content:
             application/json:

@@ -658,6 +658,14 @@ defmodule Tuist.Environment do
     github_app_client_id(secrets) != nil and github_app_client_secret(secrets) != nil
   end
 
+  # The GitHub App used for VCS integration shares its client id/secret with
+  # GitHub sign-in, so configuring VCS otherwise forces GitHub onto the login
+  # page. This lever lets a self-hosted operator keep the App while turning the
+  # sign-in method off.
+  def github_auth_enabled? do
+    truthy?(System.get_env("TUIST_GITHUB_AUTH_ENABLED", "1"))
+  end
+
   def github_app_configured?(secrets \\ secrets()) do
     github_app_name(secrets) != nil and github_oauth_configured?(secrets) and
       github_app_private_key(secrets) != nil
@@ -1130,6 +1138,34 @@ defmodule Tuist.Environment do
   """
   def runners_macos_pool_name_prefix do
     System.get_env("TUIST_RUNNERS_MACOS_POOL_NAME_PREFIX", "tuist-runner-pool-macos")
+  end
+
+  @doc """
+  Runner platforms whose fleets can resolve and reach the cluster's
+  internal Service network (`*.svc.cluster.local`) — the per-environment
+  input behind `Tuist.Runners.Catalog.fleet_on_cluster_network?/1`.
+
+  Comma-separated platform names in
+  `TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS`. The default is `linux`
+  (kata Pods always ride the CNI). An environment adds `macos` only once
+  its Mac mini fleet has the tailnet route into the cluster
+  (subnet-router Connector advertising the Service CIDR, host
+  `--accept-routes`, and the VM egress firewall carve-out — see
+  `infra/helm/tailscale-operator` and `infra/macos-host-bootstrap`).
+  Unknown tokens are ignored so a typo degrades to "no cache routing for
+  that platform" rather than crashing dispatch.
+  """
+  def runners_cluster_network_platforms do
+    "TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS"
+    |> System.get_env("linux")
+    |> String.split(",")
+    |> Enum.flat_map(fn token ->
+      case String.trim(token) do
+        "linux" -> [:linux]
+        "macos" -> [:macos]
+        _ -> []
+      end
+    end)
   end
 
   @doc """

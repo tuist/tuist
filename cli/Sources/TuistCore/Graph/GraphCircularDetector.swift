@@ -1,5 +1,4 @@
 import Path
-import TSCBasic
 
 struct GraphCircularDetectorNode: Hashable, CustomDebugStringConvertible {
     let path: Path.AbsolutePath
@@ -37,45 +36,65 @@ public final class GraphCircularDetector: GraphCircularDetecting {
 
     // MARK: - Private
 
-    /// Depth first search to detect cycles
-    ///
-    /// For a given node, a full path through adjacent nodes is explored one by one.
-    ///  - The history of visited nodes along a path is stored in `currentPath`
-    ///  - In the event a node we are visiting already exists in `currentPath` we have a cycle!
-    ///
-    /// To optimize this process, we also keep a list of nodes that had all outgoing paths inspected to completion
-    ///  - Nodes that have had all adjacent nodes traversed are added to `inspectedNodes`
-    ///  - In the event a node we are visiting already exists in `inspectedNodes` we can skip it
-    ///
-    /// - Parameter node: The node to visit
-    /// - Parameter currentPath: The current path of nodes we are inspecting
-    /// - Parameter inspectedNodes: History of nodes that have had all their adjacent nodes traversed to completion
+    private struct VisitFrame {
+        let node: Node
+        let successors: [Node]
+        var nextSuccessorIndex: Int
+    }
+
     private func visit(
         node: Node,
-        currentPath: OrderedSet<Node> = OrderedSet(),
         inspectedNodes: inout Set<Node>
     ) throws {
         guard !inspectedNodes.contains(node) else {
             return
         }
 
-        if currentPath.contains(node) {
-            let cyclePath = currentPath + [node]
-            throw GraphLoadingError.circularDependency(cyclePath.map(\.element))
-        }
-
-        var currentPath = currentPath
+        var activeNodes = Set<Node>()
+        var currentPath: [Node] = []
+        var stack = [
+            VisitFrame(
+                node: node,
+                successors: Array(node.to),
+                nextSuccessorIndex: 0
+            ),
+        ]
+        activeNodes.insert(node)
         currentPath.append(node)
 
-        for nextNode in node.to {
-            try visit(
-                node: nextNode,
-                currentPath: currentPath,
-                inspectedNodes: &inspectedNodes
-            )
-        }
+        while !stack.isEmpty {
+            let frameIndex = stack.count - 1
+            let frame = stack[frameIndex]
 
-        inspectedNodes.insert(node)
+            if frame.nextSuccessorIndex < frame.successors.count {
+                let nextNode = frame.successors[frame.nextSuccessorIndex]
+                stack[frameIndex].nextSuccessorIndex += 1
+
+                if activeNodes.contains(nextNode) {
+                    let cyclePath = currentPath + [nextNode]
+                    throw GraphLoadingError.circularDependency(cyclePath.map(\.element))
+                }
+
+                guard !inspectedNodes.contains(nextNode) else {
+                    continue
+                }
+
+                activeNodes.insert(nextNode)
+                currentPath.append(nextNode)
+                stack.append(
+                    VisitFrame(
+                        node: nextNode,
+                        successors: Array(nextNode.to),
+                        nextSuccessorIndex: 0
+                    )
+                )
+            } else {
+                inspectedNodes.insert(frame.node)
+                activeNodes.remove(frame.node)
+                currentPath.removeLast()
+                stack.removeLast()
+            }
+        }
     }
 
     private final class Node: Hashable, CustomDebugStringConvertible {

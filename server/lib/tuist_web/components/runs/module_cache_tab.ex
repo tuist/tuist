@@ -160,10 +160,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
                 |> Query.put("binary-cache-sort-order", sort_order_patch_value("name", @binary_cache_sort_by, @binary_cache_sort_order))
                 |> Query.drop("binary-cache-page")}"
               }
-              icon={
-                @binary_cache_sort_by == "name" &&
-                  sort_icon(@binary_cache_sort_order)
-              }
+              sort_order={@binary_cache_sort_by == "name" && @binary_cache_sort_order}
             >
               <.text_and_description_cell label={binary_cache_module.name} />
             </:col>
@@ -347,9 +344,6 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
     </div>
     """
   end
-
-  defp sort_icon("desc"), do: "square_rounded_arrow_down"
-  defp sort_icon("asc"), do: "square_rounded_arrow_up"
 
   defp sort_order_patch_value(category, current_category, current_order) do
     if category == current_category do
