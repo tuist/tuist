@@ -1203,10 +1203,10 @@ defmodule Tuist.Environment do
   @doc """
   Namespace where Atlas' ServiceAccount lives. Atlas calls internal Tuist
   endpoints with a projected ServiceAccount token, so the server verifies both
-  the TokenReview result and this expected principal.
+  the token subject and this expected principal.
   """
   def atlas_namespace do
-    System.get_env("TUIST_ATLAS_NAMESPACE", "tuist")
+    System.get_env("TUIST_ATLAS_NAMESPACE", "atlas-production")
   end
 
   @doc """
@@ -1214,6 +1214,29 @@ defmodule Tuist.Environment do
   """
   def atlas_service_account_name do
     System.get_env("TUIST_ATLAS_SERVICE_ACCOUNT_NAME", "atlas")
+  end
+
+  @doc """
+  Issuer expected in Atlas' projected ServiceAccount tokens.
+  """
+  def atlas_token_issuer do
+    System.get_env("TUIST_ATLAS_TOKEN_ISSUER") ||
+      get([:atlas, :token_issuer], secrets(), default_value: "https://kubernetes.default.svc.cluster.local")
+  end
+
+  @doc """
+  Audience Atlas must request on its projected ServiceAccount token.
+  """
+  def atlas_token_audience do
+    System.get_env("TUIST_ATLAS_TOKEN_AUDIENCE") ||
+      get([:atlas, :token_audience], secrets(), default_value: "tuist-server")
+  end
+
+  @doc """
+  Pinned Atlas Kubernetes JWKS used to verify projected ServiceAccount tokens.
+  """
+  def atlas_token_jwks do
+    System.get_env("TUIST_ATLAS_TOKEN_JWKS") || get([:atlas, :token_jwks], secrets())
   end
 
   def typesense_search_api_key do

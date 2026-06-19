@@ -3,22 +3,22 @@ defmodule TuistWeb.Internal.AtlasUsageController do
   Internal Atlas read model endpoints.
 
   Atlas authenticates with its projected Kubernetes ServiceAccount token. Tuist
-  validates the token with TokenReview and then gates the principal to the
-  configured Atlas namespace and ServiceAccount.
+  validates the token against the pinned Atlas Kubernetes JWKS and then gates
+  the principal to the configured Atlas namespace and ServiceAccount.
   """
 
   use TuistWeb, :controller
 
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
+  alias Tuist.AtlasWorkloadIdentity
   alias Tuist.Environment
-  alias Tuist.Kubernetes.Client, as: K8sClient
 
   require Logger
 
   def usage(conn, %{"account_handle" => account_handle}) do
     with {:ok, token} <- bearer_token(conn),
-         {:ok, principal} <- K8sClient.create_atlas_token_review(token),
+         {:ok, principal} <- AtlasWorkloadIdentity.verify(token),
          :ok <- ensure_atlas_principal(principal),
          %Account{} = account <- Accounts.get_account_by_handle(account_handle) do
       json(conn, %{
@@ -31,12 +31,28 @@ defmodule TuistWeb.Internal.AtlasUsageController do
       {:error, :missing_bearer} ->
         conn |> put_status(:unauthorized) |> json(%{error: "missing bearer token"})
 
-      {:error, :unauthenticated} ->
-        Logger.warning("atlas: tokenreview rejected token")
+      {:error, :not_configured} ->
+        Logger.error("atlas: workload identity verifier is not configured")
+        conn |> put_status(:service_unavailable) |> json(%{error: "workload identity unavailable"})
+
+      {:error, :invalid_jwks} ->
+        Logger.error("atlas: workload identity JWKS is invalid")
+        conn |> put_status(:service_unavailable) |> json(%{error: "workload identity unavailable"})
+
+      {:error, reason}
+      when reason in [
+             :invalid_token,
+             :invalid_signature,
+             :token_expired,
+             :token_not_yet_valid,
+             :bad_issuer,
+             :bad_audience
+           ] ->
+        Logger.warning("atlas: workload identity token rejected", reason: inspect(reason))
         conn |> put_status(:unauthorized) |> json(%{error: "invalid token"})
 
       {:error, :not_service_account} ->
-        Logger.warning("atlas: tokenreview principal is not an SA")
+        Logger.warning("atlas: workload identity principal is not an SA")
         conn |> put_status(:unauthorized) |> json(%{error: "not a service account"})
 
       {:error, {:wrong_principal, %{namespace: ns, name: name}}} ->
@@ -46,9 +62,6 @@ defmodule TuistWeb.Internal.AtlasUsageController do
         )
 
         conn |> put_status(:unauthorized) |> json(%{error: "unauthorized principal"})
-
-      {:error, :not_in_cluster} ->
-        conn |> put_status(:service_unavailable) |> json(%{error: "kubernetes unavailable"})
 
       {:error, reason} ->
         Logger.error("atlas: usage lookup failed", reason: inspect(reason))

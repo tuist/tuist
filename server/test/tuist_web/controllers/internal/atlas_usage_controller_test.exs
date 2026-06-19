@@ -2,14 +2,14 @@ defmodule TuistWeb.Internal.AtlasUsageControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
-  alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.AtlasWorkloadIdentity
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup :set_mimic_from_context
 
-  defp ok_tokenreview_stub do
-    stub(K8sClient, :create_atlas_token_review, fn "valid-token" ->
-      {:ok, %{namespace: "tuist", name: "atlas"}}
+  defp ok_workload_identity_stub do
+    stub(AtlasWorkloadIdentity, :verify, fn "valid-token" ->
+      {:ok, %{namespace: "atlas-production", name: "atlas"}}
     end)
   end
 
@@ -20,7 +20,7 @@ defmodule TuistWeb.Internal.AtlasUsageControllerTest do
         current_month_remote_cache_hits_count: 42
       )
 
-      ok_tokenreview_stub()
+      ok_workload_identity_stub()
 
       conn =
         conn
@@ -31,7 +31,7 @@ defmodule TuistWeb.Internal.AtlasUsageControllerTest do
     end
 
     test "returns 404 when the account does not exist", %{conn: conn} do
-      ok_tokenreview_stub()
+      ok_workload_identity_stub()
 
       conn =
         conn
@@ -47,8 +47,8 @@ defmodule TuistWeb.Internal.AtlasUsageControllerTest do
       assert json_response(conn, 401)["error"] =~ "bearer"
     end
 
-    test "returns 401 when TokenReview rejects the token", %{conn: conn} do
-      stub(K8sClient, :create_atlas_token_review, fn _ -> {:error, :unauthenticated} end)
+    test "returns 401 when workload identity rejects the token", %{conn: conn} do
+      stub(AtlasWorkloadIdentity, :verify, fn _ -> {:error, :invalid_signature} end)
 
       conn =
         conn
@@ -59,7 +59,7 @@ defmodule TuistWeb.Internal.AtlasUsageControllerTest do
     end
 
     test "returns 401 when the principal is not the configured Atlas ServiceAccount", %{conn: conn} do
-      stub(K8sClient, :create_atlas_token_review, fn _ ->
+      stub(AtlasWorkloadIdentity, :verify, fn _ ->
         {:ok, %{namespace: "other", name: "atlas"}}
       end)
 
@@ -71,15 +71,15 @@ defmodule TuistWeb.Internal.AtlasUsageControllerTest do
       assert json_response(conn, 401)["error"] =~ "unauthorized"
     end
 
-    test "returns 503 when Kubernetes is unavailable", %{conn: conn} do
-      stub(K8sClient, :create_atlas_token_review, fn _ -> {:error, :not_in_cluster} end)
+    test "returns 503 when workload identity is not configured", %{conn: conn} do
+      stub(AtlasWorkloadIdentity, :verify, fn _ -> {:error, :not_configured} end)
 
       conn =
         conn
         |> put_req_header("authorization", "Bearer any-token")
         |> get("/api/internal/atlas/accounts/tuist-org/usage")
 
-      assert json_response(conn, 503)["error"] =~ "kubernetes"
+      assert json_response(conn, 503)["error"] =~ "workload identity"
     end
   end
 end
