@@ -1,13 +1,8 @@
 defmodule TuistOps.Previews do
   @moduledoc """
-  Slack-facing control plane for preview environments.
-
-  State model: one row per slug in the `previews` table. `/preview create`
-  upserts into that row (rejecting if the preview is still in flight);
-  `/preview delete` looks up the row by slug and transitions it. Failures
-  flip the row to `failed`. The data is current state, not a request log
-  — separate request/event history can land later if we want a full audit
-  trail (see Marek's review of PR #11348 for the reasoning).
+  Slack-facing control plane for preview environments. One row per slug
+  in `previews`; `/preview create` upserts that row, `/preview delete`
+  transitions it to `deleted` after a successful workflow dispatch.
   """
 
   alias TuistOps.Previews.GitHubActionsClient
@@ -30,9 +25,6 @@ defmodule TuistOps.Previews do
       |> Map.put(:status, "creating")
       |> Map.put(:ttl_seconds, ttl)
       |> Map.put(:host, "#{slug}.preview.tuist.dev")
-      |> Map.put(:namespace, "preview-ondemand-#{slug}")
-      |> Map.put(:release, "ondemand-#{slug}")
-      |> Map.put(:expires_at, DateTime.add(DateTime.utc_now(), ttl, :second))
 
     Repo.transaction(fn ->
       case Repo.get_by(Preview, slug: slug) do
@@ -65,10 +57,19 @@ defmodule TuistOps.Previews do
         {:error, :not_found}
 
       %Preview{} = preview ->
+        # We treat a successful workflow dispatch as terminal. The row
+        # transitions straight to `deleted` (with `deleted_at` set) so
+        # `/preview create <same-slug>` is immediately free to re-use the
+        # slug. If the delete workflow itself fails in CI we don't try to
+        # roll the state back: the sweep workflow's TTL is the backstop
+        # for any orphaned k8s objects, and an upserted create over the
+        # same slug would call `helm upgrade --install` against whatever
+        # half-deleted namespace remains.
         provision(
           preview,
           %{
-            status: "deleting",
+            status: "deleted",
+            deleted_at: DateTime.utc_now() |> DateTime.truncate(:second),
             slack_channel_id: Map.fetch!(attrs, :slack_channel_id),
             reason: Map.get(attrs, :reason, preview.reason)
           },
@@ -94,8 +95,6 @@ defmodule TuistOps.Previews do
       |> Map.put(:failure_reason, nil)
       |> Map.put(:deleted_at, nil)
       |> Map.put(:slack_message_ts, nil)
-      |> Map.put(:workflow_id, nil)
-      |> Map.put(:workflow_ref, nil)
     )
     |> Repo.update()
   end
@@ -111,10 +110,9 @@ defmodule TuistOps.Previews do
   end
 
   # Posts the Slack status card, dispatches the workflow, and persists the
-  # workflow ids on success. On failure the row is flipped to `failed`
+  # slack_message_ts on success. On failure the row is flipped to `failed`
   # (with the reason persisted) and the Slack card is replaced with the
-  # failure variant so operators see what actually happened instead of a
-  # stale "provisioning…" message.
+  # failure variant.
   defp provision(%Preview{} = preview, base_attrs, fallback_text, render, dispatch) do
     with {:ok, ts} <-
            SlackClient.post_message(
@@ -122,16 +120,10 @@ defmodule TuistOps.Previews do
              render.(preview),
              fallback_text: fallback_text
            ),
-         {:ok, workflow} <- dispatch.(preview),
+         {:ok, _workflow} <- dispatch.(preview),
          {:ok, preview} <-
            preview
-           |> Preview.transition_changeset(
-             Map.merge(base_attrs, %{
-               slack_message_ts: ts,
-               workflow_id: workflow.workflow_id,
-               workflow_ref: workflow.workflow_ref
-             })
-           )
+           |> Preview.transition_changeset(Map.put(base_attrs, :slack_message_ts, ts))
            |> Repo.update() do
       {:ok, preview}
     else
@@ -207,10 +199,7 @@ defmodule TuistOps.Previews do
 
   defp ceil_hours(seconds), do: div(seconds + 3599, 3600)
 
-  defp clamp_ttl(ttl) when is_integer(ttl) and ttl > 0 do
-    min(ttl, @max_ttl_seconds)
-  end
-
+  defp clamp_ttl(ttl) when is_integer(ttl) and ttl > 0, do: min(ttl, @max_ttl_seconds)
   defp clamp_ttl(_), do: @default_ttl_seconds
 
   def default_ttl_seconds, do: @default_ttl_seconds
