@@ -19,14 +19,12 @@ defmodule Cache.Registry.AlternateManifests do
 
   alias Cache.Config
   alias Cache.Registry.KeyNormalizer
+  alias Cache.Registry.ManifestVariants
 
   require Logger
 
   @cache_name :registry_alternate_manifests_cache
   @ttl to_timeout(minute: 10)
-  @alternate_manifest_regex ~r/\APackage@swift-(\d+)(?:\.(\d+))?(?:\.(\d+))?\.swift\z/
-  @swift_tools_version_regex ~r/^\/\/ swift-tools-version:\s?(\d+)(?:\.(\d+))?(?:\.(\d+))?/
-
   def child_spec(_opts) do
     %{
       id: __MODULE__,
@@ -65,10 +63,8 @@ defmodule Cache.Registry.AlternateManifests do
       |> ExAws.S3.list_objects_v2(prefix: prefix)
       |> ExAws.stream!()
       |> Stream.map(fn %{key: key} -> {key, Path.basename(key)} end)
-      |> Stream.filter(fn {_key, filename} -> alternate_manifest?(filename) end)
-      |> Enum.flat_map(fn {key, filename} ->
-        descriptor_for(bucket, key, filename, scope, name, version)
-      end)
+      |> Enum.to_list()
+      |> descriptors(bucket, scope, name, version)
     rescue
       error ->
         Logger.warning(
@@ -80,7 +76,33 @@ defmodule Cache.Registry.AlternateManifests do
     end
   end
 
-  defp alternate_manifest?(filename), do: Regex.match?(@alternate_manifest_regex, filename)
+  defp descriptors(objects, bucket, scope, name, version) do
+    alternate_objects =
+      Enum.filter(objects, fn {_key, filename} -> ManifestVariants.alternate_manifest?(filename) end)
+
+    if alternate_objects == [] do
+      []
+    else
+      descriptors_with_alternates(objects, alternate_objects, bucket, scope, name, version)
+    end
+  end
+
+  defp descriptors_with_alternates(objects, alternate_objects, bucket, scope, name, version) do
+    default_descriptor =
+      objects
+      |> Enum.find(fn {_key, filename} -> filename == "Package.swift" end)
+      |> case do
+        nil -> []
+        {key, filename} -> descriptor_for(bucket, key, filename, scope, name, version)
+      end
+
+    alternates =
+      Enum.flat_map(alternate_objects, fn {key, filename} ->
+        descriptor_for(bucket, key, filename, scope, name, version)
+      end)
+
+    ManifestVariants.linkable_alternates(default_descriptor ++ alternates)
+  end
 
   defp descriptor_for(bucket, key, filename, scope, name, version) do
     case fetch_content(bucket, key) do
@@ -88,7 +110,7 @@ defmodule Cache.Registry.AlternateManifests do
         [
           %{
             "swift_version" => filename_swift_version(filename),
-            "swift_tools_version" => parse_swift_tools_version(content)
+            "swift_tools_version" => ManifestVariants.swift_tools_version(content)
           }
         ]
 
@@ -111,21 +133,6 @@ defmodule Cache.Registry.AlternateManifests do
     end
   end
 
-  defp filename_swift_version(filename) do
-    case Regex.run(@alternate_manifest_regex, filename) do
-      [_, major] -> major
-      [_, major, minor] -> "#{major}.#{minor}"
-      [_, major, minor, patch] -> "#{major}.#{minor}.#{patch}"
-      _ -> nil
-    end
-  end
-
-  defp parse_swift_tools_version(content) do
-    case Regex.run(@swift_tools_version_regex, content) do
-      [_, major] -> major
-      [_, major, minor] -> "#{major}.#{minor}"
-      [_, major, minor, patch] -> "#{major}.#{minor}.#{patch}"
-      _ -> nil
-    end
-  end
+  defp filename_swift_version("Package.swift"), do: nil
+  defp filename_swift_version(filename), do: ManifestVariants.filename_swift_version(filename)
 end
