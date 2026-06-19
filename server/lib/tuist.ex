@@ -97,7 +97,6 @@ defmodule Tuist do
       Accounts.AccountCacheEndpoint,
       Accounts.Organization,
       Accounts.AuthenticatedAccount,
-      Accounts.AuthenticatedService,
       Accounts.AccountToken,
       Accounts.User,
       Authentication,

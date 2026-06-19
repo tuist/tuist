@@ -5,7 +5,6 @@ defmodule Tuist.AnalyticsTest do
   import TelemetryTest
 
   alias Tuist.Accounts.AuthenticatedAccount
-  alias Tuist.Accounts.AuthenticatedService
   alias Tuist.Analytics
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -104,23 +103,6 @@ defmodule Tuist.AnalyticsTest do
 
       # Then
       expected_metadata = %{account_id: user.account.id}
-
-      assert_receive {:telemetry_event,
-                      %{
-                        event: [:analytics, :preview, :upload],
-                        measurements: %{},
-                        metadata: ^expected_metadata
-                      }}
-    end
-
-    test "it sends the telemetry event with an authenticated service" do
-      # When
-      authenticated_service = %AuthenticatedService{client_id: "service-client", scopes: []}
-
-      assert :ok = Analytics.preview_upload(authenticated_service)
-
-      # Then
-      expected_metadata = %{client_id: "service-client"}
 
       assert_receive {:telemetry_event,
                       %{

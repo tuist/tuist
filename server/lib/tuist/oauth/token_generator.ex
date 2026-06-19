@@ -12,7 +12,6 @@ defmodule Tuist.OAuth.TokenGenerator do
 
   alias Boruta.Oauth.TokenGenerator
   alias Tuist.Accounts.AuthenticatedAccount
-  alias Tuist.Accounts.AuthenticatedService
   alias Tuist.Accounts.User
   alias Tuist.Cache
   alias Tuist.OAuth.Clients
@@ -20,11 +19,7 @@ defmodule Tuist.OAuth.TokenGenerator do
 
   @impl TokenGenerator
   def generate(token_type, %Boruta.Ecto.Token{sub: sub, client_id: client_id, scope: scope}) do
-    if Clients.service_client?(client_id) do
-      generate_service_token(token_type, client_id, scope)
-    else
-      generate_user_token(token_type, sub, client_id, scope)
-    end
+    generate_user_token(token_type, sub, client_id, scope)
   end
 
   @default_user_scopes [
@@ -48,10 +43,6 @@ defmodule Tuist.OAuth.TokenGenerator do
   defp parse_scopes(nil), do: @default_user_scopes
   defp parse_scopes(""), do: @default_user_scopes
   defp parse_scopes(scope), do: String.split(scope, " ", trim: true)
-
-  defp parse_service_scopes(nil), do: []
-  defp parse_service_scopes(""), do: []
-  defp parse_service_scopes(scope), do: String.split(scope, " ", trim: true)
 
   defp parse_user_id(sub) when is_binary(sub), do: Integer.parse(sub)
   defp parse_user_id(_sub), do: :error
@@ -85,30 +76,6 @@ defmodule Tuist.OAuth.TokenGenerator do
 
       {:ok, jwt_token, _claims} =
         Tuist.Guardian.encode_and_sign(user.account, claims,
-          token_type: Atom.to_string(token_type),
-          ttl: {ttl_for(token_type, client), :second}
-        )
-
-      jwt_token
-    else
-      _ -> nil
-    end
-  end
-
-  defp generate_service_token(token_type, client_id, scope) do
-    with true <- Clients.service_client?(client_id),
-         client when not is_nil(client) <- Clients.get_client(client_id) do
-      scopes = parse_service_scopes(scope)
-      service = %AuthenticatedService{client_id: client_id, scopes: scopes}
-
-      claims = %{
-        "type" => "service",
-        "client_id" => client_id,
-        "scopes" => scopes
-      }
-
-      {:ok, jwt_token, _claims} =
-        Tuist.Guardian.encode_and_sign(service, claims,
           token_type: Atom.to_string(token_type),
           ttl: {ttl_for(token_type, client), :second}
         )

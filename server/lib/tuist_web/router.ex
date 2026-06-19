@@ -195,7 +195,6 @@ defmodule TuistWeb.Router do
     plug TuistWeb.WarningsHeaderPlug
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
     plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :open_api}
-    plug TuistWeb.AuthenticationPlug, :reject_service_subjects
     plug SentryContextPlug
     plug ObservabilityContextPlug
   end
@@ -733,6 +732,12 @@ defmodule TuistWeb.Router do
     post "/runners/dispatch", RunnersController, :dispatch
     get "/runners/desired_replicas", RunnersController, :desired_replicas
     post "/runners/pods/stopped", RunnerPodsController, :stopped
+  end
+
+  scope "/api/internal", TuistWeb.Internal do
+    pipe_through [:non_authenticated_api]
+
+    get "/atlas/organizations/:organization_name/usage", AtlasUsageController, :usage
   end
 
   scope "/_internal", TuistWeb.Internal do

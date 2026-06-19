@@ -92,6 +92,7 @@ defmodule Tuist.Kubernetes.Client do
   # endpoint and nothing else — in particular, it is NOT a
   # default-audience credential for the K8s API server.
   @dispatch_audience "tuist-runners-dispatch"
+  @atlas_audience "tuist-server"
 
   @doc """
   Returns the audience the runner ServiceAccount token must
@@ -100,6 +101,11 @@ defmodule Tuist.Kubernetes.Client do
   dispatch endpoint always agree.
   """
   def runner_dispatch_audience, do: @dispatch_audience
+
+  @doc """
+  Returns the audience Atlas must request on its projected ServiceAccount token.
+  """
+  def atlas_audience, do: @atlas_audience
 
   @doc """
   POSTs a TokenReview for `token` and returns
@@ -121,13 +127,29 @@ defmodule Tuist.Kubernetes.Client do
   but not an SA, or `{:error, _}` on transport / non-2xx errors.
   """
   def create_token_review(token, opts \\ []) when is_binary(token) do
+    create_audience_token_review(token, @dispatch_audience, opts)
+  end
+
+  @doc """
+  TokenReview variant for Atlas internal API calls.
+
+  Atlas runs as an internal Kubernetes workload, so it presents a projected
+  ServiceAccount token audience-scoped to Tuist Server rather than a long-lived
+  OAuth client secret. The caller still gates the returned namespace and
+  ServiceAccount name to the configured Atlas identity.
+  """
+  def create_atlas_token_review(token, opts \\ []) when is_binary(token) do
+    create_audience_token_review(token, @atlas_audience, opts)
+  end
+
+  defp create_audience_token_review(token, audience, opts) do
     body =
       JSON.encode!(%{
         "apiVersion" => "authentication.k8s.io/v1",
         "kind" => "TokenReview",
         "spec" => %{
           "token" => token,
-          "audiences" => [@dispatch_audience]
+          "audiences" => [audience]
         }
       })
 
@@ -144,7 +166,7 @@ defmodule Tuist.Kubernetes.Client do
         # accidentally widened, the response carries the
         # subset that did validate — fail-closed if our audience
         # isn't in the list.
-        if @dispatch_audience in audiences do
+        if audience in audiences do
           parse_sa_principal(user)
         else
           {:error, :unauthenticated}

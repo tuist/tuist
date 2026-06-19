@@ -6,7 +6,6 @@ defmodule TuistWeb.AuthenticationTest do
   alias Phoenix.LiveView
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
-  alias Tuist.Accounts.AuthenticatedService
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
@@ -59,16 +58,6 @@ defmodule TuistWeb.AuthenticationTest do
 
       # Then
       assert Authentication.authenticated_subject_account(conn) == current_subject.account
-    end
-
-    test "when the authenticated subject is a service", %{conn: conn} do
-      conn =
-        assign(conn, :current_subject, %AuthenticatedService{
-          client_id: "service-client",
-          scopes: ["account:service:read:any"]
-        })
-
-      assert Authentication.authenticated_subject_account(conn) == nil
     end
   end
 

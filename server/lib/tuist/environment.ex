@@ -1036,22 +1036,6 @@ defmodule Tuist.Environment do
       oauth_private_key(secrets) != nil
   end
 
-  def oauth_service_clients(secrets \\ secrets()) do
-    case get([:oauth, :service_clients], secrets, default_value: []) do
-      clients when is_list(clients) ->
-        clients
-
-      clients when is_binary(clients) ->
-        case JSON.decode(clients) do
-          {:ok, decoded_clients} when is_list(decoded_clients) -> decoded_clients
-          _ -> []
-        end
-
-      _ ->
-        []
-    end
-  end
-
   # Kura-side env vars stay unprefixed so the implementation in Kura
   # remains Tuist-agnostic. The encrypted `kura.*` secrets stay as a
   # compatibility fallback for existing deployments and dev secrets.
@@ -1214,6 +1198,22 @@ defmodule Tuist.Environment do
   """
   def runners_controller_sa_name do
     System.get_env("TUIST_RUNNERS_CONTROLLER_SA_NAME", "tuist-runners-controller")
+  end
+
+  @doc """
+  Namespace where Atlas' ServiceAccount lives. Atlas calls internal Tuist
+  endpoints with a projected ServiceAccount token, so the server verifies both
+  the TokenReview result and this expected principal.
+  """
+  def atlas_namespace do
+    System.get_env("TUIST_ATLAS_NAMESPACE", "tuist")
+  end
+
+  @doc """
+  Name of the Atlas ServiceAccount allowed to call Atlas internal read models.
+  """
+  def atlas_service_account_name do
+    System.get_env("TUIST_ATLAS_SERVICE_ACCOUNT_NAME", "atlas")
   end
 
   def typesense_search_api_key do

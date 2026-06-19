@@ -76,11 +76,9 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
 
   defp subject_id(%{id: id}), do: id
   defp subject_id(%{account: %{id: id}}), do: id
-  defp subject_id(%{client_id: client_id}), do: client_id
   defp subject_id(_subject), do: "unknown"
 
   defp subject_name(%{account: %{name: name}}), do: name
-  defp subject_name(%{client_id: client_id}), do: client_id
   defp subject_name(_subject), do: "The authenticated subject"
 
   def authorize(subject, action, project, category) do

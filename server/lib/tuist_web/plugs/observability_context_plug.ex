@@ -4,7 +4,6 @@ defmodule TuistWeb.Plugs.ObservabilityContextPlug do
   """
 
   alias Tuist.Accounts.AuthenticatedAccount
-  alias Tuist.Accounts.AuthenticatedService
   alias Tuist.Accounts.User
   alias Tuist.Projects.Project
 
@@ -40,9 +39,6 @@ defmodule TuistWeb.Plugs.ObservabilityContextPlug do
 
       %AuthenticatedAccount{account: %{name: account_handle}} ->
         %{auth_account_handle: account_handle}
-
-      %AuthenticatedService{client_id: client_id} ->
-        %{auth_client_id: client_id}
 
       nil ->
         %{}

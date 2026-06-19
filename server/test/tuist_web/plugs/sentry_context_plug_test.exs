@@ -5,7 +5,6 @@ defmodule TuistWeb.Plugs.SentryContextPlugTest do
   import Plug.Test
 
   alias Tuist.Accounts.AuthenticatedAccount
-  alias Tuist.Accounts.AuthenticatedService
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
@@ -89,25 +88,6 @@ defmodule TuistWeb.Plugs.SentryContextPlugTest do
         :get
         |> conn("/")
         |> Plug.Conn.assign(:current_subject, authenticated_account)
-        |> SentryContextPlug.call(%{})
-
-      assert conn
-    end
-
-    test "sets auth context for authenticated service" do
-      authenticated_service = %AuthenticatedService{client_id: "service-client", scopes: []}
-
-      stub(Tuist.Environment, :error_tracking_enabled?, fn -> true end)
-
-      expect(Sentry.Context, :set_extra_context, fn data ->
-        assert data == %{auth_client_id: "service-client"}
-        :ok
-      end)
-
-      conn =
-        :get
-        |> conn("/")
-        |> Plug.Conn.assign(:current_subject, authenticated_service)
         |> SentryContextPlug.call(%{})
 
       assert conn

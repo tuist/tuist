@@ -2,7 +2,6 @@ defmodule Tuist.OAuth.IntrospectionTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.Accounts
-  alias Tuist.Accounts.AuthenticatedService
   alias Tuist.OAuth.Introspection
   alias Tuist.Projects
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -123,30 +122,6 @@ defmodule Tuist.OAuth.IntrospectionTest do
       assert project_handle == "#{project.account.name}/#{project.name}"
       assert project_reads == [project_handle]
       assert project_writes == [project_handle]
-    end
-
-    test "returns service metadata for service tokens" do
-      service = %AuthenticatedService{client_id: "service-client", scopes: ["account:service:read"]}
-
-      {:ok, token, _claims} =
-        Tuist.Guardian.encode_and_sign(
-          service,
-          %{"type" => "service", "client_id" => service.client_id, "scopes" => service.scopes},
-          token_type: "access_token",
-          ttl: {300, :second}
-        )
-
-      assert %{
-               active: true,
-               principal_kind: "service",
-               sub: "service-client",
-               username: "service-client",
-               scope: "account:service:read",
-               cache_grants: %{
-                 "account" => %{"read" => [], "write" => []},
-                 "project" => %{"read" => [], "write" => []}
-               }
-             } = Introspection.token_response(token)
     end
   end
 

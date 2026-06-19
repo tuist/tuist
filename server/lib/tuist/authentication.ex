@@ -5,7 +5,6 @@ defmodule Tuist.Authentication do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AuthenticatedAccount
-  alias Tuist.Accounts.AuthenticatedService
   alias Tuist.Accounts.User
   alias Tuist.Cache
   alias Tuist.Projects
@@ -18,9 +17,6 @@ defmodule Tuist.Authentication do
         else
           reject_if_inactive_account_user(resource)
         end
-
-      {:ok, %AuthenticatedService{} = resource, _claims} ->
-        resource
 
       {:ok, resource, _opts} ->
         resource |> Tuist.Repo.preload(:account) |> reject_if_inactive_user()
@@ -109,14 +105,11 @@ defmodule Tuist.Authentication do
 
   defp preload_account(%User{} = user), do: Tuist.Repo.preload(user, :account)
   defp preload_account(%AuthenticatedAccount{} = resource), do: resource
-  defp preload_account(%AuthenticatedService{} = resource), do: resource
   defp preload_account(_), do: nil
 
   defp refresh_subject(%User{account: %{name: name}} = user), do: {name, user}
 
   defp refresh_subject(%AuthenticatedAccount{account: %{name: name} = account}), do: {name, account}
-
-  defp refresh_subject(%AuthenticatedService{} = service), do: {service.client_id, service}
 
   def exchange(old_token, from_type, to_type, options) do
     Tuist.Guardian.exchange(old_token, from_type, to_type, options)

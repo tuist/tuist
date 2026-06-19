@@ -12,11 +12,7 @@ defmodule Tuist.OAuth.Clients do
   alias Boruta.Ecto.Clients, as: EctoClients
   alias Boruta.Oauth.Client
   alias Boruta.Oauth.Clients
-  alias Boruta.Oauth.Scope
   alias Tuist.Environment
-
-  @max_service_access_token_ttl 3600
-  @uuid_pattern ~r/\A[0-9a-fA-F]{8}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{12}\z/
 
   @impl Clients
   def get_client(client_id) do
@@ -25,12 +21,6 @@ defmodule Tuist.OAuth.Clients do
       nil -> EctoClients.get_client(client_id)
     end
   end
-
-  def service_client?(client_id) when is_binary(client_id) do
-    match?(%Client{}, oauth_service_client(client_id))
-  end
-
-  def service_client?(_client_id), do: false
 
   @impl Clients
   def public! do
@@ -42,15 +32,9 @@ defmodule Tuist.OAuth.Clients do
 
   @impl Clients
   def authorized_scopes(%Client{id: client_id} = client) do
-    case oauth_service_client(client_id) do
-      %Client{authorized_scopes: scopes} ->
-        scopes
-
-      nil ->
-        case static_client(client_id) do
-          %Client{} -> []
-          nil -> EctoClients.authorized_scopes(client)
-        end
+    case static_client(client_id) do
+      %Client{} -> []
+      nil -> EctoClients.authorized_scopes(client)
     end
   end
 
@@ -91,79 +75,12 @@ defmodule Tuist.OAuth.Clients do
 
   defp static_client(client_id) when is_binary(client_id) do
     Enum.find(
-      [kura_introspection_client(), tuist_oauth_client()] ++ oauth_service_clients(),
+      [kura_introspection_client(), tuist_oauth_client()],
       &match?(%Client{id: ^client_id}, &1)
     )
   end
 
   defp static_client(_client_id), do: nil
-
-  defp oauth_service_client(client_id) do
-    Enum.find(oauth_service_clients(), &match?(%Client{id: ^client_id}, &1))
-  end
-
-  defp oauth_service_clients do
-    reserved_ids = reserved_client_ids()
-
-    Environment.oauth_service_clients()
-    |> Enum.map(&oauth_service_client_from_config/1)
-    |> Enum.reject(&(is_nil(&1) or &1.id in reserved_ids))
-  end
-
-  # Service-client ids that collide with a built-in client (the Tuist CLI client
-  # or the Kura control-plane client) are dropped. `static_client/1` resolves the
-  # built-in client first, so without this filter Boruta would authenticate the
-  # built-in client while `service_client?/1` still reported the id as a service
-  # client, causing the token generator to sign a service token that bypasses the
-  # built-in client's secret, TTL, and scope configuration.
-  defp reserved_client_ids do
-    kura_id =
-      if Environment.kura_control_plane_configured?() do
-        Environment.kura_control_plane_client_id()
-      end
-
-    Enum.reject([Environment.oauth_client_id(), kura_id], &is_nil/1)
-  end
-
-  defp oauth_service_client_from_config(config) when is_map(config) do
-    id = Map.get(config, "id") || Map.get(config, :id)
-    secret = Map.get(config, "secret") || Map.get(config, :secret)
-    name = Map.get(config, "name") || Map.get(config, :name) || id
-    configured_ttl = Map.get(config, "access_token_ttl") || Map.get(config, :access_token_ttl) || 300
-    access_token_ttl = min(configured_ttl, @max_service_access_token_ttl)
-    scopes = service_client_scopes(config)
-
-    if service_client_id?(id) and is_binary(secret) do
-      %Client{
-        id: id,
-        secret: secret,
-        name: name,
-        access_token_ttl: access_token_ttl,
-        refresh_token_ttl: access_token_ttl,
-        supported_grant_types: ["client_credentials"],
-        authorize_scope: true,
-        authorized_scopes: Enum.map(scopes, &%Scope{name: &1}),
-        confidential: true,
-        enforce_dpop: false,
-        token_endpoint_auth_methods: [
-          "client_secret_basic",
-          "client_secret_post"
-        ]
-      }
-    end
-  end
-
-  defp oauth_service_client_from_config(_config), do: nil
-
-  defp service_client_id?(id) when is_binary(id), do: Regex.match?(@uuid_pattern, id)
-  defp service_client_id?(_id), do: false
-
-  defp service_client_scopes(config) do
-    case Map.get(config, "scopes") || Map.get(config, :scopes) do
-      scopes when is_list(scopes) -> Enum.filter(scopes, &is_binary/1)
-      _ -> []
-    end
-  end
 
   defp android_emulator_redirect_uris do
     base_url = Environment.app_url(path: "/oauth/callback/android")

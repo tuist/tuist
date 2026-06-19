@@ -8,7 +8,6 @@ defmodule Tuist.Guardian do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AuthenticatedAccount
-  alias Tuist.Accounts.AuthenticatedService
   alias Tuist.Accounts.User
   alias Tuist.Projects.Project
 
@@ -25,10 +24,6 @@ defmodule Tuist.Guardian do
   def subject_for_token(%Account{id: id}, _claims) do
     sub = to_string(id)
     {:ok, sub}
-  end
-
-  def subject_for_token(%AuthenticatedService{client_id: client_id}, _claims) do
-    {:ok, client_id}
   end
 
   def subject_for_token(_, _) do
@@ -52,10 +47,6 @@ defmodule Tuist.Guardian do
       {:error, :not_found} ->
         {:error, :resource_not_found}
     end
-  end
-
-  def resource_from_claims(%{"sub" => client_id, "type" => "service"} = claims) do
-    {:ok, %AuthenticatedService{client_id: client_id, scopes: Map.get(claims, "scopes", [])}}
   end
 
   def resource_from_claims(%{"sub" => id}) do
