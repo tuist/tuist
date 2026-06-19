@@ -5,6 +5,8 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
   alias Tuist.Processor.XCResultProcessor
   alias Tuist.Tests.Workers.ProcessXcresultWorker
 
+  @moduletag capture_log: true
+
   setup :verify_on_exit!
 
   @storage_key "tuist/tests/test-xcresult.zip"

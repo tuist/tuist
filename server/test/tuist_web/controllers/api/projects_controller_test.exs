@@ -11,7 +11,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
   alias TuistWeb.Authentication
 
   setup do
-    user = AccountsFixtures.user_fixture(email: "tuist@tuist.dev", preload: [:account])
+    user = AccountsFixtures.user_fixture(preload: [:account])
     %{user: user}
   end
 
@@ -63,7 +63,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
 
       assert response == %{
                "id" => response["id"],
-               "full_name" => "tuist/my-project",
+               "full_name" => "#{user.account.name}/my-project",
                "default_branch" => "main",
                "repository_url" => nil,
                "visibility" => "private",
@@ -350,7 +350,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       assert Enum.find_value(response["projects"], fn value ->
                value == %{
                  "id" => project_two.id,
-                 "full_name" => "tuist/#{project_two.name}",
+                 "full_name" => "#{user_account.name}/#{project_two.name}",
                  "default_branch" => project_two.default_branch,
                  "visibility" => Atom.to_string(project_two.visibility),
                  "build_system" => Atom.to_string(project_two.build_system),
@@ -364,21 +364,8 @@ defmodule TuistWeb.API.ProjectsControllerTest do
 
     test "lists all user projects when associated with a google hosted domain", %{conn: conn} do
       # Given
-      user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: 123,
-          info: %{
-            email: "tuist@tuist.dev"
-          },
-          extra: %{
-            raw_info: %{
-              user: %{
-                "hd" => "tuist.io"
-              }
-            }
-          }
-        })
+      domain = unique_sso_domain()
+      user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
 
       conn = Authentication.put_current_user(conn, user)
 
@@ -388,7 +375,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
 
       Accounts.update_organization(organization, %{
         sso_provider: :google,
-        sso_organization_id: "tuist.io"
+        sso_organization_id: domain
       })
 
       organization_account = Accounts.get_account_from_organization(organization)
@@ -416,7 +403,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       assert Enum.find_value(response["projects"], fn value ->
                value == %{
                  "id" => project_two.id,
-                 "full_name" => "tuist/#{project_two.name}",
+                 "full_name" => "#{user_account.name}/#{project_two.name}",
                  "default_branch" => project_two.default_branch,
                  "visibility" => Atom.to_string(project_two.visibility),
                  "build_system" => Atom.to_string(project_two.build_system),
@@ -597,7 +584,7 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       response = json_response(conn, :not_found)
 
       assert response == %{
-               "message" => "Project tuist/non-existing-project not found."
+               "message" => "Project #{account.name}/non-existing-project not found."
              }
     end
 
@@ -696,9 +683,9 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       user =
         Accounts.find_or_create_user_from_oauth2(%{
           provider: :github,
-          uid: 123,
+          uid: System.unique_integer([:positive]),
           info: %{
-            email: "tuist@tuist.dev"
+            email: AccountsFixtures.unique_user_email()
           }
         })
 
@@ -754,12 +741,12 @@ defmodule TuistWeb.API.ProjectsControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put(~p"/api/projects/tuist/non-existing-project",
+        |> put(~p"/api/projects/#{user.account.name}/non-existing-project",
           default_branch: "new-default-branch"
         )
 
       response = json_response(conn, :not_found)
-      assert response["message"] == "Project tuist/non-existing-project was not found."
+      assert response["message"] == "Project #{user.account.name}/non-existing-project was not found."
     end
   end
 
@@ -819,5 +806,26 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                "message" => "You don't have permission to delete the #{account.name}/#{project.name} project."
              }
     end
+  end
+
+  defp unique_sso_domain do
+    "tuist-#{TuistTestSupport.Utilities.unique_integer(6)}.io"
+  end
+
+  defp google_oauth_identity(domain) do
+    %{
+      provider: :google,
+      uid: System.unique_integer([:positive]),
+      info: %{
+        email: "tuist-#{TuistTestSupport.Utilities.unique_integer(6)}@#{domain}"
+      },
+      extra: %{
+        raw_info: %{
+          user: %{
+            "hd" => domain
+          }
+        }
+      }
+    }
   end
 end

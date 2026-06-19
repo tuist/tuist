@@ -4,6 +4,8 @@ defmodule Tuist.GitHub.ReleasesTest do
 
   alias Tuist.GitHub.Releases
 
+  @moduletag capture_log: true
+
   setup do
     stub(Tuist.KeyValueStore, :get_or_update, fn _, _, func -> func.() end)
     :ok
