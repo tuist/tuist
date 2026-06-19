@@ -1239,10 +1239,12 @@ func TestKuraInstanceReconcileConvertsLegacyGRPCIngressToSingleHost(t *testing.T
 		},
 	}
 
-	// A pre-existing gRPC Ingress in the old split-host shape: host
-	// grpc.<host>, a single "/" path, and its own TLS. The reconcile must
-	// convert this same object in place to the single-host shape, not leave
-	// the legacy host or create a second object.
+	// The realistic mid-migration cluster shape: a pre-existing gRPC Ingress
+	// in the old split-host shape (host grpc.<host>, a single "/" path, and
+	// its own TLS) alongside the dedicated gRPC Certificate and its Secret.
+	// The reconcile must convert the Ingress in place to the single-host
+	// shape (not leave the legacy host or create a second object) and retire
+	// the dedicated cert + secret.
 	legacyGRPCIngress := &networkingv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{Name: grpcServiceName(instance), Namespace: instance.Namespace},
 		Spec: networkingv1.IngressSpec{
@@ -1263,10 +1265,17 @@ func TestKuraInstanceReconcileConvertsLegacyGRPCIngressToSingleHost(t *testing.T
 			}},
 		},
 	}
+	legacyGRPCCert := &unstructured.Unstructured{}
+	legacyGRPCCert.SetGroupVersionKind(certificateGVK())
+	legacyGRPCCert.SetName(grpcTLSSecretName(instance))
+	legacyGRPCCert.SetNamespace(instance.Namespace)
+	legacyGRPCSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: grpcTLSSecretName(instance), Namespace: instance.Namespace},
+	}
 
 	reconciler := &KuraInstanceReconciler{
 		Client: fake.NewClientBuilder().WithScheme(scheme).
-			WithObjects(instance, legacyGRPCIngress).WithStatusSubresource(instance).Build(),
+			WithObjects(instance, legacyGRPCIngress, legacyGRPCCert, legacyGRPCSecret).WithStatusSubresource(instance).Build(),
 		Scheme:            scheme,
 		GRPCClusterIssuer: "letsencrypt-prod",
 	}
@@ -1303,6 +1312,18 @@ func TestKuraInstanceReconcileConvertsLegacyGRPCIngressToSingleHost(t *testing.T
 	}
 	if got := grpcIngress.Annotations["nginx.ingress.kubernetes.io/use-regex"]; got != "true" {
 		t.Fatalf("expected converted gRPC ingress to enable regex matching, got %q", got)
+	}
+
+	// The dedicated gRPC Certificate and its Secret are retired as part of
+	// the conversion.
+	cert := &unstructured.Unstructured{}
+	cert.SetGroupVersionKind(certificateGVK())
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcTLSSecretName(instance), Namespace: instance.Namespace}, cert); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected the dedicated gRPC Certificate to be deleted, got %v", err)
+	}
+	secret := &corev1.Secret{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcTLSSecretName(instance), Namespace: instance.Namespace}, secret); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected the dedicated gRPC TLS Secret to be deleted, got %v", err)
 	}
 }
 
