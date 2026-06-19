@@ -1635,8 +1635,7 @@ mod tests {
         })
         .await;
 
-        std::fs::create_dir_all(&local.state.config.tmp_dir)
-            .expect("tmp dir should be creatable");
+        std::fs::create_dir_all(&local.state.config.tmp_dir).expect("tmp dir should be creatable");
         std::fs::write(
             local.state.config.tmp_dir.join("upload-in-progress"),
             vec![1_u8; (tmp_budget - artifact_len / 2) as usize],
