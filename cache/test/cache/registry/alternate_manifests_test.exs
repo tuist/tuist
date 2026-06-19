@@ -36,13 +36,14 @@ defmodule Cache.Registry.AlternateManifestsTest do
       ]
     end)
 
-    expect(ExAws.S3, :get_object, 3, fn "test-bucket", key ->
+    expect(ExAws.S3, :get_object, 4, fn "test-bucket", key ->
       %S3{bucket: "test-bucket", path: key}
     end)
 
-    expect(ExAws, :request, 3, fn %S3{path: path} ->
+    expect(ExAws, :request, 4, fn %S3{path: path} ->
       tools_version =
         cond do
+          String.ends_with?(path, "/Package.swift") -> "5.7"
           String.ends_with?(path, "/Package@swift-4.2.swift") -> "4.2"
           String.ends_with?(path, "/Package@swift-5.0.swift") -> "5.0"
           String.ends_with?(path, "/Package@swift-5.3.swift") -> "5.3"
@@ -57,6 +58,45 @@ defmodule Cache.Registry.AlternateManifestsTest do
              %{"swift_version" => "4.2", "swift_tools_version" => "4.2"},
              %{"swift_version" => "5.0", "swift_tools_version" => "5.0"},
              %{"swift_version" => "5.3", "swift_tools_version" => "5.3"}
+           ]
+  end
+
+  test "omits alternates whose tools version matches the root manifest",
+       %{cache_name: cache_name} do
+    scope = "pointfreeco"
+    name = "swift-snapshot-testing"
+    version = "1.18.7"
+
+    expect(ExAws.S3, :list_objects_v2, fn "test-bucket", opts ->
+      assert Keyword.get(opts, :prefix) == "registry/swift/#{scope}/#{name}/#{version}/"
+      %S3{bucket: "test-bucket", path: "list"}
+    end)
+
+    expect(ExAws, :stream!, fn %S3{path: "list"} ->
+      [
+        %{key: "registry/swift/#{scope}/#{name}/#{version}/Package.swift"},
+        %{key: "registry/swift/#{scope}/#{name}/#{version}/Package@swift-6.0.swift"},
+        %{key: "registry/swift/#{scope}/#{name}/#{version}/Package@swift-5.9.swift"}
+      ]
+    end)
+
+    expect(ExAws.S3, :get_object, 3, fn "test-bucket", key ->
+      %S3{bucket: "test-bucket", path: key}
+    end)
+
+    expect(ExAws, :request, 3, fn %S3{path: path} ->
+      tools_version =
+        cond do
+          String.ends_with?(path, "/Package.swift") -> "6.0"
+          String.ends_with?(path, "/Package@swift-6.0.swift") -> "6.0"
+          String.ends_with?(path, "/Package@swift-5.9.swift") -> "5.9"
+        end
+
+      {:ok, %{body: "// swift-tools-version:#{tools_version}\n"}}
+    end)
+
+    assert AlternateManifests.list(scope, name, version, cache_name: cache_name) == [
+             %{"swift_version" => "5.9", "swift_tools_version" => "5.9"}
            ]
   end
 
@@ -134,6 +174,37 @@ defmodule Cache.Registry.AlternateManifestsTest do
       end)
 
     assert log =~ "Failed to fetch alternate manifest"
+  end
+
+  test "does not cache fallback results when the listed root manifest fails to fetch",
+       %{cache_name: cache_name} do
+    expect(ExAws.S3, :list_objects_v2, 2, fn "test-bucket", _opts ->
+      %S3{bucket: "test-bucket", path: "list"}
+    end)
+
+    expect(ExAws, :stream!, 2, fn %S3{} ->
+      [
+        %{key: "registry/swift/foo/bar/1.0.0/Package.swift"},
+        %{key: "registry/swift/foo/bar/1.0.0/Package@swift-6.0.swift"}
+      ]
+    end)
+
+    expect(ExAws.S3, :get_object, 2, fn "test-bucket", key ->
+      assert String.ends_with?(key, "/Package.swift")
+      %S3{bucket: "test-bucket", path: key}
+    end)
+
+    expect(ExAws, :request, 2, fn %S3{} ->
+      {:error, {:http_error, 503, %{}}}
+    end)
+
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert AlternateManifests.list("foo", "bar", "1.0.0", cache_name: cache_name) == []
+        assert AlternateManifests.list("foo", "bar", "1.0.0", cache_name: cache_name) == []
+      end)
+
+    assert log =~ "Failed to fetch default manifest"
   end
 
   test "returns empty list and logs warning when S3 raises", %{cache_name: cache_name} do

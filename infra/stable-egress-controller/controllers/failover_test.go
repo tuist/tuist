@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
@@ -77,8 +78,7 @@ type fakeFIP struct {
 	assigns   []int64
 }
 
-func (f *fakeFIP) CurrentServerID(context.Context, string) (int64, error) { return f.server, nil }
-func (f *fakeFIP) Address(context.Context, string) (string, error)        { return f.addr, nil }
+func (f *fakeFIP) Get(context.Context, string) (string, int64, error) { return f.addr, f.server, nil }
 func (f *fakeFIP) Assign(_ context.Context, _ string, serverID int64) error {
 	if f.assignErr != nil {
 		return f.assignErr
@@ -239,6 +239,77 @@ func TestReconcileStripsDeadNonCandidateLabelOnFailover(t *testing.T) {
 	}
 	if fip.server != 222 {
 		t.Fatalf("Floating IP on server %d, want 222", fip.server)
+	}
+}
+
+// The Node watch predicate must let through only the changes that affect
+// gateway selection, and drop the kubelet status heartbeats that otherwise
+// reconcile (and hit the Hetzner API) every few seconds per node.
+func TestNodeEventPredicate(t *testing.T) {
+	r := newReconciler(&fakeFIP{})
+	pred := r.nodeEventPredicate()
+
+	withHeartbeat := func(n *corev1.Node, beat string) *corev1.Node {
+		n = n.DeepCopy()
+		n.ResourceVersion = beat
+		for i := range n.Status.Conditions {
+			if n.Status.Conditions[i].Type == corev1.NodeReady {
+				n.Status.Conditions[i].LastHeartbeatTime = metav1.Now()
+			}
+		}
+		return n
+	}
+	withReady := func(n *corev1.Node, ready bool) *corev1.Node {
+		n = n.DeepCopy()
+		st := corev1.ConditionFalse
+		if ready {
+			st = corev1.ConditionTrue
+		}
+		n.Status.Conditions = []corev1.NodeCondition{{Type: corev1.NodeReady, Status: st}}
+		return n
+	}
+	withLabel := func(n *corev1.Node, k, v string) *corev1.Node {
+		n = n.DeepCopy()
+		if n.Labels == nil {
+			n.Labels = map[string]string{}
+		}
+		n.Labels[k] = v
+		return n
+	}
+	withDeletion := func(n *corev1.Node) *corev1.Node {
+		n = n.DeepCopy()
+		now := metav1.Now()
+		n.DeletionTimestamp = &now
+		return n
+	}
+
+	base := candidateNode("egress-a", "hcloud://111", true, false)
+
+	tests := []struct {
+		name     string
+		old, new *corev1.Node
+		want     bool
+	}{
+		{"heartbeat-only update is dropped", base, withHeartbeat(base, "2"), false},
+		{"ready transition reconciles", base, withReady(base, false), true},
+		{"candidate label change reconciles", base, withLabel(base, candKey, "other"), true},
+		{"active label added reconciles", base, withLabel(base, actKey, actVal), true},
+		{"deletion timestamp reconciles", base, withDeletion(base), true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := pred.Update(event.UpdateEvent{ObjectOld: tt.old, ObjectNew: tt.new})
+			if got != tt.want {
+				t.Fatalf("predicate.Update = %v, want %v", got, tt.want)
+			}
+		})
+	}
+
+	if !pred.Create(event.CreateEvent{Object: base}) {
+		t.Fatal("Create events must reconcile")
+	}
+	if !pred.Delete(event.DeleteEvent{Object: base}) {
+		t.Fatal("Delete events must reconcile")
 	}
 }
 

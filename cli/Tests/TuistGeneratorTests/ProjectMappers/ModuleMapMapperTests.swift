@@ -174,7 +174,7 @@ struct ModuleMapMapperTests {
         let b1ModuleMapPath = projectBPath.appending(components: "B1", "B1.module").pathString
         let b2ModuleMapPath = projectBPath.appending(components: "B2", "B2.module").pathString
 
-        #expect(gotSideEffects.sorted(by: { $0.description < $1.description }) ==
+        #expect(fileSideEffects(from: gotSideEffects).sorted(by: { $0.description < $1.description }) ==
             [
                 .file(FileDescriptor(
                     path: combinedModuleMapPathA,
@@ -188,6 +188,72 @@ struct ModuleMapMapperTests {
                 )),
             ].sorted(by: { $0.description < $1.description })
         )
+    }
+
+    @Test(.inTemporaryDirectory)
+    func deletes_stale_generated_dependency_module_maps() throws {
+        // Given
+        let workspace = Workspace.test()
+        let projectAPath = try temporaryPath().appending(component: "A")
+        let projectBPath = try temporaryPath().appending(component: "B")
+        let moduleMapDirectory = projectAPath.appending(components: "Derived", "ModuleMaps")
+        let activeModuleMapPath = moduleMapDirectory.appending(component: "A-deps.modulemap")
+        let staleModuleMapPath = moduleMapDirectory.appending(component: "DeletedTarget-deps.modulemap")
+
+        let targetA = Target.test(
+            name: "A",
+            dependencies: [
+                .project(target: "B", path: projectBPath),
+            ]
+        )
+        let projectA = Project.test(
+            path: projectAPath,
+            name: "A",
+            targets: [
+                targetA,
+            ]
+        )
+        let targetB = Target.test(
+            name: "B",
+            settings: .test(base: [
+                "MODULEMAP_FILE": .string(projectBPath.appending(components: "B", "B.module").pathString),
+            ])
+        )
+        let projectB = Project.test(
+            path: projectBPath,
+            name: "B",
+            targets: [
+                targetB,
+            ]
+        )
+
+        // When
+        let (_, gotSideEffects, _) = try subject.map(
+            graph: .test(
+                workspace: workspace,
+                projects: [
+                    projectAPath: projectA,
+                    projectBPath: projectB,
+                ],
+                dependencies: [
+                    .target(name: targetA.name, path: projectAPath): [
+                        .target(name: targetB.name, path: projectBPath),
+                    ],
+                ]
+            ),
+            environment: MapperEnvironment()
+        )
+
+        // Then
+        let cleanupDescriptor = try #require(generatedFilesCleanupDescriptor(in: gotSideEffects))
+        #expect(cleanupDescriptor.include == ["*-deps.modulemap"])
+        #expect(cleanupDescriptor.directories.contains(moduleMapDirectory))
+        #expect(cleanupDescriptor.activeFilesByDirectory[moduleMapDirectory] == Set([activeModuleMapPath]))
+        #expect(!(cleanupDescriptor.activeFilesByDirectory[moduleMapDirectory]?.contains(staleModuleMapPath) ?? false))
+        #expect(fileSideEffects(from: gotSideEffects).contains { sideEffect in
+            guard case let .file(fileDescriptor) = sideEffect else { return false }
+            return fileDescriptor.path == activeModuleMapPath && fileDescriptor.state == .present
+        })
     }
 
     @Test(.inTemporaryDirectory)
@@ -310,7 +376,7 @@ struct ModuleMapMapperTests {
 
         // Verify side effect: combined module map for A
         let bModuleMapPath = projectBPath.appending(components: "B", "B.module").pathString
-        #expect(gotSideEffects ==
+        #expect(fileSideEffects(from: gotSideEffects) ==
             [
                 .file(FileDescriptor(
                     path: combinedModuleMapPath,
@@ -492,7 +558,7 @@ struct ModuleMapMapperTests {
         // Verify side effect
         let combinedModuleMapPath = projectAPath.appending(components: "Derived", "ModuleMaps", "A-deps.modulemap")
         let bModuleMapPath = projectBPath.appending(components: "B", "B.module").pathString
-        #expect(gotSideEffects ==
+        #expect(fileSideEffects(from: gotSideEffects) ==
             [
                 .file(FileDescriptor(
                     path: combinedModuleMapPath,
@@ -615,8 +681,9 @@ struct ModuleMapMapperTests {
             "module-map paths under tuist-derived must not embed `..` segments through `.build/checkouts`"
         )
 
-        #expect(gotSideEffects.count == 1)
-        let gotSideEffect = try #require(gotSideEffects.first)
+        let gotFileSideEffects = fileSideEffects(from: gotSideEffects)
+        #expect(gotFileSideEffects.count == 1)
+        let gotSideEffect = try #require(gotFileSideEffects.first)
         guard case let .file(descriptor) = gotSideEffect else {
             Issue.record("Expected file side effect for combined module map")
             return
@@ -767,7 +834,8 @@ struct ModuleMapMapperTests {
         )
     }
 
-    func test_maps_long_dependency_chain_without_recursion() throws {
+    @Test(.inTemporaryDirectory)
+    func maps_long_dependency_chain_without_recursion() throws {
         // Given
         let workspace = Workspace.test()
         let projectPath = try temporaryPath()
@@ -793,17 +861,31 @@ struct ModuleMapMapperTests {
         )
 
         // Then
-        XCTAssertNoThrow(
-            try subject.map(
-                graph: .test(
-                    workspace: workspace,
-                    projects: [
-                        projectPath: project,
-                    ],
-                    dependencies: dependencies
-                ),
-                environment: MapperEnvironment()
-            )
+        _ = try subject.map(
+            graph: .test(
+                workspace: workspace,
+                projects: [
+                    projectPath: project,
+                ],
+                dependencies: dependencies
+            ),
+            environment: MapperEnvironment()
         )
+    }
+
+    private func fileSideEffects(from sideEffects: [SideEffectDescriptor]) -> [SideEffectDescriptor] {
+        sideEffects.compactMap { sideEffect in
+            guard case .file = sideEffect else { return nil }
+            return sideEffect
+        }
+    }
+
+    private func generatedFilesCleanupDescriptor(
+        in sideEffects: [SideEffectDescriptor]
+    ) -> GeneratedFilesCleanupDescriptor? {
+        sideEffects.compactMap { sideEffect in
+            guard case let .generatedFilesCleanup(descriptor) = sideEffect else { return nil }
+            return descriptor
+        }.first
     }
 }
