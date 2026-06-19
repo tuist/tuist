@@ -381,6 +381,10 @@ func (r *KuraInstanceReconciler) reconcileAccountPublicPeerService(ctx context.C
 		}
 		service.Annotations["external-dns.alpha.kubernetes.io/hostname"] = instance.Spec.MeshPublicPeerHost
 		service.Spec.Type = corev1.ServiceTypeLoadBalancer
+		// Local routes the LoadBalancer straight to a node that hosts a peer pod
+		// instead of round-robining across every node and SNAT-hopping to the
+		// pod, which intermittently reset long-lived bootstrap connections.
+		service.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyTypeLocal
 		service.Spec.Selector = map[string]string{
 			"app.kubernetes.io/name": "kura",
 			"tuist.dev/account":      instance.Spec.AccountHandle,
