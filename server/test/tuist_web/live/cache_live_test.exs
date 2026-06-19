@@ -120,10 +120,9 @@ defmodule TuistWeb.CacheLiveTest do
 
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/cache")
 
-    assert html =~ "Node credentials"
-    assert html =~ "Cache endpoints"
+    assert html =~ "Credentials"
+    assert html =~ "Registered nodes"
     assert html =~ "create_self_hosted_client"
-    assert html =~ "create_self_hosted_endpoint"
   end
 
   test "generates a tenant-scoped credential and reveals the secret once", %{conn: conn, account: account} do
@@ -142,25 +141,6 @@ defmodule TuistWeb.CacheLiveTest do
     html = render_click(lv, "dismiss_self_hosted_client_secret")
     refute html =~ "Client secret"
     assert html =~ "production"
-  end
-
-  test "adds and deletes a self-hosted endpoint URL", %{conn: conn, account: account} do
-    enable_cache(account)
-    stub(Kura, :latest_versions, fn 1 -> [] end)
-
-    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/cache")
-
-    html =
-      render_submit(lv, "create_self_hosted_endpoint", %{
-        "account_cache_endpoint" => %{"url" => "https://mesh.acme.test"}
-      })
-
-    assert html =~ "https://mesh.acme.test"
-    assert [endpoint] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted)
-
-    html = render_click(lv, "delete_self_hosted_endpoint", %{"id" => endpoint.id})
-    refute html =~ "https://mesh.acme.test"
-    assert Accounts.list_account_cache_endpoints(account, :kura_self_hosted) == []
   end
 
   test "shows the cache server endpoint in the table" do

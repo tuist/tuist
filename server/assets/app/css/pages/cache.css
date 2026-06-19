@@ -25,8 +25,7 @@
   }
 
   & > [data-part="servers-card"],
-  & > [data-part="credentials-card"],
-  & > [data-part="endpoints-card"] {
+  & > [data-part="self-hosted-card"] {
     display: flex;
     flex-direction: column;
     gap: 0;
@@ -73,40 +72,143 @@
     }
   }
 
-  & [data-part="credential-reveal"] {
+  /* The merged self-hosted card stacks a credentials and an endpoints
+     subsection under one header, each with its own sub-header + table. */
+  & > [data-part="self-hosted-card"] {
+    & > [data-part="header"] {
+      padding-bottom: var(--noora-spacing-4);
+    }
+
+    & [data-part="subsection"] {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+
+      & > [data-part="subsection-header"] {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: var(--noora-spacing-5);
+        padding: var(--noora-spacing-5) var(--noora-spacing-8) var(--noora-spacing-4);
+
+        & > [data-part="title-group"] {
+          display: flex;
+          flex-grow: 1;
+          flex-direction: column;
+          gap: var(--noora-spacing-1);
+          min-width: 0;
+
+          & > [data-part="title"] {
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+          }
+
+          & > [data-part="subtitle"] {
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+          }
+        }
+
+        & > [data-part="actions"] {
+          display: flex;
+          flex-shrink: 0;
+          flex-direction: row;
+          align-items: center;
+        }
+      }
+
+      & > .noora-table {
+        box-sizing: border-box;
+        margin: 0 var(--noora-spacing-8) var(--noora-spacing-6);
+        width: calc(100% - 2 * var(--noora-spacing-8));
+      }
+    }
+
+    /* Pin the row's icon-only revoke action to the right edge. */
+    & #self-hosted-clients-table tbody td:last-child {
+      text-align: right;
+    }
+  }
+}
+
+/* Generate-credential modal mirrors the webhook signing-secret flow:
+   the body swaps between the name form and the one-time secret disclosure. */
+#add-self-hosted-client-modal {
+  & > [data-part="positioner"] > [data-part="content"] {
+    width: min(560px, 90vw);
+    max-width: 560px;
+  }
+
+  & [data-part="modal-content-wrapper"] {
     display: flex;
     flex-direction: column;
-    gap: var(--noora-spacing-4);
-    margin: 0 var(--noora-spacing-8) var(--noora-spacing-6);
 
-    & > .noora-alert {
-      align-self: stretch;
+    & > .noora-line-divider {
+      flex-shrink: 0;
+    }
+  }
+
+  & [data-part="modal-body"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+    padding: var(--noora-spacing-7) var(--noora-spacing-4);
+
+    & [data-part="modal-message"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      }
     }
 
     & [data-part="credential-field"] {
       display: flex;
       flex-direction: column;
-      gap: var(--noora-spacing-1);
+      gap: var(--noora-spacing-2);
 
-      & [data-part="label"] {
+      & > [data-part="label"] {
         color: var(--noora-surface-label-secondary);
-        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      }
+    }
+
+    & [data-part="read-only-value"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+      border-radius: var(--noora-radius-3);
+      background: var(--noora-surface-background-tertiary);
+      padding: var(--noora-spacing-3) var(--noora-spacing-3) var(--noora-spacing-3) var(--noora-spacing-5);
+      min-width: 0;
+
+      & > code {
+        flex-grow: 1;
+        overflow: hidden;
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+        font-family: "Geist Mono", monospace;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
-      & [data-part="value"] {
-        box-shadow: var(--noora-border-section);
-        border-radius: var(--noora-radius-4);
-        background: var(--noora-surface-background-tertiary);
-        padding: var(--noora-spacing-3) var(--noora-spacing-4);
-        color: var(--noora-surface-label-primary);
-        font: var(--noora-font-weight-regular) var(--noora-font-code-large);
-        word-break: break-all;
+      & > .noora-button {
+        flex-shrink: 0;
       }
     }
   }
 }
 
-/* Deploy-server modal — lives on this page. */
+/* Deploy-server modal lives on this page. */
 #add-cache-server-modal {
   & [data-part="modal-content"] {
     display: flex;

@@ -16,17 +16,12 @@
       add_cache_server_form={@add_cache_server_form}
       latest_version={@latest_version}
     />
-    <.node_credentials_section
+    <.self_hosted_section
       self_hosted_clients={@self_hosted_clients}
       new_self_hosted_client_form={@new_self_hosted_client_form}
       new_self_hosted_client_secret={@new_self_hosted_client_secret}
+      registered_endpoints={@registered_endpoints}
     />
-    <.cache_endpoints_section
-      self_hosted_endpoints={@self_hosted_endpoints}
-      add_self_hosted_endpoint_form={@add_self_hosted_endpoint_form}
-    />
-
-    <.registered_nodes_section registered_endpoints={@registered_endpoints} />
   <% else %>
     <.card_section data-part="cache-disabled-card">
       <.alert

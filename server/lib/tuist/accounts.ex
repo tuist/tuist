@@ -2072,14 +2072,10 @@ defmodule Tuist.Accounts do
 
   defp kura_cache_endpoints(%Account{} = account) do
     if FeatureFlags.kura_cache_enabled?(account) do
-      # Both Tuist-managed Kura endpoints (mirrored from `kura_servers`) and
-      # customer self-hosted Kura meshes resolve under the `:kura` technology —
-      # they are the same kind of node from the CLI's perspective.
-      Repo.all(
-        from(e in AccountCacheEndpoint,
-          where: e.account_id == ^account.id and e.technology in [:kura, :kura_self_hosted]
-        )
-      )
+      # Tuist-managed Kura endpoints, mirrored from `kura_servers`. Self-hosted
+      # nodes are not static rows: each one self-registers its advertised URL via
+      # heartbeats, surfaced through `registered_kura_endpoint_urls/1`.
+      Repo.all(from(e in AccountCacheEndpoint, where: e.account_id == ^account.id and e.technology == :kura))
     else
       []
     end

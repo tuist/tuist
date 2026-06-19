@@ -13,12 +13,12 @@ defmodule Tuist.Accounts.AccountCacheEndpoint do
   @primary_key {:id, :binary_id, autogenerate: true}
   schema "account_cache_endpoints" do
     field :url, :string
-    # `kura_self_hosted` is a manual, client-facing cache URL (the static
-    # fallback a customer enters in the UI). `kura_self_hosted_peer` is an
-    # enrolled node's internal peer (mTLS) URL, used only for mesh discovery and
-    # never returned to the CLI as a cache endpoint.
+    # `kura_self_hosted_peer` is an enrolled node's internal peer (mTLS) URL,
+    # used only for mesh discovery and never returned to the CLI as a cache
+    # endpoint. Self-hosted client-facing URLs are not stored here: each node
+    # self-registers its advertised URL via heartbeats.
     field :technology, Ecto.Enum,
-      values: [default: 0, kura: 1, kura_self_hosted: 2, kura_self_hosted_peer: 3],
+      values: [default: 0, kura: 1, kura_self_hosted_peer: 3],
       default: :default
 
     belongs_to :account, Account
