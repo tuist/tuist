@@ -4519,7 +4519,8 @@ final class TestServiceTests: TuistUnitTestCase {
                     id: "plan-id",
                     reference: "ref",
                     shard_count: 2,
-                    shards: []
+                    shards: [],
+                    upload_url: "https://tuist.dev/api/projects/tuist/tuist/tests/shards/upload/start"
                 )
             }
 
@@ -5195,7 +5196,8 @@ final class TestServiceTests: TuistUnitTestCase {
                     id: "plan-id",
                     reference: "ref",
                     shard_count: 2,
-                    shards: []
+                    shards: [],
+                    upload_url: "https://tuist.dev/api/projects/tuist/tuist/tests/shards/upload/start"
                 )
             )
 
@@ -5287,7 +5289,8 @@ final class TestServiceTests: TuistUnitTestCase {
                     id: "plan-id",
                     reference: "ref",
                     shard_count: 2,
-                    shards: []
+                    shards: [],
+                    upload_url: "https://tuist.dev/api/projects/tuist/tuist/tests/shards/upload/start"
                 )
             )
 

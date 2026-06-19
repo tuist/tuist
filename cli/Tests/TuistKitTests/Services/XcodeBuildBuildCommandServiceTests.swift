@@ -14,10 +14,8 @@ import TuistTesting
 import TuistUniqueIDGenerator
 import TuistXCActivityLog
 import TuistXcodeBuildProducts
-
 @testable import TuistKit
 
-@Suite
 struct XcodeBuildBuildCommandServiceTests {
     private let fileSystem = FileSystem()
     private let xcodeBuildController = MockXcodeBuildControlling()
@@ -87,7 +85,7 @@ struct XcodeBuildBuildCommandServiceTests {
 
         given(uploadBuildRunService)
             .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any, scheme: .any, configuration: .any)
-            .willReturn(URL(string: "https://tuist.dev/test")!)
+            .willReturn(try #require(URL(string: "https://tuist.dev/test")))
 
         try await subject.run(passthroughXcodebuildArguments: arguments)
 
@@ -139,7 +137,7 @@ struct XcodeBuildBuildCommandServiceTests {
 
         given(uploadBuildRunService)
             .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any, scheme: .any, configuration: .any)
-            .willReturn(URL(string: "https://tuist.dev/test")!)
+            .willReturn(try #require(URL(string: "https://tuist.dev/test")))
 
         try await subject.run(passthroughXcodebuildArguments: arguments)
 
@@ -276,7 +274,7 @@ struct XcodeBuildBuildCommandServiceTests {
 
         given(serverEnvironmentService)
             .url(configServerURL: .any)
-            .willReturn(URL(string: "https://tuist.dev")!)
+            .willReturn(try #require(URL(string: "https://tuist.dev")))
 
         given(shardPlanService)
             .plan(
@@ -299,7 +297,8 @@ struct XcodeBuildBuildCommandServiceTests {
                     id: "plan-id",
                     reference: "ref",
                     shard_count: 2,
-                    shards: []
+                    shards: [],
+                    upload_url: "https://tuist.dev/api/projects/tuist/tuist/tests/shards/upload/start"
                 )
             )
 
