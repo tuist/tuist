@@ -18,9 +18,6 @@ public struct InspectBundleCommand: AsyncParsableCommand {
         )
     }
 
-    @OptionGroup
-    var loggingOptions: LoggingOptions
-
     @Argument(
         help: "The path to the bundle, or the name of an app for Apple platforms to resolve from Xcode build products.",
         completion: .directory,
@@ -64,6 +61,9 @@ public struct InspectBundleCommand: AsyncParsableCommand {
         envKey: .inspectBundlePath
     )
     var path: String?
+
+    @OptionGroup
+    var loggingOptions: LoggingOptions
 
     public func run() async throws {
         #if os(macOS)

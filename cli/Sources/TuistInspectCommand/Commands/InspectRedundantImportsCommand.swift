@@ -13,9 +13,6 @@
             )
         }
 
-        @OptionGroup
-        var loggingOptions: LoggingOptions
-
         @Option(
             name: .shortAndLong,
             help: "The path to the directory that contains the project.",
@@ -23,6 +20,9 @@
             envKey: .lintRedundantDependenciesPath
         )
         var path: String?
+
+        @OptionGroup
+        var loggingOptions: LoggingOptions
 
         func run() async throws {
             AlertController.current

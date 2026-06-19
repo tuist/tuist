@@ -11,9 +11,6 @@
             )
         }
 
-        @OptionGroup
-        var loggingOptions: LoggingOptions
-
         @Option(
             name: .shortAndLong,
             help: "The path to the directory that contains the project.",
@@ -28,6 +25,9 @@
             envKey: .inspectDependenciesOnly
         )
         var only: [DependencyInspectionType] = []
+
+        @OptionGroup
+        var loggingOptions: LoggingOptions
 
         func run() async throws {
             let inspectionTypes: Set<DependencyInspectionType> = if only.isEmpty {

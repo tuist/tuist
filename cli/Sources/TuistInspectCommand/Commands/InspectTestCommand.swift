@@ -13,9 +13,6 @@
             )
         }
 
-        @OptionGroup
-        var loggingOptions: LoggingOptions
-
         @Option(
             name: .shortAndLong,
             help: "The path to the directory that contains the project to inspect the latest test results for.",
@@ -45,6 +42,9 @@
             envKey: .inspectTestMode
         )
         var mode: TestProcessingMode?
+
+        @OptionGroup
+        var loggingOptions: LoggingOptions
 
         var jsonThroughNoora: Bool = false
 
