@@ -613,6 +613,8 @@ struct SwiftPackageManagerGraphLoaderTests {
                 let checkoutPath = temporaryDirectory.appending(components: [
                     ".build", "checkouts", "swift-syntax",
                 ])
+                let expectedPrebuiltPath = prebuiltPath.pathString.replacingOccurrences(of: "/private/var", with: "/var")
+                let expectedCheckoutPath = checkoutPath.pathString.replacingOccurrences(of: "/private/var", with: "/var")
 
                 try await fileSystem.makeDirectory(at: workspacePath.parentDirectory)
                 try await fileSystem.writeText(
@@ -669,6 +671,16 @@ struct SwiftPackageManagerGraphLoaderTests {
                     temporaryDirectory.appending(component: "Package.resolved")
                 )
 
+                let swiftPackageManagerController = MockSwiftPackageManagerControlling()
+                let manifestLoader = MockManifestLoading()
+                given(manifestLoader)
+                    .loadPackage(at: .any, disableSandbox: .value(true))
+                    .willReturn(.test())
+                let contentHasher = MockContentHashing()
+                given(contentHasher)
+                    .hash(Parameter<[String]>.any)
+                    .willProduce { $0.joined(separator: "-") }
+                let packageInfoMapper = MockPackageInfoMapping()
                 given(packageInfoMapper)
                     .resolveExternalDependencies(
                         path: .any,
@@ -681,6 +693,52 @@ struct SwiftPackageManagerGraphLoaderTests {
                     )
                     .willReturn([:])
 
+                let mapperCall = Mutex((
+                    count: 0,
+                    prebuiltPath: String?.none,
+                    checkoutPath: String?.none,
+                    includePaths: [String]?.none
+                ))
+                given(packageInfoMapper)
+                    .map(
+                        packageInfo: .any,
+                        path: .any,
+                        packageType: .any,
+                        packageSettings: .any,
+                        packageModuleAliases: .any,
+                        enabledTraits: .any
+                    )
+                    .willProduce { _, _, packageType, _, _, _ in
+                        if case let .external(
+                            origin: .remote,
+                            artifactPaths: _,
+                            packagePrebuilts: packagePrebuilts,
+                            derivedXCFrameworksPath: _
+                        ) = packageType,
+                            let prebuilt = packagePrebuilts["swift-syntax"]?["SwiftSyntax"]
+                        {
+                            mapperCall.withLock {
+                                $0.count += 1
+                                $0.prebuiltPath = prebuilt.path.pathString
+                                $0.checkoutPath = prebuilt.checkoutPath?.pathString
+                                $0.includePaths = prebuilt.includePath?.map(\.pathString)
+                            }
+                        } else {
+                            mapperCall.withLock {
+                                $0.count += 1
+                            }
+                        }
+
+                        return .test()
+                    }
+                let subject = SwiftPackageManagerGraphLoader(
+                    swiftPackageManagerController: swiftPackageManagerController,
+                    packageInfoMapper: packageInfoMapper,
+                    manifestLoader: manifestLoader,
+                    fileSystem: fileSystem,
+                    contentHasher: contentHasher
+                )
+
                 // When
                 _ = try await subject.load(
                     packagePath: temporaryDirectory.appending(component: "Package.swift"),
@@ -689,31 +747,11 @@ struct SwiftPackageManagerGraphLoaderTests {
                 )
 
                 // Then
-                verify(packageInfoMapper)
-                    .map(
-                        packageInfo: .any,
-                        path: .any,
-                        packageType: .matching { packageType in
-                            guard case let .external(
-                                origin: .remote,
-                                artifactPaths: _,
-                                packagePrebuilts: packagePrebuilts,
-                                derivedXCFrameworksPath: _
-                            ) = packageType,
-                                let prebuilt = packagePrebuilts["swift-syntax"]?["SwiftSyntax"]
-                            else {
-                                return false
-                            }
-
-                            return prebuilt.path == prebuiltPath
-                                && prebuilt.checkoutPath == checkoutPath
-                                && prebuilt.includePath?.map(\.pathString) == ["Sources/_SwiftSyntaxCShims/include"]
-                        },
-                        packageSettings: .any,
-                        packageModuleAliases: .any,
-                        enabledTraits: .any
-                    )
-                    .called(1)
+                let mapperCallSnapshot = mapperCall.withLock { $0 }
+                #expect(mapperCallSnapshot.count == 1)
+                #expect(mapperCallSnapshot.prebuiltPath == expectedPrebuiltPath)
+                #expect(mapperCallSnapshot.checkoutPath == expectedCheckoutPath)
+                #expect(mapperCallSnapshot.includePaths == ["Sources/_SwiftSyntaxCShims/include"])
             }
         }
     }
