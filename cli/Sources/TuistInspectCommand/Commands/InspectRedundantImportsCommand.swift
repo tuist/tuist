@@ -13,6 +13,9 @@
             )
         }
 
+        @OptionGroup
+        var loggingOptions: LoggingOptions
+
         @Option(
             name: .shortAndLong,
             help: "The path to the directory that contains the project.",

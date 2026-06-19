@@ -18,6 +18,9 @@ public struct InspectBundleCommand: AsyncParsableCommand {
         )
     }
 
+    @OptionGroup
+    var loggingOptions: LoggingOptions
+
     @Argument(
         help: "The path to the bundle, or the name of an app for Apple platforms to resolve from Xcode build products.",
         completion: .directory,
