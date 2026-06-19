@@ -11,7 +11,7 @@ use axum::{
     Json, Router,
     body::{Body, to_bytes},
     extract::{MatchedPath, Path as AxumPath, Query, Request, State},
-    http::{HeaderMap, HeaderValue, StatusCode, Version},
+    http::{HeaderMap, HeaderValue, StatusCode, Uri, Version},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{delete, get, head, post, put},
@@ -1674,36 +1674,40 @@ async fn clean_namespace(
     }
 }
 
-/// Whether a status request arrived through the public peer gateway (its `Host`
-/// header matches the gateway URL's host). An off-cluster node reaches a managed
-/// peer only via the gateway, so this is how a peer knows to advertise the
-/// gateway URL (which the caller can reach) rather than its in-cluster `node_url`
-/// (which it can't) — regardless of discovery scope.
-fn request_reached_via_gateway(headers: &HeaderMap, gateway_url: &str) -> bool {
+/// Whether a status request arrived through the public peer gateway (the host it
+/// was addressed to matches the gateway URL's host). An off-cluster node reaches
+/// a managed peer only via the gateway, so this is how a peer knows to advertise
+/// the gateway URL (which the caller can reach) rather than its in-cluster
+/// `node_url` (which it can't) — regardless of discovery scope.
+///
+/// The addressed host comes from the HTTP/2 `:authority` (carried on the request
+/// URI) or, on HTTP/1.1, the `Host` header — peer connections negotiate h2, so
+/// both must be handled.
+fn request_reached_via_gateway(uri: &Uri, headers: &HeaderMap, gateway_url: &str) -> bool {
     let Some(gateway_host) = reqwest::Url::parse(gateway_url)
         .ok()
         .and_then(|url| url.host_str().map(str::to_owned))
     else {
         return false;
     };
-    let Some(host_header) = headers
-        .get(axum::http::header::HOST)
-        .and_then(|value| value.to_str().ok())
-    else {
-        return false;
-    };
-    let request_host = host_header.split(':').next().unwrap_or(host_header);
-    request_host.eq_ignore_ascii_case(&gateway_host)
+    let request_host = uri.host().map(str::to_owned).or_else(|| {
+        headers
+            .get(axum::http::header::HOST)
+            .and_then(|value| value.to_str().ok())
+            .map(|host| host.split(':').next().unwrap_or(host).to_owned())
+    });
+    request_host.is_some_and(|host| host.eq_ignore_ascii_case(&gateway_host))
 }
 
 async fn internal_status(
+    uri: Uri,
     headers: HeaderMap,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
 ) -> impl IntoResponse {
     let advertise_gateway = state.config.peer_gateway_url.as_deref().is_some_and(|gateway| {
         params.get("scope").map(String::as_str) == Some("global")
-            || request_reached_via_gateway(&headers, gateway)
+            || request_reached_via_gateway(&uri, &headers, gateway)
     });
     let node_url = match (&state.config.peer_gateway_url, advertise_gateway) {
         (Some(gateway), true) => gateway.clone(),
@@ -2939,8 +2943,9 @@ mod tests {
         );
 
         // A Local-scope request that arrived via the gateway host (an
-        // off-cluster node querying KURA_PEERS) also gets the gateway URL.
-        let via_gateway_response = internal_router(context.state.clone())
+        // off-cluster node querying KURA_PEERS) also gets the gateway URL,
+        // whether the host is carried as an HTTP/1.1 Host header...
+        let via_host_header = internal_router(context.state.clone())
             .oneshot(
                 Request::builder()
                     .uri("/_internal/status")
@@ -2950,11 +2955,28 @@ mod tests {
             )
             .await
             .expect("request failed");
-        let via_gateway_body: Value =
-            serde_json::from_str(&response_text(via_gateway_response).await)
-                .expect("failed to decode via-gateway status response");
+        let via_host_body: Value = serde_json::from_str(&response_text(via_host_header).await)
+            .expect("failed to decode via-host status response");
         assert_eq!(
-            via_gateway_body["node_url"],
+            via_host_body["node_url"],
+            "https://peer.tuist-eu-1.kura.tuist.dev:7443"
+        );
+
+        // ...or as the HTTP/2 :authority on the request URI (no Host header).
+        let via_authority = internal_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("https://peer.tuist-eu-1.kura.tuist.dev:7443/_internal/status")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+        let via_authority_body: Value =
+            serde_json::from_str(&response_text(via_authority).await)
+                .expect("failed to decode via-authority status response");
+        assert_eq!(
+            via_authority_body["node_url"],
             "https://peer.tuist-eu-1.kura.tuist.dev:7443"
         );
     }
