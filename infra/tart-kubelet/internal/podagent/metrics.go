@@ -50,21 +50,20 @@ var guestDiskUsagePercent = prometheus.NewGaugeVec(
 	[]string{"vm"},
 )
 
-// podProvisionDelaySeconds is wall-clock from a Pod's creation
-// timestamp to the moment this node begins provisioning its VM (the
-// first reconcile that runs `tart pull`/`clone` for it). It isolates
-// the gap that was previously invisible: a scheduled Pod can sit
-// Pending for minutes before tart-kubelet even starts its VM, and
-// nothing measured it — vmBootDurationSeconds starts at clone, and no
-// event was emitted before Running. A rising p90 here is the
-// "pods stranded before boot" signal that the boot histogram can't see.
+// podProvisionDelaySeconds is wall-clock from a Pod's creation timestamp
+// to the moment `tart run` is about to start its VM — so it spans
+// scheduling + image pull + clone, the segment the boot histogram (which
+// starts at `tart run`) can't see and where a digest-roll pull wave
+// shows up. Recorded once per Pod, on the path that reaches Run, so a
+// failed-and-retried provisioning doesn't double-count toward retry
+// delay. A rising p90 here is the "slow to provision / pull wave" signal.
 //
 // Pool label from the Pod's `tuist.dev/runner-pool` label, same as the
 // boot histogram, for per-pool breakdowns.
 var podProvisionDelaySeconds = prometheus.NewHistogramVec(
 	prometheus.HistogramOpts{
 		Name:    "tart_kubelet_pod_provision_delay_seconds",
-		Help:    "Wall-clock from Pod creation to the start of its VM provisioning (first tart pull/clone).",
+		Help:    "Wall-clock from Pod creation to tart run start (scheduling + image pull + clone).",
 		Buckets: []float64{1, 5, 10, 20, 30, 60, 120, 180, 300, 600},
 	},
 	[]string{"pool"},

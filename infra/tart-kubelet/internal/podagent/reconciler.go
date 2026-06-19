@@ -279,18 +279,11 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 		return nil
 	}
 
-	// First time we provision this Pod's VM. Record the gap from Pod
-	// creation to provisioning start — the previously-unmeasured window
-	// where a scheduled Pod sits Pending before its VM is even started
-	// (the prod bottleneck) — and emit a matching event so the
-	// Scheduled→Running gap is no longer a silent dead zone.
-	pool := pod.Labels["tuist.dev/runner-pool"]
-	if pool == "" {
-		pool = "unknown"
-	}
-	podProvisionDelaySeconds.WithLabelValues(pool).Observe(time.Since(pod.CreationTimestamp.Time).Seconds())
+	// Mark the start of provisioning so the Scheduled→Running gap is no
+	// longer a silent dead zone in `kubectl describe`. k8s aggregates
+	// duplicate events, so a retried createPod doesn't spam.
 	if r.Recorder != nil {
-		r.Recorder.Event(pod, corev1.EventTypeNormal, "CreatingVM", "starting Tart VM provisioning (clone + run)")
+		r.Recorder.Event(pod, corev1.EventTypeNormal, "CreatingVM", "starting Tart VM provisioning (pull + clone + run)")
 	}
 
 	c := pod.Spec.Containers[0]
@@ -359,6 +352,18 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 			return fmt.Errorf("tart set: %w", err)
 		}
 	}
+
+	// Record provisioning duration once, on the path that actually starts
+	// the VM: Pod creation → here (after pull + clone + set). Recording
+	// before the Store entry exists would re-observe on every failed
+	// createPod retry and skew the metric toward retry delay; here it
+	// fires exactly once per Pod that reaches `tart run`, and captures the
+	// pull/clone time the boot histogram (which starts at `tart run`) can't.
+	pool := pod.Labels["tuist.dev/runner-pool"]
+	if pool == "" {
+		pool = "unknown"
+	}
+	podProvisionDelaySeconds.WithLabelValues(pool).Observe(time.Since(pod.CreationTimestamp.Time).Seconds())
 
 	// Record the Pod ↔ VM mapping before kicking the VM off so the
 	// rest of the system (deletePod, GC, recoverState) can keep
