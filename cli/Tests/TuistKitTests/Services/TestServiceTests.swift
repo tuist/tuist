@@ -803,7 +803,8 @@ final class TestServiceTests: TuistUnitTestCase {
             testAction: .test(
                 targets: [
                     .test(target: TargetReference(projectPath: projectPath, name: "AppTests")),
-                ]
+                ],
+                configurationName: "App Debug"
             )
         )
 
@@ -889,7 +890,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 projectPath: .any,
                 config: .any,
                 scheme: .any,
-                configuration: .any
+                configuration: .value("App Debug")
             )
             .called(1)
     }
