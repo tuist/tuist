@@ -43,6 +43,7 @@ import (
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/controllers/macos"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/controllers/shared"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/credentials"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/dedibox"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/githubapp"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/kubeconfig"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/ovh"
@@ -525,6 +526,34 @@ func main() {
 			os.Exit(1)
 		}
 		setupLog.Info("OVH dedicated machine reconciler enabled")
+	}
+
+	// Dedibox (Scaleway / online.net) dedicated machines — the EU customer-facing
+	// kind, same shape as OVH (adopt-by-prefix, install-on-claim, monthly
+	// contract). Gated on the online.net API token so it stays dormant until an
+	// env enables Dedibox (the ESO-synced DEDIBOX_API secret + env lands then).
+	if os.Getenv("DEDIBOX_API_TOKEN") != "" {
+		dediboxClient, err := dedibox.NewClientFromEnv()
+		if err != nil {
+			setupLog.Error(err, "dedibox client")
+			os.Exit(1)
+		}
+		if err := (&linux.DediboxMachineReconciler{
+			Client:             mgr.GetClient(),
+			APIReader:          mgr.GetAPIReader(),
+			Scheme:             mgr.GetScheme(),
+			DediboxClient:      dediboxClient,
+			Recorder:           mgr.GetEventRecorderFor("dediboxmachine-controller"),
+			CredentialsManager: credsManager,
+			Kubeconfig:         kubeconfigBuilder,
+			KubernetesMinor:    "v1.34",
+			DefaultDatacenter:  "dc3",
+			DefaultOS:          "ubuntu_24.04",
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "setup DediboxMachineReconciler")
+			os.Exit(1)
+		}
+		setupLog.Info("Dedibox machine reconciler enabled")
 	}
 
 	if fleetSpreadDeployment != "" {

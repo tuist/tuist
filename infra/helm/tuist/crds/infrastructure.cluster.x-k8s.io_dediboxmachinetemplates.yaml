@@ -1,0 +1,162 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
+  name: dediboxmachinetemplates.infrastructure.cluster.x-k8s.io
+  labels:
+    cluster.x-k8s.io/v1beta1: v1alpha1
+spec:
+  group: infrastructure.cluster.x-k8s.io
+  names:
+    categories:
+      - cluster-api
+    kind: DediboxMachineTemplate
+    listKind: DediboxMachineTemplateList
+    plural: dediboxmachinetemplates
+    shortNames:
+      - dbmt
+    singular: dediboxmachinetemplate
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: |-
+            DediboxMachineTemplate is the template MachineDeployment + MachineSet objects
+            clone Machines from.
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: |-
+                DediboxMachineTemplateSpec wraps the per-Machine spec into the template shape
+                CAPI expects.
+              properties:
+                template:
+                  description: |-
+                    DediboxMachineTemplateResource is the embedded "spec" CAPI's MachineSet
+                    controller clones from when scaling up a MachineDeployment.
+                  properties:
+                    spec:
+                      description: |-
+                        DediboxMachineSpec is the desired state of one Scaleway Dedibox (online.net)
+                        dedicated server. Structurally it mirrors the OVH kind — a customer-facing
+                        public box that adopts a pre-ordered server, installs on claim, self-joins
+                        over its public IP, and (monthly contract) is not terminated on delete. The
+                        vendor differences are the online.net API and that the private network is
+                        RPN rather than a Scaleway VPC PN (unused at Qty-1).
+                      properties:
+                        adoptHostnamePrefix:
+                          description: |-
+                            AdoptHostnamePrefix is the hostname prefix the controller scans to claim a
+                            pre-ordered server for this Machine. The operator pre-orders boxes with
+                            this hostname prefix (authorized with the fleet SSH key); the controller
+                            never orders inline. Required: without it there is no pool to claim from.
+                          type: string
+                        datacenter:
+                          default: dc3
+                          description: |-
+                            Datacenter is the online.net datacenter the server lives in (e.g. `dc3`
+                            for Paris, `ams1` for Amsterdam). Scopes adoption and composes the
+                            providerID.
+                          type: string
+                        egressBudgetMbps:
+                          description: |-
+                            EgressBudgetMbps is the throughput, in Mbps, this box may assign across the
+                            Kura pods it hosts — its NIC ceiling minus headroom. When set, the
+                            controller advertises it as the Node's `tuist.dev/egress-mbps` extended
+                            resource (the multi-box distribution follow-up). Zero leaves it unset.
+                          format: int32
+                          type: integer
+                        fleetName:
+                          description: |-
+                            FleetName groups Machines that share one SSH key, like the Apple Silicon
+                            kind. Set by the MachineTemplate so every Machine the MachineDeployment
+                            clones derives the SAME fleet key the operator authorizes on the
+                            pre-ordered pool boxes; without it the per-Machine-name key would not match
+                            a pre-ordered box, so the bootstrap SSH would fail.
+                          type: string
+                        nodeTaints:
+                          description: |-
+                            NodeTaints are passed to the kubelet's `--register-with-taints` in the
+                            generated self-join.
+                          items:
+                            description: |-
+                              The node this Taint is attached to has the "effect" on
+                              any pod that does not tolerate the Taint.
+                            properties:
+                              effect:
+                                description: |-
+                                  Required. The effect of the taint on pods
+                                  that do not tolerate the taint.
+                                  Valid effects are NoSchedule, PreferNoSchedule and NoExecute.
+                                type: string
+                              key:
+                                description: Required. The taint key to be applied to a node.
+                                type: string
+                              timeAdded:
+                                description: |-
+                                  TimeAdded represents the time at which the taint was added.
+                                  It is only written for NoExecute taints.
+                                format: date-time
+                                type: string
+                              value:
+                                description: The taint value corresponding to the taint key.
+                                type: string
+                            required:
+                              - effect
+                              - key
+                            type: object
+                          type: array
+                        offer:
+                          description: |-
+                            Offer is the Dedibox commercial offer the fleet pre-orders (e.g.
+                            `Pro-11-S`). Informational; adoption keys on the hostname prefix.
+                          type: string
+                        os:
+                          default: ubuntu_24.04
+                          description: |-
+                            OS is the online.net install template label, resolved to an os-id at
+                            install time (e.g. `ubuntu_24.04`).
+                          type: string
+                        providerID:
+                          description: |-
+                            ProviderID, set by the controller after the self-join completes, takes the
+                            shape `dedibox://<datacenter>/<server-id>` — a foreign providerID host so
+                            the Hetzner CCM never reaps the node, the same guard the other kinds use.
+                          type: string
+                        rpnGroup:
+                          description: |-
+                            RPNGroup is the online.net RPN (private network) group the server joins for
+                            the private intra-region mesh. Unused at Qty-1 (a single public box needs
+                            no private fabric); wired in the multi-box follow-up.
+                          type: string
+                      required:
+                        - adoptHostnamePrefix
+                      type: object
+                  required:
+                    - spec
+                  type: object
+              required:
+                - template
+              type: object
+          type: object
+      served: true
+      storage: true
