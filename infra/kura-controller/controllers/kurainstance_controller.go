@@ -550,6 +550,11 @@ var grpcREAPIPathPrefixes = []string{
 // single host as soon as this controller rolls out.
 func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	ingress := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: grpcServiceName(instance), Namespace: instance.Namespace}}
+	// gRPC co-hosts on PublicHost (it is the rule host below), so an empty
+	// PublicHost has nowhere to route — delete rather than emit an Ingress
+	// with an empty host, even when GRPCPublicHost is set. The provisioner
+	// always emits grpcPublicHost and publicHost together (or neither), so in
+	// practice this only guards hand-written, gRPC-only CRs.
 	if instance.Spec.GRPCPublicHost == "" || instance.Spec.PublicHost == "" {
 		if err := r.Delete(ctx, ingress); err != nil && !apierrors.IsNotFound(err) {
 			return err
