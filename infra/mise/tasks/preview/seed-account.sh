@@ -38,17 +38,18 @@ if [ -z "$SERVER_POD" ]; then
 fi
 echo "    Found $SERVER_POD"
 
-# Pipe a small Elixir script to `mix eval` running inside the release.
-# Idempotent — every step checks for existing state first. We propagate
-# inputs through env vars (mix eval inherits the pod env) so the heredoc
-# doesn't have to interpolate anything the outer shell touches.
+# Pipe a small Elixir script to `tuist eval` running inside the release.
+# Idempotent — every step checks for existing state first. `kubectl exec`
+# doesn't carry a `--env` flag (that's a `kubectl run`/`debug` thing), so
+# we prepend `env VAR=val ...` to set them for the `tuist eval` process.
 echo "==> Seeding preview account '${PREVIEW_ACCOUNT_HANDLE}' + Kura endpoint..."
 kubectl -n "$NAMESPACE" exec -i "$SERVER_POD" -c server \
-  --env "PREVIEW_ACCOUNT_HANDLE=$PREVIEW_ACCOUNT_HANDLE" \
-  --env "PREVIEW_USER_EMAIL=$PREVIEW_USER_EMAIL" \
-  --env "PREVIEW_USER_PASSWORD=$PREVIEW_USER_PASSWORD" \
-  --env "PREVIEW_KURA_URL=$KURA_ENDPOINT_URL" \
-  -- /app/bin/tuist eval - <<'EOF'
+  -- env \
+       "PREVIEW_ACCOUNT_HANDLE=$PREVIEW_ACCOUNT_HANDLE" \
+       "PREVIEW_USER_EMAIL=$PREVIEW_USER_EMAIL" \
+       "PREVIEW_USER_PASSWORD=$PREVIEW_USER_PASSWORD" \
+       "PREVIEW_KURA_URL=$KURA_ENDPOINT_URL" \
+       /app/bin/tuist eval - <<'EOF'
 require Logger
 alias Tuist.Accounts
 
