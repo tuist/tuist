@@ -170,22 +170,35 @@ defmodule Tuist.Runners.Catalog do
   def fleet_platform(_), do: nil
 
   @doc """
-  Whether jobs on this fleet run with the cluster's pod network — i.e.
-  can resolve and reach `*.svc.cluster.local` URLs.
+  Whether jobs on this fleet can reach the private (in-cluster) Kura
+  runner-cache endpoint dispatch would hand them.
 
-  This is a runtime-networking property, not a platform policy: Linux
-  pools run as kata Pods on the CNI; macOS pools run Tart VMs on vmnet,
-  which bypasses cluster DNS/routing entirely. Today the two correlate
-  exactly, so the platform is the implementation — but callers (e.g.
-  the runner-cache `cache_endpoint_url` handoff) must gate on THIS
-  predicate, so that giving macOS VMs cluster networking (planned for
-  the Scaleway Apple-Silicon fleet) only requires changing this one
-  function. Unrecognized fleets answer `false`: handing an unreachable
-  hard override to an unknown runtime breaks caching outright, while
-  withholding it merely falls back to default cache resolution.
+  This is a runtime-networking property, not a platform policy, and
+  what "reach" means depends on the region's data plane:
+
+    * Cluster-DNS regions publish `*.svc.cluster.local` URLs. Linux
+      pools run as kata Pods on the CNI, so they always qualify.
+    * Node-port regions publish `http://<node private address>:<port>`
+      URLs. macOS fleets qualify once the environment's Mac minis
+      share that private network and the host firewall/NAT carve-out
+      is in place (the macos-host-bootstrap `vmCachePrivateNetwork`
+      wiring).
+
+  The per-environment fact is declared via
+  `TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS` (see
+  `Tuist.Environment.runners_cluster_network_platforms/0`), so
+  flipping an environment on is a values change, not a code change —
+  enable a platform only when the matching region AND its physical
+  path exist in that environment. Unrecognized fleets answer `false`:
+  handing an unreachable hard override to an unknown runtime breaks
+  caching outright, while withholding it merely falls back to default
+  cache resolution.
   """
   def fleet_on_cluster_network?(fleet_name) do
-    fleet_platform(fleet_name) == :linux
+    case fleet_platform(fleet_name) do
+      nil -> false
+      platform -> platform in Tuist.Environment.runners_cluster_network_platforms()
+    end
   end
 
   @doc """

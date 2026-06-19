@@ -47,13 +47,21 @@ type NodeIdentity struct {
 // Secret with `token` + `ca.crt` and returns those bytes. Idempotent
 // across restarts: re-running on a Machine that already has identity
 // resources just reads them back.
-func (m *Manager) EnsureNodeIdentity(ctx context.Context, machineName string) (*NodeIdentity, error) {
+func (m *Manager) EnsureNodeIdentity(ctx context.Context, machineName, clusterRole string) (*NodeIdentity, error) {
 	saName := nodeIdentitySAPrefix + "-" + machineName
 	tokenSecretName := saName + "-token"
 	bindingName := saName
 
-	if m.NodeIdentityClusterRole == "" {
-		return nil, fmt.Errorf("EnsureNodeIdentity: NodeIdentityClusterRole not configured (chart didn't pass the cluster role name)")
+	// clusterRole lets each machine kind bind its node identity to a different
+	// ClusterRole: the macOS tart-kubelet shim to the chart's scoped role, the
+	// Linux kura nodes to the built-in system:node (the complete kubelet set, so
+	// no real-kubelet permission can go missing). Empty falls back to the
+	// manager-wide default.
+	if clusterRole == "" {
+		clusterRole = m.NodeIdentityClusterRole
+	}
+	if clusterRole == "" {
+		return nil, fmt.Errorf("EnsureNodeIdentity: no cluster role configured (chart didn't pass the cluster role name)")
 	}
 	if err := m.ensureNodeServiceAccount(ctx, saName, machineName); err != nil {
 		return nil, fmt.Errorf("ensure SA: %w", err)
@@ -61,7 +69,7 @@ func (m *Manager) EnsureNodeIdentity(ctx context.Context, machineName string) (*
 	if err := m.ensureNodeTokenSecret(ctx, saName, tokenSecretName, machineName); err != nil {
 		return nil, fmt.Errorf("ensure token secret: %w", err)
 	}
-	if err := m.ensureNodeClusterRoleBinding(ctx, bindingName, saName, machineName); err != nil {
+	if err := m.ensureNodeClusterRoleBinding(ctx, bindingName, saName, machineName, clusterRole); err != nil {
 		return nil, fmt.Errorf("ensure cluster role binding: %w", err)
 	}
 
@@ -134,7 +142,7 @@ func (m *Manager) ensureNodeTokenSecret(ctx context.Context, saName, tokenSecret
 	return nil
 }
 
-func (m *Manager) ensureNodeClusterRoleBinding(ctx context.Context, bindingName, saName, machineName string) error {
+func (m *Manager) ensureNodeClusterRoleBinding(ctx context.Context, bindingName, saName, machineName, clusterRole string) error {
 	binding := &rbacv1.ClusterRoleBinding{}
 	err := m.Client.Get(ctx, types.NamespacedName{Name: bindingName}, binding)
 	switch {
@@ -151,7 +159,7 @@ func (m *Manager) ensureNodeClusterRoleBinding(ctx context.Context, bindingName,
 			RoleRef: rbacv1.RoleRef{
 				APIGroup: rbacv1.GroupName,
 				Kind:     "ClusterRole",
-				Name:     m.NodeIdentityClusterRole,
+				Name:     clusterRole,
 			},
 			Subjects: []rbacv1.Subject{{
 				Kind:      "ServiceAccount",

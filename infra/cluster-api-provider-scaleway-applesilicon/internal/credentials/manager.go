@@ -170,6 +170,25 @@ func (m *Manager) EnsureFleetSSHKey(ctx context.Context, fleet string) ([]byte, 
 	return priv, nil
 }
 
+// FleetSSHKeyID returns the Scaleway-side SSH key ID registered for `fleet`,
+// recorded as an annotation on the per-fleet Secret by EnsureFleetSSHKey. The
+// Elastic Metal machine kind authorizes this key on the server at install time
+// (bare metal injects authorized keys only at first boot), then SSHes in with
+// the matching private key to bootstrap. Call EnsureFleetSSHKey first so the
+// Secret and its annotation exist.
+func (m *Manager) FleetSSHKeyID(ctx context.Context, fleet string) (string, error) {
+	secretName := fleet + sshKeySecretSuffix
+	secret := &corev1.Secret{}
+	if err := m.Client.Get(ctx, types.NamespacedName{Namespace: m.Namespace, Name: secretName}, secret); err != nil {
+		return "", fmt.Errorf("get ssh secret: %w", err)
+	}
+	id := secret.Annotations[scalewayKeyAnnotation]
+	if id == "" {
+		return "", fmt.Errorf("secret %s/%s has no Scaleway SSH key ID yet (call EnsureFleetSSHKey first)", m.Namespace, secretName)
+	}
+	return id, nil
+}
+
 func (m *Manager) generateSSHKey(ctx context.Context, fleet, secretName string) ([]byte, error) {
 	pubKey, privKey, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {

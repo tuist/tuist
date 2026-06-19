@@ -1,10 +1,12 @@
 import FileSystem
 import FileSystemTesting
+import Foundation
 import Mockable
 import Path
 import ProjectDescription
 import Testing
 import TSCUtility
+import TuistConstants
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -60,6 +62,146 @@ struct PackageInfoMapperTests {
                 [
                     "Product1": [
                         .xcframework(path: "/artifacts/Package/Target_1.xcframework"),
+                        .project(target: "Target_2", path: .relativeToManifest(basePath.pathString)),
+                    ],
+                ]
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func resolveDependencies_whenProductContainsStaticLibraryArtifactBundleWithUrl_mapsToGeneratedXcframework(
+    ) async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let artifactBundlePath = basePath.appending(
+            components: "artifacts", "Package", "Target_1", "Target_1.artifactbundle"
+        )
+        try await makeStaticLibraryArtifactBundle(at: artifactBundlePath, targetName: "Target_1")
+        let generatedXCFrameworkPath = try await generatedStaticLibraryArtifactBundleXCFrameworkPath(
+            basePath: basePath,
+            packageName: "Package",
+            targetName: "Target_1",
+            artifactBundlePath: artifactBundlePath
+        )
+
+        let resolvedDependencies = try await subject.resolveExternalDependencies(
+            path: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target_1", "Target_2"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target_1",
+                            type: .binary,
+                            url: "https://binary.target.com/target1.artifactbundle.zip"
+                        ),
+                        .test(name: "Target_2"),
+                    ],
+                    platforms: [.ios]
+                ),
+            ],
+            packageToFolder: ["Package": basePath],
+            packageToTargetsToArtifactPaths: ["Package": [
+                "Target_1": artifactBundlePath,
+            ]],
+            packageModuleAliases: [:],
+            packageSettings: .test()
+        )
+
+        #expect(
+            resolvedDependencies ==
+                [
+                    "Product1": [
+                        .xcframework(path: .path(generatedXCFrameworkPath.pathString)),
+                        .project(target: "Target_2", path: .relativeToManifest(basePath.pathString)),
+                    ],
+                ]
+        )
+
+        let infoPlist: XCFrameworkInfoPlist = try await fileSystem.readPlistFile(
+            at: generatedXCFrameworkPath.appending(component: "Info.plist")
+        )
+        let rawInfoPlist = try #require(
+            PropertyListSerialization.propertyList(
+                from: Data(
+                    contentsOf: URL(
+                        fileURLWithPath: generatedXCFrameworkPath.appending(component: "Info.plist").pathString
+                    )
+                ),
+                options: [],
+                format: nil
+            ) as? [String: Any]
+        )
+        let availableLibraries = try #require(rawInfoPlist["AvailableLibraries"] as? [[String: Any]])
+        #expect(infoPlist.libraries.map(\.identifier).sorted() == ["apple-ios-device", "apple-ios-simulator"])
+        #expect(infoPlist.libraries.map(\.headersPath) == [
+            try RelativePath(validating: "Headers"),
+            try RelativePath(validating: "Headers"),
+        ])
+        #expect(rawInfoPlist["CFBundlePackageType"] as? String == "XFWK")
+        #expect(rawInfoPlist["XCFrameworkFormatVersion"] as? String == "1.0")
+        #expect(availableLibraries.allSatisfy { $0["BinaryPath"] as? String == $0["LibraryPath"] as? String })
+        #expect(try await fileSystem.exists(generatedXCFrameworkPath.appending(components: "apple-ios-device", "Headers")))
+        #expect(try await fileSystem.exists(generatedXCFrameworkPath.appending(components: "apple-ios-simulator", "Headers")))
+        #expect(
+            try await fileSystem.resolveSymbolicLink(
+                generatedXCFrameworkPath.appending(components: "apple-ios-device", "libTarget_1.a")
+            ) ==
+                artifactBundlePath.appending(components: "apple-ios-device", "libTarget_1.a")
+        )
+        #expect(
+            try await fileSystem.resolveSymbolicLink(
+                generatedXCFrameworkPath.appending(components: "apple-ios-device", "Headers", "Target_1.h")
+            ) ==
+                artifactBundlePath.appending(components: "include", "Target_1.h")
+        )
+
+        let updatedInfo = try await fileSystem.readTextFile(at: artifactBundlePath.appending(component: "info.json"))
+            .replacingOccurrences(of: "\"version\": \"1.0.0\"", with: "\"version\": \"2.0.0\"")
+        try await fileSystem.writeText(updatedInfo, at: artifactBundlePath.appending(component: "info.json"))
+        let updatedGeneratedXCFrameworkPath = try await generatedStaticLibraryArtifactBundleXCFrameworkPath(
+            basePath: basePath,
+            packageName: "Package",
+            targetName: "Target_1",
+            artifactBundlePath: artifactBundlePath
+        )
+        #expect(updatedGeneratedXCFrameworkPath != generatedXCFrameworkPath)
+
+        let updatedResolvedDependencies = try await subject.resolveExternalDependencies(
+            path: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target_1", "Target_2"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target_1",
+                            type: .binary,
+                            url: "https://binary.target.com/target1.artifactbundle.zip"
+                        ),
+                        .test(name: "Target_2"),
+                    ],
+                    platforms: [.ios]
+                ),
+            ],
+            packageToFolder: ["Package": basePath],
+            packageToTargetsToArtifactPaths: ["Package": [
+                "Target_1": artifactBundlePath,
+            ]],
+            packageModuleAliases: [:],
+            packageSettings: .test()
+        )
+        #expect(
+            updatedResolvedDependencies ==
+                [
+                    "Product1": [
+                        .xcframework(path: .path(updatedGeneratedXCFrameworkPath.pathString)),
                         .project(target: "Target_2", path: .relativeToManifest(basePath.pathString)),
                     ],
                 ]
@@ -3810,6 +3952,67 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
+    ) func map_whenBinaryTargetStaticLibraryArtifactBundleDependency_mapsToGeneratedXcframework() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
+        let dependenciesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1"))
+        let artifactBundlePath = basePath.appending(
+            try RelativePath(validating: "artifacts/Package/Dependency1/Dependency1.artifactbundle")
+        )
+        try await fileSystem.makeDirectory(at: sourcesPath)
+        try await fileSystem.makeDirectory(at: dependenciesPath)
+        try await makeStaticLibraryArtifactBundle(at: artifactBundlePath, targetName: "Dependency1")
+        let generatedXCFrameworkPath = try await generatedStaticLibraryArtifactBundleXCFrameworkPath(
+            basePath: basePath,
+            packageName: "Package",
+            targetName: "Dependency1",
+            artifactBundlePath: artifactBundlePath
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .external(artifactPaths: ["Dependency1": artifactBundlePath]),
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1",
+                            dependencies: [.target(name: "Dependency1", condition: nil)]
+                        ),
+                        .test(name: "Dependency1", type: .binary),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        #expect(
+            project ==
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            dependencies: [
+                                .xcframework(path: .path(generatedXCFrameworkPath.pathString)),
+                            ]
+                        ),
+                    ]
+                )
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func map_whenTargetByNameDependency_mapsToTargetDependency() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
@@ -7380,6 +7583,99 @@ struct PackageInfoMapperTests {
         #expect(target.settings?.base["OTHER_SWIFT_FLAGS"] == .array(["$(inherited)"]))
         #expect(target.settings?.base["LIBRARY_SEARCH_PATHS"] == nil)
         #expect(target.settings?.base["OTHER_LDFLAGS"] == nil)
+    }
+}
+
+extension PackageInfoMapperTests {
+    private func generatedStaticLibraryArtifactBundleXCFrameworkPath(
+        basePath: AbsolutePath,
+        packageName: String,
+        targetName: String,
+        artifactBundlePath: AbsolutePath
+    ) async throws -> AbsolutePath {
+        let infoData = try await fileSystem.readFile(at: artifactBundlePath.appending(component: "info.json"))
+        let contentHasher = ContentHasher()
+        let sourceFingerprint = try contentHasher.hash([
+            artifactBundlePath.pathString,
+            contentHasher.hash(infoData),
+        ])
+        return basePath.appending(
+            components: Constants.DerivedDirectory.dependenciesDerivedDirectory,
+            Constants.DerivedDirectory.dependenciesXCFrameworkDirectory,
+            packageName,
+            "\(targetName)-\(sourceFingerprint).xcframework"
+        )
+    }
+
+    private func makeStaticLibraryArtifactBundle(
+        at artifactBundlePath: AbsolutePath,
+        targetName: String
+    ) async throws {
+        try await fileSystem.makeDirectory(at: artifactBundlePath.appending(component: "include"))
+        try await fileSystem.makeDirectory(at: artifactBundlePath.appending(component: "apple-ios-device"))
+        try await fileSystem.makeDirectory(at: artifactBundlePath.appending(component: "apple-ios-simulator"))
+        try await fileSystem.makeDirectory(at: artifactBundlePath.appending(component: "linux-x86_64"))
+
+        try await fileSystem.writeText(
+            "",
+            at: artifactBundlePath.appending(components: "apple-ios-device", "lib\(targetName).a")
+        )
+        try await fileSystem.writeText(
+            "",
+            at: artifactBundlePath.appending(components: "apple-ios-simulator", "lib\(targetName).a")
+        )
+        try await fileSystem.writeText(
+            "",
+            at: artifactBundlePath.appending(components: "linux-x86_64", "lib\(targetName).a")
+        )
+        try await fileSystem.writeText(
+            "",
+            at: artifactBundlePath.appending(components: "include", "\(targetName).h")
+        )
+        try await fileSystem.writeText(
+            "module \(targetName) { header \"\(targetName).h\" export * }",
+            at: artifactBundlePath.appending(components: "include", "module.modulemap")
+        )
+        try await fileSystem.writeText(
+            """
+            {
+              "schemaVersion": "1.0",
+              "artifacts": {
+                "\(targetName)": {
+                  "type": "staticLibrary",
+                  "version": "1.0.0",
+                  "variants": [
+                    {
+                      "path": "apple-ios-device/lib\(targetName).a",
+                      "supportedTriples": ["arm64-apple-ios"],
+                      "staticLibraryMetadata": {
+                        "headerPaths": ["include"],
+                        "moduleMapPath": "include/module.modulemap"
+                      }
+                    },
+                    {
+                      "path": "apple-ios-simulator/lib\(targetName).a",
+                      "supportedTriples": ["arm64-apple-ios-simulator", "x86_64-apple-ios-simulator"],
+                      "staticLibraryMetadata": {
+                        "headerPaths": ["include"],
+                        "moduleMapPath": "include/module.modulemap"
+                      }
+                    },
+                    {
+                      "path": "linux-x86_64/lib\(targetName).a",
+                      "supportedTriples": ["x86_64-unknown-linux-gnu"],
+                      "staticLibraryMetadata": {
+                        "headerPaths": ["include"],
+                        "moduleMapPath": "include/module.modulemap"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+            """,
+            at: artifactBundlePath.appending(component: "info.json")
+        )
     }
 }
 

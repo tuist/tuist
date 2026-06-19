@@ -1,4 +1,28 @@
 {{- if and .Values.server.enabled .Values.server.migrationJob.enabled }}
+{{- if .Values.server.migrationJob.asHook }}
+# Dedicated SA for the migration Job: pre-install/upgrade hooks run
+# before regular release resources exist, so the Job can't reference
+# the server SA on first install — and hook-managed resources are
+# deleted+recreated each upgrade (before-hook-creation), which must
+# never happen to an SA that long-running pods hold projected tokens
+# for. Migrations only talk to the databases; this SA carries no RBAC.
+#
+# Hook ordering (ASCENDING weight): -12 this SA, -10 ExternalSecret
+# (MASTER_KEY via ESO), -5 app-secrets when managedSecrets=false,
+# -1 the migrate Job.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "server-migrate") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server-migration
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-12"
+    helm.sh/hook-delete-policy: before-hook-creation
+---
+{{- end }}
 {{- $secretName := include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
 {{- $masterKeySecretName := ternary (include "tuist.componentName" (dict "root" . "component" "server-external-secrets")) $secretName .Values.server.managedSecrets }}
 {{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" . -}}
@@ -29,7 +53,11 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
+      {{- if .Values.server.migrationJob.asHook }}
+      serviceAccountName: {{ include "tuist.componentName" (dict "root" . "component" "server-migrate") }}
+      {{- else }}
       serviceAccountName: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+      {{- end }}
       {{- include "tuist.podScheduling" . | nindent 6 }}
       {{- with .Values.server.nodeSelector }}
       nodeSelector:
@@ -60,6 +88,7 @@ spec:
                 sleep 2
               done
           env:
+            {{- include "tuist.externalPostgresqlSecretEnv" . | nindent 12 }}
             - name: PGHOST
               value: {{ include "tuist.databaseHost" . | quote }}
             - name: PGPORT
@@ -91,6 +120,7 @@ spec:
             {{- end }}
             {{- if not .Values.server.managedSecrets }}
             {{- if ne .Values.postgresql.mode "cnpg" }}
+            {{- include "tuist.externalPostgresqlSecretEnv" . | nindent 12 }}
             - name: DATABASE_URL
               value: {{ include "tuist.databaseUrl" . | quote }}
             - name: TUIST_USE_SSL_FOR_DATABASE

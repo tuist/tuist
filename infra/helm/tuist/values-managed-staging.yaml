@@ -36,7 +36,34 @@ server:
       # customers can't select it, the RunnerCache reconciler provisions
       # nodes there for accounts with runner profiles, and runner
       # dispatch routes their build-cache traffic to it in-cluster.
-      value: eu-central,hetzner-staging-runners
+      # `scw-fr-par-runners` is the macOS-serving private region: a
+      # Scaleway fr-par Linux node pool joined to this cluster, next
+      # to the Mac mini fleet, so the Macs' cache traffic never
+      # crosses the WAN. `hetzner-staging-runners` serves the Linux
+      # kata fleet (Falkenstein). Requires the `kura-scw-fr-par` node
+      # pool + scw-bssd CSI to exist in the cluster.
+      value: eu-central,hetzner-staging-runners,scw-fr-par-runners
+    # Runner platforms whose fleets can reach their region's private
+    # cache endpoint — the dispatch gate for handing out
+    # `cache_endpoint_url` (Catalog.fleet_on_cluster_network?/1).
+    # Unset, this defaults to `linux` (kata Pods on the CNI reaching
+    # `*.svc.cluster.local`). For `macos` the endpoint is the
+    # node-port form (`http://<node PN address>:<NodePort>` on the
+    # scw-fr-par-runners region), so flip it on ONLY when the
+    # Private Network path exists end-to-end — clients treat
+    # TUIST_CACHE_ENDPOINT as a hard override, and an unreachable URL
+    # breaks macOS caching outright. Checklist (in order):
+    #   1. The PN + kura-scw-fr-par node pool exist and the minis are
+    #      attached (macosFleet.vmCachePrivateNetwork values below;
+    #      the CAPI operator attaches minis and resolves VLANs).
+    #   2. Mac mini hosts bootstrapped/drift-rolled so the VLAN
+    #      interface + pf pass + VM NAT are live, then from a runner
+    #      VM: `curl http://<node PN address>:<account NodePort>/up`.
+    # Verified end-to-end on 2026-06-12 (smoke run 27416065883):
+    # dispatch-sourced endpoint http://172.16.0.2:32675 from a Tart
+    # runner VM, cold 5.34x / warm 2.46x vs the public baseline.
+    - name: TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS
+      value: linux,macos
     # Operator project-access grants — server half only. The public key
     # is non-secret; its matching private key signs grants minted at
     # ops.tuist.dev. This is a throwaway pair for the staging server-half
@@ -265,6 +292,21 @@ xcresultProcessor:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
 
+# Declarative Scaleway Elastic Metal kura runner-cache node. The provider
+# orders the bare-metal server, attaches it to the runner-cache PN, mints a
+# kubelet identity, and renders a self-join cloud-init that registers the Node
+# with the runner-cache taint. This cluster's control plane is externally
+# managed, so there's no CAPI kubeadm join; the reconciler bootstraps the node
+# itself.
+kuraFleet:
+  enabled: true
+  replicas: 1
+  machine:
+    # EM-B220E-NVME (~EUR120/mo) is the cheapest in-stock Elastic Metal box
+    # that still mirrors the production NVMe + 10G PN path, so staging
+    # validates the same local-NVMe + bare-metal-PN data plane prod runs on.
+    offerType: EM-B220E-NVME
+
 # Mac mini fleet. The chart renders one ScalewayAppleSiliconMachine
 # CR per replica; the cluster-api-provider-scaleway-applesilicon
 # operator orders each Mac mini, then SSH-bootstraps it with
@@ -286,6 +328,26 @@ macosFleet:
   tailscale:
     enabled: true
     tags: ["tag:tuist-macmini-staging"]
+    # Install the Service-CIDR route the staging Connector advertises
+    # (infra/helm/tailscale-operator/values-staging.yaml), so Tart
+    # runner VMs reach the in-cluster Kura runner-cache nodes. Staging
+    # is the single advertiser of 10.128.0.0/12 on the shared tailnet
+    # — keep it that way until per-env CIDRs (or 4via6) land.
+    acceptRoutes: true
+  # Firewall half of the runner-cache path: allow VM egress to the
+  # staging Service CIDR on the Kura ports + kube-dns on 53. CIDR per
+  # infra/k8s/clusters/cluster-staging.yaml; DNS IP is kube-dns's
+  # ClusterIP (verify: `kubectl -n kube-system get svc kube-dns`).
+  vmClusterEgress:
+    kuraServiceCIDR: "10.128.0.0/12"
+    clusterDNSIP: "10.128.0.10"
+  # Staging PN tuist-runner-cache (172.16.0.0/22) in the staging
+  # Scaleway project: minis + the kura-scw-fr-par node are attached;
+  # dispatch hands VMs http://<node PN address>:<account NodePort>.
+  # Resolved by name (same PN the kura fleet attaches to).
+  vmCachePrivateNetwork:
+    name: tuist-runner-cache
+    cidr: 172.16.0.0/22
   machine:
     # Staging tracks the chart default (M2-L on Scaleway: M2 Pro
     # 10-core / 16 GB). Drop to M2-M if staging capacity gets tight
@@ -372,6 +434,13 @@ runnersFleet:
   # don't double-book the cluster.
   xcodeOverrides:
     "26.5":
+      # Pinned to the feat/kura-macos-runner-cache branch bake whose
+      # dispatch-poll exports TUIST_CACHE_ENDPOINT from the claim
+      # response and installs the in-VM /etc/resolver cluster-DNS
+      # entry — the in-VM halves of the runner-cache path. Drop this
+      # pin (back to the semver-derived tag) once a runner-image
+      # release containing those changes is cut.
+      imageTag: macos-26-5-8ab1924e
       autoscaling:
         enabled: true
         minWarmPoolFloor: 1
@@ -417,6 +486,12 @@ runnersController:
   features:
     dindImage: true
     registryMirror: true
+  # Stage kube-dns's ClusterIP into macOS pool Pods so the Tart VM
+  # writes /etc/resolver/cluster.local and the dispatch-provided
+  # in-cluster cache_endpoint_url resolves. Same IP as
+  # macosFleet.vmClusterEgress.clusterDNSIP above.
+  clusterDNS:
+    ip: "10.128.0.10"
 
 # Linux runner fleet on Hetzner Robot bare-metal hosts.
 #

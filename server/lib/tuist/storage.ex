@@ -53,11 +53,15 @@ defmodule Tuist.Storage do
       Performance.measure_time_in_milliseconds(fn ->
         {config, bucket_name} = s3_config_and_bucket(actor)
 
-        bucket_name
-        |> ExAws.S3.complete_multipart_upload(object_key, upload_id, parts)
-        |> ExAws.request!(Map.merge(config, fast_api_req_opts()))
+        result =
+          bucket_name
+          |> ExAws.S3.complete_multipart_upload(object_key, upload_id, parts)
+          |> ExAws.request(Map.merge(config, fast_api_req_opts()))
 
-        :ok
+        case result do
+          {:ok, _response} -> :ok
+          {:error, reason} -> {:error, multipart_complete_upload_error(reason)}
+        end
       end)
 
     :telemetry.execute(
@@ -67,6 +71,16 @@ defmodule Tuist.Storage do
     )
 
     result
+  end
+
+  defp multipart_complete_upload_error({:http_error, 404, %{body: body}} = reason) when is_binary(body) do
+    if multipart_upload_not_found?(body), do: :multipart_upload_not_found, else: reason
+  end
+
+  defp multipart_complete_upload_error(reason), do: reason
+
+  defp multipart_upload_not_found?(body) do
+    Regex.match?(~r/<(?:\w+:)?Code>\s*NoSuchUpload\s*<\/(?:\w+:)?Code>/, body)
   end
 
   def generate_download_url(object_key, actor, opts \\ []) do

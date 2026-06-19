@@ -61,7 +61,7 @@ The Deployment + RBAC are rendered by the platform Helm chart
 | `--candidate-label` | `tuist.dev/stable-egress-candidate=server` | egress candidate pool selector |
 | `--active-label` | `tuist.dev/stable-egress-gateway=server` | label placed on the single active node (Cilium + host-configurer select on it) |
 | `--hcloud-token-path` | `/etc/hcloud/token` | token file, mounted from `kube-system/hcloud` |
-| `--resync-interval` | `30s` | periodic reconcile; Node events trigger reconciles in between |
+| `--resync-interval` | `30s` | periodic reconcile floor; only Node events that change gateway eligibility (Ready transition, candidate/active label, termination) trigger reconciles in between — kubelet status heartbeats are filtered out so the per-reconcile Hetzner read stays well under the API rate limit |
 | `--leader-elect` | `true` | required when `replicas > 1` |
 
 ## Tests
@@ -72,8 +72,9 @@ go test ./...
 ```
 
 Covers `selectActive` (sticky / failover / lexical / none), `providerID`
-parsing, the egress-IP allowlist guard, and full reconcile (failover moves IP +
-label, stale cluster-wide labels are stripped, steady state is no-op) against
+parsing, the egress-IP allowlist guard, the Node event predicate (heartbeats
+dropped, eligibility changes let through), and full reconcile (failover moves IP
++ label, stale cluster-wide labels are stripped, steady state is no-op) against
 controller-runtime's fake client + a fake Floating IP manager.
 
 ## Releasing

@@ -6330,6 +6330,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The multipart upload is no longer active
       summary: It completes a multi-part upload.
       tags:
         - Cache

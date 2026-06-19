@@ -84,8 +84,36 @@ connector:
   # gets an address in `100.64.0.0/10`. Advertising the full range
   # is simpler than per-host routes and the ACL boundary doesn't
   # care which IP a request lands on — it gates by tag identity.
+  #
+  # An env that gives its Mac mini fleet a route INTO the cluster
+  # (runner VMs dialing the in-cluster Kura runner-cache Service —
+  # see `Tuist.Kura.RunnerCache` + infra/macos-host-bootstrap)
+  # additionally advertises the cluster's Service CIDR here
+  # (`10.128.0.0/12` per infra/k8s/clusters/cluster-<env>.yaml) so
+  # `tailscale up --accept-routes` on the minis installs the route.
+  #
+  # CAUTION — one env at a time: staging, canary, and production all
+  # use the SAME Service CIDR, and the tailnet is shared. Two
+  # connectors advertising an identical prefix are treated by
+  # Tailscale as HA routers for ONE subnet, so a Mac mini could
+  # route its cluster traffic into the wrong env's cluster.
+  # Today only staging advertises it (values-staging.yaml). Before
+  # a second env does, the CIDR collision has to be resolved
+  # (distinct per-env Service CIDRs or Tailscale 4via6 site
+  # prefixes).
   advertiseRoutes:
     - "100.64.0.0/10"
+  # Optional node pinning for the Connector's proxy Pod (rendered as
+  # a tailscale ProxyClass). Enable in envs whose subnet router must
+  # be co-located with the workloads it fronts — e.g. staging pins it
+  # to the `kura-scw-fr-par` pool so the Mac mini -> router -> kura
+  # path stays inside Scaleway fr-par instead of hairpinning through
+  # the Hetzner nodes.
+  proxyClass:
+    enabled: false
+    name: tuist-connector
+    nodeSelector: {}
+    tolerations: []
 
 # Egress plumbing so cluster Pods (specifically alloy-metrics) can
 # reach each Mac mini at its MagicDNS FQDN. Materialised by

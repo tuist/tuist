@@ -57,6 +57,12 @@ on:
       linux_runner_image_tag:
         description: Pre-built Linux runner image tag to pin (e.g. `sha-7ed4b250bfb5`); wins over the resolved `linux-runner-image@*` semver
         required: false
+      capi_image_tag:
+        description: Pre-built CAPI provider image tag to pin (e.g. `05057033`); wins over the resolved `capi-scaleway@*` semver. Use when a chart change adds operator flags before the provider image is released.
+        required: false
+      runners_controller_image_tag:
+        description: Pre-built runners-controller image tag to pin (e.g. `sha-040775324f48`); wins over the resolved `runners-controller@*` semver. Same pre-release-flag use as capi_image_tag.
+        required: false
   workflow_call:
     inputs:
       environment:
@@ -88,6 +94,24 @@ on:
           latest `linux-runner-image@*` semver tag. Useful for
           validating an in-flight runner-image change on staging before
           tagging a release.
+        required: false
+        type: string
+      capi_image_tag:
+        description: >-
+          Pre-built CAPI provider image tag to pin (e.g. `05057033`).
+          When unset, the deploy job resolves the latest `capi-scaleway@*`
+          semver tag. Use when deploying chart changes that add operator
+          flags before the provider image is released, so the old binary
+          doesn't CrashLoop on an unknown flag and trip the --atomic
+          rollback.
+        required: false
+        type: string
+      runners_controller_image_tag:
+        description: >-
+          Pre-built runners-controller image tag to pin (e.g.
+          `sha-040775324f48`). When unset, the deploy job resolves the
+          latest `runners-controller@*` semver tag. Same pre-release-flag
+          use as capi_image_tag.
         required: false
         type: string
 
@@ -484,6 +508,8 @@ jobs:
       IMAGE_TAG: ${{ inputs.image_tag != '' && inputs.image_tag || needs.build.outputs.image_tag }}
       KURA_RUNTIME_IMAGE_TAG: ${{ inputs.kura_runtime_image_tag }}
       LINUX_RUNNER_IMAGE_TAG_INPUT: ${{ inputs.linux_runner_image_tag }}
+      CAPI_IMAGE_TAG_INPUT: ${{ inputs.capi_image_tag }}
+      RUNNERS_CONTROLLER_IMAGE_TAG_INPUT: ${{ inputs.runners_controller_image_tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -508,11 +534,11 @@ jobs:
           }
           {
             echo "XCRESULT_PROCESSOR_TAG=$(resolve 'xcresult-processor-image@')"
-            echo "CAPI_TAG=$(resolve 'capi-scaleway@')"
-            echo "RUNNERS_CONTROLLER_TAG=$(resolve 'runners-controller@')"
             echo "KURA_RUNTIME_TAG=$(resolve 'kura@')"
             echo "RUNNER_IMAGE_SEMVER=$(resolve 'runner-image@')"
             echo "LINUX_RUNNER_IMAGE_VERSION=$(resolve 'linux-runner-image@')"
+            echo "CAPI_TAG=$(resolve 'capi-scaleway@')"
+            echo "RUNNERS_CONTROLLER_TAG=$(resolve 'runners-controller@')"
           } >> "$GITHUB_ENV"
       - uses: jdx/mise-action@v3.2.0
         with:
@@ -666,8 +692,6 @@ jobs:
             fi
           }
           add_set "xcresultProcessor.image.tag" "${XCRESULT_PROCESSOR_TAG:-}"
-          add_set "macosFleet.image.tag" "${CAPI_TAG:-}"
-          add_set "runnersController.image.tag" "${RUNNERS_CONTROLLER_TAG:-}"
           add_set "runnersFleet.runnerImageSemver" "${RUNNER_IMAGE_SEMVER:-}"
           # The explicit linux_runner_image_tag input wins over the
           # resolved linux-runner-image@ semver — same pattern as
@@ -706,6 +730,26 @@ jobs:
             echo "Kura runtime: ${{ inputs.environment }} pins released tag ${kura_runtime_tag}"
           fi
           add_set "kuraRuntime.image.tag" "$kura_runtime_tag"
+          # The explicit capi_image_tag / runners_controller_image_tag
+          # inputs win over the resolved release tags — same pattern as the
+          # runner images above. Needed when a chart change adds operator
+          # flags the released binary can't parse: it would CrashLoop on the
+          # unknown flag, blow the Deployment's progress deadline, and
+          # --atomic would roll the whole release back.
+          capi_image_tag="${CAPI_IMAGE_TAG_INPUT:-}"
+          if [ -n "$capi_image_tag" ]; then
+            echo "Overriding resolved CAPI provider tag with input ${capi_image_tag}"
+          else
+            capi_image_tag="${CAPI_TAG:-}"
+          fi
+          add_set "macosFleet.image.tag" "$capi_image_tag"
+          runners_controller_image_tag="${RUNNERS_CONTROLLER_IMAGE_TAG_INPUT:-}"
+          if [ -n "$runners_controller_image_tag" ]; then
+            echo "Overriding resolved runners-controller tag with input ${runners_controller_image_tag}"
+          else
+            runners_controller_image_tag="${RUNNERS_CONTROLLER_TAG:-}"
+          fi
+          add_set "runnersController.image.tag" "$runners_controller_image_tag"
 
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \

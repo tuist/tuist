@@ -576,14 +576,25 @@ enum WorkspaceRestorer {
         cache: Cache
     ) async throws -> [(String, URL)] {
         let results = try await ConcurrentTasks.map(pins) { pin in
-            let source = try await ensureSource(cache: cache, pin: pin)
-            let checkout = checkouts.appendingPathComponent(PinKind.checkoutDirectoryName(pin))
-            try await fileSystem.replaceWithSymlinkedDirectory(
-                source: source, destination: checkout
-            )
-            return (pin.identity, source)
+            do {
+                let source = try await ensureSource(cache: cache, pin: pin)
+                let checkout = checkouts.appendingPathComponent(PinKind.checkoutDirectoryName(pin))
+                try await fileSystem.replaceWithSymlinkedDirectory(
+                    source: source, destination: checkout
+                )
+                return (pin.identity, source)
+            } catch {
+                throw sourceRestoreError(pin: pin, error: error)
+            }
         }
         return results.sorted { $0.0 < $1.0 }
+    }
+
+    private static func sourceRestoreError(pin: ResolvedPin, error: any Error) -> ToolError {
+        let revision = (try? pin.revision()).map { " at \($0)" } ?? ""
+        return ToolError.message(
+            "failed to restore \(pin.identity) from \(pin.location)\(revision): \(error)"
+        )
     }
 
     private static func restoreRegistryPins(
@@ -788,10 +799,6 @@ enum WorkspaceRestorer {
                 )
                 try await SystemProcess.run(
                     "/usr/bin/git", ["-C", destination.path, "checkout", "--detach", "FETCH_HEAD"]
-                )
-                try await SystemProcess.run(
-                    "/usr/bin/git",
-                    ["-C", destination.path, "submodule", "update", "--init", "--recursive"]
                 )
                 let gitDir = destination.appendingPathComponent(".git")
                 if try await PackageResolver.localSourceControlPackageLocation(pin.location) == nil,

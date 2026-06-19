@@ -4286,6 +4286,12 @@ final class TestServiceTests: TuistUnitTestCase {
         let testProductsPath: AbsolutePath
     }
 
+    private struct RequestedTestPlanShardDestinationFixture {
+        let graph: Graph
+        let scheme: Scheme
+        let requestedTestPlan: String
+    }
+
     private func givenShardPlanBuild(onShardPlanDestination: ((String?) -> Void)? = nil) async throws -> ShardPlanBuildFixture {
         givenGenerator()
         let path = try temporaryPath()
@@ -4350,6 +4356,77 @@ final class TestServiceTests: TuistUnitTestCase {
             }
 
         return ShardPlanBuildFixture(path: path, testProductsPath: testProductsPath)
+    }
+
+    private func givenRequestedTestPlanShardDestination() -> RequestedTestPlanShardDestinationFixture {
+        let projectPath = AbsolutePath.root.appending(component: "Project")
+        let requestedTestPlan = "TradeMeCombinedTests"
+        let iOSTarget = Target.test(
+            name: "IOSTests",
+            destinations: [.iPhone],
+            product: .unitTests,
+            deploymentTargets: .iOS("16.0")
+        )
+        let macOSTarget = Target.test(
+            name: "MacTests",
+            destinations: [.mac],
+            product: .unitTests,
+            deploymentTargets: .macOS("13.0")
+        )
+        let iOSTargetReference = TargetReference(projectPath: projectPath, name: iOSTarget.name)
+        let macOSTargetReference = TargetReference(projectPath: projectPath, name: macOSTarget.name)
+        let scheme = Scheme.test(
+            name: "ProjectScheme",
+            testAction: TestAction.test(
+                targets: [],
+                testPlans: [
+                    TestPlan(
+                        path: projectPath.appending(component: "MacOnly.xctestplan"),
+                        testTargets: [TestableTarget(target: macOSTargetReference)],
+                        isDefault: false
+                    ),
+                    TestPlan(
+                        path: projectPath.appending(component: "\(requestedTestPlan).xctestplan"),
+                        testTargets: [TestableTarget(target: iOSTargetReference)],
+                        isDefault: true
+                    ),
+                ]
+            )
+        )
+        let project: Project = .test(
+            path: projectPath,
+            targets: [
+                iOSTarget,
+                macOSTarget,
+            ],
+            schemes: [scheme]
+        )
+        let graph: Graph = .test(
+            workspace: .test(schemes: [scheme]),
+            projects: [projectPath: project]
+        )
+        let iOSGraphTarget = GraphTarget(path: projectPath, target: iOSTarget, project: project)
+        let macOSGraphTarget = GraphTarget(path: projectPath, target: macOSTarget, project: project)
+
+        buildGraphInspector.reset()
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any,
+                testPlan: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willProduce { _, testPlan, _, _, _, _ in
+                return testPlan == requestedTestPlan ? iOSGraphTarget : macOSGraphTarget
+            }
+
+        return RequestedTestPlanShardDestinationFixture(
+            graph: graph,
+            scheme: scheme,
+            requestedTestPlan: requestedTestPlan
+        )
     }
 
     func test_run_testWithoutBuilding_skipsGeneration_whenSelectiveTestingGraphExists() async throws {
@@ -5078,6 +5155,26 @@ final class TestServiceTests: TuistUnitTestCase {
                 archivePath: .value(nil)
             )
             .called(1)
+    }
+
+    func test_shardPlanDestination_usesRequestedTestPlanWhenResolvingSuiteShardPlanningDestination() async throws {
+        // Given
+        let fixture = givenRequestedTestPlanShardDestination()
+        let graphTraverser = GraphTraverser(graph: fixture.graph)
+
+        // When
+        let destination = try await subject.shardPlanDestination(
+            schemes: [fixture.scheme],
+            testPlan: fixture.requestedTestPlan,
+            platform: nil,
+            version: nil,
+            deviceName: "iPhone SE Test",
+            passthroughXcodeBuildArguments: [],
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        XCTAssertEqual(destination, "platform=iOS Simulator,id=3A8C9673-C1FD-4E33-8EFA-AEEBF43161CC")
     }
 
     func test_run_build_preservesConcreteSimulatorDestinationForSuiteShardPlanning() async throws {

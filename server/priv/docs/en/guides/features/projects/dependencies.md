@@ -219,37 +219,34 @@ let target = .target(name: "MyTarget", dependencies: [
 For Swift Macros and Build Tool Plugins, you'll need to use the types `.macro` and `.plugin` respectively.
 
 > [!WARNING]
-> **Spm Build Tool Plugins**
+> **SPM Build Tool Plugins**
 >
-> SPM build tool plugins must be declared using [Xcode's default integration](#xcode-s-default-integration) mechanism, even when using Tuist's [XcodeProj-based integration](#tuist-s-xcodeproj-based-integration) for your project dependencies.
+> SPM build tool plugins must be declared using [Xcode's default integration](#xcodes-default-integration) mechanism, even when using Tuist's [XcodeProj-based integration](#tuists-xcodeprojbased-integration) for your project dependencies.
 
+SPM build tool plugins are Swift programs that Xcode and SwiftPM execute to discover the concrete build commands that should run for a target.
+Those commands can depend on the package graph, target files, plugin work directory, resolved plugin tools, and the outputs declared by the plugin.
+Some plugins also generate files that must become part of the same target build.
 
-A practical application of an SPM build tool plugin is performing code linting during Xcode's "Run Build Tool Plug-ins" build phase. In a package manifest this is defined as follows:
+Tuist's XcodeProj-based integration maps package products into native Xcode targets when the mapping is static, for example libraries, binaries, executables, and macros.
+Build tool plugins do not have an equivalent native Xcode project primitive outside Xcode's SwiftPM integration.
+Although a plugin can eventually run an executable, invoking that executable from a regular script build phase is not equivalent to running the plugin: Tuist would first need to evaluate the plugin's Swift code, reproduce SwiftPM's plugin context, discover the commands, model the declared inputs and outputs, and add any generated files to the target graph before Xcode plans the build.
 
-```swift
-// swift-tools-version: 5.9
-import PackageDescription
+For this reason, declaring a plugin package only in `Tuist/Package.swift` and consuming it through `.external(name:)` is not supported.
+The supported alternative is to declare the package in `Project.packages` and add the plugin product to the consuming target with `.package(product:type: .plugin)`.
+This keeps the plugin attached to the generated Xcode project as a Swift Package product dependency, so Xcode and SwiftPM can run it with the native plugin context.
 
-let package = Package(
-    name: "Framework",
-    products: [
-        .library(name: "Framework", targets: ["Framework"]),
-    ],
-    dependencies: [
-        .package(url: "https://github.com/SimplyDanny/SwiftLintPlugins", .upToNextMajor(from: "0.56.1")),
-    ],
-    targets: [
-        .target(
-            name: "Framework",
-            plugins: [
-                .plugin(name: "SwiftLint", package: "SwiftLintPlugin"),
-            ]
-        ),
-    ]
-)
-```
+The tradeoff is that Xcode owns that plugin integration:
 
-To generate an Xcode project with the build tool plugin intact, you must declare the package in the project manifest's `packages` array, and then include a package with type `.plugin` in a target's dependencies.
+- Xcode resolves and builds the plugin package through its SwiftPM integration.
+- The package appears in the generated project as a Swift Package reference instead of a Tuist-generated external target.
+- Tuist cannot give the plugin the same level of control, validation, caching, and selective-testing behavior that it can provide for statically mapped package products.
+- CI and local builds must allow Xcode's package resolution for those plugin packages.
+
+Because of these implications, we generally don't recommend using SPM build tool plugins in Tuist projects.
+When possible, prefer a build phase script declared in the target, or run the tool from a script outside the generated Xcode project before invoking Tuist or Xcode.
+
+A practical application of an SPM build tool plugin is performing code linting during Xcode's "Run Build Tool Plug-ins" build phase.
+To generate an Xcode project with the build tool plugin intact, declare the package in the project manifest's `packages` array, and then include a package with type `.plugin` in a target's dependencies.
 
 ```swift
 import ProjectDescription

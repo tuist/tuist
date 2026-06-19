@@ -44,7 +44,7 @@ echo "→ Generating CRD manifests (${CRD_OUT_DIR}/)"
 # doesn't emit that on its own; patch it in here so CAPI core
 # discovers our CRDs.
 echo "→ Adding CAPI provider label to generated CRDs"
-for f in "${REPO_ROOT}/${CRD_OUT_DIR}"/infrastructure.cluster.x-k8s.io_scalewayapplesilicon*.yaml; do
+for f in "${REPO_ROOT}/${CRD_OUT_DIR}"/infrastructure.cluster.x-k8s.io_scaleway*.yaml; do
   yq -i '.metadata.labels."cluster.x-k8s.io/v1beta1" = "v1alpha1"' "$f"
 done
 

@@ -122,7 +122,7 @@ k8s-monitoring:
   #   - kubelet: 24 `kubelet_*` metrics ingested, all in the default list;
   #     the one risky drop (`kubelet_runtime_operations_duration_seconds_bucket`)
   #     isn't ingested on this stack.
-  #   - kubeStateMetrics: 96 `kube_*` metrics ingested; none of the explicit
+  #   - kube-state-metrics: 96 `kube_*` metrics ingested; none of the explicit
   #     high-churn omissions (`kube_lease_*`, `kube_endpointslice_*`,
   #     `kube_mutatingwebhookconfiguration_*`,
   #     `kube_configmap_metadata_resource_version`,
@@ -139,12 +139,26 @@ k8s-monitoring:
     cadvisor:
       metricsTuning:
         useDefaultAllowList: true
+        # Keep only the container resource metrics used by the Kubernetes app
+        # and Tuist dashboards. The default list also keeps several
+        # container_memory_* gauges with identical label cardinality; those
+        # multiply DPM without feeding any dashboard in this repo.
+        excludeMetrics:
+          - container_memory_cache
+          - container_memory_rss
+          - container_memory_swap
+          - container_memory_usage_bytes
     kubelet:
       metricsTuning:
         useDefaultAllowList: true
-    kubeStateMetrics:
+    kube-state-metrics:
       metricsTuning:
         useDefaultAllowList: true
+        excludeMetrics:
+          # We page on container waiting/termination reasons, not pod-level
+          # status reasons. This metric fans out by pod × reason and was one
+          # of the highest-cardinality series in Grafana Cloud.
+          - kube_pod_status_reason
 
   # Streams Kubernetes Events to Loki as structured logs. Cheap and
   # extremely useful for post-mortem ("what got evicted, when, why").
@@ -173,10 +187,25 @@ k8s-monitoring:
     linuxHosts:
       enabled: true
       metricsTuning:
+        # The upstream default uses `node_cpu.*`, which also keeps
+        # `node_cpu_scaling_governor` and creates one series per CPU governor
+        # label. Keep the actual CPU seconds counter explicitly instead.
+        useDefaultAllowList: false
         includeMetrics:
+          - node_cpu_seconds_total
+          - node_exporter_build_info
+          - node_filesystem.*
+          - node_memory.*
+          - process_cpu_seconds_total
+          - process_resident_memory_bytes
           - node_pressure_.*
           - node_vmstat_oom_kill
           - node_load.*
+          # Per-interface network counters (dropped by the default allow-list)
+          # so we can measure the Scaleway kura runner-cache node's PN
+          # throughput against the Hetzner kura nodes.
+          - node_network_receive_bytes_total
+          - node_network_transmit_bytes_total
 
   # DaemonSet-based pod log tailing via /var/log/pods hostPath. A
   # compromised Alloy pod can only read logs from the single node it
@@ -229,6 +258,15 @@ k8s-monitoring:
       metricsPortNumber: "prometheus.io/port"
       metricsPath: "prometheus.io/path"
       metricsScheme: "prometheus.io/scheme"
+    metricsTuning:
+      excludeMetrics:
+        # Cilium's event timestamps and BPF map capacity gauges have high
+        # pod/map label fan-out and are not queried by Tuist dashboards.
+        - cilium_event_ts
+        - cilium_bpf_map_capacity
+        # Response-size histograms add buckets per Phoenix route/status/method
+        # and are not used by the dashboards in this repo.
+        - tuist_prom_ex_phoenix_http_response_size_bytes_bucket
 
   # OTLP receivers for the managed workloads' span exports. The Tuist
   # server and processor push over gRPC to :4317; managed Kura pods push
@@ -301,6 +339,8 @@ k8s-monitoring:
               includeMetrics:
                 - alloy_config_last_load_successful
                 - alloy_config_last_load_success_timestamp_seconds
+              excludeMetrics:
+                - loki_write_request_duration_seconds_bucket
         - name: alloy-logs
           labelSelectors:
             app.kubernetes.io/name: alloy-logs
@@ -309,6 +349,8 @@ k8s-monitoring:
               includeMetrics:
                 - alloy_config_last_load_successful
                 - alloy_config_last_load_success_timestamp_seconds
+              excludeMetrics:
+                - loki_write_request_duration_seconds_bucket
         - name: alloy-singleton
           labelSelectors:
             app.kubernetes.io/name: alloy-singleton
@@ -317,6 +359,8 @@ k8s-monitoring:
               includeMetrics:
                 - alloy_config_last_load_successful
                 - alloy_config_last_load_success_timestamp_seconds
+              excludeMetrics:
+                - loki_write_request_duration_seconds_bucket
         - name: alloy-receiver
           labelSelectors:
             app.kubernetes.io/name: alloy-receiver
@@ -325,6 +369,8 @@ k8s-monitoring:
               includeMetrics:
                 - alloy_config_last_load_successful
                 - alloy_config_last_load_success_timestamp_seconds
+              excludeMetrics:
+                - loki_write_request_duration_seconds_bucket
 
   # ───── Collectors (Alloy instances) ─────
   #
@@ -509,7 +555,7 @@ k8s-monitoring:
 
         prometheus.scrape "tuist_cnpg_instances" {
           targets = discovery.relabel.tuist_cnpg_instances.output
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          forward_to = [prometheus.relabel.tuist_cnpg_instances.receiver]
           job_name = "tuist-cnpg-instances"
           scrape_interval = "30s"
           scrape_timeout = "10s"
@@ -517,6 +563,30 @@ k8s-monitoring:
           clustering {
             enabled = true
           }
+        }
+
+        prometheus.relabel "tuist_cnpg_instances" {
+          rule {
+            source_labels = ["__name__", "name"]
+            separator = "@"
+            regex = "cnpg_pg_settings_setting@max_connections"
+            target_label = "__keepme"
+            replacement = "1"
+          }
+          rule {
+            source_labels = ["__name__", "__keepme"]
+            separator = "@"
+            regex = "cnpg_pg_settings_setting@"
+            action = "drop"
+          }
+          rule {
+            source_labels = ["__name__"]
+            regex = "cnpg_pg_settings_setting"
+            target_label = "__keepme"
+            replacement = ""
+          }
+
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
         }
 
         // PgBouncer pooler metrics for the processor's transaction-mode
