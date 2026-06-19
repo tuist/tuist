@@ -175,7 +175,9 @@ k8s-monitoring:
       # cannot aggregate duplicate samples, so that produces colliding
       # series rather than namespace-level totals. Instead, remove the
       # runner namespace from pod-scoped KSM metrics and use low-cardinality
-      # RunnerPool telemetry in the runner dashboard.
+      # RunnerPool telemetry in the runner dashboard. Keep
+      # kube_pod_status_unschedulable available cluster-wide because it is a
+      # cheap placement signal compared to the rest of kube_pod_*.
       extraMetricProcessingRules: |
         rule {
           source_labels = ["__name__", "namespace"]
@@ -184,12 +186,6 @@ k8s-monitoring:
           target_label = "__tmp_keep_runner_pod_metric"
           replacement = "true"
           action = "replace"
-        }
-        rule {
-          source_labels = ["__name__", "__tmp_keep_runner_pod_metric"]
-          separator = ";"
-          regex = "kube_pod_status_unschedulable;"
-          action = "drop"
         }
         rule {
           source_labels = ["__name__", "namespace", "__tmp_keep_runner_pod_metric"]
