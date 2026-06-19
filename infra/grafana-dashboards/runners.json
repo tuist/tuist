@@ -708,7 +708,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Desired warm-pool target (spec.replicas, summed per platform) vs the runner Pods actually present (from kube-state-metrics). macOS is split into 'ready' (Running phase: Tart VM booted, can take a job) and 'cold-booting' (Pending phase: VM still booting, cannot accept work yet); stacked, they equal the macOS Pods alive, and the gap between 'macos desired' and 'macos ready' is the cold-boot deficit driving queue wait. Linux is a single 'alive' line on purpose: Linux warm Pods sit in Pending while their poller init container runs, so for Linux Pending means ready-to-claim (the opposite of macOS) and a Pending=cold split would mislead. desired above ready+booting means the controller hasn't created the Pod objects yet or createRunner is erroring; a scheduler placement failure shows as unschedulable Pods (see the Unscheduled stat), not as a gap here. Requires kube-state-metrics.",
+        "description": "Desired warm-pool target (spec.replicas, summed per platform) vs observed RunnerPool replicas from server/controller telemetry. This intentionally avoids kube-state-metrics pod phase series for the runner namespace because those are per-Pod and dominate Grafana Cloud cardinality during scale events. A gap means the controller has not created pods yet, pods are mid-turnover, or capacity is constrained; use the queue and warm-deficit panels for cold-boot context.",
         "fieldConfig": {
           "defaults": {
             "color": {
@@ -751,58 +751,6 @@
                   "value": 0
                 }
               ]
-            },
-            {
-              "matcher": {
-                "id": "byName",
-                "options": "macos ready"
-              },
-              "properties": [
-                {
-                  "id": "custom.stacking",
-                  "value": {
-                    "group": "macos",
-                    "mode": "normal"
-                  }
-                },
-                {
-                  "id": "custom.fillOpacity",
-                  "value": 35
-                },
-                {
-                  "id": "color",
-                  "value": {
-                    "fixedColor": "green",
-                    "mode": "fixed"
-                  }
-                }
-              ]
-            },
-            {
-              "matcher": {
-                "id": "byName",
-                "options": "macos cold-booting"
-              },
-              "properties": [
-                {
-                  "id": "custom.stacking",
-                  "value": {
-                    "group": "macos",
-                    "mode": "normal"
-                  }
-                },
-                {
-                  "id": "custom.fillOpacity",
-                  "value": 35
-                },
-                {
-                  "id": "color",
-                  "value": {
-                    "fixedColor": "orange",
-                    "mode": "fixed"
-                  }
-                }
-              ]
             }
           ]
         },
@@ -835,23 +783,9 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum(kube_pod_status_phase{namespace=\"tuist-runners\", phase=~\"Pending|Running\", pod=~\".*runner-pool-linux.*\", pod=~\".*$platform.*\", env=\"$env\"})",
-            "legendFormat": "linux alive",
+            "expr": "sum by (platform) (label_replace(max by (fleet) (tuist_runners_pool_replicas_observed{fleet=~\".*$platform.*\", env=\"$env\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\"))",
+            "legendFormat": "{{platform}} observed",
             "refId": "B"
-          },
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "sum(kube_pod_status_phase{namespace=\"tuist-runners\", phase=\"Running\", pod=~\".*runner-pool-macos.*\", pod=~\".*$platform.*\", env=\"$env\"})",
-            "legendFormat": "macos ready",
-            "refId": "C"
-          },
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "sum(kube_pod_status_phase{namespace=\"tuist-runners\", phase=\"Pending\", pod=~\".*runner-pool-macos.*\", pod=~\".*$platform.*\", env=\"$env\"})",
-            "legendFormat": "macos cold-booting",
-            "refId": "D"
           }
         ],
         "title": "RunnerPool replicas",
