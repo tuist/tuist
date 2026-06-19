@@ -89,13 +89,12 @@ type KuraInstanceReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 
-	// GRPCClusterIssuer, when non-empty, makes the controller request
-	// cert-manager Certificates per instance with this ClusterIssuer for
-	// both the public HTTPS host and the gRPC host. The issued Secrets
-	// are referenced by the regional Kura ingress layer that terminates
-	// TLS for customer-facing traffic.
-	// The name is historical; the controller uses the same issuer for
-	// every cert it asks cert-manager to mint.
+	// GRPCClusterIssuer, when non-empty, makes the controller request a
+	// cert-manager Certificate per instance with this ClusterIssuer for the
+	// single public host (which serves both the HTTP cache and gRPC, see
+	// reconcileGRPCIngress). The issued Secret is referenced by the regional
+	// Kura ingress layer that terminates TLS for customer-facing traffic.
+	// The name is historical; there is no longer a separate gRPC certificate.
 	GRPCClusterIssuer   string
 	OTLPTracesEndpoint  string
 	Environment         string
@@ -245,7 +244,7 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcilePublicCertificate(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcileGRPCCertificate(ctx, instance); err != nil {
+	if err := r.retireLegacyGRPCCertificate(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcilePeerTLSSecret(ctx, instance); err != nil {
@@ -515,9 +514,48 @@ func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, ins
 	return err
 }
 
+// grpcREAPIPathPrefixes are the disjoint, stable URL prefixes of the gRPC
+// services Kura serves: the Bazel Remote Execution API and ByteStream.
+// Paired with the use-regex annotation (see grpcIngressAnnotations) they are
+// rendered by ingress-nginx as anchored regex locations
+// (`location ~* "^/build\.bazel\.remote\.execution\.v2\."`), so a real method
+// path such as /build.bazel.remote.execution.v2.Capabilities/GetCapabilities
+// routes to the gRPC backend. A plain Prefix/ImplementationSpecific path
+// would render as `location /build.bazel.remote.execution.v2./` plus an
+// exact `= /build.bazel.remote.execution.v2.`, and the method path (no `/`
+// after the package prefix) matches neither, falling through to the HTTP
+// `/` location. Verified against ingress-nginx v1.11.3.
+//
+// The values must start with `/` (the Kubernetes Ingress API rejects a path
+// that does not begin with a slash); ingress-nginx adds the leading `^`
+// anchor itself when use-regex is set, so it is not — and must not be —
+// included here.
+//
+// Note: only the REAPI and ByteStream packages are routed. Kura registers no
+// gRPC health or reflection service, so those paths intentionally fall to the
+// HTTP backend; add `/grpc\.` here if Kura ever serves them.
+var grpcREAPIPathPrefixes = []string{
+	`/build\.bazel\.remote\.execution\.v2\.`,
+	`/google\.bytestream\.`,
+}
+
+// reconcileGRPCIngress co-hosts the gRPC (Bazel REAPI) backend on the public
+// host, split from the REST cache by path. ingress-nginx applies the
+// backend-protocol annotation per location when two Ingresses share a host,
+// so this object keeps backend-protocol: GRPC (grpc_pass/h2c) while the
+// public Ingress keeps backend-protocol: HTTP (proxy_pass) on `/`. The
+// public Ingress terminates TLS for the host, so this object declares no TLS
+// of its own. Host equals PublicHost (not GRPCPublicHost) so existing CRs
+// that still carry a legacy grpc.<host> in grpcPublicHost converge onto the
+// single host as soon as this controller rolls out.
 func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	ingress := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: grpcServiceName(instance), Namespace: instance.Namespace}}
-	if instance.Spec.GRPCPublicHost == "" {
+	// gRPC co-hosts on PublicHost (it is the rule host below), so an empty
+	// PublicHost has nowhere to route — delete rather than emit an Ingress
+	// with an empty host, even when GRPCPublicHost is set. The provisioner
+	// always emits grpcPublicHost and publicHost together (or neither), so in
+	// practice this only guards hand-written, gRPC-only CRs.
+	if instance.Spec.GRPCPublicHost == "" || instance.Spec.PublicHost == "" {
 		if err := r.Delete(ctx, ingress); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
@@ -531,18 +569,19 @@ func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, insta
 		ingress.Labels = labels(instance)
 		ingress.Annotations = grpcIngressAnnotations()
 		ingress.Spec.IngressClassName = ptr(ingressClassName(instance))
-		ingress.Spec.TLS = []networkingv1.IngressTLS{{
-			Hosts:      []string{instance.Spec.GRPCPublicHost},
-			SecretName: grpcTLSSecretName(instance),
-		}}
+		ingress.Spec.TLS = nil
+		paths := make([]networkingv1.HTTPIngressPath, 0, len(grpcREAPIPathPrefixes))
+		for _, prefix := range grpcREAPIPathPrefixes {
+			paths = append(paths, networkingv1.HTTPIngressPath{
+				Path:     prefix,
+				PathType: ptr(networkingv1.PathTypeImplementationSpecific),
+				Backend:  ingressBackend(instance.Name, "grpc"),
+			})
+		}
 		ingress.Spec.Rules = []networkingv1.IngressRule{{
-			Host: instance.Spec.GRPCPublicHost,
+			Host: instance.Spec.PublicHost,
 			IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
-				Paths: []networkingv1.HTTPIngressPath{{
-					Path:     "/",
-					PathType: ptr(networkingv1.PathTypePrefix),
-					Backend:  ingressBackend(instance.Name, "grpc"),
-				}},
+				Paths: paths,
 			}},
 		}}
 		return nil
@@ -790,44 +829,42 @@ func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context,
 	return err
 }
 
-// reconcileGRPCCertificate provisions a cert-manager Certificate for
-// the regional Kura ingress that terminates public gRPC. No-ops when either
-// GRPCClusterIssuer or spec.grpcPublicHost is unset. cert-manager must
-// be installed in the cluster before --grpc-cluster-issuer is set.
-func (r *KuraInstanceReconciler) reconcileGRPCCertificate(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+// retireLegacyGRPCCertificate removes the dedicated per-host gRPC
+// certificate left over from before the single-host migration. gRPC now
+// co-hosts on the public host (see reconcileGRPCIngress), so the public
+// Certificate/Secret already covers it and no dedicated <name>-grpc-tls
+// certificate is provisioned. cert-manager does not garbage-collect the
+// issued Secret when its Certificate is deleted, so the Secret is removed
+// explicitly. Get-before-Delete keeps a converged reconcile read-only
+// (the Gets are served from the controller-runtime cache) instead of
+// issuing DELETE writes on every loop forever.
+//
+// TODO(kura single-host migration): once every environment has converged
+// (no <name>-grpc-tls Certificate or Secret remains anywhere), drop the
+// call from Reconcile and delete this function.
+func (r *KuraInstanceReconciler) retireLegacyGRPCCertificate(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	cert := &unstructured.Unstructured{}
 	cert.SetGroupVersionKind(certificateGVK())
 	cert.SetName(grpcTLSSecretName(instance))
 	cert.SetNamespace(instance.Namespace)
-
-	if r.GRPCClusterIssuer == "" || instance.Spec.GRPCPublicHost == "" {
-		if err := r.Delete(ctx, cert); err != nil && !apierrors.IsNotFound(err) {
-			return client.IgnoreNotFound(err)
-		}
-		return nil
+	if err := r.deleteIfExists(ctx, cert); err != nil {
+		return err
 	}
 
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, cert, func() error {
-		if err := controllerutil.SetControllerReference(instance, cert, r.Scheme); err != nil {
-			return err
-		}
-		cert.SetLabels(labels(instance))
-		spec := map[string]any{
-			"secretName": grpcTLSSecretName(instance),
-			"dnsNames":   dnsNames(instance.Spec.GRPCPublicHost),
-			"issuerRef": map[string]any{
-				"name": r.GRPCClusterIssuer,
-				"kind": "ClusterIssuer",
-			},
-			"privateKey": map[string]any{
-				"algorithm":      "ECDSA",
-				"size":           int64(256),
-				"rotationPolicy": "Always",
-			},
-		}
-		return unstructured.SetNestedField(cert.Object, spec, "spec")
-	})
-	return err
+	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: grpcTLSSecretName(instance), Namespace: instance.Namespace}}
+	return r.deleteIfExists(ctx, secret)
+}
+
+// deleteIfExists deletes obj when present, treating a missing object (on
+// either the cache read or the delete) as success.
+func (r *KuraInstanceReconciler) deleteIfExists(ctx context.Context, obj client.Object) error {
+	if err := r.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	if err := r.Delete(ctx, obj); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	return nil
 }
 
 func (r *KuraInstanceReconciler) reconcilePeerTLSSecret(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
@@ -1393,7 +1430,19 @@ func publicIngressAnnotations() map[string]string {
 }
 
 func grpcIngressAnnotations() map[string]string {
-	return streamingIngressAnnotations("GRPC")
+	annotations := streamingIngressAnnotations("GRPC")
+	// The gRPC service paths are anchored regexes (see grpcREAPIPathPrefixes);
+	// use-regex makes ingress-nginx render them as `location ~* ...` so real
+	// REAPI/ByteStream method paths match.
+	//
+	// The whole path-split scheme (use-regex + per-location backend-protocol on
+	// a host shared with the public Ingress) is ingress-nginx specific. A
+	// non-nginx controller (Traefik/Contour/HAProxy/Cilium) ignores these
+	// nginx.ingress.kubernetes.io/* annotations and routes gRPC to the HTTP
+	// backend, so the IngressClass the Kura Ingress targets must be served by
+	// ingress-nginx.
+	annotations["nginx.ingress.kubernetes.io/use-regex"] = "true"
+	return annotations
 }
 
 func streamingIngressAnnotations(backendProtocol string) map[string]string {
@@ -1660,11 +1709,15 @@ func publicURL(instance *kurav1alpha1.KuraInstance) string {
 	return "https://" + instance.Spec.PublicHost
 }
 
+// grpcPublicURL reports the gRPC endpoint, which co-hosts on the public
+// host. It intentionally derives from PublicHost (not GRPCPublicHost) so the
+// status reflects the host the gRPC Ingress actually serves, even for CRs
+// that still carry a legacy grpc.<host> in grpcPublicHost.
 func grpcPublicURL(instance *kurav1alpha1.KuraInstance) string {
-	if instance.Spec.GRPCPublicHost == "" {
+	if instance.Spec.GRPCPublicHost == "" || instance.Spec.PublicHost == "" {
 		return ""
 	}
-	return "grpcs://" + instance.Spec.GRPCPublicHost
+	return "grpcs://" + instance.Spec.PublicHost
 }
 
 func labels(instance *kurav1alpha1.KuraInstance) map[string]string {

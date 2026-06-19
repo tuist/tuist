@@ -960,8 +960,19 @@ func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 		},
 	}
 
+	// Pre-seed the legacy dedicated gRPC Certificate and its Secret so the
+	// retirement path is actually exercised (not just vacuously absent).
+	legacyGRPCCert := &unstructured.Unstructured{}
+	legacyGRPCCert.SetGroupVersionKind(certificateGVK())
+	legacyGRPCCert.SetName(grpcTLSSecretName(instance))
+	legacyGRPCCert.SetNamespace(instance.Namespace)
+	legacyGRPCSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: grpcTLSSecretName(instance), Namespace: instance.Namespace},
+	}
+
 	reconciler := &KuraInstanceReconciler{
-		Client:            fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).WithStatusSubresource(instance).Build(),
+		Client: fake.NewClientBuilder().WithScheme(scheme).
+			WithObjects(instance, legacyGRPCCert, legacyGRPCSecret).WithStatusSubresource(instance).Build(),
 		Scheme:            scheme,
 		GRPCClusterIssuer: "letsencrypt-prod",
 	}
@@ -982,33 +993,51 @@ func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 	if grpcIngress.Spec.IngressClassName == nil || *grpcIngress.Spec.IngressClassName != "kura-eu-central" {
 		t.Fatalf("expected gRPC ingress class kura-eu-central, got %v", grpcIngress.Spec.IngressClassName)
 	}
-	if got := grpcIngress.Spec.TLS[0].SecretName; got != grpcTLSSecretName(instance) {
-		t.Fatalf("expected gRPC ingress to terminate with cert-manager Secret, got %q", got)
+	// gRPC co-hosts on the public host: it declares no TLS of its own and
+	// relies on the public Ingress's certificate for the shared host.
+	if len(grpcIngress.Spec.TLS) != 0 {
+		t.Fatalf("expected gRPC ingress to declare no TLS (public ingress covers the host), got %v", grpcIngress.Spec.TLS)
 	}
-	if got := grpcIngress.Spec.Rules[0].Host; got != "grpc.tuist-eu-1.kura.tuist.dev" {
-		t.Fatalf("expected gRPC ingress host, got %q", got)
+	if got := grpcIngress.Spec.Rules[0].Host; got != "tuist-eu-1.kura.tuist.dev" {
+		t.Fatalf("expected gRPC ingress to co-host on the public host, got %q", got)
 	}
-	backend := grpcIngress.Spec.Rules[0].HTTP.Paths[0].Backend.Service
-	if backend == nil || backend.Name != instance.Name || backend.Port.Name != "grpc" {
-		t.Fatalf("expected gRPC ingress to route to %s:grpc, got %#v", instance.Name, backend)
+	gotPaths := []string{}
+	for _, p := range grpcIngress.Spec.Rules[0].HTTP.Paths {
+		gotPaths = append(gotPaths, p.Path)
+		if p.PathType == nil || *p.PathType != networkingv1.PathTypeImplementationSpecific {
+			t.Fatalf("expected gRPC ingress paths to be ImplementationSpecific, got %v", p.PathType)
+		}
+		backend := p.Backend.Service
+		if backend == nil || backend.Name != instance.Name || backend.Port.Name != "grpc" {
+			t.Fatalf("expected gRPC ingress path to route to %s:grpc, got %#v", instance.Name, backend)
+		}
+	}
+	wantPaths := []string{`/build\.bazel\.remote\.execution\.v2\.`, `/google\.bytestream\.`}
+	if len(gotPaths) != len(wantPaths) {
+		t.Fatalf("expected gRPC ingress to expose the REAPI/ByteStream prefixes, got %v", gotPaths)
+	}
+	for i, want := range wantPaths {
+		if gotPaths[i] != want {
+			t.Fatalf("expected gRPC ingress path %d to be %q, got %q", i, want, gotPaths[i])
+		}
 	}
 	if got := grpcIngress.Annotations["nginx.ingress.kubernetes.io/backend-protocol"]; got != "GRPC" {
 		t.Fatalf("expected gRPC ingress backend protocol, got %q", got)
 	}
+	if got := grpcIngress.Annotations["nginx.ingress.kubernetes.io/use-regex"]; got != "true" {
+		t.Fatalf("expected gRPC ingress to enable regex path matching, got %q", got)
+	}
 
+	// The pre-seeded dedicated gRPC certificate and its Secret are retired;
+	// the public certificate covers the shared host.
 	cert := &unstructured.Unstructured{}
 	cert.SetGroupVersionKind(certificateGVK())
-	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcTLSSecretName(instance), Namespace: instance.Namespace}, cert); err != nil {
-		t.Fatalf("expected cert-manager Certificate to be created: %v", err)
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcTLSSecretName(instance), Namespace: instance.Namespace}, cert); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected the dedicated gRPC Certificate to be deleted, got %v", err)
 	}
-	if got, _, _ := unstructured.NestedString(cert.Object, "spec", "secretName"); got != grpcTLSSecretName(instance) {
-		t.Fatalf("expected Certificate secretName, got %q", got)
-	}
-	if got, _, _ := unstructured.NestedString(cert.Object, "spec", "issuerRef", "name"); got != "letsencrypt-prod" {
-		t.Fatalf("expected ClusterIssuer ref, got %q", got)
-	}
-	if got, _, _ := unstructured.NestedStringSlice(cert.Object, "spec", "dnsNames"); len(got) != 1 || got[0] != "grpc.tuist-eu-1.kura.tuist.dev" {
-		t.Fatalf("expected gRPC Certificate dnsNames to include the regional host, got %v", got)
+	grpcSecret := &corev1.Secret{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcTLSSecretName(instance), Namespace: instance.Namespace}, grpcSecret); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected the dedicated gRPC TLS Secret to be deleted, got %v", err)
 	}
 
 	sts := &appsv1.StatefulSet{}
@@ -1036,8 +1065,8 @@ func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, updated); err != nil {
 		t.Fatal(err)
 	}
-	if got := updated.Status.GRPCPublicURL; got != "grpcs://grpc.tuist-eu-1.kura.tuist.dev" {
-		t.Fatalf("expected gRPC public URL in status, got %q", got)
+	if got := updated.Status.GRPCPublicURL; got != "grpcs://tuist-eu-1.kura.tuist.dev" {
+		t.Fatalf("expected gRPC public URL in status to co-host on the public host, got %q", got)
 	}
 }
 
@@ -1134,6 +1163,167 @@ func TestKuraInstanceReconcileSkipsGRPCWhenHostUnset(t *testing.T) {
 	grpcIngress := &networkingv1.Ingress{}
 	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcServiceName(instance), Namespace: instance.Namespace}, grpcIngress); !apierrors.IsNotFound(err) {
 		t.Fatalf("expected no gRPC Ingress when grpcPublicHost is unset, got %v", err)
+	}
+}
+
+func TestKuraInstanceReconcileSkipsGRPCWhenPublicHostUnset(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	// Degenerate state guarded by the gate: grpcPublicHost set but
+	// publicHost empty. gRPC has no public host to co-host on, so the
+	// Ingress and the status URL must be skipped rather than built on an
+	// empty host.
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle:  "tuist",
+			TenantID:       "tuist",
+			Region:         "eu",
+			Image:          "ghcr.io/tuist/kura:0.5.2",
+			GRPCPublicHost: "grpc.tuist-eu-1.kura.tuist.dev",
+		},
+	}
+
+	reconciler := &KuraInstanceReconciler{
+		Client:            fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).WithStatusSubresource(instance).Build(),
+		Scheme:            scheme,
+		GRPCClusterIssuer: "letsencrypt-prod",
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	grpcIngress := &networkingv1.Ingress{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcServiceName(instance), Namespace: instance.Namespace}, grpcIngress); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected no gRPC Ingress when the public host is unset, got %v", err)
+	}
+
+	updated := &kurav1alpha1.KuraInstance{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, updated); err != nil {
+		t.Fatal(err)
+	}
+	if got := updated.Status.GRPCPublicURL; got != "" {
+		t.Fatalf("expected empty gRPC public URL when the public host is unset, got %q", got)
+	}
+}
+
+func TestKuraInstanceReconcileConvertsLegacyGRPCIngressToSingleHost(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle:    "tuist",
+			TenantID:         "tuist",
+			Region:           "eu",
+			Image:            "ghcr.io/tuist/kura:0.5.2",
+			PublicHost:       "tuist-eu-1.kura.tuist.dev",
+			GRPCPublicHost:   "grpc.tuist-eu-1.kura.tuist.dev",
+			IngressClassName: "kura-eu-central",
+			StorageClassName: "hcloud-volumes",
+		},
+	}
+
+	// The realistic mid-migration cluster shape: a pre-existing gRPC Ingress
+	// in the old split-host shape (host grpc.<host>, a single "/" path, and
+	// its own TLS) alongside the dedicated gRPC Certificate and its Secret.
+	// The reconcile must convert the Ingress in place to the single-host
+	// shape (not leave the legacy host or create a second object) and retire
+	// the dedicated cert + secret.
+	legacyGRPCIngress := &networkingv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{Name: grpcServiceName(instance), Namespace: instance.Namespace},
+		Spec: networkingv1.IngressSpec{
+			IngressClassName: ptr("kura-eu-central"),
+			TLS: []networkingv1.IngressTLS{{
+				Hosts:      []string{"grpc.tuist-eu-1.kura.tuist.dev"},
+				SecretName: grpcTLSSecretName(instance),
+			}},
+			Rules: []networkingv1.IngressRule{{
+				Host: "grpc.tuist-eu-1.kura.tuist.dev",
+				IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
+					Paths: []networkingv1.HTTPIngressPath{{
+						Path:     "/",
+						PathType: ptr(networkingv1.PathTypePrefix),
+						Backend:  ingressBackend(instance.Name, "grpc"),
+					}},
+				}},
+			}},
+		},
+	}
+	legacyGRPCCert := &unstructured.Unstructured{}
+	legacyGRPCCert.SetGroupVersionKind(certificateGVK())
+	legacyGRPCCert.SetName(grpcTLSSecretName(instance))
+	legacyGRPCCert.SetNamespace(instance.Namespace)
+	legacyGRPCSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: grpcTLSSecretName(instance), Namespace: instance.Namespace},
+	}
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).
+			WithObjects(instance, legacyGRPCIngress, legacyGRPCCert, legacyGRPCSecret).WithStatusSubresource(instance).Build(),
+		Scheme:            scheme,
+		GRPCClusterIssuer: "letsencrypt-prod",
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	grpcIngress := &networkingv1.Ingress{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcServiceName(instance), Namespace: instance.Namespace}, grpcIngress); err != nil {
+		t.Fatalf("expected the gRPC ingress to remain after conversion: %v", err)
+	}
+	if got := grpcIngress.Spec.Rules[0].Host; got != "tuist-eu-1.kura.tuist.dev" {
+		t.Fatalf("expected the legacy grpc.<host> ingress to be rehosted on the public host, got %q", got)
+	}
+	if len(grpcIngress.Spec.TLS) != 0 {
+		t.Fatalf("expected the converted gRPC ingress to drop its own TLS, got %v", grpcIngress.Spec.TLS)
+	}
+	gotPaths := []string{}
+	for _, p := range grpcIngress.Spec.Rules[0].HTTP.Paths {
+		gotPaths = append(gotPaths, p.Path)
+		if p.PathType == nil || *p.PathType != networkingv1.PathTypeImplementationSpecific {
+			t.Fatalf("expected converted gRPC ingress paths to be ImplementationSpecific, got %v", p.PathType)
+		}
+	}
+	wantPaths := []string{`/build\.bazel\.remote\.execution\.v2\.`, `/google\.bytestream\.`}
+	if len(gotPaths) != len(wantPaths) {
+		t.Fatalf("expected converted gRPC ingress to expose the REAPI/ByteStream prefixes, got %v", gotPaths)
+	}
+	for i, want := range wantPaths {
+		if gotPaths[i] != want {
+			t.Fatalf("expected converted gRPC ingress path %d to be %q, got %q", i, want, gotPaths[i])
+		}
+	}
+	if got := grpcIngress.Annotations["nginx.ingress.kubernetes.io/use-regex"]; got != "true" {
+		t.Fatalf("expected converted gRPC ingress to enable regex matching, got %q", got)
+	}
+
+	// The dedicated gRPC Certificate and its Secret are retired as part of
+	// the conversion.
+	cert := &unstructured.Unstructured{}
+	cert.SetGroupVersionKind(certificateGVK())
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcTLSSecretName(instance), Namespace: instance.Namespace}, cert); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected the dedicated gRPC Certificate to be deleted, got %v", err)
+	}
+	secret := &corev1.Secret{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcTLSSecretName(instance), Namespace: instance.Namespace}, secret); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected the dedicated gRPC TLS Secret to be deleted, got %v", err)
 	}
 }
 
