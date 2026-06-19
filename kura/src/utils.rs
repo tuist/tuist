@@ -1,16 +1,101 @@
 use std::{
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use axum::extract::Request;
 use futures_util::StreamExt;
 use sha2::{Digest, Sha256};
-use tokio::io::AsyncWriteExt;
+use tokio::{io::AsyncWriteExt, sync::Notify};
 use uuid::Uuid;
 
 use crate::{artifact::producer::ArtifactProducer, bandwidth::BandwidthLimiter, io::IoController};
+
+/// Byte-accounted reservation over the shared tmp-dir budget.
+///
+/// Bootstrap stages every non-inline artifact it pulls from a peer into the
+/// shared tmp dir before appending it to a segment. Multiple peers (and the
+/// sequential artifacts within a single peer) stage concurrently, so without a
+/// shared accounting the combined in-flight bytes scale with the number of
+/// concurrent stagers rather than the budget. This reserves a staging slot
+/// sized to the artifact and waits when the budget is full, so peak staged
+/// bytes stay bounded by the budget regardless of total account size.
+#[derive(Debug)]
+pub struct TmpBudget {
+    capacity: u64,
+    reserved: AtomicU64,
+    available: Notify,
+}
+
+impl TmpBudget {
+    pub fn new(capacity: u64) -> Arc<Self> {
+        Arc::new(Self {
+            capacity: capacity.max(1),
+            reserved: AtomicU64::new(0),
+            available: Notify::new(),
+        })
+    }
+
+    /// Reserve `bytes` against the budget, waiting until the reservation fits.
+    ///
+    /// A request larger than the whole budget is clamped to the budget so a
+    /// single oversized artifact can still make progress once the dir drains
+    /// (the hard per-body byte ceiling is still enforced while streaming).
+    pub async fn reserve(self: &Arc<Self>, bytes: u64) -> TmpReservation {
+        let bytes = bytes.clamp(1, self.capacity);
+        loop {
+            let notified = self.available.notified();
+            tokio::pin!(notified);
+            // Register before checking capacity: notify_waiters() only wakes
+            // already-registered waiters and stores no permit, so without this
+            // a release racing the check below would be a lost wakeup.
+            notified.as_mut().enable();
+            let mut current = self.reserved.load(Ordering::Acquire);
+            loop {
+                if current.saturating_add(bytes) > self.capacity {
+                    break;
+                }
+                match self.reserved.compare_exchange_weak(
+                    current,
+                    current + bytes,
+                    Ordering::AcqRel,
+                    Ordering::Acquire,
+                ) {
+                    Ok(_) => {
+                        return TmpReservation {
+                            budget: self.clone(),
+                            bytes,
+                        };
+                    }
+                    Err(observed) => current = observed,
+                }
+            }
+            notified.await;
+        }
+    }
+
+    fn release(&self, bytes: u64) {
+        self.reserved.fetch_sub(bytes, Ordering::AcqRel);
+        self.available.notify_waiters();
+    }
+}
+
+/// RAII guard that releases its tmp-budget reservation on drop.
+#[derive(Debug)]
+pub struct TmpReservation {
+    budget: Arc<TmpBudget>,
+    bytes: u64,
+}
+
+impl Drop for TmpReservation {
+    fn drop(&mut self) {
+        self.budget.release(self.bytes);
+    }
+}
 
 #[derive(Debug)]
 pub struct TempBodyFile {
@@ -405,5 +490,54 @@ mod tests {
                 .expect("failed to read seeded file"),
             "hello"
         );
+    }
+
+    #[tokio::test]
+    async fn tmp_budget_caps_concurrent_reservations() {
+        let budget = TmpBudget::new(100);
+        let first = budget.reserve(60).await;
+        let second = budget.reserve(40).await;
+        assert_eq!(budget.reserved.load(Ordering::Acquire), 100);
+
+        // A third reservation cannot fit until one of the held ones drops.
+        let pending = tokio::spawn({
+            let budget = budget.clone();
+            async move { budget.reserve(40).await }
+        });
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        assert!(!pending.is_finished(), "reservation should wait for budget");
+
+        drop(first);
+        let third = pending.await.expect("pending reservation should resolve");
+        assert!(budget.reserved.load(Ordering::Acquire) <= 100);
+        drop(second);
+        drop(third);
+        assert_eq!(budget.reserved.load(Ordering::Acquire), 0);
+    }
+
+    #[tokio::test]
+    async fn tmp_budget_serializes_total_far_exceeding_capacity() {
+        // Stage a total volume far larger than the budget through a tiny budget;
+        // every reservation must eventually succeed (peak never exceeds budget),
+        // proving bootstrap convergence is independent of total account size.
+        let budget = TmpBudget::new(100);
+        let mut total = 0_u64;
+        for _ in 0..50 {
+            let reservation = budget.reserve(80).await;
+            assert!(budget.reserved.load(Ordering::Acquire) <= 100);
+            total += 80;
+            drop(reservation);
+        }
+        assert_eq!(total, 4000);
+        assert_eq!(budget.reserved.load(Ordering::Acquire), 0);
+    }
+
+    #[tokio::test]
+    async fn tmp_budget_clamps_oversized_request_to_capacity() {
+        let budget = TmpBudget::new(100);
+        let reservation = budget.reserve(10_000).await;
+        assert_eq!(budget.reserved.load(Ordering::Acquire), 100);
+        drop(reservation);
+        assert_eq!(budget.reserved.load(Ordering::Acquire), 0);
     }
 }
