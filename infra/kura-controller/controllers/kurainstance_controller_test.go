@@ -944,6 +944,9 @@ func TestKuraInstanceReconcileMeshPublicPeerExposure(t *testing.T) {
 	if got := env["KURA_PEERS"]; got != "https://kura.acme.example:7443" {
 		t.Fatalf("expected KURA_PEERS to seed the self-hosted peer, got %q", got)
 	}
+	if got := env["KURA_PEER_GATEWAY_URL"]; got != "https://peer.tuist-eu-central-1.kura.tuist.dev:7443" {
+		t.Fatalf("expected KURA_PEER_GATEWAY_URL to advertise the public gateway for global discovery, got %q", got)
+	}
 
 	policy := &networkingv1.NetworkPolicy{}
 	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, policy); err != nil {

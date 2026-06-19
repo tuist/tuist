@@ -157,7 +157,11 @@ async fn membership_task_loop(state: SharedState) {
                         Ok(payload) => {
                             peer_status_successes += 1;
                             if payload.tenant_id != state.config.tenant_id
-                                || payload.node_url == state.config.node_url
+                                || is_self_or_own_gateway(
+                                    &payload.node_url,
+                                    &state.config.node_url,
+                                    state.config.peer_gateway_url.as_deref(),
+                                )
                             {
                                 continue;
                             }
@@ -550,6 +554,19 @@ async fn read_bounded_body(
     Ok(buffer)
 }
 
+/// Whether a discovered peer's advertised `node_url` should be skipped because
+/// it is this node itself or this node's own peer gateway.
+///
+/// When global discovery is fronted by a public peer gateway (the account peer
+/// LoadBalancer), every same-account peer advertises that one gateway URL for
+/// global scope. A node must not adopt its own gateway as a distinct peer, or
+/// same-region traffic would hairpin out through the public endpoint and back
+/// instead of staying in-cluster. An external peer (which has no gateway of its
+/// own) still adopts the gateway URL and replicates through it.
+fn is_self_or_own_gateway(node_url: &str, own_node_url: &str, own_gateway: Option<&str>) -> bool {
+    node_url == own_node_url || own_gateway == Some(node_url)
+}
+
 async fn discovery_targets(config: &Config, dynamic_peers: &[String]) -> Vec<DiscoveryTarget> {
     let mut targets = config
         .peers
@@ -840,6 +857,27 @@ mod tests {
         test_support::test_context,
         utils::artifact_storage_id,
     };
+
+    #[test]
+    fn skips_self_and_own_gateway_but_adopts_other_peers() {
+        let own = "https://kura-eu-0.kura-eu-headless.kura.svc.cluster.local:7443";
+        let gateway = "https://peer.tuist-eu-1.kura.tuist.dev:7443";
+
+        // Our own in-cluster URL and our own gateway are both skipped.
+        assert!(is_self_or_own_gateway(own, own, Some(gateway)));
+        assert!(is_self_or_own_gateway(gateway, own, Some(gateway)));
+
+        // A different peer (another instance, or a self-hosted node) is adopted.
+        assert!(!is_self_or_own_gateway(
+            "https://kura-eu-1.kura-eu-headless.kura.svc.cluster.local:7443",
+            own,
+            Some(gateway),
+        ));
+
+        // With no gateway of our own, an external node adopting the managed
+        // gateway URL must not skip it.
+        assert!(!is_self_or_own_gateway(gateway, own, None));
+    }
 
     async fn spawn_server(app: Router) -> (String, tokio::task::JoinHandle<()>) {
         let listener = TcpListener::bind("127.0.0.1:0")

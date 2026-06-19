@@ -1639,6 +1639,17 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 	if crossRegionRuntimeEnabled(instance) {
 		env = append(env, corev1.EnvVar{Name: "KURA_GLOBAL_DISCOVERY_DNS_NAME", Value: accountPeerServiceDNSName(instance)})
 	}
+	// When the account peer plane is exposed publicly, advertise the public
+	// gateway URL for global-scope discovery so an off-cluster self-hosted node
+	// replicates through the LoadBalancer instead of the managed pods' in-cluster
+	// addresses (which it can't reach). In-cluster peers keep using direct
+	// addresses (Local-scope discovery); a node skips its own gateway.
+	if meshManagedPeerTLS(instance) && instance.Spec.MeshPublicPeerHost != "" {
+		env = append(env, corev1.EnvVar{
+			Name:  "KURA_PEER_GATEWAY_URL",
+			Value: fmt.Sprintf("https://%s:%d", instance.Spec.MeshPublicPeerHost, peerPort),
+		})
+	}
 	// Seed the account's self-hosted nodes as static peers so the managed
 	// mesh dials them (the managed->self-hosted replication leg). In-cluster
 	// peers are still discovered through the headless Services above; these
