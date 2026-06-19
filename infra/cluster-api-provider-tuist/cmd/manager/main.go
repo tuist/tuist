@@ -528,11 +528,13 @@ func main() {
 		setupLog.Info("OVH dedicated machine reconciler enabled")
 	}
 
-	// Dedibox (Scaleway / online.net) dedicated machines — the EU customer-facing
-	// kind, same shape as OVH (adopt-by-prefix, install-on-claim, monthly
-	// contract). Gated on the online.net API token so it stays dormant until an
-	// env enables Dedibox (the ESO-synced DEDIBOX_API secret + env lands then).
-	if os.Getenv("DEDIBOX_API_TOKEN") != "" {
+	// Dedibox (Scaleway) dedicated machines — the EU customer-facing kind, same
+	// shape as OVH (adopt-by-offer+datacenter, install-on-claim, monthly
+	// contract). Talks to the project-scoped Scaleway API with the shared IAM
+	// credentials; the Project the key is scoped to is the environment boundary.
+	// Gated on DEDIBOX_ENABLED so it stays dormant until an env opts in, even
+	// though Scaleway creds are already present for the macOS fleet.
+	if os.Getenv("DEDIBOX_ENABLED") != "" {
 		dediboxClient, err := dedibox.NewClientFromEnv()
 		if err != nil {
 			setupLog.Error(err, "dedibox client")

@@ -6,12 +6,13 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
-// DediboxMachineSpec is the desired state of one Scaleway Dedibox (online.net)
-// dedicated server. Structurally it mirrors the OVH kind — a customer-facing
-// public box that adopts a pre-ordered server, installs on claim, self-joins
-// over its public IP, and (monthly contract) is not terminated on delete. The
-// vendor differences are the online.net API and that the private network is
-// RPN rather than a Scaleway VPC PN (unused at Qty-1).
+// DediboxMachineSpec is the desired state of one Scaleway Dedibox dedicated
+// server. Structurally it mirrors the OVH kind — a customer-facing public box
+// that adopts a pre-ordered server, installs on claim, self-joins over its
+// public IP, and (monthly contract) is not terminated on delete. It is driven
+// through the project-scoped Scaleway Dedibox API with an IAM key, so the
+// Project the key is scoped to is the environment boundary; the private network
+// is RPN rather than a Scaleway VPC PN (unused at Qty-1).
 type DediboxMachineSpec struct {
 	// ProviderID, set by the controller after the self-join completes, takes the
 	// shape `dedibox://<datacenter>/<server-id>` — a foreign providerID host so
@@ -25,8 +26,12 @@ type DediboxMachineSpec struct {
 	// +kubebuilder:default=dc3
 	Datacenter string `json:"datacenter,omitempty"`
 
-	// Offer is the Dedibox commercial offer the fleet pre-orders (e.g.
-	// `Pro-11-S`). Informational; adoption keys on the hostname prefix.
+	// Offer is the Dedibox commercial offer the fleet's pool is made of (e.g.
+	// `Start-1-M-SSD`). With Datacenter it is the adopt key: a bare pre-ordered
+	// Dedibox has no settable name (online.net sets the hostname only at OS
+	// install), so unlike the OVH kind the controller claims a free box by its
+	// intrinsic offer + datacenter, not a display-name prefix. Empty matches any
+	// offer in the datacenter.
 	// +optional
 	Offer string `json:"offer,omitempty"`
 
@@ -35,11 +40,13 @@ type DediboxMachineSpec struct {
 	// +kubebuilder:default=ubuntu_24.04
 	OS string `json:"os,omitempty"`
 
-	// AdoptHostnamePrefix is the hostname prefix the controller scans to claim a
-	// pre-ordered server for this Machine. The operator pre-orders boxes with
-	// this hostname prefix (authorized with the fleet SSH key); the controller
-	// never orders inline. Required: without it there is no pool to claim from.
-	AdoptHostnamePrefix string `json:"adoptHostnamePrefix"`
+	// AdoptHostnamePrefix is an OPTIONAL extra adopt filter applied only to
+	// already-installed boxes. A bare pre-ordered box has no hostname yet (it is
+	// set at OS install), so it is never excluded by this; the primary claim key
+	// is Offer + Datacenter. Use it as belt-and-suspenders when a pool shares an
+	// offer + datacenter with unrelated servers. Empty disables the filter.
+	// +optional
+	AdoptHostnamePrefix string `json:"adoptHostnamePrefix,omitempty"`
 
 	// FleetName groups Machines that share one SSH key, like the Apple Silicon
 	// kind. Set by the MachineTemplate so every Machine the MachineDeployment
@@ -75,10 +82,16 @@ type DediboxMachineStatus struct {
 	// +optional
 	Ready bool `json:"ready,omitempty"`
 
-	// ServerID is the online.net numeric server id, used for install polling and
-	// status. Zero until a server is claimed.
+	// ServerID is the Scaleway Dedibox numeric server id, used for install polling
+	// and status. Zero until a server is claimed.
 	// +optional
 	ServerID int `json:"serverID,omitempty"`
+
+	// Zone is the Scaleway zone the adopted server lives in (e.g. fr-par-1),
+	// recorded at adoption and used for every follow-up Dedibox API call and the
+	// providerID. Empty until a server is claimed.
+	// +optional
+	Zone string `json:"zone,omitempty"`
 
 	// Addresses surfaces the server's public address for kubectl describe.
 	// +optional

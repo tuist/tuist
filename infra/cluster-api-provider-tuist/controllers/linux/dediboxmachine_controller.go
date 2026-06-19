@@ -36,21 +36,23 @@ const (
 	// terminating the contract is an operator action.
 	DediboxMachineFinalizer = "dedibox.cluster.x-k8s.io/finalizer"
 
-	// dediboxBootstrapUser is the login the online.net install authorizes the
-	// SSH key for. online.net adds the key to root's authorized_keys, so the
-	// self-join runs directly as root (no sudo). VERIFY against a live install.
-	dediboxBootstrapUser = "root"
+	// dediboxBootstrapUser is the sudo login the Scaleway Dedibox install creates
+	// (Ubuntu installs require a user and disable root SSH), so the self-join runs
+	// as this user via sudo, like the OVH "ubuntu" path. VERIFY against a live
+	// install that the chosen OS reports RequiresUser.
+	dediboxBootstrapUser = "tuist"
 
 	// dediboxInstanceType is the node.cluster.x-k8s.io/instance-type label value
 	// the self-join stamps.
 	dediboxInstanceType = "dedibox"
 )
 
-// DediboxMachineReconciler reconciles a DediboxMachine: it adopts a pre-ordered
-// online.net Dedibox server by hostname prefix, drives the OS install, then
-// SSH-delivers the shared Linux self-join over its public IP. Structurally a
-// twin of the OVH kind (customer-facing public box, no Scaleway Private
-// Network; the online.net RPN private mesh is a multi-box follow-up).
+// DediboxMachineReconciler reconciles a DediboxMachine: within its IAM key's
+// project (the environment boundary) it adopts a pre-ordered Scaleway Dedibox
+// server by offer + datacenter, drives the OS install, then SSH-delivers the
+// shared Linux self-join over its public IP. Structurally a twin of the OVH kind
+// (customer-facing public box, no Scaleway Private Network; the RPN private mesh
+// is a multi-box follow-up).
 type DediboxMachineReconciler struct {
 	client.Client
 	// APIReader is the uncached reader for the cross-namespace kube-dns read.
@@ -140,12 +142,18 @@ func (r *DediboxMachineReconciler) reconcileNormal(ctx context.Context, machine 
 			machine.Status.Phase = "Pending"
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
-		publicKey, pubErr := sshPublicKey(privateKey)
-		if pubErr != nil {
-			return ctrl.Result{}, fmt.Errorf("derive ssh public key: %w", pubErr)
+		// The fleet key is already registered as a Scaleway SSH key; the Dedibox
+		// install authorizes it by ID (no per-provider key upload).
+		sshKeyID, keyIDErr := r.CredentialsManager.FleetSSHKeyID(ctx, fleet)
+		if keyIDErr != nil {
+			conditions.MarkFalse(machine, shared.ProvisionedCondition, "SSHKeyUnavailable",
+				clusterv1.ConditionSeverityError, "%v", keyIDErr)
+			machine.Status.Phase = "Pending"
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 
-		// Adopt: claim a free pre-ordered box not already held by a sibling CR.
+		// Adopt: claim a free pre-ordered box in this project not already held by
+		// a sibling CR.
 		if machine.Status.ServerID == 0 {
 			claimed, claimErr := r.claimedServerIDs(ctx, machine)
 			if claimErr != nil {
@@ -153,6 +161,7 @@ func (r *DediboxMachineReconciler) reconcileNormal(ctx context.Context, machine 
 			}
 			server, adoptErr := r.DediboxClient.FindAdoptableServer(ctx, dedibox.AdoptParams{
 				Datacenter:     datacenter,
+				Offer:          machine.Spec.Offer,
 				HostnamePrefix: machine.Spec.AdoptHostnamePrefix,
 			}, claimed)
 			if adoptErr != nil {
@@ -161,63 +170,63 @@ func (r *DediboxMachineReconciler) reconcileNormal(ctx context.Context, machine 
 			if server == nil {
 				conditions.MarkFalse(machine, shared.ProvisionedCondition, "NoAdoptableServer",
 					clusterv1.ConditionSeverityInfo,
-					"no free pre-ordered Dedibox server under %q in %s; awaiting capacity", machine.Spec.AdoptHostnamePrefix, datacenter)
+					"no free pre-ordered Dedibox server (offer %q) in %s; awaiting capacity", machine.Spec.Offer, datacenter)
 				machine.Status.Phase = "Adopting"
-				logger.Info("no adoptable Dedibox server yet", "prefix", machine.Spec.AdoptHostnamePrefix, "datacenter", datacenter)
+				logger.Info("no adoptable Dedibox server yet", "offer", machine.Spec.Offer, "datacenter", datacenter)
 				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 			}
-			machine.Status.ServerID = server.ID
-			machine.Status.Addresses = []clusterv1.MachineAddress{{Type: clusterv1.MachineExternalIP, Address: server.PublicIPv4()}}
+			machine.Status.ServerID = int(server.ID)
+			machine.Status.Zone = server.Zone
+			machine.Status.Addresses = []clusterv1.MachineAddress{{Type: clusterv1.MachineExternalIP, Address: server.PublicIP}}
 			machine.Status.Phase = "Adopting"
-			r.event(machine, "Adopted", "Adopted Dedibox server %d in %s", server.ID, datacenter)
-			logger.Info("adopted Dedibox server", "id", server.ID, "datacenter", datacenter)
+			r.event(machine, "Adopted", "Adopted Dedibox server %d in %s/%s", server.ID, datacenter, server.Zone)
+			logger.Info("adopted Dedibox server", "id", server.ID, "datacenter", datacenter, "zone", server.Zone)
 		}
 
-		keyName := fleet
-		if err := r.DediboxClient.EnsureSSHKey(ctx, keyName, publicKey); err != nil {
-			return ctrl.Result{}, fmt.Errorf("ensure Dedibox ssh key: %w", err)
-		}
-
-		state, stateErr := r.DediboxClient.InstallState(ctx, machine.Status.ServerID)
+		serverID := uint64(machine.Status.ServerID)
+		state, stateErr := r.DediboxClient.InstallState(ctx, machine.Status.Zone, serverID)
 		if stateErr != nil {
 			return ctrl.Result{}, stateErr
 		}
 		switch state {
 		case dedibox.InstallFailed:
 			return r.fail(machine, "InstallFailed",
-				fmt.Sprintf("Dedibox server %d OS install failed", machine.Status.ServerID))
+				fmt.Sprintf("Dedibox server %d OS install failed", serverID))
 		case dedibox.InstallPending:
 			if !conditions.IsTrue(machine, OSInstallRequestedCondition) {
-				osID, osErr := r.DediboxClient.ResolveOSID(ctx, machine.Status.ServerID, firstNonEmpty(machine.Spec.OS, r.DefaultOS))
+				osChoice, osErr := r.DediboxClient.ResolveOS(ctx, machine.Status.Zone, serverID, firstNonEmpty(machine.Spec.OS, r.DefaultOS))
 				if osErr != nil {
 					return ctrl.Result{}, osErr
 				}
-				if err := r.DediboxClient.StartInstall(ctx, machine.Status.ServerID, dedibox.InstallParams{
-					OSID:       osID,
-					Hostname:   machine.Name,
-					SSHKeyName: keyName,
+				if err := r.DediboxClient.StartInstall(ctx, dedibox.InstallParams{
+					Zone:      machine.Status.Zone,
+					ServerID:  serverID,
+					OS:        osChoice,
+					Hostname:  machine.Name,
+					UserLogin: dediboxBootstrapUser,
+					SSHKeyIDs: []string{sshKeyID},
 				}); err != nil {
 					return ctrl.Result{}, fmt.Errorf("start Dedibox install: %w", err)
 				}
 				conditions.MarkTrue(machine, OSInstallRequestedCondition)
-				r.event(machine, "Installing", "Started OS install on Dedibox server %d", machine.Status.ServerID)
+				r.event(machine, "Installing", "Started OS install on Dedibox server %d", serverID)
 			}
 			conditions.MarkFalse(machine, shared.ProvisionedCondition, "Installing",
-				clusterv1.ConditionSeverityInfo, "server %d installing", machine.Status.ServerID)
+				clusterv1.ConditionSeverityInfo, "server %d installing", serverID)
 			machine.Status.Phase = "Installing"
 			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 		case dedibox.InstallRunning:
 			conditions.MarkFalse(machine, shared.ProvisionedCondition, "Installing",
-				clusterv1.ConditionSeverityInfo, "server %d installing", machine.Status.ServerID)
+				clusterv1.ConditionSeverityInfo, "server %d installing", serverID)
 			machine.Status.Phase = "Installing"
 			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 		}
 
-		server, getErr := r.DediboxClient.GetServer(ctx, machine.Status.ServerID)
+		server, getErr := r.DediboxClient.GetServer(ctx, machine.Status.Zone, serverID)
 		if getErr != nil {
 			return ctrl.Result{}, getErr
 		}
-		host := server.PublicIPv4()
+		host := server.PublicIP
 		if host == "" {
 			machine.Status.Phase = "Provisioning"
 			logger.Info("public IP not assigned yet", "id", machine.Status.ServerID)
@@ -268,7 +277,7 @@ func (r *DediboxMachineReconciler) reconcileNormal(ctx context.Context, machine 
 		}
 		machine.Status.BootstrapAttempts = 0
 
-		providerID := dedibox.ProviderID(datacenter, machine.Status.ServerID)
+		providerID := dedibox.ProviderID(machine.Status.Zone, serverID)
 		machine.Spec.ProviderID = &providerID
 		conditions.MarkTrue(machine, shared.ProvisionedCondition)
 		r.event(machine, "Bootstrapped", "Bootstrapped Dedibox server %d as %s@%s", machine.Status.ServerID, dediboxBootstrapUser, host)
@@ -307,19 +316,19 @@ func (r *DediboxMachineReconciler) reconcileNormal(ctx context.Context, machine 
 
 // claimedServerIDs is the set of online.net server IDs already held by other
 // DediboxMachines in the namespace, so adoption never double-claims a box.
-func (r *DediboxMachineReconciler) claimedServerIDs(ctx context.Context, self *infrav1.DediboxMachine) (map[int]bool, error) {
+func (r *DediboxMachineReconciler) claimedServerIDs(ctx context.Context, self *infrav1.DediboxMachine) (map[uint64]bool, error) {
 	list := &infrav1.DediboxMachineList{}
 	if err := r.List(ctx, list, client.InNamespace(self.Namespace)); err != nil {
 		return nil, fmt.Errorf("list DediboxMachines: %w", err)
 	}
-	claimed := make(map[int]bool, len(list.Items))
+	claimed := make(map[uint64]bool, len(list.Items))
 	for i := range list.Items {
 		m := &list.Items[i]
 		if m.UID == self.UID {
 			continue
 		}
 		if m.Status.ServerID != 0 {
-			claimed[m.Status.ServerID] = true
+			claimed[uint64(m.Status.ServerID)] = true
 		}
 	}
 	return claimed, nil
