@@ -524,6 +524,15 @@ jobs:
           kubectl -n kura get secret kura-shared-secrets -o json \
             | jq 'del(.metadata.namespace, .metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp, .metadata.ownerReferences, .metadata.labels, .metadata.annotations)' \
             | kubectl -n "$NAMESPACE" apply -f -
+      - name: Delete stale migration Job (if any)
+        # The chart renders server-migrate as a regular Job (preview keeps
+        # migrationJob.asHook=false so the embedded Postgres/ClickHouse get
+        # to come up — see values-preview.yaml). Kubernetes won't let us
+        # mutate the prior Job's spec.template on a re-deploy with a new
+        # image tag, so we delete the stale Job first and let helm
+        # re-create it.
+        run: |
+          kubectl -n "$NAMESPACE" delete job "${RELEASE}-tuist-server-migrate" --ignore-not-found
       - name: helm upgrade --install
         run: |
           set -euo pipefail

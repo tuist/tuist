@@ -32,12 +32,17 @@ server:
     enabled: false
   cluster:
     enabled: false
-  # Run the migration Job as a pre-install/pre-upgrade Helm hook so
-  # `helm upgrade` between two image tags doesn't try to mutate the
-  # prior Job's immutable spec.template (managed envs do the same via
-  # values-managed-common.yaml).
+  # Keep the migration as a regular Job (NOT a Helm pre-install hook).
+  # Managed envs set migrationJob.asHook=true because they use external
+  # Postgres + ClickHouse, but preview ships with embedded ones, and the
+  # Job's wait-for-dependencies init container then deadlocks: pre-install
+  # hooks run before regular release resources, so the embedded Postgres
+  # / ClickHouse never come up during the hook window. The deploy
+  # workflow kubectl-deletes the stale Job before `helm upgrade` instead,
+  # which sidesteps the `spec.template field is immutable` issue without
+  # tripping the dependency wait.
   migrationJob:
-    asHook: true
+    asHook: false
   # License is synced from 1Password via ESO into the chart's
   # server-external-secrets Secret. The 1P item must exist in the vault that
   # the ClusterSecretStore (default name: onepassword) is bound to. ESO and
