@@ -11,6 +11,7 @@ defmodule Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker do
   alias Tuist.Repo
   alias Tuist.Storage.Workers.DeleteExpiredBuildArchivesWorker
   alias Tuist.Storage.Workers.DeleteExpiredPreviewArtifactsWorker
+  alias Tuist.Storage.Workers.DeleteExpiredRunSessionsWorker
   alias Tuist.Storage.Workers.DeleteExpiredShardBundlesWorker
   alias Tuist.Storage.Workers.DeleteExpiredTestAttachmentsWorker
 
@@ -18,6 +19,7 @@ defmodule Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker do
   @deletion_workers [
     DeleteExpiredPreviewArtifactsWorker,
     DeleteExpiredBuildArchivesWorker,
+    DeleteExpiredRunSessionsWorker,
     DeleteExpiredTestAttachmentsWorker,
     DeleteExpiredShardBundlesWorker
   ]

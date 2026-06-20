@@ -7,7 +7,7 @@ defmodule Tuist.Storage.ArtifactRetentionCursor do
 
   alias Tuist.Accounts.Account
 
-  @artifact_types [:preview_app_build, :build_archive, :test_attachment, :shard_bundle]
+  @artifact_types [:preview_app_build, :build_archive, :run_session, :test_attachment, :shard_bundle]
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   schema "artifact_retention_cursors" do
