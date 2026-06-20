@@ -156,6 +156,7 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	staleAlive := 0
 	markedStale := 0
 	newNotReady := 0
+	phaseReplicas := podPhaseReplicaCounts{}
 	var idleAlive []*corev1.Pod
 	// Stale idle Pods are retired under the roll cap (below), not all at
 	// once: Running ones (macOS) get the drain-eligible label so the
@@ -170,6 +171,7 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		switch {
 		case isAlive(p):
 			alive++
+			phaseReplicas.add(p)
 			switch {
 			case isStaleImage(p, pool):
 				staleAlive++
@@ -263,6 +265,7 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			continue
 		}
 		alive--
+		phaseReplicas.remove(p)
 		rolling++
 	}
 	for _, p := range drainCandidates {
@@ -298,6 +301,7 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			logger.Error(err, "create runner; will retry")
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
+		phaseReplicas.pending++
 	}
 
 	// Scale-down: alive > target. Delete IDLE Pods first — those
@@ -313,10 +317,12 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			logger.Error(err, "scale-down delete; will retry", "pod", p.Name)
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
+		phaseReplicas.remove(p)
 		scaledDown++
 	}
 
 	observed := alive - scaledDown + gap
+	metrics.RecordPodPhases(pool.Name, phaseReplicas.pending, phaseReplicas.running, phaseReplicas.unknown)
 	pool.Status.ObservedReplicas = int32(observed)
 	pool.Status.LastReconcile = metav1.Now()
 	if err := r.Status().Update(ctx, pool); err != nil {
@@ -455,6 +461,40 @@ func (r *RunnerPoolReconciler) reapRunner(ctx context.Context, pod *corev1.Pod) 
 // once Pod.DeletionTimestamp is set.
 func (r *RunnerPoolReconciler) reapAlivePod(ctx context.Context, pod *corev1.Pod) error {
 	return r.reapRunner(ctx, pod)
+}
+
+type podPhaseReplicaCounts struct {
+	pending int
+	running int
+	unknown int
+}
+
+func (c *podPhaseReplicaCounts) add(pod *corev1.Pod) {
+	switch pod.Status.Phase {
+	case corev1.PodPending:
+		c.pending++
+	case corev1.PodRunning:
+		c.running++
+	default:
+		c.unknown++
+	}
+}
+
+func (c *podPhaseReplicaCounts) remove(pod *corev1.Pod) {
+	switch pod.Status.Phase {
+	case corev1.PodPending:
+		if c.pending > 0 {
+			c.pending--
+		}
+	case corev1.PodRunning:
+		if c.running > 0 {
+			c.running--
+		}
+	default:
+		if c.unknown > 0 {
+			c.unknown--
+		}
+	}
 }
 
 // isAlive returns true for Pods that should count toward `replicas`:
