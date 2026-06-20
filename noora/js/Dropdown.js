@@ -221,7 +221,9 @@ export default {
       window.requestAnimationFrame(() => {
         const items = this.breadcrumbItems();
         if (!items.length) return;
-        const selected = items.find((item) => item.hasAttribute("data-selected"));
+        const selected = items.find((item) =>
+          item.hasAttribute("data-selected"),
+        );
         (selected || items[0]).focus();
       });
     } else if (this.el.contains(document.activeElement)) {
@@ -245,7 +247,10 @@ export default {
         next = current < 0 ? 0 : (current + 1) % items.length;
         break;
       case "ArrowUp":
-        next = current < 0 ? items.length - 1 : (current - 1 + items.length) % items.length;
+        next =
+          current < 0
+            ? items.length - 1
+            : (current - 1 + items.length) % items.length;
         break;
       case "Home":
         next = 0;
@@ -275,7 +280,12 @@ export default {
         return;
       default:
         // Typeahead: jump to the item whose label matches the typed characters.
-        if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        if (
+          event.key.length === 1 &&
+          !event.metaKey &&
+          !event.ctrlKey &&
+          !event.altKey
+        ) {
           event.preventDefault();
           event.stopPropagation();
           this.breadcrumbTypeahead(event.key, items);
