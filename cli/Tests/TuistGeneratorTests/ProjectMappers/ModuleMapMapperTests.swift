@@ -1,26 +1,23 @@
+import FileSystem
+import FileSystemTesting
+import Foundation
 import Path
+import Testing
 import TuistCore
 import TuistGenerator
 import XcodeGraph
-import XCTest
 
 @testable import TuistTesting
 
-final class ModuleMapMapperTests: TuistUnitTestCase {
-    var subject: ModuleMapMapper!
+struct ModuleMapMapperTests {
+    private var subject: ModuleMapMapper { ModuleMapMapper() }
 
-    override func setUp() {
-        super.setUp()
-
-        subject = ModuleMapMapper()
+    private func temporaryPath() throws -> AbsolutePath {
+        try #require(FileSystem.temporaryTestDirectory)
     }
 
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_maps_modulemap_build_flag_to_setting() async throws {
+    @Test(.inTemporaryDirectory)
+    func maps_modulemap_build_flag_to_setting() throws {
         // Given
         let workspace = Workspace.test()
         let projectAPath = try temporaryPath().appending(component: "A")
@@ -71,7 +68,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotGraph, gotSideEffects, _) = try await subject.map(
+        let (gotGraph, gotSideEffects, _) = try subject.map(
             graph: .test(
                 workspace: workspace,
                 projects: [
@@ -155,7 +152,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
             ]
         )
 
-        XCTAssertBetterEqual(
+        #expect(gotGraph ==
             Graph.test(
                 workspace: workspace,
                 projects: [
@@ -170,16 +167,14 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                         .target(name: targetB2.name, path: projectBPath),
                     ],
                 ]
-            ),
-            gotGraph
+            )
         )
 
         // Verify side effects: combined module map files for A and B1
         let b1ModuleMapPath = projectBPath.appending(components: "B1", "B1.module").pathString
         let b2ModuleMapPath = projectBPath.appending(components: "B2", "B2.module").pathString
 
-        XCTAssertBetterEqual(
-            fileSideEffects(from: gotSideEffects).sorted(by: { $0.description < $1.description }),
+        #expect(fileSideEffects(from: gotSideEffects).sorted(by: { $0.description < $1.description }) ==
             [
                 .file(FileDescriptor(
                     path: combinedModuleMapPathA,
@@ -195,7 +190,8 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
     }
 
-    func test_map_deletesStaleGeneratedDependencyModuleMaps() async throws {
+    @Test(.inTemporaryDirectory)
+    func deletes_stale_generated_dependency_module_maps() throws {
         // Given
         let workspace = Workspace.test()
         let projectAPath = try temporaryPath().appending(component: "A")
@@ -232,7 +228,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (_, gotSideEffects, _) = try await subject.map(
+        let (_, gotSideEffects, _) = try subject.map(
             graph: .test(
                 workspace: workspace,
                 projects: [
@@ -249,18 +245,19 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        let cleanupDescriptor = try XCTUnwrap(generatedFilesCleanupDescriptor(in: gotSideEffects))
-        XCTAssertEqual(cleanupDescriptor.include, ["*-deps.modulemap"])
-        XCTAssertTrue(cleanupDescriptor.directories.contains(moduleMapDirectory))
-        XCTAssertEqual(cleanupDescriptor.activeFilesByDirectory[moduleMapDirectory], Set([activeModuleMapPath]))
-        XCTAssertFalse(cleanupDescriptor.activeFilesByDirectory[moduleMapDirectory]?.contains(staleModuleMapPath) ?? false)
-        XCTAssertTrue(fileSideEffects(from: gotSideEffects).contains { sideEffect in
+        let cleanupDescriptor = try #require(generatedFilesCleanupDescriptor(in: gotSideEffects))
+        #expect(cleanupDescriptor.include == ["*-deps.modulemap"])
+        #expect(cleanupDescriptor.directories.contains(moduleMapDirectory))
+        #expect(cleanupDescriptor.activeFilesByDirectory[moduleMapDirectory] == Set([activeModuleMapPath]))
+        #expect(!(cleanupDescriptor.activeFilesByDirectory[moduleMapDirectory]?.contains(staleModuleMapPath) ?? false))
+        #expect(fileSideEffects(from: gotSideEffects).contains { sideEffect in
             guard case let .file(fileDescriptor) = sideEffect else { return false }
             return fileDescriptor.path == activeModuleMapPath && fileDescriptor.state == .present
         })
     }
 
-    func test_maps_modulemap_build_flag_to_target_with_empty_settings() async throws {
+    @Test(.inTemporaryDirectory)
+    func maps_modulemap_build_flag_to_target_with_empty_settings() throws {
         // Given
         let workspace = Workspace.test()
         let projectAPath = try temporaryPath().appending(component: "A")
@@ -297,7 +294,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotGraph, gotSideEffects, _) = try await subject.map(
+        let (gotGraph, gotSideEffects, _) = try subject.map(
             graph: .test(
                 workspace: workspace,
                 projects: [
@@ -362,7 +359,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
             ]
         )
 
-        XCTAssertBetterEqual(
+        #expect(gotGraph ==
             Graph.test(
                 workspace: workspace,
                 projects: [
@@ -374,14 +371,12 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                         .target(name: projectB.name, path: projectBPath),
                     ],
                 ]
-            ),
-            gotGraph
+            )
         )
 
         // Verify side effect: combined module map for A
         let bModuleMapPath = projectBPath.appending(components: "B", "B.module").pathString
-        XCTAssertBetterEqual(
-            fileSideEffects(from: gotSideEffects),
+        #expect(fileSideEffects(from: gotSideEffects) ==
             [
                 .file(FileDescriptor(
                     path: combinedModuleMapPath,
@@ -391,7 +386,62 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
     }
 
-    func test_maps_modulemap_flags_to_configurations_that_override_other_swift_flags() async throws {
+    @Test(.inTemporaryDirectory)
+    func maps_framework_modulemap_to_modulemap_copy_script() throws {
+        // Given
+        let workspace = Workspace.test()
+        let projectPath = try temporaryPath().appending(component: "A")
+        let moduleMapPath = projectPath.appending(components: "A", "A.modulemap")
+        let target = Target.test(
+            name: "A",
+            product: .framework,
+            settings: .test(base: [
+                "MODULEMAP_FILE": .string(moduleMapPath.pathString),
+            ])
+        )
+        let project = Project.test(
+            path: projectPath,
+            name: "A",
+            targets: [target]
+        )
+
+        // When
+        let (gotGraph, _, _) = try subject.map(
+            graph: .test(
+                workspace: workspace,
+                projects: [
+                    projectPath: project,
+                ]
+            ),
+            environment: MapperEnvironment()
+        )
+
+        // Then
+        let gotTarget = try #require(gotGraph.projects[projectPath]?.targets["A"])
+        #expect(gotTarget.settings?.base["MODULEMAP_FILE"] == nil)
+        #expect(gotTarget.scripts ==
+            [
+                TargetScript(
+                    name: "Copy Module Map",
+                    order: .post,
+                    script: .embedded(
+                        """
+                        set -eu
+                        mkdir -p "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules"
+                        cp '\(moduleMapPath.pathString)' "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules/module.modulemap"
+                        """
+                    ),
+                    inputPaths: [moduleMapPath.pathString],
+                    outputPaths: ["$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Modules/module.modulemap"],
+                    showEnvVarsInLog: false,
+                    basedOnDependencyAnalysis: true
+                ),
+            ]
+        )
+    }
+
+    @Test(.inTemporaryDirectory)
+    func maps_modulemap_flags_to_configurations_that_override_other_swift_flags() throws {
         // Given
         let workspace = Workspace.test()
         let projectAPath = try temporaryPath().appending(component: "A")
@@ -445,7 +495,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotGraph, gotSideEffects, _) = try await subject.map(
+        let (gotGraph, gotSideEffects, _) = try subject.map(
             graph: .test(
                 workspace: workspace,
                 projects: [
@@ -462,19 +512,17 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        let gotTargetA = try XCTUnwrap(gotGraph.projects[projectAPath]?.targets["A"])
+        let gotTargetA = try #require(gotGraph.projects[projectAPath]?.targets["A"])
 
         // Base settings should have the combined module map flag
-        XCTAssertBetterEqual(
-            gotTargetA.settings?.base["OTHER_SWIFT_FLAGS"],
+        #expect(gotTargetA.settings?.base["OTHER_SWIFT_FLAGS"] ==
             .array([
                 "Other",
                 "-Xcc",
                 "-fmodule-map-file=\"$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap\"",
             ])
         )
-        XCTAssertBetterEqual(
-            gotTargetA.settings?.base["OTHER_CFLAGS"],
+        #expect(gotTargetA.settings?.base["OTHER_CFLAGS"] ==
             .array([
                 "Other",
                 "-fmodule-map-file=\"$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap\"",
@@ -482,9 +530,8 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         // Debug configuration overrides OTHER_SWIFT_FLAGS and OTHER_CFLAGS, so it should also get the flag
-        let debugConfiguration = try XCTUnwrap(gotTargetA.settings?.configurations[debugConfig] as? Configuration)
-        XCTAssertBetterEqual(
-            debugConfiguration.settings["OTHER_SWIFT_FLAGS"],
+        let debugConfiguration = try #require(gotTargetA.settings?.configurations[debugConfig] as? Configuration)
+        #expect(debugConfiguration.settings["OTHER_SWIFT_FLAGS"] ==
             .array([
                 "-D",
                 "DEBUG",
@@ -494,8 +541,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                 "-fmodule-map-file=\"$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap\"",
             ])
         )
-        XCTAssertBetterEqual(
-            debugConfiguration.settings["OTHER_CFLAGS"],
+        #expect(debugConfiguration.settings["OTHER_CFLAGS"] ==
             .array([
                 "-DDEBUG",
                 "-fmodule-map-file=\"$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap\"",
@@ -503,17 +549,16 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         // Release configuration does not override these keys, so it should remain unchanged
-        let releaseConfiguration = try XCTUnwrap(
+        let releaseConfiguration = try #require(
             gotTargetA.settings?.configurations[releaseConfig] as? Configuration
         )
-        XCTAssertNil(releaseConfiguration.settings["OTHER_SWIFT_FLAGS"])
-        XCTAssertNil(releaseConfiguration.settings["OTHER_CFLAGS"])
+        #expect(releaseConfiguration.settings["OTHER_SWIFT_FLAGS"] == nil)
+        #expect(releaseConfiguration.settings["OTHER_CFLAGS"] == nil)
 
         // Verify side effect
         let combinedModuleMapPath = projectAPath.appending(components: "Derived", "ModuleMaps", "A-deps.modulemap")
         let bModuleMapPath = projectBPath.appending(components: "B", "B.module").pathString
-        XCTAssertBetterEqual(
-            fileSideEffects(from: gotSideEffects),
+        #expect(fileSideEffects(from: gotSideEffects) ==
             [
                 .file(FileDescriptor(
                     path: combinedModuleMapPath,
@@ -523,7 +568,8 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
     }
 
-    func test_external_spm_project_anchors_tuist_derived_paths_on_project_dir() async throws {
+    @Test(.inTemporaryDirectory)
+    func external_spm_project_anchors_tuist_derived_paths_on_project_dir() throws {
         // Given — mirrors how Tuist lays out external SwiftPM projects after
         // `ExternalDependencyPathWorkspaceMapper` runs: the SwiftPM checkout sits at
         // `<scratch>/checkouts/<Pkg>/` (and is what `$(SRCROOT)` resolves to at build time, due to
@@ -581,7 +627,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (gotGraph, gotSideEffects, _) = try await subject.map(
+        let (gotGraph, gotSideEffects, _) = try subject.map(
             graph: .test(
                 workspace: workspace,
                 projects: [
@@ -602,26 +648,23 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         // `<scratch>/tuist-derived/ModuleMaps/A/A-deps.modulemap` without traversing
         // `<scratch>/checkouts/`. The project-name namespace keeps same-named targets in
         // different SwiftPM packages from clobbering each other's combined module maps.
-        let gotTargetA = try XCTUnwrap(gotGraph.projects[projectAPath]?.targets["A"])
+        let gotTargetA = try #require(gotGraph.projects[projectAPath]?.targets["A"])
         let combinedModuleMapPath = derivedRoot.appending(components: "ModuleMaps", "A", "A-deps.modulemap")
 
-        XCTAssertBetterEqual(
-            gotTargetA.settings?.base["OTHER_SWIFT_FLAGS"],
+        #expect(gotTargetA.settings?.base["OTHER_SWIFT_FLAGS"] ==
             .array([
                 "Other",
                 "-Xcc",
                 "-fmodule-map-file=\"$(PROJECT_DIR)/../../ModuleMaps/A/A-deps.modulemap\"",
             ])
         )
-        XCTAssertBetterEqual(
-            gotTargetA.settings?.base["OTHER_CFLAGS"],
+        #expect(gotTargetA.settings?.base["OTHER_CFLAGS"] ==
             .array([
                 "Other",
                 "-fmodule-map-file=\"$(PROJECT_DIR)/../../ModuleMaps/A/A-deps.modulemap\"",
             ])
         )
-        XCTAssertBetterEqual(
-            gotTargetA.settings?.base["HEADER_SEARCH_PATHS"],
+        #expect(gotTargetA.settings?.base["HEADER_SEARCH_PATHS"] ==
             .array([
                 "$(inherited)",
                 "$(PROJECT_DIR)/../../ModuleMaps/B",
@@ -633,23 +676,26 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
             if case let .array(items) = value { return items.joined(separator: " ") }
             return nil
         }.joined(separator: " ") ?? ""
-        XCTAssertFalse(
-            allFlags.contains("$(SRCROOT)/../../tuist-derived"),
+        #expect(
+            !allFlags.contains("$(SRCROOT)/../../tuist-derived"),
             "module-map paths under tuist-derived must not embed `..` segments through `.build/checkouts`"
         )
 
-        let fileDescriptors = gotSideEffects.compactMap { sideEffect -> FileDescriptor? in
-            guard case let .file(descriptor) = sideEffect else { return nil }
-            return descriptor
+        let gotFileSideEffects = fileSideEffects(from: gotSideEffects)
+        #expect(gotFileSideEffects.count == 1)
+        let gotSideEffect = try #require(gotFileSideEffects.first)
+        guard case let .file(descriptor) = gotSideEffect else {
+            Issue.record("Expected file side effect for combined module map")
+            return
         }
-        XCTAssertEqual(fileDescriptors.count, 1)
-        let descriptor = try XCTUnwrap(fileDescriptors.first)
-        XCTAssertEqual(descriptor.path, combinedModuleMapPath)
-        let content = try XCTUnwrap(String(data: try XCTUnwrap(descriptor.contents), encoding: .utf8))
-        XCTAssertEqual(content, "extern module B \"\(moduleMapPath.pathString)\"\n")
+        #expect(descriptor.path == combinedModuleMapPath)
+        let contents = try #require(descriptor.contents)
+        let content = try #require(String(data: contents, encoding: .utf8))
+        #expect(content == "extern module B \"\(moduleMapPath.pathString)\"\n")
     }
 
-    func test_external_spm_projects_with_same_target_name_use_distinct_combined_module_maps() async throws {
+    @Test(.inTemporaryDirectory)
+    func external_spm_projects_with_same_target_name_use_distinct_combined_module_maps() throws {
         let workspace = Workspace.test()
         let scratch = try temporaryPath().appending(component: ".build")
         let derivedRoot = scratch.appending(component: "tuist-derived")
@@ -738,7 +784,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
             swiftPackageManagerScratchDirectory: scratch
         )
 
-        let (gotGraph, gotSideEffects, _) = try await subject.map(
+        let (gotGraph, gotSideEffects, _) = try subject.map(
             graph: .test(
                 workspace: workspace,
                 projects: [
@@ -759,18 +805,16 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
             environment: MapperEnvironment()
         )
 
-        let gotCoreA = try XCTUnwrap(gotGraph.projects[packageAPath]?.targets["Core"])
-        XCTAssertBetterEqual(
-            gotCoreA.settings?.base["OTHER_CFLAGS"],
+        let gotCoreA = try #require(gotGraph.projects[packageAPath]?.targets["Core"])
+        #expect(gotCoreA.settings?.base["OTHER_CFLAGS"] ==
             .array([
                 "Other",
                 "-fmodule-map-file=\"$(PROJECT_DIR)/../../ModuleMaps/PackageA/Core-deps.modulemap\"",
             ])
         )
 
-        let gotCoreB = try XCTUnwrap(gotGraph.projects[packageBPath]?.targets["Core"])
-        XCTAssertBetterEqual(
-            gotCoreB.settings?.base["OTHER_CFLAGS"],
+        let gotCoreB = try #require(gotGraph.projects[packageBPath]?.targets["Core"])
+        #expect(gotCoreB.settings?.base["OTHER_CFLAGS"] ==
             .array([
                 "Other",
                 "-fmodule-map-file=\"$(PROJECT_DIR)/../../ModuleMaps/PackageB/Core-deps.modulemap\"",
@@ -782,16 +826,16 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
             return nil
         }
 
-        XCTAssertEqual(
-            Set(sideEffectPaths),
-            [
+        #expect(Set(sideEffectPaths) ==
+            Set([
                 derivedRoot.appending(components: "ModuleMaps", "PackageA", "Core-deps.modulemap"),
                 derivedRoot.appending(components: "ModuleMaps", "PackageB", "Core-deps.modulemap"),
-            ]
+            ])
         )
     }
 
-    func test_maps_long_dependency_chain_without_recursion() throws {
+    @Test(.inTemporaryDirectory)
+    func maps_long_dependency_chain_without_recursion() throws {
         // Given
         let workspace = Workspace.test()
         let projectPath = try temporaryPath()
@@ -817,17 +861,15 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertNoThrow(
-            try subject.map(
-                graph: .test(
-                    workspace: workspace,
-                    projects: [
-                        projectPath: project,
-                    ],
-                    dependencies: dependencies
-                ),
-                environment: MapperEnvironment()
-            )
+        _ = try subject.map(
+            graph: .test(
+                workspace: workspace,
+                projects: [
+                    projectPath: project,
+                ],
+                dependencies: dependencies
+            ),
+            environment: MapperEnvironment()
         )
     }
 

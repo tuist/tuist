@@ -9,7 +9,6 @@ defmodule TuistWeb.API.TestsController do
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
   alias TuistWeb.API.Schemas.Tests.Test
-  alias TuistWeb.Authentication
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
@@ -521,7 +520,7 @@ defmodule TuistWeb.API.TestsController do
     run_params =
       body_params
       |> Map.put(:project, selected_project)
-      |> Map.put(:account, Authentication.authenticated_subject_account(conn))
+      |> Map.put(:account, selected_project.account)
 
     case get_or_create_test(run_params) do
       {:ok, test_run} ->
