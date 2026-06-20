@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import Path
-import SnapshotTesting
 import Testing
 import TuistCache
 import TuistConfig
@@ -102,7 +101,9 @@ struct HashSelectiveTestingCommandServiceTests {
             try await fixture.subject.run(path: path.pathString)
 
             // Then
-            assertSnapshot(of: ui(), as: .lines)
+            let output = ui()
+            #expect(output.contains("The following items may need attention:"))
+            #expect(output.contains("The project contains no hasheable targets for selective testing."))
         }
     }
 

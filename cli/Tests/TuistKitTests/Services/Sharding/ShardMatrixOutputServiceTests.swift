@@ -155,29 +155,15 @@ struct ShardMatrixOutputServiceTests {
         try await fixture.subject.output(.test(shardCount: 2))
 
         let content = try await fixture.fileSystem.readTextFile(at: cwd.appending(component: ".tuist-shard-matrix.json"))
-        #expect(content == """
-        {
-          "id" : "test-id",
-          "reference" : "test-ref",
-          "shard_count" : 2,
-          "shards" : [
-            {
-              "estimated_duration_ms" : 1000,
-              "index" : 0,
-              "test_targets" : [
-                "Target0"
-              ]
-            },
-            {
-              "estimated_duration_ms" : 1000,
-              "index" : 1,
-              "test_targets" : [
-                "Target1"
-              ]
-            }
-          ]
-        }
-        """)
+        let json = try JSON(data: Data(content.utf8))
+        #expect(json["id"].stringValue == "test-id")
+        #expect(json["reference"].stringValue == "test-ref")
+        #expect(json["shard_count"].intValue == 2)
+
+        let shards = json["shards"].arrayValue
+        #expect(shards.map { $0["estimated_duration_ms"].intValue } == [1000, 1000])
+        #expect(shards.map { $0["index"].intValue } == [0, 1])
+        #expect(shards.map { $0["test_targets"].arrayValue.map(\.stringValue) } == [["Target0"], ["Target1"]])
     }
 
     private func makeSubject() -> (
