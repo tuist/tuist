@@ -7472,8 +7472,9 @@ struct PackageInfoMapperTests {
 
     @Test(
         .inTemporaryDirectory, .withMockedSwiftVersionProvider
-    ) func map_whenLocalMacroTargetDependsOnPrebuiltProduct_keepsSourceDependency() async throws {
+    ) func map_whenLocalMacroTargetDependsOnPrebuiltProduct_usesPrebuiltSettings() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let prebuiltPath = basePath.appending(components: ".build", "prebuilts", "swift-syntax")
 
         try await fileSystem.makeDirectory(
             at: basePath.appending(try RelativePath(validating: "Package/Sources/MyMacro"))
@@ -7491,7 +7492,7 @@ struct PackageInfoMapperTests {
                             identity: "swift-syntax",
                             version: "601.0.0",
                             libraryName: "SwiftSyntax",
-                            path: basePath.appending(components: ".build", "prebuilts", "swift-syntax"),
+                            path: prebuiltPath,
                             checkoutPath: nil,
                             products: ["SwiftSyntax"],
                             includePath: nil,
@@ -7524,10 +7525,29 @@ struct PackageInfoMapperTests {
         )
 
         let target = try #require(project?.targets.first(where: { $0.name == "MyMacro" }))
-        #expect(target.dependencies == [.external(name: "SwiftSyntax", condition: nil)])
-        #expect(target.settings?.base["OTHER_SWIFT_FLAGS"] == .array(["$(inherited)"]))
-        #expect(target.settings?.base["LIBRARY_SEARCH_PATHS"] == nil)
-        #expect(target.settings?.base["OTHER_LDFLAGS"] == nil)
+        #expect(target.dependencies.isEmpty)
+        #expect(
+            target.settings?.base["OTHER_SWIFT_FLAGS"] == .array([
+                "$(inherited)",
+                "-I",
+                prebuiltPath.appending(component: "Modules").pathString,
+                "-I",
+                prebuiltPath.appending(components: "include", "_SwiftSyntaxCShims").pathString,
+            ])
+        )
+        #expect(
+            target.settings?.base["LIBRARY_SEARCH_PATHS"] == .array([
+                "$(inherited)",
+                prebuiltPath.appending(component: "lib").pathString,
+            ])
+        )
+        #expect(
+            target.settings?.base["LD_RUNPATH_SEARCH_PATHS"] == .array([
+                "$(inherited)",
+                prebuiltPath.appending(component: "lib").pathString,
+            ])
+        )
+        #expect(target.settings?.base["OTHER_LDFLAGS"] == .array(["$(inherited)", "-lSwiftSyntax"]))
     }
 
     @Test(
