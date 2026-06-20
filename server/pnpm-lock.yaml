@@ -18,6 +18,7 @@ overrides:
   postcss: 8.5.10
   protobufjs: 7.6.4
   shell-quote: 1.8.4
+  ts-deepmerge: 8.0.0
   yaml: 2.8.3
 
 time:
@@ -1351,8 +1352,8 @@ packages:
     resolution: {integrity: sha512-QVsbr1WhGLq2F0oDyYbqtOXcf3gcnL8C9H5EX8bBwAr8ZWvWGJzukpPrDrWgJMrNtgDbo74BIjI4kJu3q2xQWw==}
     engines: {node: '>=18.18.0'}
 
-  ts-deepmerge@7.0.3:
-    resolution: {integrity: sha512-Du/ZW2RfwV/D4cmA5rXafYjBQVuvu4qGiEEla4EmEHVHgRdx68Gftx7i66jn2bzHPwSVZY36Ae6OuDn9el4ZKA==}
+  ts-deepmerge@8.0.0:
+    resolution: {integrity: sha512-133O+10nJmVI8w5xeVZPEv5PIrv7iaUae07wv1aH8XJH95Ur6YIhWAPhPyP1YPlbPS9fCVcNIZTu7m8urRVF0A==}
     engines: {node: '>=14.13.1'}
 
   tslib@2.3.0:
@@ -2067,7 +2068,7 @@ snapshots:
       '@scalar/helpers': 0.4.3
       flatted: 3.4.2
       just-clone: 6.2.0
-      ts-deepmerge: 7.0.3
+      ts-deepmerge: 8.0.0
 
   '@scalar/openapi-parser@0.25.8':
     dependencies:
@@ -3360,7 +3361,7 @@ snapshots:
       string-byte-length: 3.0.1
       string-byte-slice: 3.0.1
 
-  ts-deepmerge@7.0.3: {}
+  ts-deepmerge@8.0.0: {}
 
   tslib@2.3.0: {}
 
