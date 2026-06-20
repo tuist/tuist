@@ -389,7 +389,7 @@ msgid "Too many requests."
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:562
-#: lib/tuist_web/components/app_layout_components.ex:599
+#: lib/tuist_web/components/app_layout_components.ex:604
 #, elixir-autogen, elixir-format
 msgid "Tuist Icon"
 msgstr ""
@@ -1827,4 +1827,9 @@ msgstr ""
 #: lib/tuist_web/components/app_layout_components.ex:421
 #, elixir-autogen, elixir-format
 msgid "Usage"
+msgstr ""
+
+#: lib/tuist_web/components/app_layout_components.ex:585
+#, elixir-autogen, elixir-format
+msgid "Documentation"
 msgstr ""

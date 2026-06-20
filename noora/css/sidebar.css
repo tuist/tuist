@@ -122,6 +122,11 @@
         color: inherit;
         user-select: none;
         text-decoration: unset;
+
+        &:focus-visible {
+          outline: 2px solid var(--noora-surface-label-primary);
+          outline-offset: -2px;
+        }
       }
 
       & > [data-part="trigger"] {
@@ -131,10 +136,6 @@
         border: none;
         background: transparent;
         padding: var(--noora-spacing-3) var(--noora-spacing-4);
-
-        &:hover [data-part="indicator"] {
-          color: var(--noora-surface-label-primary);
-        }
       }
     }
 
@@ -143,6 +144,26 @@
       border-radius: var(--noora-radius-3);
       user-select: none;
       text-decoration: unset;
+
+      /* The disclosure-only group renders this trigger as a native <button>;
+         strip the UA chrome so it matches the div/link tabs while keeping
+         native button semantics (Space/Enter, focus, disabled). */
+      appearance: none;
+      margin: var(--noora-spacing-0);
+      border: none;
+      background: transparent;
+      font: inherit;
+      text-align: start;
+
+      &:focus-visible {
+        outline: 2px solid var(--noora-surface-label-primary);
+        outline-offset: -2px;
+      }
+
+      &:disabled {
+        cursor: default;
+        opacity: 0.5;
+      }
 
       & [data-part="label"] {
         flex-grow: 1;
@@ -155,7 +176,7 @@
            chevron below the row's vertical center. */
         display: flex;
         align-items: center;
-        color: var(--noora-surface-label-secondary);
+        color: var(--noora-surface-label-tertiary);
 
         & svg {
           width: 18px;
@@ -163,6 +184,10 @@
           display: block;
         }
       }
+    }
+
+    & .noora-tab-menu-vertical:hover [data-part="indicator"] {
+      color: var(--noora-surface-label-secondary);
     }
 
     & [data-part="root"] {
@@ -195,6 +220,15 @@
   & [data-part="item"] {
     user-select: none;
     text-decoration: none;
+
+    &:focus-visible {
+      outline: none;
+
+      & .noora-tab-menu-vertical {
+        outline: 2px solid var(--noora-surface-label-primary);
+        outline-offset: -2px;
+      }
+    }
   }
 }
 
