@@ -79,6 +79,9 @@ spec:
                 publicHost:
                   type: string
                   maxLength: 253
+                # Deprecated: ignored — gRPC co-hosts on publicHost. Retained
+                # for backward compatibility; the provisioner always sets it
+                # equal to publicHost. See tuist/tuist#11390.
                 grpcPublicHost:
                   type: string
                   maxLength: 253

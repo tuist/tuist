@@ -287,9 +287,6 @@ defmodule TuistWeb.QuarantinedTestsLive do
   defp selected_values(%{muted_values: values}, "muted"), do: values
   defp selected_values(%{skipped_values: values}, "skipped"), do: values
 
-  defp sort_icon("asc"), do: "square_rounded_arrow_up"
-  defp sort_icon("desc"), do: "square_rounded_arrow_down"
-
   defp toggle_sort_order("asc"), do: "desc"
   defp toggle_sort_order("desc"), do: "asc"
 

@@ -201,21 +201,6 @@ defmodule TuistWeb.TestRunLive do
     {:noreply, socket}
   end
 
-  def handle_event(
-        "toggle-expand",
-        %{"row-key" => target_name},
-        %{assigns: %{expanded_target_names: expanded_target_names}} = socket
-      ) do
-    updated_expanded_names =
-      if MapSet.member?(expanded_target_names, target_name) do
-        MapSet.delete(expanded_target_names, target_name)
-      else
-        MapSet.put(expanded_target_names, target_name)
-      end
-
-    {:noreply, assign(socket, :expanded_target_names, updated_expanded_names)}
-  end
-
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
     updated_params =
       filter_id
@@ -246,14 +231,6 @@ defmodule TuistWeb.TestRunLive do
      )
      |> push_event("close-dropdown", %{id: "all", all: true})
      |> push_event("close-popover", %{id: "all", all: true})}
-  end
-
-  def sort_icon("desc") do
-    "square_rounded_arrow_down"
-  end
-
-  def sort_icon("asc") do
-    "square_rounded_arrow_up"
   end
 
   defp selected_tab(params) do

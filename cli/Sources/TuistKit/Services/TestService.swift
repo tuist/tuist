@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import struct TSCUtility.Version
 import TuistAlert
 import TuistAutomation
 import TuistCI
@@ -20,8 +21,6 @@ import TuistXcodeBuildProducts
 import TuistXCResultService
 import XcodeGraph
 import XCResultParser
-
-import struct TSCUtility.Version
 
 public enum TestServiceError: FatalError, Equatable {
     case schemeNotFound(scheme: String, existing: [String])
@@ -458,7 +457,17 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
             schemes = [scheme]
         } else {
-            schemes = buildGraphInspector.workspaceSchemes(graphTraverser: graphTraverser)
+            let workspaceSchemes = buildGraphInspector.workspaceSchemes(graphTraverser: graphTraverser)
+            let testableSchemes =
+                buildGraphInspector.testableSchemes(graphTraverser: graphTraverser)
+                    + workspaceSchemes
+            schemes = defaultSchemes(
+                testableSchemes: testableSchemes,
+                workspaceSchemes: workspaceSchemes,
+                graphTraverser: graphTraverser,
+                testPlanConfiguration: testPlanConfiguration,
+                action: action
+            )
             await updateTestServiceAnalytics(
                 mapperEnvironment: mapperEnvironment,
                 schemes: schemes,
@@ -499,19 +508,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
             passthroughXcodeBuildArguments += ["-testProductsPath", productsPath.pathString]
         }
 
-        let schemeTestTargetNames = Set(
-            schemes.flatMap {
-                testActionTargetReferences(
-                    scheme: $0,
-                    testPlanConfiguration: testPlanConfiguration,
-                    action: action
-                )
-            }.map(\.name)
-        )
-        let testTargets = testTargets.filter { schemeTestTargetNames.contains($0.target) }
-
         do {
-            try await testSchemes(
+            let didRunTests = try await testSchemes(
                 schemes,
                 graph: graph,
                 mapperEnvironment: mapperEnvironment,
@@ -535,6 +533,19 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 quarantinedTests: mutedQuarantinedTests,
                 mode: mode
             )
+            if !didRunTests {
+                if action == .build {
+                    try await outputEmptyShardMatrixIfNeeded(isSharding: isSharding, action: action)
+                } else {
+                    let timer = clock.startTimer()
+                    try await uploadSkippedTestSummary(
+                        schemeName: schemes.first?.name,
+                        config: config,
+                        timer: timer
+                    )
+                }
+                return
+            }
         } catch {
             try await copyResultBundlePathIfNeeded(
                 runResultBundlePath: runResultBundlePath,
@@ -1147,20 +1158,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
         config: Tuist,
         quarantinedTests: [TestIdentifier],
         mode: TestProcessingMode = .local
-    ) async throws {
-        let timer = clock.startTimer()
+    ) async throws -> Bool {
         let graphTraverser = GraphTraverser(graph: graph)
-        let testSchemes =
-            schemes
-                .filter {
-                    !testActionTargetReferences(
-                        scheme: $0, testPlanConfiguration: testPlanConfiguration,
-                        action: action
-                    ).isEmpty
-                }
 
-        guard !testSchemes.isEmpty else {
-            return
+        guard !schemes.isEmpty else {
+            return false
         }
 
         let uploadCacheStorage: CacheStoring
@@ -1171,7 +1173,29 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         do {
-            for testScheme in testSchemes {
+            var didRunTests = false
+            for testScheme in schemes {
+                let testSchemeTargetNames = Set(
+                    testActionTargetReferences(
+                        scheme: testScheme,
+                        testPlanConfiguration: testPlanConfiguration,
+                        action: action
+                    )
+                    .map(\.name)
+                )
+                if testSchemeTargetNames.isEmpty {
+                    continue
+                }
+
+                let testSchemeTestTargets = testTargets.filter {
+                    testSchemeTargetNames.contains($0.target)
+                }
+
+                if !testTargets.isEmpty, testSchemeTestTargets.isEmpty {
+                    continue
+                }
+
+                didRunTests = true
                 try await self.testScheme(
                     scheme: testScheme,
                     graphTraverser: graphTraverser,
@@ -1185,7 +1209,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     resultBundlePath: resultBundlePath,
                     derivedDataPath: derivedDataPath,
                     retryCount: retryCount,
-                    testTargets: testTargets,
+                    testTargets: testSchemeTestTargets,
                     skipTestTargets: skipTestTargets,
                     testPlanConfiguration: testPlanConfiguration,
                     passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
@@ -1193,6 +1217,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     quarantinedTests: quarantinedTests,
                     mode: mode
                 )
+            }
+            guard didRunTests else {
+                return false
             }
         } catch {
             guard action != .build, let resultBundlePath else { throw error }
@@ -1218,7 +1245,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
 
             if testQuarantineService.onlyQuarantinedTestsFailed(testStatuses: testStatuses, quarantinedTests: quarantinedTests) {
-                return
+                return true
             }
 
             throw error
@@ -1250,6 +1277,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         } else {
             AlertController.current.success(.alert("The project tests \(verb) successfully"))
         }
+
+        return true
     }
 
     private func updateTestServiceAnalytics(
@@ -1305,8 +1334,108 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private func outputEmptyShardMatrixIfNeeded(isSharding: Bool, action: XcodeBuildTestAction) async throws {
         if isSharding, action == .build {
             try await shardMatrixOutputService.output(
-                Components.Schemas.ShardPlan(id: "", reference: "", shard_count: 0, shards: [])
+                Components.Schemas.ShardPlan(
+                    id: "",
+                    reference: "",
+                    shard_count: 0,
+                    shards: [],
+                    upload_url: ""
+                )
             )
+        }
+    }
+
+    private func defaultSchemes(
+        testableSchemes: [Scheme],
+        workspaceSchemes: [Scheme],
+        graphTraverser: GraphTraversing,
+        testPlanConfiguration: TestPlanConfiguration?,
+        action: XcodeBuildTestAction
+    ) -> [Scheme] {
+        guard action != .build,
+              containsMixedHostedAndHostlessUnitTests(
+                  schemes: workspaceSchemes,
+                  graphTraverser: graphTraverser,
+                  testPlanConfiguration: testPlanConfiguration,
+                  action: action
+              )
+        else {
+            return workspaceSchemes
+        }
+
+        let workspaceSchemeNames = Set(workspaceSchemes.map(\.name))
+        let workspaceTestTargets = Set(
+            workspaceSchemes.flatMap {
+                testActionTargetReferences(
+                    scheme: $0,
+                    testPlanConfiguration: testPlanConfiguration,
+                    action: action
+                )
+            }
+        )
+        let projectSchemes = testableSchemes.filter {
+            guard !workspaceSchemeNames.contains($0.name) else {
+                return false
+            }
+
+            let schemeTestTargets = Set(
+                testActionTargetReferences(
+                    scheme: $0,
+                    testPlanConfiguration: testPlanConfiguration,
+                    action: action
+                )
+            )
+            return !schemeTestTargets.isDisjoint(with: workspaceTestTargets)
+        }
+        guard !projectSchemes.isEmpty else {
+            return workspaceSchemes
+        }
+
+        Logger.current.debug(
+            "Workspace schemes include hosted tests and host-less unit tests; running generated project schemes separately."
+        )
+        return projectSchemes
+    }
+
+    private func containsMixedHostedAndHostlessUnitTests(
+        schemes: [Scheme],
+        graphTraverser: GraphTraversing,
+        testPlanConfiguration: TestPlanConfiguration?,
+        action: XcodeBuildTestAction
+    ) -> Bool {
+        schemes.contains { scheme in
+            let testTargets = testActionTargetReferences(
+                scheme: scheme,
+                testPlanConfiguration: testPlanConfiguration,
+                action: action
+            )
+
+            var hasHostedTests = false
+            var hasHostlessUnitTests = false
+
+            for targetReference in testTargets {
+                guard let graphTarget = graphTraverser.target(
+                    path: targetReference.projectPath,
+                    name: targetReference.name
+                ) else {
+                    continue
+                }
+
+                let dependencies = graphTraverser
+                    .directTargetDependencies(path: graphTarget.path, name: graphTarget.target.name)
+
+                if dependencies.contains(where: { $0.target.product.canHostTests() }) {
+                    hasHostedTests = true
+                } else if graphTarget.target.product == .unitTests, !dependencies.isEmpty {
+                    hasHostlessUnitTests = true
+                }
+
+                if hasHostedTests, hasHostlessUnitTests {
+                    return true
+                }
+            }
+
+            return false
         }
     }
 
@@ -1327,15 +1456,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         )
         .map(\.target)
 
-        let testSchemes =
-            schemes
-                .filter {
-                    !testActionTargetReferences(
-                        scheme: $0, testPlanConfiguration: testPlanConfiguration, action: action
-                    ).isEmpty
-                }
-
-        if testSchemes.isEmpty {
+        if schemes.isEmpty {
             Logger.current.log(level: .info, "There are no tests to run, finishing early")
             return false
         }
@@ -1453,28 +1574,25 @@ public struct TestService { // swiftlint:disable:this type_body_length
         testPlanConfiguration: TestPlanConfiguration?,
         action: XcodeBuildTestAction
     ) -> [TargetReference] {
-        let targets =
-            if let testPlanConfiguration {
-                scheme.testAction?.testPlans?
-                    .first(
-                        where: { $0.name == testPlanConfiguration.testPlan }
-                    )?.testTargets.map(\.target) ?? []
-            } else if action == .build, let testPlans = scheme.testAction?.testPlans {
-                // If we are building a scheme that has testplans but none specified then we should return all test targets
-                testPlans.flatMap(\.testTargets).map(\.target)
-            } else if let defaultTestPlan = scheme.testAction?.testPlans?.first(where: {
-                $0.isDefault
-            }) {
-                defaultTestPlan.testTargets.map(\.target)
-            } else if let testActionTargets = scheme.testAction?.targets.map(\.target),
-                      !testActionTargets.isEmpty
-            {
-                testActionTargets
-            } else {
-                [TargetReference]()
-            }
-
-        return targets
+        return if let testPlanConfiguration {
+            scheme.testAction?.testPlans?
+                .first(
+                    where: { $0.name == testPlanConfiguration.testPlan }
+                )?.testTargets.map(\.target) ?? []
+        } else if action == .build, let testPlans = scheme.testAction?.testPlans {
+            // If we are building a scheme that has testplans but none specified then we should return all test targets
+            testPlans.flatMap(\.testTargets).map(\.target)
+        } else if let defaultTestPlan = scheme.testAction?.testPlans?.first(where: {
+            $0.isDefault
+        }) {
+            defaultTestPlan.testTargets.map(\.target)
+        } else if let testActionTargets = scheme.testAction?.targets.map(\.target),
+                  !testActionTargets.isEmpty
+        {
+            testActionTargets
+        } else {
+            [TargetReference]()
+        }
     }
 
     private func storeSuccessfulTestHashes(
@@ -1658,7 +1776,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 projectPath: graphTraverser.workspace.xcWorkspacePath,
                 config: config,
                 scheme: scheme.name,
-                configuration: configuration
+                configuration: configuration ?? scheme.testAction?.configurationName
             )
             let summary = mode == .local
                 ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
@@ -1681,7 +1799,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             projectPath: graphTraverser.workspace.xcWorkspacePath,
             config: config,
             scheme: scheme.name,
-            configuration: configuration
+            configuration: configuration ?? scheme.testAction?.configurationName
         )
         let summary = mode == .local
             ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)

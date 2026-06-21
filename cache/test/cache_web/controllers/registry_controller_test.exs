@@ -923,6 +923,42 @@ defmodule CacheWeb.RegistryControllerTest do
       assert link_header =~ "swift-version=5.9"
     end
 
+    test "omits alternate link when its tools version matches the default manifest", %{conn: conn} do
+      scope = "pointfreeco"
+      name = "swift-snapshot-testing"
+      version = "1.18.7"
+
+      metadata = %{
+        "scope" => scope,
+        "name" => name,
+        "releases" => %{
+          version => %{
+            "checksum" => "abc123",
+            "manifests" => [
+              %{"swift_version" => nil, "swift_tools_version" => "6.0"},
+              %{"swift_version" => "6.0", "swift_tools_version" => "6.0"}
+            ]
+          }
+        }
+      }
+
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "Package.swift" -> true end)
+
+      expect(Registry.Disk, :local_accel_path, fn ^scope, ^name, ^version, "Package.swift" ->
+        "/internal/local/registry/swift/pointfreeco/swift-snapshot-testing/1.18.7/Package.swift"
+      end)
+
+      expect(Metadata, :get_package, fn ^scope, ^name -> {:ok, metadata} end)
+
+      conn =
+        conn
+        |> registry_swift_conn()
+        |> get("/api/registry/swift/#{scope}/#{name}/#{version}/Package.swift")
+
+      assert conn.status == 200
+      assert get_resp_header(conn, "link") == []
+    end
+
     test "serves two-component manifest from disk when three-component swift-version is requested", %{conn: conn} do
       scope = "pointfreeco"
       name = "swift-custom-dump"

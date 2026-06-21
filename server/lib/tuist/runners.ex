@@ -77,16 +77,16 @@ defmodule Tuist.Runners do
   @owner_label_stamp_attempts 3
   @owner_label_stamp_retry_backoff_ms 100
 
-  # Drain stagger: stale Pods are partitioned into `@drain_slots`
-  # buckets keyed by `phash2(pod_name)`. Slot N becomes drain-
-  # eligible `N * @drain_interval_seconds` after the controller
-  # records the image roll. Total rollout time is
-  # `(@drain_slots - 1) * @drain_interval_seconds` (~3.5 min at
-  # the current values). Stateless and deterministic across
-  # server replicas — every instance computes the same slot for
-  # the same Pod without coordination.
-  @drain_slots 8
-  @drain_interval_seconds 30
+  # The runners-controller stamps `tuist.dev/drain-eligible=true` on the
+  # stale Pods it has selected to retire in the current roll wave, up to
+  # a concurrency cap it derives from Pod readiness. The dispatch
+  # endpoint 410s a stale Pod only when it carries this label, so the
+  # rollout pace lives in the controller (which can see readiness and
+  # bound how many nodes `tart pull` the new image at once) rather than
+  # the server draining every stale Pod the moment its image diverges —
+  # the open-loop time stagger this replaced drained on a fixed 30s
+  # cadence that was far shorter than a multi-minute image pull.
+  @drain_eligible_label "tuist.dev/drain-eligible"
 
   @doc """
   Returns the raw load signals the runners-controller's autoscaler
@@ -499,10 +499,10 @@ defmodule Tuist.Runners do
   # the EXIT trap halts the VM and the runner-pool reconciler reaps
   # the Pod and creates a replacement on the current image.
   #
-  # Drains are staggered by a per-Pod time slot computed from
-  # `status.imageRolledAt` (recorded by the controller on every
-  # observed `spec.image` change) so the warm pool doesn't drop to
-  # zero on every digest bump. See `slot_active?/2`.
+  # Drains are paced by the controller, which marks only a capped number
+  # of stale Pods `tuist.dev/drain-eligible` at a time so a digest roll
+  # doesn't make the whole fleet pull the new image at once and collapse
+  # the warm pool. See `drain_eligible?/1`.
   #
   # Guarded by `K8sClient` lookups that may fail (Pod / RunnerPool
   # gone, in-cluster client misconfigured). Any lookup failure is
@@ -521,10 +521,11 @@ defmodule Tuist.Runners do
         pod_image == pool_image ->
           :ok
 
-        not slot_active?(pool, pod_name) ->
-          # Stale, but this Pod's drain slot hasn't opened yet.
-          # Let it keep polling — it'll receive 410 on a later
-          # tick once its slot becomes eligible.
+        not drain_eligible?(pod) ->
+          # Stale, but the controller hasn't marked this Pod
+          # drain-eligible yet — it paces the rollout by labeling only a
+          # capped number of stale Pods at a time. Keep polling; we'll
+          # 410 once the controller labels it.
           :ok
 
         true ->
@@ -550,33 +551,10 @@ defmodule Tuist.Runners do
 
   defp pod_image(_), do: :error
 
-  # `slot_active?/2` returns true when enough time has elapsed
-  # since `status.imageRolledAt` for this specific Pod's drain
-  # slot to fire. Slot is `phash2(pod_name) rem @drain_slots`; the
-  # slot's drain window opens `slot * @drain_interval_seconds`
-  # after the roll. When the controller hasn't yet recorded a roll
-  # (status.imageRolledAt absent or unparseable), we defer the
-  # drain rather than fire eagerly — the controller catches up
-  # within one reconcile tick (≤60s) and the Pending-stale
-  # recycler in the controller covers the Pending half meanwhile.
-  defp slot_active?(pool, pod_name) do
-    case rolled_at(pool) do
-      {:ok, %DateTime{} = t} ->
-        slot = :erlang.phash2(pod_name, @drain_slots)
-        elapsed = DateTime.diff(Tuist.Time.utc_now(), t, :second)
-        elapsed >= slot * @drain_interval_seconds
-
-      :error ->
-        false
-    end
+  # True when the controller has marked this Pod drain-eligible for the
+  # current roll wave. Missing metadata/labels, or the label absent or
+  # not "true", → false, so an unlabeled stale Pod is never 410'd.
+  defp drain_eligible?(pod) do
+    get_in(pod, ["metadata", "labels", @drain_eligible_label]) == "true"
   end
-
-  defp rolled_at(%{"status" => %{"imageRolledAt" => ts}}) when is_binary(ts) and ts != "" do
-    case DateTime.from_iso8601(ts) do
-      {:ok, dt, _} -> {:ok, dt}
-      _ -> :error
-    end
-  end
-
-  defp rolled_at(_), do: :error
 end

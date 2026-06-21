@@ -175,7 +175,14 @@ defmodule Noora.Breadcrumbs do
 
   def breadcrumb_item(assigns) do
     ~H"""
-    <.dropdown_item value={@value} label={@label} href={@href} data-selected={@selected}>
+    <.dropdown_item
+      value={@value}
+      label={@label}
+      href={@href}
+      data-selected={@selected}
+      role="menuitem"
+      tabindex="-1"
+    >
       <:left_icon :if={@show_avatar or not is_nil(@icon)}>
         <.avatar
           :if={@show_avatar and is_nil(@icon)}

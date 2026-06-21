@@ -71,6 +71,10 @@ spec:
     maxReplicas: {{ dig "maxReplicas" 0 $autoscaling }}
     scaleDownCooldownSeconds: {{ dig "scaleDownCooldownSeconds" 300 $autoscaling }}
   {{- end }}
+  {{- with $pool.rollout }}
+  rollout:
+    maxConcurrentPercent: {{ dig "maxConcurrentPercent" 5 . }}
+  {{- end }}
 {{- end }}
 
 {{- /*
@@ -173,6 +177,10 @@ spec:
     maxReplicas: {{ dig "maxReplicas" 0 $autoscaling }}
     scaleDownCooldownSeconds: {{ dig "scaleDownCooldownSeconds" 300 $autoscaling }}
   {{- end }}
+  {{- with $override.rollout }}
+  rollout:
+    maxConcurrentPercent: {{ dig "maxConcurrentPercent" 5 . }}
+  {{- end }}
 {{- end }}
 {{- end }}
 
@@ -229,6 +237,10 @@ spec:
     minWarmPoolFloor: {{ dig "minWarmPoolFloor" 1 $autoscaling }}
     maxReplicas: {{ dig "maxReplicas" 0 $autoscaling }}
     scaleDownCooldownSeconds: {{ dig "scaleDownCooldownSeconds" 300 $autoscaling }}
+  {{- end }}
+  {{- with $pool.rollout }}
+  rollout:
+    maxConcurrentPercent: {{ dig "maxConcurrentPercent" 5 . }}
   {{- end }}
 {{- end }}
 
@@ -299,5 +311,9 @@ spec:
     minWarmPoolFloor: {{ dig "minWarmPoolFloor" 1 $autoscaling }}
     maxReplicas: {{ dig "maxReplicas" 0 $autoscaling }}
     scaleDownCooldownSeconds: {{ dig "scaleDownCooldownSeconds" 300 $autoscaling }}
+  {{- with $shape.rollout }}
+  rollout:
+    maxConcurrentPercent: {{ dig "maxConcurrentPercent" 5 . }}
+  {{- end }}
 {{- end }}
 {{- end }}

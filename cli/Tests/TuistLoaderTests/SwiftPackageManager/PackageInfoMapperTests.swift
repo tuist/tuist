@@ -50,7 +50,7 @@ struct PackageInfoMapperTests {
             ],
             packageToFolder: ["Package": basePath],
             packageToTargetsToArtifactPaths: ["Package": [
-                "Target_1": try!
+                "Target_1": try
                     .init(validating: "/artifacts/Package/Target_1.xcframework"),
             ]],
             packageModuleAliases: [:],
@@ -277,7 +277,7 @@ struct PackageInfoMapperTests {
             ],
             packageToFolder: ["Package": basePath],
             packageToTargetsToArtifactPaths: ["Package": [
-                "Target_1": try!
+                "Target_1": try
                     .init(validating: "/artifacts/Package/Target_1.xcframework"),
             ]],
             packageModuleAliases: [:],
@@ -2541,6 +2541,72 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
+    ) func map_whenPublicHeaderImportsSamePackageModule_addsTargetDependency() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let firebaseCoreHeadersPath = basePath
+            .appending(try RelativePath(validating: "Package/Sources/FirebaseCore/Public/FirebaseCore"))
+        let firebaseCoreExtensionHeadersPath = basePath
+            .appending(try RelativePath(validating: "Package/Sources/FirebaseCore/Extension"))
+
+        try await fileSystem.makeDirectory(at: firebaseCoreHeadersPath)
+        try await fileSystem.makeDirectory(at: firebaseCoreExtensionHeadersPath)
+        try await fileSystem.writeText("", at: firebaseCoreHeadersPath.appending(component: "FIRApp.h"))
+        try await fileSystem.writeText(
+            """
+            #import <FirebaseCore/FIRApp.h>
+            """,
+            at: firebaseCoreExtensionHeadersPath.appending(component: "FirebaseCoreInternal.h")
+        )
+
+        let project = try #require(
+            try await subject.map(
+                package: "Package",
+                basePath: basePath,
+                packageInfos: [
+                    "Package": .test(
+                        name: "Package",
+                        products: [
+                            .init(name: "FirebaseCore", type: .library(.automatic), targets: ["FirebaseCore"]),
+                            .init(
+                                name: "FirebaseCoreExtension",
+                                type: .library(.automatic),
+                                targets: ["FirebaseCoreExtension"]
+                            ),
+                        ],
+                        targets: [
+                            .test(
+                                name: "FirebaseCore",
+                                path: "Sources/FirebaseCore",
+                                publicHeadersPath: "Public"
+                            ),
+                            .test(
+                                name: "FirebaseCoreExtension",
+                                path: "Sources/FirebaseCore/Extension",
+                                publicHeadersPath: "."
+                            ),
+                        ],
+                        platforms: [.ios],
+                        cLanguageStandard: nil,
+                        cxxLanguageStandard: nil,
+                        swiftLanguageVersions: nil
+                    ),
+                ]
+            )
+        )
+
+        let firebaseCoreExtensionTarget = try #require(
+            project.targets.first(where: { $0.name == "FirebaseCoreExtension" })
+        )
+        #expect(
+            firebaseCoreExtensionTarget.dependencies.contains(
+                ProjectDescription.TargetDependency.target(name: "FirebaseCore")
+            )
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func map_whenDependencyHasHeaders_addsThemToHeaderSearchPath() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let dependencyHeadersPath = basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1/include"))
@@ -4772,9 +4838,9 @@ struct PackageInfoMapperTests {
             "XCTVapor",
         ]
         let allTargets = ["RxSwift"] + testTargets
-        for path in try allTargets
+        let targetPaths = try allTargets
             .map { basePath.appending(try RelativePath(validating: "Package/Sources/\($0)")) }
-        {
+        for path in targetPaths {
             try await fileSystem.makeDirectory(at: path)
         }
 
@@ -4926,7 +4992,7 @@ struct PackageInfoMapperTests {
 
         #expect(project?.name == expected.name)
 
-        let projectTargets = project!.targets.sorted(by: \.name)
+        let projectTargets = try #require(project?.targets.sorted(by: \.name))
         let expectedTargets = expected.targets.sorted(by: \.name)
 
         #expect(projectTargets == expectedTargets)
@@ -5005,7 +5071,7 @@ struct PackageInfoMapperTests {
 
         #expect(project?.name == expected.name)
 
-        let projectTargets = project!.targets.sorted(by: \.name)
+        let projectTargets = try #require(project?.targets.sorted(by: \.name))
         let expectedTargets = expected.targets.sorted(by: \.name)
 
         #expect(
@@ -7406,8 +7472,9 @@ struct PackageInfoMapperTests {
 
     @Test(
         .inTemporaryDirectory, .withMockedSwiftVersionProvider
-    ) func map_whenLocalMacroTargetDependsOnPrebuiltProduct_keepsSourceDependency() async throws {
+    ) func map_whenLocalMacroTargetDependsOnPrebuiltProduct_usesPrebuiltSettings() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let prebuiltPath = basePath.appending(components: ".build", "prebuilts", "swift-syntax")
 
         try await fileSystem.makeDirectory(
             at: basePath.appending(try RelativePath(validating: "Package/Sources/MyMacro"))
@@ -7425,7 +7492,7 @@ struct PackageInfoMapperTests {
                             identity: "swift-syntax",
                             version: "601.0.0",
                             libraryName: "SwiftSyntax",
-                            path: basePath.appending(components: ".build", "prebuilts", "swift-syntax"),
+                            path: prebuiltPath,
                             checkoutPath: nil,
                             products: ["SwiftSyntax"],
                             includePath: nil,
@@ -7458,10 +7525,29 @@ struct PackageInfoMapperTests {
         )
 
         let target = try #require(project?.targets.first(where: { $0.name == "MyMacro" }))
-        #expect(target.dependencies == [.external(name: "SwiftSyntax", condition: nil)])
-        #expect(target.settings?.base["OTHER_SWIFT_FLAGS"] == .array(["$(inherited)"]))
-        #expect(target.settings?.base["LIBRARY_SEARCH_PATHS"] == nil)
-        #expect(target.settings?.base["OTHER_LDFLAGS"] == nil)
+        #expect(target.dependencies.isEmpty)
+        #expect(
+            target.settings?.base["OTHER_SWIFT_FLAGS"] == .array([
+                "$(inherited)",
+                "-I",
+                prebuiltPath.appending(component: "Modules").pathString,
+                "-I",
+                prebuiltPath.appending(components: "include", "_SwiftSyntaxCShims").pathString,
+            ])
+        )
+        #expect(
+            target.settings?.base["LIBRARY_SEARCH_PATHS"] == .array([
+                "$(inherited)",
+                prebuiltPath.appending(component: "lib").pathString,
+            ])
+        )
+        #expect(
+            target.settings?.base["LD_RUNPATH_SEARCH_PATHS"] == .array([
+                "$(inherited)",
+                prebuiltPath.appending(component: "lib").pathString,
+            ])
+        )
+        #expect(target.settings?.base["OTHER_LDFLAGS"] == .array(["$(inherited)", "-lSwiftSyntax"]))
     }
 
     @Test(
@@ -7857,9 +7943,7 @@ extension ProjectDescription.Target {
         case let .custom(list):
             sources = list
         case .default:
-            guard let defaultSourcesPath = try? RelativePath(validating: "\(packageName)/Sources/\(name)/**") else {
-                fatalError("Invalid default sources path")
-            }
+            let defaultSourcesPath = try! RelativePath(validating: "\(packageName)/Sources/\(name)/**")
             sources =
                 .sourceFilesList(globs: [
                     basePath.appending(defaultSourcesPath).pathString,

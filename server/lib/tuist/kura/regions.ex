@@ -37,7 +37,14 @@ defmodule Tuist.Kura.Regions do
   # `-staging`/`-canary` elsewhere, so non-production deployments mint
   # distinct hostnames (e.g. `acme-eu-central-1-staging.kura.tuist.dev`).
   @managed_region_public_host_template "{account_handle}-{cluster_id}{env_suffix}.kura.tuist.dev"
-  @managed_region_grpc_public_host_template "grpc.{account_handle}-{cluster_id}{env_suffix}.kura.tuist.dev"
+  # gRPC (Bazel REAPI) co-hosts on the single public host: the regional Kura
+  # ingress routes the gRPC service path prefixes to the gRPC backend and
+  # everything else to the REST cache (see infra/kura-controller). The gRPC
+  # host template is therefore identical to the public host template — there
+  # is no separate `grpc.` hostname. Kept as its own attribute so the CR's
+  # `grpcPublicHost` and the `grpcs://` CLI URL still flow through the gRPC
+  # accessors.
+  @managed_region_grpc_public_host_template @managed_region_public_host_template
   @managed_region_storage_class "hcloud-volumes"
   @managed_region_specs [
     %{

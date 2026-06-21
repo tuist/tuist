@@ -576,11 +576,16 @@ defmodule TuistWeb.AppLayoutComponents do
         >
           <:icon><.git_branch /></:icon>
         </.badge>
-        <.link href={Tuist.Environment.get_url(:documentation)} target="_blank">
-          <.button variant="secondary" icon_only>
-            <.book />
-          </.button>
-        </.link>
+        <.button
+          variant="secondary"
+          icon_only
+          href={Tuist.Environment.get_url(:documentation)}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={dgettext("dashboard", "Documentation")}
+        >
+          <.book />
+        </.button>
         <%= if not is_nil(@current_user) do %>
           <.account_dropdown
             id="account-dropdown"

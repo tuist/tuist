@@ -585,9 +585,6 @@ defmodule TuistWeb.RunnerJobsLive do
   def sort_by_label("duration"), do: dgettext("dashboard_runners", "Duration")
   def sort_by_label(_enqueued_default), do: dgettext("dashboard_runners", "Enqueued at")
 
-  def sort_icon("asc"), do: "square_rounded_arrow_up"
-  def sort_icon(_desc), do: "square_rounded_arrow_down"
-
   @doc """
   Builds the patch URL for a sortable column header. Clicking the
   already-active column toggles asc/desc; clicking a different
