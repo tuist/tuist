@@ -2,6 +2,8 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import struct ProjectDescription.Project
+import enum ProjectDescription.TargetDependency
 import Synchronization
 import Testing
 import TSCBasic
@@ -29,6 +31,82 @@ private final class SwiftPackageManagerLockObservation: Sendable {
             $0.loadPackageCallCount += 1
             if lockHeld { $0.heldDuringLoadPackage = true }
         }
+    }
+}
+
+private struct CapturedPackagePrebuilt: Equatable {
+    let path: String
+    let checkoutPath: String?
+    let includePaths: [String]?
+}
+
+private final class PackageInfoMapperPrebuiltSpy: PackageInfoMapping, @unchecked Sendable {
+    private struct State {
+        var mapCallCount = 0
+        var capturedPrebuilt: CapturedPackagePrebuilt?
+    }
+
+    private let packageIdentity: String
+    private let productName: String
+    private let state = Mutex(State())
+
+    init(packageIdentity: String, productName: String) {
+        self.packageIdentity = packageIdentity
+        self.productName = productName
+    }
+
+    var mapCallCount: Int {
+        state.withLock(\.mapCallCount)
+    }
+
+    var capturedPrebuilt: CapturedPackagePrebuilt? {
+        state.withLock(\.capturedPrebuilt)
+    }
+
+    func resolveExternalDependencies(
+        path _: Path.AbsolutePath,
+        packagePath _: Path.AbsolutePath?,
+        packageInfos _: [String: PackageInfo],
+        packageToFolder _: [String: Path.AbsolutePath],
+        packageToTargetsToArtifactPaths _: [String: [String: Path.AbsolutePath]],
+        packageModuleAliases _: [String: [String: String]],
+        packageSettings _: TuistCore.PackageSettings
+    ) async throws -> [String: [ProjectDescription.TargetDependency]] {
+        [:]
+    }
+
+    func map(
+        packageInfo: PackageInfo,
+        path _: Path.AbsolutePath,
+        packageType: PackageType,
+        packageSettings _: TuistCore.PackageSettings,
+        packageModuleAliases _: [String: [String: String]],
+        enabledTraits _: Set<String>
+    ) async throws -> ProjectDescription.Project? {
+        let capturedPrebuilt: CapturedPackagePrebuilt?
+        if case let .external(
+            origin: .remote,
+            artifactPaths: _,
+            packagePrebuilts: packagePrebuilts,
+            derivedXCFrameworksPath: _
+        ) = packageType,
+            let prebuilt = packagePrebuilts[packageIdentity]?[productName]
+        {
+            capturedPrebuilt = CapturedPackagePrebuilt(
+                path: prebuilt.path.pathString,
+                checkoutPath: prebuilt.checkoutPath?.pathString,
+                includePaths: prebuilt.includePath?.map(\.pathString)
+            )
+        } else {
+            capturedPrebuilt = nil
+        }
+
+        state.withLock {
+            $0.mapCallCount += 1
+            $0.capturedPrebuilt = capturedPrebuilt
+        }
+
+        return ProjectDescription.Project(name: packageInfo.name, targets: [])
     }
 }
 
@@ -599,7 +677,7 @@ struct SwiftPackageManagerGraphLoaderTests {
     }
 
     @Test
-    func load_whenWorkspaceStateContainsPrebuilts_passesPackagePrebuiltsToMapper() async throws {
+    func load_whenWorkspaceStateContainsPrebuilts_sanitizesPathsAndPassesPackagePrebuiltsToMapper() async throws {
         try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 // Given
@@ -613,6 +691,8 @@ struct SwiftPackageManagerGraphLoaderTests {
                 let checkoutPath = temporaryDirectory.appending(components: [
                     ".build", "checkouts", "swift-syntax",
                 ])
+                let expectedPrebuiltPath = prebuiltPath.pathString.replacingOccurrences(of: "/private/var", with: "/var")
+                let expectedCheckoutPath = checkoutPath.pathString.replacingOccurrences(of: "/private/var", with: "/var")
 
                 try await fileSystem.makeDirectory(at: workspacePath.parentDirectory)
                 try await fileSystem.writeText(
@@ -644,10 +724,10 @@ struct SwiftPackageManagerGraphLoaderTests {
                             "identity" : "swift-syntax",
                             "version" : "601.0.0",
                             "libraryName" : "SwiftSyntax",
-                            "path" : "\(prebuiltPath.pathString)",
-                            "checkoutPath" : "\(checkoutPath.pathString)",
+                            "path" : "\(prebuiltPath.pathString)\\u0000",
+                            "checkoutPath" : "\(checkoutPath.pathString)\\u0000",
                             "products" : ["SwiftSyntax"],
-                            "includePath" : ["Sources/_SwiftSyntaxCShims/include"],
+                            "includePath" : ["Sources/_SwiftSyntaxCShims/include\\u0000"],
                             "cModules" : ["_SwiftSyntaxCShims"]
                           }
                         ]
@@ -669,17 +749,31 @@ struct SwiftPackageManagerGraphLoaderTests {
                     temporaryDirectory.appending(component: "Package.resolved")
                 )
 
-                given(packageInfoMapper)
-                    .resolveExternalDependencies(
-                        path: .any,
-                        packagePath: .any,
-                        packageInfos: .any,
-                        packageToFolder: .any,
-                        packageToTargetsToArtifactPaths: .any,
-                        packageModuleAliases: .any,
-                        packageSettings: .any
-                    )
-                    .willReturn([:])
+                let swiftPackageManagerController = MockSwiftPackageManagerControlling()
+                let manifestLoader = MockManifestLoading()
+                given(manifestLoader)
+                    .loadPackage(at: .any, disableSandbox: .value(true))
+                    .willReturn(.test())
+                let contentHasher = MockContentHashing()
+                given(contentHasher)
+                    .hash(Parameter<[String]>.any)
+                    .willProduce { $0.joined(separator: "-") }
+                let packageInfoMapper = PackageInfoMapperPrebuiltSpy(
+                    packageIdentity: "swift-syntax",
+                    productName: "SwiftSyntax"
+                )
+                let expectedPrebuilt = CapturedPackagePrebuilt(
+                    path: expectedPrebuiltPath,
+                    checkoutPath: expectedCheckoutPath,
+                    includePaths: ["Sources/_SwiftSyntaxCShims/include"]
+                )
+                let subject = SwiftPackageManagerGraphLoader(
+                    swiftPackageManagerController: swiftPackageManagerController,
+                    packageInfoMapper: packageInfoMapper,
+                    manifestLoader: manifestLoader,
+                    fileSystem: fileSystem,
+                    contentHasher: contentHasher
+                )
 
                 // When
                 _ = try await subject.load(
@@ -689,31 +783,8 @@ struct SwiftPackageManagerGraphLoaderTests {
                 )
 
                 // Then
-                verify(packageInfoMapper)
-                    .map(
-                        packageInfo: .any,
-                        path: .any,
-                        packageType: .matching { packageType in
-                            guard case let .external(
-                                origin: .remote,
-                                artifactPaths: _,
-                                packagePrebuilts: packagePrebuilts,
-                                derivedXCFrameworksPath: _
-                            ) = packageType,
-                                let prebuilt = packagePrebuilts["swift-syntax"]?["SwiftSyntax"]
-                            else {
-                                return false
-                            }
-
-                            return prebuilt.path == prebuiltPath
-                                && prebuilt.checkoutPath == checkoutPath
-                                && prebuilt.includePath?.map(\.pathString) == ["Sources/_SwiftSyntaxCShims/include"]
-                        },
-                        packageSettings: .any,
-                        packageModuleAliases: .any,
-                        enabledTraits: .any
-                    )
-                    .called(1)
+                #expect(packageInfoMapper.mapCallCount == 1)
+                #expect(packageInfoMapper.capturedPrebuilt == expectedPrebuilt)
             }
         }
     }
