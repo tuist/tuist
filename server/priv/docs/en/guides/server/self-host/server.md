@@ -418,6 +418,28 @@ postgresql:
     password: your-password
 ```
 
+If you manage the PostgreSQL credentials outside Helm, point the chart at an
+existing Kubernetes Secret instead:
+
+```yaml
+# values.yaml
+postgresql:
+  mode: external
+  external:
+    port: 5432
+    database: tuist
+    existingSecret: tuist-postgresql
+    existingSecretKeys:
+      host: host
+      username: username
+      password: password
+```
+
+The chart reads the host, username, and password from the Secret and composes
+`DATABASE_URL` through Kubernetes env-var substitution, so the password is not
+rendered into the Helm manifest. The Secret's password value should be URL-safe
+because it is interpolated into a database URL.
+
 The same pattern applies to `clickhouse` and `objectStorage`. See the `external` block under each section in the chart's `values.yaml` for the full set of configurable fields.
 
 ### Shared scheduling and labels {#helm-shared-scheduling-and-labels}

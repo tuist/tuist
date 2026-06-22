@@ -159,6 +159,29 @@ spec:
                         demand before scaling down. Anti-thrash guard so a
                         single brief idle window doesn't deprovision warm
                         capacity that's about to be reused.
+                rollout:
+                  type: object
+                  description: |
+                    Optional image-roll throttle. When `spec.image` changes,
+                    each affected node must `tart pull` the new (tens-of-GB)
+                    image before booting a replacement; unthrottled, the whole
+                    fleet pulls at once and the warm pool collapses for
+                    minutes. The controller marks stale Pods drain-eligible up
+                    to a concurrency cap and only marks more as in-flight
+                    rollers report Ready. Absent block = the built-in default
+                    (5%, min 1).
+                  properties:
+                    maxConcurrentPercent:
+                      type: integer
+                      default: 5
+                      minimum: 1
+                      maximum: 100
+                      description: |
+                        Max share of the pool that may be mid-roll at once, as
+                        a percentage of `spec.replicas`, floored, with a hard
+                        minimum of 1 so a rollout always makes progress. Lower
+                        keeps more of the warm pool serving during a roll at
+                        the cost of a slower rollout.
             status:
               type: object
               properties:

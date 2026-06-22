@@ -104,6 +104,7 @@ jobs:
         run: |
           mise x swiftformat -- swiftformat cli/ app/ --lint
           mise x swiftlint -- swiftlint lint --quiet --config .swiftlint.yml cli/Sources
+          mise x swiftlint -- swiftlint lint --quiet --config .swiftlint.yml --only-rule no_fatal_error_in_tests cli/Tests
           tuist inspect dependencies --only implicit
 
   cli-spm-build:

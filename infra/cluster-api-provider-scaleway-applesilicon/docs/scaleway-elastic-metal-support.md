@@ -149,8 +149,14 @@ attached to the caph cluster, not a ClusterClass topology entry.
 - **Naming**: the provider binary/repo is `...-applesilicon`; with a Linux kind
   alongside Apple Silicon that's a misnomer, kept for now (a rename is broad
   churn: image, chart, RBAC, CRD group). Revisit if it keeps growing.
-- **IAM**: each env's provider key carries `PrivateNetworksFullAccess` +
-  `IPAMReadOnly`.
+- **IAM**: each env's provider key carries `ElasticMetalFullAccess` (list /
+  order / release the EM server), `PrivateNetworksFullAccess` + `IPAMReadOnly`
+  (attach the PN and read its address), plus `AppleSiliconFullAccess` +
+  `SSHKeysFullAccess` shared with the macOS fleet. `ElasticMetalFullAccess` is
+  the easy one to miss: it's a separate Scaleway product from Apple Silicon, so
+  a key with `AppleSiliconFullAccess` but not `ElasticMetalFullAccess` 403s on
+  the EM reconciler's first `list elastic metal servers` call and never orders a
+  node.
 
 ## End-to-end path
 
@@ -174,19 +180,20 @@ cache to it needs three gates flipped together in that env's values (see
    `TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS=linux,macos`;
 3. attach the minis to the PN: `macosFleet.vmCachePrivateNetwork.{name,cidr}`.
 
-Two prerequisites are not in the deploy pipeline and must exist per cluster, or
+One prerequisite is not in the deploy pipeline and must exist per env, or
 dispatch returns no endpoint and builds fall back to the public cache (the
-cutover degrades rather than breaks while they are missing):
+cutover degrades rather than breaks while it is missing):
 
-- **`scw-local-nvme` StorageClass** (local-path provisioner on the EM node's
-  NVMe). Apply once per cluster after the EM node joins:
-  `kubectl apply -f infra/k8s/mgmt/bootstrap/local-path-provisioner.yaml`.
-  Without it the per-account cache PVCs hang `Pending` and no KuraInstance goes
-  active.
 - **A Private Network named `tuist-runner-cache`** in the env's Scaleway
   project. The operator find-or-creates it from `172.16.0.0/22`, but rename the
   env's existing runner-cache PN to that name so the EM node and the minis share
   the one you already set up rather than landing on a fresh one.
+
+The `scw-local-nvme` StorageClass the cache PVCs bind against now ships with the
+chart (`templates/kura-fleet-storage.yaml`, gated on the same `kuraFleet.enabled`
+flag), so it no longer has to be applied by hand. The provider IAM key also needs
+`ElasticMetalFullAccess` (see the IAM note above), without which the EM order
+403s.
 
 ## Out of scope
 

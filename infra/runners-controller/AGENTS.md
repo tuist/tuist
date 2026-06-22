@@ -80,6 +80,12 @@ independent workqueues:
   itself. Series are dropped (`metrics.Clear`) when a pool is deleted or
   opts out of autoscaling.
 
+  `RunnerPoolReconciler` also publishes
+  `tuist_runners_pool_phase_replicas{pool,phase}` for alive Pods by
+  Kubernetes phase (`Pending`, `Running`, `Unknown`). This preserves the
+  runner dashboard's macOS ready vs cold-booting split without relying
+  on pod-scoped kube-state-metrics series.
+
   Pod-level autoscaling only — bare-metal Host count is operator-
   managed via the CAPI cluster topology, since Hetzner Robot hosts
   are monthly-billed and can't be auto-ordered. To grow capacity,

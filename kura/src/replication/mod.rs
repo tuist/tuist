@@ -11,7 +11,10 @@ use std::{
 use futures_util::StreamExt;
 use reqwest::header::{CONTENT_TYPE, HeaderValue};
 use serde::Deserialize;
-use tokio::{io::AsyncWriteExt, time::sleep};
+use tokio::{
+    io::AsyncWriteExt,
+    time::{Instant, sleep},
+};
 use tokio_util::io::ReaderStream;
 use tracing::{Instrument, field, warn};
 
@@ -26,7 +29,7 @@ use crate::{
     state::SharedState,
     store::{ArtifactApplyOutcome, ManifestPage, NamespaceTombstonePage},
     telemetry::{inject_current_trace_context, record_trace_context},
-    utils::{ensure_tmp_dir_capacity, replication_target_label, temp_file_path, url_encode},
+    utils::{replication_target_label, temp_file_path, url_encode},
 };
 
 use self::{operation::ReplicationOperation, outbox_message::OutboxMessage};
@@ -401,8 +404,29 @@ async fn bootstrap_artifact_from_peer(
             .await;
     }
 
+    let declared_bytes = response.content_length();
+    if let Some(declared) = declared_bytes
+        && declared > MAX_REPLICATION_BODY_BYTES
+    {
+        return Err(format!(
+            "bootstrap artifact response declared {declared} bytes, exceeds limit of {MAX_REPLICATION_BODY_BYTES}"
+        ));
+    }
+    // Reserve for the larger of the manifest size and the peer's declared body
+    // so an inconsistent peer can't stage more bytes than we accounted for.
+    let reserved_bytes = manifest
+        .size
+        .max(declared_bytes.unwrap_or(0))
+        .min(MAX_REPLICATION_BODY_BYTES);
+    // reserve() waits when the budget is full, so peak concurrent staging never
+    // exceeds it however large the account is. A whole-dir hard check here is
+    // wrong: when bootstrap legitimately fills the budget it would reject the
+    // next artifact and fail the whole bootstrap, reintroducing the stall this
+    // reservation exists to prevent. (The node is out of the Service while
+    // bootstrapping, so non-bootstrap tmp occupants are negligible.)
+    let _staging_reservation = state.bootstrap_staging_budget.reserve(reserved_bytes).await;
     let temp_path = temp_file_path(&state.config.tmp_dir.join("bootstrap"), "bootstrap");
-    stream_response_to_temp(state, response, &temp_path).await?;
+    stream_response_to_temp(state, response, &temp_path, reserved_bytes).await?;
     state
         .store
         .hit_failpoint(FailpointName::AfterBootstrapArtifactFetchBeforePersist)
@@ -424,37 +448,26 @@ async fn stream_response_to_temp(
     state: &SharedState,
     response: reqwest::Response,
     path: &Path,
+    staging_limit: u64,
 ) -> Result<(), String> {
     let parent = path
         .parent()
         .ok_or_else(|| "bootstrap temp path is missing a parent directory".to_string())?;
     state.io.create_dir_all(parent).await?;
-    if let Some(content_length) = response.content_length()
-        && content_length > MAX_REPLICATION_BODY_BYTES
-    {
-        return Err(format!(
-            "bootstrap artifact response declared {content_length} bytes, exceeds limit of {MAX_REPLICATION_BODY_BYTES}"
-        ));
-    }
-    ensure_tmp_dir_capacity(
-        &state.config.tmp_dir,
-        response
-            .content_length()
-            .unwrap_or(MAX_REPLICATION_BODY_BYTES),
-        state.config.tmp_dir_max_bytes,
-    )
-    .await?;
+    // The staged file must not exceed the caller's `bootstrap_staging_budget`
+    // reservation: an inconsistent peer serving a body larger than its manifest
+    // advertised is rejected here instead of overrunning the budget.
     let mut destination = state.io.create_file(path).await?;
     let mut stream = response.bytes_stream();
     let mut total: u64 = 0;
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.map_err(|error| format!("failed to stream bootstrap body: {error}"))?;
         total = total.saturating_add(chunk.len() as u64);
-        if total > MAX_REPLICATION_BODY_BYTES {
+        if total > staging_limit {
             drop(destination);
             state.io.remove_file_if_exists(path).await;
             return Err(format!(
-                "bootstrap artifact response exceeded limit of {MAX_REPLICATION_BODY_BYTES} bytes"
+                "bootstrap artifact response exceeded reserved {staging_limit} bytes"
             ));
         }
         if let Some(limiter) = state.replication_bandwidth_limiter.as_ref() {
@@ -638,12 +651,22 @@ struct BootstrapStats {
 pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
     let mut after = None::<Vec<u8>>;
     while let Some((message_key, message)) = state.store.next_outbox_message(after.as_deref())? {
+        after = Some(message_key.clone());
+
+        if state
+            .replication_target_backed_off(&message.target, Instant::now())
+            .await
+        {
+            continue;
+        }
+
         let started_at = std::time::Instant::now();
         let operation_name = message.operation.name();
         let result = replicate_message(state, &message).await;
 
         match result {
             Ok(()) => {
+                state.note_replication_success(&message.target).await;
                 match state
                     .store
                     .hit_failpoint(FailpointName::BeforeDeleteOutboxMessageAfterSuccess)
@@ -670,6 +693,9 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
                 }
             }
             Err(error) => {
+                state
+                    .note_replication_failure(&message.target, Instant::now())
+                    .await;
                 state.metrics.record_replication(
                     &message.target,
                     operation_name,
@@ -679,7 +705,6 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
                 warn!("replication to {} failed: {error}", message.target);
             }
         }
-        after = Some(message_key);
     }
 
     Ok(())
@@ -1043,6 +1068,175 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn process_outbox_backs_off_unreachable_target() {
+        let local = test_context(|_| {}).await;
+        let unreachable = "http://127.0.0.1:1".to_string();
+        local
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("artifact should persist");
+        let artifact = local
+            .state
+            .store
+            .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact")
+            .await
+            .expect("artifact fetch should succeed")
+            .expect("artifact should exist");
+        local
+            .state
+            .store
+            .enqueue(OutboxMessage {
+                target: unreachable.clone(),
+                operation: ReplicationOperation::UpsertArtifact {
+                    producer: ArtifactProducer::Gradle,
+                    namespace_id: "ios".into(),
+                    key: "artifact".into(),
+                    content_type: "application/octet-stream".into(),
+                    artifact_id: artifact.artifact_id,
+                    version_ms: artifact.version_ms,
+                    inline: false,
+                },
+            })
+            .expect("upsert should enqueue");
+
+        assert!(
+            !local
+                .state
+                .replication_target_backed_off(&unreachable, Instant::now())
+                .await
+        );
+
+        process_outbox(&local.state)
+            .await
+            .expect("outbox processing should not error on a failed peer");
+
+        assert!(
+            local
+                .state
+                .replication_target_backed_off(&unreachable, Instant::now())
+                .await,
+            "a failed replication target should be backed off"
+        );
+        assert_eq!(
+            local
+                .state
+                .store
+                .outbox_messages()
+                .expect("outbox should load")
+                .len(),
+            1,
+            "a failed message must stay in the outbox"
+        );
+    }
+
+    #[tokio::test]
+    async fn process_outbox_skips_backed_off_target() {
+        let remote = test_context(|_| {}).await;
+        let (remote_url, _server) = spawn_server(router(remote.state.clone())).await;
+
+        let local = test_context(|_| {}).await;
+        local
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("artifact should persist");
+        let artifact = local
+            .state
+            .store
+            .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact")
+            .await
+            .expect("artifact fetch should succeed")
+            .expect("artifact should exist");
+        local
+            .state
+            .store
+            .enqueue(OutboxMessage {
+                target: remote_url.clone(),
+                operation: ReplicationOperation::UpsertArtifact {
+                    producer: ArtifactProducer::Gradle,
+                    namespace_id: "ios".into(),
+                    key: "artifact".into(),
+                    content_type: "application/octet-stream".into(),
+                    artifact_id: artifact.artifact_id,
+                    version_ms: artifact.version_ms,
+                    inline: false,
+                },
+            })
+            .expect("upsert should enqueue");
+
+        local
+            .state
+            .note_replication_failure(&remote_url, Instant::now())
+            .await;
+
+        process_outbox(&local.state)
+            .await
+            .expect("outbox processing should succeed");
+
+        assert!(
+            remote
+                .state
+                .store
+                .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact")
+                .await
+                .expect("artifact fetch should succeed")
+                .is_none(),
+            "a backed-off target must not be contacted"
+        );
+        assert_eq!(
+            local
+                .state
+                .store
+                .outbox_messages()
+                .expect("outbox should load")
+                .len(),
+            1,
+            "a skipped message must remain in the outbox"
+        );
+
+        local.state.note_replication_success(&remote_url).await;
+
+        process_outbox(&local.state)
+            .await
+            .expect("outbox processing should succeed");
+
+        assert!(
+            remote
+                .state
+                .store
+                .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact")
+                .await
+                .expect("artifact fetch should succeed")
+                .is_some(),
+            "after backoff clears, replication should proceed"
+        );
+        assert!(
+            local
+                .state
+                .store
+                .outbox_messages()
+                .expect("outbox should load")
+                .is_empty(),
+            "successful replication should clear the outbox"
+        );
+    }
+
+    #[tokio::test]
     async fn process_outbox_retries_after_success_before_outbox_delete() {
         let remote = test_context(|_| {}).await;
         let (remote_url, _server) = spawn_server(router(remote.state.clone())).await;
@@ -1362,6 +1556,240 @@ mod tests {
                 .await
                 .expect("artifact fetch should succeed")
                 .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn bootstrap_succeeds_when_total_artifacts_exceed_tmp_budget() {
+        // A large account whose cached artifacts dwarf the tmp budget must still
+        // bootstrap from a single peer: peak tmp staging is bounded by the
+        // per-artifact reservation, so the budget is never exhausted regardless
+        // of total account size.
+        let artifact_bytes = vec![7_u8; 256 * 1024];
+        let artifact_count = 24_usize;
+        let tmp_budget = (artifact_bytes.len() as u64) * 2;
+
+        let remote = test_context(|_| {}).await;
+        for index in 0..artifact_count {
+            remote
+                .state
+                .store
+                .persist_artifact_from_bytes(
+                    ArtifactProducer::Gradle,
+                    "ios",
+                    &format!("artifact-{index}"),
+                    "application/octet-stream",
+                    &artifact_bytes,
+                )
+                .await
+                .expect("remote artifact should persist");
+        }
+        let (remote_url, _server) = spawn_server(router(remote.state.clone())).await;
+
+        let local = test_context(move |config| {
+            config.tmp_dir_max_bytes = tmp_budget;
+        })
+        .await;
+        assert!(
+            (artifact_bytes.len() as u64) * (artifact_count as u64) > tmp_budget,
+            "test should stage far more than the tmp budget allows at once"
+        );
+
+        let stats = bootstrap_from_peer(&local.state, &remote_url)
+            .await
+            .expect("bootstrap should converge under a fixed tmp budget");
+        assert_eq!(stats.artifacts_applied, artifact_count as u64);
+
+        for index in 0..artifact_count {
+            let manifest = local
+                .state
+                .store
+                .fetch_artifact(
+                    ArtifactProducer::Gradle,
+                    "ios",
+                    &format!("artifact-{index}"),
+                )
+                .await
+                .expect("artifact fetch should succeed")
+                .expect("every bootstrapped artifact should be present");
+            assert_eq!(manifest.size, artifact_bytes.len() as u64);
+        }
+
+        // The reservation is fully released once bootstrap drains.
+        let drained = local
+            .state
+            .bootstrap_staging_budget
+            .reserve(tmp_budget)
+            .await;
+        drop(drained);
+    }
+
+    #[tokio::test]
+    async fn concurrent_peer_bootstraps_converge_and_bound_peak_tmp() {
+        // Reproduces the production failure mode: many peers bootstrap
+        // concurrently into the shared tmp dir while their network fetches are
+        // slow, so each holds a partially-written temp file open at the same
+        // time. The peer streams every body in small chunks with a delay between
+        // them, so absent the reservation all stagers would pass the racy
+        // point-in-time capacity check at once and pile far more than the budget
+        // into the tmp dir. The reservation bounds how many stage concurrently,
+        // so peak tmp usage stays within the budget while every artifact still
+        // applies. A watcher samples the on-disk tmp size throughout.
+        let peer_count = 8_usize;
+        let artifact_len = 256 * 1024_usize;
+        let tmp_budget = (artifact_len as u64) * 2;
+        let chunk = vec![3_u8; 32 * 1024];
+        let chunks_per_artifact = artifact_len / chunk.len();
+
+        let app = Router::new().route(
+            "/_internal/bootstrap/artifacts/{artifact_id}",
+            get({
+                let chunk = chunk.clone();
+                move |AxumPath(_artifact_id): AxumPath<String>| {
+                    let chunk = chunk.clone();
+                    async move {
+                        let stream =
+                            futures_util::stream::iter(0..chunks_per_artifact).then(move |_| {
+                                let chunk = chunk.clone();
+                                async move {
+                                    sleep(Duration::from_millis(5)).await;
+                                    Ok::<_, std::io::Error>(chunk)
+                                }
+                            });
+                        axum::body::Body::from_stream(stream)
+                    }
+                }
+            }),
+        );
+        let (remote_url, _server) = spawn_server(app).await;
+
+        let local = test_context(move |config| {
+            config.tmp_dir_max_bytes = tmp_budget;
+        })
+        .await;
+        let tmp_dir = local.state.config.tmp_dir.clone();
+
+        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let peak = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let watcher = {
+            let tmp_dir = tmp_dir.clone();
+            let stop = stop.clone();
+            let peak = peak.clone();
+            tokio::spawn(async move {
+                while !stop.load(std::sync::atomic::Ordering::Relaxed) {
+                    let staged = crate::utils::directory_size_bytes(&tmp_dir);
+                    peak.fetch_max(staged, std::sync::atomic::Ordering::Relaxed);
+                    sleep(Duration::from_millis(1)).await;
+                }
+            })
+        };
+
+        let tasks: Vec<_> = (0..peer_count)
+            .map(|index| {
+                let manifest = bootstrap_test_manifest(
+                    ArtifactProducer::Gradle,
+                    false,
+                    "ios",
+                    &format!("artifact-{index}"),
+                    "application/octet-stream",
+                    artifact_len as u64,
+                    100 + index as u64,
+                );
+                let state = local.state.clone();
+                let remote_url = remote_url.clone();
+                tokio::spawn(async move {
+                    bootstrap_artifact_from_peer(&state, &remote_url, &manifest).await
+                })
+            })
+            .collect();
+
+        for task in tasks {
+            let outcome = task
+                .await
+                .expect("bootstrap task should not panic")
+                .expect("concurrent bootstrap staging should stay within the budget");
+            assert_eq!(outcome, ArtifactApplyOutcome::Applied);
+        }
+
+        stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        watcher.await.expect("watcher task should finish");
+
+        let observed_peak = peak.load(std::sync::atomic::Ordering::Relaxed);
+        assert!(
+            observed_peak <= tmp_budget,
+            "peak staged tmp bytes {observed_peak} exceeded budget {tmp_budget}"
+        );
+
+        for index in 0..peer_count {
+            assert!(
+                local
+                    .state
+                    .store
+                    .fetch_artifact(
+                        ArtifactProducer::Gradle,
+                        "ios",
+                        &format!("artifact-{index}")
+                    )
+                    .await
+                    .expect("artifact fetch should succeed")
+                    .is_some(),
+                "every concurrently bootstrapped artifact should be present"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn bootstrap_rejects_body_larger_than_reserved() {
+        // An inconsistent peer streams a chunked body larger than its manifest
+        // advertised (no Content-Length). The staged file is capped at the
+        // reservation, so it is rejected instead of overrunning the tmp budget.
+        let declared_len = 64 * 1024_u64;
+        let chunk = vec![7_u8; declared_len as usize];
+        let app = Router::new().route(
+            "/_internal/bootstrap/artifacts/{artifact_id}",
+            get({
+                let chunk = chunk.clone();
+                move |AxumPath(_artifact_id): AxumPath<String>| {
+                    let chunk = chunk.clone();
+                    async move {
+                        let stream = futures_util::stream::iter(0..4).then(move |_| {
+                            let chunk = chunk.clone();
+                            async move { Ok::<_, std::io::Error>(chunk) }
+                        });
+                        axum::body::Body::from_stream(stream)
+                    }
+                }
+            }),
+        );
+        let (remote_url, _server) = spawn_server(app).await;
+
+        let local = test_context(|_config| {}).await;
+        let manifest = bootstrap_test_manifest(
+            ArtifactProducer::Gradle,
+            false,
+            "ios",
+            "oversized",
+            "application/octet-stream",
+            declared_len,
+            100,
+        );
+
+        let error = bootstrap_artifact_from_peer(&local.state, &remote_url, &manifest)
+            .await
+            .expect_err("a body larger than the manifest must be rejected");
+        assert!(
+            error.contains("exceeded reserved"),
+            "expected a reservation-overflow rejection, got: {error}"
+        );
+        assert!(
+            local
+                .state
+                .store
+                .fetch_artifact(ArtifactProducer::Gradle, "ios", "oversized")
+                .await
+                .expect("artifact fetch should succeed")
+                .is_none(),
+            "the rejected artifact must not be persisted"
         );
     }
 }

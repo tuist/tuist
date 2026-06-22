@@ -43,6 +43,14 @@ defmodule Tuist.Kura do
   @provisioner_node_ref_format ~r/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/
   @provisioner_node_ref_max_length 53
 
+  # A version change is a deliberate fix delivery, so it must reach
+  # degraded servers, not only healthy ones. A `:failed` server stuck on
+  # a broken image cannot self-heal on that image; excluding it from
+  # version rollouts strands the very servers the new image is meant to
+  # rescue and forces manual intervention. Only terminal servers
+  # (`:destroying`/`:destroyed`) are skipped.
+  @version_rollout_statuses [:provisioning, :active, :failed]
+
   @doc "Reconciles desired Kura server rows with the observed Kubernetes state."
   def reconcile_orphaned_deployments, do: Reconciler.reconcile()
 
@@ -139,7 +147,7 @@ defmodule Tuist.Kura do
 
     from(s in Server,
       as: :server,
-      where: s.status == :active,
+      where: s.status in @version_rollout_statuses,
       where: s.current_image_tag != ^image_tag,
       where: not exists(deployment_exists_query)
     )

@@ -88,6 +88,7 @@ spec:
                 sleep 2
               done
           env:
+            {{- include "tuist.externalPostgresqlSecretEnv" . | nindent 12 }}
             - name: PGHOST
               value: {{ include "tuist.databaseHost" . | quote }}
             - name: PGPORT
@@ -119,6 +120,7 @@ spec:
             {{- end }}
             {{- if not .Values.server.managedSecrets }}
             {{- if ne .Values.postgresql.mode "cnpg" }}
+            {{- include "tuist.externalPostgresqlSecretEnv" . | nindent 12 }}
             - name: DATABASE_URL
               value: {{ include "tuist.databaseUrl" . | quote }}
             - name: TUIST_USE_SSL_FOR_DATABASE

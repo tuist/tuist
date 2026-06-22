@@ -53,11 +53,15 @@ defmodule Tuist.Storage do
       Performance.measure_time_in_milliseconds(fn ->
         {config, bucket_name} = s3_config_and_bucket(actor)
 
-        bucket_name
-        |> ExAws.S3.complete_multipart_upload(object_key, upload_id, parts)
-        |> ExAws.request!(Map.merge(config, fast_api_req_opts()))
+        result =
+          bucket_name
+          |> ExAws.S3.complete_multipart_upload(object_key, upload_id, parts)
+          |> ExAws.request(Map.merge(config, fast_api_req_opts()))
 
-        :ok
+        case result do
+          {:ok, _response} -> :ok
+          {:error, reason} -> {:error, multipart_complete_upload_error(reason)}
+        end
       end)
 
     :telemetry.execute(
@@ -67,6 +71,16 @@ defmodule Tuist.Storage do
     )
 
     result
+  end
+
+  defp multipart_complete_upload_error({:http_error, 404, %{body: body}} = reason) when is_binary(body) do
+    if multipart_upload_not_found?(body), do: :multipart_upload_not_found, else: reason
+  end
+
+  defp multipart_complete_upload_error(reason), do: reason
+
+  defp multipart_upload_not_found?(body) do
+    Regex.match?(~r/<(?:\w+:)?Code>\s*NoSuchUpload\s*<\/(?:\w+:)?Code>/, body)
   end
 
   def generate_download_url(object_key, actor, opts \\ []) do
@@ -281,6 +295,8 @@ defmodule Tuist.Storage do
 
   defp delete_objects_from_bucket(object_keys, bucket_name, config, opts) do
     max_concurrency = Keyword.get(opts, :max_concurrency, @delete_objects_max_concurrency)
+    request_opts = fast_api_req_opts(opts)
+    task_timeout = Keyword.get(opts, :task_timeout, request_timeout(request_opts))
 
     object_keys
     |> Enum.chunk_every(1000)
@@ -288,11 +304,13 @@ defmodule Tuist.Storage do
       fn object_keys_chunk ->
         bucket_name
         |> ExAws.S3.delete_multiple_objects(object_keys_chunk)
-        |> ExAws.request(Map.merge(config, fast_api_req_opts()))
+        |> ExAws.request(Map.merge(config, request_opts))
         |> handle_delete_objects_response()
       end,
       max_concurrency: max_concurrency,
-      ordered: false
+      ordered: false,
+      timeout: task_timeout,
+      on_timeout: :kill_task
     )
     |> Enum.reduce_while(:ok, fn
       {:ok, :ok}, :ok ->
@@ -432,11 +450,19 @@ defmodule Tuist.Storage do
     end
   end
 
-  defp fast_api_req_opts do
+  defp fast_api_req_opts(opts \\ []) do
     %{
-      receive_timeout: 5_000,
-      pool_timeout: 1_000
+      receive_timeout: Keyword.get(opts, :receive_timeout, 5_000),
+      pool_timeout: Keyword.get(opts, :pool_timeout, 1_000)
     }
+  end
+
+  defp request_timeout(request_opts) do
+    case {Map.fetch!(request_opts, :receive_timeout), Map.fetch!(request_opts, :pool_timeout)} do
+      {:infinity, _pool_timeout} -> :infinity
+      {_receive_timeout, :infinity} -> :infinity
+      {receive_timeout, pool_timeout} -> receive_timeout + pool_timeout + 1_000
+    end
   end
 
   defp region_headers(actor) do

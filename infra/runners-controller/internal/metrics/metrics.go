@@ -16,7 +16,12 @@ import (
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 )
 
-const poolLabel = "pool"
+const (
+	poolLabel  = "pool"
+	phaseLabel = "phase"
+)
+
+var podPhaseLabels = []string{"Pending", "Running", "Unknown"}
 
 var (
 	// target is the per-pool replica count the autoscaler policy wants
@@ -56,10 +61,45 @@ var (
 		Name: "tuist_runners_autoscaler_min_warm_floor_replicas",
 		Help: "Configured minWarmPoolFloor per pool (spec.autoscaling.minWarmPoolFloor).",
 	}, []string{poolLabel})
+
+	// rollingPods is how many of a pool's Pods are mid-roll right now:
+	// drain-eligible stale-image Pods (committed to retire) plus
+	// current-image Pods not yet Ready (pulling/booting a replacement).
+	// This is the throttled quantity and must stay <= rollCap. Pinned at
+	// the cap with stalePods > 0 is a healthy in-progress roll;
+	// rollingPods > rollCap means the cap isn't being enforced (a bug).
+	rollingPods = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_pool_rolling_pods",
+		Help: "Pods mid-roll (drain-eligible stale + current-image not-Ready) per pool.",
+	}, []string{poolLabel})
+
+	// stalePods is how many alive Pods are still on a superseded image —
+	// the roll backlog. It decreases to 0 as the roll completes. Stuck
+	// > 0 (flat, not draining) while rollingPods is pinned is the
+	// "roll wedged" signal: a replacement isn't reaching Ready, so the
+	// cap never frees and the rollout can't advance.
+	stalePods = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_pool_stale_pods",
+		Help: "Alive Pods still on a superseded spec.image (image-roll backlog) per pool.",
+	}, []string{poolLabel})
+
+	// rollCap is the computed concurrency ceiling:
+	// max(1, floor(MaxConcurrentPercent/100 * replicas)). Exported so a
+	// dashboard/alert can compare rollingPods against the cap without
+	// re-deriving the policy.
+	rollCap = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_pool_roll_concurrency_cap",
+		Help: "Max Pods allowed mid-roll at once per pool (max(1, floor(pct/100 * replicas))).",
+	}, []string{poolLabel})
+
+	phaseReplicas = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_pool_phase_replicas",
+		Help: "Alive runner Pods per pool and Kubernetes phase.",
+	}, []string{poolLabel, phaseLabel})
 )
 
 func init() {
-	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor)
+	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor, rollingPods, stalePods, rollCap, phaseReplicas)
 }
 
 // RecordAllocation publishes one pool's allocation outcome for this
@@ -74,13 +114,50 @@ func RecordAllocation(pool string, load, floor, targetReplicas, allocatedReplica
 	warmDeficitReplicas.WithLabelValues(pool).Set(float64(warmDeficit(load, floor, targetReplicas, allocatedReplicas)))
 }
 
-// Clear drops a pool's series so a deleted (or opted-out) pool stops
-// reporting stale gauges. Safe to call for an unknown pool.
-func Clear(pool string) {
+// RecordRoll publishes a pool's image-roll progress for this reconcile
+// tick: how many Pods are mid-roll, how many remain on the old image,
+// and the concurrency cap they're throttled against. Steady state
+// (no roll) reports rolling=0, stale=0.
+func RecordRoll(pool string, rolling, stale, capacity int) {
+	rollingPods.WithLabelValues(pool).Set(float64(rolling))
+	stalePods.WithLabelValues(pool).Set(float64(stale))
+	rollCap.WithLabelValues(pool).Set(float64(capacity))
+}
+
+// RecordPodPhases publishes the pool's alive Pod count by Kubernetes
+// phase. Missing phase buckets are explicitly set to 0 so the dashboard
+// does not keep stale last_value samples after a pool drains.
+func RecordPodPhases(pool string, pending, running, unknown int) {
+	phaseReplicas.WithLabelValues(pool, "Pending").Set(float64(pending))
+	phaseReplicas.WithLabelValues(pool, "Running").Set(float64(running))
+	phaseReplicas.WithLabelValues(pool, "Unknown").Set(float64(unknown))
+}
+
+// ClearAutoscaler drops the autoscaler-owned series for a pool. Safe
+// to call for an unknown pool.
+func ClearAutoscaler(pool string) {
 	target.DeleteLabelValues(pool)
 	allocated.DeleteLabelValues(pool)
 	warmDeficitReplicas.DeleteLabelValues(pool)
 	minWarmFloor.DeleteLabelValues(pool)
+}
+
+// ClearRunnerPool drops the primary RunnerPool reconciler's series for
+// a pool. Safe to call for an unknown pool.
+func ClearRunnerPool(pool string) {
+	rollingPods.DeleteLabelValues(pool)
+	stalePods.DeleteLabelValues(pool)
+	rollCap.DeleteLabelValues(pool)
+	for _, phase := range podPhaseLabels {
+		phaseReplicas.DeleteLabelValues(pool, phase)
+	}
+}
+
+// Clear drops all pool series when the RunnerPool object is gone. Safe
+// to call for an unknown pool.
+func Clear(pool string) {
+	ClearAutoscaler(pool)
+	ClearRunnerPool(pool)
 }
 
 // warmDeficit is the warm-pool capacity the fleet allocator wanted to

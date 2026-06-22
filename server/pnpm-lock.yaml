@@ -9,7 +9,7 @@ overrides:
   ajv: 8.18.0
   axios: 1.16.0
   defu: 6.1.5
-  dompurify: 3.4.10
+  dompurify: 3.4.11
   fast-uri: 3.1.2
   flatted: 3.4.2
   follow-redirects: 1.16.0
@@ -18,6 +18,7 @@ overrides:
   postcss: 8.5.10
   protobufjs: 7.6.4
   shell-quote: 1.8.4
+  ts-deepmerge: 8.0.0
   yaml: 2.8.3
 
 time:
@@ -27,12 +28,13 @@ time:
   '@protobufjs/fetch@1.1.1': 2026-05-17T12:41:02.731Z
   '@protobufjs/utf8@1.1.1': 2026-04-27T20:31:28.490Z
   axios@1.16.0: 2026-05-02T15:04:00.274Z
-  dompurify@3.4.10: 2026-06-12T12:49:46.101Z
+  dompurify@3.4.11: 2026-06-17T10:33:28.065Z
   fast-uri@3.1.2: 2026-05-05T08:31:31.849Z
   form-data@4.0.6: 2026-06-12T17:37:53.689Z
   hasown@2.0.4: 2026-05-28T18:11:39.940Z
   protobufjs@7.6.4: 2026-06-12T12:10:59.442Z
   shell-quote@1.8.4: 2026-05-22T13:13:48.633Z
+  ts-deepmerge@8.0.0: 2026-05-22T00:15:00.073Z
 
 importers:
 
@@ -702,8 +704,8 @@ packages:
   devlop@1.1.0:
     resolution: {integrity: sha512-RWmIqhcFf1lRYBvNmr7qTNuyCt/7/ns2jbpp1+PalgE/rDQcBT0fioSMUpJ93irlUhC5hrg4cYqe6U+0ImW0rA==}
 
-  dompurify@3.4.10:
-    resolution: {integrity: sha512-0xzNv0e7oYC6yyuOGZIABPM4qtg3QxLFniDNPP4ZP90wR8Yq3zgwpRbrNiT4N3IKqDbbYFEJLV+JWEs19aZ//w==}
+  dompurify@3.4.11:
+    resolution: {integrity: sha512-zhlUV12GsaRzMsf9q5M254YhA4+VuF0fG+QFqu6aYpoGlKtz+w8//jBcGVYBgQkR5GHjUomejY84AV+/uPbWdw==}
 
   dunder-proto@1.0.1:
     resolution: {integrity: sha512-KIN/nDJBQRcXw0MLVhZE9iQHmG68qAVIBg9CqmUYjmQIhgij9U5MFvrqkUL5FbtyyzZuOeOt0zdeRe4UY7ct+A==}
@@ -1351,8 +1353,8 @@ packages:
     resolution: {integrity: sha512-QVsbr1WhGLq2F0oDyYbqtOXcf3gcnL8C9H5EX8bBwAr8ZWvWGJzukpPrDrWgJMrNtgDbo74BIjI4kJu3q2xQWw==}
     engines: {node: '>=18.18.0'}
 
-  ts-deepmerge@7.0.3:
-    resolution: {integrity: sha512-Du/ZW2RfwV/D4cmA5rXafYjBQVuvu4qGiEEla4EmEHVHgRdx68Gftx7i66jn2bzHPwSVZY36Ae6OuDn9el4ZKA==}
+  ts-deepmerge@8.0.0:
+    resolution: {integrity: sha512-133O+10nJmVI8w5xeVZPEv5PIrv7iaUae07wv1aH8XJH95Ur6YIhWAPhPyP1YPlbPS9fCVcNIZTu7m8urRVF0A==}
     engines: {node: '>=14.13.1'}
 
   tslib@2.3.0:
@@ -2067,7 +2069,7 @@ snapshots:
       '@scalar/helpers': 0.4.3
       flatted: 3.4.2
       just-clone: 6.2.0
-      ts-deepmerge: 7.0.3
+      ts-deepmerge: 8.0.0
 
   '@scalar/openapi-parser@0.25.8':
     dependencies:
@@ -2441,7 +2443,7 @@ snapshots:
     dependencies:
       dequal: 2.0.3
 
-  dompurify@3.4.10:
+  dompurify@3.4.11:
     optionalDependencies:
       '@types/trusted-types': 2.0.7
 
@@ -3071,7 +3073,7 @@ snapshots:
 
   monaco-editor@0.54.0:
     dependencies:
-      dompurify: 3.4.10
+      dompurify: 3.4.11
       marked: 14.0.0
 
   monaco-languageserver-types@0.4.0:
@@ -3159,7 +3161,7 @@ snapshots:
       '@posthog/core': 1.24.1
       '@posthog/types': 1.363.2
       core-js: 3.49.0
-      dompurify: 3.4.10
+      dompurify: 3.4.11
       fflate: 0.4.8
       preact: 10.29.0
       query-selector-shadow-dom: 1.0.1
@@ -3360,7 +3362,7 @@ snapshots:
       string-byte-length: 3.0.1
       string-byte-slice: 3.0.1
 
-  ts-deepmerge@7.0.3: {}
+  ts-deepmerge@8.0.0: {}
 
   tslib@2.3.0: {}
 

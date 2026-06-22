@@ -24,9 +24,10 @@ kuraController:
     limits:
       cpu: "500m"
       memory: "512Mi"
-  # cert-manager ClusterIssuer to use for the per-instance public HTTPS
-  # and gRPC TLS Certificates. Leave empty only when the runtime does not
-  # mount public TLS certificates, for example kind/dev clusters.
+  # cert-manager ClusterIssuer to use for the single per-instance public
+  # Certificate (`<name>-public-tls`). gRPC co-hosts on the public host, so
+  # there is no separate gRPC certificate. Leave empty only when the runtime
+  # does not mount public TLS certificates, for example kind/dev clusters.
   tlsClusterIssuer: ""
   # Deprecated alias for tlsClusterIssuer. Kept so existing overlays do
   # not break while the controller flag is still named grpc-cluster-issuer.
@@ -1445,6 +1446,17 @@ postgresql:
     database: tuist
     username: tuist
     password: tuist
+    # Name of an existing Kubernetes Secret containing the external
+    # Postgres connection values. When set, server and migration pods
+    # read host, username, and password from this Secret and compose
+    # DATABASE_URL through Kubernetes env-var substitution so the password
+    # is not rendered into the Helm manifest. `port` and `database` remain
+    # chart values. Leave empty to keep the legacy literal DATABASE_URL path.
+    existingSecret: ""
+    existingSecretKeys:
+      host: host
+      username: username
+      password: password
   embedded:
     image:
       repository: postgres
@@ -1780,4 +1792,3 @@ observability:
       accessModes:
         - ReadWriteOnce
       size: 20Gi
-

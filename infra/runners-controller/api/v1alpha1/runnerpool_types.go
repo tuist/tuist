@@ -104,6 +104,16 @@ type RunnerPoolSpec struct {
 	// pools stay at a static `Replicas` value (the v1 macOS shape).
 	// +optional
 	Autoscaling *RunnerPoolAutoscaling `json:"autoscaling,omitempty"`
+
+	// Rollout bounds how aggressively stale-image Pods are drained when
+	// `spec.image` changes. An image roll makes each affected node
+	// `tart pull` the new (tens-of-GB) image before it can boot a
+	// replacement; unthrottled, the whole fleet pulls at once and the
+	// warm pool collapses for minutes. The controller caps the number
+	// of Pods mid-roll and only drains more as in-flight rollers report
+	// Ready. Absent block = the built-in default (5%, min 1).
+	// +optional
+	Rollout *RunnerPoolRollout `json:"rollout,omitempty"`
 }
 
 // RunnerPoolAutoscaling carries the autoscaling knobs. Lives in
@@ -139,6 +149,23 @@ type RunnerPoolAutoscaling struct {
 	// Anti-thrash guard.
 	// +optional
 	ScaleDownCooldownSeconds int32 `json:"scaleDownCooldownSeconds,omitempty"`
+}
+
+// RunnerPoolRollout carries the image-roll throttle knob. Its own
+// pointer struct so an absent block keeps the spec wire-identical for
+// pools that don't override the default.
+type RunnerPoolRollout struct {
+	// MaxConcurrentPercent caps the number of Pods that may be mid-roll
+	// (draining the old image, or booting the new one before it reports
+	// Ready) at once, as a percentage of the pool's replica count,
+	// floored, with a hard minimum of 1 so a roll always makes
+	// progress. Lower keeps more of the warm pool serving during a roll
+	// at the cost of a slower rollout. Default 5.
+	// +kubebuilder:default=5
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=100
+	// +optional
+	MaxConcurrentPercent int32 `json:"maxConcurrentPercent,omitempty"`
 }
 
 // RunnerPoolStatus is the observed state of the pool.

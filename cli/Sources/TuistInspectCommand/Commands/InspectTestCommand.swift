@@ -43,6 +43,9 @@
         )
         var mode: TestProcessingMode?
 
+        @OptionGroup
+        var loggingOptions: LoggingOptions
+
         var jsonThroughNoora: Bool = false
 
         func run() async throws {

@@ -5,7 +5,7 @@ enum PackageResolver {
         packageDir: URL,
         scratchDir: URL? = nil,
         cache: Cache,
-        registryConfig: RegistryConfig,
+        registryConfig _: RegistryConfig,
         registryConfigurationPath: URL? = nil,
         defaultRegistryURL: String? = nil,
         disableSandbox: Bool,
@@ -15,7 +15,8 @@ enum PackageResolver {
         progress: ResolutionProgressReporter? = nil
     ) async throws -> ResolvedPins {
         let manifest = try await ManifestLoader.dumpPackage(
-            packageDir: packageDir, disableSandbox: disableSandbox)
+            packageDir: packageDir, disableSandbox: disableSandbox
+        )
         var manifestDependencies = try ManifestParser.dependencies(manifest)
         let localPackages = try await ManifestFileSystemDependencyGraph.collect(
             rootPackageDir: packageDir,
@@ -68,9 +69,7 @@ enum PackageResolver {
         )
         resolved.originHash = originHash
         resolved.pins = dedupePinsByIdentity(resolved.pins)
-        // Match SwiftPM's case-insensitive identity sort so the lockfile is
-        // byte-equivalent regardless of which tool wrote it.
-        resolved.pins.sort { $0.identity.lowercased() < $1.identity.lowercased() }
+        resolved = resolved.normalizedForResolvedFile()
         if writeResolvedFile {
             // SwiftPM writes Package.resolved with its own originHash; rewrite
             // with ours so consumers can detect manifest changes.
@@ -99,7 +98,7 @@ enum PackageResolver {
         let resolvedPath = packageDir.appendingPathComponent("Package.resolved")
         let snapshot =
             (!writeResolvedFile || !useExistingResolvedFile)
-            ? try await snapshotResolvedFile(at: resolvedPath) : nil
+                ? try await snapshotResolvedFile(at: resolvedPath) : nil
         if !useExistingResolvedFile {
             try? await fileSystem.removePath(resolvedPath)
         }
@@ -226,7 +225,9 @@ enum PackageResolver {
         if preferResolvedFile,
            let existing = try await ResolvedFile.readIfCurrent(packageDir: packageDir)
         {
-            return existing
+            return try await normalizeLoadedResolvedFile(
+                existing, packageDir: packageDir, writeResolvedFile: writeResolvedFile
+            )
         }
         // Mirror SwiftPM: `resolve` seeds the solver with the existing
         // Package.resolved (even a stale one) so only pins that no longer
@@ -256,13 +257,25 @@ enum PackageResolver {
         )
     }
 
+    private static func normalizeLoadedResolvedFile(
+        _ resolved: ResolvedPins,
+        packageDir: URL,
+        writeResolvedFile: Bool
+    ) async throws -> ResolvedPins {
+        let normalized = resolved.normalizedForResolvedFile()
+        if writeResolvedFile {
+            try await ResolvedFile.write(packageDir: packageDir, resolved: normalized)
+        }
+        return normalized
+    }
+
     static func dedupePinsByIdentity(_ pins: [ResolvedPin]) -> [ResolvedPin] {
         var order: [String] = []
         var chosen: [String: ResolvedPin] = [:]
         for pin in pins {
             let key = pin.identity.lowercased()
             if let existing = chosen[key] {
-                if existing.state.version == nil && pin.state.version != nil {
+                if existing.state.version == nil, pin.state.version != nil {
                     chosen[key] = pin
                 }
             } else {
@@ -313,10 +326,10 @@ enum PackageResolver {
         let prefix = "swift-tools-version"
         guard let colon = firstLine.range(of: prefix),
               let version = firstLine[colon.upperBound...]
-                .drop(while: { $0 == ":" || $0.isWhitespace })
-                .split(separator: ".", maxSplits: 2, omittingEmptySubsequences: false)
-                .prefix(2)
-                .map(String.init) as [String]?,
+              .drop(while: { $0 == ":" || $0.isWhitespace })
+              .split(separator: ".", maxSplits: 2, omittingEmptySubsequences: false)
+              .prefix(2)
+              .map(String.init) as [String]?,
               version.count >= 2,
               let major = Int(version[0]),
               let minor = Int(version[1].prefix(while: { $0.isNumber }))
@@ -329,7 +342,7 @@ enum PackageResolver {
         if toolsVersion.major > 5 || (toolsVersion.major == 5 && toolsVersion.minor > 9) {
             return 3
         }
-        if toolsVersion.major == 5 && toolsVersion.minor >= 6 {
+        if toolsVersion.major == 5, toolsVersion.minor >= 6 {
             return 2
         }
         return 1

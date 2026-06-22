@@ -139,6 +139,7 @@ async fn run_with_config(
     let notify = Notify::new();
 
     let bootstrap_semaphore = Arc::new(Semaphore::new(config.bootstrap_max_concurrent_peers));
+    let bootstrap_staging_budget = crate::utils::TmpBudget::new(config.tmp_dir_max_bytes);
     let state = Arc::new(AppState {
         config,
         _data_dir_lock: data_dir_lock,
@@ -157,6 +158,8 @@ async fn run_with_config(
         notify,
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
         bootstrap_semaphore,
+        bootstrap_staging_budget,
+        replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
     });
     state.sync_runtime_metrics().await;
     let drain_completion_timeout = Duration::from_millis(state.config.drain_completion_timeout_ms);

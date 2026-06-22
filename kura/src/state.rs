@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
     sync::Arc,
 };
 
@@ -13,6 +13,7 @@ use crate::{
     analytics::Analytics,
     bandwidth::BandwidthLimiter,
     config::Config,
+    constants::{REPLICATION_BACKOFF_BASE_SECS, REPLICATION_BACKOFF_MAX_SECS},
     extension::SharedExtension,
     geoip::GeoIp,
     io::IoController,
@@ -22,6 +23,7 @@ use crate::{
     runtime::{DataDirLock, HttpTrafficClass, InflightGuard, RuntimeState, TrafficState},
     store::Store,
     usage::Usage,
+    utils::TmpBudget,
 };
 
 const READINESS_SETTLE_WINDOW: Duration = Duration::from_secs(5);
@@ -44,6 +46,13 @@ pub struct AppState {
     pub notify: Notify,
     pub readiness: Mutex<ReadinessState>,
     pub bootstrap_semaphore: Arc<Semaphore>,
+    pub bootstrap_staging_budget: Arc<TmpBudget>,
+    pub replication_backoff: Mutex<HashMap<String, ReplicationBackoff>>,
+}
+
+pub struct ReplicationBackoff {
+    next_attempt: Instant,
+    failures: u32,
 }
 
 pub type SharedState = Arc<AppState>;
@@ -242,6 +251,33 @@ impl AppState {
 
     pub fn enter_draining(&self) -> bool {
         self.runtime.request_drain()
+    }
+
+    pub async fn replication_target_backed_off(&self, target: &str, now: Instant) -> bool {
+        self.replication_backoff
+            .lock()
+            .await
+            .get(target)
+            .is_some_and(|backoff| backoff.next_attempt > now)
+    }
+
+    pub async fn note_replication_success(&self, target: &str) {
+        self.replication_backoff.lock().await.remove(target);
+    }
+
+    pub async fn note_replication_failure(&self, target: &str, now: Instant) {
+        let mut backoffs = self.replication_backoff.lock().await;
+        let backoff = backoffs
+            .entry(target.to_string())
+            .or_insert(ReplicationBackoff {
+                next_attempt: now,
+                failures: 0,
+            });
+        backoff.failures = backoff.failures.saturating_add(1);
+        let delay_secs = REPLICATION_BACKOFF_BASE_SECS
+            .saturating_mul(2u64.saturating_pow(backoff.failures - 1))
+            .min(REPLICATION_BACKOFF_MAX_SECS);
+        backoff.next_attempt = now + Duration::from_secs(delay_secs);
     }
 
     #[cfg(test)]

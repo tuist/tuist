@@ -1,12 +1,140 @@
 .noora-table {
   box-sizing: border-box;
-  border-radius: var(--noora-radius-8);
+  position: relative;
+  box-shadow: var(--noora-border-light-default);
+  border-radius: var(--noora-radius-4);
   background: var(--noora-surface-table-header);
-  padding: var(--noora-spacing-2);
+  padding: var(--noora-spacing-0);
   width: 100%;
-  overflow-x: auto;
-  overscroll-behavior-x: none;
-  scroll-padding-right: var(--noora-spacing-2);
+
+  /* The horizontal scroll lives on an inner wrapper rather than `.noora-table` itself, so the
+   * scrollbar (and the space it occupies) only exist when the table actually overflows. The wrapper
+   * is auto-height and grows to fit the scrollbar below the content, so the last row is never
+   * clipped, and non-scrolling tables get no scrollbar gutter at all. */
+  & [data-part="scroll-container"] {
+    border-radius: var(--noora-radius-4);
+    width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: none;
+
+    /* Browsers make a horizontally scrollable region keyboard-focusable so it can be scrolled
+     * with the arrow keys. Replace the default full-bleed focus ring with a restrained inset
+     * one that follows the table's rounded corners, so a focused scroll area reads as a focused
+     * control rather than a selected table. */
+    &:focus-visible {
+      outline: 2px solid
+        light-dark(
+          var(--noora-neutral-light-1000),
+          var(--noora-neutral-dark-1200)
+        );
+      outline-offset: -2px;
+    }
+  }
+
+  /* Floating horizontal scrollbar, driven by the `NooraTable` hook. While the table is on screen
+   * but its native scrollbar is below the viewport, this proxy is fixed to the viewport bottom and
+   * synced with the scroll container; once the table's bottom scrolls into view, it hides and the
+   * native scrollbar takes over. Hidden whenever JS is unavailable. */
+  & [data-part="scrollbar"] {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    z-index: 2;
+    overflow-x: auto;
+    overscroll-behavior-x: none;
+
+    &[data-visible] {
+      display: block;
+    }
+
+    & > [data-part="scrollbar-content"] {
+      height: 1px;
+    }
+  }
+
+  /* Custom scrollbar, used where the native one cannot match the webkit-styled design: Firefox
+   * (no `::-webkit-scrollbar` support, so no thumb insets) and overlay-scrollbar platforms
+   * (the bar paints over content and hides at rest). The `NooraTable` hook suppresses the native
+   * bar, keeps the thumb in sync, and — mirroring the proxy scrollbar in webkit browsers — pins
+   * this bar to the viewport bottom while the table extends below it. */
+  & [data-part="overlay-scrollbar"] {
+    display: none;
+    position: absolute;
+    right: var(--noora-spacing-4);
+    /* With the 16px lane the hook pads below the body plus the root's 4px, this centers the 8px
+     * thumb — 6px to the last row above and 6px to the table edge below, matching webkit. */
+    bottom: 6px;
+    left: var(--noora-spacing-4);
+    z-index: 2;
+    height: 8px;
+
+    &[data-visible] {
+      display: block;
+    }
+
+    & > [data-part="overlay-thumb"] {
+      position: absolute;
+      top: 0;
+      height: 100%;
+      border-radius: var(--noora-radius-4);
+      background-color: light-dark(
+        var(--noora-neutral-light-600),
+        var(--noora-neutral-dark-600)
+      );
+      touch-action: none;
+    }
+  }
+
+  & [data-part="scroll-container"],
+  & [data-part="scrollbar"] {
+    /* `scrollbar-color` is inherited, and any non-`auto` value (e.g. an app-level global on
+     * `html`) makes Chromium ignore the `::-webkit-scrollbar` styling below, falling back to a
+     * full-width scrollbar. Reset both standard properties so the detailed styling applies
+     * regardless of the host app's globals. */
+    scrollbar-color: auto;
+    scrollbar-width: auto;
+
+    /* Firefox cannot style the scrollbar through `::-webkit-scrollbar`, and Chromium ignores those
+     * pseudo-elements whenever the standard `scrollbar-*` properties are set. Scoping the standard
+     * properties to Firefox lets Chromium/Safari fall through to the detailed styling below. */
+    @supports (scrollbar-width: thin) and (not selector(::-webkit-scrollbar)) {
+      /* #c1c1c1/#6b6b6b are the browser's default scrollbar thumb grays, so the table scrollbar
+       * matches the native ones elsewhere on the page. */
+      scrollbar-color: light-dark(
+          var(--noora-neutral-light-600),
+          var(--noora-neutral-dark-600)
+        )
+        transparent;
+      scrollbar-width: thin;
+    }
+
+    &::-webkit-scrollbar {
+      width: 12px;
+      height: 12px;
+      background: transparent;
+    }
+
+    &::-webkit-scrollbar-corner {
+      background: transparent;
+    }
+
+    &::-webkit-scrollbar-track {
+      margin: 0 var(--noora-spacing-2);
+      background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      border-color: transparent;
+      border-style: solid;
+      border-width: 2px 4px;
+      border-radius: var(--noora-radius-4);
+      background-color: light-dark(
+        var(--noora-neutral-light-600),
+        var(--noora-neutral-dark-600)
+      );
+      background-clip: padding-box;
+    }
+  }
 
   & table {
     position: relative;
@@ -19,13 +147,13 @@
     *  adding a pseudo element with standard layouting around the table and add a box-shadow around it. */
     &:has(td):after {
       position: absolute;
-      top: 40px;
+      top: 44px;
       right: 0;
       bottom: 0;
       left: 0;
       z-index: 1;
       box-shadow: var(--noora-border-light-default);
-      border-radius: var(--noora-radius-6);
+      border-radius: var(--noora-radius-4);
       pointer-events: none;
       content: "";
     }
@@ -33,26 +161,13 @@
     & tbody {
       background: transparent;
 
-      /* Using `overflow` set to `auto` or `scroll`, most browsers collapse the right padding when overflowing. This visually removes the
-      *  border around the body, which is unintended. To solve this, we are adding a pseudo element of the width of the padding to
-      *  the right of the table. This does not get collapsed and serves as a padding. */
-      &:after {
-        display: block;
-        position: absolute;
-        right: calc(var(--noora-spacing-2) * -1);
-        width: var(--noora-spacing-2);
-        height: 1px;
-        pointer-events: none;
-        content: "";
-      }
-
       & tr {
-        &[data-expanded] td {
+        &[data-state="expanded"] td {
           background-color: var(--noora-surface-background-secondary);
         }
+        /* No pointer cursor: the row is passive and only the disclosure button toggles it.
+         * The hover tint stays as a lightweight affordance that the row is interactive. */
         &[data-expandable] {
-          cursor: pointer;
-
           &:hover td {
             background-color: var(--noora-surface-background-secondary);
           }
@@ -73,10 +188,34 @@
             align-items: center;
             gap: var(--noora-spacing-5);
             padding-left: var(--noora-spacing-5);
-            & > svg {
+
+            /* The disclosure trigger: a bare, icon-only button wrapping the chevron. It carries
+             * the interaction (focus, click) so the row can stay passive. */
+            & > [data-part="expand-toggle"] {
+              display: inline-flex;
               flex-shrink: 0;
-              width: 16px;
-              height: 16px;
+              align-items: center;
+              justify-content: center;
+              margin: 0;
+              padding: 0;
+              border: 0;
+              border-radius: var(--noora-radius-2);
+              background: none;
+              color: inherit;
+              cursor: pointer;
+              appearance: none;
+
+              &:focus-visible {
+                outline: none;
+                box-shadow: var(--noora-button-border-secondary-focus);
+              }
+
+              /* The chevron is a 16px icon; the crossfade transition wraps it in a span, so the
+               * size is applied to the nested svg rather than a direct child. */
+              & svg {
+                width: 16px;
+                height: 16px;
+              }
             }
           }
 
@@ -87,6 +226,10 @@
           &[data-part="expanded-content"] {
             position: relative;
             background-color: var(--noora-surface-background-secondary);
+            /* Vertical padding must stay zero: the expanded row is always in the DOM, collapsed
+             * to zero height, and any padding here would leave a visible sliver between rows. */
+            padding-top: 0;
+            padding-bottom: 0;
             padding-left: var(--noora-spacing-8);
 
             &::before {
@@ -97,6 +240,37 @@
               background-color: var(--noora-surface-border-primary);
               width: 1px;
               content: "";
+            }
+
+            /* Animated reveal: the row's `data-state` drives a grid-row transition 0fr <-> 1fr.
+             * A transition (not mount/unmount keyframes) means expanding starts instantly,
+             * collapsing can never be cut short by element removal, and an interrupted toggle
+             * reverses from wherever it currently is. */
+            & [data-part="expand-wrapper"] {
+              display: grid;
+              grid-template-rows: 0fr;
+
+              @media (prefers-reduced-motion: no-preference) {
+                transition: grid-template-rows 200ms var(--ease-out-cubic);
+              }
+
+              tr[data-state="expanded"] + tr & {
+                grid-template-rows: 1fr;
+              }
+
+              & > [data-part="expand-wrapper-content"] {
+                min-height: 0;
+                overflow: hidden;
+                /* Hidden from interaction and find-in-page while collapsed; the delay holds
+                 * visibility through the collapse so content doesn't vanish mid-shrink. */
+                visibility: hidden;
+                transition: visibility 0s 200ms;
+
+                tr[data-state="expanded"] + tr & {
+                  visibility: visible;
+                  transition-delay: 0s;
+                }
+              }
             }
           }
         }
@@ -111,40 +285,61 @@
           inset;
       }
 
-      & tr:not(:last-child) td {
+      /* Expanded rows are excluded: they are always in the DOM, collapsed to zero height,
+       * and these paddings would otherwise win the cascade over the expanded-content cell's
+       * zero padding (same specificity, later in source) and leave a sliver between rows. */
+      & tr:not(:last-child):not([data-part="expanded-row"]) td {
         padding-bottom: 2px;
       }
 
-      & tr:not(:first-child) td {
+      & tr:not(:first-child):not([data-part="expanded-row"]) td {
         padding-top: 2px;
       }
 
       /* Border radius on the `tbody` itself is unsupported, so we're selectively adding radius to specific cells. */
       & tr:first-child {
         & td:first-child {
-          border-top-left-radius: var(--noora-radius-6);
+          border-top-left-radius: var(--noora-radius-4);
         }
         & td:last-child {
-          border-top-right-radius: var(--noora-radius-6);
+          border-top-right-radius: var(--noora-radius-4);
         }
       }
 
       & tr:last-child {
         & td:first-child {
-          border-bottom-left-radius: var(--noora-radius-6);
+          border-bottom-left-radius: var(--noora-radius-4);
         }
         & td:last-child {
-          border-bottom-right-radius: var(--noora-radius-6);
+          border-bottom-right-radius: var(--noora-radius-4);
+        }
+      }
+
+      /* When the last row is expandable, the final tbody child is its always-rendered expanded
+       * row. While that row is collapsed to zero height, the visible row above it carries the
+       * bottom radius instead. */
+      &
+        tr[data-state="collapsed"]:nth-last-child(2):has(
+          + tr[data-part="expanded-row"]
+        ) {
+        & td:first-child {
+          border-bottom-left-radius: var(--noora-radius-4);
+        }
+        & td:last-child {
+          border-bottom-right-radius: var(--noora-radius-4);
         }
       }
     }
   }
 
   & th {
+    /* Border-box so the hook's measured column widths (which include padding) can be pinned
+     * back as `min-width` without compounding. */
+    box-sizing: border-box;
     position: sticky;
     top: 0;
     background-color: var(--noora-surface-table-header);
-    padding: var(--noora-spacing-4) var(--noora-spacing-7)
+    padding: var(--noora-spacing-5) var(--noora-spacing-7)
       var(--noora-spacing-5) var(--noora-spacing-7);
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
@@ -157,6 +352,12 @@
 
       &:hover [data-part="icon"] {
         color: var(--noora-surface-label-primary);
+      }
+
+      /* The sort-direction arrow (the only header icon carrying `data-state`) is an indicator,
+       * not a button, so it stays `label-secondary` even while the header is hovered. */
+      &:hover [data-part="icon"][data-state] {
+        color: var(--noora-surface-label-secondary);
       }
     }
 
@@ -178,8 +379,45 @@
     }
   }
 
-  & [data-part="link"] {
+  /* Floating header, driven by the `NooraTable` hook: a fixed-position clone of the `thead`,
+   * appended to `body`, pinned to the viewport top while the table is scrolled past it. It also
+   * carries the `noora-table` class so the cloned header cells pick up the regular styling. */
+  &.noora-table-floating-header {
+    display: none;
+    position: fixed;
+    top: 0;
+    z-index: 2;
+    box-shadow: 0 1px 0 0
+      light-dark(var(--noora-neutral-light-400), var(--noora-neutral-dark-900));
+    /* Keep the table's top corner radius while detached, for consistency with the resting
+     * header. */
+    border-radius: 0;
+    overflow: hidden;
+
+    &[data-visible] {
+      display: block;
+    }
+  }
+
+  /* Whole-row navigation. A single real anchor lives in the first cell — one tab stop, announced
+   * once — and the `NooraTable` hook forwards clicks on the rest of the row to it. We drive this
+   * from JS rather than a stretched CSS overlay: an absolutely-positioned `::after` needs the
+   * `<tr>` as its containing block, but Safari/WebKit never makes a `<tr>` one, so the overlay
+   * escaped to the `<table>` and covered the whole grid — the topmost row's overlay then swallowed
+   * every click and hover. The JS hit area is row-wide in every engine and leaves text selectable. */
+  & [data-part="row-link"] {
+    display: block;
+    color: inherit;
     text-decoration: none;
+
+    &:focus-visible {
+      outline: 2px solid
+        light-dark(
+          var(--noora-neutral-light-1000),
+          var(--noora-neutral-dark-1200)
+        );
+      outline-offset: -2px;
+    }
   }
 
   & [data-part="cell"] {
