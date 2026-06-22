@@ -1426,7 +1426,27 @@ func defaultResources() corev1.ResourceRequirements {
 }
 
 func publicIngressAnnotations() map[string]string {
-	return streamingIngressAnnotations("HTTP")
+	annotations := streamingIngressAnnotations("HTTP")
+	// Enable response buffering on the REST cache location only (the gRPC Ingress
+	// keeps it off — streaming RPCs must not be buffered). With proxy-buffering
+	// off, ingress-nginx relays Kura's response at the client's pace and
+	// backpressures the upstream, so a slow or highly-concurrent client throttles
+	// Kura's splice/sendfile serving. Benchmarks showed ~15-20% lower aggregate
+	// download throughput than the legacy static-file path under concurrency,
+	// while single-stream was at parity. Buffering lets nginx drain Kura quickly
+	// and free the upstream connection, decoupling concurrent downloads from
+	// per-client pace. proxy-request-buffering stays off so multipart uploads
+	// keep streaming.
+	//
+	// Buffer sizes are an initial value to tune under load in staging:
+	// proxy-max-temp-file-size is 0 (disabled) on the gateway, so responses
+	// larger than the in-memory buffers still stream to the client; raising the
+	// buffers (or enabling temp files) is the lever for fully decoupling large
+	// artifacts.
+	annotations["nginx.ingress.kubernetes.io/proxy-buffering"] = "on"
+	annotations["nginx.ingress.kubernetes.io/proxy-buffers-number"] = "8"
+	annotations["nginx.ingress.kubernetes.io/proxy-buffer-size"] = "256k"
+	return annotations
 }
 
 func grpcIngressAnnotations() map[string]string {

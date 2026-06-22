@@ -124,6 +124,9 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if got := ingress.Annotations["nginx.ingress.kubernetes.io/proxy-request-buffering"]; got != "off" {
 		t.Fatalf("expected request buffering disabled for streaming uploads, got %q", got)
 	}
+	if got := ingress.Annotations["nginx.ingress.kubernetes.io/proxy-buffering"]; got != "on" {
+		t.Fatalf("expected response buffering enabled on the REST cache ingress to decouple concurrent downloads, got %q", got)
+	}
 	if got := ingress.Annotations["nginx.ingress.kubernetes.io/proxy-body-size"]; got != "0" {
 		t.Fatalf("expected unlimited public ingress body size, got %q", got)
 	}
@@ -1026,6 +1029,9 @@ func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 	}
 	if got := grpcIngress.Annotations["nginx.ingress.kubernetes.io/use-regex"]; got != "true" {
 		t.Fatalf("expected gRPC ingress to enable regex path matching, got %q", got)
+	}
+	if got := grpcIngress.Annotations["nginx.ingress.kubernetes.io/proxy-buffering"]; got != "off" {
+		t.Fatalf("expected response buffering to stay off on the gRPC ingress (streaming RPCs must not be buffered), got %q", got)
 	}
 
 	// The pre-seeded dedicated gRPC certificate and its Secret are retired;
