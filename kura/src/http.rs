@@ -1705,10 +1705,14 @@ async fn internal_status(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
 ) -> impl IntoResponse {
-    let advertise_gateway = state.config.peer_gateway_url.as_deref().is_some_and(|gateway| {
-        params.get("scope").map(String::as_str) == Some("global")
-            || request_reached_via_gateway(&uri, &headers, gateway)
-    });
+    let advertise_gateway = state
+        .config
+        .peer_gateway_url
+        .as_deref()
+        .is_some_and(|gateway| {
+            params.get("scope").map(String::as_str) == Some("global")
+                || request_reached_via_gateway(&uri, &headers, gateway)
+        });
     let node_url = match (&state.config.peer_gateway_url, advertise_gateway) {
         (Some(gateway), true) => gateway.clone(),
         _ => state.config.node_url.clone(),
@@ -2972,9 +2976,8 @@ mod tests {
             )
             .await
             .expect("request failed");
-        let via_authority_body: Value =
-            serde_json::from_str(&response_text(via_authority).await)
-                .expect("failed to decode via-authority status response");
+        let via_authority_body: Value = serde_json::from_str(&response_text(via_authority).await)
+            .expect("failed to decode via-authority status response");
         assert_eq!(
             via_authority_body["node_url"],
             "https://peer.tuist-eu-1.kura.tuist.dev:7443"
