@@ -71,12 +71,12 @@ endpoint_url = System.get_env("PREVIEW_KURA_URL")
 
 user =
   case Accounts.get_user_by_email(email) do
-    nil ->
+    {:error, :not_found} ->
       Logger.info("preview-seed: creating user " <> email)
       {:ok, user} = Accounts.create_user(email, handle: handle, password: password)
       user
 
-    user ->
+    {:ok, user} ->
       Logger.info("preview-seed: reusing existing user " <> email)
       user
   end
