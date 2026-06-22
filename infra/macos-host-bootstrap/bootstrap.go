@@ -242,6 +242,19 @@ type Config struct {
 	// token from a Secret before populating
 	// GHActionsRunner.GHRunnerRegistrationToken.
 	GHActionsRunner *GHActionsRunnerConfig
+
+	// DisableVMGC passes `--disable-vm-gc` to tart-kubelet when true.
+	// It exists so the drift-update path can preserve the flag without
+	// re-resolving GHActionsRunner: `Run` always sets GHActionsRunner on
+	// builder hosts (and renderLaunchdPlist follows that), but
+	// `UpdateTartKubelet` re-renders the plist on every binary roll
+	// without re-resolving the runner config — resolving it would mint a
+	// fresh registration token on each drift loop for no reason. Without
+	// this field the roll renders a flag-less plist and the orphan-VM GC
+	// comes back, reaping the in-flight build VM mid-`tart push`. The
+	// reconciler sets it from `machine.Spec.GHActionsRunner != nil` on
+	// both the bootstrap and update paths.
+	DisableVMGC bool
 }
 
 // Run executes the bootstrap. Idempotent: re-running on a partially-
@@ -608,15 +621,19 @@ func renderLaunchdPlist(cfg Config) string {
 	if cfg.ProviderID != "" {
 		providerIDArg = fmt.Sprintf("\n    <string>--provider-id=%s</string>", cfg.ProviderID)
 	}
-	// Builder-fleet hosts (GHActionsRunner set) never have Pods
-	// scheduled but bake images with a host-level Packer/`tart`
-	// process. tart-kubelet's orphan-VM GC treats every local VM not
-	// backed by a Pod as collectable, so it would reap the in-flight
-	// build VM mid-`tart push` (the push then fails at the NVRAM layer
-	// with `nvram.bin doesn't exist`). Disable the GC there; the
-	// image-bake workflow reclaims its own Tart disk.
+	// Builder-fleet hosts never have Pods scheduled but bake images with
+	// a host-level Packer/`tart` process. tart-kubelet's orphan-VM GC
+	// treats every local VM not backed by a Pod as collectable, so it
+	// would reap the in-flight build VM mid-`tart push` (the push then
+	// fails at the NVRAM layer with `nvram.bin doesn't exist`). Disable
+	// the GC there; the image-bake workflow reclaims its own Tart disk.
+	//
+	// GHActionsRunner != nil identifies a builder on the bootstrap path;
+	// DisableVMGC carries the same intent on the drift-update path, which
+	// re-renders the plist without re-resolving the runner config (see
+	// the field comment). Either is sufficient.
 	disableVMGCArg := ""
-	if cfg.GHActionsRunner != nil {
+	if cfg.GHActionsRunner != nil || cfg.DisableVMGC {
 		disableVMGCArg = "\n    <string>--disable-vm-gc</string>"
 	}
 	// Run tart-kubelet as the SSH user (m1). Apple's

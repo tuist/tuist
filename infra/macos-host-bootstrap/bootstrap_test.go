@@ -89,6 +89,21 @@ func TestRenderLaunchdPlist_RendersDisableVMGCForBuilder(t *testing.T) {
 	}
 }
 
+// The drift-update path re-renders the plist without re-resolving
+// GHActionsRunner, so it sets DisableVMGC directly. Without honoring it
+// here, a binary roll would strip --disable-vm-gc from a builder and the
+// orphan-VM GC would reap the in-flight image-bake VM mid-`tart push`.
+func TestRenderLaunchdPlist_RendersDisableVMGCWhenSet(t *testing.T) {
+	out := renderLaunchdPlist(Config{
+		NodeName:    "n1",
+		SSHUser:     "m1",
+		DisableVMGC: true,
+	})
+	if !strings.Contains(out, "<string>--disable-vm-gc</string>") {
+		t.Fatalf("expected --disable-vm-gc in plist when DisableVMGC is set\n%s", out)
+	}
+}
+
 // HostKeyState is the SSH-side TOFU primitive. The first observation
 // of a host key on a fresh state is captured; later observations
 // against a state seeded with KnownHostFingerprint must match.
