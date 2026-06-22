@@ -164,7 +164,7 @@ defmodule Tuist.Environment do
     [username, password] =
       parsed_url.userinfo
       |> String.split(":", parts: 2)
-      |> Enum.map(&URI.decode_www_form/1)
+      |> Enum.map(&URI.decode/1)
 
     [
       database: String.replace_prefix(parsed_url.path, "/", ""),

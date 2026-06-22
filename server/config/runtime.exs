@@ -155,14 +155,15 @@ if Enum.member?([:prod, :stag, :can], env) do
         tcp_keepalives_count: "3"
       ]
 
-  database_options = [
-    pool_size: Tuist.Environment.database_pool_size(secrets),
-    queue_target: Tuist.Environment.database_queue_target(secrets),
-    queue_interval: Tuist.Environment.database_queue_interval(secrets),
-    socket_options: socket_opts,
-    parameters: postgres_parameters,
-    prepare: if(pooled?, do: :unnamed, else: :named)
-  ] ++ database_config
+  database_options =
+    [
+      pool_size: Tuist.Environment.database_pool_size(secrets),
+      queue_target: Tuist.Environment.database_queue_target(secrets),
+      queue_interval: Tuist.Environment.database_queue_interval(secrets),
+      socket_options: socket_opts,
+      parameters: postgres_parameters,
+      prepare: if(pooled?, do: :unnamed, else: :named)
+    ] ++ database_config
 
   database_options =
     if Tuist.Environment.use_ssl_for_database?() do

@@ -3,6 +3,7 @@ defmodule Tuist.Release do
   Used for executing DB release tasks when run in production without Mix
   installed.
   """
+  alias Ecto.Adapters.SQL
   alias Tuist.Environment
 
   require Logger
@@ -17,9 +18,12 @@ defmodule Tuist.Release do
     )
 
     for repo <- repos() do
-      {:ok, _, _} = Ecto.Migrator.with_repo(repo, &check_and_execute_structure_sql(&1))
-      {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :up, all: true))
-      grant_runtime_role(repo)
+      {:ok, _, _} =
+        Ecto.Migrator.with_repo(repo, fn repo ->
+          check_and_execute_structure_sql(repo)
+          Ecto.Migrator.run(repo, :up, all: true)
+          grant_runtime_role(repo)
+        end)
     end
   end
 
@@ -105,7 +109,7 @@ defmodule Tuist.Release do
     config = repo.config()
     app_name = Keyword.fetch!(config, :otp_app)
 
-    if Ecto.Adapters.SQL.table_exists?(repo, "schema_migrations") do
+    if SQL.table_exists?(repo, "schema_migrations") do
       Logger.info("schema_migrations table already exists")
       :ok
     else
@@ -141,7 +145,7 @@ defmodule Tuist.Release do
   defp grant_runtime_role(_repo), do: :ok
 
   defp do_grant_runtime_role(repo, role) do
-    unless Regex.match?(~r/^[a-zA-Z_][a-zA-Z0-9_]*$/, role) do
+    if !Regex.match?(~r/^[a-zA-Z_][a-zA-Z0-9_]*$/, role) do
       raise "TUIST_DATABASE_RUNTIME_ROLE must be a valid unquoted PostgreSQL identifier, " <>
               "got: #{inspect(role)}"
     end
@@ -149,22 +153,24 @@ defmodule Tuist.Release do
     role = quote_identifier(role)
     database = repo.config() |> Keyword.fetch!(:database) |> quote_identifier()
 
-    [
-      "REVOKE CREATE ON SCHEMA public FROM PUBLIC",
-      "REVOKE CREATE ON DATABASE #{database} FROM PUBLIC",
-      "GRANT CONNECT ON DATABASE #{database} TO #{role}",
-      "GRANT USAGE ON SCHEMA public TO #{role}",
-      "REVOKE CREATE ON SCHEMA public FROM #{role}",
-      "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO #{role}",
-      "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO #{role}",
-      "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO #{role}",
-      "REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.schema_migrations FROM #{role}",
-      "GRANT SELECT ON TABLE public.schema_migrations TO #{role}",
-      "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO #{role}",
-      "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO #{role}",
-      "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO #{role}"
-    ]
-    |> Enum.each(&Ecto.Adapters.SQL.query!(repo, &1, []))
+    Enum.each(
+      [
+        "REVOKE CREATE ON SCHEMA public FROM PUBLIC",
+        "REVOKE CREATE ON DATABASE #{database} FROM PUBLIC",
+        "GRANT CONNECT ON DATABASE #{database} TO #{role}",
+        "GRANT USAGE ON SCHEMA public TO #{role}",
+        "REVOKE CREATE ON SCHEMA public FROM #{role}",
+        "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO #{role}",
+        "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO #{role}",
+        "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO #{role}",
+        "REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.schema_migrations FROM #{role}",
+        "GRANT SELECT ON TABLE public.schema_migrations TO #{role}",
+        "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO #{role}",
+        "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO #{role}",
+        "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO #{role}"
+      ],
+      &SQL.query!(repo, &1, [])
+    )
   end
 
   defp quote_identifier(identifier) do
