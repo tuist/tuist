@@ -63,6 +63,23 @@ defmodule Tuist.Kura.Regions do
       hetzner_location: "fsn1",
       ingress_class_name: "kura-eu-central",
       node_pool: "kura"
+    },
+    # EU Central on Scaleway Dedibox bare metal. Staging-only for now (gated by
+    # TUIST_KURA_AVAILABLE_REGIONS); the eventual eu-central cutover reuses this
+    # shape. Bare metal differs from the Hetzner regions in three ways the region
+    # spec captures: no `hetzner_location` (so the gateway gets no cloud-LB
+    # location annotation), a local-NVMe `storage_class` (Dedibox can't attach
+    # network block storage and a regenerable cache wants fast local disk), and
+    # `gateway: :host_network` — Dedibox has no Hetzner LoadBalancer, so the
+    # gateway binds the node's public IP via hostNetwork instead.
+    %{
+      id: "dedibox-staging",
+      display_name: "EU Central (Dedibox)",
+      cluster_id: "dedibox-staging-1",
+      ingress_class_name: "kura-dedibox-staging",
+      node_pool: "kura-dedibox",
+      storage_class: "scw-local-nvme",
+      gateway: :host_network
     }
   ]
   # Private runner-cache regions. Both share the same model: a single-
@@ -246,11 +263,12 @@ defmodule Tuist.Kura.Regions do
       provisioner: KubernetesController,
       provisioner_config: %{
         cluster_id: spec.cluster_id,
-        hetzner_location: spec.hetzner_location,
+        hetzner_location: Map.get(spec, :hetzner_location),
         public_host_template: String.replace(@managed_region_public_host_template, "{env_suffix}", host_suffix),
         grpc_public_host_template: String.replace(@managed_region_grpc_public_host_template, "{env_suffix}", host_suffix),
         ingress_class_name: spec.ingress_class_name,
-        storage_class: @managed_region_storage_class,
+        storage_class: Map.get(spec, :storage_class, @managed_region_storage_class),
+        gateway: Map.get(spec, :gateway, :hetzner),
         tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
         node_selector: %{@managed_region_node_pool_label => spec.node_pool},
         dedicated_gateway_account_handles: Tuist.Environment.kura_dedicated_gateway_account_handles(),

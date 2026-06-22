@@ -469,6 +469,65 @@ func TestKuraGatewayReconcileCreatesDedicatedIngressInfrastructure(t *testing.T)
 	}
 }
 
+func TestKuraGatewayReconcileHostNetworkBindsNodeDirectly(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	gateway := &kurav1alpha1.KuraGateway{
+		ObjectMeta: metav1.ObjectMeta{Name: "kgw-def456-dedibox-staging", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraGatewaySpec{
+			Region:           "dedibox-staging",
+			IngressClassName: "kura-dedibox-staging-kgw-def456",
+			Replicas:         ptr(int32(1)),
+			NodeSelector:     map[string]string{"node.cluster.x-k8s.io/pool": "kura-dedibox"},
+			HostNetwork:      true,
+		},
+	}
+	reconciler := &KuraGatewayReconciler{
+		Client:                    fake.NewClientBuilder().WithScheme(scheme).WithObjects(gateway).WithStatusSubresource(gateway).Build(),
+		Scheme:                    scheme,
+		GatewayServiceAccountName: "tuist-kura-controller-gateway-ingress-nginx",
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: gateway.Name, Namespace: gateway.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	service := &corev1.Service{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: gatewayWorkloadName(gateway), Namespace: gateway.Namespace}, service); err != nil {
+		t.Fatalf("expected gateway Service: %v", err)
+	}
+	if service.Spec.Type != corev1.ServiceTypeClusterIP {
+		t.Fatalf("expected ClusterIP Service on bare metal, got %q", service.Spec.Type)
+	}
+	if service.Spec.ExternalTrafficPolicy != "" {
+		t.Fatalf("expected no externalTrafficPolicy on ClusterIP Service, got %q", service.Spec.ExternalTrafficPolicy)
+	}
+	if len(service.Annotations) != 0 {
+		t.Fatalf("expected no Hetzner LB annotations on host-network gateway, got %v", service.Annotations)
+	}
+
+	deployment := &appsv1.Deployment{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: gatewayWorkloadName(gateway), Namespace: gateway.Namespace}, deployment); err != nil {
+		t.Fatalf("expected gateway Deployment: %v", err)
+	}
+	if !deployment.Spec.Template.Spec.HostNetwork {
+		t.Fatalf("expected host-network pod so nginx binds the node public IP")
+	}
+	if got := deployment.Spec.Template.Spec.DNSPolicy; got != corev1.DNSClusterFirstWithHostNet {
+		t.Fatalf("expected ClusterFirstWithHostNet DNS, got %q", got)
+	}
+	if got := deployment.Spec.Template.Spec.NodeSelector["node.cluster.x-k8s.io/pool"]; got != "kura-dedibox" {
+		t.Fatalf("expected gateway pinned to the bare-metal pool, got %q", got)
+	}
+}
+
 func TestKuraInstanceReconcilePeerTLSSecretCreatesValidMaterial(t *testing.T) {
 	ctx := context.Background()
 	scheme := runtime.NewScheme()

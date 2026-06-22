@@ -192,9 +192,15 @@ func (r *KuraGatewayReconciler) reconcileGatewayService(ctx context.Context, gat
 			return err
 		}
 		service.Labels = gatewayLabels(gateway)
-		service.Annotations = gateway.Spec.ServiceAnnotations()
-		service.Spec.Type = corev1.ServiceTypeLoadBalancer
-		service.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyLocal
+		if gateway.Spec.HostNetwork {
+			service.Annotations = nil
+			service.Spec.Type = corev1.ServiceTypeClusterIP
+			service.Spec.ExternalTrafficPolicy = ""
+		} else {
+			service.Annotations = gateway.Spec.ServiceAnnotations()
+			service.Spec.Type = corev1.ServiceTypeLoadBalancer
+			service.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyLocal
+		}
 		service.Spec.Selector = gatewaySelectorLabels(gateway)
 		service.Spec.Ports = []corev1.ServicePort{
 			{Name: "http", Port: 80, TargetPort: intstr.FromString("http"), Protocol: corev1.ProtocolTCP},
@@ -243,6 +249,8 @@ func gatewayPodTemplate(gateway *kurav1alpha1.KuraGateway, serviceAccountName st
 	return corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{Labels: gatewaySelectorLabels(gateway)},
 		Spec: corev1.PodSpec{
+			HostNetwork:        gateway.Spec.HostNetwork,
+			DNSPolicy:          gatewayDNSPolicy(gateway),
 			ServiceAccountName: serviceAccountName,
 			NodeSelector:       gateway.Spec.PodNodeSelector(),
 			Containers: []corev1.Container{{
@@ -280,6 +288,13 @@ func gatewayPodTemplate(gateway *kurav1alpha1.KuraGateway, serviceAccountName st
 	}
 }
 
+func gatewayDNSPolicy(gateway *kurav1alpha1.KuraGateway) corev1.DNSPolicy {
+	if gateway.Spec.HostNetwork {
+		return corev1.DNSClusterFirstWithHostNet
+	}
+	return corev1.DNSClusterFirst
+}
+
 func gatewayHealthProbe() *corev1.Probe {
 	return &corev1.Probe{
 		ProbeHandler: corev1.ProbeHandler{HTTPGet: &corev1.HTTPGetAction{
@@ -307,12 +322,31 @@ func (r *KuraGatewayReconciler) gatewayStatus(ctx context.Context, gateway *kura
 		}
 		return gatewayStatusState{}, err
 	}
+	ready := deployment.Status.ReadyReplicas
+	replicas := gatewayReplicas(gateway)
+
+	// Host-network gateways bind the node's public IP directly and have no
+	// cloud LoadBalancer to wait on, so readiness gates on replicas alone.
+	if gateway.Spec.HostNetwork {
+		if ready >= replicas {
+			return gatewayStatusState{
+				phase:         "Ready",
+				readyReplicas: ready,
+				loadBalancer:  "host-network",
+				message:       fmt.Sprintf("%d/%d gateway replicas ready (hostNetwork)", ready, replicas),
+			}, nil
+		}
+		return gatewayStatusState{
+			phase:         "Pending",
+			readyReplicas: ready,
+			message:       fmt.Sprintf("%d/%d gateway replicas ready (hostNetwork)", ready, replicas),
+		}, nil
+	}
+
 	loadBalancer, err := r.gatewayLoadBalancer(ctx, gateway)
 	if err != nil {
 		return gatewayStatusState{}, err
 	}
-	ready := deployment.Status.ReadyReplicas
-	replicas := gatewayReplicas(gateway)
 	if ready >= replicas && loadBalancer != "" {
 		return gatewayStatusState{
 			phase:         "Ready",

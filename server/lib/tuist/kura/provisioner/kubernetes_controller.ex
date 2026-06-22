@@ -254,6 +254,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "nodeSelector" => node_selector(region),
           "loadBalancerAnnotations" => gateway_load_balancer_annotations(gateway_name, region)
         }
+        |> maybe_put_host_network(region)
         |> Enum.reject(fn {_key, value} -> value in [nil, ""] or value == %{} end)
         |> Map.new()
     }
@@ -441,6 +442,15 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp gateway_replicas(%Regions{provisioner_config: %{gateway_replicas: replicas}}), do: replicas
   defp gateway_replicas(_region), do: 2
+
+  defp maybe_put_host_network(spec, region) do
+    if gateway_host_network?(region), do: Map.put(spec, "hostNetwork", true), else: spec
+  end
+
+  defp gateway_host_network?(%Regions{provisioner_config: %{gateway: :host_network}}), do: true
+  defp gateway_host_network?(_region), do: false
+
+  defp gateway_load_balancer_annotations(_gateway_name, %Regions{provisioner_config: %{gateway: :host_network}}), do: %{}
 
   defp gateway_load_balancer_annotations(gateway_name, %Regions{provisioner_config: config}) do
     annotations = %{

@@ -206,6 +206,26 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert annotations["load-balancer.hetzner.cloud/uses-proxyprotocol"] == "true"
       assert String.starts_with?(annotations["load-balancer.hetzner.cloud/name"], "tuist-kgw-")
       refute String.contains?(annotations["load-balancer.hetzner.cloud/name"], "tuist-us")
+
+      refute Map.has_key?(gateway_manifest["spec"], "hostNetwork")
+    end
+
+    test "renders a host-network gateway without Hetzner LoadBalancer annotations on bare-metal regions" do
+      region =
+        us_east_region(%{
+          gateway: :host_network,
+          dedicated_gateway_account_handles: ["tuist"]
+        })
+
+      gateway_manifest =
+        KubernetesController.gateway_manifest(
+          %{name: "kgw-test-us-east", ingress_class_name: "kura-us-east-kgw-test-us-east"},
+          %{name: "tuist"},
+          region
+        )
+
+      assert gateway_manifest["spec"]["hostNetwork"] == true
+      refute Map.has_key?(gateway_manifest["spec"], "loadBalancerAnnotations")
     end
 
     test "uses the region-configured Tuist server URL for managed eu-central Kura instances" do
