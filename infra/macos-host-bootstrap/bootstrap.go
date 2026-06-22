@@ -1252,12 +1252,28 @@ if [ -n "$CIDR" ]; then
   esac
 fi
 if [ -n "$PNCIDR" ]; then
-  PNIF=$(route -n get "${PNCIDR%%%%/*}" 2>/dev/null | awk '/interface/{print $2}')
-  case "$PNIF" in
-    vlan*)
-      RULES="${RULES}nat on $PNIF from 192.168.64.0/22 to $PNCIDR -> ($PNIF)${NL}"
-      ;;
-  esac
+  # route-get on the PN network base address ("${PNCIDR%%%%/*}", e.g.
+  # 172.16.0.0) resolves to the parent physical NIC (en0), not the macOS VLAN
+  # that owns the subnet, so a 'case vlan*' on its output never matched and the
+  # NAT was silently skipped — VM traffic then egressed with its 192.168.64.x
+  # source, which the kura node can neither reply to nor admit past its
+  # NetworkPolicy. Pick the interface directly: the bootstrap creates exactly
+  # one PN VLAN (networksetup -createVLAN pn en0), so it is the vlan* device
+  # holding an inet address; skip until DHCP lands one (StartInterval re-runs).
+  PNIF=""
+  for IFACE in $(ifconfig -l 2>/dev/null); do
+    case "$IFACE" in
+      vlan*)
+        if ifconfig "$IFACE" 2>/dev/null | grep -q "inet "; then
+          PNIF="$IFACE"
+          break
+        fi
+        ;;
+    esac
+  done
+  if [ -n "$PNIF" ]; then
+    RULES="${RULES}nat on $PNIF from 192.168.64.0/22 to $PNCIDR -> ($PNIF)${NL}"
+  fi
 fi
 [ -z "$RULES" ] && exit 0
 # pf requires normalization (scrub) before translation (nat) within
