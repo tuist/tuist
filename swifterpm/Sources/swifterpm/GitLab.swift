@@ -8,7 +8,7 @@ struct GitLabRepo: Sendable {
     init(location: String) throws {
         let normalized = Self.normalize(location)
         guard let url = URL(string: normalized),
-            let host = url.host?.lowercased()
+              let host = url.host?.lowercased()
         else {
             throw ToolError.message("not a GitLab URL")
         }
@@ -17,8 +17,8 @@ struct GitLabRepo: Sendable {
             .split(separator: "/")
             .map(String.init)
             .joined(separator: "/")
-        guard Self.isKnownGitLabHost(host),
-            path.split(separator: "/").count >= 2
+        guard Self.isKnownHost(host),
+              path.split(separator: "/").count >= 2
         else {
             throw ToolError.message("not a GitLab URL")
         }
@@ -33,8 +33,8 @@ struct GitLabRepo: Sendable {
         let apiHost = env["GITLAB_API_HOST"]?.gitLabNormalizedHost ?? host
         let apiScheme =
             env["GITLAB_URI"].flatMap(URL.init(string:))?.scheme
-            ?? env["GITLAB_HOST"].flatMap(URL.init(string:))?.scheme
-            ?? scheme
+                ?? env["GITLAB_HOST"].flatMap(URL.init(string:))?.scheme
+                ?? scheme
         return URL(string: "\(apiScheme)://\(apiHost)/api/v4")!
     }
 
@@ -55,12 +55,12 @@ struct GitLabRepo: Sendable {
         if location.hasPrefix("ssh://git@") {
             return
                 location
-                .replacingOccurrences(of: "ssh://git@", with: "https://")
+                    .replacingOccurrences(of: "ssh://git@", with: "https://")
         }
         return location
     }
 
-    private static func isKnownGitLabHost(_ host: String) -> Bool {
+    static func isKnownHost(_ host: String) -> Bool {
         if host == "gitlab.com" || host.contains("gitlab") {
             return true
         }
@@ -101,11 +101,11 @@ enum GitLabAuth {
 
         var header: [String: String] {
             switch self {
-            case .privateToken(let token):
+            case let .privateToken(token):
                 return ["PRIVATE-TOKEN": token]
-            case .jobToken(let token):
+            case let .jobToken(token):
                 return ["JOB-TOKEN": token]
-            case .bearer(let token):
+            case let .bearer(token):
                 return ["Authorization": "Bearer \(token)"]
             }
         }
@@ -145,11 +145,10 @@ private actor GitLabTokenCache {
             return .jobToken(token)
         }
 
-        guard
-            let output = try? await SystemProcess.output(
-                "/usr/bin/env",
-                ["glab", "config", "get", "token", "--host", host]
-            )
+        guard let output = try? await SystemProcess.output(
+            "/usr/bin/env",
+            ["glab", "config", "get", "token", "--host", host]
+        )
         else {
             return nil
         }
@@ -159,7 +158,7 @@ private actor GitLabTokenCache {
 
     private func nonEmpty(_ value: String?) -> String? {
         guard let token = value?.trimmingCharacters(in: .whitespacesAndNewlines),
-            !token.isEmpty
+              !token.isEmpty
         else {
             return nil
         }
@@ -213,10 +212,11 @@ enum GitLabAPI {
                 repo.encodedProjectPath, ["repository", "archive.tar.gz"]
             )
             .appending(queryItems: [
-                URLQueryItem(name: "sha", value: revision)
+                URLQueryItem(name: "sha", value: revision),
             ])
         try await HTTPClient.download(
-            url: url, destination: destination, headers: try await headers(for: repo))
+            url: url, destination: destination, headers: try await headers(for: repo)
+        )
     }
 
     private static func headers(for repo: GitLabRepo) async throws -> [String: String] {

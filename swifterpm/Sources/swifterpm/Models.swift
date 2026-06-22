@@ -37,6 +37,21 @@ struct ResolvedPins: Codable, Sendable {
         case pins
         case version
     }
+
+    func normalizedForResolvedFile() -> ResolvedPins {
+        var normalized = self
+        normalized.pins = pins
+            .map { $0.normalizedForResolvedFile() }
+            .sorted {
+                let lhsIdentity = $0.identity.lowercased()
+                let rhsIdentity = $1.identity.lowercased()
+                if lhsIdentity == rhsIdentity {
+                    return $0.location.lowercased() < $1.location.lowercased()
+                }
+                return lhsIdentity < rhsIdentity
+            }
+        return normalized
+    }
 }
 
 struct ResolvedPin: Codable, Equatable, Sendable {
@@ -118,6 +133,29 @@ struct ResolvedPin: Codable, Equatable, Sendable {
         case state
     }
 
+    func normalizedForResolvedFile() -> ResolvedPin {
+        var normalized = self
+        if let originalLocation {
+            normalized.originalLocation = Self.normalizedRemoteSourceControlLocation(originalLocation)
+        }
+        guard PinKind.isSourceControl(kind),
+              kind != "localSourceControl",
+              !location.hasPrefix("/"),
+              URL(string: location)?.isFileURL != true
+        else { return normalized }
+
+        normalized.identity = identity.lowercased()
+        normalized.location = Self.normalizedRemoteSourceControlLocation(location)
+        return normalized
+    }
+
+    private static func normalizedRemoteSourceControlLocation(_ location: String) -> String {
+        guard !location.hasPrefix("/"),
+              URL(string: location)?.isFileURL != true
+        else { return location }
+        return SourceControlLocations.canonicalResolvedFileLocation(location)
+    }
+
     func revision() throws -> String {
         guard let revision = state.revision else {
             throw ToolError.message("\(identity) does not have a source-control revision")
@@ -164,6 +202,7 @@ enum ResolvedFile {
             try await fileSystem.removePath(path)
             return
         }
+        let resolved = resolved.normalizedForResolvedFile()
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         let data = try encoder.encode(resolved) + Data("\n".utf8)

@@ -103,7 +103,7 @@ struct ModelsTests {
     }
 
     @Test
-    func resolvedPinRoundTripsOriginalLocationFromReplaceSCMWithRegistry() async throws {
+    func registryPinNormalizesOriginalLocationFromReplaceSCMWithRegistry() async throws {
         // SwiftPM emits `originalLocation` on pins it rewrote via
         // --replace-scm-with-registry so the next resolve can skip the
         // registry identifier lookup. Dropping it on the read/write
@@ -119,7 +119,14 @@ struct ModelsTests {
                         kind: "registry",
                         location: "",
                         state: ResolvedState(branch: nil, revision: nil, version: "1.5.0"),
-                        originalLocation: "https://github.com/apple/swift-log.git"
+                        originalLocation: "https://github.com/Apple/swift-log.git"
+                    ),
+                    ResolvedPin(
+                        identity: "example.package",
+                        kind: "registry",
+                        location: "",
+                        state: ResolvedState(branch: nil, revision: nil, version: "2.0.0"),
+                        originalLocation: "HTTPS://Source.Example.com/Tuist/SwifterPM.git"
                     ),
                 ],
                 version: 3
@@ -127,49 +134,114 @@ struct ModelsTests {
 
             try await ResolvedFile.write(packageDir: root, resolved: resolved)
             let readBack = try await ResolvedFile.read(packageDir: root)
-            #expect(readBack.pins.first?.originalLocation == "https://github.com/apple/swift-log.git")
+            let readBackByIdentity = Dictionary(uniqueKeysWithValues: readBack.pins.map {
+                ($0.identity, $0)
+            })
+            #expect(readBackByIdentity["apple.swift-log"]?.originalLocation == "https://github.com/apple/swift-log")
+            #expect(readBackByIdentity["example.package"]?.originalLocation == "https://source.example.com/Tuist/SwifterPM.git")
 
             let resolvedFilePath = root.appendingPathComponent("Package.resolved")
             let rawData = try await fileSystem.readFile(at: resolvedFilePath.absolutePath)
-            let rawContents = try #require(String(data: rawData, encoding: .utf8))
-            #expect(rawContents.contains("\"originalLocation\""))
+            let rawPayload = try #require(
+                JSONSerialization.jsonObject(with: rawData) as? [String: Any]
+            )
+            let rawPins = try #require(rawPayload["pins"] as? [[String: Any]])
+            let rawPinsByIdentity = Dictionary(
+                uniqueKeysWithValues: rawPins.compactMap { pin -> (String, [String: Any])? in
+                    guard let identity = pin["identity"] as? String else { return nil }
+                    return (identity, pin)
+                }
+            )
+            #expect(rawPinsByIdentity["apple.swift-log"]?["originalLocation"] as? String == "https://github.com/apple/swift-log")
+            #expect(rawPinsByIdentity["example.package"]?["originalLocation"] as? String ==
+                "https://source.example.com/Tuist/SwifterPM.git")
         }
     }
 
     @Test
-    func writePreservesDeclaredLocationsAndSkipsIdenticalRewrites() async throws {
+    func writeNormalizesRemoteLocationsAndSkipsIdenticalRewrites() async throws {
         try await withTemporaryDirectory { root in
             try await writeMinimalPackageManifest(at: root, name: "Fixture")
-            // Locations must be persisted exactly as declared in manifests:
-            // ssh form, mixed case, and the .git suffix all stay untouched so
-            // Package.resolved stays interchangeable with SwiftPM's output.
-            let locations = [
-                "git@github.com:riversidefm/Riverside-Mobile-Shared.git",
-                "https://github.com/openid/AppAuth-iOS.git",
-                "https://github.com/jpsim/Yams",
+            let pins = [
+                ResolvedPin(
+                    identity: "CombineExt",
+                    kind: "remoteSourceControl",
+                    location: "https://github.com/CombineCommunity/CombineExt.git",
+                    state: ResolvedState(
+                        branch: nil, revision: "abcdef123456", version: "1.0.0"
+                    )
+                ),
+                ResolvedPin(
+                    identity: "dd-sdk-ios",
+                    kind: "remoteSourceControl",
+                    location: "git@github.com:DataDog/dd-sdk-ios.git",
+                    state: ResolvedState(
+                        branch: nil, revision: "abcdef123456", version: "1.0.0"
+                    )
+                ),
+                ResolvedPin(
+                    identity: "swifterpm",
+                    kind: "remoteSourceControl",
+                    location: "https://gitlab.com/Tuist/SwifterPM.git",
+                    state: ResolvedState(
+                        branch: nil, revision: "abcdef123456", version: "1.0.0"
+                    )
+                ),
+                ResolvedPin(
+                    identity: "generic",
+                    kind: "remoteSourceControl",
+                    location: "HTTPS://Source.Example.com/Tuist/SwifterPM.git",
+                    state: ResolvedState(
+                        branch: nil, revision: "abcdef123456", version: "1.0.0"
+                    )
+                ),
+                ResolvedPin(
+                    identity: "LocalPackage",
+                    kind: "localSourceControl",
+                    location: "file:///tmp/LocalPackage.git",
+                    state: ResolvedState(
+                        branch: nil, revision: "abcdef123456", version: "1.0.0"
+                    )
+                ),
             ]
             let resolved = try ResolvedPins(
                 originHash: await ResolvedFile.packageOriginHash(packageDir: root),
-                pins: locations.enumerated().map { index, location in
-                    ResolvedPin(
-                        identity: "dependency-\(index)",
-                        kind: "remoteSourceControl",
-                        location: location,
-                        state: ResolvedState(
-                            branch: nil, revision: "abcdef123456", version: "1.0.0"
-                        )
-                    )
-                },
+                pins: pins,
                 version: 3
             )
 
             try await ResolvedFile.write(packageDir: root, resolved: resolved)
             let resolvedFilePath = try root.appendingPathComponent("Package.resolved").absolutePath
             let rawData = try await fileSystem.readFile(at: resolvedFilePath)
-            let rawContents = try #require(String(data: rawData, encoding: .utf8))
-            for location in locations {
-                #expect(rawContents.contains("\"\(location)\""))
-            }
+            let rawPayload = try #require(
+                JSONSerialization.jsonObject(with: rawData) as? [String: Any]
+            )
+            let rawPins = try #require(rawPayload["pins"] as? [[String: Any]])
+            let rawPinsByIdentity = Dictionary(
+                uniqueKeysWithValues: rawPins.compactMap { pin -> (String, [String: Any])? in
+                    guard let identity = pin["identity"] as? String else { return nil }
+                    return (identity, pin)
+                }
+            )
+            let rawLocations = Set(rawPins.compactMap { $0["location"] as? String })
+            #expect(
+                try await ResolvedFile.read(packageDir: root).pins
+                    == resolved.normalizedForResolvedFile().pins)
+            #expect(Set(rawPinsByIdentity.keys) == Set([
+                "LocalPackage",
+                "combineext",
+                "dd-sdk-ios",
+                "generic",
+                "swifterpm",
+            ]))
+            #expect(rawPinsByIdentity["combineext"]?["location"] as? String == "https://github.com/combinecommunity/combineext")
+            #expect(rawPinsByIdentity["dd-sdk-ios"]?["location"] as? String == "git@github.com:datadog/dd-sdk-ios")
+            #expect(rawPinsByIdentity["swifterpm"]?["location"] as? String == "https://gitlab.com/tuist/swifterpm")
+            #expect(rawPinsByIdentity["generic"]?["location"] as? String == "https://source.example.com/Tuist/SwifterPM.git")
+            #expect(rawPinsByIdentity["LocalPackage"]?["location"] as? String == "file:///tmp/LocalPackage.git")
+            #expect(!rawLocations.contains("https://github.com/CombineCommunity/CombineExt.git"))
+            #expect(!rawLocations.contains("git@github.com:DataDog/dd-sdk-ios.git"))
+            #expect(!rawLocations.contains("HTTPS://Source.Example.com/Tuist/SwifterPM.git"))
 
             // Rewriting unchanged content must leave the file untouched.
             let modificationDate = try await fileSystem.fileMetadata(at: resolvedFilePath)?
