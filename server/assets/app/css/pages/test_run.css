@@ -763,7 +763,7 @@
             0px 21.667px 13.333px 0px oklch(31.3% 0 0 / 0.05),
             0px 10px 10px 0px oklch(31.3% 0 0 / 0.09),
             0px 2.5px 5px 0px oklch(31.3% 0 0 / 0.1),
-            0px 0px 0px 0.833px oklch(31.8% 0.011 248.2 / 0.08);
+            0px 0px 0px 0.833px oklch(32% 0.005 247.968 / 0.08);
         }
 
         & > img[data-theme="dark"] {
@@ -1115,7 +1115,7 @@
         0px 21.667px 13.333px 0px oklch(31.3% 0 0 / 0.05),
         0px 10px 10px 0px oklch(31.3% 0 0 / 0.09),
         0px 2.5px 5px 0px oklch(31.3% 0 0 / 0.1),
-        0px 0px 0px 0.833px oklch(31.8% 0.011 248.2 / 0.08);
+        0px 0px 0px 0.833px oklch(32% 0.005 247.968 / 0.08);
     }
 
     img[data-theme="dark"] {
