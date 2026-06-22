@@ -74,7 +74,7 @@ defmodule Tuist.MixProject do
       {:encrypted_secrets, "~> 0.3.0"},
       {:ex_aws, "~> 2.6"},
       {:ex_aws_s3,
-       git: "https://github.com/tuist/ex_aws_s3/", ref: "7f3278bef49cc3fa6b4138a4077804d328a41c9c", override: true},
+       git: "https://github.com/tuist/ex_aws_s3/", ref: "9ec181b45787f684d59d4830cedcf7377f16aaeb", override: true},
       {:ex_cldr, "~> 2.37"},
       {:ex_cldr_numbers, "~> 2.38"},
       {:number, "~> 1.0"},
