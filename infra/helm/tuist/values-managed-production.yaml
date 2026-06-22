@@ -133,6 +133,12 @@ postgresql:
   mode: cnpg
   cnpg:
     instances: 3
+    roles:
+      web:
+        # The WEB_DATABASE_PASSWORD Secret has reconciled in production, so keep
+        # server pods on the least-privilege runtime role instead of the
+        # rollout-only auto gate.
+        useForServer: true
     # Route the processor through the transaction-mode PgBouncer pooler.
     # Web tier stays direct on `-rw` (it holds a long-lived ~75-conn pool
     # that wouldn't benefit from session-mode bouncing); the processor's

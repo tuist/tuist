@@ -186,6 +186,12 @@ postgresql:
   mode: cnpg
   cnpg:
     instances: 2
+    roles:
+      web:
+        # Keep staging aligned with canary/production for the runtime role
+        # cutover. Deploy only after the web-role Secret is reconciled in the
+        # staging cluster.
+        useForServer: true
     # PostgreSQL config sized against the 4 GiB memory limit below. CNPG
     # otherwise leaves Postgres on its 128 MiB shared_buffers default;
     # mirror the production tuning shape so canary catches any regression
