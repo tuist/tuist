@@ -67,6 +67,25 @@ k8s-monitoring:
         name: k8s-monitoring-grafana-cloud
         namespace: observability
       extraLabels: {}
+      # Last-stop write relabeling for labels / metrics that survive the
+      # feature-level allow-lists below. These labels are restart-scoped
+      # Kubernetes identifiers that multiply otherwise equivalent series and
+      # are not used by dashboards in this repo.
+      metricProcessingRules: |
+        write_relabel_config {
+          action = "labeldrop"
+          regex = "container_id|uid|pod_ip|image_id|image_spec|k8s_pod_uid"
+        }
+        write_relabel_config {
+          source_labels = ["__name__"]
+          regex = "node_network_(receive|transmit)_drop_total|traces_service_graph_request_.*"
+          action = "drop"
+        }
+        write_relabel_config {
+          source_labels = ["job"]
+          regex = "integrations/(process|self)"
+          action = "drop"
+        }
 
     grafana-cloud-logs:
       type: loki
@@ -152,13 +171,45 @@ k8s-monitoring:
       metricsTuning:
         useDefaultAllowList: true
     kube-state-metrics:
+      # Do not blank the `pod` label on kube_pod_* metrics: relabeling
+      # cannot aggregate duplicate samples, so that produces colliding
+      # series rather than namespace-level totals. Instead, remove the
+      # runner namespace from pod-scoped KSM metrics and use low-cardinality
+      # RunnerPool telemetry in the runner dashboard. Keep
+      # kube_pod_status_unschedulable available cluster-wide because it is a
+      # cheap placement signal compared to the rest of kube_pod_*.
+      extraMetricProcessingRules: |
+        rule {
+          source_labels = ["__name__", "namespace"]
+          separator = ";"
+          regex = "kube_pod_status_unschedulable;tuist-runners"
+          target_label = "__tmp_keep_runner_pod_metric"
+          replacement = "true"
+          action = "replace"
+        }
+        rule {
+          source_labels = ["__name__", "namespace", "__tmp_keep_runner_pod_metric"]
+          separator = ";"
+          regex = "kube_pod_.*;tuist-runners;"
+          action = "drop"
+        }
+        rule {
+          regex = "__tmp_keep_runner_pod_metric"
+          action = "labeldrop"
+        }
       metricsTuning:
         useDefaultAllowList: true
+        includeMetrics:
+          - kube_pod_status_unschedulable
         excludeMetrics:
           # We page on container waiting/termination reasons, not pod-level
           # status reasons. This metric fans out by pod × reason and was one
           # of the highest-cardinality series in Grafana Cloud.
           - kube_pod_status_reason
+          # PersistentVolume phase is useful for storage inventory, but we
+          # monitor actual usage / pressure through PVC and kubelet volume
+          # stats. The phase gauge fans out by PV × phase and is unused.
+          - kube_persistentvolume_status_phase
 
   # Streams Kubernetes Events to Loki as structured logs. Cheap and
   # extremely useful for post-mortem ("what got evicted, when, why").
@@ -336,6 +387,7 @@ k8s-monitoring:
             app.kubernetes.io/name: alloy-metrics
           metrics:
             tuning:
+              useDefaultAllowList: false
               includeMetrics:
                 - alloy_config_last_load_successful
                 - alloy_config_last_load_success_timestamp_seconds
@@ -346,6 +398,7 @@ k8s-monitoring:
             app.kubernetes.io/name: alloy-logs
           metrics:
             tuning:
+              useDefaultAllowList: false
               includeMetrics:
                 - alloy_config_last_load_successful
                 - alloy_config_last_load_success_timestamp_seconds
@@ -356,6 +409,7 @@ k8s-monitoring:
             app.kubernetes.io/name: alloy-singleton
           metrics:
             tuning:
+              useDefaultAllowList: false
               includeMetrics:
                 - alloy_config_last_load_successful
                 - alloy_config_last_load_success_timestamp_seconds
@@ -366,6 +420,7 @@ k8s-monitoring:
             app.kubernetes.io/name: alloy-receiver
           metrics:
             tuning:
+              useDefaultAllowList: false
               includeMetrics:
                 - alloy_config_last_load_successful
                 - alloy_config_last_load_success_timestamp_seconds
@@ -442,12 +497,7 @@ k8s-monitoring:
 
         prometheus.scrape "tuist_macos_node_exporter" {
           targets = discovery.relabel.tuist_macos_node_exporter.output
-          // Top-level extraConfig sits OUTSIDE the chart's `declare`
-          // blocks, so `argument.metrics_destinations.value` is out of
-          // scope here. Forward straight to the concrete Grafana Cloud
-          // metrics destination (matches the `destinations` key in
-          // values.yaml — dashes → underscores per Alloy syntax).
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          forward_to = [prometheus.relabel.tuist_macos_node_exporter.receiver]
           job_name = "tuist-macos-node-exporter"
           scrape_interval = "30s"
           scrape_timeout = "10s"
@@ -462,6 +512,20 @@ k8s-monitoring:
           clustering {
             enabled = true
           }
+        }
+
+        prometheus.relabel "tuist_macos_node_exporter" {
+          rule {
+            source_labels = ["__name__"]
+            regex = "up|scrape_samples_scraped|node_exporter_build_info|node_cpu_seconds_total|node_memory_.*|node_filesystem_.*|node_disk_(read|written)_bytes_total|node_filefd_(allocated|maximum)|node_load.*|node_network_(receive|transmit)_bytes_total|node_pressure_.*|node_sockstat_(TCP_alloc|TCP_inuse|TCP_tw|sockets_used)|node_vmstat_oom_kill|process_cpu_seconds_total|process_resident_memory_bytes"
+            action = "keep"
+          }
+          // Top-level extraConfig sits OUTSIDE the chart's `declare`
+          // blocks, so `argument.metrics_destinations.value` is out of
+          // scope here. Forward straight to the concrete Grafana Cloud
+          // metrics destination (matches the `destinations` key in
+          // values.yaml, dashes to underscores per Alloy syntax).
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
         }
 
         // tart-kubelet's controller-runtime metrics endpoint. Carries
