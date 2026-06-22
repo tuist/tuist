@@ -141,12 +141,6 @@ postgresql:
   mode: cnpg
   cnpg:
     instances: 2
-    roles:
-      web:
-        # The WEB_DATABASE_PASSWORD Secret has reconciled in canary, so keep
-        # server pods on the least-privilege runtime role instead of the
-        # rollout-only auto gate.
-        useForServer: true
     # PostgreSQL config sized against the 8 GiB memory limit below. CNPG
     # otherwise leaves Postgres on its 128 MiB shared_buffers default;
     # mirror the production tuning shape so canary catches any regression

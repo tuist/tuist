@@ -6,39 +6,30 @@ The chart-rendered `Cluster` CR ([`infra/helm/tuist/templates/postgresql-cnpg.ya
 
 ## Files
 
-- Web runtime grants are applied automatically by `Tuist.Release.migrate/0` when `TUIST_DATABASE_RUNTIME_ROLE` is set (the Helm chart sets it to `postgresql.cnpg.roles.web.name` for managed CNPG migration jobs after the web-role rollout gate opens). The migration role keeps owning schema changes, and the web role gets DML on application tables plus read-only access to `schema_migrations`.
+- Web runtime grants are applied automatically by `Tuist.Release.migrate/0` when `TUIST_DATABASE_RUNTIME_ROLE` is set (the Helm chart sets it to `postgresql.cnpg.roles.web.name` for managed CNPG migration jobs). The migration role keeps owning schema changes, and the web role gets DML on application tables plus read-only access to `schema_migrations`.
 - [`tuist-processor-grants.sql`](./tuist-processor-grants.sql) — `oban_jobs` / `oban_peers` write grants for the `tuist_processor` role. The role itself is created declaratively by CNPG via `managed.roles[]`; this file adds the per-table privileges the worker needs.
 - [`tuist-ops-ro-grants.sql`](./tuist-ops-ro-grants.sql) — `CONNECT` on the application database for the `tuist_ops_ro` role, plus an explicit `REVOKE` of write privileges on `public` (defense-in-depth against a future grant-by-default change in Postgres widening `pg_read_all_data`). The role is for ad-hoc operator psql access; the `/ops/db` LiveView uses Tuist.Repo under the web runtime role and enforces read-only at the app layer (see `Tuist.Ops.Database.execute/2`).
 - [`pg-stat-statements.sql`](./pg-stat-statements.sql) — `CREATE EXTENSION pg_stat_statements`, enabling the per-query latency metrics (`cnpg_tuist_query_stats_*`) that back the dashboard's query-latency panels. The library is preloaded via the chart (`postgresql.cnpg.sharedPreloadLibraries`); this creates the reading view. **Runs against `postgres`, not `tuist`** (the metrics exporter queries the instance-global view from the maintenance database). Only relevant when `postgresql.cnpg.queryStats.enabled` is set. **Only for clusters bootstrapped before query-stats was enabled** — fresh clusters create the extension automatically via the Cluster CR's `bootstrap.initdb.postInitSQL`, and it persists across restores. (A future CNPG >= 1.26 upgrade would let `Database.spec.extensions` reconcile it declaratively on existing clusters too.)
 
 ## When to run
 
-- **Once per env, immediately after the CNPG `Cluster` reports `phase: Cluster in healthy state`** — the cluster has bootstrapped its primary, ESO has synced the managed-role password Secrets, and CNPG has created the roles themselves. Web runtime grants are part of the migration Job once the web-role rollout gate opens; the first deploy can safely just provision the role, and the next deploy grants/switches before web pods roll. The processor's `oban_jobs` grants only make sense after the first Ecto migration, so run the SQL files *after* the migration Job ran for the first time too.
+- **Once per env, immediately after the CNPG `Cluster` reports `phase: Cluster in healthy state`** — the cluster has bootstrapped its primary, ESO has synced the managed-role password Secrets, and CNPG has created the roles themselves. Web runtime grants are part of the managed CNPG migration Job; the processor's `oban_jobs` grants only make sense after the first Ecto migration, so run the SQL files *after* the migration Job ran for the first time too.
 - **After a fresh cluster restore from a backup** — `pg_basebackup`-style restores re-create role objects but not the per-table GRANT state, so the SQL re-runs are needed.
 
 The files use `GRANT … TO <role>` against pre-existing tables and roles, so re-running them on an existing cluster is a no-op outside of explicit grant changes.
 
 ## Managed web runtime role cutover
 
-Managed staging, canary, and production now force:
-
-```yaml
-postgresql:
-  cnpg:
-    roles:
-      web:
-        useForServer: true
-```
-
-That keeps the steady state explicit: migration jobs use the CNPG owner Secret,
-server pods use the `tuist_web` runtime role Secret, and migrations grant
-`tuist_web` after schema changes by setting `TUIST_DATABASE_RUNTIME_ROLE`.
+Managed CNPG deployments use an explicit least-privilege steady state:
+migration jobs use the CNPG owner Secret, server pods use the `tuist_web`
+runtime role Secret, and migrations grant `tuist_web` after schema changes by
+setting `TUIST_DATABASE_RUNTIME_ROLE`.
 
 Before deploying this setting to an environment, confirm ESO has synced
 `WEB_DATABASE_PASSWORD` and CNPG has reconciled the managed role Secret. For a
-brand-new managed environment, keep `useForServer: auto` or `false` for the
-first deploy if the web-role Secret does not exist yet, then flip it to `true`
-after the Secret is present.
+brand-new managed environment, provision the web-role Secret before switching
+`server.managedSecrets` with `postgresql.mode: cnpg`, otherwise the server
+Deployment and migration Job will reference a role that is not ready yet.
 
 ## How to run
 
