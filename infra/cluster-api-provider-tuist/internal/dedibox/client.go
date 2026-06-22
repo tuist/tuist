@@ -282,7 +282,7 @@ func (c *Client) ResolveOS(ctx context.Context, zone string, serverID uint64, os
 	q := url.Values{}
 	q.Set("project_id", c.ProjectID)
 	q.Set("server_id", strconv.FormatUint(serverID, 10))
-	q.Set("page_size", "200")
+	q.Set("page_size", "100")
 	var resp scwdedibox.ListOSResponse
 	if err := c.t.get(ctx, "/dedibox/v1/zones/"+zone+"/os", q, &resp); err != nil {
 		return OSChoice{}, fmt.Errorf("list installable OS for server %d: %w", serverID, err)
