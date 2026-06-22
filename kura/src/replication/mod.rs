@@ -488,31 +488,43 @@ async fn stream_response_to_temp(
     // reservation: an inconsistent peer serving a body larger than its manifest
     // advertised is rejected here instead of overrunning the budget.
     let mut destination = state.io.create_file(path).await?;
-    let mut stream = response.bytes_stream();
-    let mut total: u64 = 0;
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|error| format!("failed to stream bootstrap body: {error}"))?;
-        total = total.saturating_add(chunk.len() as u64);
-        if total > staging_limit {
-            drop(destination);
-            state.io.remove_file_if_exists(path).await;
-            return Err(format!(
-                "bootstrap artifact response exceeded reserved {staging_limit} bytes"
-            ));
+    let dest = &mut destination;
+    let outcome = async move {
+        let mut stream = response.bytes_stream();
+        let mut total: u64 = 0;
+        while let Some(chunk) = stream.next().await {
+            let chunk =
+                chunk.map_err(|error| format!("failed to stream bootstrap body: {error}"))?;
+            total = total.saturating_add(chunk.len() as u64);
+            if total > staging_limit {
+                return Err(format!(
+                    "bootstrap artifact response exceeded reserved {staging_limit} bytes"
+                ));
+            }
+            if let Some(limiter) = state.replication_bandwidth_limiter.as_ref() {
+                limiter.acquire(chunk.len()).await;
+            }
+            dest.write_all(&chunk)
+                .await
+                .map_err(|error| format!("failed to persist bootstrap body: {error}"))?;
         }
-        if let Some(limiter) = state.replication_bandwidth_limiter.as_ref() {
-            limiter.acquire(chunk.len()).await;
-        }
-        destination
-            .write_all(&chunk)
+        dest.flush()
             .await
-            .map_err(|error| format!("failed to persist bootstrap body: {error}"))?;
+            .map_err(|error| format!("failed to flush bootstrap body: {error}"))?;
+        Ok::<(), String>(())
     }
-    destination
-        .flush()
-        .await
-        .map_err(|error| format!("failed to flush bootstrap body: {error}"))?;
-    Ok(())
+    .await;
+
+    // Drop the handle, then remove the partially-staged file on any failure. A
+    // peer serving incomplete data or a dropped connection (the bootstrap deadlock
+    // case) would otherwise leave one temp file per attempt; a retrying bootstrap
+    // accumulates them until the data disk fills and RocksDB can no longer open,
+    // wedging the pod out-of-space.
+    drop(destination);
+    if outcome.is_err() {
+        state.io.remove_file_if_exists(path).await;
+    }
+    outcome
 }
 
 async fn fetch_bootstrap_manifests_page(
