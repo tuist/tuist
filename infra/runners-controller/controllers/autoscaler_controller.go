@@ -103,7 +103,7 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if apierrors.IsNotFound(err) {
 			// Pool is gone — drop its allocation series so the
 			// dashboard doesn't keep charting a stale warm deficit.
-			metrics.Clear(req.Name)
+			metrics.ClearAutoscaler(req.Name)
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
@@ -113,7 +113,7 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		// Pool is being drained by the RunnerPoolReconciler's
 		// finalizer. Don't patch replicas on a Terminating CR, and
 		// don't requeue — the drain owns its lifecycle from here.
-		metrics.Clear(pool.Name)
+		metrics.ClearAutoscaler(pool.Name)
 		return ctrl.Result{}, nil
 	}
 
@@ -121,7 +121,7 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		// Pool opted out (or never opted in) — don't requeue.
 		// A future patch that flips `enabled` true will trigger
 		// a fresh reconcile via the For() watch.
-		metrics.Clear(pool.Name)
+		metrics.ClearAutoscaler(pool.Name)
 		return ctrl.Result{}, nil
 	}
 

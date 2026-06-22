@@ -12,6 +12,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   alias Tuist.Ops.HourlySlackReportWorker
   alias Tuist.Runners.Workers.PruneArchivedLogsWorker
   alias Tuist.Slack.Workers.ReportWorker
+  alias Tuist.Storage.Workers.DeleteExpiredCasCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredGradleCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredXcodeCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredXcodeModuleCacheArtifactsWorker
@@ -67,6 +68,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         refute HourlySlackReportWorker in workers
         refute UpdateAllAccountsUsageWorker in workers
         refute ScheduleExpiredArtifactsWorker in workers
+        refute DeleteExpiredCasCacheArtifactsWorker in workers
         refute DeleteExpiredXcodeCacheArtifactsWorker in workers
         refute DeleteExpiredXcodeModuleCacheArtifactsWorker in workers
         refute DeleteExpiredGradleCacheArtifactsWorker in workers
@@ -92,6 +94,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         assert HourlySlackReportWorker in workers
         assert UpdateAllAccountsUsageWorker in workers
         assert ScheduleExpiredArtifactsWorker in workers
+        assert DeleteExpiredCasCacheArtifactsWorker in workers
         assert DeleteExpiredXcodeCacheArtifactsWorker in workers
         assert DeleteExpiredXcodeModuleCacheArtifactsWorker in workers
         assert DeleteExpiredGradleCacheArtifactsWorker in workers

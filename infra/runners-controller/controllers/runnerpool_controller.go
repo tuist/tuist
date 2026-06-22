@@ -151,6 +151,17 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, fmt.Errorf("list pods: %w", err)
 	}
 
+	phaseReplicas := podPhaseReplicaCounts{}
+	for i := range pods.Items {
+		p := &pods.Items[i]
+		if isAlive(p) {
+			phaseReplicas.add(p)
+		}
+	}
+	defer func() {
+		metrics.RecordPodPhases(pool.Name, phaseReplicas.pending, phaseReplicas.running, phaseReplicas.unknown)
+	}()
+
 	alive := 0
 	reaped := 0
 	staleAlive := 0
@@ -263,6 +274,7 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			continue
 		}
 		alive--
+		phaseReplicas.remove(p)
 		rolling++
 	}
 	for _, p := range drainCandidates {
@@ -298,6 +310,7 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			logger.Error(err, "create runner; will retry")
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
+		phaseReplicas.pending++
 	}
 
 	// Scale-down: alive > target. Delete IDLE Pods first — those
@@ -313,6 +326,7 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			logger.Error(err, "scale-down delete; will retry", "pod", p.Name)
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
+		phaseReplicas.remove(p)
 		scaledDown++
 	}
 
@@ -455,6 +469,40 @@ func (r *RunnerPoolReconciler) reapRunner(ctx context.Context, pod *corev1.Pod) 
 // once Pod.DeletionTimestamp is set.
 func (r *RunnerPoolReconciler) reapAlivePod(ctx context.Context, pod *corev1.Pod) error {
 	return r.reapRunner(ctx, pod)
+}
+
+type podPhaseReplicaCounts struct {
+	pending int
+	running int
+	unknown int
+}
+
+func (c *podPhaseReplicaCounts) add(pod *corev1.Pod) {
+	switch pod.Status.Phase {
+	case corev1.PodPending:
+		c.pending++
+	case corev1.PodRunning:
+		c.running++
+	default:
+		c.unknown++
+	}
+}
+
+func (c *podPhaseReplicaCounts) remove(pod *corev1.Pod) {
+	switch pod.Status.Phase {
+	case corev1.PodPending:
+		if c.pending > 0 {
+			c.pending--
+		}
+	case corev1.PodRunning:
+		if c.running > 0 {
+			c.running--
+		}
+	default:
+		if c.unknown > 0 {
+			c.unknown--
+		}
+	}
 }
 
 // isAlive returns true for Pods that should count toward `replicas`:

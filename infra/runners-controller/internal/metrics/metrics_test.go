@@ -1,6 +1,10 @@
 package metrics
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/prometheus/client_golang/prometheus/testutil"
+)
 
 func TestWarmDeficit(t *testing.T) {
 	tests := []struct {
@@ -50,5 +54,43 @@ func TestWarmDeficit(t *testing.T) {
 					tt.load, tt.floor, tt.tgt, tt.alloc, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestClearAutoscalerLeavesRunnerPoolPhaseReplicas(t *testing.T) {
+	const pool = "p"
+
+	target.Reset()
+	allocated.Reset()
+	warmDeficitReplicas.Reset()
+	minWarmFloor.Reset()
+	phaseReplicas.Reset()
+
+	RecordAllocation(pool, 1, 2, 3, 3)
+	RecordPodPhases(pool, 4, 5, 6)
+
+	ClearAutoscaler(pool)
+
+	if got := testutil.ToFloat64(phaseReplicas.WithLabelValues(pool, "Pending")); got != 4 {
+		t.Fatalf("Pending phase replicas after ClearAutoscaler = %v, want 4", got)
+	}
+	if got := testutil.ToFloat64(phaseReplicas.WithLabelValues(pool, "Running")); got != 5 {
+		t.Fatalf("Running phase replicas after ClearAutoscaler = %v, want 5", got)
+	}
+	if got := testutil.ToFloat64(phaseReplicas.WithLabelValues(pool, "Unknown")); got != 6 {
+		t.Fatalf("Unknown phase replicas after ClearAutoscaler = %v, want 6", got)
+	}
+}
+
+func TestClearDropsRunnerPoolPhaseReplicas(t *testing.T) {
+	const pool = "p"
+
+	phaseReplicas.Reset()
+
+	RecordPodPhases(pool, 4, 5, 6)
+	Clear(pool)
+
+	if got := testutil.CollectAndCount(phaseReplicas); got != 0 {
+		t.Fatalf("phase replica metric count after Clear = %d, want 0", got)
 	}
 }

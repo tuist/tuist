@@ -11,7 +11,10 @@ use std::{
 use futures_util::StreamExt;
 use reqwest::header::{CONTENT_TYPE, HeaderValue};
 use serde::Deserialize;
-use tokio::{io::AsyncWriteExt, time::sleep};
+use tokio::{
+    io::AsyncWriteExt,
+    time::{Instant, sleep},
+};
 use tokio_util::io::ReaderStream;
 use tracing::{Instrument, field, warn};
 
@@ -316,6 +319,7 @@ async fn bootstrap_namespace_tombstones_from_peer(
 async fn bootstrap_manifests_from_peer(state: &SharedState, peer: &str) -> Result<u64, String> {
     let mut after = None;
     let mut applied = 0_u64;
+    let mut failed = 0_u64;
 
     loop {
         let page = fetch_bootstrap_manifests_page(state, peer, after.as_deref()).await?;
@@ -337,26 +341,55 @@ async fn bootstrap_manifests_from_peer(state: &SharedState, peer: &str) -> Resul
                 continue;
             }
 
-            let outcome = bootstrap_artifact_from_peer(state, peer, manifest)
-                .await
-                .inspect_err(|_| {
+            // A single artifact failing must not abort the whole peer bootstrap.
+            // Aborting strands every later artifact behind the first gap, and when
+            // peers bootstrap from each other simultaneously (e.g. a full-mesh
+            // restart) each one serves still-incomplete data, so every bootstrap
+            // breaks at its first gap and the mesh deadlocks with none reaching a
+            // serving state. Record the failure, keep going so we still apply the
+            // artifacts we can fetch this pass, and report partial completion at
+            // the end so the peer is retried — already-applied artifacts are
+            // skipped on the retry, so successive passes converge as data
+            // propagates outward from the data-bearing replicas.
+            match bootstrap_artifact_from_peer(state, peer, manifest).await {
+                Ok(outcome) => {
+                    state.metrics.record_replication_apply(
+                        "bootstrap",
+                        "artifact",
+                        outcome.as_str(),
+                    );
+                    if outcome.applied() {
+                        applied += 1;
+                    }
+                }
+                Err(error) => {
                     state
                         .metrics
                         .record_replication_apply("bootstrap", "artifact", "error");
-                })?;
-            state
-                .metrics
-                .record_replication_apply("bootstrap", "artifact", outcome.as_str());
-            if outcome.applied() {
-                applied += 1;
+                    warn!("bootstrap artifact from {peer} failed, continuing: {error}");
+                    failed += 1;
+                }
             }
         }
 
         match page.next_after {
             Some(next_after) => after = Some(next_after),
-            None => return Ok(applied),
+            None => break,
         }
     }
+
+    // Surfaced as a failed bootstrap so the peer is retried, but only after this
+    // pass has applied everything it could — that forward progress is what lets
+    // a mutually-bootstrapping mesh converge instead of deadlocking. A peer is
+    // marked bootstrapped (and the node allowed to serve) only on a fully clean
+    // pass, so readiness still implies complete data.
+    if failed > 0 {
+        return Err(format!(
+            "bootstrap from {peer} incomplete: {failed} artifact(s) failed this pass, {applied} applied; will retry"
+        ));
+    }
+
+    Ok(applied)
 }
 
 async fn bootstrap_artifact_from_peer(
@@ -459,31 +492,43 @@ async fn stream_response_to_temp(
     // reservation: an inconsistent peer serving a body larger than its manifest
     // advertised is rejected here instead of overrunning the budget.
     let mut destination = state.io.create_file(path).await?;
-    let mut stream = response.bytes_stream();
-    let mut total: u64 = 0;
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|error| format!("failed to stream bootstrap body: {error}"))?;
-        total = total.saturating_add(chunk.len() as u64);
-        if total > staging_limit {
-            drop(destination);
-            state.io.remove_file_if_exists(path).await;
-            return Err(format!(
-                "bootstrap artifact response exceeded reserved {staging_limit} bytes"
-            ));
+    let dest = &mut destination;
+    let outcome = async move {
+        let mut stream = response.bytes_stream();
+        let mut total: u64 = 0;
+        while let Some(chunk) = stream.next().await {
+            let chunk =
+                chunk.map_err(|error| format!("failed to stream bootstrap body: {error}"))?;
+            total = total.saturating_add(chunk.len() as u64);
+            if total > staging_limit {
+                return Err(format!(
+                    "bootstrap artifact response exceeded reserved {staging_limit} bytes"
+                ));
+            }
+            if let Some(limiter) = state.replication_bandwidth_limiter.as_ref() {
+                limiter.acquire(chunk.len()).await;
+            }
+            dest.write_all(&chunk)
+                .await
+                .map_err(|error| format!("failed to persist bootstrap body: {error}"))?;
         }
-        if let Some(limiter) = state.replication_bandwidth_limiter.as_ref() {
-            limiter.acquire(chunk.len()).await;
-        }
-        destination
-            .write_all(&chunk)
+        dest.flush()
             .await
-            .map_err(|error| format!("failed to persist bootstrap body: {error}"))?;
+            .map_err(|error| format!("failed to flush bootstrap body: {error}"))?;
+        Ok::<(), String>(())
     }
-    destination
-        .flush()
-        .await
-        .map_err(|error| format!("failed to flush bootstrap body: {error}"))?;
-    Ok(())
+    .await;
+
+    // Drop the handle, then remove the partially-staged file on any failure. A
+    // peer serving incomplete data or a dropped connection (the bootstrap deadlock
+    // case) would otherwise leave one temp file per attempt; a retrying bootstrap
+    // accumulates them until the data disk fills and RocksDB can no longer open,
+    // wedging the pod out-of-space.
+    drop(destination);
+    if outcome.is_err() {
+        state.io.remove_file_if_exists(path).await;
+    }
+    outcome
 }
 
 async fn fetch_bootstrap_manifests_page(
@@ -666,12 +711,22 @@ struct BootstrapStats {
 pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
     let mut after = None::<Vec<u8>>;
     while let Some((message_key, message)) = state.store.next_outbox_message(after.as_deref())? {
+        after = Some(message_key.clone());
+
+        if state
+            .replication_target_backed_off(&message.target, Instant::now())
+            .await
+        {
+            continue;
+        }
+
         let started_at = std::time::Instant::now();
         let operation_name = message.operation.name();
         let result = replicate_message(state, &message).await;
 
         match result {
             Ok(()) => {
+                state.note_replication_success(&message.target).await;
                 match state
                     .store
                     .hit_failpoint(FailpointName::BeforeDeleteOutboxMessageAfterSuccess)
@@ -698,6 +753,9 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
                 }
             }
             Err(error) => {
+                state
+                    .note_replication_failure(&message.target, Instant::now())
+                    .await;
                 state.metrics.record_replication(
                     &message.target,
                     operation_name,
@@ -707,7 +765,6 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
                 warn!("replication to {} failed: {error}", message.target);
             }
         }
-        after = Some(message_key);
     }
 
     Ok(())
@@ -1092,6 +1149,175 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn process_outbox_backs_off_unreachable_target() {
+        let local = test_context(|_| {}).await;
+        let unreachable = "http://127.0.0.1:1".to_string();
+        local
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("artifact should persist");
+        let artifact = local
+            .state
+            .store
+            .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact")
+            .await
+            .expect("artifact fetch should succeed")
+            .expect("artifact should exist");
+        local
+            .state
+            .store
+            .enqueue(OutboxMessage {
+                target: unreachable.clone(),
+                operation: ReplicationOperation::UpsertArtifact {
+                    producer: ArtifactProducer::Gradle,
+                    namespace_id: "ios".into(),
+                    key: "artifact".into(),
+                    content_type: "application/octet-stream".into(),
+                    artifact_id: artifact.artifact_id,
+                    version_ms: artifact.version_ms,
+                    inline: false,
+                },
+            })
+            .expect("upsert should enqueue");
+
+        assert!(
+            !local
+                .state
+                .replication_target_backed_off(&unreachable, Instant::now())
+                .await
+        );
+
+        process_outbox(&local.state)
+            .await
+            .expect("outbox processing should not error on a failed peer");
+
+        assert!(
+            local
+                .state
+                .replication_target_backed_off(&unreachable, Instant::now())
+                .await,
+            "a failed replication target should be backed off"
+        );
+        assert_eq!(
+            local
+                .state
+                .store
+                .outbox_messages()
+                .expect("outbox should load")
+                .len(),
+            1,
+            "a failed message must stay in the outbox"
+        );
+    }
+
+    #[tokio::test]
+    async fn process_outbox_skips_backed_off_target() {
+        let remote = test_context(|_| {}).await;
+        let (remote_url, _server) = spawn_server(router(remote.state.clone())).await;
+
+        let local = test_context(|_| {}).await;
+        local
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("artifact should persist");
+        let artifact = local
+            .state
+            .store
+            .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact")
+            .await
+            .expect("artifact fetch should succeed")
+            .expect("artifact should exist");
+        local
+            .state
+            .store
+            .enqueue(OutboxMessage {
+                target: remote_url.clone(),
+                operation: ReplicationOperation::UpsertArtifact {
+                    producer: ArtifactProducer::Gradle,
+                    namespace_id: "ios".into(),
+                    key: "artifact".into(),
+                    content_type: "application/octet-stream".into(),
+                    artifact_id: artifact.artifact_id,
+                    version_ms: artifact.version_ms,
+                    inline: false,
+                },
+            })
+            .expect("upsert should enqueue");
+
+        local
+            .state
+            .note_replication_failure(&remote_url, Instant::now())
+            .await;
+
+        process_outbox(&local.state)
+            .await
+            .expect("outbox processing should succeed");
+
+        assert!(
+            remote
+                .state
+                .store
+                .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact")
+                .await
+                .expect("artifact fetch should succeed")
+                .is_none(),
+            "a backed-off target must not be contacted"
+        );
+        assert_eq!(
+            local
+                .state
+                .store
+                .outbox_messages()
+                .expect("outbox should load")
+                .len(),
+            1,
+            "a skipped message must remain in the outbox"
+        );
+
+        local.state.note_replication_success(&remote_url).await;
+
+        process_outbox(&local.state)
+            .await
+            .expect("outbox processing should succeed");
+
+        assert!(
+            remote
+                .state
+                .store
+                .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact")
+                .await
+                .expect("artifact fetch should succeed")
+                .is_some(),
+            "after backoff clears, replication should proceed"
+        );
+        assert!(
+            local
+                .state
+                .store
+                .outbox_messages()
+                .expect("outbox should load")
+                .is_empty(),
+            "successful replication should clear the outbox"
+        );
+    }
+
+    #[tokio::test]
     async fn process_outbox_retries_after_success_before_outbox_delete() {
         let remote = test_context(|_| {}).await;
         let (remote_url, _server) = spawn_server(router(remote.state.clone())).await;
@@ -1236,6 +1462,96 @@ mod tests {
             .await
             .expect("artifact bytes should read");
         assert_eq!(bytes, b"local-v2");
+    }
+
+    #[tokio::test]
+    async fn bootstrap_continues_past_a_failing_artifact_and_reports_partial() {
+        use axum::{
+            body::Body,
+            extract::Request,
+            middleware::{self, Next},
+            response::Response,
+        };
+
+        let remote = test_context(|_| {}).await;
+        remote
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "good",
+                "application/octet-stream",
+                b"good-data",
+            )
+            .await
+            .expect("good artifact should persist");
+        let bad = remote
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "bad",
+                "application/octet-stream",
+                b"bad-data",
+            )
+            .await
+            .expect("bad artifact should persist");
+
+        // Serve the real bootstrap endpoints, but 500 the "bad" artifact the way
+        // a peer that hasn't finished bootstrapping it yet would.
+        let poison_path = format!(
+            "/_internal/bootstrap/artifacts/{}",
+            url_encode(&bad.artifact_id)
+        );
+        let app = router(remote.state.clone()).layer(middleware::from_fn(
+            move |request: Request, next: Next| {
+                let poison_path = poison_path.clone();
+                async move {
+                    if request.uri().path() == poison_path {
+                        return Response::builder()
+                            .status(StatusCode::INTERNAL_SERVER_ERROR)
+                            .body(Body::from("incomplete"))
+                            .unwrap();
+                    }
+                    next.run(request).await
+                }
+            },
+        ));
+        let (remote_url, _server) = spawn_server(app).await;
+
+        let local = test_context(|_| {}).await;
+        let result = bootstrap_manifests_from_peer(&local.state, &remote_url).await;
+
+        // The peer bootstrap surfaces failure so it gets retried ...
+        assert!(
+            result.is_err(),
+            "a failed artifact must surface as a retryable bootstrap failure"
+        );
+        // ... but the good artifact was still applied — forward progress, not an
+        // abort at the first failure (which is what deadlocks a mutually
+        // bootstrapping mesh).
+        assert!(
+            local
+                .state
+                .store
+                .fetch_artifact(ArtifactProducer::Gradle, "ios", "good")
+                .await
+                .expect("good fetch should succeed")
+                .is_some(),
+            "the good artifact must apply even though another failed"
+        );
+        assert!(
+            local
+                .state
+                .store
+                .fetch_artifact(ArtifactProducer::Gradle, "ios", "bad")
+                .await
+                .expect("bad fetch should succeed")
+                .is_none(),
+            "the failed artifact must not be applied"
+        );
     }
 
     #[tokio::test]

@@ -168,6 +168,7 @@ async fn run_with_config(
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
         bootstrap_semaphore,
         bootstrap_staging_budget,
+        replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
     });
     state.sync_runtime_metrics().await;
     let drain_completion_timeout = Duration::from_millis(state.config.drain_completion_timeout_ms);
