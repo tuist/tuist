@@ -219,7 +219,7 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcileAccountPeerService(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcileAccountPublicPeerService(ctx, instance); err != nil {
+	if err := r.reconcileInstancePublicPeerService(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
 	primaryPod, err := r.selectPrimaryPod(ctx, instance)
@@ -349,26 +349,26 @@ func (r *KuraInstanceReconciler) reconcileAccountPeerService(ctx context.Context
 	return err
 }
 
-// reconcileAccountPublicPeerService exposes the account peer plane to the
-// internet so a customer's self-hosted Kura node can dial in for two-way
-// replication. It is a plain L4 LoadBalancer: the peer connection is
-// end-to-end mTLS, so nothing terminates TLS here. external-dns publishes
-// MeshPublicPeerHost to the assigned address. Only created when the controller
-// owns the account CA (meshManagedPeerTLS) and a public host is requested.
-func (r *KuraInstanceReconciler) reconcileAccountPublicPeerService(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+// reconcileInstancePublicPeerService exposes this region's peer plane to the
+// internet so a customer's self-hosted Kura node can dial in for replication.
+// It is a plain L4 LoadBalancer: the peer connection is end-to-end mTLS, so
+// nothing terminates TLS here. external-dns publishes the region's
+// MeshPublicPeerHost to the assigned address. One Service per instance (region)
+// so the host, cert, and selected pods stay aligned across a multi-region
+// account. Only created when the controller owns the account CA
+// (meshManagedPeerTLS) and a public host is requested.
+func (r *KuraInstanceReconciler) reconcileInstancePublicPeerService(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	if !meshManagedPeerTLS(instance) || instance.Spec.MeshPublicPeerHost == "" {
-		// The public peer Service is account-level but reconciled per-instance,
-		// so a non-mesh instance of the same account (e.g. a private runner-cache
-		// region) must NOT delete the Service its mesh-enabled sibling owns —
-		// otherwise they churn it every reconcile and the LoadBalancer never
-		// stabilizes. No-op here, mirroring reconcileAccountPeerService.
+		// A non-mesh instance (e.g. a private runner-cache region) exposes no
+		// public peer plane.
 		return nil
 	}
 
-	service := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: accountPublicPeerServiceName(instance), Namespace: instance.Namespace}}
+	service := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: instancePublicPeerServiceName(instance), Namespace: instance.Namespace}}
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, service, func() error {
 		service.Labels = map[string]string{
 			"app.kubernetes.io/name":       "kura",
+			"app.kubernetes.io/instance":   instance.Name,
 			"app.kubernetes.io/managed-by": "kura-controller",
 			"tuist.dev/account":            instance.Spec.AccountHandle,
 		}
@@ -384,25 +384,28 @@ func (r *KuraInstanceReconciler) reconcileAccountPublicPeerService(ctx context.C
 		// instead of round-robining across every node and SNAT-hopping to the
 		// pod, which intermittently reset long-lived bootstrap connections.
 		service.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyTypeLocal
-		service.Spec.Selector = map[string]string{
-			"app.kubernetes.io/name": "kura",
-			"tuist.dev/account":      instance.Spec.AccountHandle,
-		}
+		// Per-region (per-instance): MeshPublicPeerHost and the peer cert SAN are
+		// region-scoped, so the LoadBalancer must select only this instance's
+		// pods. An account-scoped selector would route one region's hostname to
+		// another region's pods and mismatch the cert.
+		service.Spec.Selector = selectorLabels(instance)
 		service.Spec.Ports = []corev1.ServicePort{
 			{Name: "peer", Port: peerPort, TargetPort: intstr.FromString("peer")},
 		}
-		return nil
+		// Owner-referenced so it is garbage-collected with the instance; per-region
+		// scoping makes single ownership safe (no sibling shares this Service).
+		return controllerutil.SetControllerReference(instance, service, r.Scheme)
 	})
 	return err
 }
 
-func accountPublicPeerServiceName(instance *kurav1alpha1.KuraInstance) string {
-	name := "kura-" + instance.Spec.AccountHandle + "-peers-public"
+func instancePublicPeerServiceName(instance *kurav1alpha1.KuraInstance) string {
+	name := instance.Name + "-peers-public"
 	if len(name) <= 63 {
 		return name
 	}
 	hash := fnv.New32a()
-	_, _ = hash.Write([]byte(instance.Spec.AccountHandle))
+	_, _ = hash.Write([]byte(instance.Name))
 	suffix := fmt.Sprintf("-%x", hash.Sum32())
 	return strings.TrimRight(name[:63-len(suffix)], "-") + suffix
 }

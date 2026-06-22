@@ -911,7 +911,7 @@ func TestKuraInstanceReconcileMeshPublicPeerExposure(t *testing.T) {
 	}
 
 	lb := &corev1.Service{}
-	if err := reconciler.Get(ctx, types.NamespacedName{Name: accountPublicPeerServiceName(instance), Namespace: instance.Namespace}, lb); err != nil {
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instancePublicPeerServiceName(instance), Namespace: instance.Namespace}, lb); err != nil {
 		t.Fatalf("expected public peer Service to be created: %v", err)
 	}
 	if lb.Spec.Type != corev1.ServiceTypeLoadBalancer {
@@ -926,8 +926,14 @@ func TestKuraInstanceReconcileMeshPublicPeerExposure(t *testing.T) {
 	if got := lb.Annotations["load-balancer.hetzner.cloud/location"]; got != "fsn1" {
 		t.Fatalf("expected hcloud location annotation, got %q", got)
 	}
-	if got := lb.Spec.Selector["tuist.dev/account"]; got != "tuist" {
-		t.Fatalf("expected public peer Service to select all account pods, got %q", got)
+	if got := lb.Spec.Selector["app.kubernetes.io/instance"]; got != instance.Name {
+		t.Fatalf("expected public peer Service to select only this region's pods, got %q", got)
+	}
+	if _, ok := lb.Spec.Selector["tuist.dev/account"]; ok {
+		t.Fatalf("expected a per-region selector, not an account-wide one")
+	}
+	if len(lb.OwnerReferences) == 0 || lb.OwnerReferences[0].Name != instance.Name {
+		t.Fatalf("expected public peer Service to be owner-referenced to the instance, got %v", lb.OwnerReferences)
 	}
 	if got := lb.Spec.Ports[0].TargetPort.StrVal; got != "peer" {
 		t.Fatalf("expected public peer Service to target the peer port, got %q", got)
@@ -1002,8 +1008,48 @@ func TestKuraInstanceReconcileMeshPublicPeerExposure(t *testing.T) {
 	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: sibling.Name, Namespace: sibling.Namespace}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := reconciler.Get(ctx, types.NamespacedName{Name: accountPublicPeerServiceName(instance), Namespace: instance.Namespace}, lb); err != nil {
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instancePublicPeerServiceName(instance), Namespace: instance.Namespace}, lb); err != nil {
 		t.Fatalf("expected public peer Service to survive a non-mesh sibling's reconcile, got %v", err)
+	}
+}
+
+func TestMeshPublicPeerServiceIsPerRegion(t *testing.T) {
+	ctx := context.Background()
+	scheme := meshTestScheme(t)
+
+	eu := meshInstance("kura-tuist-eu-1", "tuist")
+	eu.Spec.MeshPublicPeerHost = "peer.tuist-eu-central-1.kura.tuist.dev"
+	us := meshInstance("kura-tuist-us-1", "tuist")
+	us.Spec.MeshPublicPeerHost = "peer.tuist-us-east-1.kura.tuist.dev"
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(eu, us).WithStatusSubresource(eu, us).Build(),
+		Scheme: scheme,
+	}
+	for _, in := range []*kurav1alpha1.KuraInstance{eu, us} {
+		if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: in.Name, Namespace: in.Namespace}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Each region gets its own Service, with its own host and a selector pinned
+	// to that region's pods. A shared account-scoped Service would churn the
+	// external-dns hostname between regions and cross-route traffic and cert.
+	for _, in := range []*kurav1alpha1.KuraInstance{eu, us} {
+		lb := &corev1.Service{}
+		if err := reconciler.Get(ctx, types.NamespacedName{Name: instancePublicPeerServiceName(in), Namespace: in.Namespace}, lb); err != nil {
+			t.Fatalf("expected per-region public peer Service for %s: %v", in.Name, err)
+		}
+		if got := lb.Annotations["external-dns.alpha.kubernetes.io/hostname"]; got != in.Spec.MeshPublicPeerHost {
+			t.Fatalf("expected %s host %q, got %q", in.Name, in.Spec.MeshPublicPeerHost, got)
+		}
+		if got := lb.Spec.Selector["app.kubernetes.io/instance"]; got != in.Name {
+			t.Fatalf("expected %s Service to select its own pods, got %q", in.Name, got)
+		}
+	}
+
+	if instancePublicPeerServiceName(eu) == instancePublicPeerServiceName(us) {
+		t.Fatalf("expected distinct per-region Service names")
 	}
 }
 
