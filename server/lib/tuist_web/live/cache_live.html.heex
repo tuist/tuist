@@ -17,6 +17,7 @@
       latest_version={@latest_version}
     />
     <.self_hosted_section
+      :if={@self_hosted_enabled}
       self_hosted_clients={@self_hosted_clients}
       new_self_hosted_client_form={@new_self_hosted_client_form}
       new_self_hosted_client_secret={@new_self_hosted_client_secret}

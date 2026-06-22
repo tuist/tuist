@@ -7,6 +7,7 @@ defmodule TuistWeb.CacheLive do
 
   alias Phoenix.HTML.Form
   alias Tuist.Authorization
+  alias Tuist.Billing.Entitlements
   alias Tuist.Environment
   alias Tuist.Kura
   alias Tuist.Kura.Regions
@@ -22,11 +23,15 @@ defmodule TuistWeb.CacheLive do
     end
 
     cache_enabled = cache_enabled?(selected_account)
+    # Self-hosting cache nodes is an Enterprise-only capability, gated by the
+    # plan entitlement rather than the (transient) :kura rollout flag.
+    self_hosted_enabled = cache_enabled and Entitlements.allows?(selected_account, :self_hosted_cache)
     if connected?(socket) and cache_enabled, do: Kura.subscribe_to_account(selected_account.id)
 
     socket =
       socket
       |> assign(:cache_enabled, cache_enabled)
+      |> assign(:self_hosted_enabled, self_hosted_enabled)
       |> assign(:head_title, "#{dgettext("dashboard_account", "Cache")} · #{selected_account.name} · Tuist")
       |> assign(:new_self_hosted_client_form, to_form(%{"name" => ""}, as: :self_hosted_client))
       |> assign(:new_self_hosted_client_secret, nil)
@@ -118,7 +123,7 @@ defmodule TuistWeb.CacheLive do
   def handle_event(
         "create_self_hosted_client",
         params,
-        %{assigns: %{cache_enabled: true, selected_account: account}} = socket
+        %{assigns: %{self_hosted_enabled: true, selected_account: account}} = socket
       ) do
     case SelfHostedClients.create_self_hosted_client(account, %{name: get_in(params, ["self_hosted_client", "name"])}) do
       {:ok, {client, secret}} ->

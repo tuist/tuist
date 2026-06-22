@@ -125,6 +125,30 @@ defmodule TuistWeb.CacheLiveTest do
     assert html =~ "create_self_hosted_client"
   end
 
+  test "hides the self-hosted section without the enterprise entitlement", %{conn: conn, account: account} do
+    enable_cache(account)
+    stub(Environment, :tuist_hosted?, fn -> true end)
+    stub(Tuist.Billing, :get_current_active_subscription, fn _ -> %{plan: :pro} end)
+    stub(Kura, :latest_versions, fn 1 -> [] end)
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/cache")
+
+    assert html =~ "Cache servers"
+    refute html =~ "Self-hosted cache servers"
+    refute html =~ "create_self_hosted_client"
+  end
+
+  test "shows the self-hosted section with the enterprise entitlement", %{conn: conn, account: account} do
+    enable_cache(account)
+    stub(Environment, :tuist_hosted?, fn -> true end)
+    stub(Tuist.Billing, :get_current_active_subscription, fn _ -> %{plan: :enterprise} end)
+    stub(Kura, :latest_versions, fn 1 -> [] end)
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/cache")
+
+    assert html =~ "Self-hosted cache servers"
+  end
+
   test "generates a tenant-scoped credential and reveals the secret once", %{conn: conn, account: account} do
     enable_cache(account)
     stub(Kura, :latest_versions, fn 1 -> [] end)
@@ -218,6 +242,9 @@ defmodule TuistWeb.CacheLiveTest do
 
   defp enable_cache(account) do
     stub(Environment, :dev?, fn -> false end)
+    # Non-hosted deployments grant every entitlement, so this keeps the
+    # self-hosted (Enterprise-only) section available; gate tests override it.
+    stub(Environment, :tuist_hosted?, fn -> false end)
     stub_cache_flag(account, true)
   end
 
