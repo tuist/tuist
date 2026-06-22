@@ -443,11 +443,18 @@
   /* The stretched overlays paint above static cell content (so clicks on text navigate the row),
    * so any genuinely interactive control inside a navigable cell must be lifted above them to stay
    * clickable — mirrors the interactive-target allowlist the JS forwarder used to honor. */
-  & td[data-selectable]
-    :is(a, button, input, select, textarea, label, [role="button"], [tabindex]):not(
-      [data-part="row-link"],
-      [data-part="row-link-overlay"]
-    ) {
+  &
+    td[data-selectable]
+    :is(
+      a,
+      button,
+      input,
+      select,
+      textarea,
+      label,
+      [role="button"],
+      [tabindex]
+    ):not([data-part="row-link"], [data-part="row-link-overlay"]) {
     position: relative;
     z-index: 1;
   }
