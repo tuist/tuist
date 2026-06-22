@@ -23,7 +23,7 @@ There are two ways to run self-hosted nodes, and which one you get depends entir
 
 ### Bridged: Tuist-hosted mesh + your nodes {#topology-bridged}
 
-Your account runs at least one Tuist-managed cache region, and your self-hosted nodes **join that mesh**. Artifacts replicate **both ways**: anything cached on your node propagates to the managed mesh, and anything cached anywhere in the managed mesh lands on your node. Your developers get a local, low-latency cache that is always a full replica of the shared cache.
+Your account runs at least one Tuist-managed cache region, and your self-hosted nodes **join that mesh**. Writes against your nodes propagate continuously into the managed mesh, and a node warms from the managed mesh's existing cache when it joins. This puts a low-latency cache next to your runners (which do most of the writing) while their writes feed the shared cache. Note that new artifacts written elsewhere in the managed mesh **after** a node has joined are not yet continuously propagated back to it; that is a planned enhancement.
 
 This is the right choice when you want the speed of an on-prem cache without giving up the shared, always-on managed cache.
 
@@ -83,7 +83,7 @@ services:
       KURA_TENANT_ID: "<account-handle>"
 
       # Register so the node shows in the dashboard and the CLI routes to it
-      KURA_REGISTRATION_URL: "https://tuist.dev/_internal/kura/registrations"
+      KURA_REGISTRATION_URL: "https://tuist.dev/_internal/kura/mesh/registrations"
       KURA_ADVERTISED_HTTP_URL: "https://kura.acme.internal"   # where your CLI/CI reach the cache
       KURA_NODE_URL: "https://kura.acme.internal:7443"         # this node's peer identity on your network
       KURA_REGION: "office"
@@ -134,7 +134,7 @@ services:
       # Register with Tuist (dashboard, CLI routing, usage, introspection)
       KURA_TENANT_ID: "<account-handle>"
       KURA_CONTROL_PLANE_URL: "https://tuist.dev"
-      KURA_REGISTRATION_URL: "https://tuist.dev/_internal/kura/registrations"
+      KURA_REGISTRATION_URL: "https://tuist.dev/_internal/kura/mesh/registrations"
       KURA_CONTROL_PLANE_CLIENT_ID: "<client_id>"
       KURA_CONTROL_PLANE_CLIENT_SECRET: "<secret>"
       KURA_ADVERTISED_HTTP_URL: "https://kura.acme.internal"
@@ -223,7 +223,7 @@ Your developers and CI reach the node's `KURA_ADVERTISED_HTTP_URL` (and, for a m
 
 ## How it behaves {#behavior}
 
-- **Bridged.** On boot the node enrolls, pulls the managed mesh's full cache, and transitions to a serving member of the ring. From then on it replicates both ways: writes on the node propagate to the managed mesh, and writes elsewhere in the mesh reach the node. The initial pull happens once and can take a while over a WAN, sized to your cache.
+- **Bridged.** On boot the node enrolls, pulls the managed mesh's full cache, and transitions to a serving member of the ring. The initial pull happens once and can take a while over a WAN, sized to your cache. From then on, writes on the node propagate continuously to the managed mesh. New artifacts written elsewhere in the managed mesh after the node joins are not yet continuously propagated to it (a planned enhancement), so treat the join-time pull as a snapshot rather than a live mirror.
 - **Standalone.** The node(s) run as an isolated mesh on your infrastructure. Replication, if any, happens only among your own nodes. Tuist's only role is the control plane: dashboard visibility, CLI endpoint routing, usage metering, and token introspection. It never provisions, upgrades, peers with, or reaches into your nodes.
 
 ## Verify {#verify}
