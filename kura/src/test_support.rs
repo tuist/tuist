@@ -158,6 +158,7 @@ where
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
         bootstrap_semaphore,
         bootstrap_staging_budget,
+        replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
     });
     state.sync_runtime_metrics().await;
 
