@@ -53,10 +53,13 @@ jobs:
       - name: Check formatting
         run: env -u RUSTUP_TOOLCHAIN cargo fmt --check
 
-  lockfile:
-    name: Lockfile
+  bazel-lockfile:
+    name: Bazel Lockfile
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Advisory while the Bazel build is being brought up: a failure must not gate the
+    # workflow (the cargo jobs remain the source of truth).
+    continue-on-error: true
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     # Fast guard for the crate_universe pin. Cargo.Bazel.lock is a digest of Cargo.toml +
     # Cargo.lock and must be repinned when they change (or after merging main); otherwise the
@@ -108,6 +111,44 @@ jobs:
 
       - name: Compile without warnings
         run: env -u RUSTUP_TOOLCHAIN RUSTFLAGS="-D warnings" cargo check --locked --all-targets
+
+  bazel-compile:
+    name: Bazel Compile
+    runs-on: ubuntu-latest
+    # A cold Bazel build compiles the -sys crates' C/C++ (rocksdb, aws-lc) from source,
+    # unlike `cargo check`, so allow more wall-clock than the cargo compile job.
+    timeout-minutes: 60
+    # Advisory while the Bazel build is being brought up: a failure must not gate the
+    # workflow (the cargo compile job remains the source of truth).
+    continue-on-error: true
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "rust bazel"
+          working_directory: kura
+
+      - name: Cache Bazel repository downloads and build outputs
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ runner.temp }}/bazel-repo
+            ${{ runner.temp }}/bazel-disk
+          key: bazel-compile-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock') }}-${{ github.sha }}
+          restore-keys: |
+            bazel-compile-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock') }}-
+            bazel-compile-
+
+      - name: Compile without warnings
+        run: |
+          {
+            echo "common --repository_cache=${{ runner.temp }}/bazel-repo"
+            echo "build --disk_cache=${{ runner.temp }}/bazel-disk"
+          } >> "$HOME/.bazelrc"
+          bazel build //:all --define=kura_deny_warnings=true
 
   clippy:
     name: Clippy
