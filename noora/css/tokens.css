@@ -91,18 +91,18 @@
   --noora-blue-900: oklch(20.9% 0.083 259.4);
 
   --noora-neutral-light-50: oklch(99.4% 0 0);
-  --noora-neutral-light-100: oklch(98.4% 0.001 197.1);
-  --noora-neutral-light-200: oklch(96.1% 0.003 264.5);
-  --noora-neutral-light-300: oklch(93% 0.003 247.9);
-  --noora-neutral-light-400: oklch(89% 0.006 255.5);
-  --noora-neutral-light-500: oklch(84.3% 0.009 247.9);
-  --noora-neutral-light-600: oklch(78.6% 0.012 248);
-  --noora-neutral-light-700: oklch(72.1% 0.017 248.1);
-  --noora-neutral-light-800: oklch(64.5% 0.021 248.2);
-  --noora-neutral-light-900: oklch(55.7% 0.023 250.5);
-  --noora-neutral-light-1000: oklch(45.2% 0.017 245);
-  --noora-neutral-light-1100: oklch(31.8% 0.012 248.2);
-  --noora-neutral-light-1200: oklch(21.5% 0.006 236.9);
+  --noora-neutral-light-100: oklch(97.6% 0 0);
+  --noora-neutral-light-200: oklch(95.5% 0.002 247.84);
+  --noora-neutral-light-300: oklch(93% 0.003 247.86);
+  --noora-neutral-light-400: oklch(89% 0.003 247.863);
+  --noora-neutral-light-500: oklch(84.4% 0.005 247.888);
+  --noora-neutral-light-600: oklch(78.4% 0.005 247.894);
+  --noora-neutral-light-700: oklch(72% 0.006 247.902);
+  --noora-neutral-light-800: oklch(64.5% 0.006 247.914);
+  --noora-neutral-light-900: oklch(55.7% 0.008 247.968);
+  --noora-neutral-light-1000: oklch(45.1% 0.006 247.965);
+  --noora-neutral-light-1100: oklch(32% 0.005 247.968);
+  --noora-neutral-light-1200: oklch(21.7% 0.002 247.941);
 
   --noora-neutral-dark-50: oklch(97.2% 0 0);
   --noora-neutral-dark-100: oklch(91.9% 0 0);
