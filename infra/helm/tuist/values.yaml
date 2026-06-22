@@ -583,6 +583,50 @@ kuraFleet:
     privateNetworkName: tuist-runner-cache
     privateNetworkCIDR: 172.16.0.0/22
 
+# Dedibox fleet — the EU customer-facing Kura cache region on Scaleway Dedibox
+# bare metal. Off by default; an env opts in via values-managed-<env>.yaml.
+dediboxFleet:
+  enabled: false
+  replicas: 1
+  # Propagated to the Node as node.cluster.x-k8s.io/pool; the region's
+  # nodeSelector pins its Kura cache pods here.
+  nodePool: kura-dedibox
+  kubernetesVersion: "v1.34.8"
+  machine:
+    # Per-fleet tag the operator stamps on each pre-ordered Dedibox box. THIS is
+    # the environment boundary: every Dedibox in the org shares the default
+    # Scaleway project (a Dedibox can't be moved between projects), so the
+    # reconciler claims only boxes carrying this tag. Required when enabled.
+    adoptTag: ""
+    # Dedibox commercial offer to narrow adoption within the tag-scoped pool
+    # (e.g. Start-9-M). Empty matches any offer carrying the tag.
+    offer: ""
+    # Console datacenter the box lives in (DC2/DC3/DC5/AMS1).
+    datacenter: DC2
+    # Install OS label; needs a modern-CPU box (old SKUs lack 24.04 images).
+    os: ubuntu_24.04
+    # Per-box egress budget in Mbps advertised as the tuist.dev/egress-mbps
+    # extended resource (0 = unset).
+    egressBudgetMbps: 0
+  scaleway:
+    # Override to point the reconciler at a Secret you manage instead of the
+    # ESO-synced one. Holds the default-project Dedibox IAM key (secret-key +
+    # project-id).
+    secretName: ""
+    externalSecrets:
+      enabled: true
+      # 1Password item holding the default-project Dedibox IAM key. The same key
+      # serves every env (all Dedibox share the default project), so it lives in
+      # a vault each env's ClusterSecretStore can read.
+      item: ""
+      refreshInterval: 1h
+      storeRef:
+        name: onepassword
+        kind: ClusterSecretStore
+      fields:
+        secretKey: secret-key
+        projectID: project-id
+
 # Scaling: `kubectl scale machinedeployment <name> --replicas=N`.
 macosFleet:
   enabled: false

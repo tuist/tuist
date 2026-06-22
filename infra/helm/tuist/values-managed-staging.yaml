@@ -307,6 +307,29 @@ kuraFleet:
     # validates the same local-NVMe + bare-metal-PN data plane prod runs on.
     offerType: EM-B220E-NVME
 
+# Dedibox fleet (EU customer-facing Kura cache, validation node). The reconciler
+# adopts a pre-ordered Dedibox carrying the tuist-kura-staging tag (the env
+# boundary, since all Dedibox share the org's default project) and self-joins it.
+# Keep disabled until BOTH prerequisites exist, or the deploy fails: (1) the
+# DEDIBOX_SCW_API 1Password item (default-project Dedibox IAM key), since the ESO
+# pre-install hook blocks on it; (2) a modern-CPU box ordered and tagged
+# tuist-kura-staging. Then flip enabled: true and set machine.offer.
+dediboxFleet:
+  enabled: false
+  machine:
+    adoptTag: tuist-kura-staging
+    # Set to the modern-CPU box's offer once one is ordered (e.g. Start-9-M).
+    # Empty adopts any box carrying the tag. The cheapest Atom SKUs lack Ubuntu
+    # 24.04 images, so a Ryzen/EPYC-class box is required.
+    offer: ""
+    datacenter: DC2
+    os: ubuntu_24.04
+  scaleway:
+    externalSecrets:
+      # 1Password item with the default-project Dedibox IAM key (secret-key +
+      # project-id), readable by the staging ClusterSecretStore.
+      item: DEDIBOX_SCW_API
+
 # Mac mini fleet. The chart renders one ScalewayAppleSiliconMachine
 # CR per replica; the cluster-api-provider-tuist
 # operator orders each Mac mini, then SSH-bootstraps it with

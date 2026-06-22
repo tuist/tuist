@@ -1,0 +1,80 @@
+{{- if and .Values.capi.enabled .Values.dediboxFleet.enabled }}
+{{- $fleetName := include "tuist.componentName" (dict "root" . "component" "dedibox-fleet") }}
+{{- $clusterName := include "tuist.componentName" (dict "root" . "component" "capi") }}
+{{- $bootstrapSecret := include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
+{{- /*
+Dedibox fleet — the EU customer-facing Kura cache region on Scaleway Dedibox
+bare metal. Like the Elastic Metal kura-fleet it self-joins via the reconciler's
+SSH bootstrap (noop-bootstrap; this cluster's control plane is externally
+managed, so CABPK has no CA to mint a kubeadm join).
+
+Every Dedibox in the organization lives in the DEFAULT Scaleway project (a
+Dedibox can't be assigned to another project), so the per-fleet `adoptTag` — not
+the project — is the environment boundary: the operator pre-orders boxes and
+stamps them with this tag, and the reconciler claims only boxes carrying it. The
+reconciler authenticates with the default-project Dedibox IAM key
+(DEDIBOX_SCW_*), wired from dedibox-external-secrets.yaml.
+
+OnDelete strategy: don't auto-churn the cache node.
+*/ -}}
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: DediboxMachineTemplate
+metadata:
+  name: {{ $fleetName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dedibox-fleet
+    tuist.dev/fleet: {{ $fleetName }}
+spec:
+  template:
+    spec:
+      adoptTag: {{ .Values.dediboxFleet.machine.adoptTag | quote }}
+      offer: {{ .Values.dediboxFleet.machine.offer | default "" | quote }}
+      datacenter: {{ .Values.dediboxFleet.machine.datacenter | default "DC2" | quote }}
+      os: {{ .Values.dediboxFleet.machine.os | default "ubuntu_24.04" | quote }}
+      # Stable fleet name so every Machine the MachineDeployment clones shares one
+      # SSH key — the key the operator authorizes on the pre-ordered pool boxes.
+      fleetName: {{ $fleetName | quote }}
+      {{- with .Values.dediboxFleet.machine.egressBudgetMbps }}
+      egressBudgetMbps: {{ . }}
+      {{- end }}
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineDeployment
+metadata:
+  name: {{ $fleetName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dedibox-fleet
+    tuist.dev/fleet: {{ $fleetName }}
+    cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+spec:
+  clusterName: {{ $clusterName }}
+  replicas: {{ .Values.dediboxFleet.replicas | default 1 }}
+  strategy:
+    type: OnDelete
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+      tuist.dev/fleet: {{ $fleetName }}
+  template:
+    metadata:
+      labels:
+        cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+        tuist.dev/fleet: {{ $fleetName }}
+        # CAPI propagates node.cluster.x-k8s.io/* Machine labels to the Node, so
+        # the region's pool label lands declaratively (the region's nodeSelector
+        # pins its Kura cache pods here).
+        node.cluster.x-k8s.io/pool: {{ .Values.dediboxFleet.nodePool | default "kura-dedibox" | quote }}
+    spec:
+      clusterName: {{ $clusterName }}
+      version: {{ .Values.dediboxFleet.kubernetesVersion | default "v1.34.8" | quote }}
+      bootstrap:
+        dataSecretName: {{ $bootstrapSecret }}
+      infrastructureRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+        kind: DediboxMachineTemplate
+        name: {{ $fleetName }}
+{{- end }}

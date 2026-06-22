@@ -424,6 +424,23 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.macosFleet.scaleway.secretName | default $name }}
                   key: project-id
+            {{- if .Values.dediboxFleet.enabled }}
+            # Dedibox uses a SEPARATE default-project Scaleway IAM key (every
+            # Dedibox in the org lives in the default project, so this one key
+            # serves all envs and the per-fleet tag does the scoping). The
+            # reconciler sends secret-key as X-Auth-Token over raw HTTP. Its
+            # presence also gates the reconciler on (cmd/manager/main.go).
+            - name: DEDIBOX_SCW_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.dediboxFleet.scaleway.secretName | default (include "tuist.componentName" (dict "root" . "component" "dedibox")) }}
+                  key: secret-key
+            - name: DEDIBOX_SCW_PROJECT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.dediboxFleet.scaleway.secretName | default (include "tuist.componentName" (dict "root" . "component" "dedibox")) }}
+                  key: project-id
+            {{- end }}
           ports:
             - name: metrics
               containerPort: 8080
