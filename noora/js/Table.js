@@ -170,7 +170,9 @@ export default {
       // Don't hijack a click that's completing a text selection.
       const selection = window.getSelection();
       if (selection && !selection.isCollapsed) return;
-      const link = e.target.closest("tr")?.querySelector('[data-part="row-link"]');
+      const link = e.target
+        .closest("tr")
+        ?.querySelector('[data-part="row-link"]');
       if (!link) return;
       // Preserve the open-in-new-tab gesture (Cmd/Ctrl-click) across the whole row, not just the
       // real anchor in the first cell. A forwarded plain click would drop the modifier and
