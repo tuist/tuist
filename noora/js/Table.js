@@ -149,6 +149,40 @@ export default {
     const table = this.container.querySelector("table");
     if (table) this.resizeObserver.observe(table);
 
+    // Whole-row navigation. Each navigable row carries a single real anchor
+    // (`[data-part="row-link"]`) in its first cell for keyboard and assistive tech; here we widen
+    // the pointer hit area to the whole row by forwarding a click on any passive part of the row
+    // to that anchor (LiveView's document-level listener picks up the synthetic click and performs
+    // the live navigation). This is done in JS rather than with a stretched CSS overlay because an
+    // absolutely-positioned overlay needs the `<tr>` as its containing block, and Safari/WebKit
+    // never makes a `<tr>` one — there the overlay escaped to cover the entire table and hijacked
+    // every click and hover.
+    this.onRowClick = (e) => {
+      // Genuine interactive targets (the anchor itself, buttons, inputs, nested links) keep their
+      // own behavior instead of triggering row navigation.
+      if (
+        e.target.closest(
+          'a, button, input, select, textarea, label, [role="button"], [tabindex]',
+        )
+      ) {
+        return;
+      }
+      // Don't hijack a click that's completing a text selection.
+      const selection = window.getSelection();
+      if (selection && !selection.isCollapsed) return;
+      const link = e.target.closest("tr")?.querySelector('[data-part="row-link"]');
+      if (!link) return;
+      // Preserve the open-in-new-tab gesture (Cmd/Ctrl-click) across the whole row, not just the
+      // real anchor in the first cell. A forwarded plain click would drop the modifier and
+      // navigate in place, so open the row's destination in a new tab directly instead.
+      if (e.metaKey || e.ctrlKey) {
+        window.open(link.href, "_blank", "noopener");
+        return;
+      }
+      link.click();
+    };
+    this.el.addEventListener("click", this.onRowClick);
+
     this.applyColumnWidths();
     this.sync();
   },
@@ -201,6 +235,7 @@ export default {
     this.overlayThumb?.removeEventListener("pointerdown", this.onThumbDown);
     this.overlayThumb?.removeEventListener("pointermove", this.onThumbMove);
     this.overlayThumb?.removeEventListener("pointerup", this.onThumbUp);
+    this.el.removeEventListener("click", this.onRowClick);
     this.header?.remove();
   },
 
