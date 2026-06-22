@@ -41,6 +41,19 @@ defmodule Tuist.Docs.HTML do
     end)
   end
 
+  def wrap_tables(html) do
+    {html, component_tags} = protect_component_tags(html)
+
+    {html, _table_index} =
+      html
+      |> Floki.parse_fragment!()
+      |> Floki.traverse_and_update(0, &wrap_table_node/2)
+
+    html
+    |> Floki.raw_html()
+    |> restore_component_tags(component_tags)
+  end
+
   def add_heading_anchors(html) do
     Regex.replace(@heading_anchor_regex, html, fn _, open_tag, anchor, text, close_tag ->
       href = ~r/href="([^"]*)"/ |> Regex.run(anchor, capture: :all_but_first) |> List.first()
@@ -60,4 +73,102 @@ defmodule Tuist.Docs.HTML do
   defp strip_links(html) do
     Regex.replace(~r/<a[^>]*>(.*?)<\/a>/s, html, "\\1")
   end
+
+  # Floki normalizes custom component tag names, so keep those exact tags as
+  # placeholders while traversing regular document nodes.
+  defp protect_component_tags(html) do
+    {html, component_tags} = do_protect_component_tags(html, 0, [])
+
+    {IO.iodata_to_binary(html), component_tags}
+  end
+
+  defp do_protect_component_tags("", _index, component_tags), do: {[], component_tags}
+
+  defp do_protect_component_tags(html, index, component_tags) do
+    case :binary.match(html, "<") do
+      :nomatch ->
+        {[html], component_tags}
+
+      {start_index, 1} ->
+        before_tag = binary_part(html, 0, start_index)
+        tag_and_rest = binary_part(html, start_index, byte_size(html) - start_index)
+
+        case tag_end_index(tag_and_rest) do
+          nil ->
+            {[html], component_tags}
+
+          end_index ->
+            tag = binary_part(tag_and_rest, 0, end_index + 1)
+            rest = binary_part(tag_and_rest, end_index + 1, byte_size(tag_and_rest) - end_index - 1)
+
+            if component_tag?(tag) do
+              placeholder = "__TUIST_DOCS_HTML_COMPONENT_TAG_#{index}__"
+              {rest, component_tags} = do_protect_component_tags(rest, index + 1, [{placeholder, tag} | component_tags])
+
+              {[before_tag, placeholder | rest], component_tags}
+            else
+              {rest, component_tags} = do_protect_component_tags(rest, index, component_tags)
+
+              {[before_tag, tag | rest], component_tags}
+            end
+        end
+    end
+  end
+
+  defp tag_end_index(tag), do: tag_end_index(tag, 1, nil)
+
+  defp tag_end_index(tag, index, quote) when index < byte_size(tag) do
+    case :binary.at(tag, index) do
+      ?' when quote == nil -> tag_end_index(tag, index + 1, ?')
+      ?' when quote == ?' -> tag_end_index(tag, index + 1, nil)
+      ?" when quote == nil -> tag_end_index(tag, index + 1, ?")
+      ?" when quote == ?" -> tag_end_index(tag, index + 1, nil)
+      ?> when quote == nil -> index
+      _other -> tag_end_index(tag, index + 1, quote)
+    end
+  end
+
+  defp tag_end_index(_tag, _index, _quote), do: nil
+
+  defp component_tag?("<" <> tag) do
+    tag =
+      tag
+      |> String.trim_leading()
+      |> String.trim_leading("/")
+
+    case tag do
+      "." <> _rest -> true
+      <<first_character::utf8, _rest::binary>> when first_character in ?A..?Z -> true
+      _other -> false
+    end
+  end
+
+  defp restore_component_tags(html, component_tags) do
+    Enum.reduce(component_tags, html, fn {placeholder, tag}, html ->
+      String.replace(html, placeholder, tag)
+    end)
+  end
+
+  defp wrap_table_node({"table", attrs, children}, table_index) do
+    {
+      {"div", [{"id", "docs-markdown-table-#{table_index}"}, {"class", "noora-table"}, {"phx-hook", "NooraTable"}],
+       [
+         {"div", [{"data-part", "scroll-container"}],
+          [
+            {"table", attrs, children}
+          ]},
+         {"div", [{"data-part", "scrollbar"}, {"aria-hidden", "true"}],
+          [
+            {"div", [{"data-part", "scrollbar-content"}], []}
+          ]},
+         {"div", [{"data-part", "overlay-scrollbar"}, {"aria-hidden", "true"}],
+          [
+            {"div", [{"data-part", "overlay-thumb"}], []}
+          ]}
+       ]},
+      table_index + 1
+    }
+  end
+
+  defp wrap_table_node(node, table_index), do: {node, table_index}
 end
