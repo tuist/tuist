@@ -3,6 +3,8 @@ defmodule Tuist.Release do
   Used for executing DB release tasks when run in production without Mix
   installed.
   """
+  alias Tuist.Environment
+
   require Logger
 
   @app :tuist
@@ -72,7 +74,7 @@ defmodule Tuist.Release do
   end
 
   defp use_migration_database_url do
-    case System.get_env("TUIST_MIGRATION_DATABASE_URL") do
+    case Environment.migration_database_url() do
       url when is_binary(url) and url != "" ->
         System.put_env("DATABASE_URL", url)
         url
@@ -86,24 +88,16 @@ defmodule Tuist.Release do
 
   defp configure_migration_database_url(url) do
     config = Application.fetch_env!(@app, Tuist.Repo)
-    Application.put_env(@app, Tuist.Repo, Keyword.merge(config, database_config_from_url(url)))
-  end
 
-  defp database_config_from_url(url) do
-    parsed_url = URI.parse(url)
-
-    [username, password] =
-      parsed_url.userinfo
-      |> String.split(":", parts: 2)
-      |> Enum.map(&URI.decode_www_form/1)
-
-    [
-      database: String.replace_prefix(parsed_url.path, "/", ""),
-      username: username,
-      password: password,
-      hostname: parsed_url.host,
-      port: parsed_url.port || 5432
-    ]
+    # Release migrations run through Ecto.Migrator.with_repo/3, which starts
+    # the Repo from application config and does not accept a separate URL.
+    # Mutate the loaded Repo config so migrations can use the owner URL even
+    # when the runtime DATABASE_URL points at a narrower web role.
+    Application.put_env(
+      @app,
+      Tuist.Repo,
+      Keyword.merge(config, Environment.database_config_from_url(url))
+    )
   end
 
   # https://fly.io/phoenix-files/loading-structure-sql-on-prod-without-mix/
@@ -135,7 +129,7 @@ defmodule Tuist.Release do
   end
 
   defp grant_runtime_role(repo) when repo == Tuist.Repo do
-    case System.get_env("TUIST_DATABASE_RUNTIME_ROLE") do
+    case Environment.database_runtime_role() do
       role when is_binary(role) and role != "" ->
         do_grant_runtime_role(repo, role)
 

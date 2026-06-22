@@ -103,12 +103,8 @@ if Enum.member?([:prod, :stag, :can], env) do
       For example: ecto://USER:PASS@HOST/DATABASE
       """
 
-  parsed_url = URI.parse(database_url)
-
-  [username, password] =
-    parsed_url.userinfo
-    |> String.split(":", parts: 2)
-    |> Enum.map(&URI.decode_www_form/1)
+  database_config = Tuist.Environment.database_config_from_url(database_url)
+  database_hostname = Keyword.fetch!(database_config, :hostname)
 
   # `{:keepalive, true}` enables SO_KEEPALIVE but inherits the OS default
   # `tcp_keepalive_time` (7200s on Linux), so the pool keeps handing out
@@ -163,20 +159,15 @@ if Enum.member?([:prod, :stag, :can], env) do
     pool_size: Tuist.Environment.database_pool_size(secrets),
     queue_target: Tuist.Environment.database_queue_target(secrets),
     queue_interval: Tuist.Environment.database_queue_interval(secrets),
-    database: String.replace_prefix(parsed_url.path, "/", ""),
-    username: username,
-    password: password,
-    hostname: parsed_url.host,
-    port: parsed_url.port || 5432,
     socket_options: socket_opts,
     parameters: postgres_parameters,
     prepare: if(pooled?, do: :unnamed, else: :named)
-  ]
+  ] ++ database_config
 
   database_options =
     if Tuist.Environment.use_ssl_for_database?() do
       Keyword.put(database_options, :ssl,
-        server_name_indication: to_charlist(parsed_url.host),
+        server_name_indication: to_charlist(database_hostname),
         verify: :verify_none
       )
 
