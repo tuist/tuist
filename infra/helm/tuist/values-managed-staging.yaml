@@ -299,13 +299,7 @@ xcresultProcessor:
 # managed, so there's no CAPI kubeadm join; the reconciler bootstraps the node
 # itself.
 kuraFleet:
-  # TEMPORARY: disabled to unblock staging deploys. The Scaleway Elastic Metal
-  # node never reaches Ready — `AddServerPrivateNetwork` to the `tuist-runner-cache`
-  # PN returns a persistent HTTP 500 (a dangling orphaned baremetal_private_nic
-  # left on the PN), so the kura-fleet MachineDeployment stays unready and helm
-  # `--wait` times out and rolls the whole release back. REVERT to `true` once the
-  # PN-attach 500 is fixed (orphaned NIC cleanup / Scaleway-side).
-  enabled: false
+  enabled: true
   replicas: 1
   machine:
     # EM-B220E-NVME (~EUR120/mo) is the cheapest in-stock Elastic Metal box
