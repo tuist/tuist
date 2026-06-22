@@ -1160,15 +1160,19 @@ PFCONFENTRY
 # 2>/dev/null swallows the "no such table" error for the location
 # that doesn't apply on a given host.
 #
-# Belt-and-suspenders: after the kills, load an empty ruleset into
-# the anchor so any leftover anchor-level rules referencing the
-# old tables get cleared too, before pf(4) sees the redefinition
-# attempt in the validate below.
+# ORDER MATTERS: a table still referenced by active rules cannot be killed
+# ('-T kill' fails with "table in use"), so flush the anchor's rules FIRST by
+# loading an empty ruleset, which drops every reference, THEN '-T kill' the
+# tables at both anchor and top-level scope (older script versions placed them
+# in either). Running the kills before the flush, as this used to, leaves the
+# tables resident, and 'pfctl -nf' below then re-processes the load-anchor
+# directive and dies with EBUSY ("cannot define table vm_sources: busy"),
+# which fails the whole firewall install and terminal-fails the drift loop.
+echo "" | sudo pfctl -a tuist.runners -f - 2>/dev/null || true
 sudo pfctl -a tuist.runners -t vm_sources -T kill 2>/dev/null || true
 sudo pfctl -a tuist.runners -t blocked_dst -T kill 2>/dev/null || true
 sudo pfctl -t vm_sources -T kill 2>/dev/null || true
 sudo pfctl -t blocked_dst -T kill 2>/dev/null || true
-echo "" | sudo pfctl -a tuist.runners -f - 2>/dev/null || true
 
 # Validate the ruleset before activating. -nf parses without
 # loading; if this fails we want a clear bootstrap error rather
