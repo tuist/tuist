@@ -128,7 +128,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "rust bazel"
+          install_args: "rust bazel tuist"
           working_directory: kura
 
       - name: Cache Bazel repository downloads and build outputs
@@ -144,6 +144,7 @@ jobs:
 
       - name: Bazel setup
         run: tuist bazel setup && cat .bazelrc.tuist
+
       - name: Compile without warnings
         run: |
           {
