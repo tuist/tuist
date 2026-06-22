@@ -41,7 +41,8 @@ fi
 
 # Run migrations for all repos (PostgreSQL + ClickHouse), same as production.
 echo "Obtaining the database schema version..."
-BEFORE_MIGRATION_SCHEMA_VERSION=$(psql "$DATABASE_URL" -t -c "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1;" 2>/dev/null || echo "")
+MIGRATION_DATABASE_URL="${TUIST_MIGRATION_DATABASE_URL:-$DATABASE_URL}"
+BEFORE_MIGRATION_SCHEMA_VERSION=$(psql "$MIGRATION_DATABASE_URL" -t -c "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1;" 2>/dev/null || echo "")
 BEFORE_MIGRATION_SCHEMA_VERSION=$(echo $BEFORE_MIGRATION_SCHEMA_VERSION | xargs)
 
 if [ -n "$BEFORE_MIGRATION_SCHEMA_VERSION" ]; then
@@ -54,7 +55,7 @@ echo "Running migrations..."
 ./tuist eval Tuist.Release.migrate
 if [ $? -ne 0 ]; then
   echo "Migration failed!"
-  AFTER_MIGRATION_SCHEMA_VERSION=$(psql "$DATABASE_URL" -t -c "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1;" 2>/dev/null || echo "")
+  AFTER_MIGRATION_SCHEMA_VERSION=$(psql "$MIGRATION_DATABASE_URL" -t -c "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1;" 2>/dev/null || echo "")
   AFTER_MIGRATION_SCHEMA_VERSION=$(echo $AFTER_MIGRATION_SCHEMA_VERSION | xargs)
 
   if [ -n "$BEFORE_MIGRATION_SCHEMA_VERSION" ] && [ "$BEFORE_MIGRATION_SCHEMA_VERSION" != "$AFTER_MIGRATION_SCHEMA_VERSION" ]; then

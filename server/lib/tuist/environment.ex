@@ -144,6 +144,37 @@ defmodule Tuist.Environment do
     System.get_env("DATABASE_URL") || get([:database_url], secrets)
   end
 
+  def migration_database_url do
+    case System.get_env("TUIST_MIGRATION_DATABASE_URL") do
+      url when is_binary(url) and url != "" -> url
+      _ -> nil
+    end
+  end
+
+  def database_runtime_role do
+    case System.get_env("TUIST_DATABASE_RUNTIME_ROLE") do
+      role when is_binary(role) and role != "" -> role
+      _ -> nil
+    end
+  end
+
+  def database_config_from_url(url) do
+    parsed_url = URI.parse(url)
+
+    [username, password] =
+      parsed_url.userinfo
+      |> String.split(":", parts: 2)
+      |> Enum.map(&URI.decode/1)
+
+    [
+      database: String.replace_prefix(parsed_url.path, "/", ""),
+      username: username,
+      password: password,
+      hostname: parsed_url.host,
+      port: parsed_url.port || 5432
+    ]
+  end
+
   def ipv4_database_url(secrets \\ secrets()) do
     System.get_env("TUIST_IPV4_DATABASE_URL") || get([:ipv4_database_url], secrets)
   end

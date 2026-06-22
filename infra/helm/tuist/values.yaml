@@ -1471,9 +1471,10 @@ postgresql:
   #     `postgresql.mode` points at. Use this to bring CNPG up alongside
   #     an existing Postgres while soak-testing.
   #
-  #   * `postgresql.mode == "cnpg"` — the cutover state. Server,
-  #     processor, and migration-job pods all read DATABASE_URL from
-  #     the cluster's `<name>-app` Secret (CNPG-generated). Implies
+  #   * `postgresql.mode == "cnpg"` — the cutover state. Managed server
+  #     pods read DATABASE_URL from the web runtime role once the rollout
+  #     gate opens, processors from the processor role, and migration jobs
+  #     from the CNPG-generated owner Secret (`<name>-app`). Implies
   #     `cnpg.enabled = true`.
   cnpg:
     enabled: false
@@ -1486,9 +1487,8 @@ postgresql:
     # replicas. We run sync replication (1 sync + N-2 async); see the
     # `synchronous` block in templates/postgresql-cnpg.yaml.
     instances: 2
-    # Owner role created by `bootstrap.initdb` and the user the
-    # application connects as. Owns every object created by Ecto
-    # migrations.
+    # Owner role created by `bootstrap.initdb` and used by migration jobs.
+    # Owns every object created by Ecto migrations.
     owner: tuist_app
     # Initial database created on bootstrap.
     database: tuist
@@ -1577,6 +1577,18 @@ postgresql:
     queryStats:
       enabled: false
     roles:
+      # Least-privilege web runtime role. CNPG creates the role;
+      # Tuist.Release.migrate grants DML on application tables and read-only
+      # access to schema_migrations after each migration.
+      web:
+        name: tuist_web
+        # "auto" switches the server to this role only after the role's
+        # Secret exists from a previous deploy. This keeps the first rollout
+        # safe when migrations run as Helm pre-upgrade hooks (hooks execute
+        # before the updated CNPG Cluster spec creates the new managed role).
+        # Set true to force the switch after pre-provisioning the role, or
+        # false to keep using the owner Secret.
+        useForServer: auto
       # Least-privilege Oban-queue consumer. CNPG creates the role;
       # per-table GRANTs run via the bootstrap SQL in
       # infra/cnpg/tuist-processor-grants.sql (see README in that dir).
@@ -1615,6 +1627,9 @@ postgresql:
         accessKeyField: access_key_id
         secretKeyField: secret_access_key
       # Passwords for the managed roles. Per-env 1Password vault.
+      webPassword:
+        item: WEB_DATABASE_PASSWORD
+        field: password
       processorPassword:
         item: PROCESSOR_DATABASE_PASSWORD
         field: password

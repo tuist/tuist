@@ -220,6 +220,22 @@ defmodule Tuist.EnvironmentTest do
     end
   end
 
+  describe "database_config_from_url/1" do
+    test "preserves literal plus signs in credentials" do
+      config = Environment.database_config_from_url("ecto://user:abc+def@example.com/tuist")
+
+      assert config[:username] == "user"
+      assert config[:password] == "abc+def"
+    end
+
+    test "decodes percent-encoded plus signs in credentials" do
+      config = Environment.database_config_from_url("ecto://user:abc%2Bdef@example.com/tuist")
+
+      assert config[:username] == "user"
+      assert config[:password] == "abc+def"
+    end
+  end
+
   describe "agent_auth_trusted_providers/1" do
     test "returns the default trusted providers when no override is configured" do
       assert Environment.agent_auth_trusted_providers(%{}) == [

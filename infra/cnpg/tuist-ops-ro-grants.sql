@@ -12,10 +12,10 @@
 -- Used by operators who open an ad-hoc psql session against the cluster
 -- (typically `kubectl cnpg psql ... -U tuist_ops_ro`) for break-glass
 -- inspection that doesn't fit the `/ops/db` LiveView. The LiveView
--- itself connects through Tuist.Repo (the application's owner role)
--- and enforces read-only behavior at the app layer: SELECT/WITH/EXPLAIN/
--- SHOW grammar gate plus `SET TRANSACTION READ ONLY` plus a 5s
--- `statement_timeout`. See `Tuist.Ops.Database.execute/2`.
+-- itself connects through Tuist.Repo (the web runtime role) and enforces
+-- read-only behavior at the app layer: SELECT/WITH/EXPLAIN/SHOW grammar
+-- gate plus `SET TRANSACTION READ ONLY` plus a 5s `statement_timeout`.
+-- See `Tuist.Ops.Database.execute/2`.
 
 BEGIN;
 
