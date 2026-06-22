@@ -3,6 +3,11 @@
   flex-direction: column;
   gap: var(--noora-spacing-7);
 
+  /* Per design: no outer border on the page's sections. */
+  & > .noora-card__section {
+    box-shadow: none;
+  }
+
   & > [data-part="page-header"] {
     display: flex;
     flex-direction: column;
@@ -37,7 +42,7 @@
       flex-direction: row;
       align-items: center;
       gap: var(--noora-spacing-5);
-      padding: var(--noora-spacing-7) var(--noora-spacing-8);
+      padding: var(--noora-spacing-7) 0;
 
       & > [data-part="title-group"] {
         display: flex;
@@ -67,8 +72,8 @@
 
     & > .noora-table {
       box-sizing: border-box;
-      margin: 0 var(--noora-spacing-8) var(--noora-spacing-6);
-      width: calc(100% - 2 * var(--noora-spacing-8));
+      margin: 0 0 var(--noora-spacing-6);
+      width: 100%;
     }
   }
 
@@ -89,7 +94,7 @@
         flex-direction: row;
         align-items: center;
         gap: var(--noora-spacing-5);
-        padding: var(--noora-spacing-5) var(--noora-spacing-8) var(--noora-spacing-4);
+        padding: var(--noora-spacing-5) 0 var(--noora-spacing-4);
 
         & > [data-part="title-group"] {
           display: flex;
@@ -119,8 +124,8 @@
 
       & > .noora-table {
         box-sizing: border-box;
-        margin: 0 var(--noora-spacing-8) var(--noora-spacing-6);
-        width: calc(100% - 2 * var(--noora-spacing-8));
+        margin: 0 0 var(--noora-spacing-6);
+        width: 100%;
       }
     }
 

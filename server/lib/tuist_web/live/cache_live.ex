@@ -830,8 +830,6 @@ defmodule TuistWeb.CacheLive do
         </.table>
       </div>
 
-      <.line_divider />
-
       <div data-part="subsection">
         <div data-part="subsection-header">
           <div data-part="title-group">
