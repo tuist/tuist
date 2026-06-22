@@ -105,6 +105,7 @@ if Enum.member?([:prod, :stag, :can], env) do
 
   database_config = Tuist.Environment.database_config_from_url(database_url)
   database_hostname = Keyword.fetch!(database_config, :hostname)
+  database_schema = Tuist.Environment.database_schema()
 
   # `{:keepalive, true}` enables SO_KEEPALIVE but inherits the OS default
   # `tcp_keepalive_time` (7200s on Linux), so the pool keeps handing out
@@ -154,6 +155,17 @@ if Enum.member?([:prod, :stag, :can], env) do
         tcp_keepalives_interval: "30",
         tcp_keepalives_count: "3"
       ]
+
+  postgres_parameters =
+    if Tuist.Environment.default_database_schema?(database_schema) do
+      postgres_parameters
+    else
+      Keyword.put(
+        postgres_parameters,
+        :search_path,
+        Tuist.Environment.quote_postgres_identifier(database_schema)
+      )
+    end
 
   database_options = [
     pool_size: Tuist.Environment.database_pool_size(secrets),

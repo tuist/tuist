@@ -1,3 +1,39 @@
+defmodule Tuist.Repo.Migrations.CreateLegacyBaseline do
+  use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
+
+  def up do
+    unless baseline_already_loaded?() do
+      schema = current_schema()
+      schema_prefix = if schema == "public", do: "public.", else: "#{quote_identifier(schema)}."
+
+      execute(String.replace(sql(), "public.", schema_prefix))
+    end
+  end
+
+  def down do
+    raise Ecto.MigrationError,
+      message: "Irreversible: legacy baseline schema is the root migration."
+  end
+
+  defp current_schema do
+    %{rows: [[schema]]} = repo().query!("SELECT current_schema()", [], log: false)
+    schema
+  end
+
+  defp baseline_already_loaded? do
+    %{rows: [[loaded?]]} =
+      repo().query!("SELECT to_regclass('accounts') IS NOT NULL", [], log: false)
+
+    loaded?
+  end
+
+  defp quote_identifier(identifier) do
+    ~s(") <> String.replace(identifier, ~s("), ~s("")) <> ~s(")
+  end
+
+  defp sql do
+~S"""
 --
 -- PostgreSQL database dump
 --
@@ -10,7 +46,6 @@ SET lock_timeout = 0;
 SET idle_in_transaction_session_timeout = 0;
 SET client_encoding = 'UTF8';
 SET standard_conforming_strings = on;
-SELECT pg_catalog.set_config('search_path', '', false);
 SET check_function_bodies = false;
 SET xmloption = content;
 SET client_min_messages = warning;
@@ -698,15 +733,6 @@ CREATE SEQUENCE public.s3_buckets_id_seq
 ALTER SEQUENCE public.s3_buckets_id_seq OWNED BY public.s3_buckets.id;
 
 
---
--- Name: schema_migrations; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.schema_migrations (
-    version bigint NOT NULL,
-    inserted_at timestamp without time zone
-);
-
 
 --
 -- Name: users; Type: TABLE; Schema: public; Owner: -
@@ -972,13 +998,6 @@ ALTER TABLE ONLY public.roles
 ALTER TABLE ONLY public.s3_buckets
     ADD CONSTRAINT s3_buckets_pkey PRIMARY KEY (id);
 
-
---
--- Name: schema_migrations schema_migrations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.schema_migrations
-    ADD CONSTRAINT schema_migrations_pkey PRIMARY KEY (version);
 
 
 --
@@ -1312,3 +1331,6 @@ ALTER TABLE ONLY public.que_scheduler_audit_enqueued
 --
 -- PostgreSQL database dump complete
 --
+"""
+  end
+end

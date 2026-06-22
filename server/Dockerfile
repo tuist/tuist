@@ -295,7 +295,6 @@ RUN if [ "$EMBED_CLICKHOUSE" = "true" ]; then \
   fi && rm -f /tmp/clickhouse-preview-config.xml
 
 ENV SECRETS_DIRECTORY=/app/priv/secrets/
-COPY server/priv/repo/structure.sql /app/priv/repo/structure.sql
 
 # ========================================
 # Stage: Default runtime
