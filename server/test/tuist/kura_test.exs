@@ -75,6 +75,30 @@ defmodule Tuist.KuraTest do
       assert deployment.kura_server_id == server.id
     end
 
+    test "creates deployments for degraded servers so a fix can reach them" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      {:ok, server} = Kura.activate_server(server, "0.5.2")
+      {:ok, server} = Kura.fail_server(server)
+
+      assert %Server{status: :failed, current_image_tag: "0.5.2"} = server
+
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "sha-abcdef123456" end)
+
+      assert {:ok, [%Deployment{image_tag: "sha-abcdef123456"} = deployment]} =
+               Kura.schedule_runtime_image_deployments()
+
+      assert deployment.kura_server_id == server.id
+    end
+
     test "does not create deployments when the active server already runs the runtime image tag" do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
