@@ -6,3 +6,4 @@
 
 # Bazel convenience symlinks.
 /bazel-*
+/.bazelrc.tuist
