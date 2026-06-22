@@ -1016,22 +1016,9 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}"
-          for dest_tag in "${VERSION}" "latest"; do
-            DST="ghcr.io/tuist/tuist-xcresult-processor:${dest_tag}"
-            for attempt in 1 2 3; do
-              echo "tart push -> ${dest_tag} attempt ${attempt} at $(date -u +%H:%M:%SZ)" >&2
-              if tart push tuist-xcresult-processor "$DST"; then
-                echo "Pushed ${DST} on attempt ${attempt}"
-                break
-              fi
-              if [ "$attempt" = 3 ]; then
-                echo "tart push failed three times for ${dest_tag}" >&2
-                exit 1
-              fi
-              echo "tart push attempt ${attempt} failed; sleeping 60s before retry" >&2
-              sleep 60
-            done
-          done
+          tart push tuist-xcresult-processor "ghcr.io/tuist/tuist-xcresult-processor:${VERSION}"
+          tart push tuist-xcresult-processor "ghcr.io/tuist/tuist-xcresult-processor:latest"
+          echo "Pushed ghcr.io/tuist/tuist-xcresult-processor:${VERSION}"
 
       - name: Upload xcresult-processor-image artifacts
         uses: actions/upload-artifact@v4
