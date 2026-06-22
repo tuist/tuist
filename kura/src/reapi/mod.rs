@@ -27,12 +27,13 @@ use bazel_remote_apis::{
         rpc::Status as RpcStatus,
     },
 };
+use async_compression::tokio::bufread::ZstdEncoder;
 use bytes::Bytes;
 use futures_util::{StreamExt, future::BoxFuture};
 use http_body_util::{BodyExt, combinators::UnsyncBoxBody};
 use prost::Message;
 use sha2::{Digest as _, Sha256};
-use tokio::net::TcpListener;
+use tokio::{io::BufReader, net::TcpListener};
 use tokio_stream::wrappers::TcpListenerStream;
 use tokio_util::io::ReaderStream;
 use tonic::{
@@ -306,7 +307,19 @@ impl ReapiService {
         let mut resource_name = None::<String>;
         let mut resource = None::<BlobResource>;
         let mut principal = None::<Principal>;
+        // `written` counts decompressed (stored) bytes; `compressed_received` counts
+        // raw on-wire bytes. They differ only for a compressed upload, where the
+        // committed size and `write_offset` are measured against the compressed stream.
         let mut written = 0_u64;
+        let mut compressed_received = 0_u64;
+        let mut compressor = Compression::Identity;
+        let mut declared_size = 0_u64;
+        // Persistent streaming zstd decoder for compressed uploads: compressed chunks
+        // are written in, decompressed plaintext is drained out per chunk so memory
+        // stays bounded across a frame that spans many chunks. The decoder writes into
+        // a BoundedBuffer capped at the declared uncompressed size, so a decompression
+        // bomb fails during decode instead of materializing its full output first.
+        let mut decoder: Option<zstd::stream::write::Decoder<'static, BoundedBuffer>> = None;
         let mut hasher = Sha256::new();
         let mut finished = false;
 
@@ -366,20 +379,56 @@ impl ReapiService {
                         "temporary storage budget exhausted: {error}"
                     ))
                 })?;
+                compressor = parsed_resource.compressor;
+                declared_size = parsed_resource.size_bytes;
+                if compressor == Compression::Zstd {
+                    decoder = Some(
+                        zstd::stream::write::Decoder::new(BoundedBuffer::new(declared_size))
+                            .map_err(|error| {
+                                Status::internal(format!("failed to start zstd decoder: {error}"))
+                            })?,
+                    );
+                }
                 resource = Some(parsed_resource);
                 resource_name = Some(chunk_resource_name);
             }
-            if chunk.write_offset < 0 || chunk.write_offset as u64 != written {
+            // `write_offset` indexes the wire stream: decompressed bytes for a plain
+            // upload, compressed bytes for a zstd upload (spec semantics).
+            let expected_offset = match compressor {
+                Compression::Identity => written,
+                Compression::Zstd => compressed_received,
+            };
+            if chunk.write_offset < 0 || chunk.write_offset as u64 != expected_offset {
                 return Err(Status::invalid_argument("unexpected write_offset"));
             }
             if !chunk.data.is_empty() {
-                tokio::io::AsyncWriteExt::write_all(&mut temp_file, &chunk.data)
-                    .await
-                    .map_err(|error| {
-                        Status::internal(format!("failed to write temp blob: {error}"))
-                    })?;
-                hasher.update(&chunk.data);
-                written = written.saturating_add(chunk.data.len() as u64);
+                match decoder.as_mut() {
+                    None => {
+                        append_decoded_bytes(
+                            &mut temp_file,
+                            &mut hasher,
+                            &mut written,
+                            declared_size,
+                            &chunk.data,
+                        )
+                        .await?;
+                    }
+                    Some(decoder) => {
+                        std::io::Write::write_all(decoder, &chunk.data).map_err(|error| {
+                            Status::invalid_argument(format!("failed to decompress blob: {error}"))
+                        })?;
+                        let produced = std::mem::take(&mut decoder.get_mut().buffer);
+                        append_decoded_bytes(
+                            &mut temp_file,
+                            &mut hasher,
+                            &mut written,
+                            declared_size,
+                            &produced,
+                        )
+                        .await?;
+                    }
+                }
+                compressed_received = compressed_received.saturating_add(chunk.data.len() as u64);
                 // Only real byte progress extends the deadline, so a client
                 // cannot keep a stalled upload alive with empty frames.
                 stall_deadline = tokio::time::Instant::now() + REAPI_WRITE_STALL_TIMEOUT;
@@ -396,6 +445,23 @@ impl ReapiService {
         let resource = resource.ok_or_else(|| Status::invalid_argument("empty write stream"))?;
         if !finished {
             return Err(Status::invalid_argument("write stream did not finish"));
+        }
+        // Drain any plaintext the decoder still holds. Each chunk already drains, so
+        // this is normally empty; it also surfaces a truncated frame indirectly via
+        // the size/hash checks below (decompressed bytes fall short of the digest).
+        if let Some(mut decoder) = decoder {
+            std::io::Write::flush(&mut decoder).map_err(|error| {
+                Status::invalid_argument(format!("failed to finalize decompression: {error}"))
+            })?;
+            let produced = std::mem::take(&mut decoder.get_mut().buffer);
+            append_decoded_bytes(
+                &mut temp_file,
+                &mut hasher,
+                &mut written,
+                declared_size,
+                &produced,
+            )
+            .await?;
         }
         if written != resource.size_bytes {
             return Err(Status::invalid_argument(
@@ -448,8 +514,14 @@ impl ReapiService {
             .metrics
             .record_artifact_write(ArtifactProducer::Reapi, "ok", manifest.size);
 
+        // committed_size reports the bytes the server received on the wire: for a
+        // compressed upload that is the compressed byte count, not the blob size.
+        let committed_size = match resource.compressor {
+            Compression::Identity => written,
+            Compression::Zstd => compressed_received,
+        };
         let mut response = Response::new(bytestream::WriteResponse {
-            committed_size: written as i64,
+            committed_size: committed_size as i64,
         });
         self.apply_response_headers(
             &mut response,
@@ -484,6 +556,16 @@ impl Capabilities for ReapiService {
             artifact_hash: None,
         };
         let principal = self.authorize_request(&request, extension.clone()).await?;
+        // Advertising zstd is gated by config; the ByteStream Read/Write handlers accept
+        // and serve compression unconditionally, so a half-rolled or mixed-flag fleet
+        // never advertises support on one node and rejects it on another. Compression is
+        // only offered for the ByteStream `compressed-blobs` resources, not the Batch
+        // RPCs, so `supported_batch_update_compressors` stays empty.
+        let supported_compressors = if self.state.config.reapi_compression_enabled {
+            vec![reapi::compressor::Value::Zstd as i32]
+        } else {
+            Vec::new()
+        };
         let mut response = Response::new(reapi::ServerCapabilities {
             cache_capabilities: Some(reapi::CacheCapabilities {
                 digest_functions: vec![reapi::digest_function::Value::Sha256 as i32],
@@ -494,7 +576,7 @@ impl Capabilities for ReapiService {
                 max_batch_total_size_bytes: MAX_MODULE_TOTAL_BYTES as i64,
                 symlink_absolute_path_strategy:
                     reapi::symlink_absolute_path_strategy::Value::Disallowed as i32,
-                supported_compressors: Vec::new(),
+                supported_compressors,
                 supported_batch_update_compressors: Vec::new(),
                 max_cas_blob_size_bytes: MAX_MODULE_TOTAL_BYTES as i64,
                 split_blob_support: false,
@@ -739,6 +821,9 @@ impl ContentAddressableStorage for ReapiService {
                     continue;
                 }
             };
+            // Compression is not offered for Batch RPCs (only ByteStream
+            // compressed-blobs), so it is not advertised in
+            // supported_batch_update_compressors and compressed items are rejected.
             if item.compressor != 0 {
                 responses.push(reapi::batch_update_blobs_response::Response {
                     digest: Some(digest),
@@ -779,6 +864,8 @@ impl ContentAddressableStorage for ReapiService {
             artifact_hash: None,
         };
         let principal = self.authorize_request(&request, extension.clone()).await?;
+        // Compression is not offered for Batch RPCs (only ByteStream compressed-blobs),
+        // so responses are always returned uncompressed regardless of acceptable_compressors.
         let mut responses = Vec::with_capacity(request.get_ref().digests.len());
         let mut materialization_budget = MaterializationBudget::new(&self.state);
 
@@ -896,6 +983,14 @@ impl ByteStream for ReapiService {
         if read_offset > manifest.size {
             return Err(Status::out_of_range("read_offset exceeds blob size"));
         }
+        // For a compressed read `read_offset` indexes the uncompressed blob (so the
+        // store range below is correct as-is), but the spec forbids a non-zero
+        // `read_limit` because a byte cap on the compressed stream is not meaningful.
+        if resource.compressor != Compression::Identity && request.get_ref().read_limit != 0 {
+            return Err(Status::invalid_argument(
+                "read_limit must be zero for compressed reads",
+            ));
+        }
         let read_limit = if request.get_ref().read_limit == 0 {
             None
         } else {
@@ -915,22 +1010,28 @@ impl ByteStream for ReapiService {
                     .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
                 Status::internal(format!("failed to stream blob: {error}"))
             })?;
+        // Meter the logical (uncompressed) bytes served regardless of compression so
+        // artifact-read accounting stays comparable across compressed and plain reads.
         self.state
             .metrics
             .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes_to_read);
-        let stream =
-            ReaderStream::with_capacity(reader, REAPI_READ_STREAM_CHUNK_BYTES).map(move |result| {
-                match result {
-                    Ok(bytes) => Ok(bytestream::ReadResponse {
-                        data: bytes.to_vec(),
-                    }),
-                    Err(error) => Err(Status::internal(format!(
-                        "failed to stream blob chunk: {error}"
-                    ))),
-                }
-            });
+        let response_stream: Self::ReadStream = match resource.compressor {
+            Compression::Identity => Box::pin(
+                ReaderStream::with_capacity(reader, REAPI_READ_STREAM_CHUNK_BYTES)
+                    .map(|result| read_chunk_to_response(result, "blob chunk")),
+            ),
+            Compression::Zstd => {
+                // Compress the uncompressed blob on the fly: the store reader feeds a
+                // streaming zstd encoder whose output is chunked back to the client.
+                let encoder = ZstdEncoder::new(BufReader::new(reader));
+                Box::pin(
+                    ReaderStream::with_capacity(encoder, REAPI_READ_STREAM_CHUNK_BYTES)
+                        .map(|result| read_chunk_to_response(result, "compressed blob chunk")),
+                )
+            }
+        };
 
-        let mut response = Response::new(Box::pin(stream) as Self::ReadStream);
+        let mut response = Response::new(response_stream);
         self.apply_response_headers(&mut response, extension, principal.as_ref())
             .await?;
         Ok(response)
@@ -1189,6 +1290,95 @@ impl<'a> MaterializationBudget<'a> {
     }
 }
 
+// A `std::io::Write` sink that caps total bytes written at `limit`, used as the
+// output of the streaming zstd decoder. The decoder writes decompressed bytes as
+// it consumes compressed input, so a write that would push the running total past
+// the declared uncompressed size fails *during* decode — bounding peak memory to
+// roughly one zstd block rather than letting a decompression bomb materialize the
+// full (unbounded) output before any size check runs.
+struct BoundedBuffer {
+    buffer: Vec<u8>,
+    produced: u64,
+    limit: u64,
+}
+
+impl BoundedBuffer {
+    fn new(limit: u64) -> Self {
+        Self {
+            buffer: Vec::new(),
+            produced: 0,
+            limit,
+        }
+    }
+}
+
+impl std::io::Write for BoundedBuffer {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        // `produced` accumulates across drains of `buffer`, so it tracks the total
+        // decompressed output and stays the real bomb bound even though the buffer
+        // is taken between chunks.
+        let next = self.produced.saturating_add(buf.len() as u64);
+        if next > self.limit {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "decompressed output exceeds the declared uncompressed size",
+            ));
+        }
+        self.produced = next;
+        self.buffer.extend_from_slice(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+// Map one chunk from a (plain or zstd-encoded) read stream into a ByteStream
+// ReadResponse, shared by the identity and compressed branches of `read`.
+fn read_chunk_to_response(
+    result: Result<Bytes, std::io::Error>,
+    label: &str,
+) -> Result<bytestream::ReadResponse, Status> {
+    match result {
+        Ok(bytes) => Ok(bytestream::ReadResponse {
+            data: bytes.to_vec(),
+        }),
+        Err(error) => Err(Status::internal(format!("failed to stream {label}: {error}"))),
+    }
+}
+
+// Append decoded (already-decompressed) bytes to the upload temp file while
+// updating the running hash and stored-byte count. Rejecting output that exceeds
+// the digest's declared size guards a compressed upload against a decompression
+// bomb and bounds an over-long plain upload before it can overrun the temp file.
+async fn append_decoded_bytes<W>(
+    writer: &mut W,
+    hasher: &mut Sha256,
+    written: &mut u64,
+    declared_size: u64,
+    data: &[u8],
+) -> Result<(), Status>
+where
+    W: tokio::io::AsyncWrite + Unpin,
+{
+    if data.is_empty() {
+        return Ok(());
+    }
+    let new_written = written.saturating_add(data.len() as u64);
+    if new_written > declared_size {
+        return Err(Status::invalid_argument(
+            "uploaded blob is larger than the declared uncompressed size",
+        ));
+    }
+    tokio::io::AsyncWriteExt::write_all(writer, data)
+        .await
+        .map_err(|error| Status::internal(format!("failed to write temp blob: {error}")))?;
+    hasher.update(data);
+    *written = new_written;
+    Ok(())
+}
+
 fn validate_digest_bytes(digest: &reapi::Digest, bytes: &[u8]) -> Result<(), String> {
     if digest.size_bytes < 0 {
         return Err("digest size must be non-negative".to_string());
@@ -1306,12 +1496,34 @@ fn grpc_status_from_http_status(status: u16, message: &str) -> Status {
     }
 }
 
+// Wire compression negotiated through the REAPI `compressed-blobs` ByteStream
+// resource. Blobs are always stored uncompressed; this only affects bytes on the
+// gRPC wire. (Compression is not offered for the Batch RPCs.)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Compression {
+    Identity,
+    Zstd,
+}
+
+impl Compression {
+    // Parse the `{compressor}` segment of a `compressed-blobs` resource name. The
+    // spec only permits compressors other than `identity` here, so `identity` and
+    // unknown values map to None (rejected by the caller as INVALID_ARGUMENT).
+    fn from_resource_segment(segment: &str) -> Option<Compression> {
+        match segment {
+            "zstd" => Some(Compression::Zstd),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 struct BlobResource {
     namespace_id: String,
     hash: String,
     size_bytes: u64,
     key: String,
+    compressor: Compression,
 }
 
 fn parse_read_resource_name(resource_name: &str) -> Result<BlobResource, Status> {
@@ -1330,17 +1542,36 @@ fn parse_blob_resource_name(
         .split('/')
         .filter(|part| !part.is_empty())
         .collect::<Vec<_>>();
-    let Some(blob_index) = parts.iter().rposition(|part| *part == "blobs") else {
+    let Some(marker_index) = parts
+        .iter()
+        .rposition(|part| *part == "blobs" || *part == "compressed-blobs")
+    else {
         return Err(Status::invalid_argument(
-            "resource_name must contain /blobs/",
+            "resource_name must contain /blobs/ or /compressed-blobs/",
         ));
     };
-    if blob_index + 2 >= parts.len() {
+    // A `compressed-blobs` marker carries the compressor in the next segment:
+    // `compressed-blobs/{compressor}/{hash}/{size}`. Plain `blobs` puts the digest
+    // immediately after the marker.
+    let (compressor, digest_offset) = if parts[marker_index] == "compressed-blobs" {
+        let compressor_segment = parts.get(marker_index + 1).ok_or_else(|| {
+            Status::invalid_argument("compressed-blobs resource_name is missing the compressor")
+        })?;
+        let compressor = Compression::from_resource_segment(compressor_segment).ok_or_else(|| {
+            Status::invalid_argument(format!(
+                "unsupported compressor in resource_name: {compressor_segment}"
+            ))
+        })?;
+        (compressor, marker_index + 2)
+    } else {
+        (Compression::Identity, marker_index + 1)
+    };
+    if digest_offset + 1 >= parts.len() {
         return Err(Status::invalid_argument(
             "resource_name is missing digest components",
         ));
     }
-    let prefix = &parts[..blob_index];
+    let prefix = &parts[..marker_index];
     let namespace_parts = if prefix.len() >= 2 && prefix[prefix.len() - 2] == "uploads" {
         &prefix[..prefix.len() - 2]
     } else {
@@ -1351,8 +1582,8 @@ fn parse_blob_resource_name(
         }
         prefix
     };
-    let hash = parts[blob_index + 1].to_owned();
-    let size_bytes = parts[blob_index + 2]
+    let hash = parts[digest_offset].to_owned();
+    let size_bytes = parts[digest_offset + 1]
         .parse::<u64>()
         .map_err(|error| Status::invalid_argument(format!("invalid blob size: {error}")))?;
     let namespace_id = if namespace_parts.is_empty() {
@@ -1362,8 +1593,10 @@ fn parse_blob_resource_name(
     };
     // Key CAS blobs the same way as the digest-based paths (FindMissingBlobs,
     // BatchUpdateBlobs, BatchReadBlobs) which use `blob_key(&digest_key(..))` =
-    // "blob/{hash}/{size}". Without the `blob/` prefix, blobs uploaded via ByteStream were
-    // stored under "{hash}/{size}" and were invisible to FindMissingBlobs, so REAPI clients
+    // "blob/{hash}/{size}". The hash/size always describe the uncompressed blob, so
+    // compressed and uncompressed resource names for the same blob map to one key.
+    // Without the `blob/` prefix, blobs uploaded via ByteStream were stored under
+    // "{hash}/{size}" and were invisible to FindMissingBlobs, so REAPI clients
     // (e.g. Bazel) treated the produced outputs as missing and re-executed the action.
     let key = blob_key(&format!("{hash}/{size_bytes}"));
 
@@ -1372,6 +1605,7 @@ fn parse_blob_resource_name(
         hash,
         size_bytes,
         key,
+        compressor,
     })
 }
 
@@ -1611,6 +1845,7 @@ mod tests {
                 hash: "abc".into(),
                 size_bytes: 10,
                 key: "blob/abc/10".into(),
+                compressor: Compression::Identity,
             }
         );
         assert_eq!(
@@ -1621,6 +1856,7 @@ mod tests {
                 hash: "abc".into(),
                 size_bytes: 10,
                 key: "blob/abc/10".into(),
+                compressor: Compression::Identity,
             }
         );
     }
@@ -1635,7 +1871,56 @@ mod tests {
                 hash: "abc".into(),
                 size_bytes: 10,
                 key: "blob/abc/10".into(),
+                compressor: Compression::Identity,
             }
+        );
+    }
+
+    #[test]
+    fn parses_compressed_blobs_read_and_write_resource_names() {
+        // Compressed read: instance/compressed-blobs/{compressor}/{hash}/{size}.
+        // hash/size describe the uncompressed blob, so the storage key matches the
+        // plain `blobs/...` form for the same blob.
+        assert_eq!(
+            parse_read_resource_name("bazel/cache/compressed-blobs/zstd/abc/10")
+                .expect("compressed read resource should parse"),
+            BlobResource {
+                namespace_id: "bazel/cache".into(),
+                hash: "abc".into(),
+                size_bytes: 10,
+                key: "blob/abc/10".into(),
+                compressor: Compression::Zstd,
+            }
+        );
+        // Compressed write: instance/uploads/{uuid}/compressed-blobs/{compressor}/{hash}/{size}.
+        assert_eq!(
+            parse_write_resource_name("ios/uploads/uuid-1/compressed-blobs/zstd/abc/10")
+                .expect("compressed write resource should parse"),
+            BlobResource {
+                namespace_id: "ios".into(),
+                hash: "abc".into(),
+                size_bytes: 10,
+                key: "blob/abc/10".into(),
+                compressor: Compression::Zstd,
+            }
+        );
+    }
+
+    #[test]
+    fn rejects_unsupported_and_identity_compressors_in_resource_names() {
+        // `identity` is not a valid compressed-blobs compressor per the spec.
+        assert_eq!(
+            parse_read_resource_name("compressed-blobs/identity/abc/10")
+                .expect_err("identity compressor should be rejected")
+                .code(),
+            tonic::Code::InvalidArgument
+        );
+        // An unadvertised compressor (e.g. deflate) is rejected.
+        assert_eq!(
+            parse_read_resource_name("compressed-blobs/deflate/abc/10")
+                .expect_err("deflate compressor should be rejected")
+                .code(),
+            tonic::Code::InvalidArgument
         );
     }
 
@@ -2218,5 +2503,440 @@ end
 
         assert_eq!(error.code(), tonic::Code::Unavailable);
         assert!(error.message().contains("draining"));
+    }
+
+    async fn spawn_reapi_server(
+        state: SharedState,
+    ) -> (
+        std::net::SocketAddr,
+        tokio::sync::oneshot::Sender<()>,
+        tokio::task::JoinHandle<Result<(), String>>,
+    ) {
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test listener");
+        let addr = listener.local_addr().expect("listener addr");
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+        let handle = tokio::spawn(async move {
+            serve(listener, state, async move {
+                let _ = shutdown_rx.await;
+            })
+            .await
+        });
+        (addr, shutdown_tx, handle)
+    }
+
+    async fn connect_channel(addr: std::net::SocketAddr) -> tonic::transport::Channel {
+        let endpoint = format!("http://{addr}");
+        for _ in 0..50 {
+            if let Ok(channel) = tonic::transport::Endpoint::from_shared(endpoint.clone())
+                .expect("valid endpoint")
+                .connect()
+                .await
+            {
+                return channel;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        panic!("gRPC server should accept connections");
+    }
+
+    #[tokio::test]
+    async fn get_capabilities_advertises_zstd_only_when_enabled() {
+        // Disabled by default: no compressors advertised.
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            state: context.state.clone(),
+        };
+        let caps = service
+            .get_capabilities(Request::new(reapi::GetCapabilitiesRequest::default()))
+            .await
+            .expect("capabilities should load")
+            .into_inner()
+            .cache_capabilities
+            .expect("cache capabilities should be present");
+        assert!(caps.supported_compressors.is_empty());
+        assert!(caps.supported_batch_update_compressors.is_empty());
+
+        // Enabled: zstd advertised for ByteStream only, never for the Batch RPCs.
+        let context = test_context(|config| {
+            config.reapi_compression_enabled = true;
+        })
+        .await;
+        let service = ReapiService {
+            state: context.state.clone(),
+        };
+        let caps = service
+            .get_capabilities(Request::new(reapi::GetCapabilitiesRequest::default()))
+            .await
+            .expect("capabilities should load")
+            .into_inner()
+            .cache_capabilities
+            .expect("cache capabilities should be present");
+        assert_eq!(
+            caps.supported_compressors,
+            vec![reapi::compressor::Value::Zstd as i32]
+        );
+        assert!(caps.supported_batch_update_compressors.is_empty());
+    }
+
+    // Drives the real gRPC server: a zstd-compressed ByteStream upload must persist
+    // the uncompressed blob (verified by reading it back both compressed and plain),
+    // and committed_size must report the compressed byte count. Compression accept
+    // and serve are exercised with the flag off, proving they are not gated.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn bytestream_compressed_write_and_read_round_trips() {
+        use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
+
+        let context = test_context(|_| {}).await;
+        let (addr, shutdown_tx, server) = spawn_reapi_server(context.state.clone()).await;
+        let channel = connect_channel(addr).await;
+
+        // Compressible payload that spans several write chunks once compressed.
+        let blob: Vec<u8> = (0..256 * 1024u32).map(|index| (index / 64) as u8).collect();
+        let hash = hex::encode(Sha256::digest(&blob));
+        let len = blob.len();
+        let compressed = zstd::bulk::compress(&blob, 0).expect("compress blob");
+
+        let chunk_size = 16 * 1024;
+        let mut requests = Vec::new();
+        let mut offset = 0usize;
+        while offset < compressed.len() {
+            let end = (offset + chunk_size).min(compressed.len());
+            requests.push(bytestream::WriteRequest {
+                resource_name: if offset == 0 {
+                    format!("uploads/zstd-upload/compressed-blobs/zstd/{hash}/{len}")
+                } else {
+                    String::new()
+                },
+                // write_offset indexes the compressed stream for a compressed upload.
+                write_offset: offset as i64,
+                finish_write: end == compressed.len(),
+                data: compressed[offset..end].to_vec(),
+            });
+            offset = end;
+        }
+        let committed = ByteStreamClient::new(channel.clone())
+            .write(tokio_stream::iter(requests))
+            .await
+            .expect("compressed write should succeed")
+            .into_inner()
+            .committed_size;
+        assert_eq!(
+            committed as usize,
+            compressed.len(),
+            "committed_size is the compressed byte count for a compressed upload"
+        );
+
+        // Read it back compressed and decompress.
+        let mut compressed_read = Vec::new();
+        let mut stream = ByteStreamClient::new(channel.clone())
+            .read(bytestream::ReadRequest {
+                resource_name: format!("compressed-blobs/zstd/{hash}/{len}"),
+                read_offset: 0,
+                read_limit: 0,
+            })
+            .await
+            .expect("compressed read should succeed")
+            .into_inner();
+        while let Some(chunk) = stream.message().await.expect("read compressed chunk") {
+            compressed_read.extend_from_slice(&chunk.data);
+        }
+        let decompressed =
+            zstd::bulk::decompress(&compressed_read, len).expect("decompress compressed read");
+        assert_eq!(decompressed, blob, "compressed read round-trips to the original");
+
+        // Read it back plain: the blob is stored uncompressed.
+        let mut plain = Vec::new();
+        let mut stream = ByteStreamClient::new(channel.clone())
+            .read(bytestream::ReadRequest {
+                resource_name: format!("blobs/{hash}/{len}"),
+                read_offset: 0,
+                read_limit: 0,
+            })
+            .await
+            .expect("plain read should succeed")
+            .into_inner();
+        while let Some(chunk) = stream.message().await.expect("read plain chunk") {
+            plain.extend_from_slice(&chunk.data);
+        }
+        assert_eq!(plain, blob, "a compressed upload is stored uncompressed");
+
+        let _ = shutdown_tx.send(());
+        let _ = server.await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn compressed_read_rejects_nonzero_read_limit() {
+        use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
+
+        let context = test_context(|_| {}).await;
+        let blob = b"compressed read limit payload".to_vec();
+        let hash = hex::encode(Sha256::digest(&blob));
+        let len = blob.len();
+        let key = blob_key(&format!("{hash}/{len}"));
+        context
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                DEFAULT_INSTANCE_NAME,
+                &key,
+                "application/octet-stream",
+                &blob,
+            )
+            .await
+            .expect("cas blob should persist");
+        let (addr, shutdown_tx, server) = spawn_reapi_server(context.state.clone()).await;
+        let channel = connect_channel(addr).await;
+
+        let error = ByteStreamClient::new(channel)
+            .read(bytestream::ReadRequest {
+                resource_name: format!("compressed-blobs/zstd/{hash}/{len}"),
+                read_offset: 0,
+                read_limit: 5,
+            })
+            .await
+            .expect_err("a non-zero read_limit on a compressed read should be rejected");
+        assert_eq!(error.code(), tonic::Code::InvalidArgument);
+
+        let _ = shutdown_tx.send(());
+        let _ = server.await;
+    }
+
+    // Compression is not offered for the Batch RPCs: BatchUpdateBlobs rejects a
+    // compressed item, and BatchReadBlobs returns identity even when the client lists
+    // zstd in acceptable_compressors.
+    #[tokio::test]
+    async fn batch_rpcs_do_not_support_compression() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            state: context.state.clone(),
+        };
+        let blob = vec![7u8; 4096];
+        let digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(&blob)),
+            size_bytes: blob.len() as i64,
+        };
+
+        // BatchUpdateBlobs: a zstd-flagged item is rejected; an identity item succeeds.
+        let response = service
+            .batch_update_blobs(Request::new(reapi::BatchUpdateBlobsRequest {
+                instance_name: DEFAULT_INSTANCE_NAME.into(),
+                requests: vec![
+                    reapi::batch_update_blobs_request::Request {
+                        digest: Some(digest.clone()),
+                        data: zstd::bulk::compress(&blob, 0).expect("compress"),
+                        compressor: reapi::compressor::Value::Zstd as i32,
+                    },
+                    reapi::batch_update_blobs_request::Request {
+                        digest: Some(digest.clone()),
+                        data: blob.clone(),
+                        compressor: reapi::compressor::Value::Identity as i32,
+                    },
+                ],
+                digest_function: reapi::digest_function::Value::Sha256 as i32,
+            }))
+            .await
+            .expect("batch update should return per-item status");
+        let codes: Vec<i32> = response
+            .get_ref()
+            .responses
+            .iter()
+            .map(|item| item.status.as_ref().map(|status| status.code).unwrap_or(-1))
+            .collect();
+        assert_eq!(
+            codes[0],
+            tonic::Code::InvalidArgument as i32,
+            "a compressed batch-update item should be rejected"
+        );
+        assert_eq!(codes[1], 0, "an identity batch-update item should succeed");
+
+        // BatchReadBlobs: response is identity even when the client accepts zstd.
+        let response = service
+            .batch_read_blobs(Request::new(reapi::BatchReadBlobsRequest {
+                instance_name: DEFAULT_INSTANCE_NAME.into(),
+                digests: vec![digest],
+                acceptable_compressors: vec![reapi::compressor::Value::Zstd as i32],
+                digest_function: reapi::digest_function::Value::Sha256 as i32,
+            }))
+            .await
+            .expect("batch read should succeed");
+        let item = &response.get_ref().responses[0];
+        assert_eq!(item.compressor, 0, "batch read must return identity");
+        assert_eq!(item.data, blob);
+    }
+
+    // A compressed ByteStream upload whose payload decompresses to far more than the
+    // declared uncompressed size must be rejected, and (via BoundedBuffer) without
+    // first materializing the full decompressed output in memory.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn bytestream_compressed_write_rejects_decompression_bomb() {
+        use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
+
+        let context = test_context(|_| {}).await;
+        let (addr, shutdown_tx, server) = spawn_reapi_server(context.state.clone()).await;
+        let channel = connect_channel(addr).await;
+
+        // 4 MiB of zeros compresses to a few KiB; declare a tiny uncompressed size.
+        let bomb_plaintext = vec![0u8; 4 * 1024 * 1024];
+        let compressed = zstd::bulk::compress(&bomb_plaintext, 0).expect("compress bomb");
+        assert!(compressed.len() < bomb_plaintext.len() / 100);
+        let declared_size = 64u64;
+        let fake_hash = hex::encode(Sha256::digest(b"declared-but-not-the-real-content"));
+
+        let error = ByteStreamClient::new(channel)
+            .write(tokio_stream::iter(vec![bytestream::WriteRequest {
+                resource_name: format!(
+                    "uploads/bomb/compressed-blobs/zstd/{fake_hash}/{declared_size}"
+                ),
+                write_offset: 0,
+                finish_write: true,
+                data: compressed,
+            }]))
+            .await
+            .expect_err("a decompression bomb must be rejected");
+        assert_eq!(error.code(), tonic::Code::InvalidArgument);
+
+        let _ = shutdown_tx.send(());
+        let _ = server.await;
+    }
+
+    // A compressed upload whose decompressed bytes match the declared size but hash to
+    // a different digest than the resource name must be rejected after decompression.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn bytestream_compressed_write_rejects_digest_mismatch() {
+        use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
+
+        let context = test_context(|_| {}).await;
+        let (addr, shutdown_tx, server) = spawn_reapi_server(context.state.clone()).await;
+        let channel = connect_channel(addr).await;
+
+        let actual = vec![1u8; 256];
+        let claimed = vec![2u8; 256]; // same length, different content -> different hash
+        let compressed = zstd::bulk::compress(&actual, 0).expect("compress");
+        let claimed_hash = hex::encode(Sha256::digest(&claimed));
+        let len = actual.len();
+
+        let error = ByteStreamClient::new(channel)
+            .write(tokio_stream::iter(vec![bytestream::WriteRequest {
+                resource_name: format!("uploads/mismatch/compressed-blobs/zstd/{claimed_hash}/{len}"),
+                write_offset: 0,
+                finish_write: true,
+                data: compressed,
+            }]))
+            .await
+            .expect_err("a digest mismatch after decompression must be rejected");
+        assert_eq!(error.code(), tonic::Code::InvalidArgument);
+
+        let _ = shutdown_tx.send(());
+        let _ = server.await;
+    }
+
+    // A structurally truncated zstd frame decompresses to fewer bytes than declared (or
+    // fails to finalize); either way the upload must be rejected, not silently stored.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn bytestream_compressed_write_rejects_truncated_frame() {
+        use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
+
+        let context = test_context(|_| {}).await;
+        let (addr, shutdown_tx, server) = spawn_reapi_server(context.state.clone()).await;
+        let channel = connect_channel(addr).await;
+
+        let blob: Vec<u8> = (0..64 * 1024u32).map(|index| (index / 32) as u8).collect();
+        let hash = hex::encode(Sha256::digest(&blob));
+        let len = blob.len();
+        let compressed = zstd::bulk::compress(&blob, 0).expect("compress");
+        let truncated = compressed[..compressed.len() / 2].to_vec();
+
+        let error = ByteStreamClient::new(channel)
+            .write(tokio_stream::iter(vec![bytestream::WriteRequest {
+                resource_name: format!("uploads/truncated/compressed-blobs/zstd/{hash}/{len}"),
+                write_offset: 0,
+                finish_write: true,
+                data: truncated,
+            }]))
+            .await
+            .expect_err("a truncated zstd frame must be rejected");
+        assert_eq!(error.code(), tonic::Code::InvalidArgument);
+
+        let _ = shutdown_tx.send(());
+        let _ = server.await;
+    }
+
+    // Pins the BoundedBuffer bound: writing up to exactly the limit succeeds (a blob
+    // whose decoded size equals the declared size must not be rejected), and the very
+    // next byte fails. Guards the `> limit` (not `>=`) comparison against regression.
+    #[test]
+    fn bounded_buffer_allows_exactly_the_limit_then_rejects_overflow() {
+        use std::io::Write as _;
+        let mut buffer = BoundedBuffer::new(8);
+        buffer.write_all(&[0u8; 5]).expect("under the limit");
+        buffer.write_all(&[0u8; 3]).expect("exactly at the limit is allowed");
+        assert_eq!(buffer.buffer.len(), 8);
+        let error = buffer
+            .write_all(&[0u8; 1])
+            .expect_err("one byte past the limit must error");
+        assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
+    }
+
+    // A bomb spread across many chunks, each individually under the declared size but
+    // cumulatively over it, must still be rejected. This pins that `BoundedBuffer`
+    // accumulates `produced` across the per-chunk `std::mem::take` drains rather than
+    // resetting it — the invariant a future refactor of the drain could silently break.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn bytestream_compressed_write_rejects_multi_chunk_bomb() {
+        use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
+
+        let context = test_context(|_| {}).await;
+        let (addr, shutdown_tx, server) = spawn_reapi_server(context.state.clone()).await;
+        let channel = connect_channel(addr).await;
+
+        // Near-incompressible 200 KiB payload (fmix32 of the index) declared as half its
+        // real size, so the compressed stream stays large enough to span many chunks and
+        // the decoded output crosses the declared bound only after several of them.
+        let plaintext: Vec<u8> = (0..200 * 1024u32)
+            .map(|index| {
+                let mut x = index.wrapping_mul(2_654_435_761);
+                x ^= x >> 15;
+                x = x.wrapping_mul(2_246_822_519);
+                x ^= x >> 13;
+                (x >> 16) as u8
+            })
+            .collect();
+        let compressed = zstd::bulk::compress(&plaintext, 0).expect("compress");
+        let declared_size = (plaintext.len() / 2) as u64;
+        let fake_hash = hex::encode(Sha256::digest(b"multi-chunk-bomb"));
+
+        let chunk_size = 16 * 1024;
+        let mut requests = Vec::new();
+        let mut offset = 0usize;
+        while offset < compressed.len() {
+            let end = (offset + chunk_size).min(compressed.len());
+            requests.push(bytestream::WriteRequest {
+                resource_name: if offset == 0 {
+                    format!("uploads/mc-bomb/compressed-blobs/zstd/{fake_hash}/{declared_size}")
+                } else {
+                    String::new()
+                },
+                write_offset: offset as i64,
+                finish_write: end == compressed.len(),
+                data: compressed[offset..end].to_vec(),
+            });
+            offset = end;
+        }
+        assert!(
+            requests.len() >= 3,
+            "test must span multiple chunks to exercise cumulative accounting"
+        );
+
+        let error = ByteStreamClient::new(channel)
+            .write(tokio_stream::iter(requests))
+            .await
+            .expect_err("a multi-chunk decompression bomb must be rejected");
+        assert_eq!(error.code(), tonic::Code::InvalidArgument);
+
+        let _ = shutdown_tx.send(());
+        let _ = server.await;
     }
 }

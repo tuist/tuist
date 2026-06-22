@@ -37,6 +37,7 @@ const KURA_ACCELERATED_FILE_SERVING_MODE: &str = "KURA_ACCELERATED_FILE_SERVING_
 const KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT: &str =
     "KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT";
 const KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES: &str = "KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES";
+const KURA_REAPI_COMPRESSION_ENABLED: &str = "KURA_REAPI_COMPRESSION_ENABLED";
 
 const DEFAULT_HTTPS_PORT: u16 = 4443;
 const KURA_FILE_DESCRIPTOR_POOL_SIZE: &str = "KURA_FILE_DESCRIPTOR_POOL_SIZE";
@@ -126,6 +127,7 @@ pub struct Config {
     pub public_tls: Option<PublicTlsConfig>,
     pub https_port: u16,
     pub accelerated_file_serving: AcceleratedFileServingConfig,
+    pub reapi_compression_enabled: bool,
     pub file_descriptor_pool_size: usize,
     pub file_descriptor_acquire_timeout_ms: u64,
     pub drain_completion_timeout_ms: u64,
@@ -494,6 +496,20 @@ impl Config {
                 max_concurrent: accelerated_file_serving_max_concurrent,
                 chunk_bytes: accelerated_file_serving_chunk_bytes,
             });
+        // Gates only whether GetCapabilities advertises zstd; the REAPI accept and
+        // serve paths handle compression unconditionally so a mixed-version, mixed-flag
+        // fleet can never advertise support on one node and reject it on another.
+        let reapi_compression_enabled = optional_parsed_value(
+            &mut lookup,
+            KURA_REAPI_COMPRESSION_ENABLED,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<bool>()
+                    .map_err(|_| format!("{KURA_REAPI_COMPRESSION_ENABLED} must be a valid bool"))
+            },
+        )
+        .unwrap_or(false);
         let internal_tls_ca_cert_path = lookup(KURA_INTERNAL_TLS_CA_CERT_PATH)
             .map(PathBuf::from)
             .filter(|value| !value.as_os_str().is_empty());
@@ -1319,6 +1335,7 @@ impl Config {
             https_port,
             accelerated_file_serving: accelerated_file_serving
                 .expect("accelerated_file_serving should be present when configuration is valid"),
+            reapi_compression_enabled,
             file_descriptor_pool_size,
             file_descriptor_acquire_timeout_ms,
             drain_completion_timeout_ms,
