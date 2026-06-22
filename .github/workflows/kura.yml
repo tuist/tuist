@@ -55,7 +55,7 @@ jobs:
 
   bazel-lockfile:
     name: Bazel Lockfile
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux
     timeout-minutes: 15
     # Advisory while the Bazel build is being brought up: a failure must not gate the
     # workflow (the cargo jobs remain the source of truth).
@@ -114,7 +114,7 @@ jobs:
 
   bazel-compile:
     name: Bazel Compile
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux
     # A cold Bazel build compiles the -sys crates' C/C++ (rocksdb, aws-lc) from source,
     # unlike `cargo check`, so allow more wall-clock than the cargo compile job.
     timeout-minutes: 60
@@ -142,6 +142,8 @@ jobs:
             bazel-compile-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock') }}-
             bazel-compile-
 
+      - name: Bazel setup
+        run: tuist bazel setup && cat .bazelrc.tuist
       - name: Compile without warnings
         run: |
           {
