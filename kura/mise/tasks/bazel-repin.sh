@@ -11,7 +11,7 @@ set -euo pipefail
 #
 # Both modes run on the host with no Docker: the repin/check is a crate_universe module-extension
 # step, evaluated before any target analysis or cc-toolchain resolution, so `bazel query
-# '@crates//:all'` (which only materializes the @crates repo) needs no cross-GCC toolchain.
+# '@crates//:all'` (which only materializes the @crates repo) needs no cc toolchain.
 #
 # No `cd` needed: mise runs file tasks from the config root (kura/) regardless of the invocation
 # directory, so the relative paths below (Cargo.Bazel.lock) and the bazel workspace resolve here.

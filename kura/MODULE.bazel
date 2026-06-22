@@ -1,9 +1,11 @@
 """Kura — distributed cache mesh (Rust).
 
-Bazel foundation: workspace skeleton, Rust + cross C/C++ toolchains, and the
-third-party crate graph — enough to build //:all (lib + binary + tests). The
-runtime OCI image (rules_oci/rules_pkg/rules_distroless + the geoip/apt layers)
-is added in a later change; it is intentionally not part of this foundation.
+Bazel foundation: workspace skeleton, the host Rust + C/C++ toolchains, and the
+third-party crate graph — enough to build //:all (lib + binary + tests). Each
+release arch is built natively on a runner of that arch (no cross-compilation),
+so the build only ever uses the autodetected host toolchain. The runtime OCI
+image (rules_oci/rules_pkg/rules_distroless + the geoip/apt layers) is added in a
+later change; it is intentionally not part of this foundation.
 """
 
 module(
@@ -13,30 +15,22 @@ module(
 
 bazel_dep(name = "rules_rust", version = "0.70.0")
 bazel_dep(name = "rules_cc", version = "0.2.17")
-bazel_dep(name = "platforms", version = "1.0.0")
 
 # Pin the Rust toolchain to match rust-toolchain.toml / mise.toml (1.94.1, edition 2024).
-# extra_target_triples enables cross-compilation between the two Linux arches.
+# Each arch is built natively on a runner of that arch, so only the host triple is
+# needed — rules_rust registers it automatically (no extra_target_triples).
 rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
 rust.toolchain(
     edition = "2024",
-    extra_target_triples = [
-        "x86_64-unknown-linux-gnu",
-        "aarch64-unknown-linux-gnu",
-    ],
     versions = ["1.94.1"],
 )
 use_repo(rust, "rust_toolchains")
 
 register_toolchains("@rust_toolchains//:all")
 
-# Cross C/C++ toolchains (Debian cross GCC in the dev image). Each is scoped to a
-# cross scenario (exec arch != target arch), so native builds keep the autodetected
-# host toolchain. x86_64 target builds from an arm64 host; arm64 target from x86_64.
-register_toolchains(
-    "//bazel/toolchains/cc:x86_64_linux_toolchain",
-    "//bazel/toolchains/cc:arm64_linux_toolchain",
-)
+# C/C++ for the -sys crates (rocksdb, aws-lc, jemalloc, lua) comes from the
+# autodetected host cc toolchain on each runner. There is no cross C/C++ toolchain:
+# a release arch is compiled on a runner of that arch, never cross-compiled.
 
 # Third-party Rust dependencies, resolved from Cargo.toml / Cargo.lock.
 # Repin after changing dependencies or annotations (Bazel 9 has no `bazel sync`):
