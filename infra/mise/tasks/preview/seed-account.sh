@@ -53,6 +53,17 @@ SEED_SCRIPT=$(cat <<'EOF'
 require Logger
 alias Tuist.Accounts
 
+otp_app = :tuist
+Application.load(otp_app)
+
+endpoint_config = Application.get_env(otp_app, TuistWeb.Endpoint, [])
+Application.put_env(otp_app, TuistWeb.Endpoint, Keyword.put(endpoint_config, :server, false))
+
+promex_config = Application.get_env(otp_app, Tuist.PromEx, [])
+Application.put_env(otp_app, Tuist.PromEx, Keyword.put(promex_config, :disabled, true))
+
+{:ok, _} = Application.ensure_all_started(otp_app)
+
 handle = System.get_env("PREVIEW_ACCOUNT_HANDLE")
 email = System.get_env("PREVIEW_USER_EMAIL")
 password = System.get_env("PREVIEW_USER_PASSWORD")
@@ -80,6 +91,7 @@ end
 
 FunWithFlags.enable(:kura_cache, for_actor: account)
 Logger.info("preview-seed: kura_cache feature flag enabled for " <> account.name)
+System.halt(0)
 EOF
 )
 
