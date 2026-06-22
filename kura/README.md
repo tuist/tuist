@@ -30,7 +30,7 @@ Contributions to Kura require signing the Kura Contributor License Agreement (CL
 
 Actively supported:
 
-- `Bazel` and `Buck2`: Bazel Remote Execution API v2 over gRPC on `KURA_GRPC_PORT`
+- `Bazel` and `Buck2`: Bazel Remote Execution API v2 over gRPC on `KURA_GRPC_PORT`. zstd wire compression is supported for the `compressed-blobs` ByteStream Read/Write resources (not the Batch RPCs); blobs are always stored uncompressed and compression happens on the fly per request. Advertisement is gated by `KURA_REAPI_COMPRESSION_ENABLED`.
 - `Xcode Cache`: HTTP CAS artifacts on `POST/GET /api/cache/cas/{id}` and action-cache style entries on `PUT/GET /api/cache/keyvalue`
 - `Gradle`: `PUT/GET /api/cache/gradle/{cache_key}`
 - `Module Cache`: multipart uploads on `POST /api/cache/module/start`, `POST /api/cache/module/part`, `POST /api/cache/module/complete`, and `HEAD/GET /api/cache/module/{id}`
@@ -226,6 +226,7 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_ACCELERATED_FILE_SERVING_MODE` | Linux kernel transfer primitive used by the accelerator: `splice` or `sendfile`. | Yes | `splice` |
 | `KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT` | Maximum number of concurrent accelerated transfers per node. Requests above the limit fall back to the normal Axum/Hyper path before any request bytes are consumed. | Yes | `32` |
 | `KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES` | Maximum per-syscall transfer size used by accelerated `splice`/`sendfile` loops. | Yes | `1048576` |
+| `KURA_REAPI_COMPRESSION_ENABLED` | Advertise zstd compression in the REAPI `GetCapabilities` response. The ByteStream accept/serve paths handle compressed `compressed-blobs` resources regardless of this flag, so it gates only advertisement; enable it fleet-wide only after every node runs a build that supports it. | Yes | `false` |
 | `KURA_MEMORY_SOFT_LIMIT_BYTES` | Soft watermark where Kura starts shedding optional memory use. | Yes | auto |
 | `KURA_MEMORY_HARD_LIMIT_BYTES` | Hard watermark where Kura pauses replication work and trims hot caches aggressively. | Yes | auto |
 | `KURA_MANIFEST_CACHE_MAX_BYTES` | Maximum size of the in-memory manifest hot cache. | Yes | auto |

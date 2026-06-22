@@ -122,6 +122,13 @@ config:
     mode: splice
     maxConcurrent: 32
     chunkBytes: 1048576
+  reapi:
+    # Advertise zstd compression in the REAPI GetCapabilities response. The
+    # accept/serve paths handle compression unconditionally, so this gates only
+    # advertisement: deploy the new version with this false, then flip it to true
+    # fleet-wide once every pod runs the new code (a client only requests
+    # compression after a node advertised it, and every node can then satisfy it).
+    compressionEnabled: false
   memory:
     softLimitBytes: 536870912
     hardLimitBytes: 805306368
