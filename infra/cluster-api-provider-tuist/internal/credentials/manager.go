@@ -60,6 +60,12 @@ const (
 type Manager struct {
 	Client   client.Client
 	Scaleway *scaleway.Client
+	// SSHKeyRegistrar registers a fleet's public key with Scaleway and returns
+	// its key ID. Defaults to the shared per-env Scaleway client (nil here). The
+	// Dedibox path sets this so the key is registered in the Dedibox (org
+	// default) project where Dedibox servers live — the only project whose SSH
+	// keys a Dedibox install accepts.
+	SSHKeyRegistrar func(ctx context.Context, name, publicKey string) (string, error)
 	// Namespace is where per-fleet Secrets live (typically the
 	// release's namespace).
 	Namespace string
@@ -130,6 +136,16 @@ func (m *Manager) GetTailscaleAuthKey(ctx context.Context) (string, error) {
 //
 // Idempotent across operator restarts: the Secret is the source of
 // truth, the Scaleway-side registration the side-effect we converge.
+// registerSSHKey registers a fleet public key with Scaleway, honoring a
+// provider-specific registrar (the Dedibox path registers into the org default
+// project) and falling back to the shared per-env Scaleway client.
+func (m *Manager) registerSSHKey(ctx context.Context, name, publicKey string) (string, error) {
+	if m.SSHKeyRegistrar != nil {
+		return m.SSHKeyRegistrar(ctx, name, publicKey)
+	}
+	return m.Scaleway.EnsureSSHKey(ctx, name, publicKey)
+}
+
 func (m *Manager) EnsureFleetSSHKey(ctx context.Context, fleet string) ([]byte, error) {
 	secretName := fleet + sshKeySecretSuffix
 
@@ -153,7 +169,7 @@ func (m *Manager) EnsureFleetSSHKey(ctx context.Context, fleet string) ([]byte, 
 	if secret.Annotations[scalewayKeyAnnotation] == "" {
 		pub, ok := secret.Data["id_ed25519.pub"]
 		if ok {
-			id, err := m.Scaleway.EnsureSSHKey(ctx, fleet, string(pub))
+			id, err := m.registerSSHKey(ctx, fleet, string(pub))
 			if err != nil {
 				return nil, fmt.Errorf("re-register ssh key: %w", err)
 			}
@@ -207,7 +223,7 @@ func (m *Manager) generateSSHKey(ctx context.Context, fleet, secretName string) 
 	}
 	privPEM := pem(pemBlock.Type, pemBlock.Bytes)
 
-	scwID, err := m.Scaleway.EnsureSSHKey(ctx, fleet, string(pubBytes))
+	scwID, err := m.registerSSHKey(ctx, fleet, string(pubBytes))
 	if err != nil {
 		return nil, fmt.Errorf("scaleway register ssh key: %w", err)
 	}

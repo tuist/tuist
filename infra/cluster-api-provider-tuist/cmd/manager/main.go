@@ -540,13 +540,19 @@ func main() {
 			setupLog.Error(err, "dedibox client")
 			os.Exit(1)
 		}
+		// Register the fleet bootstrap SSH key in the Dedibox (org default)
+		// project via the Dedibox client — a Dedibox install only accepts keys
+		// from the server's project, not the per-env project the shared Scaleway
+		// client uses for the macOS/Elastic Metal kinds.
+		dediboxCreds := *credsManager
+		dediboxCreds.SSHKeyRegistrar = dediboxClient.RegisterSSHKey
 		if err := (&linux.DediboxMachineReconciler{
 			Client:             mgr.GetClient(),
 			APIReader:          mgr.GetAPIReader(),
 			Scheme:             mgr.GetScheme(),
 			DediboxClient:      dediboxClient,
 			Recorder:           mgr.GetEventRecorderFor("dediboxmachine-controller"),
-			CredentialsManager: credsManager,
+			CredentialsManager: &dediboxCreds,
 			Kubeconfig:         kubeconfigBuilder,
 			KubernetesMinor:    "v1.34",
 			DefaultDatacenter:  "dc3",

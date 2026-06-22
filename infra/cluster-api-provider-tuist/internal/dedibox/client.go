@@ -267,6 +267,42 @@ func (c *Client) GetServer(ctx context.Context, zone string, id uint64) (*Server
 	return serverFromDetail(&s), nil
 }
 
+// RegisterSSHKey registers publicKey as a Scaleway IAM SSH key named `name` in
+// the Dedibox project (c.ProjectID), returning its ID; idempotent by public key.
+// Every Dedibox lives in the org's default project and a Dedibox install only
+// accepts SSH keys from the server's own project — so the fleet bootstrap key
+// must be registered here, not in the per-env project the shared Scaleway client
+// uses for the macOS/Elastic Metal kinds. Reuses the same X-Auth-Token transport.
+func (c *Client) RegisterSSHKey(ctx context.Context, name, publicKey string) (string, error) {
+	want := strings.TrimSpace(publicKey)
+	q := url.Values{}
+	q.Set("name", name)
+	q.Set("project_id", c.ProjectID)
+	q.Set("page_size", "100")
+	var list struct {
+		SSHKeys []struct {
+			ID        string `json:"id"`
+			PublicKey string `json:"public_key"`
+		} `json:"ssh_keys"`
+	}
+	if err := c.t.get(ctx, "/iam/v1alpha1/ssh-keys", q, &list); err != nil {
+		return "", fmt.Errorf("list IAM ssh keys: %w", err)
+	}
+	for _, k := range list.SSHKeys {
+		if strings.TrimSpace(k.PublicKey) == want {
+			return k.ID, nil
+		}
+	}
+	var created struct {
+		ID string `json:"id"`
+	}
+	body := map[string]string{"name": name, "public_key": publicKey, "project_id": c.ProjectID}
+	if err := c.t.post(ctx, "/iam/v1alpha1/ssh-keys", body, &created); err != nil {
+		return "", fmt.Errorf("create IAM ssh key: %w", err)
+	}
+	return created.ID, nil
+}
+
 // OSChoice is the resolved install OS plus the flags that decide how the install
 // request is shaped: whether it must carry a user login / password, whether it
 // accepts SSH keys at all, and whether it supports a custom partitioning layout.
