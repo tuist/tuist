@@ -38,18 +38,18 @@ if [ -z "$SERVER_POD" ]; then
 fi
 echo "    Found $SERVER_POD"
 
-# Pipe a small Elixir script to `tuist eval` running inside the release.
-# Idempotent — every step checks for existing state first. `kubectl exec`
-# doesn't carry a `--env` flag (that's a `kubectl run`/`debug` thing), so
-# we prepend `env VAR=val ...` to set them for the `tuist eval` process.
-echo "==> Seeding preview account '${PREVIEW_ACCOUNT_HANDLE}' + Kura endpoint..."
-kubectl -n "$NAMESPACE" exec -i "$SERVER_POD" -c server \
-  -- env \
-       "PREVIEW_ACCOUNT_HANDLE=$PREVIEW_ACCOUNT_HANDLE" \
-       "PREVIEW_USER_EMAIL=$PREVIEW_USER_EMAIL" \
-       "PREVIEW_USER_PASSWORD=$PREVIEW_USER_PASSWORD" \
-       "PREVIEW_KURA_URL=$KURA_ENDPOINT_URL" \
-       /app/bin/tuist eval - <<'EOF'
+# Run a small Elixir script inside the release. Idempotent — every step
+# checks for existing state first. Two non-obvious wiring choices:
+#   1. `kubectl exec` lacks a `--env` flag (that's a `kubectl run`/`debug`
+#      thing), so we prepend `env VAR=val ...` to set them for the
+#      `tuist eval` process.
+#   2. `tuist eval` (a Mix release script) takes the Elixir expression as
+#      its argv, not from stdin — `tuist eval -` literally evaluates the
+#      string `-` and dies with "expression is incomplete on nofile:1:1".
+#      We hold the script in a shell variable and pass it as a single
+#      argument; kubectl forwards argv to the container verbatim, no
+#      remote shell, no quoting in between.
+SEED_SCRIPT=$(cat <<'EOF'
 require Logger
 alias Tuist.Accounts
 
@@ -73,9 +73,6 @@ user =
 account = Accounts.get_account_from_user(user)
 Logger.info("preview-seed: account handle " <> account.name)
 
-# create_account_cache_endpoint enforces uniqueness on url+technology,
-# so the upsert is implicit — we just swallow the constraint error on
-# re-runs.
 case Accounts.create_account_cache_endpoint(account, %{url: endpoint_url, technology: :kura}) do
   {:ok, _} -> Logger.info("preview-seed: created kura cache endpoint " <> endpoint_url)
   {:error, _} -> Logger.info("preview-seed: kura cache endpoint already present")
@@ -84,4 +81,14 @@ end
 FunWithFlags.enable(:kura_cache, for_actor: account)
 Logger.info("preview-seed: kura_cache feature flag enabled for " <> account.name)
 EOF
+)
+
+echo "==> Seeding preview account '${PREVIEW_ACCOUNT_HANDLE}' + Kura endpoint..."
+kubectl -n "$NAMESPACE" exec "$SERVER_POD" -c server \
+  -- env \
+       "PREVIEW_ACCOUNT_HANDLE=$PREVIEW_ACCOUNT_HANDLE" \
+       "PREVIEW_USER_EMAIL=$PREVIEW_USER_EMAIL" \
+       "PREVIEW_USER_PASSWORD=$PREVIEW_USER_PASSWORD" \
+       "PREVIEW_KURA_URL=$KURA_ENDPOINT_URL" \
+       /app/bin/tuist eval "$SEED_SCRIPT"
 echo "    Seeded account=${PREVIEW_ACCOUNT_HANDLE} endpoint=${KURA_ENDPOINT_URL}"
