@@ -47,10 +47,11 @@ const (
 	dediboxInstanceType = "dedibox"
 )
 
-// DediboxMachineReconciler reconciles a DediboxMachine: within its IAM key's
-// project (the environment boundary) it adopts a pre-ordered Scaleway Dedibox
-// server by offer + datacenter, drives the OS install, then SSH-delivers the
-// shared Linux self-join over its public IP. Structurally a twin of the OVH kind
+// DediboxMachineReconciler reconciles a DediboxMachine: it adopts a pre-ordered
+// Scaleway Dedibox server carrying its fleet's tag (the environment boundary,
+// since every Dedibox shares the org's default project), narrowed by offer +
+// datacenter, drives the OS install, then SSH-delivers the shared Linux
+// self-join over its public IP. Structurally a twin of the OVH kind
 // (customer-facing public box, no Scaleway Private Network; the RPN private mesh
 // is a multi-box follow-up).
 type DediboxMachineReconciler struct {
@@ -160,9 +161,9 @@ func (r *DediboxMachineReconciler) reconcileNormal(ctx context.Context, machine 
 				return ctrl.Result{}, claimErr
 			}
 			server, adoptErr := r.DediboxClient.FindAdoptableServer(ctx, dedibox.AdoptParams{
-				Datacenter:     datacenter,
-				Offer:          machine.Spec.Offer,
-				HostnamePrefix: machine.Spec.AdoptHostnamePrefix,
+				Tag:        machine.Spec.AdoptTag,
+				Datacenter: datacenter,
+				Offer:      machine.Spec.Offer,
 			}, claimed)
 			if adoptErr != nil {
 				return ctrl.Result{}, adoptErr
@@ -170,9 +171,9 @@ func (r *DediboxMachineReconciler) reconcileNormal(ctx context.Context, machine 
 			if server == nil {
 				conditions.MarkFalse(machine, shared.ProvisionedCondition, "NoAdoptableServer",
 					clusterv1.ConditionSeverityInfo,
-					"no free pre-ordered Dedibox server (offer %q) in %s; awaiting capacity", machine.Spec.Offer, datacenter)
+					"no free pre-ordered Dedibox server (tag %q, offer %q) in %s; awaiting capacity", machine.Spec.AdoptTag, machine.Spec.Offer, datacenter)
 				machine.Status.Phase = "Adopting"
-				logger.Info("no adoptable Dedibox server yet", "offer", machine.Spec.Offer, "datacenter", datacenter)
+				logger.Info("no adoptable Dedibox server yet", "tag", machine.Spec.AdoptTag, "offer", machine.Spec.Offer, "datacenter", datacenter)
 				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 			}
 			machine.Status.ServerID = int(server.ID)

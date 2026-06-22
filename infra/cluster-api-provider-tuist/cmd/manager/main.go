@@ -529,12 +529,12 @@ func main() {
 	}
 
 	// Dedibox (Scaleway) dedicated machines — the EU customer-facing kind, same
-	// shape as OVH (adopt-by-offer+datacenter, install-on-claim, monthly
-	// contract). Talks to the project-scoped Scaleway API with the shared IAM
-	// credentials; the Project the key is scoped to is the environment boundary.
-	// Gated on DEDIBOX_ENABLED so it stays dormant until an env opts in, even
-	// though Scaleway creds are already present for the macOS fleet.
-	if os.Getenv("DEDIBOX_ENABLED") != "" {
+	// shape as OVH (install-on-claim, monthly contract). Talks raw HTTP to the
+	// Scaleway Dedibox API (the SDK client is broken) with a DEFAULT-project IAM
+	// key — every Dedibox in the org shares the default project, so it adopts by
+	// per-fleet tag, not by project. Gated on its dedicated DEDIBOX_SCW_SECRET_KEY
+	// so it stays dormant until an env opts in.
+	if os.Getenv("DEDIBOX_SCW_SECRET_KEY") != "" {
 		dediboxClient, err := dedibox.NewClientFromEnv()
 		if err != nil {
 			setupLog.Error(err, "dedibox client")

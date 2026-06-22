@@ -2,60 +2,50 @@ package dedibox
 
 import (
 	"context"
+	"encoding/json"
 	"net"
+	"net/http"
+	"net/url"
+	"strings"
 	"testing"
 
 	scwdedibox "github.com/scaleway/scaleway-sdk-go/api/dedibox/v1"
-	"github.com/scaleway/scaleway-sdk-go/scw"
 )
 
-// fakeAPI is an in-memory stand-in for the Scaleway Dedibox SDK API. ListServers
-// honours the ProjectID filter so the project (environment) boundary is
-// exercised; GetServer / GetServerInstall 404 on unknown IDs.
-type fakeAPI struct {
-	servers      map[scw.Zone][]*scwdedibox.ServerSummary
-	serverDetail map[uint64]*scwdedibox.Server
-	osList       []*scwdedibox.OS
-	install      map[uint64]*scwdedibox.ServerInstall
-	installCalls []*scwdedibox.InstallServerRequest
+// fakeTransport routes get by path (ignoring query) against a canned response
+// map, JSON round-tripped into the caller's out. Unmapped `/servers` list paths
+// return an empty list so zone iteration completes; other unmapped paths 404.
+type fakeTransport struct {
+	gets  map[string]any
+	posts []postCall
 }
 
-func (f *fakeAPI) ListServers(req *scwdedibox.ListServersRequest, _ ...scw.RequestOption) (*scwdedibox.ListServersResponse, error) {
-	var out []*scwdedibox.ServerSummary
-	for _, s := range f.servers[req.Zone] {
-		if req.ProjectID != nil && s.ProjectID != *req.ProjectID {
-			continue
-		}
-		out = append(out, s)
+type postCall struct {
+	path string
+	body any
+}
+
+func (f *fakeTransport) get(_ context.Context, path string, _ url.Values, out any) error {
+	if v, ok := f.gets[path]; ok {
+		return remarshal(out, v)
 	}
-	return &scwdedibox.ListServersResponse{Servers: out, TotalCount: uint32(len(out))}, nil
-}
-
-func (f *fakeAPI) GetServer(req *scwdedibox.GetServerRequest, _ ...scw.RequestOption) (*scwdedibox.Server, error) {
-	if s, ok := f.serverDetail[req.ServerID]; ok {
-		return s, nil
+	if strings.HasSuffix(path, "/servers") {
+		return nil
 	}
-	return nil, &scw.ResourceNotFoundError{Resource: "server"}
+	return &apiError{status: http.StatusNotFound, body: "not found: " + path}
 }
 
-func (f *fakeAPI) ListOS(_ *scwdedibox.ListOSRequest, _ ...scw.RequestOption) (*scwdedibox.ListOSResponse, error) {
-	return &scwdedibox.ListOSResponse{Os: f.osList, TotalCount: uint32(len(f.osList))}, nil
+func (f *fakeTransport) post(_ context.Context, path string, body, _ any) error {
+	f.posts = append(f.posts, postCall{path: path, body: body})
+	return nil
 }
 
-func (f *fakeAPI) GetServerDefaultPartitioning(_ *scwdedibox.GetServerDefaultPartitioningRequest, _ ...scw.RequestOption) (*scwdedibox.ServerDefaultPartitioning, error) {
-	return &scwdedibox.ServerDefaultPartitioning{}, nil
-}
-
-func (f *fakeAPI) InstallServer(req *scwdedibox.InstallServerRequest, _ ...scw.RequestOption) (*scwdedibox.ServerInstall, error) {
-	f.installCalls = append(f.installCalls, req)
-	return &scwdedibox.ServerInstall{}, nil
-}
-
-func (f *fakeAPI) GetServerInstall(req *scwdedibox.GetServerInstallRequest, _ ...scw.RequestOption) (*scwdedibox.ServerInstall, error) {
-	if inst, ok := f.install[req.ServerID]; ok {
-		return inst, nil
+func remarshal(dst, src any) error {
+	b, err := json.Marshal(src)
+	if err != nil {
+		return err
 	}
-	return nil, &scw.ResourceNotFoundError{Resource: "install"}
+	return json.Unmarshal(b, dst)
 }
 
 func TestProviderID(t *testing.T) {
@@ -64,77 +54,85 @@ func TestProviderID(t *testing.T) {
 	}
 }
 
-func TestFindAdoptableServer(t *testing.T) {
-	f := &fakeAPI{servers: map[scw.Zone][]*scwdedibox.ServerSummary{
-		scw.ZoneFrPar1: {
-			{ID: 1, OfferName: "Start-1-M-SSD", DatacenterName: "DC2", ProjectID: "proj", Hostname: "tuist-kura-dedibox-1"},
-			{ID: 2, OfferName: "Other-Offer", DatacenterName: "DC2", ProjectID: "proj"},
-			{ID: 3, OfferName: "Start-1-M-SSD", DatacenterName: "DC2", ProjectID: "proj"},
+// TestFindAdoptableServerByTag is the environment-boundary guarantee: every
+// Dedibox shares the default project, so the per-fleet tag is the only thing
+// scoping the pool. A box tagged for another fleet is never adopted.
+func TestFindAdoptableServerByTag(t *testing.T) {
+	f := &fakeTransport{gets: map[string]any{
+		"/dedibox/v1/zones/fr-par-1/servers": scwdedibox.ListServersResponse{
+			TotalCount: 2,
+			Servers: []*scwdedibox.ServerSummary{
+				{ID: 1, OfferName: "Start-1-M-SSD", DatacenterName: "DC2", Zone: "fr-par-1"},
+				{ID: 2, OfferName: "Start-1-M-SSD", DatacenterName: "DC2", Zone: "fr-par-1"},
+			},
 		},
+		"/dedibox/v1/zones/fr-par-1/servers/1": scwdedibox.Server{Zone: "fr-par-1", ID: 1, Tags: []string{"tuist-kura-prod"}},
+		"/dedibox/v1/zones/fr-par-1/servers/2": scwdedibox.Server{Zone: "fr-par-1", ID: 2, Tags: []string{"tuist-kura-staging"}},
 	}}
-	c := &Client{API: f, ProjectID: "proj"}
+	c := &Client{t: f, ProjectID: "proj"}
 
 	got, err := c.FindAdoptableServer(context.Background(), AdoptParams{
-		Datacenter: "DC2",
+		Tag:        "tuist-kura-staging",
 		Offer:      "Start-1-M-SSD",
-	}, map[uint64]bool{1: true})
-	if err != nil {
-		t.Fatalf("FindAdoptableServer: %v", err)
-	}
-	if got == nil || got.ID != 3 {
-		t.Fatalf("FindAdoptableServer = %+v, want server 3 (1 claimed, 2 wrong offer)", got)
-	}
-}
-
-// TestFindAdoptableServerProjectScoped is the environment-boundary guarantee: a
-// server belonging to a different project is never returned, even when it
-// matches offer + datacenter, so a staging manager can't claim a prod box.
-func TestFindAdoptableServerProjectScoped(t *testing.T) {
-	f := &fakeAPI{servers: map[scw.Zone][]*scwdedibox.ServerSummary{
-		scw.ZoneFrPar1: {
-			{ID: 9, OfferName: "Start-1-M-SSD", DatacenterName: "DC2", ProjectID: "production"},
-		},
-	}}
-	c := &Client{API: f, ProjectID: "staging"}
-
-	got, err := c.FindAdoptableServer(context.Background(), AdoptParams{Offer: "Start-1-M-SSD"}, map[uint64]bool{})
-	if err != nil {
-		t.Fatalf("FindAdoptableServer: %v", err)
-	}
-	if got != nil {
-		t.Fatalf("FindAdoptableServer = %+v, want nil (server is in a different project)", got)
-	}
-}
-
-// TestFindAdoptableServerBareBoxAdoptedDespitePrefix confirms a bare box (no
-// hostname yet) is claimable even when HostnamePrefix is set, since the hostname
-// filter only constrains already-installed boxes.
-func TestFindAdoptableServerBareBoxAdoptedDespitePrefix(t *testing.T) {
-	f := &fakeAPI{servers: map[scw.Zone][]*scwdedibox.ServerSummary{
-		scw.ZoneFrPar2: {
-			{ID: 11, OfferName: "Start-1-M-SSD", DatacenterName: "DC2", ProjectID: "p"},
-		},
-	}}
-	c := &Client{API: f, ProjectID: "p"}
-
-	got, err := c.FindAdoptableServer(context.Background(), AdoptParams{
-		Offer:          "Start-1-M-SSD",
-		HostnamePrefix: "tuist-kura-",
+		Datacenter: "DC2",
 	}, map[uint64]bool{})
 	if err != nil {
 		t.Fatalf("FindAdoptableServer: %v", err)
 	}
-	if got == nil || got.ID != 11 {
-		t.Fatalf("FindAdoptableServer = %+v, want bare server 11 (not excluded by prefix)", got)
+	if got == nil || got.ID != 2 {
+		t.Fatalf("FindAdoptableServer = %+v, want server 2 (only one tagged staging)", got)
+	}
+}
+
+func TestFindAdoptableServerExhausted(t *testing.T) {
+	f := &fakeTransport{gets: map[string]any{
+		"/dedibox/v1/zones/fr-par-1/servers": scwdedibox.ListServersResponse{
+			Servers: []*scwdedibox.ServerSummary{{ID: 1, OfferName: "Start-1-M-SSD", DatacenterName: "DC2", Zone: "fr-par-1"}},
+		},
+		"/dedibox/v1/zones/fr-par-1/servers/1": scwdedibox.Server{Zone: "fr-par-1", ID: 1, Tags: []string{"tuist-kura-prod"}},
+	}}
+	c := &Client{t: f, ProjectID: "proj"}
+
+	got, err := c.FindAdoptableServer(context.Background(), AdoptParams{Tag: "tuist-kura-staging"}, map[uint64]bool{})
+	if err != nil {
+		t.Fatalf("FindAdoptableServer: %v", err)
+	}
+	if got != nil {
+		t.Fatalf("FindAdoptableServer = %+v, want nil (no staging-tagged box)", got)
+	}
+}
+
+func TestFindAdoptableServerClaimedSkipped(t *testing.T) {
+	f := &fakeTransport{gets: map[string]any{
+		"/dedibox/v1/zones/fr-par-1/servers": scwdedibox.ListServersResponse{
+			Servers: []*scwdedibox.ServerSummary{
+				{ID: 5, OfferName: "Start-1-M-SSD", DatacenterName: "DC2", Zone: "fr-par-1"},
+				{ID: 6, OfferName: "Start-1-M-SSD", DatacenterName: "DC2", Zone: "fr-par-1"},
+			},
+		},
+		"/dedibox/v1/zones/fr-par-1/servers/6": scwdedibox.Server{Zone: "fr-par-1", ID: 6, Tags: []string{"tuist-kura-staging"}},
+	}}
+	c := &Client{t: f, ProjectID: "proj"}
+
+	got, err := c.FindAdoptableServer(context.Background(), AdoptParams{Tag: "tuist-kura-staging"}, map[uint64]bool{5: true})
+	if err != nil {
+		t.Fatalf("FindAdoptableServer: %v", err)
+	}
+	if got == nil || got.ID != 6 {
+		t.Fatalf("FindAdoptableServer = %+v, want server 6 (5 already claimed)", got)
 	}
 }
 
 func TestResolveOS(t *testing.T) {
-	f := &fakeAPI{osList: []*scwdedibox.OS{
-		{ID: 1, Name: "Debian", Version: "12"},
-		{ID: 2, Name: "Ubuntu", Version: "24.04", RequiresUser: true},
+	f := &fakeTransport{gets: map[string]any{
+		"/dedibox/v1/zones/fr-par-1/os": scwdedibox.ListOSResponse{
+			Os: []*scwdedibox.OS{
+				{ID: 1, Name: "Debian", Version: "12"},
+				{ID: 2, Name: "Ubuntu", Version: "24.04", RequiresUser: true},
+			},
+		},
 	}}
-	c := &Client{API: f}
+	c := &Client{t: f, ProjectID: "proj"}
 
 	got, err := c.ResolveOS(context.Background(), "fr-par-1", 7, "ubuntu_24.04")
 	if err != nil {
@@ -145,9 +143,13 @@ func TestResolveOS(t *testing.T) {
 	}
 }
 
-func TestStartInstallAuthorizesKeyAndUser(t *testing.T) {
-	f := &fakeAPI{}
-	c := &Client{API: f}
+func TestStartInstall(t *testing.T) {
+	f := &fakeTransport{gets: map[string]any{
+		"/dedibox/v1/zones/fr-par-1/servers/7/partitioning/2": scwdedibox.ServerDefaultPartitioning{
+			Partitions: []*scwdedibox.Partition{{FileSystem: "ext4"}},
+		},
+	}}
+	c := &Client{t: f, ProjectID: "proj"}
 
 	if err := c.StartInstall(context.Background(), InstallParams{
 		Zone:      "fr-par-1",
@@ -159,24 +161,32 @@ func TestStartInstallAuthorizesKeyAndUser(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("StartInstall: %v", err)
 	}
-	if len(f.installCalls) != 1 {
-		t.Fatalf("want 1 install call, got %d", len(f.installCalls))
+	if len(f.posts) != 1 || f.posts[0].path != "/dedibox/v1/zones/fr-par-1/servers/7/install" {
+		t.Fatalf("expected one POST to the install path, got %+v", f.posts)
 	}
-	req := f.installCalls[0]
-	if len(req.SSHKeyIDs) != 1 || req.SSHKeyIDs[0] != "key-abc" {
-		t.Fatalf("install did not authorize the fleet key: %+v", req.SSHKeyIDs)
+	body, ok := f.posts[0].body.(installBody)
+	if !ok {
+		t.Fatalf("post body is not an installBody: %T", f.posts[0].body)
 	}
-	if req.UserLogin == nil || *req.UserLogin != "tuist" {
+	if len(body.SSHKeyIDs) != 1 || body.SSHKeyIDs[0] != "key-abc" {
+		t.Fatalf("install did not authorize the fleet key: %+v", body.SSHKeyIDs)
+	}
+	if body.UserLogin != "tuist" {
 		t.Fatalf("install did not set the user login")
 	}
-	if req.UserPassword == nil {
+	if body.UserPassword == "" {
 		t.Fatalf("install must set a user password when the OS RequiresUser")
+	}
+	if len(body.Partitions) != 1 {
+		t.Fatalf("install did not carry the default partitioning: %+v", body.Partitions)
 	}
 }
 
 func TestInstallStateInstalledIsDone(t *testing.T) {
-	f := &fakeAPI{install: map[uint64]*scwdedibox.ServerInstall{7: {Status: scwdedibox.ServerInstallStatusInstalled}}}
-	c := &Client{API: f}
+	f := &fakeTransport{gets: map[string]any{
+		"/dedibox/v1/zones/fr-par-1/servers/7/install": scwdedibox.ServerInstall{Status: scwdedibox.ServerInstallStatusInstalled},
+	}}
+	c := &Client{t: f, ProjectID: "proj"}
 
 	got, err := c.InstallState(context.Background(), "fr-par-1", 7)
 	if err != nil {
@@ -188,8 +198,10 @@ func TestInstallStateInstalledIsDone(t *testing.T) {
 }
 
 func TestInstallStateInstallingIsRunning(t *testing.T) {
-	f := &fakeAPI{install: map[uint64]*scwdedibox.ServerInstall{7: {Status: scwdedibox.ServerInstallStatusInstalling}}}
-	c := &Client{API: f}
+	f := &fakeTransport{gets: map[string]any{
+		"/dedibox/v1/zones/fr-par-1/servers/7/install": scwdedibox.ServerInstall{Status: scwdedibox.ServerInstallStatusInstalling},
+	}}
+	c := &Client{t: f, ProjectID: "proj"}
 
 	got, err := c.InstallState(context.Background(), "fr-par-1", 7)
 	if err != nil {
@@ -201,9 +213,11 @@ func TestInstallStateInstallingIsRunning(t *testing.T) {
 }
 
 func TestInstallStateNoInstallResourceBareIsPending(t *testing.T) {
-	// No install resource (404) + a server with no OS = never installed.
-	f := &fakeAPI{serverDetail: map[uint64]*scwdedibox.Server{7: {ID: 7}}}
-	c := &Client{API: f}
+	// install path 404s; the server carries no OS = never installed.
+	f := &fakeTransport{gets: map[string]any{
+		"/dedibox/v1/zones/fr-par-1/servers/7": scwdedibox.Server{Zone: "fr-par-1", ID: 7},
+	}}
+	c := &Client{t: f, ProjectID: "proj"}
 
 	got, err := c.InstallState(context.Background(), "fr-par-1", 7)
 	if err != nil {
@@ -215,9 +229,11 @@ func TestInstallStateNoInstallResourceBareIsPending(t *testing.T) {
 }
 
 func TestInstallStateNoInstallResourceInstalledIsDone(t *testing.T) {
-	// No install resource (404) + a server carrying an OS = installed-and-booted.
-	f := &fakeAPI{serverDetail: map[uint64]*scwdedibox.Server{7: {ID: 7, Os: &scwdedibox.OS{Name: "Ubuntu"}}}}
-	c := &Client{API: f}
+	// install path 404s; the server carries an OS = installed-and-booted.
+	f := &fakeTransport{gets: map[string]any{
+		"/dedibox/v1/zones/fr-par-1/servers/7": scwdedibox.Server{Zone: "fr-par-1", ID: 7, Os: &scwdedibox.OS{Name: "Ubuntu"}},
+	}}
+	c := &Client{t: f, ProjectID: "proj"}
 
 	got, err := c.InstallState(context.Background(), "fr-par-1", 7)
 	if err != nil {
@@ -239,13 +255,10 @@ func TestPublicIPv4(t *testing.T) {
 }
 
 func TestIsNotFound(t *testing.T) {
-	if !IsNotFound(&scw.ResourceNotFoundError{}) {
-		t.Fatal("IsNotFound(ResourceNotFoundError) = false, want true")
-	}
-	if !IsNotFound(&scw.ResponseError{StatusCode: 404}) {
+	if !IsNotFound(&apiError{status: 404}) {
 		t.Fatal("IsNotFound(404) = false, want true")
 	}
-	if IsNotFound(&scw.ResponseError{StatusCode: 500}) {
+	if IsNotFound(&apiError{status: 500}) {
 		t.Fatal("IsNotFound(500) = true, want false")
 	}
 }

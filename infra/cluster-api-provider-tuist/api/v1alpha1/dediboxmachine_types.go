@@ -10,9 +10,11 @@ import (
 // server. Structurally it mirrors the OVH kind — a customer-facing public box
 // that adopts a pre-ordered server, installs on claim, self-joins over its
 // public IP, and (monthly contract) is not terminated on delete. It is driven
-// through the project-scoped Scaleway Dedibox API with an IAM key, so the
-// Project the key is scoped to is the environment boundary; the private network
-// is RPN rather than a Scaleway VPC PN (unused at Qty-1).
+// through the Scaleway Dedibox API with a default-project IAM key (every Dedibox
+// in the org shares the default project — a Dedibox cannot be assigned to
+// another one — so the project can't isolate environments; a per-fleet tag
+// does). The private network is RPN rather than a Scaleway VPC PN (unused at
+// Qty-1).
 type DediboxMachineSpec struct {
 	// ProviderID, set by the controller after the self-join completes, takes the
 	// shape `dedibox://<datacenter>/<server-id>` — a foreign providerID host so
@@ -27,11 +29,8 @@ type DediboxMachineSpec struct {
 	Datacenter string `json:"datacenter,omitempty"`
 
 	// Offer is the Dedibox commercial offer the fleet's pool is made of (e.g.
-	// `Start-1-M-SSD`). With Datacenter it is the adopt key: a bare pre-ordered
-	// Dedibox has no settable name (online.net sets the hostname only at OS
-	// install), so unlike the OVH kind the controller claims a free box by its
-	// intrinsic offer + datacenter, not a display-name prefix. Empty matches any
-	// offer in the datacenter.
+	// `Start-1-M-SSD`). It narrows adoption within the tag-scoped pool; empty
+	// matches any offer carrying the fleet tag.
 	// +optional
 	Offer string `json:"offer,omitempty"`
 
@@ -40,13 +39,14 @@ type DediboxMachineSpec struct {
 	// +kubebuilder:default=ubuntu_24.04
 	OS string `json:"os,omitempty"`
 
-	// AdoptHostnamePrefix is an OPTIONAL extra adopt filter applied only to
-	// already-installed boxes. A bare pre-ordered box has no hostname yet (it is
-	// set at OS install), so it is never excluded by this; the primary claim key
-	// is Offer + Datacenter. Use it as belt-and-suspenders when a pool shares an
-	// offer + datacenter with unrelated servers. Empty disables the filter.
-	// +optional
-	AdoptHostnamePrefix string `json:"adoptHostnamePrefix,omitempty"`
+	// AdoptTag is the per-fleet tag the operator stamps on each pre-ordered box
+	// (e.g. `tuist-kura-staging`) and the marker the controller scans to claim a
+	// server. It is the ENVIRONMENT BOUNDARY: every Dedibox in the org shares the
+	// default Scaleway project, so the project can't isolate environments — this
+	// tag does (the Dedibox analog of the Apple Silicon / OVH name prefix). Set by
+	// the MachineTemplate. Required: without it the controller would adopt any box
+	// in the shared project.
+	AdoptTag string `json:"adoptTag"`
 
 	// FleetName groups Machines that share one SSH key, like the Apple Silicon
 	// kind. Set by the MachineTemplate so every Machine the MachineDeployment

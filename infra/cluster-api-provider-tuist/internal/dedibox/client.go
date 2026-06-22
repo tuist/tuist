@@ -1,93 +1,105 @@
 // Package dedibox is the Scaleway Dedibox client the DediboxMachine reconciler
-// talks to. Dedibox is managed through the project-scoped Scaleway API
-// (api.scaleway.com, dedibox/v1) with IAM keys, the same auth + Project model
-// Elastic Metal uses — NOT the legacy account-wide online.net token.
+// talks to. It speaks the project-scoped Scaleway Dedibox API
+// (api.scaleway.com/dedibox/v1, IAM secret key as X-Auth-Token) over RAW HTTP:
+// the scaleway-sdk-go beta dedibox client receives correct 200 responses but
+// silently fails to decode them, so we issue the requests ourselves and reuse
+// only the SDK's response structs (which unmarshal correctly).
 //
-// The Project is the ENVIRONMENT BOUNDARY: an IAM key scoped to a project can
-// only see and install that project's servers, so a staging manager can never
-// adopt or reinstall a production box (and vice versa). That isolation is
-// enforced by Scaleway IAM, not by a name we hope someone set on a bare box.
-// Within a project, adoption keys on offer + datacenter (both intrinsic to a
-// bare box and returned in the server list), deduped by the cluster-side
-// claimed-server set the controller passes in.
+// Every Dedibox in an organization lives in its DEFAULT project — Scaleway does
+// not allow assigning a Dedibox to another project — so the project cannot be
+// the environment boundary the way it can for Elastic Metal. Instead each
+// pre-ordered box is stamped with a per-fleet TAG, and the reconciler adopts
+// only boxes carrying its fleet's tag (the Dedibox analog of the OVH
+// display-name prefix). The credential is therefore the default project's IAM
+// key, shared across environments; the tag is what scopes the pool.
 package dedibox
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
+	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	scwdedibox "github.com/scaleway/scaleway-sdk-go/api/dedibox/v1"
-	"github.com/scaleway/scaleway-sdk-go/scw"
 )
+
+const defaultBaseURL = "https://api.scaleway.com"
 
 // dediboxZones are the Scaleway zones Dedibox is offered in. Adoption scans all
 // of them (a fleet's datacenter is a console name like "DC2", which lives inside
-// one of these zones); the matched server's own zone is then used for every
-// follow-up call.
-var dediboxZones = []scw.Zone{scw.ZoneFrPar1, scw.ZoneFrPar2, scw.ZoneNlAms1}
+// one of these zones); the matched server's own zone is used for follow-up calls.
+var dediboxZones = []string{"fr-par-1", "fr-par-2", "nl-ams-1"}
 
-// API is the slice of the Scaleway Dedibox SDK the reconciler touches. An
-// interface so tests drop in a fake; the concrete *scwdedibox.API satisfies it
-// structurally.
-type API interface {
-	ListServers(req *scwdedibox.ListServersRequest, opts ...scw.RequestOption) (*scwdedibox.ListServersResponse, error)
-	GetServer(req *scwdedibox.GetServerRequest, opts ...scw.RequestOption) (*scwdedibox.Server, error)
-	ListOS(req *scwdedibox.ListOSRequest, opts ...scw.RequestOption) (*scwdedibox.ListOSResponse, error)
-	GetServerDefaultPartitioning(req *scwdedibox.GetServerDefaultPartitioningRequest, opts ...scw.RequestOption) (*scwdedibox.ServerDefaultPartitioning, error)
-	InstallServer(req *scwdedibox.InstallServerRequest, opts ...scw.RequestOption) (*scwdedibox.ServerInstall, error)
-	GetServerInstall(req *scwdedibox.GetServerInstallRequest, opts ...scw.RequestOption) (*scwdedibox.ServerInstall, error)
+// apiError carries the Scaleway HTTP status so a 404 reads as "gone".
+type apiError struct {
+	status int
+	body   string
+}
+
+func (e *apiError) Error() string {
+	return fmt.Sprintf("scaleway dedibox API %d: %s", e.status, e.body)
+}
+
+// IsNotFound reports whether err is a Scaleway 404.
+func IsNotFound(err error) bool {
+	var apiErr *apiError
+	if errors.As(err, &apiErr) {
+		return apiErr.status == http.StatusNotFound
+	}
+	return false
+}
+
+// transport is the slice of HTTP behaviour the client needs; a fake implements
+// it in tests, the real one is net/http + X-Auth-Token auth.
+type transport interface {
+	get(ctx context.Context, path string, query url.Values, out any) error
+	post(ctx context.Context, path string, body, out any) error
 }
 
 // Client talks to the Scaleway Dedibox API, scoped to one project. Construct
-// with NewClientFromEnv; in tests the API field takes a fake.
+// with NewClientFromEnv; in tests the transport field takes a fake.
 type Client struct {
-	API       API
+	t         transport
 	ProjectID string
 }
 
-// NewClient builds a Client from an authenticated scw client; ProjectID is read
-// from the client's default project so every list/install is project-scoped.
-func NewClient(client *scw.Client) *Client {
-	projectID, _ := client.GetDefaultProjectID()
-	return &Client{API: scwdedibox.NewAPI(client), ProjectID: projectID}
-}
-
-// NewClientFromEnv builds a Client with the same env/profile Scaleway auth the
-// Elastic Metal client uses (SCW_ACCESS_KEY / SCW_SECRET_KEY /
-// SCW_DEFAULT_PROJECT_ID), synced per-env from the project-scoped IAM key. The
-// project the key is scoped to is the environment boundary.
+// NewClientFromEnv builds a Client from DEDIBOX_SCW_SECRET_KEY (a Scaleway IAM
+// secret key with DediboxFullAccess on the DEFAULT project, where every Dedibox
+// in the org lives) and DEDIBOX_SCW_PROJECT_ID (that default project's id, used
+// for the required project_id filter). These are distinct from the per-env
+// SCW_* creds the macOS/Elastic Metal reconcilers use, since those are scoped to
+// a non-default project that cannot see any Dedibox. DEDIBOX_API_URL overrides
+// the endpoint for tests.
 func NewClientFromEnv() (*Client, error) {
-	if cfg, err := scw.LoadConfig(); err == nil {
-		if profile, perr := cfg.GetActiveProfile(); perr == nil {
-			client, cerr := scw.NewClient(scw.WithProfile(profile), scw.WithEnv())
-			if cerr != nil {
-				return nil, fmt.Errorf("scaleway client: %w", cerr)
-			}
-			return NewClient(client), nil
-		}
+	secret := os.Getenv("DEDIBOX_SCW_SECRET_KEY")
+	if secret == "" {
+		return nil, fmt.Errorf("DEDIBOX_SCW_SECRET_KEY is unset")
 	}
-	client, err := scw.NewClient(scw.WithEnv())
-	if err != nil {
-		return nil, fmt.Errorf("scaleway client: %w", err)
+	project := os.Getenv("DEDIBOX_SCW_PROJECT_ID")
+	if project == "" {
+		return nil, fmt.Errorf("DEDIBOX_SCW_PROJECT_ID is unset")
 	}
-	return NewClient(client), nil
-}
-
-// IsNotFound reports whether err is a Scaleway 404 (resource gone).
-func IsNotFound(err error) bool {
-	var notFound *scw.ResourceNotFoundError
-	if errors.As(err, &notFound) {
-		return true
+	base := os.Getenv("DEDIBOX_API_URL")
+	if base == "" {
+		base = defaultBaseURL
 	}
-	var respErr *scw.ResponseError
-	if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
-		return true
-	}
-	return false
+	return &Client{
+		t: &httpTransport{
+			base:   strings.TrimRight(base, "/"),
+			token:  secret,
+			client: &http.Client{Timeout: 30 * time.Second},
+		},
+		ProjectID: project,
+	}, nil
 }
 
 // ProviderID is the foreign CAPI providerID for a Dedibox server,
@@ -98,8 +110,7 @@ func ProviderID(zone string, id uint64) string {
 }
 
 // Server is the reconciler's view of a Dedibox server, flattened from the SDK
-// summary/detail shapes. Zone is a plain string so the controller never imports
-// the Scaleway SDK.
+// summary/detail shapes.
 type Server struct {
 	ID         uint64
 	Zone       string
@@ -109,6 +120,7 @@ type Server struct {
 	ProjectID  string
 	Installed  bool
 	PublicIP   string
+	Tags       []string
 }
 
 func serverFromSummary(s *scwdedibox.ServerSummary) *Server {
@@ -132,6 +144,7 @@ func serverFromDetail(s *scwdedibox.Server) *Server {
 		ProjectID: s.ProjectID,
 		Installed: s.Os != nil,
 		PublicIP:  publicIPv4(s.Interfaces),
+		Tags:      s.Tags,
 	}
 	if s.Offer != nil {
 		out.Offer = s.Offer.Name
@@ -143,8 +156,8 @@ func serverFromDetail(s *scwdedibox.Server) *Server {
 }
 
 // publicIPv4 returns the server's first public IPv4 address, or "". Prefers an
-// address explicitly tagged public, falling back to any IPv4 (the semantic is
-// occasionally unset on freshly delivered boxes).
+// address tagged public, falling back to any IPv4 (the semantic is occasionally
+// unset on freshly delivered boxes).
 func publicIPv4(ifaces []*scwdedibox.NetworkInterface) string {
 	for _, iface := range ifaces {
 		for _, ip := range iface.IPs {
@@ -163,39 +176,39 @@ func publicIPv4(ifaces []*scwdedibox.NetworkInterface) string {
 	return ""
 }
 
-// AdoptParams scopes which pre-ordered servers a fleet may claim WITHIN its
-// project. The claim key is Offer + Datacenter, both intrinsic to a bare
-// (not-yet-installed) box; HostnamePrefix is an optional extra filter for
-// already-installed boxes.
+// AdoptParams scopes which pre-ordered servers a fleet may claim. Tag is the
+// environment boundary (all Dedibox share the default project); Offer +
+// Datacenter narrow within it.
 type AdoptParams struct {
+	// Tag the server must carry to belong to this fleet's pool (e.g.
+	// "tuist-kura-staging"). The operator stamps it on each pre-ordered box; the
+	// reconciler never adopts a box without it. Empty disables the tag filter
+	// (unsafe — only for a single-tenant project).
+	Tag string
 	// Datacenter the server must live in (the console name, e.g. "DC2"); empty
-	// matches any datacenter in the project.
+	// matches any datacenter.
 	Datacenter string
 	// Offer the server must be (e.g. "Start-1-M-SSD"); empty matches any.
 	Offer string
-	// HostnamePrefix, when set, additionally constrains servers that already have
-	// a hostname (installed boxes) to this prefix. A bare box has no hostname yet,
-	// so it is never excluded by this filter.
+	// HostnamePrefix, when set, additionally constrains servers whose hostname is
+	// not the default sd-<id>.dedibox.fr to this prefix. Rarely needed; the tag is
+	// the primary marker.
 	HostnamePrefix string
 }
 
 // FindAdoptableServer claims a pre-ordered server for the fleet: the first
-// server in the client's project matching the (offer, datacenter) claim key that
-// no sibling Machine has already claimed (claimed = the IDs on sibling CR
-// statuses). It scans every Dedibox zone since a fleet is identified by console
-// datacenter, not Scaleway zone. Returns nil when the pool is exhausted so the
-// caller requeues and the operator pre-orders more capacity. Claim state lives
-// cluster-side; the Project scoping makes a cross-environment claim impossible.
+// server in the project matching Tag + Offer + Datacenter that no sibling
+// Machine has already claimed (claimed = the IDs on sibling CR statuses). The
+// server-list summary omits tags, so a candidate matching offer + datacenter is
+// confirmed against its tags via GetServer. Returns nil when the pool is
+// exhausted so the caller requeues and the operator pre-orders more capacity.
 func (c *Client) FindAdoptableServer(ctx context.Context, p AdoptParams, claimed map[uint64]bool) (*Server, error) {
 	for _, zone := range dediboxZones {
-		resp, err := c.API.ListServers(&scwdedibox.ListServersRequest{
-			Zone:      zone,
-			ProjectID: &c.ProjectID,
-		}, scw.WithContext(ctx), scw.WithAllPages())
+		summaries, err := c.listServers(ctx, zone)
 		if err != nil {
 			return nil, fmt.Errorf("list dedibox servers in %s: %w", zone, err)
 		}
-		for _, summary := range resp.Servers {
+		for _, summary := range summaries {
 			if claimed[summary.ID] {
 				continue
 			}
@@ -209,19 +222,49 @@ func (c *Client) FindAdoptableServer(ctx context.Context, p AdoptParams, claimed
 			if p.HostnamePrefix != "" && server.Hostname != "" && !strings.HasPrefix(server.Hostname, p.HostnamePrefix) {
 				continue
 			}
+			if p.Tag != "" {
+				full, getErr := c.GetServer(ctx, zone, summary.ID)
+				if getErr != nil {
+					return nil, getErr
+				}
+				if !hasTag(full.Tags, p.Tag) {
+					continue
+				}
+				return full, nil
+			}
 			return server, nil
 		}
 	}
 	return nil, nil
 }
 
+func hasTag(tags []string, want string) bool {
+	for _, t := range tags {
+		if t == want {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *Client) listServers(ctx context.Context, zone string) ([]*scwdedibox.ServerSummary, error) {
+	q := url.Values{}
+	q.Set("project_id", c.ProjectID)
+	q.Set("page_size", "100")
+	var resp scwdedibox.ListServersResponse
+	if err := c.t.get(ctx, "/dedibox/v1/zones/"+zone+"/servers", q, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Servers, nil
+}
+
 // GetServer fetches the current detailed server state in its zone.
 func (c *Client) GetServer(ctx context.Context, zone string, id uint64) (*Server, error) {
-	s, err := c.API.GetServer(&scwdedibox.GetServerRequest{Zone: scw.Zone(zone), ServerID: id}, scw.WithContext(ctx))
-	if err != nil {
+	var s scwdedibox.Server
+	if err := c.t.get(ctx, fmt.Sprintf("/dedibox/v1/zones/%s/servers/%d", zone, id), nil, &s); err != nil {
 		return nil, fmt.Errorf("get dedibox server %d: %w", id, err)
 	}
-	return serverFromDetail(s), nil
+	return serverFromDetail(&s), nil
 }
 
 // OSChoice is the resolved install OS plus the flags that decide whether the
@@ -236,12 +279,12 @@ type OSChoice struct {
 // server, matching the label's `_`-separated tokens (dots stripped on both
 // sides so `24.04` matches `24.04`) against the OS name + version.
 func (c *Client) ResolveOS(ctx context.Context, zone string, serverID uint64, osLabel string) (OSChoice, error) {
-	resp, err := c.API.ListOS(&scwdedibox.ListOSRequest{
-		Zone:      scw.Zone(zone),
-		ServerID:  serverID,
-		ProjectID: &c.ProjectID,
-	}, scw.WithContext(ctx), scw.WithAllPages())
-	if err != nil {
+	q := url.Values{}
+	q.Set("project_id", c.ProjectID)
+	q.Set("server_id", strconv.FormatUint(serverID, 10))
+	q.Set("page_size", "200")
+	var resp scwdedibox.ListOSResponse
+	if err := c.t.get(ctx, "/dedibox/v1/zones/"+zone+"/os", q, &resp); err != nil {
 		return OSChoice{}, fmt.Errorf("list installable OS for server %d: %w", serverID, err)
 	}
 	tokens := strings.Split(strings.ToLower(osLabel), "_")
@@ -273,46 +316,50 @@ type InstallParams struct {
 	SSHKeyIDs []string
 }
 
+// installBody is the JSON body for POST .../install.
+type installBody struct {
+	OsID          uint64                         `json:"os_id"`
+	Hostname      string                         `json:"hostname"`
+	UserLogin     string                         `json:"user_login,omitempty"`
+	UserPassword  string                         `json:"user_password,omitempty"`
+	PanelPassword string                         `json:"panel_password,omitempty"`
+	Partitions    []*scwdedibox.InstallPartition `json:"partitions"`
+	SSHKeyIDs     []string                       `json:"ssh_key_ids"`
+}
+
 // StartInstall kicks off the OS install with the server's default partitioning,
 // the resolved OS, hostname, and the fleet SSH key authorized. The install runs
 // asynchronously; poll InstallState before bootstrapping. A user login (and a
-// generated password / panel password) is included only when the OS requires
-// it, since key-only installs reject unexpected credentials.
+// generated password) is included only when the OS requires it, since key-only
+// installs reject unexpected credentials.
 func (c *Client) StartInstall(ctx context.Context, p InstallParams) error {
-	zone := scw.Zone(p.Zone)
-	part, err := c.API.GetServerDefaultPartitioning(&scwdedibox.GetServerDefaultPartitioningRequest{
-		Zone:     zone,
-		ServerID: p.ServerID,
-		OsID:     p.OS.ID,
-	}, scw.WithContext(ctx))
-	if err != nil {
+	var part scwdedibox.ServerDefaultPartitioning
+	if err := c.t.get(ctx, fmt.Sprintf("/dedibox/v1/zones/%s/servers/%d/partitioning/%d", p.Zone, p.ServerID, p.OS.ID), nil, &part); err != nil {
 		return fmt.Errorf("default partitioning for server %d: %w", p.ServerID, err)
 	}
 
-	req := &scwdedibox.InstallServerRequest{
-		Zone:       zone,
-		ServerID:   p.ServerID,
+	body := installBody{
 		OsID:       p.OS.ID,
 		Hostname:   p.Hostname,
 		SSHKeyIDs:  p.SSHKeyIDs,
 		Partitions: toInstallPartitions(part.Partitions),
 	}
 	if p.OS.RequiresUser {
-		req.UserLogin = scw.StringPtr(p.UserLogin)
+		body.UserLogin = p.UserLogin
 		password, pwErr := randomPassword()
 		if pwErr != nil {
 			return pwErr
 		}
-		req.UserPassword = scw.StringPtr(password)
+		body.UserPassword = password
 	}
 	if p.OS.RequiresAdminPassword {
 		password, pwErr := randomPassword()
 		if pwErr != nil {
 			return pwErr
 		}
-		req.PanelPassword = scw.StringPtr(password)
+		body.PanelPassword = password
 	}
-	if _, err := c.API.InstallServer(req, scw.WithContext(ctx)); err != nil {
+	if err := c.t.post(ctx, fmt.Sprintf("/dedibox/v1/zones/%s/servers/%d/install", p.Zone, p.ServerID), body, nil); err != nil {
 		return fmt.Errorf("start install on server %d: %w", p.ServerID, err)
 	}
 	return nil
@@ -353,11 +400,11 @@ const (
 // error state, so a wedged install surfaces as a stuck InstallRunning the
 // controller's requeue/recovery handles, not InstallFailed.
 func (c *Client) InstallState(ctx context.Context, zone string, serverID uint64) (InstallState, error) {
-	z := scw.Zone(zone)
-	inst, err := c.API.GetServerInstall(&scwdedibox.GetServerInstallRequest{Zone: z, ServerID: serverID}, scw.WithContext(ctx))
+	var inst scwdedibox.ServerInstall
+	err := c.t.get(ctx, fmt.Sprintf("/dedibox/v1/zones/%s/servers/%d/install", zone, serverID), nil, &inst)
 	if err != nil {
 		if IsNotFound(err) {
-			return c.installedOrPending(ctx, z, serverID)
+			return c.installedOrPending(ctx, zone, serverID)
 		}
 		return InstallPending, fmt.Errorf("get server install %d: %w", serverID, err)
 	}
@@ -365,18 +412,18 @@ func (c *Client) InstallState(ctx context.Context, zone string, serverID uint64)
 	case scwdedibox.ServerInstallStatusInstalled:
 		return InstallDone, nil
 	case scwdedibox.ServerInstallStatusUnknown, "":
-		return c.installedOrPending(ctx, z, serverID)
+		return c.installedOrPending(ctx, zone, serverID)
 	default:
 		return InstallRunning, nil
 	}
 }
 
-func (c *Client) installedOrPending(ctx context.Context, zone scw.Zone, serverID uint64) (InstallState, error) {
-	s, err := c.API.GetServer(&scwdedibox.GetServerRequest{Zone: zone, ServerID: serverID}, scw.WithContext(ctx))
+func (c *Client) installedOrPending(ctx context.Context, zone string, serverID uint64) (InstallState, error) {
+	s, err := c.GetServer(ctx, zone, serverID)
 	if err != nil {
-		return InstallPending, fmt.Errorf("get server %d: %w", serverID, err)
+		return InstallPending, err
 	}
-	if s.Os != nil {
+	if s.Installed {
 		return InstallDone, nil
 	}
 	return InstallPending, nil
@@ -395,4 +442,57 @@ func randomPassword() (string, error) {
 		b[i] = alphabet[int(b[i])%len(alphabet)]
 	}
 	return "Tuist8!" + string(b), nil
+}
+
+// httpTransport is the real net/http implementation of transport with
+// X-Auth-Token (Scaleway IAM secret key) auth.
+type httpTransport struct {
+	base   string
+	token  string
+	client *http.Client
+}
+
+func (h *httpTransport) get(ctx context.Context, path string, query url.Values, out any) error {
+	u := h.base + path
+	if len(query) > 0 {
+		u += "?" + query.Encode()
+	}
+	return h.do(ctx, http.MethodGet, u, nil, out)
+}
+
+func (h *httpTransport) post(ctx context.Context, path string, body, out any) error {
+	return h.do(ctx, http.MethodPost, h.base+path, body, out)
+}
+
+func (h *httpTransport) do(ctx context.Context, method, fullURL string, body, out any) error {
+	var reader io.Reader
+	if body != nil {
+		buf, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+		reader = bytes.NewReader(buf)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, fullURL, reader)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("X-Auth-Token", h.token)
+	req.Header.Set("Accept", "application/json")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	resp, err := h.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	payload, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return &apiError{status: resp.StatusCode, body: string(payload)}
+	}
+	if out != nil && len(payload) > 0 {
+		return json.Unmarshal(payload, out)
+	}
+	return nil
 }
