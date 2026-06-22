@@ -17,6 +17,7 @@ defmodule Tuist.Storage.RetentionPolicy do
     preview_app_build: %{air: 60, open_source: 60, pro: 180, enterprise: 365},
     preview_icon: %{air: 60, open_source: 60, pro: 180, enterprise: 365},
     build_archive: %{air: 30, open_source: 30, pro: 90, enterprise: 365},
+    run_session: %{air: 30, open_source: 30, pro: 90, enterprise: 365},
     test_attachment: %{air: 30, open_source: 30, pro: 90, enterprise: 365},
     shard_bundle: %{air: 7, open_source: 7, pro: 14, enterprise: 30}
   }
