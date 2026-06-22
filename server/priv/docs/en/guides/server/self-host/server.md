@@ -163,6 +163,8 @@ The following environment variables are used to configure the database connectio
 | Environment variable | Description | Required | Default | Example |
 | --- | --- | --- | --- | --- |
 | `DATABASE_URL` | The URL to access the Postgres database. Note that the URL should contain the authentication information | Yes | | `postgres://username:password@cloud.us-east-2.aws.test.com/production` |
+| `TUIST_MIGRATION_DATABASE_URL` | Optional Postgres URL used only by `Tuist.Release.migrate`. Set this to an owner role URL when `DATABASE_URL` points at a narrower runtime role. | No | `DATABASE_URL` | `postgres://owner:password@cloud.us-east-2.aws.test.com/production` |
+| `TUIST_DATABASE_RUNTIME_ROLE` | Runtime Postgres role that migrations should grant application-table privileges to after they finish. Use this with `TUIST_MIGRATION_DATABASE_URL` when the web server should not connect as the schema owner. | No | | `tuist_web` |
 | `TUIST_CLICKHOUSE_URL` | The URL to access the ClickHouse database. Note that the URL should contain the authentication information | No | | `http://username:password@cloud.us-east-2.aws.test.com/production` |
 | `TUIST_USE_SSL_FOR_DATABASE` | When true, it uses [SSL](https://en.wikipedia.org/wiki/Transport_Layer_Security) to connect to the database | No | `1` | `1` |
 | `TUIST_DATABASE_POOL_SIZE` | The number of connections to keep open in the connection pool | No | `10` | `10` |

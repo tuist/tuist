@@ -104,7 +104,11 @@ if Enum.member?([:prod, :stag, :can], env) do
       """
 
   parsed_url = URI.parse(database_url)
-  [username, password] = String.split(parsed_url.userinfo, ":")
+
+  [username, password] =
+    parsed_url.userinfo
+    |> String.split(":", parts: 2)
+    |> Enum.map(&URI.decode_www_form/1)
 
   # `{:keepalive, true}` enables SO_KEEPALIVE but inherits the OS default
   # `tcp_keepalive_time` (7200s on Linux), so the pool keeps handing out

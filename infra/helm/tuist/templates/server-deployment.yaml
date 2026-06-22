@@ -79,16 +79,20 @@ spec:
             # need to set it explicitly here. The processor Deployment sets
             # TUIST_MODE=processor; everything else is :web.
             {{- if eq .Values.postgresql.mode "cnpg" }}
-            # CNPG creates a `<cluster>-app` Secret carrying the owner
-            # role's URI. Override DATABASE_URL from the priv/secrets
-            # bundle so it points at the in-cluster cluster. The
-            # service hostname (`<cluster>-rw`) only ever resolves to the
-            # current primary; CNPG fails the Service over during a
-            # promotion.
+            # In managed CNPG, the web tier moves to the least-privilege
+            # runtime role (`tuist_web` by default) once the rollout gate
+            # opens. Self-hosted chart installs without managedSecrets keep
+            # using the owner Secret for backwards compatibility. The
+            # service hostname (`<cluster>-rw`) only resolves to the current
+            # primary; CNPG fails the Service over during a promotion.
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
+                  {{- if and .Values.server.managedSecrets (eq (include "tuist.cnpgUseWebRole" .) "true") }}
+                  name: {{ include "tuist.cnpgWebRoleSecretName" . }}
+                  {{- else }}
                   name: {{ include "tuist.cnpgAppSecretName" . }}
+                  {{- end }}
                   key: uri
             - name: TUIST_USE_SSL_FOR_DATABASE
               value: "0"

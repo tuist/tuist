@@ -212,11 +212,9 @@ ecto://{{ .Values.postgresql.embedded.username }}:{{ .Values.postgresql.embedded
 {{- end -}}
 
 {{/*
-CNPG generates one Secret per role: `<cluster-name>-app` (the owner role
-from `bootstrap.initdb.owner`) and one per managed role under the name
-declared in `managed.roles[].passwordSecret.name`. The owner Secret
-carries `username`, `password`, `uri`, `jdbc-uri`, `host`, `port`,
-`dbname`. We mount `uri` straight into DATABASE_URL.
+CNPG generates `<cluster-name>-app` for the owner / migration role from
+`bootstrap.initdb.owner`. Managed runtime roles use the password Secret
+names declared in `managed.roles[].passwordSecret.name`.
 */}}
 {{- define "tuist.cnpgClusterName" -}}
 {{- include "tuist.componentName" (dict "root" . "component" "pg") -}}
@@ -224,6 +222,30 @@ carries `username`, `password`, `uri`, `jdbc-uri`, `host`, `port`,
 
 {{- define "tuist.cnpgAppSecretName" -}}
 {{- printf "%s-app" (include "tuist.cnpgClusterName" .) -}}
+{{- end -}}
+
+{{- define "tuist.cnpgWebRoleSecretName" -}}
+{{- include "tuist.componentName" (dict "root" . "component" "pg-tuist-web") -}}
+{{- end -}}
+
+{{/*
+Rollout gate for moving the web tier from the CNPG owner Secret to the
+managed runtime role. With hook-managed migrations, the migration Job runs
+before Helm applies normal resources, so the first upgrade that introduces
+the role cannot grant it yet. The default "auto" mode switches only after
+the web role Secret already exists from a prior deploy; operators can set
+postgresql.cnpg.roles.web.useForServer=true to force the switch once they
+know the role is ready.
+*/}}
+{{- define "tuist.cnpgUseWebRole" -}}
+{{- $value := .Values.postgresql.cnpg.roles.web.useForServer -}}
+{{- if kindIs "bool" $value -}}
+{{- ternary "true" "false" $value -}}
+{{- else if lookup "v1" "Secret" .Release.Namespace (include "tuist.cnpgWebRoleSecretName" .) -}}
+true
+{{- else -}}
+false
+{{- end -}}
 {{- end -}}
 
 {{- define "tuist.cnpgServiceRW" -}}
