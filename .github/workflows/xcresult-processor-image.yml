@@ -139,47 +139,23 @@ jobs:
           TART_REGISTRY_HOSTNAME: ghcr.io
           TART_REGISTRY_USERNAME: tuist-bot
           TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          # tart's auto-prune fires opportunistically during `tart push`
-          # and races the upload of the source bundle (cirruslabs/tart#860).
-          # reclaim-tart-disk already trimmed the cache at the start of the
-          # job, so nothing needs pruning here.
-          TART_NO_AUTO_PRUNE: "1"
-          XCODE_VERSION: ${{ inputs.xcode_version }}
-        # Two failure modes have repeatedly broken this push, both
-        # surfacing as `Error: The file "nvram.bin" doesn't exist.`:
-        #   1. packer-plugin-tart v1.20.0 occasionally bakes a bundle
-        #      with no nvram.bin at all.
-        #   2. nvram.bin is present at push start (~33MB) but disappears
-        #      mid-push — it pushes config + disk, then dies on NVRAM.
-        #      The same-size macos-tahoe-xcode base pushes fine through a
-        #      bare 3x retry (see macos-xcode-image.yml), i.e. the vanish
-        #      is transient, not permanent.
-        # So: restore nvram.bin from a fresh clone of the base if it's
-        # missing *before each attempt* (covers both modes — a vanish on
-        # attempt N is repaired before attempt N+1), and retry the push
-        # up to 3x. No provisioner mutates guest auxiliary storage, so the
-        # base's nvram is equivalent.
+        # Direct tart push with a 3x retry — identical shape to
+        # macos-xcode-image.yml, which publishes the same-size image via
+        # the same path and is the only large tart push that pushes
+        # reliably. Earlier attempts here layered on TART_NO_AUTO_PRUNE
+        # and a clone-the-base "restore nvram.bin" step; both failed to
+        # fix the intermittent `Error: The file "nvram.bin" doesn't exist`
+        # and the disk-heavy restore made it worse (the whole VM bundle
+        # vanished mid-push). Blob uploads are content-addressed, so a
+        # re-push only re-uploads layers that didn't land last time.
         run: |
           # SHA-tagged builds for ad-hoc deploys; semver tags + `:latest`
           # are owned by server-production-deployment.yml's release-xcresult-processor job.
           set -euo pipefail
           GIT_SHA="${GITHUB_SHA::8}"
           DST="ghcr.io/tuist/tuist-xcresult-processor:${GIT_SHA}"
-          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${XCODE_VERSION//./-}"
-          BUNDLE="$HOME/.tart/vms/tuist-xcresult-processor"
-          ensure_nvram() {
-            if [ ! -f "$BUNDLE/nvram.bin" ]; then
-              echo "nvram.bin missing — restoring from ${BASE_IMAGE}" >&2
-              tart delete nvram-restore 2>/dev/null || true
-              tart clone "$BASE_IMAGE" nvram-restore
-              cp "$HOME/.tart/vms/nvram-restore/nvram.bin" "$BUNDLE/nvram.bin"
-              tart delete nvram-restore
-              echo "restored nvram.bin ($(du -h "$BUNDLE/nvram.bin" | cut -f1))" >&2
-            fi
-          }
           for attempt in 1 2 3; do
-            ensure_nvram
-            echo "tart push attempt ${attempt} at $(date -u +%H:%M:%SZ)" >&2
+            echo "tart push attempt ${attempt} starting at $(date -u +%H:%M:%SZ)" >&2
             if tart push tuist-xcresult-processor "$DST"; then
               echo "Pushed ${DST} on attempt ${attempt}"
               exit 0
