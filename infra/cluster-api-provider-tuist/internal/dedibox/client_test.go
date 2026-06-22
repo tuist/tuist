@@ -154,7 +154,7 @@ func TestStartInstall(t *testing.T) {
 	if err := c.StartInstall(context.Background(), InstallParams{
 		Zone:      "fr-par-1",
 		ServerID:  7,
-		OS:        OSChoice{ID: 2, RequiresUser: true},
+		OS:        OSChoice{ID: 2, RequiresUser: true, AllowSSHKeys: true, AllowCustomPartitioning: true},
 		Hostname:  "node-0",
 		UserLogin: "tuist",
 		SSHKeyIDs: []string{"key-abc"},

@@ -267,12 +267,15 @@ func (c *Client) GetServer(ctx context.Context, zone string, id uint64) (*Server
 	return serverFromDetail(&s), nil
 }
 
-// OSChoice is the resolved install OS plus the flags that decide whether the
-// install request must carry a user login / password.
+// OSChoice is the resolved install OS plus the flags that decide how the install
+// request is shaped: whether it must carry a user login / password, whether it
+// accepts SSH keys at all, and whether it supports a custom partitioning layout.
 type OSChoice struct {
-	ID                    uint64
-	RequiresUser          bool
-	RequiresAdminPassword bool
+	ID                      uint64
+	RequiresUser            bool
+	RequiresPanelPassword   bool
+	AllowSSHKeys            bool
+	AllowCustomPartitioning bool
 }
 
 // ResolveOS maps an `ubuntu_24.04`-style label to an installable OS on the
@@ -298,7 +301,13 @@ func (c *Client) ResolveOS(ctx context.Context, zone string, serverID uint64, os
 			}
 		}
 		if matched {
-			return OSChoice{ID: os.ID, RequiresUser: os.RequiresUser, RequiresAdminPassword: os.RequiresAdminPassword}, nil
+			return OSChoice{
+				ID:                      os.ID,
+				RequiresUser:            os.RequiresUser,
+				RequiresPanelPassword:   os.RequiresPanelPassword,
+				AllowSSHKeys:            os.AllowSSHKeys,
+				AllowCustomPartitioning: os.AllowCustomPartitioning,
+			}, nil
 		}
 	}
 	return OSChoice{}, fmt.Errorf("no Dedibox OS matching label %q for server %d", osLabel, serverID)
@@ -322,37 +331,50 @@ type installBody struct {
 	Hostname      string                         `json:"hostname"`
 	UserLogin     string                         `json:"user_login,omitempty"`
 	UserPassword  string                         `json:"user_password,omitempty"`
+	RootPassword  string                         `json:"root_password,omitempty"`
 	PanelPassword string                         `json:"panel_password,omitempty"`
-	Partitions    []*scwdedibox.InstallPartition `json:"partitions"`
+	Partitions    []*scwdedibox.InstallPartition `json:"partitions,omitempty"`
 	SSHKeyIDs     []string                       `json:"ssh_key_ids"`
 }
 
-// StartInstall kicks off the OS install with the server's default partitioning,
-// the resolved OS, hostname, and the fleet SSH key authorized. The install runs
-// asynchronously; poll InstallState before bootstrapping. A user login (and a
-// generated password) is included only when the OS requires it, since key-only
-// installs reject unexpected credentials.
+// StartInstall kicks off the OS install with the resolved OS, hostname, and the
+// fleet SSH key authorized. The install runs asynchronously; poll InstallState
+// before bootstrapping. Default partitioning is fetched and passed only when the
+// OS supports a custom layout (otherwise the endpoint 400s and the API applies
+// its own default); a user login (and a generated password) is included only
+// when the OS requires one. Fails fast on an OS that does not accept SSH keys,
+// since the self-join depends on key auth.
 func (c *Client) StartInstall(ctx context.Context, p InstallParams) error {
-	var part scwdedibox.ServerDefaultPartitioning
-	if err := c.t.get(ctx, fmt.Sprintf("/dedibox/v1/zones/%s/servers/%d/partitioning/%d", p.Zone, p.ServerID, p.OS.ID), nil, &part); err != nil {
-		return fmt.Errorf("default partitioning for server %d: %w", p.ServerID, err)
+	if !p.OS.AllowSSHKeys {
+		return fmt.Errorf("Dedibox OS %d does not allow SSH-key installs (self-join needs key auth)", p.OS.ID)
 	}
 
 	body := installBody{
-		OsID:       p.OS.ID,
-		Hostname:   p.Hostname,
-		SSHKeyIDs:  p.SSHKeyIDs,
-		Partitions: toInstallPartitions(part.Partitions),
+		OsID:      p.OS.ID,
+		Hostname:  p.Hostname,
+		SSHKeyIDs: p.SSHKeyIDs,
+	}
+	if p.OS.AllowCustomPartitioning {
+		var part scwdedibox.ServerDefaultPartitioning
+		if err := c.t.get(ctx, fmt.Sprintf("/dedibox/v1/zones/%s/servers/%d/partitioning/%d", p.Zone, p.ServerID, p.OS.ID), nil, &part); err != nil {
+			return fmt.Errorf("default partitioning for server %d: %w", p.ServerID, err)
+		}
+		body.Partitions = toInstallPartitions(part.Partitions)
 	}
 	if p.OS.RequiresUser {
 		body.UserLogin = p.UserLogin
-		password, pwErr := randomPassword()
+		userPassword, pwErr := randomPassword()
 		if pwErr != nil {
 			return pwErr
 		}
-		body.UserPassword = password
+		body.UserPassword = userPassword
+		rootPassword, rpErr := randomPassword()
+		if rpErr != nil {
+			return rpErr
+		}
+		body.RootPassword = rootPassword
 	}
-	if p.OS.RequiresAdminPassword {
+	if p.OS.RequiresPanelPassword {
 		password, pwErr := randomPassword()
 		if pwErr != nil {
 			return pwErr
@@ -429,19 +451,20 @@ func (c *Client) installedOrPending(ctx context.Context, zone string, serverID u
 	return InstallPending, nil
 }
 
-// randomPassword returns a strong password for the rare OS that mandates one
-// even on a key-based install. VERIFY the live OS password regex during staging
-// bring-up; this mixes upper/lower/digits/symbol to satisfy common rules.
+// randomPassword returns a strong alphanumeric password for the OS install
+// fields an OS mandates even on a key-based install. The Dedibox install API
+// caps passwords at 15 characters and rejects non-alphanumeric ones, so this is
+// 14 mixed-case alphanumerics (no symbols).
 func randomPassword() (string, error) {
 	const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"
-	b := make([]byte, 24)
+	b := make([]byte, 14)
 	if _, err := rand.Read(b); err != nil {
 		return "", fmt.Errorf("generate password: %w", err)
 	}
 	for i := range b {
 		b[i] = alphabet[int(b[i])%len(alphabet)]
 	}
-	return "Tuist8!" + string(b), nil
+	return string(b), nil
 }
 
 // httpTransport is the real net/http implementation of transport with
