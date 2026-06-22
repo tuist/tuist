@@ -175,17 +175,48 @@ curl -fsSL https://pkgs.k8s.io/core:/stable:/%[1]s/deb/Release.key | %[2]sgpg --
 // default-route interface, else the first non-lo physical NIC. Empty (and
 // therefore a no-op) for the Instance kind, whose PN auto-DHCPs as a second
 // interface.
+//
+// The bring-up is installed as a supervised systemd unit, not run once inline. A
+// bare `ip link` + backgrounded `dhclient -nw` does not survive a reboot and is
+// never renewed if that dhclient process dies, so the node silently loses its PN
+// address (and with it the runner-cache NodePort) while still reporting Ready on
+// its public NIC — invisible to the control plane, since kubelet binds the
+// public InternalIP. The unit re-creates pn0 on every boot (ExecStartPre) and
+// holds the DHCP lease in the foreground under Restart=always, making the PN
+// address durable across reboots and lease churn. The heredocs keep this on the
+// SSH (non-indented) bootstrap path; the Instance/cloud-init path always passes
+// vlan==0 and renders nothing here.
 func vlanBringUp(sudo string, vlan uint32) string {
 	if vlan == 0 {
 		return ""
 	}
-	return fmt.Sprintf(`PRIMARY_NIC="$(ip -o route get 1.1.1.1 2>/dev/null | sed -n 's/.* dev \([^ ]*\).*/\1/p' | head -n1)"
+	return fmt.Sprintf(`%[1]stee /usr/local/sbin/tuist-pn0-up.sh > /dev/null <<'TUIST_PN_EOF'
+#!/usr/bin/env bash
+set -eu
+PRIMARY_NIC="$(ip -o route get 1.1.1.1 2>/dev/null | sed -n 's/.* dev \([^ ]*\).*/\1/p' | head -n1)"
 if [ -z "$PRIMARY_NIC" ]; then
   PRIMARY_NIC="$(for n in /sys/class/net/*; do ifn="$(basename "$n")"; case "$ifn" in lo|pn*) continue;; esac; if [ -e "$n/device" ]; then echo "$ifn"; break; fi; done)"
 fi
-%[1]sip link add link "$PRIMARY_NIC" name pn0 type vlan id %[2]d || true
-%[1]sip link set pn0 up
-%[1]sdhclient -nw pn0 || %[1]sdhclient pn0 || true
+ip link show pn0 >/dev/null 2>&1 || ip link add link "$PRIMARY_NIC" name pn0 type vlan id %[2]d
+ip link set pn0 up
+TUIST_PN_EOF
+%[1]schmod 0755 /usr/local/sbin/tuist-pn0-up.sh
+%[1]stee /etc/systemd/system/tuist-pn0.service > /dev/null <<'TUIST_PN_EOF'
+[Unit]
+Description=Tuist runner-cache Private Network VLAN (pn0)
+Wants=network-online.target
+After=network-online.target
+[Service]
+Type=exec
+ExecStartPre=/usr/local/sbin/tuist-pn0-up.sh
+ExecStart=/usr/bin/env dhclient -d pn0
+Restart=always
+RestartSec=5
+[Install]
+WantedBy=multi-user.target
+TUIST_PN_EOF
+%[1]ssystemctl daemon-reload
+%[1]ssystemctl enable --now tuist-pn0.service || true
 `, sudo, vlan)
 }
 
