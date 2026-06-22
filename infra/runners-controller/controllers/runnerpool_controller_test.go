@@ -100,6 +100,29 @@ func TestIsStaleImage_EmptyContainers(t *testing.T) {
 	}
 }
 
+func TestPodPhaseReplicaCounts(t *testing.T) {
+	pending := newRunnerPod("p-pending", "img", corev1.PodPending, "p")
+	running := newRunnerPod("p-running", "img", corev1.PodRunning, "p")
+	unknown := newRunnerPod("p-unknown", "img", corev1.PodUnknown, "p")
+
+	counts := podPhaseReplicaCounts{}
+	counts.add(pending)
+	counts.add(running)
+	counts.add(unknown)
+
+	if counts.pending != 1 || counts.running != 1 || counts.unknown != 1 {
+		t.Fatalf("counts after add = %+v, want pending=1 running=1 unknown=1", counts)
+	}
+
+	counts.remove(pending)
+	counts.remove(pending)
+	counts.remove(running)
+
+	if counts.pending != 0 || counts.running != 0 || counts.unknown != 1 {
+		t.Fatalf("counts after remove = %+v, want pending=0 running=0 unknown=1", counts)
+	}
+}
+
 func TestIsIdle(t *testing.T) {
 	withPoller := func(name string, state corev1.ContainerState) *corev1.Pod {
 		p := newRunnerPod(name, "img", corev1.PodPending, "p")

@@ -16,7 +16,12 @@ import (
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 )
 
-const poolLabel = "pool"
+const (
+	poolLabel  = "pool"
+	phaseLabel = "phase"
+)
+
+var podPhaseLabels = []string{"Pending", "Running", "Unknown"}
 
 var (
 	// target is the per-pool replica count the autoscaler policy wants
@@ -86,10 +91,15 @@ var (
 		Name: "tuist_runners_pool_roll_concurrency_cap",
 		Help: "Max Pods allowed mid-roll at once per pool (max(1, floor(pct/100 * replicas))).",
 	}, []string{poolLabel})
+
+	phaseReplicas = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_pool_phase_replicas",
+		Help: "Alive runner Pods per pool and Kubernetes phase.",
+	}, []string{poolLabel, phaseLabel})
 )
 
 func init() {
-	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor, rollingPods, stalePods, rollCap)
+	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor, rollingPods, stalePods, rollCap, phaseReplicas)
 }
 
 // RecordAllocation publishes one pool's allocation outcome for this
@@ -114,16 +124,40 @@ func RecordRoll(pool string, rolling, stale, capacity int) {
 	rollCap.WithLabelValues(pool).Set(float64(capacity))
 }
 
-// Clear drops a pool's series so a deleted (or opted-out) pool stops
-// reporting stale gauges. Safe to call for an unknown pool.
-func Clear(pool string) {
+// RecordPodPhases publishes the pool's alive Pod count by Kubernetes
+// phase. Missing phase buckets are explicitly set to 0 so the dashboard
+// does not keep stale last_value samples after a pool drains.
+func RecordPodPhases(pool string, pending, running, unknown int) {
+	phaseReplicas.WithLabelValues(pool, "Pending").Set(float64(pending))
+	phaseReplicas.WithLabelValues(pool, "Running").Set(float64(running))
+	phaseReplicas.WithLabelValues(pool, "Unknown").Set(float64(unknown))
+}
+
+// ClearAutoscaler drops the autoscaler-owned series for a pool. Safe
+// to call for an unknown pool.
+func ClearAutoscaler(pool string) {
 	target.DeleteLabelValues(pool)
 	allocated.DeleteLabelValues(pool)
 	warmDeficitReplicas.DeleteLabelValues(pool)
 	minWarmFloor.DeleteLabelValues(pool)
+}
+
+// ClearRunnerPool drops the primary RunnerPool reconciler's series for
+// a pool. Safe to call for an unknown pool.
+func ClearRunnerPool(pool string) {
 	rollingPods.DeleteLabelValues(pool)
 	stalePods.DeleteLabelValues(pool)
 	rollCap.DeleteLabelValues(pool)
+	for _, phase := range podPhaseLabels {
+		phaseReplicas.DeleteLabelValues(pool, phase)
+	}
+}
+
+// Clear drops all pool series when the RunnerPool object is gone. Safe
+// to call for an unknown pool.
+func Clear(pool string) {
+	ClearAutoscaler(pool)
+	ClearRunnerPool(pool)
 }
 
 // warmDeficit is the warm-pool capacity the fleet allocator wanted to
