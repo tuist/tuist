@@ -108,7 +108,7 @@ defmodule Tuist.MixProject do
       # which renames cachex's internal `@type record` so it stops colliding
       # with Elixir 1.19's new builtin `record/0` type. Revert to a hex
       # version once the PR lands upstream.
-      {:cachex, github: "TBK145/cachex", ref: "72822750eacef403135ad7413f654d40719fbd9f", override: true},
+      {:cachex, github: "TBK145/cachex", ref: "44ac7e445bba03a9953a46ff61da2f168dd8cc57", override: true},
       {:excellent_migrations, "~> 0.1.8"},
       {:ex_aws_sts, "~> 2.2"},
       {:qr_code, "~> 3.2.0"},
