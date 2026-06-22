@@ -310,12 +310,10 @@ kuraFleet:
 # Dedibox fleet (EU customer-facing Kura cache, validation node). The reconciler
 # adopts a pre-ordered Dedibox carrying the tuist-kura-staging tag (the env
 # boundary, since all Dedibox share the org's default project) and self-joins it.
-# Keep disabled until BOTH prerequisites exist, or the deploy fails: (1) the
-# DEDIBOX_SCW_API 1Password item (default-project Dedibox IAM key), since the ESO
-# pre-install hook blocks on it; (2) a modern-CPU box ordered and tagged
-# tuist-kura-staging. Then flip enabled: true and set machine.offer.
+# Prereqs met: the DEDIBOX_SCW_API 1Password item exists, and Start-9-M sd-188785
+# (DC5) is delivered and tagged tuist-kura-staging.
 dediboxFleet:
-  enabled: false
+  enabled: true
   machine:
     adoptTag: tuist-kura-staging
     # Start-9-M (AMD Ryzen 5 PRO 3600, 32 GB, 2x1 TB NVMe) — modern enough for
