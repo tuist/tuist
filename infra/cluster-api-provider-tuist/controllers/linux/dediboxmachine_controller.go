@@ -143,15 +143,6 @@ func (r *DediboxMachineReconciler) reconcileNormal(ctx context.Context, machine 
 			machine.Status.Phase = "Pending"
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
-		// The fleet key is already registered as a Scaleway SSH key; the Dedibox
-		// install authorizes it by ID (no per-provider key upload).
-		sshKeyID, keyIDErr := r.CredentialsManager.FleetSSHKeyID(ctx, fleet)
-		if keyIDErr != nil {
-			conditions.MarkFalse(machine, shared.ProvisionedCondition, "SSHKeyUnavailable",
-				clusterv1.ConditionSeverityError, "%v", keyIDErr)
-			machine.Status.Phase = "Pending"
-			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
-		}
 
 		// Adopt: claim a free pre-ordered box in this project not already held by
 		// a sibling CR.
@@ -185,47 +176,20 @@ func (r *DediboxMachineReconciler) reconcileNormal(ctx context.Context, machine 
 		}
 
 		serverID := uint64(machine.Status.ServerID)
-		state, stateErr := r.DediboxClient.InstallState(ctx, machine.Status.Zone, serverID)
-		if stateErr != nil {
-			return ctrl.Result{}, stateErr
-		}
-		switch state {
-		case dedibox.InstallFailed:
-			return r.fail(machine, "InstallFailed",
-				fmt.Sprintf("Dedibox server %d OS install failed", serverID))
-		case dedibox.InstallPending:
-			if !conditions.IsTrue(machine, OSInstallRequestedCondition) {
-				osChoice, osErr := r.DediboxClient.ResolveOS(ctx, machine.Status.Zone, serverID, firstNonEmpty(machine.Spec.OS, r.DefaultOS))
-				if osErr != nil {
-					return ctrl.Result{}, osErr
-				}
-				if err := r.DediboxClient.StartInstall(ctx, dedibox.InstallParams{
-					Zone:      machine.Status.Zone,
-					ServerID:  serverID,
-					OS:        osChoice,
-					Hostname:  machine.Name,
-					UserLogin: dediboxBootstrapUser,
-					SSHKeyIDs: []string{sshKeyID},
-				}); err != nil {
-					return ctrl.Result{}, fmt.Errorf("start Dedibox install: %w", err)
-				}
-				conditions.MarkTrue(machine, OSInstallRequestedCondition)
-				r.event(machine, "Installing", "Started OS install on Dedibox server %d", serverID)
-			}
-			conditions.MarkFalse(machine, shared.ProvisionedCondition, "Installing",
-				clusterv1.ConditionSeverityInfo, "server %d installing", serverID)
-			machine.Status.Phase = "Installing"
-			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
-		case dedibox.InstallRunning:
-			conditions.MarkFalse(machine, shared.ProvisionedCondition, "Installing",
-				clusterv1.ConditionSeverityInfo, "server %d installing", serverID)
-			machine.Status.Phase = "Installing"
-			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
-		}
-
 		server, getErr := r.DediboxClient.GetServer(ctx, machine.Status.Zone, serverID)
 		if getErr != nil {
 			return ctrl.Result{}, getErr
+		}
+		// Out-of-band install model: the operator pre-installs the OS on the
+		// pre-ordered box and authorizes the fleet SSH key. The controller never
+		// drives the Dedibox install API; it only claims a tagged box and
+		// self-joins it once the box reports an installed OS.
+		if !server.Installed {
+			conditions.MarkFalse(machine, shared.ProvisionedCondition, "AwaitingInstall",
+				clusterv1.ConditionSeverityInfo, "server %d has no OS; awaiting out-of-band install", serverID)
+			machine.Status.Phase = "AwaitingInstall"
+			logger.Info("Dedibox server not installed yet; awaiting out-of-band OS install", "id", serverID)
+			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 		}
 		host := server.PublicIP
 		if host == "" {
@@ -359,15 +323,6 @@ func (r *DediboxMachineReconciler) reconcileDelete(ctx context.Context, machine 
 		return ctrl.Result{}, err
 	}
 	controllerutil.RemoveFinalizer(machine, DediboxMachineFinalizer)
-	return ctrl.Result{}, nil
-}
-
-func (r *DediboxMachineReconciler) fail(machine *infrav1.DediboxMachine, reason, message string) (ctrl.Result, error) {
-	machine.Status.Phase = "Failed"
-	machine.Status.FailureReason = &reason
-	machine.Status.FailureMessage = &message
-	conditions.MarkFalse(machine, shared.ProvisionedCondition, reason, clusterv1.ConditionSeverityError, "%s", message)
-	r.event(machine, reason, "%s", message)
 	return ctrl.Result{}, nil
 }
 
