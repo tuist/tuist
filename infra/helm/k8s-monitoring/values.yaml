@@ -309,18 +309,6 @@ k8s-monitoring:
       metricsPortNumber: "prometheus.io/port"
       metricsPath: "prometheus.io/path"
       metricsScheme: "prometheus.io/scheme"
-    extraDiscoveryRules: |
-      rule {
-        source_labels = [
-          "__meta_kubernetes_pod_label_tuist_dev_runner",
-          "__meta_kubernetes_pod_label_tuist_dev_runner_pool",
-        ]
-        separator = ";"
-        regex = "true;.*runner-pool-macos.*"
-        target_label = "instance"
-        replacement = "macos-runner"
-        action = "replace"
-      }
     metricsTuning:
       excludeMetrics:
         # Cilium's event timestamps and BPF map capacity gauges have high

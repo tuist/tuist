@@ -151,12 +151,22 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, fmt.Errorf("list pods: %w", err)
 	}
 
+	phaseReplicas := podPhaseReplicaCounts{}
+	for i := range pods.Items {
+		p := &pods.Items[i]
+		if isAlive(p) {
+			phaseReplicas.add(p)
+		}
+	}
+	defer func() {
+		metrics.RecordPodPhases(pool.Name, phaseReplicas.pending, phaseReplicas.running, phaseReplicas.unknown)
+	}()
+
 	alive := 0
 	reaped := 0
 	staleAlive := 0
 	markedStale := 0
 	newNotReady := 0
-	phaseReplicas := podPhaseReplicaCounts{}
 	var idleAlive []*corev1.Pod
 	// Stale idle Pods are retired under the roll cap (below), not all at
 	// once: Running ones (macOS) get the drain-eligible label so the
@@ -171,7 +181,6 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		switch {
 		case isAlive(p):
 			alive++
-			phaseReplicas.add(p)
 			switch {
 			case isStaleImage(p, pool):
 				staleAlive++
@@ -322,7 +331,6 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	observed := alive - scaledDown + gap
-	metrics.RecordPodPhases(pool.Name, phaseReplicas.pending, phaseReplicas.running, phaseReplicas.unknown)
 	pool.Status.ObservedReplicas = int32(observed)
 	pool.Status.LastReconcile = metav1.Now()
 	if err := r.Status().Update(ctx, pool); err != nil {

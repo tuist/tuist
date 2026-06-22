@@ -133,19 +133,31 @@ func RecordPodPhases(pool string, pending, running, unknown int) {
 	phaseReplicas.WithLabelValues(pool, "Unknown").Set(float64(unknown))
 }
 
-// Clear drops a pool's series so a deleted (or opted-out) pool stops
-// reporting stale gauges. Safe to call for an unknown pool.
-func Clear(pool string) {
+// ClearAutoscaler drops the autoscaler-owned series for a pool. Safe
+// to call for an unknown pool.
+func ClearAutoscaler(pool string) {
 	target.DeleteLabelValues(pool)
 	allocated.DeleteLabelValues(pool)
 	warmDeficitReplicas.DeleteLabelValues(pool)
 	minWarmFloor.DeleteLabelValues(pool)
+}
+
+// ClearRunnerPool drops the primary RunnerPool reconciler's series for
+// a pool. Safe to call for an unknown pool.
+func ClearRunnerPool(pool string) {
 	rollingPods.DeleteLabelValues(pool)
 	stalePods.DeleteLabelValues(pool)
 	rollCap.DeleteLabelValues(pool)
 	for _, phase := range podPhaseLabels {
 		phaseReplicas.DeleteLabelValues(pool, phase)
 	}
+}
+
+// Clear drops all pool series when the RunnerPool object is gone. Safe
+// to call for an unknown pool.
+func Clear(pool string) {
+	ClearAutoscaler(pool)
+	ClearRunnerPool(pool)
 }
 
 // warmDeficit is the warm-pool capacity the fleet allocator wanted to
