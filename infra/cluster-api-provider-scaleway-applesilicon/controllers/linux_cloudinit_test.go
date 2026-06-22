@@ -95,3 +95,44 @@ func TestRenderLinuxCloudInit_ClusterDNS(t *testing.T) {
 		t.Fatalf("expected clusterDNS list entry in bootstrap script, got:\n%s", script)
 	}
 }
+
+func TestRenderLinuxBootstrapScript_PNVlanIsPersistentAndSupervised(t *testing.T) {
+	script := renderLinuxBootstrapScript(linuxCloudInitOptions{
+		NodeName:           "node-a",
+		KubeconfigYAML:     "apiVersion: v1\nkind: Config\n",
+		K8sMinor:           "v1.34",
+		BootstrapUser:      "ubuntu",
+		PrivateNetworkVLAN: 3250,
+	})
+
+	// The VLAN must be installed as a reboot-durable, lease-renewing systemd
+	// unit rather than a one-shot. Assert the unit, its supervised dhclient, and
+	// the VLAN id wired through.
+	for _, want := range []string{
+		"/etc/systemd/system/tuist-pn0.service",
+		"/usr/local/sbin/tuist-pn0-up.sh",
+		"ExecStartPre=/usr/local/sbin/tuist-pn0-up.sh",
+		"ExecStart=/usr/bin/env dhclient -d pn0",
+		"Restart=always",
+		"name pn0 type vlan id 3250",
+		"systemctl enable --now tuist-pn0.service",
+	} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("expected bootstrap script to contain %q, got:\n%s", want, script)
+		}
+	}
+
+	// The fragile one-shot bring-up (backgrounded, unrenewed, lost on reboot)
+	// must be gone — it is the bug this unit replaces.
+	if strings.Contains(script, "dhclient -nw pn0") {
+		t.Fatalf("expected the one-shot `dhclient -nw` bring-up to be removed, got:\n%s", script)
+	}
+
+	// The Instance/cloud-init path never sets a VLAN, so it must render nothing
+	// PN-related (and must not emit heredocs that the indented YAML form can't
+	// host).
+	instance := renderLinuxCloudInit("node-a", "apiVersion: v1\nkind: Config\n", "v1.34", nil)
+	if strings.Contains(instance, "pn0") || strings.Contains(instance, "tuist-pn0.service") {
+		t.Fatalf("expected no PN-VLAN setup when no VLAN is set, got:\n%s", instance)
+	}
+}
