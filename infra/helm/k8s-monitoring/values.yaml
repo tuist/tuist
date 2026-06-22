@@ -342,6 +342,17 @@ k8s-monitoring:
       deploy: true
     node-exporter:
       deploy: true
+      # Exempt node-exporter from kubelet node-pressure (DiskPressure) eviction.
+      # node-exporter is a DaemonSet, so the observability chart's `helm --wait`
+      # blocks until every node has a Ready node-exporter Pod. When a node hit
+      # DiskPressure the kubelet evicted its (default-priority) node-exporter,
+      # the DaemonSet sat at N-1/N forever, `helm --wait` timed out, and — since
+      # the observability install is a prerequisite of the server deploy job —
+      # ALL production deploys were blocked on one bad node. A system-critical
+      # priority is exempt from node-pressure eviction, so node-exporter keeps
+      # running (and reporting) exactly when a node is unhealthy, instead of
+      # being the thing that gets reaped and wedges the whole pipeline.
+      priorityClassName: system-node-critical
 
   # ───── Service integrations ─────
   #
