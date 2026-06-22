@@ -1356,8 +1356,25 @@ impl Config {
     }
 
     pub async fn ensure_directories(&self) -> Result<(), std::io::Error> {
+        // Reclaim transient staging from a previous run before opening the store.
+        // Everything under tmp_dir (in-flight uploads, multipart parts, bootstrap
+        // staging) is dead once the process restarts, and a failed transfer can
+        // leave a partial file behind. Left to accumulate they fill the data disk
+        // and RocksDB then fails to open with "No space left on device", wedging
+        // the pod in a crash loop. Clearing them here — before Store::open — lets
+        // such a pod free space and recover on the next start instead of staying
+        // stuck out-of-space.
+        for staging in ["uploads", "parts", "bootstrap"] {
+            let path = self.tmp_dir.join(staging);
+            match fs::remove_dir_all(&path).await {
+                Ok(()) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error),
+            }
+        }
         fs::create_dir_all(self.tmp_dir.join("uploads")).await?;
         fs::create_dir_all(self.tmp_dir.join("parts")).await?;
+        fs::create_dir_all(self.tmp_dir.join("bootstrap")).await?;
         fs::create_dir_all(self.data_dir.join("rocksdb")).await?;
         fs::create_dir_all(self.data_dir.join("blobs")).await?;
         fs::create_dir_all(self.data_dir.join("segments")).await?;
@@ -2493,6 +2510,16 @@ mod tests {
         config.tmp_dir = temp_dir.path().join("tmp");
         config.data_dir = temp_dir.path().join("data");
 
+        // Pre-seed stale staging (as a crashed previous run leaves behind) plus a
+        // real data file, to prove ensure_directories reclaims the former without
+        // touching the latter.
+        let stale = config.tmp_dir.join("bootstrap").join("leftover");
+        let kept = config.data_dir.join("rocksdb").join("CURRENT");
+        fs::create_dir_all(stale.parent().unwrap()).await.unwrap();
+        fs::create_dir_all(kept.parent().unwrap()).await.unwrap();
+        fs::write(&stale, b"stale").await.unwrap();
+        fs::write(&kept, b"keep").await.unwrap();
+
         config
             .ensure_directories()
             .await
@@ -2500,9 +2527,16 @@ mod tests {
 
         assert!(config.tmp_dir.join("uploads").exists());
         assert!(config.tmp_dir.join("parts").exists());
+        assert!(config.tmp_dir.join("bootstrap").exists());
         assert!(config.data_dir.join("rocksdb").exists());
         assert!(config.data_dir.join("blobs").exists());
         assert!(config.data_dir.join("segments").exists());
         assert!(config.data_dir.join("multipart").exists());
+
+        assert!(
+            !stale.exists(),
+            "stale staging must be reclaimed on startup"
+        );
+        assert!(kept.exists(), "persistent data must be preserved");
     }
 }
