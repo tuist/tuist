@@ -494,6 +494,17 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileDelete(ctx context.Cont
 		return ctrl.Result{}, err
 	}
 
+	// Drop the Node the kubelet registered: the host is wiped on release, so
+	// it can't deregister itself, and the foreign providerID means no CCM
+	// reaps it. A lingering NotReady Node keeps its DaemonSet slot and wedges
+	// helm --wait gates (e.g. the observability rollout) across the cluster.
+	node := &corev1.Node{}
+	node.SetName(machine.Name)
+	if err := r.Delete(ctx, node); err != nil && !apierrors.IsNotFound(err) {
+		r.event(machine, "DeleteNodeFailed", "delete Node: %v (will retry)", err)
+		return ctrl.Result{}, err
+	}
+
 	controllerutil.RemoveFinalizer(machine, ElasticMetalMachineFinalizer)
 	return ctrl.Result{}, nil
 }
