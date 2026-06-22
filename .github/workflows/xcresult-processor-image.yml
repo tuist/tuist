@@ -134,48 +134,61 @@ jobs:
             -var "release_tarball=/tmp/release.tar.gz" \
             xcresult-processor.pkr.hcl
 
-      - name: Restore nvram.bin if missing
-        env:
-          XCODE_VERSION: ${{ inputs.xcode_version }}
-        # See `runner-image.yml` for the rationale: packer-plugin-tart
-        # v1.20.0 sometimes drops `nvram.bin` from the built bundle,
-        # so the subsequent `tart push` uploads config + disk then
-        # fails with `Error: The file "nvram.bin" doesn't exist.`
-        # Restore it from a fresh clone of the base image (no
-        # provisioner mutates auxiliary storage from inside the guest,
-        # so the base's nvram is equivalent for our purposes).
-        run: |
-          set -euo pipefail
-          BUNDLE="$HOME/.tart/vms/tuist-xcresult-processor"
-          echo "pre-push bundle contents:"
-          ls -la "$BUNDLE"
-          if [ ! -f "$BUNDLE/nvram.bin" ]; then
-            BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${XCODE_VERSION//./-}"
-            echo "nvram.bin missing — restoring from ${BASE_IMAGE}"
-            tart delete nvram-restore 2>/dev/null || true
-            tart clone "$BASE_IMAGE" nvram-restore
-            cp "$HOME/.tart/vms/nvram-restore/nvram.bin" "$BUNDLE/nvram.bin"
-            tart delete nvram-restore
-            echo "restored nvram.bin ($(du -h "$BUNDLE/nvram.bin" | cut -f1))"
-          fi
-
       - name: Push image to GHCR
         env:
           TART_REGISTRY_HOSTNAME: ghcr.io
           TART_REGISTRY_USERNAME: tuist-bot
           TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          # See runner-image.yml's matching step for the rationale —
-          # tart's auto-prune races mid-push and truncates nvram.bin
-          # (cirruslabs/tart#860). reclaim-tart-disk already trimmed
-          # the cache at the start of the job.
+          # tart's auto-prune fires opportunistically during `tart push`
+          # and races the upload of the source bundle (cirruslabs/tart#860).
+          # reclaim-tart-disk already trimmed the cache at the start of the
+          # job, so nothing needs pruning here.
           TART_NO_AUTO_PRUNE: "1"
+          XCODE_VERSION: ${{ inputs.xcode_version }}
+        # Two failure modes have repeatedly broken this push, both
+        # surfacing as `Error: The file "nvram.bin" doesn't exist.`:
+        #   1. packer-plugin-tart v1.20.0 occasionally bakes a bundle
+        #      with no nvram.bin at all.
+        #   2. nvram.bin is present at push start (~33MB) but disappears
+        #      mid-push — it pushes config + disk, then dies on NVRAM.
+        #      The same-size macos-tahoe-xcode base pushes fine through a
+        #      bare 3x retry (see macos-xcode-image.yml), i.e. the vanish
+        #      is transient, not permanent.
+        # So: restore nvram.bin from a fresh clone of the base if it's
+        # missing *before each attempt* (covers both modes — a vanish on
+        # attempt N is repaired before attempt N+1), and retry the push
+        # up to 3x. No provisioner mutates guest auxiliary storage, so the
+        # base's nvram is equivalent.
         run: |
           # SHA-tagged builds for ad-hoc deploys; semver tags + `:latest`
           # are owned by server-production-deployment.yml's release-xcresult-processor job.
           set -euo pipefail
           GIT_SHA="${GITHUB_SHA::8}"
-          tart push tuist-xcresult-processor "ghcr.io/tuist/tuist-xcresult-processor:${GIT_SHA}"
-          echo "Pushed ghcr.io/tuist/tuist-xcresult-processor:${GIT_SHA}"
+          DST="ghcr.io/tuist/tuist-xcresult-processor:${GIT_SHA}"
+          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${XCODE_VERSION//./-}"
+          BUNDLE="$HOME/.tart/vms/tuist-xcresult-processor"
+          ensure_nvram() {
+            if [ ! -f "$BUNDLE/nvram.bin" ]; then
+              echo "nvram.bin missing — restoring from ${BASE_IMAGE}" >&2
+              tart delete nvram-restore 2>/dev/null || true
+              tart clone "$BASE_IMAGE" nvram-restore
+              cp "$HOME/.tart/vms/nvram-restore/nvram.bin" "$BUNDLE/nvram.bin"
+              tart delete nvram-restore
+              echo "restored nvram.bin ($(du -h "$BUNDLE/nvram.bin" | cut -f1))" >&2
+            fi
+          }
+          for attempt in 1 2 3; do
+            ensure_nvram
+            echo "tart push attempt ${attempt} at $(date -u +%H:%M:%SZ)" >&2
+            if tart push tuist-xcresult-processor "$DST"; then
+              echo "Pushed ${DST} on attempt ${attempt}"
+              exit 0
+            fi
+            echo "tart push attempt ${attempt} failed; sleeping 60s before retry" >&2
+            sleep 60
+          done
+          echo "tart push failed three times in a row" >&2
+          exit 1
 
       - name: Cleanup
         if: always()
