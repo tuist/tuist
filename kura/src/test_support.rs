@@ -67,6 +67,7 @@ where
             max_concurrent: 32,
             chunk_bytes: 1024 * 1024,
         },
+        reapi_compression_enabled: false,
         file_descriptor_pool_size: 32,
         file_descriptor_acquire_timeout_ms: 5_000,
         drain_completion_timeout_ms: 240_000,

@@ -72,6 +72,40 @@ Describe 'actively supported protocol interoperability'
     The variable second_artifact should include "${marker}"
   End
 
+  It 'reuses zstd-compressed Bazel cache entries across regions'
+    marker="bazelz-$(new_marker)"
+    instance_name="bazel/${marker}"
+    work1="$(mktemp -d "${SUITE_TMP_DIR}/bazelz-1.XXXXXX")"
+
+    # --experimental_remote_cache_compression with a zero threshold forces every
+    # blob (including the tiny genrule output) through the zstd compressed-blobs path.
+    create_bazel_workspace "$work1" "$marker"
+    capture_into first_build bazel_build "$work1" "$KURA_US_GRPC_PORT" "$instance_name" \
+      --experimental_remote_cache_compression \
+      --experimental_remote_cache_compression_threshold=0 || return 1
+    first_artifact="$(cat "$work1/bazel-bin/hello.txt")"
+    The variable first_build should not include 'remote cache hit'
+    The variable first_artifact should include "${marker}"
+
+    second_build=""
+    second_artifact=""
+    for attempt in $(seq 1 10); do
+      work2="$(mktemp -d "${SUITE_TMP_DIR}/bazelz-2.${attempt}.XXXXXX")"
+      create_bazel_workspace "$work2" "$marker"
+      capture_into second_build bazel_build "$work2" "$KURA_EU_GRPC_PORT" "$instance_name" \
+        --experimental_remote_cache_compression \
+        --experimental_remote_cache_compression_threshold=0 || return 1
+      second_artifact="$(cat "$work2/bazel-bin/hello.txt")"
+      if [[ "${second_build}" == *'remote cache hit'* ]]; then
+        break
+      fi
+      sleep 1
+    done
+
+    The variable second_build should include 'remote cache hit'
+    The variable second_artifact should include "${marker}"
+  End
+
   It 'builds Buck2 targets against the REAPI surface in multiple regions'
     marker="buck-$(new_marker)"
     instance_name="buck/${marker}"

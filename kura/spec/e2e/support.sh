@@ -310,6 +310,8 @@ bazel_build() {
   local dir="$1"
   local grpc_port="$2"
   local instance_name="$3"
+  shift 3
+  local extra_flags=("$@")
   local bazel_path
   bazel_path="$(mise exec -- which bazel)"
 
@@ -323,7 +325,8 @@ bazel_build() {
       --remote_download_outputs=all \
       --show_result=0 \
       --noshow_loading_progress \
-      --noshow_progress
+      --noshow_progress \
+      "${extra_flags[@]}"
   )
 }
 
