@@ -140,14 +140,10 @@ enum HTTPClient {
     }
 
     /// Headers for downloading a binary artifact archive. GitHub's release-asset
-    /// API (and similar release-asset proxies) returns the asset metadata JSON
-    /// with HTTP 200 unless the request accepts the raw bytes, so we ask for
-    /// `application/octet-stream`. The `*/*;q=0.9` fallback keeps non-GitHub
-    /// mirrors that strictly honor `Accept` (some self-hosted artifact stores
-    /// reply 406 to a single-type request) able to serve the archive.
+    /// endpoint returns asset metadata unless the request accepts the raw bytes.
     static func binaryArtifactHeaders(for url: URL) async -> [String: String] {
         var headers = await defaultHeaders(for: url)
-        headers["Accept"] = "application/octet-stream, */*;q=0.9"
+        headers["Accept"] = "application/octet-stream"
         return headers
     }
 
