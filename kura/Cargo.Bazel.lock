@@ -1,5 +1,5 @@
 {
-  "checksum": "b020cdd588408e9e5a9e27c6034593b6bd17867582eb4ac3df3dcff8c06e362e",
+  "checksum": "b603bede185d3f3d67d9b5dc36854aba4cb4f8f9aab0cfa6ce89e6f3a79537a0",
   "crates": {
     "addr2line 0.25.1": {
       "name": "addr2line",
@@ -9685,7 +9685,7 @@
         "MIT"
       ],
       "license_file": "LICENSE",
-      "additive_build_file_content": "\nfilegroup(\n    name = \"lua_c_srcs\",\n    srcs = glob([\"lua-5.4.8/*.c\"]),\n    visibility = [\"//visibility:public\"],\n)\n\nfilegroup(\n    name = \"lua_hdrs\",\n    srcs = glob([\"lua-5.4.8/*.h\"]),\n    visibility = [\"//visibility:public\"],\n)\n"
+      "additive_build_file_content": "\nfilegroup(\n    name = \"lua_c_srcs\",\n    srcs = glob([\"lua-5.4.*/*.c\"]),\n    visibility = [\"//visibility:public\"],\n)\n\nfilegroup(\n    name = \"lua_hdrs\",\n    srcs = glob([\"lua-5.4.*/*.h\"]),\n    visibility = [\"//visibility:public\"],\n)\n"
     },
     "luajit-src 210.6.6+707c12b": {
       "name": "luajit-src",
@@ -14138,7 +14138,7 @@
               "target": "build_script_build"
             },
             {
-              "id": "quinn-proto 0.11.14",
+              "id": "quinn-proto 0.11.15",
               "target": "quinn_proto",
               "alias": "proto"
             },
@@ -14209,14 +14209,14 @@
       ],
       "license_file": "LICENSE-APACHE"
     },
-    "quinn-proto 0.11.14": {
+    "quinn-proto 0.11.15": {
       "name": "quinn-proto",
-      "version": "0.11.14",
+      "version": "0.11.15",
       "package_url": "https://github.com/quinn-rs/quinn",
       "repository": {
         "Http": {
-          "url": "https://static.crates.io/crates/quinn-proto/0.11.14/download",
-          "sha256": "434b42fec591c96ef50e21e886936e66d3cc3f737104fdb9b737c40ffb94c098"
+          "url": "https://static.crates.io/crates/quinn-proto/0.11.15/download",
+          "sha256": "4fcb935c5bec503c2f0e306bdd3e58bb9029dcb14fa8d9ac76e3a5256ac0763e"
         }
       },
       "targets": [
@@ -14295,7 +14295,7 @@
           }
         },
         "edition": "2021",
-        "version": "0.11.14"
+        "version": "0.11.15"
       },
       "license": "MIT OR Apache-2.0",
       "license_ids": [
