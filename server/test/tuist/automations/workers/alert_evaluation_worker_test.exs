@@ -7,8 +7,11 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
   alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias Tuist.ClickHouseRepo
+  alias Tuist.IngestRepo
   alias Tuist.Tests
+  alias Tuist.Tests.TestCaseRun
   alias TuistTestSupport.Fixtures.AutomationsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup do
     # By default, treat every triggered test case as validated on the default
@@ -288,10 +291,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     end)
 
     # 7 runs have happened since the trigger, exceeds the rolling window of 5.
-    expect(ClickHouseRepo, :all, fn _query ->
-      now = NaiveDateTime.utc_now()
-      Enum.map(1..7, fn i -> {recovered_id, NaiveDateTime.add(now, i, :second)} end)
-    end)
+    expect(ClickHouseRepo, :all, fn _query, _opts -> [{recovered_id, 7}] end)
 
     expected_entity = %{type: :test_case, id: recovered_id}
     expect(ActionExecutor, :execute_actions, fn _actions, ^automation, ^expected_entity -> :ok end)
@@ -327,10 +327,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
     # Only 2 runs since the trigger — below the rolling window of 5, so recovery
     # should not fire.
-    expect(ClickHouseRepo, :all, fn _query ->
-      now = NaiveDateTime.utc_now()
-      Enum.map(1..2, fn i -> {recovered_id, NaiveDateTime.add(now, i, :second)} end)
-    end)
+    expect(ClickHouseRepo, :all, fn _query, _opts -> [{recovered_id, 2}] end)
 
     reject(&ActionExecutor.execute_actions/3)
     reject(&Automations.create_alert_event/1)
@@ -355,12 +352,96 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       Enum.map(ids, fn id -> %{test_case_id: id, triggered_at: NaiveDateTime.utc_now()} end)
     end)
 
-    # Exactly one ClickHouseRepo.all/1 call regardless of candidate count — no
-    # N+1.
-    expect(ClickHouseRepo, :all, 1, fn _query -> [] end)
+    # A single batched query regardless of candidate count — no N+1.
+    expect(ClickHouseRepo, :all, 1, fn _query, _opts -> [] end)
 
     reject(&ActionExecutor.execute_actions/3)
     reject(&Automations.create_alert_event/1)
+
+    assert :ok = run(automation.id)
+  end
+
+  test "rolling recovery fires only for candidates with enough runs since their own trigger" do
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        recovery_enabled: true,
+        recovery_config: %{"window_type" => "rolling", "rolling_window_size" => 5},
+        recovery_actions: [%{"type" => "change_state", "state" => "enabled"}]
+      )
+
+    [ready_id, not_ready_id] = Enum.map(1..2, fn _ -> Ecto.UUID.generate() end)
+
+    expect(FlakyTestsMonitor, :evaluate, fn _automation ->
+      %{triggered: [], all: [ready_id, not_ready_id]}
+    end)
+
+    expect(Automations, :list_active_alert_events, fn _id ->
+      now = NaiveDateTime.utc_now()
+
+      [
+        %{test_case_id: ready_id, triggered_at: now},
+        %{test_case_id: not_ready_id, triggered_at: now}
+      ]
+    end)
+
+    # The aggregated query returns a per-candidate count: ready_id cleared the
+    # rolling window of 5, not_ready_id did not.
+    expect(ClickHouseRepo, :all, fn _query, _opts -> [{ready_id, 6}, {not_ready_id, 3}] end)
+
+    expected_entity = %{type: :test_case, id: ready_id}
+    expect(ActionExecutor, :execute_actions, fn _actions, ^automation, ^expected_entity -> :ok end)
+
+    expect(Automations, :create_alert_event, fn %{test_case_id: ^ready_id, status: "recovered"} -> :ok end)
+
+    assert :ok = run(automation.id)
+  end
+
+  test "rolling recovery counts only runs after each candidate's own trigger (real ClickHouse)" do
+    project = ProjectsFixtures.project_fixture()
+
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        project: project,
+        recovery_enabled: true,
+        recovery_config: %{"window_type" => "rolling", "rolling_window_size" => 3},
+        recovery_actions: [%{"type" => "change_state", "state" => "enabled"}]
+      )
+
+    ready_id = UUIDv7.generate()
+    not_ready_id = UUIDv7.generate()
+    base = NaiveDateTime.utc_now()
+    ready_triggered_at = base
+    not_ready_triggered_at = NaiveDateTime.add(base, 10, :second)
+
+    insert_test_case_runs([
+      # ready_id: a pre-trigger run that must be ignored, then 4 post-trigger
+      # runs — clears the rolling window of 3.
+      run_attrs(project.id, ready_id, NaiveDateTime.add(base, -5, :second)),
+      run_attrs(project.id, ready_id, NaiveDateTime.add(base, 1, :second)),
+      run_attrs(project.id, ready_id, NaiveDateTime.add(base, 2, :second)),
+      run_attrs(project.id, ready_id, NaiveDateTime.add(base, 3, :second)),
+      run_attrs(project.id, ready_id, NaiveDateTime.add(base, 4, :second)),
+      # not_ready_id: 3 runs that fall after the batch's earliest trigger but
+      # before this candidate's own trigger (must be excluded), and only 1 run
+      # after its own trigger — stays below the window of 3.
+      run_attrs(project.id, not_ready_id, NaiveDateTime.add(base, 5, :second)),
+      run_attrs(project.id, not_ready_id, NaiveDateTime.add(base, 6, :second)),
+      run_attrs(project.id, not_ready_id, NaiveDateTime.add(base, 7, :second)),
+      run_attrs(project.id, not_ready_id, NaiveDateTime.add(base, 11, :second))
+    ])
+
+    expect(FlakyTestsMonitor, :evaluate, fn _automation -> %{triggered: []} end)
+
+    expect(Automations, :list_active_alert_events, fn _id ->
+      [
+        %{test_case_id: ready_id, triggered_at: ready_triggered_at},
+        %{test_case_id: not_ready_id, triggered_at: not_ready_triggered_at}
+      ]
+    end)
+
+    expected_entity = %{type: :test_case, id: ready_id}
+    expect(ActionExecutor, :execute_actions, fn _actions, ^automation, ^expected_entity -> :ok end)
+    expect(Automations, :create_alert_event, fn %{test_case_id: ^ready_id, status: "recovered"} -> :ok end)
 
     assert :ok = run(automation.id)
   end
@@ -694,5 +775,31 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     end)
 
     assert :ok = run(automation.id)
+  end
+
+  defp insert_test_case_runs(rows), do: IngestRepo.insert_all(TestCaseRun, rows)
+
+  defp run_attrs(project_id, test_case_id, ran_at) do
+    %{
+      id: UUIDv7.generate(),
+      test_run_id: UUIDv7.generate(),
+      test_module_run_id: UUIDv7.generate(),
+      test_case_id: test_case_id,
+      project_id: project_id,
+      is_ci: false,
+      scheme: "",
+      git_branch: "main",
+      git_commit_sha: "",
+      module_name: "MyTests",
+      suite_name: "TestSuite",
+      name: "testExample",
+      status: 0,
+      is_flaky: false,
+      is_new: false,
+      is_quarantined: false,
+      duration: 100,
+      ran_at: ran_at,
+      inserted_at: ran_at
+    }
   end
 end
