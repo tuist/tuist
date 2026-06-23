@@ -98,7 +98,11 @@ defmodule Tuist.Kura.ReconcilerTest do
     assert :ok = Reconciler.reconcile()
 
     assert %Deployment{status: :running} = Repo.get!(Deployment, deployment.id)
-    assert %Server{status: :provisioning, current_image_tag: nil, url: nil} = Repo.get!(Server, server.id)
+
+    # The workload is up on the desired image but its public endpoint is not
+    # serving yet, so the server surfaces :replicating while the deployment keeps
+    # retrying (it is not activated until the endpoint is healthy).
+    assert %Server{status: :replicating, current_image_tag: nil, url: nil} = Repo.get!(Server, server.id)
   end
 
   test "schedules and applies runtime image drift for active servers" do

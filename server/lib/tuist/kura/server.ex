@@ -53,12 +53,16 @@ defmodule Tuist.Kura.Server do
   alias Tuist.Accounts.Account
   alias Tuist.Kura.Deployment
 
-  @status_mappings [provisioning: 0, active: 1, failed: 2, destroying: 3, destroyed: 4]
+  @status_mappings [provisioning: 0, active: 1, failed: 2, destroying: 3, destroyed: 4, replicating: 5]
   @statuses Keyword.keys(@status_mappings)
+  # `:replicating` sits between `:provisioning` and `:active`: the workload is up
+  # on the desired image but its public endpoint is not serving yet because the
+  # pod is still replicating from mesh peers behind the bootstrap gate.
   @allowed_status_transitions %{
-    provisioning: [:provisioning, :active, :failed, :destroying],
-    active: [:active, :failed, :destroying],
-    failed: [:failed, :provisioning, :active, :destroying],
+    provisioning: [:provisioning, :replicating, :active, :failed, :destroying],
+    replicating: [:replicating, :provisioning, :active, :failed, :destroying],
+    active: [:active, :replicating, :failed, :destroying],
+    failed: [:failed, :provisioning, :replicating, :active, :destroying],
     destroying: [:destroying, :destroyed],
     destroyed: [:destroyed]
   }

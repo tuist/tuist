@@ -692,12 +692,14 @@ defmodule TuistWeb.AccountSettingsLive do
   end
 
   def kura_server_status_label(:provisioning), do: dgettext("dashboard_account", "Deploying")
+  def kura_server_status_label(:replicating), do: dgettext("dashboard_account", "Replicating")
   def kura_server_status_label(:active), do: dgettext("dashboard_account", "Active")
   def kura_server_status_label(:failed), do: dgettext("dashboard_account", "Failed")
   def kura_server_status_label(:destroying), do: dgettext("dashboard_account", "Destroying")
   def kura_server_status_label(:destroyed), do: dgettext("dashboard_account", "Destroyed")
 
   def kura_server_status_color(:provisioning), do: "information"
+  def kura_server_status_color(:replicating), do: "information"
   def kura_server_status_color(:active), do: "success"
   def kura_server_status_color(:failed), do: "destructive"
   def kura_server_status_color(:destroying), do: "warning"
