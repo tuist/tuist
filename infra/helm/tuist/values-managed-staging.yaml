@@ -335,8 +335,11 @@ dediboxFleet:
 # adopt prefix and self-joins it. Prereq met: the OVH_API 1Password item
 # (read-only /dedicated/server token, ovh-ca entity) exists. Box prep (install
 # Ubuntu, authorize the fleet key, set the reverse-DNS prefix) is operator work.
+# Parked until the BHS box is prepped: an enabled fleet with no adoptable box
+# leaves its MachineDeployment forever Unavailable, hanging helm --wait. Flip to
+# true once the box is installed + reverse-DNS-tagged.
 ovhFleet:
-  enabled: true
+  enabled: false
   # OVH entity the OVH_API token was minted on (the BHS box's account).
   endpoint: ovh-ca
   nodePool: kura-ovh-staging
