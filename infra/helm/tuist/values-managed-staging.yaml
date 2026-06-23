@@ -42,7 +42,10 @@ server:
       # crosses the WAN. `hetzner-staging-runners` serves the Linux
       # kata fleet (Falkenstein). Requires the `kura-scw-fr-par` node
       # pool + scw-bssd CSI to exist in the cluster.
-      value: eu-central,hetzner-staging-runners,scw-fr-par-runners
+      # `dedibox-staging` is the public Dedibox bare-metal region used to
+      # validate the eu-central cutover shape (local-NVMe + hostNetwork
+      # gateway); it needs the `kura-dedibox` node pool to exist.
+      value: eu-central,hetzner-staging-runners,scw-fr-par-runners,dedibox-staging
     # Runner platforms whose fleets can reach their region's private
     # cache endpoint — the dispatch gate for handing out
     # `cache_endpoint_url` (Catalog.fleet_on_cluster_network?/1).
