@@ -20,37 +20,6 @@ public enum XCResultParserError: LocalizedError, Equatable {
     }
 }
 
-/// Renders a decoding failure into a single Sentry-friendly line: the
-/// `DecodingError` kind, the JSON key path it choked on, and a short head of
-/// the offending output. The default `localizedDescription` collapses every
-/// `DecodingError` to "The data couldn't be read because it isn't in the
-/// correct format.", which tells us nothing about which xcresulttool output
-/// drifted from the schema.
-func describeDecodingFailure(_ error: Error, output: String) -> String {
-    let head = output.prefix(200).replacingOccurrences(of: "\n", with: " ")
-    let snippet = output.isEmpty ? "<empty>" : "\"\(head)\""
-
-    func path(_ context: DecodingError.Context) -> String {
-        context.codingPath.map(\.stringValue).joined(separator: ".")
-    }
-
-    let reason: String
-    switch error {
-    case let DecodingError.dataCorrupted(context):
-        reason = "dataCorrupted at [\(path(context))]: \(context.debugDescription)"
-    case let DecodingError.keyNotFound(key, context):
-        reason = "keyNotFound \(key.stringValue) at [\(path(context))]"
-    case let DecodingError.typeMismatch(type, context):
-        reason = "typeMismatch \(type) at [\(path(context))]: \(context.debugDescription)"
-    case let DecodingError.valueNotFound(type, context):
-        reason = "valueNotFound \(type) at [\(path(context))]"
-    default:
-        reason = error.localizedDescription
-    }
-
-    return "\(reason) (\(output.count) bytes: \(snippet))"
-}
-
 public struct XCResultParser: Sendable {
     private let fileSystem: FileSysteming
     private let commandRunner: CommandRunning
@@ -198,6 +167,37 @@ public struct XCResultParser: Sendable {
             return output
         }
         return String(output[jsonStartIndex ... jsonEndIndex])
+    }
+
+    /// Renders a decoding failure into a single Sentry-friendly line: the
+    /// `DecodingError` kind, the JSON key path it choked on, and a short head of
+    /// the offending output. The default `localizedDescription` collapses every
+    /// `DecodingError` to "The data couldn't be read because it isn't in the
+    /// correct format.", which tells us nothing about which xcresulttool output
+    /// drifted from the schema.
+    private func describeDecodingFailure(_ error: Error, output: String) -> String {
+        let head = output.prefix(200).replacingOccurrences(of: "\n", with: " ")
+        let snippet = output.isEmpty ? "<empty>" : "\"\(head)\""
+
+        func path(_ context: DecodingError.Context) -> String {
+            context.codingPath.map(\.stringValue).joined(separator: ".")
+        }
+
+        let reason: String
+        switch error {
+        case let DecodingError.dataCorrupted(context):
+            reason = "dataCorrupted at [\(path(context))]: \(context.debugDescription)"
+        case let DecodingError.keyNotFound(key, context):
+            reason = "keyNotFound \(key.stringValue) at [\(path(context))]"
+        case let DecodingError.typeMismatch(type, context):
+            reason = "typeMismatch \(type) at [\(path(context))]: \(context.debugDescription)"
+        case let DecodingError.valueNotFound(type, context):
+            reason = "valueNotFound \(type) at [\(path(context))]"
+        default:
+            reason = error.localizedDescription
+        }
+
+        return "\(reason) (\(output.count) bytes: \(snippet))"
     }
 
     private func parseTestOutput(
