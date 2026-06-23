@@ -81,6 +81,14 @@ defmodule Tuist.Kura.Server do
     field :observed_image_tag, :string
     field :last_observed_at, :utc_datetime
 
+    # Readiness heartbeat: the reconciler stamps it each tick a private
+    # node-port server's endpoint is observable (the backing KuraInstance
+    # only publishes the endpoint for a ready primary pod). Dispatch
+    # treats a stale heartbeat as "not serving" and falls back to the
+    # public cache. Distinct from last_observed_at, which tracks the last
+    # image observation regardless of endpoint readiness.
+    field :last_ready_at, :utc_datetime
+
     belongs_to :account, Account
 
     has_many :deployments, Deployment, foreign_key: :kura_server_id
@@ -139,7 +147,8 @@ defmodule Tuist.Kura.Server do
       :url,
       :current_image_tag,
       :observed_image_tag,
-      :last_observed_at
+      :last_observed_at,
+      :last_ready_at
     ])
     |> validate_format(:observed_image_tag, @image_tag_format, message: @image_tag_message)
     |> validate_length(:observed_image_tag, max: 128)
