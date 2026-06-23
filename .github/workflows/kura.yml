@@ -262,6 +262,39 @@ jobs:
           } >> "$HOME/.bazelrc"
           bazel test //:all --define=kura_deny_warnings=true --test_output=all
 
+  # TEMPORARY diagnostic: reproduce the mmap/mincore page-cache-residency check
+  # behind the kura mmap test failures on tuist-linux (Kata microVM + virtio-fs)
+  # vs ubuntu-latest (native ext4). Prints mincore residency per filesystem on
+  # both runners; remove once confirmed.
+  mincore-probe:
+    name: FS Residency Probe (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    continue-on-error: true
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, tuist-linux]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the mincore probe
+        run: |
+          sudo apt-get update -qq >/dev/null 2>&1 || true
+          sudo apt-get install -y -qq --no-install-recommends gcc libc6-dev util-linux >/dev/null 2>&1 || true
+          cc -O2 test/mincore_probe.c -o "$RUNNER_TEMP/mincore_probe"
+
+      - name: Probe mincore residency across filesystems
+        run: |
+          echo "runner=${{ matrix.runner }} kernel=$(uname -r)"
+          for dir in "$PWD" "$HOME" "$HOME/.cache" "${RUNNER_TEMP:-/tmp}" /tmp /dev/shm; do
+            [ -d "$dir" ] && [ -w "$dir" ] || continue
+            fstype="$(findmnt -no FSTYPE --target "$dir" 2>/dev/null || stat -f -c '%T' "$dir" 2>/dev/null || echo '?')"
+            printf 'dir=%-34s fstype=%-12s ' "$dir" "$fstype"
+            "$RUNNER_TEMP/mincore_probe" "$dir" || echo "(probe error)"
+          done
+
   audit:
     name: Audit
     runs-on: ubuntu-latest
