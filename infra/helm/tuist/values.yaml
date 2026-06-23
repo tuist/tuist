@@ -210,8 +210,9 @@ server:
   # syncs them from 1Password into a dedicated Secret and the Server
   # Deployment mounts them as TUIST_GOOGLE_OAUTH_CLIENT_ID /
   # TUIST_GOOGLE_OAUTH_CLIENT_SECRET env vars, which enable the "Log in with
-  # Google" button. The env refs are optional so a not-yet-populated vault
-  # falls back to the encrypted priv/secrets blob instead of crash-looping.
+  # Google" button. Leave managedSecrets false (the default) for self-hosted
+  # installs that don't use Google sign-in — no Secret or env refs are then
+  # rendered.
   google:
     managedSecrets: false
     externalSecrets:

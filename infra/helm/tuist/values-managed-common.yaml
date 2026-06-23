@@ -97,9 +97,7 @@ server:
   # ESO-synced Google OAuth client credentials, replacing the google entry in
   # the encrypted priv/secrets blob (the gradual move of OAuth secrets into
   # 1Password, following GitHub). Each env reads GOOGLE_OAUTH (fields
-  # client_id / client_secret) from its tuist-k8s-<env> vault; the env refs
-  # are optional so a not-yet-populated vault degrades to a hidden Google
-  # button instead of crash-looping.
+  # client_id / client_secret) from its tuist-k8s-<env> vault.
   google:
     managedSecrets: true
 

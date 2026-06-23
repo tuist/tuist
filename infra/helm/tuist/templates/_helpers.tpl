@@ -497,13 +497,6 @@ License env vars. Resolves to (in order):
 {{- end }}
 {{- end -}}
 
-{{/*
-Google OAuth client env vars, sourced from the google-external-secrets ESO
-Secret. Marked optional so the server still boots while an env's 1P vault is
-being populated during the blob→1P migration: a missing key leaves the env
-var unset and Tuist.Environment falls back to the encrypted priv/secrets blob
-(or simply hides the Google button where the blob has no entry either).
-*/}}
 {{- define "tuist.googleEnv" -}}
 {{- if and .Values.server.enabled .Values.server.google.managedSecrets }}
 {{- $secret := include "tuist.componentName" (dict "root" . "component" "google-external-secrets") -}}
@@ -512,12 +505,10 @@ var unset and Tuist.Environment falls back to the encrypted priv/secrets blob
     secretKeyRef:
       name: {{ $secret | quote }}
       key: oauth-client-id
-      optional: true
 - name: TUIST_GOOGLE_OAUTH_CLIENT_SECRET
   valueFrom:
     secretKeyRef:
       name: {{ $secret | quote }}
       key: oauth-client-secret
-      optional: true
 {{- end }}
 {{- end -}}
