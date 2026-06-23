@@ -14,6 +14,7 @@ defmodule TuistWeb.API.BuildsController do
   alias TuistWeb.API.Schemas.Builds.Build
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
+  alias TuistWeb.Authentication
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
@@ -852,7 +853,7 @@ defmodule TuistWeb.API.BuildsController do
     run_params =
       body_params
       |> Map.put(:project, selected_project)
-      |> Map.put(:account, selected_project.account)
+      |> Map.put(:account, Authentication.authenticated_subject_account(conn))
 
     {:ok, build} = get_or_create_build(run_params)
 

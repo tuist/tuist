@@ -19,7 +19,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
     max_attempts: 5,
     unique: [keys: [:test_run_id, :shard_index]]
 
-  alias Tuist.Accounts
+  alias Tuist.Projects
   alias Tuist.Storage
   alias Tuist.Tests
 
@@ -35,11 +35,11 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{
-        args: %{"test_run_id" => test_run_id, "storage_key" => storage_key, "account_id" => account_id} = args,
+        args: %{"test_run_id" => test_run_id, "storage_key" => storage_key} = args,
         attempt: attempt,
         max_attempts: max_attempts
       }) do
-    case process_xcresult(test_run_id, storage_key, account_id, args) do
+    case process_xcresult(test_run_id, storage_key, args) do
       {:ok, parsed_data} ->
         replace_test_run(parsed_data, args)
 
@@ -71,8 +71,12 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
     end
   end
 
-  defp process_xcresult(test_run_id, storage_key, account_id, args) do
-    with {:ok, account} <- Accounts.get_account_by_id(account_id) do
+  # Storage routes per account, so the download backend must be the project's
+  # account (where the xcresult was uploaded and the key is namespaced), not
+  # the run's `account_id`, which records who ran the tests and can be a member
+  # with a different personal account.
+  defp process_xcresult(test_run_id, storage_key, args) do
+    with {:ok, account} <- storage_account(args["project_id"]) do
       # For sharded runs, multiple workers share the same merged
       # test_run_id and can run concurrently. Suffix the temp path with
       # the shard index so they never clobber each other's download
@@ -104,6 +108,13 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
       after
         File.rm(temp_path)
       end
+    end
+  end
+
+  defp storage_account(project_id) do
+    case Projects.get_project_by_id(project_id) do
+      nil -> {:error, :project_not_found}
+      project -> {:ok, project.account}
     end
   end
 
