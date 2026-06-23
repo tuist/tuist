@@ -146,6 +146,10 @@ defmodule Tuist.Environment do
     System.get_env("DATABASE_URL") || get([:database_url], secrets)
   end
 
+  def ipv4_database_url(secrets \\ secrets()) do
+    System.get_env("TUIST_IPV4_DATABASE_URL") || get([:ipv4_database_url], secrets)
+  end
+
   def database_schema do
     "TUIST_DATABASE_SCHEMA" |> System.get_env() |> database_schema()
   end
