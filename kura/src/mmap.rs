@@ -85,7 +85,7 @@ pub fn map_file_region(
             .map_err(|error| format!("failed to mmap file region {offset}..{end}: {error}"))?
     };
 
-    if !mapping_is_resident(&mmap) {
+    if !mapping_is_resident(&mmap, offset, file_len) {
         return Ok(None);
     }
 
@@ -105,12 +105,22 @@ pub fn map_file_region(
     Ok(None)
 }
 
-/// Reports whether every page backing `mmap` is currently resident in the page
-/// cache, so reading the mapping will not fault disk I/O. A conservative `false`
-/// (page size unavailable, `mincore` failure) routes the caller to the reader
-/// path, which is always correct.
+/// Reports whether every page of `mmap` that is **fully backed by file data** is
+/// currently resident in the page cache, so reading the mapping will not fault
+/// disk I/O. A conservative `false` (page size unavailable, `mincore` failure)
+/// routes the caller to the reader path, which is always correct.
+///
+/// `file_offset` is the file offset the mapping starts at (`map_file_region`'s
+/// `offset`) and `file_len` the file's size; together they identify the file's
+/// final **partial** page. A file whose size is not a multiple of the page size
+/// has a last page that extends past EOF, and some filesystems — notably
+/// virtio-fs — report that partial page as non-resident even when its bytes are
+/// cached. Requiring it would needlessly disable mmap serving for sub-page (and
+/// unaligned-tail) files, so the partial page is exempt: at worst its data
+/// faults once as a single small read, while every fully-backed page still gates
+/// normally.
 #[cfg(unix)]
-fn mapping_is_resident(mmap: &Mmap) -> bool {
+fn mapping_is_resident(mmap: &Mmap, file_offset: u64, file_len: u64) -> bool {
     let len = mmap.len();
     if len == 0 {
         return true;
@@ -138,8 +148,29 @@ fn mapping_is_resident(mmap: &Mmap) -> bool {
     // not touch (fault) the mapped pages.
     let result =
         unsafe { libc::mincore(aligned as *mut c_void, total, residency.as_mut_ptr().cast()) };
+    if result != 0 {
+        return false;
+    }
 
-    result == 0 && residency.iter().all(|page| page & 1 == 1)
+    // The mapping's first queried page starts at this page-aligned file offset.
+    let aligned_file_offset = file_offset & !((page_size as u64) - 1);
+    fully_backed_pages_resident(&residency, aligned_file_offset, file_len, page_size as u64)
+}
+
+/// Returns true when every page that is **fully backed by file data** has its
+/// `mincore` resident bit set. The file's final partial page (one whose end
+/// exceeds `file_len`) is exempt — see [`mapping_is_resident`].
+#[cfg(unix)]
+fn fully_backed_pages_resident(
+    residency: &[u8],
+    aligned_file_offset: u64,
+    file_len: u64,
+    page_size: u64,
+) -> bool {
+    residency.iter().enumerate().all(|(index, page)| {
+        let page_end = aligned_file_offset + (index as u64 + 1) * page_size;
+        page_end > file_len || page & 1 == 1
+    })
 }
 
 #[cfg(unix)]
@@ -170,7 +201,7 @@ mod tests {
     use tempfile::NamedTempFile;
     use tokio::sync::Semaphore;
 
-    use super::map_file_region;
+    use super::{fully_backed_pages_resident, map_file_region};
 
     #[test]
     fn maps_unaligned_file_regions() {
@@ -189,6 +220,47 @@ mod tests {
             .expect("freshly written region should be page-cache resident");
 
         assert_eq!(&bytes[..], b"3456789a");
+    }
+
+    #[test]
+    fn fully_backed_pages_must_all_be_resident() {
+        let page_size = 4096;
+        // Three full pages, all resident.
+        assert!(fully_backed_pages_resident(
+            &[1, 1, 1],
+            0,
+            3 * page_size,
+            page_size
+        ));
+        // A cold fully-backed page disqualifies the mapping.
+        assert!(!fully_backed_pages_resident(
+            &[1, 0, 1],
+            0,
+            3 * page_size,
+            page_size
+        ));
+    }
+
+    #[test]
+    fn final_partial_page_is_exempt() {
+        let page_size = 4096;
+        // A 16-byte file's only page extends past EOF, so a cleared resident bit
+        // (as virtio-fs reports it) is tolerated. This is the regression case.
+        assert!(fully_backed_pages_resident(&[0], 0, 16, page_size));
+        // 1.5-page file: the fully-backed first page is still required, the
+        // partial tail page is exempt.
+        assert!(fully_backed_pages_resident(
+            &[1, 0],
+            0,
+            page_size + page_size / 2,
+            page_size
+        ));
+        assert!(!fully_backed_pages_resident(
+            &[0, 0],
+            0,
+            page_size + page_size / 2,
+            page_size
+        ));
     }
 
     #[test]
