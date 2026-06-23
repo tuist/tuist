@@ -121,13 +121,17 @@ defmodule Tuist.Kubernetes.Client do
   but not an SA, or `{:error, _}` on transport / non-2xx errors.
   """
   def create_token_review(token, opts \\ []) when is_binary(token) do
+    create_audience_token_review(token, @dispatch_audience, opts)
+  end
+
+  defp create_audience_token_review(token, audience, opts) do
     body =
       JSON.encode!(%{
         "apiVersion" => "authentication.k8s.io/v1",
         "kind" => "TokenReview",
         "spec" => %{
           "token" => token,
-          "audiences" => [@dispatch_audience]
+          "audiences" => [audience]
         }
       })
 
@@ -144,7 +148,7 @@ defmodule Tuist.Kubernetes.Client do
         # accidentally widened, the response carries the
         # subset that did validate — fail-closed if our audience
         # isn't in the list.
-        if @dispatch_audience in audiences do
+        if audience in audiences do
           parse_sa_principal(user)
         else
           {:error, :unauthenticated}

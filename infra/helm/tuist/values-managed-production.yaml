@@ -58,6 +58,22 @@ server:
         -----END PUBLIC KEY-----
     - name: TUIST_OPS_REASON_FORM_URL
       value: https://ops.tuist.dev/grants/new
+    # Atlas runs in its own Kubernetes cluster, so Tuist verifies Atlas
+    # projected ServiceAccount tokens offline against this pinned public JWKS
+    # instead of using Tuist's in-cluster TokenReview API.
+    - name: TUIST_ATLAS_NAMESPACE
+      value: atlas-production
+    - name: TUIST_ATLAS_SERVICE_ACCOUNT_NAME
+      value: atlas
+    - name: TUIST_ATLAS_TOKEN_ISSUER
+      value: https://kubernetes.default.svc.cluster.local
+    - name: TUIST_ATLAS_TOKEN_AUDIENCE
+      value: tuist-server
+    - name: TUIST_ATLAS_TOKEN_MAX_TTL_SECONDS
+      value: "3600"
+    - name: TUIST_ATLAS_TOKEN_JWKS
+      value: >-
+        {"keys":[{"use":"sig","kty":"RSA","kid":"RlVpaMmFrqqIHY46_HT42inm4mfvqBKfwLVJiPCcl7g","alg":"RS256","n":"urnlzTgGSYHPHyc-sjXI7lzdx3ChfMpqUMpwuj1vgBMywpvdjFEKZ-5xWBBfS_GIna4q--YBau4zo21xFw0Jd-Ye8l4daXozFTwB1oOv-xOoIL7YITR8dtXsXzqeGIKx1rt90jE2vgvYQDBnkIf9ohgDIApbLICYGSAko5MfdypYhiO52KOxum8nB5dwIaKhr2-DiLQtFQbl__c6Uk2dFpW0_5u4d-uO6yspp5iVo54sc7XIlFNxPBlx2uVQZe8tvTH9Ipc_sovDjMfoKH7g0fG14q6xQU5CkQD1pNS__6J3xFvFYQEp3wXu4i_Rin65EI9GvNKtbZkH-sQ5e8jzLw","e":"AQAB"}]}
 
   autoscaling:
     enabled: true

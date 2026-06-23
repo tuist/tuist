@@ -49,6 +49,8 @@ defmodule Tuist do
       Cache,
       Cache.Analytics,
       CacheEndpoints,
+      Atlas,
+      AtlasWorkloadIdentity,
       Kubernetes.Client,
       Kura,
       Kura.Deployment,
