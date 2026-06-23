@@ -153,6 +153,10 @@ defmodule Tuist.Environment do
       truthy?(System.get_env("TUIST_HOSTED", "0"))
   end
 
+  def test_user_login_enabled? do
+    dev?() or truthy?(System.get_env("TUIST_TEST_USER_LOGIN_ENABLED", "0"))
+  end
+
   def dev_all_locales?, do: @dev_all_locales
 
   def dev_single_locale?, do: dev?() and not dev_all_locales?()

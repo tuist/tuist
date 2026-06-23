@@ -43,6 +43,8 @@ server:
   extraEnv:
     - name: TUIST_DATABASE_POOL_SIZE
       value: "10"
+    - name: TUIST_TEST_USER_LOGIN_ENABLED
+      value: "1"
   kuraIntrospection:
     # Routes the server's KURA_CONTROL_PLANE_CLIENT_ID/SECRET env vars to
     # the kura-shared-secrets Secret in this release's namespace. The

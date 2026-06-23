@@ -570,11 +570,11 @@ jobs:
               tuist.dev/slug: ${SLUG}
           spec:
             # Single-tenant preview KuraInstance. The seed step below
-            # creates an account with handle=preview in this preview's
-            # DB so server JWTs carry tenant=preview and the Lua hook's
-            # strict tenant check passes.
-            accountHandle: preview
-            tenantID: preview
+            # runs the regular development seed, whose demo content lives
+            # under the `tuist` organization, so server tokens and the runtime
+            # hook agree on the same tenant.
+            accountHandle: tuist
+            tenantID: tuist
             region: preview
             image: ghcr.io/tuist/kura:${KURA_RUNTIME_TAG}
             replicas: ${KURA_INSTANCE_REPLICAS}
@@ -631,7 +631,23 @@ jobs:
           done
       - name: Seed preview account
         env:
-          PREVIEW_ACCOUNT_HANDLE: preview
+          PREVIEW_ACCOUNT_HANDLE: tuist
+          PREVIEW_USER_EMAIL: tuistrocks@tuist.dev
+          PREVIEW_USER_PASSWORD: tuistrocks
+          PREVIEW_SEED_CONTENT: "1"
+          SEED_BUILD_RUNS: "200"
+          SEED_TEST_RUNS: "150"
+          SEED_COMMAND_EVENTS: "800"
+          SEED_PREVIEWS: "10"
+          SEED_BUNDLES: "8"
+          SEED_CAS_OPS_PER_BUILD: "5"
+          SEED_FILES_PER_BUILD: "10"
+          SEED_TARGETS_PER_BUILD: "10"
+          SEED_XCODE_GRAPHS: "10"
+          SEED_MODULES_PER_TEST: "2"
+          SEED_SUITES_PER_MODULE: "2"
+          SEED_CASES_PER_SUITE: "4"
+          SEED_CH_BATCH_SIZE: "5000"
           KURA_ENDPOINT_URL: https://${{ env.KURA_HOST }}
           RELEASE_NAME: ${{ env.RELEASE }}
         run: |

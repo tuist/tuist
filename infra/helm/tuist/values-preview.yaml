@@ -89,6 +89,9 @@ server:
       memory: 256Mi
     limits:
       memory: 1Gi
+  extraEnv:
+    - name: TUIST_TEST_USER_LOGIN_ENABLED
+      value: "1"
 
 cache:
   # Cache is enabled by default for previews. DATABASE_URL is composed by

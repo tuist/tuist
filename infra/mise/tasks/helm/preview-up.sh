@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Spin up a multi-node kind cluster and deploy a preview release (server + cache + Kura) onto the role=preview worker. Auto-seeds a `preview` test account wired to the preview KuraInstance."
+#MISE description="Spin up a multi-node kind cluster and deploy a preview release (server + cache + Kura) onto the role=preview worker. Auto-seeds demo content wired to the preview KuraInstance."
 #USAGE flag "--cluster <name>" help="Kind cluster name" default="tuist-preview"
 #USAGE flag "--release <name>" help="Helm release name" default="pr-demo"
 #USAGE flag "--remote" help="Use pre-built images from ghcr.io instead of building locally"
@@ -40,10 +40,9 @@ KURA_INSTANCE_NAME="${RELEASE_NAME}-kura"
 # place the platform install puts the controller); the preview server
 # reaches it cross-namespace.
 KURA_ENDPOINT_URL="http://${KURA_INSTANCE_NAME}.kura.svc.cluster.local:4000"
-# Single test tenant per preview, matching the auto-seeded account.
-# Server JWTs for this account carry tenant=preview; the Lua hook enforces
-# strict matching against the KuraInstance's tenantID.
-PREVIEW_ACCOUNT_HANDLE="preview"
+# Single test tenant per preview, matching the account that owns the
+# regular development seed content.
+PREVIEW_ACCOUNT_HANDLE="tuist"
 
 if [ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]; then
     LICENSE_MODE="eso"
@@ -244,8 +243,24 @@ for _ in $(seq 1 60); do
 done
 kubectl -n kura rollout status statefulset/"$KURA_INSTANCE_NAME" --timeout=10m
 
-echo "==> Seeding the '${PREVIEW_ACCOUNT_HANDLE}' test account..."
+echo "==> Seeding demo content for the '${PREVIEW_ACCOUNT_HANDLE}' account..."
 PREVIEW_ACCOUNT_HANDLE="$PREVIEW_ACCOUNT_HANDLE" \
+PREVIEW_USER_EMAIL="tuistrocks@tuist.dev" \
+PREVIEW_USER_PASSWORD="tuistrocks" \
+PREVIEW_SEED_CONTENT="1" \
+SEED_BUILD_RUNS="${SEED_BUILD_RUNS:-200}" \
+SEED_TEST_RUNS="${SEED_TEST_RUNS:-150}" \
+SEED_COMMAND_EVENTS="${SEED_COMMAND_EVENTS:-800}" \
+SEED_PREVIEWS="${SEED_PREVIEWS:-10}" \
+SEED_BUNDLES="${SEED_BUNDLES:-8}" \
+SEED_CAS_OPS_PER_BUILD="${SEED_CAS_OPS_PER_BUILD:-5}" \
+SEED_FILES_PER_BUILD="${SEED_FILES_PER_BUILD:-10}" \
+SEED_TARGETS_PER_BUILD="${SEED_TARGETS_PER_BUILD:-10}" \
+SEED_XCODE_GRAPHS="${SEED_XCODE_GRAPHS:-10}" \
+SEED_MODULES_PER_TEST="${SEED_MODULES_PER_TEST:-2}" \
+SEED_SUITES_PER_MODULE="${SEED_SUITES_PER_MODULE:-2}" \
+SEED_CASES_PER_SUITE="${SEED_CASES_PER_SUITE:-4}" \
+SEED_CH_BATCH_SIZE="${SEED_CH_BATCH_SIZE:-5000}" \
 KURA_ENDPOINT_URL="$KURA_ENDPOINT_URL" \
 RELEASE_NAME="$RELEASE_NAME" \
   bash "$REPO_ROOT/infra/mise/tasks/preview/seed-account.sh"
