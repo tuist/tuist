@@ -288,11 +288,17 @@ jobs:
       - name: Probe mincore residency across filesystems
         run: |
           echo "runner=${{ matrix.runner }} kernel=$(uname -r)"
-          for dir in "$PWD" "$HOME" "$HOME/.cache" "${RUNNER_TEMP:-/tmp}" /tmp /dev/shm; do
+          unshare --version 2>/dev/null | head -1 || echo "unshare unavailable"
+          probe="$RUNNER_TEMP/mincore_probe"
+          for dir in "$PWD" "${RUNNER_TEMP:-/tmp}" /tmp /dev/shm; do
             [ -d "$dir" ] && [ -w "$dir" ] || continue
             fstype="$(findmnt -no FSTYPE --target "$dir" 2>/dev/null || stat -f -c '%T' "$dir" 2>/dev/null || echo '?')"
-            printf 'dir=%-34s fstype=%-12s ' "$dir" "$fstype"
-            "$RUNNER_TEMP/mincore_probe" "$dir" || echo "(probe error)"
+            echo "--- dir=$dir fstype=$fstype ---"
+            printf '  direct                  : '; "$probe" "$dir" || echo "(err)"
+            # Mimic the Bazel linux-sandbox: a new user namespace with an identity
+            # uid map (Bazel's default), then with a map-to-root, on the same dir.
+            printf '  userns map-current-user : '; unshare --user --map-current-user "$probe" "$dir" 2>&1 || echo "(unshare unsupported)"
+            printf '  userns map-root-user    : '; unshare --user --map-root-user "$probe" "$dir" 2>&1 || echo "(unshare unsupported)"
           done
 
   audit:
