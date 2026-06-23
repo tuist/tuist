@@ -41,6 +41,11 @@ pub const DEFAULT_USAGE_OUTBOX_MAX_DEPTH: usize = 100_000;
 pub const MAX_BOOTSTRAP_PAGE_BYTES: u64 = 32 * 1024 * 1024;
 pub const MAX_INLINE_REPLICATION_BODY_BYTES: u64 = 4 * 1024 * 1024;
 pub const DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS: usize = 8;
+// Per-peer artifact fetch+apply fan-out during bootstrap. Each CAS blob is an
+// independent HTTP round-trip plus a local write, so the serial path is
+// RTT-bound and leaves the replication bandwidth budget idle; fetching several
+// at once fills it without exceeding the aggregate bandwidth limiter.
+pub const DEFAULT_BOOTSTRAP_MAX_CONCURRENT_ARTIFACTS_PER_PEER: usize = 16;
 
 pub const ROCKSDB_CF_MANIFESTS: &str = "manifests";
 pub const ROCKSDB_CF_KEY_VALUE: &str = "key_value";

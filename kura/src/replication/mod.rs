@@ -319,27 +319,44 @@ async fn bootstrap_manifests_from_peer(state: &SharedState, peer: &str) -> Resul
             .store
             .hit_failpoint(FailpointName::AfterBootstrapManifestPageFetchBeforeApply)
             .await?;
-        for manifest in &page.manifests {
+        // Pre-check synchronously (no I/O): an artifact whose dry-run outcome is
+        // not `applied` is already superseded locally, so record the skip and
+        // drop it; collect the rest to fetch.
+        let mut to_fetch = Vec::new();
+        for manifest in page.manifests {
             let outcome = state.store.artifact_apply_outcome(
                 manifest.producer,
                 &manifest.namespace_id,
                 &manifest.key,
                 manifest.version_ms,
             )?;
-            if !outcome.applied() {
+            if outcome.applied() {
+                to_fetch.push(manifest);
+            } else {
                 state
                     .metrics
                     .record_replication_apply("bootstrap", "artifact", outcome.as_str());
-                continue;
             }
+        }
 
-            let outcome = bootstrap_artifact_from_peer(state, peer, manifest)
-                .await
-                .inspect_err(|_| {
-                    state
-                        .metrics
-                        .record_replication_apply("bootstrap", "artifact", "error");
-                })?;
+        // Fetch + apply with bounded concurrency. CAS blobs are independent, so
+        // page-order does not matter, and the bandwidth limiter still caps
+        // aggregate throughput across the in-flight transfers; this just keeps
+        // the budget busy instead of paying one round-trip latency per artifact.
+        let mut results = futures_util::stream::iter(to_fetch)
+            .map(|manifest| async move {
+                bootstrap_artifact_from_peer(state, peer, &manifest)
+                    .await
+                    .inspect_err(|_| {
+                        state
+                            .metrics
+                            .record_replication_apply("bootstrap", "artifact", "error");
+                    })
+            })
+            .buffer_unordered(state.config.bootstrap_max_concurrent_artifacts_per_peer);
+
+        while let Some(result) = results.next().await {
+            let outcome = result?;
             state
                 .metrics
                 .record_replication_apply("bootstrap", "artifact", outcome.as_str());

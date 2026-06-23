@@ -3,11 +3,11 @@ use std::path::PathBuf;
 use tokio::fs;
 
 use crate::constants::{
-    DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS, DEFAULT_BOOTSTRAP_TIMEOUT_MS,
-    DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_UPLOAD_TTL_MS,
-    DEFAULT_OUTBOX_MAX_DEPTH, DEFAULT_TMP_DIR_MAX_BYTES, DEFAULT_USAGE_BATCH_SIZE,
-    DEFAULT_USAGE_DELIVERY_INTERVAL_MS, DEFAULT_USAGE_FLUSH_INTERVAL_MS, DEFAULT_USAGE_MAX_BUCKETS,
-    DEFAULT_USAGE_OUTBOX_MAX_DEPTH, DEFAULT_USAGE_WINDOW_SECS,
+    DEFAULT_BOOTSTRAP_MAX_CONCURRENT_ARTIFACTS_PER_PEER, DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS,
+    DEFAULT_BOOTSTRAP_TIMEOUT_MS, DEFAULT_MULTIPART_JANITOR_INTERVAL_MS,
+    DEFAULT_MULTIPART_UPLOAD_TTL_MS, DEFAULT_OUTBOX_MAX_DEPTH, DEFAULT_TMP_DIR_MAX_BYTES,
+    DEFAULT_USAGE_BATCH_SIZE, DEFAULT_USAGE_DELIVERY_INTERVAL_MS, DEFAULT_USAGE_FLUSH_INTERVAL_MS,
+    DEFAULT_USAGE_MAX_BUCKETS, DEFAULT_USAGE_OUTBOX_MAX_DEPTH, DEFAULT_USAGE_WINDOW_SECS,
 };
 
 const KURA_PORT: &str = "KURA_PORT";
@@ -84,6 +84,8 @@ const KURA_MULTIPART_UPLOAD_TTL_MS: &str = "KURA_MULTIPART_UPLOAD_TTL_MS";
 const KURA_MULTIPART_JANITOR_INTERVAL_MS: &str = "KURA_MULTIPART_JANITOR_INTERVAL_MS";
 const KURA_BOOTSTRAP_TIMEOUT_MS: &str = "KURA_BOOTSTRAP_TIMEOUT_MS";
 const KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS: &str = "KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS";
+const KURA_BOOTSTRAP_MAX_CONCURRENT_ARTIFACTS_PER_PEER: &str =
+    "KURA_BOOTSTRAP_MAX_CONCURRENT_ARTIFACTS_PER_PEER";
 const KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: &str = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT";
 const KURA_OTEL_SERVICE_NAME: &str = "KURA_OTEL_SERVICE_NAME";
 const KURA_OTEL_DEPLOYMENT_ENVIRONMENT: &str = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT";
@@ -147,6 +149,7 @@ pub struct Config {
     pub multipart_janitor_interval_ms: u64,
     pub bootstrap_timeout_ms: u64,
     pub bootstrap_max_concurrent_peers: usize,
+    pub bootstrap_max_concurrent_artifacts_per_peer: usize,
     pub analytics: Option<AnalyticsConfig>,
     pub usage: Option<UsageConfig>,
     pub otlp_traces_endpoint: Option<String>,
@@ -907,6 +910,24 @@ impl Config {
                 "{KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS} must be greater than 0"
             ));
         }
+        let bootstrap_max_concurrent_artifacts_per_peer = optional_parsed_value(
+            &mut lookup,
+            KURA_BOOTSTRAP_MAX_CONCURRENT_ARTIFACTS_PER_PEER,
+            &mut invalid,
+            |value| {
+                value.parse::<usize>().map_err(|_| {
+                    format!(
+                        "{KURA_BOOTSTRAP_MAX_CONCURRENT_ARTIFACTS_PER_PEER} must be a valid usize"
+                    )
+                })
+            },
+        )
+        .unwrap_or(DEFAULT_BOOTSTRAP_MAX_CONCURRENT_ARTIFACTS_PER_PEER);
+        if bootstrap_max_concurrent_artifacts_per_peer == 0 {
+            invalid.push(format!(
+                "{KURA_BOOTSTRAP_MAX_CONCURRENT_ARTIFACTS_PER_PEER} must be greater than 0"
+            ));
+        }
         let analytics_server_url = lookup(KURA_ANALYTICS_SERVER_URL)
             .map(|value| value.trim().trim_end_matches('/').to_owned())
             .filter(|value| !value.is_empty());
@@ -1340,6 +1361,7 @@ impl Config {
             multipart_janitor_interval_ms,
             bootstrap_timeout_ms,
             bootstrap_max_concurrent_peers,
+            bootstrap_max_concurrent_artifacts_per_peer,
             analytics,
             usage,
             otlp_traces_endpoint,
