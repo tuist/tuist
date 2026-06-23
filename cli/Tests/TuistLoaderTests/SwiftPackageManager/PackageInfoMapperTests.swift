@@ -343,6 +343,36 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
+    ) func resolveDependencies_whenProductIsPlugin_mapsToNoDependencies() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let packagePath = basePath.appending(component: "PluginPkg")
+
+        let resolvedDependencies = try await subject.resolveExternalDependencies(
+            path: basePath,
+            packageInfos: [
+                "PluginPkg": .test(
+                    name: "PluginPkg",
+                    products: [
+                        .init(name: "MyBuildToolPlugin", type: .plugin, targets: ["MyBuildToolPlugin"]),
+                    ],
+                    targets: [
+                        .test(name: "MyBuildToolPlugin", type: .plugin),
+                    ],
+                    platforms: [.macos]
+                ),
+            ],
+            packageToFolder: ["PluginPkg": packagePath],
+            packageToTargetsToArtifactPaths: [:],
+            packageModuleAliases: [:],
+            packageSettings: .test()
+        )
+
+        #expect(resolvedDependencies == ["MyBuildToolPlugin": []])
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func resolveDependencies_whenArtifactsContainMACOSXFolder_filtersThemOut() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let artifactsPath = basePath.appending(components: "Tuist", ".build", "artifacts", "tuist")
