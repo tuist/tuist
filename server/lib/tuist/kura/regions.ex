@@ -56,35 +56,21 @@ defmodule Tuist.Kura.Regions do
       ingress_class_name: "kura-us-west",
       node_pool: "kura-us-west"
     },
+    # EU Central runs on Scaleway Dedibox bare metal: the `kura-dedibox` node
+    # pool (each environment's `dediboxFleet`), local-NVMe storage, a hostNetwork
+    # regional gateway bound to the box's public IP (Dedibox has no Hetzner LB),
+    # and one bounded-size replica. The region id, cluster_id, ingress class, and
+    # public hostnames are unchanged from the former Hetzner ccx13 backing, so
+    # the cutover is invisible to the customer and the CLI.
     %{
       id: "eu-central",
       display_name: "EU Central",
       cluster_id: "eu-central-1",
-      hetzner_location: "fsn1",
       ingress_class_name: "kura-eu-central",
-      node_pool: "kura"
-    },
-    # EU Central on Scaleway Dedibox bare metal. Staging-only for now (gated by
-    # TUIST_KURA_AVAILABLE_REGIONS); the eventual eu-central cutover reuses this
-    # shape. Bare metal differs from the Hetzner regions in three ways the region
-    # spec captures: no `hetzner_location` (so the gateway gets no cloud-LB
-    # location annotation), a local-NVMe `storage_class` (Dedibox can't attach
-    # network block storage and a regenerable cache wants fast local disk), and
-    # `gateway: :host_network` — Dedibox has no Hetzner LoadBalancer, so the
-    # gateway binds the node's public IP via hostNetwork instead.
-    %{
-      id: "dedibox-staging",
-      display_name: "EU Central (Dedibox)",
-      cluster_id: "dedibox-staging-1",
-      ingress_class_name: "kura-dedibox-staging",
       node_pool: "kura-dedibox",
       storage_class: "scw-local-nvme",
       gateway: :host_network,
-      # Single bare-metal box: 1 replica. 3-on-one-node is no HA and triples
-      # the local-NVMe footprint (which disk-pressure-evicted the pods).
       replicas: 1,
-      # Bounded so the cache can't claim the whole box (disk-pressure guard);
-      # the box must be sized for Σ(storage_size) + image/OS headroom.
       storage_size: "50Gi"
     },
     # OVHcloud bare-metal staging validation region. Same bare-metal shape as

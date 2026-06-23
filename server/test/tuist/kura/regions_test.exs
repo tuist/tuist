@@ -10,7 +10,7 @@ defmodule Tuist.Kura.RegionsTest do
   describe "all/0" do
     test "exposes concrete managed regions backed by KubernetesController" do
       ids = Enum.map(Regions.all(), & &1.id)
-      hetzner_locations = %{"eu-central" => "fsn1", "us-east" => "ash", "us-west" => "hil"}
+      hetzner_locations = %{"us-east" => "ash", "us-west" => "hil"}
 
       ingress_classes = %{
         "eu-central" => "kura-eu-central",
@@ -28,8 +28,14 @@ defmodule Tuist.Kura.RegionsTest do
 
         refute Regions.get(id).display_name =~ "Hetzner"
         assert config.cluster_id == "#{id}-1"
-        assert config.hetzner_location == hetzner_locations[id]
         assert config.ingress_class_name == ingress_classes[id]
+      end
+
+      # us-east/us-west stay on Hetzner ccx13 with network-attached storage;
+      # eu-central has cut over to Dedibox bare metal (asserted below).
+      for id <- ["us-east", "us-west"] do
+        config = Regions.get(id).provisioner_config
+        assert config.hetzner_location == hetzner_locations[id]
         assert config.storage_class == "hcloud-volumes"
       end
 
@@ -42,13 +48,29 @@ defmodule Tuist.Kura.RegionsTest do
              }
 
       assert Regions.get("eu-central").provisioner_config.node_selector == %{
-               "node.cluster.x-k8s.io/pool" => "kura"
+               "node.cluster.x-k8s.io/pool" => "kura-dedibox"
              }
 
       for id <- ["us-east", "us-west", "eu-central"] do
         refute Map.has_key?(Regions.get(id).provisioner_config, :kubernetes_client)
         refute Map.has_key?(Regions.get(id).provisioner_config, :peer_tls_secret_name)
       end
+    end
+
+    test "runs eu-central on Dedibox bare metal" do
+      config = Regions.get("eu-central").provisioner_config
+
+      assert config.node_selector == %{"node.cluster.x-k8s.io/pool" => "kura-dedibox"}
+      assert config.storage_class == "scw-local-nvme"
+      assert config.gateway == :host_network
+      assert config.replicas == 1
+      assert config.storage_size == "50Gi"
+      assert config.hetzner_location == nil
+
+      # Identity is unchanged so the cutover is invisible to the customer and CLI.
+      assert config.cluster_id == "eu-central-1"
+      assert config.ingress_class_name == "kura-eu-central"
+      assert Regions.get("eu-central").display_name == "EU Central"
     end
 
     test "enables the per-account peer mesh on managed and private regions" do
