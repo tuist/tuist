@@ -18,6 +18,7 @@ Tuist generated projects gave us a clean contract to replace: package resolution
 
 ## How it works
 
+- **Resolution delegated to SwiftPM**: `swifterpm` does not reimplement the resolver. It shells out to `swift package resolve`, lets SwiftPM solve the graph and apply any source-control-to-registry transformation, then reads back and normalizes `Package.resolved` so the lockfile is byte-for-byte aligned with what SwiftPM would have written. The speedups all live in restoration and caching, not in the dependency solving.
 - **Swift + Bazel implementation**: The CLI is written in Swift, uses structured concurrency for parallel restoration and async HTTP downloads, and is built with Bazel through `rules_swift` plus the `rules_apple` macOS command-line application wrapper.
 - **Lockfile fast path**: When `Package.resolved` is available, `swifterpm` can use `--force-resolved-versions` to skip dependency solving and restore exactly the pinned revisions.
 - **GitHub archives first**: For GitHub dependencies, it downloads source tarballs for pinned revisions instead of cloning full repositories. A shallow Git fetch is kept as a fallback.
