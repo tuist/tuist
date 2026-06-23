@@ -59,13 +59,15 @@ defmodule TuistOps.JIT.SlackClient do
   Block Kit card.
   """
   def post_message(channel_id, blocks, opts \\ []) do
-    body = %{
-      channel: channel_id,
-      blocks: blocks,
-      text: Keyword.get(opts, :fallback_text, "Tailscale JIT request"),
-      unfurl_links: false,
-      unfurl_media: false
-    }
+    body =
+      %{
+        channel: channel_id,
+        blocks: blocks,
+        text: Keyword.get(opts, :fallback_text, "Tailscale JIT request"),
+        unfurl_links: false,
+        unfurl_media: false
+      }
+      |> maybe_put(:thread_ts, Keyword.get(opts, :thread_ts))
 
     @chat_post_message_url
     |> Req.post(headers: headers(), body: JSON.encode!(body))
@@ -125,6 +127,9 @@ defmodule TuistOps.JIT.SlackClient do
       {"Content-Type", "application/json; charset=utf-8"}
     ]
   end
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
   defp handle_post({:ok, %Req.Response{status: status, body: body}}, return)
        when status in 200..299 do
