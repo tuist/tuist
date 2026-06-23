@@ -56,12 +56,12 @@ const (
 )
 
 // OVHDedicatedMachineReconciler reconciles an OVHDedicatedMachine: it adopts a
-// pre-ordered, operator-installed OVH dedicated server by reverse-DNS prefix,
-// then SSH-delivers the same self-join cloud-init the Scaleway Linux kinds use
-// so the host registers as an ordinary Linux Node and links by providerID. Like
-// the Dedibox kind it follows the out-of-band install model: the operator
-// installs the OS and authorizes the fleet SSH key, so the controller never
-// drives the OVH install API. There is no Scaleway Private Network: a
+// pre-ordered OVH dedicated server by reverse-DNS prefix, drives the OVH install
+// API to lay down the OS and authorize the fleet SSH key, then SSH-delivers the
+// same self-join cloud-init the Scaleway Linux kinds use so the host registers
+// as an ordinary Linux Node and links by providerID. The operator only
+// pre-orders the box and points its reverse DNS at the adopt prefix; the OS
+// install is scripted, never manual. There is no Scaleway Private Network: a
 // customer-facing box serves public cache traffic over its public IP, so the
 // self-join runs with VLAN 0.
 type OVHDedicatedMachineReconciler struct {
@@ -191,22 +191,56 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 			logger.Info("adopted OVH server", "service", server.Name, "datacenter", datacenter)
 		}
 
-		// Out-of-band install model: the operator pre-installs the OS on the
-		// pre-ordered box and authorizes the fleet SSH key (the public half of
-		// the `<fleet>-ssh` Secret). The controller never drives the OVH install
-		// API; it adopts a box (matched by reverse-DNS prefix) and self-joins it
-		// once the box reports a healthy state and a public IP.
+		// Scripted install: the operator only pre-orders the box and points its
+		// reverse DNS at the adopt prefix. The controller drives the OVH install
+		// API itself (register the fleet SSH key, resolve the OS template, start
+		// the reinstall, poll to completion) before self-joining, so an OS
+		// install is never manual operator work.
 		server, getErr := r.OVHClient.GetServer(ctx, machine.Status.ServiceName)
 		if getErr != nil {
 			return ctrl.Result{}, getErr
 		}
-		if !strings.EqualFold(server.State, "ok") {
-			conditions.MarkFalse(machine, shared.ProvisionedCondition, "AwaitingInstall",
-				clusterv1.ConditionSeverityInfo, "server %s state %q; awaiting out-of-band install", machine.Status.ServiceName, server.State)
-			machine.Status.Phase = "AwaitingInstall"
-			logger.Info("OVH server not ready; awaiting out-of-band OS install", "service", machine.Status.ServiceName, "state", server.State)
-			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+		signer, signErr := ssh.ParsePrivateKey(privateKey)
+		if signErr != nil {
+			return ctrl.Result{}, fmt.Errorf("parse fleet ssh key: %w", signErr)
 		}
+		if err := r.OVHClient.EnsureSSHKey(ctx, fleet, string(ssh.MarshalAuthorizedKey(signer.PublicKey()))); err != nil {
+			conditions.MarkFalse(machine, shared.ProvisionedCondition, "SSHKeyRegistrationFailed",
+				clusterv1.ConditionSeverityWarning, "%v", err)
+			machine.Status.Phase = "Provisioning"
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+		switch state, stateErr := r.OVHClient.InstallState(ctx, machine.Status.ServiceName); {
+		case stateErr != nil:
+			return ctrl.Result{}, stateErr
+		case state == ovh.InstallFailed:
+			conditions.MarkFalse(machine, shared.ProvisionedCondition, "InstallFailed",
+				clusterv1.ConditionSeverityWarning, "OVH OS install failed for %s", machine.Status.ServiceName)
+			machine.Status.Phase = "InstallFailed"
+			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+		case state == ovh.InstallPending:
+			template, tmplErr := r.OVHClient.ResolveTemplate(ctx, machine.Status.ServiceName, firstNonEmpty(machine.Spec.OS, "ubuntu_24.04"))
+			if tmplErr != nil {
+				return ctrl.Result{}, tmplErr
+			}
+			if err := r.OVHClient.StartInstall(ctx, machine.Status.ServiceName, ovh.InstallParams{
+				TemplateName: template,
+				Hostname:     machine.Name,
+				SSHKeyName:   fleet,
+			}); err != nil {
+				return ctrl.Result{}, fmt.Errorf("start OVH install: %w", err)
+			}
+			conditions.MarkFalse(machine, shared.ProvisionedCondition, "Installing",
+				clusterv1.ConditionSeverityInfo, "OVH OS install (%s) started for %s", template, machine.Status.ServiceName)
+			machine.Status.Phase = "Installing"
+			r.event(machine, "Installing", "Started OVH OS install (%s) on %s", template, machine.Status.ServiceName)
+			return ctrl.Result{RequeueAfter: 90 * time.Second}, nil
+		case state == ovh.InstallRunning:
+			machine.Status.Phase = "Installing"
+			logger.Info("OVH OS install in progress", "service", machine.Status.ServiceName)
+			return ctrl.Result{RequeueAfter: 90 * time.Second}, nil
+		}
+		// InstallDone: the OS is up; fall through to the SSH self-join.
 		if server.IP == "" {
 			machine.Status.Phase = "Provisioning"
 			logger.Info("public IP not assigned yet", "service", machine.Status.ServiceName)
