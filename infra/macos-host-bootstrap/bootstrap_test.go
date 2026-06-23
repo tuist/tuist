@@ -121,6 +121,81 @@ func newTestPubKey(t *testing.T) ssh.PublicKey {
 	return pk
 }
 
+func TestHostConfigHash_StableForSameConfig(t *testing.T) {
+	cfg := Config{
+		TartKubeletBinary:  []byte("kubelet-v1"),
+		TailscaleBinaries:  []byte("ts-v1"),
+		NodeExporterBinary: []byte("ne-v1"),
+		TailscaleAuthKey:   "auth-key",
+		TailscaleTags:      []string{"tag:tuist-macmini"},
+		VMKuraEgressCIDR:   "10.96.0.0/12",
+		VMCachePNCIDR:      "172.16.0.0/22",
+		HostCPU:            8,
+		HostMemoryMB:       16384,
+		MaxPods:            3,
+	}
+	if HostConfigHash(cfg) != HostConfigHash(cfg) {
+		t.Fatalf("HostConfigHash must be stable for the same config")
+	}
+}
+
+func TestHostConfigHash_IndependentOfPerHostFields(t *testing.T) {
+	base := Config{
+		TartKubeletBinary: []byte("kubelet-v1"),
+		VMKuraEgressCIDR:  "10.96.0.0/12",
+	}
+	perHost := base
+	// Per-host fields must not move the canonical hash, or every host in
+	// a fleet would falsely drift.
+	perHost.NodeName = "macmini-7"
+	perHost.IP = "51.15.1.2"
+	perHost.Kubeconfig = "kubeconfig-yaml"
+	perHost.ProviderID = "scw-applesilicon://fr-par-1/abc"
+	perHost.VMCachePNVLAN = 4242
+	perHost.KnownHostFingerprint = "SHA256:zzz"
+	if HostConfigHash(base) != HostConfigHash(perHost) {
+		t.Fatalf("HostConfigHash must ignore per-host fields")
+	}
+}
+
+func TestHostConfigHash_ChangesWhenFleetConfigChanges(t *testing.T) {
+	base := Config{
+		TartKubeletBinary: []byte("kubelet-v1"),
+		VMKuraEgressCIDR:  "10.96.0.0/12",
+	}
+	changed := base
+	changed.VMCachePNCIDR = "172.16.0.0/22"
+	if HostConfigHash(base) == HostConfigHash(changed) {
+		t.Fatalf("HostConfigHash must change when a fleet-config field changes")
+	}
+
+	tags := base
+	tags.TailscaleTags = []string{"tag:tuist-macmini-staging"}
+	if HostConfigHash(base) == HostConfigHash(tags) {
+		t.Fatalf("HostConfigHash must change when TailscaleTags change")
+	}
+
+	routes := base
+	routes.TailscaleAcceptRoutes = true
+	if HostConfigHash(base) == HostConfigHash(routes) {
+		t.Fatalf("HostConfigHash must change when TailscaleAcceptRoutes changes")
+	}
+}
+
+func TestHostConfigHash_ChangesWhenBinaryChanges(t *testing.T) {
+	base := Config{TartKubeletBinary: []byte("kubelet-v1")}
+	changed := Config{TartKubeletBinary: []byte("kubelet-v2")}
+	if HostConfigHash(base) == HostConfigHash(changed) {
+		t.Fatalf("HostConfigHash must change when the tart-kubelet binary changes")
+	}
+
+	ne := base
+	ne.NodeExporterBinary = []byte("ne-v1")
+	if HostConfigHash(base) == HostConfigHash(ne) {
+		t.Fatalf("HostConfigHash must change when the node_exporter binary changes")
+	}
+}
+
 func TestHostKeyState_TOFUCapturesFingerprint(t *testing.T) {
 	hk := NewHostKeyState("")
 	pk := newTestPubKey(t)

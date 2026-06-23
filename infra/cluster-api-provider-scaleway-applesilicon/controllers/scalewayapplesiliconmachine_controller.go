@@ -77,6 +77,16 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// re-uploads + reloads launchd.
 	TartKubeletBinarySHA string
 
+	// HostConfigHash is the fleet-wide canonical hash of every host
+	// config the operator pushes (bootstrap.HostConfigHash over the
+	// rendered install scripts + embedded binaries). It's the version
+	// stamp that drives the host-config drift loop: when
+	// status.hostConfigHash != this value the reconciler re-pushes the
+	// host config. Broader than TartKubeletBinarySHA, which only catches
+	// a tart-kubelet binary change — this also catches a script tweak or
+	// a fleet-config (CIDR/tags/accept-routes) change.
+	HostConfigHash string
+
 	// TartTarball is the gzipped tar of the upstream `tart.app` bundle
 	// pinned in the operator's Dockerfile and read at startup. Uploaded
 	// to each Mac mini over SSH at first bootstrap. We do not run a
@@ -639,7 +649,13 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	// Running Tart VMs survive an agent restart (`nohup`-detached) and
 	// the kubelet's startup state-recovery pass re-binds them, so the
 	// rollout is zero-downtime for workloads.
-	binaryDrift := r.TartKubeletBinarySHA != "" && machine.Status.TartKubeletBinarySHA != r.TartKubeletBinarySHA
+	// Drift on the fleet-wide host-config hash, not just the tart-kubelet
+	// binary SHA: a change to ANY pushed config — an install-script tweak,
+	// a fleet CIDR / tag / accept-routes flip, or any re-baked binary —
+	// moves the hash and re-pushes the host config. Existing machines
+	// carry an empty Status.HostConfigHash, so the first reconcile after
+	// this upgrade drifts once and re-pushes — the intended migration.
+	configDrift := hostConfigDrift(r.HostConfigHash, machine.Status.HostConfigHash)
 	// Once a CR enters the terminal-failed state (FailureReason set
 	// and FailureMessage describes the underlying error) we stop
 	// firing the drift loop. CAPI core takes over: surfaces the
@@ -647,7 +663,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	// without operator action. Recovery: clear FailureReason +
 	// reset TartKubeletUpdateAttempts to resume the loop.
 	terminalFailure := machine.Status.FailureReason != nil
-	if binaryDrift && !terminalFailure {
+	if configDrift && !terminalFailure {
 		ip := machineIP(machine)
 		if ip == "" {
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
@@ -748,10 +764,12 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 		}
 		machine.Status.TartKubeletBinarySHA = r.TartKubeletBinarySHA
+		machine.Status.HostConfigHash = r.HostConfigHash
 		machine.Status.TartKubeletUpdateAttempts = 0
 		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "AgentRolled",
 			"Rolled tart-kubelet to %s", r.TartKubeletBinarySHA)
-		logger.Info("rolled new tart-kubelet", "host", ip, "sha", r.TartKubeletBinarySHA)
+		logger.Info("rolled new tart-kubelet", "host", ip, "sha", r.TartKubeletBinarySHA,
+			"hostConfigHash", r.HostConfigHash)
 	}
 
 	// Stage 4: materialise the per-machine Tailscale egress Service
@@ -972,6 +990,15 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileTailscaleEgressService(
 		return nil
 	})
 	return err
+}
+
+// hostConfigDrift reports whether the host config the operator would
+// push (operatorHash) differs from what the Machine last recorded
+// (machineHash). An empty operatorHash (hash not computed) never drifts.
+// An empty machineHash on a non-empty operatorHash drifts once — the
+// migration case for machines provisioned before the hash existed.
+func hostConfigDrift(operatorHash, machineHash string) bool {
+	return operatorHash != "" && machineHash != operatorHash
 }
 
 // recordUpdateFailure increments the drift-loop retry counter and,
