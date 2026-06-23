@@ -93,7 +93,7 @@ defmodule Tuist.Runners.Workers.StaleQueuedJobsWorker do
     resolved =
       verify_threshold
       |> Jobs.list_stale_queued()
-      |> Enum.count(&resolve_one(&1, reap_threshold))
+      |> Enum.count(&recover_one(&1, reap_threshold))
 
     if resolved > 0 do
       Logger.warning("runners: resolved stale queued rows",
@@ -109,11 +109,11 @@ defmodule Tuist.Runners.Workers.StaleQueuedJobsWorker do
   # No repository on the row (legacy pre-profiles enqueue) — we can't
   # address GitHub's Actions jobs API to verify, so only the hard
   # backstop can resolve it.
-  defp resolve_one(%{repository: repository} = candidate, reap_threshold) when repository in [nil, ""] do
+  defp recover_one(%{repository: repository} = candidate, reap_threshold) when repository in [nil, ""] do
     reap_if_past_backstop(candidate, reap_threshold)
   end
 
-  defp resolve_one(candidate, reap_threshold) do
+  defp recover_one(candidate, reap_threshold) do
     %{account_id: account_id, repository: repository, workflow_job_id: workflow_job_id} = candidate
 
     with {:ok, account} <- Accounts.get_account_by_id(account_id),
