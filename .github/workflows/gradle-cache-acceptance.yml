@@ -108,7 +108,6 @@ jobs:
             compile, \
             ecto.create, \
             run priv/repo/timezone.exs, \
-            ecto.load, \
             ecto.migrate, \
             run priv/repo/seeds.exs > "$log_file" 2>&1 &
           setup_pid=$!
