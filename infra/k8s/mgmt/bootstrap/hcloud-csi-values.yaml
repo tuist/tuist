@@ -106,6 +106,10 @@ node:
                   # Volumes can't attach there. scaleway-csi serves
                   # its PVCs instead.
                   - kura-scw-fr-par
+                  # Dedibox bare metal (EU customer-facing kura
+                  # cache) — likewise not Hetzner; local NVMe serves
+                  # its PVCs.
+                  - kura-dedibox
               - key: kubernetes.io/os
                 operator: NotIn
                 values:
