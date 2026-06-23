@@ -303,7 +303,7 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
       assert second_keys == []
     end
 
-    test "the run session worker deletes expired session archives according to the account plan" do
+    test "the run session worker deletes every expired run artifact by prefix according to the account plan" do
       project = project_fixture()
       account = project.account
       subscription_fixture(account_id: account.id, plan: :air)
@@ -321,12 +321,12 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
         )
 
       project = %{project | account: account}
-      expired_session_key = CommandEvents.get_session_key(expired_run.id, project)
-      recent_session_key = CommandEvents.get_session_key(recent_run.id, project)
+      expired_run_artifact_prefix = "#{CommandEvents.get_command_event_artifact_base_path_key(expired_run.id, project)}/"
+      recent_run_artifact_prefix = "#{CommandEvents.get_command_event_artifact_base_path_key(recent_run.id, project)}/"
 
-      stub(Storage, :delete_objects, fn object_keys, %{id: account_id} ->
+      stub(Storage, :delete_all_objects, fn prefix, %{id: account_id} ->
         assert account_id == account.id
-        send(self(), {:deleted, object_keys})
+        send(self(), {:deleted, prefix})
         :ok
       end)
 
@@ -336,9 +336,8 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
                  "batch_size" => 20
                })
 
-      assert_received {:deleted, object_keys}
-      assert expired_session_key in object_keys
-      refute recent_session_key in object_keys
+      assert_received {:deleted, ^expired_run_artifact_prefix}
+      refute_received {:deleted, ^recent_run_artifact_prefix}
     end
 
     test "the run session worker paginates by command event run time" do
@@ -359,20 +358,19 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
         )
 
       project = %{project | account: account}
-      older_session_key = CommandEvents.get_session_key(older_run.id, project)
-      newer_session_key = CommandEvents.get_session_key(newer_run.id, project)
+      older_run_artifact_prefix = "#{CommandEvents.get_command_event_artifact_base_path_key(older_run.id, project)}/"
+      newer_run_artifact_prefix = "#{CommandEvents.get_command_event_artifact_base_path_key(newer_run.id, project)}/"
 
-      stub(Storage, :delete_objects, fn object_keys, _account ->
-        send(self(), {:deleted, object_keys})
+      stub(Storage, :delete_all_objects, fn prefix, _account ->
+        send(self(), {:deleted, prefix})
         :ok
       end)
 
       assert :ok =
                perform_job(DeleteExpiredRunSessionsWorker, %{"account_id" => account.id, "batch_size" => 1})
 
-      assert_received {:deleted, first_keys}
-      assert older_session_key in first_keys
-      refute newer_session_key in first_keys
+      assert_received {:deleted, ^older_run_artifact_prefix}
+      refute_received {:deleted, ^newer_run_artifact_prefix}
 
       assert_enqueued(
         worker: DeleteExpiredRunSessionsWorker,
@@ -392,9 +390,7 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
                  "after_id" => older_run.id
                })
 
-      assert_received {:deleted, second_keys}
-      assert newer_session_key in second_keys
-      refute older_session_key in second_keys
+      assert_received {:deleted, ^newer_run_artifact_prefix}
     end
 
     test "the test attachment worker deletes expired test attachments according to the account plan" do
