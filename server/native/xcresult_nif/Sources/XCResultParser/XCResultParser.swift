@@ -5,13 +5,50 @@ import Path
 
 public enum XCResultParserError: LocalizedError, Equatable {
     case failedToParseOutput(AbsolutePath)
+    case timedOut(AbsolutePath, seconds: Int)
+    case decodingFailed(step: String, path: AbsolutePath, detail: String)
 
     public var errorDescription: String? {
         switch self {
         case let .failedToParseOutput(path):
             return "Failed to parse xcresult output at \(path.pathString)"
+        case let .timedOut(path, seconds):
+            return "xcresult parsing timed out after \(seconds)s at \(path.pathString)"
+        case let .decodingFailed(step, path, detail):
+            return "Failed to decode xcresult \(step) at \(path.pathString): \(detail)"
         }
     }
+}
+
+/// Renders a decoding failure into a single Sentry-friendly line: the
+/// `DecodingError` kind, the JSON key path it choked on, and a short head of
+/// the offending output. The default `localizedDescription` collapses every
+/// `DecodingError` to "The data couldn't be read because it isn't in the
+/// correct format.", which tells us nothing about which xcresulttool output
+/// drifted from the schema.
+func describeDecodingFailure(_ error: Error, output: String) -> String {
+    let head = output.prefix(200).replacingOccurrences(of: "\n", with: " ")
+    let snippet = output.isEmpty ? "<empty>" : "\"\(head)\""
+
+    func path(_ context: DecodingError.Context) -> String {
+        context.codingPath.map(\.stringValue).joined(separator: ".")
+    }
+
+    let reason: String
+    switch error {
+    case let DecodingError.dataCorrupted(context):
+        reason = "dataCorrupted at [\(path(context))]: \(context.debugDescription)"
+    case let DecodingError.keyNotFound(key, context):
+        reason = "keyNotFound \(key.stringValue) at [\(path(context))]"
+    case let DecodingError.typeMismatch(type, context):
+        reason = "typeMismatch \(type) at [\(path(context))]: \(context.debugDescription)"
+    case let DecodingError.valueNotFound(type, context):
+        reason = "valueNotFound \(type) at [\(path(context))]"
+    default:
+        reason = error.localizedDescription
+    }
+
+    return "\(reason) (\(output.count) bytes: \(snippet))"
 }
 
 public struct XCResultParser: Sendable {
@@ -120,7 +157,14 @@ public struct XCResultParser: Sendable {
                 guard let jsonData = jsonString.data(using: .utf8) else {
                     throw XCResultParserError.failedToParseOutput(path)
                 }
-                return try JSONDecoder().decode(XCResultTestOutput.self, from: jsonData)
+                do {
+                    return try JSONDecoder().decode(XCResultTestOutput.self, from: jsonData)
+                } catch {
+                    throw XCResultParserError.decodingFailed(
+                        step: "test-results", path: path,
+                        detail: describeDecodingFailure(error, output: jsonString)
+                    )
+                }
             }
     }
 
@@ -562,7 +606,20 @@ public struct XCResultParser: Sendable {
             ).concatenatedString()
 
             let logData = try await fileSystem.readFile(at: tempFile)
-            return try JSONDecoder().decode(ActionLogSection.self, from: logData)
+            // An aborted or test-less xcresult has no action log: `xcresulttool
+            // get log --type action` prints "No action log available" and writes
+            // nothing. The action log only enriches durations and failure
+            // locations, so treat its absence as empty rather than failing the
+            // whole parse with an opaque decode error.
+            guard !logData.isEmpty else { return .empty }
+            do {
+                return try JSONDecoder().decode(ActionLogSection.self, from: logData)
+            } catch {
+                throw XCResultParserError.decodingFailed(
+                    step: "action-log", path: xcresultPath,
+                    detail: describeDecodingFailure(error, output: String(decoding: logData, as: UTF8.self))
+                )
+            }
         }
     }
 
