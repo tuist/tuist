@@ -628,7 +628,27 @@ config :tuist, :registry,
 # account-storage credentials would write to the registry bucket with the
 # wrong principal and 403 every upload while the cursor still advances.
 if Tuist.Environment.swift_registry_sync_mode?() do
-  registry_s3_host = System.get_env("S3_HOST")
+  registry_s3_endpoint = System.get_env("S3_ENDPOINT")
+
+  {registry_s3_scheme, registry_s3_host, registry_s3_port} =
+    case registry_s3_endpoint do
+      endpoint when endpoint in [nil, ""] ->
+        {"https://", System.get_env("S3_HOST"), nil}
+
+      endpoint ->
+        uri = URI.parse(endpoint)
+
+        {host, port} =
+          case {uri.host, uri.port} do
+            {nil, _} -> {System.get_env("S3_HOST"), nil}
+            {host, nil} -> {host, nil}
+            {host, port} -> {host, port}
+          end
+
+        scheme = (uri.scheme || "https") <> "://"
+        {scheme, host, port}
+    end
+
   registry_s3_region = System.get_env("S3_REGION") || "auto"
   registry_s3_access_key_id = System.get_env("S3_ACCESS_KEY_ID")
   registry_s3_secret_access_key = System.get_env("S3_SECRET_ACCESS_KEY")
@@ -638,7 +658,7 @@ if Tuist.Environment.swift_registry_sync_mode?() do
     Enum.filter(
       [
         {"S3_REGISTRY_BUCKET", registry_bucket},
-        {"S3_HOST", registry_s3_host},
+        {"S3_ENDPOINT or S3_HOST", registry_s3_host},
         {"S3_ACCESS_KEY_ID", registry_s3_access_key_id},
         {"S3_SECRET_ACCESS_KEY", registry_s3_secret_access_key}
       ],
@@ -650,11 +670,20 @@ if Tuist.Environment.swift_registry_sync_mode?() do
     raise "TUIST_MODE=swift_registry_sync requires #{names} to be set; refusing to boot"
   end
 
-  config :ex_aws, :s3,
-    scheme: "https://",
-    host: registry_s3_host,
-    region: registry_s3_region,
-    virtual_host: false
+  registry_s3_config =
+    then(
+      [
+        scheme: registry_s3_scheme,
+        host: registry_s3_host,
+        region: registry_s3_region,
+        virtual_host: false
+      ],
+      fn config ->
+        if is_nil(registry_s3_port), do: config, else: Keyword.put(config, :port, registry_s3_port)
+      end
+    )
+
+  config :ex_aws, :s3, registry_s3_config
 
   config :ex_aws,
     access_key_id: registry_s3_access_key_id,

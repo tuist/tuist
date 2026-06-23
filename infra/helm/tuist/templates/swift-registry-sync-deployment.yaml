@@ -1,6 +1,6 @@
 {{- if .Values.swiftRegistrySync.enabled }}
-{{- $secretName := include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
-{{- $registrySecretName := ternary (include "tuist.componentName" (dict "root" . "component" "swift-registry-sync-external-secrets")) $secretName .Values.swiftRegistrySync.managedSecrets }}
+{{- $runtimeSecretName := .Values.swiftRegistrySync.runtimeSecretName | default (include "tuist.componentName" (dict "root" . "component" "swift-registry-sync-runtime")) -}}
+{{- $registrySecretName := ternary (include "tuist.componentName" (dict "root" . "component" "swift-registry-sync-external-secrets")) $runtimeSecretName .Values.swiftRegistrySync.managedSecrets }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -89,12 +89,9 @@ spec:
             - name: TUIST_USE_SSL_FOR_DATABASE
               value: "0"
             {{- end }}
-            # Dedicated least-privilege DB role
-            # (`tuist_swift_registry_sync`) with grants narrower than
-            # tuist_processor — Oban tables only, no accounts/projects
-            # reads. See infra/cnpg/tuist-swift-registry-sync-grants.sql.
-            # ESO composes the URL from the role password under
-            # SWIFT_REGISTRY_SYNC_DATABASE_PASSWORD in 1Password.
+            # Managed environments use the dedicated
+            # tuist_swift_registry_sync database role. Non-managed previews use
+            # the chart-managed runtime Secret next to the embedded database.
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -122,6 +119,12 @@ spec:
                 secretKeyRef:
                   name: {{ $registrySecretName }}
                   key: S3_REGISTRY_BUCKET
+            - name: S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $registrySecretName }}
+                  key: S3_ENDPOINT
+                  optional: true
             - name: S3_HOST
               valueFrom:
                 secretKeyRef:
@@ -149,6 +152,10 @@ spec:
                   key: SWIFT_REGISTRY_GITHUB_TOKEN
             {{- with .Values.swiftRegistrySync.syncAllowlist }}
             - name: SWIFT_REGISTRY_SYNC_ALLOWLIST
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.swiftRegistrySync.syncLimit }}
+            - name: SWIFT_REGISTRY_SYNC_LIMIT
               value: {{ . | quote }}
             {{- end }}
             # Always emit so an override of `false` (bool or string) actually

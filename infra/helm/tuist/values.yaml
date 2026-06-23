@@ -467,10 +467,18 @@ swiftRegistrySync:
   # registry's Tigris credentials, GitHub PAT, and bucket name from
   # 1Password (the existing `REGISTRY` item used by the standalone
   # `registry` Phoenix app). When false, the values must be in a
-  # pre-existing Secret named
-  # `<release>-swift-registry-sync-external-secrets` with the env keys
-  # the deployment expects (see the template).
+  # chart-managed Secret or an explicitly named runtime Secret.
   managedSecrets: false
+  runtimeSecretName: ""
+  databaseUrl: ""
+  inlineSecrets:
+    s3RegistryBucket: ""
+    s3Endpoint: ""
+    s3Host: ""
+    s3Region: ""
+    s3AccessKeyId: ""
+    s3SecretAccessKey: ""
+    githubToken: ""
   externalSecrets:
     refreshInterval: "1h"
     storeRef:
@@ -509,6 +517,8 @@ swiftRegistrySync:
   # Optional override of the SwiftPackageIndex catalog allowlist.
   # Useful for canary to scope sync to a small set of packages.
   syncAllowlist: ""
+  # Optional catalog batch limit.
+  syncLimit: ""
   # Optional override of the master enable flag. Defaults to enabled
   # in the release; set to false (bool or string) to deploy the pod for
   # image bake without actually pulling from the catalog.
