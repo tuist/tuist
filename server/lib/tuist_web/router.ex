@@ -742,6 +742,7 @@ defmodule TuistWeb.Router do
     post "/runners/dispatch", RunnersController, :dispatch
     get "/runners/desired_replicas", RunnersController, :desired_replicas
     post "/runners/pods/stopped", RunnerPodsController, :stopped
+    post "/runners/jobs/:workflow_job_id/metrics", RunnerJobMetricsController, :create
   end
 
   scope "/api/internal", TuistWeb.Internal do
