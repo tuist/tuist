@@ -32,20 +32,15 @@ server:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      # `hetzner-staging-runners` is the private (runner-cache) region:
-      # customers can't select it, the RunnerCache reconciler provisions
-      # nodes there for accounts with runner profiles, and runner
-      # dispatch routes their build-cache traffic to it in-cluster.
-      # `scw-fr-par-runners` is the macOS-serving private region: a
-      # Scaleway fr-par Linux node pool joined to this cluster, next
-      # to the Mac mini fleet, so the Macs' cache traffic never
-      # crosses the WAN. `hetzner-staging-runners` serves the Linux
-      # kata fleet (Falkenstein). Requires the `kura-scw-fr-par` node
-      # pool + scw-bssd CSI to exist in the cluster.
-      # `dedibox-staging` is the public Dedibox bare-metal region used to
-      # validate the eu-central cutover shape (local-NVMe + hostNetwork
-      # gateway); it needs the `kura-dedibox` node pool to exist.
-      value: eu-central,hetzner-staging-runners,scw-fr-par-runners,dedibox-staging
+      # `eu-central` is the public region, now on the Dedibox bare-metal
+      # `kura-dedibox` pool (the eu-central cutover). `scw-fr-par-runners` is the
+      # macOS-serving private runner-cache region: a Scaleway fr-par Linux node
+      # pool next to the Mac mini fleet, on its own `kura-scw-fr-par` pool, so
+      # the Macs' cache traffic never crosses the WAN. The former Linux
+      # runner-cache region `hetzner-staging-runners` is dropped: it lived on the
+      # Hetzner ccx13 `kura` pool that the cutover deletes, and no customers use
+      # the staging Linux runner cache.
+      value: eu-central,scw-fr-par-runners
     # Runner platforms whose fleets can reach their region's private
     # cache endpoint — the dispatch gate for handing out
     # `cache_endpoint_url` (Catalog.fleet_on_cluster_network?/1).

@@ -254,6 +254,24 @@ kuraFleet:
     # the same local-NVMe + bare-metal-PN data plane prod runs on.
     offerType: EM-B220E-NVME
 
+# Dedibox fleet (EU customer-facing Kura cache, the eu-central cutover). The
+# reconciler adopts a pre-ordered Dedibox carrying the tuist-kura-canary tag (the
+# env boundary, since all Dedibox share the org's default project) and self-joins
+# it as the kura-dedibox pool that backs eu-central. PREREQ before merge: the
+# DEDIBOX_SCW_API 1Password item exists in the canary vault, and a Start-9-M box
+# is delivered + tagged tuist-kura-canary; an enabled fleet with no adoptable box
+# hangs helm --wait.
+dediboxFleet:
+  enabled: true
+  machine:
+    adoptTag: tuist-kura-canary
+    offer: Start-9-M
+    datacenter: DC5
+    os: ubuntu_24.04
+  scaleway:
+    externalSecrets:
+      item: DEDIBOX_SCW_API
+
 # Mac mini fleet — declarative via CAPI.
 macosFleet:
   replicas: 1

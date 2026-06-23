@@ -341,6 +341,27 @@ kuraFleet:
     # CPU, so we pay for memory + disk rather than a bigger NIC.
     offerType: EM-I220E-NVME
 
+# Dedibox fleet (EU customer-facing Kura cache, the eu-central cutover). The
+# reconciler adopts a pre-ordered Dedibox carrying the tuist-kura-production tag
+# (the env boundary, since all Dedibox share the org's default project) and
+# self-joins it as the kura-dedibox pool that backs eu-central. PREREQ before
+# merge: the DEDIBOX_SCW_API 1Password item exists in the production vault, and a
+# box is delivered + tagged tuist-kura-production; an enabled fleet with no
+# adoptable box hangs helm --wait. NOTE: eu-central is a shared public region
+# (many accounts, each with its own storageSize cache), so size the box for the
+# account count; Start-9-M is the staging-validated shape, but a larger Dedibox
+# offer may be needed for production.
+dediboxFleet:
+  enabled: true
+  machine:
+    adoptTag: tuist-kura-production
+    offer: Start-9-M
+    datacenter: DC5
+    os: ubuntu_24.04
+  scaleway:
+    externalSecrets:
+      item: DEDIBOX_SCW_API
+
 # Mac mini fleet — declarative via CAPI. Production keeps 2 hosts so
 # a single-host Scaleway BMC reboot or macOS upgrade doesn't take all
 # xcresult capacity offline.

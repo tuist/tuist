@@ -30,11 +30,25 @@ ingress-nginx:
 kura-eu-central-ingress-nginx:
   enabled: true
   controller:
+    # eu-central is cut over to the Dedibox bare-metal box: the regional gateway
+    # runs on the box's host network so serving traffic hits the box NIC directly
+    # (Dedibox has no Hetzner LB). The DaemonSet binds one nginx per cache node;
+    # reportNodeInternalIp publishes the box's public IP (its node InternalIP)
+    # into each Ingress status so external-dns resolves the per-account hosts to
+    # the box.
+    kind: DaemonSet
+    hostNetwork: true
+    dnsPolicy: ClusterFirstWithHostNet
+    reportNodeInternalIp: true
     nodeSelector:
-      node.cluster.x-k8s.io/pool: kura
+      node.cluster.x-k8s.io/pool: kura-dedibox
+    tolerations:
+      - key: tuist.dev/kura-cache
+        operator: Exists
+        effect: NoSchedule
+    publishService:
+      enabled: false
     service:
-      annotations:
-        load-balancer.hetzner.cloud/location: fsn1
-        load-balancer.hetzner.cloud/name: tuist-canary-kura-eu-central-ingress
-        load-balancer.hetzner.cloud/node-selector: node.cluster.x-k8s.io/pool=kura
-        load-balancer.hetzner.cloud/uses-proxyprotocol: "true"
+      type: ClusterIP
+      externalTrafficPolicy: ""
+      annotations: {}

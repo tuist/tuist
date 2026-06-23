@@ -62,33 +62,6 @@ spec:
                 value: cpx22
               - name: workerNodeLabels
                 value: tuist.dev/stable-egress-candidate=server
-        # Dedicated Kura pool. Kura StatefulSets default to this node
-        # selector and use hard hostname spread, so keep three workers
-        # for the default three replicas.
-        - class: hcloud-worker
-          name: kura
-          replicas: 3
-          failureDomain: fsn1
-          healthCheck:
-            checks:
-              nodeStartupTimeoutSeconds: 600
-              unhealthyNodeConditions:
-                - type: Ready
-                  status: Unknown
-                  timeoutSeconds: 300
-                - type: Ready
-                  status: "False"
-                  timeoutSeconds: 300
-            remediation:
-              triggerIf:
-                unhealthyLessThanOrEqualTo: 100%
-          metadata:
-            labels:
-              node.cluster.x-k8s.io/pool: kura
-          variables:
-            overrides:
-              - name: hcloudWorkerMachineType
-                value: ccx13
         # Linux runner pool on Hetzner Robot bare metal. The
         # `hetzner-robot-controller` reflects `tuist-bm-canary-*`
         # Robot servers into HBM CRs stamped
