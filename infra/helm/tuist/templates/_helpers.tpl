@@ -496,3 +496,19 @@ License env vars. Resolves to (in order):
       key: token-update-packages
 {{- end }}
 {{- end -}}
+
+{{- define "tuist.googleEnv" -}}
+{{- if and .Values.server.enabled .Values.server.google.managedSecrets }}
+{{- $secret := include "tuist.componentName" (dict "root" . "component" "google-external-secrets") -}}
+- name: TUIST_GOOGLE_OAUTH_CLIENT_ID
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret | quote }}
+      key: oauth-client-id
+- name: TUIST_GOOGLE_OAUTH_CLIENT_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret | quote }}
+      key: oauth-client-secret
+{{- end }}
+{{- end -}}

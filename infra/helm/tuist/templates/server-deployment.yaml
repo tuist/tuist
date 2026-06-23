@@ -228,6 +228,7 @@ spec:
             {{- include "tuist.licenseEnv" . | nindent 12 }}
             {{- include "tuist.kuraIntrospectionEnv" . | nindent 12 }}
             {{- include "tuist.githubEnv" . | nindent 12 }}
+            {{- include "tuist.googleEnv" . | nindent 12 }}
             {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
             - name: MASTER_KEY
               valueFrom:
