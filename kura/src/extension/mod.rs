@@ -1713,25 +1713,6 @@ end
             introspection_client: bool,
             request_timeout_ms: &str,
         ) -> SharedExtension {
-            engine_pointing_at_with_options(
-                base_url,
-                introspection_client,
-                request_timeout_ms,
-                false,
-            )
-            .await
-        }
-
-        async fn engine_pointing_at_with_shared_tenants(base_url: &str) -> SharedExtension {
-            engine_pointing_at_with_options(base_url, true, "4000", true).await
-        }
-
-        async fn engine_pointing_at_with_options(
-            base_url: &str,
-            introspection_client: bool,
-            request_timeout_ms: &str,
-            shared_tenants: bool,
-        ) -> SharedExtension {
             let url = base_url.to_owned();
             let request_timeout_ms = request_timeout_ms.to_owned();
             test_engine(&script(), move |_| unsafe {
@@ -1747,10 +1728,6 @@ end
                     "KURA_EXTENSION_HTTP_CLIENT_TUIST_REQUEST_TIMEOUT_MS",
                     &request_timeout_ms,
                 );
-
-                if shared_tenants {
-                    std::env::set_var("KURA_EXTENSION_TUIST_ALLOW_SHARED_TENANTS", "1");
-                }
 
                 if introspection_client {
                     std::env::set_var(
@@ -2433,38 +2410,6 @@ end
             let deny = expect_deny(engine.evaluate_access(&context).await);
             assert_eq!(deny.status, 403);
             assert!(deny.message.contains("server for"));
-        }
-
-        #[tokio::test]
-        async fn allows_different_request_tenant_when_shared_tenants_are_enabled() {
-            let base = spawn_tuist_auth_mock(
-                |_headers, _payload| {
-                    (
-                        StatusCode::OK,
-                        introspection_payload(cache_grants_payload(
-                            &["someone-else"],
-                            &["someone-else"],
-                            &["someone-else/ios"],
-                            &["someone-else/ios"],
-                        )),
-                    )
-                },
-                |_| (StatusCode::OK, cache_access_payload(&[], &[])),
-            )
-            .await;
-            let engine = engine_pointing_at_with_shared_tenants(&base).await;
-
-            let mut context = ctx();
-            context
-                .headers
-                .insert("authorization".into(), "Bearer opaque-token".into());
-            context
-                .query
-                .insert("account_handle".into(), "someone-else".into());
-            context.query.insert("project_handle".into(), "ios".into());
-
-            let decision = engine.evaluate_access(&context).await;
-            assert!(matches!(decision, AccessDecision::Allow(Some(_))));
         }
 
         fn expect_deny(decision: AccessDecision) -> DenyDecision {
