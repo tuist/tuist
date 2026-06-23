@@ -85,7 +85,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       project: project,
       build: build
     } do
-      expect(Tuist.Storage, :download_to_file, fn @storage_key, path, ^account ->
+      expect(Tuist.Storage, :download_to_file, fn @storage_key, path, download_account ->
+        assert download_account.id == project.account_id
         assert String.ends_with?(path, ".zip")
         {:ok, :done}
       end)
@@ -191,19 +192,17 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
                ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 3, 3))
     end
 
-    test "marks build as failed when account is not found on final attempt", %{
-      project: project,
+    test "marks build as failed when project is not found on final attempt", %{
+      account: account,
       build: build
     } do
-      expect(Tuist.Accounts, :get_account_by_id, fn _id -> {:error, :not_found} end)
-
       expect(Tuist.Builds, :create_build, fn attrs ->
         assert attrs.status == "failed_processing"
         {:ok, %{id: build.id}}
       end)
 
-      assert {:error, :not_found} =
-               ProcessBuildWorker.perform(oban_job(job_args(build.id, "999999", project.id), 3, 3))
+      assert {:error, :project_not_found} =
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, "999999"), 3, 3))
     end
   end
 

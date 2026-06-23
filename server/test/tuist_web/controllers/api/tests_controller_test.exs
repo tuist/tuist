@@ -709,7 +709,7 @@ defmodule TuistWeb.API.TestsControllerTest do
       )
     end
 
-    test "enqueues processing with the project account for organization projects", %{conn: conn} do
+    test "attributes the run to the authenticated user while keeping storage under the project account", %{conn: conn} do
       user = AccountsFixtures.user_fixture(preload: [:account])
       organization = AccountsFixtures.organization_fixture(creator: user, preload: [:account])
       project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
@@ -719,7 +719,7 @@ defmodule TuistWeb.API.TestsControllerTest do
       expect(Tests, :get_test, fn _id, _opts -> {:error, :not_found} end)
 
       expect(Tests, :create_test, fn attrs ->
-        assert attrs.account_id == organization.account.id
+        assert attrs.account_id == user.account.id
 
         {:ok,
          %Test{
@@ -754,7 +754,8 @@ defmodule TuistWeb.API.TestsControllerTest do
         worker: ProcessXcresultWorker,
         args: %{
           "test_run_id" => test_run_id,
-          "account_id" => organization.account.id,
+          "account_id" => user.account.id,
+          "project_id" => project.id,
           "storage_key" => "#{organization.account.name}/#{project.name}/runs/#{test_run_id}/result_bundle.zip"
         }
       )
