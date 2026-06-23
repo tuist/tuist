@@ -304,7 +304,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "bazel"
+          install_args: "rust bazel"
           working_directory: kura
 
       - name: Probe inside the Bazel test sandbox
@@ -314,6 +314,19 @@ jobs:
           # and writes to the same $TEST_TMPDIR.
           sudo apt-get install -y -qq --no-install-recommends build-essential >/dev/null 2>&1 || true
           bazel test //test:mincore_probe_test --test_output=all
+
+      - name: Probe with kura's exact Rust mmap code (memmap2 + mincore)
+        run: |
+          # The faithful reproduction: kura's residency gate, same crates
+          # (memmap2 0.9.10 + libc), same scenario as the failing test (a tiny
+          # 16-byte file mapped at a sub-page offset). Run per filesystem.
+          cd test/mincore_probe_rs
+          for dir in "${RUNNER_TEMP:-/tmp}" /tmp "$GITHUB_WORKSPACE"; do
+            [ -d "$dir" ] && [ -w "$dir" ] || continue
+            fstype="$(findmnt -no FSTYPE --target "$dir" 2>/dev/null || echo '?')"
+            echo "### rust probe dir=$dir fstype=$fstype ###"
+            cargo run --quiet --release -- "$dir" || echo "(rust probe error)"
+          done
 
   audit:
     name: Audit
