@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -180,17 +182,56 @@ func (r *DediboxMachineReconciler) reconcileNormal(ctx context.Context, machine 
 		if getErr != nil {
 			return ctrl.Result{}, getErr
 		}
-		// Out-of-band install model: the operator pre-installs the OS on the
-		// pre-ordered box and authorizes the fleet SSH key. The controller never
-		// drives the Dedibox install API; it only claims a tagged box and
-		// self-joins it once the box reports an installed OS.
-		if !server.Installed {
-			conditions.MarkFalse(machine, shared.ProvisionedCondition, "AwaitingInstall",
-				clusterv1.ConditionSeverityInfo, "server %d has no OS; awaiting out-of-band install", serverID)
-			machine.Status.Phase = "AwaitingInstall"
-			logger.Info("Dedibox server not installed yet; awaiting out-of-band OS install", "id", serverID)
+		// Scripted install: the operator only pre-orders the tagged box. The
+		// controller registers the fleet SSH key, resolves the OS, starts the
+		// install, and polls it to done before self-joining, so an OS install is
+		// never manual operator work. (The tag is the env boundary the adopt above
+		// scopes on; offer+datacenter is identical across envs so it can't.)
+		switch state, stateErr := r.DediboxClient.InstallState(ctx, machine.Status.Zone, serverID); {
+		case stateErr != nil:
+			return ctrl.Result{}, stateErr
+		case state == dedibox.InstallFailed:
+			conditions.MarkFalse(machine, shared.ProvisionedCondition, "InstallFailed",
+				clusterv1.ConditionSeverityWarning, "Dedibox OS install failed for server %d", serverID)
+			machine.Status.Phase = "InstallFailed"
 			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+		case state == dedibox.InstallPending:
+			signer, signErr := ssh.ParsePrivateKey(privateKey)
+			if signErr != nil {
+				return ctrl.Result{}, fmt.Errorf("parse fleet ssh key: %w", signErr)
+			}
+			sshKeyID, keyErr := r.DediboxClient.RegisterSSHKey(ctx, fleet, string(ssh.MarshalAuthorizedKey(signer.PublicKey())))
+			if keyErr != nil {
+				conditions.MarkFalse(machine, shared.ProvisionedCondition, "SSHKeyRegistrationFailed",
+					clusterv1.ConditionSeverityWarning, "%v", keyErr)
+				machine.Status.Phase = "Provisioning"
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+			osChoice, osErr := r.DediboxClient.ResolveOS(ctx, machine.Status.Zone, serverID, firstNonEmpty(machine.Spec.OS, "ubuntu_24.04"))
+			if osErr != nil {
+				return ctrl.Result{}, osErr
+			}
+			if err := r.DediboxClient.StartInstall(ctx, dedibox.InstallParams{
+				Zone:      machine.Status.Zone,
+				ServerID:  serverID,
+				OS:        osChoice,
+				Hostname:  machine.Name,
+				UserLogin: dediboxBootstrapUser,
+				SSHKeyIDs: []string{sshKeyID},
+			}); err != nil {
+				return ctrl.Result{}, fmt.Errorf("start Dedibox install: %w", err)
+			}
+			conditions.MarkFalse(machine, shared.ProvisionedCondition, "Installing",
+				clusterv1.ConditionSeverityInfo, "Dedibox OS install started for server %d", serverID)
+			machine.Status.Phase = "Installing"
+			r.event(machine, "Installing", "Started Dedibox OS install on server %d", serverID)
+			return ctrl.Result{RequeueAfter: 90 * time.Second}, nil
+		case state == dedibox.InstallRunning:
+			machine.Status.Phase = "Installing"
+			logger.Info("Dedibox OS install in progress", "id", serverID)
+			return ctrl.Result{RequeueAfter: 90 * time.Second}, nil
 		}
+		// InstallDone: the OS is up; fall through to the SSH self-join.
 		host := server.PublicIP
 		if host == "" {
 			machine.Status.Phase = "Provisioning"

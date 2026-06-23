@@ -8,12 +8,12 @@ Dedibox and Elastic Metal kinds it self-joins via the reconciler's SSH bootstrap
 (noop-bootstrap; this cluster's control plane is externally managed, so CABPK has
 no CA to mint a kubeadm join).
 
-Out-of-band install model (same as Dedibox): the operator pre-orders the box,
-installs the OS, authorizes the fleet SSH key, and sets the box's reverse DNS to
-carry `adoptDisplayNamePrefix`. The reconciler claims a box whose reverse DNS
-starts with that prefix (optionally scoped to `datacenter` / `offer`), waits for
-it to report a healthy state, and self-joins it. The reconciler authenticates
-with the OVH API (OVH_* env, wired from ovh-external-secrets.yaml).
+Scripted install (same as Dedibox): the operator only pre-orders the box. The
+reconciler claims a free box by `datacenter` + `offer` (an optional
+`adoptDisplayNamePrefix` reverse-DNS marker narrows further), registers the fleet
+SSH key, drives the OVH OS install to completion, and self-joins it. The
+reconciler authenticates with the OVH API (OVH_* env, wired from
+ovh-external-secrets.yaml).
 
 OnDelete strategy: don't auto-churn the cache node.
 */ -}}
@@ -36,7 +36,7 @@ spec:
       offer: {{ .Values.ovhFleet.machine.offer | default "" | quote }}
       os: {{ .Values.ovhFleet.machine.os | default "ubuntu_24.04" | quote }}
       # Stable fleet name so every Machine the MachineDeployment clones shares one
-      # SSH key — the key the operator authorizes on the pre-ordered pool boxes.
+      # SSH key — the key the controller registers and the OS install authorizes.
       fleetName: {{ $fleetName | quote }}
       # Dedicate the node to this region's cache pod; general workloads stay off.
       nodeTaints:

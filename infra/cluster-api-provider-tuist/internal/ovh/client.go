@@ -7,9 +7,9 @@
 // Two deliberate differences from the Scaleway bare-metal client:
 //
 //   - No inline order. OVH ordering is a multi-step cart/checkout/payment flow,
-//     so the operator pre-orders capacity and the controller adopts a free,
-//     not-yet-installed box by display-name prefix — the same pattern the Apple
-//     Silicon kind uses, not the Elastic Metal find-or-create.
+//     so the operator pre-orders capacity and the controller adopts a free box
+//     by datacenter + offer (an optional reverse-DNS prefix narrows further),
+//     then drives its OS install — not the Elastic Metal find-or-create.
 //   - No delete. An OVH dedicated server is a monthly contract, not an
 //     on-demand box; tearing the CR down must not terminate the contract (that
 //     is an operator-driven, end-of-life action). Release therefore lives in
@@ -42,10 +42,10 @@ type Client struct {
 }
 
 // NewClientFromEnv builds a Client from the standard OVH credential env vars
-// (OVH_ENDPOINT, OVH_APPLICATION_KEY, OVH_APPLICATION_SECRET, OVH_CONSUMER_KEY).
-// Wiring those into the operator Deployment (an ESO-synced OVH_API secret) lands
-// with the chart's OVH enablement, not in this PR; until then the reconciler
-// stays dormant behind the OVH_APPLICATION_KEY gate in cmd/manager.
+// (OVH_ENDPOINT, OVH_APPLICATION_KEY, OVH_APPLICATION_SECRET, OVH_CONSUMER_KEY),
+// synced into the operator Deployment from the ESO OVH_API secret. The reconciler
+// is gated on OVH_APPLICATION_KEY in cmd/manager, so an env without OVH creds
+// simply doesn't register the OVH controller.
 func NewClientFromEnv() (*Client, error) {
 	api, err := ovh.NewDefaultClient()
 	if err != nil {
