@@ -10,7 +10,6 @@ later change; it is intentionally not part of this foundation.
 
 module(
     name = "kura",
-    version = "0.6.0",
 )
 
 bazel_dep(name = "rules_rust", version = "0.70.0")
