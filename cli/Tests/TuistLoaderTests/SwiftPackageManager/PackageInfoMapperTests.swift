@@ -7412,6 +7412,50 @@ struct PackageInfoMapperTests {
 
     @Test(
         .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_macroTarget_appliesBaseSettingsBaseToMacroTarget() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/Library"))
+        )
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/MyMacro"))
+        )
+
+        // Package declares macOS 11.0 — without baseSettings.base, macro target would get 11.0.
+        // baseSettings.base should override it to 15.0.
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .local,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Library", type: .library(.automatic), targets: ["Library"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Library",
+                            dependencies: [.target(name: "MyMacro", condition: nil)]
+                        ),
+                        .test(name: "MyMacro", type: .macro),
+                    ],
+                    platforms: [.init(platformName: "macos", version: "11.0", options: [])]
+                ),
+            ],
+            packageSettings: .test(
+                baseSettings: Settings.default.with(base: ["MACOSX_DEPLOYMENT_TARGET": "15.0"])
+            )
+        )
+
+        let macroTarget = try #require(project?.targets.first(where: { $0.name == "MyMacro" }))
+        // Must be the baseSettings override, not the SPM-derived 11.0
+        #expect(macroTarget.settings?.base["MACOSX_DEPLOYMENT_TARGET"] == .string("15.0"))
+        #expect(macroTarget.settings?.base["MACOSX_DEPLOYMENT_TARGET"] != .string("11.0"))
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
     ) func map_whenRegularTargetDependsOnPrebuiltProduct_keepsSourceDependency() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
 
