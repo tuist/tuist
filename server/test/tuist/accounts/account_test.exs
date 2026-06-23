@@ -145,7 +145,6 @@ defmodule Tuist.AccountTest do
       changeset = Account.create_changeset(%Account{}, %{name: long_name, user_id: 1})
       assert "should be at most 32 character(s)" in errors_on(changeset).name
     end
-
   end
 
   describe "s3_storage_changeset/2" do
