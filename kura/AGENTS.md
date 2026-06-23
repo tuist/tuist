@@ -13,12 +13,22 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - Peer sync bandwidth shaping: `src/bandwidth.rs`
 - Operational assets: `docker-compose.yml`, `ops/`, `test/e2e/`, `spec/e2e/`
   - See `ops/AGENTS.md` for Helm, rollout helpers, and observability config boundaries
+- Bazel build system: `MODULE.bazel`, `BUILD.bazel`, `bazel/` (toolchains + vendored deps), `Cargo.Bazel.lock`
 - License and contribution terms: `LICENSE.md`, `CLA.md`, `cla/`
 
 ## Development
-- Install tools from `kura/mise.toml` with `mise install`
-- Run unit tests with `mise exec -- cargo test`
+- Install tools from `kura/mise.toml` with `mise install` (Rust toolchain + Bazel)
+- Bazel is the primary build and test path (it is what CI gates on). Use the Rust toolchain
+  (`cargo`) only as a fallback when Bazel is unavailable:
+  - Compile: `mise run bazel-compile` (host binary; fallback: `mise exec -- cargo build`)
+  - Test: `mise run test-unit` (runs `bazel test //:kura_lib_test`; fallback: `mise exec -- cargo test`)
+- Run `tuist bazel setup` to point Bazel at the closest Kura remote cache — it writes
+  `kura/.bazelrc.tuist`. Do this when that file does not exist, or after you change physical location,
+  so the build uses the nearest cache.
 - Consider Kura work incomplete until `mise exec -- cargo clippy --all-targets -- -D warnings` passes
+- After changing Rust deps (`Cargo.toml`/`Cargo.lock`) or merging `main`, repin the Bazel crate graph
+  with `mise run bazel-repin` and commit `Cargo.Bazel.lock` (`mise run bazel-repin check` verifies the
+  pin without rewriting it; a stale pin fails every Bazel CI job)
 - Run the end-to-end suite with `docker compose build && mise exec -- shellspec`
 
 ## Maintenance Notes
