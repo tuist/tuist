@@ -76,14 +76,17 @@ mise trust mise.toml
 mise install
 ```
 
-Build and test with Bazel (the path CI gates on); run `tuist bazel setup` once (and after changing
-location) to use the closest Kura remote cache:
+Build and test with Bazel (the path CI gates on):
 
 ```bash
 mise run bazel-compile   # build all targets for the host
 mise run test-unit       # bazel test //...
 mise run bazel-repin     # repin Cargo.Bazel.lock after changing Rust deps (or `bazel-repin check`)
 ```
+
+If you have access to the `tuist/kura` project on Tuist, run `tuist bazel setup` (and re-run it after
+changing location) to use the closest Kura remote cache; otherwise Bazel builds fine against the
+local cache.
 
 Cargo works as a fallback when Bazel is unavailable, and the end-to-end suite runs under shellspec:
 
