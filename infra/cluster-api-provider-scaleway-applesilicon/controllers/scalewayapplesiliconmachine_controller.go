@@ -721,11 +721,18 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			// node_exporter silently skip on every drift update —
 			// installNodeExporter short-circuits when its binary is
 			// empty.
-			NodeExporterBinary:   r.NodeExporterBinary,
-			HostCPU:              hostCPUFor(machine, r.TartKubeletHostCPU),
-			HostMemoryMB:         hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
-			MaxPods:              r.TartKubeletMaxPods,
-			NodeLabels:           machineNodeLabels(machine),
+			NodeExporterBinary: r.NodeExporterBinary,
+			HostCPU:            hostCPUFor(machine, r.TartKubeletHostCPU),
+			HostMemoryMB:       hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
+			MaxPods:            r.TartKubeletMaxPods,
+			NodeLabels:         machineNodeLabels(machine),
+			// Builder hosts must keep `--disable-vm-gc` across binary
+			// rolls. This path re-renders the plist but doesn't re-resolve
+			// GHActionsRunner (which renderLaunchdPlist otherwise keys the
+			// flag off), so carry the builder signal explicitly — without
+			// it the roll strips the flag and the orphan-VM GC reaps the
+			// in-flight image-bake VM mid-`tart push`.
+			DisableVMGC:          machine.Spec.GHActionsRunner != nil,
 			KnownHostFingerprint: bootstrapCreds.HostFingerprint,
 		})
 		if fingerprint != "" && fingerprint != bootstrapCreds.HostFingerprint {
