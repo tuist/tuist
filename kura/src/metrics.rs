@@ -122,6 +122,7 @@ pub struct Metrics {
     initial_discovery_completed: Gauge,
     writer_lock_owned: Gauge,
     writer_lock_acquire_failures: Counter,
+    mmap_partial_page_exemptions: Counter,
 }
 
 #[derive(Default)]
@@ -268,6 +269,7 @@ impl Metrics {
         let initial_discovery_completed = Gauge::default();
         let writer_lock_owned = Gauge::default();
         let writer_lock_acquire_failures = Counter::default();
+        let mmap_partial_page_exemptions = Counter::default();
         let process_start_time_seconds = Gauge::<i64>::default();
         process_start_time_seconds.set(
             SystemTime::now()
@@ -742,6 +744,11 @@ impl Metrics {
             writer_lock_acquire_failures.clone(),
         );
         registry.register(
+            "kura_mmap_partial_page_exemptions_total",
+            "Times an artifact was served via mmap only because the file's final partial page was exempted from the residency gate while its mincore bit was clear (the path that may fault one cold page on a worker)",
+            mmap_partial_page_exemptions.clone(),
+        );
+        registry.register(
             "kura_process_start_time_seconds",
             "Unix timestamp when the current Kura process started",
             process_start_time_seconds.clone(),
@@ -845,6 +852,7 @@ impl Metrics {
             initial_discovery_completed,
             writer_lock_owned,
             writer_lock_acquire_failures,
+            mmap_partial_page_exemptions,
         };
 
         metrics
@@ -1462,6 +1470,10 @@ impl Metrics {
         self.writer_lock_acquire_failures.inc();
     }
 
+    pub fn record_mmap_partial_page_exemption(&self) {
+        self.mmap_partial_page_exemptions.inc();
+    }
+
     pub fn rollout_metrics_snapshot(&self) -> RolloutMetricsSnapshot {
         RolloutMetricsSnapshot {
             outbox_messages: self
@@ -1897,6 +1909,7 @@ mod tests {
         assert!(rendered.contains("kura_initial_discovery_completed"));
         assert!(rendered.contains("kura_writer_lock_owned"));
         assert!(rendered.contains("kura_writer_lock_acquire_failures_total"));
+        assert!(rendered.contains("kura_mmap_partial_page_exemptions_total"));
         assert!(rendered.contains("kura_process_start_time_seconds"));
         assert!(rendered.contains("region=\"eu-west\""));
         assert!(rendered.contains("tenant_id=\"acme\""));
