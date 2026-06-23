@@ -82,7 +82,10 @@ defmodule Tuist.Kura.Regions do
       gateway: :host_network,
       # Single bare-metal box: 1 replica. 3-on-one-node is no HA and triples
       # the local-NVMe footprint (which disk-pressure-evicted the pods).
-      replicas: 1
+      replicas: 1,
+      # Bounded so the cache can't claim the whole box (disk-pressure guard);
+      # the box must be sized for Σ(storage_size) + image/OS headroom.
+      storage_size: "50Gi"
     },
     # OVHcloud bare-metal staging validation region. Same bare-metal shape as
     # dedibox-staging (no hetzner_location, local-NVMe storage_class, hostNetwork
@@ -97,7 +100,8 @@ defmodule Tuist.Kura.Regions do
       node_pool: "kura-ovh-staging",
       storage_class: "scw-local-nvme",
       gateway: :host_network,
-      replicas: 1
+      replicas: 1,
+      storage_size: "50Gi"
     }
   ]
   # Private runner-cache regions. Both share the same model: a single-
@@ -288,8 +292,9 @@ defmodule Tuist.Kura.Regions do
         storage_class: Map.get(spec, :storage_class, @managed_region_storage_class),
         gateway: Map.get(spec, :gateway, :hetzner),
         # nil for the multi-box Hetzner regions (controller default applies);
-        # single bare-metal boxes set 1.
+        # single bare-metal boxes set 1 + a bounded storage_size.
         replicas: Map.get(spec, :replicas),
+        storage_size: Map.get(spec, :storage_size),
         tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
         node_selector: %{@managed_region_node_pool_label => spec.node_pool},
         # Tolerate the customer-facing cache nodes' taint so the cache pod
