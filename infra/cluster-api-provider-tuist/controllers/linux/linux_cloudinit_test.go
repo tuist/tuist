@@ -54,6 +54,15 @@ func TestRenderLinuxCloudInit_DockerHubMirror(t *testing.T) {
 		t.Fatalf("expected the mirror.gcr.io host entry, got:\n%s", out)
 	}
 
+	// Bare-metal boxes with a small root + big /data must relocate containerd's
+	// image store and the kubelet root onto /data (guarded so it no-ops without
+	// a separate /data and never aborts the join).
+	if !strings.Contains(out, `root = \"/data/containerd\"`) ||
+		!strings.Contains(out, "mount --bind /data/kubelet /var/lib/kubelet") ||
+		!strings.Contains(out, `findmnt -no SOURCE /data`) {
+		t.Fatalf("expected the /data relocation guard, got:\n%s", out)
+	}
+
 	// The Elastic Metal (SSH script) form must carry the same mirror config.
 	script := renderLinuxBootstrapScript(linuxCloudInitOptions{
 		NodeName:       "node-a",

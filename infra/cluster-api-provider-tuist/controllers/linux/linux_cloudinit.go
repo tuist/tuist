@@ -171,6 +171,13 @@ export DEBIAN_FRONTEND=noninteractive
 %[4]s
 %[6]s
 %[2]ssed -ri 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+# Bare-metal boxes (e.g. Scaleway Dedibox) ship a small root partition plus a
+# large separate /data. Point containerd's image store and the kubelet root at
+# /data so the node's ephemeral storage reflects the big disk, not the ~20G
+# root. Wrapped so it can never abort the join: a no-op where /data is not its
+# own mounted filesystem (single-partition Elastic Metal), and the trailing
+# 'true' keeps set -e happy regardless.
+%[2]ssh -c 'mountpoint -q /data && [ "$(findmnt -no SOURCE /data)" != "$(findmnt -no SOURCE /)" ] && { mkdir -p /data/containerd /data/kubelet /var/lib/kubelet; sed -ri "s#^root = .*#root = \"/data/containerd\"#" /etc/containerd/config.toml; mountpoint -q /var/lib/kubelet || { grep -q " /var/lib/kubelet " /etc/fstab || echo "/data/kubelet /var/lib/kubelet none bind,nofail 0 0" >> /etc/fstab; mount --bind /data/kubelet /var/lib/kubelet; }; }; true'
 %[2]ssystemctl restart containerd
 %[2]ssystemctl enable containerd
 %[2]smkdir -p /etc/apt/keyrings
