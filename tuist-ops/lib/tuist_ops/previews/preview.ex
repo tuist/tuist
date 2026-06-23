@@ -21,6 +21,8 @@ defmodule TuistOps.Previews.Preview do
     field :host, :string
     field :slack_channel_id, :string
     field :slack_message_ts, :string
+    field :workflow_run_name, :string
+    field :workflow_run_url, :string
     field :deleted_at, :utc_datetime
     field :failed_at, :utc_datetime
     field :failure_reason, :string
@@ -49,6 +51,8 @@ defmodule TuistOps.Previews.Preview do
       :host,
       :slack_channel_id,
       :slack_message_ts,
+      :workflow_run_name,
+      :workflow_run_url,
       :deleted_at,
       :failed_at,
       :failure_reason
@@ -76,6 +80,8 @@ defmodule TuistOps.Previews.Preview do
       :ttl_seconds,
       :slack_channel_id,
       :slack_message_ts,
+      :workflow_run_name,
+      :workflow_run_url,
       :deleted_at,
       :failed_at,
       :failure_reason

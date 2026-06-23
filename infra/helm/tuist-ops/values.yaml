@@ -109,7 +109,8 @@ service:
 # ESO ExternalSecret for the bot's credentials. Single 1P item per
 # Fields expected on TUIST_OPS_BOT:
 #   tailscale_client_id, tailscale_client_secret, tailscale_tailnet,
-#   slack_signing_secret, slack_bot_token, slack_approvals_channel_id
+#   slack_signing_secret, slack_bot_token, slack_approvals_channel_id,
+#   github_actions_token
 externalSecret:
   enabled: true
   refreshInterval: "1h"

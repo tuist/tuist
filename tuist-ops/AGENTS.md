@@ -45,6 +45,9 @@ Pomerium).
   deleting previews
 - `/preview create <slug> [duration] [pr:<number>|sha:<sha>] <reason>` dispatches
   `.github/workflows/preview-deploy.yml` with `action=deploy`
+- `TuistOps.Previews.Workers.MonitorWorkflowWorker` polls the dispatched
+  workflow run and updates the original Slack card with the live preview URL
+  or the deployment failure
 - `/preview delete <slug> [reason]` and the Slack Delete button dispatch the same
   workflow with `action=delete`
 - The app records the Slack/audit trail in Postgres; Kubernetes mutation stays

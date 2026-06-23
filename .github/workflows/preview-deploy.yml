@@ -1,4 +1,5 @@
 name: Preview Deploy
+run-name: "Preview ${{ inputs.action || github.event.action || 'deploy' }} ${{ inputs.slug || inputs.pr_number || inputs.commit_sha || github.event.pull_request.number || github.sha }}${{ inputs.preview_id && format(' #{0}', inputs.preview_id) || '' }}"
 
 # Deploy / refresh / tear down an ephemeral preview environment. Single
 # workflow behind every preview lifecycle in this repo — PR labels,
@@ -27,6 +28,7 @@ name: Preview Deploy
 #       ttl_hours       Auto-delete after N hours (max 168)
 #       requester_*     Audit metadata (Slack flow)
 #       reason          Audit reason (Slack flow)
+#       preview_id      tuist-ops preview row id (Slack flow)
 #
 # Naming convention:
 #   pr_number=1234   → slug=pr-1234, release=pr-1234,
@@ -80,6 +82,9 @@ on:
         required: false
       reason:
         description: Audit reason (Slack flow)
+        required: false
+      preview_id:
+        description: tuist-ops preview row id (Slack flow)
         required: false
   pull_request:
     types: [labeled, synchronize, unlabeled, closed]
