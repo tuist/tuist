@@ -1327,6 +1327,8 @@ cache:
     pullPolicy: IfNotPresent
   nginx:
     enabled: true
+    # Keep this aligned with the cache application's module part size limit.
+    clientMaxBodySize: "10m"
     image:
       repository: nginx
       tag: "1.29-alpine"
