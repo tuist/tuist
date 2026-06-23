@@ -41,6 +41,11 @@ kura-eu-central-ingress-nginx:
     hostNetwork: true
     dnsPolicy: ClusterFirstWithHostNet
     reportNodeInternalIp: true
+    # Direct client connections on this hostNetwork path: no Hetzner LB adds a
+    # PROXY header, so the shared regional default (use-proxy-protocol: true)
+    # would mangle every connection. Turn it off here.
+    config:
+      use-proxy-protocol: "false"
     nodeSelector:
       node.cluster.x-k8s.io/pool: kura-dedibox
     tolerations:
