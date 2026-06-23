@@ -2,7 +2,7 @@
 # Single CP and one preview app worker pool. Kura preview runtimes
 # colocate on the same `md-0` pool with a role=preview toleration, so
 # the preview lifecycle does not depend on dedicated Kura capacity.
-# (See preview-ondemand-deploy.yml for the KuraInstance spec.) An
+# (See .github/workflows/preview-deploy.yml for the KuraInstance spec.) An
 # explicit infra/performance-test preview profile can re-add a dedicated
 # Kura MachineDeployment when it ships.
 #

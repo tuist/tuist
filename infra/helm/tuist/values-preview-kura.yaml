@@ -15,7 +15,7 @@
 # The Kura controller is *not* installed by the per-preview release: it lives
 # in the cluster-wide `kura` namespace and is installed once per cluster by
 # `mise -C infra run k8s:install-kura-platform` (see
-# .github/workflows/preview-ondemand-deploy.yml). That keeps a single
+# .github/workflows/preview-deploy.yml). That keeps a single
 # controller managing every preview's KuraInstance — no per-release
 # ownership of cluster-scoped resources, no Helm collisions when two
 # previews coexist, and uninstalling one preview never touches another's

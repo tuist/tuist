@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Install or upgrade the cluster-wide Kura controller in the `kura` namespace. Idempotent — every Slack-preview deploy runs this so the controller exists exactly once per cluster, regardless of how many ondemand previews coexist."
+#MISE description="Install or upgrade the cluster-wide Kura controller in the `kura` namespace. Idempotent. Every preview deploy runs this so the controller exists exactly once per cluster, regardless of how many previews coexist."
 #USAGE arg "<kubeconfig>" help="Path to the workload cluster kubeconfig"
 
 # Installs ONLY the kuraController resources from the tuist Helm chart into
@@ -11,8 +11,8 @@
 #
 # The kura-shared-secrets Secret is generated on first install with random
 # clientId/clientSecret. Every subsequent run reuses the existing values so
-# previously-issued cache tokens stay valid. Per-preview release wrappers
-# (preview-ondemand-deploy.yml) copy this Secret into their own namespace
+# previously-issued cache tokens stay valid. The preview deploy workflow
+# copies this Secret into each preview namespace
 # so the server pod's `tuist.kuraIntrospectionEnv` helper resolves locally
 # without cross-namespace secret references.
 
