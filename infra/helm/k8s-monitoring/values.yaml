@@ -167,6 +167,15 @@ k8s-monitoring:
           - container_memory_rss
           - container_memory_swap
           - container_memory_usage_bytes
+        # Drop all cAdvisor series for the CI runner namespace. Each ephemeral
+        # job pod gets ~15 container_* series carrying a unique pod label that
+        # dies with the pod but lingers as a billable series, so this is the
+        # heaviest churn source in the active-vs-billable gap. Same rationale
+        # (and same namespace) as the kube_pod_* drop above: the runner
+        # dashboard reads low-cardinality RunnerPool telemetry, not per-pod
+        # container metrics. No-op for the runner pods cAdvisor never scrapes.
+        excludeNamespaces:
+          - tuist-runners
     kubelet:
       metricsTuning:
         useDefaultAllowList: true
@@ -178,6 +187,14 @@ k8s-monitoring:
       # RunnerPool telemetry in the runner dashboard. Keep
       # kube_pod_status_unschedulable available cluster-wide because it is a
       # cheap placement signal compared to the rest of kube_pod_*.
+      #
+      # The final rule drops kube_pod_status_phase for terminal pods
+      # (Succeeded/Failed). Job/CronJob and short-lived deploy pods leave one
+      # such series each that lives forever as a billable series but never
+      # comes back as an active one — the bulk of the active-vs-billable gap.
+      # We page on container waiting/crash signals, not terminal pod phase,
+      # and no dashboard reads this metric, so only Running/Pending/Unknown
+      # are worth keeping.
       extraMetricProcessingRules: |
         rule {
           source_labels = ["__name__", "namespace"]
@@ -196,6 +213,12 @@ k8s-monitoring:
         rule {
           regex = "__tmp_keep_runner_pod_metric"
           action = "labeldrop"
+        }
+        rule {
+          source_labels = ["__name__", "phase"]
+          separator = ";"
+          regex = "kube_pod_status_phase;(Succeeded|Failed)"
+          action = "drop"
         }
       metricsTuning:
         useDefaultAllowList: true
@@ -257,6 +280,38 @@ k8s-monitoring:
           # throughput against the Hetzner kura nodes.
           - node_network_receive_bytes_total
           - node_network_transmit_bytes_total
+      # The allow-list above keeps node_cpu_seconds_total for all CPU modes
+      # and node_network_*_bytes_total for every interface, but the dashboards
+      # only read mode="idle" and physical devices (device=~"e(n|th).*").
+      # Drop the unqueried CPU modes and the virtual interfaces — the largest
+      # node-exporter series source left after the curated allow-list.
+      # extraMetricProcessingRules runs after the allow-list keep, so it trims
+      # within the kept set.
+      extraMetricProcessingRules: |
+        rule {
+          source_labels = ["__name__", "mode"]
+          separator = ";"
+          regex = "node_cpu_seconds_total;(guest|guest_nice|steal|irq|softirq)"
+          action = "drop"
+        }
+        rule {
+          source_labels = ["__name__", "device"]
+          separator = ";"
+          regex = "node_network_(receive|transmit)_bytes_total;(en|eth).*"
+          target_label = "__tmp_keep_net_iface"
+          replacement = "true"
+          action = "replace"
+        }
+        rule {
+          source_labels = ["__name__", "__tmp_keep_net_iface"]
+          separator = ";"
+          regex = "node_network_(receive|transmit)_bytes_total;"
+          action = "drop"
+        }
+        rule {
+          regex = "__tmp_keep_net_iface"
+          action = "labeldrop"
+        }
 
   # DaemonSet-based pod log tailing via /var/log/pods hostPath. A
   # compromised Alloy pod can only read logs from the single node it
@@ -311,10 +366,29 @@ k8s-monitoring:
       metricsScheme: "prometheus.io/scheme"
     metricsTuning:
       excludeMetrics:
-        # Cilium's event timestamps and BPF map capacity gauges have high
-        # pod/map label fan-out and are not queried by Tuist dashboards.
+        # Cilium's event timestamps, BPF map gauges, and agent-internal
+        # operational counters (API rate limiter, k8s client, triggers,
+        # controllers, datapath, per-endpoint policy enforcement) have high
+        # pod/map/endpoint fan-out and are not queried by any dashboard or
+        # alert in this repo. Re-add a specific name here if a Cilium
+        # integration dashboard is ever installed.
         - cilium_event_ts
         - cilium_bpf_map_capacity
+        - cilium_bpf_map_pressure
+        - cilium_bpf_map_ops_total
+        - cilium_agent_bootstrap_seconds
+        - cilium_api_limiter_.*
+        - cilium_k8s_client_.*
+        - cilium_triggers_.*
+        - cilium_controllers_.*
+        - cilium_datapath_.*
+        - cilium_policy_endpoint_enforcement_status
+        # Go runtime metrics (GC, memstats, scheduler, threads) ship one set
+        # per scraped pod across the hundreds of Go infra pods (Cilium,
+        # operators, controllers) and churn on every restart. The Tuist
+        # server/processor run on the BEAM, not Go, so this drops only infra
+        # noise; no dashboard or alert reads go_*.
+        - go_.*
         # Response-size histograms add buckets per Phoenix route/status/method
         # and are not used by the dashboards in this repo.
         - tuist_prom_ex_phoenix_http_response_size_bytes_bucket
