@@ -206,6 +206,25 @@ server:
       tokenUpdatePackages:
         item: GITHUB_TOKEN_UPDATE_PACKAGES
         field: password
+  # Google OAuth client credentials. When `google.managedSecrets: true`, ESO
+  # syncs them from 1Password into a dedicated Secret and the Server
+  # Deployment mounts them as TUIST_GOOGLE_OAUTH_CLIENT_ID /
+  # TUIST_GOOGLE_OAUTH_CLIENT_SECRET env vars, which enable the "Log in with
+  # Google" button. The env refs are optional so a not-yet-populated vault
+  # falls back to the encrypted priv/secrets blob instead of crash-looping.
+  google:
+    managedSecrets: false
+    externalSecrets:
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      oauth:
+        # The single 1P item carrying the OAuth client credentials.
+        item: GOOGLE_OAUTH
+        fields:
+          clientId: client_id
+          clientSecret: client_secret
   license:
     key: ""
     certificateBase64: ""
