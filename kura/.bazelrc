@@ -1,4 +1,4 @@
-# Kura Bazel configuration (Phase 0.1).
+# Kura Bazel configuration.
 
 # When available, load the tuist-specific configuration
 try-import %workspace%/.bazelrc.tuist

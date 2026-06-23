@@ -17,7 +17,11 @@ set -euo pipefail
 # No `cd` needed: mise runs file tasks from the config root (kura/) regardless of the invocation
 # directory, so the relative paths below (Cargo.Bazel.lock) and the bazel workspace resolve here.
 
-if [ "${usage_mode:-}" = "check" ]; then
+# mise injects the `[mode]` arg as $usage_mode via the #USAGE spec above; fall back to $1 so the
+# script also works run directly (e.g. `bash bazel-repin.sh check`), not only via `mise run`.
+mode="${usage_mode:-${1:-}}"
+
+if [ "$mode" = "check" ]; then
   # No CARGO_BAZEL_REPIN: a stale pin fails loudly here instead of being silently re-resolved.
   if err="$(bazel query '@crates//:all' 2>&1 >/dev/null)"; then
     echo "Cargo.Bazel.lock is up to date."

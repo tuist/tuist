@@ -1,7 +1,7 @@
 # Root package for the Kura Bazel workspace.
 #
 # Exposes the Cargo manifests so the crate_universe extension can read them as
-# labels, and defines the kura library + binary targets (Phase 0.3).
+# labels, and defines the kura library + binary targets.
 
 load("@crates//:defs.bzl", "aliases", "all_crate_deps")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")

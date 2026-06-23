@@ -69,14 +69,23 @@ Useful endpoints:
 
 ## Toolchain 🛠️
 
-Install Rust from `mise.toml`:
+Install the toolchain (Rust + Bazel) from `mise.toml`:
 
 ```bash
 mise trust mise.toml
 mise install
 ```
 
-Run tests:
+Build and test with Bazel (the path CI gates on); run `tuist bazel setup` once (and after changing
+location) to use the closest Kura remote cache:
+
+```bash
+mise run bazel-compile   # build all targets for the host
+mise run test-unit       # bazel test //...
+mise run bazel-repin     # repin Cargo.Bazel.lock after changing Rust deps (or `bazel-repin check`)
+```
+
+Cargo works as a fallback when Bazel is unavailable, and the end-to-end suite runs under shellspec:
 
 ```bash
 mise x rust@1.94.1 -- cargo test
