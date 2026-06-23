@@ -100,12 +100,16 @@ html[data-theme="dark"] .code-window {
 .code-window > [data-part="code"] pre {
   margin: 0;
   background: none !important;
+  font: inherit;
+  white-space: pre;
 }
 
 .code-window > [data-part="code"] code {
   display: block;
   background: none;
   color: inherit;
+  font: inherit;
+  white-space: pre;
 }
 
 .code-window > [data-part="code"] code .line {
