@@ -121,7 +121,7 @@ jobs:
 
       - name: Compile without warnings
         run: |
-          bazel build //:all --define=kura_deny_warnings=true
+          bazel build //... --define=kura_deny_warnings=true
 
   bazel-compile-fork:
     name: Bazel Compile Fork
@@ -161,7 +161,7 @@ jobs:
             echo "common --repository_cache=${{ runner.temp }}/bazel-repo"
             echo "build --disk_cache=${{ runner.temp }}/bazel-disk"
           } >> "$HOME/.bazelrc"
-          bazel build //:all --define=kura_deny_warnings=true
+          bazel build //... --define=kura_deny_warnings=true
 
   clippy:
     name: Clippy
@@ -216,7 +216,7 @@ jobs:
         run: tuist bazel setup && cat .bazelrc.tuist
 
       - name: Run tests
-        run: bazel test //:all --define=kura_deny_warnings=true --test_output=all
+        run: bazel test //... --define=kura_deny_warnings=true --test_output=all
 
   bazel-test-fork:
     name: Bazel Test Fork
@@ -256,7 +256,7 @@ jobs:
             echo "common --repository_cache=${{ runner.temp }}/bazel-repo"
             echo "build --disk_cache=${{ runner.temp }}/bazel-disk"
           } >> "$HOME/.bazelrc"
-          bazel test //:all --define=kura_deny_warnings=true --test_output=all
+          bazel test //... --define=kura_deny_warnings=true --test_output=all
 
   audit:
     name: Audit
