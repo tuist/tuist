@@ -23,7 +23,7 @@ defmodule Tuist.Storage.Workers.DeleteExpiredRunSessionsWorker do
 
       account ->
         account
-        |> ExpiredArtifacts.delete_run_sessions(batch_size, cursor_from_args(args))
+        |> ExpiredArtifacts.delete_run_artifacts(batch_size, cursor_from_args(args))
         |> continue(__MODULE__, account_id, batch_size)
     end
   end

@@ -26,7 +26,7 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - Kura deployment history (`kura_deployments` table): rollout attempts for the account's Kura servers including image tag, status, error messages, and start/finish timestamps
 - GitHub App installation metadata (`github_app_installations` table): the installation ID GitHub assigned, the GitHub instance the App lives on (`client_url`, e.g. `https://github.com` or a customer's GitHub Enterprise Server host), the App's `app_id`/`app_slug`/`client_id`, and the GitHub-side management `html_url`. The accompanying `client_secret`, `private_key` (PEM), and `webhook_secret` are stored encrypted at rest and are excluded from exports as authentication secrets.
 - VCS connections (`vcs_connections` table): the link between a Tuist project and an external repository handle (provider, repository full name, the originating GitHub App installation, and the user who created the connection)
-- Artifact retention cursors (`artifact_retention_cursors` table): per-account cleanup progress for DB-backed artifact families. Exports include the artifact type plus the last processed metadata cursor (`after_inserted_at`, `after_id`) used to avoid re-processing blobs that have already been purged from object storage.
+- Artifact retention cursors (`artifact_retention_cursors` table): per-account cleanup progress for database-backed artifact families. Exports include the artifact type plus the last processed metadata cursor (`after_inserted_at`, `after_id`) used to avoid re-processing blobs that have already been purged from object storage. The `run_session` cursor covers all run artifact blobs stored under an expired run's artifact prefix.
 
 - (Internal Tuist-team JIT elevation tables previously documented here moved out of this server's Postgres entirely. They now live in the standalone `tuist-ops` service on its own CNPG cluster in the mgmt cluster. The data is operator-side audit about Tuist staff only — never customer data — and is out of scope for this server's data export. See `tuist-ops/AGENTS.md` for where it lives now.)
 
@@ -111,7 +111,7 @@ The following data is stored in ClickHouse for analytics purposes:
 All uploaded files associated with the account are included:
 - **Cache artifacts**: Build caches and compiled binaries, including Xcode, legacy CAS, module, and Gradle artifacts
 - **App previews**: iOS app bundles (.app/.ipa files) and icons  
-- **Run sessions**: uploaded run session archives stored at `{account}/{project}/runs/{run_id}/session.zip`
+- **Run artifacts**: uploaded result bundles, invocation records, result-bundle objects, and session archives stored under `{account}/{project}/runs/{run_id}/`
 - **Shard bundles**: Shared `.xctestproducts` bundles stored at `{account_id}/{project_id}/shards/{shard_plan_id}/`
 - **Runner job log archives**: gzipped runner logs stored at `runners/{account_id}/{workflow_job_id}/runner.log.gz`
 
@@ -126,20 +126,20 @@ dashboards remain intact. Retention windows, in days, by plan:
 | Artifact | Air / Open Source | Pro | Enterprise |
 | --- | --- | --- | --- |
 | Cache artifacts (Xcode compilation, legacy CAS, module, Gradle) | 14 | 30 | 90 |
-| App preview builds and icons | 60 | 180 | 365 |
-| Build archives | 30 | 90 | 365 |
-| Run session archives | 30 | 90 | 365 |
-| Test run attachments | 30 | 90 | 365 |
+| App preview builds and icons | 60 | 90 | 180 |
+| Build archives | 30 | 90 | 180 |
+| Run artifacts | 30 | 90 | 180 |
+| Test run attachments | 30 | 90 | 180 |
 | Shard bundles | 7 | 14 | 30 |
 
 Retention status is computed when cleanup runs. Cache artifacts use the object
 storage `last_modified` timestamp, while previews, build archives, test
 attachments, and shard bundles use their database `inserted_at` timestamp. Run
-session archives use the command event `ran_at` timestamp. The active account
+artifacts use the command event `ran_at` timestamp. The active account
 plan determines the applicable window, with Air used when an account has no
 active subscription.
 
-Tuist stores per-account cleanup progress for DB-backed artifact families so
+Tuist stores per-account cleanup progress for database-backed artifact families so
 daily retention jobs can resume after previously-purged metadata rows without
 issuing repeated object-storage deletes. This is not a per-artifact purge
 ledger; retention is still derived from the timestamps and account plan above.
