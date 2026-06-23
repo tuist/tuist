@@ -115,7 +115,7 @@ public struct Settings: Equatable, Codable, Sendable {
     public var base: SettingsDictionary
     public var configurations: [Configuration]
     public var defaultSettings: DefaultSettings
-    public var defaultConfiguration: String?
+    public var defaultConfiguration: ConfigurationName?
 
     /// Creates settings with default.configurations `Debug` and `Release`
     ///
@@ -137,7 +137,7 @@ public struct Settings: Equatable, Codable, Sendable {
         debug: SettingsDictionary = [:],
         release: SettingsDictionary = [:],
         defaultSettings: DefaultSettings = .recommended,
-        defaultConfiguration: String? = nil
+        defaultConfiguration: ConfigurationName? = nil
     ) -> Settings {
         Settings(
             base: base,
@@ -168,7 +168,7 @@ public struct Settings: Equatable, Codable, Sendable {
         base: SettingsDictionary = [:],
         configurations: [Configuration],
         defaultSettings: DefaultSettings = .recommended,
-        defaultConfiguration: String? = nil
+        defaultConfiguration: ConfigurationName? = nil
     ) -> Settings {
         Settings(
             base: base,
