@@ -10,8 +10,9 @@ set -euo pipefail
 # main — or every Bazel job fails at analysis with "lockfile is out of date for 'crates'".
 #
 # Both modes run on the host with no Docker: the repin/check is a crate_universe module-extension
-# step, evaluated before any target analysis or cc-toolchain resolution, so `bazel query
-# '@crates//:all'` (which only materializes the @crates repo) needs no cc toolchain.
+# step, evaluated before any target analysis or cc-toolchain resolution. Both the `@crates//:all`
+# query and the //bazel/third_party/lua:lua resolution below are loading-phase (`bazel query`, not
+# cquery), so they materialize repos but resolve no cc toolchain.
 #
 # No `cd` needed: mise runs file tasks from the config root (kura/) regardless of the invocation
 # directory, so the relative paths below (Cargo.Bazel.lock) and the bazel workspace resolve here.
@@ -43,4 +44,18 @@ else
   else
     echo "✔ Cargo.Bazel.lock updated — commit it."
   fi
+fi
+
+# Guard the vendored-Lua wiring too. bazel/third_party/lua pins lua-src by its versioned canonical
+# repo name (@@rules_rust++crate+crates__lua-src-<version>) and MODULE.bazel globs lua-5.4.*; a
+# lua-src bump can break both. The `@crates//:all` check above does not catch it (it only
+# materializes @crates), so the break would otherwise surface ~60 min into bazel-compile. Resolving
+# the target here makes a stale label fail in this ~1-min guard instead.
+if lua_err="$(bazel query 'deps(//bazel/third_party/lua:lua)' 2>&1 >/dev/null)"; then
+  echo "Vendored-Lua wiring resolves."
+else
+  echo "//bazel/third_party/lua:lua no longer resolves — most likely a lua-src version bump." >&2
+  echo "Update the canonical label in bazel/third_party/lua/BUILD.bazel and the lua-5.4.* glob in MODULE.bazel to the new lua-src version." >&2
+  printf '%s\n' "$lua_err" >&2
+  exit 1
 fi

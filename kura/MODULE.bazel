@@ -46,17 +46,22 @@ crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
 #   2. Disable mlua-sys's build script (it only locates/links Lua) and add the
 #      cc_library to its deps, so Bazel handles the C build and linking.
 # This touches no third-party Rust source and gives Lua a real Bazel target.
+#
+# Version coupling: the `lua-5.4.*` globs below track lua-src's vendored Lua 5.4 line, and
+# bazel/third_party/lua/BUILD.bazel pins lua-src by its versioned canonical repo name. A lua-src
+# bump can break both; `mise run bazel-repin [check]` resolves //bazel/third_party/lua:lua so the
+# break surfaces in that ~1-min guard rather than deep in a bazel build.
 crate.annotation(
     additive_build_file_content = """
 filegroup(
     name = "lua_c_srcs",
-    srcs = glob(["lua-5.4.8/*.c"]),
+    srcs = glob(["lua-5.4.*/*.c"]),
     visibility = ["//visibility:public"],
 )
 
 filegroup(
     name = "lua_hdrs",
-    srcs = glob(["lua-5.4.8/*.h"]),
+    srcs = glob(["lua-5.4.*/*.h"]),
     visibility = ["//visibility:public"],
 )
 """,
