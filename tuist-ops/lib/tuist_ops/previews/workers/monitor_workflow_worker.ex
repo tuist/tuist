@@ -20,6 +20,8 @@ defmodule TuistOps.Previews.Workers.MonitorWorkflowWorker do
   alias TuistOps.Previews.SlackBlocks
   alias TuistOps.Repo
 
+  require Logger
+
   @poll_interval_seconds 30
 
   @impl Oban.Worker
@@ -39,12 +41,15 @@ defmodule TuistOps.Previews.Workers.MonitorWorkflowWorker do
   defp monitor(%Preview{workflow_run_name: run_name} = preview) do
     case GitHubActionsClient.workflow_run(run_name) do
       {:ok, %{status: "completed", conclusion: "success"} = run} ->
+        preview = maybe_announce_workflow_run(preview, run)
         mark_deployed(preview, run)
 
       {:ok, %{status: "completed"} = run} ->
+        preview = maybe_announce_workflow_run(preview, run)
         mark_failed(preview, run)
 
-      {:ok, _run} ->
+      {:ok, run} ->
+        maybe_announce_workflow_run(preview, run)
         {:snooze, @poll_interval_seconds}
 
       {:error, :not_found} ->
@@ -54,6 +59,43 @@ defmodule TuistOps.Previews.Workers.MonitorWorkflowWorker do
         {:error, reason}
     end
   end
+
+  defp maybe_announce_workflow_run(%Preview{workflow_run_url: url} = preview, _run)
+       when is_binary(url) and url != "" do
+    preview
+  end
+
+  defp maybe_announce_workflow_run(%Preview{} = preview, %{html_url: url})
+       when is_binary(url) and url != "" do
+    if is_binary(preview.slack_message_ts) do
+      case SlackClient.post_message(
+             preview.slack_channel_id,
+             SlackBlocks.workflow_run_thread(url),
+             fallback_text: "Preview deployment started",
+             thread_ts: preview.slack_message_ts
+           ) do
+        {:ok, _thread_ts} ->
+          :ok
+
+        {:error, reason} ->
+          Logger.warning("preview: workflow thread post failed: #{inspect(reason)}")
+      end
+    end
+
+    preview
+    |> Preview.transition_changeset(%{workflow_run_url: url})
+    |> Repo.update()
+    |> case do
+      {:ok, preview} ->
+        preview
+
+      {:error, changeset} ->
+        Logger.warning("preview: workflow run URL persist failed: #{inspect(changeset)}")
+        %{preview | workflow_run_url: url}
+    end
+  end
+
+  defp maybe_announce_workflow_run(%Preview{} = preview, _run), do: preview
 
   defp mark_deployed(%Preview{} = preview, run) do
     workflow_run_url = run[:html_url]

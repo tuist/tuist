@@ -220,6 +220,18 @@ defmodule TuistOps.Previews.SlackBlocks do
     ]
   end
 
+  def workflow_run_thread(url) when is_binary(url) do
+    [
+      %{
+        type: "section",
+        text: %{
+          type: "mrkdwn",
+          text: "GitHub Actions run: <#{url}|follow the deployment progress>"
+        }
+      }
+    ]
+  end
+
   defp format_ref(%Preview{ref_kind: nil}), do: "`workflow default`"
   defp format_ref(%Preview{ref_kind: kind, ref_value: value}), do: "`#{kind}:#{value}`"
 

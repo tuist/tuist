@@ -35,34 +35,57 @@ defmodule TuistOps.Previews.Workers.MonitorWorkflowWorkerTest do
     |> MonitorWorkflowWorker.perform()
   end
 
+  defp expect_workflow_thread(url) do
+    expect(SlackClient, :post_message, fn "C_PREVIEWS", blocks, opts ->
+      text = blocks |> List.first() |> get_in([:text, :text])
+
+      assert text =~ "GitHub Actions run"
+      assert text =~ url
+      assert opts[:fallback_text] == "Preview deployment started"
+      assert opts[:thread_ts] == "1710000000.000001"
+
+      {:ok, "1710000000.000002"}
+    end)
+  end
+
   test "snoozes while the workflow run is still in progress" do
     preview = insert_preview!()
+    url = "https://github.com/tuist/tuist/actions/runs/in-progress"
 
     expect(GitHubActionsClient, :workflow_run, fn "Preview deploy demo #1" ->
-      {:ok, %{status: "in_progress", conclusion: nil, html_url: "https://github.com/run"}}
+      {:ok, %{status: "in_progress", conclusion: nil, html_url: url}}
     end)
 
+    expect_workflow_thread(url)
+
     assert {:snooze, 30} = perform(preview)
+
+    preview = Repo.reload!(preview)
+    assert preview.status == "creating"
+    assert preview.workflow_run_url == url
   end
 
   test "marks the preview active and updates Slack when the workflow succeeds" do
     preview = insert_preview!()
+    url = "https://github.com/tuist/tuist/actions/runs/1"
 
     expect(GitHubActionsClient, :workflow_run, fn "Preview deploy demo #1" ->
       {:ok,
        %{
          status: "completed",
          conclusion: "success",
-         html_url: "https://github.com/tuist/tuist/actions/runs/1"
+         html_url: url
        }}
     end)
+
+    expect_workflow_thread(url)
 
     expect(SlackClient, :update_message, fn "C_PREVIEWS", "1710000000.000001", blocks, opts ->
       text = blocks |> List.first() |> get_in([:text, :text])
 
       assert text =~ "Preview deployed"
       assert text =~ "https://demo.preview.tuist.dev"
-      assert text =~ "https://github.com/tuist/tuist/actions/runs/1"
+      assert text =~ url
       assert opts[:fallback_text] == "Preview deployed"
 
       :ok
@@ -72,27 +95,30 @@ defmodule TuistOps.Previews.Workers.MonitorWorkflowWorkerTest do
 
     preview = Repo.reload!(preview)
     assert preview.status == "active"
-    assert preview.workflow_run_url == "https://github.com/tuist/tuist/actions/runs/1"
+    assert preview.workflow_run_url == url
   end
 
   test "marks the preview failed and updates Slack when the workflow fails" do
     preview = insert_preview!()
+    url = "https://github.com/tuist/tuist/actions/runs/2"
 
     expect(GitHubActionsClient, :workflow_run, fn "Preview deploy demo #1" ->
       {:ok,
        %{
          status: "completed",
          conclusion: "failure",
-         html_url: "https://github.com/tuist/tuist/actions/runs/2"
+         html_url: url
        }}
     end)
+
+    expect_workflow_thread(url)
 
     expect(SlackClient, :update_message, fn "C_PREVIEWS", "1710000000.000001", blocks, opts ->
       text = blocks |> List.first() |> get_in([:text, :text])
 
       assert text =~ "Preview request failed"
       assert text =~ "workflow_failed"
-      assert text =~ "https://github.com/tuist/tuist/actions/runs/2"
+      assert text =~ url
       assert opts[:fallback_text] == "Preview request failed"
 
       :ok
@@ -103,7 +129,7 @@ defmodule TuistOps.Previews.Workers.MonitorWorkflowWorkerTest do
     preview = Repo.reload!(preview)
     assert preview.status == "failed"
     assert preview.failure_reason == ~s({:workflow_failed, "failure"})
-    assert preview.workflow_run_url == "https://github.com/tuist/tuist/actions/runs/2"
+    assert preview.workflow_run_url == url
   end
 
   test "ignores stale jobs for previews that no longer match the workflow run name" do
