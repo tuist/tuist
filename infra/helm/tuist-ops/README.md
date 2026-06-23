@@ -30,8 +30,10 @@ cross-call this deployment via the tailnet for the policy lookup.
 1. **Create `TUIST_OPS_BOT` 1P item** in the production vault with fields:
    - `tailscale_client_id`, `tailscale_client_secret`, `tailscale_tailnet`
    - `slack_signing_secret`, `slack_bot_token`, `slack_approvals_channel_id`
-   - `github_actions_token` — GitHub token that can dispatch and read the
-     `preview-deploy.yml` workflow in `tuist/tuist`
+   - `github_app_id`, `github_app_installation_id`, `github_app_private_key` —
+     GitHub App credentials for dispatching and reading the `preview-deploy.yml`
+     workflow in `tuist/tuist`. The App installation needs read and write access
+     to Actions for `tuist/tuist`; metadata access is always included by GitHub.
    - `secret_key_base` — generate via `mix phx.gen.secret`
 2. **Update the Slack app**'s slash command URL to
    `https://ops.tuist.dev/webhooks/slack/slash` and the interactivity

@@ -17,7 +17,9 @@ defmodule TuistOps.Environment do
   def approvals_channel_id, do: System.get_env("SLACK_APPROVALS_CHANNEL_ID")
   def previews_channel_id, do: System.get_env("SLACK_PREVIEWS_CHANNEL_ID")
 
-  def github_actions_token, do: System.get_env("GITHUB_ACTIONS_TOKEN")
+  def github_app_id, do: System.get_env("GITHUB_APP_ID")
+  def github_app_installation_id, do: System.get_env("GITHUB_APP_INSTALLATION_ID")
+  def github_app_private_key, do: System.get_env("GITHUB_APP_PRIVATE_KEY")
   def github_repository, do: System.get_env("GITHUB_REPOSITORY") || "tuist/tuist"
   def github_workflow_ref, do: System.get_env("GITHUB_WORKFLOW_REF") || "main"
 
