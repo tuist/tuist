@@ -3,6 +3,7 @@ defmodule Tuist.Release do
   Used for executing DB release tasks when run in production without Mix
   installed.
   """
+  alias Ecto.Adapters.SQL
   alias Tuist.Environment
 
   require Logger
@@ -21,9 +22,8 @@ defmodule Tuist.Release do
         Ecto.Migrator.with_repo(repo, fn repo ->
           ensure_database_schema(repo)
           Ecto.Migrator.run(repo, :up, all: true)
+          grant_runtime_role(repo)
         end)
-
-      grant_runtime_role(repo)
     end
   end
 
@@ -108,8 +108,8 @@ defmodule Tuist.Release do
     if Environment.default_database_schema?() do
       :ok
     else
-      schema = Environment.database_schema() |> Environment.quote_postgres_identifier()
-      Ecto.Adapters.SQL.query!(repo, "CREATE SCHEMA IF NOT EXISTS #{schema}", [])
+      schema = Environment.quote_postgres_identifier(Environment.database_schema())
+      SQL.query!(repo, "CREATE SCHEMA IF NOT EXISTS #{schema}", [])
     end
   end
 
@@ -129,27 +129,62 @@ defmodule Tuist.Release do
 
   defp do_grant_runtime_role(repo, role) do
     Environment.validate_postgres_identifier!(role, "TUIST_DATABASE_RUNTIME_ROLE")
+
     role = Environment.quote_postgres_identifier(role)
     database = repo.config() |> Keyword.fetch!(:database) |> Environment.quote_postgres_identifier()
-    schema = Environment.database_schema() |> Environment.quote_postgres_identifier()
+    schema = Environment.database_schema()
+    quoted_schema = Environment.quote_postgres_identifier(schema)
 
-    [
-      "REVOKE CREATE ON SCHEMA #{schema} FROM PUBLIC",
-      "REVOKE CREATE ON DATABASE #{database} FROM PUBLIC",
-      "GRANT CONNECT ON DATABASE #{database} TO #{role}",
-      "GRANT USAGE ON SCHEMA #{schema} TO #{role}",
-      "REVOKE CREATE ON SCHEMA #{schema} FROM #{role}",
-      "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA #{schema} TO #{role}",
-      "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA #{schema} TO #{role}",
-      "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA #{schema} TO #{role}",
-      "REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLE " <>
-        "#{schema}.schema_migrations FROM #{role}",
-      "GRANT SELECT ON TABLE #{schema}.schema_migrations TO #{role}",
-      "ALTER DEFAULT PRIVILEGES IN SCHEMA #{schema} GRANT SELECT, INSERT, UPDATE, DELETE " <>
-        "ON TABLES TO #{role}",
-      "ALTER DEFAULT PRIVILEGES IN SCHEMA #{schema} GRANT USAGE, SELECT ON SEQUENCES TO #{role}",
-      "ALTER DEFAULT PRIVILEGES IN SCHEMA #{schema} GRANT EXECUTE ON FUNCTIONS TO #{role}"
-    ]
-    |> Enum.each(&Ecto.Adapters.SQL.query!(repo, &1, []))
+    Enum.each(
+      [
+        "REVOKE CREATE ON SCHEMA #{quoted_schema} FROM PUBLIC",
+        "REVOKE CREATE ON DATABASE #{database} FROM PUBLIC",
+        "GRANT CONNECT ON DATABASE #{database} TO #{role}",
+        "GRANT USAGE ON SCHEMA #{quoted_schema} TO #{role}",
+        "REVOKE CREATE ON SCHEMA #{quoted_schema} FROM #{role}",
+        "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA #{quoted_schema} TO #{role}",
+        "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA #{quoted_schema} TO #{role}",
+        grant_execute_on_owned_functions(schema, role),
+        "REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLE " <>
+          "#{quoted_schema}.schema_migrations FROM #{role}",
+        "GRANT SELECT ON TABLE #{quoted_schema}.schema_migrations TO #{role}",
+        "ALTER DEFAULT PRIVILEGES IN SCHEMA #{quoted_schema} GRANT SELECT, INSERT, UPDATE, DELETE " <>
+          "ON TABLES TO #{role}",
+        "ALTER DEFAULT PRIVILEGES IN SCHEMA #{quoted_schema} GRANT USAGE, SELECT ON SEQUENCES TO #{role}",
+        "ALTER DEFAULT PRIVILEGES IN SCHEMA #{quoted_schema} GRANT EXECUTE ON FUNCTIONS TO #{role}"
+      ],
+      &SQL.query!(repo, &1, [])
+    )
+  end
+
+  # `GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA <schema>` requires the
+  # migration role to own every function in the schema, and aborts the
+  # whole statement otherwise. The CNPG PgBouncer pooler installs a
+  # superuser-owned `user_search` auth function into public, so a blanket
+  # grant can fail with `permission denied for function user_search`.
+  # Grant only on functions the migration role owns; `ALTER DEFAULT
+  # PRIVILEGES` above already covers functions the role creates later.
+  defp grant_execute_on_owned_functions(schema, role) do
+    """
+    DO $tuist_grant$
+    DECLARE
+      function_signature text;
+    BEGIN
+      FOR function_signature IN
+        SELECT format(
+          '%I.%I(%s)', n.nspname, p.proname,
+          pg_catalog.pg_get_function_identity_arguments(p.oid)
+        )
+        FROM pg_catalog.pg_proc p
+        JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = '#{schema}'
+          AND p.prokind <> 'p'
+          AND p.proowner = current_user::regrole
+      LOOP
+        EXECUTE 'GRANT EXECUTE ON FUNCTION ' || function_signature || ' TO #{role}';
+      END LOOP;
+    END
+    $tuist_grant$;
+    """
   end
 end

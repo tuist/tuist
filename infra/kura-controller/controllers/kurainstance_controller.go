@@ -481,7 +481,7 @@ func (r *KuraInstanceReconciler) deleteLegacyServiceIfExists(ctx context.Context
 
 func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	ingress := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
-	if instance.Spec.PublicHost == "" {
+	if instance.Spec.Private || instance.Spec.PublicHost == "" {
 		if err := r.Delete(ctx, ingress); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
@@ -550,12 +550,12 @@ var grpcREAPIPathPrefixes = []string{
 // single host as soon as this controller rolls out.
 func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	ingress := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: grpcServiceName(instance), Namespace: instance.Namespace}}
-	// gRPC co-hosts on PublicHost (it is the rule host below), so an empty
+	// Private instances expose no public endpoint, so neither the public
+	// nor the gRPC Ingress is reconciled. For non-private instances, gRPC
+	// co-hosts on PublicHost (it is the rule host below), so an empty
 	// PublicHost has nowhere to route — delete rather than emit an Ingress
-	// with an empty host, even when GRPCPublicHost is set. The provisioner
-	// always emits grpcPublicHost and publicHost together (or neither), so in
-	// practice this only guards hand-written, gRPC-only CRs.
-	if instance.Spec.GRPCPublicHost == "" || instance.Spec.PublicHost == "" {
+	// with an empty host, even when the legacy GRPCPublicHost is set.
+	if instance.Spec.Private || instance.Spec.PublicHost == "" {
 		if err := r.Delete(ctx, ingress); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
@@ -790,16 +790,19 @@ func podOrdinal(podName, instanceName string) (int, bool) {
 }
 
 // reconcilePublicCertificate provisions a cert-manager Certificate for
-// the regional Kura ingress that terminates public HTTPS. No-ops when either
-// GRPCClusterIssuer or spec.publicHost is unset. cert-manager must be
-// installed in the cluster before --grpc-cluster-issuer is set.
+// the regional Kura ingress that terminates public HTTPS. Deletes any
+// existing Certificate when the instance is private, GRPCClusterIssuer
+// is unset, or spec.publicHost is unset, so a public→private flip does
+// not leak the Certificate (and the cert-manager-rotated leaf Secret)
+// after the matching Ingress is torn down.
+// cert-manager must be installed in the cluster before --grpc-cluster-issuer is set.
 func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	cert := &unstructured.Unstructured{}
 	cert.SetGroupVersionKind(certificateGVK())
 	cert.SetName(publicTLSSecretName(instance))
 	cert.SetNamespace(instance.Namespace)
 
-	if r.GRPCClusterIssuer == "" || instance.Spec.PublicHost == "" {
+	if instance.Spec.Private || r.GRPCClusterIssuer == "" || instance.Spec.PublicHost == "" {
 		if err := r.Delete(ctx, cert); err != nil && !apierrors.IsNotFound(err) {
 			return client.IgnoreNotFound(err)
 		}
@@ -1714,7 +1717,7 @@ func publicURL(instance *kurav1alpha1.KuraInstance) string {
 // status reflects the host the gRPC Ingress actually serves, even for CRs
 // that still carry a legacy grpc.<host> in grpcPublicHost.
 func grpcPublicURL(instance *kurav1alpha1.KuraInstance) string {
-	if instance.Spec.GRPCPublicHost == "" || instance.Spec.PublicHost == "" {
+	if instance.Spec.PublicHost == "" {
 		return ""
 	}
 	return "grpcs://" + instance.Spec.PublicHost

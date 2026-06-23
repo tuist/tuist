@@ -161,6 +161,15 @@ server:
       fields:
         clientId: KURA_CONTROL_PLANE_CLIENT_ID
         clientSecret: KURA_CONTROL_PLANE_CLIENT_SECRET
+  # Kura introspection credentials sourced from an out-of-band Secret in
+  # this release's namespace named `kura-shared-secrets`. Set to true when
+  # the kuraController runs in a different release (preview environments
+  # install the controller once at platform level into the `kura`
+  # namespace; the deploy workflow copies that Secret into the preview
+  # namespace before installing this chart). Managed environments install
+  # server + kuraController from one release and leave this off.
+  kuraIntrospection:
+    useSharedSecret: false
   # GitHub App + bot PAT secrets. When `github.managedSecrets: true`, ESO
   # syncs them from 1Password into a dedicated Secret and the Server +
   # Processor Deployments mount the keys as TUIST_GITHUB_APP_* /
@@ -197,6 +206,26 @@ server:
       tokenUpdatePackages:
         item: GITHUB_TOKEN_UPDATE_PACKAGES
         field: password
+  # Google OAuth client credentials. When `google.managedSecrets: true`, ESO
+  # syncs them from 1Password into a dedicated Secret and the Server
+  # Deployment mounts them as TUIST_GOOGLE_OAUTH_CLIENT_ID /
+  # TUIST_GOOGLE_OAUTH_CLIENT_SECRET env vars, which enable the "Log in with
+  # Google" button. Leave managedSecrets false (the default) for self-hosted
+  # installs that don't use Google sign-in — no Secret or env refs are then
+  # rendered.
+  google:
+    managedSecrets: false
+    externalSecrets:
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      oauth:
+        # The single 1P item carrying the OAuth client credentials.
+        item: GOOGLE_OAUTH
+        fields:
+          clientId: client_id
+          clientSecret: client_secret
   license:
     key: ""
     certificateBase64: ""
@@ -1477,10 +1506,9 @@ postgresql:
   #     an existing Postgres while soak-testing.
   #
   #   * `postgresql.mode == "cnpg"` — the cutover state. Managed server
-  #     pods read DATABASE_URL from the web runtime role once the rollout
-  #     gate opens, processors from the processor role, and migration jobs
-  #     from the CNPG-generated owner Secret (`<name>-app`). Implies
-  #     `cnpg.enabled = true`.
+  #     pods read DATABASE_URL from the web runtime role, processors from
+  #     the processor role, and migration jobs from the CNPG-generated
+  #     owner Secret (`<name>-app`). Implies `cnpg.enabled = true`.
   cnpg:
     enabled: false
     # Image tag tracks the CNPG operator's compatibility table. Bump
@@ -1587,13 +1615,6 @@ postgresql:
       # access to schema_migrations after each migration.
       web:
         name: tuist_web
-        # "auto" switches the server to this role only after the role's
-        # Secret exists from a previous deploy. This keeps the first rollout
-        # safe when migrations run as Helm pre-upgrade hooks (hooks execute
-        # before the updated CNPG Cluster spec creates the new managed role).
-        # Set true to force the switch after pre-provisioning the role, or
-        # false to keep using the owner Secret.
-        useForServer: auto
       # Least-privilege Oban-queue consumer. CNPG creates the role;
       # per-table GRANTs run via the bootstrap SQL in
       # infra/cnpg/tuist-processor-grants.sql (see README in that dir).

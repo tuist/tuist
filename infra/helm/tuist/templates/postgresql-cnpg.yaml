@@ -5,8 +5,7 @@
       currently reads (useful for parallel soak before cutover).
     - `postgresql.mode == "cnpg"` — the cutover state. Migration Jobs
       read the cluster's `<name>-app` owner Secret; managed server pods
-      switch to the `tuist_web` runtime role after the rollout gate in
-      `tuist.cnpgUseWebRole` opens.
+      read the `tuist_web` runtime role Secret.
 */}}
 {{- if or .Values.postgresql.cnpg.enabled (eq .Values.postgresql.mode "cnpg") }}
 {{- $clusterName := include "tuist.componentName" (dict "root" . "component" "pg") -}}

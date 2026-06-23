@@ -242,6 +242,19 @@ type Config struct {
 	// token from a Secret before populating
 	// GHActionsRunner.GHRunnerRegistrationToken.
 	GHActionsRunner *GHActionsRunnerConfig
+
+	// DisableVMGC passes `--disable-vm-gc` to tart-kubelet when true.
+	// It exists so the drift-update path can preserve the flag without
+	// re-resolving GHActionsRunner: `Run` always sets GHActionsRunner on
+	// builder hosts (and renderLaunchdPlist follows that), but
+	// `UpdateTartKubelet` re-renders the plist on every binary roll
+	// without re-resolving the runner config — resolving it would mint a
+	// fresh registration token on each drift loop for no reason. Without
+	// this field the roll renders a flag-less plist and the orphan-VM GC
+	// comes back, reaping the in-flight build VM mid-`tart push`. The
+	// reconciler sets it from `machine.Spec.GHActionsRunner != nil` on
+	// both the bootstrap and update paths.
+	DisableVMGC bool
 }
 
 // Run executes the bootstrap. Idempotent: re-running on a partially-
@@ -608,15 +621,19 @@ func renderLaunchdPlist(cfg Config) string {
 	if cfg.ProviderID != "" {
 		providerIDArg = fmt.Sprintf("\n    <string>--provider-id=%s</string>", cfg.ProviderID)
 	}
-	// Builder-fleet hosts (GHActionsRunner set) never have Pods
-	// scheduled but bake images with a host-level Packer/`tart`
-	// process. tart-kubelet's orphan-VM GC treats every local VM not
-	// backed by a Pod as collectable, so it would reap the in-flight
-	// build VM mid-`tart push` (the push then fails at the NVRAM layer
-	// with `nvram.bin doesn't exist`). Disable the GC there; the
-	// image-bake workflow reclaims its own Tart disk.
+	// Builder-fleet hosts never have Pods scheduled but bake images with
+	// a host-level Packer/`tart` process. tart-kubelet's orphan-VM GC
+	// treats every local VM not backed by a Pod as collectable, so it
+	// would reap the in-flight build VM mid-`tart push` (the push then
+	// fails at the NVRAM layer with `nvram.bin doesn't exist`). Disable
+	// the GC there; the image-bake workflow reclaims its own Tart disk.
+	//
+	// GHActionsRunner != nil identifies a builder on the bootstrap path;
+	// DisableVMGC carries the same intent on the drift-update path, which
+	// re-renders the plist without re-resolving the runner config (see
+	// the field comment). Either is sufficient.
 	disableVMGCArg := ""
-	if cfg.GHActionsRunner != nil {
+	if cfg.GHActionsRunner != nil || cfg.DisableVMGC {
 		disableVMGCArg = "\n    <string>--disable-vm-gc</string>"
 	}
 	// Run tart-kubelet as the SSH user (m1). Apple's
@@ -1142,44 +1159,24 @@ load anchor "tuist.runners" from "/etc/pf.anchors/tuist.runners"
 # END tuist.runners
 PFCONFENTRY
 
-# Reset the anchor's kernel-resident ruleset before the validate.
-# Hosts that previously ran an older version of this script left
-# persist-flagged 'vm_sources' / 'blocked_dst' tables in the
-# kernel, and 'pfctl -nf' on a config that redefines them dies on
-# EBUSY ("cannot define table vm_sources: Resource busy") — the
-# validate doesn't tolerate redefinition while a prior persist
-# table is still in kernel state.
+# Enable pf (idempotent; -E pins the enable token so an unrelated disable
+# can't silently drop the filter), then load the anchor.
 #
-# pfctl(8) defines '-T kill' as "Kill a table" — i.e. destroy it
-# from kernel state — and that's the only command that removes a
-# persist'd table. '-F all' / '-F Tables' explicitly preserve
-# persist tables (they only flush addresses), so they can't repair
-# this on their own. We do '-T kill' at both anchor scope AND
-# top-level scope: in practice older versions of this script have
-# at various times placed these tables in either location, and the
-# 2>/dev/null swallows the "no such table" error for the location
-# that doesn't apply on a given host.
-#
-# Belt-and-suspenders: after the kills, load an empty ruleset into
-# the anchor so any leftover anchor-level rules referencing the
-# old tables get cleared too, before pf(4) sees the redefinition
-# attempt in the validate below.
-sudo pfctl -a tuist.runners -t vm_sources -T kill 2>/dev/null || true
-sudo pfctl -a tuist.runners -t blocked_dst -T kill 2>/dev/null || true
-sudo pfctl -t vm_sources -T kill 2>/dev/null || true
-sudo pfctl -t blocked_dst -T kill 2>/dev/null || true
-echo "" | sudo pfctl -a tuist.runners -f - 2>/dev/null || true
-
-# Validate the ruleset before activating. -nf parses without
-# loading; if this fails we want a clear bootstrap error rather
-# than a half-loaded filter.
-sudo pfctl -nf /etc/pf.conf
-
-# Enable pf (no-op if already enabled) and reload the ruleset.
-# -E enables and pins the token so a subsequent disable from
-# elsewhere doesn't silently drop our rules; -f reloads.
+# Load the tuist.runners anchor DIRECTLY rather than re-running the whole
+# /etc/pf.conf. On a live host (pf already enabled), 'pfctl -f /etc/pf.conf'
+# collides with macOS's system-managed main ruleset: pfctl warns it would flush
+# the system's startup rules and aborts when the embedded 'load anchor'
+# re-defines the vm_sources/blocked_dst tables ("cannot define table
+# vm_sources: Resource busy"). That aborts the whole firewall install and, on
+# the drift-update path, terminal-fails the machine once the retry cap is hit,
+# freezing all further host-config updates. An anchor-scoped load applies the
+# same rules atomically without touching the system ruleset, so it succeeds at
+# bootstrap AND on every reconcile. The 'anchor'/'load anchor' lines written
+# into /etc/pf.conf above still re-activate the filter across reboots via the
+# pfctl-runners LaunchDaemon's boot-time load, when pf is freshly disabled and
+# there is no live ruleset to collide with.
 sudo pfctl -E 2>/dev/null || true
-sudo pfctl -f /etc/pf.conf
+sudo pfctl -a tuist.runners -f /etc/pf.anchors/tuist.runners
 
 # launchd job to re-arm pf on every boot. macOS doesn't persist
 # the -E enable across reboots in all configurations; an
@@ -1252,12 +1249,28 @@ if [ -n "$CIDR" ]; then
   esac
 fi
 if [ -n "$PNCIDR" ]; then
-  PNIF=$(route -n get "${PNCIDR%%%%/*}" 2>/dev/null | awk '/interface/{print $2}')
-  case "$PNIF" in
-    vlan*)
-      RULES="${RULES}nat on $PNIF from 192.168.64.0/22 to $PNCIDR -> ($PNIF)${NL}"
-      ;;
-  esac
+  # route-get on the PN network base address ("${PNCIDR%%%%/*}", e.g.
+  # 172.16.0.0) resolves to the parent physical NIC (en0), not the macOS VLAN
+  # that owns the subnet, so a 'case vlan*' on its output never matched and the
+  # NAT was silently skipped — VM traffic then egressed with its 192.168.64.x
+  # source, which the kura node can neither reply to nor admit past its
+  # NetworkPolicy. Pick the interface directly: the bootstrap creates exactly
+  # one PN VLAN (networksetup -createVLAN pn en0), so it is the vlan* device
+  # holding an inet address; skip until DHCP lands one (StartInterval re-runs).
+  PNIF=""
+  for IFACE in $(ifconfig -l 2>/dev/null); do
+    case "$IFACE" in
+      vlan*)
+        if ifconfig "$IFACE" 2>/dev/null | grep -q "inet "; then
+          PNIF="$IFACE"
+          break
+        fi
+        ;;
+    esac
+  done
+  if [ -n "$PNIF" ]; then
+    RULES="${RULES}nat on $PNIF from 192.168.64.0/22 to $PNCIDR -> ($PNIF)${NL}"
+  fi
 fi
 [ -z "$RULES" ] && exit 0
 # pf requires normalization (scrub) before translation (nat) within

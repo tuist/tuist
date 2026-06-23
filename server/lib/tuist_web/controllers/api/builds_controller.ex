@@ -14,6 +14,7 @@ defmodule TuistWeb.API.BuildsController do
   alias TuistWeb.API.Schemas.Builds.Build
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
+  alias TuistWeb.Authentication
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
@@ -852,7 +853,7 @@ defmodule TuistWeb.API.BuildsController do
     run_params =
       body_params
       |> Map.put(:project, selected_project)
-      |> Map.put(:account, selected_project.account)
+      |> Map.put(:ran_by_account, Authentication.authenticated_subject_account(conn))
 
     {:ok, build} = get_or_create_build(run_params)
 
@@ -895,7 +896,7 @@ defmodule TuistWeb.API.BuildsController do
           scheme: Map.get(params, :scheme),
           configuration: Map.get(params, :configuration),
           project_id: params.project.id,
-          account_id: params.account.id,
+          account_id: params.ran_by_account.id,
           status: Map.get(params, :status, "success"),
           category: Map.get(params, :category),
           git_branch: Map.get(params, :git_branch),
@@ -925,7 +926,7 @@ defmodule TuistWeb.API.BuildsController do
           %{
             build_id: build.id,
             storage_key: storage_key,
-            account_id: params.account.id,
+            account_id: params.ran_by_account.id,
             project_id: params.project.id,
             xcode_cache_upload_enabled: Map.get(params, :xcode_cache_upload_enabled, false),
             build_metadata: %{

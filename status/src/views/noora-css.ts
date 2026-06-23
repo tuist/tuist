@@ -93,18 +93,18 @@ export const NOORA_CSS = String.raw`
   --noora-blue-900: oklch(20.9% 0.083 259.4);
 
   --noora-neutral-light-50: oklch(99.4% 0 0);
-  --noora-neutral-light-100: oklch(98.4% 0.001 197.1);
-  --noora-neutral-light-200: oklch(96.1% 0.003 264.5);
-  --noora-neutral-light-300: oklch(93% 0.003 247.9);
-  --noora-neutral-light-400: oklch(89% 0.006 255.5);
-  --noora-neutral-light-500: oklch(84.3% 0.009 247.9);
-  --noora-neutral-light-600: oklch(78.6% 0.012 248);
-  --noora-neutral-light-700: oklch(72.1% 0.017 248.1);
-  --noora-neutral-light-800: oklch(64.5% 0.021 248.2);
-  --noora-neutral-light-900: oklch(55.7% 0.023 250.5);
-  --noora-neutral-light-1000: oklch(45.2% 0.017 245);
-  --noora-neutral-light-1100: oklch(31.8% 0.012 248.2);
-  --noora-neutral-light-1200: oklch(21.5% 0.006 236.9);
+  --noora-neutral-light-100: oklch(97.6% 0 0);
+  --noora-neutral-light-200: oklch(95.5% 0.002 247.84);
+  --noora-neutral-light-300: oklch(93% 0.003 247.86);
+  --noora-neutral-light-400: oklch(89% 0.003 247.863);
+  --noora-neutral-light-500: oklch(84.4% 0.005 247.888);
+  --noora-neutral-light-600: oklch(78.4% 0.005 247.894);
+  --noora-neutral-light-700: oklch(72% 0.006 247.902);
+  --noora-neutral-light-800: oklch(64.5% 0.006 247.914);
+  --noora-neutral-light-900: oklch(55.7% 0.008 247.968);
+  --noora-neutral-light-1000: oklch(45.1% 0.006 247.965);
+  --noora-neutral-light-1100: oklch(32% 0.005 247.968);
+  --noora-neutral-light-1200: oklch(21.7% 0.002 247.941);
 
   --noora-neutral-dark-50: oklch(97.2% 0 0);
   --noora-neutral-dark-100: oklch(91.9% 0 0);
@@ -121,7 +121,7 @@ export const NOORA_CSS = String.raw`
   --noora-neutral-dark-1200: oklch(16.2% 0 0);
 
   --noora-neutral-gray-50: oklch(30.2% 0 0 / 0.5);
-  --noora-neutral-gray-24: oklch(31.8% 0 0 / 0.24);
+  --noora-neutral-gray-24: oklch(32% 0.005 247.968 / 0.24);
   --noora-neutral-gray-16: oklch(34.8% 0 0 / 0.16);
 
   --noora-alpha-red: oklch(58.7% 0.23 30.7 / 0.18);
@@ -221,24 +221,24 @@ export const NOORA_CSS = String.raw`
   --noora-button-dropdown-trigger-background:
     linear-gradient(
       180deg,
-      oklch(78.6% 0.013 248 / 0) 0%,
-      light-dark(oklch(78.6% 0.013 248 / 0.06), oklch(78.6% 0.013 248 / 0.13))
+      oklch(78.4% 0.005 247.894 / 0) 0%,
+      light-dark(oklch(78.4% 0.005 247.894 / 0.06), oklch(78.4% 0.005 247.894 / 0.13))
         100%
     ),
     var(--noora-button-secondary-background);
   --noora-button-dropdown-trigger-background-hover:
     linear-gradient(
       180deg,
-      light-dark(oklch(78.6% 0.013 248 / 0.03), oklch(78.6% 0.013 248 / 0)) 0%,
-      light-dark(oklch(78.6% 0.013 248 / 0.13), oklch(78.6% 0.013 248 / 0.255))
+      light-dark(oklch(78.4% 0.005 247.894 / 0.03), oklch(78.4% 0.005 247.894 / 0)) 0%,
+      light-dark(oklch(78.4% 0.005 247.894 / 0.13), oklch(78.4% 0.005 247.894 / 0.255))
         100%
     ),
     var(--noora-button-secondary-background);
   --noora-button-dropdown-trigger-background-disabled:
     linear-gradient(
       180deg,
-      oklch(78.6% 0.013 248 / 0) 0%,
-      light-dark(oklch(78.6% 0.013 248 / 0.06), oklch(78.6% 0.013 248 / 0.13))
+      oklch(78.4% 0.005 247.894 / 0) 0%,
+      light-dark(oklch(78.4% 0.005 247.894 / 0.06), oklch(78.4% 0.005 247.894 / 0.13))
         100%
     ),
     var(--noora-button-secondary-disabled-background);
@@ -263,21 +263,21 @@ export const NOORA_CSS = String.raw`
   --noora-button-background-primary-disabled:
     linear-gradient(
       180deg,
-      light-dark(oklch(100% 0 0 / 0.16), oklch(31.8% 0.011 248.2 / 0.25)),
-      light-dark(oklch(100% 0 0 / 0), oklch(31.8% 0.011 248.2 / 0.5))
+      light-dark(oklch(100% 0 0 / 0.16), oklch(32% 0.005 247.968 / 0.25)),
+      light-dark(oklch(100% 0 0 / 0), oklch(32% 0.005 247.968 / 0.5))
     ),
     var(--noora-button-primary-disabled-background);
   --noora-button-border-primary:
     0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
     0px 1px 1px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(16.2% 0 0 / 0.2)),
+      light-dark(oklch(32% 0.005 247.968 / 0.05), oklch(16.2% 0 0 / 0.2)),
     0px 0px 0px 1px oklch(46.9% 0.27 286.9 / 0.9),
     0px 1px 3px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.16), oklch(0% 0 0 / 0.4));
+      light-dark(oklch(32% 0.005 247.968 / 0.16), oklch(0% 0 0 / 0.4));
   --noora-button-border-primary-hover:
-    0px 1px 1px oklch(31.8% 0.011 248.2 / 0.12),
+    0px 1px 1px oklch(32% 0.005 247.968 / 0.12),
     0px 0px 0px 1px oklch(46.9% 0.27 286.9 / 0.9),
-    0px 2px 3px oklch(31.8% 0.011 248.2 / 0.16),
+    0px 2px 3px oklch(32% 0.005 247.968 / 0.16),
     0px 1px 0px oklch(100% 0 0 / 0.1) inset;
   --noora-button-border-primary-focus:
     0px 0px 0px 1px
@@ -285,64 +285,64 @@ export const NOORA_CSS = String.raw`
     0px 0px 0px 2.5px
       light-dark(var(--noora-purple-500), var(--noora-purple-400)),
     0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
-    0px 1px 1px 0px oklch(31.8% 0.011 248.2 / 0.12),
+    0px 1px 1px 0px oklch(32% 0.005 247.968 / 0.12),
     0px 0px 0px 1px oklch(46.9% 0.27 286.9 / 0.9),
-    0px 2px 3px 0px oklch(31.8% 0.011 248.2 / 0.16);
+    0px 2px 3px 0px oklch(32% 0.005 247.968 / 0.16);
   --noora-button-border-primary-active:
     0px 0px 0px 1px oklch(46.9% 0.27 286.9 / 0.9),
     0px 1px 4px 0px light-dark(oklch(0% 0 0 / 0.3), oklch(0% 0 0 / 0.4)) inset;
   --noora-button-border-primary-disabled:
     0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
     0px 1px 1px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.12), oklch(16.2% 0 0 / 0.2)),
+      light-dark(oklch(32% 0.005 247.968 / 0.12), oklch(16.2% 0 0 / 0.2)),
     0px 0px 0px 1px oklch(46.9% 0.27 286.9 / 0.4),
     0px 2px 3px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.16), oklch(0% 0 0 / 0.4));
+      light-dark(oklch(32% 0.005 247.968 / 0.16), oklch(0% 0 0 / 0.4));
 
   --noora-button-background-secondary:
     linear-gradient(
       180deg,
-      light-dark(oklch(78.6% 0.013 248 / 0), oklch(100% 0 0 / 0.04)),
-      light-dark(oklch(78.6% 0.013 248 / 0.08), oklch(100% 0 0 / 0))
+      light-dark(oklch(78.4% 0.005 247.894 / 0), oklch(100% 0 0 / 0.04)),
+      light-dark(oklch(78.4% 0.005 247.894 / 0.08), oklch(100% 0 0 / 0))
     ),
     var(--noora-button-secondary-background);
   --noora-button-background-secondary-hover:
     linear-gradient(
       180deg,
-      light-dark(oklch(78.6% 0.013 248 / 0), oklch(100% 0 0 / 0.08)),
-      light-dark(oklch(78.6% 0.013 248 / 0.16), oklch(100% 0 0 / 0))
+      light-dark(oklch(78.4% 0.005 247.894 / 0), oklch(100% 0 0 / 0.08)),
+      light-dark(oklch(78.4% 0.005 247.894 / 0.16), oklch(100% 0 0 / 0))
     ),
     var(--noora-button-secondary-background);
   --noora-button-background-secondary-disabled:
     linear-gradient(
       180deg,
-      light-dark(oklch(78.6% 0.013 248 / 0), oklch(100% 0 0 / 0.06)),
-      light-dark(oklch(78.6% 0.013 248 / 0.08), oklch(100% 0 0 / 0))
+      light-dark(oklch(78.4% 0.005 247.894 / 0), oklch(100% 0 0 / 0.06)),
+      light-dark(oklch(78.4% 0.005 247.894 / 0.08), oklch(100% 0 0 / 0))
     ),
     var(--noora-button-secondary-disabled-background);
   --noora-button-border-secondary:
     0px 1px 0px 0px light-dark(oklch(100% 0 0 / 0.9), oklch(100% 0 0 / 0.16))
       inset,
     0px 1px 1px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(16.2% 0 0 / 0.1)),
+      light-dark(oklch(32% 0.005 247.968 / 0.05), oklch(16.2% 0 0 / 0.1)),
     0px 0px 0px 1px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.08), oklch(34.8% 0 0 / 0.9)),
+      light-dark(oklch(32% 0.005 247.968 / 0.08), oklch(34.8% 0 0 / 0.9)),
     0px 2px 3px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.06), oklch(0% 0 0 / 0.5));
+      light-dark(oklch(32% 0.005 247.968 / 0.06), oklch(0% 0 0 / 0.5));
   --noora-button-border-secondary-disabled:
     0px 1px 0px 0px light-dark(oklch(100% 0 0 / 0.7), oklch(100% 0 0 / 0.16))
       inset,
     0px 1px 1px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(16.2% 0 0 / 0.1)),
+      light-dark(oklch(32% 0.005 247.968 / 0.05), oklch(16.2% 0 0 / 0.1)),
     0px 0px 0px 1px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(34.8% 0 0 / 0.9)),
+      light-dark(oklch(32% 0.005 247.968 / 0.05), oklch(34.8% 0 0 / 0.9)),
     0px 2px 3px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.06), oklch(0% 0 0 / 0.5));
+      light-dark(oklch(32% 0.005 247.968 / 0.06), oklch(0% 0 0 / 0.5));
   --noora-button-background-secondary-active:
     linear-gradient(
       180deg,
-      light-dark(oklch(78.6% 0.013 248 / 0.03), oklch(100% 0 0 / 0.03)),
-      light-dark(oklch(78.6% 0.013 248 / 0.13), oklch(100% 0 0 / 0))
+      light-dark(oklch(78.4% 0.005 247.894 / 0.03), oklch(100% 0 0 / 0.03)),
+      light-dark(oklch(78.4% 0.005 247.894 / 0.13), oklch(100% 0 0 / 0))
     ),
     var(--noora-button-secondary-background);
   --noora-button-border-secondary-focus:
@@ -352,18 +352,18 @@ export const NOORA_CSS = String.raw`
         var(--noora-neutral-dark-1200)
       ),
     0px 0px 0px 2.5px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.25), oklch(54.9% 0 0 / 0.8)),
+      light-dark(oklch(32% 0.005 247.968 / 0.25), oklch(54.9% 0 0 / 0.8)),
     0px 1px 0px 0px light-dark(oklch(100% 0 0 / 0.9), oklch(100% 0 0 / 0.16))
       inset,
     0px 1px 1px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.05), oklch(16.2% 0 0 / 0.1)),
+      light-dark(oklch(32% 0.005 247.968 / 0.05), oklch(16.2% 0 0 / 0.1)),
     0px 0px 0px 1px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.08), oklch(34.8% 0 0 / 0.9)),
+      light-dark(oklch(32% 0.005 247.968 / 0.08), oklch(34.8% 0 0 / 0.9)),
     0px 2px 3px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.06), oklch(0% 0 0 / 0.5));
+      light-dark(oklch(32% 0.005 247.968 / 0.06), oklch(0% 0 0 / 0.5));
   --noora-button-border-secondary-active:
     0px 0px 0px 1px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.08), oklch(34.8% 0 0 / 0.9)),
+      light-dark(oklch(32% 0.005 247.968 / 0.08), oklch(34.8% 0 0 / 0.9)),
     0px 1px 2px 0px light-dark(oklch(0% 0 0 / 0.05), oklch(0% 0 0 / 0.4)) inset;
 
   --noora-button-background-destructive:
@@ -372,34 +372,34 @@ export const NOORA_CSS = String.raw`
   --noora-button-border-destructive:
     0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
     0px 1px 1px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.12), oklch(16.2% 0 0 / 0.2)),
+      light-dark(oklch(32% 0.005 247.968 / 0.12), oklch(16.2% 0 0 / 0.2)),
     0px 0px 0px 1px oklch(51.2% 0.201 30.7 / 0.8),
     0px 2px 3px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.16), oklch(0% 0 0 / 0.4));
+      light-dark(oklch(32% 0.005 247.968 / 0.16), oklch(0% 0 0 / 0.4));
   --noora-button-background-destructive-hover:
     linear-gradient(180deg, oklch(100% 0 0 / 0.24), oklch(100% 0 0 / 0)),
     var(--noora-button-destructive-background);
   --noora-button-border-destructive-hover:
     0px 1px 0px 0px oklch(100% 0 0 / 0.1) inset,
     0px 1px 1px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.12), oklch(16.2% 0 0 / 0.2)),
+      light-dark(oklch(32% 0.005 247.968 / 0.12), oklch(16.2% 0 0 / 0.2)),
     0px 0px 0px 1px oklch(51.2% 0.201 30.7 / 0.8),
     0px 2px 3px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.16), oklch(0% 0 0 / 0.4));
+      light-dark(oklch(32% 0.005 247.968 / 0.16), oklch(0% 0 0 / 0.4));
   --noora-button-background-destructive-disabled:
     linear-gradient(
       180deg,
-      light-dark(oklch(100% 0 0 / 0.06), oklch(31.8% 0.011 248.2 / 0.25)),
-      light-dark(oklch(100% 0 0 / 0), oklch(31.8% 0.011 248.2 / 0.5))
+      light-dark(oklch(100% 0 0 / 0.06), oklch(32% 0.005 247.968 / 0.25)),
+      light-dark(oklch(100% 0 0 / 0), oklch(32% 0.005 247.968 / 0.5))
     ),
     var(--noora-button-destructive-disabled-background);
   --noora-button-border-destructive-disabled:
     0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
     0px 1px 1px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.12), oklch(16.2% 0 0 / 0.2)),
+      light-dark(oklch(32% 0.005 247.968 / 0.12), oklch(16.2% 0 0 / 0.2)),
     0px 0px 0px 1px oklch(51.2% 0.201 30.7 / 0.5),
     0px 2px 3px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.16), oklch(0% 0 0 / 0.4));
+      light-dark(oklch(32% 0.005 247.968 / 0.16), oklch(0% 0 0 / 0.4));
   --noora-button-border-destructive-active:
     0px 0px 0px 1px oklch(51.2% 0.201 30.7 / 0.8),
     0px 1px 4px 0px light-dark(oklch(0% 0 0 / 0.3), oklch(0% 0 0 / 0.4)) inset;
@@ -409,9 +409,9 @@ export const NOORA_CSS = String.raw`
     0px 0px 0px 2.5px
       light-dark(oklch(58.7% 0.23 30.7 / 0.75), oklch(66.3% 0.224 30.7 / 0.8)),
     0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
-    0px 1px 1px 0px oklch(31.8% 0.011 248.2 / 0.12),
+    0px 1px 1px 0px oklch(32% 0.005 247.968 / 0.12),
     0px 0px 0px 1px oklch(51.2% 0.201 30.7 / 0.8),
-    0px 2px 3px 0px oklch(31.8% 0.011 248.2 / 0.16);
+    0px 2px 3px 0px oklch(32% 0.005 247.968 / 0.16);
 
   /* Tooltip */
   --noora-tooltip-background: light-dark(
@@ -420,8 +420,8 @@ export const NOORA_CSS = String.raw`
   );
   --noora-tooltip-border:
     box-shadow: 0 4px 8px 0
-      light-dark(oklch(31.8% 0.011 248.2 / 0.08), oklch(0% 0 0 / 0.16)) 0 2px
-      4px 0 light-dark(oklch(31.8% 0.011 248.2 / 0.04), oklch(0% 0 0 / 0.24)),
+      light-dark(oklch(32% 0.005 247.968 / 0.08), oklch(0% 0 0 / 0.16)) 0 2px
+      4px 0 light-dark(oklch(32% 0.005 247.968 / 0.04), oklch(0% 0 0 / 0.24)),
     0 1px 2px 0 light-dark(oklch(0% 0 0 / 0.25), oklch(0% 0 0 / 0.65));
   --noora-tooltip-label-primary: light-dark(
     var(--noora-neutral-light-50),
@@ -578,14 +578,14 @@ export const NOORA_CSS = String.raw`
   );
   --noora-light-border-default:
     0px 1px 1px 0px oklch(16.2% 0 0 / 0.05),
-    0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.08),
-    0px 1px 1px 0px oklch(31.8% 0.011 248.2 / 0.1);
+    0px 0px 0px 1px oklch(32% 0.005 247.968 / 0.08),
+    0px 1px 1px 0px oklch(32% 0.005 247.968 / 0.1);
 
   --noora-light-border-focus:
     0px 1px 1px 0px oklch(16.2% 0 0 / 0.05),
-    0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.08),
-    0px 1px 3px 0px oklch(31.8% 0.011 248.2 / 0.1),
-    0px 0px 0px 3px oklch(31.8% 0.011 248.2 / 0.12);
+    0px 0px 0px 1px oklch(32% 0.005 247.968 / 0.08),
+    0px 1px 3px 0px oklch(32% 0.005 247.968 / 0.1),
+    0px 0px 0px 3px oklch(32% 0.005 247.968 / 0.12);
 
   /* Table */
   --noora-surface-table-header: light-dark(
@@ -597,15 +597,15 @@ export const NOORA_CSS = String.raw`
   --noora-choice-selector-uncheck-background:
     linear-gradient(
       180deg,
-      oklch(78.6% 0.013 248 / 0) 0%,
-      oklch(78.6% 0.013 248 / 0.06) 100%
+      oklch(78.4% 0.005 247.894 / 0) 0%,
+      oklch(78.4% 0.005 247.894 / 0.06) 100%
     ),
     var(--noora-neutral-light-50);
   --noora-choice-selector-uncheck-background-hover:
     linear-gradient(
       180deg,
-      oklch(78.6% 0.013 248 / 0.05) 0%,
-      oklch(78.6% 0.013 248 / 0.19) 100%
+      oklch(78.4% 0.005 247.894 / 0.05) 0%,
+      oklch(78.4% 0.005 247.894 / 0.19) 100%
     ),
     var(--noora-neutral-light-50);
   --noora-choice-selector-check-background:
@@ -634,10 +634,10 @@ export const NOORA_CSS = String.raw`
   --noora-choice-selector-check-border:
     0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
     0px 1px 1px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.12), oklch(16.2% 0 0 / 0.2)),
+      light-dark(oklch(32% 0.005 247.968 / 0.12), oklch(16.2% 0 0 / 0.2)),
     0px 0px 0px 1px oklch(37.5% 0.27 286.9 / 0.9),
     0px 1px 3px 0px
-      light-dark(oklch(31.8% 0.011 248.2 / 0.16), oklch(0% 0 0 / 0.4));
+      light-dark(oklch(32% 0.005 247.968 / 0.16), oklch(0% 0 0 / 0.4));
 
   /* Divider */
   --noora-content-divider-line: light-dark(
@@ -794,43 +794,43 @@ export const NOORA_CSS = String.raw`
 
   --noora-border-light-default:
     0px 1px 1px 0px oklch(16.2% 0 0 / 0.05),
-    0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.08),
-    0px 1px 1px 0px oklch(31.8% 0.011 248.2 / 0.1);
+    0px 0px 0px 1px oklch(32% 0.005 247.968 / 0.08),
+    0px 1px 1px 0px oklch(32% 0.005 247.968 / 0.1);
   --noora-border-light-focus:
     0px 1px 1px 0px oklch(16.2% 0 0 / 0.05),
-    0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.08),
-    0px 1px 3px 0px oklch(31.8% 0.011 248.2 / 0.1),
-    0px 0px 0px 3px oklch(31.8% 0.011 248.2 / 0.12);
+    0px 0px 0px 1px oklch(32% 0.005 247.968 / 0.08),
+    0px 1px 3px 0px oklch(32% 0.005 247.968 / 0.1),
+    0px 0px 0px 3px oklch(32% 0.005 247.968 / 0.12);
   --noora-border-light-error:
     0px 1px 1px 0px oklch(16.2% 0 0 / 0.05),
     0px 0px 0px 1px oklch(58.7% 0.23 30.7),
-    0px 1px 3px 0px oklch(31.8% 0.011 248.2 / 0.1);
+    0px 1px 3px 0px oklch(32% 0.005 247.968 / 0.1);
   --noora-border-light-error-focus:
     0px 1px 1px 0px oklch(16.2% 0 0 / 0.05),
     0px 0px 0px 1px oklch(58.7% 0.23 30.7),
-    0px 1px 3px 0px oklch(31.8% 0.011 248.2 / 0.1),
+    0px 1px 3px 0px oklch(32% 0.005 247.968 / 0.1),
     0px 0px 0px 3px oklch(58.7% 0.23 30.7 / 0.2);
   --noora-border-light-warning-focus:
     0px 1px 1px 0px oklch(16.2% 0 0 / 0.05),
     0px 0px 0px 1px oklch(71.9% 0.185 48.7),
-    0px 1px 3px 0px oklch(31.8% 0.011 248.2 / 0.1),
+    0px 1px 3px 0px oklch(32% 0.005 247.968 / 0.1),
     0px 0px 0px 3px oklch(71.9% 0.185 48.7 / 0.2);
 
   --noora-border-medium:
-    0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.08) inset,
-    0px -1px 0px 0px oklch(31.8% 0.011 248.2 / 0.16) inset,
-    0px 8px 6px 0px oklch(31.8% 0.011 248.2 / 0.02),
-    0px 2px 4px 0px oklch(31.8% 0.011 248.2 / 0.04);
+    0px 0px 0px 1px oklch(32% 0.005 247.968 / 0.08) inset,
+    0px -1px 0px 0px oklch(32% 0.005 247.968 / 0.16) inset,
+    0px 8px 6px 0px oklch(32% 0.005 247.968 / 0.02),
+    0px 2px 4px 0px oklch(32% 0.005 247.968 / 0.04);
   --noora-border-section:
     0px 1px 0px 0px oklch(100% 0 0 / 0.9) inset,
-    0px 1px 1px 0px oklch(31.8% 0.011 248.2 / 0.05),
-    0px 0px 0px 1px oklch(31.8% 0.011 248.2 / 0.08),
-    0px 2px 2px 0px oklch(31.8% 0.011 248.2 / 0.06);
+    0px 1px 1px 0px oklch(32% 0.005 247.968 / 0.05),
+    0px 0px 0px 1px oklch(32% 0.005 247.968 / 0.08),
+    0px 2px 2px 0px oklch(32% 0.005 247.968 / 0.06);
   --noora-border-heavy:
-    0px 0px 0px 1.5px oklch(31.82% 0.0113 248.18 / 0.1) inset,
-    0px -1.5px 0px 0px oklch(31.82% 0.0113 248.18 / 0.12) inset,
-    0px 4px 8px 0px oklch(31.82% 0.0113 248.18 / 0.08),
-    0px 2px 4px 0px oklch(31.82% 0.0113 248.18 / 0.04);
+    0px 0px 0px 1.5px oklch(32% 0.005 247.968 / 0.1) inset,
+    0px -1.5px 0px 0px oklch(32% 0.005 247.968 / 0.12) inset,
+    0px 4px 8px 0px oklch(32% 0.005 247.968 / 0.08),
+    0px 2px 4px 0px oklch(32% 0.005 247.968 / 0.04);
 
   /* Radius */
   --noora-radius-0: 0rem;
@@ -1403,7 +1403,7 @@ export const NOORA_CSS = String.raw`
   );
   --noora-banner-information-border: var(--noora-azure-500);
   --noora-banner-grid-color: light-dark(
-    oklch(21.54% 0.006 236.85),
+    oklch(21.7% 0.002 247.941),
     oklch(99.4% 0 0)
   );
   display: flex;

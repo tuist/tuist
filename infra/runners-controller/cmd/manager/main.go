@@ -14,6 +14,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -146,10 +147,20 @@ func main() {
 	// keeps its max-lifetime safety clamp, which bounds the
 	// over-bill while we get the controller plumbed in.
 	if sessionsURL != "" {
+		// Typed clientset for the `pods/log` subresource: the cached
+		// controller-runtime client can't read container logs, and the
+		// PodLifecycle reconciler re-emits an abnormally-ended runner's
+		// log before the reap deletes it.
+		clientset, err := kubernetes.NewForConfig(cfg)
+		if err != nil {
+			setupLog.Error(err, "build clientset for log capture")
+			os.Exit(1)
+		}
 		if err := (&controllers.PodLifecycleReconciler{
 			Client:         mgr.GetClient(),
 			Scheme:         mgr.GetScheme(),
 			SessionsClient: sessions.NewClient(sessionsURL),
+			Logs:           clientset,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "setup PodLifecycle reconciler")
 			os.Exit(1)

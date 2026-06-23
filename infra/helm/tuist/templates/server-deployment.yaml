@@ -79,16 +79,16 @@ spec:
             # need to set it explicitly here. The processor Deployment sets
             # TUIST_MODE=processor; everything else is :web.
             {{- if eq .Values.postgresql.mode "cnpg" }}
-            # In managed CNPG, the web tier moves to the least-privilege
-            # runtime role (`tuist_web` by default) once the rollout gate
-            # opens. Self-hosted chart installs without managedSecrets keep
-            # using the owner Secret for backwards compatibility. The
-            # service hostname (`<cluster>-rw`) only resolves to the current
-            # primary; CNPG fails the Service over during a promotion.
+            # Managed CNPG uses the least-privilege runtime role
+            # (`tuist_web` by default). Self-hosted chart installs without
+            # managedSecrets keep using the owner Secret for backwards
+            # compatibility. The service hostname (`<cluster>-rw`) only
+            # resolves to the current primary; CNPG fails the Service over
+            # during a promotion.
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  {{- if and .Values.server.managedSecrets (eq (include "tuist.cnpgUseWebRole" .) "true") }}
+                  {{- if .Values.server.managedSecrets }}
                   name: {{ include "tuist.cnpgWebRoleSecretName" . }}
                   {{- else }}
                   name: {{ include "tuist.cnpgAppSecretName" . }}
@@ -230,6 +230,7 @@ spec:
             {{- include "tuist.licenseEnv" . | nindent 12 }}
             {{- include "tuist.kuraIntrospectionEnv" . | nindent 12 }}
             {{- include "tuist.githubEnv" . | nindent 12 }}
+            {{- include "tuist.googleEnv" . | nindent 12 }}
             {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
             - name: MASTER_KEY
               valueFrom:

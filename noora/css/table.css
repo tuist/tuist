@@ -173,6 +173,12 @@
           }
         }
 
+        /* Navigable/clickable cells are the containing block for the stretched row-link overlay
+         * (`<td>` works in every engine; `<tr>` does not, which is why the overlay is per-cell). */
+        & td[data-selectable] {
+          position: relative;
+        }
+
         &:hover {
           & td[data-selectable] {
             background: var(--noora-surface-background-secondary);
@@ -399,43 +405,56 @@
     }
   }
 
-  /* Whole-row navigation. A single anchor in the first cell carries the link; its `::after`
-   * overlay stretches across the row (which is the positioning context) so the entire row is the
-   * click target, while the DOM holds just one link per row. Trade-off: the overlay sits over the
-   * row's text, so text in navigable rows isn't selectable. */
-  & tr:has([data-part="row-link"]) {
-    position: relative;
-  }
-
+  /* Whole-row navigation, built from real anchors so browsers keep their native link affordances
+   * (hover URL preview, Safari/Firefox link previews, Cmd/middle-click → new tab) with no JS.
+   *
+   * The first cell holds the one focusable, announced link wrapping its content; its `::after`
+   * stretches the hit area over that cell. Every other cell holds an empty, `aria-hidden` overlay
+   * anchor that stretches over its own cell, widening the pointer/hover target to the whole row
+   * while staying out of the focus order and a11y tree. Each overlay is scoped to a `<td>` rather
+   * than spanning the `<tr>` because only `<td>` is a valid containing block in WebKit — a single
+   * `<tr>`-spanning overlay escapes to the `<table>` and swallows the whole grid. */
   & [data-part="row-link"] {
+    display: block;
     color: inherit;
     text-decoration: none;
 
     &::after {
       position: absolute;
       inset: 0;
-      z-index: 0;
       content: "";
     }
 
     &:focus-visible {
-      outline: none;
-
-      &::after {
-        outline: 2px solid
-          light-dark(
-            var(--noora-neutral-light-1000),
-            var(--noora-neutral-dark-1200)
-          );
-        outline-offset: -2px;
-      }
+      outline: 2px solid
+        light-dark(
+          var(--noora-neutral-light-1000),
+          var(--noora-neutral-dark-1200)
+        );
+      outline-offset: -2px;
     }
   }
 
-  /* Controls in the row's other cells must sit above the overlay to stay clickable. */
+  & [data-part="row-link-overlay"] {
+    position: absolute;
+    inset: 0;
+  }
+
+  /* The stretched overlays paint above static cell content (so clicks on text navigate the row),
+   * so any genuinely interactive control inside a navigable cell must be lifted above them to stay
+   * clickable — mirrors the interactive-target allowlist the JS forwarder used to honor. */
   &
-    tr:has([data-part="row-link"])
-    :is(a, button, input, select, [tabindex]):not([data-part="row-link"]) {
+    td[data-selectable]
+    :is(
+      a,
+      button,
+      input,
+      select,
+      textarea,
+      label,
+      [role="button"],
+      [tabindex]
+    ):not([data-part="row-link"], [data-part="row-link-overlay"]) {
     position: relative;
     z-index: 1;
   }
@@ -481,8 +500,7 @@
       display: flex;
       align-items: center;
       gap: var(--noora-spacing-5);
-      padding: var(--noora-spacing-5) var(--noora-spacing-7)
-        var(--noora-spacing-5) var(--noora-spacing-5);
+      padding: var(--noora-spacing-5) var(--noora-spacing-7);
 
       & [data-part="icon"] {
         display: flex;

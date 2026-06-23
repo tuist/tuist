@@ -21,7 +21,7 @@ cross-call this deployment via the tailnet for the policy lookup.
 - **CNPG Cluster** — single-instance Postgres, 5Gi storage, daily
   backups to Tigris under `s3://tuist-prod-pg-backups/tuist-ops`.
 - **ExternalSecrets** — three of them:
-  - `tuist-ops-runtime` — Slack + Tailscale credentials from `TUIST_OPS_BOT`
+  - `tuist-ops-runtime` — Slack, Tailscale, and GitHub credentials from `TUIST_OPS_BOT`
   - `tuist-ops-app`     — `SECRET_KEY_BASE` from the same 1P item
   - `tuist-ops-backup-credentials` — Tigris keys from the shared `S3_BACKUP_CREDENTIALS`
 
@@ -30,6 +30,8 @@ cross-call this deployment via the tailnet for the policy lookup.
 1. **Create `TUIST_OPS_BOT` 1P item** in the production vault with fields:
    - `tailscale_client_id`, `tailscale_client_secret`, `tailscale_tailnet`
    - `slack_signing_secret`, `slack_bot_token`, `slack_approvals_channel_id`
+   - `github_actions_token` — GitHub token that can dispatch and read the
+     `preview-deploy.yml` workflow in `tuist/tuist`
    - `secret_key_base` — generate via `mix phx.gen.secret`
 2. **Update the Slack app**'s slash command URL to
    `https://ops.tuist.dev/webhooks/slack/slash` and the interactivity

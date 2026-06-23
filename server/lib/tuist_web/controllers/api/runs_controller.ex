@@ -778,7 +778,7 @@ defmodule TuistWeb.API.RunsController do
     run_params =
       body_params
       |> Map.put(:project, selected_project)
-      |> Map.put(:account, Authentication.authenticated_subject_account(conn))
+      |> Map.put(:ran_by_account, Authentication.authenticated_subject_account(conn))
 
     case Map.get(body_params, :type, "build") do
       "build" ->
@@ -845,7 +845,7 @@ defmodule TuistWeb.API.RunsController do
           scheme: Map.get(params, :scheme),
           configuration: Map.get(params, :configuration),
           project_id: params.project.id,
-          account_id: params.account.id,
+          account_id: params.ran_by_account.id,
           status: Map.get(params, :status, "success"),
           category: Map.get(params, :category),
           git_branch: Map.get(params, :git_branch),
@@ -900,7 +900,7 @@ defmodule TuistWeb.API.RunsController do
           model_identifier: Map.get(params, :model_identifier),
           scheme: Map.get(params, :scheme),
           project_id: params.project.id,
-          account_id: params.account.id,
+          account_id: params.ran_by_account.id,
           status: Map.get(params, :status),
           git_branch: Map.get(params, :git_branch),
           git_commit_sha: Map.get(params, :git_commit_sha),

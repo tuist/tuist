@@ -232,13 +232,30 @@ defmodule Noora.Table do
                         </button>
                         {render_slot(col, row)}
                       </div>
-                    <% @row_navigate && index == 0 -> %>
-                      <%!-- Whole-row navigation via a single stretched anchor: only the first
-                      cell carries the link, and its `::after` overlay (see table.css) extends the
-                      hit area across the row. The row reads as one link — one tab stop, announced
-                      once — instead of one duplicate link per cell. --%>
+                    <% @row_navigate && !is_expandable && index == 0 -> %>
+                      <%!-- Whole-row navigation, built from real anchors so browsers keep their
+                      native link affordances (hover URL preview, Safari/Firefox link previews,
+                      Cmd/middle-click to open in a new tab) with no JS. The first cell carries the
+                      one focusable, announced link wrapping its content, stretched over its own
+                      cell by a `::after` overlay (see table.css); every other cell gets a decorative
+                      empty overlay anchor below. The row reads as one link — one tab stop, announced
+                      once. --%>
                       <.link navigate={@row_navigate.(row)} data-part="row-link">
                         {render_slot(col, row)}
+                      </.link>
+                    <% @row_navigate && !is_expandable -> %>
+                      <%!-- Decorative per-cell overlay: an empty real anchor stretched over the
+                      cell (`<td>` IS a valid containing block in every engine — only `<tr>` is not,
+                      which is why a single row-spanning overlay can't work in WebKit). It widens the
+                      pointer/hover hit area to the whole row while staying out of the focus order and
+                      a11y tree, so only the first cell's link is announced. --%>
+                      {render_slot(col, row)}
+                      <.link
+                        navigate={@row_navigate.(row)}
+                        data-part="row-link-overlay"
+                        tabindex="-1"
+                        aria-hidden="true"
+                      >
                       </.link>
                     <% true -> %>
                       {render_slot(col, row)}

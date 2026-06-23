@@ -109,7 +109,7 @@ defmodule Tuist.Docs.CLI.Renderer do
       )
       |> HTML.wrap_code_blocks()
       |> HTML.add_heading_anchors()
-      |> wrap_tables()
+      |> HTML.wrap_tables()
 
     headings = extract_headings_from_html(html)
 
@@ -226,12 +226,6 @@ defmodule Tuist.Docs.CLI.Renderer do
   end
 
   defp render_usage(_full_command, _arg), do: ""
-
-  defp wrap_tables(html) do
-    html
-    |> String.replace("<table>", ~s(<div class="noora-table"><table>))
-    |> String.replace("</table>", "</table></div>")
-  end
 
   @heading_extract_from_html_regex ~r/<h([2-4])>.*?class="heading-anchor"\s+id="([^"]+)"[^>]*>.*?data-part="heading-text"[^>]*>(.*?)<\/span>/s
 

@@ -139,13 +139,32 @@ jobs:
           TART_REGISTRY_HOSTNAME: ghcr.io
           TART_REGISTRY_USERNAME: tuist-bot
           TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        # Direct tart push with a 3x retry — identical shape to
+        # macos-xcode-image.yml, which publishes the same-size image via
+        # the same path and is the only large tart push that pushes
+        # reliably. Earlier attempts here layered on TART_NO_AUTO_PRUNE
+        # and a clone-the-base "restore nvram.bin" step; both failed to
+        # fix the intermittent `Error: The file "nvram.bin" doesn't exist`
+        # and the disk-heavy restore made it worse (the whole VM bundle
+        # vanished mid-push). Blob uploads are content-addressed, so a
+        # re-push only re-uploads layers that didn't land last time.
         run: |
           # SHA-tagged builds for ad-hoc deploys; semver tags + `:latest`
           # are owned by server-production-deployment.yml's release-xcresult-processor job.
           set -euo pipefail
           GIT_SHA="${GITHUB_SHA::8}"
-          tart push tuist-xcresult-processor "ghcr.io/tuist/tuist-xcresult-processor:${GIT_SHA}"
-          echo "Pushed ghcr.io/tuist/tuist-xcresult-processor:${GIT_SHA}"
+          DST="ghcr.io/tuist/tuist-xcresult-processor:${GIT_SHA}"
+          for attempt in 1 2 3; do
+            echo "tart push attempt ${attempt} starting at $(date -u +%H:%M:%SZ)" >&2
+            if tart push tuist-xcresult-processor "$DST"; then
+              echo "Pushed ${DST} on attempt ${attempt}"
+              exit 0
+            fi
+            echo "tart push attempt ${attempt} failed; sleeping 60s before retry" >&2
+            sleep 60
+          done
+          echo "tart push failed three times in a row" >&2
+          exit 1
 
       - name: Cleanup
         if: always()

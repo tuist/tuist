@@ -94,6 +94,13 @@ server:
   github:
     managedSecrets: true
 
+  # ESO-synced Google OAuth client credentials, replacing the google entry in
+  # the encrypted priv/secrets blob (the gradual move of OAuth secrets into
+  # 1Password, following GitHub). Each env reads GOOGLE_OAUTH (fields
+  # client_id / client_secret) from its tuist-k8s-<env> vault.
+  google:
+    managedSecrets: true
+
   database:
     ssl: true
 
@@ -279,11 +286,11 @@ cache:
 #
 # CNPG generates the owner role Secret at `<cluster>-app`; migration pods
 # mount DATABASE_URL from its `uri` key so Ecto keeps owning schema
-# changes. Managed web pods move to the narrower `tuist_web` runtime
-# role from the `WEB_DATABASE_PASSWORD` 1P item once its rollout gate is
-# open, and processors use `tuist_processor` from
-# `PROCESSOR_DATABASE_PASSWORD`. CNPG reconciles those managed-role
-# passwords into SCRAM hashes, so rotation is a one-shot `op item edit`.
+# changes. Managed web pods use the narrower `tuist_web` runtime role
+# from the `WEB_DATABASE_PASSWORD` 1P item, and processors use
+# `tuist_processor` from `PROCESSOR_DATABASE_PASSWORD`. CNPG reconciles
+# those managed-role passwords into SCRAM hashes, so rotation is a
+# one-shot `op item edit`.
 postgresql:
   mode: external
   external:

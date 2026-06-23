@@ -32,7 +32,7 @@ jobs:
     steps:
       - uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "--locked helm kubectl"
+          install_args: "--locked helm kubectl jq"
           cache: "false"
       - name: Load kubeconfig
         run: |
@@ -45,11 +45,30 @@ jobs:
         # chance to run, then drop the namespace. `kubectl delete namespace`
         # is itself a backstop — if helm uninstall fails, the namespace
         # delete cascades through anyway.
+        #
+        # Namespaces in `state=creating` are skipped while the create is
+        # still plausibly in flight — the deploy workflow writes that label
+        # before any chart mutation and flips to `state=ready` once helm
+        # upgrade returns. A cancelled / failed create would otherwise leave
+        # the namespace orphaned indefinitely, so we treat `state=creating`
+        # plus a stale `created-at` (older than STUCK_CREATE_AGE_SECONDS) as
+        # a botched create and tear it down.
+        env:
+          STUCK_CREATE_AGE_SECONDS: "1800"
         run: |
           set -euo pipefail
+
           NOW=$(date +%s)
-          MAPPING=$(kubectl get namespaces -l tuist.dev/preview=true \
-            -o jsonpath='{range .items[*]}{.metadata.name}={.metadata.labels.tuist\.dev/expires-at}{"\n"}{end}')
+          MAPPING=$(kubectl get namespaces -l tuist.dev/preview=true -o json | jq -r '
+            .items[] |
+            [
+              .metadata.name,
+              (.metadata.labels["tuist.dev/release"] // ""),
+              (.metadata.labels["tuist.dev/expires-at"] // ""),
+              (.metadata.labels["tuist.dev/state"] // ""),
+              (.metadata.annotations["tuist.dev/created-at"] // "")
+            ] | @tsv
+          ')
           if [ -z "$MAPPING" ]; then
             echo "No preview namespaces found."
             exit 0
@@ -57,16 +76,36 @@ jobs:
           echo "Found preview namespaces:"
           echo "$MAPPING"
 
-          while IFS='=' read -r NS EXP; do
+          while IFS=$'\t' read -r NS RELEASE EXP STATE CREATED_AT; do
             [ -z "$NS" ] && continue
-            if [ -z "$EXP" ] || ! [[ "$EXP" =~ ^[0-9]+$ ]]; then
-              echo "::warning::namespace $NS has missing/invalid expires-at label; skipping"
-              continue
-            fi
-            if [ "$EXP" -le "$NOW" ]; then
-              echo "==> Expired: $NS (expired $((NOW - EXP))s ago) — uninstalling"
+            if [ -z "$RELEASE" ]; then
               # Strip the `preview-` prefix to get the helm release name.
               RELEASE="${NS#preview-}"
+            fi
+
+            DELETE_REASON=""
+            if [ "$STATE" = "creating" ]; then
+              if [[ "$CREATED_AT" =~ ^[0-9]+$ ]] && [ $((NOW - CREATED_AT)) -ge "$STUCK_CREATE_AGE_SECONDS" ]; then
+                DELETE_REASON="stuck creating $((NOW - CREATED_AT))s — past STUCK_CREATE_AGE_SECONDS=$STUCK_CREATE_AGE_SECONDS"
+              else
+                echo "    Skipping mid-create: $NS"
+                continue
+              fi
+            elif [ -z "$EXP" ] || ! [[ "$EXP" =~ ^[0-9]+$ ]]; then
+              echo "::warning::namespace $NS has missing/invalid expires-at label; skipping"
+              continue
+            elif [ "$EXP" -le "$NOW" ]; then
+              DELETE_REASON="expired $((NOW - EXP))s ago"
+            fi
+
+            if [ -n "$DELETE_REASON" ]; then
+              echo "==> Deleting: $NS ($DELETE_REASON)"
+              # The cluster-wide Kura controller in the `kura` namespace
+              # owns the KuraInstance for this preview; delete it with
+              # --wait so the finalizer drains the public Ingress and the
+              # cert-manager Certificate before we drop the preview's
+              # helm release and namespace.
+              kubectl -n kura delete kurainstance "${RELEASE}-kura" --ignore-not-found --wait=true --timeout 5m || true
               helm uninstall "$RELEASE" --namespace "$NS" --wait --timeout 5m || true
               kubectl delete namespace "$NS" --wait=true --timeout 5m || true
             else

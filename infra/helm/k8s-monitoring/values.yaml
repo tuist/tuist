@@ -67,6 +67,25 @@ k8s-monitoring:
         name: k8s-monitoring-grafana-cloud
         namespace: observability
       extraLabels: {}
+      # Last-stop write relabeling for labels / metrics that survive the
+      # feature-level allow-lists below. These labels are restart-scoped
+      # Kubernetes identifiers that multiply otherwise equivalent series and
+      # are not used by dashboards in this repo.
+      metricProcessingRules: |
+        write_relabel_config {
+          action = "labeldrop"
+          regex = "container_id|uid|pod_ip|image_id|image_spec|k8s_pod_uid"
+        }
+        write_relabel_config {
+          source_labels = ["__name__"]
+          regex = "node_network_(receive|transmit)_drop_total|traces_service_graph_request_.*"
+          action = "drop"
+        }
+        write_relabel_config {
+          source_labels = ["job"]
+          regex = "integrations/(process|self)"
+          action = "drop"
+        }
 
     grafana-cloud-logs:
       type: loki
@@ -148,17 +167,72 @@ k8s-monitoring:
           - container_memory_rss
           - container_memory_swap
           - container_memory_usage_bytes
+        # Drop all cAdvisor series for the CI runner namespace. Each ephemeral
+        # job pod gets ~15 container_* series carrying a unique pod label that
+        # dies with the pod but lingers as a billable series, so this is the
+        # heaviest churn source in the active-vs-billable gap. Same rationale
+        # (and same namespace) as the kube_pod_* drop above: the runner
+        # dashboard reads low-cardinality RunnerPool telemetry, not per-pod
+        # container metrics. No-op for the runner pods cAdvisor never scrapes.
+        excludeNamespaces:
+          - tuist-runners
     kubelet:
       metricsTuning:
         useDefaultAllowList: true
     kube-state-metrics:
+      # Do not blank the `pod` label on kube_pod_* metrics: relabeling
+      # cannot aggregate duplicate samples, so that produces colliding
+      # series rather than namespace-level totals. Instead, remove the
+      # runner namespace from pod-scoped KSM metrics and use low-cardinality
+      # RunnerPool telemetry in the runner dashboard. Keep
+      # kube_pod_status_unschedulable available cluster-wide because it is a
+      # cheap placement signal compared to the rest of kube_pod_*.
+      #
+      # The final rule drops kube_pod_status_phase for terminal pods
+      # (Succeeded/Failed). Job/CronJob and short-lived deploy pods leave one
+      # such series each that lives forever as a billable series but never
+      # comes back as an active one — the bulk of the active-vs-billable gap.
+      # We page on container waiting/crash signals, not terminal pod phase,
+      # and no dashboard reads this metric, so only Running/Pending/Unknown
+      # are worth keeping.
+      extraMetricProcessingRules: |
+        rule {
+          source_labels = ["__name__", "namespace"]
+          separator = ";"
+          regex = "kube_pod_status_unschedulable;tuist-runners"
+          target_label = "__tmp_keep_runner_pod_metric"
+          replacement = "true"
+          action = "replace"
+        }
+        rule {
+          source_labels = ["__name__", "namespace", "__tmp_keep_runner_pod_metric"]
+          separator = ";"
+          regex = "kube_pod_.*;tuist-runners;"
+          action = "drop"
+        }
+        rule {
+          regex = "__tmp_keep_runner_pod_metric"
+          action = "labeldrop"
+        }
+        rule {
+          source_labels = ["__name__", "phase"]
+          separator = ";"
+          regex = "kube_pod_status_phase;(Succeeded|Failed)"
+          action = "drop"
+        }
       metricsTuning:
         useDefaultAllowList: true
+        includeMetrics:
+          - kube_pod_status_unschedulable
         excludeMetrics:
           # We page on container waiting/termination reasons, not pod-level
           # status reasons. This metric fans out by pod × reason and was one
           # of the highest-cardinality series in Grafana Cloud.
           - kube_pod_status_reason
+          # PersistentVolume phase is useful for storage inventory, but we
+          # monitor actual usage / pressure through PVC and kubelet volume
+          # stats. The phase gauge fans out by PV × phase and is unused.
+          - kube_persistentvolume_status_phase
 
   # Streams Kubernetes Events to Loki as structured logs. Cheap and
   # extremely useful for post-mortem ("what got evicted, when, why").
@@ -206,6 +280,38 @@ k8s-monitoring:
           # throughput against the Hetzner kura nodes.
           - node_network_receive_bytes_total
           - node_network_transmit_bytes_total
+      # The allow-list above keeps node_cpu_seconds_total for all CPU modes
+      # and node_network_*_bytes_total for every interface, but the dashboards
+      # only read mode="idle" and physical devices (device=~"e(n|th).*").
+      # Drop the unqueried CPU modes and the virtual interfaces — the largest
+      # node-exporter series source left after the curated allow-list.
+      # extraMetricProcessingRules runs after the allow-list keep, so it trims
+      # within the kept set.
+      extraMetricProcessingRules: |
+        rule {
+          source_labels = ["__name__", "mode"]
+          separator = ";"
+          regex = "node_cpu_seconds_total;(guest|guest_nice|steal|irq|softirq)"
+          action = "drop"
+        }
+        rule {
+          source_labels = ["__name__", "device"]
+          separator = ";"
+          regex = "node_network_(receive|transmit)_bytes_total;(en|eth).*"
+          target_label = "__tmp_keep_net_iface"
+          replacement = "true"
+          action = "replace"
+        }
+        rule {
+          source_labels = ["__name__", "__tmp_keep_net_iface"]
+          separator = ";"
+          regex = "node_network_(receive|transmit)_bytes_total;"
+          action = "drop"
+        }
+        rule {
+          regex = "__tmp_keep_net_iface"
+          action = "labeldrop"
+        }
 
   # DaemonSet-based pod log tailing via /var/log/pods hostPath. A
   # compromised Alloy pod can only read logs from the single node it
@@ -260,10 +366,29 @@ k8s-monitoring:
       metricsScheme: "prometheus.io/scheme"
     metricsTuning:
       excludeMetrics:
-        # Cilium's event timestamps and BPF map capacity gauges have high
-        # pod/map label fan-out and are not queried by Tuist dashboards.
+        # Cilium's event timestamps, BPF map gauges, and agent-internal
+        # operational counters (API rate limiter, k8s client, triggers,
+        # controllers, datapath, per-endpoint policy enforcement) have high
+        # pod/map/endpoint fan-out and are not queried by any dashboard or
+        # alert in this repo. Re-add a specific name here if a Cilium
+        # integration dashboard is ever installed.
         - cilium_event_ts
         - cilium_bpf_map_capacity
+        - cilium_bpf_map_pressure
+        - cilium_bpf_map_ops_total
+        - cilium_agent_bootstrap_seconds
+        - cilium_api_limiter_.*
+        - cilium_k8s_client_.*
+        - cilium_triggers_.*
+        - cilium_controllers_.*
+        - cilium_datapath_.*
+        - cilium_policy_endpoint_enforcement_status
+        # Go runtime metrics (GC, memstats, scheduler, threads) ship one set
+        # per scraped pod across the hundreds of Go infra pods (Cilium,
+        # operators, controllers) and churn on every restart. The Tuist
+        # server/processor run on the BEAM, not Go, so this drops only infra
+        # noise; no dashboard or alert reads go_*.
+        - go_.*
         # Response-size histograms add buckets per Phoenix route/status/method
         # and are not used by the dashboards in this repo.
         - tuist_prom_ex_phoenix_http_response_size_bytes_bucket
@@ -291,6 +416,17 @@ k8s-monitoring:
       deploy: true
     node-exporter:
       deploy: true
+      # Exempt node-exporter from kubelet node-pressure (DiskPressure) eviction.
+      # node-exporter is a DaemonSet, so the observability chart's `helm --wait`
+      # blocks until every node has a Ready node-exporter Pod. When a node hit
+      # DiskPressure the kubelet evicted its (default-priority) node-exporter,
+      # the DaemonSet sat at N-1/N forever, `helm --wait` timed out, and — since
+      # the observability install is a prerequisite of the server deploy job —
+      # ALL production deploys were blocked on one bad node. A system-critical
+      # priority is exempt from node-pressure eviction, so node-exporter keeps
+      # running (and reporting) exactly when a node is unhealthy, instead of
+      # being the thing that gets reaped and wedges the whole pipeline.
+      priorityClassName: system-node-critical
 
   # ───── Service integrations ─────
   #
@@ -336,6 +472,7 @@ k8s-monitoring:
             app.kubernetes.io/name: alloy-metrics
           metrics:
             tuning:
+              useDefaultAllowList: false
               includeMetrics:
                 - alloy_config_last_load_successful
                 - alloy_config_last_load_success_timestamp_seconds
@@ -346,6 +483,7 @@ k8s-monitoring:
             app.kubernetes.io/name: alloy-logs
           metrics:
             tuning:
+              useDefaultAllowList: false
               includeMetrics:
                 - alloy_config_last_load_successful
                 - alloy_config_last_load_success_timestamp_seconds
@@ -356,6 +494,7 @@ k8s-monitoring:
             app.kubernetes.io/name: alloy-singleton
           metrics:
             tuning:
+              useDefaultAllowList: false
               includeMetrics:
                 - alloy_config_last_load_successful
                 - alloy_config_last_load_success_timestamp_seconds
@@ -366,6 +505,7 @@ k8s-monitoring:
             app.kubernetes.io/name: alloy-receiver
           metrics:
             tuning:
+              useDefaultAllowList: false
               includeMetrics:
                 - alloy_config_last_load_successful
                 - alloy_config_last_load_success_timestamp_seconds
@@ -442,12 +582,7 @@ k8s-monitoring:
 
         prometheus.scrape "tuist_macos_node_exporter" {
           targets = discovery.relabel.tuist_macos_node_exporter.output
-          // Top-level extraConfig sits OUTSIDE the chart's `declare`
-          // blocks, so `argument.metrics_destinations.value` is out of
-          // scope here. Forward straight to the concrete Grafana Cloud
-          // metrics destination (matches the `destinations` key in
-          // values.yaml — dashes → underscores per Alloy syntax).
-          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          forward_to = [prometheus.relabel.tuist_macos_node_exporter.receiver]
           job_name = "tuist-macos-node-exporter"
           scrape_interval = "30s"
           scrape_timeout = "10s"
@@ -462,6 +597,20 @@ k8s-monitoring:
           clustering {
             enabled = true
           }
+        }
+
+        prometheus.relabel "tuist_macos_node_exporter" {
+          rule {
+            source_labels = ["__name__"]
+            regex = "up|scrape_samples_scraped|node_exporter_build_info|node_cpu_seconds_total|node_memory_.*|node_filesystem_.*|node_disk_(read|written)_bytes_total|node_filefd_(allocated|maximum)|node_load.*|node_network_(receive|transmit)_bytes_total|node_pressure_.*|node_sockstat_(TCP_alloc|TCP_inuse|TCP_tw|sockets_used)|node_vmstat_oom_kill|process_cpu_seconds_total|process_resident_memory_bytes"
+            action = "keep"
+          }
+          // Top-level extraConfig sits OUTSIDE the chart's `declare`
+          // blocks, so `argument.metrics_destinations.value` is out of
+          // scope here. Forward straight to the concrete Grafana Cloud
+          // metrics destination (matches the `destinations` key in
+          // values.yaml, dashes to underscores per Alloy syntax).
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
         }
 
         // tart-kubelet's controller-runtime metrics endpoint. Carries

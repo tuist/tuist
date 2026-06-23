@@ -120,6 +120,12 @@ rules:
     resources: [pods]
     verbs: [get, list, watch, create, patch, delete]
   - apiGroups: [""]
+    # Read a terminated runner's container log to re-emit its final
+    # RUNNER_VITALS/_diag trail to the controller's own durable stdout
+    # before the reap deletes the Pod (mid-job death forensics).
+    resources: [pods/log]
+    verbs: [get]
+  - apiGroups: [""]
     # Sibling SAs of each Pod; created and deleted alongside, never
     # patched.
     resources: [serviceaccounts]

@@ -120,7 +120,7 @@ spec:
                 secretKeyRef:
                   name: {{ include "tuist.cnpgAppSecretName" . }}
                   key: uri
-            {{- if and .Values.server.managedSecrets (eq (include "tuist.cnpgUseWebRole" .) "true") }}
+            {{- if .Values.server.managedSecrets }}
             - name: TUIST_DATABASE_RUNTIME_ROLE
               value: {{ .Values.postgresql.cnpg.roles.web.name | quote }}
             {{- end }}

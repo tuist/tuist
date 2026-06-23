@@ -227,14 +227,14 @@ defmodule Tuist.EnvironmentTest do
       assert_raise RuntimeError,
                    ~r/TUIST_DATABASE_SCHEMA must be a valid unquoted PostgreSQL identifier/,
                    fn ->
-        Environment.database_schema("tuist-prod")
-      end
+                     Environment.database_schema("tuist-prod")
+                   end
 
       assert_raise RuntimeError,
                    ~r/TUIST_DATABASE_SCHEMA must be a valid unquoted PostgreSQL identifier/,
                    fn ->
-        Environment.database_schema("1tuist")
-      end
+                     Environment.database_schema("1tuist")
+                   end
     end
   end
 
@@ -250,6 +250,22 @@ defmodule Tuist.EnvironmentTest do
       for mode <- Environment.modes() do
         assert Environment.mode(Atom.to_string(mode)) == mode
       end
+    end
+  end
+
+  describe "database_config_from_url/1" do
+    test "preserves literal plus signs in credentials" do
+      config = Environment.database_config_from_url("ecto://user:abc+def@example.com/tuist")
+
+      assert config[:username] == "user"
+      assert config[:password] == "abc+def"
+    end
+
+    test "decodes percent-encoded plus signs in credentials" do
+      config = Environment.database_config_from_url("ecto://user:abc%2Bdef@example.com/tuist")
+
+      assert config[:username] == "user"
+      assert config[:password] == "abc+def"
     end
   end
 
@@ -320,6 +336,23 @@ defmodule Tuist.EnvironmentTest do
   end
 
   describe "kura_endpoints/1" do
+    test "returns trimmed Kura endpoints from the environment value" do
+      assert Environment.kura_endpoints(%{}, " https://kura-1.example.com,https://kura-2.example.com , ") == [
+               "https://kura-1.example.com",
+               "https://kura-2.example.com"
+             ]
+    end
+
+    test "falls back to secrets when the environment value is blank" do
+      secrets = %{
+        "kura" => %{
+          "endpoints" => "https://kura-from-secrets.example.com"
+        }
+      }
+
+      assert Environment.kura_endpoints(secrets, "") == ["https://kura-from-secrets.example.com"]
+    end
+
     test "returns trimmed Kura endpoints from secrets" do
       secrets = %{
         "kura" => %{

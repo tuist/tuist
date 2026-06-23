@@ -22,6 +22,8 @@ defmodule Tuist.Storage.ExpiredArtifacts do
   alias Tuist.Builds
   alias Tuist.Builds.Build
   alias Tuist.ClickHouseRepo
+  alias Tuist.CommandEvents
+  alias Tuist.CommandEvents.Event
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Shards
@@ -106,6 +108,45 @@ defmodule Tuist.Storage.ExpiredArtifacts do
 
       delete_and_continue(account, object_keys, next_cursor(rows, batch_size), progress_cursor(:build_archive, rows))
     end
+  end
+
+  def delete_run_artifacts(%Account{} = account, batch_size, opts \\ []) do
+    plan = RetentionPolicy.current_plan(account)
+    cutoff = :run_session |> RetentionPolicy.cutoff(plan) |> DateTime.to_naive()
+    projects_by_id = projects_by_id(account)
+    project_ids = Map.keys(projects_by_id)
+    cursor = initial_cursor(account, :run_session, opts, :naive)
+
+    if project_ids == [] do
+      {:ok, nil}
+    else
+      rows =
+        Event
+        |> where([event], event.project_id in ^project_ids and event.ran_at < ^cutoff)
+        |> apply_cursor(cursor, :ran_at)
+        |> order_by([event], asc: event.ran_at, asc: event.id)
+        |> limit(^batch_size)
+        |> select([event], %{id: event.id, project_id: event.project_id, inserted_at: event.ran_at})
+        |> ClickHouseRepo.all()
+
+      prefixes =
+        Enum.flat_map(rows, fn event ->
+          case Map.fetch(projects_by_id, event.project_id) do
+            {:ok, project} ->
+              project = %{project | account: account}
+              ["#{CommandEvents.get_command_event_artifact_base_path_key(event.id, project)}/"]
+
+            :error ->
+              []
+          end
+        end)
+
+      delete_prefixes_and_continue(account, prefixes, next_cursor(rows, batch_size), progress_cursor(:run_session, rows))
+    end
+  end
+
+  def delete_run_sessions(%Account{} = account, batch_size, opts \\ []) do
+    delete_run_artifacts(account, batch_size, opts)
   end
 
   def delete_test_attachments(%Account{} = account, batch_size, opts \\ []) do
@@ -209,6 +250,14 @@ defmodule Tuist.Storage.ExpiredArtifacts do
     end
   end
 
+  defp delete_prefixes_and_continue(%Account{} = account, prefixes, next_cursor, progress_cursor) do
+    prefixes |> Enum.uniq() |> Enum.each(&Storage.delete_all_objects(&1, account))
+
+    with :ok <- persist_progress_cursor(account, progress_cursor) do
+      {:ok, next_cursor}
+    end
+  end
+
   defp projects_by_id(%Account{} = account) do
     Project
     |> where([project], project.account_id == ^account.id)
@@ -216,13 +265,15 @@ defmodule Tuist.Storage.ExpiredArtifacts do
     |> Map.new(&{&1.id, &1})
   end
 
-  defp apply_cursor(query, nil), do: query
+  defp apply_cursor(query, cursor), do: apply_cursor(query, cursor, :inserted_at)
 
-  defp apply_cursor(query, {inserted_at, id}) do
+  defp apply_cursor(query, nil, _field), do: query
+
+  defp apply_cursor(query, {inserted_at, id}, field) do
     where(
       query,
       [row],
-      row.inserted_at > ^inserted_at or (row.inserted_at == ^inserted_at and row.id > ^id)
+      field(row, ^field) > ^inserted_at or (field(row, ^field) == ^inserted_at and row.id > ^id)
     )
   end
 

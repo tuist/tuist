@@ -15,6 +15,15 @@ defmodule TuistOps.Environment do
   def slack_signing_secret, do: System.get_env("SLACK_SIGNING_SECRET")
   def slack_bot_token, do: System.get_env("SLACK_BOT_TOKEN")
   def approvals_channel_id, do: System.get_env("SLACK_APPROVALS_CHANNEL_ID")
+  def previews_channel_id, do: System.get_env("SLACK_PREVIEWS_CHANNEL_ID")
+
+  def github_actions_token, do: System.get_env("GITHUB_ACTIONS_TOKEN")
+  def github_repository, do: System.get_env("GITHUB_REPOSITORY") || "tuist/tuist"
+  def github_workflow_ref, do: System.get_env("GITHUB_WORKFLOW_REF") || "main"
+
+  def preview_workflow_id do
+    System.get_env("PREVIEW_WORKFLOW_ID") || "preview-deploy.yml"
+  end
 
   # --- Operator project-access grants -----------------------------------
 
