@@ -439,6 +439,9 @@ func HostConfigHash(cfg Config) string {
 	cfg.KnownHostFingerprint = ""
 	cfg.GHActionsRunner = nil
 	cfg.NodeLabels = nil
+	// Per-host role signal (builder hosts set it); the launchd plist
+	// renderer keys --disable-vm-gc off it, so neutralize it too.
+	cfg.DisableVMGC = false
 
 	var b strings.Builder
 

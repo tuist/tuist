@@ -153,6 +153,7 @@ func TestHostConfigHash_IndependentOfPerHostFields(t *testing.T) {
 	perHost.ProviderID = "scw-applesilicon://fr-par-1/abc"
 	perHost.VMCachePNVLAN = 4242
 	perHost.KnownHostFingerprint = "SHA256:zzz"
+	perHost.DisableVMGC = true
 	if HostConfigHash(base) != HostConfigHash(perHost) {
 		t.Fatalf("HostConfigHash must ignore per-host fields")
 	}
