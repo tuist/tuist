@@ -321,7 +321,7 @@
     <.card_section data-part="flaky-runs-section">
       <div
         :for={group <- @flaky_runs_grouped.result}
-        id={"flaky-group-#{group.scheme}-#{group.git_commit_sha}"}
+        id={"flaky-group-#{group.scheme}-#{group.selective_testing_hash || group.git_commit_sha}"}
         phx-hook="NooraCollapsible"
         data-part="collapsible"
         data-state="closed"
@@ -330,12 +330,28 @@
           <div data-part="header-row">
             <div data-part="title-and-subtitle">
               <h3 data-part="title">
+                <span :if={group.group_type == :hash} data-part="module-hash">
+                  {dgettext("dashboard_tests", "Module hash")} {String.slice(
+                    group.selective_testing_hash,
+                    0,
+                    7
+                  )}
+                </span>
                 <.commit_link
+                  :if={group.group_type == :commit}
                   project={@selected_project}
                   commit_sha={group.git_commit_sha}
                   data-part="commit-sha"
                 />
               </h3>
+              <p :if={group.group_type == :hash} data-part="subtitle">
+                {dngettext(
+                  "dashboard_tests",
+                  "Same module hash across %{count} commit",
+                  "Same module hash across %{count} commits",
+                  group.commit_count
+                )}
+              </p>
             </div>
             <div data-part="stats">
               <span data-part="time-ago">
@@ -383,6 +399,12 @@
                     )}
                   </span>
                   <div data-part="run-metadata">
+                    <.commit_link
+                      :if={run.git_commit_sha not in [nil, ""]}
+                      project={@selected_project}
+                      commit_sha={run.git_commit_sha}
+                      data-part="commit-sha"
+                    />
                     <.branch_link
                       project={@selected_project}
                       branch={run.git_branch}

@@ -48,11 +48,14 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestCaseRunByShardId
   alias Tuist.Tests.TestCaseRunByTestRun
   alias Tuist.Tests.TestCaseRunDashboardCount
+  alias Tuist.Tests.TestCaseRunHash
   alias Tuist.Tests.TestCaseRunRepetition
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Tests.TestSuiteRun
+  alias Tuist.Tests.Workers.FlakyTestsByHashWorker
   alias Tuist.Webhooks.Dispatcher
+  alias Tuist.Xcode
 
   require OpenTelemetry.Tracer
 
@@ -1468,6 +1471,187 @@ defmodule Tuist.Tests do
     |> Enum.group_by(& &1.test_case_id)
   end
 
+  @doc """
+  Enqueues hash-based flaky detection for a finished test run, scheduled past
+  the ClickHouse buffer flush so the run's `test_case_runs` are queryable.
+  Called from command-event ingestion once the command event (and its
+  selective-testing hashes) exist.
+  """
+  def enqueue_flaky_tests_by_hash_detection(command_event_id, test_run_id) do
+    FlakyTestsByHashWorker.enqueue(command_event_id, test_run_id)
+  end
+
+  @doc """
+  Detects flaky test cases for a finished test run by selective-testing hash.
+
+  This complements the synchronous commit-based detection
+  (`check_cross_run_flakiness/2`): a test case that ran at the same module
+  hash as an earlier CI run (so nothing affecting that module changed, even
+  on a different commit) but produced a different status is flaky, even after
+  a single new run.
+
+  Runs off command-event ingestion because the per-target
+  `selective_testing_hash` only reaches the server with the command event,
+  after the `test_case_runs` themselves are ingested. CI-only, mirroring the
+  commit-based path. Flagging a run flaky re-inserts it (and any contradicting
+  historical run) with `is_flaky: true` and feeds the existing flaky-alert
+  pipeline.
+  """
+  def detect_flaky_tests_by_hash(command_event, test_run_id) do
+    hashes_by_name = Xcode.selective_testing_hashes_by_name(command_event)
+
+    if map_size(hashes_by_name) == 0 do
+      :ok
+    else
+      project_id = command_event.project_id
+
+      project_id
+      |> get_ci_test_case_runs_for_test_run(test_run_id)
+      |> do_detect_flaky_tests_by_hash(project_id, hashes_by_name)
+    end
+  end
+
+  defp do_detect_flaky_tests_by_hash([], _project_id, _hashes_by_name), do: :ok
+
+  defp do_detect_flaky_tests_by_hash(current_runs, project_id, hashes_by_name) do
+    entries =
+      Enum.flat_map(current_runs, fn run ->
+        case Map.get(hashes_by_name, run.module_name) do
+          nil ->
+            []
+
+          hash ->
+            [
+              %{
+                id: run.id,
+                test_case_id: run.test_case_id,
+                status: to_string(run.status),
+                scheme: run.scheme || "",
+                hash: hash
+              }
+            ]
+        end
+      end)
+
+    if entries == [] do
+      :ok
+    else
+      existing_runs = get_existing_ci_runs_for_hash(entries, project_id)
+
+      {flaky_current_runs, historical_flaky_runs} =
+        Enum.reduce(entries, {[], []}, fn entry, {current_acc, historical_acc} ->
+          case filter_cross_run_flaky_by_hash(entry, existing_runs) do
+            [] ->
+              {current_acc, historical_acc}
+
+            historical ->
+              {[%{id: entry.id, test_case_id: entry.test_case_id} | current_acc], historical ++ historical_acc}
+          end
+        end)
+
+      runs_to_mark = flaky_current_runs ++ historical_flaky_runs
+      mark_test_case_runs_as_flaky(project_id, runs_to_mark)
+
+      flaky_test_case_ids = runs_to_mark |> Enum.map(& &1.test_case_id) |> Enum.uniq()
+      Automations.enqueue_flaky_alert_evaluations(project_id, flaky_test_case_ids)
+
+      insert_test_case_run_hashes(project_id, entries)
+      :ok
+    end
+  end
+
+  # Loads the CI test case runs of a finished test run. The slim
+  # `test_case_runs_by_test_run` MV (keyed on `test_run_id`) yields the run
+  # ids cheaply; the full rows (carrying `module_name`/`scheme`/`is_ci`) are
+  # then fetched from the main table by `(project_id, test_case_id, id)`,
+  # which the primary key prunes — the same access pattern as
+  # `mark_test_case_runs_as_flaky/2`.
+  defp get_ci_test_case_runs_for_test_run(project_id, test_run_id) do
+    id_rows =
+      from(tcr in TestCaseRunByTestRun,
+        where: tcr.test_run_id == ^test_run_id,
+        where: tcr.status in ["success", "failure"],
+        where: not is_nil(tcr.test_case_id),
+        select: %{id: tcr.id, test_case_id: tcr.test_case_id}
+      )
+      |> ClickHouseRepo.all()
+      |> Enum.uniq_by(& &1.id)
+
+    ids = Enum.map(id_rows, & &1.id)
+    test_case_ids = id_rows |> Enum.map(& &1.test_case_id) |> Enum.uniq()
+
+    if ids == [] do
+      []
+    else
+      from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
+        where: tcr.test_case_id in ^test_case_ids,
+        where: tcr.id in ^ids,
+        where: tcr.is_ci == true,
+        where: tcr.status in ["success", "failure"],
+        order_by: [desc: tcr.inserted_at]
+      )
+      |> ClickHouseRepo.all()
+      |> Enum.uniq_by(& &1.id)
+    end
+  end
+
+  defp filter_cross_run_flaky_by_hash(entry, existing_runs) do
+    existing_runs
+    |> Map.get({entry.test_case_id, entry.hash, entry.scheme}, [])
+    |> Enum.filter(&(to_string(&1.status) != entry.status))
+    |> Enum.map(&%{id: &1.test_case_run_id, test_case_id: entry.test_case_id})
+  end
+
+  defp get_existing_ci_runs_for_hash(entries, project_id) do
+    hashes = entries |> Enum.map(& &1.hash) |> Enum.uniq()
+    current_run_ids = MapSet.new(entries, & &1.id)
+    key_set = MapSet.new(entries, &{&1.test_case_id, &1.hash, &1.scheme})
+
+    query =
+      from(h in TestCaseRunHash,
+        where: h.project_id == ^project_id,
+        where: h.selective_testing_hash in ^hashes,
+        where: h.is_ci == true,
+        where: h.status in ["success", "failure"],
+        select: %{
+          test_case_run_id: h.test_case_run_id,
+          test_case_id: h.test_case_id,
+          selective_testing_hash: h.selective_testing_hash,
+          scheme: h.scheme,
+          status: h.status
+        }
+      )
+
+    query
+    |> ClickHouseRepo.all()
+    |> Enum.uniq_by(& &1.test_case_run_id)
+    |> Enum.reject(&MapSet.member?(current_run_ids, &1.test_case_run_id))
+    |> Enum.filter(&MapSet.member?(key_set, {&1.test_case_id, &1.selective_testing_hash, &1.scheme}))
+    |> Enum.group_by(&{&1.test_case_id, &1.selective_testing_hash, &1.scheme})
+  end
+
+  defp insert_test_case_run_hashes(project_id, entries) do
+    now = NaiveDateTime.utc_now()
+
+    rows =
+      Enum.map(entries, fn entry ->
+        %{
+          project_id: project_id,
+          selective_testing_hash: entry.hash,
+          scheme: entry.scheme,
+          test_case_id: entry.test_case_id,
+          status: entry.status,
+          is_ci: true,
+          test_case_run_id: entry.id,
+          inserted_at: now
+        }
+      end)
+
+    TestCaseRunHash.Buffer.insert_all(rows)
+    :ok
+  end
+
   defp check_new_test_cases(test, test_case_data) do
     project = Tuist.Projects.get_project_by_id(test.project_id)
     default_branch = project && project.default_branch
@@ -2595,88 +2779,46 @@ defmodule Tuist.Tests do
   end
 
   @doc """
-  Fetches flaky runs for a specific test case, grouped by scheme and commit SHA.
-  Returns paginated groups, each containing all runs with their failures.
+  Fetches flaky runs for a specific test case.
+
+  Runs are grouped primarily by `(scheme, selective_testing_hash)` so a test
+  case that flips outcome at the same module hash on *different* commits has
+  its pass and fail surfaced together. Runs without a recorded hash (local
+  runs, no command event, or pre-feature history) fall back to grouping by
+  `(scheme, git_commit_sha)`.
+
+  Returns paginated groups, each containing all runs with their failures and
+  repetitions. Each group carries `:group_type` (`:hash` or `:commit`) and a
+  `:commit_count` so the dashboard can label a cross-commit group.
   """
   def list_flaky_runs_for_test_case(project_id, test_case_id, params \\ %{}) do
     page = Map.get(params, :page, 1)
     page_size = Map.get(params, :page_size, 20)
-    offset = (page - 1) * page_size
 
-    groups_query =
-      from(tcr in TestCaseRun,
-        where: tcr.project_id == ^project_id,
-        where: tcr.test_case_id == ^test_case_id,
-        where: tcr.is_flaky == true,
-        group_by: [tcr.scheme, tcr.git_commit_sha],
-        select: %{
-          scheme: tcr.scheme,
-          git_commit_sha: tcr.git_commit_sha,
-          latest_ran_at: max(tcr.ran_at)
-        },
-        order_by: [desc: max(tcr.ran_at)],
-        limit: ^page_size,
-        offset: ^offset
-      )
-
-    groups = ClickHouseRepo.all(groups_query)
-    group_keys = MapSet.new(groups, fn g -> {g.scheme, g.git_commit_sha} end)
-
-    flaky_runs_query =
+    flaky_runs =
       from(tcr in TestCaseRun,
         where: tcr.project_id == ^project_id,
         where: tcr.test_case_id == ^test_case_id,
         where: tcr.is_flaky == true,
         order_by: [desc: tcr.ran_at]
       )
-
-    flaky_runs =
-      flaky_runs_query
       |> ClickHouseRepo.all()
-      |> Enum.filter(fn run -> MapSet.member?(group_keys, {run.scheme, run.git_commit_sha}) end)
+      |> Enum.uniq_by(& &1.id)
 
     run_ids = Enum.map(flaky_runs, & &1.id)
+    hashes_by_run_id = get_hashes_for_test_case_runs(project_id, run_ids)
 
-    failures = get_failures_for_runs(run_ids)
-    failures_by_run_id = Enum.group_by(failures, & &1.test_case_run_id)
+    failures_by_run_id = run_ids |> get_failures_for_runs() |> Enum.group_by(& &1.test_case_run_id)
+    repetitions_by_run_id = run_ids |> get_repetitions_for_runs() |> Enum.group_by(& &1.test_case_run_id)
 
-    repetitions = get_repetitions_for_runs(run_ids)
-    repetitions_by_run_id = Enum.group_by(repetitions, & &1.test_case_run_id)
+    all_groups =
+      flaky_runs
+      |> Enum.group_by(&flaky_run_group_key(&1, hashes_by_run_id))
+      |> Enum.map(&build_flaky_run_group(&1, failures_by_run_id, repetitions_by_run_id))
+      |> Enum.sort_by(& &1.latest_ran_at, {:desc, NaiveDateTime})
 
-    runs_by_group = Enum.group_by(flaky_runs, fn run -> {run.scheme, run.git_commit_sha} end)
-
-    flaky_groups =
-      Enum.map(groups, fn group ->
-        group_key = {group.scheme, group.git_commit_sha}
-        runs = Map.get(runs_by_group, group_key, [])
-
-        runs_with_details =
-          Enum.map(runs, fn run ->
-            run_failures = Map.get(failures_by_run_id, run.id, [])
-
-            run_repetitions =
-              repetitions_by_run_id
-              |> Map.get(run.id, [])
-              |> Enum.sort_by(& &1.repetition_number)
-
-            run
-            |> Map.put(:failures, run_failures)
-            |> Map.put(:repetitions, run_repetitions)
-          end)
-
-        {passed_count, failed_count} = count_passed_failed(runs_with_details)
-
-        %{
-          scheme: group.scheme,
-          git_commit_sha: group.git_commit_sha,
-          latest_ran_at: group.latest_ran_at,
-          passed_count: passed_count,
-          failed_count: failed_count,
-          runs: runs_with_details
-        }
-      end)
-
-    total_count = get_flaky_runs_groups_count_for_test_case(project_id, test_case_id)
+    total_count = length(all_groups)
+    flaky_groups = all_groups |> Enum.drop((page - 1) * page_size) |> Enum.take(page_size)
 
     meta = %{
       total_count: total_count,
@@ -2686,6 +2828,53 @@ defmodule Tuist.Tests do
     }
 
     {flaky_groups, meta}
+  end
+
+  defp flaky_run_group_key(run, hashes_by_run_id) do
+    case Map.get(hashes_by_run_id, run.id) do
+      nil -> {:commit, run.scheme, run.git_commit_sha}
+      hash -> {:hash, run.scheme, hash}
+    end
+  end
+
+  defp build_flaky_run_group({{group_type, scheme, dimension}, runs}, failures_by_run_id, repetitions_by_run_id) do
+    runs_with_details =
+      Enum.map(runs, fn run ->
+        run_repetitions =
+          repetitions_by_run_id |> Map.get(run.id, []) |> Enum.sort_by(& &1.repetition_number)
+
+        run
+        |> Map.put(:failures, Map.get(failures_by_run_id, run.id, []))
+        |> Map.put(:repetitions, run_repetitions)
+      end)
+
+    {passed_count, failed_count} = count_passed_failed(runs_with_details)
+    commit_shas = runs |> Enum.map(& &1.git_commit_sha) |> Enum.uniq()
+
+    %{
+      group_type: group_type,
+      scheme: scheme,
+      selective_testing_hash: if(group_type == :hash, do: dimension),
+      git_commit_sha: if(group_type == :commit, do: dimension, else: List.first(commit_shas)),
+      commit_count: length(commit_shas),
+      latest_ran_at: runs |> Enum.map(& &1.ran_at) |> Enum.max(NaiveDateTime),
+      passed_count: passed_count,
+      failed_count: failed_count,
+      runs: runs_with_details
+    }
+  end
+
+  defp get_hashes_for_test_case_runs(_project_id, []), do: %{}
+
+  defp get_hashes_for_test_case_runs(project_id, run_ids) do
+    from(h in TestCaseRunHash,
+      where: h.project_id == ^project_id,
+      where: h.test_case_run_id in ^run_ids,
+      order_by: [desc: h.inserted_at],
+      select: %{test_case_run_id: h.test_case_run_id, selective_testing_hash: h.selective_testing_hash}
+    )
+    |> ClickHouseRepo.all()
+    |> Enum.reduce(%{}, fn row, acc -> Map.put_new(acc, row.test_case_run_id, row.selective_testing_hash) end)
   end
 
   def get_flaky_run_group_for_test_case_run(test_case_run) do

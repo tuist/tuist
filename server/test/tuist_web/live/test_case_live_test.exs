@@ -5,6 +5,7 @@ defmodule TuistWeb.TestCaseLiveTest do
   import Phoenix.LiveViewTest
 
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
@@ -39,6 +40,26 @@ defmodule TuistWeb.TestCaseLiveTest do
       # When / Then - page renders without error
       {:ok, _lv, _html} =
         live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
+    end
+
+    test "flaky-runs tab renders a module-hash group for cross-commit flakiness", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      hash = "hash-#{System.unique_integer([:positive])}"
+      seed_hash_flaky_run(project, account, "commit-a-#{System.unique_integer([:positive])}", "success", hash)
+      seed_hash_flaky_run(project, account, "commit-b-#{System.unique_integer([:positive])}", "failure", hash)
+
+      RunsFixtures.optimize_test_case_runs()
+      {[test_case], _} = Tuist.Tests.list_test_cases(project.id, %{})
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case.id}?tab=flaky-runs")
+
+      html = render_async(lv)
+      assert html =~ "Module hash"
+      assert html =~ "Same module hash across"
     end
 
     test "muting a test case via set-state", %{
@@ -178,5 +199,54 @@ defmodule TuistWeb.TestCaseLiveTest do
       assert history_html =~ "test-history-event-#{event.id}-time-tooltip"
       assert history_html =~ "Mon 15 Jan 2024 at 09:30"
     end
+  end
+
+  defp seed_hash_flaky_run(project, account, commit_sha, status, hash) do
+    {:ok, test} =
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        account_id: account.id,
+        git_commit_sha: commit_sha,
+        is_ci: true,
+        status: status,
+        test_modules: [
+          %{
+            name: "TestModule",
+            status: status,
+            duration: 500,
+            test_cases: [%{name: "flakyTest", status: status, duration: 250}]
+          }
+        ]
+      )
+
+    command_event =
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        test_run_id: test.id,
+        name: "test",
+        is_ci: true
+      )
+
+    with_flushed_ingestion_buffers(fn ->
+      Tuist.Xcode.create_xcode_graph(%{
+        command_event: command_event,
+        xcode_graph: %{
+          name: "Graph",
+          projects: [
+            %{
+              "name" => "App",
+              "path" => "App",
+              "targets" => [
+                %{"name" => "TestModule", "selective_testing_metadata" => %{"hash" => hash, "hit" => "remote"}}
+              ]
+            }
+          ]
+        }
+      })
+    end)
+
+    RunsFixtures.optimize_test_case_runs()
+    Tuist.Tests.detect_flaky_tests_by_hash(command_event, test.id)
+    test
   end
 end

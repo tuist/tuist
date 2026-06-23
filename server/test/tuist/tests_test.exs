@@ -14,8 +14,10 @@ defmodule Tuist.TestsTest do
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.TestRunDestination
+  alias Tuist.Xcode
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AutomationsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.ShardsFixtures
@@ -4457,6 +4459,190 @@ defmodule Tuist.TestsTest do
     end
   end
 
+  describe "detect_flaky_tests_by_hash/2" do
+    test "marks both runs as flaky when same module hash on different commits has different results" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = Ecto.UUID.generate()
+      hash = "hash-#{System.unique_integer([:positive])}"
+
+      first_test =
+        ingest_run_with_hash(project,
+          commit_sha: "commit-a-#{System.unique_integer([:positive])}",
+          status: "success",
+          hash: hash,
+          test_case_id: test_case_id
+        )
+
+      first_run = test_case_run_for(first_test)
+      assert first_run.is_flaky == false
+
+      # Different commit, identical module hash, opposite result: a single new
+      # run is enough because a prior run at the same hash passed.
+      second_test =
+        ingest_run_with_hash(project,
+          commit_sha: "commit-b-#{System.unique_integer([:positive])}",
+          status: "failure",
+          hash: hash,
+          test_case_id: test_case_id
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      assert test_case_run_for(second_test).is_flaky == true
+      assert test_case_run_for(first_test).is_flaky == true
+    end
+
+    test "does not mark as flaky when the module hash differs" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = Ecto.UUID.generate()
+
+      first_test =
+        ingest_run_with_hash(project,
+          commit_sha: "commit-a-#{System.unique_integer([:positive])}",
+          status: "success",
+          hash: "hash-a-#{System.unique_integer([:positive])}",
+          test_case_id: test_case_id
+        )
+
+      second_test =
+        ingest_run_with_hash(project,
+          commit_sha: "commit-b-#{System.unique_integer([:positive])}",
+          status: "failure",
+          hash: "hash-b-#{System.unique_integer([:positive])}",
+          test_case_id: test_case_id
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      assert test_case_run_for(first_test).is_flaky == false
+      assert test_case_run_for(second_test).is_flaky == false
+    end
+
+    test "does not mark as flaky for non-CI runs" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = Ecto.UUID.generate()
+      hash = "hash-#{System.unique_integer([:positive])}"
+
+      first_test =
+        ingest_run_with_hash(project,
+          commit_sha: "commit-a-#{System.unique_integer([:positive])}",
+          status: "success",
+          hash: hash,
+          test_case_id: test_case_id,
+          is_ci: false
+        )
+
+      second_test =
+        ingest_run_with_hash(project,
+          commit_sha: "commit-b-#{System.unique_integer([:positive])}",
+          status: "failure",
+          hash: hash,
+          test_case_id: test_case_id,
+          is_ci: false
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      assert test_case_run_for(first_test).is_flaky == false
+      assert test_case_run_for(second_test).is_flaky == false
+    end
+
+    test "does nothing when the module has no selective testing hash" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = Ecto.UUID.generate()
+
+      first_test =
+        ingest_run_with_hash(project,
+          commit_sha: "commit-a-#{System.unique_integer([:positive])}",
+          status: "success",
+          hash: nil,
+          test_case_id: test_case_id
+        )
+
+      second_test =
+        ingest_run_with_hash(project,
+          commit_sha: "commit-b-#{System.unique_integer([:positive])}",
+          status: "failure",
+          hash: nil,
+          test_case_id: test_case_id
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      assert test_case_run_for(first_test).is_flaky == false
+      assert test_case_run_for(second_test).is_flaky == false
+    end
+  end
+
+  defp ingest_run_with_hash(project, opts) do
+    is_ci = Keyword.get(opts, :is_ci, true)
+    module_name = Keyword.get(opts, :module_name, "TestModule")
+    status = Keyword.fetch!(opts, :status)
+    hash = Keyword.get(opts, :hash)
+
+    {:ok, test} =
+      Tests.create_test(%{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: project.account_id,
+        duration: 1000,
+        status: status,
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "main",
+        git_commit_sha: Keyword.fetch!(opts, :commit_sha),
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: is_ci,
+        test_modules: [
+          %{
+            name: module_name,
+            status: status,
+            duration: 500,
+            test_cases: [%{name: "testSomething", status: status, duration: 250}]
+          }
+        ]
+      })
+
+    command_event =
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        test_run_id: test.id,
+        name: "test",
+        is_ci: is_ci
+      )
+
+    if not is_nil(hash) do
+      with_flushed_ingestion_buffers(fn ->
+        Xcode.create_xcode_graph(%{
+          command_event: command_event,
+          xcode_graph: %{
+            name: "Graph",
+            projects: [
+              %{
+                "name" => "App",
+                "path" => "App",
+                "targets" => [
+                  %{"name" => module_name, "selective_testing_metadata" => %{"hash" => hash, "hit" => "remote"}}
+                ]
+              }
+            ]
+          }
+        })
+      end)
+    end
+
+    RunsFixtures.optimize_test_case_runs()
+    Tests.detect_flaky_tests_by_hash(command_event, test.id)
+    test
+  end
+
+  defp test_case_run_for(test) do
+    {runs, _} =
+      Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: test.id}]})
+
+    hd(runs)
+  end
+
   describe "update_test_case/3" do
     test "marks a test case as flaky" do
       # Given
@@ -5768,10 +5954,42 @@ defmodule Tuist.TestsTest do
       assert meta.total_count == 1
 
       group = hd(groups)
+      assert group.group_type == :commit
       assert group.git_commit_sha == "abc123"
       assert length(group.runs) == 2
       assert group.passed_count == 1
       assert group.failed_count == 1
+    end
+
+    test "groups runs by module hash across different commits" do
+      project = ProjectsFixtures.project_fixture()
+      hash = "hash-#{System.unique_integer([:positive])}"
+
+      ingest_run_with_hash(project,
+        commit_sha: "commit-a-#{System.unique_integer([:positive])}",
+        status: "success",
+        hash: hash
+      )
+
+      ingest_run_with_hash(project,
+        commit_sha: "commit-b-#{System.unique_integer([:positive])}",
+        status: "failure",
+        hash: hash
+      )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {[test_case], _} = Tests.list_test_cases(project.id, %{})
+      {groups, meta} = Tests.list_flaky_runs_for_test_case(project.id, test_case.id)
+
+      assert meta.total_count == 1
+      group = hd(groups)
+      assert group.group_type == :hash
+      assert group.selective_testing_hash == hash
+      assert group.commit_count == 2
+      assert group.passed_count == 1
+      assert group.failed_count == 1
+      assert length(group.runs) == 2
     end
 
     test "supports pagination on groups" do
