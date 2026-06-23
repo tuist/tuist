@@ -571,7 +571,7 @@ jobs:
           spec:
             # Single-tenant preview KuraInstance. The seed step below
             # runs the regular development seed, whose demo content lives
-            # under the `tuist` organization, so server tokens and the runtime
+            # under the tuist organization, so server tokens and the runtime
             # hook agree on the same tenant.
             accountHandle: tuist
             tenantID: tuist
