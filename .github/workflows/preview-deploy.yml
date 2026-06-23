@@ -464,7 +464,7 @@ jobs:
       cancel-in-progress: false
     timeout-minutes: 30
     env:
-      KUBECONFIG: ${{ runner.temp }}/preview-kubeconfig
+      KUBECONFIG: /tmp/tuist-preview-kubeconfig-${{ github.run_id }}-${{ github.run_attempt }}
       RELEASE: ${{ needs.resolve.outputs.release }}
       NAMESPACE: ${{ needs.resolve.outputs.namespace }}
       HOST: ${{ needs.resolve.outputs.host }}
@@ -708,7 +708,7 @@ jobs:
       cancel-in-progress: false
     timeout-minutes: 15
     env:
-      KUBECONFIG: ${{ runner.temp }}/preview-kubeconfig
+      KUBECONFIG: /tmp/tuist-preview-kubeconfig-${{ github.run_id }}-${{ github.run_attempt }}
       RELEASE: ${{ needs.resolve.outputs.release }}
       NAMESPACE: ${{ needs.resolve.outputs.namespace }}
     steps:
