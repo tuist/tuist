@@ -34,8 +34,14 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
   end
 
   setup do
+    # A non-hosted (self-managed) deployment grants every entitlement, so the
+    # self-hosted-cache gate in SelfHostedClients.verify/2 stays open here.
+    stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
     account = AccountsFixtures.organization_fixture().account
-    {:ok, {client, secret}} = SelfHostedClients.create_self_hosted_client(account, %{name: "mesh"})
+
+    {:ok, {client, secret}} =
+      SelfHostedClients.create_self_hosted_client(account, %{name: "mesh"})
+
     stub_account_peer_ca()
     %{account: account, client: client, secret: secret}
   end
@@ -110,7 +116,12 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
     assert json_response(conn, 503) == %{"error" => "ca_unavailable"}
   end
 
-  test "registers a heartbeat with a valid credential", %{conn: conn, account: account, client: client, secret: secret} do
+  test "registers a heartbeat with a valid credential", %{
+    conn: conn,
+    account: account,
+    client: client,
+    secret: secret
+  } do
     conn =
       conn
       |> basic_auth(client.client_id, secret)
@@ -122,7 +133,11 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
         version: "0.5.2"
       })
 
-    assert %{"accepted" => true, "lease_seconds" => lease, "heartbeat_interval_seconds" => interval} =
+    assert %{
+             "accepted" => true,
+             "lease_seconds" => lease,
+             "heartbeat_interval_seconds" => interval
+           } =
              json_response(conn, 200)
 
     assert is_integer(lease) and is_integer(interval)
