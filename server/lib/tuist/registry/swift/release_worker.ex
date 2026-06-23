@@ -714,7 +714,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
       end)
 
     if failures == [] do
-      {:ok, Enum.reverse(manifests)}
+      {:ok, manifests |> Enum.reverse() |> AlternateManifest.deduplicate_by_tools_version()}
     else
       {:error, {:manifest_upload_failed, Enum.reverse(failures)}}
     end
