@@ -1125,7 +1125,7 @@ func TestKuraInstanceReconcilePreservesExplicitOTLPTracesEndpoint(t *testing.T) 
 	}
 }
 
-func TestKuraInstanceReconcileSkipsGRPCWhenHostUnset(t *testing.T) {
+func TestKuraInstanceReconcileExposesGRPCWhenGRPCPublicHostUnset(t *testing.T) {
 	ctx := context.Background()
 	scheme := runtime.NewScheme()
 	if err := clientgoscheme.AddToScheme(scheme); err != nil {
@@ -1161,8 +1161,19 @@ func TestKuraInstanceReconcileSkipsGRPCWhenHostUnset(t *testing.T) {
 		t.Fatalf("expected no legacy gRPC LoadBalancer Service when grpcPublicHost is unset, got %v", err)
 	}
 	grpcIngress := &networkingv1.Ingress{}
-	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcServiceName(instance), Namespace: instance.Namespace}, grpcIngress); !apierrors.IsNotFound(err) {
-		t.Fatalf("expected no gRPC Ingress when grpcPublicHost is unset, got %v", err)
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcServiceName(instance), Namespace: instance.Namespace}, grpcIngress); err != nil {
+		t.Fatalf("expected gRPC Ingress when publicHost is set: %v", err)
+	}
+	if got := grpcIngress.Spec.Rules[0].Host; got != "tuist-eu-1.kura.tuist.dev" {
+		t.Fatalf("expected gRPC ingress to co-host on the public host, got %q", got)
+	}
+
+	updated := &kurav1alpha1.KuraInstance{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, updated); err != nil {
+		t.Fatal(err)
+	}
+	if got := updated.Status.GRPCPublicURL; got != "grpcs://tuist-eu-1.kura.tuist.dev" {
+		t.Fatalf("expected gRPC public URL from publicHost, got %q", got)
 	}
 }
 

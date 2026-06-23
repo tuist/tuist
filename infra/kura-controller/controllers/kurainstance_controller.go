@@ -554,10 +554,8 @@ func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, insta
 	// nor the gRPC Ingress is reconciled. For non-private instances, gRPC
 	// co-hosts on PublicHost (it is the rule host below), so an empty
 	// PublicHost has nowhere to route — delete rather than emit an Ingress
-	// with an empty host, even when GRPCPublicHost is set. The provisioner
-	// always emits grpcPublicHost and publicHost together (or neither), so in
-	// practice this only guards hand-written, gRPC-only CRs.
-	if instance.Spec.Private || instance.Spec.GRPCPublicHost == "" || instance.Spec.PublicHost == "" {
+	// with an empty host, even when the legacy GRPCPublicHost is set.
+	if instance.Spec.Private || instance.Spec.PublicHost == "" {
 		if err := r.Delete(ctx, ingress); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
@@ -1719,7 +1717,7 @@ func publicURL(instance *kurav1alpha1.KuraInstance) string {
 // status reflects the host the gRPC Ingress actually serves, even for CRs
 // that still carry a legacy grpc.<host> in grpcPublicHost.
 func grpcPublicURL(instance *kurav1alpha1.KuraInstance) string {
-	if instance.Spec.GRPCPublicHost == "" || instance.Spec.PublicHost == "" {
+	if instance.Spec.PublicHost == "" {
 		return ""
 	}
 	return "grpcs://" + instance.Spec.PublicHost
