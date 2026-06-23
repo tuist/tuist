@@ -50,6 +50,13 @@ spec:
       # (`tuist-bm-staging-…`).
       - name: bareMetalCluster
         value: staging
+      # Insert InternalIP ahead of Hostname so the apiserver can reach the
+      # cross-cloud kura kubelets (Dedibox/Elastic Metal): they report no
+      # ExternalIP and an unresolvable Hostname, so the default order lands on
+      # Hostname and breaks logs/exec + metrics-server. Hetzner nodes keep
+      # ExternalIP first, so their behaviour is unchanged.
+      - name: kubeletPreferredAddressTypes
+        value: ExternalIP,InternalIP,Hostname,InternalDNS,ExternalDNS
     workers:
       machineDeployments:
         # General-purpose pool: Phoenix server, system DaemonSets.
