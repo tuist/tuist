@@ -241,7 +241,13 @@ public struct PackageInfoMapper: PackageInfoMapping {
             .reduce(into: [:]) { result, packageInfo in
                 let moduleAliases = packageModuleAliases[packageInfo.value.name]
                 for product in packageInfo.value.products {
-                    result[moduleAliases?[product.name] ?? product.name] = try product.targets.flatMap { target in
+                    let productName = moduleAliases?[product.name] ?? product.name
+                    if case .plugin = product.type {
+                        result[productName] = []
+                        continue
+                    }
+
+                    result[productName] = try product.targets.flatMap { target in
                         try ResolvedDependency.fromTarget(
                             name: moduleAliases?[target] ?? target,
                             targetDependencyToFramework: targetDependencyToFramework,
