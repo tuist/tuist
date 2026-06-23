@@ -24,7 +24,7 @@ defmodule Tuist.Environment do
   # ...) fails the pod fast at boot rather than landing it in `:web`
   # silently — exactly the failure mode that previously masked the
   # xcresult-processor leader-election bug.
-  @modes [:web, :processor, :xcresult_processor]
+  @modes [:web, :processor, :xcresult_processor, :swift_registry_sync]
 
   @doc """
   All pod roles `mode/0` may return. Stable list — used by
@@ -117,6 +117,14 @@ defmodule Tuist.Environment do
       narrowed to `:process_xcresult`. Runs inside a Tart VM on the
       macOS Mac mini fleet (the only place the macOS-only xcresult NIF
       can load). Booted by xcresult-processor-deployment.yaml.
+    * `:swift_registry_sync` — no Phoenix listener, Oban queue set
+      narrowed to `:swift_registry_sync` + `:swift_registry_release`.
+      Consumes jobs enqueued by the `:web` pod's cron, fetches Swift
+      packages from GitHub, and writes archives + metadata into the
+      registry S3 bucket. The standalone `registry` Phoenix app reads
+      back from the same bucket. Booted by
+      swift-registry-sync-deployment.yaml. Future ecosystems get
+      their own mode (e.g. `:maven_registry_sync`) and Deployment.
 
   Read once from `TUIST_MODE`. Add new modes here when the supervision tree
   needs another shape (e.g. a future `:scheduler` or `:ingest`).
@@ -133,6 +141,7 @@ defmodule Tuist.Environment do
   def mode("web"), do: :web
   def mode("processor"), do: :processor
   def mode("xcresult_processor"), do: :xcresult_processor
+  def mode("swift_registry_sync"), do: :swift_registry_sync
 
   def mode(other) do
     raise """
@@ -146,6 +155,8 @@ defmodule Tuist.Environment do
   def processor_mode?, do: mode() == :processor
 
   def xcresult_processor_mode?, do: mode() == :xcresult_processor
+
+  def swift_registry_sync_mode?, do: mode() == :swift_registry_sync
 
   def database_url(secrets \\ secrets()) do
     System.get_env("DATABASE_URL") || get([:database_url], secrets)

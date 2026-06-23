@@ -472,6 +472,213 @@ processor:
   # archive plus its CAS sidecar files.
   tmpSizeLimit: 16Gi
 
+swiftRegistrySync:
+  # TUIST_MODE=swift_registry_sync consumer for the Swift package
+  # registry catalog. Same image as the server; no Phoenix listener;
+  # Oban queue set narrowed to :swift_registry_sync +
+  # :swift_registry_release. Cron entry that fires the SyncWorker runs
+  # on the :web pod's leader, not here, so this Deployment is a pure
+  # consumer. Future ecosystems get their own block + Deployment
+  # (e.g. `mavenRegistrySync:`).
+  #
+  # Disabled by default — only hosted Tuist runs the registry mirror.
+  enabled: false
+  replicaCount: 1
+  resources: {}
+  extraEnv: []
+  # When true, the chart provisions an ExternalSecret pulling the
+  # registry's Tigris credentials, GitHub PAT, and bucket name from
+  # 1Password (the existing `REGISTRY` item used by the standalone
+  # `registry` Phoenix app). When false, the values must be in a
+  # pre-existing Secret named
+  # `<release>-swift-registry-sync-external-secrets` with the env keys
+  # the deployment expects (see the template).
+  managedSecrets: false
+  externalSecrets:
+    refreshInterval: "1h"
+    storeRef:
+      kind: ClusterSecretStore
+      name: onepassword
+    # 1P item to read from; same item the standalone `registry` chart
+    # reads. Lives per-env in `tuist-k8s-<env>/REGISTRY`.
+    item: REGISTRY
+    # Field names on the 1P item. `githubToken` is intentionally mapped
+    # to the legacy `REGISTRY_GITHUB_TOKEN` field (the 1P item predates
+    # the swift- prefix rename); the rendered Secret exposes it as
+    # `SWIFT_REGISTRY_GITHUB_TOKEN` to match the runtime.exs env name.
+    fields:
+      s3RegistryBucket: S3_REGISTRY_BUCKET
+      s3Host: S3_HOST
+      s3Region: S3_REGION
+      s3AccessKeyId: S3_ACCESS_KEY_ID
+      s3SecretAccessKey: S3_SECRET_ACCESS_KEY
+      githubToken: REGISTRY_GITHUB_TOKEN
+    # Per-env CNPG role password for tuist_swift_registry_sync. Lives
+    # in 1Password under `SWIFT_REGISTRY_SYNC_DATABASE_PASSWORD` in
+    # `tuist-k8s-<env>` so rotation is `op item edit` + ESO refresh.
+    databasePassword:
+      item: SWIFT_REGISTRY_SYNC_DATABASE_PASSWORD
+      field: password
+  # Non-secret DB connection parameters composed with the secret
+  # password into DATABASE_URL when `postgresql.mode != "cnpg"` and
+  # `managedSecrets: true`. Ignored when postgresql.mode == "cnpg"
+  # (the URL is composed from CNPG service helpers instead).
+  database:
+    host: ""
+    port: 6543
+    name: postgres
+    username: tuist_swift_registry_sync
+    params: "sslmode=require"
+  # Optional override of the SwiftPackageIndex catalog allowlist.
+  # Useful for canary to scope sync to a small set of packages.
+  syncAllowlist: ""
+  # Optional override of the master enable flag. Defaults to enabled
+  # in the release; set to false (bool or string) to deploy the pod for
+  # image bake without actually pulling from the catalog.
+  syncEnabled: ""
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  topologySpread:
+    enabled: false
+    whenUnsatisfiable: ScheduleAnyway
+  affinity: {}
+  nodeSelector: {}
+  tolerations: []
+  podAnnotations: {}
+  podLabels: {}
+  # Grace period sized for a single in-flight ReleaseWorker job
+  # (git clone + zip + S3 upload, ~30s–10min typical, occasionally
+  # longer on packages with deep submodules).
+  terminationGracePeriodSeconds: 900
+  # Source archives + manifest variants are staged here during each
+  # ReleaseWorker run. 16 GiB matches the processor's budget.
+  tmpSizeLimit: 16Gi
+
+registry:
+  # Stateless read frontend for public package registry traffic. The
+  # Swift writer/sync side lives in swiftRegistrySync above, but the
+  # reader is deployed from this same Helm release so both halves roll
+  # atomically with the server.
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: ghcr.io/tuist/registry
+    tag: ""
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+  containerPort: 4000
+  metrics:
+    enabled: true
+    port: 9091
+    path: /metrics
+  publicHost: ""
+  serverUrl: https://tuist.dev
+  deployEnv: production
+  sentryEnv: production
+  poolSize: "2"
+  secretKeyBase: ""
+  releaseCookie: ""
+  managedSecrets: false
+  runtimeSecretName: ""
+  inlineSecrets:
+    sentryDsn: ""
+    s3RegistryBucket: ""
+    s3Host: ""
+    s3AccessKeyId: ""
+    s3SecretAccessKey: ""
+    s3Region: ""
+  externalSecrets:
+    refreshInterval: "1h"
+    storeRef:
+      kind: ClusterSecretStore
+      name: onepassword
+    item: REGISTRY
+    fields:
+      sentryDsn: ""
+      s3RegistryBucket: S3_REGISTRY_BUCKET
+      s3Host: S3_HOST
+      s3AccessKeyId: S3_ACCESS_KEY_ID
+      s3SecretAccessKey: S3_SECRET_ACCESS_KEY
+      s3Region: S3_REGION
+  ingress:
+    enabled: false
+    className: ""
+    host: ""
+    tlsSecretName: ""
+    annotations: {}
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+  automountServiceAccountToken: false
+  s3:
+    endpoint: ""
+    protocol: ""
+    virtualHost: false
+    caCertPem: ""
+  observability:
+    otelEndpoint: ""
+    lokiUrl: ""
+  networkPolicy:
+    enabled: false
+    ingressControllerNamespace: platform
+    ingressControllerPodLabels:
+      app.kubernetes.io/name: ingress-nginx
+      app.kubernetes.io/component: controller
+    dnsNamespace: kube-system
+    observabilityNamespace: observability
+  resources: {}
+  podSecurityContext:
+    fsGroup: 990
+    fsGroupChangePolicy: OnRootMismatch
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 990
+  extraEnv: []
+  extraEnvFrom: []
+  podAnnotations: {}
+  podLabels: {}
+  affinity: {}
+  nodeSelector: {}
+  tolerations: []
+  terminationGracePeriodSeconds: 30
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  probes:
+    readiness:
+      path: /up
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
+    liveness:
+      path: /up
+      initialDelaySeconds: 30
+      periodSeconds: 20
+      timeoutSeconds: 3
+      failureThreshold: 3
+    startup:
+      path: /up
+      initialDelaySeconds: 0
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 60
+
 xcresultProcessor:
   # Dedicated macOS workers that consume `:process_xcresult`. The parse
   # path leans on `xcresulttool` from Xcode (no Linux equivalent), so
@@ -1817,6 +2024,12 @@ postgresql:
       # against every table without per-object GRANTs to maintain.
       opsRo:
         name: tuist_ops_ro
+      # Least-privilege Swift Package Registry sync role. Narrower
+      # than `processor` (no accounts/projects reads — registry sync
+      # has no account-scoped data, all package state lives in S3).
+      # Per-table GRANTs in infra/cnpg/tuist-swift-registry-sync-grants.sql.
+      swiftRegistrySync:
+        name: tuist_swift_registry_sync
     backup:
       # Daily base backup at 03:00 UTC; the continuous WAL archive keeps
       # PITR alive between snapshots. CNPG's ScheduledBackup cron is
@@ -1859,6 +2072,9 @@ postgresql:
         field: password
       opsRoPassword:
         item: OPS_DATABASE_PASSWORD
+        field: password
+      swiftRegistrySyncPassword:
+        item: SWIFT_REGISTRY_SYNC_DATABASE_PASSWORD
         field: password
 
 clickhouse:
