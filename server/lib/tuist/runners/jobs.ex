@@ -1051,15 +1051,17 @@ defmodule Tuist.Runners.Jobs do
   (`enqueued_at`).
   """
   def list_stale_queued(%DateTime{} = threshold) do
-    Job
-    |> from(hints: ["FINAL"])
-    |> where([j], j.status == "queued" and j.enqueued_at < ^threshold)
-    |> select([j], %{
-      workflow_job_id: j.workflow_job_id,
-      account_id: j.account_id,
-      repository: j.repository,
-      enqueued_at: j.enqueued_at
-    })
+    from(j in Job,
+      where: j.enqueued_at < ^threshold,
+      group_by: j.workflow_job_id,
+      having: fragment("argMax(?, ?) = ?", j.status, j.updated_at, "queued"),
+      select: %{
+        workflow_job_id: j.workflow_job_id,
+        account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at),
+        repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
+        enqueued_at: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at)
+      }
+    )
     |> ClickHouseRepo.all()
   end
 
