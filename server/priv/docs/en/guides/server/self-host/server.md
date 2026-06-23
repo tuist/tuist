@@ -163,6 +163,7 @@ The following environment variables are used to configure the database connectio
 | Environment variable | Description | Required | Default | Example |
 | --- | --- | --- | --- | --- |
 | `DATABASE_URL` | The URL to access the Postgres database. Note that the URL should contain the authentication information | Yes | | `postgres://username:password@cloud.us-east-2.aws.test.com/production` |
+| `TUIST_DATABASE_SCHEMA` | PostgreSQL schema used by Tuist's application tables. Set this when your database policy disallows using the `public` schema. The schema name must be an unquoted PostgreSQL identifier. | No | `public` | `tuist` |
 | `TUIST_MIGRATION_DATABASE_URL` | Optional Postgres URL used only by `Tuist.Release.migrate`. Set this to an owner role URL when `DATABASE_URL` points at a narrower runtime role. | No | `DATABASE_URL` | `postgres://owner:password@cloud.us-east-2.aws.test.com/production` |
 | `TUIST_DATABASE_RUNTIME_ROLE` | Runtime Postgres role that migrations should grant application-table privileges to after they finish. Use this with `TUIST_MIGRATION_DATABASE_URL` when the web server should not connect as the schema owner. | No | | `tuist_web` |
 | `TUIST_CLICKHOUSE_URL` | The URL to access the ClickHouse database. Note that the URL should contain the authentication information | No | | `http://username:password@cloud.us-east-2.aws.test.com/production` |
@@ -173,6 +174,8 @@ The following environment variables are used to configure the database connectio
 | `TUIST_CLICKHOUSE_FLUSH_INTERVAL_MS` | Time interval in milliseconds between ClickHouse buffer flushes | No | `5000` | `5000` |
 | `TUIST_CLICKHOUSE_MAX_BUFFER_SIZE` | Maximum ClickHouse buffer size in bytes before forcing a flush | No | `1000000` | `1000000` |
 | `TUIST_CLICKHOUSE_BUFFER_POOL_SIZE` | Number of ClickHouse buffer processes to run | No | `5` | `5` |
+
+When `TUIST_DATABASE_SCHEMA` is not `public`, release migrations create the schema if it does not already exist before running the Ecto migration chain. If the migration role cannot create schemas, pre-create the schema and make the migration role its owner.
 
 ### Authentication environment configuration {#authentication-environment-configuration}
 

@@ -212,6 +212,39 @@ defmodule Tuist.EnvironmentTest do
     end
   end
 
+  describe "database_schema/1" do
+    test "defaults to public when unset or empty" do
+      assert Environment.database_schema(nil) == "public"
+      assert Environment.database_schema("") == "public"
+    end
+
+    test "accepts unquoted PostgreSQL identifiers" do
+      assert Environment.database_schema("tuist") == "tuist"
+      assert Environment.database_schema("_tuist1") == "_tuist1"
+    end
+
+    test "raises on invalid schema identifiers" do
+      assert_raise RuntimeError,
+                   ~r/TUIST_DATABASE_SCHEMA must be a valid unquoted PostgreSQL identifier/,
+                   fn ->
+                     Environment.database_schema("tuist-prod")
+                   end
+
+      assert_raise RuntimeError,
+                   ~r/TUIST_DATABASE_SCHEMA must be a valid unquoted PostgreSQL identifier/,
+                   fn ->
+                     Environment.database_schema("1tuist")
+                   end
+    end
+  end
+
+  describe "quote_postgres_identifier/1" do
+    test "quotes identifiers used in SQL and startup parameters" do
+      assert Environment.quote_postgres_identifier("tuist") == ~s("tuist")
+      assert Environment.quote_postgres_identifier("Tuist") == ~s("Tuist")
+    end
+  end
+
   describe "modes/0" do
     test "every value round-trips through mode/1 so the list stays in sync with the parser" do
       for mode <- Environment.modes() do

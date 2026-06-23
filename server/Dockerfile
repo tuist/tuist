@@ -286,8 +286,6 @@ RUN if [ "$EMBED_CLICKHOUSE" = "true" ]; then \
   cp /tmp/clickhouse-preview-config.xml /etc/clickhouse-server/config.d/preview.xml; \
   fi && rm -f /tmp/clickhouse-preview-config.xml
 
-COPY server/priv/repo/structure.sql /app/priv/repo/structure.sql
-
 # ========================================
 # Stage: Default runtime
 # Boots as web server by default; set TUIST_PROCESSOR_MODE=true to run as an

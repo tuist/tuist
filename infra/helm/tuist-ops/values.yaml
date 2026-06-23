@@ -110,7 +110,7 @@ service:
 # Fields expected on TUIST_OPS_BOT:
 #   tailscale_client_id, tailscale_client_secret, tailscale_tailnet,
 #   slack_signing_secret, slack_bot_token, slack_approvals_channel_id,
-#   github_actions_token
+#   github_app_id, github_app_installation_id, github_app_private_key
 externalSecret:
   enabled: true
   refreshInterval: "1h"

@@ -1954,6 +1954,16 @@ jobs:
     env:
       MISE_TASK_RUN_AUTO_INSTALL: 0
       TUIST_URL: https://canary.tuist.dev
+      # Pin the cache to canary's PUBLIC endpoint instead of resolving it via
+      # /api/cache/endpoints. This job runs on the scw-fr-par macOS runner fleet,
+      # and the server routes that fleet to the regional Kura cache - an in-cluster
+      # Private Network NodePort (e.g. http://172.16.0.2:3xxxx) meant for the
+      # dispatched-runner cache data plane, which a plain `tuist cache` here can't
+      # reach (every download/upload times out). A real external customer resolves
+      # the public endpoint; pinning makes this gate use it too. Verified on the
+      # runner: with the pin the store+fetch round-trip succeeds; without it the
+      # CLI picks the PN NodePort and stalls.
+      TUIST_CACHE_ENDPOINT: https://cache-eu-central-canary.tuist.dev
       # Public canary test account, same as the HEAD acceptance scheme (Project.swift).
       TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
       TUIST_AUTH_PASSWORD: tuistrocks

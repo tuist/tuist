@@ -1426,23 +1426,39 @@ defmodule Tuist.Tests do
       get_existing_ci_runs_for_commit(test_case_ids, test.git_commit_sha, test.project_id, scheme)
 
     Enum.map_reduce(test_case_data, [], fn data, historical_runs ->
-      case filter_cross_run_flaky(data, existing_runs) do
-        [] ->
-          {data, historical_runs}
-
-        flaky_runs ->
-          {%{data | is_flaky: true}, flaky_runs ++ historical_runs}
-      end
+      {data, flaky_failures} = resolve_cross_run_flaky_failures(data, existing_runs)
+      {data, flaky_failures ++ historical_runs}
     end)
   end
 
-  defp filter_cross_run_flaky(data, existing_runs) do
-    existing = Map.get(existing_runs, data.test_case_id, [])
+  # A run is flaky only when it is a failure that the same test case also passed
+  # on for the same commit and scheme — a failure that did not reproduce. The
+  # passing runs that prove the test can succeed on the commit are left clean, so
+  # flaky-run counts and rates reflect the spurious failures rather than every
+  # execution of the commit.
+  defp resolve_cross_run_flaky_failures(%{status: status} = data, _existing_runs)
+       when status not in ["success", "failure"] do
+    {data, []}
+  end
 
-    if data.status in ["success", "failure"] do
-      Enum.filter(existing, &(to_string(&1.status) != data.status))
-    else
-      []
+  defp resolve_cross_run_flaky_failures(data, existing_runs) do
+    existing = Map.get(existing_runs, data.test_case_id, [])
+    {existing_successes, existing_failures} = Enum.split_with(existing, &(to_string(&1.status) == "success"))
+
+    cond do
+      # This run failed and the test already passed on the commit: the current
+      # failure is the flake. Earlier failures were already flagged when their
+      # passing sibling arrived, so there is nothing to back-mark.
+      data.status == "failure" and existing_successes != [] ->
+        {%{data | is_flaky: true}, []}
+
+      # This run passed and the test already failed on the commit: those earlier
+      # failures are now proven flaky, so back-mark them.
+      data.status == "success" and existing_failures != [] ->
+        {data, existing_failures}
+
+      true ->
+        {data, []}
     end
   end
 
@@ -2621,21 +2637,22 @@ defmodule Tuist.Tests do
 
     groups = ClickHouseRepo.all(groups_query)
     group_keys = MapSet.new(groups, fn g -> {g.scheme, g.git_commit_sha} end)
+    commit_shas = groups |> Enum.map(& &1.git_commit_sha) |> Enum.uniq()
 
-    flaky_runs_query =
+    # Fetch every run on the flaky commits, not just the flagged failures, so the
+    # per-group pass/fail breakdown reflects the full history of the commit. The
+    # group itself is still identified by `is_flaky` runs in `groups_query`.
+    group_runs =
       from(tcr in TestCaseRun,
         where: tcr.project_id == ^project_id,
         where: tcr.test_case_id == ^test_case_id,
-        where: tcr.is_flaky == true,
+        where: tcr.git_commit_sha in ^commit_shas,
         order_by: [desc: tcr.ran_at]
       )
-
-    flaky_runs =
-      flaky_runs_query
       |> ClickHouseRepo.all()
       |> Enum.filter(fn run -> MapSet.member?(group_keys, {run.scheme, run.git_commit_sha}) end)
 
-    run_ids = Enum.map(flaky_runs, & &1.id)
+    run_ids = Enum.map(group_runs, & &1.id)
 
     failures = get_failures_for_runs(run_ids)
     failures_by_run_id = Enum.group_by(failures, & &1.test_case_run_id)
@@ -2643,7 +2660,7 @@ defmodule Tuist.Tests do
     repetitions = get_repetitions_for_runs(run_ids)
     repetitions_by_run_id = Enum.group_by(repetitions, & &1.test_case_run_id)
 
-    runs_by_group = Enum.group_by(flaky_runs, fn run -> {run.scheme, run.git_commit_sha} end)
+    runs_by_group = Enum.group_by(group_runs, fn run -> {run.scheme, run.git_commit_sha} end)
 
     flaky_groups =
       Enum.map(groups, fn group ->
@@ -2689,22 +2706,19 @@ defmodule Tuist.Tests do
   end
 
   def get_flaky_run_group_for_test_case_run(test_case_run) do
-    flaky_runs_query =
-      from(tcr in TestCaseRun,
-        where: tcr.project_id == ^test_case_run.project_id,
-        where: tcr.test_case_id == ^test_case_run.test_case_id,
-        where: tcr.git_commit_sha == ^test_case_run.git_commit_sha,
-        where: tcr.scheme == ^test_case_run.scheme,
-        where: tcr.is_flaky == true,
-        order_by: [desc: tcr.ran_at]
+    group_runs =
+      ClickHouseRepo.all(
+        from(tcr in TestCaseRun,
+          where: tcr.project_id == ^test_case_run.project_id,
+          where: tcr.test_case_id == ^test_case_run.test_case_id,
+          where: tcr.git_commit_sha == ^test_case_run.git_commit_sha,
+          where: tcr.scheme == ^test_case_run.scheme,
+          order_by: [desc: tcr.ran_at]
+        )
       )
 
-    flaky_runs = ClickHouseRepo.all(flaky_runs_query)
-
-    if Enum.empty?(flaky_runs) do
-      nil
-    else
-      run_ids = Enum.map(flaky_runs, & &1.id)
+    if Enum.any?(group_runs, & &1.is_flaky) do
+      run_ids = Enum.map(group_runs, & &1.id)
 
       failures = get_failures_for_runs(run_ids)
       failures_by_run_id = Enum.group_by(failures, & &1.test_case_run_id)
@@ -2713,7 +2727,7 @@ defmodule Tuist.Tests do
       repetitions_by_run_id = Enum.group_by(repetitions, & &1.test_case_run_id)
 
       runs_with_details =
-        Enum.map(flaky_runs, fn run ->
+        Enum.map(group_runs, fn run ->
           run_failures = Map.get(failures_by_run_id, run.id, [])
 
           run_repetitions =
@@ -2731,7 +2745,7 @@ defmodule Tuist.Tests do
       %{
         scheme: test_case_run.scheme,
         git_commit_sha: test_case_run.git_commit_sha,
-        latest_ran_at: flaky_runs |> Enum.map(& &1.ran_at) |> Enum.max(NaiveDateTime),
+        latest_ran_at: group_runs |> Enum.map(& &1.ran_at) |> Enum.max(NaiveDateTime),
         passed_count: passed_count,
         failed_count: failed_count,
         runs: runs_with_details
@@ -2875,8 +2889,11 @@ defmodule Tuist.Tests do
     end)
   end
 
-  # Resolves the "same test_case_id flaked on the same commit in OTHER
-  # test_runs" lookup for an entire batch of test_run_ids in one query.
+  # Resolves the "same test_case_id ran on the same commit in OTHER
+  # test_runs" lookup for an entire batch of test_run_ids in one query. The
+  # test cases are already known to be flaky (they come from each run's own
+  # flagged runs); this pulls every run on the commit for them — passes
+  # included — so the grouped view shows the full pass/fail breakdown.
   #
   # The single ClickHouse query is filtered against the *union* of
   # per-axis IN sets across the batch, but each test_run's slice of the
@@ -2914,7 +2931,6 @@ defmodule Tuist.Tests do
               where: tcr.project_id in ^project_ids,
               where: tcr.test_case_id in ^test_case_ids,
               where: tcr.git_commit_sha in ^commit_shas,
-              where: tcr.is_flaky == true,
               order_by: [desc: tcr.ran_at]
             )
           )

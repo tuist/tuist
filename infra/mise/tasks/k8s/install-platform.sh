@@ -11,8 +11,8 @@
 # downstream installs that depend on cert-manager.io/v1 Certificate.
 #
 # Reads the Cloudflare DNS-01 API token from `CLOUDFLARE_API_TOKEN` if
-# set (CI wires it from the workflow's 1Password integration). Falls
-# back to `op read` for local invocations from bootstrap-workload.
+# set. Falls back to `op read` only for local invocations from
+# bootstrap-workload.
 
 set -euo pipefail
 
@@ -44,6 +44,11 @@ KUBECONFIG="$WL_KUBECONFIG" kubectl create namespace platform \
 if ! KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform get secret cloudflare-api-token >/dev/null 2>&1; then
   log "cloudflare-api-token Secret missing — provisioning it"
   if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+    if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+      echo "ERROR: platform/cloudflare-api-token is missing and CLOUDFLARE_API_TOKEN is not set." >&2
+      echo "Restore the workload cluster bootstrap secret before running deploys." >&2
+      exit 1
+    fi
     CLOUDFLARE_API_TOKEN="$(op read --account tuist.1password.com \
       "op://Founders/cloudflare-tuist-dns/credential")"
   fi

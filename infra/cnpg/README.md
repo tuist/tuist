@@ -7,8 +7,8 @@ The chart-rendered `Cluster` CR ([`infra/helm/tuist/templates/postgresql-cnpg.ya
 ## Files
 
 - Web runtime grants are applied automatically by `Tuist.Release.migrate/0` when `TUIST_DATABASE_RUNTIME_ROLE` is set (the Helm chart sets it to `postgresql.cnpg.roles.web.name` for managed CNPG migration jobs). The migration role keeps owning schema changes, and the web role gets DML on application tables plus read-only access to `schema_migrations`.
-- [`tuist-processor-grants.sql`](./tuist-processor-grants.sql) — `oban_jobs` / `oban_peers` write grants for the `tuist_processor` role. The role itself is created declaratively by CNPG via `managed.roles[]`; this file adds the per-table privileges the worker needs.
-- [`tuist-ops-ro-grants.sql`](./tuist-ops-ro-grants.sql) — `CONNECT` on the application database for the `tuist_ops_ro` role, plus an explicit `REVOKE` of write privileges on `public` (defense-in-depth against a future grant-by-default change in Postgres widening `pg_read_all_data`). The role is for ad-hoc operator psql access; the `/ops/db` LiveView uses Tuist.Repo under the web runtime role and enforces read-only at the app layer (see `Tuist.Ops.Database.execute/2`).
+- [`tuist-processor-grants.sql`](./tuist-processor-grants.sql) — `oban_jobs` / `oban_peers` write grants for the `tuist_processor` role. The role itself is created declaratively by CNPG via `managed.roles[]`; this file adds the per-table privileges the worker needs. Pass `-v tuist_schema=<schema>` when the chart uses a non-`public` `postgresql.schema`.
+- [`tuist-ops-ro-grants.sql`](./tuist-ops-ro-grants.sql) — `CONNECT` on the application database for the `tuist_ops_ro` role, plus an explicit `REVOKE` of write privileges on the application schema (defense-in-depth against a future grant-by-default change in Postgres widening `pg_read_all_data`). The role is for ad-hoc operator psql access; the `/ops/db` LiveView uses Tuist.Repo under the web runtime role and enforces read-only at the app layer (see `Tuist.Ops.Database.execute/2`).
 - [`pg-stat-statements.sql`](./pg-stat-statements.sql) — `CREATE EXTENSION pg_stat_statements`, enabling the per-query latency metrics (`cnpg_tuist_query_stats_*`) that back the dashboard's query-latency panels. The library is preloaded via the chart (`postgresql.cnpg.sharedPreloadLibraries`); this creates the reading view. **Runs against `postgres`, not `tuist`** (the metrics exporter queries the instance-global view from the maintenance database). Only relevant when `postgresql.cnpg.queryStats.enabled` is set. **Only for clusters bootstrapped before query-stats was enabled** — fresh clusters create the extension automatically via the Cluster CR's `bootstrap.initdb.postInitSQL`, and it persists across restores. (A future CNPG >= 1.26 upgrade would let `Database.spec.extensions` reconcile it declaratively on existing clusters too.)
 
 ## When to run
@@ -39,16 +39,18 @@ The cluster's `postgres` superuser Secret (`<cluster-name>-superuser`) is genera
 ENV=staging  # or canary | production
 NAMESPACE=tuist-$ENV
 CLUSTER=tuist-tuist-pg
+TUIST_SCHEMA=public
 
 # -d tuist switches psql to the application database that CNPG creates
 # via `bootstrap.initdb.database`. The maintenance database (`postgres`)
 # the cluster's superuser defaults to does not have the application's
 # schema, so GRANTs against `oban_jobs`/`accounts`/`projects` need the
-# right -d on the psql side.
-kubectl cnpg psql -n "$NAMESPACE" "$CLUSTER" -- -d tuist -f - \
+# right -d on the psql side. `tuist_schema` should match the chart's
+# `postgresql.schema` value.
+kubectl cnpg psql -n "$NAMESPACE" "$CLUSTER" -- -d tuist -v "tuist_schema=$TUIST_SCHEMA" -f - \
   < infra/cnpg/tuist-processor-grants.sql
 
-kubectl cnpg psql -n "$NAMESPACE" "$CLUSTER" -- -d tuist -f - \
+kubectl cnpg psql -n "$NAMESPACE" "$CLUSTER" -- -d tuist -v "tuist_schema=$TUIST_SCHEMA" -f - \
   < infra/cnpg/tuist-ops-ro-grants.sql
 
 # pg_stat_statements is instance-global and the metrics exporter reads it

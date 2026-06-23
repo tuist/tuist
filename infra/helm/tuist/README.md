@@ -104,6 +104,7 @@ Embedded PostgreSQL, ClickHouse, and MinIO continue to use the namespace default
 Some cluster-specific fixes are intentionally opt-in:
 
 - `cache.podSecurityContext` is empty by default. Set `fsGroup` only if your storage class needs it.
+- `cache.nginx.clientMaxBodySize` defaults to `10m`, matching the cache application's module part size limit. Raise it only when the application limit is raised too.
 - `clickhouse.embedded.service.nativePort` defaults to ClickHouse's standard `9000` service port and can be overridden for mesh or port-allocation conflicts.
 - `clickhouse.external.pingUrl` lets the migration job wait for an external ClickHouse instance through a dedicated `/ping` URL when `clickhouse.external.url` includes a database path.
 
@@ -121,6 +122,8 @@ Embedded compatibility override example:
 
 ```yaml
 cache:
+  nginx:
+    clientMaxBodySize: 10m
   podSecurityContext:
     fsGroup: 990
 
