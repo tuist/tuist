@@ -165,8 +165,6 @@ spec:
                             intra-region mesh. Unused at Qty-1 (a single public box needs no private
                             fabric); wired in the multi-box HA follow-up alongside the failover IP.
                           type: string
-                      required:
-                        - adoptDisplayNamePrefix
                       type: object
                   required:
                     - spec

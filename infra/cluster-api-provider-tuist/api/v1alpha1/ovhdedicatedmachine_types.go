@@ -47,11 +47,13 @@ type OVHDedicatedMachineSpec struct {
 	// +kubebuilder:default=ubuntu_24.04
 	OS string `json:"os,omitempty"`
 
-	// AdoptDisplayNamePrefix is the OVH-side reverse-DNS prefix the controller
-	// scans to claim a pre-ordered, operator-installed server for this Machine
-	// (mirrors the Apple Silicon kind's adoptPoolPrefix). Required: without it
-	// the controller has no pool to adopt from and OVH has no inline-order path.
-	AdoptDisplayNamePrefix string `json:"adoptDisplayNamePrefix"`
+	// AdoptDisplayNamePrefix optionally narrows adoption to servers whose reverse
+	// DNS starts with this prefix. Leave it empty to adopt purely by datacenter +
+	// offer, so the operator only pre-orders capacity and never touches reverse
+	// DNS; set it when one account holds unrelated boxes of the same shape in the
+	// same region that this fleet must not claim.
+	// +optional
+	AdoptDisplayNamePrefix string `json:"adoptDisplayNamePrefix,omitempty"`
 
 	// FleetName groups Machines that share one SSH key, like the Apple Silicon
 	// kind. Set by the MachineTemplate so every Machine the MachineDeployment

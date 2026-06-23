@@ -133,7 +133,9 @@ func (c *Client) FindAdoptableServer(ctx context.Context, p AdoptParams, claimed
 		if err != nil {
 			return nil, err
 		}
-		if p.Datacenter != "" && !strings.EqualFold(server.Datacenter, p.Datacenter) {
+		// Region-prefix match so a short code like "bhs" claims a server whatever
+		// specific datacenter OVH reports (bhs6/bhs8/...).
+		if p.Datacenter != "" && !strings.HasPrefix(strings.ToLower(server.Datacenter), strings.ToLower(p.Datacenter)) {
 			continue
 		}
 		if p.DisplayNamePrefix != "" && !strings.HasPrefix(server.Reverse, p.DisplayNamePrefix) {

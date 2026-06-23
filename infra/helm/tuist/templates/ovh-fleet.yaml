@@ -29,7 +29,9 @@ metadata:
 spec:
   template:
     spec:
-      adoptDisplayNamePrefix: {{ .Values.ovhFleet.machine.adoptDisplayNamePrefix | quote }}
+      {{- with .Values.ovhFleet.machine.adoptDisplayNamePrefix }}
+      adoptDisplayNamePrefix: {{ . | quote }}
+      {{- end }}
       datacenter: {{ .Values.ovhFleet.machine.datacenter | default "" | quote }}
       offer: {{ .Values.ovhFleet.machine.offer | default "" | quote }}
       os: {{ .Values.ovhFleet.machine.os | default "ubuntu_24.04" | quote }}

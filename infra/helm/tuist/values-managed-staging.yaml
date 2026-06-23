@@ -339,7 +339,11 @@ ovhFleet:
   endpoint: ovh-ca
   nodePool: kura-ovh-staging
   machine:
-    adoptDisplayNamePrefix: tuist-kura-ovh-staging
+    # Adopt by offer + datacenter, no reverse-DNS marker: the operator only
+    # pre-orders a SYS-1 in BHS and scales the fleet; the controller claims a
+    # free one, installs the OS, and joins it.
+    offer: sys-1
+    datacenter: bhs
     os: ubuntu_24.04
   externalSecrets:
     item: OVH_API
