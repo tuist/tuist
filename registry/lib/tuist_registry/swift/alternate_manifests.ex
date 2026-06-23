@@ -17,6 +17,7 @@ defmodule TuistRegistry.Swift.AlternateManifests do
   and fetch from S3 on every manifest request.
   """
 
+  alias TuistCommon.Registry.Swift.AlternateManifest
   alias TuistCommon.Registry.Swift.KeyNormalizer
   alias TuistRegistry.Config
 
@@ -24,8 +25,6 @@ defmodule TuistRegistry.Swift.AlternateManifests do
 
   @cache_name :registry_alternate_manifests_cache
   @ttl to_timeout(minute: 10)
-  @alternate_manifest_regex ~r/\APackage@swift-(\d+)(?:\.(\d+))?(?:\.(\d+))?\.swift\z/
-  @swift_tools_version_regex ~r/^\/\/ swift-tools-version:\s?(\d+)(?:\.(\d+))?(?:\.(\d+))?/
 
   def child_spec(_opts) do
     %{
@@ -65,7 +64,7 @@ defmodule TuistRegistry.Swift.AlternateManifests do
       |> ExAws.S3.list_objects_v2(prefix: prefix)
       |> ExAws.stream!()
       |> Stream.map(fn %{key: key} -> {key, Path.basename(key)} end)
-      |> Stream.filter(fn {_key, filename} -> alternate_manifest?(filename) end)
+      |> Stream.filter(fn {_key, filename} -> AlternateManifest.alternate_filename?(filename) end)
       |> Enum.flat_map(fn {key, filename} ->
         descriptor_for(bucket, key, filename, scope, name, version)
       end)
@@ -80,15 +79,13 @@ defmodule TuistRegistry.Swift.AlternateManifests do
     end
   end
 
-  defp alternate_manifest?(filename), do: Regex.match?(@alternate_manifest_regex, filename)
-
   defp descriptor_for(bucket, key, filename, scope, name, version) do
     case fetch_content(bucket, key) do
       {:ok, content} ->
         [
           %{
-            "swift_version" => filename_swift_version(filename),
-            "swift_tools_version" => parse_swift_tools_version(content)
+            "swift_version" => AlternateManifest.swift_version_from_filename(filename),
+            "swift_tools_version" => AlternateManifest.swift_tools_version(content)
           }
         ]
 
@@ -108,24 +105,6 @@ defmodule TuistRegistry.Swift.AlternateManifests do
          |> ExAws.request() do
       {:ok, %{body: body}} -> {:ok, body}
       {:error, reason} -> {:error, reason}
-    end
-  end
-
-  defp filename_swift_version(filename) do
-    case Regex.run(@alternate_manifest_regex, filename) do
-      [_, major] -> major
-      [_, major, minor] -> "#{major}.#{minor}"
-      [_, major, minor, patch] -> "#{major}.#{minor}.#{patch}"
-      _ -> nil
-    end
-  end
-
-  defp parse_swift_tools_version(content) do
-    case Regex.run(@swift_tools_version_regex, content) do
-      [_, major] -> major
-      [_, major, minor] -> "#{major}.#{minor}"
-      [_, major, minor, patch] -> "#{major}.#{minor}.#{patch}"
-      _ -> nil
     end
   end
 end

@@ -14,13 +14,13 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   alias Tuist.Registry.Swift.Lock
   alias Tuist.Registry.Swift.Metadata
   alias TuistCommon.Git.Authentication, as: GitAuthentication
+  alias TuistCommon.Registry.Swift.AlternateManifest
   alias TuistCommon.Registry.Swift.KeyNormalizer
 
   require Logger
 
   @github_opts [finch: Tuist.Finch, retry: false]
 
-  @alternate_manifest_regex ~r/\APackage@swift-(\d+)(?:\.(\d+))?(?:\.(\d+))?\.swift\z/
   @lock_ttl_seconds 1_800
   @metadata_lock_ttl_seconds 300
   @skippable_submodule_failure_markers [
@@ -664,7 +664,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
                 content: content,
                 filename: filename,
                 path: path,
-                swift_version: manifest_swift_version(filename)
+                swift_version: AlternateManifest.swift_version_from_filename(filename)
               }
 
             {:error, reason} ->
@@ -701,7 +701,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
           :ok ->
             manifest = %{
               "swift_version" => swift_version,
-              "swift_tools_version" => swift_tools_version(content)
+              "swift_tools_version" => AlternateManifest.swift_tools_version(content)
             }
 
             {[manifest | manifests], failures}
@@ -869,29 +869,8 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     S3.upload_content(key, content, content_type: "text/x-swift")
   end
 
-  defp manifest_path?("Package.swift"), do: true
-  defp manifest_path?(path) when is_binary(path), do: Regex.match?(@alternate_manifest_regex, Path.basename(path))
+  defp manifest_path?(path) when is_binary(path), do: AlternateManifest.registry_manifest_path?(path)
   defp manifest_path?(_), do: false
-
-  defp manifest_swift_version("Package.swift"), do: nil
-
-  defp manifest_swift_version(filename) do
-    case Regex.run(@alternate_manifest_regex, filename) do
-      [_, major] -> major
-      [_, major, minor] -> "#{major}.#{minor}"
-      [_, major, minor, patch] -> "#{major}.#{minor}.#{patch}"
-      _ -> nil
-    end
-  end
-
-  defp swift_tools_version(content) do
-    case Regex.run(~r/^\/\/ swift-tools-version:\s?(\d+)(?:\.(\d+))?(?:\.(\d+))?/, content) do
-      [_, major] -> major
-      [_, major, minor] -> "#{major}.#{minor}"
-      [_, major, minor, patch] -> "#{major}.#{minor}.#{patch}"
-      _ -> nil
-    end
-  end
 
   defp checksum_for_file(path) do
     hash =
