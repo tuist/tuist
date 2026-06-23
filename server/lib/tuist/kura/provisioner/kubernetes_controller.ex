@@ -37,12 +37,12 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     with {:ok, hook_script} <- hook_script(inputs) do
       gateway = gateway_assignment(account, region)
 
-      external_peers = mesh_enabled?(region) && Mesh.self_hosted_peer_urls(account)
+      external_peers = self_hosted_peers(account, region)
 
       case apply_manifests(
              [
                gateway_manifest(gateway, account, region),
-               manifest(name, image_tag, account, region, server, hook_script, gateway, external_peers || [])
+               manifest(name, image_tag, account, region, server, hook_script, gateway, external_peers)
              ],
              region
            ) do
@@ -149,6 +149,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @impl true
+  def manifest_revision(account, %Regions{} = region) do
+    @manifest_revision <> peers_revision_suffix(self_hosted_peers(account, region))
+  end
+
+  @doc "The base manifest revision, independent of dynamic per-account inputs."
   def manifest_revision, do: @manifest_revision
 
   @impl true
@@ -188,7 +193,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   @doc false
   def manifest(name, image_tag, account, %Regions{} = region, %Server{}, hook_script, gateway, external_peers \\ []) do
     account_handle = dns_handle(account.name)
-    annotations = maybe_put_gateway_annotation(%{@manifest_revision_annotation => @manifest_revision}, gateway)
+    revision = @manifest_revision <> peers_revision_suffix(external_peers)
+    annotations = maybe_put_gateway_annotation(%{@manifest_revision_annotation => revision}, gateway)
 
     %{
       "apiVersion" => "kura.tuist.dev/v1alpha1",
@@ -297,6 +303,26 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp mesh_enabled?(%Regions{provisioner_config: %{mesh: mesh}}) when is_boolean(mesh), do: mesh
   defp mesh_enabled?(_region), do: false
+
+  defp self_hosted_peers(account, %Regions{} = region) do
+    (mesh_enabled?(region) && Mesh.self_hosted_peer_urls(account)) || []
+  end
+
+  # Folded into the manifest revision so enrolling or dropping a self-hosted
+  # peer changes the desired revision and the reconciler re-applies the manifest.
+  defp peers_revision_suffix([]), do: ""
+
+  defp peers_revision_suffix(peer_urls) when is_list(peer_urls) do
+    digest =
+      peer_urls
+      |> Enum.sort()
+      |> Enum.join(",")
+      |> then(&:crypto.hash(:sha256, &1))
+      |> Base.encode16(case: :lower)
+      |> binary_part(0, 12)
+
+    "+peers-" <> digest
+  end
 
   defp mesh_public_peer_host(handle, region) do
     if mesh_enabled?(region), do: Regions.peer_public_host(handle, region)

@@ -358,13 +358,18 @@ func (r *KuraInstanceReconciler) reconcileAccountPeerService(ctx context.Context
 // account. Only created when the controller owns the account CA
 // (meshManagedPeerTLS) and a public host is requested.
 func (r *KuraInstanceReconciler) reconcileInstancePublicPeerService(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	service := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: instancePublicPeerServiceName(instance), Namespace: instance.Namespace}}
 	if !meshManagedPeerTLS(instance) || instance.Spec.MeshPublicPeerHost == "" {
-		// A non-mesh instance (e.g. a private runner-cache region) exposes no
-		// public peer plane.
+		// No public peer plane requested (a non-mesh region, or the host was
+		// cleared). Tear down any LoadBalancer + external-dns record created
+		// earlier so an internet-facing Service does not linger, mirroring the
+		// other public resources in this controller.
+		if err := r.Delete(ctx, service); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
 		return nil
 	}
 
-	service := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: instancePublicPeerServiceName(instance), Namespace: instance.Namespace}}
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, service, func() error {
 		service.Labels = map[string]string{
 			"app.kubernetes.io/name":       "kura",

@@ -3,6 +3,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   use Mimic
 
   alias Tuist.Kubernetes.Client
+  alias Tuist.Kura.Mesh
   alias Tuist.Kura.Provisioner.KubernetesController
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
@@ -360,6 +361,63 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(env, "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID")
 
       assert env["KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] == "http://127.0.0.1:4318/v1/traces"
+    end
+  end
+
+  describe "manifest_revision/2" do
+    test "matches the base revision when no self-hosted peers are enrolled" do
+      stub(Mesh, :self_hosted_peer_urls, fn _ -> [] end)
+
+      assert KubernetesController.manifest_revision(%{name: "tuist"}, eu_region(%{mesh: true})) ==
+               KubernetesController.manifest_revision()
+    end
+
+    test "changes when a peer is enrolled, matching the rendered manifest annotation" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      region = eu_region(%{mesh: true})
+      peers = ["https://kura.acme.example:7443"]
+      stub(Mesh, :self_hosted_peer_urls, fn _ -> peers end)
+
+      revision = KubernetesController.manifest_revision(%{name: "tuist"}, region)
+      refute revision == KubernetesController.manifest_revision()
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %{name: "tuist"},
+          region,
+          %Server{},
+          "return true",
+          nil,
+          peers
+        )
+
+      assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] == revision
+    end
+
+    test "is independent of the peer ordering" do
+      region = eu_region(%{mesh: true})
+
+      stub(Mesh, :self_hosted_peer_urls, fn _ -> ["https://b.example:7443", "https://a.example:7443"] end)
+      sorted = KubernetesController.manifest_revision(%{name: "tuist"}, region)
+
+      stub(Mesh, :self_hosted_peer_urls, fn _ -> ["https://a.example:7443", "https://b.example:7443"] end)
+      reordered = KubernetesController.manifest_revision(%{name: "tuist"}, region)
+
+      assert sorted == reordered
+    end
+
+    test "ignores peers for a region without the mesh enabled" do
+      reject(&Mesh.self_hosted_peer_urls/1)
+
+      assert KubernetesController.manifest_revision(%{name: "tuist"}, eu_region()) ==
+               KubernetesController.manifest_revision()
     end
   end
 

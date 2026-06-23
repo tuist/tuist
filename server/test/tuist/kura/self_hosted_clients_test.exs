@@ -1,9 +1,12 @@
 defmodule Tuist.Kura.SelfHostedClientsTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
+  alias Tuist.Environment
   alias Tuist.Kura.SelfHostedClient
   alias Tuist.Kura.SelfHostedClients
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.BillingFixtures
 
   describe "create_self_hosted_client/2" do
     test "issues a credential and returns the plaintext secret once" do
@@ -41,8 +44,29 @@ defmodule Tuist.Kura.SelfHostedClientsTest do
   end
 
   describe "verify/2" do
-    test "returns the owning account for a valid credential" do
+    test "returns the owning account for a valid, entitled credential" do
+      # A non-hosted (self-managed) deployment grants every entitlement.
+      stub(Environment, :tuist_hosted?, fn -> false end)
       account = AccountsFixtures.organization_fixture().account
+      {:ok, {client, secret}} = SelfHostedClients.create_self_hosted_client(account, %{name: "a"})
+
+      assert {:ok, verified_account} = SelfHostedClients.verify(client.client_id, secret)
+      assert verified_account.id == account.id
+    end
+
+    test "rejects a valid credential whose account is not entitled to self-hosting" do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+      {:ok, {client, secret}} = SelfHostedClients.create_self_hosted_client(account, %{name: "a"})
+
+      assert SelfHostedClients.verify(client.client_id, secret) == :error
+    end
+
+    test "accepts a valid credential whose account is on the enterprise plan" do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
       {:ok, {client, secret}} = SelfHostedClients.create_self_hosted_client(account, %{name: "a"})
 
       assert {:ok, verified_account} = SelfHostedClients.verify(client.client_id, secret)

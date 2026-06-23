@@ -2094,7 +2094,10 @@ defmodule Tuist.Accounts do
   # report a live, ready advertised endpoint. Lease-gated, so a node that stops
   # heartbeating drops out. Gated on `:kura_cache` like the static endpoints.
   defp registered_kura_endpoint_urls(%Account{} = account) do
-    if FeatureFlags.kura_cache_enabled?(account) do
+    # Self-hosting is Enterprise-only, so do not surface a downgraded account's
+    # registered node addresses to the CLI even while their leases are still live.
+    if FeatureFlags.kura_cache_enabled?(account) and
+         Billing.Entitlements.allows?(account, :self_hosted_cache) do
       Tuist.Kura.Registrations.active_advertised_urls(account)
     else
       []

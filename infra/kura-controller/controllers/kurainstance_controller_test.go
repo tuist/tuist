@@ -1053,6 +1053,46 @@ func TestMeshPublicPeerServiceIsPerRegion(t *testing.T) {
 	}
 }
 
+func TestMeshPublicPeerServiceIsTornDownWhenHostCleared(t *testing.T) {
+	ctx := context.Background()
+	scheme := meshTestScheme(t)
+
+	instance := meshInstance("kura-tuist-eu-1", "tuist")
+	instance.Spec.MeshPublicPeerHost = "peer.tuist-eu-central-1.kura.tuist.dev"
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).WithStatusSubresource(instance).Build(),
+		Scheme: scheme,
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	lb := &corev1.Service{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instancePublicPeerServiceName(instance), Namespace: instance.Namespace}, lb); err != nil {
+		t.Fatalf("expected public peer Service after enabling the mesh: %v", err)
+	}
+
+	// Clearing the host (e.g. the account stops bridging) must tear the
+	// internet-facing LoadBalancer down rather than leaving it stranded.
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, instance); err != nil {
+		t.Fatal(err)
+	}
+	instance.Spec.MeshPublicPeerHost = ""
+	if err := reconciler.Update(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instancePublicPeerServiceName(instance), Namespace: instance.Namespace}, lb); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected public peer Service to be deleted after clearing the host, got %v", err)
+	}
+}
+
 func TestKuraInstanceReconcileWithoutSharedTLSDoesNotEnableGlobalDiscovery(t *testing.T) {
 	ctx := context.Background()
 	scheme := runtime.NewScheme()

@@ -13,6 +13,7 @@ defmodule Tuist.Kura.SelfHostedClients do
   import Ecto.Query
 
   alias Tuist.Accounts.Account
+  alias Tuist.Billing.Entitlements
   alias Tuist.Environment
   alias Tuist.Kura.SelfHostedClient
   alias Tuist.Repo
@@ -62,6 +63,11 @@ defmodule Tuist.Kura.SelfHostedClients do
   Verifies a `client_id` / `client_secret` pair, returning `{:ok, account}`
   with the owning account preloaded, or `:error`. Runs a constant-time
   verification even on an unknown `client_id` to avoid leaking existence.
+
+  This is the single choke point every self-hosted call (enrollment, usage
+  ingestion, token introspection) goes through, so the self-hosted-cache
+  entitlement is enforced here too: a downgraded account stops authenticating
+  even though its credential still exists.
   """
   def verify(client_id, client_secret) when is_binary(client_id) and is_binary(client_secret) do
     case Repo.one(from(c in SelfHostedClient, where: c.client_id == ^client_id, preload: [:account])) do
@@ -73,7 +79,7 @@ defmodule Tuist.Kura.SelfHostedClients do
         if Bcrypt.verify_pass(
              client_secret <> Environment.secret_key_password(),
              client.encrypted_secret_hash
-           ) do
+           ) and Entitlements.allows?(client.account, :self_hosted_cache) do
           {:ok, client.account}
         else
           :error
