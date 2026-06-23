@@ -651,6 +651,44 @@ defmodule Tuist.Runners.JobsTest do
     end
   end
 
+  describe "list_stale_queued/1" do
+    test "returns queued rows enqueued before the threshold" do
+      account = account_fixture()
+      old = ~U[2026-05-01 10:00:00.000000Z]
+      recent = DateTime.utc_now()
+
+      :ok = enqueue_fixture(account, 8501, fleet: "fleet-sq", repository: "acme/stuck", enqueued_at: old)
+      :ok = enqueue_fixture(account, 8502, fleet: "fleet-sq", repository: "acme/fresh", enqueued_at: recent)
+
+      threshold = ~U[2026-05-15 00:00:00.000000Z]
+      results = Jobs.list_stale_queued(threshold)
+
+      ids = Enum.map(results, & &1.workflow_job_id)
+      assert 8501 in ids
+      refute 8502 in ids
+
+      stuck = Enum.find(results, &(&1.workflow_job_id == 8501))
+      assert stuck.account_id == account.id
+      assert stuck.repository == "acme/stuck"
+      assert DateTime.compare(stuck.enqueued_at, old) == :eq
+    end
+
+    test "excludes rows that have transitioned out of queued" do
+      account = account_fixture()
+      old = ~U[2026-05-01 10:00:00.000000Z]
+      :ok = enqueue_fixture(account, 8511, fleet: "fleet-sq-trans", enqueued_at: old)
+      {:ok, candidate} = Jobs.pick_queued("fleet-sq-trans", [])
+      :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
+
+      threshold = ~U[2026-05-15 00:00:00.000000Z]
+      refute Enum.any?(Jobs.list_stale_queued(threshold), &(&1.workflow_job_id == 8511))
+    end
+
+    test "returns an empty list when nothing is stale" do
+      assert Jobs.list_stale_queued(~U[2026-01-01 00:00:00.000000Z]) == []
+    end
+  end
+
   describe "queued_count_by_fleet/1" do
     test "returns the count of `queued` rows for the fleet" do
       account = account_fixture()

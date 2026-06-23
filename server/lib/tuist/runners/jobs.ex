@@ -1030,6 +1030,39 @@ defmodule Tuist.Runners.Jobs do
     |> ClickHouseRepo.all()
   end
 
+  @doc """
+  Lists `runner_jobs` rows still in `status = 'queued'` whose
+  `enqueued_at` is older than `threshold` — candidates for the
+  "queued but never reconciled" recovery path that
+  `StaleQueuedJobsWorker` drives.
+
+  A queued row only ever leaves the queue by a Pod claiming it
+  (`queued → claimed → running → completed`) or a
+  `workflow_job.completed` webhook marking it `completed`. When no
+  runner ever registers to accept the job AND no completion webhook
+  arrives (GitHub kept it `queued` on its side, or the delivery was
+  lost past the redelivery window), nothing terminates the row:
+  `StaleClaimsWorker` only sees PG `claimed` rows and
+  `OrphanedRunnersWorker` only sees CH `running` rows, so neither
+  covers `queued`.
+
+  Returns the fields the worker needs to address GitHub's Actions
+  jobs API (`repository`) and to apply the hard backstop
+  (`enqueued_at`).
+  """
+  def list_stale_queued(%DateTime{} = threshold) do
+    Job
+    |> from(hints: ["FINAL"])
+    |> where([j], j.status == "queued" and j.enqueued_at < ^threshold)
+    |> select([j], %{
+      workflow_job_id: j.workflow_job_id,
+      account_id: j.account_id,
+      repository: j.repository,
+      enqueued_at: j.enqueued_at
+    })
+    |> ClickHouseRepo.all()
+  end
+
   # ----- internal -----
 
   # Fetch the current state of a workflow_job. Single-row lookup
