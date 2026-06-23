@@ -55,11 +55,8 @@ jobs:
 
   bazel-lockfile:
     name: Bazel Lockfile
-    runs-on: tuist-linux
+    runs-on: ubuntu-latest
     timeout-minutes: 15
-    # Advisory while the Bazel build is being brought up: a failure must not gate the
-    # workflow (the cargo jobs remain the source of truth).
-    continue-on-error: true
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     # Fast guard for the crate_universe pin. Cargo.Bazel.lock is a digest of Cargo.toml +
     # Cargo.lock and must be repinned when they change (or after merging main); otherwise the
@@ -96,7 +93,7 @@ jobs:
   # `contents: read` alone.
   bazel-compile:
     name: Bazel Compile
-    runs-on: tuist-linux
+    runs-on: ubuntu-latest
     # A cold Bazel build compiles the -sys crates' C/C++ (rocksdb, aws-lc) from source,
     # unlike `cargo check`, so allow more wall-clock than the cargo compile job.
     timeout-minutes: 60
@@ -115,9 +112,9 @@ jobs:
           install_args: "rust bazel tuist"
           working_directory: kura
 
-      - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
-
+      # - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
+      #   run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
+      #
       - name: Authenticate with Tuist
         run: tuist auth login
       - name: Tuist Bazel setup
@@ -129,7 +126,7 @@ jobs:
 
   bazel-compile-fork:
     name: Bazel Compile Fork
-    runs-on: tuist-linux
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     # Fork PRs only: `contents: read`, never `id-token: write`. Skips `tuist auth login`
     # and `tuist bazel setup` (the OIDC consumers) and builds against the local
@@ -157,9 +154,9 @@ jobs:
             bazel-compile-fork-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock') }}-
             bazel-compile-fork-
 
-      - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
-
+      # - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
+      #   run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
+      #
       - name: Compile without warnings
         run: |
           {
@@ -196,7 +193,7 @@ jobs:
   # remote cache; fork PRs run with `contents: read` and the local cache alone.
   bazel-test:
     name: Bazel Test
-    runs-on: tuist-linux
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
       contents: read
@@ -213,9 +210,9 @@ jobs:
           install_args: "rust bazel tuist"
           working_directory: kura
 
-      - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
-
+      # - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
+      #   run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
+      #
       - name: Authenticate with Tuist
         run: tuist auth login
       - name: Tuist Bazel setup
@@ -226,7 +223,7 @@ jobs:
 
   bazel-test-fork:
     name: Bazel Test Fork
-    runs-on: tuist-linux
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     # Fork PRs only: `contents: read`, never `id-token: write`. Skips `tuist auth login`
     # and `tuist bazel setup` (the OIDC consumers) and tests against the local
@@ -254,9 +251,9 @@ jobs:
             bazel-test-fork-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock') }}-
             bazel-test-fork-
 
-      - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
-
+      # - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
+      #   run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
+      #
       - name: Run tests
         run: |
           {
