@@ -1201,6 +1201,20 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Cross-cluster trust policy for Atlas workload tokens.
+  """
+  def atlas_workload_identity_policy do
+    %{
+      audience: atlas_token_audience(),
+      issuer: atlas_token_issuer(),
+      jwks: atlas_token_jwks(),
+      max_token_ttl_seconds: atlas_token_max_ttl_seconds(),
+      namespace: atlas_namespace(),
+      service_account_name: atlas_service_account_name()
+    }
+  end
+
+  @doc """
   Namespace where Atlas' ServiceAccount lives. Atlas calls internal Tuist
   endpoints with a projected ServiceAccount token, so the server verifies both
   the token subject and this expected principal.
@@ -1237,6 +1251,26 @@ defmodule Tuist.Environment do
   """
   def atlas_token_jwks do
     System.get_env("TUIST_ATLAS_TOKEN_JWKS") || get([:atlas, :token_jwks], secrets())
+  end
+
+  @doc """
+  Maximum accepted lifetime for Atlas projected ServiceAccount tokens.
+  """
+  def atlas_token_max_ttl_seconds do
+    case get([:atlas, :token_max_ttl_seconds], secrets(), default_value: "3600") do
+      value when is_integer(value) -> value
+      value when is_binary(value) -> String.to_integer(value)
+    end
+  end
+
+  @doc """
+  Returns the bucket size for Atlas internal API rate limiting.
+  """
+  def atlas_rate_limit_bucket_size(secrets \\ secrets()) do
+    case get([:atlas, :rate_limit_bucket_size], secrets, default_value: "600") do
+      bucket_size when is_integer(bucket_size) -> bucket_size
+      bucket_size when is_binary(bucket_size) -> String.to_integer(bucket_size)
+    end
   end
 
   def typesense_search_api_key do

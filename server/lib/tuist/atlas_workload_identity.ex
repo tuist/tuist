@@ -12,22 +12,54 @@ defmodule Tuist.AtlasWorkloadIdentity do
 
   @clock_skew_seconds 60
 
-  def verify(token) when is_binary(token) and token != "" do
-    with {:ok, jwks} <- configured_jwks(),
+  def verify(token, policy \\ Environment.atlas_workload_identity_policy())
+
+  def verify(token, policy) when is_binary(token) and token != "" do
+    with {:ok, policy} <- normalize_policy(policy),
+         {:ok, jwks} <- configured_jwks(policy),
          {:ok, kid} <- peek_kid(token),
          {:ok, claims} <- verify_signature(token, jwks, kid),
-         :ok <- validate_issuer(claims),
-         :ok <- validate_audience(claims),
+         :ok <- validate_issuer(claims, policy),
+         :ok <- validate_audience(claims, policy),
+         :ok <- validate_issued_at(claims),
          :ok <- validate_expiration(claims),
-         :ok <- validate_not_before(claims) do
-      service_account_principal(claims)
+         :ok <- validate_not_before(claims),
+         :ok <- validate_max_token_ttl(claims, policy),
+         {:ok, principal} <- service_account_principal(claims),
+         :ok <- validate_expected_principal(principal, policy),
+         :ok <- validate_kubernetes_private_claims(claims, policy) do
+      {:ok, principal}
     end
   end
 
-  def verify(_token), do: {:error, :invalid_token}
+  def verify(_token, _policy), do: {:error, :invalid_token}
 
-  defp configured_jwks do
-    case Environment.atlas_token_jwks() do
+  defp normalize_policy(policy) when is_map(policy) do
+    normalized = %{
+      audience: policy_value(policy, :audience),
+      issuer: policy_value(policy, :issuer),
+      jwks: policy_value(policy, :jwks),
+      max_token_ttl_seconds: policy_value(policy, :max_token_ttl_seconds),
+      namespace: policy_value(policy, :namespace),
+      service_account_name: policy_value(policy, :service_account_name)
+    }
+
+    if Enum.all?(normalized, fn
+         {:max_token_ttl_seconds, value} -> is_integer(value) and value > 0
+         {_key, value} -> not is_nil(value) and value != ""
+       end) do
+      {:ok, normalized}
+    else
+      {:error, :not_configured}
+    end
+  end
+
+  defp normalize_policy(_policy), do: {:error, :not_configured}
+
+  defp policy_value(policy, key), do: Map.get(policy, key) || Map.get(policy, Atom.to_string(key))
+
+  defp configured_jwks(%{jwks: jwks}) do
+    case jwks do
       nil -> {:error, :not_configured}
       "" -> {:error, :not_configured}
       jwks when is_map(jwks) -> {:ok, jwks}
@@ -73,33 +105,43 @@ defmodule Tuist.AtlasWorkloadIdentity do
     end
   end
 
-  defp validate_issuer(%{"iss" => issuer}) do
-    if issuer == Environment.atlas_token_issuer() do
+  defp validate_issuer(%{"iss" => issuer}, %{issuer: expected_issuer}) do
+    if issuer == expected_issuer do
       :ok
     else
       {:error, :bad_issuer}
     end
   end
 
-  defp validate_issuer(_claims), do: {:error, :bad_issuer}
+  defp validate_issuer(_claims, _policy), do: {:error, :bad_issuer}
 
-  defp validate_audience(%{"aud" => audience}) when is_binary(audience) do
-    if audience == Environment.atlas_token_audience() do
+  defp validate_audience(%{"aud" => audience}, %{audience: expected_audience}) when is_binary(audience) do
+    if audience == expected_audience do
       :ok
     else
       {:error, :bad_audience}
     end
   end
 
-  defp validate_audience(%{"aud" => audiences}) when is_list(audiences) do
-    if Environment.atlas_token_audience() in audiences do
+  defp validate_audience(%{"aud" => audiences}, %{audience: expected_audience}) when is_list(audiences) do
+    if expected_audience in audiences do
       :ok
     else
       {:error, :bad_audience}
     end
   end
 
-  defp validate_audience(_claims), do: {:error, :bad_audience}
+  defp validate_audience(_claims, _policy), do: {:error, :bad_audience}
+
+  defp validate_issued_at(%{"iat" => issued_at}) when is_integer(issued_at) do
+    if issued_at <= now() + @clock_skew_seconds do
+      :ok
+    else
+      {:error, :token_not_yet_valid}
+    end
+  end
+
+  defp validate_issued_at(_claims), do: {:error, :missing_issued_at}
 
   defp validate_expiration(%{"exp" => exp}) when is_integer(exp) do
     if exp > now() - @clock_skew_seconds do
@@ -121,6 +163,17 @@ defmodule Tuist.AtlasWorkloadIdentity do
 
   defp validate_not_before(_claims), do: :ok
 
+  defp validate_max_token_ttl(%{"exp" => exp, "iat" => issued_at}, %{max_token_ttl_seconds: max_token_ttl_seconds})
+       when is_integer(exp) and is_integer(issued_at) do
+    if exp >= issued_at and exp - issued_at <= max_token_ttl_seconds do
+      :ok
+    else
+      {:error, :token_ttl_exceeded}
+    end
+  end
+
+  defp validate_max_token_ttl(_claims, _policy), do: {:error, :token_ttl_exceeded}
+
   defp service_account_principal(%{"sub" => "system:serviceaccount:" <> subject} = claims) do
     case String.split(subject, ":", parts: 2) do
       [namespace, name] when namespace != "" and name != "" ->
@@ -137,6 +190,30 @@ defmodule Tuist.AtlasWorkloadIdentity do
   end
 
   defp service_account_principal(_claims), do: {:error, :not_service_account}
+
+  defp validate_expected_principal(%{namespace: namespace, name: name} = principal, %{
+         namespace: expected_namespace,
+         service_account_name: expected_name
+       }) do
+    if namespace == expected_namespace and name == expected_name do
+      :ok
+    else
+      {:error, {:wrong_principal, principal}}
+    end
+  end
+
+  defp validate_kubernetes_private_claims(
+         %{"kubernetes.io" => %{"namespace" => namespace, "serviceaccount" => %{"name" => service_account_name}}},
+         %{namespace: expected_namespace, service_account_name: expected_service_account_name}
+       ) do
+    if namespace == expected_namespace and service_account_name == expected_service_account_name do
+      :ok
+    else
+      {:error, :bad_kubernetes_claims}
+    end
+  end
+
+  defp validate_kubernetes_private_claims(_claims, _policy), do: {:error, :bad_kubernetes_claims}
 
   defp now, do: DateTime.to_unix(DateTime.utc_now())
 end

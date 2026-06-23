@@ -4,8 +4,15 @@ defmodule TuistWeb.Internal.AtlasUsageControllerTest do
 
   alias Tuist.AtlasWorkloadIdentity
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistWeb.RateLimit
 
   setup :set_mimic_from_context
+
+  setup do
+    stub(RateLimit.Atlas, :hit, fn _conn -> {:allow, 1} end)
+
+    :ok
+  end
 
   defp ok_workload_identity_stub do
     stub(AtlasWorkloadIdentity, :verify, fn "valid-token" ->
@@ -60,7 +67,7 @@ defmodule TuistWeb.Internal.AtlasUsageControllerTest do
 
     test "returns 401 when the principal is not the configured Atlas ServiceAccount", %{conn: conn} do
       stub(AtlasWorkloadIdentity, :verify, fn _ ->
-        {:ok, %{namespace: "other", name: "atlas"}}
+        {:error, {:wrong_principal, %{namespace: "other", name: "atlas"}}}
       end)
 
       conn =
@@ -80,6 +87,18 @@ defmodule TuistWeb.Internal.AtlasUsageControllerTest do
         |> get("/api/internal/atlas/accounts/tuist-org/usage")
 
       assert json_response(conn, 503)["error"] =~ "workload identity"
+    end
+
+    test "returns 429 when the Atlas internal endpoint is rate limited", %{conn: conn} do
+      stub(RateLimit.Atlas, :hit, fn _conn -> {:deny, 1000} end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> get("/api/internal/atlas/accounts/tuist-org/usage")
+
+      assert %{"error" => "rate_limited"} = json_response(conn, 429)
+      assert get_resp_header(conn, "retry-after") == ["1"]
     end
   end
 end
