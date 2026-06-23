@@ -69,8 +69,22 @@ impl AsyncRead for SegmentReader {
                     Poll::Ready(Ok(Ok(bytes))) => {
                         self.pending_read = None;
                         if bytes.is_empty() {
-                            self.remaining = 0;
-                            return Poll::Ready(Ok(()));
+                            // EOF before `remaining` bytes: the backing file is
+                            // shorter than the artifact's manifested length (the
+                            // never-truncated invariant was violated). Fail loudly
+                            // instead of streaming a short body as if complete —
+                            // a silent short body reads as a corrupt/undecodable
+                            // response to peers. The pre-serve length guard in
+                            // `Store::open_manifest_reader_with_range` normally
+                            // 404s these before any bytes are sent; this catches a
+                            // file truncated mid-stream.
+                            return Poll::Ready(Err(io::Error::new(
+                                io::ErrorKind::UnexpectedEof,
+                                format!(
+                                    "segment truncated: {} bytes short of the artifact's manifested length",
+                                    self.remaining
+                                ),
+                            )));
                         }
                         self.buffered = Some(bytes);
                         self.buffered_offset = 0;
