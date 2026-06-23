@@ -531,15 +531,15 @@ own way).
 {{/*
 Stripe price IDs. These are not secrets (just identifiers for the products in
 Stripe), so they live in chart values as a readable plan -> category -> [ids]
-map instead of the secret store. `Tuist.Environment.stripe_prices/1` reads them
-via TUIST_STRIPE_PRICES_BASE64_JSON, so the chart JSON-encodes + base64s the
-map here — the base64 is generated, never hand-authored. Emits nothing when
-server.stripe.prices is empty (self-hosted installs without Stripe).
+map instead of the secret store. `Tuist.Environment.stripe_prices/1` reads
+TUIST_STRIPE_PRICES as a JSON string, so the chart just JSON-encodes the map.
+Emits nothing when server.stripe.prices is empty (self-hosted installs without
+Stripe).
 */}}
 {{- define "tuist.stripePricesEnv" -}}
 {{- with .Values.server.stripe.prices }}
-- name: TUIST_STRIPE_PRICES_BASE64_JSON
-  value: {{ toJson . | b64enc | quote }}
+- name: TUIST_STRIPE_PRICES
+  value: {{ toJson . | quote }}
 {{- end }}
 {{- end -}}
 

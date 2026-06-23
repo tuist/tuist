@@ -16,7 +16,7 @@ server:
 
   # Stripe price IDs (identifiers, not secrets — the API keys live in the
   # STRIPE 1Password item). Canary's own (test-mode) IDs; the chart
-  # base64-encodes this into TUIST_STRIPE_PRICES_BASE64_JSON.
+  # JSON-encodes this into TUIST_STRIPE_PRICES.
   stripe:
     prices:
       air:

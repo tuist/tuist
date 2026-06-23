@@ -636,18 +636,13 @@ defmodule Tuist.Environment do
   end
 
   def stripe_prices(secrets \\ secrets()) do
-    prices = get([:stripe, :prices], secrets)
-    prices_base64_json = get([:stripe, :prices, :base64, :json], secrets)
-
-    cond do
-      is_map(prices) ->
-        prices
-
-      is_binary(prices_base64_json) ->
-        prices_base64_json |> Base.decode64!() |> JSON.decode!()
-
-      true ->
-        nil
+    case get([:stripe, :prices], secrets) do
+      # TUIST_STRIPE_PRICES carries the plan -> category -> [price ids] map as a
+      # JSON string (rendered by the chart / set in mise for dev). A raw map is
+      # only seen in tests that stub it directly.
+      prices when is_map(prices) -> prices
+      prices when is_binary(prices) -> JSON.decode!(prices)
+      _ -> nil
     end
   end
 

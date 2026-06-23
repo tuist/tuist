@@ -237,10 +237,10 @@ server:
         kind: ClusterSecretStore
         name: onepassword
   # Stripe price IDs, keyed plan -> category -> [price ids]. Not secrets (just
-  # identifiers), so they live here rather than 1Password; the chart base64s
-  # them into TUIST_STRIPE_PRICES_BASE64_JSON (Environment.stripe_prices/1).
-  # Empty by default — managed values set the real map. The Stripe API keys
-  # themselves stay in the secret store (server.config / 1Password STRIPE item).
+  # identifiers), so they live here rather than 1Password; the chart JSON-encodes
+  # them into TUIST_STRIPE_PRICES (Environment.stripe_prices/1). Empty by default
+  # — managed values set the real map. The Stripe API keys themselves stay in the
+  # secret store (server.config / 1Password STRIPE item).
   stripe:
     prices: {}
   # Mailing identity (Mailgun sending domain + from/reply-to addresses). Not
