@@ -15,7 +15,6 @@ import XCResultParser
 
 struct TestAcceptanceTestiOSAppWithFrameworks {
     @Test(
-        .disabled(),
         .withFixture("generated_ios_app_with_frameworks"),
         .inTemporaryDirectory,
         .withMockedEnvironment(),
@@ -33,7 +32,6 @@ struct TestAcceptanceTestiOSAppWithFrameworks {
 
 struct TestAcceptanceTestAppWithFrameworkAndTests {
     @Test(
-        .disabled(),
         .withFixture("generated_app_with_framework_and_tests"),
         .inTemporaryDirectory,
         .withMockedEnvironment(),
@@ -74,7 +72,7 @@ struct TestAcceptanceTestAppWithFrameworkAndTests {
 }
 
 struct TestAcceptanceTestFrameworkWithSPMBundle {
-    @Test(.disabled(), .withFixture("generated_framework_with_spm_bundle"), .inTemporaryDirectory)
+    @Test(.withFixture("generated_framework_with_spm_bundle"), .inTemporaryDirectory)
     func with_framework_with_spm_bundle() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
@@ -87,7 +85,7 @@ struct TestAcceptanceTestFrameworkWithSPMBundle {
 }
 
 struct TestAcceptanceTestAppWithTestPlan {
-    @Test(.disabled(), .withFixture("generated_app_with_test_plan"), .inTemporaryDirectory)
+    @Test(.withFixture("generated_app_with_test_plan"), .inTemporaryDirectory)
     func with_app_with_test_plan() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
@@ -111,7 +109,7 @@ struct TestAcceptanceTestAppWithTestPlan {
 }
 
 struct TestAcceptanceTestAppWorkspaceWithTestPlan {
-    @Test(.disabled(), .withFixture("generated_app_workspace_with_test_plan"), .inTemporaryDirectory)
+    @Test(.withFixture("generated_app_workspace_with_test_plan"), .inTemporaryDirectory)
     func with_app_workspace_with_test_plan() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
