@@ -41,6 +41,8 @@ Pomerium).
 - `lib/tuist_ops/previews.ex` — request lifecycle API
 - `lib/tuist_ops/previews/` — Ecto schema, Slack Block Kit,
   and GitHub Actions workflow-dispatch client
+- `/preview` with no arguments opens an interactive Slack form for creating or
+  deleting previews
 - `/preview create <slug> [duration] [pr:<number>|sha:<sha>] <reason>` dispatches
   `.github/workflows/preview-deploy.yml` with `action=deploy`
 - `/preview delete <slug> [reason]` and the Slack Delete button dispatch the same

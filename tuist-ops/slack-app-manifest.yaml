@@ -34,7 +34,7 @@ features:
     - command: /preview
       url: https://ops.tuist.dev/webhooks/slack/slash
       description: Request or delete a preview
-      usage_hint: create <slug> [duration] [pr:<number>|sha:<sha>] <reason>
+      usage_hint: open the preview form
       should_escape: false
 
 oauth_config:

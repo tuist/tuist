@@ -29,6 +29,7 @@ defmodule TuistOpsWeb.SlackController do
   alias TuistOps.Environment
   alias TuistOps.JIT.SlackBlocks
   alias TuistOps.JIT.SlackClient
+  alias TuistOps.Previews.SlackBlocks, as: PreviewSlackBlocks
   alias TuistOps.ProjectAccess.Approvals, as: ProjectAccessApprovals
   alias TuistOps.ProjectAccess.SlackBlocks, as: ProjectAccessSlackBlocks
 
@@ -96,6 +97,17 @@ defmodule TuistOpsWeb.SlackController do
 
   def interactive(conn, _params) do
     conn |> put_status(400) |> json(%{ok: false, error: "missing payload"})
+  end
+
+  defp dispatch_interactive(
+         conn,
+         %{"type" => "view_submission", "view" => %{"callback_id" => "preview_request"} = view} =
+           payload
+       ) do
+    user_slack_id = get_in(payload, ["user", "id"])
+    user_email = slack_user_to_email(user_slack_id)
+
+    do_preview_submission(conn, view, user_slack_id, user_email)
   end
 
   defp dispatch_interactive(
@@ -283,6 +295,39 @@ defmodule TuistOpsWeb.SlackController do
   # ----------------------------------------------------------------
 
   defp preview_slash(conn, %{"text" => raw_text} = params) do
+    if String.trim(raw_text) == "" do
+      open_preview_modal(conn, params)
+    else
+      preview_slash_text(conn, raw_text, params)
+    end
+  end
+
+  defp preview_slash(conn, params) do
+    open_preview_modal(conn, params)
+  end
+
+  defp open_preview_modal(conn, %{"trigger_id" => trigger_id}) when is_binary(trigger_id) do
+    channel_id = previews_channel()
+
+    case SlackClient.open_view(trigger_id, PreviewSlackBlocks.request_modal(channel_id)) do
+      :ok ->
+        send_resp(conn, 200, "")
+
+      {:error, reason} ->
+        Logger.warning("tuist_ops preview modal open failed: #{inspect(reason)}")
+
+        json(conn, %{
+          response_type: "ephemeral",
+          text: "Couldn't open the preview form. #{preview_usage_message()}"
+        })
+    end
+  end
+
+  defp open_preview_modal(conn, _params) do
+    json(conn, %{response_type: "ephemeral", text: preview_usage_message()})
+  end
+
+  defp preview_slash_text(conn, raw_text, params) do
     requester_slack_id = params["user_id"]
     requester_email = slack_user_to_email(requester_slack_id)
     channel_id = previews_channel()
@@ -327,10 +372,6 @@ defmodule TuistOpsWeb.SlackController do
     end
   end
 
-  defp preview_slash(conn, _params) do
-    json(conn, %{response_type: "ephemeral", text: preview_usage_message()})
-  end
-
   defp do_preview_delete(conn, slug, actor_slack_id, actor_email, channel_id) do
     case Previews.delete(%{
            requester_email: actor_email,
@@ -351,6 +392,46 @@ defmodule TuistOpsWeb.SlackController do
 
         send_resp(conn, 200, "")
     end
+  end
+
+  defp do_preview_submission(conn, view, requester_slack_id, requester_email) do
+    case parse_preview_submission(view) do
+      {:ok, :create, parsed} ->
+        %{
+          requester_email: requester_email,
+          requester_slack_id: requester_slack_id,
+          slack_channel_id: parsed.slack_channel_id,
+          slug: parsed.slug,
+          ttl_seconds: parsed.ttl_seconds,
+          ref_kind: parsed.ref_kind,
+          ref_value: parsed.ref_value,
+          reason: parsed.reason
+        }
+        |> Previews.create()
+        |> handle_preview_submission_result(conn)
+
+      {:ok, :delete, parsed} ->
+        %{
+          requester_email: requester_email,
+          requester_slack_id: requester_slack_id,
+          slack_channel_id: parsed.slack_channel_id,
+          slug: parsed.slug,
+          reason: parsed.reason
+        }
+        |> Previews.delete()
+        |> handle_preview_submission_result(conn)
+
+      {:error, errors} when is_map(errors) ->
+        preview_submission_errors(conn, errors)
+    end
+  end
+
+  defp handle_preview_submission_result({:ok, _preview}, conn) do
+    send_resp(conn, 200, "")
+  end
+
+  defp handle_preview_submission_result({:error, reason}, conn) do
+    preview_submission_errors(conn, preview_submission_error(reason))
   end
 
   # ----------------------------------------------------------------
@@ -526,6 +607,171 @@ defmodule TuistOpsWeb.SlackController do
       _ ->
         {:error, :preview_too_many_refs}
     end
+  end
+
+  defp parse_preview_submission(%{"state" => %{"values" => values}} = view) do
+    action = submission_selected_value(values, "preview_action", "create")
+    slug = submission_text_value(values, "preview_slug")
+    duration = submission_selected_value(values, "preview_duration", "1d")
+    source_kind = submission_selected_value(values, "preview_source_kind", "default")
+    source_value = submission_text_value(values, "preview_source_value")
+    reason = submission_text_value(values, "preview_reason")
+    slack_channel_id = submission_previews_channel_id(view)
+
+    case action do
+      "create" ->
+        parse_preview_create_submission(%{
+          slug: slug,
+          duration: duration,
+          source_kind: source_kind,
+          source_value: source_value,
+          reason: reason,
+          slack_channel_id: slack_channel_id
+        })
+
+      "delete" ->
+        parse_preview_delete_submission(%{
+          slug: slug,
+          reason: reason,
+          slack_channel_id: slack_channel_id
+        })
+
+      _ ->
+        {:error, %{"preview_action" => "Choose create or delete."}}
+    end
+  end
+
+  defp parse_preview_submission(_view),
+    do: {:error, %{"preview_reason" => preview_usage_message()}}
+
+  defp parse_preview_create_submission(attrs) do
+    with errors when errors == %{} <- preview_submission_base_errors(attrs),
+         {:ok, ttl_seconds} <- parse_preview_duration(attrs.duration),
+         {:ok, ref_kind, ref_value} <-
+           preview_submission_ref(attrs.source_kind, attrs.source_value) do
+      {:ok, :create,
+       %{
+         slug: attrs.slug,
+         ttl_seconds: ttl_seconds,
+         ref_kind: ref_kind,
+         ref_value: ref_value,
+         reason: attrs.reason,
+         slack_channel_id: attrs.slack_channel_id
+       }}
+    else
+      {:error, :preview_bad_duration} ->
+        {:error, %{"preview_duration" => preview_human_error(:preview_bad_duration)}}
+
+      {:error, %{} = errors} ->
+        {:error, errors}
+
+      %{} = errors ->
+        {:error, errors}
+    end
+  end
+
+  defp parse_preview_delete_submission(attrs) do
+    case preview_submission_base_errors(attrs) do
+      errors when errors == %{} ->
+        {:ok, :delete,
+         %{
+           slug: attrs.slug,
+           reason: attrs.reason,
+           slack_channel_id: attrs.slack_channel_id
+         }}
+
+      errors ->
+        {:error, errors}
+    end
+  end
+
+  defp preview_submission_base_errors(attrs) do
+    %{}
+    |> maybe_put_submission_error(
+      "preview_slug",
+      validate_preview_slug(attrs.slug),
+      preview_human_error(:preview_bad_slug)
+    )
+    |> maybe_put_submission_error(
+      "preview_reason",
+      validate_preview_reason(attrs.reason),
+      preview_human_error(:preview_reason_too_short)
+    )
+  end
+
+  defp maybe_put_submission_error(errors, _block_id, :ok, _message), do: errors
+
+  defp maybe_put_submission_error(errors, block_id, {:error, _reason}, message) do
+    Map.put(errors, block_id, message)
+  end
+
+  defp preview_submission_ref("default", _value), do: {:ok, nil, nil}
+
+  defp preview_submission_ref("pr", value) do
+    if Regex.match?(~r/^\d+$/, value) do
+      {:ok, "pr", value}
+    else
+      {:error, %{"preview_source_value" => "Enter a pull request number."}}
+    end
+  end
+
+  defp preview_submission_ref("sha", value) do
+    if Regex.match?(~r/^[0-9a-f]{7,40}$/, value) do
+      {:ok, "sha", value}
+    else
+      {:error, %{"preview_source_value" => "Enter a 7-40 character commit hash."}}
+    end
+  end
+
+  defp preview_submission_ref(_kind, _value) do
+    {:error, %{"preview_source_kind" => "Choose a source."}}
+  end
+
+  defp submission_selected_value(values, block_id, default) do
+    case get_in(values, [block_id, "value", "selected_option", "value"]) do
+      value when is_binary(value) and value != "" -> value
+      _ -> default
+    end
+  end
+
+  defp submission_text_value(values, block_id) do
+    values
+    |> get_in([block_id, "value", "value"])
+    |> case do
+      value when is_binary(value) -> String.trim(value)
+      _ -> ""
+    end
+  end
+
+  defp submission_previews_channel_id(%{"private_metadata" => metadata})
+       when is_binary(metadata) do
+    case JSON.decode(metadata) do
+      {:ok, %{"previews_channel_id" => channel_id}} when is_binary(channel_id) ->
+        channel_id
+
+      _ ->
+        previews_channel()
+    end
+  end
+
+  defp submission_previews_channel_id(_view), do: previews_channel()
+
+  defp preview_submission_error(:already_exists),
+    do: %{"preview_slug" => preview_human_error(:already_exists)}
+
+  defp preview_submission_error(:not_found),
+    do: %{"preview_slug" => preview_human_error(:not_found)}
+
+  defp preview_submission_error(:preview_bad_slug),
+    do: %{"preview_slug" => preview_human_error(:preview_bad_slug)}
+
+  defp preview_submission_error(:preview_reason_too_short),
+    do: %{"preview_reason" => preview_human_error(:preview_reason_too_short)}
+
+  defp preview_submission_error(reason), do: %{"preview_reason" => preview_human_error(reason)}
+
+  defp preview_submission_errors(conn, errors) do
+    json(conn, %{response_action: "errors", errors: errors})
   end
 
   defp preview_human_error(:preview_usage), do: preview_usage_message()
