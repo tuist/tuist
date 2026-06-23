@@ -41,6 +41,8 @@ Pomerium).
 - `lib/tuist_ops/previews.ex` — request lifecycle API
 - `lib/tuist_ops/previews/` — Ecto schema, Slack Block Kit,
   and GitHub Actions workflow-dispatch client
+- `lib/tuist_ops/github/` — GitHub App installation token minting and cache for
+  preview workflow calls
 - `/preview` with no arguments opens an interactive Slack form for creating or
   deleting previews
 - `/preview create <slug> [duration] [pr:<number>|sha:<sha>] <reason>` dispatches
