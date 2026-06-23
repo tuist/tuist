@@ -80,6 +80,20 @@ defmodule Tuist.Kura.Regions do
       node_pool: "kura-dedibox",
       storage_class: "scw-local-nvme",
       gateway: :host_network
+    },
+    # OVHcloud bare-metal staging validation region. Same bare-metal shape as
+    # dedibox-staging (no hetzner_location, local-NVMe storage_class, hostNetwork
+    # gateway on the box's public IP). Staging-only for now (gated by
+    # TUIST_KURA_AVAILABLE_REGIONS); it validates the OVHcloud integration ahead
+    # of the us-east/us-west cutover, which reuses this shape.
+    %{
+      id: "ovh-staging",
+      display_name: "OVH (staging)",
+      cluster_id: "ovh-staging-1",
+      ingress_class_name: "kura-ovh-staging",
+      node_pool: "kura-ovh-staging",
+      storage_class: "scw-local-nvme",
+      gateway: :host_network
     }
   ]
   # Private runner-cache regions. Both share the same model: a single-

@@ -441,6 +441,29 @@ spec:
                   name: {{ .Values.dediboxFleet.scaleway.secretName | default (include "tuist.componentName" (dict "root" . "component" "dedibox")) }}
                   key: project-id
             {{- end }}
+            {{- if .Values.ovhFleet.enabled }}
+            # OVH dedicated-server reconciler creds. The OVH SDK reads these from
+            # the env; OVH_ENDPOINT (ovh-eu/ovh-ca/...) is non-secret config, the
+            # rest sync from the OVH_API item. OVH_APPLICATION_KEY's presence also
+            # gates the reconciler on (cmd/manager/main.go).
+            - name: OVH_ENDPOINT
+              value: {{ .Values.ovhFleet.endpoint | default "ovh-eu" | quote }}
+            - name: OVH_APPLICATION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.ovhFleet.secretName | default (include "tuist.componentName" (dict "root" . "component" "ovh")) }}
+                  key: application-key
+            - name: OVH_APPLICATION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.ovhFleet.secretName | default (include "tuist.componentName" (dict "root" . "component" "ovh")) }}
+                  key: application-secret
+            - name: OVH_CONSUMER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.ovhFleet.secretName | default (include "tuist.componentName" (dict "root" . "component" "ovh")) }}
+                  key: consumer-key
+            {{- end }}
           ports:
             - name: metrics
               containerPort: 8080

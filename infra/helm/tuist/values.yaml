@@ -627,6 +627,49 @@ dediboxFleet:
         secretKey: secret-key
         projectID: project-id
 
+ovhFleet:
+  enabled: false
+  replicas: 1
+  # Propagated to the Node as node.cluster.x-k8s.io/pool; the region's
+  # nodeSelector pins its Kura cache pods here.
+  nodePool: kura-ovh
+  kubernetesVersion: "v1.34.8"
+  # OVH API entity the account is registered with (ovh-eu, ovh-ca, ovh-us, ...).
+  # Non-secret; must match where the OVH_API token was minted.
+  endpoint: ovh-eu
+  machine:
+    # Reverse-DNS prefix the operator sets on each pre-ordered, operator-installed
+    # box. THIS is the adoption signal: the reconciler claims only boxes whose OVH
+    # reverse DNS starts with it. Required when enabled.
+    adoptDisplayNamePrefix: ""
+    # OVH commercial range to narrow adoption (case-insensitive substring, e.g.
+    # SYS-1). Empty matches any range under the prefix.
+    offer: ""
+    # OVH datacenter to narrow adoption (e.g. bhs6, gra2, vin). Empty matches any
+    # datacenter under the prefix; the providerID uses the adopted box's real one.
+    datacenter: ""
+    # OS the operator pre-installs; informational (the controller never installs).
+    os: ubuntu_24.04
+    # Per-box egress budget in Mbps advertised as the tuist.dev/egress-mbps
+    # extended resource (0 = unset).
+    egressBudgetMbps: 0
+  # Override to point the reconciler at a Secret you manage instead of the
+  # ESO-synced one. Holds application-key + application-secret + consumer-key.
+  secretName: ""
+  externalSecrets:
+    enabled: true
+    # 1Password item holding the OVH API credentials (application-key,
+    # application-secret, consumer-key) scoped to /dedicated/server/*.
+    item: ""
+    refreshInterval: 1h
+    storeRef:
+      name: onepassword
+      kind: ClusterSecretStore
+    fields:
+      applicationKey: application-key
+      applicationSecret: application-secret
+      consumerKey: consumer-key
+
 # Scaling: `kubectl scale machinedeployment <name> --replicas=N`.
 macosFleet:
   enabled: false

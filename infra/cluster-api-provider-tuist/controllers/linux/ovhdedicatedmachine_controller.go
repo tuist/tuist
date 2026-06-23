@@ -259,7 +259,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 		}
 		machine.Status.BootstrapAttempts = 0
 
-		providerID := ovh.ProviderID(datacenter, machine.Status.ServiceName)
+		providerID := ovh.ProviderID(firstNonEmpty(server.Datacenter, datacenter), machine.Status.ServiceName)
 		machine.Spec.ProviderID = &providerID
 		conditions.MarkTrue(machine, shared.ProvisionedCondition)
 		r.event(machine, "Bootstrapped", "Bootstrapped OVH server %s as %s@%s", machine.Status.ServiceName, ovhBootstrapUser, server.IP)

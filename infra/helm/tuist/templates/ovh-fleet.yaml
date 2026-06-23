@@ -1,0 +1,80 @@
+{{- if and .Values.capi.enabled .Values.ovhFleet.enabled }}
+{{- $fleetName := include "tuist.componentName" (dict "root" . "component" "ovh-fleet") }}
+{{- $clusterName := include "tuist.componentName" (dict "root" . "component" "capi") }}
+{{- $bootstrapSecret := include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
+{{- /*
+OVH fleet — a customer-facing Kura cache region on OVHcloud bare metal. Like the
+Dedibox and Elastic Metal kinds it self-joins via the reconciler's SSH bootstrap
+(noop-bootstrap; this cluster's control plane is externally managed, so CABPK has
+no CA to mint a kubeadm join).
+
+Out-of-band install model (same as Dedibox): the operator pre-orders the box,
+installs the OS, authorizes the fleet SSH key, and sets the box's reverse DNS to
+carry `adoptDisplayNamePrefix`. The reconciler claims a box whose reverse DNS
+starts with that prefix (optionally scoped to `datacenter` / `offer`), waits for
+it to report a healthy state, and self-joins it. The reconciler authenticates
+with the OVH API (OVH_* env, wired from ovh-external-secrets.yaml).
+
+OnDelete strategy: don't auto-churn the cache node.
+*/ -}}
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: OVHDedicatedMachineTemplate
+metadata:
+  name: {{ $fleetName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ovh-fleet
+    tuist.dev/fleet: {{ $fleetName }}
+spec:
+  template:
+    spec:
+      adoptDisplayNamePrefix: {{ .Values.ovhFleet.machine.adoptDisplayNamePrefix | quote }}
+      datacenter: {{ .Values.ovhFleet.machine.datacenter | default "" | quote }}
+      offer: {{ .Values.ovhFleet.machine.offer | default "" | quote }}
+      os: {{ .Values.ovhFleet.machine.os | default "ubuntu_24.04" | quote }}
+      # Stable fleet name so every Machine the MachineDeployment clones shares one
+      # SSH key — the key the operator authorizes on the pre-ordered pool boxes.
+      fleetName: {{ $fleetName | quote }}
+      {{- with .Values.ovhFleet.machine.egressBudgetMbps }}
+      egressBudgetMbps: {{ . }}
+      {{- end }}
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineDeployment
+metadata:
+  name: {{ $fleetName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ovh-fleet
+    tuist.dev/fleet: {{ $fleetName }}
+    cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+spec:
+  clusterName: {{ $clusterName }}
+  replicas: {{ .Values.ovhFleet.replicas | default 1 }}
+  strategy:
+    type: OnDelete
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+      tuist.dev/fleet: {{ $fleetName }}
+  template:
+    metadata:
+      labels:
+        cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+        tuist.dev/fleet: {{ $fleetName }}
+        # CAPI propagates node.cluster.x-k8s.io/* Machine labels to the Node, so
+        # the region's pool label lands declaratively (the region's nodeSelector
+        # pins its Kura cache pods here).
+        node.cluster.x-k8s.io/pool: {{ .Values.ovhFleet.nodePool | default "kura-ovh" | quote }}
+    spec:
+      clusterName: {{ $clusterName }}
+      version: {{ .Values.ovhFleet.kubernetesVersion | default "v1.34.8" | quote }}
+      bootstrap:
+        dataSecretName: {{ $bootstrapSecret }}
+      infrastructureRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+        kind: OVHDedicatedMachineTemplate
+        name: {{ $fleetName }}
+{{- end }}

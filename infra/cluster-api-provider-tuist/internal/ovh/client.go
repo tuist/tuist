@@ -133,7 +133,7 @@ func (c *Client) FindAdoptableServer(ctx context.Context, p AdoptParams, claimed
 		if err != nil {
 			return nil, err
 		}
-		if !strings.EqualFold(server.Datacenter, p.Datacenter) {
+		if p.Datacenter != "" && !strings.EqualFold(server.Datacenter, p.Datacenter) {
 			continue
 		}
 		if p.DisplayNamePrefix != "" && !strings.HasPrefix(server.Reverse, p.DisplayNamePrefix) {
