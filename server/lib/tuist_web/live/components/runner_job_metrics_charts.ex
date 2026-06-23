@@ -153,11 +153,17 @@ defmodule TuistWeb.Components.RunnerJobMetricsCharts do
 
     maybe_put_legend(
       %{
-        grid: %{left: "3%", right: "5%", bottom: bottom_padding(assigns.show_legend), top: "8%", containLabel: true},
+        grid: %{left: "3%", right: "8%", bottom: bottom_padding(assigns.show_legend), top: "8%", containLabel: true},
         xAxis: %{
           type: "time",
           boundaryGap: false,
-          axisLabel: %{color: "var:noora-surface-label-secondary", padding: [10, 0, 0, 0], formatter: "fn:toLocaleTime"}
+          axisLabel: %{
+            color: "var:noora-surface-label-secondary",
+            customValues: label_values(assigns.series),
+            hideOverlap: true,
+            padding: [10, 0, 0, 0],
+            formatter: "fn:toLocaleTime"
+          }
         },
         yAxis: y_axis,
         tooltip: %{valueFormat: "{value}#{assigns.unit}", dateFormat: "minute"}
@@ -168,6 +174,17 @@ defmodule TuistWeb.Components.RunnerJobMetricsCharts do
 
   defp bottom_padding(true), do: "25%"
   defp bottom_padding(false), do: "10%"
+
+  # Pin the time axis to just its endpoints so labels never crowd or
+  # overlap in the narrow chart cards (matches the build-metrics charts).
+  defp label_values(series) do
+    series
+    |> Enum.flat_map(fn s -> Enum.map(s.values, &hd/1) end)
+    |> case do
+      [] -> []
+      timestamps -> [Enum.min(timestamps), Enum.max(timestamps)]
+    end
+  end
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
