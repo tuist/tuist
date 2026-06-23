@@ -330,6 +330,22 @@ dediboxFleet:
       # project-id), readable by the staging ClusterSecretStore.
       item: DEDIBOX_SCW_API
 
+# OVH fleet (OVHcloud bare-metal validation node). The reconciler adopts a
+# pre-ordered, operator-installed OVH box whose reverse DNS starts with the
+# adopt prefix and self-joins it. Prereq met: the OVH_API 1Password item
+# (read-only /dedicated/server token, ovh-ca entity) exists. Box prep (install
+# Ubuntu, authorize the fleet key, set the reverse-DNS prefix) is operator work.
+ovhFleet:
+  enabled: true
+  # OVH entity the OVH_API token was minted on (the BHS box's account).
+  endpoint: ovh-ca
+  nodePool: kura-ovh-staging
+  machine:
+    adoptDisplayNamePrefix: tuist-kura-ovh-staging
+    os: ubuntu_24.04
+  externalSecrets:
+    item: OVH_API
+
 # Mac mini fleet. The chart renders one ScalewayAppleSiliconMachine
 # CR per replica; the cluster-api-provider-tuist
 # operator orders each Mac mini, then SSH-bootstraps it with
