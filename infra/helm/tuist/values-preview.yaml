@@ -142,5 +142,39 @@ objectStorage:
     persistence:
       create: false
 
+registry:
+  enabled: true
+  managedSecrets: false
+  deployEnv: preview
+  sentryEnv: preview
+  poolSize: "2"
+  metrics:
+    enabled: false
+  ingress:
+    enabled: false
+    className: nginx
+    host: ""
+    tlsSecretName: ""
+    annotations: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
+swiftRegistrySync:
+  enabled: true
+  managedSecrets: false
+  syncAllowlist: alamofire/alamofire
+  syncLimit: "1"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+  tmpSizeLimit: 4Gi
+
 observability:
   enabled: false
