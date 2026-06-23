@@ -1948,17 +1948,22 @@ jobs:
         run: tuist test TuistCacheEEAcceptanceTests --no-selective-testing -- -retry-tests-on-failure -test-iterations 2
 
   # --------------------------------------------------------------------------
-  # Backward-compatibility acceptance - runs the OLDEST CLI version we still
-  # support against the freshly-deployed canary. The acceptance-tests job above
-  # always uses the CLI built from HEAD, so it can never catch a server change
-  # that breaks an older but still-supported CLI. This job pins that floor and
-  # gates production alongside acceptance-tests.
+  # Backward-compatibility acceptance - runs an OLD CLI against the freshly-
+  # deployed canary to catch server changes that break still-supported CLIs.
+  # The acceptance-tests job above always uses the CLI built from HEAD, so it
+  # can never catch this; this job gates production alongside it.
   #
-  # The oldest supported release (3-month window) has a single source of truth:
-  # Tuist.CLIVersions.minimum_supported_version/0 in server/lib/tuist/cli_versions.ex.
-  # This job derives MIN_SUPPORTED_TUIST_VERSION from it, the deprecation warning
-  # enforces it, and the docs Compatibility page renders it. Bump it there as the
-  # window slides.
+  # The support window's source of truth is
+  # Tuist.CLIVersions.minimum_supported_version/0 in server/lib/tuist/cli_versions.ex
+  # (it drives the deprecation warning and the docs Compatibility page). This job
+  # would normally test that exact floor, but it builds on a macOS runner with
+  # Xcode 26, and CLIs older than 4.154.2 cannot `tuist cache` under Xcode 26
+  # (XCLogParser/build-log handling, fixed in CLI 4.154.2) - a client-side Xcode
+  # gap, not a server-contract break. Since this gate guards the server contract,
+  # it tests the oldest supported CLI that can actually build on this runner:
+  # max(minimum_supported_version, the Xcode-26 build floor below). Keeping the
+  # declared minimum lower (e.g. for a customer pinned to an older release) does
+  # not weaken the contract check.
   # --------------------------------------------------------------------------
   backward-compatibility-acceptance:
     name: Backward-Compatibility Acceptance
@@ -1973,6 +1978,11 @@ jobs:
     env:
       MISE_TASK_RUN_AUTO_INSTALL: 0
       TUIST_URL: https://canary.tuist.dev
+      # Pin the cache to canary's own regional endpoint instead of resolving it
+      # via /api/cache/endpoints. That list can include another environment's
+      # endpoint, which the CLI's latency probe may select from this runner's
+      # network and then stall on; pinning keeps the run hermetic to canary's cache.
+      TUIST_CACHE_ENDPOINT: https://cache-eu-central-canary.tuist.dev
       # Public canary test account, same as the HEAD acceptance scheme (Project.swift).
       TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
       TUIST_AUTH_PASSWORD: tuistrocks
@@ -1981,28 +1991,32 @@ jobs:
         with:
           ref: ${{ github.sha }}
           submodules: false
-      - name: Resolve oldest supported CLI version
-        # Single source of truth: Tuist.CLIVersions.minimum_supported_version/0,
-        # which also drives the deprecation warning and the docs Compatibility page.
+      - name: Resolve backward-compatibility CLI version
+        # Test the oldest supported CLI that can build on this runner's Xcode:
+        # max(minimum_supported_version, the Xcode-26 build floor). See the
+        # comment block above the job for why the floor exists.
         run: |
           file=server/lib/tuist/cli_versions.ex
-          version="$(grep -E '@minimum_supported_version' "$file" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
-          if [ -z "$version" ]; then
+          min_version="$(grep -E '@minimum_supported_version' "$file" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+          if [ -z "$min_version" ]; then
             echo "Could not resolve @minimum_supported_version from $file" >&2
             exit 1
           fi
-          echo "MIN_SUPPORTED_TUIST_VERSION=$version" >> "$GITHUB_ENV"
-          echo "Oldest supported CLI version: $version"
+          # Oldest CLI that can `tuist cache` under the runner's Xcode 26 (CLI 4.154.2).
+          xcode_build_floor=4.154.2
+          version="$(printf '%s\n%s\n' "$min_version" "$xcode_build_floor" | sort -V | tail -n1)"
+          echo "BACKWARD_COMPAT_TUIST_VERSION=$version" >> "$GITHUB_ENV"
+          echo "Minimum supported CLI: ${min_version}; testing backward-compat with: ${version}"
       - uses: jdx/mise-action@v4.0.1
         with:
           github_token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
           install_args: "--locked bats"
-      - name: Install oldest supported tuist
-        run: mise install "tuist@${MIN_SUPPORTED_TUIST_VERSION}"
-      - name: Resolve oldest supported tuist binary
+      - name: Install backward-compatibility tuist
+        run: mise install "tuist@${BACKWARD_COMPAT_TUIST_VERSION}"
+      - name: Resolve backward-compatibility tuist binary
         id: oldtuist
         run: |
-          install_dir="$(mise where "tuist@${MIN_SUPPORTED_TUIST_VERSION}")"
+          install_dir="$(mise where "tuist@${BACKWARD_COMPAT_TUIST_VERSION}")"
           bin="$(find "$install_dir" -type f -name tuist | head -n1)"
           if [ -z "$bin" ]; then
             echo "Could not locate the tuist binary under $install_dir" >&2
