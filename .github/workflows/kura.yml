@@ -141,28 +141,16 @@ jobs:
           install_args: "rust bazel tuist"
           working_directory: kura
 
-      - name: Cache Bazel repository downloads and build outputs
-        uses: actions/cache@v4
-        with:
-          path: |
-            ${{ runner.temp }}/bazel-repo
-            ${{ runner.temp }}/bazel-disk
-          key: bazel-compile-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock') }}-${{ github.sha }}
-          restore-keys: |
-            bazel-compile-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock') }}-
-            bazel-compile-
+      - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
 
       - name: Authenticate with Tuist
         run: tuist auth login
-      - name: Bazel setup
+      - name: Tuist Bazel setup
         run: tuist bazel setup && cat .bazelrc.tuist
 
       - name: Compile without warnings
         run: |
-          {
-            echo "common --repository_cache=${{ runner.temp }}/bazel-repo"
-            echo "build --disk_cache=${{ runner.temp }}/bazel-disk"
-          } >> "$HOME/.bazelrc"
           bazel build //:all --define=kura_deny_warnings=true
 
   bazel-compile-fork:
@@ -195,6 +183,9 @@ jobs:
           restore-keys: |
             bazel-compile-fork-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock') }}-
             bazel-compile-fork-
+
+      - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
 
       - name: Compile without warnings
         run: |
