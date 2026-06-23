@@ -232,21 +232,35 @@ production) validates each env in turn.
   Cloak-encrypted columns still decrypt and existing sessions/tokens still work
   (confirms `SECRET_KEYS` carried the exact values).
 
-## Step 5 — Remove the blob (final, after all three envs are verified)
+## Step 5 — Remove the blob
 
-Only once production has been running on 1P-sourced env vars:
+**Done in this PR** (the blob is no longer baked, read, or needed):
 
-- Delete `server/priv/secrets/{prod,stag,can,dev}.yml.enc`.
-- `server/Dockerfile`: drop the three `COPY .../*.yml.enc`, the
-  `rm -rf .../*.yml.enc` block, and `ENV SECRETS_DIRECTORY=...`.
-- `server/lib/tuist/environment.ex`: drop `decrypt_secrets/0` (and have
-  `put_application_secrets`/boot use `%{}`), the dead accessors
-  (`mautic_*`, `anthropic_api_key`, `openai_api_key`, `ipv4_database_url`),
-  and the `secrets` blob plumbing. Env-var-only after this.
-- Remove `lib/mix/tasks/secrets/edit.ex` (nothing left to edit).
-- Drop `MASTER_KEY` wiring: `server.managedSecrets` no longer needs the blob;
-  remove the `MASTER_KEY` env refs + the `masterKey`/`$syncMaster` ESO path
-  once nothing decrypts. (Keep the `MASTER_KEY` 1P item until then.)
-- Update `server/README.md` + `server/AGENTS.md` (the `priv/secrets/dev.key`
-  story) and the stale "secrets live in the blob" comment in
-  `values-managed-common.yaml`.
+- Deleted `server/priv/secrets/{prod,stag,can,dev}.yml.enc` (kept the plain
+  `test.yml` fixture for tests).
+- `server/lib/tuist/environment.ex`: `decrypt_secrets/0` returns `%{}` outside
+  tests — the app is env-var-only; no `MASTER_KEY` / `EncryptedSecrets` /
+  `SECRETS_DIRECTORY` read.
+- `server/Dockerfile`: dropped the `COPY .../*.yml.enc`, the `rm -rf` block, and
+  `ENV SECRETS_DIRECTORY=...`.
+- Removed `lib/mix/tasks/secrets/edit.ex` (nothing left to edit).
+- Updated the dev docs (`README.md`, `AGENTS.md`, the contributors doc, the
+  Slack `AGENTS.md`) to the fnox flow.
+
+> ⚠️ Because the app is now env-var-only with no blob fallback, the first deploy
+> relies entirely on the 1P-sourced env vars. The all-or-nothing ESO sync fails
+> the deploy at the migration hook if any item is missing (not silently), and
+> the audit confirmed every consumed secret has an env source — but there is no
+> safety net, so verify per the Step 4 checks during the cascade.
+
+**Follow-up (separate PR — not required to delete the blob):**
+
+- Retire the now-unused `MASTER_KEY` wiring: the env refs in the server /
+  migration / processor / xcresult-processor templates, the `masterKey` /
+  `$syncMaster` path in `external-secrets.yaml`, and `server.masterKey` /
+  `server.externalSecrets.masterKey` in values. It's coupled to
+  `server.managedSecrets`, so decouple carefully. Until then the `MASTER_KEY`
+  1P item must stay (ESO still syncs it; the app just ignores it).
+- Drop the dead accessors (`mautic_*`, `anthropic_api_key`, `openai_api_key`,
+  `ipv4_database_url`) and the unused `encrypted_secrets` dep — harmless no-ops
+  now (they resolve to `nil`).

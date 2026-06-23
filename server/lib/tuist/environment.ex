@@ -1334,7 +1334,13 @@ defmodule Tuist.Environment do
   end
 
   @doc ~s"""
-  It decrypts the secrets and returns them.
+  Returns the secrets map the accessors fall back to.
+
+  Outside the test environment this is always empty: runtime secrets are read
+  straight from the environment (1Password via ESO in the managed envs, fnox in
+  local dev), so `get/3` resolves them from `TUIST_*` env vars. The encrypted
+  `priv/secrets/<env>.yml.enc` blob it used to decrypt has been removed. Tests
+  still load their fixture values from the plain `priv/secrets/test.yml`.
   """
   def decrypt_secrets do
     if @compile_env == :test do
@@ -1345,25 +1351,7 @@ defmodule Tuist.Environment do
 
       to_string_map(secrets_map)
     else
-      master_key_path = Path.join("priv/secrets", "#{Atom.to_string(env())}.key")
-      master_key_env_variable = "MASTER_KEY"
-
-      secrets_path =
-        case System.get_env("SECRETS_DIRECTORY") do
-          env_directory when is_binary(env_directory) ->
-            Path.join(env_directory, "#{Atom.to_string(env())}.yml.enc")
-
-          _ ->
-            Path.join("priv/secrets", "#{Atom.to_string(env())}.yml.enc")
-        end
-
-      if System.get_env(master_key_env_variable) || File.exists?(master_key_path) do
-        key = System.get_env(master_key_env_variable) || File.read!(master_key_path)
-
-        key |> EncryptedSecrets.read!(secrets_path) |> to_string_map()
-      else
-        %{}
-      end
+      %{}
     end
   end
 

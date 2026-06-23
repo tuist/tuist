@@ -116,16 +116,17 @@ server:
   hosted: false
   skipEmailConfirmation: true
   secretKeyBase: ""
-  # MASTER_KEY for decrypting priv/secrets/<env>.yml.enc at runtime. Required
-  # for hosted deployments that rely on encrypted secrets baked into the image.
-  # Leave empty to skip wiring the env var (self-hosted installs don't need it).
+  # Vestigial: the encrypted priv/secrets blob this key decrypted has been
+  # removed (secrets now come from the env via ESO/config.managedSecrets), so
+  # nothing reads MASTER_KEY anymore. The wiring is kept for a follow-up cleanup;
+  # leave empty.
   masterKey: ""
   # When true, the chart skips emitting DATABASE_URL / TUIST_CLICKHOUSE_URL /
-  # TUIST_SECRET_KEY_BASE / TUIST_S3_* env vars and lets the Elixir release
-  # read those values from the encrypted priv/secrets/<env>.yml.enc file that
-  # MASTER_KEY unlocks. Pair with `masterKey: <...>` or externalSecrets below.
-  # Intended for the managed-cloud shape where secrets ship inside the image.
-  # Self-hosted installs leave this false so values.yaml drives all runtime config.
+  # TUIST_SECRET_KEY_BASE / TUIST_S3_* env vars and expects those to come from
+  # elsewhere — the consolidated config Secret (config.managedSecrets) and CNPG
+  # for managed envs. Self-hosted installs leave this false so values.yaml
+  # drives all runtime config. (Originally this also unlocked the encrypted
+  # blob via MASTER_KEY; that blob is gone.)
   managedSecrets: false
   # Sync secrets from an external store via external-secrets-operator. Only
   # consulted when managedSecrets is true and masterKey is empty. The store
