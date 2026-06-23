@@ -36,8 +36,20 @@ static size_t count_resident(const unsigned char *vec, size_t pages) {
     return resident;
 }
 
+static const char *default_dir(void) {
+    const char *d = getenv("TEST_TMPDIR");
+    if (d && *d) {
+        return d;
+    }
+    d = getenv("TMPDIR");
+    if (d && *d) {
+        return d;
+    }
+    return "/tmp";
+}
+
 int main(int argc, char **argv) {
-    const char *dir = argc > 1 ? argv[1] : "/tmp";
+    const char *dir = argc > 1 ? argv[1] : default_dir();
     char path[4096];
     snprintf(path, sizeof path, "%s/.mincore_probe.bin", dir);
 
@@ -86,8 +98,8 @@ int main(int argc, char **argv) {
     int rc_touched = mincore(addr, len, vec);
     size_t resident_touched = count_resident(vec, pages);
 
-    printf("pages=%zu | fresh: rc=%d resident=%zu/%zu | after_touch: rc=%d resident=%zu/%zu\n",
-           pages, rc_fresh, resident_fresh, pages, rc_touched, resident_touched, pages);
+    printf("dir=%s pages=%zu | fresh: rc=%d resident=%zu/%zu | after_touch: rc=%d resident=%zu/%zu\n",
+           dir, pages, rc_fresh, resident_fresh, pages, rc_touched, resident_touched, pages);
 
     munmap(addr, len);
     free(vec);

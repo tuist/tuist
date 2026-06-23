@@ -1,0 +1,12 @@
+# Diagnostic only: runs the mincore residency probe INSIDE the Bazel test
+# sandbox, writing to $TEST_TMPDIR (the same place the failing kura mmap tests
+# write their temp files). Always passes; inspect its output with
+# `--test_output=all`. Remove together with the mincore-probe CI job once the
+# tuist-linux residency behavior is understood.
+load("@rules_cc//cc:defs.bzl", "cc_test")
+
+cc_test(
+    name = "mincore_probe_test",
+    srcs = ["mincore_probe.c"],
+    tags = ["manual"],
+)
