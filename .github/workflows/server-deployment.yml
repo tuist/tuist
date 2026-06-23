@@ -740,6 +740,29 @@ jobs:
           # so dependent pods (Pending or otherwise) go with the Job.
           echo "$stale_jobs" | xargs -r kubectl -n "$NAMESPACE" delete job \
             --ignore-not-found --cascade=foreground --timeout=2m
+      - name: Retire legacy registry release
+        # The Swift registry is now owned by the main tuist release. Older
+        # environments may still have the previous standalone registry
+        # release in the `registry` namespace, including an Ingress for the
+        # same public host. Remove it before the main chart claims the host.
+        run: |
+          set -euo pipefail
+
+          legacy_namespace="registry"
+          legacy_release="registry"
+
+          if ! kubectl get namespace "$legacy_namespace" >/dev/null 2>&1; then
+            echo "Legacy registry namespace not present; nothing to retire."
+            exit 0
+          fi
+
+          if ! helm status "$legacy_release" --namespace "$legacy_namespace" >/dev/null 2>&1; then
+            echo "Legacy registry Helm release not present; nothing to retire."
+            exit 0
+          fi
+
+          echo "Uninstalling legacy registry release $legacy_namespace/$legacy_release."
+          helm uninstall "$legacy_release" --namespace "$legacy_namespace" --wait --timeout 5m
       - name: helm upgrade --install
         # App secrets never pass through --set: the chart runs in
         # `server.managedSecrets: true` mode, which reads DATABASE_URL /
