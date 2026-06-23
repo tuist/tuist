@@ -420,8 +420,8 @@ one of:
 {{/*
 License env vars. Resolves to (in order):
   1. ESO-managed Secret (server.externalSecrets.license.item set) — preview /
-     managed envs that sync the license from 1Password. Mirrors the MASTER_KEY
-     flow in templates/external-secrets.yaml.
+     managed envs that sync the license from 1Password via
+     templates/external-secrets.yaml.
   2. Chart-managed app-secrets Secret — when server.license.key is inlined.
 */}}
 {{- define "tuist.licenseEnv" -}}

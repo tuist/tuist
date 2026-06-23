@@ -134,17 +134,6 @@ spec:
             - name: TUIST_DATABASE_SCHEMA
               value: {{ .Values.postgresql.schema | quote }}
             {{- include "tuist.githubEnv" . | nindent 12 }}
-            {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
-            # MASTER_KEY unlocks the rest of priv/secrets/<env>.yml.enc
-            # (ClickHouse URL, S3 creds, Sentry, Stripe, etc.). The release
-            # boots with the same secrets the web server would, minus the
-            # DATABASE_URL override above.
-            - name: MASTER_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ ternary (include "tuist.componentName" (dict "root" . "component" "server-external-secrets")) (include "tuist.componentName" (dict "root" . "component" "app-secrets")) .Values.server.managedSecrets }}
-                  key: server-master-key
-            {{- end }}
             - name: TUIST_HOSTED
               value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
             - name: TUIST_LOG_LEVEL

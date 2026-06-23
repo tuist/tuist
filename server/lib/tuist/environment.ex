@@ -205,10 +205,6 @@ defmodule Tuist.Environment do
     ~s("#{String.replace(to_string(identifier), "\"", "\"\"")}")
   end
 
-  def ipv4_database_url(secrets \\ secrets()) do
-    System.get_env("TUIST_IPV4_DATABASE_URL") || get([:ipv4_database_url], secrets)
-  end
-
   def tuist_hosted? do
     truthy?(System.get_env("TUIST_CLOUD_HOSTED", "0")) or
       truthy?(System.get_env("TUIST_HOSTED", "0"))
@@ -662,14 +658,6 @@ defmodule Tuist.Environment do
     end
   end
 
-  def mautic_username(secrets \\ secrets()) do
-    get([:mautic, :username], secrets)
-  end
-
-  def mautic_password(secrets \\ secrets()) do
-    get([:mautic, :password], secrets)
-  end
-
   def loops_api_key(secrets \\ secrets()) do
     get([:loops, :api_key], secrets)
   end
@@ -849,14 +837,6 @@ defmodule Tuist.Environment do
       queue_target when is_binary(queue_target) -> String.to_integer(queue_target)
       _ -> database_queue_target(secrets)
     end
-  end
-
-  def anthropic_api_key(secrets \\ secrets()) do
-    get([:anthropic, :api_key], secrets)
-  end
-
-  def openai_api_key(secrets \\ secrets()) do
-    get([:openai, :api_key], secrets)
   end
 
   def cache_api_key(secrets \\ secrets()) do

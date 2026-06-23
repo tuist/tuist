@@ -116,35 +116,21 @@ server:
   hosted: false
   skipEmailConfirmation: true
   secretKeyBase: ""
-  # Vestigial: the encrypted priv/secrets blob this key decrypted has been
-  # removed (secrets now come from the env via ESO/config.managedSecrets), so
-  # nothing reads MASTER_KEY anymore. The wiring is kept for a follow-up cleanup;
-  # leave empty.
-  masterKey: ""
   # When true, the chart skips emitting DATABASE_URL / TUIST_CLICKHOUSE_URL /
   # TUIST_SECRET_KEY_BASE / TUIST_S3_* env vars and expects those to come from
   # elsewhere — the consolidated config Secret (config.managedSecrets) and CNPG
   # for managed envs. Self-hosted installs leave this false so values.yaml
-  # drives all runtime config. (Originally this also unlocked the encrypted
-  # blob via MASTER_KEY; that blob is gone.)
+  # drives all runtime config.
   managedSecrets: false
-  # Sync secrets from an external store via external-secrets-operator. Only
-  # consulted when managedSecrets is true and masterKey is empty. The store
-  # must already exist (ClusterSecretStore/SecretStore) and be configured
-  # elsewhere (see infra/k8s/onboarding.md for the 1Password flow).
+  # Sync secrets from an external store via external-secrets-operator (the Tuist
+  # license and Kura OAuth creds). The store must already exist
+  # (ClusterSecretStore/SecretStore) and be configured elsewhere (see
+  # infra/k8s/onboarding.md for the 1Password flow).
   externalSecrets:
     refreshInterval: "1h"
     storeRef:
       kind: ClusterSecretStore
       name: onepassword
-    masterKey:
-      # 1Password item name in the vault referenced by the SecretStore.
-      # For the 1P SDK provider the item + field are joined as "<item>/<field>"
-      # and the vault is set on the ClusterSecretStore, not here.
-      item: MASTER_KEY
-      # Field within the item. 1P "Password" category items expose their
-      # value under `password`; custom items can use any label.
-      field: password
     # Sync the Tuist license key from the external store. Independent of
     # managedSecrets — preview environments use this without the encrypted
     # priv/secrets blob. Leave `item` empty to skip license sync.

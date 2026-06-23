@@ -7,9 +7,9 @@
 # never happen to an SA that long-running pods hold projected tokens
 # for. Migrations only talk to the databases; this SA carries no RBAC.
 #
-# Hook ordering (ASCENDING weight): -12 this SA, -10 ExternalSecret
-# (MASTER_KEY via ESO), -5 app-secrets when managedSecrets=false,
-# -1 the migrate Job.
+# Hook ordering (ASCENDING weight): -12 this SA, -10 ExternalSecrets
+# (license/Kura + the config Secret via ESO), -5 app-secrets when
+# managedSecrets=false, -1 the migrate Job.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -24,7 +24,6 @@ metadata:
 ---
 {{- end }}
 {{- $secretName := include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
-{{- $masterKeySecretName := ternary (include "tuist.componentName" (dict "root" . "component" "server-external-secrets")) $secretName .Values.server.managedSecrets }}
 {{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" . -}}
 {{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" . -}}
 apiVersion: batch/v1
@@ -152,13 +151,6 @@ spec:
             - name: TUIST_SELF_HOSTING_DEVELOPMENT_MODE
               value: {{ .Values.server.license.selfHostingDevelopmentMode | ternary "1" "0" | quote }}
             {{- include "tuist.licenseEnv" . | nindent 12 }}
-            {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
-            - name: MASTER_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $masterKeySecretName }}
-                  key: server-master-key
-            {{- end }}
             {{- if not .Values.server.managedSecrets }}
             - name: TUIST_S3_BUCKET_NAME
               value: {{ .Values.server.s3.bucketName | quote }}
