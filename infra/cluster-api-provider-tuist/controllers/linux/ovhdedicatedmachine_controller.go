@@ -55,18 +55,15 @@ const (
 	ovhSSHTimeout = 5 * time.Minute
 )
 
-// OSInstallRequestedCondition records that the controller has already kicked
-// off the OS install for the adopted server, so the Pending->Running task lag
-// can't make it start a second install.
-const OSInstallRequestedCondition clusterv1.ConditionType = "OSInstallRequested"
-
 // OVHDedicatedMachineReconciler reconciles an OVHDedicatedMachine: it adopts a
-// pre-ordered OVH dedicated server by display-name prefix, drives the OS
-// install, then SSH-delivers the same self-join cloud-init the Scaleway Linux
-// kinds use so the host registers as an ordinary Linux Node and links by
-// providerID. There is no Scaleway Private Network: a customer-facing box
-// serves public cache traffic over its public IP, so the self-join runs with
-// VLAN 0.
+// pre-ordered, operator-installed OVH dedicated server by reverse-DNS prefix,
+// then SSH-delivers the same self-join cloud-init the Scaleway Linux kinds use
+// so the host registers as an ordinary Linux Node and links by providerID. Like
+// the Dedibox kind it follows the out-of-band install model: the operator
+// installs the OS and authorizes the fleet SSH key, so the controller never
+// drives the OVH install API. There is no Scaleway Private Network: a
+// customer-facing box serves public cache traffic over its public IP, so the
+// self-join runs with VLAN 0.
 type OVHDedicatedMachineReconciler struct {
 	client.Client
 	// APIReader is the uncached reader for the cross-namespace kube-dns read
@@ -165,11 +162,6 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 			machine.Status.Phase = "Pending"
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
-		publicKey, pubErr := sshPublicKey(privateKey)
-		if pubErr != nil {
-			return ctrl.Result{}, fmt.Errorf("derive ssh public key: %w", pubErr)
-		}
-
 		// Adopt: claim a free pre-ordered box not already held by a sibling CR.
 		if machine.Status.ServiceName == "" {
 			claimed, claimErr := r.claimedServiceNames(ctx, machine)
@@ -199,52 +191,21 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 			logger.Info("adopted OVH server", "service", server.Name, "datacenter", datacenter)
 		}
 
-		// Register the bootstrap key with OVH so the install authorizes it.
-		keyName := fleet
-		if err := r.OVHClient.EnsureSSHKey(ctx, keyName, publicKey); err != nil {
-			return ctrl.Result{}, fmt.Errorf("ensure OVH ssh key: %w", err)
-		}
-
-		// Install the OS, gated so the Pending->Running task lag can't double-start it.
-		state, stateErr := r.OVHClient.InstallState(ctx, machine.Status.ServiceName)
-		if stateErr != nil {
-			return ctrl.Result{}, stateErr
-		}
-		switch state {
-		case ovh.InstallFailed:
-			return r.fail(machine, "InstallFailed",
-				fmt.Sprintf("OVH server %s OS install failed", machine.Status.ServiceName))
-		case ovh.InstallPending:
-			if !conditions.IsTrue(machine, OSInstallRequestedCondition) {
-				template, tErr := r.OVHClient.ResolveTemplate(ctx, machine.Status.ServiceName, firstNonEmpty(machine.Spec.OS, r.DefaultOS))
-				if tErr != nil {
-					return ctrl.Result{}, tErr
-				}
-				if err := r.OVHClient.StartInstall(ctx, machine.Status.ServiceName, ovh.InstallParams{
-					TemplateName: template,
-					Hostname:     machine.Name,
-					SSHKeyName:   keyName,
-				}); err != nil {
-					return ctrl.Result{}, fmt.Errorf("start OVH install: %w", err)
-				}
-				conditions.MarkTrue(machine, OSInstallRequestedCondition)
-				r.event(machine, "Installing", "Started OS install %q on %s", template, machine.Status.ServiceName)
-			}
-			conditions.MarkFalse(machine, shared.ProvisionedCondition, "Installing",
-				clusterv1.ConditionSeverityInfo, "server %s installing", machine.Status.ServiceName)
-			machine.Status.Phase = "Installing"
-			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
-		case ovh.InstallRunning:
-			conditions.MarkFalse(machine, shared.ProvisionedCondition, "Installing",
-				clusterv1.ConditionSeverityInfo, "server %s installing", machine.Status.ServiceName)
-			machine.Status.Phase = "Installing"
-			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
-		}
-
-		// Installed: resolve the public IP and SSH-bootstrap the self-join.
+		// Out-of-band install model: the operator pre-installs the OS on the
+		// pre-ordered box and authorizes the fleet SSH key (the public half of
+		// the `<fleet>-ssh` Secret). The controller never drives the OVH install
+		// API; it adopts a box (matched by reverse-DNS prefix) and self-joins it
+		// once the box reports a healthy state and a public IP.
 		server, getErr := r.OVHClient.GetServer(ctx, machine.Status.ServiceName)
 		if getErr != nil {
 			return ctrl.Result{}, getErr
+		}
+		if !strings.EqualFold(server.State, "ok") {
+			conditions.MarkFalse(machine, shared.ProvisionedCondition, "AwaitingInstall",
+				clusterv1.ConditionSeverityInfo, "server %s state %q; awaiting out-of-band install", machine.Status.ServiceName, server.State)
+			machine.Status.Phase = "AwaitingInstall"
+			logger.Info("OVH server not ready; awaiting out-of-band OS install", "service", machine.Status.ServiceName, "state", server.State)
+			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 		}
 		if server.IP == "" {
 			machine.Status.Phase = "Provisioning"
@@ -392,15 +353,6 @@ func (r *OVHDedicatedMachineReconciler) reconcileDelete(ctx context.Context, mac
 	return ctrl.Result{}, nil
 }
 
-func (r *OVHDedicatedMachineReconciler) fail(machine *infrav1.OVHDedicatedMachine, reason, message string) (ctrl.Result, error) {
-	machine.Status.Phase = "Failed"
-	machine.Status.FailureReason = &reason
-	machine.Status.FailureMessage = &message
-	conditions.MarkFalse(machine, shared.ProvisionedCondition, reason, clusterv1.ConditionSeverityError, "%s", message)
-	r.event(machine, reason, "%s", message)
-	return ctrl.Result{}, nil
-}
-
 func (r *OVHDedicatedMachineReconciler) event(machine *infrav1.OVHDedicatedMachine, reason, format string, args ...any) {
 	if r.Recorder != nil {
 		r.Recorder.Eventf(machine, corev1.EventTypeNormal, reason, format, args...)
@@ -411,17 +363,6 @@ func (r *OVHDedicatedMachineReconciler) SetupWithManager(mgr ctrl.Manager) error
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrav1.OVHDedicatedMachine{}).
 		Complete(r)
-}
-
-// sshPublicKey derives the OpenSSH authorized-keys line for the fleet private
-// key, so the same keypair the bootstrap authenticates with can be registered
-// with OVH for the install.
-func sshPublicKey(privateKey []byte) (string, error) {
-	signer, err := ssh.ParsePrivateKey(privateKey)
-	if err != nil {
-		return "", fmt.Errorf("parse ssh private key: %w", err)
-	}
-	return strings.TrimSpace(string(ssh.MarshalAuthorizedKey(signer.PublicKey()))), nil
 }
 
 // bootstrapOverSSH SSHes into the freshly-installed host as the install user and

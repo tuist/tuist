@@ -41,13 +41,14 @@ type OVHDedicatedMachineSpec struct {
 	// +optional
 	Offer string `json:"offer,omitempty"`
 
-	// OS is the OVH install template label, resolved to a concrete template at
-	// install time (e.g. `ubuntu_24.04` → "Ubuntu 24.04 Server").
+	// OS is informational in the out-of-band install model: the operator installs
+	// this image on the box before adoption (the controller never drives the OVH
+	// install API). Retained to document the fleet's expected OS.
 	// +kubebuilder:default=ubuntu_24.04
 	OS string `json:"os,omitempty"`
 
-	// AdoptDisplayNamePrefix is the OVH-side display-name prefix the controller
-	// scans to claim a pre-ordered, not-yet-installed server for this Machine
+	// AdoptDisplayNamePrefix is the OVH-side reverse-DNS prefix the controller
+	// scans to claim a pre-ordered, operator-installed server for this Machine
 	// (mirrors the Apple Silicon kind's adoptPoolPrefix). Required: without it
 	// the controller has no pool to adopt from and OVH has no inline-order path.
 	AdoptDisplayNamePrefix string `json:"adoptDisplayNamePrefix"`
@@ -89,10 +90,11 @@ type OVHDedicatedMachineSpec struct {
 // kind: the reconciler mints a kubelet token kubeconfig and renders the shared
 // self-join script that installs kubelet and self-registers the node against the
 // externally managed control plane. The OVH-specific differences the controller
-// handles are adoption (claim a pre-ordered box by display-name prefix), the
-// OS-install wait (Status.Phase = Installing), and the install login user (with
-// sudo). There is no PN-VLAN step — OVH delivers no Scaleway-style Private
-// Network, so the self-join runs with VLAN 0.
+// handles are adoption (claim a pre-ordered box by reverse-DNS prefix), the
+// readiness wait (Status.Phase = AwaitingInstall until the operator-installed box
+// reports a healthy state), and the install login user (with sudo). There is no
+// PN-VLAN step — OVH delivers no Scaleway-style Private Network, so the self-join
+// runs with VLAN 0.
 
 // OVHDedicatedMachineStatus is the observed state of the Machine.
 type OVHDedicatedMachineStatus struct {
