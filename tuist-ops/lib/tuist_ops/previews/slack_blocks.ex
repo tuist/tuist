@@ -168,6 +168,39 @@ defmodule TuistOps.Previews.SlackBlocks do
     ]
   end
 
+  def deployed(%Preview{} = preview) do
+    [
+      %{
+        type: "section",
+        text: %{
+          type: "mrkdwn",
+          text: """
+          *Preview deployed*
+          *Requester:* <@#{preview.requester_slack_id}>
+          *Preview:* `#{preview.slug}`
+          *URL:* <https://#{preview.host}|https://#{preview.host}>
+          *Ref:* #{format_ref(preview)}
+          *TTL:* #{format_seconds(preview.ttl_seconds)}
+          #{workflow_line(preview.workflow_run_url)}
+          """
+        }
+      },
+      %{
+        type: "actions",
+        block_id: "preview_actions",
+        elements: [
+          %{
+            type: "button",
+            style: "danger",
+            text: %{type: "plain_text", text: "Delete"},
+            action_id: "preview_delete",
+            value: preview.slug
+          }
+        ]
+      }
+    ]
+  end
+
   def failed(%Preview{} = preview, reason) do
     [
       %{
@@ -179,6 +212,7 @@ defmodule TuistOps.Previews.SlackBlocks do
           *Requester:* <@#{preview.requester_slack_id}>
           *Preview:* `#{preview.slug}`
           *Reason:* #{preview.reason}
+          #{workflow_line(preview.workflow_run_url)}
           *Error:* #{inspect(reason)}
           """
         }
@@ -215,6 +249,10 @@ defmodule TuistOps.Previews.SlackBlocks do
   end
 
   defp preview_expiration(%Preview{}), do: nil
+
+  defp workflow_line(nil), do: ""
+  defp workflow_line(""), do: ""
+  defp workflow_line(url), do: "*Workflow:* <#{url}|GitHub Actions run>"
 
   defp format_seconds(nil), do: "n/a"
   defp format_seconds(seconds) when seconds < 3600, do: "#{div(seconds, 60)} min"

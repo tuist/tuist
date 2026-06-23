@@ -8,6 +8,7 @@ defmodule TuistOps.Previews do
   alias TuistOps.Previews.GitHubActionsClient
   alias TuistOps.Previews.Preview
   alias TuistOps.Previews.SlackBlocks
+  alias TuistOps.Previews.Workers.MonitorWorkflowWorker
   alias TuistOps.JIT.SlackClient
   alias TuistOps.Repo
 
@@ -120,11 +121,16 @@ defmodule TuistOps.Previews do
              render.(preview),
              fallback_text: fallback_text
            ),
-         {:ok, _workflow} <- dispatch.(preview),
+         {:ok, workflow} <- dispatch.(preview),
          {:ok, preview} <-
            preview
-           |> Preview.transition_changeset(Map.put(base_attrs, :slack_message_ts, ts))
+           |> Preview.transition_changeset(
+             base_attrs
+             |> Map.put(:slack_message_ts, ts)
+             |> Map.put(:workflow_run_name, workflow[:run_name])
+           )
            |> Repo.update() do
+      maybe_schedule_monitor(preview, workflow)
       {:ok, preview}
     else
       {:error, reason} ->
@@ -133,6 +139,22 @@ defmodule TuistOps.Previews do
         {:error, reason}
     end
   end
+
+  defp maybe_schedule_monitor(%Preview{status: "creating"} = preview, %{run_name: run_name})
+       when is_binary(run_name) do
+    case %{preview_id: preview.id, run_name: run_name}
+         |> MonitorWorkflowWorker.new(schedule_in: 30)
+         |> Oban.insert() do
+      {:ok, _job} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("preview: monitor schedule failed: #{inspect(reason)}")
+        :ok
+    end
+  end
+
+  defp maybe_schedule_monitor(_preview, _workflow), do: :ok
 
   defp mark_failed(%Preview{} = preview, reason) do
     failure_reason = reason |> inspect() |> String.slice(0, 500)
@@ -168,6 +190,7 @@ defmodule TuistOps.Previews do
     inputs =
       %{
         slug: preview.slug,
+        preview_id: Integer.to_string(preview.id),
         ttl_hours: Integer.to_string(ceil_hours(preview.ttl_seconds)),
         requester_email: preview.requester_email,
         requester_slack_id: preview.requester_slack_id,
