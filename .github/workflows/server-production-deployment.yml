@@ -1978,11 +1978,6 @@ jobs:
     env:
       MISE_TASK_RUN_AUTO_INSTALL: 0
       TUIST_URL: https://canary.tuist.dev
-      # Pin the cache to canary's own regional endpoint instead of resolving it
-      # via /api/cache/endpoints. That list can include another environment's
-      # endpoint, which the CLI's latency probe may select from this runner's
-      # network and then stall on; pinning keeps the run hermetic to canary's cache.
-      TUIST_CACHE_ENDPOINT: https://cache-eu-central-canary.tuist.dev
       # Public canary test account, same as the HEAD acceptance scheme (Project.swift).
       TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
       TUIST_AUTH_PASSWORD: tuistrocks
