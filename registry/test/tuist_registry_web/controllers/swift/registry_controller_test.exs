@@ -267,6 +267,35 @@ defmodule TuistRegistryWeb.Swift.RegistryControllerTest do
       assert get_resp_header(conn, "link") == []
     end
 
+    test "omits alternate link when its tools version matches the default manifest", %{conn: conn} do
+      manifest = "// swift-tools-version: 6.0\n"
+
+      expect(S3, :get_object, fn _key, _opts -> {:ok, manifest} end)
+
+      stub(Metadata, :get_package, fn _, _ ->
+        {:ok,
+         %{
+           "releases" => %{
+             "1.0.0" => %{
+               "manifests" => [
+                 %{"swift_version" => nil, "swift_tools_version" => "6.0"},
+                 %{"swift_version" => "6.0", "swift_tools_version" => "6.0"}
+               ]
+             }
+           }
+         }}
+      end)
+
+      conn =
+        conn
+        |> registry_swift_conn()
+        |> get("/swift/apple/swift-argument-parser/1.0.0/Package.swift")
+
+      assert conn.status == 200
+      assert get_resp_header(conn, "content-version") == ["1"]
+      assert get_resp_header(conn, "link") == []
+    end
+
     test "returns 404 when manifest missing", %{conn: conn} do
       expect(S3, :get_object, fn _key, _opts -> {:error, :not_found} end)
 

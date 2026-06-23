@@ -1,6 +1,7 @@
 defmodule TuistRegistryWeb.Swift.RegistryController do
   use TuistRegistryWeb, :controller
 
+  alias TuistCommon.Registry.Swift.AlternateManifest
   alias TuistCommon.Registry.Swift.KeyNormalizer
   alias TuistCommon.Registry.Swift.RepositoryURL
   alias TuistRegistry.Config
@@ -341,7 +342,7 @@ defmodule TuistRegistryWeb.Swift.RegistryController do
 
   defp build_alternate_manifests_link(conn, scope, name, version, manifests) do
     manifests
-    |> Enum.filter(fn manifest -> not is_nil(manifest["swift_version"]) end)
+    |> AlternateManifest.linkable_alternates()
     |> Enum.map_join(", ", fn manifest ->
       swift_version = manifest["swift_version"]
       swift_tools_version = manifest["swift_tools_version"]

@@ -54,4 +54,69 @@ defmodule TuistCommon.Registry.Swift.AlternateManifestTest do
       refute AlternateManifest.swift_tools_version("import PackageDescription")
     end
   end
+
+  describe "linkable_alternates/1" do
+    test "drops alternates whose tools version canonicalizes to the default manifest" do
+      assert AlternateManifest.linkable_alternates([
+               %{"swift_version" => nil, "swift_tools_version" => "6.0"},
+               %{"swift_version" => "6.0.0", "swift_tools_version" => "6.0.0"},
+               %{"swift_version" => "5.9", "swift_tools_version" => "5.9"}
+             ]) == [
+               %{"swift_version" => "5.9", "swift_tools_version" => "5.9"}
+             ]
+
+      assert AlternateManifest.linkable_alternates([
+               %{"swift_version" => nil, "swift_tools_version" => "6"},
+               %{"swift_version" => "6.0.0", "swift_tools_version" => "6.0.0"}
+             ]) == []
+    end
+
+    test "keeps the first alternate when alternates canonicalize to the same tools version" do
+      first_swift_six_manifest = %{"swift_version" => "6", "swift_tools_version" => "6"}
+
+      assert AlternateManifest.linkable_alternates([
+               first_swift_six_manifest,
+               %{"swift_version" => "6.0", "swift_tools_version" => "6.0"},
+               %{"swift_version" => "6.0.0", "swift_tools_version" => "6.0.0"},
+               %{"swift_version" => "5.9", "swift_tools_version" => "5.9"}
+             ]) == [
+               first_swift_six_manifest,
+               %{"swift_version" => "5.9", "swift_tools_version" => "5.9"}
+             ]
+    end
+
+    test "preserves alternates when tools versions are missing or malformed" do
+      missing_tools_version = %{"swift_version" => "5.10", "swift_tools_version" => nil}
+
+      malformed_tools_version = %{
+        "swift_version" => "6.0-beta",
+        "swift_tools_version" => "6.0.0-beta"
+      }
+
+      assert AlternateManifest.linkable_alternates([
+               %{"swift_version" => nil, "swift_tools_version" => "6.0"},
+               missing_tools_version,
+               malformed_tools_version
+             ]) == [
+               missing_tools_version,
+               malformed_tools_version
+             ]
+    end
+  end
+
+  describe "deduplicate_by_tools_version/1" do
+    test "keeps default manifests and linkable alternates" do
+      default_manifest = %{"swift_version" => nil, "swift_tools_version" => "6.0"}
+      swift_five_manifest = %{"swift_version" => "5.9", "swift_tools_version" => "5.9"}
+
+      assert AlternateManifest.deduplicate_by_tools_version([
+               default_manifest,
+               %{"swift_version" => "6.0.0", "swift_tools_version" => "6.0.0"},
+               swift_five_manifest
+             ]) == [
+               default_manifest,
+               swift_five_manifest
+             ]
+    end
+  end
 end
