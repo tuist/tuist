@@ -1,0 +1,35 @@
+{{- if and .Values.registry.enabled .Values.registry.ingress.enabled }}
+{{- $host := required "registry.ingress.host is required when registry.ingress.enabled is true" .Values.registry.ingress.host -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "registry") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: registry
+  {{- with .Values.registry.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.registry.ingress.className }}
+  ingressClassName: {{ . | quote }}
+  {{- end }}
+  {{- if .Values.registry.ingress.tlsSecretName }}
+  tls:
+    - hosts:
+        - {{ $host | quote }}
+      secretName: {{ .Values.registry.ingress.tlsSecretName | quote }}
+  {{- end }}
+  rules:
+    - host: {{ $host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "tuist.componentName" (dict "root" . "component" "registry") }}
+                port:
+                  number: {{ .Values.registry.service.port }}
+{{- end }}

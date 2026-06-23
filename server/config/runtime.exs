@@ -532,6 +532,13 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 base_queues = [default: 10, vcs_comments: 20, webhooks: 20, storage_retention: 1]
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
 process_xcresult_queue = {:process_xcresult, Tuist.Environment.process_xcresult_queue_concurrency()}
+# Swift registry sync queues. Consumed only by
+# `TUIST_MODE=swift_registry_sync` pods so the web tier doesn't
+# accidentally pull catalog-sync work and starve request-path workers;
+# the web tier still ENQUEUES via the leader-only cron entry registered
+# in `Tuist.Oban.RuntimeConfig.@hosted_only_crons`. Future ecosystems
+# get their own mode + queues (e.g. `:maven_registry_sync`).
+swift_registry_sync_queues = [swift_registry_sync: 1, swift_registry_release: 5]
 
 oban_queues =
   cond do
@@ -540,6 +547,9 @@ oban_queues =
 
     Tuist.Environment.xcresult_processor_mode?() ->
       [process_xcresult_queue]
+
+    Tuist.Environment.swift_registry_sync_mode?() ->
+      swift_registry_sync_queues
 
     true ->
       base = base_queues
@@ -578,6 +588,78 @@ config :tuist, Oban,
 
 if !RuntimeConfig.peer_eligible?(mode) do
   config :tuist, Oban, peer: false
+end
+
+# Registry config.
+#
+# The bucket name is shared across ecosystems (one Tigris bucket).
+# `swift_*` keys are scoped to the Swift Package Registry sync workers.
+# `Tuist.Registry.Swift.SyncWorker` is cron-fired by the :web leader
+# and inserts jobs into the `:swift_registry_sync` queue. The
+# swift-registry-sync pod (`TUIST_MODE=swift_registry_sync`) consumes
+# them plus the `:swift_registry_release` jobs each SyncWorker enqueues
+# per missing tag. Reads from the bucket happen on the standalone
+# `registry` Phoenix app, not here.
+swift_registry_sync_allowlist =
+  case System.get_env("SWIFT_REGISTRY_SYNC_ALLOWLIST") do
+    nil -> nil
+    "" -> nil
+    value -> value |> String.split(",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
+  end
+
+swift_registry_sync_limit =
+  case System.get_env("SWIFT_REGISTRY_SYNC_LIMIT") do
+    nil -> 1_000
+    value -> String.to_integer(value)
+  end
+
+config :tuist, :registry,
+  bucket: System.get_env("S3_REGISTRY_BUCKET"),
+  swift_github_token: System.get_env("SWIFT_REGISTRY_GITHUB_TOKEN"),
+  swift_sync_enabled:
+    "SWIFT_REGISTRY_SYNC_ENABLED" |> System.get_env("true") |> String.downcase() |> Kernel.in(["1", "true"]),
+  swift_sync_allowlist: swift_registry_sync_allowlist,
+  swift_sync_limit: swift_registry_sync_limit
+
+# In swift-registry-sync mode the BEAM only talks to the registry S3
+# bucket, so override ex_aws to the registry's Tigris key set. No other
+# queue runs in this pod, so the override never reaches a Storage call.
+# We fail fast if any required env is blank: silently falling back to the
+# account-storage credentials would write to the registry bucket with the
+# wrong principal and 403 every upload while the cursor still advances.
+if Tuist.Environment.swift_registry_sync_mode?() do
+  registry_s3_host = System.get_env("S3_HOST")
+  registry_s3_region = System.get_env("S3_REGION") || "auto"
+  registry_s3_access_key_id = System.get_env("S3_ACCESS_KEY_ID")
+  registry_s3_secret_access_key = System.get_env("S3_SECRET_ACCESS_KEY")
+  registry_bucket = System.get_env("S3_REGISTRY_BUCKET")
+
+  missing =
+    Enum.filter(
+      [
+        {"S3_REGISTRY_BUCKET", registry_bucket},
+        {"S3_HOST", registry_s3_host},
+        {"S3_ACCESS_KEY_ID", registry_s3_access_key_id},
+        {"S3_SECRET_ACCESS_KEY", registry_s3_secret_access_key}
+      ],
+      fn {_name, value} -> value in [nil, ""] end
+    )
+
+  if missing != [] do
+    names = Enum.map_join(missing, ", ", fn {name, _} -> name end)
+    raise "TUIST_MODE=swift_registry_sync requires #{names} to be set; refusing to boot"
+  end
+
+  config :ex_aws, :s3,
+    scheme: "https://",
+    host: registry_s3_host,
+    region: registry_s3_region,
+    virtual_host: false
+
+  config :ex_aws,
+    access_key_id: registry_s3_access_key_id,
+    secret_access_key: registry_s3_secret_access_key,
+    region: registry_s3_region
 end
 
 # Kura controller rollout assets. Each env is enumerated explicitly so a

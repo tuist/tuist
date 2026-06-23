@@ -120,6 +120,7 @@ The previous "Tailscale ACL audit log" trail no longer applies — the ACL is no
   - `.github/workflows/server-production-deployment.yml` — the monorepo release pipeline (push-on-main): releases the server + fleet/runtime images and, at its tail, runs the production deploy cascade (build → canary → acceptance tests → production, with hotfix fast-path). One serialized lane, no cross-workflow dispatch. Manual re-promotes/rollbacks of a pinned SHA go through `server-deployment.yml`'s own `workflow_dispatch`.
 - **Noora Storybook** (managed) is deployed via `.github/workflows/noora-storybook-deployment.yml` using the standalone `infra/helm/noora-storybook` chart.
 - **Slack invitation app** (managed) is deployed via `.github/workflows/slack-deployment.yml` using the standalone `infra/helm/slack` chart.
+- **Swift Registry** (managed) is deployed as the `registry` component of the main `infra/helm/tuist` chart via `.github/workflows/server-deployment.yml`, so the read frontend and server-owned `swift-registry-sync` writer roll in the same Helm release.
 - **Registry Router** — `wrangler deploy` from `registry-router/`.
 - **Helm charts** under `helm/` target Kubernetes (managed + self-hosted).
 

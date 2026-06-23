@@ -37,7 +37,12 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"* * * * *", Tuist.Runners.Workers.OrphanedRunnersWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedStampedPodsWorker},
     {"*/5 * * * *", Tuist.Runners.Workers.WebhookRedeliveryWorker},
-    {"*/5 * * * *", Tuist.Runners.Workers.StaleQueuedJobsWorker}
+    {"*/5 * * * *", Tuist.Runners.Workers.StaleQueuedJobsWorker},
+    # Cron fires on the :web leader; the resulting `:swift_registry_sync`
+    # job is consumed by the swift-registry-sync pod
+    # (`TUIST_MODE=swift_registry_sync`). Hosted-only because the
+    # registry mirror is a hosted-only feature.
+    {"*/10 * * * *", Tuist.Registry.Swift.SyncWorker}
   ]
 
   @prod_like_envs [:prod, :stag, :can]

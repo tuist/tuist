@@ -9,6 +9,15 @@
 #     -f infra/helm/tuist/values-managed-canary.yaml \
 #     --set server.image.tag=$GIT_SHA
 
+registry:
+  publicHost: registry-canary.tuist.dev
+  serverUrl: https://canary.tuist.dev
+  deployEnv: can
+  sentryEnv: can
+  ingress:
+    host: registry-canary.tuist.dev
+    tlsSecretName: registry-canary-tls
+
 server:
   replicaCount: 1
 
@@ -232,6 +241,17 @@ processor:
     limits:
       cpu: "1000m"
       memory: "1Gi"
+
+# Scope sync to a single package on canary so we can bake the pod
+# end-to-end without spending the GitHub-PAT rate-limit budget on the
+# full SwiftPackageIndex catalog. Remove this to mirror production.
+swiftRegistrySync:
+  syncAllowlist: alamofire/alamofire
+  extraEnv:
+    - name: TUIST_DEPLOY_ENV
+      value: can
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
 
 xcresultProcessor:
   # Single replica in canary, matching macosFleet.replicas=1.
