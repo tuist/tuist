@@ -17,16 +17,21 @@
 -- gate plus `SET TRANSACTION READ ONLY` plus a 5s `statement_timeout`.
 -- See `Tuist.Ops.Database.execute/2`.
 
+\if :{?tuist_schema}
+\else
+\set tuist_schema public
+\endif
+
 BEGIN;
 
 GRANT CONNECT ON DATABASE tuist TO tuist_ops_ro;
-GRANT USAGE ON SCHEMA public TO tuist_ops_ro;
+GRANT USAGE ON SCHEMA :"tuist_schema" TO tuist_ops_ro;
 GRANT USAGE ON SCHEMA pg_catalog TO tuist_ops_ro;
 GRANT USAGE ON SCHEMA information_schema TO tuist_ops_ro;
 
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
-  ON ALL TABLES IN SCHEMA public FROM tuist_ops_ro;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  ON ALL TABLES IN SCHEMA :"tuist_schema" FROM tuist_ops_ro;
+ALTER DEFAULT PRIVILEGES IN SCHEMA :"tuist_schema"
   REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
   ON TABLES FROM tuist_ops_ro;
 

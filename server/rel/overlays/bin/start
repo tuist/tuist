@@ -3,7 +3,15 @@ cd -P -- "$(dirname -- "$0")"
 
 echo "Obtaining the database schema version..."
 MIGRATION_DATABASE_URL="${TUIST_MIGRATION_DATABASE_URL:-$DATABASE_URL}"
-BEFORE_MIGRATION_SCHEMA_VERSION=$(psql "$MIGRATION_DATABASE_URL" -t -c "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1;" 2>/dev/null || echo "")
+DATABASE_SCHEMA="${TUIST_DATABASE_SCHEMA:-public}"
+case "$DATABASE_SCHEMA" in
+  ""|[0-9]*|*[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_]*)
+    echo "Invalid TUIST_DATABASE_SCHEMA: $DATABASE_SCHEMA" >&2
+    exit 1
+    ;;
+esac
+SCHEMA_MIGRATIONS_TABLE="\"$DATABASE_SCHEMA\".schema_migrations"
+BEFORE_MIGRATION_SCHEMA_VERSION=$(psql "$MIGRATION_DATABASE_URL" -t -c "SELECT version FROM ${SCHEMA_MIGRATIONS_TABLE} ORDER BY version DESC LIMIT 1;" 2>/dev/null || echo "")
 BEFORE_MIGRATION_SCHEMA_VERSION=$(echo $BEFORE_MIGRATION_SCHEMA_VERSION | xargs)
 if [ -n "$BEFORE_MIGRATION_SCHEMA_VERSION" ]; then
   echo "Current database schema version: $BEFORE_MIGRATION_SCHEMA_VERSION"
@@ -16,7 +24,7 @@ echo "Running migration..."
 ./tuist eval Tuist.Release.migrate
 if [ $? -ne 0 ]; then
   echo "Migration failed!"
-  AFTER_MIGRATION_SCHEMA_VERSION=$(psql "$MIGRATION_DATABASE_URL" -t -c "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1;" 2>/dev/null || echo "")
+  AFTER_MIGRATION_SCHEMA_VERSION=$(psql "$MIGRATION_DATABASE_URL" -t -c "SELECT version FROM ${SCHEMA_MIGRATIONS_TABLE} ORDER BY version DESC LIMIT 1;" 2>/dev/null || echo "")
   AFTER_MIGRATION_SCHEMA_VERSION=$(echo $AFTER_MIGRATION_SCHEMA_VERSION | xargs)
 
   if [ -n "$BEFORE_MIGRATION_SCHEMA_VERSION" ] && [ "$BEFORE_MIGRATION_SCHEMA_VERSION" != "$AFTER_MIGRATION_SCHEMA_VERSION" ]; then

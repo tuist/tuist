@@ -10,6 +10,8 @@ defmodule Tuist.Environment do
   @dev_all_locales Application.compile_env(:tuist, :dev_all_locales, false)
 
   @runtime_envs ~w(prod can stag)
+  @default_database_schema "public"
+  @postgres_identifier_regex ~r/^[a-zA-Z_][a-zA-Z0-9_]*$/
   @agent_auth_default_trusted_providers [
     %{
       "issuer" => "https://auth0.openai.com/",
@@ -144,6 +146,21 @@ defmodule Tuist.Environment do
     System.get_env("DATABASE_URL") || get([:database_url], secrets)
   end
 
+  def database_schema do
+    "TUIST_DATABASE_SCHEMA" |> System.get_env() |> database_schema()
+  end
+
+  def database_schema(nil), do: @default_database_schema
+  def database_schema(""), do: @default_database_schema
+
+  def database_schema(schema) when is_binary(schema) do
+    validate_postgres_identifier!(schema, "TUIST_DATABASE_SCHEMA")
+  end
+
+  def default_database_schema?(schema \\ database_schema()) do
+    schema == @default_database_schema
+  end
+
   def migration_database_url do
     case System.get_env("TUIST_MIGRATION_DATABASE_URL") do
       url when is_binary(url) and url != "" -> url
@@ -173,6 +190,19 @@ defmodule Tuist.Environment do
       hostname: parsed_url.host,
       port: parsed_url.port || 5432
     ]
+  end
+
+  def validate_postgres_identifier!(identifier, environment_variable_name) do
+    if Regex.match?(@postgres_identifier_regex, identifier) do
+      identifier
+    else
+      raise "#{environment_variable_name} must be a valid unquoted PostgreSQL identifier, " <>
+              "got: #{inspect(identifier)}"
+    end
+  end
+
+  def quote_postgres_identifier(identifier) do
+    ~s("#{String.replace(to_string(identifier), "\"", "\"\"")}")
   end
 
   def ipv4_database_url(secrets \\ secrets()) do

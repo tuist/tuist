@@ -201,7 +201,6 @@ defmodule Tuist.MixProject do
         "ecto.drop",
         "ecto.create",
         "run priv/repo/timezone.exs",
-        "ecto.load",
         "ecto.migrate"
       ],
       test: ["ecto.create --quiet", "run priv/repo/timezone.exs", "ecto.migrate --quiet", "test"],

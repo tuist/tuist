@@ -20,7 +20,7 @@ defmodule Tuist.Release do
     for repo <- repos() do
       {:ok, _, _} =
         Ecto.Migrator.with_repo(repo, fn repo ->
-          check_and_execute_structure_sql(repo)
+          ensure_database_schema(repo)
           Ecto.Migrator.run(repo, :up, all: true)
           grant_runtime_role(repo)
         end)
@@ -104,33 +104,16 @@ defmodule Tuist.Release do
     )
   end
 
-  # https://fly.io/phoenix-files/loading-structure-sql-on-prod-without-mix/
-  defp check_and_execute_structure_sql(repo) do
-    config = repo.config()
-    app_name = Keyword.fetch!(config, :otp_app)
-
-    if SQL.table_exists?(repo, "schema_migrations") do
-      Logger.info("schema_migrations table already exists")
+  defp ensure_database_schema(repo) when repo == Tuist.Repo do
+    if Environment.default_database_schema?() do
       :ok
     else
-      case repo.__adapter__().structure_load(
-             Application.app_dir(app_name, "priv/repo"),
-             repo.config()
-           ) do
-        {:ok, location} = success ->
-          Logger.info("The structure for #{inspect(repo)} has been loaded from #{location}")
-          success
-
-        {:error, term} when is_binary(term) ->
-          Logger.error("The structure for #{inspect(repo)} couldn't be loaded: #{term}")
-          {:error, inspect(term)}
-
-        {:error, term} ->
-          Logger.error("The structure for #{inspect(repo)} couldn't be loaded: #{inspect(term)}")
-          {:error, inspect(term)}
-      end
+      schema = Environment.quote_postgres_identifier(Environment.database_schema())
+      SQL.query!(repo, "CREATE SCHEMA IF NOT EXISTS #{schema}", [])
     end
   end
+
+  defp ensure_database_schema(_repo), do: :ok
 
   defp grant_runtime_role(repo) when repo == Tuist.Repo do
     case Environment.database_runtime_role() do
@@ -145,43 +128,43 @@ defmodule Tuist.Release do
   defp grant_runtime_role(_repo), do: :ok
 
   defp do_grant_runtime_role(repo, role) do
-    if !Regex.match?(~r/^[a-zA-Z_][a-zA-Z0-9_]*$/, role) do
-      raise "TUIST_DATABASE_RUNTIME_ROLE must be a valid unquoted PostgreSQL identifier, " <>
-              "got: #{inspect(role)}"
-    end
+    Environment.validate_postgres_identifier!(role, "TUIST_DATABASE_RUNTIME_ROLE")
 
-    role = quote_identifier(role)
-    database = repo.config() |> Keyword.fetch!(:database) |> quote_identifier()
+    role = Environment.quote_postgres_identifier(role)
+    database = repo.config() |> Keyword.fetch!(:database) |> Environment.quote_postgres_identifier()
+    schema = Environment.database_schema()
+    quoted_schema = Environment.quote_postgres_identifier(schema)
 
     Enum.each(
       [
-        "REVOKE CREATE ON SCHEMA public FROM PUBLIC",
+        "REVOKE CREATE ON SCHEMA #{quoted_schema} FROM PUBLIC",
         "REVOKE CREATE ON DATABASE #{database} FROM PUBLIC",
         "GRANT CONNECT ON DATABASE #{database} TO #{role}",
-        "GRANT USAGE ON SCHEMA public TO #{role}",
-        "REVOKE CREATE ON SCHEMA public FROM #{role}",
-        "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO #{role}",
-        "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO #{role}",
-        grant_execute_on_owned_functions(role),
-        "REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.schema_migrations FROM #{role}",
-        "GRANT SELECT ON TABLE public.schema_migrations TO #{role}",
-        "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO #{role}",
-        "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO #{role}",
-        "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO #{role}"
+        "GRANT USAGE ON SCHEMA #{quoted_schema} TO #{role}",
+        "REVOKE CREATE ON SCHEMA #{quoted_schema} FROM #{role}",
+        "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA #{quoted_schema} TO #{role}",
+        "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA #{quoted_schema} TO #{role}",
+        grant_execute_on_owned_functions(schema, role),
+        "REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLE " <>
+          "#{quoted_schema}.schema_migrations FROM #{role}",
+        "GRANT SELECT ON TABLE #{quoted_schema}.schema_migrations TO #{role}",
+        "ALTER DEFAULT PRIVILEGES IN SCHEMA #{quoted_schema} GRANT SELECT, INSERT, UPDATE, DELETE " <>
+          "ON TABLES TO #{role}",
+        "ALTER DEFAULT PRIVILEGES IN SCHEMA #{quoted_schema} GRANT USAGE, SELECT ON SEQUENCES TO #{role}",
+        "ALTER DEFAULT PRIVILEGES IN SCHEMA #{quoted_schema} GRANT EXECUTE ON FUNCTIONS TO #{role}"
       ],
       &SQL.query!(repo, &1, [])
     )
   end
 
-  # `GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public` requires the
+  # `GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA <schema>` requires the
   # migration role to own every function in the schema, and aborts the
   # whole statement otherwise. The CNPG PgBouncer pooler installs a
-  # superuser-owned `user_search` auth function into public, so the
-  # blanket grant fails with `permission denied for function user_search`.
-  # Grant only on functions the migration role owns — the runtime role
-  # never calls operator-owned functions, and `ALTER DEFAULT PRIVILEGES`
-  # above already covers functions the role creates from here on.
-  defp grant_execute_on_owned_functions(role) do
+  # superuser-owned `user_search` auth function into public, so a blanket
+  # grant can fail with `permission denied for function user_search`.
+  # Grant only on functions the migration role owns; `ALTER DEFAULT
+  # PRIVILEGES` above already covers functions the role creates later.
+  defp grant_execute_on_owned_functions(schema, role) do
     """
     DO $tuist_grant$
     DECLARE
@@ -194,7 +177,7 @@ defmodule Tuist.Release do
         )
         FROM pg_catalog.pg_proc p
         JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
-        WHERE n.nspname = 'public'
+        WHERE n.nspname = '#{schema}'
           AND p.prokind <> 'p'
           AND p.proowner = current_user::regrole
       LOOP
@@ -203,9 +186,5 @@ defmodule Tuist.Release do
     END
     $tuist_grant$;
     """
-  end
-
-  defp quote_identifier(identifier) do
-    ~s("#{String.replace(to_string(identifier), "\"", "\"\"")}")
   end
 end
