@@ -27,8 +27,7 @@ defmodule TuistOps.Previews.SlackBlocks do
         elements: [
           %{
             type: "mrkdwn",
-            text:
-              "GitHub Actions is provisioning it. It expires <!date^#{DateTime.to_unix(preview.expires_at)}^{date_short_pretty} at {time}|soon>."
+            text: provisioning_context(preview)
           }
         ]
       },
@@ -85,6 +84,26 @@ defmodule TuistOps.Previews.SlackBlocks do
 
   defp format_ref(%Preview{ref_kind: nil}), do: "`workflow default`"
   defp format_ref(%Preview{ref_kind: kind, ref_value: value}), do: "`#{kind}:#{value}`"
+
+  defp provisioning_context(%Preview{} = preview) do
+    case preview_expiration(preview) do
+      nil ->
+        "GitHub Actions is provisioning it."
+
+      expiration ->
+        "GitHub Actions is provisioning it. It expires <!date^#{DateTime.to_unix(expiration)}^{date_short_pretty} at {time}|soon>."
+    end
+  end
+
+  defp preview_expiration(%Preview{ttl_seconds: ttl_seconds} = preview)
+       when is_integer(ttl_seconds) do
+    case preview.updated_at || preview.inserted_at do
+      nil -> nil
+      timestamp -> DateTime.add(timestamp, ttl_seconds, :second)
+    end
+  end
+
+  defp preview_expiration(%Preview{}), do: nil
 
   defp format_seconds(nil), do: "n/a"
   defp format_seconds(seconds) when seconds < 3600, do: "#{div(seconds, 60)} min"
