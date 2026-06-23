@@ -512,3 +512,55 @@ License env vars. Resolves to (in order):
       key: oauth-client-secret
 {{- end }}
 {{- end -}}
+
+{{/*
+envFrom entry for the consolidated server-config ExternalSecret. Every key in
+that Secret is already a TUIST_* env var name, so a single secretRef wires the
+whole runtime-secret set into the Server / Migration / Processor containers —
+the replacement for decrypting priv/secrets/<env>.yml.enc. Emits nothing when
+server.config.managedSecrets is off (self-hosted installs supply config their
+own way).
+*/}}
+{{- define "tuist.serverConfigEnvFrom" -}}
+{{- if and .Values.server.enabled .Values.server.config.managedSecrets }}
+- secretRef:
+    name: {{ include "tuist.componentName" (dict "root" . "component" "server-config-external-secrets") }}
+{{- end }}
+{{- end -}}
+
+{{/*
+Stripe price IDs. These are not secrets (just identifiers for the products in
+Stripe), so they live in chart values as a readable plan -> category -> [ids]
+map instead of the secret store. `Tuist.Environment.stripe_prices/1` reads them
+via TUIST_STRIPE_PRICES_BASE64_JSON, so the chart JSON-encodes + base64s the
+map here — the base64 is generated, never hand-authored. Emits nothing when
+server.stripe.prices is empty (self-hosted installs without Stripe).
+*/}}
+{{- define "tuist.stripePricesEnv" -}}
+{{- with .Values.server.stripe.prices }}
+- name: TUIST_STRIPE_PRICES_BASE64_JSON
+  value: {{ toJson . | b64enc | quote }}
+{{- end }}
+{{- end -}}
+
+{{/*
+Mailing identity env vars. The Mailgun sending domain + from/reply-to addresses
+are sender identity, not secrets, so they come from chart values (shared in
+values-managed-common.yaml). The Mailgun API key itself stays in the secret
+store. Each var is emitted only when set, so an unset value leaves the accessor
+nil (mail simply degrades) rather than overriding with "".
+*/}}
+{{- define "tuist.mailingEnv" -}}
+{{- with .Values.server.mailing.domain }}
+- name: TUIST_MAILING_DOMAIN
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.server.mailing.fromAddress }}
+- name: TUIST_MAILING_FROM_ADDRESS
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.server.mailing.replyToAddress }}
+- name: TUIST_MAILING_REPLY_TO_ADDRESS
+  value: {{ . | quote }}
+{{- end }}
+{{- end -}}

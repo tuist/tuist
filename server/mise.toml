@@ -1,12 +1,24 @@
 [env]
 _.source = "{{config_root}}/../mise/utilities/dev_instance_env.sh"
 TUIST_SECRET_KEY_BASE = "rpux4+W/oBey0drSFOctyIbppOG2A9VUUuTMC1WaM8xZgYxA6gg4yryG/LkOoqkj"
+# Stripe price IDs for local dev (test-mode identifiers, not secrets — the keys
+# come from fnox/1Password). Environment.stripe_prices/1 reads this base64'd JSON
+# (dev has no chart to render it). Decoded:
+#   {"air":{"usage":["price_1PVY2kLWue9IBlPSHCmPX1jp"],"flat_monthly":["price_1PVY21LWue9IBlPSLksRxRos"]},
+#    "pro":{"usage":["price_1QMtp7LWue9IBlPSImRePMKa"],"flat_monthly":["price_1QMtzQLWue9IBlPSoRg6kBhr"]},
+#    "enterprise":{"flat_monthly":["price_1PWfxuLWue9IBlPSDbc3osiV"],"flat_yearly":[]}}
+TUIST_STRIPE_PRICES_BASE64_JSON = "eyJhaXIiOnsidXNhZ2UiOlsicHJpY2VfMVBWWTJrTFd1ZTlJQmxQU0hDbVBYMWpwIl0sImZsYXRfbW9udGhseSI6WyJwcmljZV8xUFZZMjFMV3VlOUlCbFBTTGtzUnhSb3MiXX0sInBybyI6eyJ1c2FnZSI6WyJwcmljZV8xUU10cDdMV3VlOUlCbFBTSW1SZVBNS2EiXSwiZmxhdF9tb250aGx5IjpbInByaWNlXzFRTXR6UUxXdWU5SUJsUFNvUmc2a0JociJdfSwiZW50ZXJwcmlzZSI6eyJmbGF0X21vbnRobHkiOlsicHJpY2VfMVBXZnh1TFd1ZTlJQmxQU0RiYzNvc2lWIl0sImZsYXRfeWVhcmx5IjpbXX19"
 
 [hooks]
   postinstall = "{{config_root}}/mise/tasks/install.sh"
   enter = { task = "clickhouse:start" }
 
 [tools]
+  # Injects dev-only secrets (e.g. the license) from 1Password at runtime via
+  # `fnox exec` in the dev task — see server/fnox.toml. Installed for everyone,
+  # but the dev task only invokes it when 1Password access is present, so
+  # contributors without a 1Password account still run the server locally.
+  fnox = "latest"
   aube = "1.6.2"
   node = "24.11.0"
   sops = "3.9.3"

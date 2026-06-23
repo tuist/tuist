@@ -11,6 +11,34 @@ server:
 
   appUrl: https://tuist.dev
 
+  # Stripe price IDs (identifiers, not secrets — the API keys live in the
+  # STRIPE 1Password item). Live-mode prices, so they're set per env: staging
+  # and canary use their own (test-mode) IDs in their overlays. The chart
+  # base64-encodes this into TUIST_STRIPE_PRICES_BASE64_JSON.
+  stripe:
+    prices:
+      air:
+        usage: ["price_1PIYcvLWue9IBlPS8el65GXj"]
+        flat_monthly: ["price_1PIYcvLWue9IBlPSGvUJIZ5Y"]
+      pro:
+        usage: ["price_1R7fOMLWue9IBlPSrEgHqsMg"]
+        flat_monthly: ["price_1QMtyXLWue9IBlPSlgeHHDvg"]
+      enterprise:
+        flat_monthly:
+          - price_1OWxeCLWue9IBlPSc6OnjqE4
+          - price_1QPK3YLWue9IBlPS3gmVGJin
+          - price_1RRZ6fLWue9IBlPS51mM1R3s
+          - price_1RRZ68LWue9IBlPSj4xaA8cJ
+          - price_1RRZ3wLWue9IBlPSoL1bMoIY
+        flat_yearly:
+          - price_1PXgu8LWue9IBlPSnE5Kd3S9
+          - price_1RRZ8hLWue9IBlPSDxv2a78d
+          - price_1RRZ8FLWue9IBlPSIP2xXtD2
+          - price_1RRZ7jLWue9IBlPSoPgEg4Ui
+      open_source:
+        usage: ["price_1QAYGqLWue9IBlPSQ6vapx9F"]
+        flat_monthly: ["price_1QAYJZLWue9IBlPSJzMjk1BZ"]
+
   # HA scale-out needs distributed Erlang so PubSub + the in-memory rate
   # limiter work across pods. Emits a headless Service that libcluster's
   # Kubernetes.DNS strategy uses to discover peers; the chart wires

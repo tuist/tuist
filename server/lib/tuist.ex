@@ -121,8 +121,6 @@ defmodule Tuist do
       Xcode.XcodeProject,
       Xcode.XcodeTarget,
       Loops,
-      Namespace,
-      Namespace.JWTToken,
       VCS.GitHubAppInstallation,
       Alerts,
       Alerts.Alert,

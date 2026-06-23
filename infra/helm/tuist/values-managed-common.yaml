@@ -70,12 +70,18 @@ server:
       nginx.ingress.kubernetes.io/proxy-body-size: "50m"
       nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
 
-  # All runtime secrets (DATABASE_URL, CLICKHOUSE_URL, S3 creds, Sentry, Stripe,
-  # OAuth, Mailgun, etc.) live in priv/secrets/<env>.yml.enc baked into the
-  # image. The app decrypts them at boot when MASTER_KEY is present in the
-  # environment. MASTER_KEY itself is synced from 1Password by ESO — see
-  # externalSecrets below and infra/k8s/onboarding.md for the bootstrap.
+  # Runtime secrets are sourced from 1Password by ESO, not the encrypted
+  # priv/secrets blob. `config.managedSecrets` syncs the consolidated config
+  # Secret (Sentry, Stripe API keys, Slack, Apple, the OAuth/OIDC keys, the
+  # Mailgun key, PostHog, Loops, the ClickHouse URL, Plain, the cache key, and
+  # the Phoenix/Cloak/Guardian secret keys) as TUIST_* env vars via envFrom;
+  # GitHub / Google / object storage / Kura / license keep their own ESO
+  # secrets below. `managedSecrets` (the blob flag) + MASTER_KEY stay only until
+  # the blob is deleted — env vars override the blob in Tuist.Environment.get/3,
+  # so this is the cutover with the blob still present as a safety net.
   managedSecrets: true
+  config:
+    managedSecrets: true
   externalSecrets:
     refreshInterval: "1h"
     storeRef:
@@ -85,6 +91,11 @@ server:
       # 1Password item name in the vault referenced by the SecretStore.
       item: MASTER_KEY
       # Default `password` field for items of category Password.
+      field: password
+    # Source the Tuist license from 1Password instead of the blob, so the blob
+    # can be removed. Per-env vault holds the TUIST_LICENSE_KEY item.
+    license:
+      item: TUIST_LICENSE_KEY
       field: password
 
   # ESO-synced GitHub App + bot PATs. The PEM file attachment name
@@ -100,6 +111,13 @@ server:
   # client_id / client_secret) from its tuist-k8s-<env> vault.
   google:
     managedSecrets: true
+
+  # Mailing identity (not secret — shared across managed envs). The Mailgun API
+  # key itself is the only mail secret and stays in the per-env MAILGUN 1P item.
+  mailing:
+    domain: mail.tuist.dev
+    fromAddress: noreply@tuist.dev
+    replyToAddress: contact@tuist.dev
 
   database:
     ssl: true
