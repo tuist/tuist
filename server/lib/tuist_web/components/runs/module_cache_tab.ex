@@ -245,6 +245,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
         </span>
         <span data-part="subhash-value">
           {@target.destinations
+          |> Enum.sort()
           |> Enum.map(&Xcode.humanize_xcode_target_destination/1)
           |> Enum.join(", ")}
         </span>
@@ -503,7 +504,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
       project_settings_hash: target.project_settings_hash,
       target_settings_hash: target.target_settings_hash,
       buildable_folders_hash: target.buildable_folders_hash,
-      destinations: target.destinations,
+      destinations: Enum.sort(target.destinations || []),
       additional_strings: target.additional_strings
     }
     |> Enum.reject(fn {_k, v} -> empty_value?(v) end)
