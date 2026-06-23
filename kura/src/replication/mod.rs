@@ -402,7 +402,7 @@ async fn bootstrap_artifact_from_peer(
         .get(&url)
         .send()
         .await
-        .map_err(|error| format!("bootstrap artifact request failed: {error}"))?;
+        .map_err(|error| format!("bootstrap artifact request failed: {error:?}"))?;
     if response.status() == reqwest::StatusCode::NOT_FOUND {
         return Ok(ArtifactApplyOutcome::IgnoredStale);
     }
@@ -494,7 +494,7 @@ async fn stream_response_to_temp(
         let mut total: u64 = 0;
         while let Some(chunk) = stream.next().await {
             let chunk =
-                chunk.map_err(|error| format!("failed to stream bootstrap body: {error}"))?;
+                chunk.map_err(|error| format!("failed to stream bootstrap body: {error:?}"))?;
             total = total.saturating_add(chunk.len() as u64);
             if total > staging_limit {
                 return Err(format!(
@@ -829,7 +829,7 @@ async fn replicate_message(state: &SharedState, message: &OutboxMessage) -> Resu
                     .body(body)
                     .send()
                     .await
-                    .map_err(|error| format!("artifact replication request failed: {error}"))?;
+                    .map_err(|error| format!("artifact replication request failed: {error:?}"))?;
                 response_span.record("http.response.status_code", response.status().as_u16());
                 if response.status().is_server_error() {
                     response_span.record("otel.status_code", "ERROR");
