@@ -184,6 +184,10 @@ defmodule Tuist.Environment do
       truthy?(System.get_env("TUIST_HOSTED", "0"))
   end
 
+  def test_user_login_enabled? do
+    dev?() or truthy?(System.get_env("TUIST_TEST_USER_LOGIN_ENABLED", "0"))
+  end
+
   def dev_all_locales?, do: @dev_all_locales
 
   def dev_single_locale?, do: dev?() and not dev_all_locales?()
@@ -286,8 +290,8 @@ defmodule Tuist.Environment do
     end
   end
 
-  def kura_endpoints(secrets \\ secrets()) do
-    case get([:kura, :endpoints], secrets) do
+  def kura_endpoints(secrets \\ secrets(), env_value \\ System.get_env("TUIST_KURA_ENDPOINTS")) do
+    case endpoint_env_value(env_value) || get([:kura, :endpoints], secrets) do
       endpoints when is_binary(endpoints) ->
         split_endpoints(endpoints)
 
@@ -1348,6 +1352,15 @@ defmodule Tuist.Environment do
     |> Enum.map(&String.trim/1)
     |> Enum.reject(&(&1 == ""))
   end
+
+  defp endpoint_env_value(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      value -> value
+    end
+  end
+
+  defp endpoint_env_value(_), do: nil
 
   def secrets do
     Application.get_env(:tuist, :secrets) || %{}

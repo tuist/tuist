@@ -1,0 +1,177 @@
+#!/usr/bin/env bash
+#MISE description="Seed preview content and wire an account to the preview's KuraInstance. Called by preview-up.sh (local kind) and the preview-deploy workflow (managed cluster). Idempotent."
+#USAGE flag "--namespace <ns>" help="Kubernetes namespace where the preview server runs" default="default"
+
+# Environment-driven inputs (so the same script works for both kind and the
+# preview-deploy workflow):
+#
+#   PREVIEW_ACCOUNT_HANDLE  Account handle to create (matches the
+#                           KuraInstance's tenantID so the Lua hook's
+#                           strict tenant check passes). Default: preview.
+#   KURA_ENDPOINT_URL       Internal URL clients use to reach the preview's
+#                           Kura runtime. Stored on the account's
+#                           kura_servers row.
+#   RELEASE_NAME            Helm release name; used to find the server pod.
+#   PREVIEW_USER_PASSWORD   Password the seeded user gets. Default:
+#                           preview-temp-password.
+#   PREVIEW_SEED_CONTENT    When truthy, run server/priv/repo/seeds.exs
+#                           before wiring the Kura endpoint. Default: 0.
+#
+# Required tools: kubectl. The script execs into the server pod, so
+# kubectl needs cluster access; nothing leaves the cluster.
+
+set -euo pipefail
+
+NAMESPACE="${usage_namespace:-default}"
+PREVIEW_ACCOUNT_HANDLE="${PREVIEW_ACCOUNT_HANDLE:-preview}"
+PREVIEW_USER_EMAIL="${PREVIEW_USER_EMAIL:-${PREVIEW_ACCOUNT_HANDLE}@preview.tuist.dev}"
+PREVIEW_USER_PASSWORD="${PREVIEW_USER_PASSWORD:-preview-temp-password}"
+PREVIEW_SEED_CONTENT="${PREVIEW_SEED_CONTENT:-0}"
+SEED_BUILD_RUNS="${SEED_BUILD_RUNS:-200}"
+SEED_TEST_RUNS="${SEED_TEST_RUNS:-150}"
+SEED_COMMAND_EVENTS="${SEED_COMMAND_EVENTS:-800}"
+SEED_PREVIEWS="${SEED_PREVIEWS:-10}"
+SEED_BUNDLES="${SEED_BUNDLES:-8}"
+SEED_CAS_OPS_PER_BUILD="${SEED_CAS_OPS_PER_BUILD:-5}"
+SEED_FILES_PER_BUILD="${SEED_FILES_PER_BUILD:-10}"
+SEED_TARGETS_PER_BUILD="${SEED_TARGETS_PER_BUILD:-10}"
+SEED_XCODE_GRAPHS="${SEED_XCODE_GRAPHS:-10}"
+SEED_MODULES_PER_TEST="${SEED_MODULES_PER_TEST:-2}"
+SEED_SUITES_PER_MODULE="${SEED_SUITES_PER_MODULE:-2}"
+SEED_CASES_PER_SUITE="${SEED_CASES_PER_SUITE:-4}"
+SEED_CH_BATCH_SIZE="${SEED_CH_BATCH_SIZE:-5000}"
+KURA_ENDPOINT_URL="${KURA_ENDPOINT_URL:?KURA_ENDPOINT_URL must be set}"
+RELEASE_NAME="${RELEASE_NAME:?RELEASE_NAME must be set}"
+
+SERVER_POD_LABEL="app.kubernetes.io/instance=${RELEASE_NAME},app.kubernetes.io/component=server"
+
+echo "==> Locating server pod (ns=${NAMESPACE}, release=${RELEASE_NAME})..."
+SERVER_POD="$(kubectl -n "$NAMESPACE" get pod -l "$SERVER_POD_LABEL" \
+  -o jsonpath='{.items[0].metadata.name}')"
+if [ -z "$SERVER_POD" ]; then
+  echo "ERROR: no server pod found matching label '$SERVER_POD_LABEL'" >&2
+  exit 1
+fi
+echo "    Found $SERVER_POD"
+
+# Run a small Elixir script inside the release. Idempotent — every step
+# checks for existing state first. Two non-obvious wiring choices:
+#   1. `kubectl exec` lacks a `--env` flag (that's a `kubectl run`/`debug`
+#      thing), so we prepend `env VAR=val ...` to set them for the
+#      `tuist eval` process.
+#   2. `tuist eval` (a Mix release script) takes the Elixir expression as
+#      its argv, not from stdin — `tuist eval -` literally evaluates the
+#      string `-` and dies with "expression is incomplete on nofile:1:1".
+#      We hold the script in a shell variable and pass it as a single
+#      argument; kubectl forwards argv to the container verbatim, no
+#      remote shell, no quoting in between.
+SEED_SCRIPT=$(cat <<'EOF'
+require Logger
+alias Tuist.Accounts
+alias Tuist.Environment
+alias Tuist.Projects
+
+otp_app = :tuist
+Application.load(otp_app)
+
+endpoint_config = Application.get_env(otp_app, TuistWeb.Endpoint, [])
+Application.put_env(otp_app, TuistWeb.Endpoint, Keyword.put(endpoint_config, :server, false))
+
+promex_config = Application.get_env(otp_app, Tuist.PromEx, [])
+Application.put_env(otp_app, Tuist.PromEx, Keyword.put(promex_config, :disabled, true))
+
+{:ok, _} = Application.ensure_all_started(otp_app)
+
+seed_content_requested? = Environment.truthy?(System.get_env("PREVIEW_SEED_CONTENT", "0"))
+
+seed_content_present? =
+  case Projects.get_project_by_slug("tuist/tuist") do
+    {:ok, _} -> true
+    {:error, _} -> false
+  end
+
+if seed_content_requested? and not seed_content_present? do
+  seed_script = Application.app_dir(otp_app, "priv/repo/seeds.exs")
+  Logger.info("preview-seed: running " <> seed_script)
+  Code.eval_file(seed_script)
+end
+
+if seed_content_requested? and seed_content_present? do
+  Logger.info("preview-seed: demo content already present; skipping full seed")
+end
+
+handle = System.get_env("PREVIEW_ACCOUNT_HANDLE")
+email = System.get_env("PREVIEW_USER_EMAIL")
+password = System.get_env("PREVIEW_USER_PASSWORD")
+endpoint_url = System.get_env("PREVIEW_KURA_URL")
+
+account =
+  case Accounts.get_account_by_handle(handle) do
+    nil ->
+      user =
+        case Accounts.get_user_by_email(email) do
+          {:error, :not_found} ->
+            Logger.info("preview-seed: creating user " <> email)
+            {:ok, user} = Accounts.create_user(email, handle: handle, password: password)
+            user
+
+          {:ok, user} ->
+            Logger.info("preview-seed: reusing existing user " <> email)
+            user
+        end
+
+      Accounts.get_account_from_user(user)
+
+    account ->
+      Logger.info("preview-seed: reusing account handle " <> account.name)
+      account
+  end
+
+Logger.info("preview-seed: wiring Kura endpoint for account handle " <> account.name)
+
+case Accounts.get_user_by_email(email) do
+  {:ok, user} ->
+    user
+    |> Tuist.Accounts.User.password_changeset(%{password: password, password_confirmation: password})
+    |> Tuist.Repo.update!()
+
+    Logger.info("preview-seed: refreshed password for " <> email)
+
+  {:error, :not_found} ->
+    :ok
+end
+
+case Accounts.create_account_cache_endpoint(account, %{url: endpoint_url, technology: :kura}) do
+  {:ok, _} -> Logger.info("preview-seed: created kura cache endpoint " <> endpoint_url)
+  {:error, _} -> Logger.info("preview-seed: kura cache endpoint already present")
+end
+
+FunWithFlags.enable(:kura_cache, for_actor: account)
+Logger.info("preview-seed: kura_cache feature flag enabled for " <> account.name)
+System.halt(0)
+EOF
+)
+
+echo "==> Seeding preview account '${PREVIEW_ACCOUNT_HANDLE}' + Kura endpoint..."
+kubectl -n "$NAMESPACE" exec "$SERVER_POD" -c server \
+  -- env \
+       "PREVIEW_ACCOUNT_HANDLE=$PREVIEW_ACCOUNT_HANDLE" \
+       "PREVIEW_USER_EMAIL=$PREVIEW_USER_EMAIL" \
+       "PREVIEW_USER_PASSWORD=$PREVIEW_USER_PASSWORD" \
+       "PREVIEW_SEED_CONTENT=$PREVIEW_SEED_CONTENT" \
+       "SEED_BUILD_RUNS=$SEED_BUILD_RUNS" \
+       "SEED_TEST_RUNS=$SEED_TEST_RUNS" \
+       "SEED_COMMAND_EVENTS=$SEED_COMMAND_EVENTS" \
+       "SEED_PREVIEWS=$SEED_PREVIEWS" \
+       "SEED_BUNDLES=$SEED_BUNDLES" \
+       "SEED_CAS_OPS_PER_BUILD=$SEED_CAS_OPS_PER_BUILD" \
+       "SEED_FILES_PER_BUILD=$SEED_FILES_PER_BUILD" \
+       "SEED_TARGETS_PER_BUILD=$SEED_TARGETS_PER_BUILD" \
+       "SEED_XCODE_GRAPHS=$SEED_XCODE_GRAPHS" \
+       "SEED_MODULES_PER_TEST=$SEED_MODULES_PER_TEST" \
+       "SEED_SUITES_PER_MODULE=$SEED_SUITES_PER_MODULE" \
+       "SEED_CASES_PER_SUITE=$SEED_CASES_PER_SUITE" \
+       "SEED_CH_BATCH_SIZE=$SEED_CH_BATCH_SIZE" \
+       "PREVIEW_KURA_URL=$KURA_ENDPOINT_URL" \
+       /app/bin/tuist eval "$SEED_SCRIPT"
+echo "    Seeded account=${PREVIEW_ACCOUNT_HANDLE} endpoint=${KURA_ENDPOINT_URL}"

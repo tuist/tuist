@@ -303,6 +303,23 @@ defmodule Tuist.EnvironmentTest do
   end
 
   describe "kura_endpoints/1" do
+    test "returns trimmed Kura endpoints from the environment value" do
+      assert Environment.kura_endpoints(%{}, " https://kura-1.example.com,https://kura-2.example.com , ") == [
+               "https://kura-1.example.com",
+               "https://kura-2.example.com"
+             ]
+    end
+
+    test "falls back to secrets when the environment value is blank" do
+      secrets = %{
+        "kura" => %{
+          "endpoints" => "https://kura-from-secrets.example.com"
+        }
+      }
+
+      assert Environment.kura_endpoints(secrets, "") == ["https://kura-from-secrets.example.com"]
+    end
+
     test "returns trimmed Kura endpoints from secrets" do
       secrets = %{
         "kura" => %{

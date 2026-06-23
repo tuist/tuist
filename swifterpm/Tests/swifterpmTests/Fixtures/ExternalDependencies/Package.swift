@@ -26,9 +26,9 @@ let package = Package(
     name: "ExternalDependencies",
     dependencies: [
         // Github (modmed)
-        
+
         // ....
-        
+
         // Github (modmed-public)
         .package(url: "git@github.com:modmed-public/CLTokenInputView.git", revision: "0092aaa65a6a766fd456613efb2c0f13eb01113c"),
         .package(url: "git@github.com:modmed-public/TPKeyboardAvoiding.git", revision: "1f44bf6f72ae14453187c91708390a92b15d388b"),

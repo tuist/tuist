@@ -12,20 +12,24 @@ type KuraInstanceSpec struct {
 	Image         string `json:"image"`
 	Replicas      *int32 `json:"replicas,omitempty"`
 	PublicHost    string `json:"publicHost,omitempty"`
-	// Deprecated: the value is ignored — gRPC co-hosts on PublicHost (see
-	// reconcileGRPCIngress), so this is a redundant "gRPC enabled" flag the
-	// provisioner always sets equal to PublicHost. Retained for backward
-	// compatibility; slated for removal in favor of gating gRPC on PublicHost.
+	// Deprecated: the value is ignored. gRPC co-hosts on PublicHost (see
+	// reconcileGRPCIngress), and PublicHost alone enables the gRPC Ingress.
+	// Retained for backward compatibility.
 	// See https://github.com/tuist/tuist/issues/11390.
-	GRPCPublicHost    string              `json:"grpcPublicHost,omitempty"`
-	IngressClassName  string              `json:"ingressClassName,omitempty"`
-	PeerTLSSecretName string              `json:"peerTLSSecretName,omitempty"`
-	StorageClassName  string              `json:"storageClassName,omitempty"`
-	StorageSize       string              `json:"storageSize,omitempty"`
-	NodeSelector      map[string]string   `json:"nodeSelector,omitempty"`
-	Tolerations       []corev1.Toleration `json:"tolerations,omitempty"`
-	ExtraEnv          []corev1.EnvVar     `json:"extraEnv,omitempty"`
-	ExtensionScript   string              `json:"extensionScript,omitempty"`
+	GRPCPublicHost    string            `json:"grpcPublicHost,omitempty"`
+	IngressClassName  string            `json:"ingressClassName,omitempty"`
+	PeerTLSSecretName string            `json:"peerTLSSecretName,omitempty"`
+	StorageClassName  string            `json:"storageClassName,omitempty"`
+	StorageSize       string            `json:"storageSize,omitempty"`
+	NodeSelector      map[string]string `json:"nodeSelector,omitempty"`
+	// Tolerations let the runtime pod schedule onto tainted nodes. Preview
+	// environments use this to colocate Kura on the generic preview pool
+	// (which carries role=preview:NoSchedule) instead of pinning to a
+	// dedicated Kura node pool, so the preview lifecycle does not depend on
+	// Kura-specific capacity.
+	Tolerations     []corev1.Toleration `json:"tolerations,omitempty"`
+	ExtraEnv        []corev1.EnvVar     `json:"extraEnv,omitempty"`
+	ExtensionScript string              `json:"extensionScript,omitempty"`
 
 	// Private marks a region with no public endpoint, reachable only
 	// over the cluster's internal Service DNS (today: the runner-cache

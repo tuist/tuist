@@ -161,6 +161,15 @@ server:
       fields:
         clientId: KURA_CONTROL_PLANE_CLIENT_ID
         clientSecret: KURA_CONTROL_PLANE_CLIENT_SECRET
+  # Kura introspection credentials sourced from an out-of-band Secret in
+  # this release's namespace named `kura-shared-secrets`. Set to true when
+  # the kuraController runs in a different release (preview environments
+  # install the controller once at platform level into the `kura`
+  # namespace; the deploy workflow copies that Secret into the preview
+  # namespace before installing this chart). Managed environments install
+  # server + kuraController from one release and leave this off.
+  kuraIntrospection:
+    useSharedSecret: false
   # GitHub App + bot PAT secrets. When `github.managedSecrets: true`, ESO
   # syncs them from 1Password into a dedicated Secret and the Server +
   # Processor Deployments mount the keys as TUIST_GITHUB_APP_* /

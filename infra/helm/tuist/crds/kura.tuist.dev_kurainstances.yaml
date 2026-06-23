@@ -27,7 +27,7 @@ spec:
           jsonPath: .spec.publicHost
         - name: gRPC
           type: string
-          jsonPath: .spec.grpcPublicHost
+          jsonPath: .status.grpcPublicURL
         - name: Ready
           type: integer
           jsonPath: .status.readyReplicas
@@ -79,9 +79,8 @@ spec:
                 publicHost:
                   type: string
                   maxLength: 253
-                # Deprecated: ignored — gRPC co-hosts on publicHost. Retained
-                # for backward compatibility; the provisioner always sets it
-                # equal to publicHost. See tuist/tuist#11390.
+                # Deprecated: ignored. gRPC co-hosts on publicHost.
+                # Retained for backward compatibility. See tuist/tuist#11390.
                 grpcPublicHost:
                   type: string
                   maxLength: 253

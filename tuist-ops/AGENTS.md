@@ -37,6 +37,19 @@ Pomerium).
   the shared `slack_controller.ex` (`pa_approve`/`pa_deny` actions).
 - Audit + deployment runbook: `infra/k8s/operator-project-access-audit.md`.
 
+**Previews (Slack-requested staging sandboxes)** (current):
+- `lib/tuist_ops/previews.ex` — request lifecycle API
+- `lib/tuist_ops/previews/` — Ecto schema, Slack Block Kit,
+  and GitHub Actions workflow-dispatch client
+- `/preview` with no arguments opens an interactive Slack form for creating or
+  deleting previews
+- `/preview create <slug> [duration] [pr:<number>|sha:<sha>] <reason>` dispatches
+  `.github/workflows/preview-deploy.yml` with `action=deploy`
+- `/preview delete <slug> [reason]` and the Slack Delete button dispatch the same
+  workflow with `action=delete`
+- The app records the Slack/audit trail in Postgres; Kubernetes mutation stays
+  in GitHub Actions so tuist-ops does not carry workload-cluster credentials.
+
 **Planned migrations from `server/`** (not yet moved, structure ready to receive):
 - `/ops/db` LiveView (read-only Postgres inspection) — will land as
   `lib/tuist_ops_web/live/database_live.ex` plus any business-logic

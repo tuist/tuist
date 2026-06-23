@@ -71,6 +71,15 @@ echo "Migrations completed successfully."
 export SEED_BUILD_RUNS=200
 export SEED_TEST_RUNS=150
 export SEED_COMMAND_EVENTS=800
+export SEED_PREVIEWS=10
+export SEED_BUNDLES=8
+export SEED_CAS_OPS_PER_BUILD=5
+export SEED_FILES_PER_BUILD=10
+export SEED_TARGETS_PER_BUILD=10
+export SEED_XCODE_GRAPHS=10
+export SEED_MODULES_PER_TEST=2
+export SEED_SUITES_PER_MODULE=2
+export SEED_CASES_PER_SUITE=4
 export SEED_CH_BATCH_SIZE=5000
 
 echo "Seeding the database..."
@@ -84,6 +93,7 @@ echo "Seeding completed successfully."
 # Show the marketing page instead of redirecting to dashboard.
 # Set after migrations so that migration guards for hosted-only logic are unaffected.
 export TUIST_HOSTED=1
+export TUIST_TEST_USER_LOGIN_ENABLED=1
 
 echo "Starting the server..."
 TUIST_WEB=true exec ./tuist start

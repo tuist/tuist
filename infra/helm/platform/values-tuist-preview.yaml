@@ -1,0 +1,51 @@
+ingressCertificate:
+  enabled: true
+  secretName: preview-tuist-dev-wildcard-tls
+  dnsNames:
+    - "*.preview.tuist.dev"
+
+# Every non-control-plane worker on the preview cluster carries the
+# `role=preview:NoSchedule` taint so only ephemeral preview releases
+# schedule there. Platform components need to live alongside them
+# (one worker pool, by design), so every subchart's pods + admission
+# Jobs explicitly tolerate the preview taint. Without this the preview
+# deploy workflow has to untaint workers around `helm upgrade` for the
+# platform chart's pods + admission hooks to land — a workaround that
+# opens the cluster up to any non-preview workload during the window
+# and risks platform pods getting stuck once the taint comes back.
+cert-manager:
+  tolerations: &previewTolerations
+    - key: role
+      operator: Equal
+      value: preview
+      effect: NoSchedule
+  webhook:
+    tolerations: *previewTolerations
+  cainjector:
+    tolerations: *previewTolerations
+  startupapicheck:
+    tolerations: *previewTolerations
+
+ingress-nginx:
+  controller:
+    extraArgs:
+      default-ssl-certificate: platform/preview-tuist-dev-wildcard-tls
+    tolerations: *previewTolerations
+    admissionWebhooks:
+      patch:
+        tolerations: *previewTolerations
+  defaultBackend:
+    tolerations: *previewTolerations
+
+external-dns:
+  tolerations: *previewTolerations
+
+external-secrets:
+  tolerations: *previewTolerations
+  webhook:
+    tolerations: *previewTolerations
+  certController:
+    tolerations: *previewTolerations
+
+metrics-server:
+  tolerations: *previewTolerations

@@ -14,6 +14,7 @@ defmodule TuistOps.JIT.SlackClient do
   @chat_post_message_url "https://slack.com/api/chat.postMessage"
   @chat_update_url "https://slack.com/api/chat.update"
   @chat_post_ephemeral_url "https://slack.com/api/chat.postEphemeral"
+  @views_open_url "https://slack.com/api/views.open"
   @users_info_url "https://slack.com/api/users.info"
 
   @doc """
@@ -100,6 +101,20 @@ defmodule TuistOps.JIT.SlackClient do
     }
 
     @chat_post_ephemeral_url
+    |> Req.post(headers: headers(), body: JSON.encode!(body))
+    |> handle_post(:ok)
+  end
+
+  @doc """
+  Opens a modal from a Slack interaction trigger.
+  """
+  def open_view(trigger_id, view) when is_binary(trigger_id) and is_map(view) do
+    body = %{
+      trigger_id: trigger_id,
+      view: view
+    }
+
+    @views_open_url
     |> Req.post(headers: headers(), body: JSON.encode!(body))
     |> handle_post(:ok)
   end
