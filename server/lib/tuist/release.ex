@@ -162,7 +162,7 @@ defmodule Tuist.Release do
         "REVOKE CREATE ON SCHEMA public FROM #{role}",
         "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO #{role}",
         "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO #{role}",
-        "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO #{role}",
+        grant_execute_on_owned_functions(role),
         "REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.schema_migrations FROM #{role}",
         "GRANT SELECT ON TABLE public.schema_migrations TO #{role}",
         "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO #{role}",
@@ -171,6 +171,38 @@ defmodule Tuist.Release do
       ],
       &SQL.query!(repo, &1, [])
     )
+  end
+
+  # `GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public` requires the
+  # migration role to own every function in the schema, and aborts the
+  # whole statement otherwise. The CNPG PgBouncer pooler installs a
+  # superuser-owned `user_search` auth function into public, so the
+  # blanket grant fails with `permission denied for function user_search`.
+  # Grant only on functions the migration role owns — the runtime role
+  # never calls operator-owned functions, and `ALTER DEFAULT PRIVILEGES`
+  # above already covers functions the role creates from here on.
+  defp grant_execute_on_owned_functions(role) do
+    """
+    DO $tuist_grant$
+    DECLARE
+      function_signature text;
+    BEGIN
+      FOR function_signature IN
+        SELECT format(
+          '%I.%I(%s)', n.nspname, p.proname,
+          pg_catalog.pg_get_function_identity_arguments(p.oid)
+        )
+        FROM pg_catalog.pg_proc p
+        JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'public'
+          AND p.prokind <> 'p'
+          AND p.proowner = current_user::regrole
+      LOOP
+        EXECUTE 'GRANT EXECUTE ON FUNCTION ' || function_signature || ' TO #{role}';
+      END LOOP;
+    END
+    $tuist_grant$;
+    """
   end
 
   defp quote_identifier(identifier) do
