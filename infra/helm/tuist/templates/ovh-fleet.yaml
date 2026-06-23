@@ -8,12 +8,12 @@ Dedibox and Elastic Metal kinds it self-joins via the reconciler's SSH bootstrap
 (noop-bootstrap; this cluster's control plane is externally managed, so CABPK has
 no CA to mint a kubeadm join).
 
-Scripted install (same as Dedibox): the operator only pre-orders the box. The
-reconciler claims a free box by `datacenter` + `offer` (an optional
-`adoptDisplayNamePrefix` reverse-DNS marker narrows further), registers the fleet
-SSH key, drives the OVH OS install to completion, and self-joins it. The
-reconciler authenticates with the OVH API (OVH_* env, wired from
-ovh-external-secrets.yaml).
+Scripted install (same as Dedibox): the operator pre-orders the box and sets its
+displayName to `adoptDisplayNamePrefix`. The reconciler claims a free box by
+`datacenter` + `offer` scoped to that displayName — the env boundary, since one
+OVH account holds every env's boxes — registers the fleet SSH key, drives the OVH
+OS install to completion, and self-joins it. The reconciler authenticates with
+the OVH API (OVH_* env, wired from ovh-external-secrets.yaml).
 
 OnDelete strategy: don't auto-churn the cache node.
 */ -}}
@@ -29,9 +29,7 @@ metadata:
 spec:
   template:
     spec:
-      {{- with .Values.ovhFleet.machine.adoptDisplayNamePrefix }}
-      adoptDisplayNamePrefix: {{ . | quote }}
-      {{- end }}
+      adoptDisplayNamePrefix: {{ required "ovhFleet.machine.adoptDisplayNamePrefix is required: it is the per-env adoption boundary" .Values.ovhFleet.machine.adoptDisplayNamePrefix | quote }}
       datacenter: {{ .Values.ovhFleet.machine.datacenter | default "" | quote }}
       offer: {{ .Values.ovhFleet.machine.offer | default "" | quote }}
       os: {{ .Values.ovhFleet.machine.os | default "ubuntu_24.04" | quote }}

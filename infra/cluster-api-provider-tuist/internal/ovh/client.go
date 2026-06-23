@@ -1,15 +1,17 @@
 // Package ovh is the OVHcloud dedicated-server client the OVHDedicatedMachine
 // reconciler talks to. It wraps the official go-ovh REST client with the small
-// slice of the /dedicated/server API the machine lifecycle needs: list + adopt
-// a pre-ordered server, register the bootstrap SSH key, kick off the OS
-// install and poll it, and read the public IP for the SSH self-join.
+// slice of the /dedicated/server (+ /services for the adoption display name)
+// API the machine lifecycle needs: list + adopt a pre-ordered server, register
+// the bootstrap SSH key, kick off the OS install and poll it, and read the
+// public IP for the SSH self-join.
 //
 // Two deliberate differences from the Scaleway bare-metal client:
 //
 //   - No inline order. OVH ordering is a multi-step cart/checkout/payment flow,
 //     so the operator pre-orders capacity and the controller adopts a free box
-//     by datacenter + offer (an optional reverse-DNS prefix narrows further),
-//     then drives its OS install — not the Elastic Metal find-or-create.
+//     by datacenter + offer, scoped to its env by the box's displayName marker
+//     (one OVH account holds every env's boxes), then drives its OS install —
+//     not the Elastic Metal find-or-create.
 //   - No delete. An OVH dedicated server is a monthly contract, not an
 //     on-demand box; tearing the CR down must not terminate the contract (that
 //     is an operator-driven, end-of-life action). Release therefore lives in
@@ -76,8 +78,23 @@ type Server struct {
 	// CommercialRange is the offer family (e.g. "Advance-3-2024"); adoption can
 	// filter on it so a fleet only claims boxes of the intended shape.
 	CommercialRange string `json:"commercialRange"`
-	// Reverse is the editable rDNS, used as the adoption display-name signal.
-	Reverse string `json:"reverse"`
+}
+
+// serviceInfos is the subset of /dedicated/server/{name}/serviceInfos the client
+// reads: the numeric service id, the key the /services API is addressed by.
+type serviceInfos struct {
+	ServiceID int64 `json:"serviceId"`
+}
+
+// service is the subset of /services/{serviceId} the client reads: the
+// operator-set friendly display name OVH keeps on the service layer
+// (resource.displayName).
+type service struct {
+	Resource serviceResource `json:"resource"`
+}
+
+type serviceResource struct {
+	DisplayName string `json:"displayName"`
 }
 
 // AdoptParams scopes which pre-ordered servers a fleet may claim.
@@ -88,8 +105,11 @@ type AdoptParams struct {
 	// Offer, when set, restricts adoption to servers whose CommercialRange
 	// contains it (case-insensitive token match, e.g. "advance-3").
 	Offer string
-	// DisplayNamePrefix the server's reverse must start with to be considered
-	// part of this fleet's pre-ordered pool.
+	// DisplayNamePrefix the server's operator-set displayName must start with to
+	// be considered part of this fleet's pre-ordered pool. It is the environment
+	// boundary: one OVH account holds every env's boxes, so this marker — not
+	// datacenter+offer, which repeat across envs — keeps a staging fleet from
+	// adopting a prod box.
 	DisplayNamePrefix string
 }
 
@@ -109,6 +129,24 @@ func (c *Client) GetServer(ctx context.Context, serviceName string) (*Server, er
 		return nil, fmt.Errorf("get dedicated server %s: %w", serviceName, err)
 	}
 	return server, nil
+}
+
+// ServerDisplayName reads the operator-set friendly display name for a server,
+// the marker FindAdoptableServer scopes a fleet by. OVH keeps the display name
+// on the service layer, not the dedicated-server resource, so this resolves the
+// service id from the server's serviceInfos and then reads the service:
+// /dedicated/server/{name}/serviceInfos -> serviceId -> /services/{id} ->
+// resource.displayName. Empty when the operator hasn't set one.
+func (c *Client) ServerDisplayName(ctx context.Context, serviceName string) (string, error) {
+	var info serviceInfos
+	if err := c.API.GetWithContext(ctx, "/dedicated/server/"+serviceName+"/serviceInfos", &info); err != nil {
+		return "", fmt.Errorf("get serviceInfos for %s: %w", serviceName, err)
+	}
+	var svc service
+	if err := c.API.GetWithContext(ctx, fmt.Sprintf("/services/%d", info.ServiceID), &svc); err != nil {
+		return "", fmt.Errorf("get service %d for %s: %w", info.ServiceID, serviceName, err)
+	}
+	return svc.Resource.DisplayName, nil
 }
 
 // FindAdoptableServer scans the account for a pre-ordered server matching the
@@ -138,11 +176,22 @@ func (c *Client) FindAdoptableServer(ctx context.Context, p AdoptParams, claimed
 		if p.Datacenter != "" && !strings.HasPrefix(strings.ToLower(server.Datacenter), strings.ToLower(p.Datacenter)) {
 			continue
 		}
-		if p.DisplayNamePrefix != "" && !strings.HasPrefix(server.Reverse, p.DisplayNamePrefix) {
-			continue
-		}
 		if offer != "" && !strings.Contains(strings.ToLower(server.CommercialRange), offer) {
 			continue
+		}
+		// Display-name marker last: it costs two extra calls (serviceInfos +
+		// services), so only resolve it for boxes that already pass the cheap
+		// shape filters. This marker is the env boundary — one OVH account holds
+		// every env's boxes, so datacenter+offer alone can't keep a staging fleet
+		// off a prod box.
+		if p.DisplayNamePrefix != "" {
+			displayName, dnErr := c.ServerDisplayName(ctx, name)
+			if dnErr != nil {
+				return nil, dnErr
+			}
+			if !strings.HasPrefix(displayName, p.DisplayNamePrefix) {
+				continue
+			}
 		}
 		return server, nil
 	}

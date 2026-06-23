@@ -73,10 +73,12 @@ spec:
               properties:
                 adoptDisplayNamePrefix:
                   description: |-
-                    AdoptDisplayNamePrefix is the OVH-side display-name prefix the controller
-                    scans to claim a pre-ordered, not-yet-installed server for this Machine
-                    (mirrors the Apple Silicon kind's adoptPoolPrefix). Required: without it
-                    the controller has no pool to adopt from and OVH has no inline-order path.
+                    AdoptDisplayNamePrefix is the prefix a pre-ordered server's operator-set
+                    displayName must start with for the controller to claim it for this fleet.
+                    It is the ENVIRONMENT BOUNDARY: one OVH account holds every env's boxes and
+                    datacenter+offer repeat across envs, so this marker — set by the operator on
+                    each box at prep time — is what keeps a staging fleet from adopting a prod
+                    box (the OVH analog of the Dedibox tag). Set by the MachineTemplate.
                   type: string
                 datacenter:
                   default: vin
@@ -149,8 +151,9 @@ spec:
                 os:
                   default: ubuntu_24.04
                   description: |-
-                    OS is the OVH install template label, resolved to a concrete template at
-                    install time (e.g. `ubuntu_24.04` → "Ubuntu 24.04 Server").
+                    OS is the OVH install template label the controller installs on the box
+                    after adoption (e.g. `ubuntu_24.04`), resolved to a concrete template at
+                    install time.
                   type: string
                 providerID:
                   description: |-
@@ -166,6 +169,8 @@ spec:
                     intra-region mesh. Unused at Qty-1 (a single public box needs no private
                     fabric); wired in the multi-box HA follow-up alongside the failover IP.
                   type: string
+              required:
+                - adoptDisplayNamePrefix
               type: object
             status:
               description: OVHDedicatedMachineStatus is the observed state of the Machine.

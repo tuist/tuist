@@ -41,19 +41,19 @@ type OVHDedicatedMachineSpec struct {
 	// +optional
 	Offer string `json:"offer,omitempty"`
 
-	// OS is informational in the out-of-band install model: the operator installs
-	// this image on the box before adoption (the controller never drives the OVH
-	// install API). Retained to document the fleet's expected OS.
+	// OS is the OVH install template label the controller installs on the box
+	// after adoption (e.g. `ubuntu_24.04`), resolved to a concrete template at
+	// install time.
 	// +kubebuilder:default=ubuntu_24.04
 	OS string `json:"os,omitempty"`
 
-	// AdoptDisplayNamePrefix optionally narrows adoption to servers whose reverse
-	// DNS starts with this prefix. Leave it empty to adopt purely by datacenter +
-	// offer, so the operator only pre-orders capacity and never touches reverse
-	// DNS; set it when one account holds unrelated boxes of the same shape in the
-	// same region that this fleet must not claim.
-	// +optional
-	AdoptDisplayNamePrefix string `json:"adoptDisplayNamePrefix,omitempty"`
+	// AdoptDisplayNamePrefix is the prefix a pre-ordered server's operator-set
+	// displayName must start with for the controller to claim it for this fleet.
+	// It is the ENVIRONMENT BOUNDARY: one OVH account holds every env's boxes and
+	// datacenter+offer repeat across envs, so this marker — set by the operator on
+	// each box at prep time — is what keeps a staging fleet from adopting a prod
+	// box (the OVH analog of the Dedibox tag). Set by the MachineTemplate.
+	AdoptDisplayNamePrefix string `json:"adoptDisplayNamePrefix"`
 
 	// FleetName groups Machines that share one SSH key, like the Apple Silicon
 	// kind. Set by the MachineTemplate so every Machine the MachineDeployment

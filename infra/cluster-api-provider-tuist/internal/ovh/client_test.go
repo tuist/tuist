@@ -55,11 +55,19 @@ func TestProviderID(t *testing.T) {
 
 func TestFindAdoptableServer(t *testing.T) {
 	api := &fakeAPI{get: map[string]any{
-		"/dedicated/server":                []string{"claimed.eu", "wrong-dc.eu", "wrong-offer.eu", "free.eu"},
-		"/dedicated/server/claimed.eu":     Server{Name: "claimed.eu", Datacenter: "vin", CommercialRange: "Advance-3-2024", Reverse: "kura-us-east-1"},
-		"/dedicated/server/wrong-dc.eu":    Server{Name: "wrong-dc.eu", Datacenter: "hil", CommercialRange: "Advance-3-2024", Reverse: "kura-us-east-2"},
-		"/dedicated/server/wrong-offer.eu": Server{Name: "wrong-offer.eu", Datacenter: "vin", CommercialRange: "Rise-1-2024", Reverse: "kura-us-east-3"},
-		"/dedicated/server/free.eu":        Server{Name: "free.eu", Datacenter: "vin", CommercialRange: "Advance-3-2024", Reverse: "kura-us-east-4"},
+		"/dedicated/server":                []string{"claimed.eu", "wrong-dc.eu", "wrong-offer.eu", "wrong-name.eu", "free.eu"},
+		"/dedicated/server/claimed.eu":     Server{Name: "claimed.eu", Datacenter: "vin", CommercialRange: "Advance-3-2024"},
+		"/dedicated/server/wrong-dc.eu":    Server{Name: "wrong-dc.eu", Datacenter: "hil", CommercialRange: "Advance-3-2024"},
+		"/dedicated/server/wrong-offer.eu": Server{Name: "wrong-offer.eu", Datacenter: "vin", CommercialRange: "Rise-1-2024"},
+		"/dedicated/server/wrong-name.eu":  Server{Name: "wrong-name.eu", Datacenter: "vin", CommercialRange: "Advance-3-2024"},
+		"/dedicated/server/free.eu":        Server{Name: "free.eu", Datacenter: "vin", CommercialRange: "Advance-3-2024"},
+		// Display name lives on the service layer (serviceInfos -> services).
+		// wrong-name passes datacenter + offer but belongs to another fleet
+		// (different display-name prefix), so the marker keeps it off this fleet.
+		"/dedicated/server/wrong-name.eu/serviceInfos": serviceInfos{ServiceID: 7},
+		"/services/7":                            service{Resource: serviceResource{DisplayName: "kura-us-west-1"}},
+		"/dedicated/server/free.eu/serviceInfos": serviceInfos{ServiceID: 4},
+		"/services/4":                            service{Resource: serviceResource{DisplayName: "kura-us-east-4"}},
 	}}
 	c := &Client{API: api}
 
@@ -72,14 +80,14 @@ func TestFindAdoptableServer(t *testing.T) {
 		t.Fatalf("FindAdoptableServer: %v", err)
 	}
 	if got == nil || got.Name != "free.eu" {
-		t.Fatalf("FindAdoptableServer = %+v, want free.eu (claimed skipped, datacenter+offer filtered)", got)
+		t.Fatalf("FindAdoptableServer = %+v, want free.eu (claimed/datacenter/offer/display-name filtered)", got)
 	}
 }
 
 func TestFindAdoptableServerExhausted(t *testing.T) {
 	api := &fakeAPI{get: map[string]any{
 		"/dedicated/server":         []string{"only.eu"},
-		"/dedicated/server/only.eu": Server{Name: "only.eu", Datacenter: "vin", CommercialRange: "Advance-3", Reverse: "kura-us-east-1"},
+		"/dedicated/server/only.eu": Server{Name: "only.eu", Datacenter: "vin", CommercialRange: "Advance-3"},
 	}}
 	c := &Client{API: api}
 

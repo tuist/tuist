@@ -326,22 +326,25 @@ dediboxFleet:
       item: DEDIBOX_SCW_API
 
 # OVH fleet (OVHcloud bare-metal validation node). The reconciler adopts a
-# pre-ordered, operator-installed OVH box whose reverse DNS starts with the
-# adopt prefix and self-joins it. Prereq met: the OVH_API 1Password item
-# (read-only /dedicated/server token, ovh-ca entity) exists. Box prep (install
-# Ubuntu, authorize the fleet key, set the reverse-DNS prefix) is operator work.
-# Parked until the BHS box is prepped: an enabled fleet with no adoptable box
-# leaves its MachineDeployment forever Unavailable, hanging helm --wait. Flip to
-# true once the box is installed + reverse-DNS-tagged.
+# pre-ordered OVH box whose displayName starts with adoptDisplayNamePrefix,
+# drives its OS install, and self-joins it. Box prep is just: order a SYS-1 in
+# BHS and set its displayName to the prefix below. Prereq: the OVH_API 1Password
+# item exists (ovh-ca entity, token scoped to GET /dedicated/server/* + GET
+# /services/* — the latter to read the adoption displayName). Parked until the
+# BHS box is prepped; flip to true once it's ordered + displayName-set. (A
+# missing box doesn't hang deploys — helm doesn't wait on the fleet MD and the
+# install is async; the region just can't schedule until a box joins.)
 ovhFleet:
   enabled: false
   # OVH entity the OVH_API token was minted on (the BHS box's account).
   endpoint: ovh-ca
   nodePool: kura-ovh-staging
   machine:
-    # Adopt by offer + datacenter, no reverse-DNS marker: the operator only
-    # pre-orders a SYS-1 in BHS and scales the fleet; the controller claims a
-    # free one, installs the OS, and joins it.
+    # Adopt by offer + datacenter, scoped to the displayName marker (the per-env
+    # boundary — one OVH account holds every env's boxes). The operator orders a
+    # SYS-1 in BHS, sets its displayName to this prefix, and scales the fleet; the
+    # controller claims a free match, installs the OS, and joins it.
+    adoptDisplayNamePrefix: tuist-kura-ovh-staging
     offer: sys-1
     datacenter: bhs
     os: ubuntu_24.04
