@@ -36,6 +36,11 @@ spec:
       # Stable fleet name so every Machine the MachineDeployment clones shares one
       # SSH key — the key the operator authorizes on the pre-ordered pool boxes.
       fleetName: {{ $fleetName | quote }}
+      # Dedicate the node to this region's cache pod; general workloads stay off.
+      nodeTaints:
+        - key: tuist.dev/kura-cache
+          value: "true"
+          effect: NoSchedule
       {{- with .Values.dediboxFleet.machine.egressBudgetMbps }}
       egressBudgetMbps: {{ . }}
       {{- end }}

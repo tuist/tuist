@@ -285,6 +285,11 @@ defmodule Tuist.Kura.Regions do
         gateway: Map.get(spec, :gateway, :hetzner),
         tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
         node_selector: %{@managed_region_node_pool_label => spec.node_pool},
+        # Tolerate the customer-facing cache nodes' taint so the cache pod
+        # still schedules onto the dedicated (Dedibox/OVH) bare-metal node.
+        tolerations: [
+          %{"key" => "tuist.dev/kura-cache", "operator" => "Exists", "effect" => "NoSchedule"}
+        ],
         dedicated_gateway_account_handles: Tuist.Environment.kura_dedicated_gateway_account_handles(),
         # Controller-managed per-account peer mesh: an account's nodes
         # across regions replicate to each other under one per-account CA.

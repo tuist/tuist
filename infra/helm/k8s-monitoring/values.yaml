@@ -258,6 +258,15 @@ k8s-monitoring:
       deploy: true
     node-exporter:
       deploy: true
+      # Setting tolerations overrides the subchart's broad default
+      # (operator: Exists), so re-state it and add the customer-facing
+      # cache-node taint so host metrics keep flowing from those boxes.
+      tolerations:
+        - operator: Exists
+          effect: NoSchedule
+        - key: tuist.dev/kura-cache
+          operator: Exists
+          effect: NoSchedule
 
   # ───── Service integrations ─────
   #
@@ -343,6 +352,13 @@ k8s-monitoring:
     # by the clusterMetrics / hostMetrics / annotationAutodiscovery features.
     alloy-metrics:
       presets: [clustered]
+      controller:
+        # Tolerate the customer-facing cache-node taint so host metrics
+        # keep flowing from the dedicated Dedibox/OVH cache boxes.
+        tolerations:
+          - key: tuist.dev/kura-cache
+            operator: Exists
+            effect: NoSchedule
       # Custom scrape jobs for the macOS fleet's node_exporter (:9100)
       # and tart-kubelet controller-runtime metrics (:8080). Both bind
       # to the tailnet interface on each Mac mini — see
@@ -652,6 +668,11 @@ k8s-monitoring:
           - key: tuist.dev/runner-tier
             operator: Equal
             value: bare-metal
+            effect: NoSchedule
+          # Same reason for the customer-facing cache nodes: keep tailing pod
+          # logs (and node journal) from the dedicated Dedibox/OVH cache boxes.
+          - key: tuist.dev/kura-cache
+            operator: Exists
             effect: NoSchedule
     # Kubernetes Events must come from exactly one replica — otherwise
     # every pod watches the event stream and emits duplicate log lines.
