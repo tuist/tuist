@@ -2,14 +2,14 @@
 title: "SwifterPM: faster Swift package resolution for generated, Bazel, and Buck2 projects"
 category: "product"
 tags: ["product", "swift", "spm", "cli", "bazel", "buck2", "performance"]
-excerpt: "Our users kept telling us that resolving Swift packages was slow and that the resulting directories ate gigabytes of disk, and that pain has only grown as people run several agents across worktrees at once. So we built SwifterPM, a faster resolver and restorer for Swift packages, available today as an opt-in feature for Tuist generated projects and as a rule for Bazel and Buck2. Here is how it works, what it does not solve, and the benchmarks."
+excerpt: "Our users kept telling us that resolving Swift packages was slow and that the resulting directories ate gigabytes of disk, and that pain has only grown as people run several agents across worktrees at once. So we built SwifterPM. It leaves resolution to the Swift Package Manager and makes everything around it faster: fetching the pinned sources, laying them out on disk, and reading their manifests. It is available today as an opt-in feature for Tuist generated projects and as a rule for Bazel and Buck2. Here is how it works, what it does not solve, and the benchmarks."
 author: pepicrft
 og_image_path: /marketing/images/blog/2026/06/08/swifterpm/og.jpg
 ---
 
 For a while now our users have been telling us the same thing, and lately they have been telling us louder. Installing the dependencies of their Swift packages is slow, and the directory where those dependencies get resolved takes an uncomfortable amount of disk space. The itch has been getting worse, not better, and the reason is easy to point at: people are doing far more concurrent work with coding agents, each agent on its own [git worktree](https://git-scm.com/docs/git-worktree), each resolving the same dependencies from scratch. Several copies of the same packages, resolved several times, sitting on disk several times over.
 
-At Tuist we could not let that sit. If there is one thing we are about, it is productivity, and we should not be in the business of letting slow things stay slow. So we did something about it. It is called [**SwifterPM**](https://github.com/tuist/swifterpm), and it is a faster resolver and restorer for Swift packages.
+At Tuist we could not let that sit. If there is one thing we are about, it is productivity, and we should not be in the business of letting slow things stay slow. So we did something about it. It is called [**SwifterPM**](https://github.com/tuist/swifterpm). It leaves the resolution itself to the Swift Package Manager and makes everything around it much faster: getting the pinned sources onto disk, and reading their manifests.
 
 ## Where the time and the disk go
 
@@ -25,17 +25,21 @@ The ecosystem we looked at for reference is JavaScript. Not because it is tidy, 
 
 [pnpm](https://pnpm.io) was one of the first to take this seriously, with a global content-addressable store and cheap project-local links instead of full copies. More recently [aube](https://github.com/endevco/aube) from the creators of [mise](https://mise.jdx.dev) pushed install performance significantly further, and that in turn nudged pnpm and [Bun](https://bun.sh) to do similar rewriting. That is the beauty of it. Someone moves the line of what is possible, and everyone else has to follow.
 
-The question we asked ourselves was simple. Could we reproduce something like that for the Swift Package Manager?
+We wanted that for the Swift Package Manager too.
 
-## What we can speed up, and what we cannot
+## What we leave to SwiftPM, and what we speed up
 
-There are limits to what we can do, though. Unlike NPM, which has a central registry and an API you can hit to get fast answers like "which versions of this package exist", the Swift package ecosystem is decentralized by design. That is a real strength, but it has a cost: traversing the graph is not something we can fundamentally speed up. A registry-first approach would change that, but it is not the world we live in, so we worked within the constraints we have.
+There are limits to what we can do, and the most basic one comes from the ecosystem itself. Unlike NPM, which has a central registry and an API you can hit for fast answers like "which versions of this package exist", the Swift package ecosystem is decentralized by design. That is a real strength, but it has a cost: solving the dependency graph means going out to each source and working out which versions satisfy the constraints, and that is not something we can fundamentally make faster from the outside. A registry-first world would change that, but it is not the world we live in.
 
-That said, there was an easy win sitting in plain sight, one the community has raised several times. If you have a GitHub session, you can hit the GitHub API and use it as the source of truth for the versions available in a repository, instead of cloning the entire repository just to read its tags. Cloning the whole history only to enumerate versions is one of the most expensive parts of resolution, and it is noticeable. So SwifterPM resolves versions through the GitHub API, with a shallow Git fetch kept as a fallback. For packages declared through the Swift registry with `.package(id:)`, it resolves them through registry configuration and downloads checksum-verified archives.
+So we did not touch it. SwifterPM does not reimplement the resolver, it hands resolution straight to the Swift Package Manager: under the hood it runs `swift package resolve`, lets SwiftPM solve the graph and do any source-control-to-registry transformation, and reads the resulting `Package.resolved` back. We sort and normalize the pins so the lockfile comes out identical to what SwiftPM would have written, and nothing downstream can tell the difference. We also get Apple's correctness fixes and new manifest features for free, instead of forking the one part of the system you really do not want to get wrong.
+
+What we do own is everything after the versions are pinned: getting those sources onto disk, and reading their manifests. That is where the time and the disk actually go, so that is where we put the work.
 
 ## A global store, and links instead of copies
 
 The bigger change is how things are laid out on disk. Everything is arranged so that reproducing the dependencies for any project links back to the same content-addressable store, which becomes the single source of truth for all package data. Archives and extracted source trees are stored once under `$XDG_CACHE_HOME/swifterpm` (or `~/.cache/swifterpm`), keyed by package identity, version, and revision.
+
+There is an easy win in how that store gets populated, one the community has raised several times. Once a revision is pinned, you do not need the whole repository to put its sources on disk, you only need that one revision. So instead of cloning the full history of every dependency, SwifterPM downloads a source tarball of the exact pinned revision through the GitHub or GitLab API, with a shallow Git fetch kept as a fallback. Packages declared through the Swift registry with `.package(id:)` come down as checksum-verified archives. Cloning entire histories just to lay down a single revision is one of the most expensive parts of getting a graph onto disk, and skipping it is a large part of where the cold-run speedups below come from.
 
 The directory where the dependencies get reproduced, `.build/checkouts`, is no longer a full copy of the graph. The entries stay as real directories so the paths Xcode and Tuist expect keep resolving inside the worktree, but their contents are symlinks back into that global store. So instead of materializing the entire source tree of every dependency into each worktree, we lay down a thin set of links that point at bytes that already exist once on disk.
 
@@ -50,11 +54,11 @@ Writes are concurrency-safe by construction. Restoration runs in parallel, and c
 
 There is one more piece, on the reconciliation side. To turn a resolved graph into something a build system can use, you have to read each package's `Package.swift` manifest. Apple is [leaning on statically analyzing the manifest](https://forums.swift.org/t/improving-manifest-loading-performance-for-declarative-package-manifests/85994) and falling back to compiling it when analysis is not enough. The trouble is that if you look at the real ecosystem, an enormous number of packages are not meaningfully static. Take the ones everyone depends on, like [SwiftNIO](https://github.com/apple/swift-nio), whose manifest reads environment variables, branches on the platform, and loops over its targets to apply settings. Static analysis cannot help you there.
 
-So instead of trying to avoid compiling the manifest, SwifterPM pays that cost deliberately, at resolution time, and turns each manifest into a JSON representation that it persists locally under `.build/swifterpm/package-info`. Later, when the nodes of the graph are reconciled, the format is already there and is very fast to decode. You pay once, up front, and everything downstream gets cheaper. This shows up in the benchmarks below: even a cold run, where we are doing all of that up-front work, comes out ahead, and every run after that is dramatically faster.
+So instead of trying to avoid compiling the manifest, SwifterPM pays that cost deliberately, while it has the package sources in hand, and turns each manifest into a JSON representation that it persists locally under `.build/swifterpm/package-info`. Later, when Tuist reconciles the nodes of the graph into a generated project, the format is already there and is very fast to decode. You pay once, up front, and the generation step downstream gets cheaper. The benchmarks below deliberately leave this cache turned off so they isolate the resolve-and-restore path, which means this is an additional win on top of the numbers you are about to see, not part of them.
 
 ## The benchmarks
 
-Numbers, since they are the point. These come from the [SwifterPM benchmark script](https://github.com/tuist/swifterpm), three runs each, on macOS 26.4.1 with Apple Swift 6.3.2. Cold resolution wipes both the package-local scratch directories and the global cache before each run. Worktree-warm resolution wipes the package-local scratch but keeps the primed global cache, which is exactly what happens when you switch to another clean worktree, the scenario that hurts most with agents.
+Numbers, since they are the point. These come from the [SwifterPM benchmark script](https://github.com/tuist/swifterpm/blob/main/mise/tasks/benchmark/resolution.sh), three runs each, on macOS 26 with Apple Swift 6.3.2. Both tools run against the same `Package.resolved` with forced resolved versions, so we are comparing the cost of getting those exact pins onto disk and nothing else. SwiftPM is pointed at its own isolated cache so its cold run is not accidentally warmed by caches already on the machine, and the manifest cache is left off on both sides. Cold resolution wipes the package-local scratch directories and each tool's shared cache before each run. Worktree-warm resolution wipes the package-local scratch but keeps the primed shared cache, which is exactly what happens when you switch to another clean worktree, the scenario that hurts most with agents.
 
 | Codebase | Scenario | SwiftPM | SwifterPM | Speedup |
 |:---|:---|---:|---:|---:|
@@ -72,7 +76,7 @@ We have been rolling this out as an opt-in feature, because we would rather vali
 If you use Tuist generated projects, set `TUIST_USE_SWIFTERPM=1` in your environment and `tuist install` will use SwifterPM before generation. If you use Bazel, SwifterPM ships a Bzlmod extension with the same resolver shape as `rules_swift_package_manager`:
 
 ```python
-bazel_dep(name = "swifterpm", version = "0.7.0")
+bazel_dep(name = "swifterpm", version = "0.9.0")
 
 swift_deps = use_extension("@swifterpm//:extensions.bzl", "swift_deps")
 swift_deps.from_package(
