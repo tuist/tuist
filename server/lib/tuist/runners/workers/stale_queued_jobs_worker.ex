@@ -188,46 +188,16 @@ defmodule Tuist.Runners.Workers.StaleQueuedJobsWorker do
 
   defp reap_if_past_backstop(_candidate, _reap_threshold), do: false
 
-  # Free any leaked PG cap slot first (defensive), then record the
-  # terminal state in CH for customer visibility. Returns whether the
-  # row was resolved.
+  # Free the PG cap slot first (defensive — a queued row normally has
+  # no claim, but the StaleClaimsWorker CH-first crash window can leave
+  # CH=`queued` / PG=`claimed`), then record the terminal state in CH
+  # for customer visibility. Both are idempotent. A DB error crashes
+  # the tick; the cron retries in 5 min and the row stays queued
+  # meanwhile, which is harmless.
   defp complete(workflow_job_id, conclusion, kind) do
-    safe_complete_pg(workflow_job_id)
-
-    case safe_complete_ch(workflow_job_id, conclusion) do
-      :ok ->
-        :telemetry.execute(Telemetry.event_name_recovery(), %{count: 1}, %{kind: kind})
-        true
-
-      :error ->
-        false
-    end
-  end
-
-  defp safe_complete_pg(workflow_job_id) do
     :ok = Claims.complete(workflow_job_id)
-  rescue
-    e ->
-      Logger.warning("runners: Claims.complete failed in stale-queued worker; will retry next tick",
-        workflow_job_id: workflow_job_id,
-        release_error: Exception.message(e)
-      )
-
-      :error
-  end
-
-  defp safe_complete_ch(workflow_job_id, conclusion) do
-    case Jobs.complete(workflow_job_id, conclusion) do
-      {:ok, _} -> :ok
-      {:error, :not_found} -> :ok
-    end
-  rescue
-    e ->
-      Logger.warning("runners: Jobs.complete failed in stale-queued worker; will retry next tick",
-        workflow_job_id: workflow_job_id,
-        ch_error: Exception.message(e)
-      )
-
-      :error
+    Jobs.complete(workflow_job_id, conclusion)
+    :telemetry.execute(Telemetry.event_name_recovery(), %{count: 1}, %{kind: kind})
+    true
   end
 end
