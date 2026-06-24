@@ -163,7 +163,9 @@ func bootstrapBody(k8sMinor, sudo, sudoE string, writeFile func(producer, path s
 %[2]ssed -ri '/\sswap\s/s/^/#/' /etc/fstab
 %[2]smodprobe overlay
 %[2]smodprobe br_netfilter
-%[2]ssysctl --system
+# -e ignores unknown-key errors so stale CNI sysctl drop-ins left by a prior
+# join (referencing now-absent cilium interfaces) do not abort a re-adoption.
+%[2]ssysctl -e --system
 export DEBIAN_FRONTEND=noninteractive
 %[3]sapt-get update
 %[3]sapt-get install -y apt-transport-https ca-certificates curl gpg containerd
