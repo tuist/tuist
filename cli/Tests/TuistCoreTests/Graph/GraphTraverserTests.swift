@@ -1914,6 +1914,56 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
+    func test_librariesPublicHeadersFolders_excludesHeadersOfXCFrameworksShippingAModuleMap() throws {
+        // Given
+        // An xcframework that ships a `module.modulemap` per slice. Xcode's `ProcessXCFramework` already
+        // exposes the SDK-matching slice's headers (and module map) via `$(BUILT_PRODUCTS_DIR)/include`, so
+        // re-adding the slice `Headers` would put a second copy of the module on the search path and the
+        // compiler would fail with "redefinition of module". These headers must therefore be excluded.
+        let target = Target.test(name: "Main")
+        let project = Project.test(targets: [target])
+        let xcframeworkPath = try AbsolutePath(validating: "/cache/ModularLibrary.xcframework")
+        let xcframework = GraphDependency.testXCFramework(
+            path: xcframeworkPath,
+            infoPlist: .test(libraries: [
+                .test(
+                    identifier: "ios-arm64",
+                    path: try RelativePath(validating: "libModularLibrary.a"),
+                    headersPath: try RelativePath(validating: "Headers"),
+                    platform: .iOS,
+                    architectures: [.arm64]
+                ),
+                .test(
+                    identifier: "ios-arm64-simulator",
+                    path: try RelativePath(validating: "libModularLibrary.a"),
+                    headersPath: try RelativePath(validating: "Headers"),
+                    platform: .iOS,
+                    platformVariant: .simulator,
+                    architectures: [.arm64]
+                ),
+            ]),
+            linking: .static,
+            moduleMaps: [
+                xcframeworkPath.appending(components: "ios-arm64", "Headers", "module.modulemap"),
+                xcframeworkPath.appending(components: "ios-arm64-simulator", "Headers", "module.modulemap"),
+            ]
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: target.name, path: project.path): Set([xcframework]),
+                xcframework: Set([]),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.librariesPublicHeadersFolders(path: project.path, name: target.name)
+
+        // Then
+        XCTAssertEqual(got, [])
+    }
+
     func test_librariesSearchPaths() throws {
         // Given
         let target = Target.test(name: "Main")
