@@ -1,5 +1,3 @@
-# Kura Bazel configuration.
-
 # When available, load the tuist-specific configuration
 try-import %workspace%/.bazelrc.tuist
 
@@ -7,7 +5,6 @@ try-import %workspace%/.bazelrc.tuist
 # not silently depend on local rustup/cargo state or an ambient PATH.
 build --incompatible_strict_action_env
 
-# Only surface output for failing tests.
 test --test_output=errors
 
 # Apply the os-specific config blocks below based on the host OS.

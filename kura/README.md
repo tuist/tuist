@@ -79,7 +79,7 @@ mise install
 Build and test with Bazel (the path CI gates on):
 
 ```bash
-mise run bazel-compile   # build all targets for the host
+mise run compile         # build all targets for the host
 mise run test-unit       # bazel test //...
 mise run bazel-repin     # repin Cargo.Bazel.lock after changing Rust deps (or `bazel-repin check`)
 ```

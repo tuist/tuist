@@ -20,7 +20,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - Install tools from `kura/mise.toml` with `mise install` (Rust toolchain + Bazel)
 - Bazel is the primary build and test path (it is what CI gates on). Use the Rust toolchain
   (`cargo`) only as a fallback when Bazel is unavailable:
-  - Compile: `mise run bazel-compile` (host binary; fallback: `mise exec -- cargo build`)
+  - Compile: `mise run compile` (fallback: `mise exec -- cargo build`)
   - Test: `mise run test-unit` (runs `bazel test //...`; fallback: `mise exec -- cargo test`)
 - If you have access to the `tuist/kura` project on Tuist, run `tuist bazel setup` to point Bazel at
   the closest Kura remote cache (it writes `kura/.bazelrc.tuist`); re-run it after changing physical

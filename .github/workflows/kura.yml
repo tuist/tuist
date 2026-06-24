@@ -58,13 +58,9 @@ jobs:
     runs-on: tuist-linux
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
-    # Fast guard for the crate_universe pin. Cargo.Bazel.lock is a digest of Cargo.toml +
-    # Cargo.lock and must be repinned when they change (or after merging main); otherwise the
-    # Bazel jobs fail deep in analysis with "lockfile is out of date for 'crates'".
-    # `mise run bazel-repin check` runs `bazel query '@crates//:all'` WITHOUT CARGO_BAZEL_REPIN (so a
-    # stale pin fails loudly here in ~1 min with an actionable message) and resolves
-    # //bazel/third_party/lua:lua to catch a stale vendored-Lua pin. Both are loading-phase queries
-    # (no cc toolchain), so it runs on the host (no dev container). Fix: `mise run bazel-repin`.
+    # Fast guard (~1 min, host, no cc toolchain): `mise run bazel-repin check` fails if
+    # Cargo.Bazel.lock is stale (repin when Cargo.toml/Cargo.lock change or after merging main) or
+    # the vendored-Lua label drifted — instead of that surfacing deep in a build.
     steps:
       - uses: actions/checkout@v4
 
@@ -87,16 +83,12 @@ jobs:
           echo "common --repository_cache=${{ runner.temp }}/bazel-repo" >> "$HOME/.bazelrc"
           mise run bazel-repin check
 
-  # Split into non-fork (`bazel-compile`) and fork (`bazel-compile-fork`) like
-  # gradle.yml / android.yml so only trusted runs get `id-token: write`. GitHub exposes
-  # the OIDC token request env whenever that permission is granted, and the fork path
-  # skips `tuist auth login` (the only OIDC consumer), so fork executions run with
-  # `contents: read` alone.
+  # Split non-fork / fork (like gradle.yml / android.yml): only trusted runs get `id-token: write`
+  # and authenticate; forks get `contents: read` alone and never see the OIDC token.
   bazel-compile:
     name: Bazel Compile
     runs-on: tuist-linux
-    # A cold Bazel build compiles the -sys crates' C/C++ (rocksdb, aws-lc) from source,
-    # unlike `cargo check`, so allow more wall-clock than the cargo compile job.
+    # Cold builds compile the -sys crates (rocksdb, aws-lc) from source, so allow extra wall-clock.
     timeout-minutes: 60
     permissions:
       contents: read
@@ -115,30 +107,26 @@ jobs:
 
       - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
-      # The Tuist remote cache is an accelerator, not a gate: an auth/setup outage must not block
-      # merging a Kura PR (the cache *is* Kura, so this is exactly when CI is needed most). Auth and
-      # setup are best-effort (continue-on-error); `.bazelrc` try-imports `.bazelrc.tuist`, so if they
-      # fail the build runs cold against the local cache. (A gRPC cache reachable at setup but erroring
-      # mid-build still fails — Bazel has no local fallback for a gRPC cache.)
-      - name: Authenticate with Tuist
-        run: tuist auth login
-        continue-on-error: true
-      - name: Tuist Bazel setup
-        run: tuist bazel setup && cat .bazelrc.tuist
+      # Remote cache is best-effort: auth/setup is continue-on-error and `.bazelrc` try-imports
+      # `.bazelrc.tuist`, so if it fails the build runs cold locally rather than blocking the merge.
+      # (Bazel has no local fallback for a gRPC cache that errors mid-build.)
+      - name: Set up the Tuist remote cache
+        run: |
+          tuist auth login
+          tuist bazel setup
         continue-on-error: true
       - name: Warn when the Tuist remote cache is unavailable
         if: ${{ hashFiles('kura/.bazelrc.tuist') == '' }}
         run: echo "::warning::Tuist remote cache unavailable (.bazelrc.tuist not written); building cold against the local cache."
 
       - name: Compile without warnings
-        run: mise run bazel-compile -- --define=kura_deny_warnings=true
+        run: mise run compile -- --define=kura_deny_warnings=true
 
   bazel-compile-fork:
     name: Bazel Compile Fork
     runs-on: tuist-linux
     timeout-minutes: 60
-    # Fork PRs only: `contents: read`, never `id-token: write`. Skips `tuist auth login`
-    # and `tuist bazel setup` (the OIDC consumers) and builds against the local
+    # Fork PRs only: `contents: read`, no OIDC token; skips auth/setup and uses the local
     # repository/disk caches alone.
     permissions:
       contents: read
@@ -171,7 +159,7 @@ jobs:
             echo "common --repository_cache=${{ runner.temp }}/bazel-repo"
             echo "build --disk_cache=${{ runner.temp }}/bazel-disk"
           } >> "$HOME/.bazelrc"
-          mise run bazel-compile -- --define=kura_deny_warnings=true
+          mise run compile -- --define=kura_deny_warnings=true
 
   clippy:
     name: Clippy
@@ -196,9 +184,8 @@ jobs:
       - name: Run clippy
         run: env -u RUSTUP_TOOLCHAIN cargo clippy --locked --all-targets -- -D warnings
 
-  # Split into non-fork (`bazel-test`) and fork (`bazel-test-fork`) for the same
-  # reason as bazel-compile: only trusted runs get `id-token: write` and the Tuist
-  # remote cache; fork PRs run with `contents: read` and the local cache alone.
+  # Split non-fork / fork like bazel-compile: only trusted runs get `id-token: write` + the remote
+  # cache; forks run with `contents: read` and the local cache.
   bazel-test:
     name: Bazel Test
     runs-on: tuist-linux
@@ -220,13 +207,11 @@ jobs:
 
       - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
-      # Remote cache is best-effort here too (see bazel-compile): an auth/setup outage degrades to a
-      # cold local build rather than blocking the merge.
-      - name: Authenticate with Tuist
-        run: tuist auth login
-        continue-on-error: true
-      - name: Tuist Bazel setup
-        run: tuist bazel setup && cat .bazelrc.tuist
+      # Remote cache is best-effort here too (see bazel-compile): falls back to a cold local build.
+      - name: Set up the Tuist remote cache
+        run: |
+          tuist auth login
+          tuist bazel setup
         continue-on-error: true
       - name: Warn when the Tuist remote cache is unavailable
         if: ${{ hashFiles('kura/.bazelrc.tuist') == '' }}
@@ -239,8 +224,7 @@ jobs:
     name: Bazel Test Fork
     runs-on: tuist-linux
     timeout-minutes: 60
-    # Fork PRs only: `contents: read`, never `id-token: write`. Skips `tuist auth login`
-    # and `tuist bazel setup` (the OIDC consumers) and tests against the local
+    # Fork PRs only: `contents: read`, no OIDC token; skips auth/setup and uses the local
     # repository/disk caches alone.
     permissions:
       contents: read

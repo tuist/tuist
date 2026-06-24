@@ -1,18 +1,8 @@
-# Root package for the Kura Bazel workspace.
-#
-# Exposes the Cargo manifests so the crate_universe extension can read them as
-# labels, and defines the kura library + binary targets.
-
 load("@crates//:defs.bzl", "aliases", "all_crate_deps")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
 
-exports_files([
-    "Cargo.toml",
-    "Cargo.lock",
-])
-
 # CI-only gate: deny warnings on the first-party crates (the bazel equivalent of cargo's
-# RUSTFLAGS="-D warnings"). Off by default so local `bazel build` / `mise run bazel-compile`
+# RUSTFLAGS="-D warnings"). Off by default so local `bazel build` / `mise run compile`
 # stay warning-tolerant, like `cargo build` locally; CI flips it on with
 # `--define=kura_deny_warnings=true`. It is referenced only by the targets below, so the
 # third-party crate_universe graph never receives -Dwarnings (cargo caps lints on deps).
