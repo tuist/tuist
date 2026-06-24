@@ -2,23 +2,34 @@ name: CLI Release Candidate
 
 # Publish a release candidate (X.Y.0-rc.N) for the upcoming stable minor.
 #
-# Two modes, selected by the `branch` input:
+# Three modes:
 #
-#   1. Cut a new line (branch empty): publishes X.Y.0-rc.1 for the current canary
-#      minor and, only after that publish succeeds, creates the protected
-#      releases/<major>.<minor>.x branch at the built commit. The moment that RC
-#      tag exists, main's canary advances to the next minor, so main keeps moving
-#      while the line soaks. The branch is created last so a failed publish leaves
-#      no half-cut line: re-running with an empty branch starts cleanly.
+#   1. Cut a new line (manual dispatch, branch empty): publishes X.Y.0-rc.1 for
+#      the current canary minor and, only after that publish succeeds, creates
+#      the protected releases/<major>.<minor>.x branch at the built commit. The
+#      moment that RC tag exists, main's canary advances to the next minor, so
+#      main keeps moving while the line soaks. The branch is created last so a
+#      failed publish leaves no half-cut line: re-running with an empty branch
+#      starts cleanly.
 #
-#   2. Iterate an existing line (branch=releases/X.Y.x): after critical fixes /
-#      regressions are cherry-picked onto the release branch via PR (same flow as
-#      cli-backport.yml — CI never cherry-picks), publishes X.Y.0-rc.(N+1) from the
-#      branch HEAD.
+#   2. Iterate an existing line (manual dispatch, branch=releases/X.Y.x):
+#      publishes X.Y.0-rc.(N+1) from the branch HEAD. Use this to force an RC
+#      even when mode 3 already auto-cut one (e.g. re-publishing a failed run).
+#
+#   3. Auto-iterate on push: every commit that lands on a releases/X.Y.x branch
+#      (i.e. each merged backport PR — CI never cherry-picks, that happens in the
+#      PR, same flow as cli-backport.yml) publishes the next X.Y.0-rc.(N+1) so
+#      teams always have a fresh RC to retest without a manual dispatch. The push
+#      that *creates* the line in mode 1 is a no-op here: the `gate` step skips
+#      when HEAD is already the latest RC's commit, so no duplicate rc is cut.
 #
 # RCs are GitHub prereleases: never "Latest", never pushed to Homebrew. After a
 # clean soak, promote the line to stable with cli-promote.yml.
 on:
+  # Mode 3: a fix landing on a release branch auto-cuts the next RC.
+  push:
+    branches:
+      - "releases/*.x"
   workflow_dispatch:
     inputs:
       branch:
@@ -58,11 +69,13 @@ jobs:
       sha: ${{ steps.resolve.outputs.sha }}
       branch: ${{ steps.resolve.outputs.branch }}
       changelog_from: ${{ steps.resolve.outputs.changelog_from }}
+      skip: ${{ steps.gate.outputs.skip }}
     steps:
-      # Cutting a new line resolves off main; iterating resolves off the branch.
+      # push -> the pushed release branch; dispatch -> the input branch, or the
+      # default branch (main) when cutting a new line with an empty input.
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.branch == '' && github.event.repository.default_branch || inputs.branch }}
+          ref: ${{ github.event_name == 'push' && github.ref_name || (inputs.branch == '' && github.event.repository.default_branch || inputs.branch) }}
           fetch-depth: 0
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
       - uses: jdx/mise-action@v4.0.1
@@ -71,20 +84,44 @@ jobs:
           install_args: "--locked git-cliff jq"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
-      - id: resolve
+      # On an auto (push) trigger, skip when the branch HEAD is already the commit
+      # the latest RC points at — i.e. the push that created the line in mode 1, or
+      # a re-run with no new commits — so no duplicate rc is cut. Manual dispatch
+      # always proceeds (this step doesn't run), so a forced re-publish stays possible.
+      - id: gate
+        if: ${{ github.event_name == 'push' }}
         env:
-          BRANCH: ${{ inputs.branch }}
+          BRANCH: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          if [ -z "$BRANCH" ]; then
+          line=${BRANCH#releases/}; line=${line%.x}
+          target="${line}.0"
+          n=$(git tag -l | { grep -E "^${target}-rc\.[0-9]+$" || true; } | sed -E 's/.*\.([0-9]+)$/\1/' | sort -n | tail -n1)
+          if [ -n "$n" ] && [ "$(git rev-list -n1 "${target}-rc.${n}")" = "$(git rev-parse HEAD)" ]; then
+            echo "HEAD is already ${target}-rc.${n}; nothing new to release — skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      - id: resolve
+        if: ${{ steps.gate.outputs.skip != 'true' }}
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_BRANCH: ${{ github.ref_name }}
+          INPUT_BRANCH: ${{ inputs.branch }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "push" ]; then
+            mise run --no-deps cli:release:channel-version -- rc "$PUSH_BRANCH"
+          elif [ -z "$INPUT_BRANCH" ]; then
             mise run --no-deps cli:release:channel-version -- rc-new
           else
-            mise run --no-deps cli:release:channel-version -- rc "$BRANCH"
+            mise run --no-deps cli:release:channel-version -- rc "$INPUT_BRANCH"
           fi
 
   build-publish:
     name: Build and publish RC
     needs: prepare
+    # Skipped for the no-op branch-creation push (and any push with no new commits).
+    if: ${{ needs.prepare.outputs.skip != 'true' }}
     uses: ./.github/workflows/cli-build-publish.yml
     with:
       version: ${{ needs.prepare.outputs.version }}
@@ -99,11 +136,12 @@ jobs:
 
   create-branch:
     name: Create the release branch
-    # Only when cutting a new line, and only after the RC has actually published.
-    # Deferring the branch push until here means a failed build/publish leaves no
-    # orphan branch, so the cut can simply be re-run with an empty branch.
+    # Only when cutting a new line (manual dispatch, empty branch), and only after
+    # the RC has actually published. Deferring the branch push until here means a
+    # failed build/publish leaves no orphan branch, so the cut can simply be re-run
+    # with an empty branch. Never runs on a push trigger (the branch already exists).
     needs: [prepare, build-publish]
-    if: ${{ inputs.branch == '' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.branch == '' }}
     runs-on: tuist-linux
     timeout-minutes: 5
     steps:
