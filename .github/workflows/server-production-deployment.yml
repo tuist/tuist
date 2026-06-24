@@ -62,6 +62,13 @@ jobs:
     name: Check for releasable changes
     runs-on: tuist-linux
     timeout-minutes: 5
+    # release:check only needs the git-cliff + jq installed below, but `mise run`
+    # otherwise auto-installs the whole merged mise.toml toolset — including
+    # github/npm-backend tools that hit the rate-limited GitHub API for SLSA
+    # verification (--locked only redirects the binary download, not the
+    # provenance fetch). Block the task-run auto-install.
+    env:
+      MISE_TASK_RUN_AUTO_INSTALL: "0"
     outputs:
       cli-should-release: ${{ steps.check.outputs.cli-should-release }}
       cli-next-version: ${{ steps.check.outputs.cli-next-version }}
