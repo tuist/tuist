@@ -7434,6 +7434,7 @@ struct PackageInfoMapperTests {
         #expect(
             target.settings?.base["LD_RUNPATH_SEARCH_PATHS"] == .array([
                 "$(inherited)",
+                "$(TOOLCHAIN_DIR)/usr/lib/swift-6.2/$(PLATFORM_NAME)",
                 prebuiltPath.appending(component: "lib").pathString,
             ])
         )
@@ -7574,6 +7575,7 @@ struct PackageInfoMapperTests {
         #expect(
             target.settings?.base["LD_RUNPATH_SEARCH_PATHS"] == .array([
                 "$(inherited)",
+                "$(TOOLCHAIN_DIR)/usr/lib/swift-6.2/$(PLATFORM_NAME)",
                 prebuiltPath.appending(component: "lib").pathString,
             ])
         )
