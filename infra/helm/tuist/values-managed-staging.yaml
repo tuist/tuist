@@ -308,14 +308,17 @@ kuraFleet:
     offerType: EM-B220E-NVME
 
 # Dedibox fleet (EU customer-facing Kura cache, validation node). The reconciler
-# adopts a pre-ordered Dedibox carrying the tuist-kura-staging tag (the env
-# boundary, since all Dedibox share the org's default project) and self-joins it.
-# Prereqs met: the DEDIBOX_SCW_API 1Password item exists, and Start-9-M sd-188785
-# (DC5) is delivered and tagged tuist-kura-staging.
+# adopts a pre-ordered Dedibox carrying the tuist-staging tag (the env boundary,
+# since all Dedibox share the org's default project) and self-joins it. The tag
+# is the env pool marker, not a workload one — the node is dedicated to Kura by
+# its taint + pool label, not by this name. Prereqs met: the DEDIBOX_SCW_API
+# 1Password item exists, and Start-9-M sd-188785 (DC5) is delivered and tagged.
 dediboxFleet:
   enabled: true
   machine:
-    adoptTag: tuist-kura-staging
+    # Exact tag match (not a prefix), so this is the shared pool tag every
+    # staging Dedibox carries; per-box identity is the server id, not the tag.
+    adoptTag: tuist-staging
     # Start-9-M (AMD Ryzen 5 PRO 3600, 32 GB, 2x1 TB NVMe) — modern enough for
     # Ubuntu 24.04 with SSH keys, unlike the Atom SKUs. Only sold in DC5/AMS1.
     offer: Start-9-M
@@ -349,11 +352,13 @@ ovhFleet:
   endpoint: ovh-us
   nodePool: kura-ovh-staging
   machine:
-    # Adopt by offer + datacenter, scoped to the displayName marker (the per-env
-    # boundary — one OVH account holds every env's boxes). The operator orders a
-    # SYS-1 in BHS, sets its displayName to this prefix, and scales the fleet; the
-    # controller claims a free match, installs the OS, and joins it.
-    adoptDisplayNamePrefix: tuist-kura-ovh-staging
+    # Adopt by offer + datacenter, scoped to the displayName prefix (the per-env
+    # boundary — one OVH account holds every env's boxes). Prefix match, so the
+    # boxes are named tuist-staging-1, -2, … (Scaleway-style pool naming); this is
+    # the env pool marker, not a workload one. The operator orders a SYS-1 in BHS,
+    # names it tuist-staging-N, and scales the fleet; the controller claims a free
+    # match, installs the OS, and joins it.
+    adoptDisplayNamePrefix: tuist-staging
     offer: sys-1
     datacenter: bhs
     os: ubuntu_24.04
