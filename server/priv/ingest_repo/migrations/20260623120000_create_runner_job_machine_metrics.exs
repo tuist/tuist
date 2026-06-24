@@ -13,7 +13,10 @@ defmodule Tuist.IngestRepo.Migrations.CreateRunnerJobMachineMetrics do
   # high-volume (one row every few seconds per running job).
   # Mirrors `runner_job_logs`: same `(workflow_job_id, ...)` order
   # key, same 90-day TTL matching GitHub Actions log/artifact
-  # retention so the customer view stays at parity.
+  # retention so the customer view stays at parity. Partitioned by
+  # insertion month so the TTL drops whole expired parts instead of
+  # mutating one ever-growing partition; the partition column matches
+  # the TTL column so parts age out together.
   #
   # ReplacingMergeTree on `(workflow_job_id, timestamp)` with
   # `inserted_at` as the version makes the collector's at-least-once
@@ -24,7 +27,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateRunnerJobMachineMetrics do
              primary_key: false,
              engine: "ReplacingMergeTree(inserted_at)",
              options:
-               "ORDER BY (workflow_job_id, timestamp) TTL toDateTime(inserted_at) + INTERVAL 90 DAY"
+               "PARTITION BY toYYYYMM(inserted_at) ORDER BY (workflow_job_id, timestamp) TTL toDateTime(inserted_at) + INTERVAL 90 DAY"
            ) do
       add :workflow_job_id, :Int64, null: false
       add :account_id, :Int64, null: false
