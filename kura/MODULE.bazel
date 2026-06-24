@@ -15,6 +15,10 @@ module(
 bazel_dep(name = "rules_rust", version = "0.70.0")
 bazel_dep(name = "rules_cc", version = "0.2.17")
 
+# Referenced by //bazel/third_party/lua:lua's per-OS select(). @platforms is only visible from the
+# root module if the root declares it, even though the deps above pull it in transitively.
+bazel_dep(name = "platforms", version = "1.0.0")
+
 # Pin the Rust toolchain to match rust-toolchain.toml / mise.toml (1.94.1, edition 2024).
 # Each arch is built natively on a runner of that arch, so only the host triple is
 # needed — rules_rust registers it automatically (no extra_target_triples).
