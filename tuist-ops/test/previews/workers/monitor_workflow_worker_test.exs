@@ -48,6 +48,32 @@ defmodule TuistOps.Previews.Workers.MonitorWorkflowWorkerTest do
     end)
   end
 
+  defp expect_deployed_thread do
+    expect(SlackClient, :post_message, fn "C_PREVIEWS", blocks, opts ->
+      text = blocks |> List.first() |> get_in([:text, :text])
+
+      assert text =~ "Preview deployment completed"
+      assert text =~ "https://demo.preview.tuist.dev"
+      assert opts[:fallback_text] == "Preview deployed"
+      assert opts[:thread_ts] == "1710000000.000001"
+
+      {:ok, "1710000000.000003"}
+    end)
+  end
+
+  defp expect_failed_thread(url) do
+    expect(SlackClient, :post_message, fn "C_PREVIEWS", blocks, opts ->
+      text = blocks |> List.first() |> get_in([:text, :text])
+
+      assert text =~ "Preview deployment failed"
+      assert text =~ url
+      assert opts[:fallback_text] == "Preview request failed"
+      assert opts[:thread_ts] == "1710000000.000001"
+
+      {:ok, "1710000000.000003"}
+    end)
+  end
+
   test "snoozes while the workflow run is still in progress" do
     preview = insert_preview!()
     url = "https://github.com/tuist/tuist/actions/runs/in-progress"
@@ -79,6 +105,7 @@ defmodule TuistOps.Previews.Workers.MonitorWorkflowWorkerTest do
     end)
 
     expect_workflow_thread(url)
+    expect_deployed_thread()
 
     expect(SlackClient, :update_message, fn "C_PREVIEWS", "1710000000.000001", blocks, opts ->
       text = blocks |> List.first() |> get_in([:text, :text])
@@ -112,6 +139,7 @@ defmodule TuistOps.Previews.Workers.MonitorWorkflowWorkerTest do
     end)
 
     expect_workflow_thread(url)
+    expect_failed_thread(url)
 
     expect(SlackClient, :update_message, fn "C_PREVIEWS", "1710000000.000001", blocks, opts ->
       text = blocks |> List.first() |> get_in([:text, :text])

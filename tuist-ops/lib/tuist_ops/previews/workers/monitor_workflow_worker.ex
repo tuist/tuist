@@ -116,8 +116,12 @@ defmodule TuistOps.Previews.Workers.MonitorWorkflowWorker do
     })
     |> Repo.update()
     |> case do
-      {:ok, _preview} -> :ok
-      {:error, changeset} -> {:error, changeset}
+      {:ok, preview} ->
+        post_terminal_thread(preview, SlackBlocks.deployed_thread(preview), "Preview deployed")
+        :ok
+
+      {:error, changeset} ->
+        {:error, changeset}
     end
   end
 
@@ -143,8 +147,36 @@ defmodule TuistOps.Previews.Workers.MonitorWorkflowWorker do
     })
     |> Repo.update()
     |> case do
-      {:ok, _preview} -> :ok
-      {:error, changeset} -> {:error, changeset}
+      {:ok, preview} ->
+        post_terminal_thread(
+          preview,
+          SlackBlocks.failed_thread(preview),
+          "Preview request failed"
+        )
+
+        :ok
+
+      {:error, changeset} ->
+        {:error, changeset}
     end
   end
+
+  defp post_terminal_thread(%Preview{slack_message_ts: ts} = preview, blocks, fallback_text)
+       when is_binary(ts) and ts != "" do
+    case SlackClient.post_message(
+           preview.slack_channel_id,
+           blocks,
+           fallback_text: fallback_text,
+           thread_ts: ts
+         ) do
+      {:ok, _thread_ts} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("preview: terminal thread post failed: #{inspect(reason)}")
+        :ok
+    end
+  end
+
+  defp post_terminal_thread(%Preview{}, _blocks, _fallback_text), do: :ok
 end
