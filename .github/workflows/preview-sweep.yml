@@ -30,9 +30,10 @@ jobs:
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
+      - uses: actions/checkout@v4
       - uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "--locked helm kubectl jq"
+          install_args: "--locked helm@4.2.0 kubectl@1.36.1 jq@1.8.1"
           cache: "false"
       - name: Load kubeconfig
         run: |
@@ -59,25 +60,31 @@ jobs:
           set -euo pipefail
 
           NOW=$(date +%s)
-          MAPPING=$(kubectl get namespaces -l tuist.dev/preview=true -o json | jq -r '
+          MAPPING=$(kubectl get namespaces -l tuist.dev/preview=true -o json | jq -c '
             .items[] |
-            [
-              .metadata.name,
-              (.metadata.labels["tuist.dev/release"] // ""),
-              (.metadata.labels["tuist.dev/expires-at"] // ""),
-              (.metadata.labels["tuist.dev/state"] // ""),
-              (.metadata.annotations["tuist.dev/created-at"] // "")
-            ] | @tsv
+            {
+              name: .metadata.name,
+              release: (.metadata.labels["tuist.dev/release"] // ""),
+              expires_at: (.metadata.labels["tuist.dev/expires-at"] // ""),
+              state: (.metadata.labels["tuist.dev/state"] // ""),
+              created_at: (.metadata.annotations["tuist.dev/created-at"] // "")
+            }
           ')
           if [ -z "$MAPPING" ]; then
             echo "No preview namespaces found."
             exit 0
           fi
           echo "Found preview namespaces:"
-          echo "$MAPPING"
+          echo "$MAPPING" | jq -r '[.name, .release, .expires_at, .state, .created_at] | @tsv'
 
-          while IFS=$'\t' read -r NS RELEASE EXP STATE CREATED_AT; do
-            [ -z "$NS" ] && continue
+          while IFS= read -r PREVIEW; do
+            [ -z "$PREVIEW" ] && continue
+            NS=$(jq -r '.name' <<< "$PREVIEW")
+            RELEASE=$(jq -r '.release' <<< "$PREVIEW")
+            EXP=$(jq -r '.expires_at' <<< "$PREVIEW")
+            STATE=$(jq -r '.state' <<< "$PREVIEW")
+            CREATED_AT=$(jq -r '.created_at' <<< "$PREVIEW")
+
             if [ -z "$RELEASE" ]; then
               # Strip the `preview-` prefix to get the helm release name.
               RELEASE="${NS#preview-}"
