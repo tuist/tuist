@@ -1888,6 +1888,7 @@ extension ProjectDescription.ResourceFileElements {
     /// Check https://developer.apple.com/documentation/swift_packages/bundling_resources_with_a_swift_package
     private static let defaultSpmResourceFileExtensions = Set([
         "xib",
+        "nib",
         "storyboard",
         "xcdatamodeld",
         "xcmappingmodel",
