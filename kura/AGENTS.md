@@ -13,7 +13,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - Peer sync bandwidth shaping: `src/bandwidth.rs`
 - Operational assets: `docker-compose.yml`, `ops/`, `test/e2e/`, `spec/e2e/`
   - See `ops/AGENTS.md` for Helm, rollout helpers, and observability config boundaries
-- Bazel build system: `MODULE.bazel`, `BUILD.bazel`, `bazel/` (toolchains + vendored deps), `Cargo.Bazel.lock`
+- Bazel build system: `MODULE.bazel`, `BUILD.bazel`, `bazel/` (toolchains + vendored deps); the crate graph is resolved from `Cargo.toml`/`Cargo.lock` by rules_rs
 - License and contribution terms: `LICENSE.md`, `CLA.md`, `cla/`
 
 ## Development
@@ -26,9 +26,8 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   the closest Kura remote cache (it writes `kura/.bazelrc.tuist`); re-run it after changing physical
   location. Without access, skip it — Bazel builds fine against the local cache.
 - Consider Kura work incomplete until `mise exec -- cargo clippy --all-targets -- -D warnings` passes
-- After changing Rust deps (`Cargo.toml`/`Cargo.lock`) or merging `main`, repin the Bazel crate graph
-  with `mise run bazel-repin` and commit `Cargo.Bazel.lock` (`mise run bazel-repin check` verifies the
-  pin without rewriting it; a stale pin fails every Bazel CI job)
+- rules_rs resolves the Bazel crate graph directly from `Cargo.toml`/`Cargo.lock` on each build, so
+  changing Rust deps just updates `Cargo.lock` as usual and Bazel picks it up on the next build
 - Run the end-to-end suite with `docker compose build && mise exec -- shellspec`
 
 ## Maintenance Notes

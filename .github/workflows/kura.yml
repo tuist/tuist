@@ -53,36 +53,6 @@ jobs:
       - name: Check formatting
         run: env -u RUSTUP_TOOLCHAIN cargo fmt --check
 
-  bazel-lockfile:
-    name: Bazel Lockfile
-    runs-on: tuist-linux
-    timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
-    # Fast guard (~1 min, host, no cc toolchain): `mise run bazel-repin check` fails if
-    # Cargo.Bazel.lock is stale (repin when Cargo.toml/Cargo.lock change or after merging main) or
-    # the vendored-Lua label drifted — instead of that surfacing deep in a build.
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: jdx/mise-action@v4.0.1
-        with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: "rust bazel"
-          working_directory: kura
-
-      - name: Cache Bazel repository downloads
-        uses: actions/cache@v4
-        with:
-          path: ${{ runner.temp }}/bazel-repo
-          key: bazel-repo-lockfile-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock') }}
-          restore-keys: |
-            bazel-repo-lockfile-
-
-      - name: Check Cargo.Bazel.lock is up to date
-        run: |
-          echo "common --repository_cache=${{ runner.temp }}/bazel-repo" >> "$HOME/.bazelrc"
-          mise run bazel-repin check
-
   # Split non-fork / fork (like gradle.yml / android.yml): only trusted runs get `id-token: write`
   # and authenticate; forks get `contents: read` alone and never see the OIDC token.
   bazel-compile:
@@ -146,9 +116,9 @@ jobs:
           path: |
             ${{ runner.temp }}/bazel-repo
             ${{ runner.temp }}/bazel-disk
-          key: bazel-compile-fork-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock') }}-${{ github.sha }}
+          key: bazel-compile-fork-${{ hashFiles('kura/MODULE.bazel.lock') }}-${{ github.sha }}
           restore-keys: |
-            bazel-compile-fork-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock') }}-
+            bazel-compile-fork-${{ hashFiles('kura/MODULE.bazel.lock') }}-
             bazel-compile-fork-
 
       - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
@@ -218,7 +188,7 @@ jobs:
         run: echo "::warning::Tuist remote cache unavailable (.bazelrc.tuist not written); building cold against the local cache."
 
       - name: Run tests
-        run: mise run test-unit -- --define=kura_deny_warnings=true
+        run: mise run test-unit --skip-tools -- --define=kura_deny_warnings=true
 
   bazel-test-fork:
     name: Bazel Test Fork
@@ -244,9 +214,9 @@ jobs:
           path: |
             ${{ runner.temp }}/bazel-repo
             ${{ runner.temp }}/bazel-disk
-          key: bazel-test-fork-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock') }}-${{ github.sha }}
+          key: bazel-test-fork-${{ hashFiles('kura/MODULE.bazel.lock') }}-${{ github.sha }}
           restore-keys: |
-            bazel-test-fork-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock') }}-
+            bazel-test-fork-${{ hashFiles('kura/MODULE.bazel.lock') }}-
             bazel-test-fork-
 
       - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
@@ -257,7 +227,7 @@ jobs:
             echo "common --repository_cache=${{ runner.temp }}/bazel-repo"
             echo "build --disk_cache=${{ runner.temp }}/bazel-disk"
           } >> "$HOME/.bazelrc"
-          mise run test-unit -- --define=kura_deny_warnings=true
+          mise run test-unit --skip-tools -- --define=kura_deny_warnings=true
 
   audit:
     name: Audit
