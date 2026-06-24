@@ -1,8 +1,8 @@
 import * as echarts from "echarts";
 
 // Shades the hovered step's time window across every metric chart in
-// the runner-job Overview, the way Namespace correlates a CI step
-// with the part of the resource graphs it produced.
+// the runner-job Overview, correlating a CI step with the part of the
+// resource graphs it produced.
 //
 // The charts are owned by the NooraChart hook (one ECharts instance
 // each); we reach them via `echarts.getInstanceByDom` and add a
@@ -10,7 +10,20 @@ import * as echarts from "echarts";
 // window — which lands precisely because the charts use a time
 // x-axis. If the instance can't be resolved (e.g. a charts-less
 // render) the highlight is simply skipped.
-const HIGHLIGHT_COLOR = "rgba(120, 120, 130, 0.14)";
+// The band colour comes from Noora's overlay token so it tracks the
+// theme (incl. light/dark) instead of being hardcoded. Reading the
+// custom property directly yields the unresolved `light-dark(var(…))`
+// expression, so we set it on a throwaway element and read back the
+// browser-resolved colour ECharts can render.
+function resolveHighlightColor(host) {
+  const probe = document.createElement("span");
+  probe.style.color = "var(--noora-surface-overlay)";
+  probe.style.display = "none";
+  host.appendChild(probe);
+  const color = getComputedStyle(probe).color;
+  probe.remove();
+  return color;
+}
 
 export default {
   mounted() {
@@ -55,7 +68,7 @@ export default {
 
     const markArea = {
       silent: true,
-      itemStyle: { color: HIGHLIGHT_COLOR },
+      itemStyle: { color: resolveHighlightColor(this.el) },
       data: [[{ xAxis: startMs }, { xAxis: endMs }]],
     };
 
