@@ -8,7 +8,7 @@ use std::{
     time::Duration,
 };
 
-use futures_util::StreamExt;
+use futures_util::stream::{self, StreamExt};
 use reqwest::header::{CONTENT_TYPE, HeaderValue};
 use serde::Deserialize;
 use tokio::{
@@ -35,6 +35,10 @@ use crate::{
 use self::{operation::ReplicationOperation, outbox_message::OutboxMessage};
 
 const BOOTSTRAP_PAGE_LIMIT: usize = 256;
+
+// Artifact bodies fetched from a peer concurrently within a bootstrap page. Caps
+// open peer connections; staged bytes stay bounded by bootstrap_staging_budget.
+const BOOTSTRAP_ARTIFACT_FETCH_CONCURRENCY: usize = 16;
 
 #[derive(Debug, Deserialize)]
 struct PeerStatusPayload {
@@ -323,6 +327,11 @@ async fn bootstrap_manifests_from_peer(state: &SharedState, peer: &str) -> Resul
             .store
             .hit_failpoint(FailpointName::AfterBootstrapManifestPageFetchBeforeApply)
             .await?;
+
+        // Cheap local pre-check first: skip artifacts we already hold without a
+        // network fetch, and propagate a real store error instead of masking it as
+        // a per-artifact fetch failure below.
+        let mut to_fetch = Vec::new();
         for manifest in &page.manifests {
             let outcome = state.store.artifact_apply_outcome(
                 manifest.producer,
@@ -330,41 +339,62 @@ async fn bootstrap_manifests_from_peer(state: &SharedState, peer: &str) -> Resul
                 &manifest.key,
                 manifest.version_ms,
             )?;
-            if !outcome.applied() {
+            if outcome.applied() {
+                to_fetch.push(manifest.clone());
+            } else {
                 state
                     .metrics
                     .record_replication_apply("bootstrap", "artifact", outcome.as_str());
-                continue;
             }
+        }
 
-            // A single artifact failing must not abort the whole peer bootstrap.
-            // Aborting strands every later artifact behind the first gap, and when
-            // peers bootstrap from each other simultaneously (e.g. a full-mesh
-            // restart) each one serves still-incomplete data, so every bootstrap
-            // breaks at its first gap and the mesh deadlocks with none reaching a
-            // serving state. Record the failure, keep going so we still apply the
-            // artifacts we can fetch this pass, and report partial completion at
-            // the end so the peer is retried — already-applied artifacts are
-            // skipped on the retry, so successive passes converge as data
-            // propagates outward from the data-bearing replicas.
-            match bootstrap_artifact_from_peer(state, peer, manifest).await {
-                Ok(outcome) => {
-                    state.metrics.record_replication_apply(
-                        "bootstrap",
-                        "artifact",
-                        outcome.as_str(),
-                    );
-                    if outcome.applied() {
-                        applied += 1;
+        // Fetch the page's artifacts concurrently. A fresh node bootstraps the
+        // whole dataset over the WAN, where one serial stream leaves the link idle
+        // between requests and can't finish a large cache inside the bootstrap
+        // timeout. Concurrency caps open connections; staged bytes stay bounded by
+        // the bootstrap_staging_budget each fetch reserves against, and the
+        // segment-append lock still serializes the on-disk write, so only the
+        // network transfers overlap.
+        let outcomes: Vec<Result<bool, String>> = stream::iter(to_fetch)
+            .map(|manifest| async move {
+                // A single artifact failing must not abort the whole peer
+                // bootstrap. Aborting strands every later artifact behind the first
+                // gap, and when peers bootstrap from each other simultaneously
+                // (e.g. a full-mesh restart) each one serves still-incomplete data,
+                // so every bootstrap breaks at its first gap and the mesh deadlocks
+                // with none reaching a serving state. Record the failure, keep
+                // going so we still apply the artifacts we can fetch this pass, and
+                // report partial completion at the end so the peer is retried —
+                // already-applied artifacts are skipped on the retry, so successive
+                // passes converge as data propagates outward from the data-bearing
+                // replicas.
+                match bootstrap_artifact_from_peer(state, peer, &manifest).await {
+                    Ok(outcome) => {
+                        state.metrics.record_replication_apply(
+                            "bootstrap",
+                            "artifact",
+                            outcome.as_str(),
+                        );
+                        Ok(outcome.applied())
+                    }
+                    Err(error) => {
+                        state
+                            .metrics
+                            .record_replication_apply("bootstrap", "artifact", "error");
+                        warn!("bootstrap artifact from {peer} failed, continuing: {error}");
+                        Err(error)
                     }
                 }
-                Err(error) => {
-                    state
-                        .metrics
-                        .record_replication_apply("bootstrap", "artifact", "error");
-                    warn!("bootstrap artifact from {peer} failed, continuing: {error}");
-                    failed += 1;
-                }
+            })
+            .buffer_unordered(BOOTSTRAP_ARTIFACT_FETCH_CONCURRENCY)
+            .collect()
+            .await;
+
+        for outcome in outcomes {
+            match outcome {
+                Ok(true) => applied += 1,
+                Ok(false) => {}
+                Err(_) => failed += 1,
             }
         }
 
