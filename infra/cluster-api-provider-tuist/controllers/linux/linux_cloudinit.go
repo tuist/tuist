@@ -163,9 +163,12 @@ func bootstrapBody(k8sMinor, sudo, sudoE string, writeFile func(producer, path s
 %[2]ssed -ri '/\sswap\s/s/^/#/' /etc/fstab
 %[2]smodprobe overlay
 %[2]smodprobe br_netfilter
-# -e ignores unknown-key errors so stale CNI sysctl drop-ins left by a prior
-# join (referencing now-absent cilium interfaces) do not abort a re-adoption.
-%[2]ssysctl -e --system
+# Remove stale CNI sysctl drop-ins a prior join left behind: they set rp_filter
+# on now-absent cilium interfaces, so sysctl --system errors with cannot-stat and
+# aborts the self-join on a re-adopted box (-e does not suppress that). Cilium
+# recreates its own drop-ins after the node rejoins.
+%[2]srm -f /etc/sysctl.d/*cilium* /etc/sysctl.d/*-cilium.conf
+%[2]ssysctl --system
 export DEBIAN_FRONTEND=noninteractive
 %[3]sapt-get update
 %[3]sapt-get install -y apt-transport-https ca-certificates curl gpg containerd
