@@ -113,6 +113,17 @@ type OVHDedicatedMachineStatus struct {
 	// +optional
 	ServiceName string `json:"serviceName,omitempty"`
 
+	// InstallStarted records that the controller has kicked off its own OS
+	// (re)install for the adopted server. A pre-ordered box can arrive already
+	// carrying an OS (a prior install task reads as done) that has neither the
+	// fleet login nor its SSH key, so the self-join would be aimed at a box we
+	// can never authenticate to. The controller therefore reimages once per
+	// adoption rather than trusting the delivered OS; this flag is what makes
+	// that a one-shot, so a reconcile after the install starts polls it to
+	// completion instead of reinstalling the box again.
+	// +optional
+	InstallStarted bool `json:"installStarted,omitempty"`
+
 	// Addresses surfaces the server's public address + hostname for kubectl
 	// describe / event correlation.
 	// +optional

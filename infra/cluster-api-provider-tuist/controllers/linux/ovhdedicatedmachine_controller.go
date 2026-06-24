@@ -200,25 +200,25 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 		if getErr != nil {
 			return ctrl.Result{}, getErr
 		}
-		signer, signErr := ssh.ParsePrivateKey(privateKey)
-		if signErr != nil {
-			return ctrl.Result{}, fmt.Errorf("parse fleet ssh key: %w", signErr)
-		}
-		if err := r.OVHClient.EnsureSSHKey(ctx, fleet, string(ssh.MarshalAuthorizedKey(signer.PublicKey()))); err != nil {
-			conditions.MarkFalse(machine, shared.ProvisionedCondition, "SSHKeyRegistrationFailed",
-				clusterv1.ConditionSeverityWarning, "%v", err)
-			machine.Status.Phase = "Provisioning"
-			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
-		}
-		switch state, stateErr := r.OVHClient.InstallState(ctx, machine.Status.ServiceName); {
-		case stateErr != nil:
-			return ctrl.Result{}, stateErr
-		case state == ovh.InstallFailed:
-			conditions.MarkFalse(machine, shared.ProvisionedCondition, "InstallFailed",
-				clusterv1.ConditionSeverityWarning, "OVH OS install failed for %s", machine.Status.ServiceName)
-			machine.Status.Phase = "InstallFailed"
-			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
-		case state == ovh.InstallPending:
+		// Drive our own install once per adoption rather than trusting the
+		// delivered OS: a pre-ordered box can arrive already carrying an OS (a
+		// prior install task reads as done) that has neither the install login nor
+		// the fleet SSH key, so the self-join would target a box we can never
+		// authenticate to and wedge in Bootstrapping forever. Reinstalling
+		// unconditionally here authorizes the fleet key + lays the OS down
+		// ourselves; Status.InstallStarted makes it a one-shot so the next
+		// reconcile polls the install instead of reinstalling the box again.
+		if !machine.Status.InstallStarted {
+			signer, signErr := ssh.ParsePrivateKey(privateKey)
+			if signErr != nil {
+				return ctrl.Result{}, fmt.Errorf("parse fleet ssh key: %w", signErr)
+			}
+			if err := r.OVHClient.EnsureSSHKey(ctx, fleet, string(ssh.MarshalAuthorizedKey(signer.PublicKey()))); err != nil {
+				conditions.MarkFalse(machine, shared.ProvisionedCondition, "SSHKeyRegistrationFailed",
+					clusterv1.ConditionSeverityWarning, "%v", err)
+				machine.Status.Phase = "Provisioning"
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
 			template, tmplErr := r.OVHClient.ResolveTemplate(ctx, machine.Status.ServiceName, firstNonEmpty(machine.Spec.OS, "ubuntu_24.04"))
 			if tmplErr != nil {
 				return ctrl.Result{}, tmplErr
@@ -230,12 +230,25 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 			}); err != nil {
 				return ctrl.Result{}, fmt.Errorf("start OVH install: %w", err)
 			}
+			machine.Status.InstallStarted = true
 			conditions.MarkFalse(machine, shared.ProvisionedCondition, "Installing",
 				clusterv1.ConditionSeverityInfo, "OVH OS install (%s) started for %s", template, machine.Status.ServiceName)
 			machine.Status.Phase = "Installing"
 			r.event(machine, "Installing", "Started OVH OS install (%s) on %s", template, machine.Status.ServiceName)
 			return ctrl.Result{RequeueAfter: 90 * time.Second}, nil
-		case state == ovh.InstallRunning:
+		}
+
+		switch state, stateErr := r.OVHClient.InstallState(ctx, machine.Status.ServiceName); {
+		case stateErr != nil:
+			return ctrl.Result{}, stateErr
+		case state == ovh.InstallFailed:
+			conditions.MarkFalse(machine, shared.ProvisionedCondition, "InstallFailed",
+				clusterv1.ConditionSeverityWarning, "OVH OS install failed for %s", machine.Status.ServiceName)
+			machine.Status.Phase = "InstallFailed"
+			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+		case state == ovh.InstallRunning, state == ovh.InstallPending:
+			// Pending here means our StartInstall hasn't surfaced an install task
+			// yet, not "never installed" — keep waiting.
 			machine.Status.Phase = "Installing"
 			logger.Info("OVH OS install in progress", "service", machine.Status.ServiceName)
 			return ctrl.Result{RequeueAfter: 90 * time.Second}, nil

@@ -187,15 +187,16 @@ func (r *DediboxMachineReconciler) reconcileNormal(ctx context.Context, machine 
 		// install, and polls it to done before self-joining, so an OS install is
 		// never manual operator work. (The tag is the env boundary the adopt above
 		// scopes on; offer+datacenter is identical across envs so it can't.)
-		switch state, stateErr := r.DediboxClient.InstallState(ctx, machine.Status.Zone, serverID); {
-		case stateErr != nil:
-			return ctrl.Result{}, stateErr
-		case state == dedibox.InstallFailed:
-			conditions.MarkFalse(machine, shared.ProvisionedCondition, "InstallFailed",
-				clusterv1.ConditionSeverityWarning, "Dedibox OS install failed for server %d", serverID)
-			machine.Status.Phase = "InstallFailed"
-			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
-		case state == dedibox.InstallPending:
+		//
+		// Drive our own install once per adoption rather than trusting the
+		// delivered OS: a pre-ordered box can arrive carrying a factory image (or
+		// one left by a prior adoption) whose install resource reads "installed",
+		// but which has neither the tuist login nor the fleet SSH key — so the
+		// self-join would target a box we can never authenticate to and wedge in
+		// Bootstrapping forever. Reimaging unconditionally here lays the login +
+		// key down ourselves; Status.InstallStarted makes it a one-shot so the
+		// next reconcile polls the install instead of wiping the box again.
+		if !machine.Status.InstallStarted {
 			signer, signErr := ssh.ParsePrivateKey(privateKey)
 			if signErr != nil {
 				return ctrl.Result{}, fmt.Errorf("parse fleet ssh key: %w", signErr)
@@ -221,12 +222,25 @@ func (r *DediboxMachineReconciler) reconcileNormal(ctx context.Context, machine 
 			}); err != nil {
 				return ctrl.Result{}, fmt.Errorf("start Dedibox install: %w", err)
 			}
+			machine.Status.InstallStarted = true
 			conditions.MarkFalse(machine, shared.ProvisionedCondition, "Installing",
 				clusterv1.ConditionSeverityInfo, "Dedibox OS install started for server %d", serverID)
 			machine.Status.Phase = "Installing"
 			r.event(machine, "Installing", "Started Dedibox OS install on server %d", serverID)
 			return ctrl.Result{RequeueAfter: 90 * time.Second}, nil
-		case state == dedibox.InstallRunning:
+		}
+
+		switch state, stateErr := r.DediboxClient.InstallState(ctx, machine.Status.Zone, serverID); {
+		case stateErr != nil:
+			return ctrl.Result{}, stateErr
+		case state == dedibox.InstallFailed:
+			conditions.MarkFalse(machine, shared.ProvisionedCondition, "InstallFailed",
+				clusterv1.ConditionSeverityWarning, "Dedibox OS install failed for server %d", serverID)
+			machine.Status.Phase = "InstallFailed"
+			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+		case state == dedibox.InstallRunning, state == dedibox.InstallPending:
+			// Pending here means our StartInstall hasn't surfaced an install record
+			// yet (the wipe is still queued), not "never installed" — keep waiting.
 			machine.Status.Phase = "Installing"
 			logger.Info("Dedibox OS install in progress", "id", serverID)
 			return ctrl.Result{RequeueAfter: 90 * time.Second}, nil

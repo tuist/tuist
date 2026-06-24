@@ -239,6 +239,17 @@ spec:
                 failureReason:
                   description: FailureReason / FailureMessage are set on terminal failures.
                   type: string
+                installStarted:
+                  description: |-
+                    InstallStarted records that the controller has kicked off its own OS
+                    (re)install for the adopted server. A pre-ordered box can arrive carrying a
+                    factory OS (or one left by a prior adoption) that has neither the fleet
+                    login nor its SSH key, so the install resource reads "installed" and the
+                    self-join would be aimed at a box we can never authenticate to. The
+                    controller therefore reimages once per adoption rather than trusting the
+                    delivered OS; this flag is what makes that a one-shot, so a reconcile after
+                    the install starts polls it to completion instead of wiping the box again.
+                  type: boolean
                 phase:
                   description: |-
                     Phase tracks lifecycle: Pending | Adopting | Installing | Provisioning |
