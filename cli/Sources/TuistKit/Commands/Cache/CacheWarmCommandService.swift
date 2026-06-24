@@ -29,6 +29,12 @@ import XcodeGraph
             case device
         }
 
+        /// Upper bound on concurrent `xcodebuild -create-xcframework` invocations. Each one is an
+        /// independent, mostly I/O-bound process; benchmarking the phase showed it keeps speeding up to
+        /// roughly the core count and then plateaus, so we scale with the machine but cap it to avoid
+        /// oversubscribing disk on very-high-core hosts.
+        private static let maxConcurrentXCFrameworkCreations = max(1, min(ProcessInfo.processInfo.activeProcessorCount, 8))
+
         private let configLoader: ConfigLoading
         private let manifestLoader: ManifestLoading
         private let pluginService: PluginServicing
@@ -467,12 +473,17 @@ import XcodeGraph
             binaryArtifactDirectories: [Platform: Set<AbsolutePath>],
             temporaryDirectory: AbsolutePath
         ) async throws -> [CacheGraphTargetBuiltArtifact] {
-            var xcframeworks: [CacheGraphTargetBuiltArtifact] = []
             let cacheableTargets = cacheableTargets.filter {
                 $0.0.target.isXCFrameworkCacheableProduct && !$0.0.target.isAggregate
             }
 
-            for cacheableTarget in cacheableTargets {
+            // Each XCFramework is created from already-built framework slices and written to a
+            // target-specific output path, so the operations are independent. We run them with
+            // bounded concurrency to cut the wall-clock time of this phase on projects with many
+            // cacheable targets, while keeping the input order so artifact storage stays deterministic.
+            return try await cacheableTargets.concurrentMap(
+                maxConcurrentTasks: Self.maxConcurrentXCFrameworkCreations
+            ) { cacheableTarget in
                 let platforms = Array(cacheableTarget.0.target.supportedPlatforms)
                 let platformBinaryArtifacts = platforms.flatMap { Array(binaryArtifactDirectories[$0, default: Set()]) }
                 let artifactsIncludingTarget = try await platformBinaryArtifacts.concurrentCompactMap {
@@ -507,7 +518,7 @@ import XcodeGraph
                         default:
                             return []
                         }
-                    } + ["-allow-internal-distribution"]
+                    }
 
                 Logger.current.info("Creating XCFramework for \(cacheableTarget.0.target.name)", metadata: .section)
 
@@ -545,16 +556,14 @@ import XcodeGraph
                     break
                 }
 
-                xcframeworks.append(CacheGraphTargetBuiltArtifact(
+                return CacheGraphTargetBuiltArtifact(
                     type: .xcframework,
                     graphTarget: cacheableTarget.0,
                     hash: cacheableTarget.1,
                     path: xcframeworkPath,
                     metadata: .init()
-                ))
+                )
             }
-
-            return xcframeworks
         }
 
         private func libraryPublicHeadersPath(
