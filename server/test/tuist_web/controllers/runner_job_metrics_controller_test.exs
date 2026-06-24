@@ -5,8 +5,8 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Runners.Claims
   alias Tuist.Runners.JobMetrics
-  alias Tuist.Runners.Jobs
 
   defp ok_tokenreview_stub do
     stub(K8sClient, :create_controller_token_review, fn "valid-token" ->
@@ -14,20 +14,8 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
     end)
   end
 
-  defp enqueue(account, workflow_job_id) do
-    :ok =
-      Jobs.enqueue(%{
-        workflow_job_id: workflow_job_id,
-        account_id: account.id,
-        fleet_name: "linux-amd64",
-        repository: "tuist/tuist",
-        workflow_run_id: workflow_job_id - 1000,
-        workflow_name: "CLI",
-        run_attempt: 1,
-        job_name: "Build",
-        head_branch: "main",
-        head_sha: "abc"
-      })
+  defp claim(account, workflow_job_id, pod_name) do
+    {:ok, _claim} = Claims.attempt(workflow_job_id, account.id, "linux-amd64", pod_name)
   end
 
   defp sample(timestamp, attrs \\ %{}) do
@@ -47,21 +35,20 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
     )
   end
 
-  defp post_metrics(conn, workflow_job_id, body) do
-    post(conn, "/api/internal/runners/jobs/#{workflow_job_id}/metrics", body)
+  defp post_metrics(conn, pod_name, body) do
+    post(conn, "/api/internal/runners/pods/#{pod_name}/metrics", body)
   end
 
-  describe "POST /api/internal/runners/jobs/:workflow_job_id/metrics" do
-    test "records the batch and returns 204", %{conn: conn} do
+  describe "POST /api/internal/runners/pods/:pod_name/metrics" do
+    test "records the batch under the Pod's claimed job and returns 204", %{conn: conn} do
       account = account_fixture()
-      enqueue(account, 33_001)
+      claim(account, 33_001, "runner-pod-1")
       ok_tokenreview_stub()
 
       conn =
         conn
         |> put_req_header("authorization", "Bearer valid-token")
-        |> post_metrics(33_001, %{
-          "account_id" => account.id,
+        |> post_metrics("runner-pod-1", %{
           "samples" => [sample(1_750_000_000.0, %{"cpu_usage_percent" => 88.0})]
         })
 
@@ -73,64 +60,58 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
 
     test "returns 204 on an empty sample batch", %{conn: conn} do
       account = account_fixture()
-      enqueue(account, 33_002)
+      claim(account, 33_002, "runner-pod-2")
       ok_tokenreview_stub()
 
       conn =
         conn
         |> put_req_header("authorization", "Bearer valid-token")
-        |> post_metrics(33_002, %{"account_id" => account.id, "samples" => []})
+        |> post_metrics("runner-pod-2", %{"samples" => []})
 
       assert response(conn, 204)
       assert JobMetrics.list_for_job(33_002) == []
     end
 
+    test "returns 204 without recording when the Pod holds no live claim", %{conn: conn} do
+      ok_tokenreview_stub()
+      reject(&JobMetrics.record/3)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post_metrics("unclaimed-pod", %{"samples" => [sample(1_750_000_000.0)]})
+
+      assert response(conn, 204)
+    end
+
     test "returns 400 when a sample is missing its timestamp", %{conn: conn} do
       account = account_fixture()
-      enqueue(account, 33_003)
+      claim(account, 33_003, "runner-pod-3")
       ok_tokenreview_stub()
 
       conn =
         conn
         |> put_req_header("authorization", "Bearer valid-token")
-        |> post_metrics(33_003, %{
-          "account_id" => account.id,
-          "samples" => [%{"cpu_usage_percent" => 10.0}]
-        })
+        |> post_metrics("runner-pod-3", %{"samples" => [%{"cpu_usage_percent" => 10.0}]})
 
       assert json_response(conn, 400)["error"] =~ "timestamp"
     end
 
     test "returns 400 when samples is not a list", %{conn: conn} do
       account = account_fixture()
-      enqueue(account, 33_004)
+      claim(account, 33_004, "runner-pod-4")
       ok_tokenreview_stub()
 
       conn =
         conn
         |> put_req_header("authorization", "Bearer valid-token")
-        |> post_metrics(33_004, %{"account_id" => account.id, "samples" => "nope"})
+        |> post_metrics("runner-pod-4", %{"samples" => "nope"})
 
       assert json_response(conn, 400)["error"] =~ "samples"
     end
 
-    test "returns 404 when no job matches the (account, workflow_job_id)", %{conn: conn} do
-      account = account_fixture()
-      ok_tokenreview_stub()
-
-      conn =
-        conn
-        |> put_req_header("authorization", "Bearer valid-token")
-        |> post_metrics(33_999, %{
-          "account_id" => account.id,
-          "samples" => [sample(1_750_000_000.0)]
-        })
-
-      assert json_response(conn, 404)["error"] =~ "not found"
-    end
-
     test "returns 401 when the bearer token is missing", %{conn: conn} do
-      conn = post_metrics(conn, 33_005, %{"account_id" => 1, "samples" => []})
+      conn = post_metrics(conn, "runner-pod-5", %{"samples" => []})
       assert json_response(conn, 401)["error"] =~ "bearer"
     end
 
@@ -142,7 +123,7 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
       conn =
         conn
         |> put_req_header("authorization", "Bearer foreign-token")
-        |> post_metrics(33_006, %{"account_id" => 1, "samples" => []})
+        |> post_metrics("runner-pod-6", %{"samples" => []})
 
       assert json_response(conn, 401)["error"] =~ "unauthorized"
     end
@@ -153,7 +134,7 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
       conn =
         conn
         |> put_req_header("authorization", "Bearer any-token")
-        |> post_metrics(33_007, %{"account_id" => 1, "samples" => []})
+        |> post_metrics("runner-pod-7", %{"samples" => []})
 
       assert json_response(conn, 503)["error"] =~ "kubernetes"
     end

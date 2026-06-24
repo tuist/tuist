@@ -8,17 +8,22 @@ defmodule TuistWeb.RunnerJobMetricsController do
   Unlike `runner_job_logs` (pulled from GitHub's Logs API after the
   job completes), machine metrics have no GitHub-side source — they
   describe the runner Pod/VM, which only our infrastructure can see.
-  The collector samples CPU / memory / network / disk for each
-  running job's Pod and POSTs batches here. It runs alongside the
-  runners-controller (which already owns the Pod→`workflow_job_id`
-  mapping) and authenticates with the same in-cluster ServiceAccount
-  token as `pods/stopped`.
+  The collector runs alongside the runners-controller, samples CPU /
+  memory / network / disk for each running Pod, and POSTs batches
+  here keyed by Pod name, authenticating with the same in-cluster
+  ServiceAccount token as `pods/stopped`.
+
+  The collector deliberately does not know which job a Pod is running
+  — that mapping lives in `runner_claims`. We resolve `pod_name` to
+  its live claim's `workflow_job_id` and `account_id` here, the same
+  Pod-name-keyed shape as `pods/stopped`. A Pod with no live claim
+  (idle/warm, or its job already finished) is a no-op, since the
+  collector samples every running runner Pod.
 
   ## Contract
 
-      POST /api/internal/runners/jobs/:workflow_job_id/metrics
+      POST /api/internal/runners/pods/:pod_name/metrics
       {
-        "account_id": 123,
         "samples": [
           {
             "timestamp": 1750684800.0,        // epoch seconds
@@ -42,8 +47,8 @@ defmodule TuistWeb.RunnerJobMetricsController do
 
   use TuistWeb, :controller
 
+  alias Tuist.Runners.Claims
   alias Tuist.Runners.JobMetrics
-  alias Tuist.Runners.Jobs
   alias TuistWeb.RunnerControllerAuth
 
   require Logger
@@ -56,25 +61,28 @@ defmodule TuistWeb.RunnerJobMetricsController do
   )a
 
   @doc """
-  `POST /api/internal/runners/jobs/:workflow_job_id/metrics`
+  `POST /api/internal/runners/pods/:pod_name/metrics`
 
   Responses:
 
-    * 204 — samples recorded (or an empty batch, treated as a no-op).
-    * 400 — malformed body (bad ids / samples not a list / sample
-      missing a numeric `timestamp`).
+    * 204 — samples recorded (or an empty batch / a Pod with no live
+      claim, both treated as a no-op).
+    * 400 — malformed body (samples not a list / sample missing a
+      numeric `timestamp`).
     * 401 — missing or invalid SA bearer token / wrong principal.
-    * 404 — no job with that `(account_id, workflow_job_id)`.
     * 503 — kubernetes apiserver unavailable (TokenReview failed).
   """
-  def create(conn, %{"workflow_job_id" => workflow_job_id_param} = params) do
+  def create(conn, %{"pod_name" => pod_name} = params) when is_binary(pod_name) and pod_name != "" do
     with :ok <- RunnerControllerAuth.authenticate(conn),
-         {:ok, workflow_job_id} <- parse_id(workflow_job_id_param),
-         {:ok, account_id} <- parse_account_id(params),
-         {:ok, samples} <- parse_samples(params),
-         {:ok, _job} <- Jobs.get_for_account(account_id, workflow_job_id) do
-      :ok = JobMetrics.record(workflow_job_id, account_id, samples)
-      send_resp(conn, :no_content, "")
+         {:ok, samples} <- parse_samples(params) do
+      case Claims.by_pod_name(pod_name) do
+        {:ok, %{workflow_job_id: workflow_job_id, account_id: account_id}} ->
+          :ok = JobMetrics.record(workflow_job_id, account_id, samples)
+          send_resp(conn, :no_content, "")
+
+        :error ->
+          send_resp(conn, :no_content, "")
+      end
     else
       {:error, :missing_bearer} ->
         conn |> put_status(:unauthorized) |> json(%{error: "missing bearer token"})
@@ -101,30 +109,13 @@ defmodule TuistWeb.RunnerJobMetricsController do
       {:error, {:invalid_field, field}} ->
         conn |> put_status(:bad_request) |> json(%{error: "invalid #{field}"})
 
-      {:error, :not_found} ->
-        conn |> put_status(:not_found) |> json(%{error: "job not found"})
-
       {:error, reason} ->
         Logger.error("runners: job metrics ingest failed", reason: inspect(reason))
         conn |> put_status(:internal_server_error) |> json(%{error: "metrics ingest failed"})
     end
   end
 
-  def create(conn, _params), do: conn |> put_status(:bad_request) |> json(%{error: "invalid workflow_job_id"})
-
-  defp parse_id(value) when is_integer(value), do: {:ok, value}
-
-  defp parse_id(value) when is_binary(value) do
-    case Integer.parse(value) do
-      {id, ""} -> {:ok, id}
-      _ -> {:error, {:invalid_field, "workflow_job_id"}}
-    end
-  end
-
-  defp parse_id(_), do: {:error, {:invalid_field, "workflow_job_id"}}
-
-  defp parse_account_id(%{"account_id" => account_id}), do: parse_id(account_id)
-  defp parse_account_id(_), do: {:error, {:invalid_field, "account_id"}}
+  def create(conn, _params), do: conn |> put_status(:bad_request) |> json(%{error: "invalid pod_name"})
 
   defp parse_samples(%{"samples" => samples}) when is_list(samples) do
     samples

@@ -289,4 +289,24 @@ defmodule Tuist.Runners.Claims do
     |> Repo.all()
     |> MapSet.new()
   end
+
+  @doc """
+  Resolves the live claim (`claimed` or `running`) owning `pod_name`
+  to its `workflow_job_id` and `account_id`. The metrics ingest
+  endpoint uses this to map a sampled Pod back to the job it's running,
+  so the runners-controller can POST samples keyed by Pod name without
+  knowing job ids. Returns `:error` when the Pod holds no live claim
+  (an idle/warm Pod, or one whose job already released its claim).
+  """
+  def by_pod_name(pod_name) when is_binary(pod_name) do
+    Claim
+    |> where([c], c.pod_name == ^pod_name)
+    |> select([c], %{workflow_job_id: c.workflow_job_id, account_id: c.account_id})
+    |> limit(1)
+    |> Repo.one()
+    |> case do
+      nil -> :error
+      claim -> {:ok, claim}
+    end
+  end
 end
