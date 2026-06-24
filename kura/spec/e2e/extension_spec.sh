@@ -91,6 +91,11 @@ Describe 'extension hooks'
       -d '{"parts":[1,2]}')"
     The variable complete_status should eq 204
 
+    wait_for_status_with \
+      "${KURA_EU_URL}/api/cache/module/module-1?tenant_id=acme&namespace_id=ios&hash=hash-1&name=Module.framework&cache_category=builds" \
+      200 \
+      -H "authorization: Bearer ${ios_token}" >/dev/null || return 1
+
     headers_file="${SUITE_TMP_DIR}/module.headers"
     body_file="${SUITE_TMP_DIR}/module.body"
     capture_into curl_output \
