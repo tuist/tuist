@@ -54,7 +54,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable, Sendable {
     public var scripts: [TargetScript]
     public var environmentVariables: [String: EnvironmentVariable]
     public var launchArguments: [LaunchArgument]
-    public var filesGroup: ProjectGroup
+    public var filesGroup: ProjectGroup?
     public var rawScriptBuildPhases: [RawScriptBuildPhase]
     public var playgrounds: [AbsolutePath]
     public let additionalFiles: [FileElement]
@@ -94,7 +94,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable, Sendable {
         scripts: [TargetScript] = [],
         environmentVariables: [String: EnvironmentVariable] = [:],
         launchArguments: [LaunchArgument] = [],
-        filesGroup: ProjectGroup,
+        filesGroup: ProjectGroup? = nil,
         dependencies: [TargetDependency] = [],
         rawScriptBuildPhases: [RawScriptBuildPhase] = [],
         playgrounds: [AbsolutePath] = [],
@@ -435,7 +435,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable, Sendable {
             headers: Headers? = nil,
             scripts: [TargetScript] = [],
             environmentVariables: [String: EnvironmentVariable] = [:],
-            filesGroup: ProjectGroup = .group(name: "Project"),
+            filesGroup: ProjectGroup? = nil,
             dependencies: [TargetDependency] = [],
             rawScriptBuildPhases: [RawScriptBuildPhase] = [],
             launchArguments: [LaunchArgument] = [],
@@ -497,7 +497,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable, Sendable {
             headers: Headers? = nil,
             scripts: [TargetScript] = [],
             environmentVariables: [String: EnvironmentVariable] = [:],
-            filesGroup: ProjectGroup = .group(name: "Project"),
+            filesGroup: ProjectGroup? = nil,
             dependencies: [TargetDependency] = [],
             rawScriptBuildPhases: [RawScriptBuildPhase] = [],
             launchArguments: [LaunchArgument] = [],
@@ -559,7 +559,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable, Sendable {
             headers: Headers? = nil,
             scripts: [TargetScript] = [],
             environmentVariables: [String: EnvironmentVariable] = [:],
-            filesGroup: ProjectGroup = .group(name: "Project"),
+            filesGroup: ProjectGroup? = nil,
             dependencies: [TargetDependency] = [],
             rawScriptBuildPhases: [RawScriptBuildPhase] = [],
             onDemandResourcesTags: OnDemandResourcesTags? = nil,
