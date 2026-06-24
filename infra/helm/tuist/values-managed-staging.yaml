@@ -342,8 +342,11 @@ ovhFleet:
   # by displayName, drives its OS (re)install, and self-joins it (eu-central's
   # Dedibox path is the twin). Keep prod/canary parked until staging proves out.
   enabled: true
-  # OVH entity the OVH_API token was minted on (the BHS box's account).
-  endpoint: ovh-ca
+  # OVHcloud US entity (api.us.ovhcloud.com). The box sits physically in Canada
+  # (ca-east-bhs / BHS6) but on an OVHcloud US account, so the API endpoint is
+  # ovh-us — a token minted on any other entity (ovh-ca, ovh-eu) is rejected as
+  # "invalid". The OVH_API token must be created on us.ovhcloud.com to match.
+  endpoint: ovh-us
   nodePool: kura-ovh-staging
   machine:
     # Adopt by offer + datacenter, scoped to the displayName marker (the per-env
