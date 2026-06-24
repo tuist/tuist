@@ -3455,18 +3455,28 @@ build_runner_job_metrics = fn workflow_job_id, account_id, fleet, started_at, co
   total_seconds = max(DateTime.diff(completed_at, started_at, :second), 1)
   sample_interval = 5
 
+  # Deterministic per-sample jitter (no `:rand`, so seeds stay reproducible)
+  # in [-amp, amp]. Real telemetry is spiky between samples; the sine bases
+  # alone are too smooth to show that, which hides the chart's sharp lines.
+  hash01 = fn n ->
+    v = :math.sin(n * 12.9898 + 78.233) * 43_758.5453
+    v - Float.floor(v)
+  end
+
+  noise = fn seed, amp -> (hash01.(seed) - 0.5) * 2 * amp end
+
   Enum.map(0..div(total_seconds, sample_interval), fn step ->
     offset = step * sample_interval
-    # Two out-of-phase waves give the busy/idle alternation the
-    # charts show without needing real telemetry.
+    # Two out-of-phase waves give the busy/idle alternation, plus per-sample
+    # noise so the charts read like real (spiky) telemetry.
     fast = :math.sin(offset / 18)
     slow = :math.sin(offset / 55)
 
-    cpu = 55 + 38 * fast
-    iowait = if linux?, do: max(0.0, 6 + 5 * slow), else: 0.0
-    mem_fraction = 0.30 + 0.45 * (0.5 + 0.5 * slow)
-    net_in = trunc((4 + 3 * (0.5 + 0.5 * fast)) * 1024 * 1024)
-    net_out = trunc((1 + 2 * (0.5 + 0.5 * slow)) * 1024 * 1024)
+    cpu = 55 + 38 * fast + noise.(step, 11)
+    iowait = if linux?, do: max(0.0, 6 + 5 * slow + noise.(step + 500, 3)), else: 0.0
+    mem_fraction = 0.30 + 0.45 * (0.5 + 0.5 * slow) + noise.(step + 1000, 0.025)
+    net_in = trunc(max(0.0, 4 + 3 * (0.5 + 0.5 * fast) + noise.(step + 1500, 1.2)) * 1024 * 1024)
+    net_out = trunc(max(0.0, 1 + 2 * (0.5 + 0.5 * slow) + noise.(step + 2000, 0.8)) * 1024 * 1024)
     disk_fraction = 0.58 + 0.04 * (offset / total_seconds)
 
     %{

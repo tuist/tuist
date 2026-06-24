@@ -159,12 +159,12 @@
           </div>
         </div>
       </.card_section>
-    </.card>
 
-    <.runner_job_metrics_overview
-      :if={TuistWeb.RunnerJobLive.has_machine_metrics?(@machine_metrics)}
-      metrics={@machine_metrics}
-    />
+      <.runner_job_metrics_overview
+        :if={TuistWeb.RunnerJobLive.has_machine_metrics?(@machine_metrics)}
+        metrics={@machine_metrics}
+      />
+    </.card>
 
     <.card
       title={dgettext("dashboard_runners", "Steps")}

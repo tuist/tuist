@@ -81,7 +81,7 @@ defmodule TuistWeb.Components.RunnerJobMetricsCharts do
 
     ~H"""
     <div class="tuist-runner-metrics" data-part="overview" data-metrics-charts>
-      <.card_section data-part="charts-grid">
+      <div data-part="charts-grid">
         <.metric_chart
           id={"#{@id}-cpu"}
           title="CPU"
@@ -106,7 +106,7 @@ defmodule TuistWeb.Components.RunnerJobMetricsCharts do
           unit=" MiB"
           show_legend
         />
-      </.card_section>
+      </div>
     </div>
     """
   end
@@ -125,7 +125,7 @@ defmodule TuistWeb.Components.RunnerJobMetricsCharts do
       <.chart
         id={@id}
         type="line"
-        smooth={0.1}
+        smooth={false}
         series={@series}
         colors={["var:noora-chart-primary", "var:noora-chart-secondary"]}
         show_legend={false}
@@ -140,16 +140,14 @@ defmodule TuistWeb.Components.RunnerJobMetricsCharts do
   # `markArea` at the hovered step's `[start, end]` window directly.
   defp chart_options(assigns) do
     y_axis =
-      maybe_put(
-        %{
-          min: 0,
-          splitNumber: 4,
-          splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
-          axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}#{assigns.unit}"}
-        },
-        :max,
-        assigns.y_max
-      )
+      %{
+        min: 0,
+        splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+        axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}#{assigns.unit}"}
+      }
+      # Percent charts pin to 0/25/50/75/100; others let ECharts pick ~4 ticks.
+      |> Map.merge(if(assigns.unit == "%", do: %{interval: 25}, else: %{splitNumber: 4}))
+      |> maybe_put(:max, assigns.y_max)
 
     maybe_put_legend(
       %{
