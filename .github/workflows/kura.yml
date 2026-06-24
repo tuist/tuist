@@ -61,9 +61,10 @@ jobs:
     # Fast guard for the crate_universe pin. Cargo.Bazel.lock is a digest of Cargo.toml +
     # Cargo.lock and must be repinned when they change (or after merging main); otherwise the
     # Bazel jobs fail deep in analysis with "lockfile is out of date for 'crates'".
-    # `mise run bazel-repin check` runs `bazel query '@crates//:all'` WITHOUT CARGO_BAZEL_REPIN, so a
-    # stale pin fails loudly here in ~1 min with an actionable message. It only materializes the
-    # @crates repo — no cc toolchain — so it runs on the host (no dev container). Fix: `mise run bazel-repin`.
+    # `mise run bazel-repin check` runs `bazel query '@crates//:all'` WITHOUT CARGO_BAZEL_REPIN (so a
+    # stale pin fails loudly here in ~1 min with an actionable message) and resolves
+    # //bazel/third_party/lua:lua to catch a stale vendored-Lua pin. Both are loading-phase queries
+    # (no cc toolchain), so it runs on the host (no dev container). Fix: `mise run bazel-repin`.
     steps:
       - uses: actions/checkout@v4
 
@@ -219,7 +220,8 @@ jobs:
 
       - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
-      # Remote cache is best-effort here too (see bazel-compile) so a Tuist outage can't block merging.
+      # Remote cache is best-effort here too (see bazel-compile): an auth/setup outage degrades to a
+      # cold local build rather than blocking the merge.
       - name: Authenticate with Tuist
         run: tuist auth login
         continue-on-error: true
