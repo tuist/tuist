@@ -383,3 +383,4 @@ runnersFleet:
       default: true
     - xcodeVersion: "26.4.1"
     - xcodeVersion: "26.3"
+    - xcodeVersion: "26.0.1"
