@@ -80,6 +80,41 @@ defmodule TuistWeb.TestRunLiveTest do
     refute has_element?(lv, "[data-part='run-destinations']")
   end
 
+  test "shows the test plan in test details when a test plan was used", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    {:ok, test_run} =
+      RunsFixtures.test_fixture(project_id: project.id, scheme: "App", test_plan: "Smoke")
+
+    # When
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+    # Then — rendered inside the Test Details card, not as a header badge
+    html = render(lv)
+    assert html =~ "Test plan"
+    assert html =~ "Smoke"
+  end
+
+  test "omits the test plan row when no test plan was used", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, scheme: "App")
+
+    # When
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+    # Then
+    refute render(lv) =~ "Test plan"
+  end
+
   test "shows test cases table", %{
     conn: conn,
     organization: organization,

@@ -32,6 +32,7 @@ defmodule Tuist.Tests.Test do
     field :is_ci, :boolean
     field :model_identifier, Ch, type: "String"
     field :scheme, Ch, type: "String"
+    field :test_plan, Ch, type: "Nullable(String)"
     field :status, Ch, type: "LowCardinality(String)"
     field :is_flaky, :boolean, default: false
     field :git_branch, Ch, type: "String"
@@ -69,6 +70,7 @@ defmodule Tuist.Tests.Test do
       :is_ci,
       :model_identifier,
       :scheme,
+      :test_plan,
       :project_id,
       :account_id,
       :status,

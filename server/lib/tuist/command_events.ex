@@ -123,7 +123,15 @@ defmodule Tuist.CommandEvents do
 
   def generate_result_bundle_url(command_event) do
     {:ok, project} = get_project_for_command_event(command_event, preload: :account)
-    Storage.generate_download_url(get_result_bundle_key(command_event), project.account)
+
+    # Storage key keeps `.zip` for legacy compatibility, but the bytes are AppleArchive.
+    Storage.generate_download_url(
+      get_result_bundle_key(command_event),
+      project.account,
+      query_params: [
+        {"response-content-disposition", "attachment; filename=\"result_bundle.aar\""}
+      ]
+    )
   end
 
   def has_session?(command_event) do

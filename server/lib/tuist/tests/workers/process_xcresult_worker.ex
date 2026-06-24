@@ -122,6 +122,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
     attrs =
       Map.merge(base_attrs(args), %{
         scheme: parsed_data["test_plan_name"] || Map.get(args, "scheme"),
+        test_plan: parsed_data["test_plan_name"],
         status: parsed_data["status"] || "success",
         duration: parsed_data["duration"] || 0,
         test_modules: parsed_data["test_modules"] || [],
