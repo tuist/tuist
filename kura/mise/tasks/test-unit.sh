@@ -6,6 +6,5 @@ set -euo pipefail
 # the limit it was first started with, so run `bazel shutdown` if you change this and it doesn't take.
 ulimit -n 65536
 
-# --remote_local_fallback degrades to local execution if the remote cache is unavailable (no-op when
-# none is configured); --test_output=all streams every test's output, matching CI.
-bazel test //... --test_output=all --remote_local_fallback "$@"
+# --test_output=all streams every test's output, matching CI.
+bazel test //... --test_output=all "$@"

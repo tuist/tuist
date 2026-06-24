@@ -114,11 +114,11 @@ jobs:
 
       - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
-      # The Tuist remote cache is an accelerator, not a gate: an auth/cache outage must not block
+      # The Tuist remote cache is an accelerator, not a gate: an auth/setup outage must not block
       # merging a Kura PR (the cache *is* Kura, so this is exactly when CI is needed most). Auth and
-      # setup are best-effort; `.bazelrc` try-imports `.bazelrc.tuist`, so if setup is skipped the
-      # build runs cold against the local cache, and `--remote_local_fallback` keeps a mid-build
-      # remote failure from failing the build.
+      # setup are best-effort (continue-on-error); `.bazelrc` try-imports `.bazelrc.tuist`, so if they
+      # fail the build runs cold against the local cache. (A gRPC cache reachable at setup but erroring
+      # mid-build still fails — Bazel has no local fallback for a gRPC cache.)
       - name: Authenticate with Tuist
         run: tuist auth login
         continue-on-error: true
