@@ -154,6 +154,10 @@ defmodule TuistWeb.RunnersControllerTest do
           region: region,
           status: :active,
           url: url,
+          # Fresh readiness heartbeat so the node-port server is served
+          # rather than failed over to the public cache (see
+          # Kura.runner_cache_endpoint_url/2).
+          last_ready_at: DateTime.truncate(DateTime.utc_now(), :second),
           provisioner_node_ref: "kura-#{account.name}-#{region}"
         })
       end
