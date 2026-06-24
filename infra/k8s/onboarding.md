@@ -229,9 +229,9 @@ The [`infra/helm/k8s-monitoring/`](../helm/k8s-monitoring/) chart forwards Kuber
 
 ## 8. Preview environments (ephemeral pull request / commit deploys)
 
-Preview environments live on the `tuist-preview` workload cluster, which runs Postgres / ClickHouse / MinIO embedded alongside the server. Each preview is its own Helm release in its own namespace, with auto-deletion driven by a time-to-live label and an hourly sweep workflow.
+Preview environments live on the `tuist-preview` workload cluster, which runs Postgres / ClickHouse / MinIO embedded alongside the server. Each preview is its own Helm release in its own namespace, with auto-deletion driven by a time-to-live label and the in-cluster `preview-janitor` CronJob from the platform chart.
 
-Slack-requested, manual, and pull request previews use `.github/workflows/preview-deploy.yml` with `action=deploy` or `action=delete`. The workflow uses the same cluster and embedded dependency shape for every preview, and layers `infra/helm/tuist/values-preview-kura.yaml` after `values-preview.yaml` when Kura is enabled. App pods and the preview's Kura runtime pods both land on the tainted preview worker pool, so Kura previews colocate on `role=preview` with a matching toleration instead of a dedicated Kura node pool. The Kura controller is installed cluster-wide in the `kura` namespace once per cluster by `mise -C infra run k8s:install-kura-platform`, and each preview's `KuraInstance` is created in that `kura` namespace. Requests enter through `/preview` in Slack or through manual workflow dispatch, are audited in `tuist-ops`, and are reconciled by `.github/workflows/preview-deploy.yml`; cleanup is handled by `.github/workflows/preview-sweep.yml`.
+Slack-requested, manual, and pull request previews use `.github/workflows/preview-deploy.yml` with `action=deploy` or `action=delete`. The workflow uses the same cluster and embedded dependency shape for every preview, and layers `infra/helm/tuist/values-preview-kura.yaml` after `values-preview.yaml` when Kura is enabled. App pods and the preview's Kura runtime pods both land on the tainted preview worker pool, so Kura previews colocate on `role=preview` with a matching toleration instead of a dedicated Kura node pool. The Kura controller is installed cluster-wide in the `kura` namespace once per cluster by `mise -C infra run k8s:install-kura-platform`, and each preview's `KuraInstance` is created in that `kura` namespace. Requests enter through `/preview` in Slack or through manual workflow dispatch, are audited in `tuist-ops`, and are reconciled by `.github/workflows/preview-deploy.yml`; cleanup is handled inside the cluster by `preview-janitor`, with `.github/workflows/preview-sweep.yml` kept as an external force-run backstop.
 
 Previews use the same routing as production: the Lua hook enforces tenant matching strictly and the server looks each account's Kura endpoint up through a `kura_servers` row. The deploy workflow runs the regular development seed with preview-sized counts, uses the seeded `tuist` organization, refreshes the `tuistrocks@tuist.dev` test user's password, and wires that organization to the preview `KuraInstance`, so the preview is Kura-ready out of the box. The login page shows the test-user sign-in button in preview environments. Seeding is idempotent and is also what `mise run helm:preview-up` does locally.
 
@@ -251,7 +251,7 @@ gh workflow run preview-deploy.yml -f pr_number=1234 -f ttl_hours=24
 gh workflow run preview-deploy.yml -f commit_sha=abc1234567890... -f ttl_hours=4
 ```
 
-The hourly `preview-sweep.yml` workflow handles deletion (and any future scale-down once an elastic worker pool is wired up).
+The platform chart's `preview-janitor` CronJob handles deletion. The hourly `preview-sweep.yml` workflow is kept as an external backstop and manual force-run path while the janitor changes settle.
 
 ## 9. Teardown
 

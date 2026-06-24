@@ -1,9 +1,10 @@
 name: Preview Sweep
 
-# Hourly cleanup pass over the preview cluster. Deletes preview namespaces
-# whose `tuist.dev/expires-at` label is in the past — uninstalls the
-# release and drops the namespace. Also exposed as workflow_dispatch for
-# force-runs (e.g. after manually uninstalling something out-of-band).
+# External cleanup backstop for the in-cluster preview-janitor CronJob.
+# Deletes preview namespaces whose `tuist.dev/expires-at` label is in the
+# past — uninstalls the release and drops the namespace. Also exposed as
+# workflow_dispatch for force-runs (e.g. after manually uninstalling
+# something out-of-band).
 #
 # No worker-pool scaling here: the preview cluster keeps a fixed worker
 # pool (see infra/k8s/clusters/cluster-preview.yaml + the §8.3 step in

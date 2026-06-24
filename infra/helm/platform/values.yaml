@@ -299,6 +299,37 @@ ciliumEgressGateway:
         name: hcloud
         key: token
 
+# Optional in-cluster cleanup loop for the managed preview cluster. Disabled
+# by default so ordinary platform installs do not get cluster-wide delete
+# permissions. The tuist-preview overlay enables it.
+previewJanitor:
+  enabled: false
+  schedule: "0 * * * *"
+  suspend: false
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 900
+  backoffLimit: 0
+  activeDeadlineSeconds: 900
+  stuckCreateAgeSeconds: 1800
+  teardownTimeout: 5m
+  kuraNamespace: kura
+  serviceAccount:
+    name: preview-janitor
+  image:
+    repository: alpine/k8s
+    tag: "1.36.1"
+    pullPolicy: IfNotPresent
+  nodeSelector: {}
+  tolerations: []
+  resources:
+    requests:
+      cpu: 25m
+      memory: 96Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
 # Whether to emit the ClusterIssuer template below. Turn off if you manage
 # cert-manager issuers with a separate GitOps process.
 clusterIssuer:
