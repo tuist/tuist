@@ -191,6 +191,10 @@ defmodule TuistWeb.Components.RunnerJobMetricsCharts do
 
   defp maybe_put_legend(options, true) do
     Map.put(options, :legend, %{
+      # `.chart` is called with `show_legend={false}` so Noora emits
+      # `legend: %{show: false}`; this custom legend deep-merges on top,
+      # so it must re-assert `show` to actually render.
+      show: true,
       left: "left",
       top: "bottom",
       orient: "horizontal",
