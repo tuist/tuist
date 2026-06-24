@@ -58,25 +58,30 @@ defmodule Tuist.Storage.RetentionPolicyTest do
     test "returns plan-specific app preview retention" do
       assert RetentionPolicy.retention_days(:preview_app_build, :air) == 60
       assert RetentionPolicy.retention_days(:preview_app_build, :open_source) == 60
-      assert RetentionPolicy.retention_days(:preview_app_build, :pro) == 180
-      assert RetentionPolicy.retention_days(:preview_app_build, :enterprise) == 365
+      assert RetentionPolicy.retention_days(:preview_app_build, :pro) == 90
+      assert RetentionPolicy.retention_days(:preview_app_build, :enterprise) == 180
 
       assert RetentionPolicy.retention_days(:preview_icon, :air) == 60
       assert RetentionPolicy.retention_days(:preview_icon, :open_source) == 60
-      assert RetentionPolicy.retention_days(:preview_icon, :pro) == 180
-      assert RetentionPolicy.retention_days(:preview_icon, :enterprise) == 365
+      assert RetentionPolicy.retention_days(:preview_icon, :pro) == 90
+      assert RetentionPolicy.retention_days(:preview_icon, :enterprise) == 180
     end
 
     test "returns plan-specific build and test artifact retention" do
       assert RetentionPolicy.retention_days(:build_archive, :air) == 30
       assert RetentionPolicy.retention_days(:build_archive, :open_source) == 30
       assert RetentionPolicy.retention_days(:build_archive, :pro) == 90
-      assert RetentionPolicy.retention_days(:build_archive, :enterprise) == 365
+      assert RetentionPolicy.retention_days(:build_archive, :enterprise) == 180
+
+      assert RetentionPolicy.retention_days(:run_session, :air) == 30
+      assert RetentionPolicy.retention_days(:run_session, :open_source) == 30
+      assert RetentionPolicy.retention_days(:run_session, :pro) == 90
+      assert RetentionPolicy.retention_days(:run_session, :enterprise) == 180
 
       assert RetentionPolicy.retention_days(:test_attachment, :air) == 30
       assert RetentionPolicy.retention_days(:test_attachment, :open_source) == 30
       assert RetentionPolicy.retention_days(:test_attachment, :pro) == 90
-      assert RetentionPolicy.retention_days(:test_attachment, :enterprise) == 365
+      assert RetentionPolicy.retention_days(:test_attachment, :enterprise) == 180
     end
 
     test "returns short shard bundle retention" do

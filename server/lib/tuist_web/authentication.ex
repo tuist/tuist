@@ -60,11 +60,19 @@ defmodule TuistWeb.Authentication do
     end
   end
 
+  @doc """
+  Returns the account that owns the authenticated subject, or `nil`.
+
+  Callers that require an account (for ownership, storage, or analytics
+  association) must handle `nil` explicitly and reject the request rather than
+  dereferencing the result or storing a `nil` account.
+  """
   def authenticated_subject_account(conn) do
     case authenticated_subject(conn) do
       %User{account: account} -> account
       %Project{account: account} -> account
       %AuthenticatedAccount{account: account} -> account
+      nil -> nil
     end
   end
 

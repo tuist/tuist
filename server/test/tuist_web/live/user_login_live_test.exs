@@ -13,6 +13,22 @@ defmodule TuistWeb.UserLoginLiveTest do
       assert html =~ "Log in"
     end
 
+    test "does not render test user login button by default", %{conn: conn} do
+      stub(Tuist.Environment, :test_user_login_enabled?, fn -> false end)
+
+      {:ok, _lv, html} = live(conn, ~p"/users/log_in")
+
+      refute html =~ "Log in as test user"
+    end
+
+    test "renders test user login button when enabled", %{conn: conn} do
+      stub(Tuist.Environment, :test_user_login_enabled?, fn -> true end)
+
+      {:ok, _lv, html} = live(conn, ~p"/users/log_in")
+
+      assert html =~ "Log in as test user"
+    end
+
     test "redirects if already logged in", %{conn: conn} do
       user = user_fixture(preload: [:account])
 

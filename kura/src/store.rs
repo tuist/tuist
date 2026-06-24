@@ -686,21 +686,27 @@ impl Store {
                 .segment_offset
                 .ok_or_else(|| "segment-backed manifest is missing segment offset".to_string())?;
             let handle = self.segment_handle(segment_id).await?;
-            let Some(bytes) = map_file_region(handle.as_std(), offset, manifest.size, permit)?
+            let Some(serve) = map_file_region(handle.as_std(), offset, manifest.size, permit)?
             else {
                 return Ok(None);
             };
+            if serve.partial_page_exempted {
+                self.io.metrics().record_mmap_partial_page_exemption();
+            }
             self.note_artifact_exists(&manifest.artifact_id);
-            return Ok(Some(bytes));
+            return Ok(Some(serve.bytes));
         }
 
         if let Some(blob_path) = &manifest.blob_path {
             let handle = self.blob_handle(blob_path).await?;
-            let Some(bytes) = map_file_region(handle.as_std(), 0, manifest.size, permit)? else {
+            let Some(serve) = map_file_region(handle.as_std(), 0, manifest.size, permit)? else {
                 return Ok(None);
             };
+            if serve.partial_page_exempted {
+                self.io.metrics().record_mmap_partial_page_exemption();
+            }
             self.note_artifact_exists(&manifest.artifact_id);
-            return Ok(Some(bytes));
+            return Ok(Some(serve.bytes));
         }
 
         Ok(None)
@@ -803,6 +809,25 @@ impl Store {
                 .segment_offset
                 .ok_or_else(|| "segment-backed manifest is missing segment offset".to_string())?;
             let handle = self.segment_handle(segment_id).await?;
+            // Guard the append-only / never-truncated invariant the serving path
+            // relies on (see `try_mmap_artifact_bytes`). A truncated segment would
+            // otherwise yield a short read that streams a body shorter than the
+            // declared Content-Length — peers see an undecodable response and
+            // bootstrap silently wedges. Surface a truncated artifact as missing
+            // so the serve 404s it; the bootstrap client then skips it
+            // (IgnoredStale) and the lost entry re-populates on cache miss.
+            let needed = offset.saturating_add(read_offset).saturating_add(limit);
+            let have = handle
+                .as_std()
+                .metadata()
+                .map_err(|error| format!("failed to stat segment {segment_id}: {error}"))?
+                .len();
+            if have < needed {
+                return Err(format!(
+                    "segment {segment_id} truncated: holds {have} bytes but artifact {} needs {needed}",
+                    manifest.artifact_id
+                ));
+            }
             self.note_artifact_exists(&manifest.artifact_id);
             return Ok(ArtifactReader::FileRange(SegmentReader::new(
                 handle,
@@ -813,6 +838,18 @@ impl Store {
 
         if let Some(blob_path) = &manifest.blob_path {
             let handle = self.blob_handle(blob_path).await?;
+            let needed = read_offset.saturating_add(limit);
+            let have = handle
+                .as_std()
+                .metadata()
+                .map_err(|error| format!("failed to stat blob {blob_path}: {error}"))?
+                .len();
+            if have < needed {
+                return Err(format!(
+                    "blob {blob_path} truncated: holds {have} bytes but artifact {} needs {needed}",
+                    manifest.artifact_id
+                ));
+            }
             self.note_artifact_exists(&manifest.artifact_id);
             return Ok(ArtifactReader::FileRange(SegmentReader::new(
                 handle,

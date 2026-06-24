@@ -167,7 +167,11 @@ defmodule TuistWeb.XcodeBuildRunsLive do
   defp build_flop_filters(filters) do
     {ran_by, filters} = Enum.split_with(filters, &(&1.id == "ran_by"))
     {tags_filters, filters} = Enum.split_with(filters, &(&1.id == "custom_tags"))
-    flop_filters = Filter.Operations.convert_filters_to_flop(filters)
+
+    flop_filters =
+      filters
+      |> Enum.map(&normalize_text_filter_operator/1)
+      |> Filter.Operations.convert_filters_to_flop()
 
     ran_by_flop_filters =
       Enum.flat_map(ran_by, fn
@@ -193,6 +197,10 @@ defmodule TuistWeb.XcodeBuildRunsLive do
 
     flop_filters ++ ran_by_flop_filters ++ tag_flop_filters
   end
+
+  defp normalize_text_filter_operator(%Filter.Filter{operator: :"!=~"} = filter), do: %{filter | operator: :not_ilike}
+
+  defp normalize_text_filter_operator(filter), do: filter
 
   defp define_filters(project, schemes, configurations, tags) do
     base = [

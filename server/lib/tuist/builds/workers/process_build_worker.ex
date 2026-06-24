@@ -26,8 +26,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
       period: :infinity
     ]
 
-  alias Tuist.Accounts
   alias Tuist.Builds
+  alias Tuist.Projects
   alias Tuist.Storage
 
   require Logger
@@ -49,7 +49,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     xcode_cache_upload_enabled = Map.get(args, "xcode_cache_upload_enabled", false)
     build_metadata = Map.get(args, "build_metadata", %{})
 
-    case process_build(build_id, storage_key, account_id, xcode_cache_upload_enabled) do
+    case process_build(build_id, storage_key, project_id, xcode_cache_upload_enabled) do
       {:ok, parsed_data} ->
         parsed_data = Map.put(parsed_data, "project_id", project_id)
         replace_build_run(build_id, parsed_data, account_id, project_id, build_metadata)
@@ -69,8 +69,12 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     end
   end
 
-  defp process_build(build_id, storage_key, account_id, xcode_cache_upload_enabled) do
-    with {:ok, account} <- Accounts.get_account_by_id(account_id) do
+  # Storage routes per account, so the download backend must be the project's
+  # account (where the artifact was uploaded and the key is namespaced), not
+  # the run's `account_id`, which records who ran the build and can be a member
+  # with a different personal account.
+  defp process_build(build_id, storage_key, project_id, xcode_cache_upload_enabled) do
+    with {:ok, account} <- storage_account(project_id) do
       temp_path = Path.join(System.tmp_dir!(), "build_#{build_id}.zip")
 
       try do
@@ -84,6 +88,13 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
       after
         File.rm(temp_path)
       end
+    end
+  end
+
+  defp storage_account(project_id) do
+    case Projects.get_project_by_id(project_id) do
+      nil -> {:error, :project_not_found}
+      project -> {:ok, project.account}
     end
   end
 

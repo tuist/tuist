@@ -30,6 +30,40 @@ private struct XCResultToolStub: CommandRunning {
     }
 }
 
+/// Routes the two xcresulttool reads `parse` performs (`get test-results
+/// tests` and `get log --type action`) to separate canned payloads, so tests
+/// can exercise an empty/absent action log independently of the test results.
+private struct RoutingXCResultToolStub: CommandRunning {
+    let testResultsJSON: String
+    let actionLogJSON: String
+
+    func run(
+        arguments: [String],
+        environment _: [String: String],
+        workingDirectory _: AbsolutePath?
+    ) -> AsyncThrowingStream<CommandEvent, any Error> {
+        let command = arguments.last ?? ""
+        let payload =
+            if command.contains("get log --type action") {
+                actionLogJSON
+            } else if command.contains("test-results tests") {
+                testResultsJSON
+            } else {
+                ""
+            }
+
+        return AsyncThrowingStream { continuation in
+            if let redirect = command.range(of: "> '") {
+                let tail = command[redirect.upperBound...]
+                if let close = tail.firstIndex(of: "'") {
+                    try? payload.write(toFile: String(tail[..<close]), atomically: true, encoding: .utf8)
+                }
+            }
+            continuation.finish()
+        }
+    }
+}
+
 struct XCResultParserTests {
     let fileSystem = FileSystem()
     let parser = XCResultParser()
@@ -78,6 +112,27 @@ struct XCResultParserTests {
             // attachments dir so its wholesale cleanup reclaims them.
             #expect(try await fileSystem.exists(attachmentsDirectory.appending(component: "xcresult-attachments")))
         }
+    }
+
+    @Test
+    func parse_treatsAnAbsentActionLogAsEmptyInsteadOfFailing() async throws {
+        // An aborted or test-less run uploads an xcresult with zero test nodes
+        // and no action log: `xcresulttool get log --type action` prints "No
+        // action log available" and writes nothing. Decoding that empty output
+        // used to throw the opaque "The data couldn't be read because it isn't
+        // in the correct format.", failing processing for the whole run. The
+        // action log is auxiliary, so its absence must not abort the parse.
+        let emptyTestResults = """
+        {"devices": [], "testNodes": [], "testPlanConfigurations": []}
+        """
+        let parser = XCResultParser(
+            commandRunner: RoutingXCResultToolStub(testResultsJSON: emptyTestResults, actionLogJSON: "")
+        )
+
+        let summary = try await parser.parse(path: try AbsolutePath(validating: "/tmp/empty.xcresult"), rootDirectory: nil)
+
+        let resolved = try #require(summary)
+        #expect(resolved.testModules.isEmpty)
     }
 
     @Test

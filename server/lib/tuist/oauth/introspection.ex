@@ -93,6 +93,10 @@ defmodule Tuist.OAuth.Introspection do
     do: "#{account_name}/#{project_name}"
 
   defp scope_string(%AuthenticatedAccount{scopes: scopes}) when is_list(scopes) do
+    scope_string(scopes)
+  end
+
+  defp scope_string(scopes) when is_list(scopes) do
     scopes
     |> Enum.reject(&is_nil/1)
     |> Enum.join(" ")

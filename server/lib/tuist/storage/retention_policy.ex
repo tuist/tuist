@@ -10,15 +10,16 @@ defmodule Tuist.Storage.RetentionPolicy do
 
   @default_plan :air
   @known_plans [:air, :open_source, :pro, :enterprise]
+  @maximum_retention_days 180
 
   @retention_days %{
     cache_artifact: %{air: 14, open_source: 14, pro: 30, enterprise: 90},
     xcode_cache_artifact: %{air: 14, open_source: 14, pro: 30, enterprise: 90},
-    preview_app_build: %{air: 60, open_source: 60, pro: 180, enterprise: 365},
-    preview_icon: %{air: 60, open_source: 60, pro: 180, enterprise: 365},
-    build_archive: %{air: 30, open_source: 30, pro: 90, enterprise: 365},
-    run_session: %{air: 30, open_source: 30, pro: 90, enterprise: 365},
-    test_attachment: %{air: 30, open_source: 30, pro: 90, enterprise: 365},
+    preview_app_build: %{air: 60, open_source: 60, pro: 90, enterprise: 180},
+    preview_icon: %{air: 60, open_source: 60, pro: 90, enterprise: 180},
+    build_archive: %{air: 30, open_source: 30, pro: 90, enterprise: 180},
+    run_session: %{air: 30, open_source: 30, pro: 90, enterprise: 180},
+    test_attachment: %{air: 30, open_source: 30, pro: 90, enterprise: 180},
     shard_bundle: %{air: 7, open_source: 7, pro: 14, enterprise: 30}
   }
 
@@ -43,9 +44,11 @@ defmodule Tuist.Storage.RetentionPolicy do
   end
 
   def retention_days(artifact_type, plan) do
-    @retention_days
-    |> Map.fetch!(artifact_type)
-    |> Map.get(plan, Map.fetch!(@retention_days[artifact_type], @default_plan))
+    retention_by_plan = Map.fetch!(@retention_days, artifact_type)
+
+    retention_by_plan
+    |> Map.get(plan, Map.fetch!(retention_by_plan, @default_plan))
+    |> min(@maximum_retention_days)
   end
 
   def cutoff(artifact_type, plan) do

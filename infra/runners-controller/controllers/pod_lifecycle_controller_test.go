@@ -14,6 +14,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sfake "k8s.io/client-go/kubernetes/fake"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -204,6 +205,115 @@ func TestPodLifecycle_FallsBackToDeletionTimestamp(t *testing.T) {
 	}
 	if !reqs[0].EndedAt.Equal(deletion) {
 		t.Errorf("ended_at = %v, want deletionTimestamp %v", reqs[0].EndedAt, deletion)
+	}
+}
+
+func runnerPodExit(name string, exitCode int32, phase corev1.PodPhase) *corev1.Pod {
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: "tuist-runners",
+			Labels:    map[string]string{"tuist.dev/runner": "true"},
+		},
+		Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "runner"}}},
+		Status: corev1.PodStatus{
+			Phase: phase,
+			ContainerStatuses: []corev1.ContainerStatus{{
+				Name: "runner",
+				State: corev1.ContainerState{
+					Terminated: &corev1.ContainerStateTerminated{
+						ExitCode:   exitCode,
+						FinishedAt: metav1.NewTime(time.Date(2026, 6, 23, 9, 37, 0, 0, time.UTC)),
+					},
+				},
+			}},
+		},
+	}
+}
+
+func podLogGets(cs *k8sfake.Clientset) int {
+	n := 0
+	for _, a := range cs.Actions() {
+		if a.GetVerb() == "get" && a.GetResource().Resource == "pods" && a.GetSubresource() == "log" {
+			n++
+		}
+	}
+	return n
+}
+
+func TestAbnormalEnd(t *testing.T) {
+	deleting := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{DeletionTimestamp: &metav1.Time{Time: time.Now()}},
+		Status:     corev1.PodStatus{Phase: corev1.PodRunning},
+	}
+	tests := []struct {
+		name string
+		pod  *corev1.Pod
+		want bool
+	}{
+		{"clean exit 0", runnerPodExit("p", 0, corev1.PodSucceeded), false},
+		{"non-zero exit", runnerPodExit("p", 1, corev1.PodFailed), true},
+		{"sigkilled microVM teardown", runnerPodExit("p", 137, corev1.PodFailed), true},
+		{"reaped while running (lost comm)", deleting, true},
+		{"alive, not ending", &corev1.Pod{Status: corev1.PodStatus{Phase: corev1.PodRunning}}, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := abnormalEnd(tc.pod); got != tc.want {
+				t.Errorf("abnormalEnd = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestPodLifecycle_CapturesDeathLogOnAbnormalExit(t *testing.T) {
+	pod := runnerPodExit("tuist-pod-dead", 137, corev1.PodFailed)
+
+	r, _, stop := newReconciler(t, []*corev1.Pod{pod})
+	defer stop()
+	cs := k8sfake.NewSimpleClientset(pod)
+	r.Logs = cs
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn("tuist-runners", "tuist-pod-dead")}); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+	if got := podLogGets(cs); got != 1 {
+		t.Fatalf("pods/log gets = %d, want 1", got)
+	}
+}
+
+func TestPodLifecycle_NoCaptureOnCleanExit(t *testing.T) {
+	pod := runnerPodExit("tuist-pod-clean", 0, corev1.PodSucceeded)
+
+	r, _, stop := newReconciler(t, []*corev1.Pod{pod})
+	defer stop()
+	cs := k8sfake.NewSimpleClientset(pod)
+	r.Logs = cs
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn("tuist-runners", "tuist-pod-clean")}); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+	if got := podLogGets(cs); got != 0 {
+		t.Fatalf("pods/log gets = %d, want 0 (clean exit)", got)
+	}
+}
+
+func TestPodLifecycle_DeduplicatesDeathLogCapture(t *testing.T) {
+	pod := runnerPodExit("tuist-pod-dead-dup", 1, corev1.PodFailed)
+
+	r, _, stop := newReconciler(t, []*corev1.Pod{pod})
+	defer stop()
+	cs := k8sfake.NewSimpleClientset(pod)
+	r.Logs = cs
+
+	req := ctrl.Request{NamespacedName: nn("tuist-runners", "tuist-pod-dead-dup")}
+	for i := 0; i < 2; i++ {
+		if _, err := r.Reconcile(context.Background(), req); err != nil {
+			t.Fatalf("Reconcile %d: %v", i, err)
+		}
+	}
+	if got := podLogGets(cs); got != 1 {
+		t.Errorf("pods/log gets = %d, want 1 (second reconcile should dedupe)", got)
 	}
 }
 

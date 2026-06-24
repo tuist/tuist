@@ -212,11 +212,9 @@ ecto://{{ .Values.postgresql.embedded.username }}:{{ .Values.postgresql.embedded
 {{- end -}}
 
 {{/*
-CNPG generates one Secret per role: `<cluster-name>-app` (the owner role
-from `bootstrap.initdb.owner`) and one per managed role under the name
-declared in `managed.roles[].passwordSecret.name`. The owner Secret
-carries `username`, `password`, `uri`, `jdbc-uri`, `host`, `port`,
-`dbname`. We mount `uri` straight into DATABASE_URL.
+CNPG generates `<cluster-name>-app` for the owner / migration role from
+`bootstrap.initdb.owner`. Managed runtime roles use the password Secret
+names declared in `managed.roles[].passwordSecret.name`.
 */}}
 {{- define "tuist.cnpgClusterName" -}}
 {{- include "tuist.componentName" (dict "root" . "component" "pg") -}}
@@ -224,6 +222,10 @@ carries `username`, `password`, `uri`, `jdbc-uri`, `host`, `port`,
 
 {{- define "tuist.cnpgAppSecretName" -}}
 {{- printf "%s-app" (include "tuist.cnpgClusterName" .) -}}
+{{- end -}}
+
+{{- define "tuist.cnpgWebRoleSecretName" -}}
+{{- include "tuist.componentName" (dict "root" . "component" "pg-tuist-web") -}}
 {{- end -}}
 
 {{- define "tuist.cnpgServiceRW" -}}
@@ -368,16 +370,29 @@ http://{{ include "tuist.componentName" (dict "root" . "component" "otel-collect
 {{- end -}}
 
 {{/*
-Kura OAuth introspection client env vars. The values are synced from
-1Password into the server-external-secrets Secret when
-server.externalSecrets.kuraIntrospection.item is set, or from the
-kura-shared-secrets Secret when
-kuraController.sharedSecrets.kuraIntrospection.enabled is true.
+Kura OAuth introspection client env vars. The values are sourced from
+one of:
+
+  1. The kura-shared-secrets Secret in this release's namespace when this
+     release installs the kuraController (managed envs: one release runs
+     both server and controller in their respective namespaces, the
+     chart mirrors the Secret into the server namespace).
+
+  2. The kura-shared-secrets Secret in this release's namespace when
+     server.kuraIntrospection.useSharedSecret is true (preview envs:
+     the kuraController is installed once at platform level into the
+     `kura` namespace, and the deploy workflow copies the Secret into
+     this release's namespace before installing the chart).
+
+  3. The server-external-secrets ESO Secret when
+     server.externalSecrets.kuraIntrospection.item is set.
+
 */}}
 {{- define "tuist.kuraIntrospectionEnv" -}}
 {{- $esoSecret := include "tuist.componentName" (dict "root" . "component" "server-external-secrets") -}}
 {{- $kuraSharedSecret := "kura-shared-secrets" -}}
-{{- if and .Values.kuraController.enabled .Values.kuraController.sharedSecrets.enabled .Values.kuraController.sharedSecrets.kuraIntrospection.enabled }}
+{{- $useShared := or (and .Values.kuraController.enabled .Values.kuraController.sharedSecrets.enabled .Values.kuraController.sharedSecrets.kuraIntrospection.enabled) .Values.server.kuraIntrospection.useSharedSecret -}}
+{{- if $useShared }}
 - name: KURA_CONTROL_PLANE_CLIENT_ID
   valueFrom:
     secretKeyRef:
@@ -479,5 +494,21 @@ License env vars. Resolves to (in order):
     secretKeyRef:
       name: {{ $secret | quote }}
       key: token-update-packages
+{{- end }}
+{{- end -}}
+
+{{- define "tuist.googleEnv" -}}
+{{- if and .Values.server.enabled .Values.server.google.managedSecrets }}
+{{- $secret := include "tuist.componentName" (dict "root" . "component" "google-external-secrets") -}}
+- name: TUIST_GOOGLE_OAUTH_CLIENT_ID
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret | quote }}
+      key: oauth-client-id
+- name: TUIST_GOOGLE_OAUTH_CLIENT_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret | quote }}
+      key: oauth-client-secret
 {{- end }}
 {{- end -}}

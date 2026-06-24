@@ -31,6 +31,14 @@ struct SupportTests {
     }
 
     @Test
+    func binaryArtifactHeadersAskForRawBytesExactly() async throws {
+        let url = try #require(URL(string: "https://api.github.com/repos/tuist/tuist/releases/assets/1.zip"))
+        let headers = await HTTPClient.binaryArtifactHeaders(for: url)
+
+        #expect(headers["Accept"] == "application/octet-stream")
+    }
+
+    @Test
     func concurrentTaskMapPreservesInputOrder() async throws {
         let values = [0, 1, 2, 3]
         let mapped = try await ConcurrentTasks.map(values, maxConcurrentTasks: 4) { value in

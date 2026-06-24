@@ -110,7 +110,7 @@ defmodule Tuist.Storage.ExpiredArtifacts do
     end
   end
 
-  def delete_run_sessions(%Account{} = account, batch_size, opts \\ []) do
+  def delete_run_artifacts(%Account{} = account, batch_size, opts \\ []) do
     plan = RetentionPolicy.current_plan(account)
     cutoff = :run_session |> RetentionPolicy.cutoff(plan) |> DateTime.to_naive()
     projects_by_id = projects_by_id(account)
@@ -129,16 +129,24 @@ defmodule Tuist.Storage.ExpiredArtifacts do
         |> select([event], %{id: event.id, project_id: event.project_id, inserted_at: event.ran_at})
         |> ClickHouseRepo.all()
 
-      object_keys =
+      prefixes =
         Enum.flat_map(rows, fn event ->
           case Map.fetch(projects_by_id, event.project_id) do
-            {:ok, project} -> [CommandEvents.get_session_key(event.id, %{project | account: account})]
-            :error -> []
+            {:ok, project} ->
+              project = %{project | account: account}
+              ["#{CommandEvents.get_command_event_artifact_base_path_key(event.id, project)}/"]
+
+            :error ->
+              []
           end
         end)
 
-      delete_and_continue(account, object_keys, next_cursor(rows, batch_size), progress_cursor(:run_session, rows))
+      delete_prefixes_and_continue(account, prefixes, next_cursor(rows, batch_size), progress_cursor(:run_session, rows))
     end
+  end
+
+  def delete_run_sessions(%Account{} = account, batch_size, opts \\ []) do
+    delete_run_artifacts(account, batch_size, opts)
   end
 
   def delete_test_attachments(%Account{} = account, batch_size, opts \\ []) do
@@ -239,6 +247,14 @@ defmodule Tuist.Storage.ExpiredArtifacts do
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  defp delete_prefixes_and_continue(%Account{} = account, prefixes, next_cursor, progress_cursor) do
+    prefixes |> Enum.uniq() |> Enum.each(&Storage.delete_all_objects(&1, account))
+
+    with :ok <- persist_progress_cursor(account, progress_cursor) do
+      {:ok, next_cursor}
     end
   end
 

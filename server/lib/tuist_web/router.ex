@@ -176,6 +176,16 @@ defmodule TuistWeb.Router do
     plug TuistWeb.WarningsHeaderPlug
   end
 
+  pipeline :atlas_internal_api do
+    plug :put_request_kind, "atlas_internal_api"
+    plug :accepts, ["json"]
+    plug TuistWeb.WarningsHeaderPlug
+    plug TuistWeb.Plugs.AtlasRateLimitPlug
+    plug TuistWeb.Plugs.InternalAtlasAuthPlug
+    plug SentryContextPlug
+    plug ObservabilityContextPlug
+  end
+
   pipeline :api_catalog do
     plug :put_request_kind, "api_catalog"
     plug :accepts, ["linkset"]
@@ -732,6 +742,12 @@ defmodule TuistWeb.Router do
     post "/runners/dispatch", RunnersController, :dispatch
     get "/runners/desired_replicas", RunnersController, :desired_replicas
     post "/runners/pods/stopped", RunnerPodsController, :stopped
+  end
+
+  scope "/api/internal", TuistWeb.Internal do
+    pipe_through [:atlas_internal_api]
+
+    get "/atlas/accounts/:account_handle/usage", AtlasUsageController, :usage
   end
 
   scope "/_internal", TuistWeb.Internal do

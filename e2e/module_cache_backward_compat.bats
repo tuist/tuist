@@ -30,13 +30,22 @@ setup_file() {
     require_env TUIST_AUTH_EMAIL
     require_env TUIST_AUTH_PASSWORD
 
-    # Isolate cache + state + config under the test's tmp dir so we can wipe the
-    # local cache to force a remote pull, and never touch the host's real Tuist
-    # data. Credentials live under XDG_CONFIG_HOME (not XDG_CACHE_HOME), so the
-    # cache wipe below does not log us out.
-    export XDG_CACHE_HOME="${BATS_FILE_TMPDIR}/cache"
-    export XDG_STATE_HOME="${BATS_FILE_TMPDIR}/state"
-    export XDG_CONFIG_HOME="${BATS_FILE_TMPDIR}/config"
+    # Isolate cache + state + config so we can wipe the local cache to force a
+    # remote pull, and never touch the host's real Tuist data. Credentials live
+    # under XDG_CONFIG_HOME (not XDG_CACHE_HOME), so the cache wipe below does not
+    # log us out.
+    #
+    # Keep these in a dir we own and clean ourselves rather than under
+    # BATS_FILE_TMPDIR: tuist keeps writing here (manifest cache, session HAR)
+    # for a moment after a command returns, and bats's automatic teardown of its
+    # own tmp dir races those writes and aborts the run with "Directory not
+    # empty" even when the test passed. Owning the dir keeps the exit status
+    # independent of that race.
+    export TUIST_TEST_HOME
+    TUIST_TEST_HOME="$(mktemp -d "${TMPDIR:-/tmp}/module-cache-bc.XXXXXX")"
+    export XDG_CACHE_HOME="${TUIST_TEST_HOME}/cache"
+    export XDG_STATE_HOME="${TUIST_TEST_HOME}/state"
+    export XDG_CONFIG_HOME="${TUIST_TEST_HOME}/config"
     mkdir -p "$XDG_CACHE_HOME" "$XDG_STATE_HOME" "$XDG_CONFIG_HOME"
 
     export FIXTURE_DIR="${BATS_FILE_TMPDIR}/module_cache_app"
@@ -85,6 +94,12 @@ teardown_file() {
     fi
     # --path resolves the canary host so logout clears the right session.
     "$TUIST_EXECUTABLE" auth logout --path "$FIXTURE_DIR" 2>/dev/null || true
+    # Remove our own XDG dir. Tolerant on purpose: tuist may still be flushing
+    # into it, and a failed delete here must not fail the run (the dir is outside
+    # bats's tmp, so it is never touched by bats's own cleanup).
+    if [[ -n "${TUIST_TEST_HOME:-}" ]]; then
+        rm -rf "${TUIST_TEST_HOME:?}" 2>/dev/null || true
+    fi
 }
 
 @test "oldest supported CLI pulls the module cache from canary without a signature error" {

@@ -311,6 +311,20 @@ customer job's runtime. macOS keeps the single-container shape (the
 Tart VM is the isolation boundary; tart-kubelet projects the token
 into it).
 
+**Death-cause backstop:** the same reconciler also re-emits a
+runner's final log on an abnormal end — a non-zero/SIGKILLed exit, or
+a Pod reaped while still `Running` (the "lost communication" /
+torn-down-microVM shape). It reads the `runner` container's tail via
+`pods/log` and logs it to the controller's own (durable, long-lived)
+stdout before the reap. Without this the trail (the `RUNNER_VITALS`
+samples from `vitals.sh` + the streamed `_diag`) lives only in the
+kubelet container log, which is GC'd the instant the Pod is deleted —
+and `alloy` doesn't reliably win that race on a churning node, so
+mid-job deaths otherwise leave nothing in Loki. A clean exit 0 (job
+done, or no JIT claimed — and note a workflow that fails its own tests
+still exits the runner 0) is skipped, so this fires only for runner
+*infrastructure* deaths, not job outcomes.
+
 **Rollout ordering:** ship the runner image carrying `run-job.sh`
 + the poller-mode `dispatch-poll.sh` (and pin
 `runnersFleetLinux.pools[].runnerImage` to it) **before** the

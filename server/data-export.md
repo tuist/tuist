@@ -22,13 +22,13 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - Agent registration audit records (`agent_registrations`, `agent_registration_events`, and `agent_auth_jtis` tables): registration type/status, requested credential type, verified email address, claim attempt id, claim and OTP expiry timestamps, claim request / completion IP metadata, claimed user relationship, linked account-token id or JWT id, ID-JAG issuer/subject/audience/client metadata, replay-protection `jti` records, append-only state-change events (`created`, `claim_resent`, `otp_failed`, `claimed`, `expired`, `revoked`), event IP metadata, event metadata, and timestamps. The claim token hash, claim-view token hash, OTP hash, issued API key value, and signed JWT value are excluded from exports as authentication secrets.
 - Custom cache endpoint configurations (`account_cache_endpoints` table): account-specific custom cache endpoints, active regional Kura endpoint mirrors, and the internal peer (mTLS) addresses of enrolled self-hosted Kura nodes (rows with `technology = :kura_self_hosted_peer`, written at enrollment from each node's `KURA_NODE_URL`). These peer addresses are customer infrastructure hostnames used only for mesh peering and are never returned to the CLI as cache endpoints. Legacy account-level Kura global endpoint rows matching `https://<lowercase-account-handle>.kura.tuist.dev` are no longer stored separately; they are removed by the Kura global-endpoint cleanup migration.
 - Organization SSO configuration metadata, including the configured SSO provider, provider URL, and full OAuth2 endpoint URLs
-- Kura server records (`kura_servers` table): per-account Kura server configuration including region, image tag, public URL, status, and the observed-state projection (`observed_image_tag`, `last_observed_at`) recording which image the backing cluster reports running and when it was last observed
+- Kura server records (`kura_servers` table): per-account Kura server configuration including region, image tag, public URL, status, and the observed-state projection (`observed_image_tag`, `last_observed_at`, `last_ready_at`) recording which image the backing cluster reports running, when it was last observed, and when its private endpoint was last observed ready
 - Kura deployment history (`kura_deployments` table): rollout attempts for the account's Kura servers including image tag, status, error messages, and start/finish timestamps
 - Self-hosted Kura credentials (`kura_self_hosted_clients` table): tenant-scoped credentials a customer uses to run self-hosted Kura nodes, including the public `client_id`, friendly name, last-used timestamp, and `secret_last_four` (the trailing four characters of the secret, kept as a masked-preview hint). The `encrypted_secret_hash` (Bcrypt hash of the client secret) is excluded from exports as an authentication secret, and the plaintext secret is never stored.
 - Registered Kura endpoints (`kura_registered_endpoints` table): client-facing cache endpoints reported by a customer's self-hosted Kura nodes via registration heartbeats, including the node id, region label, advertised HTTP URL, readiness, runtime version, traffic state, last-heartbeat timestamp, and lease expiry. These rows are lease-based operational state, refreshed on each heartbeat and removed when a node stops heartbeating.
 - GitHub App installation metadata (`github_app_installations` table): the installation ID GitHub assigned, the GitHub instance the App lives on (`client_url`, e.g. `https://github.com` or a customer's GitHub Enterprise Server host), the App's `app_id`/`app_slug`/`client_id`, and the GitHub-side management `html_url`. The accompanying `client_secret`, `private_key` (PEM), and `webhook_secret` are stored encrypted at rest and are excluded from exports as authentication secrets.
 - VCS connections (`vcs_connections` table): the link between a Tuist project and an external repository handle (provider, repository full name, the originating GitHub App installation, and the user who created the connection)
-- Artifact retention cursors (`artifact_retention_cursors` table): per-account cleanup progress for DB-backed artifact families. Exports include the artifact type plus the last processed metadata cursor (`after_inserted_at`, `after_id`) used to avoid re-processing blobs that have already been purged from object storage.
+- Artifact retention cursors (`artifact_retention_cursors` table): per-account cleanup progress for database-backed artifact families. Exports include the artifact type plus the last processed metadata cursor (`after_inserted_at`, `after_id`) used to avoid re-processing blobs that have already been purged from object storage. The `run_session` cursor covers all run artifact blobs stored under an expired run's artifact prefix.
 
 - (Internal Tuist-team JIT elevation tables previously documented here moved out of this server's Postgres entirely. They now live in the standalone `tuist-ops` service on its own CNPG cluster in the mgmt cluster. The data is operator-side audit about Tuist staff only — never customer data — and is out of scope for this server's data export. See `tuist-ops/AGENTS.md` for where it lives now.)
 
@@ -113,7 +113,7 @@ The following data is stored in ClickHouse for analytics purposes:
 All uploaded files associated with the account are included:
 - **Cache artifacts**: Build caches and compiled binaries, including Xcode, legacy CAS, module, and Gradle artifacts
 - **App previews**: iOS app bundles (.app/.ipa files) and icons  
-- **Run sessions**: uploaded run session archives stored at `{account}/{project}/runs/{run_id}/session.zip`
+- **Run artifacts**: uploaded result bundles, invocation records, result-bundle objects, and session archives stored under `{account}/{project}/runs/{run_id}/`
 - **Shard bundles**: Shared `.xctestproducts` bundles stored at `{account_id}/{project_id}/shards/{shard_plan_id}/`
 - **Runner job log archives**: gzipped runner logs stored at `runners/{account_id}/{workflow_job_id}/runner.log.gz`
 
@@ -128,20 +128,20 @@ dashboards remain intact. Retention windows, in days, by plan:
 | Artifact | Air / Open Source | Pro | Enterprise |
 | --- | --- | --- | --- |
 | Cache artifacts (Xcode compilation, legacy CAS, module, Gradle) | 14 | 30 | 90 |
-| App preview builds and icons | 60 | 180 | 365 |
-| Build archives | 30 | 90 | 365 |
-| Run session archives | 30 | 90 | 365 |
-| Test run attachments | 30 | 90 | 365 |
+| App preview builds and icons | 60 | 90 | 180 |
+| Build archives | 30 | 90 | 180 |
+| Run artifacts | 30 | 90 | 180 |
+| Test run attachments | 30 | 90 | 180 |
 | Shard bundles | 7 | 14 | 30 |
 
 Retention status is computed when cleanup runs. Cache artifacts use the object
 storage `last_modified` timestamp, while previews, build archives, test
 attachments, and shard bundles use their database `inserted_at` timestamp. Run
-session archives use the command event `ran_at` timestamp. The active account
+artifacts use the command event `ran_at` timestamp. The active account
 plan determines the applicable window, with Air used when an account has no
 active subscription.
 
-Tuist stores per-account cleanup progress for DB-backed artifact families so
+Tuist stores per-account cleanup progress for database-backed artifact families so
 daily retention jobs can resume after previously-purged metadata rows without
 issuing repeated object-storage deletes. This is not a per-artifact purge
 ledger; retention is still derived from the timestamps and account plan above.

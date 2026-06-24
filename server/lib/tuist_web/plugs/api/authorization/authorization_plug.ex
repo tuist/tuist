@@ -35,16 +35,10 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
     action = get_action(conn)
     subject = Authentication.authenticated_subject(conn)
 
-    subject_id =
-      case subject do
-        %{id: id} -> id
-        %{account: %{id: id}} -> id
-      end
-
     cache_key = [
       Atom.to_string(__MODULE__),
       "authorize",
-      "#{Atom.to_string(subject.__struct__)}-#{subject_id}",
+      "#{subject_kind(subject)}-#{subject_id(subject)}",
       "#{Atom.to_string(selected_project.__struct__)}-#{selected_project.id}"
     ]
 
@@ -71,11 +65,21 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
       conn
       |> put_status(:forbidden)
       |> json(%{
-        message: "#{subject.account.name} is not authorized to #{Atom.to_string(action)} #{Atom.to_string(category)}"
+        message: "#{subject_name(subject)} is not authorized to #{Atom.to_string(action)} #{Atom.to_string(category)}"
       })
       |> halt()
     end
   end
+
+  defp subject_kind(%{__struct__: struct}), do: Atom.to_string(struct)
+  defp subject_kind(_subject), do: "unknown"
+
+  defp subject_id(%{id: id}), do: id
+  defp subject_id(%{account: %{id: id}}), do: id
+  defp subject_id(_subject), do: "unknown"
+
+  defp subject_name(%{account: %{name: name}}), do: name
+  defp subject_name(_subject), do: "The authenticated subject"
 
   def authorize(subject, action, project, category) do
     Authorization.authorize(:"#{category}_#{action}", subject, project) == :ok

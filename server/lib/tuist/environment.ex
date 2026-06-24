@@ -10,6 +10,8 @@ defmodule Tuist.Environment do
   @dev_all_locales Application.compile_env(:tuist, :dev_all_locales, false)
 
   @runtime_envs ~w(prod can stag)
+  @default_database_schema "public"
+  @postgres_identifier_regex ~r/^[a-zA-Z_][a-zA-Z0-9_]*$/
   @agent_auth_default_trusted_providers [
     %{
       "issuer" => "https://auth0.openai.com/",
@@ -144,6 +146,65 @@ defmodule Tuist.Environment do
     System.get_env("DATABASE_URL") || get([:database_url], secrets)
   end
 
+  def database_schema do
+    "TUIST_DATABASE_SCHEMA" |> System.get_env() |> database_schema()
+  end
+
+  def database_schema(nil), do: @default_database_schema
+  def database_schema(""), do: @default_database_schema
+
+  def database_schema(schema) when is_binary(schema) do
+    validate_postgres_identifier!(schema, "TUIST_DATABASE_SCHEMA")
+  end
+
+  def default_database_schema?(schema \\ database_schema()) do
+    schema == @default_database_schema
+  end
+
+  def migration_database_url do
+    case System.get_env("TUIST_MIGRATION_DATABASE_URL") do
+      url when is_binary(url) and url != "" -> url
+      _ -> nil
+    end
+  end
+
+  def database_runtime_role do
+    case System.get_env("TUIST_DATABASE_RUNTIME_ROLE") do
+      role when is_binary(role) and role != "" -> role
+      _ -> nil
+    end
+  end
+
+  def database_config_from_url(url) do
+    parsed_url = URI.parse(url)
+
+    [username, password] =
+      parsed_url.userinfo
+      |> String.split(":", parts: 2)
+      |> Enum.map(&URI.decode/1)
+
+    [
+      database: String.replace_prefix(parsed_url.path, "/", ""),
+      username: username,
+      password: password,
+      hostname: parsed_url.host,
+      port: parsed_url.port || 5432
+    ]
+  end
+
+  def validate_postgres_identifier!(identifier, environment_variable_name) do
+    if Regex.match?(@postgres_identifier_regex, identifier) do
+      identifier
+    else
+      raise "#{environment_variable_name} must be a valid unquoted PostgreSQL identifier, " <>
+              "got: #{inspect(identifier)}"
+    end
+  end
+
+  def quote_postgres_identifier(identifier) do
+    ~s("#{String.replace(to_string(identifier), "\"", "\"\"")}")
+  end
+
   def ipv4_database_url(secrets \\ secrets()) do
     System.get_env("TUIST_IPV4_DATABASE_URL") || get([:ipv4_database_url], secrets)
   end
@@ -151,6 +212,10 @@ defmodule Tuist.Environment do
   def tuist_hosted? do
     truthy?(System.get_env("TUIST_CLOUD_HOSTED", "0")) or
       truthy?(System.get_env("TUIST_HOSTED", "0"))
+  end
+
+  def test_user_login_enabled? do
+    dev?() or truthy?(System.get_env("TUIST_TEST_USER_LOGIN_ENABLED", "0"))
   end
 
   def dev_all_locales?, do: @dev_all_locales
@@ -255,8 +320,8 @@ defmodule Tuist.Environment do
     end
   end
 
-  def kura_endpoints(secrets \\ secrets()) do
-    case get([:kura, :endpoints], secrets) do
+  def kura_endpoints(secrets \\ secrets(), env_value \\ System.get_env("TUIST_KURA_ENDPOINTS")) do
+    case endpoint_env_value(env_value) || get([:kura, :endpoints], secrets) do
       endpoints when is_binary(endpoints) ->
         split_endpoints(endpoints)
 
@@ -1200,6 +1265,79 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_RUNNERS_CONTROLLER_SA_NAME", "tuist-runners-controller")
   end
 
+  @doc """
+  Cross-cluster trust policy for Atlas workload tokens.
+  """
+  def atlas_workload_identity_policy do
+    %{
+      audience: atlas_token_audience(),
+      issuer: atlas_token_issuer(),
+      jwks: atlas_token_jwks(),
+      max_token_ttl_seconds: atlas_token_max_ttl_seconds(),
+      namespace: atlas_namespace(),
+      service_account_name: atlas_service_account_name()
+    }
+  end
+
+  @doc """
+  Namespace where Atlas' ServiceAccount lives. Atlas calls internal Tuist
+  endpoints with a projected ServiceAccount token, so the server verifies both
+  the token subject and this expected principal.
+  """
+  def atlas_namespace do
+    System.get_env("TUIST_ATLAS_NAMESPACE", "atlas-production")
+  end
+
+  @doc """
+  Name of the Atlas ServiceAccount allowed to call Atlas internal read models.
+  """
+  def atlas_service_account_name do
+    System.get_env("TUIST_ATLAS_SERVICE_ACCOUNT_NAME", "atlas")
+  end
+
+  @doc """
+  Issuer expected in Atlas' projected ServiceAccount tokens.
+  """
+  def atlas_token_issuer do
+    System.get_env("TUIST_ATLAS_TOKEN_ISSUER") ||
+      get([:atlas, :token_issuer], secrets(), default_value: "https://kubernetes.default.svc.cluster.local")
+  end
+
+  @doc """
+  Audience Atlas must request on its projected ServiceAccount token.
+  """
+  def atlas_token_audience do
+    System.get_env("TUIST_ATLAS_TOKEN_AUDIENCE") ||
+      get([:atlas, :token_audience], secrets(), default_value: "tuist-server")
+  end
+
+  @doc """
+  Pinned Atlas Kubernetes JWKS used to verify projected ServiceAccount tokens.
+  """
+  def atlas_token_jwks do
+    System.get_env("TUIST_ATLAS_TOKEN_JWKS") || get([:atlas, :token_jwks], secrets())
+  end
+
+  @doc """
+  Maximum accepted lifetime for Atlas projected ServiceAccount tokens.
+  """
+  def atlas_token_max_ttl_seconds do
+    case get([:atlas, :token_max_ttl_seconds], secrets(), default_value: "3600") do
+      value when is_integer(value) -> value
+      value when is_binary(value) -> String.to_integer(value)
+    end
+  end
+
+  @doc """
+  Returns the bucket size for Atlas internal API rate limiting.
+  """
+  def atlas_rate_limit_bucket_size(secrets \\ secrets()) do
+    case get([:atlas, :rate_limit_bucket_size], secrets, default_value: "600") do
+      bucket_size when is_integer(bucket_size) -> bucket_size
+      bucket_size when is_binary(bucket_size) -> String.to_integer(bucket_size)
+    end
+  end
+
   def typesense_search_api_key do
     get([:typesense, :search_api_key], secrets(), default_value: "RgIpKytJBtSQf9CoYKxIfVxh8ma5kzs6")
   end
@@ -1244,6 +1382,15 @@ defmodule Tuist.Environment do
     |> Enum.map(&String.trim/1)
     |> Enum.reject(&(&1 == ""))
   end
+
+  defp endpoint_env_value(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      value -> value
+    end
+  end
+
+  defp endpoint_env_value(_), do: nil
 
   def secrets do
     Application.get_env(:tuist, :secrets) || %{}

@@ -26,6 +26,18 @@ cloudflare:
 letsencrypt:
   email: ops@tuist.dev
 
+# Optional default TLS certificate for an ingress-nginx controller. Cluster
+# overlays can enable this for wildcard host families where app Ingresses rely
+# on the controller's default certificate instead of carrying per-Ingress TLS.
+ingressCertificate:
+  enabled: false
+  name: ""
+  secretName: ""
+  dnsNames: []
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-cloudflare
+
 cert-manager:
   enabled: true
   installCRDs: true

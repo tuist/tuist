@@ -3869,7 +3869,7 @@ defmodule Tuist.TestsTest do
   end
 
   describe "cross-run flaky detection" do
-    test "marks both runs as flaky when same test case on same commit has different results" do
+    test "marks only the failing run as flaky when same test case on same commit has different results" do
       # Given
       project = ProjectsFixtures.project_fixture()
       account_id = project.account_id
@@ -3961,24 +3961,24 @@ defmodule Tuist.TestsTest do
 
       second_test_case_run = hd(second_test_case_runs)
 
-      # Second run should be flaky (detected cross-run flakiness)
+      # Second run is the flake: it failed on a commit the test also passed on
       assert second_test_case_run.is_flaky == true
       assert second_test_case_run.status == "failure"
 
-      # First run should now also be marked as flaky (via ReplacingMergeTree update)
+      # First run passed, so it stays clean even though the test flaked here
       {updated_first_runs, _} =
         Tests.list_test_case_runs(%{
           filters: [%{field: :test_run_id, op: :==, value: first_test.id}]
         })
 
       updated_first_run = hd(updated_first_runs)
-      assert updated_first_run.is_flaky == true
+      assert updated_first_run.is_flaky == false
       assert updated_first_run.status == "success"
     end
 
-    test "marks all runs as flaky when multiple runs exist before a conflicting run" do
+    test "marks only the failing run as flaky when multiple passing runs precede it" do
       # Scenario: Run A passes, Run B passes, Run C fails
-      # All three should be marked as flaky
+      # Only the failing run is the flake; the passing runs stay clean
       project = ProjectsFixtures.project_fixture()
       commit_sha = "abc123def456"
       test_case_id = Ecto.UUID.generate()
@@ -4030,15 +4030,15 @@ defmodule Tuist.TestsTest do
       # Force ClickHouse to merge and deduplicate rows
       RunsFixtures.optimize_test_case_runs()
 
-      # All three runs should be marked as flaky
+      # Only the failing run is flagged; the two passing runs stay clean
       {third_runs, _} = Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: third_test.id}]})
       assert hd(third_runs).is_flaky == true
 
       {first_runs, _} = Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: first_test.id}]})
-      assert hd(first_runs).is_flaky == true
+      assert hd(first_runs).is_flaky == false
 
       {second_runs, _} = Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: second_test.id}]})
-      assert hd(second_runs).is_flaky == true
+      assert hd(second_runs).is_flaky == false
     end
 
     test "does not mark as flaky when same test case on different commits has different results" do
@@ -4376,7 +4376,7 @@ defmodule Tuist.TestsTest do
           filters: [%{field: :test_run_id, op: :==, value: second_test.id}]
         })
 
-      assert hd(first_test_case_runs).is_flaky == true
+      assert hd(first_test_case_runs).is_flaky == false
       assert hd(second_test_case_runs).is_flaky == true
     end
 
@@ -4812,7 +4812,8 @@ defmodule Tuist.TestsTest do
       flaky_test = hd(flaky_tests)
       assert flaky_test.name == "flakyTest"
       assert flaky_test.module_name == "TestModule"
-      assert flaky_test.flaky_runs_count == 2
+      # Only the failing run is flaky; the passing run on the same commit stays clean
+      assert flaky_test.flaky_runs_count == 1
     end
 
     test "supports pagination" do

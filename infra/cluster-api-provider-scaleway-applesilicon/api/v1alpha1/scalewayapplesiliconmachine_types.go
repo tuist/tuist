@@ -205,6 +205,16 @@ type ScalewayAppleSiliconMachineStatus struct {
 	// +optional
 	TartKubeletBinarySHA string `json:"tartKubeletBinarySHA,omitempty"`
 
+	// HostConfigHash is the fleet-wide canonical hash of every host
+	// config the operator pushes — the rendered install scripts plus the
+	// embedded binaries (bootstrap.HostConfigHash). Drift between this
+	// and the operator's own computed hash re-pushes the host config on
+	// the next reconcile, so a change to ANY pushed config (a script
+	// tweak, a fleet CIDR, or a re-baked binary) rolls to existing hosts
+	// instead of only a tart-kubelet binary change.
+	// +optional
+	HostConfigHash string `json:"hostConfigHash,omitempty"`
+
 	// TartKubeletUpdateAttempts counts consecutive failures of the
 	// drift-loop's UpdateTartKubelet call. Reset to zero on success.
 	// Once it crosses the operator's max-attempts threshold the CR

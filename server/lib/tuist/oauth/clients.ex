@@ -74,7 +74,10 @@ defmodule Tuist.OAuth.Clients do
   end
 
   defp static_client(client_id) when is_binary(client_id) do
-    Enum.find([kura_introspection_client(), tuist_oauth_client()], &match?(%Client{id: ^client_id}, &1))
+    Enum.find(
+      [kura_introspection_client(), tuist_oauth_client()],
+      &match?(%Client{id: ^client_id}, &1)
+    )
   end
 
   defp static_client(_client_id), do: nil

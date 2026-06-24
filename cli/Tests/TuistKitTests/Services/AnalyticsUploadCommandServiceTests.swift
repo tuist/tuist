@@ -135,6 +135,34 @@ struct AnalyticsUploadCommandServiceTests {
         #expect(exists == false)
     }
 
+    @Test(.inTemporaryDirectory) func run_whenUploadTimesOut_deletesEventFile() async throws {
+        // Given
+        let fileSystem = FileSystem()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let eventFilePath = temporaryDirectory.appending(component: "event.json")
+
+        let event = CommandEvent.test()
+        let eventData = try JSONEncoder().encode(event)
+        try eventData.write(to: eventFilePath.url, options: .atomic)
+        let subject = AnalyticsUploadCommandService(
+            fileSystem: fileSystem,
+            uploadAnalyticsService: DelayedUploadAnalyticsService(delay: .seconds(1)),
+            configLoader: configLoader,
+            bestEffortUploadTimeout: .milliseconds(1)
+        )
+
+        // When / Then
+        await #expect(throws: AnalyticsUploadCommandServiceError.uploadTimedOut) {
+            try await subject.run(
+                eventFilePath: eventFilePath.pathString,
+                fullHandle: fullHandle,
+                serverURL: serverURL
+            )
+        }
+        let exists = try await fileSystem.exists(eventFilePath)
+        #expect(exists == false)
+    }
+
     @Test(.inTemporaryDirectory) func run_throws_error_for_invalid_server_url() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
@@ -266,6 +294,20 @@ private struct RecordingUploadAnalyticsService: UploadAnalyticsServicing {
         sessionDirectory _: AbsolutePath?
     ) async throws -> ServerCommandEvent {
         await recorder.record(ServerAuthenticationConfig.current.optionalAuthentication)
+        return .test()
+    }
+}
+
+private struct DelayedUploadAnalyticsService: UploadAnalyticsServicing {
+    let delay: Duration
+
+    func upload(
+        commandEvent _: CommandEvent,
+        fullHandle _: String,
+        serverURL _: URL,
+        sessionDirectory _: AbsolutePath?
+    ) async throws -> ServerCommandEvent {
+        try await Task.sleep(for: delay)
         return .test()
     }
 }

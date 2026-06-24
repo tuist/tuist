@@ -2020,10 +2020,17 @@ defmodule Tuist.Accounts do
   - The account is on the enterprise plan when Tuist-hosted
   - The account has `custom_cache_endpoints_enabled` set to `true`
   - The account has at least one custom cache endpoint configured
-  """
-  def get_cache_endpoints_for_handle(account_handle, technology \\ :default)
 
-  def get_cache_endpoints_for_handle(account_handle, technology) when is_binary(account_handle) do
+  Preview environments use the same routing as production: a `kura_servers`
+  row per account points at the preview's `KuraInstance`, and the Lua hook
+  enforces tenant matching strictly. The earlier "shared mesh" override that
+  short-circuited per-account routing is gone (see PR #11348 review).
+  """
+  def get_cache_endpoints_for_handle(account_handle, technology \\ :default) do
+    cache_endpoints_for_handle(account_handle, technology)
+  end
+
+  defp cache_endpoints_for_handle(account_handle, technology) when is_binary(account_handle) do
     if Environment.tuist_hosted?() do
       hosted_cache_endpoints_for_handle(account_handle, technology)
     else
@@ -2031,7 +2038,7 @@ defmodule Tuist.Accounts do
     end
   end
 
-  def get_cache_endpoints_for_handle(_, _), do: CacheEndpoints.active_endpoint_urls()
+  defp cache_endpoints_for_handle(_, _), do: CacheEndpoints.active_endpoint_urls()
 
   defp hosted_cache_endpoints_for_handle(account_handle, technology) do
     case get_account_by_handle(account_handle) do

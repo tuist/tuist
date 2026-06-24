@@ -136,6 +136,8 @@ spec:
                 secretKeyRef:
                   name: {{ default (include "tuist.componentName" (dict "root" . "component" "processor-external-secrets")) .Values.xcresultProcessor.databaseUrlSecretName }}
                   key: {{ .Values.xcresultProcessor.databaseUrlSecretKey | default "processor-database-url" }}
+            - name: TUIST_DATABASE_SCHEMA
+              value: {{ .Values.postgresql.schema | quote }}
             {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
             - name: MASTER_KEY
               valueFrom:

@@ -67,6 +67,18 @@ redoing finished ones. Failures requeue with backoff; only terminal
 errors (Scaleway 400s, validation failures) set
 `Status.FailureReason`.
 
+Beyond first bootstrap, a drift loop re-pushes host config to already-Ready
+hosts when the operator's `bootstrap.HostConfigHash` differs from the
+Machine's `Status.HostConfigHash`. That hash is a fleet-wide fingerprint over
+everything the operator pushes — the rendered install scripts plus the
+embedded binaries (tart-kubelet, tailscale, node_exporter) — computed once at
+startup from operator-image + fleet-config inputs with every per-host field
+zeroed. So shipping a new operator image with a changed script, fleet CIDR/tag,
+or re-baked binary rolls to existing hosts on the next reconcile, not only on a
+tart-kubelet binary change. The re-push is zero-downtime (running Tart VMs
+survive `UpdateTartKubelet`). Terminal-failed CRs are excluded until
+`Status.FailureReason` is cleared.
+
 Two auxiliary controllers run alongside it:
 
 - **OrphanReclaimer** (`controllers/orphan_reclaimer.go`) — a
