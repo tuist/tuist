@@ -397,6 +397,10 @@ func (c *Client) StartInstall(ctx context.Context, p InstallParams) error {
 		}
 		body.Partitions = toInstallPartitions(part.Partitions)
 	}
+	// A user-login OS (e.g. Ubuntu) locks root and grants the created user sudo,
+	// so the install API rejects a root_password ("should be blank") and takes
+	// only the user credentials; a root-login OS takes the root password instead.
+	// Send exactly one, keyed on RequiresUser.
 	if p.OS.RequiresUser {
 		body.UserLogin = p.UserLogin
 		userPassword, pwErr := randomPassword()
@@ -404,6 +408,7 @@ func (c *Client) StartInstall(ctx context.Context, p InstallParams) error {
 			return pwErr
 		}
 		body.UserPassword = userPassword
+	} else {
 		rootPassword, rpErr := randomPassword()
 		if rpErr != nil {
 			return rpErr

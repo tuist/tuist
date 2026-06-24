@@ -177,6 +177,9 @@ func TestStartInstall(t *testing.T) {
 	if body.UserPassword == "" {
 		t.Fatalf("install must set a user password when the OS RequiresUser")
 	}
+	if body.RootPassword != "" {
+		t.Fatalf("install must leave root_password blank for a user-login OS (the API rejects it): %q", body.RootPassword)
+	}
 	if len(body.Partitions) != 1 {
 		t.Fatalf("install did not carry the default partitioning: %+v", body.Partitions)
 	}
