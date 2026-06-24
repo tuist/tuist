@@ -94,6 +94,47 @@ defmodule Tuist.ShardsTest do
       assert result.shard_count == 2
     end
 
+    test "matches suite timing data by module-qualified name" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 91_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "SlowSuite", status: "success", duration: 90_000},
+              %{name: "FastSuite", status: "success", duration: 1_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "suite-qualified-timing",
+        test_suites: ["AppTests/SlowSuite", "AppTests/FastSuite"],
+        granularity: "suite",
+        shard_total: 2
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      durations =
+        result.shard_assignments
+        |> Enum.reject(fn a -> a["test_targets"] == [] end)
+        |> Map.new(fn a -> {hd(a["test_targets"]), a["estimated_duration_ms"]} end)
+
+      assert durations["AppTests/SlowSuite"] == 90_000
+      assert durations["AppTests/FastSuite"] == 1_000
+    end
+
     test "stores build_run_id on the shard plan" do
       project = ProjectsFixtures.project_fixture()
       build_run_id = Ecto.UUID.generate()
