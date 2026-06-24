@@ -200,60 +200,14 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 		if getErr != nil {
 			return ctrl.Result{}, getErr
 		}
-		// Drive our own install once per adoption rather than trusting the
-		// delivered OS: a pre-ordered box can arrive already carrying an OS (a
-		// prior install task reads as done) that has neither the install login nor
-		// the fleet SSH key, so the self-join would target a box we can never
-		// authenticate to and wedge in Bootstrapping forever. Reinstalling
-		// unconditionally here authorizes the fleet key + lays the OS down
-		// ourselves; Status.InstallStarted makes it a one-shot so the next
-		// reconcile polls the install instead of reinstalling the box again.
-		if !machine.Status.InstallStarted {
-			signer, signErr := ssh.ParsePrivateKey(privateKey)
-			if signErr != nil {
-				return ctrl.Result{}, fmt.Errorf("parse fleet ssh key: %w", signErr)
-			}
-			if err := r.OVHClient.EnsureSSHKey(ctx, fleet, string(ssh.MarshalAuthorizedKey(signer.PublicKey()))); err != nil {
-				conditions.MarkFalse(machine, shared.ProvisionedCondition, "SSHKeyRegistrationFailed",
-					clusterv1.ConditionSeverityWarning, "%v", err)
-				machine.Status.Phase = "Provisioning"
-				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
-			}
-			template, tmplErr := r.OVHClient.ResolveTemplate(ctx, machine.Status.ServiceName, firstNonEmpty(machine.Spec.OS, "ubuntu_24.04"))
-			if tmplErr != nil {
-				return ctrl.Result{}, tmplErr
-			}
-			if err := r.OVHClient.StartInstall(ctx, machine.Status.ServiceName, ovh.InstallParams{
-				TemplateName: template,
-				Hostname:     machine.Name,
-				SSHKeyName:   fleet,
-			}); err != nil {
-				return ctrl.Result{}, fmt.Errorf("start OVH install: %w", err)
-			}
-			machine.Status.InstallStarted = true
-			conditions.MarkFalse(machine, shared.ProvisionedCondition, "Installing",
-				clusterv1.ConditionSeverityInfo, "OVH OS install (%s) started for %s", template, machine.Status.ServiceName)
-			machine.Status.Phase = "Installing"
-			r.event(machine, "Installing", "Started OVH OS install (%s) on %s", template, machine.Status.ServiceName)
-			return ctrl.Result{RequeueAfter: 90 * time.Second}, nil
-		}
-
-		switch state, stateErr := r.OVHClient.InstallState(ctx, machine.Status.ServiceName); {
-		case stateErr != nil:
-			return ctrl.Result{}, stateErr
-		case state == ovh.InstallFailed:
-			conditions.MarkFalse(machine, shared.ProvisionedCondition, "InstallFailed",
-				clusterv1.ConditionSeverityWarning, "OVH OS install failed for %s", machine.Status.ServiceName)
-			machine.Status.Phase = "InstallFailed"
-			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
-		case state == ovh.InstallRunning, state == ovh.InstallPending:
-			// Pending here means our StartInstall hasn't surfaced an install task
-			// yet, not "never installed" — keep waiting.
-			machine.Status.Phase = "Installing"
-			logger.Info("OVH OS install in progress", "service", machine.Status.ServiceName)
-			return ctrl.Result{RequeueAfter: 90 * time.Second}, nil
-		}
-		// InstallDone: the OS is up; fall through to the SSH self-join.
+		// Adoption is claim + self-join, never install. The operator prepares the
+		// box (Ubuntu + the fleet key + ubuntu passwordless sudo) before setting its
+		// adoption displayName, so a claimed box is already reachable — the same
+		// shape as a Scaleway mini that is already up. Keeping the OS install off
+		// this path is what makes adoption a ~2-5 min self-join, so the fleet
+		// MachineDeployment goes Ready quickly and never wedges helm --wait; the
+		// reinstall that wipes a box back to a clean, claimable state lives on the
+		// release path (reconcileDelete).
 		if server.IP == "" {
 			machine.Status.Phase = "Provisioning"
 			logger.Info("public IP not assigned yet", "service", machine.Status.ServiceName)
@@ -367,13 +321,14 @@ func (r *OVHDedicatedMachineReconciler) claimedServiceNames(ctx context.Context,
 	return claimed, nil
 }
 
-// reconcileDelete releases the Machine without terminating the OVH contract:
-// it drops the per-machine kubelet identity and removes the finalizer, leaving
-// the physical server running (its kubelet keeps the Node registered until the
-// operator reinstalls or terminates the box out of band). This is the key
-// difference from the on-demand Elastic Metal kind, whose delete tears down the
-// paid server.
+// reconcileDelete returns the Machine's box to the pool. An OVH dedicated server
+// is a monthly contract, so "release" is not a contract termination: it reinstalls
+// the box to a clean, key-authorized state so the next claim self-joins it with no
+// operator prep, then drops the per-machine kubelet identity + bootstrap Secret +
+// Node and removes the finalizer. Reinstalling on release (rather than on adoption)
+// is what keeps adoption a fast self-join.
 func (r *OVHDedicatedMachineReconciler) reconcileDelete(ctx context.Context, machine *infrav1.OVHDedicatedMachine) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
 	machine.Status.Phase = "Deleting"
 	if err := r.CredentialsManager.DeleteNodeIdentity(ctx, machine.Name); err != nil {
 		r.event(machine, "DeleteIdentityFailed", "delete node identity: %v (will retry)", err)
@@ -396,8 +351,48 @@ func (r *OVHDedicatedMachineReconciler) reconcileDelete(ctx context.Context, mac
 		r.event(machine, "DeleteNodeFailed", "delete Node: %v (will retry)", err)
 		return ctrl.Result{}, err
 	}
+	// Reinstall the box back to a clean, claimable state as the last step before
+	// dropping the finalizer — it's the only step that retries on failure, so on
+	// the happy path it fires exactly once. Fire-and-forget: the wipe + reimage
+	// (Ubuntu + fleet key + ubuntu login) finishes after the Machine is gone,
+	// leaving a box the next claim self-joins.
+	if machine.Status.ServiceName != "" {
+		if err := r.reinstallToPool(ctx, machine); err != nil {
+			r.event(machine, "ReleaseReinstallFailed", "reinstall on release: %v (will retry)", err)
+			return ctrl.Result{}, err
+		}
+		r.event(machine, "ReleasedToPool", "Reinstalling OVH server %s to a clean, claimable state", machine.Status.ServiceName)
+		logger.Info("reinstalling OVH box on release", "service", machine.Status.ServiceName)
+	}
 	controllerutil.RemoveFinalizer(machine, OVHDedicatedMachineFinalizer)
 	return ctrl.Result{}, nil
+}
+
+// reinstallToPool wipes the adopted box back to a clean Ubuntu install with the
+// fleet key authorized, so the next claim self-joins it without operator prep.
+// Fire-and-forget: it kicks the install off and returns.
+func (r *OVHDedicatedMachineReconciler) reinstallToPool(ctx context.Context, machine *infrav1.OVHDedicatedMachine) error {
+	fleet := firstNonEmpty(machine.Spec.FleetName, machine.Namespace+"-"+machine.Name)
+	privateKey, keyErr := r.CredentialsManager.EnsureFleetSSHKey(ctx, fleet)
+	if keyErr != nil {
+		return keyErr
+	}
+	signer, signErr := ssh.ParsePrivateKey(privateKey)
+	if signErr != nil {
+		return fmt.Errorf("parse fleet ssh key: %w", signErr)
+	}
+	if err := r.OVHClient.EnsureSSHKey(ctx, fleet, string(ssh.MarshalAuthorizedKey(signer.PublicKey()))); err != nil {
+		return err
+	}
+	template, tmplErr := r.OVHClient.ResolveTemplate(ctx, machine.Status.ServiceName, firstNonEmpty(machine.Spec.OS, "ubuntu_24.04"))
+	if tmplErr != nil {
+		return tmplErr
+	}
+	return r.OVHClient.StartInstall(ctx, machine.Status.ServiceName, ovh.InstallParams{
+		TemplateName: template,
+		Hostname:     machine.Name,
+		SSHKeyName:   fleet,
+	})
 }
 
 func (r *OVHDedicatedMachineReconciler) event(machine *infrav1.OVHDedicatedMachine, reason, format string, args ...any) {

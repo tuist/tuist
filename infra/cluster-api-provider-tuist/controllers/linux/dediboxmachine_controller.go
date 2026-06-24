@@ -182,70 +182,14 @@ func (r *DediboxMachineReconciler) reconcileNormal(ctx context.Context, machine 
 		if getErr != nil {
 			return ctrl.Result{}, getErr
 		}
-		// Scripted install: the operator only pre-orders the tagged box. The
-		// controller registers the fleet SSH key, resolves the OS, starts the
-		// install, and polls it to done before self-joining, so an OS install is
-		// never manual operator work. (The tag is the env boundary the adopt above
-		// scopes on; offer+datacenter is identical across envs so it can't.)
-		//
-		// Drive our own install once per adoption rather than trusting the
-		// delivered OS: a pre-ordered box can arrive carrying a factory image (or
-		// one left by a prior adoption) whose install resource reads "installed",
-		// but which has neither the tuist login nor the fleet SSH key — so the
-		// self-join would target a box we can never authenticate to and wedge in
-		// Bootstrapping forever. Reimaging unconditionally here lays the login +
-		// key down ourselves; Status.InstallStarted makes it a one-shot so the
-		// next reconcile polls the install instead of wiping the box again.
-		if !machine.Status.InstallStarted {
-			signer, signErr := ssh.ParsePrivateKey(privateKey)
-			if signErr != nil {
-				return ctrl.Result{}, fmt.Errorf("parse fleet ssh key: %w", signErr)
-			}
-			sshKeyID, keyErr := r.DediboxClient.RegisterSSHKey(ctx, fleet, string(ssh.MarshalAuthorizedKey(signer.PublicKey())))
-			if keyErr != nil {
-				conditions.MarkFalse(machine, shared.ProvisionedCondition, "SSHKeyRegistrationFailed",
-					clusterv1.ConditionSeverityWarning, "%v", keyErr)
-				machine.Status.Phase = "Provisioning"
-				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
-			}
-			osChoice, osErr := r.DediboxClient.ResolveOS(ctx, machine.Status.Zone, serverID, firstNonEmpty(machine.Spec.OS, "ubuntu_24.04"))
-			if osErr != nil {
-				return ctrl.Result{}, osErr
-			}
-			if err := r.DediboxClient.StartInstall(ctx, dedibox.InstallParams{
-				Zone:      machine.Status.Zone,
-				ServerID:  serverID,
-				OS:        osChoice,
-				Hostname:  machine.Name,
-				UserLogin: dediboxBootstrapUser,
-				SSHKeyIDs: []string{sshKeyID},
-			}); err != nil {
-				return ctrl.Result{}, fmt.Errorf("start Dedibox install: %w", err)
-			}
-			machine.Status.InstallStarted = true
-			conditions.MarkFalse(machine, shared.ProvisionedCondition, "Installing",
-				clusterv1.ConditionSeverityInfo, "Dedibox OS install started for server %d", serverID)
-			machine.Status.Phase = "Installing"
-			r.event(machine, "Installing", "Started Dedibox OS install on server %d", serverID)
-			return ctrl.Result{RequeueAfter: 90 * time.Second}, nil
-		}
-
-		switch state, stateErr := r.DediboxClient.InstallState(ctx, machine.Status.Zone, serverID); {
-		case stateErr != nil:
-			return ctrl.Result{}, stateErr
-		case state == dedibox.InstallFailed:
-			conditions.MarkFalse(machine, shared.ProvisionedCondition, "InstallFailed",
-				clusterv1.ConditionSeverityWarning, "Dedibox OS install failed for server %d", serverID)
-			machine.Status.Phase = "InstallFailed"
-			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
-		case state == dedibox.InstallRunning, state == dedibox.InstallPending:
-			// Pending here means our StartInstall hasn't surfaced an install record
-			// yet (the wipe is still queued), not "never installed" — keep waiting.
-			machine.Status.Phase = "Installing"
-			logger.Info("Dedibox OS install in progress", "id", serverID)
-			return ctrl.Result{RequeueAfter: 90 * time.Second}, nil
-		}
-		// InstallDone: the OS is up; fall through to the SSH self-join.
+		// Adoption is claim + self-join, never install. The operator prepares the
+		// box (Ubuntu + the fleet key + tuist passwordless sudo) before tagging it
+		// into the pool, so a claimed box is already reachable — the same shape as a
+		// Scaleway mini that is already up. Keeping the OS install off this path is
+		// what makes adoption a ~2-5 min self-join, so the fleet MachineDeployment
+		// goes Ready quickly and never wedges helm --wait; the reinstall that wipes a
+		// box back to a clean, claimable state lives on the release path
+		// (reconcileDelete).
 		host := server.PublicIP
 		if host == "" {
 			machine.Status.Phase = "Provisioning"
@@ -354,10 +298,14 @@ func (r *DediboxMachineReconciler) claimedServerIDs(ctx context.Context, self *i
 	return claimed, nil
 }
 
-// reconcileDelete releases the Machine without terminating the Dedibox contract
-// (monthly): it drops the per-machine kubelet identity + bootstrap Secret and
-// removes the finalizer, leaving the physical box for re-adoption.
+// reconcileDelete returns the Machine's box to the pool. The Dedibox is a monthly
+// contract, so "release" is not a contract termination: it reinstalls the box to a
+// clean, key-authorized state so the next claim self-joins it with no operator
+// prep, then drops the per-machine kubelet identity + bootstrap Secret + Node and
+// removes the finalizer. Reinstalling on release (rather than on adoption) is what
+// keeps adoption a fast self-join.
 func (r *DediboxMachineReconciler) reconcileDelete(ctx context.Context, machine *infrav1.DediboxMachine) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
 	machine.Status.Phase = "Deleting"
 	if err := r.CredentialsManager.DeleteNodeIdentity(ctx, machine.Name); err != nil {
 		r.event(machine, "DeleteIdentityFailed", "delete node identity: %v (will retry)", err)
@@ -377,8 +325,53 @@ func (r *DediboxMachineReconciler) reconcileDelete(ctx context.Context, machine 
 		r.event(machine, "DeleteNodeFailed", "delete Node: %v (will retry)", err)
 		return ctrl.Result{}, err
 	}
+	// Reinstall the box back to a clean, claimable state as the last step before
+	// dropping the finalizer — it's the only step that retries on failure, so on
+	// the happy path it fires exactly once. Fire-and-forget: the wipe + reimage
+	// (Ubuntu + fleet key + tuist login) finishes after the Machine is gone,
+	// leaving a box the next claim self-joins.
+	if machine.Status.ServerID != 0 {
+		if err := r.reinstallToPool(ctx, machine); err != nil {
+			r.event(machine, "ReleaseReinstallFailed", "reinstall on release: %v (will retry)", err)
+			return ctrl.Result{}, err
+		}
+		r.event(machine, "ReleasedToPool", "Reinstalling Dedibox server %d to a clean, claimable state", machine.Status.ServerID)
+		logger.Info("reinstalling Dedibox box on release", "id", machine.Status.ServerID)
+	}
 	controllerutil.RemoveFinalizer(machine, DediboxMachineFinalizer)
 	return ctrl.Result{}, nil
+}
+
+// reinstallToPool wipes the adopted box back to a clean Ubuntu install with the
+// fleet key authorized and the tuist login, so the next claim self-joins it
+// without operator prep. Fire-and-forget: it kicks the install off and returns.
+func (r *DediboxMachineReconciler) reinstallToPool(ctx context.Context, machine *infrav1.DediboxMachine) error {
+	fleet := firstNonEmpty(machine.Spec.FleetName, machine.Namespace+"-"+machine.Name)
+	privateKey, keyErr := r.CredentialsManager.EnsureFleetSSHKey(ctx, fleet)
+	if keyErr != nil {
+		return keyErr
+	}
+	signer, signErr := ssh.ParsePrivateKey(privateKey)
+	if signErr != nil {
+		return fmt.Errorf("parse fleet ssh key: %w", signErr)
+	}
+	serverID := uint64(machine.Status.ServerID)
+	sshKeyID, regErr := r.DediboxClient.RegisterSSHKey(ctx, fleet, string(ssh.MarshalAuthorizedKey(signer.PublicKey())))
+	if regErr != nil {
+		return regErr
+	}
+	osChoice, osErr := r.DediboxClient.ResolveOS(ctx, machine.Status.Zone, serverID, firstNonEmpty(machine.Spec.OS, "ubuntu_24.04"))
+	if osErr != nil {
+		return osErr
+	}
+	return r.DediboxClient.StartInstall(ctx, dedibox.InstallParams{
+		Zone:      machine.Status.Zone,
+		ServerID:  serverID,
+		OS:        osChoice,
+		Hostname:  machine.Name,
+		UserLogin: dediboxBootstrapUser,
+		SSHKeyIDs: []string{sshKeyID},
+	})
 }
 
 func (r *DediboxMachineReconciler) event(machine *infrav1.DediboxMachine, reason, format string, args ...any) {

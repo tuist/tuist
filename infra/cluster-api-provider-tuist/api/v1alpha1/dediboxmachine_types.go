@@ -95,17 +95,6 @@ type DediboxMachineStatus struct {
 	// +optional
 	Zone string `json:"zone,omitempty"`
 
-	// InstallStarted records that the controller has kicked off its own OS
-	// (re)install for the adopted server. A pre-ordered box can arrive carrying a
-	// factory OS (or one left by a prior adoption) that has neither the fleet
-	// login nor its SSH key, so the install resource reads "installed" and the
-	// self-join would be aimed at a box we can never authenticate to. The
-	// controller therefore reimages once per adoption rather than trusting the
-	// delivered OS; this flag is what makes that a one-shot, so a reconcile after
-	// the install starts polls it to completion instead of wiping the box again.
-	// +optional
-	InstallStarted bool `json:"installStarted,omitempty"`
-
 	// Addresses surfaces the server's public address for kubectl describe.
 	// +optional
 	Addresses []clusterv1.MachineAddress `json:"addresses,omitempty"`
