@@ -8,7 +8,7 @@ use std::{
     time::Duration,
 };
 
-use futures_util::StreamExt;
+use futures_util::stream::{self, StreamExt};
 use reqwest::header::{CONTENT_TYPE, HeaderValue};
 use serde::Deserialize;
 use tokio::{
@@ -35,6 +35,10 @@ use crate::{
 use self::{operation::ReplicationOperation, outbox_message::OutboxMessage};
 
 const BOOTSTRAP_PAGE_LIMIT: usize = 256;
+
+// Artifact bodies fetched from a peer concurrently within a bootstrap page. Caps
+// open peer connections; staged bytes stay bounded by bootstrap_staging_budget.
+const BOOTSTRAP_ARTIFACT_FETCH_CONCURRENCY: usize = 16;
 
 #[derive(Debug, Deserialize)]
 struct PeerStatusPayload {
@@ -126,14 +130,14 @@ async fn membership_task_loop(state: SharedState) {
     loop {
         let mut members = BTreeSet::new();
         let mut peer_nodes = BTreeMap::new();
-        let targets = discovery_targets(&state.config).await;
+        let targets = discovery_targets(&state.config, &state.dynamic_peers.load()).await;
         let mut peer_status_successes = 0_usize;
         let lookups = futures_util::future::join_all(targets.iter().map(|peer| {
             let client = match &peer.resolved {
                 Some(resolved) => state
                     .peer_client_factory
                     .build_resolving(&resolved.host, resolved.address),
-                None => Ok(state.client.clone()),
+                None => Ok(state.client().as_ref().clone()),
             };
             let url = match peer.scope {
                 DiscoveryScope::Local => format!("{}/_internal/status", peer.url),
@@ -160,7 +164,11 @@ async fn membership_task_loop(state: SharedState) {
                         Ok(payload) => {
                             peer_status_successes += 1;
                             if payload.tenant_id != state.config.tenant_id
-                                || payload.node_url == state.config.node_url
+                                || is_self_or_own_gateway(
+                                    &payload.node_url,
+                                    &state.config.node_url,
+                                    state.config.peer_gateway_url.as_deref(),
+                                )
                             {
                                 continue;
                             }
@@ -323,6 +331,11 @@ async fn bootstrap_manifests_from_peer(state: &SharedState, peer: &str) -> Resul
             .store
             .hit_failpoint(FailpointName::AfterBootstrapManifestPageFetchBeforeApply)
             .await?;
+
+        // Cheap local pre-check first: skip artifacts we already hold without a
+        // network fetch, and propagate a real store error instead of masking it as
+        // a per-artifact fetch failure below.
+        let mut to_fetch = Vec::new();
         for manifest in &page.manifests {
             let outcome = state.store.artifact_apply_outcome(
                 manifest.producer,
@@ -330,41 +343,62 @@ async fn bootstrap_manifests_from_peer(state: &SharedState, peer: &str) -> Resul
                 &manifest.key,
                 manifest.version_ms,
             )?;
-            if !outcome.applied() {
+            if outcome.applied() {
+                to_fetch.push(manifest.clone());
+            } else {
                 state
                     .metrics
                     .record_replication_apply("bootstrap", "artifact", outcome.as_str());
-                continue;
             }
+        }
 
-            // A single artifact failing must not abort the whole peer bootstrap.
-            // Aborting strands every later artifact behind the first gap, and when
-            // peers bootstrap from each other simultaneously (e.g. a full-mesh
-            // restart) each one serves still-incomplete data, so every bootstrap
-            // breaks at its first gap and the mesh deadlocks with none reaching a
-            // serving state. Record the failure, keep going so we still apply the
-            // artifacts we can fetch this pass, and report partial completion at
-            // the end so the peer is retried — already-applied artifacts are
-            // skipped on the retry, so successive passes converge as data
-            // propagates outward from the data-bearing replicas.
-            match bootstrap_artifact_from_peer(state, peer, manifest).await {
-                Ok(outcome) => {
-                    state.metrics.record_replication_apply(
-                        "bootstrap",
-                        "artifact",
-                        outcome.as_str(),
-                    );
-                    if outcome.applied() {
-                        applied += 1;
+        // Fetch the page's artifacts concurrently. A fresh node bootstraps the
+        // whole dataset over the WAN, where one serial stream leaves the link idle
+        // between requests and can't finish a large cache inside the bootstrap
+        // timeout. Concurrency caps open connections; staged bytes stay bounded by
+        // the bootstrap_staging_budget each fetch reserves against, and the
+        // segment-append lock still serializes the on-disk write, so only the
+        // network transfers overlap.
+        let outcomes: Vec<Result<bool, String>> = stream::iter(to_fetch)
+            .map(|manifest| async move {
+                // A single artifact failing must not abort the whole peer
+                // bootstrap. Aborting strands every later artifact behind the first
+                // gap, and when peers bootstrap from each other simultaneously
+                // (e.g. a full-mesh restart) each one serves still-incomplete data,
+                // so every bootstrap breaks at its first gap and the mesh deadlocks
+                // with none reaching a serving state. Record the failure, keep
+                // going so we still apply the artifacts we can fetch this pass, and
+                // report partial completion at the end so the peer is retried —
+                // already-applied artifacts are skipped on the retry, so successive
+                // passes converge as data propagates outward from the data-bearing
+                // replicas.
+                match bootstrap_artifact_from_peer(state, peer, &manifest).await {
+                    Ok(outcome) => {
+                        state.metrics.record_replication_apply(
+                            "bootstrap",
+                            "artifact",
+                            outcome.as_str(),
+                        );
+                        Ok(outcome.applied())
+                    }
+                    Err(error) => {
+                        state
+                            .metrics
+                            .record_replication_apply("bootstrap", "artifact", "error");
+                        warn!("bootstrap artifact from {peer} failed, continuing: {error}");
+                        Err(error)
                     }
                 }
-                Err(error) => {
-                    state
-                        .metrics
-                        .record_replication_apply("bootstrap", "artifact", "error");
-                    warn!("bootstrap artifact from {peer} failed, continuing: {error}");
-                    failed += 1;
-                }
+            })
+            .buffer_unordered(BOOTSTRAP_ARTIFACT_FETCH_CONCURRENCY)
+            .collect()
+            .await;
+
+        for outcome in outcomes {
+            match outcome {
+                Ok(true) => applied += 1,
+                Ok(false) => {}
+                Err(_) => failed += 1,
             }
         }
 
@@ -398,11 +432,11 @@ async fn bootstrap_artifact_from_peer(
         url_encode(&manifest.artifact_id)
     );
     let response = state
-        .client
+        .client()
         .get(&url)
         .send()
         .await
-        .map_err(|error| format!("bootstrap artifact request failed: {error}"))?;
+        .map_err(|error| format!("bootstrap artifact request failed: {error:?}"))?;
     if response.status() == reqwest::StatusCode::NOT_FOUND {
         return Ok(ArtifactApplyOutcome::IgnoredStale);
     }
@@ -494,7 +528,7 @@ async fn stream_response_to_temp(
         let mut total: u64 = 0;
         while let Some(chunk) = stream.next().await {
             let chunk =
-                chunk.map_err(|error| format!("failed to stream bootstrap body: {error}"))?;
+                chunk.map_err(|error| format!("failed to stream bootstrap body: {error:?}"))?;
             total = total.saturating_add(chunk.len() as u64);
             if total > staging_limit {
                 return Err(format!(
@@ -539,7 +573,7 @@ async fn fetch_bootstrap_manifests_page(
     }
 
     let response = state
-        .client
+        .client()
         .get(&url)
         .send()
         .await
@@ -564,7 +598,7 @@ async fn fetch_bootstrap_tombstones_page(
     }
 
     let response = state
-        .client
+        .client()
         .get(&url)
         .send()
         .await
@@ -605,10 +639,24 @@ async fn read_bounded_body(
     Ok(buffer)
 }
 
-async fn discovery_targets(config: &Config) -> Vec<DiscoveryTarget> {
+/// Whether a discovered peer's advertised `node_url` should be skipped because
+/// it is this node itself or this node's own peer gateway.
+///
+/// When global discovery is fronted by a public peer gateway (the account peer
+/// LoadBalancer), every same-account peer advertises that one gateway URL for
+/// global scope. A node must not adopt its own gateway as a distinct peer, or
+/// same-region traffic would hairpin out through the public endpoint and back
+/// instead of staying in-cluster. An external peer (which has no gateway of its
+/// own) still adopts the gateway URL and replicates through it.
+fn is_self_or_own_gateway(node_url: &str, own_node_url: &str, own_gateway: Option<&str>) -> bool {
+    node_url == own_node_url || own_gateway == Some(node_url)
+}
+
+async fn discovery_targets(config: &Config, dynamic_peers: &[String]) -> Vec<DiscoveryTarget> {
     let mut targets = config
         .peers
         .iter()
+        .chain(dynamic_peers.iter())
         .cloned()
         .map(|peer| DiscoveryTarget {
             label: peer.clone(),
@@ -823,13 +871,13 @@ async fn replicate_message(state: &SharedState, message: &OutboxMessage) -> Resu
                 );
 
                 let response = state
-                    .client
+                    .client()
                     .put(&url)
                     .headers(headers)
                     .body(body)
                     .send()
                     .await
-                    .map_err(|error| format!("artifact replication request failed: {error}"))?;
+                    .map_err(|error| format!("artifact replication request failed: {error:?}"))?;
                 response_span.record("http.response.status_code", response.status().as_u16());
                 if response.status().is_server_error() {
                     response_span.record("otel.status_code", "ERROR");
@@ -872,7 +920,7 @@ async fn replicate_message(state: &SharedState, message: &OutboxMessage) -> Resu
                 let mut headers = reqwest::header::HeaderMap::new();
                 inject_current_trace_context(&mut headers);
                 let response = state
-                    .client
+                    .client()
                     .delete(&url)
                     .headers(headers)
                     .send()
@@ -906,6 +954,27 @@ mod tests {
         test_support::test_context,
         utils::artifact_storage_id,
     };
+
+    #[test]
+    fn skips_self_and_own_gateway_but_adopts_other_peers() {
+        let own = "https://kura-eu-0.kura-eu-headless.kura.svc.cluster.local:7443";
+        let gateway = "https://peer.tuist-eu-1.kura.tuist.dev:7443";
+
+        // Our own in-cluster URL and our own gateway are both skipped.
+        assert!(is_self_or_own_gateway(own, own, Some(gateway)));
+        assert!(is_self_or_own_gateway(gateway, own, Some(gateway)));
+
+        // A different peer (another instance, or a self-hosted node) is adopted.
+        assert!(!is_self_or_own_gateway(
+            "https://kura-eu-1.kura-eu-headless.kura.svc.cluster.local:7443",
+            own,
+            Some(gateway),
+        ));
+
+        // With no gateway of our own, an external node adopting the managed
+        // gateway URL must not skip it.
+        assert!(!is_self_or_own_gateway(gateway, own, None));
+    }
 
     async fn spawn_server(app: Router) -> (String, tokio::task::JoinHandle<()>) {
         let listener = TcpListener::bind("127.0.0.1:0")
@@ -991,7 +1060,7 @@ mod tests {
         })
         .await;
 
-        let targets = discovery_targets(&ctx.state.config).await;
+        let targets = discovery_targets(&ctx.state.config, &ctx.state.dynamic_peers.load()).await;
 
         assert!(targets.iter().any(|target| {
             target.url == "https://seed.kura.internal:7443" && target.resolved.is_none()

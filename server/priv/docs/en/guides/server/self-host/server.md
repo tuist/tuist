@@ -177,6 +177,15 @@ The following environment variables are used to configure the database connectio
 
 When `TUIST_DATABASE_SCHEMA` is not `public`, release migrations create the schema if it does not already exist before running the Ecto migration chain. If the migration role cannot create schemas, pre-create the schema and make the migration role its owner.
 
+Tuist points the connection at the custom schema by setting the session `search_path`. Some pooled or proxied Postgres setups (for example PgBouncer, or managed databases that restrict startup parameters) do not apply this and the session falls back to `public`, which surfaces during migrations as `permission denied for schema public`. When connecting through such a setup, pin the schema on the role itself so every session starts in it regardless of the proxy:
+
+```sql
+CREATE SCHEMA IF NOT EXISTS tuist AUTHORIZATION <migration_role>;
+ALTER ROLE <migration_role> IN DATABASE <database> SET search_path = tuist;
+-- If the web server connects as a separate runtime role (TUIST_DATABASE_RUNTIME_ROLE):
+ALTER ROLE <runtime_role> IN DATABASE <database> SET search_path = tuist;
+```
+
 ### Authentication environment configuration {#authentication-environment-configuration}
 
 We facilitate authentication through [identity providers (IdP)](https://en.wikipedia.org/wiki/Identity_provider). To utilize this, ensure all necessary environment variables for the chosen provider are present in the server's environment. **Missing variables** will result in Tuist bypassing that provider.

@@ -2079,7 +2079,10 @@ defmodule Tuist.Accounts do
 
   defp kura_cache_endpoints(%Account{} = account) do
     if FeatureFlags.kura_cache_enabled?(account) do
-      list_account_cache_endpoints(account, :kura)
+      # Tuist-managed Kura endpoints, mirrored from `kura_servers`. Self-hosted
+      # nodes are not static rows: each one self-registers its advertised URL via
+      # heartbeats, surfaced through `registered_kura_endpoint_urls/1`.
+      Repo.all(from(e in AccountCacheEndpoint, where: e.account_id == ^account.id and e.technology == :kura))
     else
       []
     end
@@ -2088,9 +2091,24 @@ defmodule Tuist.Accounts do
   defp kura_cache_endpoints(_), do: []
 
   defp kura_cache_endpoint_urls(%Account{} = account) do
-    account
-    |> kura_cache_endpoints()
-    |> Enum.map(& &1.url)
+    static_urls = account |> kura_cache_endpoints() |> Enum.map(& &1.url)
+    registered_urls = registered_kura_endpoint_urls(account)
+
+    Enum.uniq(static_urls ++ registered_urls)
+  end
+
+  # Client-facing URLs from registration heartbeats: customer-owned nodes that
+  # report a live, ready advertised endpoint. Lease-gated, so a node that stops
+  # heartbeating drops out. Gated on `:kura_cache` like the static endpoints.
+  defp registered_kura_endpoint_urls(%Account{} = account) do
+    # Self-hosting is Enterprise-only, so do not surface a downgraded account's
+    # registered node addresses to the CLI even while their leases are still live.
+    if FeatureFlags.kura_cache_enabled?(account) and
+         Billing.Entitlements.allows?(account, :self_hosted_cache) do
+      Tuist.Kura.Registrations.active_advertised_urls(account)
+    else
+      []
+    end
   end
 
   @doc """

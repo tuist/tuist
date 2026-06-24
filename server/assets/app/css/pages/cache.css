@@ -1,0 +1,255 @@
+#account-cache {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-7);
+
+  /* Per design: no outer border on the page's sections. */
+  & > .noora-card__section {
+    box-shadow: none;
+  }
+
+  & > [data-part="page-header"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+
+    & > [data-part="title"] {
+      margin: 0;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+    }
+
+    & > [data-part="subtitle"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
+  }
+
+  & > [data-part="cache-disabled-card"] {
+    padding: var(--noora-spacing-8);
+  }
+
+  & > [data-part="servers-card"],
+  & > [data-part="self-hosted-card"] {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border-radius: var(--noora-radius-8);
+    padding: 0;
+
+    & > [data-part="header"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-5);
+      padding: var(--noora-spacing-7) 0;
+
+      & > [data-part="title-group"] {
+        display: flex;
+        flex-grow: 1;
+        flex-direction: column;
+        gap: var(--noora-spacing-2);
+        min-width: 0;
+
+        & > [data-part="title"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+        }
+
+        & > [data-part="subtitle"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        }
+      }
+
+      & > [data-part="actions"] {
+        display: flex;
+        flex-shrink: 0;
+        flex-direction: row;
+        align-items: center;
+      }
+    }
+
+    & > .noora-table {
+      box-sizing: border-box;
+      margin: 0 0 var(--noora-spacing-6);
+      width: 100%;
+    }
+  }
+
+  /* The merged self-hosted card stacks a credentials and an endpoints
+     subsection under one header, each with its own sub-header + table. */
+  & > [data-part="self-hosted-card"] {
+    & > [data-part="header"] {
+      padding-bottom: var(--noora-spacing-4);
+    }
+
+    & [data-part="subsection"] {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+
+      & > [data-part="subsection-header"] {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: var(--noora-spacing-5);
+        padding: var(--noora-spacing-5) 0 var(--noora-spacing-4);
+
+        & > [data-part="title-group"] {
+          display: flex;
+          flex-grow: 1;
+          flex-direction: column;
+          gap: var(--noora-spacing-1);
+          min-width: 0;
+
+          & > [data-part="title"] {
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+          }
+
+          & > [data-part="subtitle"] {
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+          }
+        }
+
+        & > [data-part="actions"] {
+          display: flex;
+          flex-shrink: 0;
+          flex-direction: row;
+          align-items: center;
+        }
+      }
+
+      & > .noora-table {
+        box-sizing: border-box;
+        margin: 0 0 var(--noora-spacing-6);
+        width: 100%;
+      }
+    }
+
+    /* Right-align the row's icon-only revoke action; the button cell keeps
+       its standard padding so the icon stays inset from the table edge. */
+    & #self-hosted-clients-table [data-part="cell"][data-type="button"] {
+      justify-content: flex-end;
+    }
+  }
+}
+
+/* Generate-credential modal mirrors the webhook signing-secret flow:
+   the body swaps between the name form and the one-time secret disclosure. */
+#add-self-hosted-client-modal {
+  & > [data-part="positioner"] > [data-part="content"] {
+    width: min(560px, 90vw);
+    max-width: 560px;
+  }
+
+  & [data-part="modal-content-wrapper"] {
+    display: flex;
+    flex-direction: column;
+
+    & > .noora-line-divider {
+      flex-shrink: 0;
+    }
+  }
+
+  & [data-part="modal-body"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+    padding: var(--noora-spacing-7) var(--noora-spacing-4);
+
+    & [data-part="modal-message"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      }
+    }
+
+    & [data-part="credential-field"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+
+      & > [data-part="label"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      }
+    }
+
+    & [data-part="read-only-value"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+      border-radius: var(--noora-radius-3);
+      background: var(--noora-surface-background-tertiary);
+      padding: var(--noora-spacing-3) var(--noora-spacing-3) var(--noora-spacing-3) var(--noora-spacing-5);
+      min-width: 0;
+
+      & > code {
+        flex-grow: 1;
+        overflow: hidden;
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+        font-family: "Geist Mono", monospace;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      & > .noora-button {
+        flex-shrink: 0;
+      }
+    }
+  }
+}
+
+/* Revoke-credential confirmation modal: give the message room between the
+   header/footer dividers (the Noora body only adds minimal vertical padding). */
+[id^="revoke-credential-modal-"] [data-part="revoke-credential-message"] {
+  margin: 0;
+  padding-block: var(--noora-spacing-5);
+}
+
+/* Deploy-server modal lives on this page. */
+#add-cache-server-modal {
+  & [data-part="modal-content"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+    padding: var(--noora-spacing-7) var(--noora-spacing-4);
+
+    & > [data-part="select-label"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+
+    & > [data-part="selected-region"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+      box-shadow: var(--noora-border-section);
+      border-radius: var(--noora-radius-4);
+      padding: var(--noora-spacing-3) var(--noora-spacing-4);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
+
+    & > [data-part="hint"] {
+      margin: 0;
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
+  }
+}

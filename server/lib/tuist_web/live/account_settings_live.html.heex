@@ -12,19 +12,6 @@
       region_form={@region_form}
       selected_account={@selected_account}
     />
-    <.cache_endpoints_section
-      :if={@custom_cache_endpoints_available}
-      cache_endpoints={@cache_endpoints}
-      add_cache_endpoint_form={@add_cache_endpoint_form}
-      custom_cache_endpoints_enabled={@selected_account.custom_cache_endpoints_enabled}
-    />
-    <.kura_servers_section
-      :if={@kura_enabled}
-      kura_servers={@kura_servers}
-      available_kura_regions={@available_kura_regions}
-      add_kura_server_form={@add_kura_server_form}
-      latest_kura_version={@latest_kura_version}
-    />
     <.card_section data-part="rename-card-section">
       <div data-part="header">
         <span data-part="title">
@@ -175,13 +162,6 @@
     <.region_selection_section
       region_form={@region_form}
       selected_account={@selected_account}
-    />
-    <.kura_servers_section
-      :if={@kura_enabled}
-      kura_servers={@kura_servers}
-      available_kura_regions={@available_kura_regions}
-      add_kura_server_form={@add_kura_server_form}
-      latest_kura_version={@latest_kura_version}
     />
     <.card_section data-part="rename-card-section">
       <div data-part="header">

@@ -32,10 +32,12 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"30 3 * * *", Tuist.Storage.Workers.DeleteExpiredGradleCacheArtifactsWorker},
     {"45 3 * * *", Tuist.Storage.Workers.DeleteExpiredCasCacheArtifactsWorker},
     {"* * * * *", Tuist.Kura.Reconciler},
+    {"*/5 * * * *", Tuist.Kura.Workers.ExpiredRegistrationsWorker},
     {"* * * * *", Tuist.Runners.Workers.StaleClaimsWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedRunnersWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedStampedPodsWorker},
-    {"*/5 * * * *", Tuist.Runners.Workers.WebhookRedeliveryWorker}
+    {"*/5 * * * *", Tuist.Runners.Workers.WebhookRedeliveryWorker},
+    {"*/5 * * * *", Tuist.Runners.Workers.StaleQueuedJobsWorker}
   ]
 
   @prod_like_envs [:prod, :stag, :can]
