@@ -74,6 +74,15 @@ struct SetupCacheCommandService {
             environmentVariables["TUIST_TOKEN"] = token
         }
 
+        // The cache daemon runs as a launchd agent that does not inherit the
+        // caller's environment, so forward the client feature flags. Without
+        // them the daemon cannot signal the "kura" flag on getCacheEndpoints, so
+        // it resolves the default (public) cache endpoint instead of the kura
+        // private-network one the rest of the CLI uses.
+        for (key, value) in ClientFeatureFlags.environmentVariables() {
+            environmentVariables[key] = value
+        }
+
         let label = Environment.current.cacheLaunchAgentLabel(for: fullHandle)
 
         try await launchAgentService.setupLaunchAgent(
