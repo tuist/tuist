@@ -3881,7 +3881,7 @@
               "transformations": []
             }
           },
-          "description": "CPU utilisation % per worker node (left axis). Flat dashed lines on the right axis show total allocatable cores per node.",
+          "description": "CPU utilisation % per worker node running Kura pods for the selected tenant, region, and cluster.",
           "id": 60,
           "links": [],
           "title": "Worker Node CPU Usage",
