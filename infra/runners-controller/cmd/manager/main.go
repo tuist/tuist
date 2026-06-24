@@ -26,6 +26,7 @@ import (
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/runners-controller/controllers"
+	"github.com/tuist/tuist/infra/runners-controller/internal/podmetrics"
 	"github.com/tuist/tuist/infra/runners-controller/internal/scaling"
 	"github.com/tuist/tuist/infra/runners-controller/internal/sessions"
 )
@@ -53,6 +54,7 @@ func main() {
 		registryMirror      string
 		clusterDNSIP        string
 		clusterDomain       string
+		metricsSampleEvery  time.Duration
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -74,6 +76,8 @@ func main() {
 		"kube-dns ClusterIP injected into macOS pool Pods as TUIST_CLUSTER_DNS_IP. dispatch-poll.sh inside the Tart VM writes /etc/resolver/<cluster-domain> from it so the dispatch-provided cache_endpoint_url (*.svc.cluster.local) resolves in the VM. Optional; empty skips the injection (macOS runners then never receive a resolvable in-cluster cache URL — pair with the server's TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS gate).")
 	flag.StringVar(&clusterDomain, "cluster-domain", envOr("TUIST_RUNNER_CLUSTER_DOMAIN", "cluster.local"),
 		"Cluster DNS suffix paired with --cluster-dns-ip (TUIST_CLUSTER_DOMAIN in macOS pool Pods; names the /etc/resolver file in the VM).")
+	flag.DurationVar(&metricsSampleEvery, "metrics-sample-interval", envDuration("TUIST_RUNNER_METRICS_SAMPLE_INTERVAL", 15*time.Second),
+		"How often the leader samples each busy runner Pod's machine metrics (CPU/memory/network/disk) from its node's kubelet and POSTs them to --sessions-url's /pods/:pod/metrics. Requires --sessions-url; set to 0 to disable sampling.")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
@@ -165,6 +169,25 @@ func main() {
 			setupLog.Error(err, "setup PodLifecycle reconciler")
 			os.Exit(1)
 		}
+
+		// Machine-metrics sampler: the leader periodically reads each
+		// busy runner Pod's CPU/memory/network/disk from its node's
+		// kubelet Summary and POSTs them to the same `/api/internal/runners`
+		// base, keyed by Pod name. Shares the sessions base URL — the
+		// metrics endpoint lives alongside `pods/stopped`. A 0 interval
+		// disables sampling (the dashboard's Metrics tab then stays empty).
+		if metricsSampleEvery > 0 {
+			if err := mgr.Add(&podmetrics.Sampler{
+				Client:    mgr.GetClient(),
+				Source:    &podmetrics.KubeletSource{Clientset: clientset},
+				Reporter:  podmetrics.NewClient(sessionsURL),
+				Namespace: watchedNS,
+				Interval:  metricsSampleEvery,
+			}); err != nil {
+				setupLog.Error(err, "add Pod metrics sampler")
+				os.Exit(1)
+			}
+		}
 	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
@@ -186,6 +209,17 @@ func main() {
 func envOr(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return fallback
+}
+
+// envDuration parses a Go duration (e.g. "15s") from the environment,
+// falling back to the default on an unset or unparseable value.
+func envDuration(key string, fallback time.Duration) time.Duration {
+	if v := os.Getenv(key); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			return d
+		}
 	}
 	return fallback
 }

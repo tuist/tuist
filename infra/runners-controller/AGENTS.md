@@ -94,6 +94,25 @@ independent workqueues:
   replicas; the `hetzner-robot-controller` reflects the new server
   into a `HetznerBareMetalHost` CR automatically.
 
+## Machine-metrics sampler (`internal/podmetrics`)
+
+A leader-only `manager.Runnable` (not a reconciler — added via
+`mgr.Add`) on a `--metrics-sample-interval` cadence (default 15s; 0
+disables, also wired only when `--sessions-url` is set). Each pass it
+lists busy runner Pods (those carrying the `tuist.dev/runner-pool-owner`
+label), groups them by node, and reads each node's kubelet
+`/stats/summary` once through the apiserver node proxy (the
+`nodes/proxy` ClusterRole verb). Per Pod it emits a sample —
+CPU as a percentage of node-allocatable cores, memory working-set,
+ephemeral-storage used/total, and network rx/tx differenced into
+per-interval throughput — and POSTs it to the server's
+`/api/internal/runners/pods/:pod_name/metrics`, keyed by Pod name. The
+server resolves the Pod's live claim to the job and stores the samples;
+an unclaimed Pod is a server-side no-op. Shares the `--sessions-url`
+base and the SA-token auth with `pods/stopped`, and powers the
+runner-job Metrics tab in the dashboard. The collector never learns job
+ids — that mapping stays server-side in `runner_claims`.
+
 ## Linux runner substrate: Hetzner Robot bare-metal hosts (caph)
 
 Linux runner Pods run as Firecracker microVMs (via Kata Containers)
