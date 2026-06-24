@@ -879,6 +879,220 @@ func TestKuraInstanceReconcileCrossRegionAccountPeerService(t *testing.T) {
 	}
 }
 
+func TestPeerTLSDNSNamesIncludesMeshPublicPeerHost(t *testing.T) {
+	instance := meshInstance("kura-tuist-eu-1", "tuist")
+	if containsString(peerTLSDNSNames(instance), "peer.tuist.kura.tuist.dev") {
+		t.Fatal("did not expect the public peer host in SANs before it is set")
+	}
+
+	instance.Spec.MeshPublicPeerHost = "peer.tuist.kura.tuist.dev"
+	if !containsString(peerTLSDNSNames(instance), "peer.tuist.kura.tuist.dev") {
+		t.Fatalf("expected peer SANs to cover the public peer host, got %v", peerTLSDNSNames(instance))
+	}
+}
+
+func TestKuraInstanceReconcileMeshPublicPeerExposure(t *testing.T) {
+	ctx := context.Background()
+	scheme := meshTestScheme(t)
+
+	instance := meshInstance("kura-tuist-eu-1", "tuist")
+	instance.Spec.MeshPublicPeerHost = "peer.tuist-eu-central-1.kura.tuist.dev"
+	instance.Spec.MeshExternalPeers = []string{"https://kura.acme.example:7443"}
+	instance.Spec.MeshPublicPeerLoadBalancerAnnotations = map[string]string{
+		"load-balancer.hetzner.cloud/location":      "fsn1",
+		"load-balancer.hetzner.cloud/node-selector": "node.cluster.x-k8s.io/pool=kura",
+	}
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).WithStatusSubresource(instance).Build(),
+		Scheme: scheme,
+	}
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	lb := &corev1.Service{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instancePublicPeerServiceName(instance), Namespace: instance.Namespace}, lb); err != nil {
+		t.Fatalf("expected public peer Service to be created: %v", err)
+	}
+	if lb.Spec.Type != corev1.ServiceTypeLoadBalancer {
+		t.Fatalf("expected public peer Service to be a LoadBalancer, got %q", lb.Spec.Type)
+	}
+	if got := lb.Annotations["external-dns.alpha.kubernetes.io/hostname"]; got != instance.Spec.MeshPublicPeerHost {
+		t.Fatalf("expected external-dns hostname annotation, got %q", got)
+	}
+	if got := lb.Annotations["load-balancer.hetzner.cloud/node-selector"]; got != "node.cluster.x-k8s.io/pool=kura" {
+		t.Fatalf("expected node-selector annotation to restrict LB targets, got %q", got)
+	}
+	if got := lb.Annotations["load-balancer.hetzner.cloud/location"]; got != "fsn1" {
+		t.Fatalf("expected hcloud location annotation, got %q", got)
+	}
+	if got := lb.Spec.Selector["app.kubernetes.io/instance"]; got != instance.Name {
+		t.Fatalf("expected public peer Service to select only this region's pods, got %q", got)
+	}
+	if _, ok := lb.Spec.Selector["tuist.dev/account"]; ok {
+		t.Fatalf("expected a per-region selector, not an account-wide one")
+	}
+	if len(lb.OwnerReferences) == 0 || lb.OwnerReferences[0].Name != instance.Name {
+		t.Fatalf("expected public peer Service to be owner-referenced to the instance, got %v", lb.OwnerReferences)
+	}
+	if got := lb.Spec.Ports[0].TargetPort.StrVal; got != "peer" {
+		t.Fatalf("expected public peer Service to target the peer port, got %q", got)
+	}
+
+	sts := &appsv1.StatefulSet{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts); err != nil {
+		t.Fatal(err)
+	}
+	env := map[string]string{}
+	for _, envVar := range sts.Spec.Template.Spec.Containers[0].Env {
+		env[envVar.Name] = envVar.Value
+	}
+	if got := env["KURA_PEERS"]; got != "https://kura.acme.example:7443" {
+		t.Fatalf("expected KURA_PEERS to seed the self-hosted peer, got %q", got)
+	}
+	if got := env["KURA_PEER_GATEWAY_URL"]; got != "https://peer.tuist-eu-central-1.kura.tuist.dev:7443" {
+		t.Fatalf("expected KURA_PEER_GATEWAY_URL to advertise the public gateway for global discovery, got %q", got)
+	}
+
+	policy := &networkingv1.NetworkPolicy{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, policy); err != nil {
+		t.Fatal(err)
+	}
+	publicPeerAllowed := false
+	for _, rule := range policy.Spec.Ingress {
+		for _, from := range rule.From {
+			if from.IPBlock != nil && from.IPBlock.CIDR == "0.0.0.0/0" {
+				for _, p := range rule.Ports {
+					if p.Port != nil && p.Port.StrVal == "peer" {
+						publicPeerAllowed = true
+					}
+				}
+			}
+		}
+	}
+	if !publicPeerAllowed {
+		t.Fatal("expected NetworkPolicy to allow the peer port from off-cluster (public peer plane)")
+	}
+
+	caSecret := &corev1.Secret{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: accountPeerCASecretName(instance), Namespace: instance.Namespace}, caSecret); err != nil {
+		t.Fatal(err)
+	}
+	leaf := &corev1.Secret{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: peerTLSSecretName(instance), Namespace: instance.Namespace}, leaf); err != nil {
+		t.Fatal(err)
+	}
+	if !peerTLSSecretDataValid(leaf.Data, instance, caSecret.Data[peerCACertFile]) {
+		t.Fatal("expected the mesh leaf to validate, including the public peer host SAN")
+	}
+	block, _ := pem.Decode(leaf.Data[peerTLSCertFile])
+	if block == nil {
+		t.Fatal("expected leaf certificate PEM")
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatalf("parse leaf certificate: %v", err)
+	}
+	if !containsString(cert.DNSNames, instance.Spec.MeshPublicPeerHost) {
+		t.Fatalf("expected leaf SANs to cover the public peer host, got %v", cert.DNSNames)
+	}
+
+	// A non-mesh instance of the SAME account (e.g. a private runner-cache
+	// region) must not delete the account-level public peer Service its
+	// mesh-enabled sibling owns — otherwise they churn it every reconcile.
+	sibling := meshInstance("kura-tuist-scw-1", "tuist")
+	sibling.Spec.Mesh = false
+	if err := reconciler.Create(ctx, sibling); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: sibling.Name, Namespace: sibling.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instancePublicPeerServiceName(instance), Namespace: instance.Namespace}, lb); err != nil {
+		t.Fatalf("expected public peer Service to survive a non-mesh sibling's reconcile, got %v", err)
+	}
+}
+
+func TestMeshPublicPeerServiceIsPerRegion(t *testing.T) {
+	ctx := context.Background()
+	scheme := meshTestScheme(t)
+
+	eu := meshInstance("kura-tuist-eu-1", "tuist")
+	eu.Spec.MeshPublicPeerHost = "peer.tuist-eu-central-1.kura.tuist.dev"
+	us := meshInstance("kura-tuist-us-1", "tuist")
+	us.Spec.MeshPublicPeerHost = "peer.tuist-us-east-1.kura.tuist.dev"
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(eu, us).WithStatusSubresource(eu, us).Build(),
+		Scheme: scheme,
+	}
+	for _, in := range []*kurav1alpha1.KuraInstance{eu, us} {
+		if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: in.Name, Namespace: in.Namespace}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Each region gets its own Service, with its own host and a selector pinned
+	// to that region's pods. A shared account-scoped Service would churn the
+	// external-dns hostname between regions and cross-route traffic and cert.
+	for _, in := range []*kurav1alpha1.KuraInstance{eu, us} {
+		lb := &corev1.Service{}
+		if err := reconciler.Get(ctx, types.NamespacedName{Name: instancePublicPeerServiceName(in), Namespace: in.Namespace}, lb); err != nil {
+			t.Fatalf("expected per-region public peer Service for %s: %v", in.Name, err)
+		}
+		if got := lb.Annotations["external-dns.alpha.kubernetes.io/hostname"]; got != in.Spec.MeshPublicPeerHost {
+			t.Fatalf("expected %s host %q, got %q", in.Name, in.Spec.MeshPublicPeerHost, got)
+		}
+		if got := lb.Spec.Selector["app.kubernetes.io/instance"]; got != in.Name {
+			t.Fatalf("expected %s Service to select its own pods, got %q", in.Name, got)
+		}
+	}
+
+	if instancePublicPeerServiceName(eu) == instancePublicPeerServiceName(us) {
+		t.Fatalf("expected distinct per-region Service names")
+	}
+}
+
+func TestMeshPublicPeerServiceIsTornDownWhenHostCleared(t *testing.T) {
+	ctx := context.Background()
+	scheme := meshTestScheme(t)
+
+	instance := meshInstance("kura-tuist-eu-1", "tuist")
+	instance.Spec.MeshPublicPeerHost = "peer.tuist-eu-central-1.kura.tuist.dev"
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).WithStatusSubresource(instance).Build(),
+		Scheme: scheme,
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	lb := &corev1.Service{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instancePublicPeerServiceName(instance), Namespace: instance.Namespace}, lb); err != nil {
+		t.Fatalf("expected public peer Service after enabling the mesh: %v", err)
+	}
+
+	// Clearing the host (e.g. the account stops bridging) must tear the
+	// internet-facing LoadBalancer down rather than leaving it stranded.
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, instance); err != nil {
+		t.Fatal(err)
+	}
+	instance.Spec.MeshPublicPeerHost = ""
+	if err := reconciler.Update(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instancePublicPeerServiceName(instance), Namespace: instance.Namespace}, lb); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected public peer Service to be deleted after clearing the host, got %v", err)
+	}
+}
+
 func TestKuraInstanceReconcileWithoutSharedTLSDoesNotEnableGlobalDiscovery(t *testing.T) {
 	ctx := context.Background()
 	scheme := runtime.NewScheme()

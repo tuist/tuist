@@ -445,6 +445,43 @@ org_account_id = organization.account.id
 user_account_id = user.account.id
 project_id = tuist_project.id
 
+# Self-hosted cache nodes for the Cache page. Each node self-registers its own
+# client-facing URL via heartbeats; that URL is the endpoint the CLI reaches.
+seed_self_hosted_cache = fn account ->
+  Enum.each(
+    [
+      %{
+        node_id: "node-fra-1",
+        region: "office",
+        advertised_http_url: "https://node-fra-1.cache.acme.internal",
+        ready: true,
+        version: "0.11.0",
+        traffic_state: "active"
+      },
+      %{
+        node_id: "node-fra-2",
+        region: "office",
+        advertised_http_url: "https://node-fra-2.cache.acme.internal",
+        ready: true,
+        version: "0.11.0",
+        traffic_state: "active"
+      },
+      %{
+        node_id: "node-ams-1",
+        region: "eu-west",
+        advertised_http_url: "https://node-ams-1.cache.acme.internal",
+        ready: false,
+        version: "0.10.4",
+        traffic_state: "joining"
+      }
+    ],
+    fn attrs -> {:ok, _} = Tuist.Kura.Registrations.register_heartbeat(account, attrs) end
+  )
+end
+
+seed_self_hosted_cache.(Repo.preload(user, :account).account)
+seed_self_hosted_cache.(organization.account)
+
 build_generator = fn _i ->
   status = Enum.random(["success", "success", "success", "failure", "failure", "processing", "failed_processing"])
   is_ci = Enum.random([true, false])

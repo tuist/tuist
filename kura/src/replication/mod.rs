@@ -130,14 +130,14 @@ async fn membership_task_loop(state: SharedState) {
     loop {
         let mut members = BTreeSet::new();
         let mut peer_nodes = BTreeMap::new();
-        let targets = discovery_targets(&state.config).await;
+        let targets = discovery_targets(&state.config, &state.dynamic_peers.load()).await;
         let mut peer_status_successes = 0_usize;
         let lookups = futures_util::future::join_all(targets.iter().map(|peer| {
             let client = match &peer.resolved {
                 Some(resolved) => state
                     .peer_client_factory
                     .build_resolving(&resolved.host, resolved.address),
-                None => Ok(state.client.clone()),
+                None => Ok(state.client().as_ref().clone()),
             };
             let url = match peer.scope {
                 DiscoveryScope::Local => format!("{}/_internal/status", peer.url),
@@ -164,7 +164,11 @@ async fn membership_task_loop(state: SharedState) {
                         Ok(payload) => {
                             peer_status_successes += 1;
                             if payload.tenant_id != state.config.tenant_id
-                                || payload.node_url == state.config.node_url
+                                || is_self_or_own_gateway(
+                                    &payload.node_url,
+                                    &state.config.node_url,
+                                    state.config.peer_gateway_url.as_deref(),
+                                )
                             {
                                 continue;
                             }
@@ -428,7 +432,7 @@ async fn bootstrap_artifact_from_peer(
         url_encode(&manifest.artifact_id)
     );
     let response = state
-        .client
+        .client()
         .get(&url)
         .send()
         .await
@@ -569,7 +573,7 @@ async fn fetch_bootstrap_manifests_page(
     }
 
     let response = state
-        .client
+        .client()
         .get(&url)
         .send()
         .await
@@ -594,7 +598,7 @@ async fn fetch_bootstrap_tombstones_page(
     }
 
     let response = state
-        .client
+        .client()
         .get(&url)
         .send()
         .await
@@ -635,10 +639,24 @@ async fn read_bounded_body(
     Ok(buffer)
 }
 
-async fn discovery_targets(config: &Config) -> Vec<DiscoveryTarget> {
+/// Whether a discovered peer's advertised `node_url` should be skipped because
+/// it is this node itself or this node's own peer gateway.
+///
+/// When global discovery is fronted by a public peer gateway (the account peer
+/// LoadBalancer), every same-account peer advertises that one gateway URL for
+/// global scope. A node must not adopt its own gateway as a distinct peer, or
+/// same-region traffic would hairpin out through the public endpoint and back
+/// instead of staying in-cluster. An external peer (which has no gateway of its
+/// own) still adopts the gateway URL and replicates through it.
+fn is_self_or_own_gateway(node_url: &str, own_node_url: &str, own_gateway: Option<&str>) -> bool {
+    node_url == own_node_url || own_gateway == Some(node_url)
+}
+
+async fn discovery_targets(config: &Config, dynamic_peers: &[String]) -> Vec<DiscoveryTarget> {
     let mut targets = config
         .peers
         .iter()
+        .chain(dynamic_peers.iter())
         .cloned()
         .map(|peer| DiscoveryTarget {
             label: peer.clone(),
@@ -853,7 +871,7 @@ async fn replicate_message(state: &SharedState, message: &OutboxMessage) -> Resu
                 );
 
                 let response = state
-                    .client
+                    .client()
                     .put(&url)
                     .headers(headers)
                     .body(body)
@@ -902,7 +920,7 @@ async fn replicate_message(state: &SharedState, message: &OutboxMessage) -> Resu
                 let mut headers = reqwest::header::HeaderMap::new();
                 inject_current_trace_context(&mut headers);
                 let response = state
-                    .client
+                    .client()
                     .delete(&url)
                     .headers(headers)
                     .send()
@@ -936,6 +954,27 @@ mod tests {
         test_support::test_context,
         utils::artifact_storage_id,
     };
+
+    #[test]
+    fn skips_self_and_own_gateway_but_adopts_other_peers() {
+        let own = "https://kura-eu-0.kura-eu-headless.kura.svc.cluster.local:7443";
+        let gateway = "https://peer.tuist-eu-1.kura.tuist.dev:7443";
+
+        // Our own in-cluster URL and our own gateway are both skipped.
+        assert!(is_self_or_own_gateway(own, own, Some(gateway)));
+        assert!(is_self_or_own_gateway(gateway, own, Some(gateway)));
+
+        // A different peer (another instance, or a self-hosted node) is adopted.
+        assert!(!is_self_or_own_gateway(
+            "https://kura-eu-1.kura-eu-headless.kura.svc.cluster.local:7443",
+            own,
+            Some(gateway),
+        ));
+
+        // With no gateway of our own, an external node adopting the managed
+        // gateway URL must not skip it.
+        assert!(!is_self_or_own_gateway(gateway, own, None));
+    }
 
     async fn spawn_server(app: Router) -> (String, tokio::task::JoinHandle<()>) {
         let listener = TcpListener::bind("127.0.0.1:0")
@@ -1021,7 +1060,7 @@ mod tests {
         })
         .await;
 
-        let targets = discovery_targets(&ctx.state.config).await;
+        let targets = discovery_targets(&ctx.state.config, &ctx.state.dynamic_peers.load()).await;
 
         assert!(targets.iter().any(|target| {
             target.url == "https://seed.kura.internal:7443" && target.resolved.is_none()

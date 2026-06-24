@@ -145,6 +145,7 @@ defmodule Tuist.MixProject do
       {:noora, path: "../noora"},
       {:zstream, "~> 0.6"},
       {:cloak_ecto, "~> 1.3.0"},
+      {:x509, "~> 0.9"},
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
       {:minio_server, github: "LostKobrakai/minio_server", only: :dev},
       {:tuist_common, path: "../tuist_common"},

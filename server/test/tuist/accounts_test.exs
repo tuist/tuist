@@ -22,6 +22,7 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Billing
   alias Tuist.Environment
   alias Tuist.FeatureFlags
+  alias Tuist.Kura.Registrations
   alias Tuist.Projects
   alias Tuist.Runners.Profiles, as: RunnerProfiles
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -3977,6 +3978,40 @@ defmodule Tuist.AccountsTest do
 
       # Then
       assert endpoints == ["https://kura-cache.example.com"]
+    end
+
+    test "surfaces registered self-hosted node addresses for an entitled account" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      stub(FeatureFlags, :kura_cache_enabled?, fn %{id: account_id} -> account_id == account.id end)
+      stub(Registrations, :active_advertised_urls, fn _ -> ["https://node.acme.example:8080"] end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+
+      # Then
+      assert endpoints == ["https://node.acme.example:8080"]
+    end
+
+    test "hides registered self-hosted node addresses when the account is not entitled to self-hosting" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+      stub(FeatureFlags, :kura_cache_enabled?, fn %{id: account_id} -> account_id == account.id end)
+      reject(&Registrations.active_advertised_urls/1)
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+
+      # Then
+      assert endpoints == default_endpoints
     end
 
     test "returns custom endpoints when the client requests Kura but the account is not opted in" do

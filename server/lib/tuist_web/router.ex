@@ -754,6 +754,8 @@ defmodule TuistWeb.Router do
     pipe_through [:non_authenticated_api]
 
     post "/kura/usage", KuraUsageController, :create
+    post "/kura/mesh/enroll", KuraMeshController, :enroll
+    post "/kura/mesh/registrations", KuraMeshController, :register
   end
 
   scope "/oauth2", TuistWeb.Oauth do
@@ -1028,6 +1030,7 @@ defmodule TuistWeb.Router do
       live "/webhooks", WebhooksLive
       live "/webhooks/:id", WebhookLive
       live "/webhooks/:id/events/:attempt_id", WebhookEventLive
+      live "/cache", CacheLive
       live "/billing", BillingLive
       live "/usage", UsageLive
       live "/settings", AccountSettingsLive
