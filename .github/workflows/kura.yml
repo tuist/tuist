@@ -120,7 +120,7 @@ jobs:
         run: echo "::warning::Tuist remote cache unavailable (.bazelrc.tuist not written); building cold against the local cache."
 
       - name: Compile without warnings
-        run: mise run compile -- --define=kura_deny_warnings=true
+        run: mise run compile --skip-tools -- --define=kura_deny_warnings=true
 
   bazel-compile-fork:
     name: Bazel Compile Fork
@@ -159,7 +159,7 @@ jobs:
             echo "common --repository_cache=${{ runner.temp }}/bazel-repo"
             echo "build --disk_cache=${{ runner.temp }}/bazel-disk"
           } >> "$HOME/.bazelrc"
-          mise run compile -- --define=kura_deny_warnings=true
+          mise run compile --skip-tools -- --define=kura_deny_warnings=true
 
   clippy:
     name: Clippy
