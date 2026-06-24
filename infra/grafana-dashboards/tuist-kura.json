@@ -4626,10 +4626,10 @@
           "allowCustomValue": true,
           "current": {
             "text": [
-              "All"
+              "tuist-production"
             ],
             "value": [
-              "$__all"
+              "tuist-production"
             ]
           },
           "definition": "label_values(kura_node_info, cluster)",
@@ -4665,10 +4665,10 @@
           "allowCustomValue": true,
           "current": {
             "text": [
-              "tuist"
+              "All"
             ],
             "value": [
-              "tuist"
+              "$__all"
             ]
           },
           "definition": "label_values(kura_node_info{cluster=~\"$cluster\"}, tenant_id)",
