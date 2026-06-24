@@ -206,33 +206,42 @@ linux/<arch> the cluster runs on.
 
 ## Operating
 
-### Mark a pre-ordered bare-metal box (Dedibox / OVH)
+### Bring a pre-ordered bare-metal box into the pool (Dedibox / OVH)
 
-The Dedibox and OVH kinds adopt a *pre-ordered* box rather than ordering
-one. The operator does two manual things per box: order it, and stamp the
-adoption marker the fleet scopes on — a Scaleway **tag** for Dedibox (every
-Dedibox shares the org's default project, so a tag is the env boundary) and
-the service **displayName** for OVH (one account holds every env's boxes).
-The controller only ever *reads* the marker, so the stamp is on you. These
-tasks script it instead of clicking through the consoles:
+The Dedibox and OVH kinds adopt a *pre-prepared* box rather than ordering or
+installing one — the same shape as the Apple Silicon fleet. **Adoption is a
+claim + SSH self-join only; the OS install never runs on the adoption path**
+(that is what keeps the fleet MachineDeployment going Ready fast, so it never
+wedges `helm --wait`). The reinstall that wipes a box back to a clean,
+claimable state runs on *release* (`reconcileDelete`). So a box must be
+prepared before it joins the pool:
 
-```bash
-# Dedibox: tag by numeric server id (zone auto-detected). Replaces the box's tags.
-export DEDIBOX_SCW_SECRET_KEY="$(op read 'op://tuist-k8s-staging/DEDIBOX_SCW_API/secret-key')"
-mise run baremetal:mark-dedibox 188785 tuist-kura-staging
+1. **Deploy the fleet** so the operator mints the `<fleet>-ssh` key.
+2. **Prep the box** — install Ubuntu + the fleet key + the bootstrap login. The
+   prep task pulls the fleet pubkey from the `<fleet>-ssh` Secret and drives the
+   provider install (reusing the same clients the release-path reinstall uses):
+   ```bash
+   mise run baremetal:prep-dedibox 188785
+   mise run baremetal:prep-ovh ns543284.ip-144-217-252.net
+   ```
+   It kicks the install off (~20–40 min); poll the provider console for done.
+3. **Mark the box** so the fleet claims it — a Scaleway **tag** for Dedibox
+   (every Dedibox shares the org's default project, so a tag is the env
+   boundary), the service **displayName** for OVH (one account holds every
+   env's boxes). The marker must match the fleet's `adoptTag` /
+   `adoptDisplayNamePrefix` in `values-managed-<env>.yaml`; OVH is a prefix
+   match so boxes are `tuist-staging-1`, `-2`:
+   ```bash
+   mise run baremetal:mark-dedibox 188785 tuist-staging
+   mise run baremetal:mark-ovh ns543284.ip-144-217-252.net tuist-staging-1
+   ```
 
-# OVH: rename by service name. OVH_API_BASE picks the entity (default ovh-us —
-# the BHS box lives on an OVHcloud US account, so its API is api.us.ovhcloud.com).
-export OVH_APPLICATION_KEY="$(op read 'op://tuist-k8s-staging/OVH_API/application-key')"
-export OVH_APPLICATION_SECRET="$(op read 'op://tuist-k8s-staging/OVH_API/application-secret')"
-export OVH_CONSUMER_KEY="$(op read 'op://tuist-k8s-staging/OVH_API/consumer-key')"
-mise run baremetal:mark-ovh ns543284.ip-144-217-252.net tuist-kura-ovh-staging
-```
-
-The marker must match the fleet's `adoptTag` / `adoptDisplayNamePrefix` in
-`infra/helm/tuist/values-managed-<env>.yaml`; adoption is a prefix match, so
-multiple boxes are `…-1`, `…-2`. The OVH token must be minted on the same
-entity as `OVH_API_BASE` (a mismatched-entity token reads as "invalid").
+The controller then self-joins the box on the next reconcile (~2–5 min). On
+release it reinstalls the box, so a returned box is already prepped for the
+next claim. All tasks read creds from 1Password and the cluster via
+`PREP_KUBE_CONTEXT` / `PREP_NAMESPACE`; the OVH token must be minted on the
+same entity as `OVH_ENDPOINT`/`OVH_API_BASE` (a mismatched-entity token reads
+as "invalid").
 
 ### Scale up
 ```bash
