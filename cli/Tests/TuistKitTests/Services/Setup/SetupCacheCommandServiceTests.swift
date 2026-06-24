@@ -222,6 +222,39 @@ struct SetupCacheCommandServiceTests {
             .called(1)
     }
 
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_forwardsClientFeatureFlags() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        let token = "test-auth-token-123"
+        environment.variables[Constants.EnvironmentVariables.token] = token
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+
+        let config = Tuist.test(fullHandle: "organization/project")
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(config)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then: the launchd agent does not inherit the caller's environment, so
+        // the feature flags must be forwarded or the daemon resolves the default
+        // (public) cache endpoint instead of the kura private-network one.
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .value([
+                    "TUIST_TOKEN": token,
+                    "TUIST_FEATURE_FLAG_KURA": "1",
+                ])
+            )
+            .called(1)
+    }
+
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment()
