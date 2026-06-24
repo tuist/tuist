@@ -35,7 +35,7 @@ defmodule Tuist.Runners.Workers.StaleQueuedJobsWorkerTest do
       account = account_fixture()
       stale = candidate(account_id: account.id)
 
-      expect(Jobs, :list_stale_queued, fn _threshold -> [stale] end)
+      expect(Jobs, :list_stale_queued, fn _floor, _before -> [stale] end)
 
       expect(Tuist.VCS, :get_github_app_installation_for_account, fn id ->
         assert id == account.id
@@ -68,7 +68,7 @@ defmodule Tuist.Runners.Workers.StaleQueuedJobsWorkerTest do
       account = account_fixture()
       stale = candidate(account_id: account.id)
 
-      expect(Jobs, :list_stale_queued, fn _ -> [stale] end)
+      expect(Jobs, :list_stale_queued, fn _floor, _before -> [stale] end)
 
       expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
         {:ok, %{installation_id: 1, client_url: "https://github.com"}}
@@ -89,7 +89,7 @@ defmodule Tuist.Runners.Workers.StaleQueuedJobsWorkerTest do
       account = account_fixture()
       stale = candidate(account_id: account.id)
 
-      expect(Jobs, :list_stale_queued, fn _ -> [stale] end)
+      expect(Jobs, :list_stale_queued, fn _floor, _before -> [stale] end)
 
       expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
         {:ok, %{installation_id: 1, client_url: "https://github.com"}}
@@ -112,7 +112,7 @@ defmodule Tuist.Runners.Workers.StaleQueuedJobsWorkerTest do
       account = account_fixture()
       stale = candidate(account_id: account.id, enqueued_at: DateTime.add(DateTime.utc_now(), -28, :day))
 
-      expect(Jobs, :list_stale_queued, fn _ -> [stale] end)
+      expect(Jobs, :list_stale_queued, fn _floor, _before -> [stale] end)
 
       expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
         {:ok, %{installation_id: 1, client_url: "https://github.com"}}
@@ -140,7 +140,7 @@ defmodule Tuist.Runners.Workers.StaleQueuedJobsWorkerTest do
       account = account_fixture()
       stale = candidate(account_id: account.id, enqueued_at: DateTime.add(DateTime.utc_now(), -28, :day))
 
-      expect(Jobs, :list_stale_queued, fn _ -> [stale] end)
+      expect(Jobs, :list_stale_queued, fn _floor, _before -> [stale] end)
 
       expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
         {:ok, %{installation_id: 1, client_url: "https://github.com"}}
@@ -163,7 +163,7 @@ defmodule Tuist.Runners.Workers.StaleQueuedJobsWorkerTest do
       account = account_fixture()
       stale = candidate(account_id: account.id, enqueued_at: DateTime.add(DateTime.utc_now(), -28, :day))
 
-      expect(Jobs, :list_stale_queued, fn _ -> [stale] end)
+      expect(Jobs, :list_stale_queued, fn _floor, _before -> [stale] end)
 
       expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
         {:ok, %{installation_id: 1, client_url: "https://github.com"}}
@@ -183,7 +183,7 @@ defmodule Tuist.Runners.Workers.StaleQueuedJobsWorkerTest do
       account = account_fixture()
       stale = candidate(account_id: account.id)
 
-      expect(Jobs, :list_stale_queued, fn _ -> [stale] end)
+      expect(Jobs, :list_stale_queued, fn _floor, _before -> [stale] end)
 
       expect(Tuist.VCS, :get_github_app_installation_for_account, fn _id ->
         {:ok, %{installation_id: 1, client_url: "https://github.com"}}
@@ -203,7 +203,7 @@ defmodule Tuist.Runners.Workers.StaleQueuedJobsWorkerTest do
       # resolve them; we skip the GitHub round-trip entirely.
       stale = candidate(repository: "", enqueued_at: DateTime.add(DateTime.utc_now(), -28, :day))
 
-      expect(Jobs, :list_stale_queued, fn _ -> [stale] end)
+      expect(Jobs, :list_stale_queued, fn _floor, _before -> [stale] end)
 
       reject(&Tuist.VCS.get_github_app_installation_for_account/1)
       reject(&GitHubClient.get_workflow_job/3)
@@ -217,7 +217,7 @@ defmodule Tuist.Runners.Workers.StaleQueuedJobsWorkerTest do
     test "leaves a within-backstop row with no repository alone" do
       stale = candidate(repository: "")
 
-      expect(Jobs, :list_stale_queued, fn _ -> [stale] end)
+      expect(Jobs, :list_stale_queued, fn _floor, _before -> [stale] end)
 
       reject(&Tuist.VCS.get_github_app_installation_for_account/1)
       reject(&GitHubClient.get_workflow_job/3)
@@ -228,7 +228,7 @@ defmodule Tuist.Runners.Workers.StaleQueuedJobsWorkerTest do
     end
 
     test "is a no-op when nothing is stale-queued" do
-      expect(Jobs, :list_stale_queued, fn _ -> [] end)
+      expect(Jobs, :list_stale_queued, fn _floor, _before -> [] end)
 
       reject(&Tuist.VCS.get_github_app_installation_for_account/1)
       reject(&GitHubClient.get_workflow_job/3)

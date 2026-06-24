@@ -1031,9 +1031,9 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
-  Lists `runner_jobs` rows still in `status = 'queued'` whose
-  `enqueued_at` is older than `threshold` — candidates for the
-  "queued but never reconciled" recovery path that
+  Lists `runner_jobs` rows whose latest state is `queued` and whose
+  `enqueued_at` falls in `[enqueued_after, enqueued_before)` —
+  candidates for the "queued but never reconciled" recovery path that
   `StaleQueuedJobsWorker` drives.
 
   A queued row only ever leaves the queue by a Pod claiming it
@@ -1046,14 +1046,23 @@ defmodule Tuist.Runners.Jobs do
   `OrphanedRunnersWorker` only sees CH `running` rows, so neither
   covers `queued`.
 
+  Both bounds are on `enqueued_at`, which `runner_jobs` is partitioned
+  by and which is stable across a workflow_job's state transitions.
+  `enqueued_before` drops jobs queued too recently to be stale; the
+  `enqueued_after` floor bounds the scan to a finite window so the
+  `argMax` dedup never has to aggregate the table's full history
+  (partition pruning skips everything older). The caller sets the floor
+  comfortably beyond the backstop age, so a stuck job is always reaped
+  while still inside the window.
+
   Returns the fields the worker needs to address GitHub's Actions
   jobs API (`repository`) and to apply the hard backstop
   (`enqueued_at`).
   """
-  def list_stale_queued(%DateTime{} = threshold) do
+  def list_stale_queued(%DateTime{} = enqueued_after, %DateTime{} = enqueued_before) do
     ClickHouseRepo.all(
       from(j in Job,
-        where: j.enqueued_at < ^threshold,
+        where: j.enqueued_at > ^enqueued_after and j.enqueued_at < ^enqueued_before,
         group_by: j.workflow_job_id,
         having: fragment("argMax(?, ?) = ?", j.status, j.updated_at, "queued"),
         select: %{

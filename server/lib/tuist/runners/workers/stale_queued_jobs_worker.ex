@@ -27,8 +27,8 @@ defmodule Tuist.Runners.Workers.StaleQueuedJobsWorker do
 
   ## How it works
 
-    1. List `runner_jobs FINAL` rows in `status='queued'` with
-       `enqueued_at` older than `@verify_after_seconds`.
+    1. List rows whose latest state is `queued`, enqueued between
+       `@max_lookback_seconds` and `@verify_after_seconds` ago.
     2. For each, `GET /repos/{owner}/{repo}/actions/jobs/{id}` on the
        account's GitHub App installation:
          * `completed` → we missed the webhook; mark completed with
@@ -60,6 +60,13 @@ defmodule Tuist.Runners.Workers.StaleQueuedJobsWorker do
   cost is near nil. `@reap_after_seconds` (24h) sits well beyond any
   legitimate queue wait.
 
+  `@max_lookback_seconds` (7d) floors the `enqueued_at` scan so the CH
+  query prunes to a week of partitions instead of aggregating the full
+  `runner_jobs` history. It's far enough beyond the 24h backstop that a
+  stuck job is always reaped while still inside the window: the worker
+  runs every 5 min, so it would have to be down for ~6 consecutive days
+  for a job to age past the floor unreaped.
+
   ## Recovery order (PG first)
 
   `complete/3` frees the PG cap slot before recording the CH terminal
@@ -83,16 +90,18 @@ defmodule Tuist.Runners.Workers.StaleQueuedJobsWorker do
 
   @verify_after_seconds 3_600
   @reap_after_seconds 86_400
+  @max_lookback_seconds 7 * 86_400
 
   @impl Oban.Worker
   def perform(_job) do
     now = DateTime.utc_now()
     verify_threshold = DateTime.add(now, -@verify_after_seconds, :second)
     reap_threshold = DateTime.add(now, -@reap_after_seconds, :second)
+    lookback_floor = DateTime.add(now, -@max_lookback_seconds, :second)
 
     resolved =
-      verify_threshold
-      |> Jobs.list_stale_queued()
+      lookback_floor
+      |> Jobs.list_stale_queued(verify_threshold)
       |> Enum.count(&recover_one(&1, reap_threshold))
 
     if resolved > 0 do
