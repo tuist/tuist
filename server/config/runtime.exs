@@ -177,6 +177,22 @@ if Enum.member?([:prod, :stag, :can], env) do
       prepare: if(pooled?, do: :unnamed, else: :named)
     ] ++ database_config
 
+  # The `search_path` connection parameter above is a startup-packet
+  # parameter, which poolers and managed-Postgres proxies routinely drop —
+  # leaving the session on the default `public` path. Issue an explicit
+  # `SET search_path` on every connection (migrator included) so a custom
+  # schema resolves even when the startup parameter doesn't survive.
+  database_options =
+    if Tuist.Environment.default_database_schema?(database_schema) do
+      database_options
+    else
+      Keyword.put(
+        database_options,
+        :after_connect,
+        {Postgrex, :query!, ["SET search_path TO #{Tuist.Environment.quote_postgres_identifier(database_schema)}", []]}
+      )
+    end
+
   database_options =
     if Tuist.Environment.use_ssl_for_database?() do
       Keyword.put(database_options, :ssl,
