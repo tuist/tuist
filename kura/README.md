@@ -69,14 +69,28 @@ Useful endpoints:
 
 ## Toolchain 🛠️
 
-Install Rust from `mise.toml`:
+Install the toolchain (Rust + Bazel) from `mise.toml`:
 
 ```bash
 mise trust mise.toml
 mise install
 ```
 
-Run tests:
+Build and test with Bazel (the path CI gates on):
+
+```bash
+mise run compile         # build all targets for the host
+mise run test-unit       # bazel test //...
+```
+
+rules_rs resolves the crate graph from `Cargo.toml`/`Cargo.lock` on each build, so changing Rust
+deps just updates `Cargo.lock` as usual.
+
+If you have access to the `tuist/kura` project on Tuist, run `tuist bazel setup` (and re-run it after
+changing location) to use the closest Kura remote cache; otherwise Bazel builds fine against the
+local cache.
+
+Cargo works as a fallback when Bazel is unavailable, and the end-to-end suite runs under shellspec:
 
 ```bash
 mise x rust@1.94.1 -- cargo test

@@ -13,12 +13,21 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - Peer sync bandwidth shaping: `src/bandwidth.rs`
 - Operational assets: `docker-compose.yml`, `ops/`, `test/e2e/`, `spec/e2e/`
   - See `ops/AGENTS.md` for Helm, rollout helpers, and observability config boundaries
+- Bazel build system: `MODULE.bazel`, `BUILD.bazel`, `bazel/` (toolchains + vendored deps); the crate graph is resolved from `Cargo.toml`/`Cargo.lock` by rules_rs
 - License and contribution terms: `LICENSE.md`, `CLA.md`, `cla/`
 
 ## Development
-- Install tools from `kura/mise.toml` with `mise install`
-- Run unit tests with `mise exec -- cargo test`
+- Install tools from `kura/mise.toml` with `mise install` (Rust toolchain + Bazel)
+- Bazel is the primary build and test path (it is what CI gates on). Use the Rust toolchain
+  (`cargo`) only as a fallback when Bazel is unavailable:
+  - Compile: `mise run compile` (fallback: `mise exec -- cargo build`)
+  - Test: `mise run test-unit` (runs `bazel test //...`; fallback: `mise exec -- cargo test`)
+- If you have access to the `tuist/kura` project on Tuist, run `tuist bazel setup` to point Bazel at
+  the closest Kura remote cache (it writes `kura/.bazelrc.tuist`); re-run it after changing physical
+  location. Without access, skip it — Bazel builds fine against the local cache.
 - Consider Kura work incomplete until `mise exec -- cargo clippy --all-targets -- -D warnings` passes
+- rules_rs resolves the Bazel crate graph directly from `Cargo.toml`/`Cargo.lock` on each build, so
+  changing Rust deps just updates `Cargo.lock` as usual and Bazel picks it up on the next build
 - Run the end-to-end suite with `docker compose build && mise exec -- shellspec`
 
 ## Maintenance Notes

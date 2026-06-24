@@ -53,28 +53,83 @@ jobs:
       - name: Check formatting
         run: env -u RUSTUP_TOOLCHAIN cargo fmt --check
 
-  compile:
-    name: Compile
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+  # Split non-fork / fork (like gradle.yml / android.yml): only trusted runs get `id-token: write`
+  # and authenticate; forks get `contents: read` alone and never see the OIDC token.
+  bazel-compile:
+    name: Bazel Compile
+    runs-on: tuist-linux
+    # Cold builds compile the -sys crates (rocksdb, aws-lc) from source, so allow extra wall-clock.
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    if: |
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
     steps:
       - uses: actions/checkout@v4
 
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: --force rust
+          install_args: "rust bazel tuist"
           working_directory: kura
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: kura-rust-${{ runner.os }}
-          workspaces: |
-            kura -> target
+      - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
+      # Remote cache is best-effort: auth/setup is continue-on-error and `.bazelrc` try-imports
+      # `.bazelrc.tuist`, so if it fails the build runs cold locally rather than blocking the merge.
+      # (Bazel has no local fallback for a gRPC cache that errors mid-build.)
+      - name: Set up the Tuist remote cache
+        run: |
+          tuist auth login
+          tuist bazel setup
+        continue-on-error: true
+      - name: Warn when the Tuist remote cache is unavailable
+        if: ${{ hashFiles('kura/.bazelrc.tuist') == '' }}
+        run: echo "::warning::Tuist remote cache unavailable (.bazelrc.tuist not written); building cold against the local cache."
 
       - name: Compile without warnings
-        run: env -u RUSTUP_TOOLCHAIN RUSTFLAGS="-D warnings" cargo check --locked --all-targets
+        run: mise run compile --skip-tools -- --define=kura_deny_warnings=true
+
+  bazel-compile-fork:
+    name: Bazel Compile Fork
+    runs-on: tuist-linux
+    timeout-minutes: 60
+    # Fork PRs only: `contents: read`, no OIDC token; skips auth/setup and uses the local
+    # repository/disk caches alone.
+    permissions:
+      contents: read
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false && github.event.pull_request.head.repo.fork == true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "rust bazel"
+          working_directory: kura
+
+      - name: Cache Bazel repository downloads and build outputs
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ runner.temp }}/bazel-repo
+            ${{ runner.temp }}/bazel-disk
+          key: bazel-compile-fork-${{ hashFiles('kura/MODULE.bazel.lock') }}-${{ github.sha }}
+          restore-keys: |
+            bazel-compile-fork-${{ hashFiles('kura/MODULE.bazel.lock') }}-
+            bazel-compile-fork-
+
+      - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
+      - name: Compile without warnings
+        run: |
+          {
+            echo "common --repository_cache=${{ runner.temp }}/bazel-repo"
+            echo "build --disk_cache=${{ runner.temp }}/bazel-disk"
+          } >> "$HOME/.bazelrc"
+          mise run compile --skip-tools -- --define=kura_deny_warnings=true
 
   clippy:
     name: Clippy
@@ -99,28 +154,80 @@ jobs:
       - name: Run clippy
         run: env -u RUSTUP_TOOLCHAIN cargo clippy --locked --all-targets -- -D warnings
 
-  tests:
-    name: Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+  # Split non-fork / fork like bazel-compile: only trusted runs get `id-token: write` + the remote
+  # cache; forks run with `contents: read` and the local cache.
+  bazel-test:
+    name: Bazel Test
+    runs-on: tuist-linux
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    if: |
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
     steps:
       - uses: actions/checkout@v4
 
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: rust
+          install_args: "rust bazel tuist"
           working_directory: kura
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: kura-rust-${{ runner.os }}
-          workspaces: |
-            kura -> target
+      - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
+      # Remote cache is best-effort here too (see bazel-compile): falls back to a cold local build.
+      - name: Set up the Tuist remote cache
+        run: |
+          tuist auth login
+          tuist bazel setup
+        continue-on-error: true
+      - name: Warn when the Tuist remote cache is unavailable
+        if: ${{ hashFiles('kura/.bazelrc.tuist') == '' }}
+        run: echo "::warning::Tuist remote cache unavailable (.bazelrc.tuist not written); building cold against the local cache."
 
       - name: Run tests
-        run: env -u RUSTUP_TOOLCHAIN cargo test --locked
+        run: mise run test-unit --skip-tools -- --define=kura_deny_warnings=true
+
+  bazel-test-fork:
+    name: Bazel Test Fork
+    runs-on: tuist-linux
+    timeout-minutes: 60
+    # Fork PRs only: `contents: read`, no OIDC token; skips auth/setup and uses the local
+    # repository/disk caches alone.
+    permissions:
+      contents: read
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false && github.event.pull_request.head.repo.fork == true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "rust bazel"
+          working_directory: kura
+
+      - name: Cache Bazel repository downloads and build outputs
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ runner.temp }}/bazel-repo
+            ${{ runner.temp }}/bazel-disk
+          key: bazel-test-fork-${{ hashFiles('kura/MODULE.bazel.lock') }}-${{ github.sha }}
+          restore-keys: |
+            bazel-test-fork-${{ hashFiles('kura/MODULE.bazel.lock') }}-
+            bazel-test-fork-
+
+      - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
+      - name: Run tests
+        run: |
+          {
+            echo "common --repository_cache=${{ runner.temp }}/bazel-repo"
+            echo "build --disk_cache=${{ runner.temp }}/bazel-disk"
+          } >> "$HOME/.bazelrc"
+          mise run test-unit --skip-tools -- --define=kura_deny_warnings=true
 
   audit:
     name: Audit
