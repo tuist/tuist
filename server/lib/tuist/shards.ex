@@ -271,11 +271,16 @@ defmodule Tuist.Shards do
     cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
 
     from(sr in TestSuiteRun,
+      join: mr in TestModuleRun,
+      on: sr.test_module_run_id == mr.id,
       where: sr.project_id == ^project.id,
       where: sr.is_ci == true,
       where: sr.ran_at >= ^cutoff,
-      group_by: sr.name,
-      select: %{name: sr.name, duration: fragment("quantile(?)(?)", ^@timing_quantile, sr.duration)}
+      group_by: fragment("concat(?, '/', ?)", mr.name, sr.name),
+      select: %{
+        name: fragment("concat(?, '/', ?)", mr.name, sr.name),
+        duration: fragment("quantile(?)(?)", ^@timing_quantile, sr.duration)
+      }
     )
     |> ClickHouseRepo.all()
     |> Map.new(fn %{name: name, duration: duration} -> {name, round(duration)} end)
