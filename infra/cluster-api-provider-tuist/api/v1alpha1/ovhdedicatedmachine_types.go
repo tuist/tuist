@@ -52,8 +52,11 @@ type OVHDedicatedMachineSpec struct {
 	// It is the ENVIRONMENT BOUNDARY: one OVH account holds every env's boxes and
 	// datacenter+offer repeat across envs, so this marker — set by the operator on
 	// each box at prep time — is what keeps a staging fleet from adopting a prod
-	// box (the OVH analog of the Dedibox tag). Set by the MachineTemplate.
-	AdoptDisplayNamePrefix string `json:"adoptDisplayNamePrefix"`
+	// box (the OVH analog of the Dedibox tag). Enforced as required by the fleet
+	// helm template, not the CRD: a required CRD field breaks helm rollbacks to
+	// revisions predating it (the rollback patch strips it, the apiserver rejects).
+	// +optional
+	AdoptDisplayNamePrefix string `json:"adoptDisplayNamePrefix,omitempty"`
 
 	// FleetName groups Machines that share one SSH key, like the Apple Silicon
 	// kind. Set by the MachineTemplate so every Machine the MachineDeployment

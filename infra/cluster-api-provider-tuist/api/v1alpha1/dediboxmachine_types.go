@@ -43,10 +43,12 @@ type DediboxMachineSpec struct {
 	// (e.g. `tuist-kura-staging`) and the marker the controller scans to claim a
 	// server. It is the ENVIRONMENT BOUNDARY: every Dedibox in the org shares the
 	// default Scaleway project, so the project can't isolate environments — this
-	// tag does (the Dedibox analog of the Apple Silicon / OVH name prefix). Set by
-	// the MachineTemplate. Required: without it the controller would adopt any box
-	// in the shared project.
-	AdoptTag string `json:"adoptTag"`
+	// tag does (the Dedibox analog of the Apple Silicon / OVH name prefix).
+	// Enforced as required by the fleet helm template, not the CRD: a required CRD
+	// field breaks helm rollbacks to revisions predating it (the rollback patch
+	// strips it, the apiserver rejects).
+	// +optional
+	AdoptTag string `json:"adoptTag,omitempty"`
 
 	// FleetName groups Machines that share one SSH key, like the Apple Silicon
 	// kind. Set by the MachineTemplate so every Machine the MachineDeployment

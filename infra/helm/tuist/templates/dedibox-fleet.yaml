@@ -29,7 +29,7 @@ metadata:
 spec:
   template:
     spec:
-      adoptTag: {{ .Values.dediboxFleet.machine.adoptTag | quote }}
+      adoptTag: {{ required "dediboxFleet.machine.adoptTag is required: it is the per-env adoption boundary" .Values.dediboxFleet.machine.adoptTag | quote }}
       offer: {{ .Values.dediboxFleet.machine.offer | default "" | quote }}
       datacenter: {{ .Values.dediboxFleet.machine.datacenter | default "DC2" | quote }}
       os: {{ .Values.dediboxFleet.machine.os | default "ubuntu_24.04" | quote }}

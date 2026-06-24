@@ -78,7 +78,9 @@ spec:
                     It is the ENVIRONMENT BOUNDARY: one OVH account holds every env's boxes and
                     datacenter+offer repeat across envs, so this marker — set by the operator on
                     each box at prep time — is what keeps a staging fleet from adopting a prod
-                    box (the OVH analog of the Dedibox tag). Set by the MachineTemplate.
+                    box (the OVH analog of the Dedibox tag). Enforced as required by the fleet
+                    helm template, not the CRD: a required CRD field breaks helm rollbacks to
+                    revisions predating it (the rollback patch strips it, the apiserver rejects).
                   type: string
                 datacenter:
                   default: vin
@@ -169,8 +171,6 @@ spec:
                     intra-region mesh. Unused at Qty-1 (a single public box needs no private
                     fabric); wired in the multi-box HA follow-up alongside the failover IP.
                   type: string
-              required:
-                - adoptDisplayNamePrefix
               type: object
             status:
               description: OVHDedicatedMachineStatus is the observed state of the Machine.

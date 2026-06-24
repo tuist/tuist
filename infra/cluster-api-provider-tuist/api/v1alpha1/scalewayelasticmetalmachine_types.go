@@ -35,8 +35,11 @@ type ScalewayElasticMetalMachineSpec struct {
 	// (the bare-metal analog of the Apple Silicon adoptPoolPrefix). The operator
 	// pre-orders boxes named with this prefix, authorized with the fleet SSH key;
 	// the controller never orders inline, so a deploy never blocks on out-of-stock
-	// capacity. Required: without it there is no pool to claim from.
-	AdoptNamePrefix string `json:"adoptNamePrefix"`
+	// capacity. Enforced by the fleet helm template (a default), not a required
+	// CRD field: a required field breaks helm rollbacks to revisions that predate
+	// it, because the rollback patch strips it and the apiserver then rejects it.
+	// +optional
+	AdoptNamePrefix string `json:"adoptNamePrefix,omitempty"`
 
 	// FleetName groups Machines that share one SSH key, like the Apple Silicon
 	// kind. Set by the MachineTemplate so every Machine the MachineDeployment

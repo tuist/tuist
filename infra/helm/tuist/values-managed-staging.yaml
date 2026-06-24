@@ -39,10 +39,9 @@ server:
       # the Macs' cache traffic never crosses the WAN. The former Linux
       # runner-cache region `hetzner-staging-runners` is dropped: it lived on the
       # Hetzner ccx13 `kura` pool that the cutover deletes, and no customers use
-      # the staging Linux runner cache. `ovh-staging` is the OVH bare-metal
-      # validation region (the BHS box) proving the OVH scripted-install path
-      # ahead of the us-east/us-west cutover.
-      value: eu-central,ovh-staging,scw-fr-par-runners
+      # the staging Linux runner cache. (`ovh-staging` is added back alongside
+      # ovhFleet when the OVH validation box is joinable.)
+      value: eu-central,scw-fr-par-runners
     # Runner platforms whose fleets can reach their region's private
     # cache endpoint — the dispatch gate for handing out
     # `cache_endpoint_url` (Catalog.fleet_on_cluster_network?/1).
@@ -337,7 +336,11 @@ dediboxFleet:
 # missing box doesn't hang deploys — helm doesn't wait on the fleet MD and the
 # install is async; the region just can't schedule until a box joins.)
 ovhFleet:
-  enabled: true
+  # Parked until the BHS box is joinable (creds confirmed): helm --wait gates on
+  # the fleet MachineDeployment, so an enabled fleet whose box can't join wedges
+  # the deploy into an --atomic rollback. Re-enable for the OVH validation once
+  # the OVH_API classic triple is confirmed.
+  enabled: false
   # OVH entity the OVH_API token was minted on (the BHS box's account).
   endpoint: ovh-ca
   nodePool: kura-ovh-staging
