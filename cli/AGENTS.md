@@ -8,6 +8,7 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
 - Common utilities and infra (logging, file system helpers, etc.) live in `cli/Sources/TuistSupport`.
 - Tuist Server client: `cli/Sources/TuistServer`
 - Cache client: `cli/Sources/TuistCache`
+- Bazel Remote Execution API (REAPI) client: `cli/Sources/TuistREAPI` (see `cli/Sources/TuistREAPI/AGENTS.md`)
 - Dependencies tooling: `cli/Sources/TuistDependencies`
 - Manifest loading: `cli/Sources/TuistLoader`
 - Embedded graph packages: `cli/Sources/XcodeGraph`
