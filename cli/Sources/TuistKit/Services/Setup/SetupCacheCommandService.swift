@@ -74,6 +74,15 @@ struct SetupCacheCommandService {
             environmentVariables["TUIST_TOKEN"] = token
         }
 
+        // The cache daemon runs as a launchd agent that does not inherit the
+        // caller's environment, so forward the cache-endpoint override explicitly.
+        // Otherwise the CAS daemon never sees TUIST_CACHE_ENDPOINT and falls back
+        // to the default (public) endpoint, even when the caller pinned a
+        // private-network cache.
+        if let cacheEndpoint = Environment.current.variables["TUIST_CACHE_ENDPOINT"] {
+            environmentVariables["TUIST_CACHE_ENDPOINT"] = cacheEndpoint
+        }
+
         let label = Environment.current.cacheLaunchAgentLabel(for: fullHandle)
 
         try await launchAgentService.setupLaunchAgent(
