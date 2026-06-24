@@ -32,6 +32,22 @@ var vmBootDurationSeconds = prometheus.NewHistogramVec(
 	[]string{"pool"},
 )
 
+// goldenBaseMaterializedTotal counts golden base VMs materialized via a
+// full `tart pull` + `tart clone` (the multi-GB image download + extract).
+// Recycles clone from the host's per-digest golden base — an APFS
+// clonefile that touches the network zero times — so in steady state this
+// counter is flat. It ticks up only when a host first sees a digest (and
+// once per host on a runner-image roll). A rising rate between rolls is the
+// "goldens aren't sticking, we're re-pulling per job" regression signal the
+// whole golden-base scheme exists to kill.
+var goldenBaseMaterializedTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "tart_kubelet_golden_base_materialized_total",
+		Help: "Golden base VMs materialized via full image pull+clone (per pool). Flat in steady state; ticks on first-sight of a digest.",
+	},
+	[]string{"pool"},
+)
+
 // guestDiskUsagePercent is the percent-used of each running VM's guest
 // root volume, as read by the node maintainer's DiskPressure probe. It's
 // the gradient signal behind the binary DiskPressure node condition:
@@ -70,7 +86,18 @@ var podProvisionDelaySeconds = prometheus.NewHistogramVec(
 )
 
 func init() {
-	metrics.Registry.MustRegister(vmBootDurationSeconds, guestDiskUsagePercent, podProvisionDelaySeconds)
+	metrics.Registry.MustRegister(vmBootDurationSeconds, guestDiskUsagePercent, podProvisionDelaySeconds, goldenBaseMaterializedTotal)
+}
+
+// RecordGoldenMaterialized increments the per-pool count of golden base
+// VMs materialized via a full image pull+clone. Called once per cold
+// `ensureGolden` (first-sight of a digest on this host), not on the
+// clonefile recycle path.
+func RecordGoldenMaterialized(pool string) {
+	if pool == "" {
+		pool = "unknown"
+	}
+	goldenBaseMaterializedTotal.WithLabelValues(pool).Inc()
 }
 
 // RecordGuestDiskUsage publishes a VM's guest root-volume usage percent.

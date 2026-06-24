@@ -232,6 +232,10 @@ func main() {
 			NodeName: nodeName,
 			Interval: 5 * time.Minute,
 			Store:    store,
+			// Keep an idle host's golden base for a day so the next
+			// burst clones from it instead of re-pulling the whole VM
+			// image. Zero would fall back to the same default.
+			GoldenRetention: 24 * time.Hour,
 		}
 		if err := mgr.Add(gcCollector); err != nil {
 			setupLog.Error(err, "add gc collector")
