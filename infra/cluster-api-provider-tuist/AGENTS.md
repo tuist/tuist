@@ -206,6 +206,34 @@ linux/<arch> the cluster runs on.
 
 ## Operating
 
+### Mark a pre-ordered bare-metal box (Dedibox / OVH)
+
+The Dedibox and OVH kinds adopt a *pre-ordered* box rather than ordering
+one. The operator does two manual things per box: order it, and stamp the
+adoption marker the fleet scopes on — a Scaleway **tag** for Dedibox (every
+Dedibox shares the org's default project, so a tag is the env boundary) and
+the service **displayName** for OVH (one account holds every env's boxes).
+The controller only ever *reads* the marker, so the stamp is on you. These
+tasks script it instead of clicking through the consoles:
+
+```bash
+# Dedibox: tag by numeric server id (zone auto-detected). Replaces the box's tags.
+export DEDIBOX_SCW_SECRET_KEY="$(op read 'op://tuist-k8s-staging/DEDIBOX_SCW_API/secret-key')"
+mise run baremetal:mark-dedibox 188785 tuist-kura-staging
+
+# OVH: rename by service name. OVH_API_BASE picks the entity (default ovh-us —
+# the BHS box lives on an OVHcloud US account, so its API is api.us.ovhcloud.com).
+export OVH_APPLICATION_KEY="$(op read 'op://tuist-k8s-staging/OVH_API/application-key')"
+export OVH_APPLICATION_SECRET="$(op read 'op://tuist-k8s-staging/OVH_API/application-secret')"
+export OVH_CONSUMER_KEY="$(op read 'op://tuist-k8s-staging/OVH_API/consumer-key')"
+mise run baremetal:mark-ovh ns543284.ip-144-217-252.net tuist-kura-ovh-staging
+```
+
+The marker must match the fleet's `adoptTag` / `adoptDisplayNamePrefix` in
+`infra/helm/tuist/values-managed-<env>.yaml`; adoption is a prefix match, so
+multiple boxes are `…-1`, `…-2`. The OVH token must be minted on the same
+entity as `OVH_API_BASE` (a mismatched-entity token reads as "invalid").
+
 ### Scale up
 ```bash
 kubectl scale machinedeployment <fleet-name> --replicas=4
