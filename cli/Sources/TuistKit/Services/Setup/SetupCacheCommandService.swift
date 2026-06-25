@@ -75,12 +75,21 @@ struct SetupCacheCommandService {
         }
 
         // The cache daemon runs as a launchd agent that does not inherit the
-        // caller's environment, so forward the client feature flags. Without
-        // them the daemon cannot signal the "kura" flag on getCacheEndpoints, so
-        // it resolves the default (public) cache endpoint instead of the kura
-        // private-network one the rest of the CLI uses.
+        // caller's environment. Forward the client feature flags so it behaves
+        // consistently with the rest of the CLI.
         for (key, value) in ClientFeatureFlags.environmentVariables() {
             environmentVariables[key] = value
+        }
+
+        // Forward the cache-endpoint override. The runner-cache dispatch hands
+        // runners the private-network cache as a hard TUIST_CACHE_ENDPOINT
+        // override (which the module cache already honors); the daemon needs it
+        // explicitly, or the Xcode CAS keeps resolving the public endpoint via
+        // getCacheEndpoints while the module cache uses the private one. The
+        // feature flags above are not enough on their own: getCacheEndpoints
+        // returns the public, CLI-facing endpoint regardless of the kura flag.
+        if let cacheEndpoint = Environment.current.variables["TUIST_CACHE_ENDPOINT"] {
+            environmentVariables["TUIST_CACHE_ENDPOINT"] = cacheEndpoint
         }
 
         let label = Environment.current.cacheLaunchAgentLabel(for: fullHandle)

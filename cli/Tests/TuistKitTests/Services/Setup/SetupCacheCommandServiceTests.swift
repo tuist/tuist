@@ -255,6 +255,39 @@ struct SetupCacheCommandServiceTests {
             .called(1)
     }
 
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_forwardsCacheEndpointOverride() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        let token = "test-auth-token-123"
+        environment.variables[Constants.EnvironmentVariables.token] = token
+        environment.variables["TUIST_CACHE_ENDPOINT"] = "http://172.16.0.2:30815"
+
+        let config = Tuist.test(fullHandle: "organization/project")
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(config)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then: the runner-cache dispatch sets TUIST_CACHE_ENDPOINT as a hard
+        // override, but the launchd agent does not inherit it, so it must be
+        // forwarded or the CAS keeps resolving the public endpoint.
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .value([
+                    "TUIST_TOKEN": token,
+                    "TUIST_CACHE_ENDPOINT": "http://172.16.0.2:30815",
+                ])
+            )
+            .called(1)
+    }
+
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment()
