@@ -321,14 +321,16 @@ func (r *OVHDedicatedMachineReconciler) claimedServiceNames(ctx context.Context,
 	return claimed, nil
 }
 
-// reconcileDelete returns the Machine's box to the pool. An OVH dedicated server
-// is a monthly contract, so "release" is not a contract termination: it reinstalls
-// the box to a clean, key-authorized state so the next claim self-joins it with no
-// operator prep, then drops the per-machine kubelet identity + bootstrap Secret +
-// Node and removes the finalizer. Reinstalling on release (rather than on adoption)
-// is what keeps adoption a fast self-join.
+// reconcileDelete releases the Machine without touching the box. An OVH dedicated
+// server is a monthly contract, so deleting the Machine must not terminate or
+// re-image it — and CAPI churn (a helm rollback deleting the MachineDeployment, a
+// template change) deletes Machines whose boxes are still prepped and in use, so
+// reinstalling here would wipe a live box. Release is therefore "drop the
+// per-machine kubelet identity + bootstrap Secret + Node and remove the
+// finalizer", leaving the box running. Returning a box to a clean, claimable state
+// is the explicit operator step `mise run baremetal:prep-ovh` (re-prep), never
+// automatic on delete.
 func (r *OVHDedicatedMachineReconciler) reconcileDelete(ctx context.Context, machine *infrav1.OVHDedicatedMachine) (ctrl.Result, error) {
-	logger := log.FromContext(ctx)
 	machine.Status.Phase = "Deleting"
 	if err := r.CredentialsManager.DeleteNodeIdentity(ctx, machine.Name); err != nil {
 		r.event(machine, "DeleteIdentityFailed", "delete node identity: %v (will retry)", err)
@@ -351,45 +353,8 @@ func (r *OVHDedicatedMachineReconciler) reconcileDelete(ctx context.Context, mac
 		r.event(machine, "DeleteNodeFailed", "delete Node: %v (will retry)", err)
 		return ctrl.Result{}, err
 	}
-	// Reinstall the box back to a clean, claimable state as the last step before
-	// dropping the finalizer — it's the only step that retries on failure, so on
-	// the happy path it fires exactly once. Fire-and-forget: the wipe + reimage
-	// (Ubuntu + fleet key + ubuntu login) finishes after the Machine is gone,
-	// leaving a box the next claim self-joins.
-	if machine.Status.ServiceName != "" {
-		if err := r.reinstallToPool(ctx, machine); err != nil {
-			r.event(machine, "ReleaseReinstallFailed", "reinstall on release: %v (will retry)", err)
-			return ctrl.Result{}, err
-		}
-		r.event(machine, "ReleasedToPool", "Reinstalling OVH server %s to a clean, claimable state", machine.Status.ServiceName)
-		logger.Info("reinstalling OVH box on release", "service", machine.Status.ServiceName)
-	}
 	controllerutil.RemoveFinalizer(machine, OVHDedicatedMachineFinalizer)
 	return ctrl.Result{}, nil
-}
-
-// reinstallToPool wipes the adopted box back to a clean Ubuntu install with the
-// fleet key authorized, so the next claim self-joins it without operator prep.
-// Fire-and-forget: it kicks the install off and returns.
-func (r *OVHDedicatedMachineReconciler) reinstallToPool(ctx context.Context, machine *infrav1.OVHDedicatedMachine) error {
-	fleet := firstNonEmpty(machine.Spec.FleetName, machine.Namespace+"-"+machine.Name)
-	privateKey, keyErr := r.CredentialsManager.EnsureFleetSSHKey(ctx, fleet)
-	if keyErr != nil {
-		return keyErr
-	}
-	signer, signErr := ssh.ParsePrivateKey(privateKey)
-	if signErr != nil {
-		return fmt.Errorf("parse fleet ssh key: %w", signErr)
-	}
-	template, tmplErr := r.OVHClient.ResolveTemplate(ctx, machine.Status.ServiceName, firstNonEmpty(machine.Spec.OS, "ubuntu_24.04"))
-	if tmplErr != nil {
-		return tmplErr
-	}
-	return r.OVHClient.StartInstall(ctx, machine.Status.ServiceName, ovh.InstallParams{
-		TemplateName: template,
-		Hostname:     machine.Name,
-		SSHKey:       string(ssh.MarshalAuthorizedKey(signer.PublicKey())),
-	})
 }
 
 func (r *OVHDedicatedMachineReconciler) event(machine *infrav1.OVHDedicatedMachine, reason, format string, args ...any) {
