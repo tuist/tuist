@@ -41,6 +41,7 @@ import SubmitOnCmdEnter from "./js/SubmitOnCmdEnter.js";
 import CopyToClipboard from "./js/CopyToClipboard.js";
 import DownloadAsFile from "./js/DownloadAsFile.js";
 import ScrollToTail from "./js/ScrollToTail.js";
+import RunnerMetricsHighlight from "./js/RunnerMetricsHighlight.js";
 import { setupQueryMemory } from "./js/QueryMemory.js";
 import { getUserLocale } from "./js/UserLocale.js";
 import { getUserTimezone } from "./js/UserTimezone.js";
@@ -66,6 +67,7 @@ Hooks.SubmitOnCmdEnter = SubmitOnCmdEnter;
 Hooks.CopyToClipboard = CopyToClipboard;
 Hooks.DownloadAsFile = DownloadAsFile;
 Hooks.ScrollToTail = ScrollToTail;
+Hooks.RunnerMetricsHighlight = RunnerMetricsHighlight;
 
 observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;
