@@ -361,6 +361,13 @@ defmodule Noora.Table do
 
   attr(:description, :string, default: nil, doc: "The description of the cell")
   attr(:secondary_description, :string, default: nil, doc: "The secondary description of the cell")
+
+  attr(:truncate, :boolean,
+    default: true,
+    doc:
+      "Cap the cell to a single line per row and clip overflow with an ellipsis, instead of letting free-form content (e.g. a command with many target arguments) widen the column unbounded. On by default; pass `truncate={false}` to opt out."
+  )
+
   attr(:rest, :global)
 
   slot(:image,
@@ -370,7 +377,7 @@ defmodule Noora.Table do
 
   def text_and_description_cell(assigns) do
     ~H"""
-    <div data-part="cell" data-type="text_and_description" {@rest}>
+    <div data-part="cell" data-type="text_and_description" data-truncate={@truncate} {@rest}>
       <div :if={@icon || has_slot_content?(@image, assigns)} data-part="icon">
         <.icon :if={@icon && !has_slot_content?(@image, assigns)} name={@icon} />
         <%= if has_slot_content?(@image, assigns) do %>
