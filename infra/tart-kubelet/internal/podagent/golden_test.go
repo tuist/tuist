@@ -45,6 +45,32 @@ func TestGoldenVMName(t *testing.T) {
 	}
 }
 
+// goldenNodeLabel turns a golden VM name into the Node-label key the
+// runners-controller's affinity matches on. The pinned literal is the
+// cross-module contract: runners-controller's podtemplate test asserts its
+// goldenNodeAffinityKey produces this same key for the same image, so a
+// drift on either side fails a test rather than silently disabling affinity.
+func TestGoldenNodeLabel(t *testing.T) {
+	img := "ghcr.io/tuist/tuist-runner@sha256:" + strings.Repeat("a", 64)
+	const wantKey = "tuist.dev/golden-9c8af651fdf30b10"
+
+	if got := goldenVMName(img); got != "tuist-golden-9c8af651fdf30b10" {
+		t.Fatalf("goldenVMName = %q, want tuist-golden-9c8af651fdf30b10", got)
+	}
+
+	key, ok := goldenNodeLabel(goldenVMName(img))
+	if !ok {
+		t.Fatal("goldenNodeLabel returned ok=false for a golden VM name")
+	}
+	if key != wantKey {
+		t.Fatalf("goldenNodeLabel = %q, want %q (must match runners-controller)", key, wantKey)
+	}
+
+	if _, ok := goldenNodeLabel("tuist-runners-runner-abc123"); ok {
+		t.Fatal("goldenNodeLabel returned ok=true for a non-golden VM name")
+	}
+}
+
 // The golden base a Pod's image clones from must land in expectedSet so
 // the GC's "local" branch retains it instead of reaping it as an orphan
 // clone — the bug that would force a full re-pull on the next recycle.

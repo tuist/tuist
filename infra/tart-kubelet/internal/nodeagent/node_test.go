@@ -84,7 +84,7 @@ func TestConfigureNodeSeedsDiskPressureFalse(t *testing.T) {
 	m := &Maintainer{NodeName: "mac-mini-1"}
 	node := &corev1.Node{}
 
-	m.configureNode(node)
+	m.configureNode(node, nil)
 
 	dp, ok := conditionByType(node.Status.Conditions, corev1.NodeDiskPressure)
 	if !ok {
@@ -95,6 +95,66 @@ func TestConfigureNodeSeedsDiskPressureFalse(t *testing.T) {
 	}
 }
 
+func TestConfigureNodeMergesDynamicLabels(t *testing.T) {
+	m := &Maintainer{
+		NodeName:   "mac-mini-1",
+		NodeLabels: map[string]string{"tuist.dev/fleet": "runners"},
+	}
+	node := &corev1.Node{}
+
+	m.configureNode(node, map[string]string{"tuist.dev/golden-deadbeefdeadbeef": "true"})
+
+	if got := node.Labels["tuist.dev/fleet"]; got != "runners" {
+		t.Fatalf("operator label dropped: tuist.dev/fleet = %q", got)
+	}
+	if got := node.Labels["tuist.dev/golden-deadbeefdeadbeef"]; got != "true" {
+		t.Fatalf("dynamic golden label missing: got %q", got)
+	}
+	if got := node.Labels["tuist.dev/runtime"]; got != "tart" {
+		t.Fatalf("intrinsic runtime label = %q", got)
+	}
+}
+
+// A golden label present on the Node but no longer returned by the provider
+// (golden GC'd, or a different digest now) must be pruned — same retire path
+// as a dropped operator label.
+func TestConfigureNodePrunesStaleDynamicLabels(t *testing.T) {
+	m := &Maintainer{NodeName: "mac-mini-1"}
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{"tuist.dev/golden-0000000000000000": "true"},
+		},
+	}
+
+	m.configureNode(node, map[string]string{"tuist.dev/golden-1111111111111111": "true"})
+
+	if _, present := node.Labels["tuist.dev/golden-0000000000000000"]; present {
+		t.Fatal("stale golden label was not pruned")
+	}
+	if got := node.Labels["tuist.dev/golden-1111111111111111"]; got != "true" {
+		t.Fatalf("current golden label missing: got %q", got)
+	}
+}
+
+// When the provider yields nothing (unset, or a probe error that the
+// maintainer treats as "no opinion"), any previously-published golden labels
+// are pruned. The production provider masks transient errors with its last
+// good result, so a real empty means "this host holds no goldens".
+func TestConfigureNodePrunesAllDynamicLabelsWhenNone(t *testing.T) {
+	m := &Maintainer{NodeName: "mac-mini-1"}
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{"tuist.dev/golden-0000000000000000": "true"},
+		},
+	}
+
+	m.configureNode(node, nil)
+
+	if _, present := node.Labels["tuist.dev/golden-0000000000000000"]; present {
+		t.Fatal("golden label survived an empty provider result")
+	}
+}
+
 func TestApplyDiskPressureSetsTrueWithDetail(t *testing.T) {
 	m := &Maintainer{
 		DiskPressure: func(context.Context) (bool, string, error) {
@@ -102,7 +162,7 @@ func TestApplyDiskPressureSetsTrueWithDetail(t *testing.T) {
 		},
 	}
 	node := &corev1.Node{}
-	m.configureNode(node)
+	m.configureNode(node, nil)
 
 	m.applyDiskPressure(context.Background(), node)
 
@@ -125,7 +185,7 @@ func TestApplyDiskPressureSetsFalse(t *testing.T) {
 		},
 	}
 	node := &corev1.Node{}
-	m.configureNode(node)
+	m.configureNode(node, nil)
 
 	m.applyDiskPressure(context.Background(), node)
 
@@ -142,7 +202,7 @@ func TestApplyDiskPressureKeepsPriorValueOnProbeError(t *testing.T) {
 		},
 	}
 	node := &corev1.Node{}
-	m.configureNode(node)
+	m.configureNode(node, nil)
 	// Simulate a prior heartbeat that observed pressure.
 	setCondition(&node.Status.Conditions, corev1.NodeDiskPressure, corev1.ConditionTrue, "TartKubeletHasDiskPressure", "vm-x at 100%")
 
@@ -157,7 +217,7 @@ func TestApplyDiskPressureKeepsPriorValueOnProbeError(t *testing.T) {
 func TestApplyDiskPressureNilProbeIsNoop(t *testing.T) {
 	m := &Maintainer{} // no probe
 	node := &corev1.Node{}
-	m.configureNode(node)
+	m.configureNode(node, nil)
 
 	m.applyDiskPressure(context.Background(), node)
 

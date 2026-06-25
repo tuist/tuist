@@ -287,6 +287,27 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Publish which golden base VMs this host holds as
+	// `tuist.dev/golden-<hash>` Node labels so the runners-controller can
+	// steer a pool's Pods toward hosts that can clone its image locally
+	// instead of cold-pulling it. Mask a transient `tart list` failure
+	// with the last good result so a momentary hiccup doesn't flap the
+	// labels off (and briefly drop the affinity). The maintainer calls
+	// this serially from its single heartbeat goroutine, so the closed-over
+	// cache needs no lock.
+	var lastGoldenLabels map[string]string
+	goldenLabelProvider := func(ctx context.Context) (map[string]string, error) {
+		labels, err := podagent.GoldenNodeLabels(ctx, tartClient)
+		if err != nil {
+			if lastGoldenLabels != nil {
+				return lastGoldenLabels, nil
+			}
+			return nil, err
+		}
+		lastGoldenLabels = labels
+		return labels, nil
+	}
+
 	if err := mgr.Add(&nodeagent.Maintainer{
 		Client:     mgr.GetClient(),
 		NodeName:   nodeName,
@@ -300,6 +321,7 @@ func main() {
 		DiskPressure: func(ctx context.Context) (bool, string, error) {
 			return diskPressureFromGuests(ctx, tartClient, diskPressureThresholdPercent)
 		},
+		DynamicLabels: goldenLabelProvider,
 	}); err != nil {
 		setupLog.Error(err, "add node maintainer")
 		os.Exit(1)

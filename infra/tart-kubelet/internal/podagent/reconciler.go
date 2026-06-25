@@ -431,6 +431,48 @@ func isGoldenVMName(name string) bool {
 	return strings.HasPrefix(name, goldenBaseVMPrefix)
 }
 
+// goldenNodeLabelPrefix namespaces the per-digest Node labels that advertise
+// which golden bases a host holds. The runners-controller adds soft
+// node-affinity toward `goldenNodeLabelPrefix + <digest-hash>` so a pool's
+// Pods prefer hosts that can clone its image locally instead of cold-pulling.
+//
+// CONTRACT: this prefix and the hash (the same 8-byte SHA-256 prefix of the
+// image ref that goldenVMName embeds) MUST match the runners-controller's
+// `podtemplate.goldenNodeLabelPrefix` / `goldenNodeAffinityKey`. They live in
+// separate Go modules, coupled by convention, not shared code.
+const goldenNodeLabelPrefix = "tuist.dev/golden-"
+
+// goldenNodeLabel returns the Node-label key advertising that this host holds
+// the golden base named `vmName`, and false when the name isn't a golden.
+func goldenNodeLabel(vmName string) (string, bool) {
+	if !isGoldenVMName(vmName) {
+		return "", false
+	}
+	return goldenNodeLabelPrefix + strings.TrimPrefix(vmName, goldenBaseVMPrefix), true
+}
+
+// GoldenNodeLabels lists this host's golden base VMs and returns the Node
+// labels that advertise them, for the node maintainer to publish. Driven off
+// `tart list` (the on-disk truth) so the labels self-heal across kubelet
+// restarts and GC evictions without any shared in-memory state to keep
+// consistent.
+func GoldenNodeLabels(ctx context.Context, t *tart.Client) (map[string]string, error) {
+	vms, err := t.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	labels := map[string]string{}
+	for _, vm := range vms {
+		if vm.Source != "local" {
+			continue
+		}
+		if key, ok := goldenNodeLabel(vm.Name); ok {
+			labels[key] = "true"
+		}
+	}
+	return labels, nil
+}
+
 // ensureGolden materializes this host's golden base VM for `image`
 // exactly once and returns its name. The first call for a digest pays
 // the full `tart pull` + `tart clone` (download + extract the multi-GB
