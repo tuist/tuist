@@ -27,7 +27,7 @@ func TestSummaryUnmarshalAndLookup(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 
-	stats, ok := s.pod("busy-1")
+	stats, ok := s.pod("tuist-runners", "busy-1")
 	if !ok {
 		t.Fatal("busy-1 not found in summary")
 	}
@@ -40,7 +40,10 @@ func TestSummaryUnmarshalAndLookup(t *testing.T) {
 	if stats.EphemeralStorage == nil || *stats.EphemeralStorage.CapacityBytes != 100<<30 {
 		t.Errorf("ephemeral-storage not decoded: %+v", stats.EphemeralStorage)
 	}
-	if _, ok := s.pod("missing"); ok {
+	if _, ok := s.pod("tuist-runners", "missing"); ok {
 		t.Error("unexpected hit for a pod not in the summary")
+	}
+	if _, ok := s.pod("other-namespace", "busy-1"); ok {
+		t.Error("matched busy-1 in the wrong namespace; names are only namespace-unique")
 	}
 }

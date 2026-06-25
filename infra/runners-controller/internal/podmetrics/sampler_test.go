@@ -152,6 +152,84 @@ func TestSampler_NetworkDeltaAcrossPasses(t *testing.T) {
 	}
 }
 
+func TestSampler_MatchesPodNamespace(t *testing.T) {
+	// The node also hosts a same-named Pod in another namespace; the
+	// sampler must report the runner namespace's Pod, not that one.
+	src := &fakeSource{byNode: map[string]*Summary{
+		"node-a": {Pods: []PodStats{
+			{
+				PodRef: PodReference{Name: "busy-1", Namespace: "other-namespace"},
+				CPU:    &CPUStats{UsageNanoCores: u64(4_000_000_000)},
+			},
+			{
+				PodRef:  PodReference{Name: "busy-1", Namespace: "tuist-runners"},
+				CPU:     &CPUStats{UsageNanoCores: u64(1_000_000_000)},
+				Network: &NetworkStats{RxBytes: u64(0), TxBytes: u64(0)},
+			},
+		}},
+	}}
+	rep := &fakeReporter{}
+	s := newSampler(t, src, rep,
+		runnerPod("busy-1", "node-a", "42", corev1.PodRunning),
+		testNode("node-a", "4", "8Gi"),
+	)
+
+	s.sampleOnce(context.Background(), logr.Discard())
+
+	if len(rep.calls) != 1 {
+		t.Fatalf("report calls = %d, want 1", len(rep.calls))
+	}
+	// 1 of 4 cores from the tuist-runners Pod (25%), not 4 of 4 (100%)
+	// from the foreign namespace's Pod.
+	if got := rep.calls[0].samples[0].CPUUsagePercent; got != 25 {
+		t.Errorf("cpu percent = %v, want 25 (matched the wrong namespace?)", got)
+	}
+}
+
+func TestSampler_SeedsIdleBaselineForFirstBusyInterval(t *testing.T) {
+	// A Pod is idle (no owner label) for one pass, then claimed. Its
+	// first busy sample must report the network delta since the idle
+	// pass, not 0 — otherwise the job's opening spike is lost.
+	pod := PodStats{
+		PodRef:  PodReference{Name: "runner-1", Namespace: "tuist-runners"},
+		Network: &NetworkStats{RxBytes: u64(1000), TxBytes: u64(500)},
+	}
+	src := &fakeSource{byNode: map[string]*Summary{"node-a": {Pods: []PodStats{pod}}}}
+	rep := &fakeReporter{}
+	s := newSampler(t, src, rep,
+		runnerPod("runner-1", "node-a", "", corev1.PodRunning), // idle: no owner
+		testNode("node-a", "4", "8Gi"),
+	)
+
+	s.sampleOnce(context.Background(), logr.Discard())
+	if len(rep.calls) != 0 {
+		t.Fatalf("idle Pod was reported (%d calls); want 0", len(rep.calls))
+	}
+	if _, ok := s.prev["runner-1"]; !ok {
+		t.Fatal("idle Pod's network baseline was not seeded")
+	}
+
+	// Pod gets claimed and traffic advances by 5000 rx / 2000 tx.
+	var busy corev1.Pod
+	if err := s.Client.Get(context.Background(), client.ObjectKey{Namespace: "tuist-runners", Name: "runner-1"}, &busy); err != nil {
+		t.Fatalf("get pod: %v", err)
+	}
+	busy.Labels[ownerLabel] = "42"
+	if err := s.Client.Update(context.Background(), &busy); err != nil {
+		t.Fatalf("update pod to busy: %v", err)
+	}
+	src.byNode["node-a"].Pods[0].Network = &NetworkStats{RxBytes: u64(6000), TxBytes: u64(2500)}
+	s.sampleOnce(context.Background(), logr.Discard())
+
+	if len(rep.calls) != 1 {
+		t.Fatalf("report calls = %d, want 1 (first busy pass)", len(rep.calls))
+	}
+	got := rep.calls[0].samples[0]
+	if got.NetworkBytesIn != 5000 || got.NetworkBytesOut != 2000 {
+		t.Errorf("first busy network = %d/%d, want 5000/2000 from the idle baseline", got.NetworkBytesIn, got.NetworkBytesOut)
+	}
+}
+
 func TestSampler_PrunesStalePods(t *testing.T) {
 	src := &fakeSource{byNode: map[string]*Summary{
 		"node-a": {Pods: []PodStats{{

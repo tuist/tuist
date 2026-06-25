@@ -70,10 +70,14 @@ type FsStats struct {
 	CapacityBytes *uint64 `json:"capacityBytes"`
 }
 
-// pod returns the stats for podName and whether the node reported them.
-func (s *Summary) pod(podName string) (PodStats, bool) {
+// pod returns the stats for the namespace/name Pod and whether the node
+// reported them. The kubelet Summary lists every namespace's Pods on the
+// node and Pod names are only unique within a namespace, so both must
+// match — otherwise a same-named Pod in another namespace could be
+// recorded under a runner job.
+func (s *Summary) pod(namespace, name string) (PodStats, bool) {
 	for i := range s.Pods {
-		if s.Pods[i].PodRef.Name == podName {
+		if s.Pods[i].PodRef.Namespace == namespace && s.Pods[i].PodRef.Name == name {
 			return s.Pods[i], true
 		}
 	}

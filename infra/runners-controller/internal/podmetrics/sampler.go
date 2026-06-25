@@ -48,8 +48,12 @@ type Sampler struct {
 	Now func() time.Time
 
 	// prev holds the last cumulative network counters per Pod so we
-	// can difference them into per-interval throughput. Accessed only
-	// from the single Start goroutine, so no locking is needed.
+	// can difference them into per-interval throughput. Tracked for
+	// every running runner Pod — including idle ones we don't report —
+	// so that when a Pod is claimed its first busy sample differences
+	// against a recent baseline and the job's opening network spike
+	// (checkout, dependency download) isn't dropped. Accessed only from
+	// the single Start goroutine, so no locking is needed.
 	prev map[string]netCounters
 }
 
@@ -98,39 +102,60 @@ func (s *Sampler) sampleOnce(ctx context.Context, logger logr.Logger) {
 		return
 	}
 
-	// Group busy, running Pods by node so each node's kubelet is
-	// scraped once regardless of how many Pods it hosts.
-	byNode := map[string][]string{}
+	// Group every running runner Pod by node so each node's kubelet is
+	// scraped once regardless of how many Pods it hosts. We track idle
+	// Pods too (only reporting the busy ones) to keep their network
+	// baseline warm for the moment they're claimed.
+	type podRef struct {
+		name string
+		busy bool
+	}
+	byNode := map[string][]podRef{}
 	live := map[string]struct{}{}
 	for i := range pods.Items {
 		pod := &pods.Items[i]
 		if pod.Status.Phase != corev1.PodRunning || pod.Spec.NodeName == "" {
 			continue
 		}
-		if pod.Labels[ownerLabel] == "" {
-			continue
-		}
-		byNode[pod.Spec.NodeName] = append(byNode[pod.Spec.NodeName], pod.Name)
+		byNode[pod.Spec.NodeName] = append(byNode[pod.Spec.NodeName], podRef{
+			name: pod.Name,
+			busy: pod.Labels[ownerLabel] != "",
+		})
 		live[pod.Name] = struct{}{}
 	}
 
 	now := s.now()
-	for nodeName, podNames := range byNode {
+	for nodeName, refs := range byNode {
 		summary, err := s.Source.NodeSummary(ctx, nodeName)
 		if err != nil {
 			logger.Error(err, "fetch node summary", "node", nodeName)
 			continue
 		}
-		cpuCores, memBytes := s.nodeCapacity(ctx, nodeName, logger)
 
-		for _, podName := range podNames {
-			stats, ok := summary.pod(podName)
+		// Node allocatable is only needed for the busy Pods we report;
+		// fetch it lazily so an idle-only node costs no extra read.
+		var cpuCores float64
+		var memBytes int64
+		capacityLoaded := false
+
+		for _, ref := range refs {
+			stats, ok := summary.pod(s.Namespace, ref.name)
 			if !ok {
 				continue
 			}
-			sample := s.buildSample(podName, stats, cpuCores, memBytes, now)
-			if err := s.Reporter.Report(ctx, podName, []Sample{sample}); err != nil {
-				logger.Error(err, "report Pod metrics", "pod", podName)
+			if !ref.busy {
+				// Idle Pod: advance its network baseline without
+				// reporting, so its first busy sample sees a real delta.
+				s.networkDelta(ref.name, stats.Network)
+				continue
+			}
+			if !capacityLoaded {
+				cpuCores, memBytes = s.nodeCapacity(ctx, nodeName, logger)
+				capacityLoaded = true
+			}
+			sample := s.buildSample(ref.name, stats, cpuCores, memBytes, now)
+			if err := s.Reporter.Report(ctx, ref.name, []Sample{sample}); err != nil {
+				logger.Error(err, "report Pod metrics", "pod", ref.name)
 			}
 		}
 	}
