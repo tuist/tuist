@@ -39,10 +39,10 @@ server:
       # the Macs' cache traffic never crosses the WAN. The former Linux
       # runner-cache region `hetzner-staging-runners` is dropped: it lived on the
       # Hetzner ccx13 `kura` pool that the cutover deletes, and no customers use
-      # the staging Linux runner cache. `ovh-staging` is the OVH bare-metal
-      # validation region (the BHS box) proving the OVH scripted-install path
-      # ahead of the us-east/us-west cutover.
-      value: eu-central,ovh-staging,scw-fr-par-runners
+      # the staging Linux runner cache. `ovh-staging` is re-added here once the
+      # BHS OVH box is prepped + the ovhFleet scaled to 1 (parked at replicas 0
+      # for now); until then it would route to a region with no node.
+      value: eu-central,scw-fr-par-runners
     # Runner platforms whose fleets can reach their region's private
     # cache endpoint — the dispatch gate for handing out
     # `cache_endpoint_url` (Catalog.fleet_on_cluster_network?/1).
@@ -318,7 +318,10 @@ dediboxFleet:
   machine:
     # Exact tag match (not a prefix), so this is the shared pool tag every
     # staging Dedibox carries; per-box identity is the server id, not the tag.
-    adoptTag: tuist-staging
+    # Dedibox tags are console-only (the API tag-set 500s on these legacy boxes),
+    # so this stays kura-scoped to match what's set on sd-188785 — the generic
+    # tuist-staging rename waits on either a console retag or a working tag API.
+    adoptTag: tuist-kura-staging
     # Start-9-M (AMD Ryzen 5 PRO 3600, 32 GB, 2x1 TB NVMe) — modern enough for
     # Ubuntu 24.04 with SSH keys, unlike the Atom SKUs. Only sold in DC5/AMS1.
     offer: Start-9-M
@@ -343,10 +346,13 @@ dediboxFleet:
 # on the fleet MD and the install is async; the region just can't schedule until
 # a box joins.)
 ovhFleet:
-  # Enabled for the OVH bare-metal validation: the controller adopts the BHS box
-  # by displayName, drives its OS (re)install, and self-joins it (eu-central's
-  # Dedibox path is the twin). Keep prod/canary parked until staging proves out.
-  enabled: true
+  # Parked until the BHS box is prepped: the OVH token still needs POST
+  # /dedicated/server/*/reinstall, and an enabled fleet with no joinable box
+  # leaves its MachineDeployment 0/1 and wedges helm --wait (replicas: 0 doesn't
+  # help — Helm's `default 1` renders 0 as 1). Re-enable, prep the box, and
+  # re-add ovh-staging to the region list once the token grant lands. The
+  # eu-central Dedibox path is the validated twin.
+  enabled: false
   # OVHcloud US entity (api.us.ovhcloud.com). The box sits physically in Canada
   # (ca-east-bhs / BHS6) but on an OVHcloud US account, so the API endpoint is
   # ovh-us — a token minted on any other entity (ovh-ca, ovh-eu) is rejected as
