@@ -356,6 +356,11 @@ type InstallParams struct {
 	OS        OSChoice
 	Hostname  string
 	UserLogin string
+	// UserPassword, when set, is the login password the install assigns the
+	// created user. Prep sets a known value so it can configure passwordless sudo
+	// over SSH after the install (the install grants only password sudo); empty
+	// falls back to a discarded random password.
+	UserPassword string
 	// SSHKeyIDs are Scaleway SSH key IDs (the fleet key the credentials manager
 	// already registered) authorized on the installed server.
 	SSHKeyIDs []string
@@ -403,9 +408,13 @@ func (c *Client) StartInstall(ctx context.Context, p InstallParams) error {
 	// Send exactly one, keyed on RequiresUser.
 	if p.OS.RequiresUser {
 		body.UserLogin = p.UserLogin
-		userPassword, pwErr := randomPassword()
-		if pwErr != nil {
-			return pwErr
+		userPassword := p.UserPassword
+		if userPassword == "" {
+			pw, pwErr := randomPassword()
+			if pwErr != nil {
+				return pwErr
+			}
+			userPassword = pw
 		}
 		body.UserPassword = userPassword
 	} else {
