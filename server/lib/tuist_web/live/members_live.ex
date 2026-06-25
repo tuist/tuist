@@ -371,13 +371,13 @@ defmodule TuistWeb.MembersLive do
                   <%= if @invitation_disclosure.email_delivered do %>
                     {dgettext(
                       "dashboard_account",
-                      "We've emailed this invitation to %{email}. You can also share the link directly — it stays in the invitations list.",
+                      "We've emailed this invitation to %{email}. You can also share the link directly. It stays in the invitations list.",
                       email: @invitation_disclosure.email
                     )}
                   <% else %>
                     {dgettext(
                       "dashboard_account",
-                      "No email was sent, so share this link with %{email} so they can join — you'll also find it in the invitations list.",
+                      "Share this link with %{email} so they can join. You'll also find it in the invitations list.",
                       email: @invitation_disclosure.email
                     )}
                   <% end %>

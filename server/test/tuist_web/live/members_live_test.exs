@@ -112,7 +112,7 @@ defmodule TuistWeb.MembersLiveTest do
       assert html =~ "Invitation link"
       assert html =~ "/auth/invitations/#{invitation.token}"
       assert html =~ "invite-member-form-copy-invitation-link"
-      assert html =~ "No email was sent"
+      assert html =~ "Share this link with newcomer@example.com so they can join"
     end
 
     test "tells the inviter an email was sent when mail is configured", %{
