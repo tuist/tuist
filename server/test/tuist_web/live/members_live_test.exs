@@ -6,6 +6,7 @@ defmodule TuistWeb.MembersLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Accounts
+  alias Tuist.Environment
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup %{conn: conn} do
@@ -87,12 +88,13 @@ defmodule TuistWeb.MembersLiveTest do
       assert html =~ "/auth/invitations/#{invitation.token}"
     end
 
-    test "reveals the invite link in the modal after creating an invitation", %{
+    test "reveals the invite link and notes no email was sent when mail is not configured", %{
       conn: conn,
       organization: organization,
       account: account
     } do
-      # When: submitting the invite form from the members page
+      stub(Environment, :mail_configured?, fn -> false end)
+
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
 
       html =
@@ -110,6 +112,25 @@ defmodule TuistWeb.MembersLiveTest do
       assert html =~ "Invitation link"
       assert html =~ "/auth/invitations/#{invitation.token}"
       assert html =~ "invite-member-form-copy-invitation-link"
+      assert html =~ "No email was sent"
+    end
+
+    test "tells the inviter an email was sent when mail is configured", %{
+      conn: conn,
+      account: account
+    } do
+      stub(Environment, :mail_configured?, fn -> true end)
+      stub(Accounts.UserNotifier, :deliver_invitation, fn _email, _opts -> :ok end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
+
+      html =
+        lv
+        |> form("#invite-member-form", invitation: %{invitee_email: "emailed@example.com"})
+        |> render_submit()
+
+      assert html =~ "Invitation link"
+      assert html =~ "emailed this invitation to emailed@example.com"
     end
   end
 

@@ -7,6 +7,7 @@ defmodule TuistWeb.MembersLive do
   alias Tuist.Accounts
   alias Tuist.Accounts.User
   alias Tuist.Authorization
+  alias Tuist.Environment
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: account}} = socket) do
@@ -367,11 +368,19 @@ defmodule TuistWeb.MembersLive do
                   {dgettext("dashboard_account", "Invitation link")}
                 </span>
                 <span data-part="subtitle">
-                  {dgettext(
-                    "dashboard_account",
-                    "Share this link with %{email} so they can join — you'll also find it in the invitations list.",
-                    email: @invitation_disclosure.email
-                  )}
+                  <%= if @invitation_disclosure.email_delivered do %>
+                    {dgettext(
+                      "dashboard_account",
+                      "We've emailed this invitation to %{email}. You can also share the link directly — it stays in the invitations list.",
+                      email: @invitation_disclosure.email
+                    )}
+                  <% else %>
+                    {dgettext(
+                      "dashboard_account",
+                      "No email was sent, so share this link with %{email} so they can join — you'll also find it in the invitations list.",
+                      email: @invitation_disclosure.email
+                    )}
+                  <% end %>
                 </span>
               </div>
               <div data-part="read-only-value">
@@ -604,7 +613,10 @@ defmodule TuistWeb.MembersLive do
           search_query: "",
           invitation_disclosure: %{
             url: url(~p"/auth/invitations/#{invitation.token}"),
-            email: invitation.invitee_email
+            email: invitation.invitee_email,
+            # `invite_user_to_organization/3` only delivers the email when mail
+            # is configured, so this mirrors whether the invitee was notified.
+            email_delivered: Environment.mail_configured?()
           }
         )
         # Reveal the link in the always-present header modal: close the
