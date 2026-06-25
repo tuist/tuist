@@ -59,6 +59,17 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
           _ -> :ok
         end
 
+      {:error, {:unprocessable, reason}} ->
+        # The archive can't be parsed (e.g. a corrupt/truncated xcactivitylog).
+        # Re-downloading the same bytes and re-parsing always fails the same
+        # way, so cancel the job instead of retrying: this marks the build
+        # failed once, skips the remaining attempts, and keeps the permanent
+        # failure out of error tracking (cancelled jobs don't alert).
+        Logger.warning("Build #{build_id} archive is unprocessable, not retrying: #{inspect(reason)}")
+        mark_failed_build_processing(build_id, project_id, account_id, build_metadata)
+
+        {:cancel, reason}
+
       {:error, reason} ->
         if attempt >= max_attempts do
           Logger.error("Build processing failed permanently for build #{build_id}: #{inspect(reason)}")
@@ -80,7 +91,13 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
       try do
         case Storage.download_to_file(storage_key, temp_path, account) do
           {:ok, _} ->
-            Tuist.Processor.BuildProcessor.process_build(temp_path, xcode_cache_upload_enabled)
+            case Tuist.Processor.BuildProcessor.process_build(temp_path, xcode_cache_upload_enabled) do
+              {:ok, _} = ok -> ok
+              # The download succeeded, so a parse failure is about the archive
+              # bytes themselves — deterministic and unrecoverable on retry.
+              # Tag it so `perform/1` can stop instead of re-running the job.
+              {:error, reason} -> {:error, {:unprocessable, reason}}
+            end
 
           {:error, _} = error ->
             error

@@ -172,24 +172,30 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
                ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 3, 3))
     end
 
-    test "marks build as failed when parse errors on final attempt", %{
+    test "cancels and marks build failed immediately when the archive is unparseable", %{
       account: account,
       project: project,
       build: build
     } do
+      # Real error from the Swift xcactivitylog parser on a corrupt/truncated
+      # archive (see Sentry TUIST-10H). The same bytes will never parse, so
+      # retrying just burns processor slots and floods error tracking.
+      parse_error = "The line lications/Xcode.app/C doesn't seem like a valid SLF line"
+
       expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
 
       expect(BuildProcessor, :process_build, fn _path, _ ->
-        {:error, "NIF not loaded"}
+        {:error, parse_error}
       end)
 
+      # Marked failed on the very first attempt, not after exhausting retries.
       expect(Tuist.Builds, :create_build, fn attrs ->
         assert attrs.status == "failed_processing"
         {:ok, %{id: build.id}}
       end)
 
-      assert {:error, "NIF not loaded"} =
-               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 3, 3))
+      assert {:cancel, ^parse_error} =
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 1, 5))
     end
 
     test "marks build as failed when project is not found on final attempt", %{
@@ -263,7 +269,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       expect(Tuist.Builds, :create_build, fn _attrs -> {:ok, %{id: build.id}} end)
       reject(&Tuist.VCS.enqueue_vcs_pull_request_comment/1)
 
-      assert {:error, _} =
+      assert {:cancel, "boom"} =
                ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 3, 3))
     end
   end
