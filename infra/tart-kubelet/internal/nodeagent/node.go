@@ -149,7 +149,22 @@ func (m *Maintainer) refresh(ctx context.Context) error {
 	if err := m.Client.Get(ctx, types.NamespacedName{Name: m.NodeName}, node); err != nil {
 		return err
 	}
+
+	// configureNode edits labels (metadata) and taints (spec); the
+	// Status().Update below writes only the status subresource and the API
+	// server drops any metadata/spec it carries. Static labels survive
+	// because they're set at Create, but the dynamic golden-base labels
+	// first appear here on a heartbeat — without a separate metadata write
+	// they'd never reach etcd, so no Node would carry the label and the
+	// controller's golden node-affinity would silently match nothing. Patch
+	// metadata/spec first (merge patch persists label deletions as null),
+	// then update status.
+	base := node.DeepCopy()
 	m.configureNode(node, m.evalDynamicLabels(ctx))
+	if err := m.Client.Patch(ctx, node, client.MergeFrom(base)); err != nil {
+		return err
+	}
+
 	m.applyDiskPressure(ctx, node)
 	for i, c := range node.Status.Conditions {
 		if c.Type == corev1.NodeReady {

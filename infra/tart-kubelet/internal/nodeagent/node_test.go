@@ -71,6 +71,52 @@ func TestEnsureNodeDoesNotOverwriteExistingProviderID(t *testing.T) {
 	}
 }
 
+// Regression guard for the golden-affinity no-op: refresh() must persist
+// dynamic labels to the API server, not just mutate the in-memory Node.
+// Status().Update writes only the status subresource (the fake client honors
+// that split via WithStatusSubresource), so without the metadata patch the
+// `tuist.dev/golden-*` labels never reach etcd and the controller's
+// node-affinity matches nothing.
+func TestRefreshPersistsDynamicLabels(t *testing.T) {
+	const goldenKey = "tuist.dev/golden-9c8af651fdf30b10"
+	c := newNodeFakeClient(&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "mac-1"}})
+	m := &Maintainer{
+		Client:    c,
+		NodeName:  "mac-1",
+		Heartbeat: time.Second,
+		DynamicLabels: func(context.Context) (map[string]string, error) {
+			return map[string]string{goldenKey: "true"}, nil
+		},
+	}
+
+	if err := m.refresh(context.Background()); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+
+	persisted := &corev1.Node{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "mac-1"}, persisted); err != nil {
+		t.Fatalf("get node: %v", err)
+	}
+	if got := persisted.Labels[goldenKey]; got != "true" {
+		t.Fatalf("golden label not persisted to the API server: labels=%v", persisted.Labels)
+	}
+
+	// A later heartbeat that no longer advertises the golden must prune it
+	// from the persisted Node (merge patch deletes via null), not just in
+	// memory.
+	m.DynamicLabels = func(context.Context) (map[string]string, error) { return nil, nil }
+	if err := m.refresh(context.Background()); err != nil {
+		t.Fatalf("refresh (prune): %v", err)
+	}
+	persisted = &corev1.Node{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "mac-1"}, persisted); err != nil {
+		t.Fatalf("get node: %v", err)
+	}
+	if _, present := persisted.Labels[goldenKey]; present {
+		t.Fatalf("stale golden label not pruned from persisted node: labels=%v", persisted.Labels)
+	}
+}
+
 func conditionByType(conds []corev1.NodeCondition, t corev1.NodeConditionType) (corev1.NodeCondition, bool) {
 	for _, c := range conds {
 		if c.Type == t {
