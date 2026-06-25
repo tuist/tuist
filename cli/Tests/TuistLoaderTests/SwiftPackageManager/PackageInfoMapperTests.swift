@@ -7173,6 +7173,50 @@ struct PackageInfoMapperTests {
 
     @Test(
         .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_addsSwiftBackDeploymentLibrariesToRunpathSearchPaths() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/Library"))
+        )
+
+        let backDeploymentProvider = MockSwiftBackDeploymentLibrariesProviding()
+        given(backDeploymentProvider)
+            .runpathSearchPaths()
+            .willReturn(["$(TOOLCHAIN_DIR)/usr/lib/swift-test/$(PLATFORM_NAME)"])
+
+        let project = try await SwiftBackDeploymentLibrariesProvider.$current.withValue(backDeploymentProvider) {
+            try await subject.map(
+                package: "Package",
+                basePath: basePath,
+                packageInfos: [
+                    "Package": .test(
+                        name: "Package",
+                        products: [
+                            .init(name: "Library", type: .library(.automatic), targets: ["Library"]),
+                        ],
+                        targets: [
+                            .test(name: "Library"),
+                        ],
+                        platforms: [.ios],
+                        cLanguageStandard: nil,
+                        cxxLanguageStandard: nil,
+                        swiftLanguageVersions: nil
+                    ),
+                ]
+            )
+        }
+
+        let mappedTarget = try #require(project?.targets.first(where: { $0.name == "Library" }))
+        #expect(
+            mappedTarget.settings?.base["LD_RUNPATH_SEARCH_PATHS"] == .array([
+                "$(inherited)",
+                "$(TOOLCHAIN_DIR)/usr/lib/swift-test/$(PLATFORM_NAME)",
+            ])
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
     ) func map_whenWrapperTargetSharesProductNameWithBinaryXcframework_suffixesProductName() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(
@@ -7435,7 +7479,6 @@ struct PackageInfoMapperTests {
         #expect(
             target.settings?.base["LD_RUNPATH_SEARCH_PATHS"] == .array([
                 "$(inherited)",
-                "$(TOOLCHAIN_DIR)/usr/lib/swift-6.2/$(PLATFORM_NAME)",
                 prebuiltPath.appending(component: "lib").pathString,
             ])
         )
@@ -7576,7 +7619,6 @@ struct PackageInfoMapperTests {
         #expect(
             target.settings?.base["LD_RUNPATH_SEARCH_PATHS"] == .array([
                 "$(inherited)",
-                "$(TOOLCHAIN_DIR)/usr/lib/swift-6.2/$(PLATFORM_NAME)",
                 prebuiltPath.appending(component: "lib").pathString,
             ])
         )

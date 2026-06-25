@@ -12,26 +12,25 @@ public protocol SwiftBackDeploymentLibrariesProviding {
 
 /// These compatibility dylibs live in a Swift-version-specific toolchain directory
 /// (`usr/lib/swift-6.2`, and `swift-6.3`, ... in future toolchains), so the segment is discovered
-/// from the active toolchain rather than hardcoded. The currently shipping `swift-6.2` segment is
-/// always included as a safety net so behavior is stable when discovery finds nothing.
+/// from the active toolchain rather than hardcoded to any Swift version.
 public struct SwiftBackDeploymentLibrariesProvider: SwiftBackDeploymentLibrariesProviding {
     @TaskLocal public static var current: SwiftBackDeploymentLibrariesProviding =
         SwiftBackDeploymentLibrariesProvider(commandRunner: CommandRunner())
 
-    private static let knownSegment = "swift-6.2"
     private static let compatibilitySpanDylib = "libswiftCompatibilitySpan.dylib"
 
     private let cachedRunpathSearchPaths: AsyncThrowableCaching<[String]>
 
     init(commandRunner: CommandRunning) {
         cachedRunpathSearchPaths = AsyncThrowableCaching<[String]> {
-            var segments: Set<String> = [SwiftBackDeploymentLibrariesProvider.knownSegment]
-            if let libraryDirectory = try? await SwiftBackDeploymentLibrariesProvider
+            guard let libraryDirectory = try? await SwiftBackDeploymentLibrariesProvider
                 .toolchainLibraryDirectory(commandRunner: commandRunner)
-            {
-                segments.formUnion(SwiftBackDeploymentLibrariesProvider.compatibilitySpanSegments(in: libraryDirectory))
+            else {
+                return []
             }
-            return segments.sorted().map { "$(TOOLCHAIN_DIR)/usr/lib/\($0)/$(PLATFORM_NAME)" }
+            return SwiftBackDeploymentLibrariesProvider.compatibilitySpanSegments(in: libraryDirectory)
+                .sorted()
+                .map { "$(TOOLCHAIN_DIR)/usr/lib/\($0)/$(PLATFORM_NAME)" }
         }
     }
 

@@ -1,11 +1,10 @@
 import Testing
 import TuistSupport
 
-/// Returns a fixed `swift-6.2` run path so SPM target expectations stay deterministic across toolchains.
+/// Returns no run paths so SPM target expectations don't depend on the test machine's toolchain.
+/// Tests that exercise the run-path behavior stub their own provider with a value.
 private struct StubbedSwiftBackDeploymentLibrariesProvider: SwiftBackDeploymentLibrariesProviding {
-    func runpathSearchPaths() async throws -> [String] {
-        ["$(TOOLCHAIN_DIR)/usr/lib/swift-6.2/$(PLATFORM_NAME)"]
-    }
+    func runpathSearchPaths() async throws -> [String] { [] }
 }
 
 public struct SwiftBackDeploymentLibrariesProviderTestingTrait: TestTrait, SuiteTrait, TestScoping {
@@ -21,7 +20,7 @@ public struct SwiftBackDeploymentLibrariesProviderTestingTrait: TestTrait, Suite
 }
 
 extension Trait where Self == SwiftBackDeploymentLibrariesProviderTestingTrait {
-    /// When applied to a test, a stubbed back-deployment libraries provider returning a fixed
-    /// `swift-6.2` run path is used so expectations stay deterministic across toolchains.
+    /// When applied to a test, a stubbed back-deployment libraries provider returning no run paths
+    /// is used so SPM target expectations don't depend on the test machine's toolchain.
     public static var withMockedSwiftBackDeploymentLibrariesProvider: Self { Self() }
 }

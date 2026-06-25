@@ -784,13 +784,6 @@ public struct DependenciesGraph: Equatable, Codable { // swiftlint:disable:this 
         ) -> Settings {
             var settingsDictionary = customSettings
 
-            // Mirrors PackageInfoMapper: every SPM product exposes the toolchain's back-deployment
-            // compatibility dylib directory so @rpath/libswiftCompatibilitySpan.dylib & friends resolve.
-            if settingsDictionary["LD_RUNPATH_SEARCH_PATHS"] == nil {
-                settingsDictionary["LD_RUNPATH_SEARCH_PATHS"] =
-                    .array(["$(inherited)", "$(TOOLCHAIN_DIR)/usr/lib/swift-6.2/$(PLATFORM_NAME)"])
-            }
-
             if let moduleMap {
                 settingsDictionary["MODULEMAP_FILE"] = .string(moduleMap)
             }
