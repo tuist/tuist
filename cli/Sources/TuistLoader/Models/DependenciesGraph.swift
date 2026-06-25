@@ -788,7 +788,7 @@ public struct DependenciesGraph: Equatable, Codable { // swiftlint:disable:this 
             // compatibility dylib directory so @rpath/libswiftCompatibilitySpan.dylib & friends resolve.
             if settingsDictionary["LD_RUNPATH_SEARCH_PATHS"] == nil {
                 settingsDictionary["LD_RUNPATH_SEARCH_PATHS"] =
-                    .array(["$(inherited)"] + SwiftBackDeploymentLibraries.runpathSearchPaths)
+                    .array(["$(inherited)", "$(TOOLCHAIN_DIR)/usr/lib/swift-6.2/$(PLATFORM_NAME)"])
             }
 
             if let moduleMap {
