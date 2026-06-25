@@ -28,8 +28,10 @@ kube=(kubectl)
 
 # sudo-password: the login password the install sets, which the self-join uses
 # once to establish NOPASSWD sudo. 14-char alphanumeric (the Dedibox install API
-# caps passwords at 15 and rejects symbols).
-sudopw="$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 14)"
+# caps passwords at 15 and rejects symbols). `head -c 256` reads a fixed amount
+# first so nothing downstream closes the pipe early (a SIGPIPE that `set -o
+# pipefail` would otherwise turn into an abort).
+sudopw="$(head -c 256 /dev/urandom | LC_ALL=C tr -dc 'A-Za-z0-9' | cut -c1-14)"
 
 if "${kube[@]}" -n "$ns" get secret "${fleet}-ssh" >/dev/null 2>&1; then
   if "${kube[@]}" -n "$ns" get secret "${fleet}-ssh" -o jsonpath='{.data.sudo-password}' 2>/dev/null | grep -q .; then
