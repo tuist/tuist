@@ -10,11 +10,6 @@
     sops = "3.9.3"
     age = "1.2.1"
     protoc = "32.1"
-    # protoc plugins for the vendored REAPI proto (mise/tasks/cli/generate-reapi-proto.sh):
-    # protoc-gen-swift (messages) and protoc-gen-grpc-swift-2 (gRPC stubs). Versions match the
-    # SwiftProtobuf/grpc-swift-protobuf versions resolved in Package.swift.
-    "spm:apple/swift-protobuf" = "1.35.1"
-    "spm:grpc/grpc-swift-protobuf" = "2.1.1"
     "1password-cli" = "2.32.0"
     bats = "1.11.1"
     rclone = "1.73.3"
