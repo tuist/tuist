@@ -292,6 +292,15 @@ defmodule TuistWeb.MembersLive do
                   <.dropdown id={"invite-actions-#{invitation.id}"} icon_only>
                     <:icon><.dots_vertical /></:icon>
                     <.dropdown_item
+                      id={"copy-invite-link-#{invitation.id}"}
+                      label={dgettext("dashboard_account", "Copy invite link")}
+                      value="copy_invite_link"
+                      phx-hook="Clipboard"
+                      data-clipboard-value={url(~p"/auth/invitations/#{invitation.token}")}
+                    >
+                      <:left_icon><.copy /></:left_icon>
+                    </.dropdown_item>
+                    <.dropdown_item
                       label={dgettext("dashboard_account", "Revoke invite")}
                       value="revoke"
                       on_click="revoke_invite"

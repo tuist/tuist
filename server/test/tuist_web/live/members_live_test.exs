@@ -56,6 +56,38 @@ defmodule TuistWeb.MembersLiveTest do
     end
   end
 
+  describe "invitations table" do
+    test "surfaces a copy-able invite link so members can be onboarded without email delivery", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      account: account
+    } do
+      # Given: a pending invitation to the current organization
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization(
+          "invitee@example.com",
+          %{
+            inviter: user,
+            to: organization,
+            url: &"/auth/invitations/#{&1}"
+          }
+        )
+
+      # When: visiting the members page and switching to the invitations tab
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
+
+      html =
+        lv
+        |> element("[phx-value-tab='invitations']")
+        |> render_click()
+
+      # Then: the invitation row exposes the acceptance link for the clipboard action
+      assert html =~ "copy-invite-link-#{invitation.id}"
+      assert html =~ "/auth/invitations/#{invitation.token}"
+    end
+  end
+
   describe "members table" do
     test "renders members table with admin and regular users", %{
       conn: conn,

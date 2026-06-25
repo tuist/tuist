@@ -334,7 +334,7 @@ msgstr ""
 msgid "Email"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:350
+#: lib/tuist_web/live/members_live.ex:359
 #, elixir-autogen, elixir-format
 msgid "Email address"
 msgstr ""
@@ -447,17 +447,17 @@ msgstr ""
 msgid "Invitations"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:339
+#: lib/tuist_web/live/members_live.ex:348
 #, elixir-autogen, elixir-format
 msgid "Invite member"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:343
+#: lib/tuist_web/live/members_live.ex:352
 #, elixir-autogen, elixir-format
 msgid "Invite members"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:320
+#: lib/tuist_web/live/members_live.ex:329
 #, elixir-autogen, elixir-format
 msgid "Invite members to your organization"
 msgstr ""
@@ -514,7 +514,7 @@ msgstr ""
 msgid "No credit card required"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:317
+#: lib/tuist_web/live/members_live.ex:326
 #, elixir-autogen, elixir-format
 msgid "No invitations created"
 msgstr ""
@@ -682,7 +682,7 @@ msgstr ""
 msgid "Reset your password"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:295
+#: lib/tuist_web/live/members_live.ex:304
 #, elixir-autogen, elixir-format
 msgid "Revoke invite"
 msgstr ""
@@ -780,7 +780,7 @@ msgid "Total"
 msgstr ""
 
 #: lib/tuist_web/live/members_live.ex:269
-#: lib/tuist_web/live/members_live.ex:309
+#: lib/tuist_web/live/members_live.ex:318
 #, elixir-autogen, elixir-format
 msgid "Try changing your search term"
 msgstr ""
@@ -1759,7 +1759,7 @@ msgstr ""
 msgid "You were added to the %{organization_name} Tuist organization"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:308
+#: lib/tuist_web/live/members_live.ex:317
 #, elixir-autogen, elixir-format
 msgid "No invitations found"
 msgstr ""
@@ -1977,4 +1977,9 @@ msgstr ""
 #: lib/tuist_web/live/cache_live.ex:796
 #, elixir-autogen, elixir-format
 msgid "Revoke %{name}? Self-hosted nodes using it will stop authenticating."
+msgstr ""
+
+#: lib/tuist_web/live/members_live.ex:296
+#, elixir-autogen, elixir-format
+msgid "Copy invite link"
 msgstr ""
