@@ -547,6 +547,14 @@ url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.exe"
 [tools.sops."platforms.windows-x64".provenance.slsa]
 url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.intoto.jsonl"
 
+[[tools."spm:apple/swift-protobuf"]]
+version = "1.35.1"
+backend = "spm:apple/swift-protobuf"
+
+[[tools."spm:grpc/grpc-swift-protobuf"]]
+version = "2.1.1"
+backend = "spm:grpc/grpc-swift-protobuf"
+
 [[tools.swiftformat]]
 version = "0.58.7"
 backend = "asdf:https://github.com/mise-plugins/mise-swiftformat.git"
