@@ -49,7 +49,7 @@ func main() {
 	case "dedibox":
 		err = prepDedibox(ctx, *fleet, *pubKey, *server, *zone, *osLabel, firstNonEmpty(*user, "tuist"), *hostname)
 	case "ovh":
-		err = prepOVH(ctx, *fleet, *pubKey, *server, *osLabel, *hostname)
+		err = prepOVH(ctx, *pubKey, *server, *osLabel, *hostname)
 	default:
 		err = fmt.Errorf("unknown provider %q (want dedibox|ovh)", *provider)
 	}
@@ -98,13 +98,10 @@ func prepDedibox(ctx context.Context, fleet, pubKey, server, zone, osLabel, user
 	})
 }
 
-func prepOVH(ctx context.Context, fleet, pubKey, service, osLabel, hostname string) error {
+func prepOVH(ctx context.Context, pubKey, service, osLabel, hostname string) error {
 	client, err := ovh.NewClientFromEnv()
 	if err != nil {
 		return err
-	}
-	if err := client.EnsureSSHKey(ctx, fleet, pubKey); err != nil {
-		return fmt.Errorf("register fleet key: %w", err)
 	}
 	template, err := client.ResolveTemplate(ctx, service, osLabel)
 	if err != nil {
@@ -113,7 +110,7 @@ func prepOVH(ctx context.Context, fleet, pubKey, service, osLabel, hostname stri
 	return client.StartInstall(ctx, service, ovh.InstallParams{
 		TemplateName: template,
 		Hostname:     hostname,
-		SSHKeyName:   fleet,
+		SSHKey:       pubKey,
 	})
 }
 

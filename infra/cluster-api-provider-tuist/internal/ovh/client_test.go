@@ -172,6 +172,29 @@ func TestEnsureSSHKeyIdempotent(t *testing.T) {
 	}
 }
 
+func TestStartInstallPostsReinstall(t *testing.T) {
+	api := &fakeAPI{}
+	c := &Client{API: api}
+	if err := c.StartInstall(context.Background(), "srv", InstallParams{
+		TemplateName: "ubuntu2404-server_64",
+		Hostname:     "host1",
+		SSHKey:       "ssh-ed25519 AAAA...",
+	}); err != nil {
+		t.Fatalf("StartInstall: %v", err)
+	}
+	if len(api.posts) != 1 || api.posts[0].url != "/dedicated/server/srv/reinstall" {
+		t.Fatalf("expected one POST to /dedicated/server/srv/reinstall, got %+v", api.posts)
+	}
+	body, ok := api.posts[0].body.(map[string]any)
+	if !ok || body["operatingSystem"] != "ubuntu2404-server_64" {
+		t.Fatalf("operatingSystem not set in v2 reinstall body: %+v", api.posts[0].body)
+	}
+	cust, ok := body["customizations"].(map[string]any)
+	if !ok || cust["hostname"] != "host1" || cust["sshKey"] != "ssh-ed25519 AAAA..." {
+		t.Fatalf("customizations not set: %+v", body["customizations"])
+	}
+}
+
 func TestIsNotFound(t *testing.T) {
 	if !IsNotFound(&ovh.APIError{Code: 404}) {
 		t.Fatal("IsNotFound(404) = false, want true")

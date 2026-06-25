@@ -334,8 +334,10 @@ dediboxFleet:
 # pre-ordered OVH box whose displayName starts with adoptDisplayNamePrefix,
 # drives its OS install, and self-joins it. Box prep is just: order a SYS-1 in
 # BHS and set its displayName to the prefix below. Prereq: the OVH_API 1Password
-# item exists (ovh-ca entity, token scoped to GET /dedicated/server/* + GET
-# /services/* — the latter to read the adoption displayName). Box prep done: the
+# item exists (ovh-us entity for the BHS box, token scoped to GET
+# /dedicated/server/* + POST /dedicated/server/*/reinstall (the prep + release
+# reinstall — the legacy /install/start is gone on US) + GET /services/* to read
+# the adoption displayName). Box prep done: the
 # BHS box is ordered with its displayName set to the prefix below, and the
 # OVH_API secret syncs. (A missing box doesn't hang deploys — helm doesn't wait
 # on the fleet MD and the install is async; the region just can't schedule until

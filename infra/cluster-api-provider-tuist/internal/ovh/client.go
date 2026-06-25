@@ -250,24 +250,32 @@ func (c *Client) ResolveTemplate(ctx context.Context, serviceName, osLabel strin
 
 // InstallParams is the desired OS install for a server.
 type InstallParams struct {
+	// TemplateName is the resolved OVH OS template (e.g. ubuntu2404-server_64),
+	// passed as the v2 reinstall operatingSystem.
 	TemplateName string
 	Hostname     string
-	SSHKeyName   string
+	// SSHKey is the authorized-keys public-key line. The v2 reinstall authorizes
+	// it inline via customizations.sshKey, so no separate /me/sshKey registration
+	// is needed.
+	SSHKey string
 }
 
-// StartInstall kicks off the OS (re)install with the resolved template,
-// hostname, and the bootstrap SSH key authorized. The install runs
-// asynchronously (~20-40 min); poll InstallState before bootstrapping.
+// StartInstall kicks off a clean OS (re)install via OVH's v2 reinstall API. The
+// legacy POST /dedicated/server/{name}/install/start is gone on newer accounts
+// (e.g. OVHcloud US returns 404), so this posts to /reinstall with the
+// operatingSystem + customizations (hostname + inline SSH key). The install runs
+// asynchronously (~20-40 min); poll InstallState before bootstrapping. The API
+// token must grant POST /dedicated/server/*/reinstall.
 func (c *Client) StartInstall(ctx context.Context, serviceName string, p InstallParams) error {
 	body := map[string]any{
-		"templateName": p.TemplateName,
-		"details": map[string]any{
-			"customHostname": p.Hostname,
-			"sshKeyName":     p.SSHKeyName,
+		"operatingSystem": p.TemplateName,
+		"customizations": map[string]any{
+			"hostname": p.Hostname,
+			"sshKey":   p.SSHKey,
 		},
 	}
-	if err := c.API.PostWithContext(ctx, "/dedicated/server/"+serviceName+"/install/start", body, nil); err != nil {
-		return fmt.Errorf("start install on %s: %w", serviceName, err)
+	if err := c.API.PostWithContext(ctx, "/dedicated/server/"+serviceName+"/reinstall", body, nil); err != nil {
+		return fmt.Errorf("start reinstall on %s: %w", serviceName, err)
 	}
 	return nil
 }

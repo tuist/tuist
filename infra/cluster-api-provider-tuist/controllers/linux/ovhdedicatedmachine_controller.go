@@ -381,9 +381,6 @@ func (r *OVHDedicatedMachineReconciler) reinstallToPool(ctx context.Context, mac
 	if signErr != nil {
 		return fmt.Errorf("parse fleet ssh key: %w", signErr)
 	}
-	if err := r.OVHClient.EnsureSSHKey(ctx, fleet, string(ssh.MarshalAuthorizedKey(signer.PublicKey()))); err != nil {
-		return err
-	}
 	template, tmplErr := r.OVHClient.ResolveTemplate(ctx, machine.Status.ServiceName, firstNonEmpty(machine.Spec.OS, "ubuntu_24.04"))
 	if tmplErr != nil {
 		return tmplErr
@@ -391,7 +388,7 @@ func (r *OVHDedicatedMachineReconciler) reinstallToPool(ctx context.Context, mac
 	return r.OVHClient.StartInstall(ctx, machine.Status.ServiceName, ovh.InstallParams{
 		TemplateName: template,
 		Hostname:     machine.Name,
-		SSHKeyName:   fleet,
+		SSHKey:       string(ssh.MarshalAuthorizedKey(signer.PublicKey())),
 	})
 }
 
