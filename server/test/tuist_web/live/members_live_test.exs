@@ -86,6 +86,31 @@ defmodule TuistWeb.MembersLiveTest do
       assert html =~ "copy-invite-link-#{invitation.id}"
       assert html =~ "/auth/invitations/#{invitation.token}"
     end
+
+    test "reveals the invite link in the modal after creating an invitation", %{
+      conn: conn,
+      organization: organization,
+      account: account
+    } do
+      # When: submitting the invite form from the members page
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
+
+      html =
+        lv
+        |> form("#invite-member-form", invitation: %{invitee_email: "newcomer@example.com"})
+        |> render_submit()
+
+      # Then: the modal swaps to a confirmation that surfaces the acceptance link
+      invitation =
+        Accounts.get_invitation_by_invitee_email_and_organization(
+          "newcomer@example.com",
+          organization
+        )
+
+      assert html =~ "Invitation link"
+      assert html =~ "/auth/invitations/#{invitation.token}"
+      assert html =~ "invite-member-form-copy-invitation-link"
+    end
   end
 
   describe "members table" do
