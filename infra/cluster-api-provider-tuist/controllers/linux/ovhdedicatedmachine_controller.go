@@ -224,6 +224,10 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 		if kcErr != nil {
 			return ctrl.Result{}, fmt.Errorf("render kubelet kubeconfig: %w", kcErr)
 		}
+		sudoPassword, pwErr := r.CredentialsManager.FleetSudoPassword(ctx, fleet)
+		if pwErr != nil {
+			return ctrl.Result{}, fmt.Errorf("fleet sudo password: %w", pwErr)
+		}
 		script := renderLinuxBootstrapScript(linuxCloudInitOptions{
 			NodeName:       machine.Name,
 			KubeconfigYAML: kubeconfigYAML,
@@ -232,6 +236,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 			BootstrapUser:  ovhBootstrapUser,
 			ClusterDNS:     discoverClusterDNS(ctx, r.APIReader),
 			InstanceType:   ovhInstanceType,
+			SudoPassword:   sudoPassword,
 		})
 
 		machine.Status.Phase = "Bootstrapping"

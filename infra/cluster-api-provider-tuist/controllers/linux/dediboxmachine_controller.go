@@ -205,6 +205,10 @@ func (r *DediboxMachineReconciler) reconcileNormal(ctx context.Context, machine 
 		if kcErr != nil {
 			return ctrl.Result{}, fmt.Errorf("render kubelet kubeconfig: %w", kcErr)
 		}
+		sudoPassword, pwErr := r.CredentialsManager.FleetSudoPassword(ctx, fleet)
+		if pwErr != nil {
+			return ctrl.Result{}, fmt.Errorf("fleet sudo password: %w", pwErr)
+		}
 		script := renderLinuxBootstrapScript(linuxCloudInitOptions{
 			NodeName:       machine.Name,
 			KubeconfigYAML: kubeconfigYAML,
@@ -213,6 +217,7 @@ func (r *DediboxMachineReconciler) reconcileNormal(ctx context.Context, machine 
 			BootstrapUser:  dediboxBootstrapUser,
 			ClusterDNS:     discoverClusterDNS(ctx, r.APIReader),
 			InstanceType:   dediboxInstanceType,
+			SudoPassword:   sudoPassword,
 		})
 
 		machine.Status.Phase = "Bootstrapping"

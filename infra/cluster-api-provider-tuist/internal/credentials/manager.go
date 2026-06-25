@@ -205,6 +205,50 @@ func (m *Manager) FleetSSHKeyID(ctx context.Context, fleet string) (string, erro
 	return id, nil
 }
 
+// FleetSudoPassword returns the fleet-wide sudo password stored alongside the
+// fleet SSH key, generating + persisting it on first call. The bare-metal install
+// sets the bootstrap user's password to this value, and the self-join uses it
+// once (via `sudo -S`) to drop a NOPASSWD sudoers file before the rest of the
+// bootstrap — so passwordless sudo is established by the self-join itself and
+// survives any reinstall, with no post-install SSH step. Capped to 14 chars to
+// fit the Dedibox install API's alphanumeric password limit.
+func (m *Manager) FleetSudoPassword(ctx context.Context, fleet string) (string, error) {
+	secretName := fleet + sshKeySecretSuffix
+	secret := &corev1.Secret{}
+	if err := m.Client.Get(ctx, types.NamespacedName{Namespace: m.Namespace, Name: secretName}, secret); err != nil {
+		return "", fmt.Errorf("get ssh secret: %w", err)
+	}
+	if pw, ok := secret.Data["sudo-password"]; ok && len(pw) > 0 {
+		return string(pw), nil
+	}
+	pw, err := randomAlphanumeric(14)
+	if err != nil {
+		return "", err
+	}
+	if secret.Data == nil {
+		secret.Data = map[string][]byte{}
+	}
+	secret.Data["sudo-password"] = []byte(pw)
+	if err := m.Client.Update(ctx, secret); err != nil {
+		return "", fmt.Errorf("persist fleet sudo password: %w", err)
+	}
+	return pw, nil
+}
+
+// randomAlphanumeric returns an n-char mixed-case alphanumeric string (no symbols
+// — the Dedibox install API rejects them).
+func randomAlphanumeric(n int) (string, error) {
+	const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("generate password: %w", err)
+	}
+	for i := range b {
+		b[i] = alphabet[int(b[i])%len(alphabet)]
+	}
+	return string(b), nil
+}
+
 func (m *Manager) generateSSHKey(ctx context.Context, fleet, secretName string) ([]byte, error) {
 	pubKey, privKey, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {

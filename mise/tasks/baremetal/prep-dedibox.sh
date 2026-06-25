@@ -31,13 +31,13 @@ kube=(kubectl)
 pubkey="$("${kube[@]}" -n "$ns" get secret "${fleet}-ssh" -o jsonpath='{.data.id_ed25519\.pub}' 2>/dev/null | base64 -d || true)"
 [ -z "$pubkey" ] && { echo "no id_ed25519.pub in secret ${fleet}-ssh (-n $ns); is the fleet deployed and the key minted?" >&2; exit 1; }
 
-# The private key is needed to SSH in after install and set NOPASSWD sudo.
-keydir="$(mktemp -d)"; trap 'rm -rf "$keydir"' EXIT
-"${kube[@]}" -n "$ns" get secret "${fleet}-ssh" -o jsonpath='{.data.id_ed25519}' | base64 -d > "$keydir/id_ed25519"
-chmod 600 "$keydir/id_ed25519"
+# The install sets this as the login password; the self-join uses it to establish
+# NOPASSWD sudo. Run mint-fleet-key first if it's missing.
+sudopw="$("${kube[@]}" -n "$ns" get secret "${fleet}-ssh" -o jsonpath='{.data.sudo-password}' 2>/dev/null | base64 -d || true)"
+[ -z "$sudopw" ] && { echo "no sudo-password in secret ${fleet}-ssh (-n $ns); run 'mise run baremetal:mint-fleet-key ${fleet}' first" >&2; exit 1; }
 
 export DEDIBOX_SCW_SECRET_KEY="${DEDIBOX_SCW_SECRET_KEY:-$(op read 'op://tuist-k8s-staging/DEDIBOX_SCW_API/secret-key')}"
 export DEDIBOX_SCW_PROJECT_ID="${DEDIBOX_SCW_PROJECT_ID:-$(op read 'op://tuist-k8s-staging/DEDIBOX_SCW_API/project-id')}"
 
 cd "$(git rev-parse --show-toplevel)/infra/cluster-api-provider-tuist"
-go run ./cmd/prep --provider dedibox --fleet "$fleet" --pubkey "$pubkey" --privkey "$keydir/id_ed25519" --server "$server_id"
+go run ./cmd/prep --provider dedibox --fleet "$fleet" --pubkey "$pubkey" --sudo-password "$sudopw" --server "$server_id"

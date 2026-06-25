@@ -104,3 +104,41 @@ func TestRenderLinuxCloudInit_ClusterDNS(t *testing.T) {
 		t.Fatalf("expected clusterDNS list entry in bootstrap script, got:\n%s", script)
 	}
 }
+
+func TestRenderLinuxBootstrapScript_NoPasswdSudo(t *testing.T) {
+	opts := linuxCloudInitOptions{
+		NodeName:       "tuist-tuist-dedibox-fleet-abc",
+		KubeconfigYAML: "apiVersion: v1\nkind: Config\n",
+		K8sMinor:       "v1.34",
+		BootstrapUser:  "tuist",
+		SudoPassword:   "Sw0rdFishABCD",
+	}
+	out := renderLinuxBootstrapScript(opts)
+
+	// The NOPASSWD setup must run BEFORE the first sudo mkdir, escalating once with
+	// the install-set password, so every later sudo is non-interactive.
+	setup := "echo 'Sw0rdFishABCD' | sudo -S sh -c"
+	if !strings.Contains(out, setup) {
+		t.Fatalf("expected NOPASSWD setup line %q, got:\n%s", setup, out)
+	}
+	if !strings.Contains(out, "tuist ALL=(ALL) NOPASSWD:ALL") {
+		t.Fatalf("expected the sudoers content, got:\n%s", out)
+	}
+	if strings.Index(out, setup) > strings.Index(out, "sudo mkdir -p") {
+		t.Fatalf("NOPASSWD setup must precede the first sudo command, got:\n%s", out)
+	}
+	// The password line must be untraced (set +x) so it doesn't leak into the
+	// operator's logged bootstrap output on failure.
+	if !strings.Contains(out, "set +x\necho 'Sw0rdFishABCD'") {
+		t.Fatalf("expected the password echo to be wrapped in set +x, got:\n%s", out)
+	}
+}
+
+func TestRenderLinuxBootstrapScript_NoSudoPasswordIsNoOp(t *testing.T) {
+	// Without a SudoPassword (the Elastic Metal kind, whose install already grants
+	// NOPASSWD), no setup line is emitted and the script is unchanged.
+	withUser := renderLinuxBootstrapScript(linuxCloudInitOptions{NodeName: "n", KubeconfigYAML: "x\n", K8sMinor: "v1.34", BootstrapUser: "ubuntu"})
+	if strings.Contains(withUser, "sudo -S") {
+		t.Fatalf("expected no NOPASSWD setup without a SudoPassword, got:\n%s", withUser)
+	}
+}

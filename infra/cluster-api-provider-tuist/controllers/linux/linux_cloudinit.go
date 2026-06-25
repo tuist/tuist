@@ -56,6 +56,14 @@ type linuxCloudInitOptions struct {
 	// "scaleway" so the Scaleway kinds render byte-identically; the OVH kind
 	// passes "ovh" so a bare-metal OVH node isn't mislabelled as Scaleway.
 	InstanceType string
+
+	// SudoPassword, when set on a non-root BootstrapUser, is the install-set
+	// password the self-join uses once (via `sudo -S`) to drop a NOPASSWD sudoers
+	// file before any other sudo. It makes passwordless sudo self-established by
+	// the bootstrap, so it survives reinstalls with no post-install step. Empty
+	// (the default) assumes the user already has NOPASSWD (root, or a fleet whose
+	// install grants it).
+	SudoPassword string
 }
 
 const (
@@ -339,7 +347,7 @@ func renderLinuxBootstrapScript(opts linuxCloudInitOptions) string {
 
 	return fmt.Sprintf(`#!/usr/bin/env bash
 set -euxo pipefail
-%[1]smkdir -p /var/lib/kubelet /etc/modules-load.d /etc/sysctl.d /etc/systemd/system /opt
+%[8]s%[1]smkdir -p /var/lib/kubelet /etc/modules-load.d /etc/sysctl.d /etc/systemd/system /opt
 %[2]s
 %[1]schmod 0600 /var/lib/kubelet/kubeconfig
 %[3]s
@@ -355,7 +363,25 @@ set -euxo pipefail
 		heredoc("/etc/systemd/system/kubelet.service", kubeletUnitContent(opts.NodeName, taintArg, instanceTypeOrDefault(opts.InstanceType))),
 		heredoc("/var/lib/kubelet/config.yaml", kubeletConfigContent(opts.ClusterDNS)),
 		body,
+		nopasswdSetup(opts.BootstrapUser, opts.SudoPassword),
 	)
+}
+
+// nopasswdSetup renders the one-time passwordless-sudo bootstrap: it uses the
+// install-set sudo password once (via `sudo -S`) to drop a NOPASSWD sudoers file,
+// so every later `sudo` in the script runs non-interactively even on a box whose
+// install left the user on password sudo. `set +x` around it keeps the password
+// out of the traced output the operator logs on a bootstrap failure; `set -e`
+// still aborts the join if the password is wrong. Empty (a no-op) for the
+// root/no-password case, which never sudo's.
+func nopasswdSetup(bootstrapUser, sudoPassword string) string {
+	if sudoPassword == "" || bootstrapUser == "" || bootstrapUser == "root" {
+		return ""
+	}
+	path := fmt.Sprintf("/etc/sudoers.d/90-%s-nopasswd", bootstrapUser)
+	inner := fmt.Sprintf(`printf "%%s\n" "%s ALL=(ALL) NOPASSWD:ALL" > %s && chmod 440 %s`, bootstrapUser, path, path)
+	return fmt.Sprintf("set +x\necho %s | sudo -S sh -c %s\nset -x\n",
+		shellSingleQuote(sudoPassword), shellSingleQuote(inner))
 }
 
 // taintArgFor renders the --register-with-taints argument (with a trailing
