@@ -1,45 +1,52 @@
 import Command
 import Foundation
 import Mockable
+import TuistThreadSafe
 
 @Mockable
-public protocol SwiftBackDeploymentLibrariesProviding {
+public protocol SwiftBackDeploymentLibrariesProviding: Sendable {
     /// `LD_RUNPATH_SEARCH_PATHS` entries exposing the active toolchain's Swift back-deployment
-    /// compatibility dylibs (`libswiftCompatibilitySpan` and friends). Entries are expressed with
-    /// build settings (`$(TOOLCHAIN_DIR)`, `$(PLATFORM_NAME)`) so generated projects stay portable.
+    /// compatibility dylibs (`libswiftCompatibilitySpan` and friends). Entries use build settings
+    /// (`$(TOOLCHAIN_DIR)`, `$(PLATFORM_NAME)`) so generated projects stay portable.
     func runpathSearchPaths() async throws -> [String]
 }
 
-/// These compatibility dylibs live in a Swift-version-specific toolchain directory
-/// (`usr/lib/swift-6.2`, and `swift-6.3`, ... in future toolchains), so the segment is discovered
-/// from the active toolchain rather than hardcoded to any Swift version.
-public struct SwiftBackDeploymentLibrariesProvider: SwiftBackDeploymentLibrariesProviding {
-    @TaskLocal public static var current: SwiftBackDeploymentLibrariesProviding =
-        SwiftBackDeploymentLibrariesProvider(commandRunner: CommandRunner())
+/// The directory holding these dylibs is Swift-version specific (`usr/lib/swift-6.2`, and
+/// `swift-6.3`, ... in future toolchains), so it is discovered from the active toolchain rather
+/// than hardcoded to any Swift version.
+public final class SwiftBackDeploymentLibrariesProvider: SwiftBackDeploymentLibrariesProviding, @unchecked Sendable {
+    @TaskLocal public static var current: SwiftBackDeploymentLibrariesProviding = SwiftBackDeploymentLibrariesProvider()
 
     private static let compatibilitySpanDylib = "libswiftCompatibilitySpan.dylib"
 
-    private let cachedRunpathSearchPaths: AsyncThrowableCaching<[String]>
+    private let commandRunner: CommandRunning
+    private let cachedRunpathSearchPaths: TuistThreadSafe.ThreadSafe<[String]?> = .init(nil)
 
-    init(commandRunner: CommandRunning) {
-        cachedRunpathSearchPaths = AsyncThrowableCaching<[String]> {
-            guard let libraryDirectory = try? await SwiftBackDeploymentLibrariesProvider
-                .toolchainLibraryDirectory(commandRunner: commandRunner)
-            else {
-                return []
-            }
-            return SwiftBackDeploymentLibrariesProvider.compatibilitySpanSegments(in: libraryDirectory)
-                .sorted()
-                .map { "$(TOOLCHAIN_DIR)/usr/lib/\($0)/$(PLATFORM_NAME)" }
-        }
+    public init(commandRunner: CommandRunning = CommandRunner()) {
+        self.commandRunner = commandRunner
     }
 
     public func runpathSearchPaths() async throws -> [String] {
-        try await cachedRunpathSearchPaths.value()
+        if let cachedRunpathSearchPaths = cachedRunpathSearchPaths.value {
+            return cachedRunpathSearchPaths
+        }
+        let value = await resolveRunpathSearchPaths()
+        cachedRunpathSearchPaths.mutate { $0 = value }
+        return value
     }
 
-    private static func toolchainLibraryDirectory(commandRunner: CommandRunning) async throws -> String {
-        let swiftcPath = try await commandRunner.capture(arguments: ["/usr/bin/xcrun", "--find", "swiftc"])
+    private func resolveRunpathSearchPaths() async -> [String] {
+        guard let libraryDirectory = try? await toolchainLibraryDirectory() else {
+            return []
+        }
+        return Self.compatibilitySpanSegments(in: libraryDirectory)
+            .sorted()
+            .map { "$(TOOLCHAIN_DIR)/usr/lib/\($0)/$(PLATFORM_NAME)" }
+    }
+
+    private func toolchainLibraryDirectory() async throws -> String {
+        let swiftcPath = try await commandRunner
+            .capture(arguments: ["/usr/bin/xcrun", "--find", "swiftc"])
             .trimmingCharacters(in: .whitespacesAndNewlines)
         // <toolchain>/usr/bin/swiftc -> <toolchain>/usr/lib
         let usrBinDirectory = (swiftcPath as NSString).deletingLastPathComponent
@@ -47,7 +54,6 @@ public struct SwiftBackDeploymentLibrariesProvider: SwiftBackDeploymentLibraries
         return (usrDirectory as NSString).appendingPathComponent("lib")
     }
 
-    /// `swift-*` directories that actually ship the compatibility-span dylib for at least one platform.
     private static func compatibilitySpanSegments(in libraryDirectory: String) -> [String] {
         let entries = (try? FileManager.default.contentsOfDirectory(atPath: libraryDirectory)) ?? []
         return entries.filter { entry in
@@ -66,32 +72,10 @@ public struct SwiftBackDeploymentLibrariesProvider: SwiftBackDeploymentLibraries
     }
 }
 
-private actor AsyncThrowableCaching<T: Sendable> {
-    private var cachedValue: T?
-    private var inFlightTask: Task<T, Error>?
-    private let builder: @Sendable () async throws -> T
-
-    init(_ builder: @Sendable @escaping () async throws -> T) {
-        self.builder = builder
-    }
-
-    func value() async throws -> T {
-        if let cachedValue {
-            return cachedValue
-        }
-        if let inFlightTask {
-            return try await inFlightTask.value
-        }
-        let task = Task { try await builder() }
-        inFlightTask = task
-        do {
-            let realizedValue = try await task.value
-            cachedValue = realizedValue
-            inFlightTask = nil
-            return realizedValue
-        } catch {
-            inFlightTask = nil
-            throw error
+#if DEBUG
+    extension SwiftBackDeploymentLibrariesProvider {
+        public static var mocked: MockSwiftBackDeploymentLibrariesProviding? {
+            current as? MockSwiftBackDeploymentLibrariesProviding
         }
     }
-}
+#endif

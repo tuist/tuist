@@ -23,6 +23,10 @@ struct PackageInfoMapperTests {
         given(swiftVersionProviderMock)
             .swiftVersion()
             .willReturn("5.9")
+        let swiftBackDeploymentLibrariesProviderMock = try #require(SwiftBackDeploymentLibrariesProvider.mocked)
+        given(swiftBackDeploymentLibrariesProviderMock)
+            .runpathSearchPaths()
+            .willReturn([])
         subject = PackageInfoMapper()
     }
 
