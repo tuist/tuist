@@ -83,7 +83,7 @@ public struct XcodeProjWriter: XcodeProjWriting {
 
         // XcodeProj can manage writing of shared schemes, we have to manually manage the user schemes
         let project = enrichingXcodeProjWithSharedSchemes(descriptor: project)
-        try writeSkippingUnchangedPBXProj(project.xcodeProj, at: project.xcodeprojPath)
+        try writePBXProj(project.xcodeProj, at: project.xcodeprojPath)
 
         // Write user schemes only
         try await writeSchemes(
@@ -103,17 +103,16 @@ public struct XcodeProjWriter: XcodeProjWriting {
         try await sideEffectDescriptorExecutor.execute(sideEffects: project.sideEffectDescriptors)
     }
 
-    /// Writes the `.xcodeproj`, but skips rewriting `project.pbxproj` when the freshly serialized
-    /// bytes are identical to what's already on disk. Tuist's generation is byte-deterministic for an
-    /// unchanged input (PBX references are stable hashes of identity and output is sorted), so an
-    /// unchanged regeneration produces identical bytes. Leaving the file untouched preserves its
-    /// modification time, which avoids invalidating Xcode's warm incremental-build state on a no-op
-    /// `tuist generate`. On a real structural change the bytes differ and the file is written as before.
+    /// Writes the `.xcodeproj`, mirroring `XcodeProj.write` (workspace → pbxproj → shared data → user
+    /// data).
     ///
-    /// This mirrors `XcodeProj.write` (workspace → pbxproj → shared data → user data) and only adds the
-    /// content guard around the pbxproj. The serialized bytes are computed once and reused for the
-    /// write, so the only added cost over the unconditional path is a single read + compare.
-    private func writeSkippingUnchangedPBXProj(_ xcodeProj: XcodeProj, at xcodeprojPath: AbsolutePath) throws {
+    /// As an implementation detail, `project.pbxproj` is only written when its freshly serialized bytes
+    /// differ from what's already on disk. Tuist's generation is byte-deterministic for an unchanged
+    /// input (PBX references are stable hashes of identity and output is sorted), so an unchanged
+    /// regeneration produces identical bytes; leaving the file untouched preserves its modification time
+    /// and avoids the inode/mtime churn an unconditional rewrite would cause. The serialized bytes are
+    /// computed once and reused for the write, so the only added cost is a single read + compare.
+    private func writePBXProj(_ xcodeProj: XcodeProj, at xcodeprojPath: AbsolutePath) throws {
         let path = xcodeprojPath.path
         let outputSettings = PBXOutputSettings()
         try path.mkpath()
