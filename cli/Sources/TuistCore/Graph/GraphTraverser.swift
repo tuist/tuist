@@ -32,6 +32,12 @@ public class GraphTraverser: GraphTraversing {
         SystemFrameworkMetadataProvider()
     private let targetDirectTargetDependenciesCache: ThreadSafe<[GraphTarget: [GraphTarget]]> =
         ThreadSafe([:])
+    private let transitiveStaticDependenciesCache: ThreadSafe<[GraphDependency: Set<GraphDependency>]> =
+        ThreadSafe([:])
+    private let precompiledDynamicLibrariesAndFrameworksCache: ThreadSafe<[GraphDependency: [GraphDependency]]> =
+        ThreadSafe([:])
+    private let staticXCFrameworksLinkedByDynamicXCFrameworkDependenciesCache: ThreadSafe<[GraphDependency: Set<GraphDependency>]> =
+        ThreadSafe([:])
 
     public required init(graph: Graph) {
         self.graph = graph
@@ -693,16 +699,24 @@ public class GraphTraverser: GraphTraversing {
         path: Path.AbsolutePath,
         name: String
     ) -> [GraphDependency] {
+        let key = GraphDependency.target(name: name, path: path)
+        if let cached = precompiledDynamicLibrariesAndFrameworksCache.value[key] {
+            return cached
+        }
         // Precompiled libraries and frameworks
-        let precompiled = graph.dependencies[.target(name: name, path: path), default: []]
+        let precompiled = graph.dependencies[key, default: []]
             .lazy
             .filter(\.isPrecompiled)
 
         let precompiledDependencies = precompiled
             .flatMap { filterDependencies(from: $0) }
 
-        return Set(precompiled + precompiledDependencies)
+        let result = Set(precompiled + precompiledDependencies)
             .filter(\.isPrecompiledDynamicAndLinkable)
+        precompiledDynamicLibrariesAndFrameworksCache.mutate { cache in
+            cache[key] = result
+        }
+        return result
     }
 
     public func staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies(
@@ -729,7 +743,11 @@ public class GraphTraverser: GraphTraversing {
         path: Path.AbsolutePath,
         name: String
     ) -> Set<GraphDependency> {
-        filterDependencies(
+        let key = GraphDependency.target(name: name, path: path)
+        if let cached = staticXCFrameworksLinkedByDynamicXCFrameworkDependenciesCache.value[key] {
+            return cached
+        }
+        let result = filterDependencies(
             from: Set(
                 precompiledDynamicLibrariesAndFrameworks(
                     path: path,
@@ -742,6 +760,10 @@ public class GraphTraverser: GraphTraversing {
             },
             skip: { $0.xcframeworkDependency == nil }
         )
+        staticXCFrameworksLinkedByDynamicXCFrameworkDependenciesCache.mutate { cache in
+            cache[key] = result
+        }
+        return result
     }
 
     public func schemeRunnableTarget(scheme: Scheme) -> GraphTarget? {
@@ -1510,11 +1532,18 @@ public class GraphTraverser: GraphTraversing {
     }
 
     func transitiveStaticDependencies(from dependency: GraphDependency) -> Set<GraphDependency> {
-        filterDependencies(
+        if let cached = transitiveStaticDependenciesCache.value[dependency] {
+            return cached
+        }
+        let result = filterDependencies(
             from: dependency,
             test: isDependencyStatic,
             skip: or(canDependencyLinkStaticProducts, isDependencyPrecompiledMacro)
         )
+        transitiveStaticDependenciesCache.mutate { cache in
+            cache[dependency] = result
+        }
+        return result
     }
 
     func isDependencyExternal(_ dependency: GraphDependency) -> Bool {
