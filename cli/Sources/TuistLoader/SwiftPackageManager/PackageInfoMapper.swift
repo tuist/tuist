@@ -2033,7 +2033,7 @@ extension ProjectDescription.Settings {
         // to dyld; otherwise loading the product fails with "Library not loaded: @rpath/libswiftCompatibilitySpan.dylib".
         settingsDictionary.appendArraySetting(
             key: "LD_RUNPATH_SEARCH_PATHS",
-            values: ["$(TOOLCHAIN_DIR)/usr/lib/swift-6.2/$(PLATFORM_NAME)"],
+            values: SwiftBackDeploymentLibraries.runpathSearchPaths,
             includeInherited: true
         )
 
@@ -2640,5 +2640,61 @@ private func resolveTraits(
             traitConditions.insert(traitName)
         }
         resolveTraits(trait.enabledTraits, packageTraits: packageTraits, into: &traitConditions)
+    }
+}
+
+/// Resolves the directories holding the toolchain's Swift back-deployment compatibility dylibs
+/// (libswiftCompatibilitySpan and friends). Their parent segment is Swift-version specific
+/// (`usr/lib/swift-6.2`, and may become `swift-6.3`, ... in future toolchains), so it is discovered
+/// from the active toolchain on disk rather than hardcoded. The currently shipping `swift-6.2`
+/// segment is always included as a safety net so behavior is stable when discovery is unavailable.
+enum SwiftBackDeploymentLibraries {
+    /// `LD_RUNPATH_SEARCH_PATHS` entries, expressed with build settings so the generated project stays
+    /// portable. Computed once per process.
+    static let runpathSearchPaths: [String] = {
+        var segments: Set<String> = ["swift-6.2"]
+        if let libraryDirectory = toolchainLibraryDirectory {
+            let entries = (try? FileManager.default.contentsOfDirectory(atPath: libraryDirectory)) ?? []
+            for entry in entries
+                where entry.hasPrefix("swift-")
+                && segmentShipsCompatibilitySpan((libraryDirectory as NSString).appendingPathComponent(entry))
+            {
+                segments.insert(entry)
+            }
+        }
+        return segments.sorted().map { "$(TOOLCHAIN_DIR)/usr/lib/\($0)/$(PLATFORM_NAME)" }
+    }()
+
+    private static func segmentShipsCompatibilitySpan(_ segmentPath: String) -> Bool {
+        let platforms = (try? FileManager.default.contentsOfDirectory(atPath: segmentPath)) ?? []
+        return platforms.contains { platform in
+            let candidate = ((segmentPath as NSString).appendingPathComponent(platform) as NSString)
+                .appendingPathComponent("libswiftCompatibilitySpan.dylib")
+            return FileManager.default.fileExists(atPath: candidate)
+        }
+    }
+
+    private static var toolchainLibraryDirectory: String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+        process.arguments = ["--find", "swiftc"]
+        let stdout = Pipe()
+        process.standardOutput = stdout
+        process.standardError = Pipe()
+        do {
+            try process.run()
+        } catch {
+            return nil
+        }
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return nil }
+        let data = stdout.fileHandleForReading.readDataToEndOfFile()
+        guard let swiftcPath = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines), !swiftcPath.isEmpty
+        else { return nil }
+        // <toolchain>/usr/bin/swiftc -> <toolchain>/usr/lib
+        let usrBinDirectory = (swiftcPath as NSString).deletingLastPathComponent
+        let usrDirectory = (usrBinDirectory as NSString).deletingLastPathComponent
+        return (usrDirectory as NSString).appendingPathComponent("lib")
     }
 }

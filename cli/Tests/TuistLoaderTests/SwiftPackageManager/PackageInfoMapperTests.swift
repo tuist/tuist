@@ -7432,11 +7432,11 @@ struct PackageInfoMapperTests {
             ])
         )
         #expect(
-            target.settings?.base["LD_RUNPATH_SEARCH_PATHS"] == .array([
-                "$(inherited)",
-                "$(TOOLCHAIN_DIR)/usr/lib/swift-6.2/$(PLATFORM_NAME)",
-                prebuiltPath.appending(component: "lib").pathString,
-            ])
+            target.settings?.base["LD_RUNPATH_SEARCH_PATHS"] == .array(
+                ["$(inherited)"]
+                    + SwiftBackDeploymentLibraries.runpathSearchPaths
+                    + [prebuiltPath.appending(component: "lib").pathString]
+            )
         )
         #expect(target.settings?.base["OTHER_LDFLAGS"] == .array(["$(inherited)", "-lSwiftSyntax"]))
     }
@@ -7573,11 +7573,11 @@ struct PackageInfoMapperTests {
             ])
         )
         #expect(
-            target.settings?.base["LD_RUNPATH_SEARCH_PATHS"] == .array([
-                "$(inherited)",
-                "$(TOOLCHAIN_DIR)/usr/lib/swift-6.2/$(PLATFORM_NAME)",
-                prebuiltPath.appending(component: "lib").pathString,
-            ])
+            target.settings?.base["LD_RUNPATH_SEARCH_PATHS"] == .array(
+                ["$(inherited)"]
+                    + SwiftBackDeploymentLibraries.runpathSearchPaths
+                    + [prebuiltPath.appending(component: "lib").pathString]
+            )
         )
         #expect(target.settings?.base["OTHER_LDFLAGS"] == .array(["$(inherited)", "-lSwiftSyntax"]))
     }
