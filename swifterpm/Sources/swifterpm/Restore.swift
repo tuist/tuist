@@ -795,7 +795,8 @@ enum WorkspaceRestorer {
                 )
                 try await SystemProcess.run(
                     "/usr/bin/git",
-                    ["-C", destination.path, "fetch", "--depth=1", "origin", revision]
+                    ["-C", destination.path, "fetch", "--depth=1", "origin", revision],
+                    environment: SystemProcess.nonInteractiveGitEnvironment
                 )
                 try await SystemProcess.run(
                     "/usr/bin/git", ["-C", destination.path, "checkout", "--detach", "FETCH_HEAD"]

@@ -83,24 +83,30 @@ enum SourceControlLocations {
 
     static func fetchCandidates(_ location: String) -> [String] {
         var locations = [location]
-        appendGitHubSSHLocation(for: location, to: &locations)
-        appendGitLabSSHLocation(for: location, to: &locations)
+        appendGitHubLocations(for: location, to: &locations)
+        appendGitLabLocations(for: location, to: &locations)
         return locations
     }
 
-    private static func appendGitHubSSHLocation(for location: String, to locations: inout [String]) {
+    // Offer both the HTTPS and SSH forms regardless of how the location was originally
+    // declared. The original is tried first, so SSH-declared dependencies keep using
+    // ssh-agent locally while still falling back to HTTPS in environments (typically CI)
+    // that only have a token-based `git config insteadOf` rewrite or anonymous HTTPS access.
+    private static func appendGitHubLocations(for location: String, to locations: inout [String]) {
         guard let repo = try? GitHubRepo(location: location) else { return }
-        let ssh = "git@github.com:\(repo.owner)/\(repo.repo).git"
-        if !locations.contains(ssh) {
-            locations.append(ssh)
-        }
+        appendUnique("https://github.com/\(repo.owner)/\(repo.repo).git", to: &locations)
+        appendUnique("git@github.com:\(repo.owner)/\(repo.repo).git", to: &locations)
     }
 
-    private static func appendGitLabSSHLocation(for location: String, to locations: inout [String]) {
+    private static func appendGitLabLocations(for location: String, to locations: inout [String]) {
         guard let repo = try? GitLabRepo(location: location) else { return }
-        let ssh = "git@\(repo.host):\(repo.pathWithNamespace).git"
-        if !locations.contains(ssh) {
-            locations.append(ssh)
+        appendUnique("https://\(repo.host)/\(repo.pathWithNamespace).git", to: &locations)
+        appendUnique("git@\(repo.host):\(repo.pathWithNamespace).git", to: &locations)
+    }
+
+    private static func appendUnique(_ location: String, to locations: inout [String]) {
+        if !locations.contains(location) {
+            locations.append(location)
         }
     }
 

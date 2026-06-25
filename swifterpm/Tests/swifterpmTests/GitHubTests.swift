@@ -26,20 +26,34 @@ struct GitHubTests {
     }
 
     @Test
-    func sourceControlFetchLocationsPreferOriginalThenProviderSSH() {
+    func sourceControlFetchLocationsPreferOriginalThenProviderAlternatives() {
         #expect(
             SourceControlLocations.fetchCandidates("https://github.com/tuist/swifterpm") == [
                 "https://github.com/tuist/swifterpm",
+                "https://github.com/tuist/swifterpm.git",
                 "git@github.com:tuist/swifterpm.git",
             ])
         #expect(
             SourceControlLocations.fetchCandidates("git@github.com:tuist/swifterpm.git") == [
                 "git@github.com:tuist/swifterpm.git",
+                "https://github.com/tuist/swifterpm.git",
             ])
         #expect(
             SourceControlLocations.fetchCandidates("https://gitlab.com/tuist/swifterpm") == [
                 "https://gitlab.com/tuist/swifterpm",
+                "https://gitlab.com/tuist/swifterpm.git",
                 "git@gitlab.com:tuist/swifterpm.git",
+            ])
+    }
+
+    @Test
+    func sourceControlFetchLocationsAddHTTPSFallbackForSSHOrigin() {
+        #expect(
+            SourceControlLocations.fetchCandidates(
+                "git@github.com:acme/private-lib") == [
+                "git@github.com:acme/private-lib",
+                "https://github.com/acme/private-lib.git",
+                "git@github.com:acme/private-lib.git",
             ])
     }
 
