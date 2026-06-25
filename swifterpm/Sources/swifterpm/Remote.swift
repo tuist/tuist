@@ -58,7 +58,8 @@ enum RemoteMetadata {
         for candidate in SourceControlLocations.fetchCandidates(location) {
             do {
                 let output = try await SystemProcess.output(
-                    "/usr/bin/git", ["ls-remote", "--tags", candidate])
+                    "/usr/bin/git", ["ls-remote", "--tags", candidate],
+                    environment: SystemProcess.nonInteractiveGitEnvironment)
                 return parseGitRemoteVersions(output)
             } catch {
                 lastError = error
@@ -144,7 +145,8 @@ enum RemoteMetadata {
         for candidate in SourceControlLocations.fetchCandidates(location) {
             do {
                 let output = try await SystemProcess.output(
-                    "/usr/bin/git", ["ls-remote", candidate, name])
+                    "/usr/bin/git", ["ls-remote", candidate, name],
+                    environment: SystemProcess.nonInteractiveGitEnvironment)
                 guard let line = output.split(separator: "\n").first,
                     let revision = line.split(whereSeparator: \.isWhitespace).first
                 else {

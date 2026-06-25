@@ -37,6 +37,13 @@ enum ToolError: Error, CustomStringConvertible {
 }
 
 enum SystemProcess {
+    // swifterpm invokes git non-interactively: output is captured and fetches run
+    // in parallel, so a built-in credential prompt (git opens /dev/tty directly)
+    // would block invisibly in any environment, not just CI. Force git to fail fast
+    // on a missing credential instead. Credential helpers, ssh-agent, and ~/.netrc
+    // are unaffected, so configured authentication still works.
+    static let nonInteractiveGitEnvironment = ["GIT_TERMINAL_PROMPT": "0"]
+
     struct Result {
         let stdout: Data
         let stderr: Data
