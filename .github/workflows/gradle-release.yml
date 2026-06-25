@@ -52,7 +52,7 @@ jobs:
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - id: check
-        run: mise run release:check gradle
+        run: mise run --skip-tools release:check gradle
 
   release:
     name: Release Gradle Plugin

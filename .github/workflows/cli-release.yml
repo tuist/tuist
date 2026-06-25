@@ -82,7 +82,7 @@ jobs:
             exit 0
           fi
           echo "should_publish=true" >> "$GITHUB_OUTPUT"
-          mise run --no-deps cli:release:channel-version -- canary
+          mise run --no-deps --skip-tools cli:release:channel-version -- canary
 
   build-publish:
     name: Build and publish canary
