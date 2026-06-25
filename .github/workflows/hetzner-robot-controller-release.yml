@@ -55,7 +55,7 @@ jobs:
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - id: check
-        run: mise run release:check hetzner-robot-controller
+        run: mise run --skip-tools release:check hetzner-robot-controller
 
   release:
     name: Release hetzner-robot-controller

@@ -53,7 +53,7 @@ jobs:
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - id: check
-        run: mise run release:check cache
+        run: mise run --skip-tools release:check cache
 
   release:
     name: Release Cache
