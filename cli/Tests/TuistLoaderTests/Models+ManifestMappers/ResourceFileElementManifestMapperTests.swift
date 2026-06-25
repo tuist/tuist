@@ -135,6 +135,42 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         }
     }
 
+    func test_from_when_nib_wrapper_directory_is_kept_as_a_single_resource() async throws {
+        try await withMockedDependencies {
+            // Given
+            let temporaryPath = try temporaryPath()
+            let rootDirectory = temporaryPath
+            let generatorPaths = GeneratorPaths(
+                manifestDirectory: temporaryPath,
+                rootDirectory: rootDirectory
+            )
+
+            // A compiled .nib is a wrapper directory containing keyedobjects.nib and a runtime-versioned variant.
+            let nibWrapper = rootDirectory.appending(components: "Resources", "View.nib")
+            try await fileSystem.makeDirectory(at: nibWrapper)
+            try await fileSystem.touch(nibWrapper.appending(component: "keyedobjects.nib"))
+            try await fileSystem.touch(nibWrapper.appending(component: "keyedobjects-110000.nib"))
+
+            let manifest = ProjectDescription.ResourceFileElement.glob(pattern: "Resources/View.nib")
+
+            // When
+            let model = try await XcodeGraph.ResourceFileElement.from(
+                manifest: manifest,
+                generatorPaths: generatorPaths,
+                fileSystem: fileSystem,
+                includeFiles: { try await XcodeGraph.Target.isResource(path: $0, fileSystem: self.fileSystem) }
+            )
+
+            // Then
+            XCTAssertEqual(
+                model,
+                [
+                    .file(path: nibWrapper, tags: [], inclusionCondition: nil),
+                ]
+            )
+        }
+    }
+
     func test_from_when_files_found_in_opaque_directory() async throws {
         try await withMockedDependencies {
             // Given
