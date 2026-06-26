@@ -1494,17 +1494,15 @@ async fn start_module_upload(
         )
         .await
     {
-        // `already_cached: true` (with a null `upload_id`) is the contract for
-        // "the artifact is already cached, skip the upload" — not a failure. The
-        // explicit flag, plus the metric, lets clients and operators tell a cache
-        // hit apart from a genuine failure instead of inferring it from a null
-        // upload_id, so a write that never lands can't masquerade as success.
+        // A 204 No Content is the contract for "the artifact is already cached,
+        // skip the upload" — not a failure. A distinct status (rather than a 200
+        // with a null `upload_id`) lets clients and operators tell a cache hit
+        // apart from a genuine failure that returns an empty body, so a write
+        // that never lands can't masquerade as success. The metric records the
+        // same distinction for observability.
         Ok(true) => {
             state.metrics.record_multipart_start("already_exists");
-            Json(
-                serde_json::json!({ "upload_id": serde_json::Value::Null, "already_cached": true }),
-            )
-            .into_response()
+            StatusCode::NO_CONTENT.into_response()
         }
         Ok(false) => match state.store.start_multipart_upload(
             &query.namespace.tenant_id,
@@ -1515,8 +1513,7 @@ async fn start_module_upload(
         ) {
             Ok(upload_id) => {
                 state.metrics.record_multipart_start("started");
-                Json(serde_json::json!({ "upload_id": upload_id, "already_cached": false }))
-                    .into_response()
+                Json(serde_json::json!({ "upload_id": upload_id })).into_response()
             }
             Err(error) => {
                 state.metrics.record_multipart_start("start_failed");
@@ -3652,13 +3649,9 @@ mod tests {
             )
             .await
             .expect("start request failed");
+        assert_eq!(start.status(), StatusCode::OK);
         let payload: Value = serde_json::from_str(&response_text(start).await)
             .expect("failed to decode start payload");
-        assert_eq!(
-            payload["already_cached"],
-            Value::Bool(false),
-            "a fresh start should report already_cached=false"
-        );
         let upload_id = payload["upload_id"]
             .as_str()
             .expect("upload id should be present");
@@ -3715,6 +3708,7 @@ mod tests {
         assert_eq!(head.status(), StatusCode::NO_CONTENT);
 
         let get = app
+            .clone()
             .oneshot(
                 Request::builder()
                     .uri("/api/cache/module/module-1?tenant_id=acme&namespace_id=ios&hash=hash-1&name=Module.framework&cache_category=builds")
@@ -3731,6 +3725,21 @@ mod tests {
             Some("17")
         );
         assert_eq!(response_text(get).await, "part-one-part-two");
+
+        // Starting an upload for an already-cached artifact returns 204 No Content
+        // (not a 200 with a null upload id), so a cache hit can't be confused with
+        // a failure that returns an empty body.
+        let restart = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/cache/module/start?tenant_id=acme&namespace_id=ios&hash=hash-1&name=Module.framework&cache_category=builds")
+                    .body(Body::empty())
+                    .expect("failed to build restart request"),
+            )
+            .await
+            .expect("restart request failed");
+        assert_eq!(restart.status(), StatusCode::NO_CONTENT);
     }
 
     #[tokio::test]
