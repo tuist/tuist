@@ -33,6 +33,12 @@ runtime — no service, sudo entry, or auto-login targets it.
   `tart run` returns and tart-kubelet flips the Pod to
   Succeeded — the watcher's GC + warm-pool refill are gated on
   that transition.
+- `/opt/tuist/metrics-poll.sh` — the machine-metrics sampler.
+  `dispatch-poll.sh` forks it into the background right before it
+  starts `./run.sh`, so it samples whole-VM CPU/memory/network/disk
+  (`top`/`vm_stat`/`netstat`/`df`) for the job's duration and POSTs to
+  `…/pods/<pod>/metrics` with the same SA token, dying with the VM when
+  the job ends. Best-effort; never blocks the job.
 - `/Users/runner/Library/LaunchAgents/dev.tuist.runner.plist` —
   the LaunchAgent that auto-runs `inject-env.sh` then
   `dispatch-poll.sh` once runner's user session starts at boot.

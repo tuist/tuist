@@ -4,13 +4,17 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
 
   import TuistTestSupport.Fixtures.AccountsFixtures
 
+  alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners.Claims
   alias Tuist.Runners.JobMetrics
 
-  defp ok_tokenreview_stub do
-    stub(K8sClient, :create_controller_token_review, fn "valid-token" ->
-      {:ok, %{namespace: "tuist", name: "tuist-runners-controller"}}
+  # The runner presents its own per-pod SA token (audience
+  # tuist-runners-dispatch); the SA name equals the Pod name. Stub the
+  # TokenReview to return that principal for `pod_name`.
+  defp runner_token_stub(pod_name) do
+    stub(K8sClient, :create_token_review, fn "valid-token" ->
+      {:ok, %{namespace: Environment.runners_namespace(), name: pod_name, uid: "uid-1"}}
     end)
   end
 
@@ -43,7 +47,7 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
     test "records the batch under the Pod's claimed job and returns 204", %{conn: conn} do
       account = account_fixture()
       claim(account, 33_001, "runner-pod-1")
-      ok_tokenreview_stub()
+      runner_token_stub("runner-pod-1")
 
       conn =
         conn
@@ -61,7 +65,7 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
     test "returns 204 on an empty sample batch", %{conn: conn} do
       account = account_fixture()
       claim(account, 33_002, "runner-pod-2")
-      ok_tokenreview_stub()
+      runner_token_stub("runner-pod-2")
 
       conn =
         conn
@@ -73,7 +77,7 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
     end
 
     test "returns 204 without recording when the Pod holds no live claim", %{conn: conn} do
-      ok_tokenreview_stub()
+      runner_token_stub("unclaimed-pod")
       reject(&JobMetrics.record/3)
 
       conn =
@@ -87,7 +91,7 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
     test "returns 400 when a sample is missing its timestamp", %{conn: conn} do
       account = account_fixture()
       claim(account, 33_003, "runner-pod-3")
-      ok_tokenreview_stub()
+      runner_token_stub("runner-pod-3")
 
       conn =
         conn
@@ -100,7 +104,7 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
     test "returns 400 when samples is not a list", %{conn: conn} do
       account = account_fixture()
       claim(account, 33_004, "runner-pod-4")
-      ok_tokenreview_stub()
+      runner_token_stub("runner-pod-4")
 
       conn =
         conn
@@ -115,9 +119,11 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
       assert json_response(conn, 401)["error"] =~ "bearer"
     end
 
-    test "returns 401 when the principal isn't the runners-controller SA", %{conn: conn} do
-      stub(K8sClient, :create_controller_token_review, fn _ ->
-        {:ok, %{namespace: "other-ns", name: "other-sa"}}
+    test "returns 401 when the token's SA is not this Pod's", %{conn: conn} do
+      # Token authenticates as a different Pod's SA than the one in the
+      # path — a Pod must not be able to write another Pod's metrics.
+      stub(K8sClient, :create_token_review, fn _ ->
+        {:ok, %{namespace: Environment.runners_namespace(), name: "some-other-pod", uid: "uid-2"}}
       end)
 
       conn =
@@ -129,7 +135,7 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
     end
 
     test "returns 503 when kubernetes is unavailable", %{conn: conn} do
-      stub(K8sClient, :create_controller_token_review, fn _ -> {:error, :not_in_cluster} end)
+      stub(K8sClient, :create_token_review, fn _ -> {:error, :not_in_cluster} end)
 
       conn =
         conn

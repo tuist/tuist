@@ -140,6 +140,47 @@ func TestBuild_LinuxScheduling(t *testing.T) {
 	}
 }
 
+func TestBuild_LinuxMetricsSidecar(t *testing.T) {
+	pod := build(t, basePool("linux"))
+	m := initContainerByName(t, pod, "metrics")
+
+	// Native sidecar so it runs alongside the job and kubelet stops it
+	// when the runner exits.
+	if m.RestartPolicy == nil || *m.RestartPolicy != corev1.ContainerRestartPolicyAlways {
+		t.Errorf("metrics sidecar RestartPolicy = %v, want Always", m.RestartPolicy)
+	}
+	if len(m.Command) == 0 || !strings.Contains(m.Command[0], "metrics-sampler.sh") {
+		t.Errorf("metrics command = %v, want metrics-sampler.sh", m.Command)
+	}
+	// Holds the dispatch token (it POSTs authenticated) like the poller,
+	// and reads the JIT emptyDir (to gate on a claim + df the disk).
+	if !hasVolumeMount(m.VolumeMounts, corev1.VolumeMount{Name: "tuist-runner-token", MountPath: "/var/run/secrets/tuist-runner"}) {
+		t.Errorf("metrics sidecar missing tuist-runner-token mount; got %+v", m.VolumeMounts)
+	}
+	if !hasVolumeMount(m.VolumeMounts, corev1.VolumeMount{Name: "tuist-runner-jit", MountPath: jitMountPath}) {
+		t.Errorf("metrics sidecar missing tuist-runner-jit mount; got %+v", m.VolumeMounts)
+	}
+	// Carries the dispatch env (the in-cluster URL is the metrics base)
+	// and the JIT path it waits on before sampling.
+	if got := envValue(m.Env, "TUIST_RUNNER_DISPATCH_URL"); got != "http://internal-dispatch" {
+		t.Errorf("metrics DISPATCH_URL = %q, want http://internal-dispatch", got)
+	}
+	if got := envValue(m.Env, "TUIST_RUNNER_JIT_PATH"); got != jitFilePath {
+		t.Errorf("metrics JIT_PATH = %q, want %q", got, jitFilePath)
+	}
+}
+
+func TestBuild_MacOSHasNoMetricsSidecar(t *testing.T) {
+	// macOS samples in-VM via a script forked from dispatch-poll.sh, not
+	// a sidecar — Build must not add a metrics init container there.
+	pod := build(t, basePool(""))
+	for _, c := range pod.Spec.InitContainers {
+		if c.Name == "metrics" {
+			t.Fatalf("macOS pod should have no metrics init container; got %+v", pod.Spec.InitContainers)
+		}
+	}
+}
+
 func TestBuild_UnknownOSFallsBackToMacOS(t *testing.T) {
 	// A misconfigured OS field should still produce a schedulable
 	// Pod against the macOS fleet rather than fail open.
@@ -235,10 +276,11 @@ func TestBuild_LinuxPodGetsDindSidecar(t *testing.T) {
 	// runner container. Mirrors the ARC pattern.
 	pod := build(t, basePool("linux"))
 
-	// Two init containers: the dind sidecar first (so its startupProbe
-	// gates the rest of the Pod), then the poller.
-	if len(pod.Spec.InitContainers) != 2 {
-		t.Fatalf("InitContainers = %d, want 2 (dind sidecar + poller)", len(pod.Spec.InitContainers))
+	// Three init containers: the dind sidecar first (so its startupProbe
+	// gates the rest of the Pod), then the metrics sidecar, then the
+	// poller.
+	if len(pod.Spec.InitContainers) != 3 {
+		t.Fatalf("InitContainers = %d, want 3 (dind sidecar + metrics sidecar + poller)", len(pod.Spec.InitContainers))
 	}
 	dind := pod.Spec.InitContainers[0]
 	if dind.Name != "dind" {
@@ -402,13 +444,16 @@ func TestBuild_LinuxPodWithoutDindImageSkipsSidecar(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build returned error: %v", err)
 	}
-	// Only the poller init container remains — no dind sidecar.
-	if len(pod.Spec.InitContainers) != 1 {
-		t.Fatalf("InitContainers = %d, want 1 (poller only) when dindImage is empty", len(pod.Spec.InitContainers))
+	// The metrics sidecar + poller remain — but no dind sidecar.
+	if len(pod.Spec.InitContainers) != 2 {
+		t.Fatalf("InitContainers = %d, want 2 (metrics sidecar + poller) when dindImage is empty", len(pod.Spec.InitContainers))
 	}
-	if got := pod.Spec.InitContainers[0].Name; got != "poller" {
-		t.Errorf("sole initContainer Name = %q, want \"poller\"", got)
+	for _, c := range pod.Spec.InitContainers {
+		if c.Name == "dind" {
+			t.Errorf("found a dind init container; want none when dindImage is empty")
+		}
 	}
+	_ = initContainerByName(t, pod, "poller")
 	for _, env := range pod.Spec.Containers[0].Env {
 		if env.Name == "DOCKER_HOST" {
 			t.Errorf("runner should not carry DOCKER_HOST when sidecar is absent; got %q", env.Value)

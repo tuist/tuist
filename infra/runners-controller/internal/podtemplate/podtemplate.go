@@ -321,6 +321,34 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			})
 		}
 
+		// Machine-metrics sampler: a native sidecar (restartPolicy=
+		// Always) that samples the microVM's CPU/memory/network/disk and
+		// POSTs them to the server for the job detail page's Metrics tab.
+		// It holds the dispatch token (trusted code, like the poller —
+		// never the customer container) and reads VM-wide /proc plus the
+		// JIT emptyDir's backing filesystem for disk. It idles until the
+		// poller stages the JIT (i.e. a job is claimed), so warm-standby
+		// Pods don't sample. No startupProbe, so it never blocks the
+		// poller/runner from starting; kubelet stops it when the runner
+		// container exits.
+		metricsEnv := append(append([]corev1.EnvVar{}, dispatchEnv...),
+			corev1.EnvVar{Name: "TUIST_RUNNER_JIT_PATH", Value: jitFilePath},
+		)
+		initContainers = append(initContainers, corev1.Container{
+			Name:          "metrics",
+			Image:         pool.Spec.Image,
+			Command:       []string{"/usr/local/bin/metrics-sampler.sh"},
+			Env:           metricsEnv,
+			RestartPolicy: ptr(corev1.ContainerRestartPolicyAlways),
+			VolumeMounts: []corev1.VolumeMount{
+				{Name: "tuist-runner-token", MountPath: "/var/run/secrets/tuist-runner", ReadOnly: true},
+				{Name: "tuist-runner-jit", MountPath: jitMountPath, ReadOnly: true},
+			},
+			// Root only to read the token mount and run our trusted
+			// sampling script — never customer code.
+			SecurityContext: &corev1.SecurityContext{RunAsUser: ptr(int64(0))},
+		})
+
 		// poller runs after the dind sidecar (when present) so it
 		// waits on the dind startupProbe exactly as the single runner
 		// container did before the split.
