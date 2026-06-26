@@ -293,7 +293,9 @@ defmodule CacheWeb.XcodeModuleControllerTest do
       assert String.length(response["upload_id"]) == 36
     end
 
-    test "returns 204 when the artifact exists and the CLI advertises a new enough version", %{conn: conn} do
+    test "returns 204 when the artifact exists and the CLI advertises a new enough version (incl. canary)", %{
+      conn: conn
+    } do
       account_handle = "test-account"
       project_handle = "test-project"
       hash = "abc123"
@@ -310,7 +312,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
       conn =
         conn
         |> put_req_header("authorization", "Bearer valid-token")
-        |> put_req_header("x-tuist-cli-version", "4.200.6")
+        |> put_req_header("x-tuist-cli-version", "4.202.0-canary.7")
         |> post(
           "/api/cache/module/start?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}"
         )
@@ -361,7 +363,7 @@ defmodule CacheWeb.XcodeModuleControllerTest do
       conn =
         conn
         |> put_req_header("authorization", "Bearer valid-token")
-        |> put_req_header("x-tuist-cli-version", "4.200.5")
+        |> put_req_header("x-tuist-cli-version", "4.201.0-rc.2")
         |> post(
           "/api/cache/module/start?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}"
         )

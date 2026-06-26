@@ -25,10 +25,14 @@ defmodule CacheWeb.XcodeModuleController do
 
   # First CLI version that understands a 204 on `start_multipart` as "already
   # cached, skip the upload". Older clients only know the legacy 200 + null
-  # upload id, so they keep getting that. The header is sent only by clients
-  # that carry this change, so any parseable version here is new enough; the
-  # floor is a conservative lower bound (latest released CLI is 4.200.5).
-  @min_cli_version_for_no_content Version.parse!("4.200.6")
+  # upload id, so they keep getting that. This change lands on `main`, which
+  # currently cuts the 4.202.0 release line (canaries/RCs of the next minor).
+  # The `-0` pre-release sentinel is deliberate: `4.202.0-canary.N` and
+  # `4.202.0-rc.N` sort *below* `4.202.0` in semver, so a plain `4.202.0` floor
+  # would exclude the canaries and RCs that first carry this change. `-0` is the
+  # lowest possible pre-release, so every 4.202.0 build (canary, rc, stable) and
+  # anything newer qualifies, while 4.201.x and earlier do not.
+  @min_cli_version_for_no_content Version.parse!("4.202.0-0")
 
   operation(:download,
     summary: "Download a module cache artifact",
