@@ -246,6 +246,19 @@ public struct SwifterPM: Sendable {
             )
         }
 
+        // `resolveOrLoad` already rejected a `Package.resolved` whose direct
+        // pins violate the root manifest. With the checkouts now materialized we
+        // can extend that to the whole pinned graph (SwiftPM's precomputation
+        // parity), catching transitive constraints the root never names.
+        if request.forceResolvedVersions {
+            try await PackageResolver.validateResolvedGraphSatisfiesManifests(
+                packageDir: package,
+                scratchDir: scratch,
+                resolved: resolved,
+                disableSandbox: request.disableSandbox
+            )
+        }
+
         return SwifterPMResolutionResult(resolved)
     }
 

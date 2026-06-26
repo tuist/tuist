@@ -575,6 +575,18 @@ enum CLIRunner {
                 packageDir: package, scratchDir: scratch, resolved: resolved,
                 disableSandbox: cli.disableSandbox)
         }
+
+        // `resolveOrLoad` rejected direct pins that violate the root manifest;
+        // with the checkouts materialized, extend that to the whole pinned graph
+        // (SwiftPM precomputation parity) so transitive drift fails here too.
+        if readOnly {
+            try await PackageResolver.validateResolvedGraphSatisfiesManifests(
+                packageDir: package,
+                scratchDir: scratch,
+                resolved: resolved,
+                disableSandbox: cli.disableSandbox
+            )
+        }
     }
 
     private static func maybeWritePackageInfoCache(
