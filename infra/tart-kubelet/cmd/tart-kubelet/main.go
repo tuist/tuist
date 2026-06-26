@@ -609,17 +609,26 @@ func recoverState(
 	if err != nil {
 		return err
 	}
-	// Probe each local VM with `tart ip` — that's the only reliable
-	// liveness signal under Tart 2.32 (the on-disk State field stays
-	// "stopped" for backgrounded VMs even when they're running).
-	// Stopped clones (left over from a previous kubelet kill) get
-	// skipped here; createPod will pick them up and start them.
+	// A VM is live if its `tart run` process is still executing. The VM is
+	// Setsid-detached so it survives a kubelet restart, and pgrep is the
+	// canonical liveness signal (see tart.Client.IsRunning) — fast, and
+	// false the instant the VM exits.
+	//
+	// This used to probe each local VM with `tart ip`, which blocks up to
+	// 30s waiting for an IP that a stopped VM never gets. The golden-base
+	// feature then added stopped golden VMs to `tart list`, so a single
+	// golden could burn the whole 30s recovery budget before the
+	// actually-running workload VM was reached — leaving it unbound.
+	// createPod would `tart run` it again, hit "VM is already running",
+	// and loop forever (this wedged the xcresult-processor and blocked a
+	// prod deploy). IsRunning returns false instantly for stopped goldens
+	// and stopped clones, which createPod re-runs as before.
 	live := make(map[string]bool, len(vms))
 	for _, vm := range vms {
 		if vm.Source != "local" {
 			continue
 		}
-		if ip, ipErr := tartClient.IP(ctx, vm.Name); ipErr == nil && ip != "" {
+		if running, rErr := tartClient.IsRunning(ctx, vm.Name); rErr == nil && running {
 			live[vm.Name] = true
 		}
 	}
