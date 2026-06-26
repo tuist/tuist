@@ -60,7 +60,10 @@ mkdir -p $BUILD_DIRECTORY
 build_project_desscription() {
     tuist generate --no-open --no-binary-cache --path $TUIST_DIR
 
-    xcrun xcodebuild -workspace $TUIST_DIR/Tuist.xcworkspace -scheme ProjectDescription -derivedDataPath $DERIVED_DATA_PATH -configuration Release -destination platform=macOS BUILD_LIBRARY_FOR_DISTRIBUTION=YES ARCHS='arm64 x86_64' ONLY_ACTIVE_ARCH=NO clean build
+    # `tuist xcodebuild` carries a single action, so the clean stays a separate
+    # raw invocation; the build is routed through tuist for build insights + caching.
+    xcrun xcodebuild -workspace $TUIST_DIR/Tuist.xcworkspace -scheme ProjectDescription -derivedDataPath $DERIVED_DATA_PATH -configuration Release clean
+    tuist xcodebuild build -workspace $TUIST_DIR/Tuist.xcworkspace -scheme ProjectDescription -derivedDataPath $DERIVED_DATA_PATH -configuration Release -destination platform=macOS BUILD_LIBRARY_FOR_DISTRIBUTION=YES ARCHS='arm64 x86_64' ONLY_ACTIVE_ARCH=NO
 
     rsync -a $DERIVED_DATA_PATH/Build/Products/Release/ProjectDescription.framework $BUILD_DIRECTORY/
     rsync -a $DERIVED_DATA_PATH/Build/Products/Release/ProjectDescription.framework.dSYM $BUILD_DIRECTORY/
@@ -69,7 +72,7 @@ build_project_desscription() {
 build_cli() {
     # arm64
     BINARY_PATH=$DERIVED_DATA_PATH/Build/Products/Release/tuist
-    xcodebuild \
+    tuist xcodebuild build \
         -configuration Release \
         -workspace $XCODE_WORKSPACE_PATH \
         -scheme tuist \
