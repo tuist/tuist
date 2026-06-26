@@ -78,6 +78,14 @@ pub struct Store {
     // Counts segment fsyncs so tests can assert durability is batched across
     // concurrent writers rather than one fsync per write under the global lock.
     segment_fsync_count: Arc<AtomicU64>,
+    // Group-commit durability. Writers reserve a monotonic `pending_seq` while
+    // holding `segment_write_lock` (so their bytes are appended in order), then
+    // a single fsync — serialized by `fsync_lock` — advances `durable_seq` to
+    // cover every writer that appended before it. A writer whose seq is already
+    // <= `durable_seq` skips the fsync entirely.
+    pending_seq: AtomicU64,
+    durable_seq: AtomicU64,
+    fsync_lock: Mutex<()>,
     segment_refresh_lock: Mutex<()>,
     segment_state_lock: Mutex<()>,
     // Wrapped in `Arc` so readers clone the snapshot under a brief lock and then
@@ -366,6 +374,9 @@ impl Store {
             rocksdb_write_buffer_manager,
             segment_write_lock: Mutex::new(()),
             segment_fsync_count: Arc::new(AtomicU64::new(0)),
+            pending_seq: AtomicU64::new(0),
+            durable_seq: AtomicU64::new(0),
+            fsync_lock: Mutex::new(()),
             segment_refresh_lock: Mutex::new(()),
             segment_state_lock: Mutex::new(()),
             segment_state_cache: StdMutex::new(Arc::new(SegmentStateSnapshot::default())),
@@ -1060,59 +1071,114 @@ impl Store {
     where
         R: AsyncRead + Unpin,
     {
-        let _guard = self.segment_write_lock.lock().await;
-        let (segment, evicted_segments) = self.active_segment(size).await?;
-        let segment_path = self.segment_path(&segment.segment_id);
-        let segment_dir = segment_path
-            .parent()
-            .ok_or_else(|| "missing segment parent directory".to_string())?;
-        self.io.create_dir_all(segment_dir).await?;
+        // Append the bytes under the write lock (which also fsyncs the outgoing
+        // segment on rotation), then reserve a durability sequence. The fsync
+        // itself happens after the lock so concurrent writers coalesce into a
+        // single group-commit fsync rather than serializing one fsync each.
+        let (location, evicted_segments, durability_seq) = {
+            let _guard = self.segment_write_lock.lock().await;
+            let (segment, evicted_segments) = self.active_segment(size).await?;
+            let segment_path = self.segment_path(&segment.segment_id);
+            let segment_dir = segment_path
+                .parent()
+                .ok_or_else(|| "missing segment parent directory".to_string())?;
+            self.io.create_dir_all(segment_dir).await?;
 
-        let segment_already_exists = self.io.path_exists(&segment_path).await?;
-        let offset = if segment_already_exists {
-            self.io.metadata_len(&segment_path).await?
-        } else {
-            0
-        };
+            let segment_already_exists = self.io.path_exists(&segment_path).await?;
+            let offset = if segment_already_exists {
+                self.io.metadata_len(&segment_path).await?
+            } else {
+                0
+            };
 
-        let mut destination = self.io.open_append_file(&segment_path).await?;
-        let copied = tokio::io::copy(source, &mut destination)
-            .await
-            .map_err(|error| {
+            let mut destination = self.io.open_append_file(&segment_path).await?;
+            let copied = tokio::io::copy(source, &mut destination)
+                .await
+                .map_err(|error| {
+                    format!(
+                        "failed to append into segment {}: {error}",
+                        segment_path.display()
+                    )
+                })?;
+            if copied != size {
+                return Err(format!(
+                    "appended {copied} bytes into segment {}, expected {size}",
+                    segment_path.display()
+                ));
+            }
+            destination.flush().await.map_err(|error| {
                 format!(
-                    "failed to append into segment {}: {error}",
+                    "failed to flush segment {}: {error}",
                     segment_path.display()
                 )
             })?;
-        if copied != size {
-            return Err(format!(
-                "appended {copied} bytes into segment {}, expected {size}",
-                segment_path.display()
-            ));
-        }
-        destination.flush().await.map_err(|error| {
-            format!(
-                "failed to flush segment {}: {error}",
-                segment_path.display()
-            )
-        })?;
-        self.hit_failpoint(FailpointName::BeforeSegmentFsync).await?;
-        self.segment_fsync_count.fetch_add(1, Ordering::Relaxed);
-        destination.sync_data().await.map_err(|error| {
-            format!("failed to sync segment {}: {error}", segment_path.display())
-        })?;
-        drop(destination);
-        if !segment_already_exists {
-            self.io.sync_directory(segment_dir).await?;
-        }
+            drop(destination);
+            if !segment_already_exists {
+                self.io.sync_directory(segment_dir).await?;
+            }
 
-        Ok((
-            SegmentLocation {
-                segment_id: segment.segment_id,
-                offset,
-            },
-            evicted_segments,
-        ))
+            let durability_seq = self.pending_seq.fetch_add(1, Ordering::AcqRel) + 1;
+            (
+                SegmentLocation {
+                    segment_id: segment.segment_id,
+                    offset,
+                },
+                evicted_segments,
+                durability_seq,
+            )
+        };
+
+        self.ensure_segment_durable(durability_seq).await?;
+
+        Ok((location, evicted_segments))
+    }
+
+    /// Group-commit fsync: makes every append with sequence `<= seq` durable.
+    ///
+    /// Writers reserve `pending_seq` in append order while holding the write
+    /// lock, then call this. The first writer to win `fsync_lock` performs one
+    /// fsync of the active segment and advances `durable_seq` to the latest
+    /// reserved sequence. That is correct because a segment is fsynced when it
+    /// rotates out (see `active_segment`), so only the active segment can hold
+    /// un-synced bytes — and if the active segment rotated between a writer's
+    /// append and this fsync, that writer's bytes were already made durable by
+    /// the rotation. Writers already covered by a prior fsync return without
+    /// syncing.
+    async fn ensure_segment_durable(&self, seq: u64) -> Result<(), String> {
+        if self.durable_seq.load(Ordering::Acquire) >= seq {
+            return Ok(());
+        }
+        let _commit = self.fsync_lock.lock().await;
+        if self.durable_seq.load(Ordering::Acquire) >= seq {
+            return Ok(());
+        }
+        self.hit_failpoint(FailpointName::BeforeSegmentFsync)
+            .await?;
+        // Capture after winning the commit lock so the fsync covers writers that
+        // appended while we queued.
+        let target = self.pending_seq.load(Ordering::Acquire);
+        self.fsync_active_segment().await?;
+        self.durable_seq.store(target, Ordering::Release);
+        Ok(())
+    }
+
+    /// Fsyncs the current active segment file. A fresh handle is fine: `sync_data`
+    /// flushes the inode's dirty pages regardless of which descriptor wrote them.
+    async fn fsync_active_segment(&self) -> Result<(), String> {
+        let snapshot = self.segment_state_snapshot();
+        let Some(active) = snapshot.state.active() else {
+            return Ok(());
+        };
+        let path = self.segment_path(&active.segment_id);
+        if !self.io.path_exists(&path).await? {
+            return Ok(());
+        }
+        let file = self.io.open_append_file(&path).await?;
+        self.segment_fsync_count.fetch_add(1, Ordering::Relaxed);
+        file.sync_data()
+            .await
+            .map_err(|error| format!("failed to sync segment {}: {error}", path.display()))?;
+        Ok(())
     }
 
     async fn active_segment(
@@ -1142,6 +1208,22 @@ impl Store {
                     "{DISK_FULL_MARKER}: insufficient free space for segment rotation: \
                     {available} bytes available, {required_bytes} required"
                 ));
+            }
+            // Group commit no longer fsyncs each write, so the outgoing active
+            // segment may hold un-synced appends; make them durable before it
+            // stops being the fsync target.
+            if let Some(active) = snapshot.state.active() {
+                let path = self.segment_path(&active.segment_id);
+                if self.io.path_exists(&path).await? {
+                    let file = self.io.open_append_file(&path).await?;
+                    self.segment_fsync_count.fetch_add(1, Ordering::Relaxed);
+                    file.sync_data().await.map_err(|error| {
+                        format!(
+                            "failed to sync rotating segment {}: {error}",
+                            path.display()
+                        )
+                    })?;
+                }
             }
             let segment = SegmentReference::new(Uuid::now_v7().to_string(), now_ms());
             // The rotate decision above used a snapshot taken before the
