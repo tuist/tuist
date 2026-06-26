@@ -48,12 +48,6 @@ env:
 jobs:
   release-cli:
     name: Release CLI
-    # Self-hosted, co-located with the Xcode compilation cache (CAS) mesh. The
-    # per-Xcode image fleet pins the toolchain via the label (one Xcode per
-    # image, no xcode-select): `tuist-macos-26-0-1` => Xcode 26.0.1, the
-    # `.xcode-version-releases` pin. Moved off GitHub-hosted `macos-26` to cut
-    # the ~23min Bundle CLI step (faster hardware + cache round-trips that no
-    # longer cross the public internet).
     runs-on: tuist-macos-26-0-1
     timeout-minutes: 75
     permissions:
