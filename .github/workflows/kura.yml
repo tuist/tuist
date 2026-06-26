@@ -331,8 +331,9 @@ jobs:
           install_args: "rust bazel tuist"
           working_directory: kura
 
-      - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
+      # zstd (for the image archive below) is on ubuntu-latest but not the tuist-linux runner.
+      - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen) and zstd
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config zstd
       - name: Set up the Tuist remote cache
         run: |
           tuist auth login
@@ -394,8 +395,9 @@ jobs:
             e2e-images-fork-${{ hashFiles('kura/MODULE.bazel.lock') }}-
             e2e-images-fork-
 
-      - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
+      # zstd (for the image archive below) is on ubuntu-latest but not the tuist-linux runner.
+      - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen) and zstd
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config zstd
       - name: Build the Kura binary with Bazel
         run: |
           {
