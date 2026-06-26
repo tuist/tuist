@@ -161,9 +161,24 @@ func (m *Maintainer) refresh(ctx context.Context) error {
 	// then update status.
 	base := node.DeepCopy()
 	m.configureNode(node, m.evalDynamicLabels(ctx))
+
+	// configureNode just set this Node's desired status (Ready=True,
+	// capacity, node info). client.Patch below replaces the in-memory node
+	// — status included — with the API server's response, which carries
+	// whatever status the node holds on the server right now. If the
+	// node-lifecycle controller has flipped Ready to Unknown (it does that
+	// on any heartbeat gap, e.g. during a kubelet restart), the Patch
+	// clobbers our Ready=True back to Unknown, and the Status().Update below
+	// then re-posts that Unknown with only a fresh LastHeartbeatTime — so
+	// the Node is stranded in Unknown forever and the heartbeat can never
+	// lift it back to Ready. Snapshot the desired status before the Patch
+	// and restore it afterward so the status update actually asserts
+	// Ready=True.
+	desiredStatus := node.Status.DeepCopy()
 	if err := m.Client.Patch(ctx, node, client.MergeFrom(base)); err != nil {
 		return err
 	}
+	node.Status = *desiredStatus
 
 	m.applyDiskPressure(ctx, node)
 	for i, c := range node.Status.Conditions {
