@@ -1494,7 +1494,12 @@ async fn start_module_upload(
         )
         .await
     {
+        // A null `upload_id` is the contract for "the artifact is already cached,
+        // skip the upload" — not a failure. The metric below lets operators tell
+        // already-cached starts apart from genuine failures so a write that never
+        // lands is observable instead of looking like a silent success.
         Ok(true) => {
+            state.metrics.record_multipart_start("already_exists");
             Json(serde_json::json!({ "upload_id": serde_json::Value::Null })).into_response()
         }
         Ok(false) => match state.store.start_multipart_upload(
@@ -1504,16 +1509,37 @@ async fn start_module_upload(
             &query.hash,
             &query.name,
         ) {
-            Ok(upload_id) => Json(serde_json::json!({ "upload_id": upload_id })).into_response(),
-            Err(error) => error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to start upload: {error}"),
-            ),
+            Ok(upload_id) => {
+                state.metrics.record_multipart_start("started");
+                Json(serde_json::json!({ "upload_id": upload_id })).into_response()
+            }
+            Err(error) => {
+                state.metrics.record_multipart_start("start_failed");
+                tracing::warn!(
+                    namespace_id = %query.namespace.namespace_id,
+                    hash = %query.hash,
+                    name = %query.name,
+                    "failed to start module cache multipart upload: {error}"
+                );
+                error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Failed to start upload: {error}"),
+                )
+            }
         },
-        Err(error) => error_response(
-            StatusCode::SERVICE_UNAVAILABLE,
-            format!("Failed to inspect artifact: {error}"),
-        ),
+        Err(error) => {
+            state.metrics.record_multipart_start("exists_check_failed");
+            tracing::warn!(
+                namespace_id = %query.namespace.namespace_id,
+                hash = %query.hash,
+                name = %query.name,
+                "failed to inspect module cache artifact before upload: {error}"
+            );
+            error_response(
+                StatusCode::SERVICE_UNAVAILABLE,
+                format!("Failed to inspect artifact: {error}"),
+            )
+        }
     }
 }
 

@@ -53,6 +53,7 @@ pub struct Metrics {
     replication_bandwidth_effective_limit_bytes_per_second: Gauge,
     replication_bandwidth_public_latency_target_ms: Gauge,
     multipart_parts: Family<MultipartLabels, Counter>,
+    multipart_starts: Family<MultipartLabels, Counter>,
     node_info: Family<NodeInfoLabels, Gauge>,
     node_geo: Family<NodeGeoLabels, Gauge>,
     file_descriptor_wait: Family<FileDescriptorWaitLabels, Histogram>,
@@ -181,6 +182,7 @@ impl Metrics {
         let replication_bandwidth_effective_limit_bytes_per_second = Gauge::default();
         let replication_bandwidth_public_latency_target_ms = Gauge::default();
         let multipart_parts = Family::<MultipartLabels, Counter>::default();
+        let multipart_starts = Family::<MultipartLabels, Counter>::default();
         let node_info = Family::<NodeInfoLabels, Gauge>::default();
         let node_geo = Family::<NodeGeoLabels, Gauge>::default();
         let file_descriptor_wait =
@@ -397,6 +399,11 @@ impl Metrics {
             "kura_multipart_parts_total",
             "Multipart part uploads by result",
             multipart_parts.clone(),
+        );
+        registry.register(
+            "kura_multipart_starts_total",
+            "Multipart module cache upload starts by result",
+            multipart_starts.clone(),
         );
         registry.register(
             "kura_node_info",
@@ -783,6 +790,7 @@ impl Metrics {
             replication_bandwidth_effective_limit_bytes_per_second,
             replication_bandwidth_public_latency_target_ms,
             multipart_parts,
+            multipart_starts,
             node_info,
             node_geo,
             file_descriptor_wait,
@@ -1072,6 +1080,14 @@ impl Metrics {
 
     pub fn record_multipart_part(&self, result: &str) {
         self.multipart_parts
+            .get_or_create(&MultipartLabels {
+                result: result.to_owned(),
+            })
+            .inc();
+    }
+
+    pub fn record_multipart_start(&self, result: &str) {
+        self.multipart_starts
             .get_or_create(&MultipartLabels {
                 result: result.to_owned(),
             })
@@ -1754,6 +1770,7 @@ mod tests {
         metrics.record_replication_apply("bootstrap", "namespace_delete", "ignored_older");
         metrics.update_replication_bandwidth_limits(10_485_760, 5_242_880, 100);
         metrics.record_multipart_part("ok");
+        metrics.record_multipart_start("started");
         metrics.record_file_descriptor_wait("ok", Duration::from_millis(1));
         metrics.record_file_operation("open_read", "ok", Duration::from_millis(2), 42);
         metrics.update_file_descriptor_pool(64, 3, 61, 1);
@@ -1852,6 +1869,7 @@ mod tests {
         assert!(rendered.contains("outcome=\"applied\""));
         assert!(rendered.contains("outcome=\"ignored_older\""));
         assert!(rendered.contains("kura_multipart_parts_total"));
+        assert!(rendered.contains("kura_multipart_starts_total"));
         assert!(rendered.contains("kura_node_info"));
         assert!(rendered.contains("kura_node_geo_info"));
         assert!(rendered.contains("kura_file_descriptor_wait_seconds"));
