@@ -108,8 +108,77 @@ func TestExpectedSetRetainsGoldenBase(t *testing.T) {
 	if _, ok := expected.vms[goldenVMName(img)]; !ok {
 		t.Fatalf("golden base %q missing from expected.vms", goldenVMName(img))
 	}
-	if _, ok := expected.images[img]; !ok {
-		t.Fatalf("image %q missing from expected.images", img)
+	if _, ok := expected.imageRepos[ociRepository(img)]; !ok {
+		t.Fatalf("image repo %q missing from expected.imageRepos", ociRepository(img))
+	}
+}
+
+// Regression for the tag-vs-digest GC bug: a Pod requests its image by
+// tag, but `tart list` reports the cached OCI image by digest. expectedSet
+// must record the repository the two share so the OCI branch keeps the
+// live image instead of deleting it on every pass (which forced the next
+// golden materialization into a full re-pull).
+func TestExpectedSetMatchesOCIImageByRepository(t *testing.T) {
+	const node = "mini-1"
+	const podImage = "ghcr.io/tuist/tuist-runner:macos-26-5-0.7.0"                                                              // what the Pod requests (tag)
+	const ociListed = "ghcr.io/tuist/tuist-runner@sha256:" + "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" // what `tart list` reports (digest)
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "tuist-runners", Name: "runner-xyz"},
+		Spec: corev1.PodSpec{
+			NodeName:   node,
+			Containers: []corev1.Container{{Name: "runner", Image: podImage}},
+		},
+	}
+
+	scheme := runtime.NewScheme()
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatalf("add core scheme: %v", err)
+	}
+	k := fake.NewClientBuilder().WithScheme(scheme).
+		WithIndex(&corev1.Pod{}, "spec.nodeName", func(o client.Object) []string {
+			return []string{o.(*corev1.Pod).Spec.NodeName}
+		}).
+		WithObjects(pod).Build()
+
+	c := &Collector{K8s: k, NodeName: node}
+	expected, err := c.expectedSet(context.Background())
+	if err != nil {
+		t.Fatalf("expectedSet: %v", err)
+	}
+
+	// The digest-form entry the GC sees in `tart list` must resolve into
+	// the kept set via its repository — otherwise it's reaped while live.
+	if _, ok := expected.imageRepos[ociRepository(ociListed)]; !ok {
+		t.Fatalf("live OCI image %q would be reaped: repo %q absent from %v", ociListed, ociRepository(ociListed), expected.imageRepos)
+	}
+
+	// A genuinely-unreferenced repository must still be reapable.
+	otherRepo := ociRepository("ghcr.io/tuist/some-removed-pool@sha256:" + strings.Repeat("b", 64))
+	if _, ok := expected.imageRepos[otherRepo]; ok {
+		t.Fatalf("unreferenced repo %q unexpectedly retained", otherRepo)
+	}
+}
+
+func TestOCIRepository(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"tag", "ghcr.io/tuist/tuist-runner:macos-26-5-0.7.0", "ghcr.io/tuist/tuist-runner"},
+		{"digest", "ghcr.io/tuist/tuist-runner@sha256:" + strings.Repeat("a", 64), "ghcr.io/tuist/tuist-runner"},
+		{"bare", "ghcr.io/tuist/tuist-runner", "ghcr.io/tuist/tuist-runner"},
+		{"port and tag", "registry.example.com:5000/team/img:v1.2.3", "registry.example.com:5000/team/img"},
+		{"port no tag", "registry.example.com:5000/team/img", "registry.example.com:5000/team/img"},
+		{"port and digest", "registry.example.com:5000/team/img@sha256:" + strings.Repeat("c", 64), "registry.example.com:5000/team/img"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := ociRepository(tc.in); got != tc.want {
+				t.Fatalf("ociRepository(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
 	}
 }
 
@@ -118,8 +187,8 @@ func TestKeepGolden(t *testing.T) {
 	const golden = goldenBaseVMPrefix + "deadbeef"
 	const retention = time.Hour
 
-	referenced := &expectedSet{vms: map[string]struct{}{golden: {}}, images: map[string]struct{}{}}
-	unreferenced := &expectedSet{vms: map[string]struct{}{}, images: map[string]struct{}{}}
+	referenced := &expectedSet{vms: map[string]struct{}{golden: {}}, imageRepos: map[string]struct{}{}}
+	unreferenced := &expectedSet{vms: map[string]struct{}{}, imageRepos: map[string]struct{}{}}
 
 	t.Run("referenced is kept and clock reset", func(t *testing.T) {
 		c := &Collector{}
