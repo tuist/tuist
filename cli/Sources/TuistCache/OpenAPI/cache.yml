@@ -62,7 +62,8 @@ components:
       description: Response from starting a multipart upload
       properties:
         upload_id:
-          description: The upload ID to use for subsequent part uploads.
+          description: The upload ID to use for subsequent part uploads. Null on the legacy cache-hit response returned to CLIs that predate the 204 No Content signal.
+          nullable: true
           type: string
           x-struct:
           x-validate:

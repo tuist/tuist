@@ -8,10 +8,12 @@ import OpenAPIRuntime
 
 /// This middleware includes the release date of the CLI in the headers so that we can show
 /// warnings if the on-premise installation is too old.
-struct ServerClientCLIMetadataHeadersMiddleware: ClientMiddleware {
+public struct ServerClientCLIMetadataHeadersMiddleware: ClientMiddleware {
     let releaseDate = "2024.09.26"
 
-    func intercept(
+    public init() {}
+
+    public func intercept(
         _ request: HTTPRequest,
         body: HTTPBody?,
         baseURL: URL,

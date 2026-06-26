@@ -23,6 +23,13 @@ defmodule CacheWeb.XcodeModuleController do
 
   @max_part_size 10 * 1024 * 1024
 
+  # First CLI version that understands a 204 on `start_multipart` as "already
+  # cached, skip the upload". Older clients only know the legacy 200 + null
+  # upload id, so they keep getting that. The header is sent only by clients
+  # that carry this change, so any parseable version here is new enough; the
+  # floor is a conservative lower bound (latest released CLI is 4.200.5).
+  @min_cli_version_for_no_content Version.parse!("4.200.6")
+
   operation(:download,
     summary: "Download a module cache artifact",
     operation_id: "downloadModuleCacheArtifact",
@@ -233,7 +240,11 @@ defmodule CacheWeb.XcodeModuleController do
     category = Map.get(params, :cache_category, "builds")
 
     if Disk.exists?(account_handle, project_handle, category, hash, name) do
-      send_resp(conn, :no_content, "")
+      if no_content_supported?(conn) do
+        send_resp(conn, :no_content, "")
+      else
+        json(conn, %{upload_id: nil})
+      end
     else
       case MultipartUploads.start_upload(account_handle, project_handle, category, hash, name) do
         {:ok, upload_id} ->
@@ -243,6 +254,15 @@ defmodule CacheWeb.XcodeModuleController do
         {:error, _reason} ->
           {:error, :persist_error}
       end
+    end
+  end
+
+  defp no_content_supported?(conn) do
+    with [version_string | _] <- get_req_header(conn, "x-tuist-cli-version"),
+         {:ok, version} <- Version.parse(version_string) do
+      Version.compare(version, @min_cli_version_for_no_content) != :lt
+    else
+      _ -> false
     end
   end
 

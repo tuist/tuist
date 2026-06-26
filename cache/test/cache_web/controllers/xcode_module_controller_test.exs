@@ -293,7 +293,33 @@ defmodule CacheWeb.XcodeModuleControllerTest do
       assert String.length(response["upload_id"]) == 36
     end
 
-    test "returns 204 when artifact already exists", %{conn: conn} do
+    test "returns 204 when the artifact exists and the CLI advertises a new enough version", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      hash = "abc123"
+      name = "MyModule.xcframework.zip"
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      expect(XcodeModule.Disk, :exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
+        true
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> put_req_header("x-tuist-cli-version", "4.200.6")
+        |> post(
+          "/api/cache/module/start?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}"
+        )
+
+      assert conn.status == 204
+      assert response(conn, 204) == ""
+    end
+
+    test "returns a null upload_id when the artifact exists but no CLI version is advertised", %{conn: conn} do
       account_handle = "test-account"
       project_handle = "test-project"
       hash = "abc123"
@@ -314,8 +340,34 @@ defmodule CacheWeb.XcodeModuleControllerTest do
           "/api/cache/module/start?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}"
         )
 
-      assert conn.status == 204
-      assert response(conn, 204) == ""
+      assert conn.status == 200
+      assert json_response(conn, 200)["upload_id"] == nil
+    end
+
+    test "returns a null upload_id when the artifact exists but the CLI predates the 204 signal", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      hash = "abc123"
+      name = "MyModule.xcframework.zip"
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      expect(XcodeModule.Disk, :exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
+        true
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> put_req_header("x-tuist-cli-version", "4.200.5")
+        |> post(
+          "/api/cache/module/start?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}"
+        )
+
+      assert conn.status == 200
+      assert json_response(conn, 200)["upload_id"] == nil
     end
 
     test "uses cache_category parameter when provided", %{conn: conn} do

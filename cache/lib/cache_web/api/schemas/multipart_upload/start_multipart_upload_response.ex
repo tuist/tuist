@@ -11,7 +11,9 @@ defmodule CacheWeb.API.Schemas.StartMultipartUploadResponse do
     properties: %{
       upload_id: %Schema{
         type: :string,
-        description: "The upload ID to use for subsequent part uploads."
+        nullable: true,
+        description:
+          "The upload ID to use for subsequent part uploads. Null on the legacy cache-hit response returned to CLIs that predate the 204 No Content signal."
       }
     },
     required: [:upload_id]
