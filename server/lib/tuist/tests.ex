@@ -52,6 +52,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Tests.TestSuiteRun
+  alias Tuist.Tests.Workers.BroadcastTestCreatedWorker
   alias Tuist.Webhooks.Dispatcher
 
   require OpenTelemetry.Tracer
@@ -414,21 +415,25 @@ defmodule Tuist.Tests do
 
         Tuist.Tasks.run_async(fn ->
           mark_test_run_as_flaky(test, test_case_ids_with_flaky_run)
-
-          project = Tuist.Projects.get_project_by_id(test.project_id)
-
-          Tuist.PubSub.broadcast(
-            test,
-            "#{project.account.name}/#{project.name}",
-            :test_created
-          )
         end)
+
+        enqueue_test_created_broadcast(test)
 
         {:ok, %{test | test_case_runs: test_case_runs}}
 
       {:error, changeset} ->
         {:error, changeset}
     end
+  end
+
+  # Refreshes any open test dashboards. Enqueued (rather than broadcast in
+  # process) so it always runs on a web node: the xcresult-processor that
+  # finishes most runs is an isolated, non-clustered BEAM node whose PubSub
+  # broadcasts never reach the web tier. See BroadcastTestCreatedWorker.
+  defp enqueue_test_created_broadcast(test) do
+    %{test_run_id: test.id, project_id: test.project_id}
+    |> BroadcastTestCreatedWorker.new()
+    |> Oban.insert()
   end
 
   defp create_run_destinations(%Test{id: test_run_id}, destinations) when is_list(destinations) do
@@ -537,15 +542,9 @@ defmodule Tuist.Tests do
 
           Tuist.Tasks.run_async(fn ->
             mark_test_run_as_flaky(updated_test, test_case_ids_with_flaky_run)
-
-            project = Tuist.Projects.get_project_by_id(updated_test.project_id)
-
-            Tuist.PubSub.broadcast(
-              updated_test,
-              "#{project.account.name}/#{project.name}",
-              :test_created
-            )
           end)
+
+          enqueue_test_created_broadcast(updated_test)
 
           {:ok, %{updated_test | test_case_runs: test_case_runs}}
       end

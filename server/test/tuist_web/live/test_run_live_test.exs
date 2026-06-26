@@ -509,4 +509,34 @@ defmodule TuistWeb.TestRunLiveTest do
       assert html =~ "test-cases-card"
     end
   end
+
+  describe "processing poll fallback" do
+    test "clears the processing state once the run finishes, even without a broadcast", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given - a run still being processed, rendered live (shows the spinner)
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(project_id: project.id, status: "processing", test_modules: [])
+
+      {:ok, lv, html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+      assert html =~ "processing-state"
+
+      # When - the run finishes in ClickHouse but the completion broadcast is never
+      # delivered (mirrors the cross-node-isolated xcresult-processor). The poll
+      # timer firing is simulated by delivering the message directly.
+      {:ok, _completed} =
+        RunsFixtures.test_fixture(id: test_run.id, project_id: project.id, status: "success")
+
+      send(lv.pid, :poll_processing_status)
+
+      # Then - the spinner clears on its own and results render
+      html = render(lv)
+      refute html =~ ~s(data-part="processing-state")
+      assert html =~ "test-cases-card"
+    end
+  end
 end

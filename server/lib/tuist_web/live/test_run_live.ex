@@ -27,6 +27,13 @@ defmodule TuistWeb.TestRunLive do
 
   @table_page_size 20
 
+  # The completion event that flips a run out of "processing" is broadcast
+  # from the xcresult-processor, which runs as an isolated, non-clustered
+  # BEAM node and can't reach the web tier's PubSub. Poll as a fallback so a
+  # connected viewer's spinner clears on its own even when that broadcast is
+  # never delivered.
+  @processing_poll_interval to_timeout(second: 5)
+
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
     run =
@@ -91,6 +98,7 @@ defmodule TuistWeb.TestRunLive do
 
     if connected?(socket) and run.status == "processing" do
       Tuist.PubSub.subscribe("#{project.account.name}/#{project.name}")
+      schedule_processing_poll()
     end
 
     {:ok, socket}
@@ -137,6 +145,20 @@ defmodule TuistWeb.TestRunLive do
   def handle_info({:test_created, test}, %{assigns: %{run: run}} = socket) do
     if test.id == run.id do
       {:noreply, reload_run_state(socket)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info(:poll_processing_status, %{assigns: %{run: run}} = socket) do
+    if run.status == "processing" do
+      socket = reload_run_state(socket)
+
+      if socket.assigns.run.status == "processing" do
+        schedule_processing_poll()
+      end
+
+      {:noreply, socket}
     else
       {:noreply, socket}
     end
@@ -272,6 +294,10 @@ defmodule TuistWeb.TestRunLive do
       {:error, :not_found} ->
         socket
     end
+  end
+
+  defp schedule_processing_poll do
+    Process.send_after(self(), :poll_processing_status, @processing_poll_interval)
   end
 
   defp assign_initial_analytics_state(socket) do
