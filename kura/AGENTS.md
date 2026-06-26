@@ -24,6 +24,8 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   - Test: `mise run test-unit` (runs `bazel test //...`; fallback: `mise exec -- cargo test`)
   - Clippy: `mise run clippy` (runs the rules_rust clippy aspect over `//...`, warnings as errors;
     fallback: `mise exec -- cargo clippy --all-targets -- -D warnings`)
+  - Format: `mise run format` fixes files in place (cargo fmt); `mise run format -- --check`
+    verifies only (rules_rust rustfmt aspect, what CI runs)
 - If you have access to the `tuist/kura` project on Tuist, run `tuist bazel setup` to point Bazel at
   the closest Kura remote cache (it writes `kura/.bazelrc.tuist`); re-run it after changing physical
   location. Without access, skip it — Bazel builds fine against the local cache.
