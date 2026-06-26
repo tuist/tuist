@@ -5,6 +5,7 @@ import Mockable
 import Path
 import Testing
 import TuistAppleArchiver
+import TuistAutomation
 import TuistServer
 @testable import TuistKit
 
@@ -239,6 +240,264 @@ struct ShardPlanServiceTests {
             )
         )
         #expect(uploadURL == "https://tuist.dev/upload")
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func plan_suiteGranularity_recoversModulesDroppedByTheBulkPass() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await writeXCTestProducts(modules: ["AppTests", "FeatureTests"], at: testProductsPath, fileSystem: fileSystem)
+
+        // The bulk pass (no -only-testing) only reports AppTests; the per-target recovery for the missing
+        // FeatureTests (run with -only-testing FeatureTests) recovers it rather than silently dropping it.
+        let xcTestEnumerator = MockXCTestEnumerating()
+        given(xcTestEnumerator)
+            .enumerateTests(testProductsPath: .any, destination: .any, onlyTesting: .any)
+            .willProduce { _, _, onlyTesting in
+                if onlyTesting.isEmpty {
+                    return [XCTestRun.TestTarget(blueprintName: "AppTests", onlyTestIdentifiers: ["LoginTests"])]
+                }
+                return [XCTestRun.TestTarget(blueprintName: "FeatureTests", onlyTestIdentifiers: ["FeatureFlagTests"])]
+            }
+
+        var capturedTestSuites: [String]?
+        let createShardPlanService = mockCreateShardPlanService(capturingTestSuites: { capturedTestSuites = $0 })
+        let shardMatrixOutputService = MockShardMatrixOutputServicing()
+        given(shardMatrixOutputService).output(.any).willReturn()
+
+        let subject = ShardPlanService(
+            xcTestEnumerator: xcTestEnumerator,
+            createShardPlanService: createShardPlanService,
+            fileSystem: fileSystem,
+            shardMatrixOutputService: shardMatrixOutputService
+        )
+
+        _ = try await subject.plan(
+            xctestproductsPath: testProductsPath,
+            destination: "platform=macOS",
+            reference: "ref",
+            shardGranularity: .suite,
+            shardMin: nil,
+            shardMax: nil,
+            shardTotal: 1,
+            shardMaxDuration: nil,
+            fullHandle: "tuist/tuist",
+            serverURL: try #require(URL(string: "https://tuist.dev")),
+            buildRunId: nil,
+            skipUpload: true,
+            archivePath: nil
+        )
+
+        // The dropped FeatureTests module is recovered by the per-target pass rather than silently omitted.
+        #expect(capturedTestSuites?.sorted() == ["AppTests/LoginTests", "FeatureTests/FeatureFlagTests"])
+        // One bulk pass plus one targeted recovery pass for the dropped module.
+        verify(xcTestEnumerator).enumerateTests(testProductsPath: .any, destination: .any, onlyTesting: .any).called(2)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func plan_suiteGranularity_buildsSuitesForEveryModule_inASingleBulkPass() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await writeXCTestProducts(modules: ["AppTests", "FeatureTests"], at: testProductsPath, fileSystem: fileSystem)
+
+        let xcTestEnumerator = MockXCTestEnumerating()
+        given(xcTestEnumerator)
+            .enumerateTests(testProductsPath: .any, destination: .any, onlyTesting: .any)
+            .willReturn([
+                XCTestRun.TestTarget(blueprintName: "AppTests", onlyTestIdentifiers: ["LoginTests", "SignupTests"]),
+                XCTestRun.TestTarget(blueprintName: "FeatureTests", onlyTestIdentifiers: ["FeatureFlagTests"]),
+            ])
+
+        var capturedTestSuites: [String]?
+        let createShardPlanService = mockCreateShardPlanService(capturingTestSuites: { capturedTestSuites = $0 })
+        let shardMatrixOutputService = MockShardMatrixOutputServicing()
+        given(shardMatrixOutputService).output(.any).willReturn()
+
+        let subject = ShardPlanService(
+            xcTestEnumerator: xcTestEnumerator,
+            createShardPlanService: createShardPlanService,
+            fileSystem: fileSystem,
+            shardMatrixOutputService: shardMatrixOutputService
+        )
+
+        _ = try await subject.plan(
+            xctestproductsPath: testProductsPath,
+            destination: "platform=macOS",
+            reference: "ref",
+            shardGranularity: .suite,
+            shardMin: nil,
+            shardMax: nil,
+            shardTotal: 1,
+            shardMaxDuration: nil,
+            fullHandle: "tuist/tuist",
+            serverURL: try #require(URL(string: "https://tuist.dev")),
+            buildRunId: nil,
+            skipUpload: true,
+            archivePath: nil
+        )
+
+        #expect(
+            capturedTestSuites?.sorted() == ["AppTests/LoginTests", "AppTests/SignupTests", "FeatureTests/FeatureFlagTests"]
+        )
+        // A complete bulk pass needs no per-target recovery.
+        verify(xcTestEnumerator).enumerateTests(testProductsPath: .any, destination: .any, onlyTesting: .any).called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func plan_suiteGranularity_excludesModulesThatEnumerateNoTests() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await writeXCTestProducts(modules: ["AppTests", "EmptyTests"], at: testProductsPath, fileSystem: fileSystem)
+
+        // EmptyTests enumerates but reports no tests (an empty target); AppTests reports a suite.
+        let xcTestEnumerator = MockXCTestEnumerating()
+        given(xcTestEnumerator)
+            .enumerateTests(testProductsPath: .any, destination: .any, onlyTesting: .any)
+            .willReturn([
+                XCTestRun.TestTarget(blueprintName: "AppTests", onlyTestIdentifiers: ["LoginTests"]),
+                XCTestRun.TestTarget(blueprintName: "EmptyTests", onlyTestIdentifiers: []),
+            ])
+
+        var capturedTestSuites: [String]?
+        let createShardPlanService = mockCreateShardPlanService(capturingTestSuites: { capturedTestSuites = $0 })
+        let shardMatrixOutputService = MockShardMatrixOutputServicing()
+        given(shardMatrixOutputService).output(.any).willReturn()
+
+        let subject = ShardPlanService(
+            xcTestEnumerator: xcTestEnumerator,
+            createShardPlanService: createShardPlanService,
+            fileSystem: fileSystem,
+            shardMatrixOutputService: shardMatrixOutputService
+        )
+
+        _ = try await subject.plan(
+            xctestproductsPath: testProductsPath,
+            destination: "platform=macOS",
+            reference: "ref",
+            shardGranularity: .suite,
+            shardMin: nil,
+            shardMax: nil,
+            shardTotal: 1,
+            shardMaxDuration: nil,
+            fullHandle: "tuist/tuist",
+            serverURL: try #require(URL(string: "https://tuist.dev")),
+            buildRunId: nil,
+            skipUpload: true,
+            archivePath: nil
+        )
+
+        // EmptyTests enumerated no tests, so it is excluded; AppTests is unaffected.
+        #expect(capturedTestSuites == ["AppTests/LoginTests"])
+        // Every module enumerated (EmptyTests is simply empty), so no per-target recovery is needed.
+        verify(xcTestEnumerator).enumerateTests(testProductsPath: .any, destination: .any, onlyTesting: .any).called(1)
+    }
+
+    /// A module that never enumerates — even after per-target recovery — must not be silently dropped: it is
+    /// emitted as a whole-module unit (`Module/<sentinel>`) so the runner runs the entire target.
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func plan_suiteGranularity_emitsWholeModuleUnit_forModulesThatNeverEnumerate() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        try await assertWholeModuleBackstop(fileSystem: fileSystem, temporaryDirectory: temporaryDirectory)
+    }
+
+    private func assertWholeModuleBackstop(
+        fileSystem: FileSystem,
+        temporaryDirectory: AbsolutePath
+    ) async throws {
+        let testProductsPath = temporaryDirectory.appending(component: "Backstop.xctestproducts")
+        try await writeXCTestProducts(modules: ["AppTests", "GoneTests"], at: testProductsPath, fileSystem: fileSystem)
+
+        // GoneTests never appears in any enumeration — bulk or per-target recovery — while AppTests does.
+        let xcTestEnumerator = MockXCTestEnumerating()
+        given(xcTestEnumerator)
+            .enumerateTests(testProductsPath: .any, destination: .any, onlyTesting: .any)
+            .willReturn([XCTestRun.TestTarget(blueprintName: "AppTests", onlyTestIdentifiers: ["LoginTests"])])
+
+        var capturedTestSuites: [String]?
+        let createShardPlanService = mockCreateShardPlanService(capturingTestSuites: { capturedTestSuites = $0 })
+        let shardMatrixOutputService = MockShardMatrixOutputServicing()
+        given(shardMatrixOutputService).output(.any).willReturn()
+
+        let subject = ShardPlanService(
+            xcTestEnumerator: xcTestEnumerator,
+            createShardPlanService: createShardPlanService,
+            fileSystem: fileSystem,
+            shardMatrixOutputService: shardMatrixOutputService
+        )
+
+        _ = try await subject.plan(
+            xctestproductsPath: testProductsPath,
+            destination: "platform=macOS",
+            reference: "ref",
+            shardGranularity: .suite,
+            shardMin: nil,
+            shardMax: nil,
+            shardTotal: 1,
+            shardMaxDuration: nil,
+            fullHandle: "tuist/tuist",
+            serverURL: try #require(URL(string: "https://tuist.dev")),
+            buildRunId: nil,
+            skipUpload: true,
+            archivePath: nil
+        )
+
+        // GoneTests is not dropped — it becomes a whole-module unit that runs the entire target.
+        #expect(
+            capturedTestSuites?.sorted() == [
+                "AppTests/LoginTests",
+                "GoneTests/\(ShardConstants.wholeModuleSuiteSentinel)",
+            ]
+        )
+        // Bulk pass plus the bounded per-target recovery attempts for the unrecoverable module.
+        verify(xcTestEnumerator)
+            .enumerateTests(testProductsPath: .any, destination: .any, onlyTesting: .any).called(3)
+    }
+
+    private func mockCreateShardPlanService(
+        capturingTestSuites capture: @escaping ([String]?) -> Void
+    ) -> MockCreateShardPlanServicing {
+        let createShardPlanService = MockCreateShardPlanServicing()
+        given(createShardPlanService)
+            .createShardPlan(
+                fullHandle: .any,
+                serverURL: .any,
+                reference: .any,
+                modules: .any,
+                testSuites: .matching { capture($0); return true },
+                shardMin: .any,
+                shardMax: .any,
+                shardTotal: .any,
+                shardMaxDuration: .any,
+                shardGranularity: .any,
+                buildRunId: .any
+            )
+            .willReturn(
+                Components.Schemas.ShardPlan(
+                    id: "plan-id",
+                    reference: "ref",
+                    shard_count: 1,
+                    shards: [],
+                    upload_url: "https://tuist.dev/api/projects/tuist/tuist/tests/shards/upload/start"
+                )
+            )
+        return createShardPlanService
+    }
+
+    private func writeXCTestProducts(modules: [String], at testProductsPath: AbsolutePath, fileSystem: FileSystem) async throws {
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        try await fileSystem.writeAsPlist(
+            XCTestRunFixture(
+                testConfigurations: [
+                    .init(testTargets: modules.map { TestTargetFixture(blueprintName: $0) }),
+                ]
+            ),
+            at: testProductsPath.appending(component: "MyApp.xctestrun"),
+            encoder: plistEncoder()
+        )
     }
 }
 

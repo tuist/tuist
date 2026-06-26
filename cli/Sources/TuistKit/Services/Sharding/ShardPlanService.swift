@@ -125,13 +125,11 @@
 
             var testSuites: [String]?
             if shardGranularity == .suite {
-                let targets = try await xcTestEnumerator.enumerateTests(
+                testSuites = try await enumerateTestSuites(
                     testProductsPath: xctestproductsPath,
-                    destination: destination
+                    destination: destination,
+                    expectedModules: modules
                 )
-                testSuites = targets.flatMap { target in
-                    (target.onlyTestIdentifiers ?? []).map { "\(target.blueprintName)/\($0)" }
-                }
             }
 
             Logger.current.notice("Creating shard plan with \(modules.count) test module(s)", metadata: .section)
@@ -177,6 +175,113 @@
             try await shardMatrixOutputService.output(shardPlan)
 
             return shardPlan
+        }
+
+        /// Per-module recovery attempts when the bulk enumeration pass omits a module declared in the
+        /// `.xctestrun`. `xcodebuild -enumerate-tests` boots the test bundles to discover their tests and
+        /// can intermittently return an incomplete set (e.g. a slow UI-test host), silently dropping a
+        /// module — and therefore its tests — from a suite-granularity plan. Re-enumerating just the
+        /// missing module in isolation recovers it without redoing the whole (expensive) pass.
+        private static let maxModuleRecoveryAttempts = 2
+
+        /// Enumerates the test suites in the built test products for suite-granularity sharding.
+        ///
+        /// The module universe is taken from the `.xctestrun` (`expectedModules`), which is deterministic.
+        /// Suite discovery via `xcodebuild -enumerate-tests` is not — a flaky bulk pass can omit modules —
+        /// so to keep the plan complete we:
+        ///
+        /// 1. Run one bulk enumeration pass.
+        /// 2. Re-enumerate, per module, any `expectedModules` the bulk pass never reported (isolating a
+        ///    slow/failing target instead of redoing all of them).
+        /// 3. Reconcile against `expectedModules`:
+        ///    - modules with suites are sharded at suite granularity;
+        ///    - modules that enumerated but reported *no* tests are genuinely empty and excluded;
+        ///    - modules that never enumerated at all are emitted as whole-module units (see
+        ///      `ShardConstants.wholeModuleSuiteSentinel`) so they still run whole, rather than being
+        ///      silently dropped from the plan.
+        private func enumerateTestSuites(
+            testProductsPath: AbsolutePath,
+            destination: String?,
+            expectedModules: [String]
+        ) async throws -> [String] {
+            let expectedModules = Set(expectedModules)
+            var suitesByModule: [String: Set<String>] = [:]
+            var enumeratedModules: Set<String> = []
+
+            func ingest(_ targets: [XCTestRun.TestTarget]) {
+                for target in targets {
+                    enumeratedModules.insert(target.blueprintName)
+                    let suites = target.onlyTestIdentifiers ?? []
+                    guard !suites.isEmpty else { continue }
+                    suitesByModule[target.blueprintName, default: []].formUnion(suites)
+                }
+            }
+
+            // 1. Bulk pass.
+            ingest(try await enumerate(testProductsPath: testProductsPath, destination: destination, onlyTesting: []))
+
+            // 2. Per-target recovery for modules the bulk pass never reported.
+            let missingAfterBulk = expectedModules.subtracting(enumeratedModules).sorted()
+            if !missingAfterBulk.isEmpty {
+                Logger.current.warning(
+                    "Test enumeration reported \(expectedModules.intersection(enumeratedModules).count) of \(expectedModules.count) module(s); recovering \(missingAfterBulk.count) module(s) individually to avoid dropping tests from the shard plan."
+                )
+                for module in missingAfterBulk {
+                    for _ in 1 ... Self.maxModuleRecoveryAttempts {
+                        ingest(try await enumerate(
+                            testProductsPath: testProductsPath,
+                            destination: destination,
+                            onlyTesting: [module]
+                        ))
+                        if enumeratedModules.contains(module) { break }
+                    }
+                }
+            }
+
+            // 3. Reconcile against the deterministic `.xctestrun` universe.
+            let unenumerableModules = expectedModules.subtracting(enumeratedModules).sorted()
+            let emptyModules = expectedModules
+                .intersection(enumeratedModules)
+                .subtracting(suitesByModule.keys)
+                .sorted()
+
+            if !emptyModules.isEmpty {
+                Logger.current.debug(
+                    "\(emptyModules.count) module(s) enumerated no tests and are excluded as empty: \(emptyModules.joined(separator: ", "))."
+                )
+            }
+            if !unenumerableModules.isEmpty {
+                Logger.current.warning(
+                    "\(unenumerableModules.count) module(s) could not be enumerated after recovery and will run whole (module-level) to avoid dropping tests: \(unenumerableModules.joined(separator: ", "))."
+                )
+            }
+
+            var units = suitesByModule.flatMap { module, suites in suites.map { "\(module)/\($0)" } }
+            units += unenumerableModules.map { "\($0)/\(ShardConstants.wholeModuleSuiteSentinel)" }
+            return units.sorted()
+        }
+
+        /// Runs a single enumeration pass. A failed *isolated recovery* pass (`onlyTesting` non-empty) is
+        /// non-fatal — the module stays unenumerable and is handled by the whole-module backstop — while a
+        /// failed *bulk* pass is fatal, since there would be nothing to shard.
+        private func enumerate(
+            testProductsPath: AbsolutePath,
+            destination: String?,
+            onlyTesting: [String]
+        ) async throws -> [XCTestRun.TestTarget] {
+            do {
+                return try await xcTestEnumerator.enumerateTests(
+                    testProductsPath: testProductsPath,
+                    destination: destination,
+                    onlyTesting: onlyTesting
+                )
+            } catch {
+                if onlyTesting.isEmpty { throw error }
+                Logger.current.debug(
+                    "Per-target enumeration of \(onlyTesting.joined(separator: ", ")) failed: \(error.localizedDescription)"
+                )
+                return []
+            }
         }
 
         private func uploadXCTestProducts(

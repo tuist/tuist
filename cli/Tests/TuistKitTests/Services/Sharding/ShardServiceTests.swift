@@ -66,6 +66,35 @@ struct ShardServiceTests {
         ])
     }
 
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func shard_suiteGranularity_translatesWholeModuleSentinelToBareModuleIdentifier() async throws {
+        // Given: a suite-granularity plan where one module carries the whole-module sentinel (its suites
+        // could not be enumerated) alongside another module with real suites.
+        let (subject, testProductsPath) = try await makeSubjectWithLocalProducts(
+            modules: ["AppTests", "LegacyTests"],
+            suites: [
+                "AppTests": ["LoginTests"],
+                "LegacyTests": [ShardConstants.wholeModuleSuiteSentinel],
+            ]
+        )
+
+        // When
+        let shard = try await subject.shard(
+            shardIndex: 0,
+            fullHandle: "org/project",
+            serverURL: URL(string: "https://tuist.dev")!,
+            reference: nil,
+            testProductsPath: testProductsPath,
+            testProductsArchivePath: nil
+        )
+
+        // Then: the sentinel selects the whole module via a bare `-only-testing LegacyTests`.
+        #expect(shard.testIdentifiers == [
+            "AppTests/LoginTests",
+            "LegacyTests",
+        ])
+    }
+
     // MARK: - shard() with local test products path
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
