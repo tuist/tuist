@@ -103,6 +103,7 @@ pub struct StoreSnapshot {
     pub outbox_messages: usize,
     pub multipart_uploads: usize,
     pub segment_counts: Vec<(&'static str, usize)>,
+    pub segment_fsync_count: u64,
     pub rocksdb_block_cache_usage_bytes: u64,
     pub rocksdb_block_cache_pinned_usage_bytes: u64,
     pub rocksdb_block_cache_capacity_bytes: u64,
@@ -2189,6 +2190,7 @@ impl Store {
             outbox_messages,
             multipart_uploads,
             segment_counts,
+            segment_fsync_count: self.segment_fsync_count.load(Ordering::Relaxed),
             rocksdb_block_cache_usage_bytes: self.rocksdb_block_cache.get_usage() as u64,
             rocksdb_block_cache_pinned_usage_bytes: self.rocksdb_block_cache.get_pinned_usage()
                 as u64,
@@ -4464,6 +4466,56 @@ mod tests {
             fsyncs <= 4,
             "expected concurrent writes to batch segment fsyncs (<=4) but observed {fsyncs} \
              for {writers} writers — every write is fsyncing under the global segment write lock"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn concurrent_replicated_artifact_applies_batch_segment_fsyncs() {
+        let (_temp_dir, _config, store) = temp_store();
+        let store = Arc::new(store);
+
+        // A fresh node bootstrapping an account applies inbound artifacts
+        // concurrently (BOOTSTRAP_ARTIFACT_FETCH_CONCURRENCY at a time). Inbound
+        // applies share the foreground write's segment-append + durability path
+        // (`persist_artifact_from_path_with_version`), so group commit must
+        // coalesce their fsyncs too — otherwise the parallel bootstrap fetch just
+        // re-serializes one fsync per inbound write and gains nothing. Slow every
+        // fsync so all appliers reach the durability barrier within one window.
+        store.failpoints().set_always(
+            FailpointName::BeforeSegmentFsync,
+            FailpointAction::Sleep(std::time::Duration::from_millis(50)),
+        );
+
+        let appliers = 16u64;
+        let mut handles = Vec::new();
+        for i in 0..appliers {
+            let store = store.clone();
+            handles.push(tokio::spawn(async move {
+                store
+                    .apply_replicated_artifact_from_bytes(
+                        ArtifactProducer::Xcode,
+                        "ns",
+                        &format!("key-{i}"),
+                        "application/octet-stream",
+                        format!("artifact-body-{i}").as_bytes(),
+                        1_000 + i,
+                    )
+                    .await
+                    .expect("replicated artifact should apply");
+            }));
+        }
+        for handle in handles {
+            handle.await.expect("applier task should complete");
+        }
+
+        let fsyncs = store
+            .segment_fsync_count
+            .load(std::sync::atomic::Ordering::Relaxed);
+        assert!(
+            fsyncs <= 4,
+            "expected concurrent replicated applies to batch segment fsyncs (<=4) but observed \
+             {fsyncs} for {appliers} appliers — inbound bootstrap writes are fsyncing per write \
+             under the global segment write lock"
         );
     }
 

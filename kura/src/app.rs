@@ -457,6 +457,9 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                         state
                             .metrics
                             .update_multipart_uploads(snapshot.multipart_uploads);
+                        state
+                            .metrics
+                            .update_segment_fsyncs(snapshot.segment_fsync_count);
                         for (generation, count) in snapshot.segment_counts {
                             state
                                 .metrics
