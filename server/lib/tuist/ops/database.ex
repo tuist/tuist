@@ -635,6 +635,21 @@ defmodule Tuist.Ops.Database do
     |> JSON.encode!()
   end
 
+  @doc """
+  JSON-safe structured view of an `execute/2` result, for API responses.
+  Rows become column-keyed maps with datetime/other values coerced the same
+  way as `to_json/1`; preserves the `columns` order and the `num_rows` /
+  `truncated?` metadata that a bare row list would drop.
+  """
+  def to_json_map(%{columns: cols, rows: rows} = result) do
+    %{
+      columns: cols,
+      rows: Enum.map(rows, fn row -> Map.new(cols, fn c -> {c, json_safe(Map.get(row, c))} end) end),
+      num_rows: Map.get(result, :num_rows, length(rows)),
+      truncated: Map.get(result, :truncated?, false)
+    }
+  end
+
   @doc "Render the result rows as RFC 4180 CSV with a header row."
   def to_csv(%{columns: cols, rows: rows}) do
     header = Enum.map_join(cols, ",", &csv_escape/1)
