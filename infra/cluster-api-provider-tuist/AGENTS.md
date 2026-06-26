@@ -211,37 +211,46 @@ linux/<arch> the cluster runs on.
 The Dedibox and OVH kinds adopt a *pre-prepared* box rather than ordering or
 installing one — the same shape as the Apple Silicon fleet. **Adoption is a
 claim + SSH self-join only; the OS install never runs on the adoption path**
-(that is what keeps the fleet MachineDeployment going Ready fast, so it never
-wedges `helm --wait`). The reinstall that wipes a box back to a clean,
-claimable state runs on *release* (`reconcileDelete`). So a box must be
-prepared before it joins the pool:
+(that is what keeps a *claimed* box's self-join fast). A box must therefore be
+installed (Ubuntu + the fleet key + a known sudo password) *before* it joins the
+pool. And because a fleet at `replicas: 1` whose box isn't up yet sits at MD 0/1
+and wedges `helm --wait`, a cold start brings the fleet up at **0** and scales it
+to 1 only once the box is ready:
 
-1. **Deploy the fleet** so the operator mints the `<fleet>-ssh` key.
-2. **Prep the box** — install Ubuntu + the fleet key + the bootstrap login. The
-   prep task pulls the fleet pubkey from the `<fleet>-ssh` Secret and drives the
-   provider install (reusing the same clients the release-path reinstall uses):
+1. **Deploy the fleet at `replicas: 0`** (`<fleet>.replicas: 0` in
+   `values-managed-<env>.yaml`) — the MachineDeployment renders 0/0, so the
+   deploy never wedges. (The `dig`-based template preserves an explicit 0.)
+2. **Mint the fleet key out-of-band** — at replicas 0 there's no Machine yet to
+   make the operator mint it:
+   ```bash
+   mise run baremetal:mint-fleet-key tuist-tuist-dedibox-fleet
+   ```
+3. **Prep the box** — installs Ubuntu + the fleet key + the sudo password the
+   self-join uses once to establish NOPASSWD sudo. Pulls both from the
+   `<fleet>-ssh` Secret and drives the provider install; async (~20–40 min, poll
+   the console):
    ```bash
    mise run baremetal:prep-dedibox 188785
    mise run baremetal:prep-ovh ns543284.ip-144-217-252.net
    ```
-   It kicks the install off (~20–40 min); poll the provider console for done.
-3. **Mark the box** so the fleet claims it — a Scaleway **tag** for Dedibox
-   (every Dedibox shares the org's default project, so a tag is the env
-   boundary), the service **displayName** for OVH (one account holds every
-   env's boxes). The marker must match the fleet's `adoptTag` /
-   `adoptDisplayNamePrefix` in `values-managed-<env>.yaml`; OVH is a prefix
-   match so boxes are `tuist-staging-1`, `-2`:
+4. **Mark the box** so the fleet claims it — a Scaleway **tag** for Dedibox, the
+   service **displayName** for OVH; must match the fleet's `adoptTag` /
+   `adoptDisplayNamePrefix` (OVH is a prefix match, so boxes are `tuist-staging-1`,
+   `-2`):
    ```bash
    mise run baremetal:mark-dedibox 188785 tuist-staging
    mise run baremetal:mark-ovh ns543284.ip-144-217-252.net tuist-staging-1
    ```
+5. **Scale the fleet to 1** (`kubectl scale machinedeployment <fleet> --replicas=1`,
+   or bump `<fleet>.replicas` and redeploy) — the controller claims the marked box
+   and self-joins it in ~2–5 min.
 
-The controller then self-joins the box on the next reconcile (~2–5 min). On
-release it reinstalls the box, so a returned box is already prepped for the
-next claim. All tasks read creds from 1Password and the cluster via
-`PREP_KUBE_CONTEXT` / `PREP_NAMESPACE`; the OVH token must be minted on the
-same entity as `OVH_ENDPOINT`/`OVH_API_BASE` (a mismatched-entity token reads
-as "invalid").
+Release (`reconcileDelete`) drops the Node + identity + TOFU pin but **leaves the
+box installed** (it is a monthly contract, not a reinstall-on-release); a released
+box keeps its OS + key, so re-marking it back into the pool re-claims it with no
+re-prep. All tasks read creds from 1Password and the cluster via
+`PREP_KUBE_CONTEXT` / `PREP_NAMESPACE`; the OVH token must be minted on the same
+entity as `OVH_ENDPOINT` (a mismatched-entity token reads as "invalid").
 
 ### Scale up
 ```bash
