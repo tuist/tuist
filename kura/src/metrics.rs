@@ -46,6 +46,10 @@ pub struct Metrics {
     segment_refresh_bytes: Family<ArtifactOpLabels, Counter>,
     segment_refresh_duration: Family<ArtifactRouteLabels, Histogram>,
     segment_evicted_artifacts: Family<ArtifactOpLabels, Counter>,
+    // Cumulative segment fsyncs (group-commit durability + rotation). Compared
+    // against kura_artifact_writes_total, its rate shows how hard concurrent
+    // writes batch their durability fsyncs (≪ 1 fsync per write under load).
+    segment_fsyncs: Counter,
     replication_requests: Family<ReplicationLabels, Counter>,
     replication_request_duration: Family<ReplicationRouteLabels, Histogram>,
     replication_apply_results: Family<ReplicationApplyLabels, Counter>,
@@ -152,6 +156,7 @@ impl Metrics {
         let http_exceptions = Family::<HttpExceptionLabels, Counter>::default();
         let artifact_reads = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_writes = Family::<ArtifactOpLabels, Counter>::default();
+        let segment_fsyncs = Counter::default();
         let artifact_read_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_write_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_egress_completions = Family::<ArtifactOpLabels, Counter>::default();
@@ -312,6 +317,11 @@ impl Metrics {
             "kura_artifact_writes_total",
             "Artifact writes by producer and result",
             artifact_writes.clone(),
+        );
+        registry.register(
+            "kura_segment_fsyncs_total",
+            "Segment durability fsyncs (group-commit + rotation); compare its rate to kura_artifact_writes_total to see fsync batching under concurrent writes",
+            segment_fsyncs.clone(),
         );
         registry.register(
             "kura_artifact_read_bytes_total",
@@ -766,6 +776,7 @@ impl Metrics {
             http_exceptions,
             artifact_reads,
             artifact_writes,
+            segment_fsyncs,
             artifact_read_bytes,
             artifact_write_bytes,
             artifact_egress_completions,
@@ -1226,6 +1237,16 @@ impl Metrics {
         self.rollout_snapshot
             .outbox_messages
             .store(count as u64, Ordering::Relaxed);
+    }
+
+    pub fn update_segment_fsyncs(&self, total: u64) {
+        // The store tracks the cumulative fsync count as a process-local atomic
+        // that resets to 0 on restart, exactly like this Counter. Advance the
+        // Counter by the delta since the last sample so `rate()` is well-defined.
+        let recorded = self.segment_fsyncs.get();
+        if total > recorded {
+            self.segment_fsyncs.inc_by(total - recorded);
+        }
     }
 
     pub fn update_multipart_uploads(&self, count: usize) {
