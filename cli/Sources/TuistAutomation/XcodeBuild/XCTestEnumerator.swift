@@ -144,11 +144,15 @@
                         }
                     }
                 } else {
-                    for child in node.children ?? [] { visit(child) }
+                    for child in node.children ?? [] {
+                        visit(child)
+                    }
                 }
             }
 
-            for node in output.values { visit(node) }
+            for node in output.values {
+                visit(node)
+            }
 
             return order.map { XCTestRun.TestTarget(blueprintName: $0, onlyTestIdentifiers: suitesByTarget[$0] ?? []) }
         }
