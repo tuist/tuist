@@ -217,7 +217,7 @@ let target = .target(name: "MyTarget", dependencies: [
 ])
 ```
 
-For Swift Macros and Build Tool Plugins that are **defined in an external Swift Package**, you'll need to use the types `.macro` and `.plugin` respectively. If you want to define a Swift macro of your own instead of consuming one from a package, see [Swift Macros](#swift-macros).
+When integrating a Swift Macro or Build Tool Plugin from an external Swift Package through Xcode's default integration, declare it with the types `.macro` and `.plugin` respectively. Macros can also be consumed through [Tuist's XcodeProj-based integration](#tuists-xcodeprojbased-integration), and if you want to define a Swift macro of your own instead of consuming one from a package, see [Swift Macros](#swift-macros).
 
 > [!WARNING]
 > **SPM Build Tool Plugins**
