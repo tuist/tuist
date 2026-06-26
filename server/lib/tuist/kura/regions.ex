@@ -73,17 +73,20 @@ defmodule Tuist.Kura.Regions do
       replicas: 1,
       storage_size: "50Gi"
     },
-    # OVHcloud bare-metal staging validation region. Same bare-metal shape as
-    # dedibox-staging (no hetzner_location, local-NVMe storage_class, hostNetwork
-    # gateway on the box's public IP). Staging-only for now (gated by
-    # TUIST_KURA_AVAILABLE_REGIONS); it validates the OVHcloud integration ahead
-    # of the us-east/us-west cutover, which reuses this shape.
+    # Canada East (Beauharnois / OVHcloud BHS) on OVH bare metal: the
+    # `kura-ca-east` node pool (the `ovhFleet`), local-NVMe storage, and a
+    # hostNetwork regional gateway bound to the box's public IP (OVH has no
+    # Hetzner LB) — the same bare-metal shape as eu-central on Dedibox. The
+    # provider (OVH) is an implementation detail behind the geographic id; the
+    # Hetzner-backed us-east/us-west regions are untouched. Gated by
+    # TUIST_KURA_AVAILABLE_REGIONS (staging-only while the integration is
+    # validated).
     %{
-      id: "ovh-staging",
-      display_name: "OVH (staging)",
-      cluster_id: "ovh-staging-1",
-      ingress_class_name: "kura-ovh-staging",
-      node_pool: "kura-ovh-staging",
+      id: "ca-east",
+      display_name: "Canada East",
+      cluster_id: "ca-east-1",
+      ingress_class_name: "kura-ca-east",
+      node_pool: "kura-ca-east",
       storage_class: "scw-local-nvme",
       gateway: :host_network,
       replicas: 1,
