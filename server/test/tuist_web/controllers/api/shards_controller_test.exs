@@ -10,7 +10,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
     user = AccountsFixtures.user_fixture(preload: [:account])
     project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
 
-    stub(Tuist.Storage, :multipart_start, fn _key, _account -> "upload-id-123" end)
+    stub(Tuist.Storage, :multipart_start, fn _key, _account -> {:ok, "upload-id-123"} end)
 
     %{user: user, project: project}
   end
@@ -258,6 +258,30 @@ defmodule TuistWeb.API.ShardsControllerTest do
 
       response = json_response(conn, :bad_request)
       assert response["message"] =~ "shard_plan_id or reference"
+    end
+
+    test "returns bad gateway when the storage backend fails to start the upload", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      plan_id = Ecto.UUID.generate()
+
+      stub(Tuist.Shards, :start_upload_for_plan_id, fn _project, _account, ^plan_id ->
+        {:error, {:http_error, 400, %{body: "AuthorizationHeaderMalformed"}}}
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/upload/start",
+          %{shard_plan_id: plan_id}
+        )
+
+      response = json_response(conn, :bad_gateway)
+      assert response["message"] =~ "could not start the upload"
     end
   end
 

@@ -789,7 +789,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       object_key = "#{project_id}/#{cache_category}/#{hash}/#{name}"
 
       expect(Storage, :multipart_start, fn ^object_key, _actor ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       conn = Authentication.put_current_project(conn, project)
@@ -807,6 +807,39 @@ defmodule TuistWeb.API.CacheControllerTest do
       assert response["status"] == "success"
       response_data = response["data"]
       assert response_data["upload_id"] == upload_id
+    end
+
+    test "returns a bad gateway error when the storage backend fails to start the upload", %{
+      conn: conn,
+      cache: cache
+    } do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      {:ok, account} = Accounts.get_account_by_id(project.account_id)
+      hash = "hash"
+      name = "name"
+      project_id = "#{account.name}/#{project.name}"
+      cache_category = "builds"
+      object_key = "#{project_id}/#{cache_category}/#{hash}/#{name}"
+
+      expect(Storage, :multipart_start, fn ^object_key, _actor ->
+        {:error, {:http_error, 400, %{body: "AuthorizationHeaderMalformed"}}}
+      end)
+
+      conn = Authentication.put_current_project(conn, project)
+
+      # When
+      conn =
+        conn
+        |> assign(:cache, cache)
+        |> post(
+          ~p"/api/cache/multipart/start?hash=#{hash}&name=#{name}&project_id=#{project_id}&cache_category=#{cache_category}"
+        )
+
+      # Then
+      response = json_response(conn, 502)
+      assert response["status"] == "error"
+      assert response["message"] =~ "could not start the upload"
     end
 
     test "returns a payment_required error if the account has no subscription and they've gone above the threshold",

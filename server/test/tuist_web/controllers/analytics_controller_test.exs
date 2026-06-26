@@ -843,7 +843,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
         "#{account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
 
       expect(Storage, :multipart_start, fn ^object_key, _account ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       conn = Authentication.put_current_project(conn, project)
@@ -874,7 +874,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
         "#{account.name}/#{project.name}/runs/#{command_event.id}/some-id.json"
 
       expect(Storage, :multipart_start, fn ^object_key, _account ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       conn = Authentication.put_current_project(conn, project)
@@ -906,7 +906,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
         "#{account.name}/#{project.name}/runs/#{command_event.id}/session.zip"
 
       expect(Storage, :multipart_start, fn ^object_key, _account ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       conn = Authentication.put_current_project(conn, project)
@@ -1288,7 +1288,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
         "#{account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
 
       expect(Storage, :multipart_start, fn ^object_key, _account ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       # Authenticate with user instead of project token
@@ -1320,7 +1320,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
         "#{account.name}/#{project.name}/runs/#{command_event.id}/some-id.json"
 
       expect(Storage, :multipart_start, fn ^object_key, _account ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       # Authenticate with user instead of project token
@@ -1353,7 +1353,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
         "#{account.name}/#{project.name}/runs/#{command_event.id}/session.zip"
 
       expect(Storage, :multipart_start, fn ^object_key, _account ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       conn = Authentication.put_current_user(conn, user)
@@ -1388,7 +1388,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       object_key = "#{account.name}/#{project.name}/runs/#{nonexistent_run_id}/result_bundle.zip"
 
       expect(Storage, :multipart_start, fn ^object_key, _account ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       conn = Authentication.put_current_user(conn, user)
@@ -1686,7 +1686,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
         "#{account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
 
       expect(Storage, :multipart_start, fn ^object_key, _account ->
-        upload_id
+        {:ok, upload_id}
       end)
 
       # Using project authentication (old way)

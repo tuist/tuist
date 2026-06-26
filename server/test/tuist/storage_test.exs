@@ -469,21 +469,70 @@ defmodule Tuist.StorageTest do
         operation
       end)
 
-      expect(ExAws, :request!, fn ^operation, opts ->
+      expect(ExAws, :request, fn ^operation, opts ->
         # Verify fast_api_req_opts are included
         assert Map.get(opts, :receive_timeout) == 5_000
         assert Map.get(opts, :pool_timeout) == 1_000
         assert Map.get(opts, :test) == :config
-        %{body: %{upload_id: upload_id}}
+        {:ok, %{body: %{upload_id: upload_id}}}
       end)
 
       # When
-      assert Storage.multipart_start(object_key, :test) == upload_id
+      assert Storage.multipart_start(object_key, :test) == {:ok, upload_id}
 
       # Then
       assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}
 
       assert is_number(duration)
+    end
+
+    test "returns an error and emits the error telemetry event when the backend rejects the request" do
+      # Given
+      event_name = Tuist.Telemetry.event_name_storage_multipart_start_upload_error()
+      event_ref = :telemetry_test.attach_event_handlers(self(), [event_name])
+
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> %{} end)
+
+      operation = %S3{headers: %{}}
+
+      expect(ExAws.S3, :initiate_multipart_upload, fn ^bucket_name, ^object_key -> operation end)
+
+      expect(ExAws, :request, fn ^operation, _opts ->
+        {:error, {:http_error, 400, %{body: "AuthorizationHeaderMalformed"}}}
+      end)
+
+      # When / Then
+      assert ExUnit.CaptureLog.capture_log(fn ->
+               assert Storage.multipart_start(object_key, :test) ==
+                        {:error, {:http_error, 400, %{body: "AuthorizationHeaderMalformed"}}}
+             end) =~ "Failed to start multi-part upload"
+
+      assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}
+      assert is_number(duration)
+    end
+
+    test "returns an error when the backend responds without an upload id" do
+      # Given
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> %{} end)
+
+      operation = %S3{headers: %{}}
+
+      expect(ExAws.S3, :initiate_multipart_upload, fn ^bucket_name, ^object_key -> operation end)
+
+      expect(ExAws, :request, fn ^operation, _opts -> {:ok, %{body: %{upload_id: nil}}} end)
+
+      # When / Then
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert {:error, {:missing_upload_id, _response}} = Storage.multipart_start(object_key, :test)
+      end)
     end
   end
 
@@ -871,14 +920,14 @@ defmodule Tuist.StorageTest do
         operation
       end)
 
-      expect(ExAws, :request!, fn updated_operation, _opts ->
+      expect(ExAws, :request, fn updated_operation, _opts ->
         # Verify region header is added
         assert updated_operation.headers == %{"X-Tigris-Regions" => "eur"}
-        %{body: %{upload_id: upload_id}}
+        {:ok, %{body: %{upload_id: upload_id}}}
       end)
 
       # When
-      assert Storage.multipart_start(object_key, account) == upload_id
+      assert Storage.multipart_start(object_key, account) == {:ok, upload_id}
 
       # Then
       assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}
@@ -905,14 +954,14 @@ defmodule Tuist.StorageTest do
         operation
       end)
 
-      expect(ExAws, :request!, fn updated_operation, _opts ->
+      expect(ExAws, :request, fn updated_operation, _opts ->
         # Verify region header is added
         assert updated_operation.headers == %{"X-Tigris-Regions" => "usa"}
-        %{body: %{upload_id: upload_id}}
+        {:ok, %{body: %{upload_id: upload_id}}}
       end)
 
       # When
-      assert Storage.multipart_start(object_key, account) == upload_id
+      assert Storage.multipart_start(object_key, account) == {:ok, upload_id}
 
       # Then
       assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}
@@ -939,14 +988,14 @@ defmodule Tuist.StorageTest do
         operation
       end)
 
-      expect(ExAws, :request!, fn ^operation, _opts ->
+      expect(ExAws, :request, fn ^operation, _opts ->
         # Verify no region headers are added
         assert operation.headers == %{}
-        %{body: %{upload_id: upload_id}}
+        {:ok, %{body: %{upload_id: upload_id}}}
       end)
 
       # When
-      assert Storage.multipart_start(object_key, account) == upload_id
+      assert Storage.multipart_start(object_key, account) == {:ok, upload_id}
 
       # Then
       assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}
@@ -1106,16 +1155,16 @@ defmodule Tuist.StorageTest do
         operation
       end)
 
-      expect(ExAws, :request!, fn updated_operation, _opts ->
+      expect(ExAws, :request, fn updated_operation, _opts ->
         assert updated_operation.headers == %{}
-        %{body: %{upload_id: upload_id}}
+        {:ok, %{body: %{upload_id: upload_id}}}
       end)
 
       # When
       result = Storage.multipart_start(object_key, account)
 
       # Then
-      assert result == upload_id
+      assert result == {:ok, upload_id}
     end
 
     test "object_exists? uses custom S3 config" do

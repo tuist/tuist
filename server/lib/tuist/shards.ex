@@ -98,8 +98,7 @@ defmodule Tuist.Shards do
   end
 
   def start_upload_for_plan_id(%Project{} = project, %Account{} = account, plan_id) do
-    upload_id = Storage.multipart_start(bundle_object_key(account, project, plan_id), account)
-    {:ok, upload_id}
+    Storage.multipart_start(bundle_object_key(account, project, plan_id), account)
   end
 
   def get_shard(%Project{} = project, %Account{} = account, reference, shard_index) do

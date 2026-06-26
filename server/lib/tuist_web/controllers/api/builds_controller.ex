@@ -1024,9 +1024,15 @@ defmodule TuistWeb.API.BuildsController do
       ) do
     object_key = Builds.build_storage_key(selected_project.account.name, selected_project.name, build_id)
 
-    multipart_upload_id = Storage.multipart_start(object_key, selected_project.account)
+    case Storage.multipart_start(object_key, selected_project.account) do
+      {:ok, multipart_upload_id} ->
+        json(conn, %{status: "success", data: %{upload_id: multipart_upload_id}})
 
-    json(conn, %{status: "success", data: %{upload_id: multipart_upload_id}})
+      {:error, _reason} ->
+        conn
+        |> put_status(:bad_gateway)
+        |> json(%{status: "error", message: "The storage backend could not start the upload."})
+    end
   end
 
   operation(:multipart_generate_url,

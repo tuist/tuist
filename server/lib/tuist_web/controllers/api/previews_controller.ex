@@ -193,21 +193,7 @@ defmodule TuistWeb.API.PreviewsController do
            build_version: build_version
          }) do
       {:ok, app_build} ->
-        upload_id =
-          Storage.multipart_start(
-            AppBuilds.storage_key(%{
-              account_handle: account_handle,
-              project_handle: project_handle,
-              app_build: app_build
-            }),
-            selected_project.account
-          )
-
-        # We're returning app_build.id as preview_id, so we don't break CLI pre-4.54.0 version.
-        json(conn, %{
-          status: "success",
-          data: %{upload_id: upload_id, preview_id: app_build.id, app_build_id: app_build.id}
-        })
+        start_app_build_upload(conn, app_build, account_handle, project_handle, selected_project)
 
       {:error, %Ecto.Changeset{errors: errors}} ->
         if Keyword.has_key?(errors, :binary_id) do
@@ -222,6 +208,29 @@ defmodule TuistWeb.API.PreviewsController do
         else
           raise "Unexpected error creating app build: #{inspect(errors)}"
         end
+    end
+  end
+
+  defp start_app_build_upload(conn, app_build, account_handle, project_handle, selected_project) do
+    object_key =
+      AppBuilds.storage_key(%{
+        account_handle: account_handle,
+        project_handle: project_handle,
+        app_build: app_build
+      })
+
+    case Storage.multipart_start(object_key, selected_project.account) do
+      {:ok, upload_id} ->
+        # We're returning app_build.id as preview_id, so we don't break CLI pre-4.54.0 version.
+        json(conn, %{
+          status: "success",
+          data: %{upload_id: upload_id, preview_id: app_build.id, app_build_id: app_build.id}
+        })
+
+      {:error, _reason} ->
+        conn
+        |> put_status(:bad_gateway)
+        |> json(%{status: "error", message: "The storage backend could not start the upload."})
     end
   end
 

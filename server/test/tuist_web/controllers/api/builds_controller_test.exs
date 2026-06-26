@@ -570,7 +570,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
       build_id = Ecto.UUID.generate()
 
       stub(Storage, :multipart_start, fn _key, _account ->
-        "multipart-upload-id-123"
+        {:ok, "multipart-upload-id-123"}
       end)
 
       conn =
@@ -609,7 +609,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
 
       stub(Storage, :multipart_start, fn _key, account ->
         send(test_pid, {:multipart_start_account, account.id})
-        "multipart-upload-id-123"
+        {:ok, "multipart-upload-id-123"}
       end)
 
       conn
