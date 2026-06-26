@@ -39,12 +39,6 @@ rules:
   - apiGroups: [""]
     resources: [nodes]
     verbs: [get, list, watch]
-  # The machine-metrics sampler reads each node's kubelet
-  # `/stats/summary` through the apiserver node proxy to collect per-Pod
-  # CPU/memory/network/disk for the runner-job Metrics tab.
-  - apiGroups: [""]
-    resources: [nodes/proxy]
-    verbs: [get]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
