@@ -14,14 +14,6 @@ defmodule Tuist.Processor.BuildProcessor do
 
   @apple_reference_date_offset 978_307_200
 
-  # Entries that are safe to drop from a build archive when their CRC is bad.
-  # `machine_metrics.jsonl` is optional telemetry the CLI bundles from a copy of
-  # a file an always-on sampler daemon keeps writing; a corrupt copy there must
-  # not sink an otherwise-parseable build. Critical entries (the xcactivitylog,
-  # the CAS databases) are intentionally absent so their corruption still fails
-  # loudly and the Oban job retries.
-  @non_critical_archive_files ["machine_metrics.jsonl"]
-
   def process_build(build_zip_path, xcode_cache_upload_enabled) do
     temp_dir = make_temp_dir()
 
@@ -37,7 +29,7 @@ defmodule Tuist.Processor.BuildProcessor do
   end
 
   defp process_zip(zip_path, temp_dir, xcode_cache_upload_enabled) do
-    {:ok, _} = unzip_tolerating_bad_crc(zip_path, temp_dir)
+    {:ok, _} = :zip.unzip(~c"#{zip_path}", [{:cwd, ~c"#{temp_dir}"}])
     xcactivitylog_path = find_xcactivitylog(temp_dir)
     cas_analytics_db_path = Path.join(temp_dir, "cas_analytics.db")
     legacy_cas_metadata_path = Path.join(temp_dir, "cas_metadata")
@@ -64,42 +56,6 @@ defmodule Tuist.Processor.BuildProcessor do
       {:ok, parsed_data}
     end
   end
-
-  # `:zip.unzip` is all-or-nothing: a single entry with a bad CRC aborts the
-  # whole extraction. When the corrupt entry is a non-critical archive file we
-  # re-extract with it filtered out so the build still processes; a bad CRC on
-  # any other entry is returned unchanged so the caller fails loudly (and the
-  # Oban job retries), exactly as it did before.
-  defp unzip_tolerating_bad_crc(zip_path, temp_dir, excluded \\ []) do
-    file_filter = fn {:zip_file, name, _info, _comment, _offset, _comp_size} ->
-      to_string(name) not in excluded
-    end
-
-    case :zip.unzip(~c"#{zip_path}", [{:cwd, ~c"#{temp_dir}"}, {:file_filter, file_filter}]) do
-      {:ok, _} = result ->
-        result
-
-      {:error, reason} = error ->
-        name = bad_crc_file(reason)
-
-        if name in @non_critical_archive_files and name not in excluded do
-          # `:zip.unzip` writes each entry to disk before verifying its CRC, so the
-          # corrupt file is left behind by the aborted pass. Remove it so the
-          # filtered retry doesn't leave known-bad bytes for later readers.
-          File.rm(Path.join(temp_dir, name))
-          unzip_tolerating_bad_crc(zip_path, temp_dir, [name | excluded])
-        else
-          error
-        end
-    end
-  end
-
-  # The tuple order of `:bad_crc` errors differs across OTP releases
-  # (`{:bad_crc, name}` on OTP 28, `{name, :bad_crc}` on older releases), so we
-  # match both shapes and return the offending entry name as a string.
-  defp bad_crc_file({:bad_crc, name}), do: to_string(name)
-  defp bad_crc_file({name, :bad_crc}), do: to_string(name)
-  defp bad_crc_file(_), do: nil
 
   defp parse_build(xcactivitylog_path, cas_analytics_db_path, legacy_cas_metadata_path, xcode_cache_upload_enabled) do
     :telemetry.span([:tuist, :processor, :build, :parse], %{}, fn ->
