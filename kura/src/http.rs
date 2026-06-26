@@ -1478,20 +1478,25 @@ async fn get_module(
 
 /// First CLI version that understands a 204 on module upload start as "already
 /// cached, skip the upload". Older clients only know the legacy 200 + null
-/// `upload_id`, so they keep getting that. The `x-tuist-cli-version` header is
-/// sent only by clients that carry this change; the floor is a conservative
-/// lower bound (latest released CLI is 4.200.5).
-const MIN_CLI_VERSION_FOR_NO_CONTENT: (u64, u64, u64) = (4, 200, 6);
+/// `upload_id`, so they keep getting that. This change lands on `main`, which
+/// currently cuts the 4.202.0 release line (canaries/RCs of the next minor).
+///
+/// We compare on `major.minor.patch` only and ignore the pre-release suffix, so
+/// every 4.202.0 build — `4.202.0-canary.N`, `4.202.0-rc.N`, and the eventual
+/// `4.202.0` stable — qualifies, while 4.201.x and earlier do not. (Comparing
+/// the full semver would rank the canaries/RCs *below* `4.202.0` and wrongly
+/// exclude the very builds that first carry this change.)
+const MIN_CLI_VERSION_FOR_NO_CONTENT: (u64, u64, u64) = (4, 202, 0);
 
 fn cli_supports_no_content(headers: &HeaderMap) -> bool {
     headers
         .get("x-tuist-cli-version")
         .and_then(|value| value.to_str().ok())
-        .and_then(parse_semver)
+        .and_then(parse_version_core)
         .is_some_and(|version| version >= MIN_CLI_VERSION_FOR_NO_CONTENT)
 }
 
-fn parse_semver(value: &str) -> Option<(u64, u64, u64)> {
+fn parse_version_core(value: &str) -> Option<(u64, u64, u64)> {
     // Parse a leading `major.minor.patch`, ignoring any pre-release/build suffix.
     let core = value.split(|c| c == '-' || c == '+').next().unwrap_or(value);
     let mut parts = core.split('.');
@@ -3764,13 +3769,14 @@ mod tests {
         // Starting an upload for an already-cached artifact returns 204 No Content
         // to a CLI new enough to understand it (advertised via x-tuist-cli-version),
         // so a cache hit can't be confused with a failure that returns an empty body.
+        // A canary of the carrying release line qualifies (pre-release suffix ignored).
         let restart = app
             .clone()
             .oneshot(
                 Request::builder()
                     .method("POST")
                     .uri("/api/cache/module/start?tenant_id=acme&namespace_id=ios&hash=hash-1&name=Module.framework&cache_category=builds")
-                    .header("x-tuist-cli-version", "4.200.6")
+                    .header("x-tuist-cli-version", "4.202.0-canary.7")
                     .body(Body::empty())
                     .expect("failed to build restart request"),
             )
