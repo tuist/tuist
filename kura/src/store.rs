@@ -2,7 +2,10 @@ use std::{
     collections::{BTreeMap, HashMap},
     path::{Path, PathBuf},
     pin::Pin,
-    sync::{Arc, Mutex as StdMutex},
+    sync::{
+        Arc, Mutex as StdMutex,
+        atomic::{AtomicU64, Ordering},
+    },
     task::{Context, Poll},
     time::{Duration, Instant},
 };
@@ -72,6 +75,9 @@ pub struct Store {
     rocksdb_block_cache: Cache,
     rocksdb_write_buffer_manager: WriteBufferManager,
     segment_write_lock: Mutex<()>,
+    // Counts segment fsyncs so tests can assert durability is batched across
+    // concurrent writers rather than one fsync per write under the global lock.
+    segment_fsync_count: Arc<AtomicU64>,
     segment_refresh_lock: Mutex<()>,
     segment_state_lock: Mutex<()>,
     // Wrapped in `Arc` so readers clone the snapshot under a brief lock and then
@@ -359,6 +365,7 @@ impl Store {
             rocksdb_block_cache,
             rocksdb_write_buffer_manager,
             segment_write_lock: Mutex::new(()),
+            segment_fsync_count: Arc::new(AtomicU64::new(0)),
             segment_refresh_lock: Mutex::new(()),
             segment_state_lock: Mutex::new(()),
             segment_state_cache: StdMutex::new(Arc::new(SegmentStateSnapshot::default())),
@@ -1089,6 +1096,8 @@ impl Store {
                 segment_path.display()
             )
         })?;
+        self.hit_failpoint(FailpointName::BeforeSegmentFsync).await?;
+        self.segment_fsync_count.fetch_add(1, Ordering::Relaxed);
         destination.sync_data().await.map_err(|error| {
             format!("failed to sync segment {}: {error}", segment_path.display())
         })?;
@@ -4326,6 +4335,54 @@ mod tests {
                 }
             );
         }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn concurrent_artifact_writes_batch_segment_fsyncs() {
+        let (_temp_dir, config, store) = temp_store();
+        let store = Arc::new(store);
+
+        // Slow every segment fsync so all writers reach the durability barrier
+        // within one window. With one fsync per write under the global segment
+        // write lock these serialize (one fsync each); group commit must
+        // coalesce them into far fewer.
+        store.failpoints().set_always(
+            FailpointName::BeforeSegmentFsync,
+            FailpointAction::Sleep(std::time::Duration::from_millis(50)),
+        );
+
+        let writers = 16u64;
+        let mut handles = Vec::new();
+        for i in 0..writers {
+            let store = store.clone();
+            let path = config.tmp_dir.join(format!("artifact-{i}"));
+            std::fs::write(&path, format!("artifact-body-{i}")).expect("write artifact body");
+            handles.push(tokio::spawn(async move {
+                store
+                    .persist_artifact_from_path_and_enqueue(
+                        ArtifactProducer::Xcode,
+                        "ns",
+                        &format!("key-{i}"),
+                        "application/octet-stream",
+                        &path,
+                        &[],
+                    )
+                    .await
+                    .expect("artifact should persist");
+            }));
+        }
+        for handle in handles {
+            handle.await.expect("writer task should complete");
+        }
+
+        let fsyncs = store
+            .segment_fsync_count
+            .load(std::sync::atomic::Ordering::Relaxed);
+        assert!(
+            fsyncs <= 4,
+            "expected concurrent writes to batch segment fsyncs (<=4) but observed {fsyncs} \
+             for {writers} writers — every write is fsyncing under the global segment write lock"
+        );
     }
 
     #[tokio::test]
