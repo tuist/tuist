@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -31,9 +33,9 @@ import (
 
 const (
 	// DediboxMachineFinalizer guards the CR until the node identity is cleaned
-	// up. Like OVH, a Dedibox server is a monthly contract, so CR deletion
-	// leaves the physical box intact (release is "drop the Node + identity");
-	// terminating the contract is an operator action.
+	// up and the box is reinstalled back to the pool. Like OVH, a Dedibox server
+	// is a monthly contract, so release wipes the OS back to a clean, claimable
+	// state but keeps the box; terminating the contract is an operator action.
 	DediboxMachineFinalizer = "dedibox.cluster.x-k8s.io/finalizer"
 
 	// dediboxBootstrapUser is the sudo login the Scaleway Dedibox install creates
@@ -301,16 +303,14 @@ func (r *DediboxMachineReconciler) claimedServerIDs(ctx context.Context, self *i
 	return claimed, nil
 }
 
-// reconcileDelete releases the Machine without touching the box. The Dedibox is a
-// monthly contract, so deleting the Machine must not terminate or re-image it —
-// and crucially, CAPI churn (a helm rollback deleting the MachineDeployment, a
-// template change) deletes Machines whose boxes are still prepped and in use, so
-// reinstalling here would wipe a live box. Release is therefore "drop the
-// per-machine kubelet identity + bootstrap Secret + Node and remove the
-// finalizer", leaving the box running. Returning a box to a clean, claimable state
-// is the explicit operator step `mise run baremetal:prep-dedibox` (re-prep), never
-// automatic on delete.
+// reconcileDelete returns the Machine's box to the pool. The Dedibox is a monthly
+// contract, so "release" is not a contract termination: it reinstalls the box to a
+// clean, key-authorized state so the next claim self-joins it with no operator
+// prep, then drops the per-machine kubelet identity + bootstrap Secret + Node and
+// removes the finalizer. Reinstalling on release (rather than on adoption) is what
+// keeps adoption a fast self-join.
 func (r *DediboxMachineReconciler) reconcileDelete(ctx context.Context, machine *infrav1.DediboxMachine) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
 	machine.Status.Phase = "Deleting"
 	if err := r.CredentialsManager.DeleteNodeIdentity(ctx, machine.Name); err != nil {
 		r.event(machine, "DeleteIdentityFailed", "delete node identity: %v (will retry)", err)
@@ -330,8 +330,62 @@ func (r *DediboxMachineReconciler) reconcileDelete(ctx context.Context, machine 
 		r.event(machine, "DeleteNodeFailed", "delete Node: %v (will retry)", err)
 		return ctrl.Result{}, err
 	}
+	// Reinstall the box back to a clean, claimable state as the last step before
+	// dropping the finalizer — it's the only step that retries on failure, so on
+	// the happy path it fires exactly once. Fire-and-forget: the wipe + reimage
+	// (Ubuntu + fleet key + tuist login) finishes after the Machine is gone,
+	// leaving a box the next claim self-joins.
+	if machine.Status.ServerID != 0 {
+		if err := r.reinstallToPool(ctx, machine); err != nil {
+			r.event(machine, "ReleaseReinstallFailed", "reinstall on release: %v (will retry)", err)
+			return ctrl.Result{}, err
+		}
+		r.event(machine, "ReleasedToPool", "Reinstalling Dedibox server %d to a clean, claimable state", machine.Status.ServerID)
+		logger.Info("reinstalling Dedibox box on release", "id", machine.Status.ServerID)
+	}
 	controllerutil.RemoveFinalizer(machine, DediboxMachineFinalizer)
 	return ctrl.Result{}, nil
+}
+
+// reinstallToPool wipes the adopted box back to a clean Ubuntu install with the
+// fleet key authorized and the tuist login, so the next claim self-joins it
+// without operator prep. Fire-and-forget: it kicks the install off and returns.
+func (r *DediboxMachineReconciler) reinstallToPool(ctx context.Context, machine *infrav1.DediboxMachine) error {
+	fleet := firstNonEmpty(machine.Spec.FleetName, machine.Namespace+"-"+machine.Name)
+	privateKey, keyErr := r.CredentialsManager.EnsureFleetSSHKey(ctx, fleet)
+	if keyErr != nil {
+		return keyErr
+	}
+	signer, signErr := ssh.ParsePrivateKey(privateKey)
+	if signErr != nil {
+		return fmt.Errorf("parse fleet ssh key: %w", signErr)
+	}
+	sudoPassword, pwErr := r.CredentialsManager.FleetSudoPassword(ctx, fleet)
+	if pwErr != nil {
+		return fmt.Errorf("fleet sudo password: %w", pwErr)
+	}
+	serverID := uint64(machine.Status.ServerID)
+	sshKeyID, regErr := r.DediboxClient.RegisterSSHKey(ctx, fleet, string(ssh.MarshalAuthorizedKey(signer.PublicKey())))
+	if regErr != nil {
+		return regErr
+	}
+	osChoice, osErr := r.DediboxClient.ResolveOS(ctx, machine.Status.Zone, serverID, firstNonEmpty(machine.Spec.OS, "ubuntu_24.04"))
+	if osErr != nil {
+		return osErr
+	}
+	// Set the login password to the fleet sudo password, exactly as prep does, so
+	// the re-adopting self-join can escalate with `sudo -S` to drop the NOPASSWD
+	// sudoers file. Omitting it was why the original release-reinstall failed the
+	// self-join with "sudo: a password is required".
+	return r.DediboxClient.StartInstall(ctx, dedibox.InstallParams{
+		Zone:         machine.Status.Zone,
+		ServerID:     serverID,
+		OS:           osChoice,
+		Hostname:     machine.Name,
+		UserLogin:    dediboxBootstrapUser,
+		SSHKeyIDs:    []string{sshKeyID},
+		UserPassword: sudoPassword,
+	})
 }
 
 func (r *DediboxMachineReconciler) event(machine *infrav1.DediboxMachine, reason, format string, args ...any) {
