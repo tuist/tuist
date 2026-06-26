@@ -367,11 +367,6 @@ let project = Project(
 
 Any target that links `MyLibrary` can now use the macro — Tuist propagates the plugin so the compiler can load it.
 
-> [!NOTE]
-> **Why some docs point to `Package.swift`**
->
-> Defining macros through a `Package.swift` is one valid way to integrate them, but it's not the only one. The `.macro` product type lets you keep the macro definition inside your own targets, which is usually what you want when the macro lives in your monorepo alongside the code that uses it.
-
 
 ## Static or dynamic {#static-or-dynamic}
 
