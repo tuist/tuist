@@ -39,10 +39,10 @@ server:
       # the Macs' cache traffic never crosses the WAN. The former Linux
       # runner-cache region `hetzner-staging-runners` is dropped: it lived on the
       # Hetzner ccx13 `kura` pool that the cutover deletes, and no customers use
-      # the staging Linux runner cache. `ovh-staging` is re-added here once the
-      # BHS OVH box is prepped + the ovhFleet scaled to 1 (parked at replicas 0
-      # for now); until then it would route to a region with no node.
-      value: eu-central,scw-fr-par-runners
+      # the staging Linux runner cache. `ovh-staging` validates the OVHcloud
+      # integration on the pre-ordered BHS bare-metal box (ovhFleet below, now
+      # enabled at replicas 1).
+      value: eu-central,scw-fr-par-runners,ovh-staging
     # Runner platforms whose fleets can reach their region's private
     # cache endpoint — the dispatch gate for handing out
     # `cache_endpoint_url` (Catalog.fleet_on_cluster_network?/1).
@@ -346,13 +346,13 @@ dediboxFleet:
 # on the fleet MD and the install is async; the region just can't schedule until
 # a box joins.)
 ovhFleet:
-  # Parked until the BHS box is prepped: the OVH token still needs POST
-  # /dedicated/server/*/reinstall, and an enabled fleet with no joinable box
-  # leaves its MachineDeployment 0/1 and wedges helm --wait (replicas: 0 doesn't
-  # help — Helm's `default 1` renders 0 as 1). Re-enable, prep the box, and
-  # re-add ovh-staging to the region list once the token grant lands. The
-  # eu-central Dedibox path is the validated twin.
-  enabled: false
+  # Enabled for OVH validation: the BHS SYS-1 box is pre-ordered + named, and the
+  # OVH_API token carries GET /dedicated/server/* + GET /services/* + POST
+  # /dedicated/server/*/reinstall (the controller drives the OS install on claim).
+  # replicas: 1 so the reconciler claims the box, installs Ubuntu, and self-joins
+  # it. The eu-central Dedibox path is the validated twin.
+  enabled: true
+  replicas: 1
   # OVHcloud US entity (api.us.ovhcloud.com). The box sits physically in Canada
   # (ca-east-bhs / BHS6) but on an OVHcloud US account, so the API endpoint is
   # ovh-us — a token minted on any other entity (ovh-ca, ovh-eu) is rejected as
@@ -361,12 +361,13 @@ ovhFleet:
   nodePool: kura-ovh-staging
   machine:
     # Adopt by offer + datacenter, scoped to the displayName prefix (the per-env
-    # boundary — one OVH account holds every env's boxes). Prefix match, so the
-    # boxes are named tuist-staging-1, -2, … (Scaleway-style pool naming); this is
-    # the env pool marker, not a workload one. The operator orders a SYS-1 in BHS,
-    # names it tuist-staging-N, and scales the fleet; the controller claims a free
-    # match, installs the OS, and joins it.
-    adoptDisplayNamePrefix: tuist-staging
+    # boundary — one OVH account holds every env's boxes). Prefix match (case-
+    # sensitive). The pre-ordered BHS box is named `tuist-kura-ovh-staging`, the
+    # kura-scoped per-env marker (mirrors the Dedibox fleet's `tuist-kura-staging`
+    # tag); canary/prod boxes use `tuist-kura-ovh-<env>`. The operator orders a
+    # SYS-1 in BHS, names it accordingly, and scales the fleet; the controller
+    # claims a free match, installs the OS, and joins it.
+    adoptDisplayNamePrefix: tuist-kura-ovh-staging
     offer: sys-1
     datacenter: bhs
     os: ubuntu_24.04
