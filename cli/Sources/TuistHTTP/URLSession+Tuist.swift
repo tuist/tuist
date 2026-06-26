@@ -23,13 +23,6 @@ private func resolvedUseEnvironmentProxy(_ useEnvironmentProxy: Bool?) -> Bool {
     useEnvironmentProxy ?? HTTPSettings.current.useEnvironmentProxy
 }
 
-private func environmentDouble(_ key: String, default defaultValue: Double) -> Double {
-    guard let value = Environment.current.variables[key], let parsed = Double(value) else {
-        return defaultValue
-    }
-    return parsed
-}
-
 private func environmentInt(_ key: String, default defaultValue: Int) -> Int {
     guard let value = Environment.current.variables[key], let parsed = Int(value) else {
         return defaultValue
@@ -43,8 +36,8 @@ public func tuistURLSessionConfiguration(useEnvironmentProxy: Bool? = nil) -> UR
 
 private func tuistURLSessionConfigurationResolved(useEnvironmentProxy: Bool) -> URLSessionConfiguration {
     let configuration: URLSessionConfiguration = .ephemeral
-    configuration.timeoutIntervalForRequest = environmentDouble("TUIST_HTTP_TIMEOUT_INTERVAL_FOR_REQUEST", default: 120)
-    configuration.timeoutIntervalForResource = environmentDouble("TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE", default: 90)
+    configuration.timeoutIntervalForRequest = Double(environmentInt("TUIST_HTTP_TIMEOUT_INTERVAL_FOR_REQUEST", default: 120))
+    configuration.timeoutIntervalForResource = Double(environmentInt("TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE", default: 90))
     configuration.httpMaximumConnectionsPerHost = environmentInt("TUIST_HTTP_MAXIMUM_CONNECTIONS_PER_HOST", default: 20)
     #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
         configuration.allowsCellularAccess = true
