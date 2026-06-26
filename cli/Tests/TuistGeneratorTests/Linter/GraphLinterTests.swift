@@ -765,6 +765,45 @@ struct GraphLinterTests {
         #expect(got.isEmpty == true)
     }
 
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func lint_when_visionOS_UITests_depends_on_app() async throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let app = Target.empty(
+            name: "App",
+            destinations: .visionOS,
+            product: .app
+        )
+        let appTests = Target.empty(
+            name: "AppUITests",
+            destinations: .visionOS,
+            product: .uiTests,
+            dependencies: [.target(name: app.name)]
+        )
+        let project = Project.test(path: path, targets: [app, appTests])
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: path): Set([]),
+            .target(name: appTests.name, path: path): Set([.target(name: app.name, path: path)]),
+        ]
+
+        let graph = Graph.test(
+            path: path,
+            workspace: Workspace.test(projects: [path]),
+            projects: [path: project],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
+
+        // Then
+        #expect(got.isEmpty == true)
+    }
+
     @Test(.inTemporaryDirectory, .withMockedXcodeController) func lint_watch_application() async throws {
         // Note: This was introduced in Xcode 14 / watchOS 9
         // watchOS applications can now use the regular application (.app) product identifier

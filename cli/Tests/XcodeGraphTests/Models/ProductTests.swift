@@ -89,6 +89,20 @@ final class ProductTests: XCTestCase {
         XCTAssertEqual(got, Set(expected))
     }
 
+    func test_forPlatform_when_visionOS() {
+        let got = Product.forPlatform(.visionOS)
+        let expected: [Product] = [
+            .app,
+            .staticLibrary,
+            .dynamicLibrary,
+            .framework,
+            .appExtension,
+            .unitTests,
+            .uiTests,
+        ]
+        XCTAssertEqual(got, Set(expected))
+    }
+
     func test_runnable() {
         let runnables: [Product] = [
             .app,
