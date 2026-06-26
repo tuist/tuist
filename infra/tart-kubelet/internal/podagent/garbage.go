@@ -158,7 +158,15 @@ func (c *Collector) runOnce(ctx context.Context, aggressive bool) {
 			_ = c.Tart.CleanupVMUserData(vm.Name)
 			droppedClones++
 		case "OCI":
-			if _, want := expected.images[vm.Name]; want {
+			// Keep a cached image whose repository a Pod still references.
+			// Pods name images by tag and Tart lists them by digest, so the
+			// match is on the repository the two share — without it the GC
+			// reaped the live runner image every pass. Under aggressive
+			// (disk-pressure) reclaim, reap it anyway: the OCI cache is
+			// reconstructible by re-pull, so an actual out-of-disk provision
+			// must win over keeping it warm (mirrors the golden policy, and
+			// bounds the superseded-digest tail a referenced repo accrues).
+			if _, want := expected.imageRepos[ociRepository(vm.Name)]; want && !aggressive {
 				continue
 			}
 			if err := c.Tart.Delete(ctx, vm.Name); err != nil {
@@ -237,8 +245,17 @@ func IsNoSpaceError(err error) bool {
 }
 
 type expectedSet struct {
-	vms    map[string]struct{}
-	images map[string]struct{}
+	vms map[string]struct{}
+	// imageRepos holds the repository (registry/name with the tag and
+	// digest stripped) of every referenced Pod image. The OCI branch
+	// matches against this rather than the full ref: a Pod requests its
+	// image by tag (`…/tuist-runner:macos-26-5-0.7.0`), but Tart caches
+	// it under — and `tart list` reports it by — the resolved digest
+	// (`…/tuist-runner@sha256:…`). The old full-ref comparison never
+	// matched, so the GC marked the live runner image stale and deleted
+	// it on every pass, forcing the next golden materialization into a
+	// full multi-GB re-pull instead of a clonefile from the warm cache.
+	imageRepos map[string]struct{}
 }
 
 func (c *Collector) expectedSet(ctx context.Context) (*expectedSet, error) {
@@ -247,8 +264,8 @@ func (c *Collector) expectedSet(ctx context.Context) (*expectedSet, error) {
 		return nil, err
 	}
 	out := &expectedSet{
-		vms:    map[string]struct{}{},
-		images: map[string]struct{}{},
+		vms:        map[string]struct{}{},
+		imageRepos: map[string]struct{}{},
 	}
 	for i := range pods.Items {
 		pod := &pods.Items[i]
@@ -261,7 +278,7 @@ func (c *Collector) expectedSet(ctx context.Context) (*expectedSet, error) {
 			continue
 		}
 		out.vms[VMNameForPod(pod)] = struct{}{}
-		out.images[pod.Spec.Containers[0].Image] = struct{}{}
+		out.imageRepos[ociRepository(pod.Spec.Containers[0].Image)] = struct{}{}
 		// Keep the golden base this image clones from. Without this the
 		// "local" GC branch would see the golden VM, find no Pod named
 		// after it, and reap it as an orphan clone — forcing the next
@@ -271,13 +288,28 @@ func (c *Collector) expectedSet(ctx context.Context) (*expectedSet, error) {
 	// Store-side entries cover Pods the reconciler has already started
 	// a VM for but that haven't shown up on this List response yet
 	// (e.g. just-admitted Pods, or pods re-bound to this Node by
-	// startup recovery). Image set is intentionally not augmented from
-	// Store: Store doesn't track the originating image, and the OCI
-	// cache GC is allowed to be one cycle behind reality.
+	// startup recovery). The image-repo set is intentionally not
+	// augmented from Store: Store doesn't track the originating image,
+	// and the OCI cache GC is allowed to be one cycle behind reality.
 	if c.Store != nil {
 		for _, e := range c.Store.Snapshot() {
 			out.vms[e.VMName] = struct{}{}
 		}
 	}
 	return out, nil
+}
+
+// ociRepository strips the tag and/or digest from an OCI image
+// reference, returning the bare `registry[:port]/name`. Pods reference
+// images by tag while Tart caches and lists them by digest, so the GC
+// has to compare on the repository the two share. A registry port (a
+// ':' whose suffix still contains a '/') must survive the tag strip.
+func ociRepository(ref string) string {
+	if i := strings.IndexByte(ref, '@'); i >= 0 {
+		ref = ref[:i]
+	}
+	if i := strings.LastIndexByte(ref, ':'); i >= 0 && !strings.Contains(ref[i+1:], "/") {
+		ref = ref[:i]
+	}
+	return ref
 }
