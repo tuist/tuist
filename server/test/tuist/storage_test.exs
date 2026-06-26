@@ -3,6 +3,7 @@ defmodule Tuist.StorageTest do
   use Mimic
 
   alias ExAws.Operation.S3
+  alias ExAws.S3.Download
   alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.Storage
@@ -324,6 +325,55 @@ defmodule Tuist.StorageTest do
       # Then
       assert got == stream
       assert_received {^event_name, ^event_ref, %{}, %{object_key: ^object_key}}
+    end
+  end
+
+  describe "download_to_file/3" do
+    test "returns the downloaded file when the request succeeds" do
+      # Given
+      object_key = UUIDv7.generate()
+      file_path = Path.join(System.tmp_dir!(), "#{UUIDv7.generate()}.zip")
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      operation = %Download{bucket: bucket_name, path: object_key, dest: file_path}
+
+      expect(ExAws.S3, :download_file, fn ^bucket_name, ^object_key, ^file_path -> operation end)
+      expect(ExAws, :request, fn ^operation, _opts -> {:ok, :done} end)
+
+      # When / Then
+      assert {:ok, :done} = Storage.download_to_file(object_key, file_path, :test)
+    end
+
+    test "returns an error tuple instead of exiting when an S3 chunk download times out" do
+      # Given
+      object_key = UUIDv7.generate()
+      file_path = Path.join(System.tmp_dir!(), "#{UUIDv7.generate()}.zip")
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      operation = %Download{bucket: bucket_name, path: object_key, dest: file_path}
+
+      expect(ExAws.S3, :download_file, fn ^bucket_name, ^object_key, ^file_path -> operation end)
+
+      # ExAws downloads each chunk in a Task.async_stream whose per-chunk timeout
+      # exits rather than raising, so a stalled chunk would otherwise escape as an
+      # uncaught exit and crash the calling job (observed as an Oban.CrashError).
+      expect(ExAws, :request, fn ^operation, _opts ->
+        exit({:timeout, {Task.Supervised, :stream, [60_000]}})
+      end)
+
+      # When
+      result = Storage.download_to_file(object_key, file_path, :test)
+
+      # Then
+      assert {:error, {:timeout, {Task.Supervised, :stream, [60_000]}}} = result
     end
   end
 
