@@ -39,10 +39,10 @@ server:
       # the Macs' cache traffic never crosses the WAN. The former Linux
       # runner-cache region `hetzner-staging-runners` is dropped: it lived on the
       # Hetzner ccx13 `kura` pool that the cutover deletes, and no customers use
-      # the staging Linux runner cache. `ovh-staging` validates the OVHcloud
-      # integration on the pre-ordered BHS bare-metal box (ovhFleet below, now
-      # enabled at replicas 1).
-      value: eu-central,scw-fr-par-runners,ovh-staging
+      # the staging Linux runner cache. `ca-east` (Canada East / OVHcloud BHS) is
+      # the OVH bare-metal validation region — a geographic id; OVH is an
+      # implementation detail behind it (ovhFleet below, replicas 1).
+      value: eu-central,scw-fr-par-runners,ca-east
     # Runner platforms whose fleets can reach their region's private
     # cache endpoint — the dispatch gate for handing out
     # `cache_endpoint_url` (Catalog.fleet_on_cluster_network?/1).
@@ -346,11 +346,12 @@ dediboxFleet:
 # on the fleet MD and the install is async; the region just can't schedule until
 # a box joins.)
 ovhFleet:
-  # Enabled for OVH validation: the BHS SYS-1 box is pre-ordered + named, and the
-  # OVH_API token carries GET /dedicated/server/* + GET /services/* + POST
-  # /dedicated/server/*/reinstall (the controller drives the OS install on claim).
-  # replicas: 1 so the reconciler claims the box, installs Ubuntu, and self-joins
-  # it. The eu-central Dedibox path is the validated twin.
+  # Backs the `ca-east` region (Canada East / OVHcloud BHS). The operator
+  # pre-orders + installs the box and names it with the adoptDisplayNamePrefix;
+  # the OVH_API token carries GET /dedicated/server/* + GET /services/* + POST
+  # /dedicated/server/*/reinstall (the release path reinstalls a released box).
+  # replicas: 1 so the reconciler claims the box and self-joins it. The eu-central
+  # Dedibox path is the validated twin.
   enabled: true
   replicas: 1
   # OVHcloud US entity (api.us.ovhcloud.com). The box sits physically in Canada
@@ -358,7 +359,7 @@ ovhFleet:
   # ovh-us — a token minted on any other entity (ovh-ca, ovh-eu) is rejected as
   # "invalid". The OVH_API token must be created on us.ovhcloud.com to match.
   endpoint: ovh-us
-  nodePool: kura-ovh-staging
+  nodePool: kura-ca-east
   machine:
     # Adopt by offer + datacenter, scoped to the displayName prefix (the per-env
     # boundary — one OVH account holds every env's boxes). Prefix match (case-

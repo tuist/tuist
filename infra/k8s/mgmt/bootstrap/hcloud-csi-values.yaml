@@ -110,10 +110,9 @@ node:
                   # cache) — likewise not Hetzner; local NVMe serves
                   # its PVCs.
                   - kura-dedibox
-                  # OVHcloud bare metal (validation / future us-east,
-                  # us-west kura cache) — not Hetzner either; local
-                  # NVMe serves its PVCs.
-                  - kura-ovh-staging
+                  # OVHcloud bare metal (the ca-east kura cache region) —
+                  # not Hetzner either; local NVMe serves its PVCs.
+                  - kura-ca-east
               - key: kubernetes.io/os
                 operator: NotIn
                 values:
