@@ -345,7 +345,7 @@ jobs:
 
       - name: Build the Kura binary with Bazel
         run: |
-          bazel build //:kura --remote_download_outputs=toplevel
+          mise run --skip-tools compile
           mkdir -p bin/amd64
           cp bazel-bin/kura bin/amd64/kura
           chmod +x bin/amd64/kura
@@ -404,7 +404,7 @@ jobs:
             echo "common --repository_cache=${{ runner.temp }}/bazel-repo"
             echo "build --disk_cache=${{ runner.temp }}/bazel-disk"
           } >> "$HOME/.bazelrc"
-          bazel build //:kura --remote_download_outputs=toplevel
+          mise run --skip-tools compile
           mkdir -p bin/amd64
           cp bazel-bin/kura bin/amd64/kura
           chmod +x bin/amd64/kura
