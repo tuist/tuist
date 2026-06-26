@@ -131,28 +131,79 @@ jobs:
           } >> "$HOME/.bazelrc"
           mise run compile --skip-tools -- --define=kura_deny_warnings=true
 
-  clippy:
-    name: Clippy
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+  # Split non-fork / fork like bazel-compile: only trusted runs get `id-token: write` + the remote
+  # cache; forks run with `contents: read` and the local cache.
+  bazel-clippy:
+    name: Bazel Clippy
+    runs-on: tuist-linux
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    if: |
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
     steps:
       - uses: actions/checkout@v4
 
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: --force rust
+          install_args: "rust bazel tuist"
           working_directory: kura
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: kura-rust-${{ runner.os }}
-          workspaces: |
-            kura -> target
+      - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
+      - name: Set up the Tuist remote cache
+        run: |
+          tuist auth login
+          tuist bazel setup
+        continue-on-error: true
+      - name: Warn when the Tuist remote cache is unavailable
+        if: ${{ hashFiles('kura/.bazelrc.tuist') == '' }}
+        run: echo "::warning::Tuist remote cache unavailable (.bazelrc.tuist not written); building cold against the local cache."
 
       - name: Run clippy
-        run: env -u RUSTUP_TOOLCHAIN cargo clippy --locked --all-targets -- -D warnings
+        run: mise run --skip-tools clippy
+
+  bazel-clippy-fork:
+    name: Bazel Clippy Fork
+    runs-on: tuist-linux
+    timeout-minutes: 60
+    # Fork PRs only: `contents: read`, no OIDC token; skips auth/setup and uses the local
+    # repository/disk caches alone.
+    permissions:
+      contents: read
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false && github.event.pull_request.head.repo.fork == true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "rust bazel"
+          working_directory: kura
+
+      - name: Cache Bazel repository downloads and build outputs
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ runner.temp }}/bazel-repo
+            ${{ runner.temp }}/bazel-disk
+          key: bazel-clippy-fork-${{ hashFiles('kura/MODULE.bazel.lock') }}-${{ github.sha }}
+          restore-keys: |
+            bazel-clippy-fork-${{ hashFiles('kura/MODULE.bazel.lock') }}-
+            bazel-clippy-fork-
+
+      - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
+      - name: Run clippy
+        run: |
+          {
+            echo "common --repository_cache=${{ runner.temp }}/bazel-repo"
+            echo "build --disk_cache=${{ runner.temp }}/bazel-disk"
+          } >> "$HOME/.bazelrc"
+          mise run --skip-tools clippy
 
   # Split non-fork / fork like bazel-compile: only trusted runs get `id-token: write` + the remote
   # cache; forks run with `contents: read` and the local cache.

@@ -22,10 +22,13 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   (`cargo`) only as a fallback when Bazel is unavailable:
   - Compile: `mise run compile` (fallback: `mise exec -- cargo build`)
   - Test: `mise run test-unit` (runs `bazel test //...`; fallback: `mise exec -- cargo test`)
+  - Clippy: `mise run clippy` (runs the rules_rust clippy aspect over `//...`, warnings as errors;
+    fallback: `mise exec -- cargo clippy --all-targets -- -D warnings`)
 - If you have access to the `tuist/kura` project on Tuist, run `tuist bazel setup` to point Bazel at
   the closest Kura remote cache (it writes `kura/.bazelrc.tuist`); re-run it after changing physical
   location. Without access, skip it — Bazel builds fine against the local cache.
-- Consider Kura work incomplete until `mise exec -- cargo clippy --all-targets -- -D warnings` passes
+- Consider Kura work incomplete until `mise run clippy` passes (fallback when Bazel is unavailable:
+  `mise exec -- cargo clippy --all-targets -- -D warnings`)
 - rules_rs resolves the Bazel crate graph directly from `Cargo.toml`/`Cargo.lock` on each build, so
   changing Rust deps just updates `Cargo.lock` as usual and Bazel picks it up on the next build
 - Run the end-to-end suite with `docker compose build && mise exec -- shellspec`
