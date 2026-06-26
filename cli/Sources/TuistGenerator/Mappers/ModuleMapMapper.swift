@@ -100,7 +100,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                                     """
                                     set -eu
                                     mkdir -p "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules"
-                                    cp '\(escapedModuleMapPath)' "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules/module.modulemap"
+                                    install -m 0644 '\(escapedModuleMapPath)' "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules/module.modulemap"
                                     """
                                 ),
                                 inputPaths: [moduleMapPath.pathString],
