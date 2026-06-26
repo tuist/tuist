@@ -225,7 +225,10 @@ public struct LaunchAgentService: LaunchAgentServicing {
             <key>RunAtLoad</key>
             <true/>
             <key>KeepAlive</key>
-            <true/>
+            <dict>
+                <key>SuccessfulExit</key>
+                <false/>
+            </dict>
         </dict>
         </plist>
         """
