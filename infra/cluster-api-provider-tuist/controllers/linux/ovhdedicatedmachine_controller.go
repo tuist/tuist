@@ -191,23 +191,19 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 			logger.Info("adopted OVH server", "service", server.Name, "datacenter", datacenter)
 		}
 
-		// Scripted install: the operator only pre-orders the box and points its
-		// reverse DNS at the adopt prefix. The controller drives the OVH install
-		// API itself (register the fleet SSH key, resolve the OS template, start
-		// the reinstall, poll to completion) before self-joining, so an OS
-		// install is never manual operator work.
 		server, getErr := r.OVHClient.GetServer(ctx, machine.Status.ServiceName)
 		if getErr != nil {
 			return ctrl.Result{}, getErr
 		}
-		// Adoption is claim + self-join, never install. The operator prepares the
-		// box (Ubuntu + the fleet key + ubuntu passwordless sudo) before setting its
-		// adoption displayName, so a claimed box is already reachable — the same
-		// shape as a Scaleway mini that is already up. Keeping the OS install off
-		// this path is what makes adoption a ~2-5 min self-join, so the fleet
-		// MachineDeployment goes Ready quickly and never wedges helm --wait; the
-		// reinstall that wipes a box back to a clean, claimable state lives on the
-		// release path (reconcileDelete).
+		// Adoption is claim + self-join, never install. The operator owns putting a
+		// valid box into rotation: install it (Ubuntu + the fleet key + ubuntu
+		// passwordless sudo) and verify it is reachable BEFORE setting its adoption
+		// displayName (`mise run baremetal:prep-ovh`), so a claimed box is already
+		// up — the same shape as a Scaleway mini that is already running. Keeping
+		// the OS install off this path is what makes adoption a ~2-5 min self-join,
+		// so the fleet MachineDeployment goes Ready quickly and never wedges helm
+		// --wait; the reinstall that wipes a box back to a clean, claimable state
+		// lives on the release path (reconcileDelete).
 		if server.IP == "" {
 			machine.Status.Phase = "Provisioning"
 			logger.Info("public IP not assigned yet", "service", machine.Status.ServiceName)
