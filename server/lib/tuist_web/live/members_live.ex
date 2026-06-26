@@ -7,6 +7,7 @@ defmodule TuistWeb.MembersLive do
   alias Tuist.Accounts
   alias Tuist.Accounts.User
   alias Tuist.Authorization
+  alias Tuist.Environment
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: account}} = socket) do
@@ -20,7 +21,8 @@ defmodule TuistWeb.MembersLive do
         form: to_form(%{}, as: :invitation),
         selected_inner_tab: "members",
         search_query: "",
-        managing_member: nil
+        managing_member: nil,
+        invitation_disclosure: nil
         # invite_role: :user,
         # invite_emails: []
       )
@@ -52,6 +54,7 @@ defmodule TuistWeb.MembersLive do
             :if={Authorization.authorize(:invitation_create, @current_user, @selected_account) == :ok}
             id="invite-member-form"
             form={@form}
+            invitation_disclosure={@invitation_disclosure}
           />
         </div>
         <div id="members-tabs">
@@ -292,6 +295,15 @@ defmodule TuistWeb.MembersLive do
                   <.dropdown id={"invite-actions-#{invitation.id}"} icon_only>
                     <:icon><.dots_vertical /></:icon>
                     <.dropdown_item
+                      id={"copy-invite-link-#{invitation.id}"}
+                      label={dgettext("dashboard_account", "Copy invite link")}
+                      value="copy_invite_link"
+                      phx-hook="Clipboard"
+                      data-clipboard-value={url(~p"/auth/invitations/#{invitation.token}")}
+                    >
+                      <:left_icon><.copy /></:left_icon>
+                    </.dropdown_item>
+                    <.dropdown_item
                       label={dgettext("dashboard_account", "Revoke invite")}
                       value="revoke"
                       on_click="revoke_invite"
@@ -319,7 +331,11 @@ defmodule TuistWeb.MembersLive do
                     <div data-part="subtitle">
                       {dgettext("dashboard_account", "Invite members to your organization")}
                     </div>
-                    <.invite_member_form id="invite-member-form-empty-state" form={@form} />
+                    <.invite_member_form
+                      id="invite-member-form-empty-state"
+                      form={@form}
+                      invitation_disclosure={@invitation_disclosure}
+                    />
                   </.table_empty_state>
                 </:empty_state>
               </.table>
@@ -342,27 +358,79 @@ defmodule TuistWeb.MembersLive do
         <:trigger :let={attrs}>
           <.button variant="primary" label={dgettext("dashboard_account", "Invite members")} {attrs} />
         </:trigger>
-        <.line_divider />
-        <.text_input
-          id={"#{@id}-input"}
-          field={@form[:invitee_email]}
-          type="email"
-          label={dgettext("dashboard_account", "Email address")}
-          show_prefix={false}
-        />
-        <.line_divider />
+
+        <div data-part="modal-content-wrapper">
+          <.line_divider />
+          <div data-part="modal-body">
+            <%= if @invitation_disclosure do %>
+              <div data-part="modal-message">
+                <span data-part="title">
+                  {dgettext("dashboard_account", "Invitation link")}
+                </span>
+                <span data-part="subtitle">
+                  <%= if @invitation_disclosure.email_delivered do %>
+                    {dgettext(
+                      "dashboard_account",
+                      "We've emailed this invitation to %{email}. You can also share the link directly. It stays in the invitations list.",
+                      email: @invitation_disclosure.email
+                    )}
+                  <% else %>
+                    {dgettext(
+                      "dashboard_account",
+                      "Share this link with %{email} so they can join. You'll also find it in the invitations list.",
+                      email: @invitation_disclosure.email
+                    )}
+                  <% end %>
+                </span>
+              </div>
+              <div data-part="read-only-value">
+                <code id={"#{@id}-invitation-link"}>{@invitation_disclosure.url}</code>
+                <.button
+                  id={"#{@id}-copy-invitation-link"}
+                  variant="secondary"
+                  size="small"
+                  icon_only
+                  type="button"
+                  phx-hook="Clipboard"
+                  data-clipboard-value={@invitation_disclosure.url}
+                  aria-label={dgettext("dashboard_account", "Copy invite link")}
+                >
+                  <.copy />
+                </.button>
+              </div>
+            <% else %>
+              <.text_input
+                id={"#{@id}-input"}
+                field={@form[:invitee_email]}
+                type="email"
+                label={dgettext("dashboard_account", "Email address")}
+                show_prefix={false}
+              />
+            <% end %>
+          </div>
+          <.line_divider />
+        </div>
+
         <:footer>
           <.modal_footer>
-            <:action>
+            <:action :if={@invitation_disclosure}>
               <.button
-                label="Cancel"
+                label={dgettext("dashboard_account", "Done")}
+                variant="primary"
+                type="button"
+                phx-click="close-invite-members"
+              />
+            </:action>
+            <:action :if={is_nil(@invitation_disclosure)}>
+              <.button
+                label={dgettext("dashboard_account", "Cancel")}
                 variant="secondary"
                 type="button"
                 phx-click="close-invite-members"
               />
             </:action>
-            <:action>
-              <.button label="Save" type="submit" tabindex="1" />
+            <:action :if={is_nil(@invitation_disclosure)}>
+              <.button label={dgettext("dashboard_account", "Invite")} type="submit" tabindex="1" />
             </:action>
           </.modal_footer>
         </:footer>
@@ -462,6 +530,7 @@ defmodule TuistWeb.MembersLive do
   def handle_event("close-invite-members", _, socket) do
     socket =
       socket
+      |> assign(invitation_disclosure: nil, form: to_form(%{}, as: :invitation))
       |> push_event("close-modal", %{id: "invite-member-form-modal"})
       |> push_event("close-modal", %{id: "invite-member-form-empty-state-modal"})
 
@@ -520,7 +589,7 @@ defmodule TuistWeb.MembersLive do
     #   url: &url(~p"/auth/invitations/#{&1}")
     # })
 
-    with {:ok, _invitation} <-
+    with {:ok, invitation} <-
            Accounts.invite_user_to_organization(
              email,
              %{
@@ -541,10 +610,21 @@ defmodule TuistWeb.MembersLive do
           invite_emails: [],
           form: to_form(%{}, as: :invitation),
           selected_inner_tab: "invitations",
-          search_query: ""
+          search_query: "",
+          invitation_disclosure: %{
+            url: url(~p"/auth/invitations/#{invitation.token}"),
+            email: invitation.invitee_email,
+            # `invite_user_to_organization/3` only delivers the email when mail
+            # is configured, so this mirrors whether the invitee was notified.
+            email_delivered: Environment.mail_configured?()
+          }
         )
-        |> push_event("close-modal", %{id: "invite-member-form-modal"})
+        # Reveal the link in the always-present header modal: close the
+        # empty-state modal in case it triggered the invite, and nudge the
+        # header modal open since submitting the form doesn't change the
+        # dialog's open state on its own.
         |> push_event("close-modal", %{id: "invite-member-form-empty-state-modal"})
+        |> push_event("open-modal", %{id: "invite-member-form-modal"})
 
       {:noreply, socket}
     else
