@@ -1494,13 +1494,17 @@ async fn start_module_upload(
         )
         .await
     {
-        // A null `upload_id` is the contract for "the artifact is already cached,
-        // skip the upload" — not a failure. The metric below lets operators tell
-        // already-cached starts apart from genuine failures so a write that never
-        // lands is observable instead of looking like a silent success.
+        // `already_cached: true` (with a null `upload_id`) is the contract for
+        // "the artifact is already cached, skip the upload" — not a failure. The
+        // explicit flag, plus the metric, lets clients and operators tell a cache
+        // hit apart from a genuine failure instead of inferring it from a null
+        // upload_id, so a write that never lands can't masquerade as success.
         Ok(true) => {
             state.metrics.record_multipart_start("already_exists");
-            Json(serde_json::json!({ "upload_id": serde_json::Value::Null })).into_response()
+            Json(
+                serde_json::json!({ "upload_id": serde_json::Value::Null, "already_cached": true }),
+            )
+            .into_response()
         }
         Ok(false) => match state.store.start_multipart_upload(
             &query.namespace.tenant_id,
@@ -1511,7 +1515,8 @@ async fn start_module_upload(
         ) {
             Ok(upload_id) => {
                 state.metrics.record_multipart_start("started");
-                Json(serde_json::json!({ "upload_id": upload_id })).into_response()
+                Json(serde_json::json!({ "upload_id": upload_id, "already_cached": false }))
+                    .into_response()
             }
             Err(error) => {
                 state.metrics.record_multipart_start("start_failed");
@@ -3649,6 +3654,11 @@ mod tests {
             .expect("start request failed");
         let payload: Value = serde_json::from_str(&response_text(start).await)
             .expect("failed to decode start payload");
+        assert_eq!(
+            payload["already_cached"],
+            Value::Bool(false),
+            "a fresh start should report already_cached=false"
+        );
         let upload_id = payload["upload_id"]
             .as_str()
             .expect("upload id should be present");
