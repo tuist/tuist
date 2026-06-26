@@ -1,0 +1,113 @@
+name: CLI Bundle Benchmark
+
+# TEMPORARY measurement harness for the CLI-release speedup (#11520). Builds the
+# CLI bundle in build-only mode (TUIST_BUNDLE_BUILD_ONLY=true => no signing /
+# notarization / packaging, no Apple credentials) and times it on the
+# self-hosted `tuist-macos-26-0-1` fleet vs GitHub-hosted `macos-26`.
+#
+# A `warm` job populates the shared (remote) Xcode compilation cache (CAS) for
+# this commit first, so the measured pass reflects steady state rather than a
+# cold cache. Each runner then resolves its own cache endpoint naturally
+# (self-hosted => co-located regional Kura cache; macos-26 => public endpoint
+# over the internet), which is exactly the real-world difference we want to see.
+#
+# Push-triggered on the benchmark branch only. DELETE this file before the
+# relocation lands; decide separately whether to keep the bundle.sh build-only
+# guard.
+on:
+  push:
+    branches:
+      - claude/cli-bundle-benchmark
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: cli-bundle-benchmark
+  cancel-in-progress: true
+
+env:
+  MISE_VERSION: "2026.5.15"
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  TUIST_ENABLE_CACHING: "true"
+  TUIST_BUNDLE_BUILD_ONLY: "true"
+  MISE_GITHUB_ATTESTATIONS: 0
+
+jobs:
+  warm:
+    name: Warm CAS (tuist-macos-26-0-1)
+    runs-on: tuist-macos-26-0-1
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "--locked tuist git-cliff 1password-cli jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Setup Tuist
+        run: tuist setup
+      - name: Install Tuist dependencies
+        run: tuist install --force-resolved-versions
+      - name: Initialize TuistCacheEE submodule
+        env:
+          TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+        run: mise run --no-deps --skip-tools cli:ee
+      - name: Bundle CLI (build-only, warm-up)
+        run: mise run --no-deps --skip-tools cli:bundle
+
+  measure:
+    name: Measure (${{ matrix.runner }})
+    needs: warm
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [tuist-macos-26-0-1, macos-26]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      # GitHub-hosted runners need an explicit Xcode; pin 26.0.1 to match the
+      # self-hosted fleet's per-image toolchain so the only variable is the
+      # runner + cache path, not the compiler.
+      - name: Select Xcode (hosted runner only)
+        if: matrix.runner == 'macos-26'
+        run: sudo xcode-select -switch /Applications/Xcode_26.0.1.app
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "--locked tuist git-cliff 1password-cli jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Setup Tuist
+        run: tuist setup
+      - name: Install Tuist dependencies
+        run: tuist install --force-resolved-versions
+      - name: Initialize TuistCacheEE submodule
+        env:
+          TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+        run: mise run --no-deps --skip-tools cli:ee
+      - name: Bundle CLI (build-only, measured)
+        run: |
+          start=$(date +%s)
+          mise run --no-deps --skip-tools cli:bundle
+          end=$(date +%s)
+          elapsed=$((end - start))
+          line="runner=${{ matrix.runner }} build_only_seconds=${elapsed} ($((elapsed / 60))m$((elapsed % 60))s)"
+          echo "BENCHMARK_RESULT $line"
+          {
+            echo "### CLI bundle build-only benchmark"
+            echo ""
+            echo "\`$line\`"
+          } >> "$GITHUB_STEP_SUMMARY"

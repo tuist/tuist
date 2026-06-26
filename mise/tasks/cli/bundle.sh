@@ -18,8 +18,6 @@ BUILD_DIRECTORY=$MISE_PROJECT_ROOT/build
 TMP_DIR=/private$(mktemp -d)
 trap "rm -rf $TMP_DIR" EXIT # Ensures it gets deleted
 TUIST_DIR=$MISE_PROJECT_ROOT
-APPLE_ID=$(op read "op://tuist/App Specific Password/username")
-APPLE_PASSWORD=$(op read "op://tuist/App Specific Password/password")
 TEAM_ID='U6LC622NKF'
 ASC_PROVIDER=PedroPieraBuendia211042238 # Obtained with xcrun altool -list-providers
 CERTIFICATE_NAME="Developer ID Application: Tuist GmbH (U6LC622NKF)"
@@ -28,19 +26,29 @@ export TUIST_EE=1
 KEYCHAIN_PATH=$TMP_DIR/keychain.keychain
 KEYCHAIN_PASSWORD=$(uuidgen)
 
-# Codesign
-print_status "Setting up Keychain for signing..."
-if [ "${CI:-}" = "true" ]; then
-    print_status "Creating a new temporary keychain..."
-    security create-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
-    security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-    security default-keychain -s $KEYCHAIN_PATH
-    security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
-fi
+# Build-only mode compiles the binary and stops before signing/notarization/
+# packaging. Used by the runner+cache benchmark, which has no Apple credentials
+# (no 1Password) and only needs the build timings.
+BUILD_ONLY="${TUIST_BUNDLE_BUILD_ONLY:-false}"
 
-op read "op://tuist/Developer ID Application Certificate/certificate.p12" --out-file $TMP_DIR/certificate.p12
-print_status "Importing certificate to keychain..."
-security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Developer ID Application Certificate/password") -A
+if [ "$BUILD_ONLY" != "true" ]; then
+    APPLE_ID=$(op read "op://tuist/App Specific Password/username")
+    APPLE_PASSWORD=$(op read "op://tuist/App Specific Password/password")
+
+    # Codesign
+    print_status "Setting up Keychain for signing..."
+    if [ "${CI:-}" = "true" ]; then
+        print_status "Creating a new temporary keychain..."
+        security create-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
+        security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+        security default-keychain -s $KEYCHAIN_PATH
+        security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
+    fi
+
+    op read "op://tuist/Developer ID Application Certificate/certificate.p12" --out-file $TMP_DIR/certificate.p12
+    print_status "Importing certificate to keychain..."
+    security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Developer ID Application Certificate/password") -A
+fi
 
 echo "$(format_section "Building release into $BUILD_DIRECTORY")"
 
@@ -107,6 +115,11 @@ build_project_desscription
 
 echo "$(format_subsection "Bundling Swift runtime libraries")"
 bundle_swift_runtime_libraries
+
+if [ "$BUILD_ONLY" = "true" ]; then
+    echo "$(format_section "Build-only mode: skipping assets, signing, notarization, and packaging")"
+    exit 0
+fi
 
 echo "$(format_section "Copying assets")"
 
