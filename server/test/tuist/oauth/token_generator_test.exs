@@ -272,5 +272,15 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
       assert project.id in project_ids
       assert org_project.id in project_ids
     end
+
+    test "does not generate a token when the OAuth token has no user subject" do
+      token = %Token{
+        sub: nil,
+        client_id: "test-client-id",
+        scope: "project:admin:read"
+      }
+
+      assert TokenGenerator.generate(:access_token, token) == nil
+    end
   end
 end

@@ -77,7 +77,6 @@ mise run dev
 
 **Database Utilities**
 - `mix ecto.dump`
-- `mix ecto.load`
 - `mix excellent_migrations.check_safety`
 
 ## Key Configuration Files

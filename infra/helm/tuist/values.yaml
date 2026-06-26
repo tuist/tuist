@@ -24,9 +24,10 @@ kuraController:
     limits:
       cpu: "500m"
       memory: "512Mi"
-  # cert-manager ClusterIssuer to use for the per-instance public HTTPS
-  # and gRPC TLS Certificates. Leave empty only when the runtime does not
-  # mount public TLS certificates, for example kind/dev clusters.
+  # cert-manager ClusterIssuer to use for the single per-instance public
+  # Certificate (`<name>-public-tls`). gRPC co-hosts on the public host, so
+  # there is no separate gRPC certificate. Leave empty only when the runtime
+  # does not mount public TLS certificates, for example kind/dev clusters.
   tlsClusterIssuer: ""
   # Deprecated alias for tlsClusterIssuer. Kept so existing overlays do
   # not break while the controller flag is still named grpc-cluster-issuer.
@@ -160,6 +161,15 @@ server:
       fields:
         clientId: KURA_CONTROL_PLANE_CLIENT_ID
         clientSecret: KURA_CONTROL_PLANE_CLIENT_SECRET
+  # Kura introspection credentials sourced from an out-of-band Secret in
+  # this release's namespace named `kura-shared-secrets`. Set to true when
+  # the kuraController runs in a different release (preview environments
+  # install the controller once at platform level into the `kura`
+  # namespace; the deploy workflow copies that Secret into the preview
+  # namespace before installing this chart). Managed environments install
+  # server + kuraController from one release and leave this off.
+  kuraIntrospection:
+    useSharedSecret: false
   # GitHub App + bot PAT secrets. When `github.managedSecrets: true`, ESO
   # syncs them from 1Password into a dedicated Secret and the Server +
   # Processor Deployments mount the keys as TUIST_GITHUB_APP_* /
@@ -196,6 +206,26 @@ server:
       tokenUpdatePackages:
         item: GITHUB_TOKEN_UPDATE_PACKAGES
         field: password
+  # Google OAuth client credentials. When `google.managedSecrets: true`, ESO
+  # syncs them from 1Password into a dedicated Secret and the Server
+  # Deployment mounts them as TUIST_GOOGLE_OAUTH_CLIENT_ID /
+  # TUIST_GOOGLE_OAUTH_CLIENT_SECRET env vars, which enable the "Log in with
+  # Google" button. Leave managedSecrets false (the default) for self-hosted
+  # installs that don't use Google sign-in — no Secret or env refs are then
+  # rendered.
+  google:
+    managedSecrets: false
+    externalSecrets:
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      oauth:
+        # The single 1P item carrying the OAuth client credentials.
+        item: GOOGLE_OAUTH
+        fields:
+          clientId: client_id
+          clientSecret: client_secret
   license:
     key: ""
     certificateBase64: ""
@@ -1017,6 +1047,7 @@ runnersFleet:
       default: true
     - xcodeVersion: "26.4.1"
     - xcodeVersion: "26.3"
+    - xcodeVersion: "26.0.1"
   # Per-Xcode fleet tuning, keyed by `xcodeVersion` string. The
   # catalog stays in `xcodeVersions` above so it's shared via the
   # common values file; each managed env layers its overrides here
@@ -1390,6 +1421,8 @@ cache:
     pullPolicy: IfNotPresent
   nginx:
     enabled: true
+    # Keep this aligned with the cache application's module part size limit.
+    clientMaxBodySize: "10m"
     image:
       repository: nginx
       tag: "1.29-alpine"
@@ -1523,6 +1556,11 @@ postgresql:
   # (templates/postgresql-cnpg.yaml) — used by the Tuist-managed envs.
   # Requires the cloudnative-pg operator to be installed cluster-wide first.
   mode: embedded
+  # PostgreSQL schema used by Tuist.Repo. Keep `public` for the default
+  # bootstrap path. Set to a custom unquoted identifier when an external
+  # database policy disallows using the public schema; release migrations
+  # create the schema before running the Ecto migration chain.
+  schema: public
   external:
     host: ""
     port: 5432
@@ -1563,10 +1601,10 @@ postgresql:
   #     `postgresql.mode` points at. Use this to bring CNPG up alongside
   #     an existing Postgres while soak-testing.
   #
-  #   * `postgresql.mode == "cnpg"` — the cutover state. Server,
-  #     processor, and migration-job pods all read DATABASE_URL from
-  #     the cluster's `<name>-app` Secret (CNPG-generated). Implies
-  #     `cnpg.enabled = true`.
+  #   * `postgresql.mode == "cnpg"` — the cutover state. Managed server
+  #     pods read DATABASE_URL from the web runtime role, processors from
+  #     the processor role, and migration jobs from the CNPG-generated
+  #     owner Secret (`<name>-app`). Implies `cnpg.enabled = true`.
   cnpg:
     enabled: false
     # Image tag tracks the CNPG operator's compatibility table. Bump
@@ -1578,9 +1616,8 @@ postgresql:
     # replicas. We run sync replication (1 sync + N-2 async); see the
     # `synchronous` block in templates/postgresql-cnpg.yaml.
     instances: 2
-    # Owner role created by `bootstrap.initdb` and the user the
-    # application connects as. Owns every object created by Ecto
-    # migrations.
+    # Owner role created by `bootstrap.initdb` and used by migration jobs.
+    # Owns every object created by Ecto migrations.
     owner: tuist_app
     # Initial database created on bootstrap.
     database: tuist
@@ -1669,6 +1706,11 @@ postgresql:
     queryStats:
       enabled: false
     roles:
+      # Least-privilege web runtime role. CNPG creates the role;
+      # Tuist.Release.migrate grants DML on application tables and read-only
+      # access to schema_migrations after each migration.
+      web:
+        name: tuist_web
       # Least-privilege Oban-queue consumer. CNPG creates the role;
       # per-table GRANTs run via the bootstrap SQL in
       # infra/cnpg/tuist-processor-grants.sql (see README in that dir).
@@ -1707,6 +1749,9 @@ postgresql:
         accessKeyField: access_key_id
         secretKeyField: secret_access_key
       # Passwords for the managed roles. Per-env 1Password vault.
+      webPassword:
+        item: WEB_DATABASE_PASSWORD
+        field: password
       processorPassword:
         item: PROCESSOR_DATABASE_PASSWORD
         field: password

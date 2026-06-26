@@ -4,6 +4,7 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
 
   import TuistTestSupport.Fixtures.AppBuildsFixtures
   import TuistTestSupport.Fixtures.BillingFixtures
+  import TuistTestSupport.Fixtures.CommandEventsFixtures
   import TuistTestSupport.Fixtures.ProjectsFixtures
   import TuistTestSupport.Fixtures.RunsFixtures
   import TuistTestSupport.Fixtures.ShardsFixtures
@@ -11,12 +12,14 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
   alias Tuist.AppBuilds
   alias Tuist.AppBuilds.AppBuild
   alias Tuist.Builds
+  alias Tuist.CommandEvents
   alias Tuist.Repo
   alias Tuist.Shards
   alias Tuist.Storage
   alias Tuist.Storage.ArtifactRetentionCursor
   alias Tuist.Storage.Workers.DeleteExpiredBuildArchivesWorker
   alias Tuist.Storage.Workers.DeleteExpiredPreviewArtifactsWorker
+  alias Tuist.Storage.Workers.DeleteExpiredRunSessionsWorker
   alias Tuist.Storage.Workers.DeleteExpiredShardBundlesWorker
   alias Tuist.Storage.Workers.DeleteExpiredTestAttachmentsWorker
   alias Tuist.Tests
@@ -298,6 +301,96 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
 
       assert_received {:deleted, second_keys}
       assert second_keys == []
+    end
+
+    test "the run session worker deletes every expired run artifact by prefix according to the account plan" do
+      project = project_fixture()
+      account = project.account
+      subscription_fixture(account_id: account.id, plan: :air)
+
+      expired_run =
+        command_event_fixture(
+          project_id: project.id,
+          ran_at: DateTime.add(DateTime.utc_now(), -31, :day)
+        )
+
+      recent_run =
+        command_event_fixture(
+          project_id: project.id,
+          ran_at: DateTime.add(DateTime.utc_now(), -29, :day)
+        )
+
+      project = %{project | account: account}
+      expired_run_artifact_prefix = "#{CommandEvents.get_command_event_artifact_base_path_key(expired_run.id, project)}/"
+      recent_run_artifact_prefix = "#{CommandEvents.get_command_event_artifact_base_path_key(recent_run.id, project)}/"
+
+      stub(Storage, :delete_all_objects, fn prefix, %{id: account_id} ->
+        assert account_id == account.id
+        send(self(), {:deleted, prefix})
+        :ok
+      end)
+
+      assert :ok =
+               perform_job(DeleteExpiredRunSessionsWorker, %{
+                 "account_id" => account.id,
+                 "batch_size" => 20
+               })
+
+      assert_received {:deleted, ^expired_run_artifact_prefix}
+      refute_received {:deleted, ^recent_run_artifact_prefix}
+    end
+
+    test "the run session worker paginates by command event run time" do
+      project = project_fixture()
+      account = project.account
+      subscription_fixture(account_id: account.id, plan: :air)
+
+      older_run =
+        command_event_fixture(
+          project_id: project.id,
+          ran_at: DateTime.add(DateTime.utc_now(), -33, :day)
+        )
+
+      newer_run =
+        command_event_fixture(
+          project_id: project.id,
+          ran_at: DateTime.add(DateTime.utc_now(), -32, :day)
+        )
+
+      project = %{project | account: account}
+      older_run_artifact_prefix = "#{CommandEvents.get_command_event_artifact_base_path_key(older_run.id, project)}/"
+      newer_run_artifact_prefix = "#{CommandEvents.get_command_event_artifact_base_path_key(newer_run.id, project)}/"
+
+      stub(Storage, :delete_all_objects, fn prefix, _account ->
+        send(self(), {:deleted, prefix})
+        :ok
+      end)
+
+      assert :ok =
+               perform_job(DeleteExpiredRunSessionsWorker, %{"account_id" => account.id, "batch_size" => 1})
+
+      assert_received {:deleted, ^older_run_artifact_prefix}
+      refute_received {:deleted, ^newer_run_artifact_prefix}
+
+      assert_enqueued(
+        worker: DeleteExpiredRunSessionsWorker,
+        args: %{
+          "account_id" => account.id,
+          "batch_size" => 1,
+          "after_inserted_at" => NaiveDateTime.to_iso8601(older_run.ran_at),
+          "after_id" => older_run.id
+        }
+      )
+
+      assert :ok =
+               perform_job(DeleteExpiredRunSessionsWorker, %{
+                 "account_id" => account.id,
+                 "batch_size" => 1,
+                 "after_inserted_at" => NaiveDateTime.to_iso8601(older_run.ran_at),
+                 "after_id" => older_run.id
+               })
+
+      assert_received {:deleted, ^newer_run_artifact_prefix}
     end
 
     test "the test attachment worker deletes expired test attachments according to the account plan" do

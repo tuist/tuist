@@ -49,6 +49,7 @@ import (
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/ovh"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/runner"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/scaleway"
+	bootstrap "github.com/tuist/tuist/infra/macos-host-bootstrap"
 )
 
 var (
@@ -344,6 +345,29 @@ func main() {
 		setupLog.Info("loaded node_exporter binary", "path", nodeExporterBinaryPath, "bytes", len(nodeExporterBinary), "sha", sha256Hex(nodeExporterBinary))
 	}
 
+	// Canonical host-config hash: a single fleet-wide fingerprint over
+	// everything the operator pushes (rendered install scripts +
+	// embedded binaries). Computed once here, like the binary SHA, from
+	// a Config carrying ONLY operator-image + fleet-config inputs — every
+	// per-host field (NodeName, IP, kubeconfig, VLAN, auth key, ...) is
+	// left empty so the hash is identical across the fleet and drift is a
+	// config change, not a host identity. The reconciler stamps it on
+	// each Machine and re-pushes the host config when it moves.
+	hostConfigHash := bootstrap.HostConfigHash(bootstrap.Config{
+		TartKubeletBinary:     tartKubeletBinary,
+		TailscaleBinaries:     tailscaleBinaries,
+		NodeExporterBinary:    nodeExporterBinary,
+		TailscaleTags:         parseCommaList(tailscaleTagsRaw),
+		TailscaleAcceptRoutes: tailscaleAcceptRoutes,
+		VMKuraEgressCIDR:      vmKuraEgressCIDR,
+		VMClusterDNSIP:        vmClusterDNSIP,
+		VMCachePNCIDR:         vmCachePNCIDR,
+		HostCPU:               tartKubeletHostCPU,
+		HostMemoryMB:          tartKubeletHostMemory,
+		MaxPods:               tartKubeletMaxPods,
+	})
+	setupLog.Info("computed host config hash", "hash", hostConfigHash)
+
 	restConfig := ctrl.GetConfigOrDie()
 
 	if apiServerURL == "" {
@@ -436,6 +460,7 @@ func main() {
 		Kubeconfig:           kubeconfigBuilder,
 		TartKubeletBinary:    tartKubeletBinary,
 		TartKubeletBinarySHA: binarySHA,
+		HostConfigHash:       hostConfigHash,
 		TartTarball:          tartTarball,
 		TailscaleBinaries:    tailscaleBinaries,
 		NodeExporterBinary:   nodeExporterBinary,

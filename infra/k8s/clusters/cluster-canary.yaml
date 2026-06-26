@@ -39,6 +39,12 @@ spec:
       # (`tuist-bm-canary-…`).
       - name: bareMetalCluster
         value: canary
+      # Insert InternalIP so the apiserver can reach kubelets on nodes with no
+      # ExternalIP and an unresolvable Hostname (the Scaleway Elastic Metal kura
+      # node + the macOS-PN fleet) for `kubectl logs`/`exec`. Flipping this
+      # re-renders the apiserver patch and rolls this cluster's control plane.
+      - name: kubeletPreferredAddressTypes
+        value: ExternalIP,InternalIP,Hostname,InternalDNS,ExternalDNS
     workers:
       machineDeployments:
         - class: hcloud-worker

@@ -113,8 +113,8 @@ defmodule Tuist.Kura.RegionsTest do
 
       assert config.public_host_template == "{account_handle}-{cluster_id}-staging.kura.tuist.dev"
 
-      assert config.grpc_public_host_template ==
-               "grpc.{account_handle}-{cluster_id}-staging.kura.tuist.dev"
+      # gRPC co-hosts on the single public host (no separate grpc. hostname).
+      assert config.grpc_public_host_template == config.public_host_template
 
       stub(Tuist.Environment, :env, fn -> :can end)
 
@@ -123,8 +123,7 @@ defmodule Tuist.Kura.RegionsTest do
       assert canary_config.public_host_template ==
                "{account_handle}-{cluster_id}-canary.kura.tuist.dev"
 
-      assert canary_config.grpc_public_host_template ==
-               "grpc.{account_handle}-{cluster_id}-canary.kura.tuist.dev"
+      assert canary_config.grpc_public_host_template == canary_config.public_host_template
     end
 
     test "omits the environment suffix from managed-region public hostnames in production" do
@@ -134,8 +133,7 @@ defmodule Tuist.Kura.RegionsTest do
 
       assert config.public_host_template == "{account_handle}-{cluster_id}.kura.tuist.dev"
 
-      assert config.grpc_public_host_template ==
-               "grpc.{account_handle}-{cluster_id}.kura.tuist.dev"
+      assert config.grpc_public_host_template == config.public_host_template
     end
 
     test "reads the managed-region Tuist base URL from the environment adapter" do
@@ -382,5 +380,23 @@ defmodule Tuist.Kura.RegionsTest do
         machine_deployment["failureDomain"]
       end
     end)
+  end
+
+  describe "peer_public_host/2 and peer_public_url/2" do
+    test "interpolate the account handle and cluster for a managed region" do
+      region = Regions.get("eu-central")
+
+      assert Regions.peer_public_host("Acme", region) == "peer.acme-eu-central-1.kura.tuist.dev"
+
+      assert Regions.peer_public_url("Acme", region) ==
+               "https://peer.acme-eu-central-1.kura.tuist.dev:7443"
+    end
+
+    test "return nil for regions without a peer public host (local controller)" do
+      region = Regions.get("local-controller")
+
+      assert Regions.peer_public_host("acme", region) == nil
+      assert Regions.peer_public_url("acme", region) == nil
+    end
   end
 end

@@ -81,10 +81,27 @@ func (in *RunnerPoolSpec) DeepCopyInto(out *RunnerPoolSpec) {
 		out.Autoscaling = new(RunnerPoolAutoscaling)
 		in.Autoscaling.DeepCopyInto(out.Autoscaling)
 	}
+	if in.Rollout != nil {
+		out.Rollout = new(RunnerPoolRollout)
+		in.Rollout.DeepCopyInto(out.Rollout)
+	}
 }
 
 func (in *RunnerPoolAutoscaling) DeepCopyInto(out *RunnerPoolAutoscaling) {
 	*out = *in
+}
+
+func (in *RunnerPoolRollout) DeepCopyInto(out *RunnerPoolRollout) {
+	*out = *in
+}
+
+func (in *RunnerPoolRollout) DeepCopy() *RunnerPoolRollout {
+	if in == nil {
+		return nil
+	}
+	out := new(RunnerPoolRollout)
+	in.DeepCopyInto(out)
+	return out
 }
 
 func (in *RunnerPoolStatus) DeepCopyInto(out *RunnerPoolStatus) {

@@ -154,3 +154,48 @@ func TestRenderLinuxBootstrapScript_NoSudoPasswordIsNoOp(t *testing.T) {
 		t.Fatalf("expected no NOPASSWD setup without a SudoPassword, got:\n%s", withUser)
 	}
 }
+
+func TestRenderLinuxBootstrapScript_PNVlanIsPersistentAndStatic(t *testing.T) {
+	script := renderLinuxBootstrapScript(linuxCloudInitOptions{
+		NodeName:           "node-a",
+		KubeconfigYAML:     "apiVersion: v1\nkind: Config\n",
+		K8sMinor:           "v1.34",
+		BootstrapUser:      "ubuntu",
+		PrivateNetworkVLAN: 3250,
+	})
+
+	// The VLAN must be installed as a reboot-durable systemd unit that holds the
+	// PN address STATICALLY (DHCP-discover once, then pin it). Assert the unit,
+	// the static re-assert, and the VLAN id wired through.
+	for _, want := range []string{
+		"/etc/systemd/system/tuist-pn0.service",
+		"/usr/local/sbin/tuist-pn0-up.sh",
+		"ExecStart=/usr/local/sbin/tuist-pn0-up.sh",
+		"Restart=always",
+		"name pn0 type vlan id 3250",
+		"ip addr replace",
+		"systemctl enable --now tuist-pn0.service",
+	} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("expected bootstrap script to contain %q, got:\n%s", want, script)
+		}
+	}
+
+	// Liveness must NOT hang on a renew-forever dhclient: neither the old
+	// one-shot `dhclient -nw` nor a supervised `dhclient -d` survives the PN DHCP
+	// server going silent (the lease expires and the address is dropped while the
+	// process keeps running). That is the bug this static hold replaces.
+	for _, banned := range []string{"dhclient -nw pn0", "dhclient -d pn0"} {
+		if strings.Contains(script, banned) {
+			t.Fatalf("expected no renew-forever dhclient %q, got:\n%s", banned, script)
+		}
+	}
+
+	// The Instance/cloud-init path never sets a VLAN, so it must render nothing
+	// PN-related (and must not emit heredocs that the indented YAML form can't
+	// host).
+	instance := renderLinuxCloudInit("node-a", "apiVersion: v1\nkind: Config\n", "v1.34", nil)
+	if strings.Contains(instance, "pn0") || strings.Contains(instance, "tuist-pn0.service") {
+		t.Fatalf("expected no PN-VLAN setup when no VLAN is set, got:\n%s", instance)
+	}
+}

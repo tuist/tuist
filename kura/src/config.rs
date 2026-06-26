@@ -3,11 +3,11 @@ use std::path::PathBuf;
 use tokio::fs;
 
 use crate::constants::{
-    DEFAULT_BOOTSTRAP_MAX_CONCURRENT_ARTIFACTS_PER_PEER, DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS,
-    DEFAULT_BOOTSTRAP_TIMEOUT_MS, DEFAULT_MULTIPART_JANITOR_INTERVAL_MS,
-    DEFAULT_MULTIPART_UPLOAD_TTL_MS, DEFAULT_OUTBOX_MAX_DEPTH, DEFAULT_TMP_DIR_MAX_BYTES,
-    DEFAULT_USAGE_BATCH_SIZE, DEFAULT_USAGE_DELIVERY_INTERVAL_MS, DEFAULT_USAGE_FLUSH_INTERVAL_MS,
-    DEFAULT_USAGE_MAX_BUCKETS, DEFAULT_USAGE_OUTBOX_MAX_DEPTH, DEFAULT_USAGE_WINDOW_SECS,
+    DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS, DEFAULT_BOOTSTRAP_TIMEOUT_MS,
+    DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_UPLOAD_TTL_MS,
+    DEFAULT_OUTBOX_MAX_DEPTH, DEFAULT_TMP_DIR_MAX_BYTES, DEFAULT_USAGE_BATCH_SIZE,
+    DEFAULT_USAGE_DELIVERY_INTERVAL_MS, DEFAULT_USAGE_FLUSH_INTERVAL_MS, DEFAULT_USAGE_MAX_BUCKETS,
+    DEFAULT_USAGE_OUTBOX_MAX_DEPTH, DEFAULT_USAGE_WINDOW_SECS,
 };
 
 const KURA_PORT: &str = "KURA_PORT";
@@ -84,8 +84,6 @@ const KURA_MULTIPART_UPLOAD_TTL_MS: &str = "KURA_MULTIPART_UPLOAD_TTL_MS";
 const KURA_MULTIPART_JANITOR_INTERVAL_MS: &str = "KURA_MULTIPART_JANITOR_INTERVAL_MS";
 const KURA_BOOTSTRAP_TIMEOUT_MS: &str = "KURA_BOOTSTRAP_TIMEOUT_MS";
 const KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS: &str = "KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS";
-const KURA_BOOTSTRAP_MAX_CONCURRENT_ARTIFACTS_PER_PEER: &str =
-    "KURA_BOOTSTRAP_MAX_CONCURRENT_ARTIFACTS_PER_PEER";
 const KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: &str = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT";
 const KURA_OTEL_SERVICE_NAME: &str = "KURA_OTEL_SERVICE_NAME";
 const KURA_OTEL_DEPLOYMENT_ENVIRONMENT: &str = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT";
@@ -149,7 +147,6 @@ pub struct Config {
     pub multipart_janitor_interval_ms: u64,
     pub bootstrap_timeout_ms: u64,
     pub bootstrap_max_concurrent_peers: usize,
-    pub bootstrap_max_concurrent_artifacts_per_peer: usize,
     pub analytics: Option<AnalyticsConfig>,
     pub usage: Option<UsageConfig>,
     pub otlp_traces_endpoint: Option<String>,
@@ -910,24 +907,6 @@ impl Config {
                 "{KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS} must be greater than 0"
             ));
         }
-        let bootstrap_max_concurrent_artifacts_per_peer = optional_parsed_value(
-            &mut lookup,
-            KURA_BOOTSTRAP_MAX_CONCURRENT_ARTIFACTS_PER_PEER,
-            &mut invalid,
-            |value| {
-                value.parse::<usize>().map_err(|_| {
-                    format!(
-                        "{KURA_BOOTSTRAP_MAX_CONCURRENT_ARTIFACTS_PER_PEER} must be a valid usize"
-                    )
-                })
-            },
-        )
-        .unwrap_or(DEFAULT_BOOTSTRAP_MAX_CONCURRENT_ARTIFACTS_PER_PEER);
-        if bootstrap_max_concurrent_artifacts_per_peer == 0 {
-            invalid.push(format!(
-                "{KURA_BOOTSTRAP_MAX_CONCURRENT_ARTIFACTS_PER_PEER} must be greater than 0"
-            ));
-        }
         let analytics_server_url = lookup(KURA_ANALYTICS_SERVER_URL)
             .map(|value| value.trim().trim_end_matches('/').to_owned())
             .filter(|value| !value.is_empty());
@@ -1361,7 +1340,6 @@ impl Config {
             multipart_janitor_interval_ms,
             bootstrap_timeout_ms,
             bootstrap_max_concurrent_peers,
-            bootstrap_max_concurrent_artifacts_per_peer,
             analytics,
             usage,
             otlp_traces_endpoint,
@@ -1378,8 +1356,25 @@ impl Config {
     }
 
     pub async fn ensure_directories(&self) -> Result<(), std::io::Error> {
+        // Reclaim transient staging from a previous run before opening the store.
+        // Everything under tmp_dir (in-flight uploads, multipart parts, bootstrap
+        // staging) is dead once the process restarts, and a failed transfer can
+        // leave a partial file behind. Left to accumulate they fill the data disk
+        // and RocksDB then fails to open with "No space left on device", wedging
+        // the pod in a crash loop. Clearing them here — before Store::open — lets
+        // such a pod free space and recover on the next start instead of staying
+        // stuck out-of-space.
+        for staging in ["uploads", "parts", "bootstrap"] {
+            let path = self.tmp_dir.join(staging);
+            match fs::remove_dir_all(&path).await {
+                Ok(()) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error),
+            }
+        }
         fs::create_dir_all(self.tmp_dir.join("uploads")).await?;
         fs::create_dir_all(self.tmp_dir.join("parts")).await?;
+        fs::create_dir_all(self.tmp_dir.join("bootstrap")).await?;
         fs::create_dir_all(self.data_dir.join("rocksdb")).await?;
         fs::create_dir_all(self.data_dir.join("blobs")).await?;
         fs::create_dir_all(self.data_dir.join("segments")).await?;
@@ -2515,6 +2510,16 @@ mod tests {
         config.tmp_dir = temp_dir.path().join("tmp");
         config.data_dir = temp_dir.path().join("data");
 
+        // Pre-seed stale staging (as a crashed previous run leaves behind) plus a
+        // real data file, to prove ensure_directories reclaims the former without
+        // touching the latter.
+        let stale = config.tmp_dir.join("bootstrap").join("leftover");
+        let kept = config.data_dir.join("rocksdb").join("CURRENT");
+        fs::create_dir_all(stale.parent().unwrap()).await.unwrap();
+        fs::create_dir_all(kept.parent().unwrap()).await.unwrap();
+        fs::write(&stale, b"stale").await.unwrap();
+        fs::write(&kept, b"keep").await.unwrap();
+
         config
             .ensure_directories()
             .await
@@ -2522,9 +2527,16 @@ mod tests {
 
         assert!(config.tmp_dir.join("uploads").exists());
         assert!(config.tmp_dir.join("parts").exists());
+        assert!(config.tmp_dir.join("bootstrap").exists());
         assert!(config.data_dir.join("rocksdb").exists());
         assert!(config.data_dir.join("blobs").exists());
         assert!(config.data_dir.join("segments").exists());
         assert!(config.data_dir.join("multipart").exists());
+
+        assert!(
+            !stale.exists(),
+            "stale staging must be reclaimed on startup"
+        );
+        assert!(kept.exists(), "persistent data must be preserved");
     }
 }

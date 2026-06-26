@@ -22,6 +22,10 @@ defmodule TuistWeb.API.Schemas.Shards.ShardPlan do
         type: :integer,
         description: "The number of shards."
       },
+      upload_url: %Schema{
+        type: :string,
+        description: "The API URL to start a multipart upload for the shard bundle."
+      },
       shards: %Schema{
         type: :array,
         description: "The shard assignments.",

@@ -72,6 +72,11 @@
       color: var(--noora-breadcrumb-label);
       font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
     }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: var(--noora-border-light-focus);
+    }
   }
 
   & [data-part="trigger"] {
@@ -95,6 +100,11 @@
     &:active,
     &[data-state="open"] {
       box-shadow: var(--noora-border-light-default);
+      background-color: var(--noora-breadcrumb-background);
+    }
+
+    &:focus-visible {
+      box-shadow: var(--noora-border-light-focus);
       background-color: var(--noora-breadcrumb-background);
     }
 
@@ -125,7 +135,7 @@
     min-width: 320px;
     box-shadow:
       0 0 0 1px
-        light-dark(oklch(31.8% 0.011 248.2 / 0.12), oklch(54.9% 0 0 / 0.25)),
+        light-dark(oklch(32% 0.005 247.968 / 0.12), oklch(54.9% 0 0 / 0.25)),
       0 8px 24px rgb(0 0 0 / 0.16),
       0 4px 8px rgb(0 0 0 / 0.08);
     border-radius: var(--noora-radius-4);
@@ -176,6 +186,16 @@
 
   & [data-part="item"]:not([data-selected]) [data-part="check"] {
     visibility: hidden;
+  }
+
+  /* Keyboard roving focus (see Dropdown.js handleBreadcrumbKeydown) moves real
+     DOM focus between the native <a> items (which are tabindex="-1", so only
+     reachable inside the open menu), so mirror the hover affordance on the
+     focused one. :focus rather than :focus-visible so it shows even when the
+     menu was opened by mouse and then arrowed. */
+  & [data-part="item"]:focus {
+    outline: none;
+    background: var(--noora-dropdown-hover-background);
   }
 
   & [data-part="right-icon"] {

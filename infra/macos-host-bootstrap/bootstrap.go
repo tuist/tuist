@@ -42,7 +42,9 @@ package bootstrap
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net"
@@ -242,6 +244,19 @@ type Config struct {
 	// token from a Secret before populating
 	// GHActionsRunner.GHRunnerRegistrationToken.
 	GHActionsRunner *GHActionsRunnerConfig
+
+	// DisableVMGC passes `--disable-vm-gc` to tart-kubelet when true.
+	// It exists so the drift-update path can preserve the flag without
+	// re-resolving GHActionsRunner: `Run` always sets GHActionsRunner on
+	// builder hosts (and renderLaunchdPlist follows that), but
+	// `UpdateTartKubelet` re-renders the plist on every binary roll
+	// without re-resolving the runner config — resolving it would mint a
+	// fresh registration token on each drift loop for no reason. Without
+	// this field the roll renders a flag-less plist and the orphan-VM GC
+	// comes back, reaping the in-flight build VM mid-`tart push`. The
+	// reconciler sets it from `machine.Spec.GHActionsRunner != nil` on
+	// both the bootstrap and update paths.
+	DisableVMGC bool
 }
 
 // Run executes the bootstrap. Idempotent: re-running on a partially-
@@ -389,6 +404,102 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	return hk.Observed(), nil
 }
 
+// HostConfigHash is a fleet-wide canonical fingerprint of everything the
+// operator pushes to a host: the rendered install scripts (firewall +
+// vmnat, PN interface, launchd job + plist, Tailscale, node_exporter,
+// tart-kubelet install) plus the bytes of every embedded binary. The
+// reconciler stamps it on each Machine and re-pushes when it drifts, so
+// a change to ANY pushed config — a script tweak, a fleet-config CIDR, or
+// a re-baked binary in the operator image — reaches existing hosts on the
+// next reconcile rather than only on a tart-kubelet binary roll.
+//
+// It is computed once at operator startup from a Config that carries
+// operator-image + fleet-config inputs. The hash must be identical across
+// every host in a fleet or it would falsely drift on each one, so this
+// function neutralizes every per-host / volatile field before rendering
+// (NodeName, IP, VLAN, kubeconfig, auth key, ...) regardless of what the
+// caller passed — the canonical Config built in the manager already
+// leaves them empty; zeroing them here makes that a guarantee rather than
+// a caller obligation. The renderers are plain string templates, so an
+// empty per-host substitution is well-formed; none slice or index a value
+// that must be non-empty.
+func HostConfigHash(cfg Config) string {
+	// Strip per-host / volatile fields so the fingerprint is fleet-wide.
+	// Fleet-config fields (CIDRs, tags, accept-routes, host CPU/mem/pods)
+	// and the embedded binaries are kept.
+	cfg.IP = ""
+	cfg.SSHUser = ""
+	cfg.UserPassword = ""
+	cfg.SSHPrivateKey = nil
+	cfg.NodeName = ""
+	cfg.ProviderID = ""
+	cfg.Kubeconfig = ""
+	cfg.TailscaleAuthKey = ""
+	cfg.VMCachePNVLAN = 0
+	cfg.KnownHostFingerprint = ""
+	cfg.GHActionsRunner = nil
+	cfg.NodeLabels = nil
+	// Per-host role signal (builder hosts set it); the launchd plist
+	// renderer keys --disable-vm-gc off it, so neutralize it too.
+	cfg.DisableVMGC = false
+
+	var b strings.Builder
+
+	// (a) Rendered scripts, concatenated in a fixed order. A
+	// label prefixes each so two scripts can't alias into one
+	// another's bytes and hide a change.
+	firewall, err := renderVMEgressFirewallScript(cfg)
+	if err != nil {
+		// A malformed canonical CIDR can't render a script. Fold the
+		// error text in instead so the hash stays deterministic and
+		// distinct rather than panicking — the operator already
+		// validates these inputs before they reach a host.
+		firewall = "ERROR:" + err.Error()
+	}
+	for _, part := range []struct{ name, script string }{
+		{"firewall", firewall},
+		{"vmnat", renderVMNATScript(cfg)},
+		{"pn-interface", renderVMCachePNInterfaceScript(cfg)},
+		{"launchd", renderTartKubeletLaunchdScript(cfg)},
+		{"launchd-plist", renderLaunchdPlist(cfg)},
+		{"tailscale", renderTailscaleScript(cfg)},
+		{"node-exporter", renderNodeExporterScript()},
+		{"tart-kubelet-install", renderTartKubeletInstallScript()},
+	} {
+		b.WriteString(part.name)
+		b.WriteByte('\x00')
+		b.WriteString(part.script)
+		b.WriteByte('\x00')
+	}
+
+	// (b) SHA of each embedded binary the drift loop actually re-pushes.
+	// The bytes themselves ride SSH stdin (not the scripts), so their
+	// drift is only visible to the hash through their content SHA.
+	//
+	// TartTarball is intentionally omitted: Tart is bootstrap-only (the
+	// hypervisor can't be swapped under running VMs, so UpdateTartKubelet
+	// never re-installs it). Hashing it would force a pointless re-push on
+	// a Tart bump that couldn't actually update Tart anyway — that bump
+	// rolls via Machine replacement, not config drift.
+	for _, bin := range []struct {
+		name  string
+		bytes []byte
+	}{
+		{"tart-kubelet", cfg.TartKubeletBinary},
+		{"tailscale-binaries", cfg.TailscaleBinaries},
+		{"node-exporter-binary", cfg.NodeExporterBinary},
+	} {
+		b.WriteString(bin.name)
+		b.WriteByte('\x00')
+		if bin.bytes != nil {
+			b.WriteString(sha256Hex(bin.bytes))
+		}
+		b.WriteByte('\x00')
+	}
+
+	return sha256Hex([]byte(b.String()))
+}
+
 // SetHostname makes the macOS hostname match the CR name, so
 // `os.Hostname()` inside tart-kubelet (the default --node-name) lines
 // up with the inventory. The operator passes --node-name explicitly
@@ -430,7 +541,16 @@ func installTartKubelet(ctx context.Context, client *ssh.Client, binary []byte) 
 	if len(binary) == 0 {
 		return fmt.Errorf("tart-kubelet binary is empty")
 	}
-	script := `set -euo pipefail
+	return RunCommandWithStdin(ctx, client, renderTartKubeletInstallScript(), bytes.NewReader(binary))
+}
+
+// renderTartKubeletInstallScript is the static SSH script that lands the
+// uploaded tart-kubelet binary. The binary bytes themselves ride stdin;
+// their drift is tracked by the binary SHA, so this script carries no
+// host- or binary-specific input and is included verbatim in the host
+// config hash.
+func renderTartKubeletInstallScript() string {
+	return `set -euo pipefail
 sudo mkdir -p /usr/local/bin
 sudo tee /usr/local/bin/tart-kubelet >/dev/null
 sudo chmod 0755 /usr/local/bin/tart-kubelet
@@ -443,7 +563,6 @@ sudo chmod 0755 /usr/local/bin/tart-kubelet
 # stale cache so the rolled binary actually runs.
 sudo codesign --force --sign - /usr/local/bin/tart-kubelet
 `
-	return RunCommandWithStdin(ctx, client, script, bytes.NewReader(binary))
 }
 
 // loadTartKubeletLaunchd writes /Library/LaunchDaemons/dev.tuist.tart-kubelet.plist
@@ -477,7 +596,16 @@ sudo codesign --force --sign - /usr/local/bin/tart-kubelet
 //     took.
 func loadTartKubeletLaunchd(ctx context.Context, client *ssh.Client, cfg Config) error {
 	plist := renderLaunchdPlist(cfg)
-	script := fmt.Sprintf(`set -euo pipefail
+	return RunCommandWithStdin(ctx, client, renderTartKubeletLaunchdScript(cfg), strings.NewReader(plist))
+}
+
+// renderTartKubeletLaunchdScript is the SSH script that installs +
+// reloads the launchd job. The plist content rides stdin (see
+// renderLaunchdPlist); this script only substitutes the SSH user that
+// owns kubelet's writable paths, so it is config-shaped and folds into
+// the host config hash.
+func renderTartKubeletLaunchdScript(cfg Config) string {
+	return fmt.Sprintf(`set -euo pipefail
 PLIST=/Library/LaunchDaemons/dev.tuist.tart-kubelet.plist
 NEW="$(mktemp)"
 trap 'rm -f "$NEW"' EXIT
@@ -536,7 +664,6 @@ settled && exit 0
 echo "tart-kubelet did not reach a running state after launchd reload" >&2
 exit 1
 `, shellQuote(cfg.SSHUser))
-	return RunCommandWithStdin(ctx, client, script, strings.NewReader(plist))
 }
 
 func renderLaunchdPlist(cfg Config) string {
@@ -608,15 +735,19 @@ func renderLaunchdPlist(cfg Config) string {
 	if cfg.ProviderID != "" {
 		providerIDArg = fmt.Sprintf("\n    <string>--provider-id=%s</string>", cfg.ProviderID)
 	}
-	// Builder-fleet hosts (GHActionsRunner set) never have Pods
-	// scheduled but bake images with a host-level Packer/`tart`
-	// process. tart-kubelet's orphan-VM GC treats every local VM not
-	// backed by a Pod as collectable, so it would reap the in-flight
-	// build VM mid-`tart push` (the push then fails at the NVRAM layer
-	// with `nvram.bin doesn't exist`). Disable the GC there; the
-	// image-bake workflow reclaims its own Tart disk.
+	// Builder-fleet hosts never have Pods scheduled but bake images with
+	// a host-level Packer/`tart` process. tart-kubelet's orphan-VM GC
+	// treats every local VM not backed by a Pod as collectable, so it
+	// would reap the in-flight build VM mid-`tart push` (the push then
+	// fails at the NVRAM layer with `nvram.bin doesn't exist`). Disable
+	// the GC there; the image-bake workflow reclaims its own Tart disk.
+	//
+	// GHActionsRunner != nil identifies a builder on the bootstrap path;
+	// DisableVMGC carries the same intent on the drift-update path, which
+	// re-renders the plist without re-resolving the runner config (see
+	// the field comment). Either is sufficient.
 	disableVMGCArg := ""
-	if cfg.GHActionsRunner != nil {
+	if cfg.GHActionsRunner != nil || cfg.DisableVMGC {
 		disableVMGCArg = "\n    <string>--disable-vm-gc</string>"
 	}
 	// Run tart-kubelet as the SSH user (m1). Apple's
@@ -1052,11 +1183,30 @@ sudo chmod 0755 /usr/local/bin/tart
 // pf if not already enabled. The launchd plist re-loads the
 // rules on every boot so a reboot doesn't drop the filter.
 func installVMEgressFirewall(ctx context.Context, client *ssh.Client, cfg Config) error {
+	script, err := renderVMEgressFirewallScript(cfg)
+	if err != nil {
+		return err
+	}
+	if err := RunCommand(ctx, client, script); err != nil {
+		return err
+	}
+	if cfg.VMKuraEgressCIDR == "" && cfg.VMCachePNCIDR == "" {
+		return nil
+	}
+	return RunCommand(ctx, client, renderVMNATScript(cfg))
+}
+
+// renderVMEgressFirewallScript builds the pf-anchor install script. It
+// validates the carve-out CIDRs/IP as IPv4 literals and fails closed on
+// a bad value (a chart typo must never produce an unparseable — or
+// creative — ruleset), which is why it returns an error. Folded into the
+// host config hash so a carve-out values change re-pushes the filter.
+func renderVMEgressFirewallScript(cfg Config) (string, error) {
 	carveOut := ""
 	if cfg.VMKuraEgressCIDR != "" {
 		ip, _, err := net.ParseCIDR(cfg.VMKuraEgressCIDR)
 		if err != nil || ip.To4() == nil {
-			return fmt.Errorf("vm kura egress cidr %q is not an IPv4 CIDR: %v", cfg.VMKuraEgressCIDR, err)
+			return "", fmt.Errorf("vm kura egress cidr %q is not an IPv4 CIDR: %v", cfg.VMKuraEgressCIDR, err)
 		}
 		carveOut = fmt.Sprintf(`
 # Runner-cache carve-out: VMs may dial the cluster's Kura cache
@@ -1072,19 +1222,19 @@ pass out quick proto tcp from <vm_sources> to %s port { 4000, 50051 } keep state
 		if cfg.VMClusterDNSIP != "" {
 			dnsIP := net.ParseIP(cfg.VMClusterDNSIP)
 			if dnsIP == nil || dnsIP.To4() == nil {
-				return fmt.Errorf("vm cluster dns ip %q is not an IPv4 address", cfg.VMClusterDNSIP)
+				return "", fmt.Errorf("vm cluster dns ip %q is not an IPv4 address", cfg.VMClusterDNSIP)
 			}
 			carveOut += fmt.Sprintf(`pass out quick proto { tcp, udp } from <vm_sources> to %s port 53 keep state
 `, cfg.VMClusterDNSIP)
 		}
 	} else if cfg.VMClusterDNSIP != "" {
-		return fmt.Errorf("vm cluster dns ip set without vm kura egress cidr; refusing a DNS-only carve-out")
+		return "", fmt.Errorf("vm cluster dns ip set without vm kura egress cidr; refusing a DNS-only carve-out")
 	}
 
 	if cfg.VMCachePNCIDR != "" {
 		ip, _, err := net.ParseCIDR(cfg.VMCachePNCIDR)
 		if err != nil || ip.To4() == nil {
-			return fmt.Errorf("vm cache pn cidr %q is not an IPv4 CIDR: %v", cfg.VMCachePNCIDR, err)
+			return "", fmt.Errorf("vm cache pn cidr %q is not an IPv4 CIDR: %v", cfg.VMCachePNCIDR, err)
 		}
 		carveOut += fmt.Sprintf(`
 # Runner-cache Private Network carve-out: VMs dial per-account Kura
@@ -1142,44 +1292,24 @@ load anchor "tuist.runners" from "/etc/pf.anchors/tuist.runners"
 # END tuist.runners
 PFCONFENTRY
 
-# Reset the anchor's kernel-resident ruleset before the validate.
-# Hosts that previously ran an older version of this script left
-# persist-flagged 'vm_sources' / 'blocked_dst' tables in the
-# kernel, and 'pfctl -nf' on a config that redefines them dies on
-# EBUSY ("cannot define table vm_sources: Resource busy") — the
-# validate doesn't tolerate redefinition while a prior persist
-# table is still in kernel state.
+# Enable pf (idempotent; -E pins the enable token so an unrelated disable
+# can't silently drop the filter), then load the anchor.
 #
-# pfctl(8) defines '-T kill' as "Kill a table" — i.e. destroy it
-# from kernel state — and that's the only command that removes a
-# persist'd table. '-F all' / '-F Tables' explicitly preserve
-# persist tables (they only flush addresses), so they can't repair
-# this on their own. We do '-T kill' at both anchor scope AND
-# top-level scope: in practice older versions of this script have
-# at various times placed these tables in either location, and the
-# 2>/dev/null swallows the "no such table" error for the location
-# that doesn't apply on a given host.
-#
-# Belt-and-suspenders: after the kills, load an empty ruleset into
-# the anchor so any leftover anchor-level rules referencing the
-# old tables get cleared too, before pf(4) sees the redefinition
-# attempt in the validate below.
-sudo pfctl -a tuist.runners -t vm_sources -T kill 2>/dev/null || true
-sudo pfctl -a tuist.runners -t blocked_dst -T kill 2>/dev/null || true
-sudo pfctl -t vm_sources -T kill 2>/dev/null || true
-sudo pfctl -t blocked_dst -T kill 2>/dev/null || true
-echo "" | sudo pfctl -a tuist.runners -f - 2>/dev/null || true
-
-# Validate the ruleset before activating. -nf parses without
-# loading; if this fails we want a clear bootstrap error rather
-# than a half-loaded filter.
-sudo pfctl -nf /etc/pf.conf
-
-# Enable pf (no-op if already enabled) and reload the ruleset.
-# -E enables and pins the token so a subsequent disable from
-# elsewhere doesn't silently drop our rules; -f reloads.
+# Load the tuist.runners anchor DIRECTLY rather than re-running the whole
+# /etc/pf.conf. On a live host (pf already enabled), 'pfctl -f /etc/pf.conf'
+# collides with macOS's system-managed main ruleset: pfctl warns it would flush
+# the system's startup rules and aborts when the embedded 'load anchor'
+# re-defines the vm_sources/blocked_dst tables ("cannot define table
+# vm_sources: Resource busy"). That aborts the whole firewall install and, on
+# the drift-update path, terminal-fails the machine once the retry cap is hit,
+# freezing all further host-config updates. An anchor-scoped load applies the
+# same rules atomically without touching the system ruleset, so it succeeds at
+# bootstrap AND on every reconcile. The 'anchor'/'load anchor' lines written
+# into /etc/pf.conf above still re-activate the filter across reboots via the
+# pfctl-runners LaunchDaemon's boot-time load, when pf is freshly disabled and
+# there is no live ruleset to collide with.
 sudo pfctl -E 2>/dev/null || true
-sudo pfctl -f /etc/pf.conf
+sudo pfctl -a tuist.runners -f /etc/pf.anchors/tuist.runners
 
 # launchd job to re-arm pf on every boot. macOS doesn't persist
 # the -E enable across reboots in all configurations; an
@@ -1211,13 +1341,16 @@ sudo launchctl bootout system/dev.tuist.pfctl-runners 2>/dev/null || true
 sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-runners.plist
 `
 	script = strings.Replace(script, "@CARVEOUT@", carveOut, 1)
-	if err := RunCommand(ctx, client, script); err != nil {
-		return err
-	}
-	if cfg.VMKuraEgressCIDR == "" && cfg.VMCachePNCIDR == "" {
-		return nil
-	}
-	natScript := fmt.Sprintf(`set -euo pipefail
+	return script, nil
+}
+
+// renderVMNATScript builds the VM->cache NAT helper + its launchd
+// supervisor. Only the configured carve-out CIDRs vary; the derived
+// interface is resolved at runtime on the host. Folded into the host
+// config hash. Callers gate this on at least one of VMKuraEgressCIDR /
+// VMCachePNCIDR being set, matching installVMEgressFirewall.
+func renderVMNATScript(cfg Config) string {
+	return fmt.Sprintf(`set -euo pipefail
 sudo tee /usr/local/bin/tuist-pf-vmnat >/dev/null <<'VMNAT'
 #!/bin/sh
 # Loads the VM->cache NAT rules into the com.apple/tuist.vmnat pf
@@ -1252,12 +1385,28 @@ if [ -n "$CIDR" ]; then
   esac
 fi
 if [ -n "$PNCIDR" ]; then
-  PNIF=$(route -n get "${PNCIDR%%%%/*}" 2>/dev/null | awk '/interface/{print $2}')
-  case "$PNIF" in
-    vlan*)
-      RULES="${RULES}nat on $PNIF from 192.168.64.0/22 to $PNCIDR -> ($PNIF)${NL}"
-      ;;
-  esac
+  # route-get on the PN network base address ("${PNCIDR%%%%/*}", e.g.
+  # 172.16.0.0) resolves to the parent physical NIC (en0), not the macOS VLAN
+  # that owns the subnet, so a 'case vlan*' on its output never matched and the
+  # NAT was silently skipped — VM traffic then egressed with its 192.168.64.x
+  # source, which the kura node can neither reply to nor admit past its
+  # NetworkPolicy. Pick the interface directly: the bootstrap creates exactly
+  # one PN VLAN (networksetup -createVLAN pn en0), so it is the vlan* device
+  # holding an inet address; skip until DHCP lands one (StartInterval re-runs).
+  PNIF=""
+  for IFACE in $(ifconfig -l 2>/dev/null); do
+    case "$IFACE" in
+      vlan*)
+        if ifconfig "$IFACE" 2>/dev/null | grep -q "inet "; then
+          PNIF="$IFACE"
+          break
+        fi
+        ;;
+    esac
+  done
+  if [ -n "$PNIF" ]; then
+    RULES="${RULES}nat on $PNIF from 192.168.64.0/22 to $PNCIDR -> ($PNIF)${NL}"
+  fi
 fi
 [ -z "$RULES" ] && exit 0
 # pf requires normalization (scrub) before translation (nat) within
@@ -1298,7 +1447,6 @@ sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.pfctl-vmnat.plist
 sudo launchctl bootout system/dev.tuist.pfctl-vmnat 2>/dev/null || true
 sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-vmnat.plist
 `, cfg.VMKuraEgressCIDR, cfg.VMCachePNCIDR)
-	return RunCommand(ctx, client, natScript)
 }
 
 // installVMCachePNInterface materializes the macOS side of the
@@ -1314,7 +1462,16 @@ func installVMCachePNInterface(ctx context.Context, client *ssh.Client, cfg Conf
 	if cfg.VMCachePNCIDR == "" || cfg.VMCachePNVLAN == 0 {
 		return nil
 	}
-	script := fmt.Sprintf(`set -euo pipefail
+	return RunCommand(ctx, client, renderVMCachePNInterfaceScript(cfg))
+}
+
+// renderVMCachePNInterfaceScript materializes the per-host VLAN
+// interface. VMCachePNVLAN is a per-host Scaleway-assigned value;
+// HostConfigHash zeroes it before rendering, so the host config hash
+// fingerprints this script's template (a fix here re-pushes to existing
+// hosts) without the per-host VLAN making the hash host-specific.
+func renderVMCachePNInterfaceScript(cfg Config) string {
+	return fmt.Sprintf(`set -euo pipefail
 VLAN_TAG=%d
 CURRENT_TAG=$(networksetup -listVLANs 2>/dev/null | awk '/^VLAN User Defined Name: pn$/{found=1; next} found && /^Tag: /{print $2; exit} found && /^VLAN User Defined Name: /{exit}')
 if [ "${CURRENT_TAG:-}" != "$VLAN_TAG" ]; then
@@ -1329,7 +1486,6 @@ fi
 # version ("pn Configuration" on Tahoe). Force DHCP either way.
 sudo networksetup -setdhcp "pn Configuration" 2>/dev/null || sudo networksetup -setdhcp pn
 `, cfg.VMCachePNVLAN)
-	return RunCommand(ctx, client, script)
 }
 
 // installTailscale joins the Mac mini to the cluster's tailnet using
@@ -1373,6 +1529,16 @@ sudo chmod 0600 /etc/tuist/tailscale-auth-key`
 		return fmt.Errorf("stage tailscale auth key: %w", err)
 	}
 
+	return RunCommandWithStdin(ctx, client, renderTailscaleScript(cfg), bytes.NewReader(cfg.TailscaleBinaries))
+}
+
+// renderTailscaleScript builds the stage-2 SSH script (extract binaries,
+// register the daemon, `tailscale up`). The auth key never appears in
+// the script — it's read on the host from the stage-1 file — so only the
+// fleet-wide tags / accept-routes and the per-host hostname vary. Folded
+// into the host config hash; the canonical config leaves NodeName empty,
+// so the hostname arg drops out and the hash stays host-independent.
+func renderTailscaleScript(cfg Config) string {
 	tagsArg := ""
 	if len(cfg.TailscaleTags) > 0 {
 		// Tailscale accepts a comma-separated list — auth-key-bound
@@ -1404,7 +1570,7 @@ sudo chmod 0600 /etc/tuist/tailscale-auth-key`
 	// kubectl) and the controller log stream (which ships to Loki).
 	// Per-step diagnostics come from explicit log-file capture on the
 	// failure branches below.
-	script := fmt.Sprintf(`set -euo pipefail
+	return fmt.Sprintf(`set -euo pipefail
 # Always remove the auth key file when this script exits — success
 # or failure. Set the trap first thing so a later abort still cleans
 # up.
@@ -1532,7 +1698,6 @@ echo "tailscale up returned but no tailnet IPv4 within 30s; current status:" >&2
 sudo /usr/local/bin/tailscale status >&2 || true
 exit 1
 `, hostnameArg, tagsArg, acceptRoutesArg)
-	return RunCommandWithStdin(ctx, client, script, bytes.NewReader(cfg.TailscaleBinaries))
 }
 
 // installNodeExporter drops the cross-compiled darwin/arm64 binary,
@@ -1551,7 +1716,15 @@ func installNodeExporter(ctx context.Context, client *ssh.Client, cfg Config) er
 	if len(cfg.NodeExporterBinary) == 0 || cfg.TailscaleAuthKey == "" {
 		return nil
 	}
-	script := `set -euo pipefail
+	return RunCommandWithStdin(ctx, client, renderNodeExporterScript(), bytes.NewReader(cfg.NodeExporterBinary))
+}
+
+// renderNodeExporterScript is the static SSH script that installs the
+// node_exporter wrapper + launchd job. The binary rides stdin and its
+// drift is tracked by its own SHA in the host config hash, so this
+// script carries no per-host or per-binary input.
+func renderNodeExporterScript() string {
+	return `set -euo pipefail
 sudo mkdir -p /usr/local/bin
 sudo tee /usr/local/bin/node_exporter >/dev/null
 sudo chmod 0755 /usr/local/bin/node_exporter
@@ -1608,7 +1781,6 @@ sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.node-exporter.plist
 sudo launchctl bootout system /Library/LaunchDaemons/dev.tuist.node-exporter.plist 2>/dev/null || true
 sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.node-exporter.plist
 `
-	return RunCommandWithStdin(ctx, client, script, bytes.NewReader(cfg.NodeExporterBinary))
 }
 
 // === SSH helpers ===========================================================
@@ -1654,4 +1826,9 @@ func RunCommandWithStdin(ctx context.Context, client *ssh.Client, cmd string, st
 
 func b64(b []byte) string {
 	return base64.StdEncoding.EncodeToString(b)
+}
+
+func sha256Hex(b []byte) string {
+	h := sha256.Sum256(b)
+	return hex.EncodeToString(h[:])
 }

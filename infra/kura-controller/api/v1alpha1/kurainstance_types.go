@@ -6,21 +6,30 @@ import (
 )
 
 type KuraInstanceSpec struct {
-	AccountHandle     string              `json:"accountHandle"`
-	TenantID          string              `json:"tenantID"`
-	Region            string              `json:"region"`
-	Image             string              `json:"image"`
-	Replicas          *int32              `json:"replicas,omitempty"`
-	PublicHost        string              `json:"publicHost,omitempty"`
-	GRPCPublicHost    string              `json:"grpcPublicHost,omitempty"`
-	IngressClassName  string              `json:"ingressClassName,omitempty"`
-	PeerTLSSecretName string              `json:"peerTLSSecretName,omitempty"`
-	StorageClassName  string              `json:"storageClassName,omitempty"`
-	StorageSize       string              `json:"storageSize,omitempty"`
-	NodeSelector      map[string]string   `json:"nodeSelector,omitempty"`
-	Tolerations       []corev1.Toleration `json:"tolerations,omitempty"`
-	ExtraEnv          []corev1.EnvVar     `json:"extraEnv,omitempty"`
-	ExtensionScript   string              `json:"extensionScript,omitempty"`
+	AccountHandle string `json:"accountHandle"`
+	TenantID      string `json:"tenantID"`
+	Region        string `json:"region"`
+	Image         string `json:"image"`
+	Replicas      *int32 `json:"replicas,omitempty"`
+	PublicHost    string `json:"publicHost,omitempty"`
+	// Deprecated: the value is ignored. gRPC co-hosts on PublicHost (see
+	// reconcileGRPCIngress), and PublicHost alone enables the gRPC Ingress.
+	// Retained for backward compatibility.
+	// See https://github.com/tuist/tuist/issues/11390.
+	GRPCPublicHost    string            `json:"grpcPublicHost,omitempty"`
+	IngressClassName  string            `json:"ingressClassName,omitempty"`
+	PeerTLSSecretName string            `json:"peerTLSSecretName,omitempty"`
+	StorageClassName  string            `json:"storageClassName,omitempty"`
+	StorageSize       string            `json:"storageSize,omitempty"`
+	NodeSelector      map[string]string `json:"nodeSelector,omitempty"`
+	// Tolerations let the runtime pod schedule onto tainted nodes. Preview
+	// environments use this to colocate Kura on the generic preview pool
+	// (which carries role=preview:NoSchedule) instead of pinning to a
+	// dedicated Kura node pool, so the preview lifecycle does not depend on
+	// Kura-specific capacity.
+	Tolerations     []corev1.Toleration `json:"tolerations,omitempty"`
+	ExtraEnv        []corev1.EnvVar     `json:"extraEnv,omitempty"`
+	ExtensionScript string              `json:"extensionScript,omitempty"`
 
 	// Private marks a region with no public endpoint, reachable only
 	// over the cluster's internal Service DNS (today: the runner-cache
@@ -66,6 +75,32 @@ type KuraInstanceSpec struct {
 	// `PeerTLSSecretName` takes precedence when set (externally managed
 	// peer TLS); Mesh is the in-cluster, controller-issued path.
 	Mesh bool `json:"mesh,omitempty"`
+
+	// MeshPublicPeerHost is the public hostname the account peer plane is
+	// reachable at from outside the cluster. When set (Mesh mode), the
+	// controller provisions a LoadBalancer Service for the account peer
+	// port (TLS-passthrough: the peer connection is end-to-end mTLS, so the
+	// LB only forwards L4) and adds the host to every managed instance's
+	// peer-cert SAN. That lets a customer's self-hosted Kura node dial into
+	// the managed mesh over the internet and verify the managed peers
+	// against the shared account CA. The reverse leg (managed dialing the
+	// self-hosted nodes) is `MeshExternalPeers`.
+	MeshPublicPeerHost string `json:"meshPublicPeerHost,omitempty"`
+
+	// MeshExternalPeers are peer URLs of the account's self-hosted Kura
+	// nodes, injected into every managed pod's `KURA_PEERS` so the managed
+	// mesh dials them for replication (the managed->self-hosted leg of
+	// two-way cross-mesh replication). The self-hosted->managed leg is
+	// seeded server-side through the enrollment peer list. Requires Mesh.
+	MeshExternalPeers []string `json:"meshExternalPeers,omitempty"`
+
+	// MeshPublicPeerLoadBalancerAnnotations are provider-specific annotations
+	// applied to the public peer LoadBalancer Service. They are infra/region
+	// specific (e.g. the hcloud `location` and a `node-selector` restricting the
+	// LB's targets to the account's node pool — without the latter the cloud
+	// controller targets every node, including ones that can't route to the
+	// account's pods), so the control plane supplies them.
+	MeshPublicPeerLoadBalancerAnnotations map[string]string `json:"meshPublicPeerLoadBalancerAnnotations,omitempty"`
 }
 
 type KuraInstanceStatus struct {

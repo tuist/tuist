@@ -1,7 +1,7 @@
 import Foundation
 
 enum WorkspaceRestorer {
-    private struct PackageContext: Sendable {
+    private struct PackageContext {
         let packageRef: [String: String]
         let packagePath: URL
         let canonicalizeLocalBinaryPaths: Bool
@@ -26,7 +26,8 @@ enum WorkspaceRestorer {
         disableSandbox: Bool = false
     ) async throws {
         let scratchLock = try await PathLock.acquire(
-            at: scratchDir.appendingPathComponent(".swifterpm.lock"))
+            at: scratchDir.appendingPathComponent(".swifterpm.lock")
+        )
         _ = scratchLock
         let checkouts = scratchDir.appendingPathComponent("checkouts")
         let registryDownloads = scratchDir.appendingPathComponent("registry/downloads")
@@ -159,7 +160,8 @@ enum WorkspaceRestorer {
             )
 
             progress?.restoredBinaryArtifact(
-                identity: identity, target: target.name, path: cachedArtifact.path)
+                identity: identity, target: target.name, path: cachedArtifact.path
+            )
         case let .local(path):
             let artifactPath = binaryTargetPath(
                 path,
@@ -190,7 +192,8 @@ enum WorkspaceRestorer {
                 destination: scratchArtifact
             )
             progress?.restoredBinaryArtifact(
-                identity: identity, target: target.name, path: cachedArtifact.path)
+                identity: identity, target: target.name, path: cachedArtifact.path
+            )
         }
     }
 
@@ -360,7 +363,8 @@ enum WorkspaceRestorer {
                     packageRef: rootPackageRef(packageDir),
                     packagePath: packageDir,
                     canonicalizeLocalBinaryPaths: true
-                ))
+                )
+            )
             let manifest = try await ManifestLoader.dumpPackage(
                 packageDir: packageDir,
                 disableSandbox: disableSandbox
@@ -379,7 +383,8 @@ enum WorkspaceRestorer {
                         ),
                         packagePath: localPackage.packagePath,
                         canonicalizeLocalBinaryPaths: true
-                    ))
+                    )
+                )
             }
         }
 
@@ -397,7 +402,8 @@ enum WorkspaceRestorer {
                     ),
                     packagePath: packagePath,
                     canonicalizeLocalBinaryPaths: false
-                ))
+                )
+            )
         }
 
         return contexts
@@ -608,7 +614,8 @@ enum WorkspaceRestorer {
                 cache: cache, registryConfig: registryConfig, pin: pin
             )
             let download = try registryDownloads.appendingPathComponent(
-                PinKind.registryDownloadSubpath(pin))
+                PinKind.registryDownloadSubpath(pin)
+            )
             try await fileSystem.replaceWithSymlinkedDirectory(
                 source: source, destination: download
             )
@@ -728,7 +735,8 @@ enum WorkspaceRestorer {
             return
         }
         throw ToolError.message(
-            "no authenticated source archive endpoint available for \(pin.location)")
+            "no authenticated source archive endpoint available for \(pin.location)"
+        )
     }
 
     private static func downloadGitHubArchive(cache: Cache, pin: ResolvedPin, destination: URL)
@@ -785,7 +793,7 @@ enum WorkspaceRestorer {
 
     private static func shallowFetchCheckout(pin: ResolvedPin, destination: URL) async throws {
         let revision = try pin.revision()
-        var lastError: (any Error)?
+        var attempts: [(candidate: String, error: any Error)] = []
         for location in SourceControlLocations.fetchCandidates(pin.location) {
             do {
                 try await resetDirectory(destination)
@@ -793,9 +801,12 @@ enum WorkspaceRestorer {
                 try await SystemProcess.run(
                     "/usr/bin/git", ["-C", destination.path, "remote", "add", "origin", location]
                 )
+                let authArguments = await GitTransportAuth.configArguments(for: location)
                 try await SystemProcess.run(
                     "/usr/bin/git",
-                    ["-C", destination.path, "fetch", "--depth=1", "origin", revision]
+                    authArguments
+                        + ["-C", destination.path, "fetch", "--depth=1", "origin", revision],
+                    environment: SystemProcess.nonInteractiveGitEnvironment
                 )
                 try await SystemProcess.run(
                     "/usr/bin/git", ["-C", destination.path, "checkout", "--detach", "FETCH_HEAD"]
@@ -808,10 +819,10 @@ enum WorkspaceRestorer {
                 }
                 return
             } catch {
-                lastError = error
+                attempts.append((location, error))
             }
         }
-        throw lastError ?? ToolError.message("failed to fetch \(pin.location)")
+        throw GitFetchFailure.error(location: pin.location, attempts: attempts)
     }
 
     private static func rejectArchiveWithSubmodules(_ destination: URL) async throws {
@@ -1048,13 +1059,13 @@ enum WorkspaceRestorer {
                 "path": artifact.path.path,
                 "source": source,
                 "targetName": target.name,
-            ])
+            ]
+        )
     }
 
     private static func jsonPackageIdentity(_ object: [String: Any]) -> String {
-        guard
-            let packageRef = object["packageRef"] as? [String: Any],
-            let identity = packageRef["identity"] as? String
+        guard let packageRef = object["packageRef"] as? [String: Any],
+              let identity = packageRef["identity"] as? String
         else {
             return ""
         }

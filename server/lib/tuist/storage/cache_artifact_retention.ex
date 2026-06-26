@@ -10,7 +10,9 @@ defmodule Tuist.Storage.CacheArtifactRetention do
   alias Tuist.Storage.RetentionPolicy
 
   @default_page_size 1000
-  @artifact_types [:xcode_cache, :xcode_module, :gradle]
+  @delete_receive_timeout 60_000
+  @delete_task_timeout 65_000
+  @artifact_types [:xcode_cache, :cas, :xcode_module, :gradle]
 
   def artifact_types, do: @artifact_types
 
@@ -37,7 +39,9 @@ defmodule Tuist.Storage.CacheArtifactRetention do
             |> Enum.filter(&matches_retention_target?(&1, target))
             |> expired_objects(target)
 
-          with :ok <- Storage.delete_objects_from_bucket(Enum.map(objects_to_delete, & &1.key), bucket_name) do
+          delete_opts = [receive_timeout: @delete_receive_timeout, task_timeout: @delete_task_timeout]
+
+          with :ok <- Storage.delete_objects_from_bucket(Enum.map(objects_to_delete, & &1.key), bucket_name, delete_opts) do
             {:ok, next_continuation_token(body)}
           end
 
@@ -54,7 +58,7 @@ defmodule Tuist.Storage.CacheArtifactRetention do
     Enum.filter(objects, fn object ->
       # Managed retention only deletes objects whose account resolves to the
       # managed storage path. Unknown and custom-storage accounts are skipped.
-      case Map.get(plans_by_account_handle, account_handle(object)) do
+      case plan_for_object(object, plans_by_account_handle) do
         nil ->
           false
 
@@ -73,6 +77,7 @@ defmodule Tuist.Storage.CacheArtifactRetention do
       objects
       |> Enum.map(&account_handle/1)
       |> Enum.reject(&is_nil/1)
+      |> Enum.flat_map(fn account_handle -> [account_handle, normalize_account_handle(account_handle)] end)
       |> Enum.uniq()
 
     Account
@@ -84,8 +89,23 @@ defmodule Tuist.Storage.CacheArtifactRetention do
       # keeping this at two queries per S3 page instead of one query per account.
       plans_by_account_id = RetentionPolicy.current_plans(accounts)
 
-      Map.new(accounts, fn account -> {account.name, Map.fetch!(plans_by_account_id, account.id)} end)
+      exact_plans_by_account_handle =
+        Map.new(accounts, fn account -> {account.name, Map.fetch!(plans_by_account_id, account.id)} end)
+
+      normalized_plans_by_account_handle =
+        Map.new(accounts, fn account ->
+          {normalize_account_handle(account.name), Map.fetch!(plans_by_account_id, account.id)}
+        end)
+
+      Map.merge(normalized_plans_by_account_handle, exact_plans_by_account_handle)
     end)
+  end
+
+  defp plan_for_object(object, plans_by_account_handle) do
+    account_handle = account_handle(object)
+
+    Map.get(plans_by_account_handle, account_handle) ||
+      Map.get(plans_by_account_handle, normalize_account_handle(account_handle))
   end
 
   defp matches_retention_target?(object, target) do
@@ -103,6 +123,9 @@ defmodule Tuist.Storage.CacheArtifactRetention do
       _ -> nil
     end
   end
+
+  defp normalize_account_handle(nil), do: nil
+  defp normalize_account_handle(account_handle), do: String.downcase(account_handle)
 
   defp last_modified(%{last_modified: %DateTime{} = last_modified}), do: last_modified
 
@@ -122,6 +145,14 @@ defmodule Tuist.Storage.CacheArtifactRetention do
     %{
       bucket_name: Environment.cache_xcode_s3_bucket_name(),
       object_path_segment: "xcode",
+      retention_artifact_type: :xcode_cache_artifact
+    }
+  end
+
+  defp retention_target(:cas) do
+    %{
+      bucket_name: Environment.cache_s3_bucket_name(),
+      object_path_segment: "cas",
       retention_artifact_type: :xcode_cache_artifact
     }
   end

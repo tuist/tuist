@@ -176,6 +176,16 @@ defmodule TuistWeb.Router do
     plug TuistWeb.WarningsHeaderPlug
   end
 
+  pipeline :atlas_internal_api do
+    plug :put_request_kind, "atlas_internal_api"
+    plug :accepts, ["json"]
+    plug TuistWeb.WarningsHeaderPlug
+    plug TuistWeb.Plugs.AtlasRateLimitPlug
+    plug TuistWeb.Plugs.InternalAtlasAuthPlug
+    plug SentryContextPlug
+    plug ObservabilityContextPlug
+  end
+
   pipeline :api_catalog do
     plug :put_request_kind, "api_catalog"
     plug :accepts, ["linkset"]
@@ -732,12 +742,21 @@ defmodule TuistWeb.Router do
     post "/runners/dispatch", RunnersController, :dispatch
     get "/runners/desired_replicas", RunnersController, :desired_replicas
     post "/runners/pods/stopped", RunnerPodsController, :stopped
+    post "/runners/pods/:pod_name/metrics", RunnerJobMetricsController, :create
+  end
+
+  scope "/api/internal", TuistWeb.Internal do
+    pipe_through [:atlas_internal_api]
+
+    get "/atlas/accounts/:account_handle/usage", AtlasUsageController, :usage
   end
 
   scope "/_internal", TuistWeb.Internal do
     pipe_through [:non_authenticated_api]
 
     post "/kura/usage", KuraUsageController, :create
+    post "/kura/mesh/enroll", KuraMeshController, :enroll
+    post "/kura/mesh/registrations", KuraMeshController, :register
   end
 
   scope "/oauth2", TuistWeb.Oauth do
@@ -1012,6 +1031,7 @@ defmodule TuistWeb.Router do
       live "/webhooks", WebhooksLive
       live "/webhooks/:id", WebhookLive
       live "/webhooks/:id/events/:attempt_id", WebhookEventLive
+      live "/cache", CacheLive
       live "/billing", BillingLive
       live "/usage", UsageLive
       live "/settings", AccountSettingsLive

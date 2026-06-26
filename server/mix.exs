@@ -64,6 +64,11 @@ defmodule Tuist.MixProject do
       {:jason, "~> 1.2"},
       {:libcluster, "~> 3.5"},
       {:bandit, "~> 1.11.1", override: true},
+      # Pinned: plug >= 1.19.3 crashes WebSocket upgrades on bandit 1.11.1
+      # (ArgumentError ":upgrade not a binary"). Without this pin, plug is an
+      # unconstrained transitive dep and every `mix deps.get` re-resolves it to
+      # the latest, churning the lock and forcing full recompiles.
+      {:plug, "1.19.2", override: true},
       {:credo, "== 1.7.13", only: [:dev, :test], runtime: false},
       {:sentry, "~> 11.0.4"},
       {:tower, "0.8.0"},
@@ -145,6 +150,7 @@ defmodule Tuist.MixProject do
       {:noora, path: "../noora"},
       {:zstream, "~> 0.6"},
       {:cloak_ecto, "~> 1.3.0"},
+      {:x509, "~> 0.9"},
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
       {:minio_server, github: "LostKobrakai/minio_server", only: :dev},
       {:tuist_common, path: "../tuist_common"},
@@ -201,7 +207,6 @@ defmodule Tuist.MixProject do
         "ecto.drop",
         "ecto.create",
         "run priv/repo/timezone.exs",
-        "ecto.load",
         "ecto.migrate"
       ],
       test: ["ecto.create --quiet", "run priv/repo/timezone.exs", "ecto.migrate --quiet", "test"],

@@ -212,17 +212,76 @@ curl -fsSL https://pkgs.k8s.io/core:/stable:/%[1]s/deb/Release.key | %[2]sgpg --
 // default-route interface, else the first non-lo physical NIC. Empty (and
 // therefore a no-op) for the Instance kind, whose PN auto-DHCPs as a second
 // interface.
+//
+// The bring-up is installed as a supervised systemd unit, not run once inline. A
+// bare `ip link` + backgrounded `dhclient -nw` does not survive a reboot and is
+// never renewed if that dhclient process dies, so the node silently loses its PN
+// address (and with it the runner-cache NodePort) while still reporting Ready on
+// its public NIC — invisible to the control plane, since kubelet binds the
+// public InternalIP.
+//
+// The unit holds the address STATICALLY rather than leasing it for the life of
+// the node. Scaleway's PN DHCP has been observed to stop ACKing renewals: a
+// renew-forever dhclient (`dhclient -d` under Restart=always) keeps running, so
+// Restart never fires, yet the lease still expires and the kernel drops the
+// address — the exact silent-blackhole this unit exists to prevent. Instead the
+// script DHCPs once to discover the IPAM-assigned address (the PN allocates it
+// per attachment, so it is stable), caches it, and then re-asserts it as a
+// static address with no expiry. pn0 is re-created on every boot, and the cached
+// address re-applied, making the PN address durable across reboots, lease churn,
+// and a silent DHCP server. The heredocs keep this on the SSH (non-indented)
+// bootstrap path; the Instance/cloud-init path always passes vlan==0 and renders
+// nothing here.
 func vlanBringUp(sudo string, vlan uint32) string {
 	if vlan == 0 {
 		return ""
 	}
-	return fmt.Sprintf(`PRIMARY_NIC="$(ip -o route get 1.1.1.1 2>/dev/null | sed -n 's/.* dev \([^ ]*\).*/\1/p' | head -n1)"
+	return fmt.Sprintf(`%[1]stee /usr/local/sbin/tuist-pn0-up.sh > /dev/null <<'TUIST_PN_EOF'
+#!/usr/bin/env bash
+set -eu
+PRIMARY_NIC="$(ip -o route get 1.1.1.1 2>/dev/null | sed -n 's/.* dev \([^ ]*\).*/\1/p' | head -n1)"
 if [ -z "$PRIMARY_NIC" ]; then
   PRIMARY_NIC="$(for n in /sys/class/net/*; do ifn="$(basename "$n")"; case "$ifn" in lo|pn*) continue;; esac; if [ -e "$n/device" ]; then echo "$ifn"; break; fi; done)"
 fi
-%[1]sip link add link "$PRIMARY_NIC" name pn0 type vlan id %[2]d || true
-%[1]sip link set pn0 up
-%[1]sdhclient -nw pn0 || %[1]sdhclient pn0 || true
+ip link show pn0 >/dev/null 2>&1 || ip link add link "$PRIMARY_NIC" name pn0 type vlan id %[2]d
+ip link set pn0 up
+CIDR_CACHE=/var/lib/tuist/pn0-cidr
+if [ ! -s "$CIDR_CACHE" ]; then
+  mkdir -p /var/lib/tuist
+  for _ in $(seq 1 30); do
+    timeout 15 dhclient -1 pn0 >/dev/null 2>&1 || true
+    discovered="$(ip -4 -o addr show pn0 2>/dev/null | awk '{print $4; exit}' || true)"
+    if [ -n "$discovered" ]; then printf '%%s\n' "$discovered" > "$CIDR_CACHE"; break; fi
+    sleep 10
+  done
+fi
+pkill -f 'dhclient.*pn0' >/dev/null 2>&1 || true
+cidr="$(cat "$CIDR_CACHE" 2>/dev/null || true)"
+if [ -z "$cidr" ]; then
+  echo "pn0: PN address not assigned yet (IPAM lag); will retry" >&2
+  exit 1
+fi
+while true; do
+  ip addr replace "$cidr" dev pn0 2>/dev/null || true
+  sleep 60
+done
+TUIST_PN_EOF
+%[1]schmod 0755 /usr/local/sbin/tuist-pn0-up.sh
+%[1]stee /etc/systemd/system/tuist-pn0.service > /dev/null <<'TUIST_PN_EOF'
+[Unit]
+Description=Tuist runner-cache Private Network VLAN (pn0)
+Wants=network-online.target
+After=network-online.target
+[Service]
+Type=exec
+ExecStart=/usr/local/sbin/tuist-pn0-up.sh
+Restart=always
+RestartSec=5
+[Install]
+WantedBy=multi-user.target
+TUIST_PN_EOF
+%[1]ssystemctl daemon-reload
+%[1]ssystemctl enable --now tuist-pn0.service || true
 `, sudo, vlan)
 }
 

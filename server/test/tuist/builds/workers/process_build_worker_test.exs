@@ -85,7 +85,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       project: project,
       build: build
     } do
-      expect(Tuist.Storage, :download_to_file, fn @storage_key, path, ^account ->
+      expect(Tuist.Storage, :download_to_file, fn @storage_key, path, download_account ->
+        assert download_account.id == project.account_id
         assert String.ends_with?(path, ".zip")
         {:ok, :done}
       end)
@@ -191,19 +192,17 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
                ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 3, 3))
     end
 
-    test "marks build as failed when account is not found on final attempt", %{
-      project: project,
+    test "marks build as failed when project is not found on final attempt", %{
+      account: account,
       build: build
     } do
-      expect(Tuist.Accounts, :get_account_by_id, fn _id -> {:error, :not_found} end)
-
       expect(Tuist.Builds, :create_build, fn attrs ->
         assert attrs.status == "failed_processing"
         {:ok, %{id: build.id}}
       end)
 
-      assert {:error, :not_found} =
-               ProcessBuildWorker.perform(oban_job(job_args(build.id, "999999", project.id), 3, 3))
+      assert {:error, :project_not_found} =
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, "999999"), 3, 3))
     end
   end
 
@@ -430,6 +429,31 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
 
       assert :ok ==
                ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
+    end
+  end
+
+  describe "perform/1 concurrency" do
+    test "downloads to a distinct temp path per execution so concurrent jobs for the same build don't clobber each other",
+         %{account: account, project: project, build: build} do
+      test_pid = self()
+
+      expect(Tuist.Storage, :download_to_file, 2, fn _key, path, _account ->
+        send(test_pid, {:download_path, path})
+        {:ok, :done}
+      end)
+
+      expect(BuildProcessor, :process_build, 2, fn _, _ -> {:ok, parsed_data()} end)
+      expect(Tuist.Builds, :create_build, 2, fn _attrs -> {:ok, %{id: build.id}} end)
+
+      job = oban_job(job_args(build.id, account.id, project.id))
+      ProcessBuildWorker.perform(job)
+      ProcessBuildWorker.perform(job)
+
+      assert_receive {:download_path, path1}
+      assert_receive {:download_path, path2}
+
+      assert path1 != path2,
+             "two jobs for the same build must use distinct download paths so one cannot overwrite/delete the other's archive mid-read"
     end
   end
 end

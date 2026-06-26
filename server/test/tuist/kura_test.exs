@@ -75,6 +75,30 @@ defmodule Tuist.KuraTest do
       assert deployment.kura_server_id == server.id
     end
 
+    test "creates deployments for degraded servers so a fix can reach them" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      {:ok, server} = Kura.activate_server(server, "0.5.2")
+      {:ok, server} = Kura.fail_server(server)
+
+      assert %Server{status: :failed, current_image_tag: "0.5.2"} = server
+
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "sha-abcdef123456" end)
+
+      assert {:ok, [%Deployment{image_tag: "sha-abcdef123456"} = deployment]} =
+               Kura.schedule_runtime_image_deployments()
+
+      assert deployment.kura_server_id == server.id
+    end
+
     test "does not create deployments when the active server already runs the runtime image tag" do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
@@ -546,13 +570,34 @@ defmodule Tuist.KuraTest do
       assert %Server{url: "http://172.16.0.2:30080"} = Repo.get!(Server, server.id)
     end
 
-    test "skips the cluster write when the endpoint is unchanged", %{server: server} do
+    test "heartbeats last_ready_at without rewriting the URL when the endpoint is unchanged", %{server: server} do
+      past = ~U[2020-01-01 00:00:00Z]
+      # Re-fetch after backdating so the struct the reconciler passes carries
+      # the stale last_ready_at (mirrors a fresh-from-DB load each tick); else
+      # the changeset sees no change and skips the heartbeat write.
+      backdated = Server |> Repo.get!(server.id) |> Ecto.Changeset.change(last_ready_at: past) |> Repo.update!()
+
       expect(Provisioner, :external_endpoint, fn %Server{} ->
         {:ok, "http://172.16.0.2:30080"}
       end)
 
+      assert :ok = Kura.refresh_private_server_url(backdated)
+      refreshed = Repo.get!(Server, server.id)
+      assert refreshed.url == "http://172.16.0.2:30080"
+      assert DateTime.after?(refreshed.last_ready_at, past)
+    end
+
+    test "stops heartbeating last_ready_at while the endpoint is unobservable", %{server: server} do
+      stamp = ~U[2020-01-01 00:00:00Z]
+      Server |> Repo.get!(server.id) |> Ecto.Changeset.change(last_ready_at: stamp) |> Repo.update!()
+
+      expect(Provisioner, :external_endpoint, fn %Server{} ->
+        {:error, :node_port_endpoint_not_ready}
+      end)
+
       assert :ok = Kura.refresh_private_server_url(server)
-      assert %Server{url: "http://172.16.0.2:30080"} = Repo.get!(Server, server.id)
+      refreshed = Repo.get!(Server, server.id)
+      assert DateTime.compare(refreshed.last_ready_at, stamp) == :eq
     end
 
     test "is a no-op for cluster-DNS private servers" do
@@ -575,6 +620,82 @@ defmodule Tuist.KuraTest do
       reject(&Provisioner.external_endpoint/1)
 
       assert :ok = Kura.refresh_private_server_url(%{server | status: :provisioning})
+    end
+  end
+
+  describe "runner_cache_endpoint_url/2 readiness gating" do
+    setup do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["scw-fr-par-runners", "hetzner-staging-runners"]
+      end)
+
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "scw-fr-par-runners",
+          image_tag: "0.5.2"
+        })
+
+      expect(Provisioner, :external_endpoint, fn %Server{} -> {:ok, "http://172.16.0.2:30080"} end)
+      {:ok, active} = Kura.activate_server(server, "0.5.2")
+
+      %{account: account, server: active}
+    end
+
+    test "routes to the node-port endpoint while the readiness heartbeat is fresh", %{
+      account: account,
+      server: server
+    } do
+      # activate_server/2 stamps last_ready_at, so a just-activated node serves at once.
+      assert Kura.runner_cache_endpoint_url(account, :macos) == server.url
+    end
+
+    test "falls back to the public cache once the heartbeat goes stale", %{account: account, server: server} do
+      stale = ~U[2020-01-01 00:00:00Z]
+      Server |> Repo.get!(server.id) |> Ecto.Changeset.change(last_ready_at: stale) |> Repo.update!()
+
+      assert Kura.runner_cache_endpoint_url(account, :macos) == nil
+    end
+
+    test "falls back when the node was never observed ready", %{account: account, server: server} do
+      Server |> Repo.get!(server.id) |> Ecto.Changeset.change(last_ready_at: nil) |> Repo.update!()
+
+      assert Kura.runner_cache_endpoint_url(account, :macos) == nil
+    end
+
+    test "cluster-DNS private servers serve regardless of the heartbeat" do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["scw-fr-par-runners", "hetzner-staging-runners"]
+      end)
+
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "hetzner-staging-runners",
+          image_tag: "0.5.2"
+        })
+
+      stub(Provisioner, :public_url, fn _account, %Server{} -> "http://kura-tuist.kura.svc.cluster.local" end)
+      {:ok, active} = Kura.activate_server(server, "0.5.2")
+
+      # The node-port heartbeat path never runs for cluster-DNS, so last_ready_at
+      # stays ancient — it must still serve (the in-cluster Service gates readiness).
+      ancient = ~U[2020-01-01 00:00:00Z]
+      Server |> Repo.get!(active.id) |> Ecto.Changeset.change(last_ready_at: ancient) |> Repo.update!()
+
+      assert Kura.runner_cache_endpoint_url(account, :linux) == active.url
     end
   end
 

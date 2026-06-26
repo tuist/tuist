@@ -11,6 +11,9 @@ README.md
 data/
 log/
 ops/
+# Keep the bundled adopter auth hook in the build context (the Dockerfile copies
+# it into the image); the rest of ops/ stays ignored.
+!ops/helm/kura/hooks/tuist.lua
 spec/
 target/
 test/

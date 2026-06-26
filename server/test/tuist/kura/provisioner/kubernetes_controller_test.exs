@@ -3,6 +3,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   use Mimic
 
   alias Tuist.Kubernetes.Client
+  alias Tuist.Kura.Mesh
   alias Tuist.Kura.Provisioner.KubernetesController
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
@@ -41,7 +42,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert spec["region"] == "eu-central"
       assert spec["image"] == "ghcr.io/tuist/kura:0.5.2"
       assert spec["publicHost"] == "tuist-eu-central-1.kura.tuist.dev"
-      assert spec["grpcPublicHost"] == "grpc.tuist-eu-central-1.kura.tuist.dev"
+      # gRPC co-hosts on the single public host: grpcPublicHost == publicHost.
+      assert spec["grpcPublicHost"] == "tuist-eu-central-1.kura.tuist.dev"
       assert spec["ingressClassName"] == "kura-eu-central"
       refute Map.has_key?(spec, "peerTLSSecretName")
       refute Map.has_key?(spec, "tlsSecretName")
@@ -98,6 +100,70 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         )
 
       refute Map.has_key?(unmeshed["spec"], "mesh")
+    end
+
+    test "emits the public peer host and external peers for a meshed region" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      bridged =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{mesh: true}),
+          %Server{},
+          "return true",
+          nil,
+          ["https://kura.acme.example:7443"]
+        )
+
+      assert bridged["spec"]["meshPublicPeerHost"] == "peer.tuist-eu-central-1.kura.tuist.dev"
+      assert bridged["spec"]["meshExternalPeers"] == ["https://kura.acme.example:7443"]
+
+      assert bridged["spec"]["meshPublicPeerLoadBalancerAnnotations"] == %{
+               "load-balancer.hetzner.cloud/location" => "fsn1",
+               "load-balancer.hetzner.cloud/node-selector" => "node.cluster.x-k8s.io/pool=kura"
+             }
+
+      unbridged =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(),
+          %Server{},
+          "return true"
+        )
+
+      refute Map.has_key?(unbridged["spec"], "meshPublicPeerHost")
+      refute Map.has_key?(unbridged["spec"], "meshExternalPeers")
+    end
+
+    test "omits external peers for a meshed region with no self-hosted nodes" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{mesh: true}),
+          %Server{},
+          "return true",
+          nil,
+          []
+        )
+
+      assert manifest["spec"]["meshPublicPeerHost"] == "peer.tuist-eu-central-1.kura.tuist.dev"
+      refute Map.has_key?(manifest["spec"], "meshExternalPeers")
     end
 
     test "emits tolerations only when the region declares them" do
@@ -157,7 +223,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert spec["accountHandle"] == "bumble"
       assert spec["tenantID"] == "bumble"
       assert spec["publicHost"] == "bumble-eu-central-1.kura.tuist.dev"
-      assert spec["grpcPublicHost"] == "grpc.bumble-eu-central-1.kura.tuist.dev"
+      assert spec["grpcPublicHost"] == "bumble-eu-central-1.kura.tuist.dev"
     end
 
     test "uses an opaque dedicated gateway class when the account is assigned to dedicated Kura ingress" do
@@ -318,6 +384,63 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     end
   end
 
+  describe "manifest_revision/2" do
+    test "matches the base revision when no self-hosted peers are enrolled" do
+      stub(Mesh, :self_hosted_peer_urls, fn _ -> [] end)
+
+      assert KubernetesController.manifest_revision(%{name: "tuist"}, eu_region(%{mesh: true})) ==
+               KubernetesController.manifest_revision()
+    end
+
+    test "changes when a peer is enrolled, matching the rendered manifest annotation" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      region = eu_region(%{mesh: true})
+      peers = ["https://kura.acme.example:7443"]
+      stub(Mesh, :self_hosted_peer_urls, fn _ -> peers end)
+
+      revision = KubernetesController.manifest_revision(%{name: "tuist"}, region)
+      refute revision == KubernetesController.manifest_revision()
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %{name: "tuist"},
+          region,
+          %Server{},
+          "return true",
+          nil,
+          peers
+        )
+
+      assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] == revision
+    end
+
+    test "is independent of the peer ordering" do
+      region = eu_region(%{mesh: true})
+
+      stub(Mesh, :self_hosted_peer_urls, fn _ -> ["https://b.example:7443", "https://a.example:7443"] end)
+      sorted = KubernetesController.manifest_revision(%{name: "tuist"}, region)
+
+      stub(Mesh, :self_hosted_peer_urls, fn _ -> ["https://a.example:7443", "https://b.example:7443"] end)
+      reordered = KubernetesController.manifest_revision(%{name: "tuist"}, region)
+
+      assert sorted == reordered
+    end
+
+    test "ignores peers for a region without the mesh enabled" do
+      reject(&Mesh.self_hosted_peer_urls/1)
+
+      assert KubernetesController.manifest_revision(%{name: "tuist"}, eu_region()) ==
+               KubernetesController.manifest_revision()
+    end
+  end
+
   describe "rollout/2" do
     test "applies the KuraInstance without waiting for controller readiness" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
@@ -446,7 +569,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   describe "grpc_public_url/3" do
     test "interpolates the gRPC host template with the account handle" do
       assert KubernetesController.grpc_public_url("TUIST", eu_region(), "any-ref") ==
-               "grpcs://grpc.tuist-eu-central-1.kura.tuist.dev"
+               "grpcs://tuist-eu-central-1.kura.tuist.dev"
     end
 
     test "returns nil when the region has no gRPC host configured" do
@@ -509,8 +632,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         Map.merge(
           %{
             cluster_id: "eu-central-1",
+            hetzner_location: "fsn1",
             public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
-            grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
+            grpc_public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
+            peer_public_host_template: "peer.{account_handle}-{cluster_id}.kura.tuist.dev",
             ingress_class_name: "kura-eu-central",
             storage_class: "hcloud-volumes",
             node_selector: %{"node.cluster.x-k8s.io/pool" => "kura"}
@@ -529,7 +654,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
             cluster_id: "us-east-1",
             hetzner_location: "ash",
             public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
-            grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
+            grpc_public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
             ingress_class_name: "kura-us-east",
             storage_class: "hcloud-volumes",
             node_selector: %{"node.cluster.x-k8s.io/pool" => "kura-us-east"}

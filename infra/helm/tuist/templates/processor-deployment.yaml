@@ -131,6 +131,8 @@ spec:
                 secretKeyRef:
                   name: {{ $processorSecretName }}
                   key: processor-database-url
+            - name: TUIST_DATABASE_SCHEMA
+              value: {{ .Values.postgresql.schema | quote }}
             {{- include "tuist.githubEnv" . | nindent 12 }}
             {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
             # MASTER_KEY unlocks the rest of priv/secrets/<env>.yml.enc

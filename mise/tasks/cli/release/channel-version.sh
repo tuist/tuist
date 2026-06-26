@@ -16,12 +16,23 @@ set -euo pipefail
 # *next* minor, so counting them would make canary chase its own tail. rc-new
 # creates the release branch and publishes rc.1 atomically, so a line is "cut"
 # the moment its first RC tag exists.
+#
+# The emitted `changelog_from` is the base the changelog is generated against.
+# For canary it is the previous canary tag, so each canary lists only what
+# landed since the last canary — not the whole backlog since the last stable
+# (it falls back to the latest stable only when no canary exists yet). RC and
+# promote keep the full changelog since the latest stable, since those are the
+# release notes for the upcoming X.Y.0.
 
 CHANNEL="${1:-}"
 BRANCH="${2:-}"
 
 cd "$(git rev-parse --show-toplevel)"
 SHA=$(git rev-parse HEAD)
+
+# Changelog base. Defaults to the latest stable; the canary case narrows it to
+# the previous canary below.
+changelog_from=""
 
 emit() {
   [[ -n "${GITHUB_OUTPUT:-}" ]] && printf '%s=%s\n' "$1" "$2" >> "$GITHUB_OUTPUT"
@@ -32,6 +43,11 @@ die() { echo "::error::$1" >&2; exit 1; }
 
 stable_tags() { git tag -l | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true; }
 latest_stable_tag() { stable_tags | sort -V | tail -n1; }
+# Canaries are always X.Y.0-canary.N. The version sort dominates on the minor
+# first and the canary N second, so the tail is the chronologically newest
+# canary even across a minor bump (a line cut advances canary to the next minor).
+canary_tags() { git tag -l | grep -E '^[0-9]+\.[0-9]+\.0-canary\.[0-9]+$' || true; }
+latest_canary_tag() { canary_tags | sort -V | tail -n1; }
 tag_exists() { git rev-parse --verify --quiet "refs/tags/$1" >/dev/null; }
 
 # Highest N among existing <target>-<channel>.N tags; empty when none exist.
@@ -66,6 +82,10 @@ case "$CHANNEL" in
     target="$(next_target_minor).0"
     n=$(highest_prerelease_n "$target" canary)
     emit version "${target}-canary.$(( ${n:-0} + 1 ))"
+    # Base the changelog on the previous canary, not the last stable, so it
+    # lists only what landed since the last canary. Falls back to the latest
+    # stable (handled by the final emit) when no canary has been cut yet.
+    changelog_from="$(latest_canary_tag)"
     ;;
 
   rc-new)
@@ -111,4 +131,4 @@ case "$CHANNEL" in
 esac
 
 emit sha "$SHA"
-emit changelog_from "$(latest_stable_tag)"
+emit changelog_from "${changelog_from:-$(latest_stable_tag)}"

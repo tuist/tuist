@@ -115,9 +115,20 @@ spec:
                 secretKeyRef:
                   name: {{ include "tuist.cnpgAppSecretName" . }}
                   key: uri
+            - name: TUIST_MIGRATION_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.cnpgAppSecretName" . }}
+                  key: uri
+            {{- if .Values.server.managedSecrets }}
+            - name: TUIST_DATABASE_RUNTIME_ROLE
+              value: {{ .Values.postgresql.cnpg.roles.web.name | quote }}
+            {{- end }}
             - name: TUIST_USE_SSL_FOR_DATABASE
               value: "0"
             {{- end }}
+            - name: TUIST_DATABASE_SCHEMA
+              value: {{ .Values.postgresql.schema | quote }}
             {{- if not .Values.server.managedSecrets }}
             {{- if ne .Values.postgresql.mode "cnpg" }}
             {{- include "tuist.externalPostgresqlSecretEnv" . | nindent 12 }}

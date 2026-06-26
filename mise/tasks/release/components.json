@@ -8,6 +8,7 @@
       "initial_version": "0.0.0",
       "include_paths": [
         "cli/**/*",
+        "swifterpm/**/*",
         "mise/tasks/cli/**/*",
         "mise/tasks/release/components.json",
         ".github/workflows/cli-release.yml",

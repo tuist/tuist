@@ -5,6 +5,7 @@ defmodule TuistWeb.Endpoint do
   # The session will be stored in the cookie and signed,
   # this means its contents can be read but not tampered with.
   # Set :encryption_salt if you would also like to encrypt it.
+  alias TuistWeb.CodeReloader
   alias TuistWeb.Plugs.GitHubWebhookLoggingPlug
   alias TuistWeb.Plugs.WebhookPlug
   alias TuistWeb.Webhooks.BillingController
@@ -46,7 +47,7 @@ defmodule TuistWeb.Endpoint do
   if code_reloading? do
     socket "/phoenix/live_reload/socket", Phoenix.LiveReloader.Socket
     plug Phoenix.LiveReloader
-    plug Phoenix.CodeReloader
+    plug Phoenix.CodeReloader, reloader: &CodeReloader.reload/2
     plug Phoenix.Ecto.CheckRepoStatus, otp_app: :tuist
   end
 

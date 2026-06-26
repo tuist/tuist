@@ -35,6 +35,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/post(completeShardUpload)`.
     func completeShardUpload(_ input: Operations.completeShardUpload.Input) async throws -> Operations.completeShardUpload.Output
+    /// List the values seen for a build filter dimension.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds/metrics/dimensions/{dimension}/values`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/metrics/dimensions/{dimension}/values/get(buildMetricDimensionValues)`.
+    func buildMetricDimensionValues(_ input: Operations.buildMetricDimensionValues.Input) async throws -> Operations.buildMetricDimensionValues.Output
     /// Create a a new command analytics event
     ///
     /// - Remark: HTTP `POST /api/analytics`.
@@ -95,6 +100,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/events`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/events/get(listTestCaseEvents)`.
     func listTestCaseEvents(_ input: Operations.listTestCaseEvents.Input) async throws -> Operations.listTestCaseEvents.Output
+    /// Time-bucketed test run duration percentiles for a project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/metrics/duration`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/metrics/duration/get(testDurationMetrics)`.
+    func testDurationMetrics(_ input: Operations.testDurationMetrics.Input) async throws -> Operations.testDurationMetrics.Output
     /// Get a test case run by ID.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}`.
@@ -304,6 +314,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/builds`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/post(createBuild)`.
     func createBuild(_ input: Operations.createBuild.Input) async throws -> Operations.createBuild.Output
+    /// List the values seen for a test filter dimension.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/metrics/dimensions/{dimension}/values`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/metrics/dimensions/{dimension}/values/get(testMetricDimensionValues)`.
+    func testMetricDimensionValues(_ input: Operations.testMetricDimensionValues.Input) async throws -> Operations.testMetricDimensionValues.Output
     /// List attachments for a test case run.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/attachments`.
@@ -536,6 +551,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `PUT /api/projects/{account_handle}/{project_handle}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/put(updateProject)`.
     func updateProject(_ input: Operations.updateProject.Input) async throws -> Operations.updateProject.Output
+    /// Time-bucketed build duration percentiles for a project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds/metrics/duration`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/metrics/duration/get(buildDurationMetrics)`.
+    func buildDurationMetrics(_ input: Operations.buildDurationMetrics.Input) async throws -> Operations.buildDurationMetrics.Output
     /// List runs associated with a given project. DEPRECATED: Use GET /builds, GET /tests, or GET /generations instead.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/runs`.
@@ -751,6 +771,19 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// List the values seen for a build filter dimension.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds/metrics/dimensions/{dimension}/values`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/metrics/dimensions/{dimension}/values/get(buildMetricDimensionValues)`.
+    public func buildMetricDimensionValues(
+        path: Operations.buildMetricDimensionValues.Input.Path,
+        headers: Operations.buildMetricDimensionValues.Input.Headers = .init()
+    ) async throws -> Operations.buildMetricDimensionValues.Output {
+        try await buildMetricDimensionValues(Operations.buildMetricDimensionValues.Input(
+            path: path,
+            headers: headers
+        ))
+    }
     /// Create a a new command analytics event
     ///
     /// - Remark: HTTP `POST /api/analytics`.
@@ -898,6 +931,21 @@ extension APIProtocol {
         headers: Operations.listTestCaseEvents.Input.Headers = .init()
     ) async throws -> Operations.listTestCaseEvents.Output {
         try await listTestCaseEvents(Operations.listTestCaseEvents.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
+    /// Time-bucketed test run duration percentiles for a project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/metrics/duration`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/metrics/duration/get(testDurationMetrics)`.
+    public func testDurationMetrics(
+        path: Operations.testDurationMetrics.Input.Path,
+        query: Operations.testDurationMetrics.Input.Query,
+        headers: Operations.testDurationMetrics.Input.Headers = .init()
+    ) async throws -> Operations.testDurationMetrics.Output {
+        try await testDurationMetrics(Operations.testDurationMetrics.Input(
             path: path,
             query: query,
             headers: headers
@@ -1400,6 +1448,19 @@ extension APIProtocol {
             path: path,
             headers: headers,
             body: body
+        ))
+    }
+    /// List the values seen for a test filter dimension.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/metrics/dimensions/{dimension}/values`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/metrics/dimensions/{dimension}/values/get(testMetricDimensionValues)`.
+    public func testMetricDimensionValues(
+        path: Operations.testMetricDimensionValues.Input.Path,
+        headers: Operations.testMetricDimensionValues.Input.Headers = .init()
+    ) async throws -> Operations.testMetricDimensionValues.Output {
+        try await testMetricDimensionValues(Operations.testMetricDimensionValues.Input(
+            path: path,
+            headers: headers
         ))
     }
     /// List attachments for a test case run.
@@ -1974,6 +2035,21 @@ extension APIProtocol {
             path: path,
             headers: headers,
             body: body
+        ))
+    }
+    /// Time-bucketed build duration percentiles for a project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds/metrics/duration`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/metrics/duration/get(buildDurationMetrics)`.
+    public func buildDurationMetrics(
+        path: Operations.buildDurationMetrics.Input.Path,
+        query: Operations.buildDurationMetrics.Input.Query,
+        headers: Operations.buildDurationMetrics.Input.Headers = .init()
+    ) async throws -> Operations.buildDurationMetrics.Output {
+        try await buildDurationMetrics(Operations.buildDurationMetrics.Input(
+            path: path,
+            query: query,
+            headers: headers
         ))
     }
     /// List runs associated with a given project. DEPRECATED: Use GET /builds, GET /tests, or GET /generations instead.
@@ -2725,6 +2801,7 @@ public enum Components {
             @frozen public enum monitor_typePayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case flakiness_rate = "flakiness_rate"
                 case flaky_run_count = "flaky_run_count"
+                case reliability_rate = "reliability_rate"
             }
             /// The monitor type that evaluates the condition.
             ///
@@ -7337,6 +7414,183 @@ public enum Components {
             case failure = "failure"
             case cancelled = "cancelled"
         }
+        /// Time-bucketed duration metrics for build or test runs. The bucket granularity (hour, day, or month) is derived from the requested time range.
+        ///
+        /// - Remark: Generated from `#/components/schemas/DurationMetrics`.
+        public struct DurationMetrics: Codable, Hashable, Sendable {
+            /// A duration series. Values are aligned with the `dates` array and expressed in milliseconds.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DurationMetrics/average`.
+            public struct averagePayload: Codable, Hashable, Sendable {
+                /// Duration aggregated across the whole time range, in milliseconds.
+                ///
+                /// - Remark: Generated from `#/components/schemas/DurationMetrics/average/total`.
+                public var total: Swift.Double
+                /// Duration per time bucket, in milliseconds. Buckets with no runs are 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/DurationMetrics/average/values`.
+                public var values: [Swift.Double?]
+                /// Creates a new `averagePayload`.
+                ///
+                /// - Parameters:
+                ///   - total: Duration aggregated across the whole time range, in milliseconds.
+                ///   - values: Duration per time bucket, in milliseconds. Buckets with no runs are 0.
+                public init(
+                    total: Swift.Double,
+                    values: [Swift.Double?]
+                ) {
+                    self.total = total
+                    self.values = values
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case total
+                    case values
+                }
+            }
+            /// A duration series. Values are aligned with the `dates` array and expressed in milliseconds.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DurationMetrics/average`.
+            public var average: Components.Schemas.DurationMetrics.averagePayload
+            /// Unix timestamps in seconds for the start of each time bucket.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DurationMetrics/dates`.
+            public var dates: [Swift.Int64]
+            /// A duration series. Values are aligned with the `dates` array and expressed in milliseconds.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DurationMetrics/p50`.
+            public struct p50Payload: Codable, Hashable, Sendable {
+                /// Duration aggregated across the whole time range, in milliseconds.
+                ///
+                /// - Remark: Generated from `#/components/schemas/DurationMetrics/p50/total`.
+                public var total: Swift.Double
+                /// Duration per time bucket, in milliseconds. Buckets with no runs are 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/DurationMetrics/p50/values`.
+                public var values: [Swift.Double?]
+                /// Creates a new `p50Payload`.
+                ///
+                /// - Parameters:
+                ///   - total: Duration aggregated across the whole time range, in milliseconds.
+                ///   - values: Duration per time bucket, in milliseconds. Buckets with no runs are 0.
+                public init(
+                    total: Swift.Double,
+                    values: [Swift.Double?]
+                ) {
+                    self.total = total
+                    self.values = values
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case total
+                    case values
+                }
+            }
+            /// A duration series. Values are aligned with the `dates` array and expressed in milliseconds.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DurationMetrics/p50`.
+            public var p50: Components.Schemas.DurationMetrics.p50Payload
+            /// A duration series. Values are aligned with the `dates` array and expressed in milliseconds.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DurationMetrics/p90`.
+            public struct p90Payload: Codable, Hashable, Sendable {
+                /// Duration aggregated across the whole time range, in milliseconds.
+                ///
+                /// - Remark: Generated from `#/components/schemas/DurationMetrics/p90/total`.
+                public var total: Swift.Double
+                /// Duration per time bucket, in milliseconds. Buckets with no runs are 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/DurationMetrics/p90/values`.
+                public var values: [Swift.Double?]
+                /// Creates a new `p90Payload`.
+                ///
+                /// - Parameters:
+                ///   - total: Duration aggregated across the whole time range, in milliseconds.
+                ///   - values: Duration per time bucket, in milliseconds. Buckets with no runs are 0.
+                public init(
+                    total: Swift.Double,
+                    values: [Swift.Double?]
+                ) {
+                    self.total = total
+                    self.values = values
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case total
+                    case values
+                }
+            }
+            /// A duration series. Values are aligned with the `dates` array and expressed in milliseconds.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DurationMetrics/p90`.
+            public var p90: Components.Schemas.DurationMetrics.p90Payload
+            /// A duration series. Values are aligned with the `dates` array and expressed in milliseconds.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DurationMetrics/p99`.
+            public struct p99Payload: Codable, Hashable, Sendable {
+                /// Duration aggregated across the whole time range, in milliseconds.
+                ///
+                /// - Remark: Generated from `#/components/schemas/DurationMetrics/p99/total`.
+                public var total: Swift.Double
+                /// Duration per time bucket, in milliseconds. Buckets with no runs are 0.
+                ///
+                /// - Remark: Generated from `#/components/schemas/DurationMetrics/p99/values`.
+                public var values: [Swift.Double?]
+                /// Creates a new `p99Payload`.
+                ///
+                /// - Parameters:
+                ///   - total: Duration aggregated across the whole time range, in milliseconds.
+                ///   - values: Duration per time bucket, in milliseconds. Buckets with no runs are 0.
+                public init(
+                    total: Swift.Double,
+                    values: [Swift.Double?]
+                ) {
+                    self.total = total
+                    self.values = values
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case total
+                    case values
+                }
+            }
+            /// A duration series. Values are aligned with the `dates` array and expressed in milliseconds.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DurationMetrics/p99`.
+            public var p99: Components.Schemas.DurationMetrics.p99Payload
+            /// Percentage change in the average duration compared to the immediately preceding period of the same length.
+            ///
+            /// - Remark: Generated from `#/components/schemas/DurationMetrics/trend`.
+            public var trend: Swift.Double
+            /// Creates a new `DurationMetrics`.
+            ///
+            /// - Parameters:
+            ///   - average: A duration series. Values are aligned with the `dates` array and expressed in milliseconds.
+            ///   - dates: Unix timestamps in seconds for the start of each time bucket.
+            ///   - p50: A duration series. Values are aligned with the `dates` array and expressed in milliseconds.
+            ///   - p90: A duration series. Values are aligned with the `dates` array and expressed in milliseconds.
+            ///   - p99: A duration series. Values are aligned with the `dates` array and expressed in milliseconds.
+            ///   - trend: Percentage change in the average duration compared to the immediately preceding period of the same length.
+            public init(
+                average: Components.Schemas.DurationMetrics.averagePayload,
+                dates: [Swift.Int64],
+                p50: Components.Schemas.DurationMetrics.p50Payload,
+                p90: Components.Schemas.DurationMetrics.p90Payload,
+                p99: Components.Schemas.DurationMetrics.p99Payload,
+                trend: Swift.Double
+            ) {
+                self.average = average
+                self.dates = dates
+                self.p50 = p50
+                self.p90 = p90
+                self.p99 = p99
+                self.trend = trend
+            }
+            public enum CodingKeys: String, CodingKey {
+                case average
+                case dates
+                case p50
+                case p90
+                case p99
+                case trend
+            }
+        }
         /// The maximum number of builds to return in a single page.
         ///
         /// - Remark: Generated from `#/components/schemas/GradleBuildsIndexPageSize`.
@@ -9004,6 +9258,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/ShardPlan/shards`.
             public var shards: Components.Schemas.ShardPlan.shardsPayload
+            /// The API URL to start a multipart upload for the shard bundle.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ShardPlan/upload_url`.
+            public var upload_url: Swift.String?
             /// Creates a new `ShardPlan`.
             ///
             /// - Parameters:
@@ -9011,22 +9269,26 @@ public enum Components {
             ///   - reference: A unique shard plan reference, typically derived from CI environment.
             ///   - shard_count: The number of shards.
             ///   - shards: The shard assignments.
+            ///   - upload_url: The API URL to start a multipart upload for the shard bundle.
             public init(
                 id: Swift.String,
                 reference: Swift.String,
                 shard_count: Swift.Int,
-                shards: Components.Schemas.ShardPlan.shardsPayload
+                shards: Components.Schemas.ShardPlan.shardsPayload,
+                upload_url: Swift.String? = nil
             ) {
                 self.id = id
                 self.reference = reference
                 self.shard_count = shard_count
                 self.shards = shards
+                self.upload_url = upload_url
             }
             public enum CodingKeys: String, CodingKey {
                 case id
                 case reference
                 case shard_count
                 case shards
+                case upload_url
             }
         }
         /// List of available cache endpoints
@@ -9088,7 +9350,11 @@ public enum Components {
             /// The shard plan reference.
             ///
             /// - Remark: Generated from `#/components/schemas/CompleteShardUploadParams/reference`.
-            public var reference: Swift.String
+            public var reference: Swift.String?
+            /// The shard plan id returned by createShardPlan.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CompleteShardUploadParams/shard_plan_id`.
+            public var shard_plan_id: Swift.String?
             /// The multipart upload ID.
             ///
             /// - Remark: Generated from `#/components/schemas/CompleteShardUploadParams/upload_id`.
@@ -9098,19 +9364,23 @@ public enum Components {
             /// - Parameters:
             ///   - parts: The uploaded parts with their ETags.
             ///   - reference: The shard plan reference.
+            ///   - shard_plan_id: The shard plan id returned by createShardPlan.
             ///   - upload_id: The multipart upload ID.
             public init(
                 parts: Components.Schemas.CompleteShardUploadParams.partsPayload,
-                reference: Swift.String,
+                reference: Swift.String? = nil,
+                shard_plan_id: Swift.String? = nil,
                 upload_id: Swift.String
             ) {
                 self.parts = parts
                 self.reference = reference
+                self.shard_plan_id = shard_plan_id
                 self.upload_id = upload_id
             }
             public enum CodingKeys: String, CodingKey {
                 case parts
                 case reference
+                case shard_plan_id
                 case upload_id
             }
         }
@@ -9447,16 +9717,26 @@ public enum Components {
             /// The shard plan reference.
             ///
             /// - Remark: Generated from `#/components/schemas/StartShardUploadParams/reference`.
-            public var reference: Swift.String
+            public var reference: Swift.String?
+            /// The shard plan id returned by createShardPlan.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StartShardUploadParams/shard_plan_id`.
+            public var shard_plan_id: Swift.String?
             /// Creates a new `StartShardUploadParams`.
             ///
             /// - Parameters:
             ///   - reference: The shard plan reference.
-            public init(reference: Swift.String) {
+            ///   - shard_plan_id: The shard plan id returned by createShardPlan.
+            public init(
+                reference: Swift.String? = nil,
+                shard_plan_id: Swift.String? = nil
+            ) {
                 self.reference = reference
+                self.shard_plan_id = shard_plan_id
             }
             public enum CodingKeys: String, CodingKey {
                 case reference
+                case shard_plan_id
             }
         }
         /// The maximum number of generations to return in a single page.
@@ -10859,7 +11139,11 @@ public enum Components {
             /// The shard plan reference.
             ///
             /// - Remark: Generated from `#/components/schemas/GenerateShardUploadURLParams/reference`.
-            public var reference: Swift.String
+            public var reference: Swift.String?
+            /// The shard plan id returned by createShardPlan.
+            ///
+            /// - Remark: Generated from `#/components/schemas/GenerateShardUploadURLParams/shard_plan_id`.
+            public var shard_plan_id: Swift.String?
             /// The multipart upload ID.
             ///
             /// - Remark: Generated from `#/components/schemas/GenerateShardUploadURLParams/upload_id`.
@@ -10869,19 +11153,23 @@ public enum Components {
             /// - Parameters:
             ///   - part_number: The part number.
             ///   - reference: The shard plan reference.
+            ///   - shard_plan_id: The shard plan id returned by createShardPlan.
             ///   - upload_id: The multipart upload ID.
             public init(
                 part_number: Swift.Int,
-                reference: Swift.String,
+                reference: Swift.String? = nil,
+                shard_plan_id: Swift.String? = nil,
                 upload_id: Swift.String
             ) {
                 self.part_number = part_number
                 self.reference = reference
+                self.shard_plan_id = shard_plan_id
                 self.upload_id = upload_id
             }
             public enum CodingKeys: String, CodingKey {
                 case part_number
                 case reference
+                case shard_plan_id
                 case upload_id
             }
         }
@@ -12175,7 +12463,11 @@ public enum Operations {
                     /// The shard plan reference.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/POST/requestBody/json/reference`.
-                    public var reference: Swift.String
+                    public var reference: Swift.String?
+                    /// The shard plan id returned by createShardPlan.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/POST/requestBody/json/shard_plan_id`.
+                    public var shard_plan_id: Swift.String?
                     /// The multipart upload ID.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/POST/requestBody/json/upload_id`.
@@ -12185,19 +12477,23 @@ public enum Operations {
                     /// - Parameters:
                     ///   - parts: The uploaded parts with their ETags.
                     ///   - reference: The shard plan reference.
+                    ///   - shard_plan_id: The shard plan id returned by createShardPlan.
                     ///   - upload_id: The multipart upload ID.
                     public init(
                         parts: Operations.completeShardUpload.Input.Body.jsonPayload.partsPayload,
-                        reference: Swift.String,
+                        reference: Swift.String? = nil,
+                        shard_plan_id: Swift.String? = nil,
                         upload_id: Swift.String
                     ) {
                         self.parts = parts
                         self.reference = reference
+                        self.shard_plan_id = shard_plan_id
                         self.upload_id = upload_id
                     }
                     public enum CodingKeys: String, CodingKey {
                         case parts
                         case reference
+                        case shard_plan_id
                         case upload_id
                     }
                 }
@@ -12283,6 +12579,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/POST/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.completeShardUpload.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.completeShardUpload.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid parameters
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/post(completeShardUpload)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.completeShardUpload.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.completeShardUpload.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
                             response: self
                         )
                     }
@@ -12378,6 +12725,274 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.forbidden`.
             /// - SeeAlso: `.forbidden`.
             public var forbidden: Operations.completeShardUpload.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List the values seen for a build filter dimension.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds/metrics/dimensions/{dimension}/values`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/metrics/dimensions/{dimension}/values/get(buildMetricDimensionValues)`.
+    public enum buildMetricDimensionValues {
+        public static let id: Swift.String = "buildMetricDimensionValues"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/dimensions/{dimension}/values/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/dimensions/{dimension}/values/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/dimensions/{dimension}/values/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/dimensions/{dimension}/values/GET/path/dimension`.
+                @frozen public enum dimensionPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case scheme = "scheme"
+                    case configuration = "configuration"
+                }
+                /// The build dimension to list values for.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/dimensions/{dimension}/values/GET/path/dimension`.
+                public var dimension: Operations.buildMetricDimensionValues.Input.Path.dimensionPayload
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - dimension: The build dimension to list values for.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    dimension: Operations.buildMetricDimensionValues.Input.Path.dimensionPayload
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.dimension = dimension
+                }
+            }
+            public var path: Operations.buildMetricDimensionValues.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/dimensions/{dimension}/values/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.buildMetricDimensionValues.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.buildMetricDimensionValues.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.buildMetricDimensionValues.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.buildMetricDimensionValues.Input.Path,
+                headers: Operations.buildMetricDimensionValues.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/dimensions/{dimension}/values/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/dimensions/{dimension}/values/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/dimensions/{dimension}/values/GET/responses/200/content/json/values`.
+                        public var values: [Swift.String]
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - values:
+                        public init(values: [Swift.String]) {
+                            self.values = values
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case values
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/dimensions/{dimension}/values/GET/responses/200/content/application\/json`.
+                    case json(Operations.buildMetricDimensionValues.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.buildMetricDimensionValues.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.buildMetricDimensionValues.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.buildMetricDimensionValues.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Dimension values
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/metrics/dimensions/{dimension}/values/get(buildMetricDimensionValues)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.buildMetricDimensionValues.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.buildMetricDimensionValues.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/dimensions/{dimension}/values/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/dimensions/{dimension}/values/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.buildMetricDimensionValues.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.buildMetricDimensionValues.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request was invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/metrics/dimensions/{dimension}/values/get(buildMetricDimensionValues)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.buildMetricDimensionValues.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.buildMetricDimensionValues.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/dimensions/{dimension}/values/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/dimensions/{dimension}/values/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.buildMetricDimensionValues.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.buildMetricDimensionValues.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/metrics/dimensions/{dimension}/values/get(buildMetricDimensionValues)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.buildMetricDimensionValues.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.buildMetricDimensionValues.Output.Forbidden {
                 get throws {
                     switch self {
                     case let .forbidden(response):
@@ -16800,6 +17415,288 @@ public enum Operations {
             }
         }
     }
+    /// Time-bucketed test run duration percentiles for a project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/metrics/duration`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/metrics/duration/get(testDurationMetrics)`.
+    public enum testDurationMetrics {
+        public static let id: Swift.String = "testDurationMetrics"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/metrics/duration/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/metrics/duration/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/metrics/duration/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.testDurationMetrics.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/metrics/duration/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// Start of the time range as a Unix timestamp in seconds.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/metrics/duration/GET/query/from`.
+                public var from: Swift.Int64
+                /// End of the time range as a Unix timestamp in seconds.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/metrics/duration/GET/query/to`.
+                public var to: Swift.Int64
+                /// Filter to runs executed on CI (true) or locally (false).
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/metrics/duration/GET/query/is_ci`.
+                public var is_ci: Swift.Bool?
+                /// Filter by scheme.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/metrics/duration/GET/query/scheme`.
+                public var scheme: Swift.String?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - from: Start of the time range as a Unix timestamp in seconds.
+                ///   - to: End of the time range as a Unix timestamp in seconds.
+                ///   - is_ci: Filter to runs executed on CI (true) or locally (false).
+                ///   - scheme: Filter by scheme.
+                public init(
+                    from: Swift.Int64,
+                    to: Swift.Int64,
+                    is_ci: Swift.Bool? = nil,
+                    scheme: Swift.String? = nil
+                ) {
+                    self.from = from
+                    self.to = to
+                    self.is_ci = is_ci
+                    self.scheme = scheme
+                }
+            }
+            public var query: Operations.testDurationMetrics.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/metrics/duration/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.testDurationMetrics.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.testDurationMetrics.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.testDurationMetrics.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.testDurationMetrics.Input.Path,
+                query: Operations.testDurationMetrics.Input.Query,
+                headers: Operations.testDurationMetrics.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/metrics/duration/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/metrics/duration/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.DurationMetrics)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.DurationMetrics {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.testDurationMetrics.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.testDurationMetrics.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Test duration metrics
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/metrics/duration/get(testDurationMetrics)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.testDurationMetrics.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.testDurationMetrics.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/metrics/duration/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/metrics/duration/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.testDurationMetrics.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.testDurationMetrics.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request was invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/metrics/duration/get(testDurationMetrics)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.testDurationMetrics.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.testDurationMetrics.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/metrics/duration/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/metrics/duration/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.testDurationMetrics.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.testDurationMetrics.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/metrics/duration/get(testDurationMetrics)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.testDurationMetrics.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.testDurationMetrics.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Get a test case run by ID.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}`.
@@ -17430,28 +18327,28 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
                 public var page: Swift.Int?
-                /// Filter bundles by git branch.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
-                public var git_branch: Swift.String?
                 /// Number of items per page.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
                 public var page_size: Swift.Int?
+                /// Filter bundles by git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
+                public var git_branch: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - page: Page number for pagination.
-                ///   - git_branch: Filter bundles by git branch.
                 ///   - page_size: Number of items per page.
+                ///   - git_branch: Filter bundles by git branch.
                 public init(
                     page: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil,
-                    page_size: Swift.Int? = nil
+                    page_size: Swift.Int? = nil,
+                    git_branch: Swift.String? = nil
                 ) {
                     self.page = page
-                    self.git_branch = git_branch
                     self.page_size = page_size
+                    self.git_branch = git_branch
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -29133,6 +30030,273 @@ public enum Operations {
             }
         }
     }
+    /// List the values seen for a test filter dimension.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/metrics/dimensions/{dimension}/values`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/metrics/dimensions/{dimension}/values/get(testMetricDimensionValues)`.
+    public enum testMetricDimensionValues {
+        public static let id: Swift.String = "testMetricDimensionValues"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/metrics/dimensions/{dimension}/values/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/metrics/dimensions/{dimension}/values/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/metrics/dimensions/{dimension}/values/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/metrics/dimensions/{dimension}/values/GET/path/dimension`.
+                @frozen public enum dimensionPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case scheme = "scheme"
+                }
+                /// The test dimension to list values for.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/metrics/dimensions/{dimension}/values/GET/path/dimension`.
+                public var dimension: Operations.testMetricDimensionValues.Input.Path.dimensionPayload
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - dimension: The test dimension to list values for.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    dimension: Operations.testMetricDimensionValues.Input.Path.dimensionPayload
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.dimension = dimension
+                }
+            }
+            public var path: Operations.testMetricDimensionValues.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/metrics/dimensions/{dimension}/values/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.testMetricDimensionValues.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.testMetricDimensionValues.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.testMetricDimensionValues.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.testMetricDimensionValues.Input.Path,
+                headers: Operations.testMetricDimensionValues.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/metrics/dimensions/{dimension}/values/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/metrics/dimensions/{dimension}/values/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/metrics/dimensions/{dimension}/values/GET/responses/200/content/json/values`.
+                        public var values: [Swift.String]
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - values:
+                        public init(values: [Swift.String]) {
+                            self.values = values
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case values
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/metrics/dimensions/{dimension}/values/GET/responses/200/content/application\/json`.
+                    case json(Operations.testMetricDimensionValues.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.testMetricDimensionValues.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.testMetricDimensionValues.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.testMetricDimensionValues.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Dimension values
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/metrics/dimensions/{dimension}/values/get(testMetricDimensionValues)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.testMetricDimensionValues.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.testMetricDimensionValues.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/metrics/dimensions/{dimension}/values/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/metrics/dimensions/{dimension}/values/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.testMetricDimensionValues.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.testMetricDimensionValues.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request was invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/metrics/dimensions/{dimension}/values/get(testMetricDimensionValues)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.testMetricDimensionValues.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.testMetricDimensionValues.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/metrics/dimensions/{dimension}/values/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/metrics/dimensions/{dimension}/values/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.testMetricDimensionValues.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.testMetricDimensionValues.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/metrics/dimensions/{dimension}/values/get(testMetricDimensionValues)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.testMetricDimensionValues.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.testMetricDimensionValues.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// List attachments for a test case run.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/attachments`.
@@ -29505,7 +30669,11 @@ public enum Operations {
                     /// The shard plan reference.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/POST/requestBody/json/reference`.
-                    public var reference: Swift.String
+                    public var reference: Swift.String?
+                    /// The shard plan id returned by createShardPlan.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/POST/requestBody/json/shard_plan_id`.
+                    public var shard_plan_id: Swift.String?
                     /// The multipart upload ID.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/POST/requestBody/json/upload_id`.
@@ -29515,19 +30683,23 @@ public enum Operations {
                     /// - Parameters:
                     ///   - part_number: The part number.
                     ///   - reference: The shard plan reference.
+                    ///   - shard_plan_id: The shard plan id returned by createShardPlan.
                     ///   - upload_id: The multipart upload ID.
                     public init(
                         part_number: Swift.Int,
-                        reference: Swift.String,
+                        reference: Swift.String? = nil,
+                        shard_plan_id: Swift.String? = nil,
                         upload_id: Swift.String
                     ) {
                         self.part_number = part_number
                         self.reference = reference
+                        self.shard_plan_id = shard_plan_id
                         self.upload_id = upload_id
                     }
                     public enum CodingKeys: String, CodingKey {
                         case part_number
                         case reference
+                        case shard_plan_id
                         case upload_id
                     }
                 }
@@ -29628,6 +30800,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/POST/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.generateShardUploadURL.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.generateShardUploadURL.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid parameters
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/post(generateShardUploadURL)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.generateShardUploadURL.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.generateShardUploadURL.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
                             response: self
                         )
                     }
@@ -30354,6 +31577,7 @@ public enum Operations {
                     @frozen public enum monitor_typePayload: String, Codable, Hashable, Sendable, CaseIterable {
                         case flakiness_rate = "flakiness_rate"
                         case flaky_run_count = "flaky_run_count"
+                        case reliability_rate = "reliability_rate"
                     }
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/automations/alerts/POST/requestBody/json/monitor_type`.
                     public var monitor_type: Operations.createAutomationAlert.Input.Body.jsonPayload.monitor_typePayload
@@ -34143,16 +35367,26 @@ public enum Operations {
                     /// The shard plan reference.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/requestBody/json/reference`.
-                    public var reference: Swift.String
+                    public var reference: Swift.String?
+                    /// The shard plan id returned by createShardPlan.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/requestBody/json/shard_plan_id`.
+                    public var shard_plan_id: Swift.String?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
                     ///   - reference: The shard plan reference.
-                    public init(reference: Swift.String) {
+                    ///   - shard_plan_id: The shard plan id returned by createShardPlan.
+                    public init(
+                        reference: Swift.String? = nil,
+                        shard_plan_id: Swift.String? = nil
+                    ) {
                         self.reference = reference
+                        self.shard_plan_id = shard_plan_id
                     }
                     public enum CodingKeys: String, CodingKey {
                         case reference
+                        case shard_plan_id
                     }
                 }
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/requestBody/content/application\/json`.
@@ -34257,6 +35491,57 @@ public enum Operations {
                     }
                 }
             }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.startShardUpload.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.startShardUpload.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid parameters
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/post(startShardUpload)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.startShardUpload.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.startShardUpload.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
             public struct Unauthorized: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/responses/401/content`.
                 @frozen public enum Body: Sendable, Hashable {
@@ -34354,6 +35639,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.startShardUpload.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.startShardUpload.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The shard plan was not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/post(startShardUpload)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.startShardUpload.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.startShardUpload.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
                             response: self
                         )
                     }
@@ -42119,6 +43455,326 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Time-bucketed build duration percentiles for a project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds/metrics/duration`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/metrics/duration/get(buildDurationMetrics)`.
+    public enum buildDurationMetrics {
+        public static let id: Swift.String = "buildDurationMetrics"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/duration/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/duration/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/duration/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.buildDurationMetrics.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/duration/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// Start of the time range as a Unix timestamp in seconds.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/duration/GET/query/from`.
+                public var from: Swift.Int64
+                /// End of the time range as a Unix timestamp in seconds.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/duration/GET/query/to`.
+                public var to: Swift.Int64
+                /// Filter to runs executed on CI (true) or locally (false).
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/duration/GET/query/is_ci`.
+                public var is_ci: Swift.Bool?
+                /// Filter by scheme.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/duration/GET/query/scheme`.
+                public var scheme: Swift.String?
+                /// Filter by build configuration.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/duration/GET/query/configuration`.
+                public var configuration: Swift.String?
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/duration/GET/query/category`.
+                @frozen public enum categoryPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case clean = "clean"
+                    case incremental = "incremental"
+                }
+                /// Filter by build category.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/duration/GET/query/category`.
+                public var category: Operations.buildDurationMetrics.Input.Query.categoryPayload?
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/duration/GET/query/status`.
+                @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                    case success = "success"
+                    case failure = "failure"
+                }
+                /// Filter by build status.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/duration/GET/query/status`.
+                public var status: Operations.buildDurationMetrics.Input.Query.statusPayload?
+                /// Filter by a custom tag.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/duration/GET/query/tag`.
+                public var tag: Swift.String?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - from: Start of the time range as a Unix timestamp in seconds.
+                ///   - to: End of the time range as a Unix timestamp in seconds.
+                ///   - is_ci: Filter to runs executed on CI (true) or locally (false).
+                ///   - scheme: Filter by scheme.
+                ///   - configuration: Filter by build configuration.
+                ///   - category: Filter by build category.
+                ///   - status: Filter by build status.
+                ///   - tag: Filter by a custom tag.
+                public init(
+                    from: Swift.Int64,
+                    to: Swift.Int64,
+                    is_ci: Swift.Bool? = nil,
+                    scheme: Swift.String? = nil,
+                    configuration: Swift.String? = nil,
+                    category: Operations.buildDurationMetrics.Input.Query.categoryPayload? = nil,
+                    status: Operations.buildDurationMetrics.Input.Query.statusPayload? = nil,
+                    tag: Swift.String? = nil
+                ) {
+                    self.from = from
+                    self.to = to
+                    self.is_ci = is_ci
+                    self.scheme = scheme
+                    self.configuration = configuration
+                    self.category = category
+                    self.status = status
+                    self.tag = tag
+                }
+            }
+            public var query: Operations.buildDurationMetrics.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/duration/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.buildDurationMetrics.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.buildDurationMetrics.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.buildDurationMetrics.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.buildDurationMetrics.Input.Path,
+                query: Operations.buildDurationMetrics.Input.Query,
+                headers: Operations.buildDurationMetrics.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/duration/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/duration/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.DurationMetrics)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.DurationMetrics {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.buildDurationMetrics.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.buildDurationMetrics.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Build duration metrics
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/metrics/duration/get(buildDurationMetrics)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.buildDurationMetrics.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.buildDurationMetrics.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/duration/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/duration/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.buildDurationMetrics.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.buildDurationMetrics.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request was invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/metrics/duration/get(buildDurationMetrics)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.buildDurationMetrics.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.buildDurationMetrics.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/duration/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/metrics/duration/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.buildDurationMetrics.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.buildDurationMetrics.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/metrics/duration/get(buildDurationMetrics)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.buildDurationMetrics.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.buildDurationMetrics.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
                             response: self
                         )
                     }

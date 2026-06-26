@@ -18,6 +18,8 @@ pub const CAS_CAPACITY_DEFAULT_DISK_PERCENT: u64 = 50;
 pub const CAS_CAPACITY_MAX_DISK_PERCENT: u64 = 80;
 pub const MAX_DESIRED_SEGMENTS: usize = 16_384;
 pub const REPLICATION_RETRY_SECS: u64 = 2;
+pub const REPLICATION_BACKOFF_BASE_SECS: u64 = 2;
+pub const REPLICATION_BACKOFF_MAX_SECS: u64 = 60;
 pub const ROCKSDB_BYTES_PER_SYNC: u64 = 1024 * 1024;
 pub const ROCKSDB_WAL_BYTES_PER_SYNC: u64 = 1024 * 1024;
 
@@ -41,11 +43,6 @@ pub const DEFAULT_USAGE_OUTBOX_MAX_DEPTH: usize = 100_000;
 pub const MAX_BOOTSTRAP_PAGE_BYTES: u64 = 32 * 1024 * 1024;
 pub const MAX_INLINE_REPLICATION_BODY_BYTES: u64 = 4 * 1024 * 1024;
 pub const DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS: usize = 8;
-// Per-peer artifact fetch+apply fan-out during bootstrap. Each CAS blob is an
-// independent HTTP round-trip plus a local write, so the serial path is
-// RTT-bound and leaves the replication bandwidth budget idle; fetching several
-// at once fills it without exceeding the aggregate bandwidth limiter.
-pub const DEFAULT_BOOTSTRAP_MAX_CONCURRENT_ARTIFACTS_PER_PEER: usize = 16;
 
 pub const ROCKSDB_CF_MANIFESTS: &str = "manifests";
 pub const ROCKSDB_CF_KEY_VALUE: &str = "key_value";

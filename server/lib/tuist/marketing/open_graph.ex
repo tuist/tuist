@@ -29,12 +29,12 @@ defmodule Tuist.Marketing.OpenGraph do
     {:ok, background} = Image.open(template_path)
 
     # Text configuration
-    # Color oklch(21.5% 0.006 236.9) - converted to RGB [46, 48, 57]
+    # Color oklch(21.7% 0.002 247.941) - converted to RGB [25, 26, 27]
     text_options = [
       font: "Inter Variable",
       font_weight: 500,
       font_size: 100,
-      text_fill_color: [46, 48, 57]
+      text_fill_color: [25, 26, 27]
     ]
 
     # Create and composite text overlays

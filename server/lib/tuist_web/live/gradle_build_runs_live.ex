@@ -110,7 +110,11 @@ defmodule TuistWeb.GradleBuildRunsLive do
     {ran_by_filters, remaining_filters} = Enum.split_with(filters, &(&1.id == "ran_by"))
     {is_ci_filters, remaining_filters} = Enum.split_with(remaining_filters, &(&1.id == "is_ci"))
     {requested_tasks_filters, remaining_filters} = Enum.split_with(remaining_filters, &(&1.id == "requested_tasks"))
-    filter_flop_filters = Filter.Operations.convert_filters_to_flop(remaining_filters)
+
+    filter_flop_filters =
+      remaining_filters
+      |> Enum.map(&normalize_text_filter_operator/1)
+      |> Filter.Operations.convert_filters_to_flop()
 
     ran_by_flop_filters =
       Enum.flat_map(ran_by_filters, fn
@@ -182,8 +186,9 @@ defmodule TuistWeb.GradleBuildRunsLive do
     |> assign(:build_runs_page_count, meta.total_pages)
   end
 
-  def sort_icon("desc"), do: "square_rounded_arrow_down"
-  def sort_icon("asc"), do: "square_rounded_arrow_up"
+  defp normalize_text_filter_operator(%Filter.Filter{operator: :"!=~"} = filter), do: %{filter | operator: :not_ilike}
+
+  defp normalize_text_filter_operator(filter), do: filter
 
   def column_patch_sort(
         %{uri: uri, build_runs_sort_by: build_runs_sort_by, build_runs_sort_order: build_runs_sort_order},

@@ -46,6 +46,10 @@ pub struct Metrics {
     segment_refresh_bytes: Family<ArtifactOpLabels, Counter>,
     segment_refresh_duration: Family<ArtifactRouteLabels, Histogram>,
     segment_evicted_artifacts: Family<ArtifactOpLabels, Counter>,
+    // Cumulative segment fsyncs (group-commit durability + rotation). Compared
+    // against kura_artifact_writes_total, its rate shows how hard concurrent
+    // writes batch their durability fsyncs (≪ 1 fsync per write under load).
+    segment_fsyncs: Counter,
     replication_requests: Family<ReplicationLabels, Counter>,
     replication_request_duration: Family<ReplicationRouteLabels, Histogram>,
     replication_apply_results: Family<ReplicationApplyLabels, Counter>,
@@ -122,6 +126,7 @@ pub struct Metrics {
     initial_discovery_completed: Gauge,
     writer_lock_owned: Gauge,
     writer_lock_acquire_failures: Counter,
+    mmap_partial_page_exemptions: Counter,
 }
 
 #[derive(Default)]
@@ -151,6 +156,7 @@ impl Metrics {
         let http_exceptions = Family::<HttpExceptionLabels, Counter>::default();
         let artifact_reads = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_writes = Family::<ArtifactOpLabels, Counter>::default();
+        let segment_fsyncs = Counter::default();
         let artifact_read_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_write_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_egress_completions = Family::<ArtifactOpLabels, Counter>::default();
@@ -268,6 +274,7 @@ impl Metrics {
         let initial_discovery_completed = Gauge::default();
         let writer_lock_owned = Gauge::default();
         let writer_lock_acquire_failures = Counter::default();
+        let mmap_partial_page_exemptions = Counter::default();
         let process_start_time_seconds = Gauge::<i64>::default();
         process_start_time_seconds.set(
             SystemTime::now()
@@ -310,6 +317,11 @@ impl Metrics {
             "kura_artifact_writes_total",
             "Artifact writes by producer and result",
             artifact_writes.clone(),
+        );
+        registry.register(
+            "kura_segment_fsyncs_total",
+            "Segment durability fsyncs (group-commit + rotation); compare its rate to kura_artifact_writes_total to see fsync batching under concurrent writes",
+            segment_fsyncs.clone(),
         );
         registry.register(
             "kura_artifact_read_bytes_total",
@@ -742,6 +754,11 @@ impl Metrics {
             writer_lock_acquire_failures.clone(),
         );
         registry.register(
+            "kura_mmap_partial_page_exemptions_total",
+            "Times an artifact was served via mmap only because the file's final partial page was exempted from the residency gate while its mincore bit was clear (the path that may fault one cold page on a worker)",
+            mmap_partial_page_exemptions.clone(),
+        );
+        registry.register(
             "kura_process_start_time_seconds",
             "Unix timestamp when the current Kura process started",
             process_start_time_seconds.clone(),
@@ -759,6 +776,7 @@ impl Metrics {
             http_exceptions,
             artifact_reads,
             artifact_writes,
+            segment_fsyncs,
             artifact_read_bytes,
             artifact_write_bytes,
             artifact_egress_completions,
@@ -845,6 +863,7 @@ impl Metrics {
             initial_discovery_completed,
             writer_lock_owned,
             writer_lock_acquire_failures,
+            mmap_partial_page_exemptions,
         };
 
         metrics
@@ -1220,6 +1239,16 @@ impl Metrics {
             .store(count as u64, Ordering::Relaxed);
     }
 
+    pub fn update_segment_fsyncs(&self, total: u64) {
+        // The store tracks the cumulative fsync count as a process-local atomic
+        // that resets to 0 on restart, exactly like this Counter. Advance the
+        // Counter by the delta since the last sample so `rate()` is well-defined.
+        let recorded = self.segment_fsyncs.get();
+        if total > recorded {
+            self.segment_fsyncs.inc_by(total - recorded);
+        }
+    }
+
     pub fn update_multipart_uploads(&self, count: usize) {
         self.multipart_uploads.set(count as i64);
     }
@@ -1460,6 +1489,10 @@ impl Metrics {
 
     pub fn record_writer_lock_acquire_failure(&self) {
         self.writer_lock_acquire_failures.inc();
+    }
+
+    pub fn record_mmap_partial_page_exemption(&self) {
+        self.mmap_partial_page_exemptions.inc();
     }
 
     pub fn rollout_metrics_snapshot(&self) -> RolloutMetricsSnapshot {
@@ -1897,6 +1930,7 @@ mod tests {
         assert!(rendered.contains("kura_initial_discovery_completed"));
         assert!(rendered.contains("kura_writer_lock_owned"));
         assert!(rendered.contains("kura_writer_lock_acquire_failures_total"));
+        assert!(rendered.contains("kura_mmap_partial_page_exemptions_total"));
         assert!(rendered.contains("kura_process_start_time_seconds"));
         assert!(rendered.contains("region=\"eu-west\""));
         assert!(rendered.contains("tenant_id=\"acme\""));

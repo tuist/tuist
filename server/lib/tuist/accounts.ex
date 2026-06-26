@@ -2020,10 +2020,17 @@ defmodule Tuist.Accounts do
   - The account is on the enterprise plan when Tuist-hosted
   - The account has `custom_cache_endpoints_enabled` set to `true`
   - The account has at least one custom cache endpoint configured
-  """
-  def get_cache_endpoints_for_handle(account_handle, technology \\ :default)
 
-  def get_cache_endpoints_for_handle(account_handle, technology) when is_binary(account_handle) do
+  Preview environments use the same routing as production: a `kura_servers`
+  row per account points at the preview's `KuraInstance`, and the Lua hook
+  enforces tenant matching strictly. The earlier "shared mesh" override that
+  short-circuited per-account routing is gone (see PR #11348 review).
+  """
+  def get_cache_endpoints_for_handle(account_handle, technology \\ :default) do
+    cache_endpoints_for_handle(account_handle, technology)
+  end
+
+  defp cache_endpoints_for_handle(account_handle, technology) when is_binary(account_handle) do
     if Environment.tuist_hosted?() do
       hosted_cache_endpoints_for_handle(account_handle, technology)
     else
@@ -2031,7 +2038,7 @@ defmodule Tuist.Accounts do
     end
   end
 
-  def get_cache_endpoints_for_handle(_, _), do: CacheEndpoints.active_endpoint_urls()
+  defp cache_endpoints_for_handle(_, _), do: CacheEndpoints.active_endpoint_urls()
 
   defp hosted_cache_endpoints_for_handle(account_handle, technology) do
     case get_account_by_handle(account_handle) do
@@ -2072,7 +2079,10 @@ defmodule Tuist.Accounts do
 
   defp kura_cache_endpoints(%Account{} = account) do
     if FeatureFlags.kura_cache_enabled?(account) do
-      list_account_cache_endpoints(account, :kura)
+      # Tuist-managed Kura endpoints, mirrored from `kura_servers`. Self-hosted
+      # nodes are not static rows: each one self-registers its advertised URL via
+      # heartbeats, surfaced through `registered_kura_endpoint_urls/1`.
+      Repo.all(from(e in AccountCacheEndpoint, where: e.account_id == ^account.id and e.technology == :kura))
     else
       []
     end
@@ -2081,9 +2091,24 @@ defmodule Tuist.Accounts do
   defp kura_cache_endpoints(_), do: []
 
   defp kura_cache_endpoint_urls(%Account{} = account) do
-    account
-    |> kura_cache_endpoints()
-    |> Enum.map(& &1.url)
+    static_urls = account |> kura_cache_endpoints() |> Enum.map(& &1.url)
+    registered_urls = registered_kura_endpoint_urls(account)
+
+    Enum.uniq(static_urls ++ registered_urls)
+  end
+
+  # Client-facing URLs from registration heartbeats: customer-owned nodes that
+  # report a live, ready advertised endpoint. Lease-gated, so a node that stops
+  # heartbeating drops out. Gated on `:kura_cache` like the static endpoints.
+  defp registered_kura_endpoint_urls(%Account{} = account) do
+    # Self-hosting is Enterprise-only, so do not surface a downgraded account's
+    # registered node addresses to the CLI even while their leases are still live.
+    if FeatureFlags.kura_cache_enabled?(account) and
+         Billing.Entitlements.allows?(account, :self_hosted_cache) do
+      Tuist.Kura.Registrations.active_advertised_urls(account)
+    else
+      []
+    end
   end
 
   @doc """

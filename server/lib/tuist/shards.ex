@@ -89,9 +89,17 @@ defmodule Tuist.Shards do
         {:error, :not_found}
 
       plan ->
-        upload_id = Storage.multipart_start(bundle_object_key(account, project, plan.id), account)
-        {:ok, upload_id}
+        start_upload_for_plan(project, account, plan)
     end
+  end
+
+  def start_upload_for_plan(%Project{} = project, %Account{} = account, %ShardPlan{} = plan) do
+    start_upload_for_plan_id(project, account, plan.id)
+  end
+
+  def start_upload_for_plan_id(%Project{} = project, %Account{} = account, plan_id) do
+    upload_id = Storage.multipart_start(bundle_object_key(account, project, plan_id), account)
+    {:ok, upload_id}
   end
 
   def get_shard(%Project{} = project, %Account{} = account, reference, shard_index) do
@@ -125,9 +133,13 @@ defmodule Tuist.Shards do
         {:error, :not_found}
 
       plan ->
-        Storage.multipart_complete_upload(bundle_object_key(account, project, plan.id), upload_id, parts, account)
-        :ok
+        complete_upload_for_plan(project, account, plan.id, upload_id, parts)
     end
+  end
+
+  def complete_upload_for_plan(%Project{} = project, %Account{} = account, plan_id, upload_id, parts) do
+    Storage.multipart_complete_upload(bundle_object_key(account, project, plan_id), upload_id, parts, account)
+    :ok
   end
 
   def generate_upload_url(%Project{} = project, %Account{} = account, reference, upload_id, part_number) do
@@ -136,16 +148,20 @@ defmodule Tuist.Shards do
         {:error, :not_found}
 
       plan ->
-        url =
-          Storage.multipart_generate_url(
-            bundle_object_key(account, project, plan.id),
-            upload_id,
-            part_number,
-            account
-          )
-
-        {:ok, url}
+        generate_upload_url_for_plan(project, account, plan.id, upload_id, part_number)
     end
+  end
+
+  def generate_upload_url_for_plan(%Project{} = project, %Account{} = account, plan_id, upload_id, part_number) do
+    url =
+      Storage.multipart_generate_url(
+        bundle_object_key(account, project, plan_id),
+        upload_id,
+        part_number,
+        account
+      )
+
+    {:ok, url}
   end
 
   def bundle_object_key(account, project, plan_id) do
@@ -255,11 +271,16 @@ defmodule Tuist.Shards do
     cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
 
     from(sr in TestSuiteRun,
+      join: mr in TestModuleRun,
+      on: sr.test_module_run_id == mr.id,
       where: sr.project_id == ^project.id,
       where: sr.is_ci == true,
       where: sr.ran_at >= ^cutoff,
-      group_by: sr.name,
-      select: %{name: sr.name, duration: fragment("quantile(?)(?)", ^@timing_quantile, sr.duration)}
+      group_by: fragment("concat(?, '/', ?)", mr.name, sr.name),
+      select: %{
+        name: fragment("concat(?, '/', ?)", mr.name, sr.name),
+        duration: fragment("quantile(?)(?)", ^@timing_quantile, sr.duration)
+      }
     )
     |> ClickHouseRepo.all()
     |> Map.new(fn %{name: name, duration: duration} -> {name, round(duration)} end)

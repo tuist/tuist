@@ -36,7 +36,7 @@
   );
   --noora-banner-information-border: var(--noora-azure-500);
   --noora-banner-grid-color: light-dark(
-    oklch(21.54% 0.006 236.85),
+    oklch(21.7% 0.002 247.941),
     oklch(99.4% 0 0)
   );
   display: flex;

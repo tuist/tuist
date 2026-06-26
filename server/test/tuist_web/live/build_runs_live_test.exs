@@ -89,4 +89,36 @@ defmodule TuistWeb.BuildRunsLiveTest do
     assert has_element?(lv, "[data-part='build-runs-table'] span", "App")
     refute has_element?(lv, "[data-part='build-runs-table'] span", "Framework")
   end
+
+  test "filters build runs whose branch does not contain a substring", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      scheme: "Queued",
+      git_branch: "gh-readonly-queue/main"
+    )
+
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      scheme: "Regular",
+      git_branch: "feature/main"
+    )
+
+    query =
+      URI.encode_query(%{
+        "filter_git_branch_op" => "!=~",
+        "filter_git_branch_val" => "gh-readonly-queue"
+      })
+
+    {:ok, lv, html} =
+      live(conn, "/#{organization.account.name}/#{project.name}/builds/build-runs?#{query}")
+
+    assert has_element?(lv, "[data-part='build-runs-table']")
+    assert html =~ "does not contain"
+    assert has_element?(lv, "[data-part='build-runs-table'] span", "Regular")
+    refute has_element?(lv, "[data-part='build-runs-table'] span", "Queued")
+  end
 end

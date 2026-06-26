@@ -307,9 +307,6 @@ defmodule TuistWeb.GradleBuildLive do
 
   defp ensure_allowed_cacheable_sort_by(_), do: :duration_ms
 
-  def sort_icon("desc"), do: "square_rounded_arrow_down"
-  def sort_icon("asc"), do: "square_rounded_arrow_up"
-
   def sort_order_patch_value(category, current_category, current_order) do
     if category == current_category do
       if current_order == "asc", do: "desc", else: "asc"

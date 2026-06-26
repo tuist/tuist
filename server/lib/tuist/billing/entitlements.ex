@@ -29,6 +29,9 @@ defmodule Tuist.Billing.Entitlements do
   # GitHub Enterprise Server connection — Enterprise only.
   defp plan_allows?(_plan, :github_enterprise_server), do: false
 
+  # Self-hosting cache nodes (running your own Kura nodes) — Enterprise only.
+  defp plan_allows?(_plan, :self_hosted_cache), do: false
+
   defp plan_allows?(_plan, _feature), do: false
 
   defp current_plan(%Account{} = account) do

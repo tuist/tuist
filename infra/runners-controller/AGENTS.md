@@ -80,6 +80,12 @@ independent workqueues:
   itself. Series are dropped (`metrics.Clear`) when a pool is deleted or
   opts out of autoscaling.
 
+  `RunnerPoolReconciler` also publishes
+  `tuist_runners_pool_phase_replicas{pool,phase}` for alive Pods by
+  Kubernetes phase (`Pending`, `Running`, `Unknown`). This preserves the
+  runner dashboard's macOS ready vs cold-booting split without relying
+  on pod-scoped kube-state-metrics series.
+
   Pod-level autoscaling only — bare-metal Host count is operator-
   managed via the CAPI cluster topology, since Hetzner Robot hosts
   are monthly-billed and can't be auto-ordered. To grow capacity,
@@ -87,6 +93,23 @@ independent workqueues:
   panel and bumps the cluster topology's `runners-linux` MD
   replicas; the `hetzner-robot-controller` reflects the new server
   into a `HetznerBareMetalHost` CR automatically.
+
+## Machine-metrics sampling (in-VM, not in the controller)
+
+Runner-job machine metrics (CPU/memory/network/disk for the Metrics
+tab) are sampled **inside the runner VM**, not by this controller. An
+earlier design had the controller scrape each node's kubelet
+`/stats/summary` through the apiserver node proxy, but that source is
+unavailable in this cluster — the macOS Tart fleet's custom kubelet
+doesn't serve the cAdvisor Summary API, and the Linux kata nodes reject
+the proxied request — so it produced nothing. Sampling now lives in the
+runner images (`infra/linux-runner-image`, `infra/runner-image`): a
+loop reads the VM's own `/proc`+cgroup (Linux) or `vm_stat`/`netstat`
+(macOS) and POSTs to `POST /api/internal/runners/pods/:pod_name/metrics`
+with the runner's own per-pod SA token (audience
+`tuist-runners-dispatch`). On Linux the token is isolated from the
+customer container, so the sampler runs as a dedicated native sidecar
+that mounts the token and shares the pod's cgroup/network namespace.
 
 ## Linux runner substrate: Hetzner Robot bare-metal hosts (caph)
 
@@ -304,6 +327,20 @@ from `containerStatuses`), so billing still anchors on exactly the
 customer job's runtime. macOS keeps the single-container shape (the
 Tart VM is the isolation boundary; tart-kubelet projects the token
 into it).
+
+**Death-cause backstop:** the same reconciler also re-emits a
+runner's final log on an abnormal end — a non-zero/SIGKILLed exit, or
+a Pod reaped while still `Running` (the "lost communication" /
+torn-down-microVM shape). It reads the `runner` container's tail via
+`pods/log` and logs it to the controller's own (durable, long-lived)
+stdout before the reap. Without this the trail (the `RUNNER_VITALS`
+samples from `vitals.sh` + the streamed `_diag`) lives only in the
+kubelet container log, which is GC'd the instant the Pod is deleted —
+and `alloy` doesn't reliably win that race on a churning node, so
+mid-job deaths otherwise leave nothing in Loki. A clean exit 0 (job
+done, or no JIT claimed — and note a workflow that fails its own tests
+still exits the runner 0) is skipped, so this fires only for runner
+*infrastructure* deaths, not job outcomes.
 
 **Rollout ordering:** ship the runner image carrying `run-job.sh`
 + the poller-mode `dispatch-poll.sh` (and pin

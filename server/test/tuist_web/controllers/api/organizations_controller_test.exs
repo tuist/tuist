@@ -11,7 +11,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
   alias TuistWeb.Authentication
 
   setup do
-    user = AccountsFixtures.user_fixture(email: "tuist@tuist.dev", preload: [:account])
+    user = AccountsFixtures.user_fixture(preload: [:account])
     %{user: user}
   end
 
@@ -346,7 +346,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       response = json_response(conn, :bad_request)
 
       assert response["message"] ==
-               "A user or organization with the handle tuist already exists"
+               "A user or organization with the handle #{user.account.name} already exists"
     end
 
     test "returns bad request when organization contains a dot", %{conn: conn, user: user} do
@@ -388,21 +388,8 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
     test "updates an organization with SSO settings when user's google hosted domain is equal to the new value",
          %{conn: conn} do
       # Given
-      user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: 123,
-          info: %{
-            email: "tuist@tuist.dev"
-          },
-          extra: %{
-            raw_info: %{
-              user: %{
-                "hd" => "tuist.io"
-              }
-            }
-          }
-        })
+      domain = unique_sso_domain()
+      user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
 
       conn = Authentication.put_current_user(conn, user)
 
@@ -414,14 +401,14 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
         |> put_req_header("content-type", "application/json")
         |> put(~p"/api/organizations/tuist-org",
           sso_provider: "google",
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain
         )
 
       # Then
       response = json_response(conn, :ok)
       assert response["name"] == "tuist-org"
       assert response["sso_provider"] == "google"
-      assert response["sso_organization_id"] == "tuist.io"
+      assert response["sso_organization_id"] == domain
       assert response["sso_enforced"] == false
     end
 
@@ -429,12 +416,13 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
          %{conn: conn, user: user} do
       # Given
       conn = Authentication.put_current_user(conn, user)
+      domain = unique_sso_domain()
 
       AccountsFixtures.organization_fixture(
         name: "tuist-org",
         creator: user,
         sso_provider: :google,
-        sso_organization_id: "tuist.io"
+        sso_organization_id: domain
       )
 
       # When
@@ -458,6 +446,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       user: user
     } do
       conn = Authentication.put_current_user(conn, user)
+      domain = unique_sso_domain()
 
       organization = AccountsFixtures.organization_fixture(name: "tuist-org")
       Accounts.add_user_to_organization(user, organization)
@@ -468,7 +457,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
         |> put_req_header("content-type", "application/json")
         |> put(~p"/api/organizations/tuist-org",
           sso_provider: "google",
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain
         )
 
       # Then
@@ -482,28 +471,15 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
          %{
            conn: conn
          } do
-      user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: 123,
-          info: %{
-            email: "tuist@tuist.dev"
-          },
-          extra: %{
-            raw_info: %{
-              user: %{
-                "hd" => "tuist.io"
-              }
-            }
-          }
-        })
+      domain = unique_sso_domain()
+      user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
 
       conn = Authentication.put_current_user(conn, user)
 
       AccountsFixtures.organization_fixture(
         creator: user,
         sso_provider: :google,
-        sso_organization_id: "tuist.io"
+        sso_organization_id: domain
       )
 
       AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
@@ -514,7 +490,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
         |> put_req_header("content-type", "application/json")
         |> put(~p"/api/organizations/tuist-org",
           sso_provider: "google",
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain
         )
 
       # Then
@@ -527,21 +503,9 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
     test "returns :bad_request when user's google hosted domain is not equal to the new value", %{
       conn: conn
     } do
-      user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: 123,
-          info: %{
-            email: "tuist@tuist.dev"
-          },
-          extra: %{
-            raw_info: %{
-              user: %{
-                "hd" => "tuist.io"
-              }
-            }
-          }
-        })
+      domain = unique_sso_domain()
+      other_domain = unique_sso_domain("tools")
+      user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
 
       conn = Authentication.put_current_user(conn, user)
 
@@ -553,7 +517,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
         |> put_req_header("content-type", "application/json")
         |> put(~p"/api/organizations/tuist-org",
           sso_provider: "google",
-          sso_organization_id: "tools.io"
+          sso_organization_id: other_domain
         )
 
       # Then
@@ -599,32 +563,20 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
     test "removes a member with a google hosted domain", %{conn: conn, user: user} do
       # Given
       conn = Authentication.put_current_user(conn, user)
+      domain = unique_sso_domain()
 
       AccountsFixtures.organization_fixture(
         name: "tuist-org",
         creator: user,
         sso_provider: :google,
-        sso_organization_id: "tuist.io"
+        sso_organization_id: domain
       )
 
-      member =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: 123,
-          info: %{
-            email: "tuist-member@tuist.io"
-          },
-          extra: %{
-            raw_info: %{
-              user: %{
-                "hd" => "tuist.io"
-              }
-            }
-          }
-        })
+      member = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain, "tuist-member"))
+      member_account = Accounts.get_account_from_user(member)
 
       # When
-      conn = delete(conn, ~p"/api/organizations/tuist-org/members/tuist-member")
+      conn = delete(conn, ~p"/api/organizations/tuist-org/members/#{member_account.name}")
 
       # Then
       response = json_response(conn, :no_content)
@@ -710,40 +662,28 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
     } do
       # Given
       conn = Authentication.put_current_user(conn, user)
+      domain = unique_sso_domain()
 
       organization =
         AccountsFixtures.organization_fixture(
           name: "tuist-org",
           creator: user,
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain
         )
 
-      member =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: 123,
-          info: %{
-            email: "tuist-member@tuist.io"
-          },
-          extra: %{
-            raw_info: %{
-              user: %{
-                "hd" => "tuist.io"
-              }
-            }
-          }
-        })
+      member = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain, "tuist-member"))
+      member_account = Accounts.get_account_from_user(member)
 
       # When
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put(~p"/api/organizations/tuist-org/members/tuist-member", role: "admin")
+        |> put(~p"/api/organizations/tuist-org/members/#{member_account.name}", role: "admin")
 
       # Then
       response = json_response(conn, :ok)
-      assert response["name"] == "tuist-member"
+      assert response["name"] == member_account.name
       assert response["role"] == "admin"
       assert Accounts.organization_admin?(Accounts.get_user!(member.id), organization) == true
     end
@@ -805,5 +745,26 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       assert response["message"] ==
                "User tuist-member is not a member of the organization tuist-org"
     end
+  end
+
+  defp unique_sso_domain(prefix \\ "tuist") do
+    "#{prefix}-#{TuistTestSupport.Utilities.unique_integer(6)}.io"
+  end
+
+  defp google_oauth_identity(domain, local \\ "tuist") do
+    %{
+      provider: :google,
+      uid: System.unique_integer([:positive]),
+      info: %{
+        email: "#{local}-#{TuistTestSupport.Utilities.unique_integer(6)}@#{domain}"
+      },
+      extra: %{
+        raw_info: %{
+          user: %{
+            "hd" => domain
+          }
+        }
+      }
+    }
   end
 end

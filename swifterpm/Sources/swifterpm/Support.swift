@@ -30,13 +30,40 @@ enum ToolError: Error, CustomStringConvertible {
 
     var description: String {
         switch self {
-        case .message(let message):
+        case let .message(message):
             return message
         }
     }
 }
 
+/// Reports every candidate location that was tried and how each failed, instead of only the
+/// last error. The previous behaviour surfaced just `lastError`, which for an SSH-declared
+/// dependency is always the trailing SSH candidate, masking whether the HTTPS fallback was
+/// even attempted and why it failed. Listing each attempt makes the actual cause diagnosable.
+enum GitFetchFailure {
+    static func error(location: String, attempts: [(candidate: String, error: any Error)])
+        -> ToolError
+    {
+        guard !attempts.isEmpty else {
+            return ToolError.message("no source-control locations available for \(location)")
+        }
+        let details = attempts
+            .map { "  - \($0.candidate): \($0.error)" }
+            .joined(separator: "\n")
+        return ToolError.message(
+            "could not fetch any candidate location for \(location):\n\(details)"
+        )
+    }
+}
+
 enum SystemProcess {
+    /// swifterpm invokes git non-interactively: output is captured and fetches run
+    /// in parallel, so a built-in credential prompt (git opens /dev/tty directly)
+    /// would block invisibly in any environment, not just CI. Force git to fail fast
+    /// on a missing credential instead. Credential helpers, ssh-agent, and ~/.netrc
+    /// are unaffected, so configured authentication still works.
+    static let nonInteractiveGitEnvironment = ["GIT_TERMINAL_PROMPT": "0"]
+
     struct Result {
         let stdout: Data
         let stderr: Data
@@ -90,7 +117,8 @@ enum SystemProcess {
             let stdoutText = String(data: Data(result.standardOutput), encoding: .utf8) ?? ""
             let message = stderrText.isEmpty ? stdoutText : stderrText
             throw ToolError.message(
-                message.isEmpty ? result.terminationStatus.description : message)
+                message.isEmpty ? result.terminationStatus.description : message
+            )
         }
 
         return Result(stdout: Data(result.standardOutput), stderr: Data(result.standardError))
@@ -140,14 +168,10 @@ enum HTTPClient {
     }
 
     /// Headers for downloading a binary artifact archive. GitHub's release-asset
-    /// API (and similar release-asset proxies) returns the asset metadata JSON
-    /// with HTTP 200 unless the request accepts the raw bytes, so we ask for
-    /// `application/octet-stream`. The `*/*;q=0.9` fallback keeps non-GitHub
-    /// mirrors that strictly honor `Accept` (some self-hosted artifact stores
-    /// reply 406 to a single-type request) able to serve the archive.
+    /// endpoint returns asset metadata unless the request accepts the raw bytes.
     static func binaryArtifactHeaders(for url: URL) async -> [String: String] {
         var headers = await defaultHeaders(for: url)
-        headers["Accept"] = "application/octet-stream, */*;q=0.9"
+        headers["Accept"] = "application/octet-stream"
         return headers
     }
 
@@ -158,7 +182,7 @@ enum HTTPClient {
         }
         let (data, response) = try await URLSession.shared.data(for: request)
         if let httpResponse = response as? HTTPURLResponse,
-            !(200..<300).contains(httpResponse.statusCode)
+           !(200 ..< 300).contains(httpResponse.statusCode)
         {
             throw ToolError.message("HTTP \(httpResponse.statusCode) for \(url.absoluteString)")
         }
@@ -172,7 +196,7 @@ enum HTTPClient {
         }
         let (downloaded, response) = try await URLSession.shared.download(for: request)
         if let httpResponse = response as? HTTPURLResponse,
-            !(200..<300).contains(httpResponse.statusCode)
+           !(200 ..< 300).contains(httpResponse.statusCode)
         {
             try? await fileSystem.remove(downloaded.absolutePath)
             throw ToolError.message("HTTP \(httpResponse.statusCode) for \(url.absoluteString)")
@@ -276,7 +300,7 @@ enum ConcurrentTasks {
         return try await withThrowingTaskGroup(of: (Int, Output).self) { group in
             var iterator = elements.enumerated().makeIterator()
             var activeTasks = 0
-            var results = Array<Output?>(repeating: nil, count: elements.count)
+            var results = [Output?](repeating: nil, count: elements.count)
 
             while activeTasks < limit, let (index, element) = iterator.next() {
                 group.addTask {
@@ -317,7 +341,7 @@ enum ConcurrentTasks {
     ) async throws {
         _ =
             try await map(elements, maxConcurrentTasks: maxConcurrentTasks, operation: operation)
-            as [Void]
+                as [Void]
     }
 }
 
@@ -326,7 +350,8 @@ final class PathLock: @unchecked Sendable {
 
     init(path: URL) throws {
         fd = open(
-            path.path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH)
+            path.path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH
+        )
         if fd < 0 {
             throw ToolError.message("failed to open lock \(path.path)")
         }
@@ -358,7 +383,8 @@ enum JSONFormatter {
     static func prettyData(_ object: Any) throws -> Data {
         let data = try JSONSerialization.data(
             withJSONObject: object,
-            options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+            options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        )
         return data + Data("\n".utf8)
     }
 }
@@ -367,15 +393,16 @@ enum SafeFileName {
     static func make(_ name: String) -> String {
         String(
             name.map { character in
-                if character.isASCII
-                    && (character.isLetter || character.isNumber || character == "-"
-                        || character == "_"
-                        || character == ".")
+                if character.isASCII,
+                   character.isLetter || character.isNumber || character == "-"
+                   || character == "_"
+                   || character == "."
                 {
                     return character
                 }
                 return "_"
-            })
+            }
+        )
     }
 }
 

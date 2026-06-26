@@ -27,7 +27,7 @@ spec:
           jsonPath: .spec.publicHost
         - name: gRPC
           type: string
-          jsonPath: .spec.grpcPublicHost
+          jsonPath: .status.grpcPublicURL
         - name: Ready
           type: integer
           jsonPath: .status.readyReplicas
@@ -79,6 +79,8 @@ spec:
                 publicHost:
                   type: string
                   maxLength: 253
+                # Deprecated: ignored. gRPC co-hosts on publicHost.
+                # Retained for backward compatibility. See tuist/tuist#11390.
                 grpcPublicHost:
                   type: string
                   maxLength: 253
@@ -111,6 +113,26 @@ spec:
                 # pods replicate to each other and no other account can.
                 mesh:
                   type: boolean
+                # Public hostname for the account peer plane. When set (mesh
+                # mode) the controller provisions a LoadBalancer for the peer
+                # port and adds the host to each instance's peer-cert SAN, so a
+                # self-hosted node can dial the managed mesh over the internet.
+                meshPublicPeerHost:
+                  type: string
+                # Self-hosted node peer URLs injected into managed pods'
+                # KURA_PEERS so the managed mesh dials them (managed->self-hosted
+                # replication leg).
+                meshExternalPeers:
+                  type: array
+                  items:
+                    type: string
+                # Provider-specific annotations for the public peer LoadBalancer
+                # (e.g. hcloud location + node-selector restricting LB targets to
+                # the account's node pool).
+                meshPublicPeerLoadBalancerAnnotations:
+                  type: object
+                  additionalProperties:
+                    type: string
                 storageClassName:
                   type: string
                 storageSize:

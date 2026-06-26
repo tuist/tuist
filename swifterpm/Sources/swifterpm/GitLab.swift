@@ -1,6 +1,6 @@
 import Foundation
 
-struct GitLabRepo: Sendable {
+struct GitLabRepo {
     let scheme: String
     let host: String
     let pathWithNamespace: String
@@ -8,7 +8,7 @@ struct GitLabRepo: Sendable {
     init(location: String) throws {
         let normalized = Self.normalize(location)
         guard let url = URL(string: normalized),
-            let host = url.host?.lowercased()
+              let host = url.host?.lowercased()
         else {
             throw ToolError.message("not a GitLab URL")
         }
@@ -17,8 +17,8 @@ struct GitLabRepo: Sendable {
             .split(separator: "/")
             .map(String.init)
             .joined(separator: "/")
-        guard Self.isKnownGitLabHost(host),
-            path.split(separator: "/").count >= 2
+        guard Self.isKnownHost(host),
+              path.split(separator: "/").count >= 2
         else {
             throw ToolError.message("not a GitLab URL")
         }
@@ -33,8 +33,8 @@ struct GitLabRepo: Sendable {
         let apiHost = env["GITLAB_API_HOST"]?.gitLabNormalizedHost ?? host
         let apiScheme =
             env["GITLAB_URI"].flatMap(URL.init(string:))?.scheme
-            ?? env["GITLAB_HOST"].flatMap(URL.init(string:))?.scheme
-            ?? scheme
+                ?? env["GITLAB_HOST"].flatMap(URL.init(string:))?.scheme
+                ?? scheme
         return URL(string: "\(apiScheme)://\(apiHost)/api/v4")!
     }
 
@@ -55,12 +55,12 @@ struct GitLabRepo: Sendable {
         if location.hasPrefix("ssh://git@") {
             return
                 location
-                .replacingOccurrences(of: "ssh://git@", with: "https://")
+                    .replacingOccurrences(of: "ssh://git@", with: "https://")
         }
         return location
     }
 
-    private static func isKnownGitLabHost(_ host: String) -> Bool {
+    static func isKnownHost(_ host: String) -> Bool {
         if host == "gitlab.com" || host.contains("gitlab") {
             return true
         }
@@ -88,26 +88,46 @@ extension String {
 private enum GitLabURLCoding {
     static func encodePathComponent(_ value: String) -> String {
         let allowed = CharacterSet(
-            charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
+            charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
+        )
         return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
     }
 }
 
 enum GitLabAuth {
-    enum Token: Sendable {
+    enum Token {
         case privateToken(String)
         case jobToken(String)
         case bearer(String)
 
         var header: [String: String] {
             switch self {
-            case .privateToken(let token):
+            case let .privateToken(token):
                 return ["PRIVATE-TOKEN": token]
-            case .jobToken(let token):
+            case let .jobToken(token):
                 return ["JOB-TOKEN": token]
-            case .bearer(let token):
+            case let .bearer(token):
                 return ["Authorization": "Bearer \(token)"]
             }
+        }
+
+        /// The `PRIVATE-TOKEN`/`JOB-TOKEN` headers authenticate GitLab's REST API but not its
+        /// git smart-HTTP endpoint, which only understands standard HTTP authentication. Map
+        /// each token kind to the credential form git transport accepts: a personal access
+        /// token authenticates as `oauth2:<token>` and a CI job token as `gitlab-ci-token:<token>`.
+        var gitHTTPAuthorization: String {
+            switch self {
+            case let .privateToken(token):
+                return "Basic \(Self.basicCredential(user: "oauth2", token: token))"
+            case let .jobToken(token):
+                return "Basic \(Self.basicCredential(user: "gitlab-ci-token", token: token))"
+            case let .bearer(token):
+                return "Bearer \(token)"
+            }
+        }
+
+        private static func basicCredential(user: String, token: String) -> String {
+            Data("\(user):\(token)".utf8).base64EncodedString()
         }
     }
 
@@ -145,11 +165,10 @@ private actor GitLabTokenCache {
             return .jobToken(token)
         }
 
-        guard
-            let output = try? await SystemProcess.output(
-                "/usr/bin/env",
-                ["glab", "config", "get", "token", "--host", host]
-            )
+        guard let output = try? await SystemProcess.output(
+            "/usr/bin/env",
+            ["glab", "config", "get", "token", "--host", host]
+        )
         else {
             return nil
         }
@@ -159,7 +178,7 @@ private actor GitLabTokenCache {
 
     private func nonEmpty(_ value: String?) -> String? {
         guard let token = value?.trimmingCharacters(in: .whitespacesAndNewlines),
-            !token.isEmpty
+              !token.isEmpty
         else {
             return nil
         }
@@ -196,7 +215,8 @@ enum GitLabAPI {
             for tag in tags {
                 if let version = RemoteMetadata.parseSwiftTagVersion(tag.name) {
                     versions.append(
-                        RemoteVersion(version: version.description, revision: tag.commit.id))
+                        RemoteVersion(version: version.description, revision: tag.commit.id)
+                    )
                 }
             }
             page += 1
@@ -213,10 +233,11 @@ enum GitLabAPI {
                 repo.encodedProjectPath, ["repository", "archive.tar.gz"]
             )
             .appending(queryItems: [
-                URLQueryItem(name: "sha", value: revision)
+                URLQueryItem(name: "sha", value: revision),
             ])
         try await HTTPClient.download(
-            url: url, destination: destination, headers: try await headers(for: repo))
+            url: url, destination: destination, headers: try await headers(for: repo)
+        )
     }
 
     private static func headers(for repo: GitLabRepo) async throws -> [String: String] {
@@ -232,7 +253,8 @@ extension URL {
         -> URL
     {
         URL(
-            string: ([absoluteString, "projects", projectPath] + components).joined(separator: "/"))!
+            string: ([absoluteString, "projects", projectPath] + components).joined(separator: "/")
+        )!
     }
 
     fileprivate func appending(queryItems: [URLQueryItem]) -> URL {

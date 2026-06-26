@@ -89,13 +89,12 @@ type KuraInstanceReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 
-	// GRPCClusterIssuer, when non-empty, makes the controller request
-	// cert-manager Certificates per instance with this ClusterIssuer for
-	// both the public HTTPS host and the gRPC host. The issued Secrets
-	// are referenced by the regional Kura ingress layer that terminates
-	// TLS for customer-facing traffic.
-	// The name is historical; the controller uses the same issuer for
-	// every cert it asks cert-manager to mint.
+	// GRPCClusterIssuer, when non-empty, makes the controller request a
+	// cert-manager Certificate per instance with this ClusterIssuer for the
+	// single public host (which serves both the HTTP cache and gRPC, see
+	// reconcileGRPCIngress). The issued Secret is referenced by the regional
+	// Kura ingress layer that terminates TLS for customer-facing traffic.
+	// The name is historical; there is no longer a separate gRPC certificate.
 	GRPCClusterIssuer   string
 	OTLPTracesEndpoint  string
 	Environment         string
@@ -220,6 +219,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcileAccountPeerService(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
+	if err := r.reconcileInstancePublicPeerService(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
 	primaryPod, err := r.selectPrimaryPod(ctx, instance)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -245,7 +247,7 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcilePublicCertificate(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcileGRPCCertificate(ctx, instance); err != nil {
+	if err := r.retireLegacyGRPCCertificate(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcilePeerTLSSecret(ctx, instance); err != nil {
@@ -345,6 +347,72 @@ func (r *KuraInstanceReconciler) reconcileAccountPeerService(ctx context.Context
 		return nil
 	})
 	return err
+}
+
+// reconcileInstancePublicPeerService exposes this region's peer plane to the
+// internet so a customer's self-hosted Kura node can dial in for replication.
+// It is a plain L4 LoadBalancer: the peer connection is end-to-end mTLS, so
+// nothing terminates TLS here. external-dns publishes the region's
+// MeshPublicPeerHost to the assigned address. One Service per instance (region)
+// so the host, cert, and selected pods stay aligned across a multi-region
+// account. Only created when the controller owns the account CA
+// (meshManagedPeerTLS) and a public host is requested.
+func (r *KuraInstanceReconciler) reconcileInstancePublicPeerService(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	service := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: instancePublicPeerServiceName(instance), Namespace: instance.Namespace}}
+	if !meshManagedPeerTLS(instance) || instance.Spec.MeshPublicPeerHost == "" {
+		// No public peer plane requested (a non-mesh region, or the host was
+		// cleared). Tear down any LoadBalancer + external-dns record created
+		// earlier so an internet-facing Service does not linger, mirroring the
+		// other public resources in this controller.
+		if err := r.Delete(ctx, service); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+		return nil
+	}
+
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, service, func() error {
+		service.Labels = map[string]string{
+			"app.kubernetes.io/name":       "kura",
+			"app.kubernetes.io/instance":   instance.Name,
+			"app.kubernetes.io/managed-by": "kura-controller",
+			"tuist.dev/account":            instance.Spec.AccountHandle,
+		}
+		if service.Annotations == nil {
+			service.Annotations = map[string]string{}
+		}
+		for k, v := range instance.Spec.MeshPublicPeerLoadBalancerAnnotations {
+			service.Annotations[k] = v
+		}
+		service.Annotations["external-dns.alpha.kubernetes.io/hostname"] = instance.Spec.MeshPublicPeerHost
+		service.Spec.Type = corev1.ServiceTypeLoadBalancer
+		// Local routes the LoadBalancer straight to a node that hosts a peer pod
+		// instead of round-robining across every node and SNAT-hopping to the
+		// pod, which intermittently reset long-lived bootstrap connections.
+		service.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyTypeLocal
+		// Per-region (per-instance): MeshPublicPeerHost and the peer cert SAN are
+		// region-scoped, so the LoadBalancer must select only this instance's
+		// pods. An account-scoped selector would route one region's hostname to
+		// another region's pods and mismatch the cert.
+		service.Spec.Selector = selectorLabels(instance)
+		service.Spec.Ports = []corev1.ServicePort{
+			{Name: "peer", Port: peerPort, TargetPort: intstr.FromString("peer")},
+		}
+		// Owner-referenced so it is garbage-collected with the instance; per-region
+		// scoping makes single ownership safe (no sibling shares this Service).
+		return controllerutil.SetControllerReference(instance, service, r.Scheme)
+	})
+	return err
+}
+
+func instancePublicPeerServiceName(instance *kurav1alpha1.KuraInstance) string {
+	name := instance.Name + "-peers-public"
+	if len(name) <= 63 {
+		return name
+	}
+	hash := fnv.New32a()
+	_, _ = hash.Write([]byte(instance.Name))
+	suffix := fmt.Sprintf("-%x", hash.Sum32())
+	return strings.TrimRight(name[:63-len(suffix)], "-") + suffix
 }
 
 func (r *KuraInstanceReconciler) reconcileService(ctx context.Context, instance *kurav1alpha1.KuraInstance, primaryPod string) error {
@@ -482,7 +550,7 @@ func (r *KuraInstanceReconciler) deleteLegacyServiceIfExists(ctx context.Context
 
 func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	ingress := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
-	if instance.Spec.PublicHost == "" {
+	if instance.Spec.Private || instance.Spec.PublicHost == "" {
 		if err := r.Delete(ctx, ingress); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
@@ -515,9 +583,48 @@ func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, ins
 	return err
 }
 
+// grpcREAPIPathPrefixes are the disjoint, stable URL prefixes of the gRPC
+// services Kura serves: the Bazel Remote Execution API and ByteStream.
+// Paired with the use-regex annotation (see grpcIngressAnnotations) they are
+// rendered by ingress-nginx as anchored regex locations
+// (`location ~* "^/build\.bazel\.remote\.execution\.v2\."`), so a real method
+// path such as /build.bazel.remote.execution.v2.Capabilities/GetCapabilities
+// routes to the gRPC backend. A plain Prefix/ImplementationSpecific path
+// would render as `location /build.bazel.remote.execution.v2./` plus an
+// exact `= /build.bazel.remote.execution.v2.`, and the method path (no `/`
+// after the package prefix) matches neither, falling through to the HTTP
+// `/` location. Verified against ingress-nginx v1.11.3.
+//
+// The values must start with `/` (the Kubernetes Ingress API rejects a path
+// that does not begin with a slash); ingress-nginx adds the leading `^`
+// anchor itself when use-regex is set, so it is not — and must not be —
+// included here.
+//
+// Note: only the REAPI and ByteStream packages are routed. Kura registers no
+// gRPC health or reflection service, so those paths intentionally fall to the
+// HTTP backend; add `/grpc\.` here if Kura ever serves them.
+var grpcREAPIPathPrefixes = []string{
+	`/build\.bazel\.remote\.execution\.v2\.`,
+	`/google\.bytestream\.`,
+}
+
+// reconcileGRPCIngress co-hosts the gRPC (Bazel REAPI) backend on the public
+// host, split from the REST cache by path. ingress-nginx applies the
+// backend-protocol annotation per location when two Ingresses share a host,
+// so this object keeps backend-protocol: GRPC (grpc_pass/h2c) while the
+// public Ingress keeps backend-protocol: HTTP (proxy_pass) on `/`. The
+// public Ingress terminates TLS for the host, so this object declares no TLS
+// of its own. Host equals PublicHost (not GRPCPublicHost) so existing CRs
+// that still carry a legacy grpc.<host> in grpcPublicHost converge onto the
+// single host as soon as this controller rolls out.
 func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	ingress := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: grpcServiceName(instance), Namespace: instance.Namespace}}
-	if instance.Spec.GRPCPublicHost == "" {
+	// Private instances expose no public endpoint, so neither the public
+	// nor the gRPC Ingress is reconciled. For non-private instances, gRPC
+	// co-hosts on PublicHost (it is the rule host below), so an empty
+	// PublicHost has nowhere to route — delete rather than emit an Ingress
+	// with an empty host, even when the legacy GRPCPublicHost is set.
+	if instance.Spec.Private || instance.Spec.PublicHost == "" {
 		if err := r.Delete(ctx, ingress); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
@@ -531,18 +638,19 @@ func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, insta
 		ingress.Labels = labels(instance)
 		ingress.Annotations = grpcIngressAnnotations()
 		ingress.Spec.IngressClassName = ptr(ingressClassName(instance))
-		ingress.Spec.TLS = []networkingv1.IngressTLS{{
-			Hosts:      []string{instance.Spec.GRPCPublicHost},
-			SecretName: grpcTLSSecretName(instance),
-		}}
+		ingress.Spec.TLS = nil
+		paths := make([]networkingv1.HTTPIngressPath, 0, len(grpcREAPIPathPrefixes))
+		for _, prefix := range grpcREAPIPathPrefixes {
+			paths = append(paths, networkingv1.HTTPIngressPath{
+				Path:     prefix,
+				PathType: ptr(networkingv1.PathTypeImplementationSpecific),
+				Backend:  ingressBackend(instance.Name, "grpc"),
+			})
+		}
 		ingress.Spec.Rules = []networkingv1.IngressRule{{
-			Host: instance.Spec.GRPCPublicHost,
+			Host: instance.Spec.PublicHost,
 			IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
-				Paths: []networkingv1.HTTPIngressPath{{
-					Path:     "/",
-					PathType: ptr(networkingv1.PathTypePrefix),
-					Backend:  ingressBackend(instance.Name, "grpc"),
-				}},
+				Paths: paths,
 			}},
 		}}
 		return nil
@@ -751,16 +859,19 @@ func podOrdinal(podName, instanceName string) (int, bool) {
 }
 
 // reconcilePublicCertificate provisions a cert-manager Certificate for
-// the regional Kura ingress that terminates public HTTPS. No-ops when either
-// GRPCClusterIssuer or spec.publicHost is unset. cert-manager must be
-// installed in the cluster before --grpc-cluster-issuer is set.
+// the regional Kura ingress that terminates public HTTPS. Deletes any
+// existing Certificate when the instance is private, GRPCClusterIssuer
+// is unset, or spec.publicHost is unset, so a public→private flip does
+// not leak the Certificate (and the cert-manager-rotated leaf Secret)
+// after the matching Ingress is torn down.
+// cert-manager must be installed in the cluster before --grpc-cluster-issuer is set.
 func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	cert := &unstructured.Unstructured{}
 	cert.SetGroupVersionKind(certificateGVK())
 	cert.SetName(publicTLSSecretName(instance))
 	cert.SetNamespace(instance.Namespace)
 
-	if r.GRPCClusterIssuer == "" || instance.Spec.PublicHost == "" {
+	if instance.Spec.Private || r.GRPCClusterIssuer == "" || instance.Spec.PublicHost == "" {
 		if err := r.Delete(ctx, cert); err != nil && !apierrors.IsNotFound(err) {
 			return client.IgnoreNotFound(err)
 		}
@@ -790,44 +901,42 @@ func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context,
 	return err
 }
 
-// reconcileGRPCCertificate provisions a cert-manager Certificate for
-// the regional Kura ingress that terminates public gRPC. No-ops when either
-// GRPCClusterIssuer or spec.grpcPublicHost is unset. cert-manager must
-// be installed in the cluster before --grpc-cluster-issuer is set.
-func (r *KuraInstanceReconciler) reconcileGRPCCertificate(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+// retireLegacyGRPCCertificate removes the dedicated per-host gRPC
+// certificate left over from before the single-host migration. gRPC now
+// co-hosts on the public host (see reconcileGRPCIngress), so the public
+// Certificate/Secret already covers it and no dedicated <name>-grpc-tls
+// certificate is provisioned. cert-manager does not garbage-collect the
+// issued Secret when its Certificate is deleted, so the Secret is removed
+// explicitly. Get-before-Delete keeps a converged reconcile read-only
+// (the Gets are served from the controller-runtime cache) instead of
+// issuing DELETE writes on every loop forever.
+//
+// TODO(kura single-host migration): once every environment has converged
+// (no <name>-grpc-tls Certificate or Secret remains anywhere), drop the
+// call from Reconcile and delete this function.
+func (r *KuraInstanceReconciler) retireLegacyGRPCCertificate(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	cert := &unstructured.Unstructured{}
 	cert.SetGroupVersionKind(certificateGVK())
 	cert.SetName(grpcTLSSecretName(instance))
 	cert.SetNamespace(instance.Namespace)
-
-	if r.GRPCClusterIssuer == "" || instance.Spec.GRPCPublicHost == "" {
-		if err := r.Delete(ctx, cert); err != nil && !apierrors.IsNotFound(err) {
-			return client.IgnoreNotFound(err)
-		}
-		return nil
+	if err := r.deleteIfExists(ctx, cert); err != nil {
+		return err
 	}
 
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, cert, func() error {
-		if err := controllerutil.SetControllerReference(instance, cert, r.Scheme); err != nil {
-			return err
-		}
-		cert.SetLabels(labels(instance))
-		spec := map[string]any{
-			"secretName": grpcTLSSecretName(instance),
-			"dnsNames":   dnsNames(instance.Spec.GRPCPublicHost),
-			"issuerRef": map[string]any{
-				"name": r.GRPCClusterIssuer,
-				"kind": "ClusterIssuer",
-			},
-			"privateKey": map[string]any{
-				"algorithm":      "ECDSA",
-				"size":           int64(256),
-				"rotationPolicy": "Always",
-			},
-		}
-		return unstructured.SetNestedField(cert.Object, spec, "spec")
-	})
-	return err
+	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: grpcTLSSecretName(instance), Namespace: instance.Namespace}}
+	return r.deleteIfExists(ctx, secret)
+}
+
+// deleteIfExists deletes obj when present, treating a missing object (on
+// either the cache read or the delete) as success.
+func (r *KuraInstanceReconciler) deleteIfExists(ctx context.Context, obj client.Object) error {
+	if err := r.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	if err := r.Delete(ctx, obj); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	return nil
 }
 
 func (r *KuraInstanceReconciler) reconcilePeerTLSSecret(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
@@ -1006,12 +1115,26 @@ func peerTLSSecretDataValid(data map[string][]byte, instance *kurav1alpha1.KuraI
 	if caCertPEM != nil {
 		dnsName = accountPeerServiceDNSName(instance)
 	}
-	_, err = cert.Verify(x509.VerifyOptions{
+	if _, err := cert.Verify(x509.VerifyOptions{
 		DNSName:   dnsName,
 		Roots:     roots,
 		KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-	})
-	return err == nil && hasExtKeyUsage(cert, x509.ExtKeyUsageClientAuth)
+	}); err != nil {
+		return false
+	}
+	// In mesh mode the stored leaf must also cover the public peer host so
+	// external nodes can verify it; a leaf predating MeshPublicPeerHost is
+	// reissued rather than served.
+	if caCertPEM != nil && instance.Spec.MeshPublicPeerHost != "" {
+		if _, err := cert.Verify(x509.VerifyOptions{
+			DNSName:   instance.Spec.MeshPublicPeerHost,
+			Roots:     roots,
+			KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		}); err != nil {
+			return false
+		}
+	}
+	return hasExtKeyUsage(cert, x509.ExtKeyUsageClientAuth)
 }
 
 func generateSelfSignedPeerTLSSecretData(instance *kurav1alpha1.KuraInstance) (map[string][]byte, error) {
@@ -1096,7 +1219,7 @@ func peerTLSDNSNames(instance *kurav1alpha1.KuraInstance) []string {
 	headless := headlessServiceName(instance)
 	account := accountPeerServiceName(instance)
 	namespace := instance.Namespace
-	return []string{
+	names := []string{
 		fmt.Sprintf("*.%s.%s.svc.cluster.local", headless, namespace),
 		fmt.Sprintf("*.%s.%s.svc", headless, namespace),
 		fmt.Sprintf("*.%s.%s", headless, namespace),
@@ -1114,6 +1237,13 @@ func peerTLSDNSNames(instance *kurav1alpha1.KuraInstance) []string {
 		fmt.Sprintf("%s.%s.svc.cluster.local", account, namespace),
 		fmt.Sprintf("*.%s.%s.svc.cluster.local", account, namespace),
 	}
+	// The public peer host is the SNI a self-hosted node verifies the
+	// managed peers against when dialing in over the internet, so the leaf
+	// must cover it too.
+	if instance.Spec.MeshPublicPeerHost != "" {
+		names = append(names, instance.Spec.MeshPublicPeerHost)
+	}
+	return names
 }
 
 func firstPodDNSName(instance *kurav1alpha1.KuraInstance) string {
@@ -1393,7 +1523,19 @@ func publicIngressAnnotations() map[string]string {
 }
 
 func grpcIngressAnnotations() map[string]string {
-	return streamingIngressAnnotations("GRPC")
+	annotations := streamingIngressAnnotations("GRPC")
+	// The gRPC service paths are anchored regexes (see grpcREAPIPathPrefixes);
+	// use-regex makes ingress-nginx render them as `location ~* ...` so real
+	// REAPI/ByteStream method paths match.
+	//
+	// The whole path-split scheme (use-regex + per-location backend-protocol on
+	// a host shared with the public Ingress) is ingress-nginx specific. A
+	// non-nginx controller (Traefik/Contour/HAProxy/Cilium) ignores these
+	// nginx.ingress.kubernetes.io/* annotations and routes gRPC to the HTTP
+	// backend, so the IngressClass the Kura Ingress targets must be served by
+	// ingress-nginx.
+	annotations["nginx.ingress.kubernetes.io/use-regex"] = "true"
+	return annotations
 }
 
 func streamingIngressAnnotations(backendProtocol string) map[string]string {
@@ -1470,6 +1612,23 @@ func (r *KuraInstanceReconciler) reconcileNetworkPolicy(ctx context.Context, ins
 				},
 			})
 		}
+		if meshManagedPeerTLS(instance) && instance.Spec.MeshPublicPeerHost != "" {
+			// The public peer plane accepts mesh connections from off-cluster
+			// self-hosted nodes through the LoadBalancer. With
+			// externalTrafficPolicy: Cluster the source is SNATed to a node IP,
+			// so no pod/namespace selector matches — allow the peer port from
+			// anywhere. The mutual-TLS client-cert check against the account CA
+			// is the auth boundary; a connection without a valid account-CA leaf
+			// fails the handshake.
+			ingress = append(ingress, networkingv1.NetworkPolicyIngressRule{
+				From: []networkingv1.NetworkPolicyPeer{
+					{IPBlock: &networkingv1.IPBlock{CIDR: "0.0.0.0/0"}},
+				},
+				Ports: []networkingv1.NetworkPolicyPort{
+					{Port: ptr(intstr.FromString("peer")), Protocol: ptr(corev1.ProtocolTCP)},
+				},
+			})
+		}
 		policy.Spec.Ingress = ingress
 		return nil
 	})
@@ -1543,6 +1702,24 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 	}
 	if crossRegionRuntimeEnabled(instance) {
 		env = append(env, corev1.EnvVar{Name: "KURA_GLOBAL_DISCOVERY_DNS_NAME", Value: accountPeerServiceDNSName(instance)})
+	}
+	// When the account peer plane is exposed publicly, advertise the public
+	// gateway URL for global-scope discovery so an off-cluster self-hosted node
+	// replicates through the LoadBalancer instead of the managed pods' in-cluster
+	// addresses (which it can't reach). In-cluster peers keep using direct
+	// addresses (Local-scope discovery); a node skips its own gateway.
+	if meshManagedPeerTLS(instance) && instance.Spec.MeshPublicPeerHost != "" {
+		env = append(env, corev1.EnvVar{
+			Name:  "KURA_PEER_GATEWAY_URL",
+			Value: fmt.Sprintf("https://%s:%d", instance.Spec.MeshPublicPeerHost, peerPort),
+		})
+	}
+	// Seed the account's self-hosted nodes as static peers so the managed
+	// mesh dials them (the managed->self-hosted replication leg). In-cluster
+	// peers are still discovered through the headless Services above; these
+	// are additive.
+	if len(instance.Spec.MeshExternalPeers) > 0 {
+		env = append(env, corev1.EnvVar{Name: "KURA_PEERS", Value: strings.Join(instance.Spec.MeshExternalPeers, ",")})
 	}
 	return env
 }
@@ -1660,11 +1837,15 @@ func publicURL(instance *kurav1alpha1.KuraInstance) string {
 	return "https://" + instance.Spec.PublicHost
 }
 
+// grpcPublicURL reports the gRPC endpoint, which co-hosts on the public
+// host. It intentionally derives from PublicHost (not GRPCPublicHost) so the
+// status reflects the host the gRPC Ingress actually serves, even for CRs
+// that still carry a legacy grpc.<host> in grpcPublicHost.
 func grpcPublicURL(instance *kurav1alpha1.KuraInstance) string {
-	if instance.Spec.GRPCPublicHost == "" {
+	if instance.Spec.PublicHost == "" {
 		return ""
 	}
-	return "grpcs://" + instance.Spec.GRPCPublicHost
+	return "grpcs://" + instance.Spec.PublicHost
 }
 
 func labels(instance *kurav1alpha1.KuraInstance) map[string]string {

@@ -14,6 +14,7 @@ defmodule TuistOps.JIT.SlackClient do
   @chat_post_message_url "https://slack.com/api/chat.postMessage"
   @chat_update_url "https://slack.com/api/chat.update"
   @chat_post_ephemeral_url "https://slack.com/api/chat.postEphemeral"
+  @views_open_url "https://slack.com/api/views.open"
   @users_info_url "https://slack.com/api/users.info"
 
   @doc """
@@ -58,13 +59,15 @@ defmodule TuistOps.JIT.SlackClient do
   Block Kit card.
   """
   def post_message(channel_id, blocks, opts \\ []) do
-    body = %{
-      channel: channel_id,
-      blocks: blocks,
-      text: Keyword.get(opts, :fallback_text, "Tailscale JIT request"),
-      unfurl_links: false,
-      unfurl_media: false
-    }
+    body =
+      %{
+        channel: channel_id,
+        blocks: blocks,
+        text: Keyword.get(opts, :fallback_text, "Tailscale JIT request"),
+        unfurl_links: false,
+        unfurl_media: false
+      }
+      |> maybe_put(:thread_ts, Keyword.get(opts, :thread_ts))
 
     @chat_post_message_url
     |> Req.post(headers: headers(), body: JSON.encode!(body))
@@ -104,12 +107,29 @@ defmodule TuistOps.JIT.SlackClient do
     |> handle_post(:ok)
   end
 
+  @doc """
+  Opens a modal from a Slack interaction trigger.
+  """
+  def open_view(trigger_id, view) when is_binary(trigger_id) and is_map(view) do
+    body = %{
+      trigger_id: trigger_id,
+      view: view
+    }
+
+    @views_open_url
+    |> Req.post(headers: headers(), body: JSON.encode!(body))
+    |> handle_post(:ok)
+  end
+
   defp headers do
     [
       {"Authorization", "Bearer #{Environment.slack_bot_token()}"},
       {"Content-Type", "application/json; charset=utf-8"}
     ]
   end
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
   defp handle_post({:ok, %Req.Response{status: status, body: body}}, return)
        when status in 200..299 do

@@ -938,6 +938,220 @@ func TestKuraInstanceReconcileCrossRegionAccountPeerService(t *testing.T) {
 	}
 }
 
+func TestPeerTLSDNSNamesIncludesMeshPublicPeerHost(t *testing.T) {
+	instance := meshInstance("kura-tuist-eu-1", "tuist")
+	if containsString(peerTLSDNSNames(instance), "peer.tuist.kura.tuist.dev") {
+		t.Fatal("did not expect the public peer host in SANs before it is set")
+	}
+
+	instance.Spec.MeshPublicPeerHost = "peer.tuist.kura.tuist.dev"
+	if !containsString(peerTLSDNSNames(instance), "peer.tuist.kura.tuist.dev") {
+		t.Fatalf("expected peer SANs to cover the public peer host, got %v", peerTLSDNSNames(instance))
+	}
+}
+
+func TestKuraInstanceReconcileMeshPublicPeerExposure(t *testing.T) {
+	ctx := context.Background()
+	scheme := meshTestScheme(t)
+
+	instance := meshInstance("kura-tuist-eu-1", "tuist")
+	instance.Spec.MeshPublicPeerHost = "peer.tuist-eu-central-1.kura.tuist.dev"
+	instance.Spec.MeshExternalPeers = []string{"https://kura.acme.example:7443"}
+	instance.Spec.MeshPublicPeerLoadBalancerAnnotations = map[string]string{
+		"load-balancer.hetzner.cloud/location":      "fsn1",
+		"load-balancer.hetzner.cloud/node-selector": "node.cluster.x-k8s.io/pool=kura",
+	}
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).WithStatusSubresource(instance).Build(),
+		Scheme: scheme,
+	}
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	lb := &corev1.Service{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instancePublicPeerServiceName(instance), Namespace: instance.Namespace}, lb); err != nil {
+		t.Fatalf("expected public peer Service to be created: %v", err)
+	}
+	if lb.Spec.Type != corev1.ServiceTypeLoadBalancer {
+		t.Fatalf("expected public peer Service to be a LoadBalancer, got %q", lb.Spec.Type)
+	}
+	if got := lb.Annotations["external-dns.alpha.kubernetes.io/hostname"]; got != instance.Spec.MeshPublicPeerHost {
+		t.Fatalf("expected external-dns hostname annotation, got %q", got)
+	}
+	if got := lb.Annotations["load-balancer.hetzner.cloud/node-selector"]; got != "node.cluster.x-k8s.io/pool=kura" {
+		t.Fatalf("expected node-selector annotation to restrict LB targets, got %q", got)
+	}
+	if got := lb.Annotations["load-balancer.hetzner.cloud/location"]; got != "fsn1" {
+		t.Fatalf("expected hcloud location annotation, got %q", got)
+	}
+	if got := lb.Spec.Selector["app.kubernetes.io/instance"]; got != instance.Name {
+		t.Fatalf("expected public peer Service to select only this region's pods, got %q", got)
+	}
+	if _, ok := lb.Spec.Selector["tuist.dev/account"]; ok {
+		t.Fatalf("expected a per-region selector, not an account-wide one")
+	}
+	if len(lb.OwnerReferences) == 0 || lb.OwnerReferences[0].Name != instance.Name {
+		t.Fatalf("expected public peer Service to be owner-referenced to the instance, got %v", lb.OwnerReferences)
+	}
+	if got := lb.Spec.Ports[0].TargetPort.StrVal; got != "peer" {
+		t.Fatalf("expected public peer Service to target the peer port, got %q", got)
+	}
+
+	sts := &appsv1.StatefulSet{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts); err != nil {
+		t.Fatal(err)
+	}
+	env := map[string]string{}
+	for _, envVar := range sts.Spec.Template.Spec.Containers[0].Env {
+		env[envVar.Name] = envVar.Value
+	}
+	if got := env["KURA_PEERS"]; got != "https://kura.acme.example:7443" {
+		t.Fatalf("expected KURA_PEERS to seed the self-hosted peer, got %q", got)
+	}
+	if got := env["KURA_PEER_GATEWAY_URL"]; got != "https://peer.tuist-eu-central-1.kura.tuist.dev:7443" {
+		t.Fatalf("expected KURA_PEER_GATEWAY_URL to advertise the public gateway for global discovery, got %q", got)
+	}
+
+	policy := &networkingv1.NetworkPolicy{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, policy); err != nil {
+		t.Fatal(err)
+	}
+	publicPeerAllowed := false
+	for _, rule := range policy.Spec.Ingress {
+		for _, from := range rule.From {
+			if from.IPBlock != nil && from.IPBlock.CIDR == "0.0.0.0/0" {
+				for _, p := range rule.Ports {
+					if p.Port != nil && p.Port.StrVal == "peer" {
+						publicPeerAllowed = true
+					}
+				}
+			}
+		}
+	}
+	if !publicPeerAllowed {
+		t.Fatal("expected NetworkPolicy to allow the peer port from off-cluster (public peer plane)")
+	}
+
+	caSecret := &corev1.Secret{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: accountPeerCASecretName(instance), Namespace: instance.Namespace}, caSecret); err != nil {
+		t.Fatal(err)
+	}
+	leaf := &corev1.Secret{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: peerTLSSecretName(instance), Namespace: instance.Namespace}, leaf); err != nil {
+		t.Fatal(err)
+	}
+	if !peerTLSSecretDataValid(leaf.Data, instance, caSecret.Data[peerCACertFile]) {
+		t.Fatal("expected the mesh leaf to validate, including the public peer host SAN")
+	}
+	block, _ := pem.Decode(leaf.Data[peerTLSCertFile])
+	if block == nil {
+		t.Fatal("expected leaf certificate PEM")
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatalf("parse leaf certificate: %v", err)
+	}
+	if !containsString(cert.DNSNames, instance.Spec.MeshPublicPeerHost) {
+		t.Fatalf("expected leaf SANs to cover the public peer host, got %v", cert.DNSNames)
+	}
+
+	// A non-mesh instance of the SAME account (e.g. a private runner-cache
+	// region) must not delete the account-level public peer Service its
+	// mesh-enabled sibling owns — otherwise they churn it every reconcile.
+	sibling := meshInstance("kura-tuist-scw-1", "tuist")
+	sibling.Spec.Mesh = false
+	if err := reconciler.Create(ctx, sibling); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: sibling.Name, Namespace: sibling.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instancePublicPeerServiceName(instance), Namespace: instance.Namespace}, lb); err != nil {
+		t.Fatalf("expected public peer Service to survive a non-mesh sibling's reconcile, got %v", err)
+	}
+}
+
+func TestMeshPublicPeerServiceIsPerRegion(t *testing.T) {
+	ctx := context.Background()
+	scheme := meshTestScheme(t)
+
+	eu := meshInstance("kura-tuist-eu-1", "tuist")
+	eu.Spec.MeshPublicPeerHost = "peer.tuist-eu-central-1.kura.tuist.dev"
+	us := meshInstance("kura-tuist-us-1", "tuist")
+	us.Spec.MeshPublicPeerHost = "peer.tuist-us-east-1.kura.tuist.dev"
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(eu, us).WithStatusSubresource(eu, us).Build(),
+		Scheme: scheme,
+	}
+	for _, in := range []*kurav1alpha1.KuraInstance{eu, us} {
+		if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: in.Name, Namespace: in.Namespace}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Each region gets its own Service, with its own host and a selector pinned
+	// to that region's pods. A shared account-scoped Service would churn the
+	// external-dns hostname between regions and cross-route traffic and cert.
+	for _, in := range []*kurav1alpha1.KuraInstance{eu, us} {
+		lb := &corev1.Service{}
+		if err := reconciler.Get(ctx, types.NamespacedName{Name: instancePublicPeerServiceName(in), Namespace: in.Namespace}, lb); err != nil {
+			t.Fatalf("expected per-region public peer Service for %s: %v", in.Name, err)
+		}
+		if got := lb.Annotations["external-dns.alpha.kubernetes.io/hostname"]; got != in.Spec.MeshPublicPeerHost {
+			t.Fatalf("expected %s host %q, got %q", in.Name, in.Spec.MeshPublicPeerHost, got)
+		}
+		if got := lb.Spec.Selector["app.kubernetes.io/instance"]; got != in.Name {
+			t.Fatalf("expected %s Service to select its own pods, got %q", in.Name, got)
+		}
+	}
+
+	if instancePublicPeerServiceName(eu) == instancePublicPeerServiceName(us) {
+		t.Fatalf("expected distinct per-region Service names")
+	}
+}
+
+func TestMeshPublicPeerServiceIsTornDownWhenHostCleared(t *testing.T) {
+	ctx := context.Background()
+	scheme := meshTestScheme(t)
+
+	instance := meshInstance("kura-tuist-eu-1", "tuist")
+	instance.Spec.MeshPublicPeerHost = "peer.tuist-eu-central-1.kura.tuist.dev"
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).WithStatusSubresource(instance).Build(),
+		Scheme: scheme,
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	lb := &corev1.Service{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instancePublicPeerServiceName(instance), Namespace: instance.Namespace}, lb); err != nil {
+		t.Fatalf("expected public peer Service after enabling the mesh: %v", err)
+	}
+
+	// Clearing the host (e.g. the account stops bridging) must tear the
+	// internet-facing LoadBalancer down rather than leaving it stranded.
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, instance); err != nil {
+		t.Fatal(err)
+	}
+	instance.Spec.MeshPublicPeerHost = ""
+	if err := reconciler.Update(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instancePublicPeerServiceName(instance), Namespace: instance.Namespace}, lb); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected public peer Service to be deleted after clearing the host, got %v", err)
+	}
+}
+
 func TestKuraInstanceReconcileWithoutSharedTLSDoesNotEnableGlobalDiscovery(t *testing.T) {
 	ctx := context.Background()
 	scheme := runtime.NewScheme()
@@ -1019,8 +1233,19 @@ func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 		},
 	}
 
+	// Pre-seed the legacy dedicated gRPC Certificate and its Secret so the
+	// retirement path is actually exercised (not just vacuously absent).
+	legacyGRPCCert := &unstructured.Unstructured{}
+	legacyGRPCCert.SetGroupVersionKind(certificateGVK())
+	legacyGRPCCert.SetName(grpcTLSSecretName(instance))
+	legacyGRPCCert.SetNamespace(instance.Namespace)
+	legacyGRPCSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: grpcTLSSecretName(instance), Namespace: instance.Namespace},
+	}
+
 	reconciler := &KuraInstanceReconciler{
-		Client:            fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).WithStatusSubresource(instance).Build(),
+		Client: fake.NewClientBuilder().WithScheme(scheme).
+			WithObjects(instance, legacyGRPCCert, legacyGRPCSecret).WithStatusSubresource(instance).Build(),
 		Scheme:            scheme,
 		GRPCClusterIssuer: "letsencrypt-prod",
 	}
@@ -1041,33 +1266,51 @@ func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 	if grpcIngress.Spec.IngressClassName == nil || *grpcIngress.Spec.IngressClassName != "kura-eu-central" {
 		t.Fatalf("expected gRPC ingress class kura-eu-central, got %v", grpcIngress.Spec.IngressClassName)
 	}
-	if got := grpcIngress.Spec.TLS[0].SecretName; got != grpcTLSSecretName(instance) {
-		t.Fatalf("expected gRPC ingress to terminate with cert-manager Secret, got %q", got)
+	// gRPC co-hosts on the public host: it declares no TLS of its own and
+	// relies on the public Ingress's certificate for the shared host.
+	if len(grpcIngress.Spec.TLS) != 0 {
+		t.Fatalf("expected gRPC ingress to declare no TLS (public ingress covers the host), got %v", grpcIngress.Spec.TLS)
 	}
-	if got := grpcIngress.Spec.Rules[0].Host; got != "grpc.tuist-eu-1.kura.tuist.dev" {
-		t.Fatalf("expected gRPC ingress host, got %q", got)
+	if got := grpcIngress.Spec.Rules[0].Host; got != "tuist-eu-1.kura.tuist.dev" {
+		t.Fatalf("expected gRPC ingress to co-host on the public host, got %q", got)
 	}
-	backend := grpcIngress.Spec.Rules[0].HTTP.Paths[0].Backend.Service
-	if backend == nil || backend.Name != instance.Name || backend.Port.Name != "grpc" {
-		t.Fatalf("expected gRPC ingress to route to %s:grpc, got %#v", instance.Name, backend)
+	gotPaths := []string{}
+	for _, p := range grpcIngress.Spec.Rules[0].HTTP.Paths {
+		gotPaths = append(gotPaths, p.Path)
+		if p.PathType == nil || *p.PathType != networkingv1.PathTypeImplementationSpecific {
+			t.Fatalf("expected gRPC ingress paths to be ImplementationSpecific, got %v", p.PathType)
+		}
+		backend := p.Backend.Service
+		if backend == nil || backend.Name != instance.Name || backend.Port.Name != "grpc" {
+			t.Fatalf("expected gRPC ingress path to route to %s:grpc, got %#v", instance.Name, backend)
+		}
+	}
+	wantPaths := []string{`/build\.bazel\.remote\.execution\.v2\.`, `/google\.bytestream\.`}
+	if len(gotPaths) != len(wantPaths) {
+		t.Fatalf("expected gRPC ingress to expose the REAPI/ByteStream prefixes, got %v", gotPaths)
+	}
+	for i, want := range wantPaths {
+		if gotPaths[i] != want {
+			t.Fatalf("expected gRPC ingress path %d to be %q, got %q", i, want, gotPaths[i])
+		}
 	}
 	if got := grpcIngress.Annotations["nginx.ingress.kubernetes.io/backend-protocol"]; got != "GRPC" {
 		t.Fatalf("expected gRPC ingress backend protocol, got %q", got)
 	}
+	if got := grpcIngress.Annotations["nginx.ingress.kubernetes.io/use-regex"]; got != "true" {
+		t.Fatalf("expected gRPC ingress to enable regex path matching, got %q", got)
+	}
 
+	// The pre-seeded dedicated gRPC certificate and its Secret are retired;
+	// the public certificate covers the shared host.
 	cert := &unstructured.Unstructured{}
 	cert.SetGroupVersionKind(certificateGVK())
-	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcTLSSecretName(instance), Namespace: instance.Namespace}, cert); err != nil {
-		t.Fatalf("expected cert-manager Certificate to be created: %v", err)
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcTLSSecretName(instance), Namespace: instance.Namespace}, cert); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected the dedicated gRPC Certificate to be deleted, got %v", err)
 	}
-	if got, _, _ := unstructured.NestedString(cert.Object, "spec", "secretName"); got != grpcTLSSecretName(instance) {
-		t.Fatalf("expected Certificate secretName, got %q", got)
-	}
-	if got, _, _ := unstructured.NestedString(cert.Object, "spec", "issuerRef", "name"); got != "letsencrypt-prod" {
-		t.Fatalf("expected ClusterIssuer ref, got %q", got)
-	}
-	if got, _, _ := unstructured.NestedStringSlice(cert.Object, "spec", "dnsNames"); len(got) != 1 || got[0] != "grpc.tuist-eu-1.kura.tuist.dev" {
-		t.Fatalf("expected gRPC Certificate dnsNames to include the regional host, got %v", got)
+	grpcSecret := &corev1.Secret{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcTLSSecretName(instance), Namespace: instance.Namespace}, grpcSecret); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected the dedicated gRPC TLS Secret to be deleted, got %v", err)
 	}
 
 	sts := &appsv1.StatefulSet{}
@@ -1095,8 +1338,8 @@ func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, updated); err != nil {
 		t.Fatal(err)
 	}
-	if got := updated.Status.GRPCPublicURL; got != "grpcs://grpc.tuist-eu-1.kura.tuist.dev" {
-		t.Fatalf("expected gRPC public URL in status, got %q", got)
+	if got := updated.Status.GRPCPublicURL; got != "grpcs://tuist-eu-1.kura.tuist.dev" {
+		t.Fatalf("expected gRPC public URL in status to co-host on the public host, got %q", got)
 	}
 }
 
@@ -1155,7 +1398,7 @@ func TestKuraInstanceReconcilePreservesExplicitOTLPTracesEndpoint(t *testing.T) 
 	}
 }
 
-func TestKuraInstanceReconcileSkipsGRPCWhenHostUnset(t *testing.T) {
+func TestKuraInstanceReconcileExposesGRPCWhenGRPCPublicHostUnset(t *testing.T) {
 	ctx := context.Background()
 	scheme := runtime.NewScheme()
 	if err := clientgoscheme.AddToScheme(scheme); err != nil {
@@ -1191,8 +1434,311 @@ func TestKuraInstanceReconcileSkipsGRPCWhenHostUnset(t *testing.T) {
 		t.Fatalf("expected no legacy gRPC LoadBalancer Service when grpcPublicHost is unset, got %v", err)
 	}
 	grpcIngress := &networkingv1.Ingress{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcServiceName(instance), Namespace: instance.Namespace}, grpcIngress); err != nil {
+		t.Fatalf("expected gRPC Ingress when publicHost is set: %v", err)
+	}
+	if got := grpcIngress.Spec.Rules[0].Host; got != "tuist-eu-1.kura.tuist.dev" {
+		t.Fatalf("expected gRPC ingress to co-host on the public host, got %q", got)
+	}
+
+	updated := &kurav1alpha1.KuraInstance{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, updated); err != nil {
+		t.Fatal(err)
+	}
+	if got := updated.Status.GRPCPublicURL; got != "grpcs://tuist-eu-1.kura.tuist.dev" {
+		t.Fatalf("expected gRPC public URL from publicHost, got %q", got)
+	}
+}
+
+func TestKuraInstanceReconcileSkipsPublicResourcesWhenPrivate(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle:  "tuist",
+			TenantID:       "tuist",
+			Region:         "eu",
+			Image:          "ghcr.io/tuist/kura:0.5.2",
+			PublicHost:     "tuist-eu-1.kura.tuist.dev",
+			GRPCPublicHost: "grpc.tuist-eu-1.kura.tuist.dev",
+			Private:        true,
+		},
+	}
+
+	reconciler := &KuraInstanceReconciler{
+		Client:            fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).WithStatusSubresource(instance).Build(),
+		Scheme:            scheme,
+		GRPCClusterIssuer: "letsencrypt-prod",
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	ingress := &networkingv1.Ingress{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, ingress); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected no public Ingress for private instance, got %v", err)
+	}
+
+	grpcIngress := &networkingv1.Ingress{}
 	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcServiceName(instance), Namespace: instance.Namespace}, grpcIngress); !apierrors.IsNotFound(err) {
-		t.Fatalf("expected no gRPC Ingress when grpcPublicHost is unset, got %v", err)
+		t.Fatalf("expected no gRPC Ingress for private instance, got %v", err)
+	}
+
+	publicCert := &unstructured.Unstructured{}
+	publicCert.SetGroupVersionKind(certificateGVK())
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: publicTLSSecretName(instance), Namespace: instance.Namespace}, publicCert); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected no public Certificate for private instance, got %v", err)
+	}
+
+	grpcCert := &unstructured.Unstructured{}
+	grpcCert.SetGroupVersionKind(certificateGVK())
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcTLSSecretName(instance), Namespace: instance.Namespace}, grpcCert); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected no gRPC Certificate for private instance, got %v", err)
+	}
+
+	sts := &appsv1.StatefulSet{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts); err != nil {
+		t.Fatalf("expected private instance StatefulSet to be created: %v", err)
+	}
+}
+
+func TestKuraInstanceReconcileSkipsGRPCWhenPublicHostUnset(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	// Degenerate state guarded by the gate: grpcPublicHost set but
+	// publicHost empty. gRPC has no public host to co-host on, so the
+	// Ingress and the status URL must be skipped rather than built on an
+	// empty host.
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle:  "tuist",
+			TenantID:       "tuist",
+			Region:         "eu",
+			Image:          "ghcr.io/tuist/kura:0.5.2",
+			GRPCPublicHost: "grpc.tuist-eu-1.kura.tuist.dev",
+		},
+	}
+
+	reconciler := &KuraInstanceReconciler{
+		Client:            fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).WithStatusSubresource(instance).Build(),
+		Scheme:            scheme,
+		GRPCClusterIssuer: "letsencrypt-prod",
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	grpcIngress := &networkingv1.Ingress{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcServiceName(instance), Namespace: instance.Namespace}, grpcIngress); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected no gRPC Ingress when the public host is unset, got %v", err)
+	}
+
+	updated := &kurav1alpha1.KuraInstance{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, updated); err != nil {
+		t.Fatal(err)
+	}
+	if got := updated.Status.GRPCPublicURL; got != "" {
+		t.Fatalf("expected empty gRPC public URL when the public host is unset, got %q", got)
+	}
+}
+
+func TestKuraInstanceReconcileFlipToPrivateDeletesPublicResources(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle:    "tuist",
+			TenantID:         "tuist",
+			Region:           "eu",
+			Image:            "ghcr.io/tuist/kura:0.5.2",
+			PublicHost:       "tuist-eu-1.kura.tuist.dev",
+			GRPCPublicHost:   "grpc.tuist-eu-1.kura.tuist.dev",
+			IngressClassName: "kura-eu-central",
+			StorageClassName: "hcloud-volumes",
+		},
+	}
+	reconciler := &KuraInstanceReconciler{
+		Client:            fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).WithStatusSubresource(instance).Build(),
+		Scheme:            scheme,
+		GRPCClusterIssuer: "letsencrypt-prod",
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, &networkingv1.Ingress{}); err != nil {
+		t.Fatalf("expected public Ingress to be created during public phase: %v", err)
+	}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcServiceName(instance), Namespace: instance.Namespace}, &networkingv1.Ingress{}); err != nil {
+		t.Fatalf("expected gRPC Ingress to be created during public phase: %v", err)
+	}
+	publicCert := &unstructured.Unstructured{}
+	publicCert.SetGroupVersionKind(certificateGVK())
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: publicTLSSecretName(instance), Namespace: instance.Namespace}, publicCert); err != nil {
+		t.Fatalf("expected public Certificate to be created during public phase: %v", err)
+	}
+
+	flipped := &kurav1alpha1.KuraInstance{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, flipped); err != nil {
+		t.Fatal(err)
+	}
+	flipped.Spec.Private = true
+	if err := reconciler.Update(ctx, flipped); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, &networkingv1.Ingress{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected public Ingress to be deleted after flipping to private, got %v", err)
+	}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcServiceName(instance), Namespace: instance.Namespace}, &networkingv1.Ingress{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected gRPC Ingress to be deleted after flipping to private, got %v", err)
+	}
+	publicCertAfter := &unstructured.Unstructured{}
+	publicCertAfter.SetGroupVersionKind(certificateGVK())
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: publicTLSSecretName(instance), Namespace: instance.Namespace}, publicCertAfter); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected public Certificate to be deleted after flipping to private (else cert-manager keeps rotating the leaf Secret), got %v", err)
+	}
+}
+
+func TestKuraInstanceReconcileConvertsLegacyGRPCIngressToSingleHost(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle:    "tuist",
+			TenantID:         "tuist",
+			Region:           "eu",
+			Image:            "ghcr.io/tuist/kura:0.5.2",
+			PublicHost:       "tuist-eu-1.kura.tuist.dev",
+			GRPCPublicHost:   "grpc.tuist-eu-1.kura.tuist.dev",
+			IngressClassName: "kura-eu-central",
+			StorageClassName: "hcloud-volumes",
+		},
+	}
+
+	// The realistic mid-migration cluster shape: a pre-existing gRPC Ingress
+	// in the old split-host shape (host grpc.<host>, a single "/" path, and
+	// its own TLS) alongside the dedicated gRPC Certificate and its Secret.
+	// The reconcile must convert the Ingress in place to the single-host
+	// shape (not leave the legacy host or create a second object) and retire
+	// the dedicated cert + secret.
+	legacyGRPCIngress := &networkingv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{Name: grpcServiceName(instance), Namespace: instance.Namespace},
+		Spec: networkingv1.IngressSpec{
+			IngressClassName: ptr("kura-eu-central"),
+			TLS: []networkingv1.IngressTLS{{
+				Hosts:      []string{"grpc.tuist-eu-1.kura.tuist.dev"},
+				SecretName: grpcTLSSecretName(instance),
+			}},
+			Rules: []networkingv1.IngressRule{{
+				Host: "grpc.tuist-eu-1.kura.tuist.dev",
+				IngressRuleValue: networkingv1.IngressRuleValue{HTTP: &networkingv1.HTTPIngressRuleValue{
+					Paths: []networkingv1.HTTPIngressPath{{
+						Path:     "/",
+						PathType: ptr(networkingv1.PathTypePrefix),
+						Backend:  ingressBackend(instance.Name, "grpc"),
+					}},
+				}},
+			}},
+		},
+	}
+	legacyGRPCCert := &unstructured.Unstructured{}
+	legacyGRPCCert.SetGroupVersionKind(certificateGVK())
+	legacyGRPCCert.SetName(grpcTLSSecretName(instance))
+	legacyGRPCCert.SetNamespace(instance.Namespace)
+	legacyGRPCSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: grpcTLSSecretName(instance), Namespace: instance.Namespace},
+	}
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).
+			WithObjects(instance, legacyGRPCIngress, legacyGRPCCert, legacyGRPCSecret).WithStatusSubresource(instance).Build(),
+		Scheme:            scheme,
+		GRPCClusterIssuer: "letsencrypt-prod",
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	grpcIngress := &networkingv1.Ingress{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcServiceName(instance), Namespace: instance.Namespace}, grpcIngress); err != nil {
+		t.Fatalf("expected the gRPC ingress to remain after conversion: %v", err)
+	}
+	if got := grpcIngress.Spec.Rules[0].Host; got != "tuist-eu-1.kura.tuist.dev" {
+		t.Fatalf("expected the legacy grpc.<host> ingress to be rehosted on the public host, got %q", got)
+	}
+	if len(grpcIngress.Spec.TLS) != 0 {
+		t.Fatalf("expected the converted gRPC ingress to drop its own TLS, got %v", grpcIngress.Spec.TLS)
+	}
+	gotPaths := []string{}
+	for _, p := range grpcIngress.Spec.Rules[0].HTTP.Paths {
+		gotPaths = append(gotPaths, p.Path)
+		if p.PathType == nil || *p.PathType != networkingv1.PathTypeImplementationSpecific {
+			t.Fatalf("expected converted gRPC ingress paths to be ImplementationSpecific, got %v", p.PathType)
+		}
+	}
+	wantPaths := []string{`/build\.bazel\.remote\.execution\.v2\.`, `/google\.bytestream\.`}
+	if len(gotPaths) != len(wantPaths) {
+		t.Fatalf("expected converted gRPC ingress to expose the REAPI/ByteStream prefixes, got %v", gotPaths)
+	}
+	for i, want := range wantPaths {
+		if gotPaths[i] != want {
+			t.Fatalf("expected converted gRPC ingress path %d to be %q, got %q", i, want, gotPaths[i])
+		}
+	}
+	if got := grpcIngress.Annotations["nginx.ingress.kubernetes.io/use-regex"]; got != "true" {
+		t.Fatalf("expected converted gRPC ingress to enable regex matching, got %q", got)
+	}
+
+	// The dedicated gRPC Certificate and its Secret are retired as part of
+	// the conversion.
+	cert := &unstructured.Unstructured{}
+	cert.SetGroupVersionKind(certificateGVK())
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcTLSSecretName(instance), Namespace: instance.Namespace}, cert); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected the dedicated gRPC Certificate to be deleted, got %v", err)
+	}
+	secret := &corev1.Secret{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcTLSSecretName(instance), Namespace: instance.Namespace}, secret); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected the dedicated gRPC TLS Secret to be deleted, got %v", err)
 	}
 }
 

@@ -268,9 +268,6 @@ defmodule TuistWeb.RunnerWorkflowsLive do
   defp toggle_sort_order("asc"), do: "desc"
   defp toggle_sort_order(_desc), do: "asc"
 
-  def sort_icon("asc"), do: "square_rounded_arrow_up"
-  def sort_icon(_desc), do: "square_rounded_arrow_down"
-
   def sort_by_label("jobs"), do: dgettext("dashboard_runners", "Jobs")
   def sort_by_label("success_rate"), do: dgettext("dashboard_runners", "Success rate")
   def sort_by_label("avg_duration"), do: dgettext("dashboard_runners", "Avg duration")

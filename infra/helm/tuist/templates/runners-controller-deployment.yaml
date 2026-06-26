@@ -111,11 +111,24 @@ rules:
     resources: [runnerpools/status]
     verbs: [get, update, patch]
   - apiGroups: [""]
-    # Pods + SAs are direct owner-ref children of the RunnerPool.
-    # The reconciler creates them to bring the alive Pod count up
-    # to `spec.replicas` and deletes terminal Pods + their sibling
-    # SAs before booting replacements.
-    resources: [pods, serviceaccounts]
+    # Pods are direct owner-ref children of the RunnerPool. The
+    # reconciler creates them to bring the alive Pod count up to
+    # `spec.replicas`, deletes terminal Pods before booting
+    # replacements, and `patch`es the `tuist.dev/drain-eligible`
+    # label onto stale Pods to pace an image roll (see
+    # markDrainEligible) — so `patch` is required here.
+    resources: [pods]
+    verbs: [get, list, watch, create, patch, delete]
+  - apiGroups: [""]
+    # Read a terminated runner's container log to re-emit its final
+    # RUNNER_VITALS/_diag trail to the controller's own durable stdout
+    # before the reap deletes the Pod (mid-job death forensics).
+    resources: [pods/log]
+    verbs: [get]
+  - apiGroups: [""]
+    # Sibling SAs of each Pod; created and deleted alongside, never
+    # patched.
+    resources: [serviceaccounts]
     verbs: [get, list, watch, create, delete]
   - apiGroups: [""]
     resources: [events]

@@ -3,12 +3,14 @@
     - `postgresql.cnpg.enabled` is true — the operator-driven path that
       provisions the cluster alongside whatever DATABASE_URL the server
       currently reads (useful for parallel soak before cutover).
-    - `postgresql.mode == "cnpg"` — the cutover state where the server
-      reads DATABASE_URL from the cluster's `<name>-app` Secret.
+    - `postgresql.mode == "cnpg"` — the cutover state. Migration Jobs
+      read the cluster's `<name>-app` owner Secret; managed server pods
+      read the `tuist_web` runtime role Secret.
 */}}
 {{- if or .Values.postgresql.cnpg.enabled (eq .Values.postgresql.mode "cnpg") }}
 {{- $clusterName := include "tuist.componentName" (dict "root" . "component" "pg") -}}
 {{- $backupSecretName := include "tuist.componentName" (dict "root" . "component" "pg-backup-credentials") -}}
+{{- $webRoleSecretName := include "tuist.cnpgWebRoleSecretName" . -}}
 {{- $processorRoleSecretName := include "tuist.componentName" (dict "root" . "component" "pg-tuist-processor") -}}
 {{- $opsRoSecretName := include "tuist.componentName" (dict "root" . "component" "pg-tuist-ops-ro") -}}
 # CloudNativePG Cluster. The `cloudnative-pg` operator owns the primary,
@@ -25,9 +27,9 @@
 #   * Tigris credentials for barman live in 1Password as
 #     `S3_BACKUP_CREDENTIALS` and are synced via ESO into
 #     `{{ $backupSecretName }}` below.
-#   * Managed-role passwords are generated server-side by ESO when ESO is
-#     configured (`postgresql.cnpg.managedSecrets: true`) and read from a
-#     pre-existing Secret otherwise.
+#   * Managed-role passwords are synced by ESO from the configured store
+#     under `postgresql.cnpg.externalSecrets`; CNPG reconciles those
+#     Secret values into Postgres role passwords.
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
@@ -98,11 +100,9 @@ spec:
         - CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
       {{- end }}
 
-  # ESO syncs a server-side Secret holding the `tuist_app` (owner)
-  # password into `{{ $clusterName }}-app`. CNPG also exposes a
-  # `<cluster>-superuser` Secret it generates itself; we don't expose
-  # the superuser to workloads — `kubectl cnpg psql` opens a session
-  # as the cluster's `postgres` superuser for break-glass work.
+  # CNPG generates `{{ $clusterName }}-app` for the `tuist_app` owner /
+  # migration role. Runtime workloads use narrower managed roles below;
+  # the superuser Secret stays break-glass only (`kubectl cnpg psql`).
   enableSuperuserAccess: true
 
   storage:
@@ -144,12 +144,17 @@ spec:
 
   # Managed roles. CNPG creates the role on bootstrap and rotates the
   # password whenever the referenced Secret changes — there is no
-  # `CREATE ROLE` SQL to run by hand. Per-table GRANTs that the
-  # application depends on (oban_jobs for the processor; pg_read_all_data
-  # for the read-only Ops role) live in the cnpg/ bootstrap SQL files
-  # and run once per fresh cluster via the runbook in infra/cnpg/README.md.
+  # `CREATE ROLE` SQL to run by hand. Web runtime grants are applied by
+  # Tuist.Release.migrate after each migration; processor/Ops grants that
+  # need superuser/catalog roles stay in the infra/cnpg SQL runbook.
   managed:
     roles:
+      - name: {{ .Values.postgresql.cnpg.roles.web.name | quote }}
+        ensure: present
+        login: true
+        comment: "Tuist web runtime role"
+        passwordSecret:
+          name: {{ $webRoleSecretName }}
       - name: {{ .Values.postgresql.cnpg.roles.processor.name | quote }}
         ensure: present
         login: true
@@ -233,9 +238,36 @@ spec:
         key: "{{ .Values.postgresql.cnpg.externalSecrets.backupCredentials.item }}/{{ .Values.postgresql.cnpg.externalSecrets.backupCredentials.secretKeyField }}"
 ---
 # CNPG looks up the password for a managed role on every reconcile;
-# rotation is `op item edit … password=<new>` followed by ESO
-# refresh. The two ExternalSecrets below also need to produce a Secret
-# in the CNPG-expected shape: a single `password` key.
+# rotation is `op item edit … password=<new>` followed by ESO refresh.
+# The web Secret also carries the composed runtime DATABASE_URL consumed
+# by managed server pods.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $webRoleSecretName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  refreshInterval: {{ .Values.postgresql.cnpg.externalSecrets.refreshInterval | default "1h" }}
+  secretStoreRef:
+    name: {{ .Values.postgresql.cnpg.externalSecrets.storeRef.name | default "onepassword" }}
+    kind: {{ .Values.postgresql.cnpg.externalSecrets.storeRef.kind | default "ClusterSecretStore" }}
+  target:
+    name: {{ $webRoleSecretName }}
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      type: kubernetes.io/basic-auth
+      data:
+        username: {{ .Values.postgresql.cnpg.roles.web.name | quote }}
+        password: "{{ `{{ .password }}` }}"
+        uri: "postgres://{{ .Values.postgresql.cnpg.roles.web.name }}:{{ `{{ .password | urlquery }}` }}@{{ include "tuist.cnpgServiceRW" . }}:5432/{{ .Values.postgresql.cnpg.database }}"
+  data:
+    - secretKey: password
+      remoteRef:
+        key: "{{ .Values.postgresql.cnpg.externalSecrets.webPassword.item }}/{{ .Values.postgresql.cnpg.externalSecrets.webPassword.field }}"
+---
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:

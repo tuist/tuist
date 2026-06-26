@@ -63,7 +63,7 @@ jobs:
           BRANCH: ${{ inputs.branch }}
         run: |
           set -euo pipefail
-          mise run --no-deps cli:release:channel-version -- promote "$BRANCH"
+          mise run --no-deps --skip-tools cli:release:channel-version -- promote "$BRANCH"
 
   build-publish:
     name: Build and publish stable

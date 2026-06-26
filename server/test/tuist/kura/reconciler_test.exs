@@ -11,6 +11,8 @@ defmodule Tuist.Kura.ReconcilerTest do
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
+  @moduletag capture_log: true
+
   setup :set_mimic_from_context
 
   setup do

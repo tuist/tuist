@@ -65,6 +65,19 @@ defmodule Tuist.DocsTest do
       assert migration_page.body_template
       assert migration_page.body =~ "localized_link"
     end
+
+    test "wraps Markdown tables in a scroll container" do
+      page = Docs.get_page("/en/guides/server/self-host/server")
+
+      assert page.body =~ ~s(<div id="docs-markdown-table-0" class="noora-table" phx-hook="NooraTable">)
+      assert page.body =~ ~s(<div data-part="scroll-container"><table>)
+
+      assert page.body =~
+               ~s(<div data-part="scrollbar" aria-hidden="true"><div data-part="scrollbar-content"></div></div>)
+
+      assert page.body =~
+               ~s(<div data-part="overlay-scrollbar" aria-hidden="true"><div data-part="overlay-thumb"></div></div>)
+    end
   end
 
   describe "get_page/2" do

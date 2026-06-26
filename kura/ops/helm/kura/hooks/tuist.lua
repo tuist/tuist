@@ -19,8 +19,8 @@
 --
 --   2. authorize — resolve the request target from `ctx.tenant_id` /
 --      `ctx.namespace_id`, require the requested tenant to match
---      `ctx.server_tenant_id`, then check the target against first-
---      class account/project cache grants for the requested action.
+--      `ctx.server_tenant_id`, then check the target against
+--      first-class account/project cache grants for the requested action.
 --
 -- Required Kura extension config (set by the chart / rollout worker):
 --   * KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL              → https://tuist.dev (or staging)

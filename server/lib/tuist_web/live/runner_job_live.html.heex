@@ -58,9 +58,19 @@
       selected={@selected_tab == "logs"}
       patch={"?#{Query.put(@uri.query, "tab", "logs")}"}
     />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_runners", "Metrics")}
+      selected={@selected_tab == "metrics"}
+      patch={"?#{Query.put(@uri.query, "tab", "metrics")}"}
+    />
   </.tab_menu_horizontal>
 
-  <div :if={@selected_tab == "overview"} data-part="tab-panel">
+  <div
+    :if={@selected_tab == "overview"}
+    id="runner-job-overview"
+    phx-hook="RunnerMetricsHighlight"
+    data-part="tab-panel"
+  >
     <.card
       title={dgettext("dashboard_runners", "CI Details")}
       icon="git_merge"
@@ -149,6 +159,11 @@
           </div>
         </div>
       </.card_section>
+
+      <.runner_job_metrics_overview
+        :if={TuistWeb.RunnerJobLive.has_machine_metrics?(@machine_metrics)}
+        metrics={@machine_metrics}
+      />
     </.card>
 
     <.card
@@ -185,6 +200,8 @@
           <% expanded = TuistWeb.RunnerJobLive.step_expanded?(@expanded_steps, step) %>
           <div
             data-part="step-header"
+            data-step-start={TuistWeb.RunnerJobLive.step_epoch_ms(step.started_at)}
+            data-step-end={TuistWeb.RunnerJobLive.step_epoch_ms(step.completed_at)}
             phx-click="toggle_step"
             phx-value-number={step.number}
           >
@@ -321,6 +338,26 @@
             </div>
           </div>
         </div>
+      </.card_section>
+    </.card>
+  </div>
+
+  <div :if={@selected_tab == "metrics"} data-part="tab-panel">
+    <.runner_job_metrics_charts
+      :if={TuistWeb.RunnerJobLive.has_machine_metrics?(@machine_metrics)}
+      metrics={@machine_metrics}
+    />
+    <.card
+      :if={not TuistWeb.RunnerJobLive.has_machine_metrics?(@machine_metrics)}
+      title={dgettext("dashboard_runners", "Metrics")}
+      icon="chart_dots"
+      data-part="metrics-empty-card"
+    >
+      <.card_section data-part="metrics-empty">
+        {dgettext(
+          "dashboard_runners",
+          "Machine metrics will appear here once the job has run on a Tuist runner."
+        )}
       </.card_section>
     </.card>
   </div>

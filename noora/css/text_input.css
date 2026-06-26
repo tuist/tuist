@@ -85,7 +85,7 @@
       &[data-type="card_number"] {
         box-shadow: 0px -2px 0px 0px oklch(100% 0 0 / 0.16) inset;
         fill: var(--noora-neutral-light-600);
-        filter: drop-shadow(0px 2px 2px oklch(20.9% 0.009 264.4 / 0.04));
+        filter: drop-shadow(0px 2px 2px oklch(21.7% 0.002 247.941 / 0.04));
         width: 24px;
         height: 18px;
       }
@@ -163,11 +163,11 @@
   & input {
     --border:
       0px 1px 1px 0px
-        light-dark(oklch(20.9% 0.009 264.4 / 0.05), oklch(16.2% 0 0 / 0.3)),
+        light-dark(oklch(21.7% 0.002 247.941 / 0.05), oklch(16.2% 0 0 / 0.3)),
       0px 0px 0px 1px
-        light-dark(oklch(31.8% 0.011 248.2 / 0.08), oklch(54.9% 0 0 / 0.45)),
+        light-dark(oklch(32% 0.005 247.968 / 0.08), oklch(54.9% 0 0 / 0.45)),
       0px 1px 1px 0px
-        light-dark(oklch(31.8% 0.011 248.2 / 0.1), oklch(54.9% 0 0 / 0.45));
+        light-dark(oklch(32% 0.005 247.968 / 0.1), oklch(54.9% 0 0 / 0.45));
     display: inline-flex;
     box-sizing: border-box;
     box-shadow: var(--border);
@@ -188,13 +188,13 @@
     &:focus-visible {
       --border:
         0px 1px 1px 0px
-          light-dark(oklch(20.9% 0.009 264.4 / 0.05), oklch(16.2% 0 0 / 0.2)),
+          light-dark(oklch(21.7% 0.002 247.941 / 0.05), oklch(16.2% 0 0 / 0.2)),
         0px 0px 0px 1px
-          lihgt-dark(oklch(31.8% 0.011 248.2 / 0.08), oklch(54.9% 0 0 / 0.3)),
+          light-dark(oklch(32% 0.005 247.968 / 0.08), oklch(54.9% 0 0 / 0.3)),
         0px 1px 3px 0px
-          light-dark(oklch(31.8% 0.011 248.2 / 0.1), oklch(0% 0 0 / 0.3)),
+          light-dark(oklch(32% 0.005 247.968 / 0.1), oklch(0% 0 0 / 0.3)),
         0px 0px 0px 3px
-          light-dark(oklch(31.8% 0.011 248.2 / 0.12), oklch(54.9% 0 0 / 0.4));
+          light-dark(oklch(32% 0.005 247.968 / 0.12), oklch(54.9% 0 0 / 0.4));
 
       outline: none;
     }
@@ -208,20 +208,23 @@
     &[data-error] {
       --border:
         0px 1px 1px 0px
-          light-dark(oklch(20.9% 0.009 264.4 / 0.05), oklch(16.2% 0 0 / 0.2)),
+          light-dark(oklch(21.7% 0.002 247.941 / 0.05), oklch(16.2% 0 0 / 0.2)),
         0px 0px 0px 1px
           light-dark(oklch(58.7% 0.23 30.7), oklch(74% 0.159 30.9)),
         0px 1px 3px 0px
-          light-dark(oklch(31.8% 0.011 248.2 / 0.1), oklch(0% 0 0 / 0.3));
+          light-dark(oklch(32% 0.005 247.968 / 0.1), oklch(0% 0 0 / 0.3));
 
       &:focus-visible {
         --border:
           0px 1px 1px 0px
-            light-dark(oklch(20.9% 0.009 264.4 / 0.05), oklch(16.2% 0 0 / 0.2)),
+            light-dark(
+              oklch(21.7% 0.002 247.941 / 0.05),
+              oklch(16.2% 0 0 / 0.2)
+            ),
           0px 0px 0px 1px
             light-dark(oklch(58.7% 0.23 30.7), oklch(74% 0.159 30.9)),
           0px 1px 3px 0px
-            light-dark(oklch(31.8% 0.011 248.2 / 0.1), oklch(0% 0 0 / 0.3)),
+            light-dark(oklch(32% 0.005 247.968 / 0.1), oklch(0% 0 0 / 0.3)),
           0px 0px 0px 3px
             light-dark(
               oklch(58.7% 0.23 30.7 / 0.2),

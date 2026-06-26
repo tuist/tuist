@@ -326,6 +326,16 @@ spec:
                     mini. The Machine reconciler uses this for delete + status
                     polling against Scaleway's API.
                   type: string
+                hostConfigHash:
+                  description: |-
+                    HostConfigHash is the fleet-wide canonical hash of every host
+                    config the operator pushes — the rendered install scripts plus
+                    the embedded binaries (bootstrap.HostConfigHash). Drift between
+                    this and the operator's own computed hash re-pushes the host
+                    config on the next reconcile, so a change to ANY pushed config (a
+                    script tweak, a fleet CIDR, or a re-baked binary) rolls to
+                    existing hosts instead of only a tart-kubelet binary change.
+                  type: string
                 tartKubeletBinarySHA:
                   description: |-
                     TartKubeletBinarySHA is the SHA-256 of the tart-kubelet binary

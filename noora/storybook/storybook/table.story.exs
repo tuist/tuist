@@ -121,6 +121,30 @@ defmodule TuistWeb.Storybook.Table do
         ]
       },
       %Variation{
+        id: :sortable_columns,
+        description:
+          "Sortable columns render a sort-direction arrow (via `sort_order`) that morphs between ascending and descending when the value changes at runtime.",
+        attributes: %{
+          rows: [
+            %{id: 1, name: "Row One", duration: "5s"},
+            %{id: 2, name: "Row Two", duration: "12s"}
+          ]
+        },
+        slots: [
+          """
+          <:col :let={i} label="Name">
+            <.text_cell label={i.name} />
+          </:col>
+          <:col :let={i} label="Duration (desc)" patch="#" sort_order="desc">
+            <.text_cell label={i.duration} />
+          </:col>
+          <:col :let={i} label="Created at (asc)" patch="#" sort_order="asc">
+            <.text_cell sublabel="2 hours ago" />
+          </:col>
+          """
+        ]
+      },
+      %Variation{
         id: :expandable_rows,
         description: "Table with expandable rows showing additional details",
         attributes: %{

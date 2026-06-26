@@ -42,6 +42,33 @@ func fakeRecorder() record.EventRecorder {
 	return record.NewFakeRecorder(32)
 }
 
+// hostConfigDrift gates the host-config re-push: it fires when the
+// operator's computed hash differs from what the Machine last recorded,
+// which is what makes a script/fleet-config/binary change roll to
+// existing hosts. The migration case (empty machine hash on upgrade)
+// must drift exactly once.
+func TestHostConfigDrift(t *testing.T) {
+	cases := []struct {
+		name         string
+		operatorHash string
+		machineHash  string
+		want         bool
+	}{
+		{"matching hashes do not drift", "abc", "abc", false},
+		{"differing hashes drift", "abc", "def", true},
+		{"empty machine hash drifts once (migration)", "abc", "", true},
+		{"empty operator hash never drifts", "", "abc", false},
+		{"both empty does not drift", "", "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := hostConfigDrift(tc.operatorHash, tc.machineHash); got != tc.want {
+				t.Fatalf("hostConfigDrift(%q, %q) = %v, want %v", tc.operatorHash, tc.machineHash, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestRecordUpdateFailure_IncrementsAttempts(t *testing.T) {
 	machine := &infrav1.ScalewayAppleSiliconMachine{}
 	recordUpdateFailure(machine, errors.New("boom"), 5, logr.Discard(), fakeRecorder())
