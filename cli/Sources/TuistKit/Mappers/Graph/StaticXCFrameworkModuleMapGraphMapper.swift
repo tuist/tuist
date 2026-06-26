@@ -144,9 +144,26 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                     staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies.flatMap { xcframework -> [String] in
                         guard let moduleMap = xcframework.moduleMaps.first
                         else { return [] }
-                        return [
-                            "\"$(SRCROOT)/\(moduleMap.parentDirectory.relative(to: project.path).pathString)\"",
-                        ]
+                        // The module map's own directory lets the rewritten umbrella header resolve its
+                        // (now unprefixed) imports. ARCore-style headers additionally re-import each other
+                        // with the framework prefix (e.g. `#import <ARCoreGARSession/GARTrackingState.h>`),
+                        // which only resolves when the xcframework's `Headers` root is on the search path too.
+                        // That root is otherwise dropped for module-map-bearing xcframeworks (see
+                        // `GraphTraverser.librariesPublicHeadersFolders`) because directly-linked xcframeworks
+                        // pick it up from `ProcessXCFramework`'s `include/` copy — but static xcframeworks
+                        // reached behind a dynamic one are never processed, so we add it back here.
+                        let moduleMapSearchPath =
+                            "\"$(SRCROOT)/\(moduleMap.parentDirectory.relative(to: project.path).pathString)\""
+                        let headerRootSearchPaths = xcframework.infoPlist.libraries.compactMap { library -> String? in
+                            guard target.supportedPlatforms.contains(library.platform.graphPlatform),
+                                  let headersPath = library.headersPath
+                            else { return nil }
+                            let headersRoot = xcframework.path
+                                .appending(component: library.identifier)
+                                .appending(headersPath)
+                            return "\"$(SRCROOT)/\(headersRoot.relative(to: project.path).pathString)\""
+                        }
+                        return [moduleMapSearchPath] + headerRootSearchPaths
                     }
                 )
             }
