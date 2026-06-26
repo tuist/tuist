@@ -190,6 +190,23 @@ tuist generate
 
 This can be useful in environments with limited network bandwidth or to reduce system load during cache operations.
 
+### HTTP timeouts and connection limit {#http-timeouts-and-connection-limit}
+
+Tuist uses a shared `URLSession` to download and upload artifacts with sensible defaults. On slower or congested network paths—for example a self-hosted server reaching object storage through a corporate proxy—a download can starve and hit the resource timeout, after which Tuist falls back to building the module from source instead of waiting for the cached binary. You can tune the underlying HTTP settings through environment variables:
+
+```bash
+# Maximum time (in seconds) a single resource transfer can take before it's cancelled (default: 90)
+export TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE=600
+
+# Maximum time (in seconds) to wait for new data on an existing request (default: 120)
+export TUIST_HTTP_TIMEOUT_INTERVAL_FOR_REQUEST=300
+
+# Maximum number of simultaneous connections per host (default: 20)
+export TUIST_HTTP_MAXIMUM_CONNECTIONS_PER_HOST=40
+```
+
+Raising `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE` lets a recoverable-but-slow download finish as a cache hit instead of falling back to a more expensive build from source.
+
 ## Troubleshooting {#troubleshooting}
 
 ### It doesn't use binaries for my targets {#it-doesnt-use-binaries-for-my-targets}
