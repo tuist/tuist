@@ -61,6 +61,11 @@ components:
     StartMultipartUploadResponse:
       description: Response from starting a multipart upload
       properties:
+        already_cached:
+          description: Whether the artifact is already cached. When true, upload_id is null and no upload is needed; when false, upload_id carries the id for the parts. Lets clients tell a cache hit apart from a failure instead of inferring it from a null upload_id. Optional so clients stay compatible with older servers that don't send it.
+          type: boolean
+          x-struct:
+          x-validate:
         upload_id:
           description: The upload ID to use for subsequent part uploads. Null if artifact already exists.
           nullable: true

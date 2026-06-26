@@ -232,12 +232,12 @@ defmodule CacheWeb.XcodeModuleController do
     category = Map.get(params, :cache_category, "builds")
 
     if Disk.exists?(account_handle, project_handle, category, hash, name) do
-      json(conn, %{upload_id: nil})
+      json(conn, %{upload_id: nil, already_cached: true})
     else
       case MultipartUploads.start_upload(account_handle, project_handle, category, hash, name) do
         {:ok, upload_id} ->
           :telemetry.execute([:cache, :xcode_module, :multipart, :start], %{}, %{})
-          json(conn, %{upload_id: upload_id})
+          json(conn, %{upload_id: upload_id, already_cached: false})
 
         {:error, _reason} ->
           {:error, :persist_error}
