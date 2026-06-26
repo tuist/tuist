@@ -1,5 +1,6 @@
 #if os(macOS)
     import Command
+    import FileSystem
     import Foundation
     import Mockable
     import Path
@@ -44,9 +45,14 @@
 
     public struct XCTestEnumerator: XCTestEnumerating {
         private let commandRunner: CommandRunning
+        private let fileSystem: FileSysteming
 
-        public init(commandRunner: CommandRunning = CommandRunner()) {
+        public init(
+            commandRunner: CommandRunning = CommandRunner(),
+            fileSystem: FileSysteming = FileSystem()
+        ) {
             self.commandRunner = commandRunner
+            self.fileSystem = fileSystem
         }
 
         public func enumerateTests(
@@ -54,46 +60,45 @@
             destination: String?,
             onlyTesting: [String]
         ) async throws -> [XCTestRun.TestTarget] {
-            let outputPath = try AbsolutePath(validating: FileManager.default.temporaryDirectory.path)
-                .appending(component: "tuist-test-enumeration-\(UUID().uuidString).json")
+            try await fileSystem.runInTemporaryDirectory(prefix: "tuist-test-enumeration") { temporaryDirectory in
+                let outputPath = temporaryDirectory.appending(component: "enumeration.json")
 
-            var arguments = [
-                "xcodebuild",
-                "test-without-building",
-                "-enumerate-tests",
-                "-test-enumeration-format", "json",
-                "-test-enumeration-style", "hierarchical",
-                "-test-enumeration-output-path", outputPath.pathString,
-                "-testProductsPath", testProductsPath.pathString,
-            ]
-            if let destination {
-                arguments.append(contentsOf: ["-destination", destination])
+                var arguments = [
+                    "xcodebuild",
+                    "test-without-building",
+                    "-enumerate-tests",
+                    "-test-enumeration-format", "json",
+                    "-test-enumeration-style", "hierarchical",
+                    "-test-enumeration-output-path", outputPath.pathString,
+                    "-testProductsPath", testProductsPath.pathString,
+                ]
+                if let destination {
+                    arguments.append(contentsOf: ["-destination", destination])
+                }
+                for identifier in onlyTesting {
+                    arguments.append(contentsOf: ["-only-testing", identifier])
+                }
+
+                do {
+                    _ = try await commandRunner.run(arguments: arguments).concatenatedString()
+                } catch {
+                    throw XCTestEnumeratorError
+                        .enumerationFailed("\(testProductsPath.pathString): \(error.localizedDescription)")
+                }
+
+                let data: Data
+                do {
+                    data = try await fileSystem.readFile(at: outputPath)
+                } catch {
+                    // A missing output file means the enumeration did not complete. Surface it rather than
+                    // returning an empty (and therefore silently incomplete) set of targets.
+                    throw XCTestEnumeratorError.enumerationFailed(
+                        "\(testProductsPath.pathString): enumeration produced no output file (\(error.localizedDescription))"
+                    )
+                }
+
+                return try parseEnumerationOutput(data, context: testProductsPath.pathString)
             }
-            for identifier in onlyTesting {
-                arguments.append(contentsOf: ["-only-testing", identifier])
-            }
-
-            do {
-                _ = try await commandRunner.run(arguments: arguments).concatenatedString()
-            } catch {
-                throw XCTestEnumeratorError
-                    .enumerationFailed("\(testProductsPath.pathString): \(error.localizedDescription)")
-            }
-
-            defer { try? FileManager.default.removeItem(atPath: outputPath.pathString) }
-
-            let data: Data
-            do {
-                data = try Data(contentsOf: URL(fileURLWithPath: outputPath.pathString))
-            } catch {
-                // A missing output file means the enumeration did not complete. Surface it rather than
-                // returning an empty (and therefore silently incomplete) set of targets.
-                throw XCTestEnumeratorError.enumerationFailed(
-                    "\(testProductsPath.pathString): enumeration produced no output file (\(error.localizedDescription))"
-                )
-            }
-
-            return try parseEnumerationOutput(data, context: testProductsPath.pathString)
         }
 
         // MARK: - JSON model
