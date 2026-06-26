@@ -170,13 +170,12 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
             )
         }
 
-        let metricsSource = MachineMetricsReader.metricsFilePath
-        if try await fileSystem.exists(metricsSource) {
-            try await fileSystem.copy(
-                metricsSource,
-                to: buildDirectory.appending(component: "machine_metrics.jsonl")
-            )
-        }
+        // Snapshot the metrics file under the sampler's shared lock so the copy is consistent
+        // with the always-on daemon that keeps appending to it; an unlocked copy can capture a
+        // mid-write file that the server later rejects with a bad CRC.
+        try await MachineMetricsReader(fileSystem: fileSystem).snapshotMetricsFile(
+            to: buildDirectory.appending(component: "machine_metrics.jsonl")
+        )
 
         let zipPath = tempDirectory.appending(component: "build.zip")
         try await fileSystem.zipFileOrDirectoryContent(at: buildDirectory, to: zipPath)
