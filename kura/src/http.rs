@@ -1476,7 +1476,36 @@ async fn get_module(
     .await
 }
 
+/// First CLI version that understands a 204 on module upload start as "already
+/// cached, skip the upload". Older clients only know the legacy 200 + null
+/// `upload_id`, so they keep getting that. The `x-tuist-cli-version` header is
+/// sent only by clients that carry this change; the floor is a conservative
+/// lower bound (latest released CLI is 4.200.5).
+const MIN_CLI_VERSION_FOR_NO_CONTENT: (u64, u64, u64) = (4, 200, 6);
+
+fn cli_supports_no_content(headers: &HeaderMap) -> bool {
+    headers
+        .get("x-tuist-cli-version")
+        .and_then(|value| value.to_str().ok())
+        .and_then(parse_semver)
+        .is_some_and(|version| version >= MIN_CLI_VERSION_FOR_NO_CONTENT)
+}
+
+fn parse_semver(value: &str) -> Option<(u64, u64, u64)> {
+    // Parse a leading `major.minor.patch`, ignoring any pre-release/build suffix.
+    let core = value.split(|c| c == '-' || c == '+').next().unwrap_or(value);
+    let mut parts = core.split('.');
+    let major = parts.next()?.parse().ok()?;
+    let minor = parts.next()?.parse().ok()?;
+    let patch = parts.next()?.parse().ok()?;
+    if parts.next().is_some() {
+        return None;
+    }
+    Some((major, minor, patch))
+}
+
 async fn start_module_upload(
+    headers: HeaderMap,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
 ) -> Response {
@@ -1498,11 +1527,17 @@ async fn start_module_upload(
         // skip the upload" — not a failure. A distinct status (rather than a 200
         // with a null `upload_id`) lets clients and operators tell a cache hit
         // apart from a genuine failure that returns an empty body, so a write
-        // that never lands can't masquerade as success. The metric records the
-        // same distinction for observability.
+        // that never lands can't masquerade as success. It is gated on the CLI
+        // version: clients that predate the 204 signal keep getting the legacy
+        // 200 + null `upload_id` so the change stays backward compatible. The
+        // metric records the cache hit either way.
         Ok(true) => {
             state.metrics.record_multipart_start("already_exists");
-            StatusCode::NO_CONTENT.into_response()
+            if cli_supports_no_content(&headers) {
+                StatusCode::NO_CONTENT.into_response()
+            } else {
+                Json(serde_json::json!({ "upload_id": serde_json::Value::Null })).into_response()
+            }
         }
         Ok(false) => match state.store.start_multipart_upload(
             &query.namespace.tenant_id,
@@ -3727,19 +3762,39 @@ mod tests {
         assert_eq!(response_text(get).await, "part-one-part-two");
 
         // Starting an upload for an already-cached artifact returns 204 No Content
-        // (not a 200 with a null upload id), so a cache hit can't be confused with
-        // a failure that returns an empty body.
+        // to a CLI new enough to understand it (advertised via x-tuist-cli-version),
+        // so a cache hit can't be confused with a failure that returns an empty body.
         let restart = app
+            .clone()
             .oneshot(
                 Request::builder()
                     .method("POST")
                     .uri("/api/cache/module/start?tenant_id=acme&namespace_id=ios&hash=hash-1&name=Module.framework&cache_category=builds")
+                    .header("x-tuist-cli-version", "4.200.6")
                     .body(Body::empty())
                     .expect("failed to build restart request"),
             )
             .await
             .expect("restart request failed");
         assert_eq!(restart.status(), StatusCode::NO_CONTENT);
+
+        // A CLI that predates the 204 signal (no x-tuist-cli-version header) still
+        // gets the legacy 200 with a null upload id, keeping the change backward
+        // compatible.
+        let legacy_restart = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/cache/module/start?tenant_id=acme&namespace_id=ios&hash=hash-1&name=Module.framework&cache_category=builds")
+                    .body(Body::empty())
+                    .expect("failed to build legacy restart request"),
+            )
+            .await
+            .expect("legacy restart request failed");
+        assert_eq!(legacy_restart.status(), StatusCode::OK);
+        let legacy_payload: Value = serde_json::from_str(&response_text(legacy_restart).await)
+            .expect("failed to decode legacy restart payload");
+        assert_eq!(legacy_payload["upload_id"], Value::Null);
     }
 
     #[tokio::test]
