@@ -54,13 +54,16 @@ func TestRenderLinuxCloudInit_DockerHubMirror(t *testing.T) {
 		t.Fatalf("expected the mirror.gcr.io host entry, got:\n%s", out)
 	}
 
-	// Bare-metal boxes with a small root + big /data must relocate containerd's
-	// image store and the kubelet root onto /data (guarded so it no-ops without
-	// a separate /data and never aborts the join).
+	// Bare-metal boxes with a small root + big /data relocate containerd's image
+	// store onto /data (guarded so it no-ops without a separate /data and never
+	// aborts the join). The cloud-init form does NOT bind-mount the kubelet root —
+	// that is SSH-form only (it must precede the config write; asserted below).
 	if !strings.Contains(out, `root = \"/data/containerd\"`) ||
-		!strings.Contains(out, "mount --bind /data/kubelet /var/lib/kubelet") ||
 		!strings.Contains(out, `findmnt -no SOURCE /data`) {
-		t.Fatalf("expected the /data relocation guard, got:\n%s", out)
+		t.Fatalf("expected the /data containerd relocation guard, got:\n%s", out)
+	}
+	if strings.Contains(out, "mount --bind /data/kubelet /var/lib/kubelet") {
+		t.Fatalf("cloud-init form must not bind-mount the kubelet root (Instances are single-disk), got:\n%s", out)
 	}
 
 	// The Elastic Metal (SSH script) form must carry the same mirror config.
@@ -73,6 +76,15 @@ func TestRenderLinuxCloudInit_DockerHubMirror(t *testing.T) {
 	if !strings.Contains(script, `config_path = "/etc/containerd/certs.d"`) ||
 		!strings.Contains(script, `[host."https://mirror.gcr.io"]`) {
 		t.Fatalf("expected the bootstrap script to configure the docker.io mirror, got:\n%s", script)
+	}
+	// The SSH form binds the kubelet root onto /data BEFORE writing the kubelet
+	// config, so a separate-/data box doesn't shadow config.yaml + kubeconfig once
+	// the mount lands (the bug that left the kubelet crash-looping on a missing
+	// config). Ordering, not just presence, is what matters here.
+	mountIdx := strings.Index(script, "mount --bind /data/kubelet /var/lib/kubelet")
+	cfgIdx := strings.Index(script, "tee /var/lib/kubelet/config.yaml")
+	if mountIdx < 0 || cfgIdx < 0 || mountIdx > cfgIdx {
+		t.Fatalf("expected the /data/kubelet bind-mount before the config.yaml write (mount=%d cfg=%d), got:\n%s", mountIdx, cfgIdx, script)
 	}
 }
 

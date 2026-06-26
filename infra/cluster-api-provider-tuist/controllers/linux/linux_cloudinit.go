@@ -185,12 +185,13 @@ export DEBIAN_FRONTEND=noninteractive
 %[6]s
 %[2]ssed -ri 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
 # Bare-metal boxes (e.g. Scaleway Dedibox) ship a small root partition plus a
-# large separate /data. Point containerd's image store and the kubelet root at
-# /data so the node's ephemeral storage reflects the big disk, not the ~20G
-# root. Wrapped so it can never abort the join: a no-op where /data is not its
-# own mounted filesystem (single-partition Elastic Metal), and the trailing
-# 'true' keeps set -e happy regardless.
-%[2]ssh -c 'mountpoint -q /data && [ "$(findmnt -no SOURCE /data)" != "$(findmnt -no SOURCE /)" ] && { mkdir -p /data/containerd /data/kubelet /var/lib/kubelet; sed -ri "s#^root = .*#root = \"/data/containerd\"#" /etc/containerd/config.toml; mountpoint -q /var/lib/kubelet || { grep -q " /var/lib/kubelet " /etc/fstab || echo "/data/kubelet /var/lib/kubelet none bind,nofail 0 0" >> /etc/fstab; mount --bind /data/kubelet /var/lib/kubelet; }; }; true'
+# large separate /data. Point containerd's image store at /data so image pulls
+# land on the big disk, not the ~20G root. (The kubelet root is bind-mounted to
+# /data earlier, before its config is written, so the mount can't shadow it.)
+# Wrapped so it can never abort the join: a no-op where /data is not its own
+# mounted filesystem (single-partition Elastic Metal), and the trailing 'true'
+# keeps set -e happy regardless.
+%[2]ssh -c 'mountpoint -q /data && [ "$(findmnt -no SOURCE /data)" != "$(findmnt -no SOURCE /)" ] && { mkdir -p /data/containerd; sed -ri "s#^root = .*#root = \"/data/containerd\"#" /etc/containerd/config.toml; }; true'
 %[2]ssystemctl restart containerd
 %[2]ssystemctl enable containerd
 %[2]smkdir -p /etc/apt/keyrings
@@ -348,6 +349,10 @@ func renderLinuxBootstrapScript(opts linuxCloudInitOptions) string {
 	return fmt.Sprintf(`#!/usr/bin/env bash
 set -euxo pipefail
 %[8]s%[1]smkdir -p /var/lib/kubelet /etc/modules-load.d /etc/sysctl.d /etc/systemd/system /opt
+# Bring up the kubelet root's /data bind-mount BEFORE writing its config below, so
+# a box with a separate /data disk doesn't shadow config.yaml + kubeconfig once
+# the mount lands (which left the kubelet crash-looping on a missing config).
+%[9]s
 %[2]s
 %[1]schmod 0600 /var/lib/kubelet/kubeconfig
 %[3]s
@@ -364,7 +369,19 @@ set -euxo pipefail
 		heredoc("/var/lib/kubelet/config.yaml", kubeletConfigContent(opts.ClusterDNS)),
 		body,
 		nopasswdSetup(opts.BootstrapUser, opts.SudoPassword),
+		dataKubeletMount(sudo),
 	)
+}
+
+// dataKubeletMount brings up the /data bind-mount for the kubelet root. The
+// SSH-script form runs it BEFORE writing the kubelet config so that on a box with
+// a separate /data disk (Scaleway Dedibox: small root + large /data) the mount
+// doesn't shadow the freshly-written config.yaml + kubeconfig — the bug that left
+// the kubelet crash-looping on a missing config file. A no-op (the trailing `true`
+// keeps set -e happy) where /data is not its own filesystem (single-partition
+// Elastic Metal). containerd's /data root is still set later, in bootstrapBody.
+func dataKubeletMount(sudo string) string {
+	return sudo + `sh -c 'mountpoint -q /data && [ "$(findmnt -no SOURCE /data)" != "$(findmnt -no SOURCE /)" ] && { mkdir -p /data/kubelet /var/lib/kubelet; mountpoint -q /var/lib/kubelet || { grep -q " /var/lib/kubelet " /etc/fstab || echo "/data/kubelet /var/lib/kubelet none bind,nofail 0 0" >> /etc/fstab; mount --bind /data/kubelet /var/lib/kubelet; }; }; true'`
 }
 
 // nopasswdSetup renders the one-time passwordless-sudo bootstrap: it uses the
