@@ -306,21 +306,112 @@ jobs:
       - name: Audit dependencies
         run: env -u RUSTUP_TOOLCHAIN cargo audit
 
+  # Assemble with Dockerfile.release, not the e2e Dockerfile: its ubuntu:24.04 base matches the
+  # tuist-linux glibc this binary is built against, and its missing bundled extension hook is fine
+  # because the e2e extension shard mounts its own. Split non-fork / fork like bazel-compile: the
+  # remote cache needs an OIDC token forks can't get.
   e2e-images:
     name: E2E Images
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux
     timeout-minutes: 60
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      id-token: write
+    if: |
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
     env:
-      COMPOSE_PROJECT_NAME: kura
+      DOCKER_BUILDKIT: "1"
     steps:
       - uses: actions/checkout@v4
 
-      - name: Show Docker tooling
-        run: docker compose version
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "rust bazel tuist"
+          working_directory: kura
 
-      - name: Prebuild Docker images
-        run: docker compose build
+      - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
+      - name: Set up the Tuist remote cache
+        run: |
+          tuist auth login
+          tuist bazel setup
+        continue-on-error: true
+      - name: Warn when the Tuist remote cache is unavailable
+        if: ${{ hashFiles('kura/.bazelrc.tuist') == '' }}
+        run: echo "::warning::Tuist remote cache unavailable (.bazelrc.tuist not written); building cold against the local cache."
+
+      - name: Build the Kura binary with Bazel
+        run: |
+          bazel build //:kura --remote_download_outputs=toplevel
+          mkdir -p bin/amd64
+          cp bazel-bin/kura bin/amd64/kura
+          chmod +x bin/amd64/kura
+
+      - name: Assemble the runtime images
+        run: |
+          docker build -f Dockerfile.release --build-arg TARGETARCH=amd64 -t kura-kura-us .
+          docker tag kura-kura-us kura-kura-eu
+          docker tag kura-kura-us kura-kura-ap
+
+      - name: Archive Docker images
+        run: docker save kura-kura-us kura-kura-eu kura-kura-ap | zstd -T0 -o kura-e2e-images.tar.zst
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kura-e2e-images
+          path: kura/kura-e2e-images.tar.zst
+          if-no-files-found: error
+          retention-days: 1
+
+  e2e-images-fork:
+    name: E2E Images Fork
+    runs-on: tuist-linux
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false && github.event.pull_request.head.repo.fork == true
+    env:
+      DOCKER_BUILDKIT: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "rust bazel"
+          working_directory: kura
+
+      - name: Cache Bazel repository downloads and build outputs
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ runner.temp }}/bazel-repo
+            ${{ runner.temp }}/bazel-disk
+          key: e2e-images-fork-${{ hashFiles('kura/MODULE.bazel.lock') }}-${{ github.sha }}
+          restore-keys: |
+            e2e-images-fork-${{ hashFiles('kura/MODULE.bazel.lock') }}-
+            e2e-images-fork-
+
+      - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
+      - name: Build the Kura binary with Bazel
+        run: |
+          {
+            echo "common --repository_cache=${{ runner.temp }}/bazel-repo"
+            echo "build --disk_cache=${{ runner.temp }}/bazel-disk"
+          } >> "$HOME/.bazelrc"
+          bazel build //:kura --remote_download_outputs=toplevel
+          mkdir -p bin/amd64
+          cp bazel-bin/kura bin/amd64/kura
+          chmod +x bin/amd64/kura
+
+      - name: Assemble the runtime images
+        run: |
+          docker build -f Dockerfile.release --build-arg TARGETARCH=amd64 -t kura-kura-us .
+          docker tag kura-kura-us kura-kura-eu
+          docker tag kura-kura-us kura-kura-ap
 
       - name: Archive Docker images
         run: docker save kura-kura-us kura-kura-eu kura-kura-ap | zstd -T0 -o kura-e2e-images.tar.zst
@@ -336,8 +427,13 @@ jobs:
     name: E2E (${{ matrix.shard_name }})
     runs-on: ubuntu-latest
     timeout-minutes: 90
-    needs: e2e-images
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    # One producer runs per event (non-fork vs fork); gate on whichever succeeded so the skipped
+    # one doesn't skip the suite.
+    needs: [e2e-images, e2e-images-fork]
+    if: |
+      !cancelled() &&
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
+      (needs.e2e-images.result == 'success' || needs.e2e-images-fork.result == 'success')
     strategy:
       fail-fast: false
       matrix:
