@@ -304,7 +304,7 @@ pod install
 
 There are two distinct scenarios when working with [Swift Macros](https://docs.swift.org/swift-book/documentation/the-swift-programming-language/macros/) in a Tuist project, and it's worth being explicit about which one you're in:
 
-- **Consuming a macro defined in an external Swift Package.** Use Xcode's default integration and declare the dependency with `.package(product:type: .macro)`, as described in [Xcode's default integration](#xcodes-default-integration).
+- **Consuming a macro defined in an external Swift Package.** Both integration mechanisms support macros. With [Tuist's XcodeProj-based integration](#tuists-xcodeprojbased-integration), you declare the package in `Tuist/Package.swift` and depend on it with `.external(name:)` — Tuist maps the macro product into a native target. With [Xcode's default integration](#xcodes-default-integration), you declare the dependency with `.package(product:type: .macro)`. Unlike build tool plugins, macros are not restricted to Xcode's default integration.
 - **Defining your own macro** as part of your project — for example in a shared library within your monorepo. You don't need a `Package.swift` for this: Tuist has a first-class `.macro` product type, so you can declare the macro target directly in your manifests.
 
 ### Defining your own macro {#defining-your-own-macro}
