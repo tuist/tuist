@@ -121,7 +121,7 @@ Active profiles are the single source of truth in
 
 ```json
 // infra/runner-image/profiles.json
-["26.5", "26.4.1", "26.3"]   // first entry = newest / default profile
+["26.5", "26.4.1", "26.3", "26.0.1"]   // first entry = newest / default profile
 ```
 
 `check-releases` reads this into the `runner-image-matrix` output and
