@@ -67,7 +67,31 @@ type VM struct {
 	State  string `json:"State"`
 	CPU    int    `json:"CPU"`
 	Memory int    `json:"Memory"`
-	Size   int64  `json:"Size"`
+	Size   vmSize `json:"Size"`
+}
+
+// vmSize tolerates Tart's inconsistent Size encoding across subcommands:
+// `tart list --format json` emits an integer (72), while `tart get
+// --format json` emits a quoted decimal string ("72.660"). A plain int64
+// field unmarshals the former but errors on the latter — and because Get()
+// surfaces that error, ensureGolden's warm-path probe (`tart get <golden>`)
+// failed on EVERY call, fell through to the cold path, and re-pulled the
+// golden each recycle instead of cloning from it. The GC/label path was
+// unaffected because it reads `tart list`. Size isn't load-bearing; this
+// type just keeps VM unmarshal from failing on either form.
+type vmSize int64
+
+func (s *vmSize) UnmarshalJSON(b []byte) error {
+	str := strings.Trim(string(b), `"`)
+	if str == "" || str == "null" {
+		return nil
+	}
+	f, err := strconv.ParseFloat(str, 64)
+	if err != nil {
+		return nil
+	}
+	*s = vmSize(f)
+	return nil
 }
 
 // Per-operation timeouts bound how long a single `tart` invocation may
