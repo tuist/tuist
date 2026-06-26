@@ -35,6 +35,7 @@
         case noTestModulesFound
         case cannotDeriveSessionId
         case xcTestRunNotFound(AbsolutePath)
+        case modulesFailedToEnumerate([String])
 
         public var errorDescription: String? {
             switch self {
@@ -45,6 +46,9 @@
                     "Cannot derive a shard plan reference. Pass --shard-reference explicitly or run in a supported CI environment (GitHub Actions, GitLab CI, CircleCI, Buildkite, Codemagic)."
             case let .xcTestRunNotFound(path):
                 return "No .xctestrun file found in \(path.pathString)"
+            case let .modulesFailedToEnumerate(modules):
+                return
+                    "Could not enumerate tests for \(modules.count) module(s) after retries: \(modules.joined(separator: ", ")). Ensure these test targets build and run, or remove them from the test plan."
             }
         }
     }
@@ -196,9 +200,8 @@
         /// 3. Reconcile against `expectedModules`:
         ///    - modules with suites are sharded at suite granularity;
         ///    - modules that enumerated but reported *no* tests are genuinely empty and excluded;
-        ///    - modules that never enumerated at all are emitted as whole-module units (see
-        ///      `ShardConstants.wholeModuleSuiteSentinel`) so they still run whole, rather than being
-        ///      silently dropped from the plan.
+        ///    - a module that never enumerated at all (even after recovery) is a genuine failure and throws,
+        ///      rather than being silently dropped from the plan.
         private func enumerateTestSuites(
             testProductsPath: AbsolutePath,
             destination: String?,
@@ -238,27 +241,27 @@
                 }
             }
 
-            // 3. Reconcile against the deterministic `.xctestrun` universe.
+            // 3. Reconcile against the deterministic `.xctestrun` universe. A module that still can't be
+            // enumerated after per-target recovery is a genuine failure (e.g. a target that won't load), so
+            // fail loudly rather than silently dropping its tests from the plan.
             let unenumerableModules = expectedModules.subtracting(enumeratedModules).sorted()
+            guard unenumerableModules.isEmpty else {
+                throw ShardPlanServiceError.modulesFailedToEnumerate(unenumerableModules)
+            }
+
             let emptyModules = expectedModules
                 .intersection(enumeratedModules)
                 .subtracting(suitesByModule.keys)
                 .sorted()
-
             if !emptyModules.isEmpty {
                 Logger.current.debug(
                     "\(emptyModules.count) module(s) enumerated no tests and are excluded as empty: \(emptyModules.joined(separator: ", "))."
                 )
             }
-            if !unenumerableModules.isEmpty {
-                Logger.current.warning(
-                    "\(unenumerableModules.count) module(s) could not be enumerated after recovery and will run whole (module-level) to avoid dropping tests: \(unenumerableModules.joined(separator: ", "))."
-                )
-            }
 
-            var units = suitesByModule.flatMap { module, suites in suites.map { "\(module)/\($0)" } }
-            units += unenumerableModules.map { "\($0)/\(ShardConstants.wholeModuleSuiteSentinel)" }
-            return units.sorted()
+            return suitesByModule
+                .flatMap { module, suites in suites.map { "\(module)/\($0)" } }
+                .sorted()
         }
 
         /// Runs a single enumeration pass. A failed *isolated recovery* pass (`onlyTesting` non-empty) is

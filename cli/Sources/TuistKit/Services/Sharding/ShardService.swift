@@ -96,7 +96,7 @@ public struct ShardService: ShardServicing {
         } else {
             let names = suites
                 .flatMap { module, suiteNames in
-                    suiteNames.map { $0 == ShardConstants.wholeModuleSuiteSentinel ? module : "\(module)/\($0)" }
+                    suiteNames.map { "\(module)/\($0)" }
                 }
                 .sorted()
             Logger.current.notice("Shard \(shardIndex): \(names.joined(separator: ", "))", metadata: .section)
@@ -135,11 +135,7 @@ public struct ShardService: ShardServicing {
         } else {
             testIdentifiers = suites
                 .flatMap { module, suiteNames in
-                    suiteNames.map { suiteName in
-                        // A whole-module sentinel (emitted when suite enumeration couldn't discover a
-                        // module's suites) selects the entire target via a bare `-only-testing <Module>`.
-                        suiteName == ShardConstants.wholeModuleSuiteSentinel ? module : "\(module)/\(suiteName)"
-                    }
+                    suiteNames.map { "\(module)/\($0)" }
                 }
                 .sorted()
         }

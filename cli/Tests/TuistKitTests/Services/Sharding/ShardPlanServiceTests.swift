@@ -395,19 +395,12 @@ struct ShardPlanServiceTests {
         verify(xcTestEnumerator).enumerateTests(testProductsPath: .any, destination: .any, onlyTesting: .any).called(1)
     }
 
-    /// A module that never enumerates — even after per-target recovery — must not be silently dropped: it is
-    /// emitted as a whole-module unit (`Module/<sentinel>`) so the runner runs the entire target.
+    /// A module that never enumerates — even after per-target recovery — must not be silently dropped: it is a
+    /// genuine failure (e.g. a target that won't load) and fails plan creation loudly.
     @Test(.inTemporaryDirectory, .withMockedDependencies())
-    func plan_suiteGranularity_emitsWholeModuleUnit_forModulesThatNeverEnumerate() async throws {
+    func plan_suiteGranularity_throwsForModulesThatNeverEnumerate() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let fileSystem = FileSystem()
-        try await assertWholeModuleBackstop(fileSystem: fileSystem, temporaryDirectory: temporaryDirectory)
-    }
-
-    private func assertWholeModuleBackstop(
-        fileSystem: FileSystem,
-        temporaryDirectory: AbsolutePath
-    ) async throws {
         let testProductsPath = temporaryDirectory.appending(component: "Backstop.xctestproducts")
         try await writeXCTestProducts(modules: ["AppTests", "GoneTests"], at: testProductsPath, fileSystem: fileSystem)
 
@@ -417,8 +410,7 @@ struct ShardPlanServiceTests {
             .enumerateTests(testProductsPath: .any, destination: .any, onlyTesting: .any)
             .willReturn([XCTestRun.TestTarget(blueprintName: "AppTests", onlyTestIdentifiers: ["LoginTests"])])
 
-        var capturedTestSuites: [String]?
-        let createShardPlanService = mockCreateShardPlanService(capturingTestSuites: { capturedTestSuites = $0 })
+        let createShardPlanService = mockCreateShardPlanService(capturingTestSuites: { _ in })
         let shardMatrixOutputService = MockShardMatrixOutputServicing()
         given(shardMatrixOutputService).output(.any).willReturn()
 
@@ -429,30 +421,26 @@ struct ShardPlanServiceTests {
             shardMatrixOutputService: shardMatrixOutputService
         )
 
-        _ = try await subject.plan(
-            xctestproductsPath: testProductsPath,
-            destination: "platform=macOS",
-            reference: "ref",
-            shardGranularity: .suite,
-            shardMin: nil,
-            shardMax: nil,
-            shardTotal: 1,
-            shardMaxDuration: nil,
-            fullHandle: "tuist/tuist",
-            serverURL: try #require(URL(string: "https://tuist.dev")),
-            buildRunId: nil,
-            skipUpload: true,
-            archivePath: nil
-        )
+        let serverURL = try #require(URL(string: "https://tuist.dev"))
+        await #expect(throws: ShardPlanServiceError.modulesFailedToEnumerate(["GoneTests"])) {
+            _ = try await subject.plan(
+                xctestproductsPath: testProductsPath,
+                destination: "platform=macOS",
+                reference: "ref",
+                shardGranularity: .suite,
+                shardMin: nil,
+                shardMax: nil,
+                shardTotal: 1,
+                shardMaxDuration: nil,
+                fullHandle: "tuist/tuist",
+                serverURL: serverURL,
+                buildRunId: nil,
+                skipUpload: true,
+                archivePath: nil
+            )
+        }
 
-        // GoneTests is not dropped — it becomes a whole-module unit that runs the entire target.
-        #expect(
-            capturedTestSuites?.sorted() == [
-                "AppTests/LoginTests",
-                "GoneTests/\(ShardConstants.wholeModuleSuiteSentinel)",
-            ]
-        )
-        // Bulk pass plus the bounded per-target recovery attempts for the unrecoverable module.
+        // Bulk pass plus the bounded per-target recovery attempts before failing.
         verify(xcTestEnumerator)
             .enumerateTests(testProductsPath: .any, destination: .any, onlyTesting: .any).called(3)
     }
