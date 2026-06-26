@@ -195,7 +195,7 @@ export DEBIAN_FRONTEND=noninteractive
 %[2]ssystemctl restart containerd
 %[2]ssystemctl enable containerd
 %[2]smkdir -p /etc/apt/keyrings
-curl -fsSL https://pkgs.k8s.io/core:/stable:/%[1]s/deb/Release.key | %[2]sgpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+curl -fsSL https://pkgs.k8s.io/core:/stable:/%[1]s/deb/Release.key | %[2]sgpg --batch --yes --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 %[5]s
 %[3]sapt-get update
 %[3]sapt-get install -y kubelet
