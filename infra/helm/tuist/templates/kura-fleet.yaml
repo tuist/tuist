@@ -59,7 +59,10 @@ metadata:
     cluster.x-k8s.io/cluster-name: {{ $clusterName }}
 spec:
   clusterName: {{ $clusterName }}
-  replicas: {{ .Values.kuraFleet.replicas | default 1 }}
+  # `dig` (not `| default 1`) so an explicit replicas: 0 renders 0 — Helm's default
+  # treats 0 as empty and would force 1. 0 lets a fresh fleet deploy at MD 0/0
+  # (never wedging helm --wait on an unjoined box); prep the box, then scale to 1.
+  replicas: {{ dig "replicas" 1 .Values.kuraFleet }}
   strategy:
     type: OnDelete
   selector:
