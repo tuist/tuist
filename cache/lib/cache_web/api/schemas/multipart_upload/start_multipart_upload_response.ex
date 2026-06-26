@@ -11,13 +11,7 @@ defmodule CacheWeb.API.Schemas.StartMultipartUploadResponse do
     properties: %{
       upload_id: %Schema{
         type: :string,
-        nullable: true,
-        description: "The upload ID to use for subsequent part uploads. Null if artifact already exists."
-      },
-      already_cached: %Schema{
-        type: :boolean,
-        description:
-          "Whether the artifact is already cached. When true, upload_id is null and no upload is needed; when false, upload_id carries the id for the parts. Lets clients tell a cache hit apart from a failure instead of inferring it from a null upload_id. Optional so clients stay compatible with older servers that don't send it."
+        description: "The upload ID to use for subsequent part uploads."
       }
     },
     required: [:upload_id]

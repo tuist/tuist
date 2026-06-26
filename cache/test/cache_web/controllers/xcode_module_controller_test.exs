@@ -291,10 +291,9 @@ defmodule CacheWeb.XcodeModuleControllerTest do
       response = json_response(conn, 200)
       assert is_binary(response["upload_id"])
       assert String.length(response["upload_id"]) == 36
-      assert response["already_cached"] == false
     end
 
-    test "returns null upload_id when artifact already exists", %{conn: conn} do
+    test "returns 204 when artifact already exists", %{conn: conn} do
       account_handle = "test-account"
       project_handle = "test-project"
       hash = "abc123"
@@ -315,10 +314,8 @@ defmodule CacheWeb.XcodeModuleControllerTest do
           "/api/cache/module/start?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}"
         )
 
-      assert conn.status == 200
-      response = json_response(conn, 200)
-      assert response["upload_id"] == nil
-      assert response["already_cached"] == true
+      assert conn.status == 204
+      assert response(conn, 204) == ""
     end
 
     test "uses cache_category parameter when provided", %{conn: conn} do

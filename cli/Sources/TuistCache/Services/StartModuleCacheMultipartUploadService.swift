@@ -74,6 +74,9 @@ public struct StartModuleCacheMultipartUploadService: StartModuleCacheMultipartU
             case let .json(body):
                 return body.upload_id
             }
+        case .noContent:
+            // 204 is the server's "already cached, nothing to upload" signal.
+            return nil
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):

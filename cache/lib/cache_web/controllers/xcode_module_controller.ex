@@ -219,6 +219,7 @@ defmodule CacheWeb.XcodeModuleController do
     ],
     responses: %{
       ok: {"Upload started", "application/json", StartMultipartUploadResponse},
+      no_content: {"Artifact already cached, no upload needed", nil, nil},
       unauthorized: {"Unauthorized", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error},
       unprocessable_entity: {"Invalid request parameters", "application/json", Error}
@@ -232,12 +233,12 @@ defmodule CacheWeb.XcodeModuleController do
     category = Map.get(params, :cache_category, "builds")
 
     if Disk.exists?(account_handle, project_handle, category, hash, name) do
-      json(conn, %{upload_id: nil, already_cached: true})
+      send_resp(conn, :no_content, "")
     else
       case MultipartUploads.start_upload(account_handle, project_handle, category, hash, name) do
         {:ok, upload_id} ->
           :telemetry.execute([:cache, :xcode_module, :multipart, :start], %{}, %{})
-          json(conn, %{upload_id: upload_id, already_cached: false})
+          json(conn, %{upload_id: upload_id})
 
         {:error, _reason} ->
           {:error, :persist_error}
