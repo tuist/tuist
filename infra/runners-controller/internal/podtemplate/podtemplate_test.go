@@ -58,6 +58,53 @@ func TestBuild_MacOSScheduling(t *testing.T) {
 	}
 }
 
+func TestBuild_MacOSGoldenAffinity(t *testing.T) {
+	p := basePool("")
+	pod := build(t, p)
+
+	aff := pod.Spec.Affinity
+	if aff == nil || aff.NodeAffinity == nil {
+		t.Fatal("macOS pod is missing golden node affinity")
+	}
+	terms := aff.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution
+	if len(terms) != 1 {
+		t.Fatalf("preferred terms = %d, want 1", len(terms))
+	}
+	exprs := terms[0].Preference.MatchExpressions
+	if len(exprs) != 1 {
+		t.Fatalf("match expressions = %d, want 1", len(exprs))
+	}
+	if got, want := exprs[0].Key, goldenNodeAffinityKey(p.Spec.Image); got != want {
+		t.Fatalf("affinity key = %q, want %q", got, want)
+	}
+	if exprs[0].Operator != corev1.NodeSelectorOpExists {
+		t.Fatalf("affinity operator = %q, want Exists", exprs[0].Operator)
+	}
+	// Soft, not required: a Pod must still schedule onto a cold host when
+	// no warm one is free.
+	if aff.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
+		t.Fatal("golden affinity must be preferred, never required")
+	}
+}
+
+func TestBuild_LinuxHasNoGoldenAffinity(t *testing.T) {
+	pod := build(t, basePool("linux"))
+	if pod.Spec.Affinity != nil {
+		t.Fatalf("linux pod got affinity %+v, want nil (no golden-base concept)", pod.Spec.Affinity)
+	}
+}
+
+// Pins the golden Node-label key to the exact value tart-kubelet derives for
+// the same image (asserted on the other side in podagent's TestGoldenNodeLabel).
+// The two live in separate Go modules; this shared literal is the contract.
+func TestGoldenNodeAffinityKey_MatchesTartKubelet(t *testing.T) {
+	img := "ghcr.io/tuist/tuist-runner@sha256:" + strings.Repeat("a", 64)
+	const wantKey = "tuist.dev/golden-9c8af651fdf30b10"
+	if got := goldenNodeAffinityKey(img); got != wantKey {
+		t.Fatalf("goldenNodeAffinityKey = %q, want %q", got, wantKey)
+	}
+}
+
 func TestBuild_LinuxScheduling(t *testing.T) {
 	pod := build(t, basePool("linux"))
 	// Linux pools must use the in-cluster URL — the public path
