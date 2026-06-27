@@ -15,8 +15,8 @@ test --test_output=errors
 # Apply the os-specific config blocks below based on the host OS.
 build --enable_platform_specific_config
 
-# macOS-native local builds only (macOS is not a release target — see the migration
-# plan). Bazel's autodetected darwin cc toolchain defaults --macos_minimum_os to 10.11,
+# macOS host-native builds (local dev and the arm64 release binary). Bazel's autodetected darwin
+# cc toolchain defaults --macos_minimum_os to 10.11,
 # which rules_rust feeds into the -sys build scripts' CFLAGS as -mmacosx-version-min=10.11.
 # rocksdb's bundled C++ uses C++17 aligned new/delete, which Apple clang only permits at
 # >= 10.13, so that default breaks the rocksdb build. Raise the floor (host_* covers the
