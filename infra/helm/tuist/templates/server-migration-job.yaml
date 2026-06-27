@@ -151,13 +151,21 @@ spec:
             - name: TUIST_SELF_HOSTING_DEVELOPMENT_MODE
               value: {{ .Values.server.license.selfHostingDevelopmentMode | ternary "1" "0" | quote }}
             {{- include "tuist.licenseEnv" . | nindent 12 }}
-            {{- if not .Values.server.managedSecrets }}
+            # S3 boot config must be set unconditionally: runtime.exs configures
+            # ex_aws for every non-test env at boot (URI.parse on the endpoint), so
+            # the migrate Job crashes if TUIST_S3_ENDPOINT is unset. For managed
+            # deployments these used to be supplied by the encrypted blob; with the
+            # blob gone they must come from the chart like the server Deployment does.
             - name: TUIST_S3_BUCKET_NAME
-              value: {{ .Values.server.s3.bucketName | quote }}
+              value: {{ include "tuist.objectStorageBucketDefault" . | quote }}
             - name: TUIST_S3_ENDPOINT
               value: {{ include "tuist.objectStorageEndpoint" . | quote }}
             - name: TUIST_S3_REGION
-              value: {{ .Values.server.s3.region | quote }}
+              value: {{ include "tuist.objectStorageRegion" . | quote }}
+            - name: TUIST_S3_VIRTUAL_HOST
+              value: {{ .Values.server.s3.virtualHost | ternary "1" "0" | quote }}
+            - name: TUIST_S3_BUCKET_AS_HOST
+              value: {{ .Values.server.s3.bucketAsHost | ternary "1" "0" | quote }}
             {{- if $objectStorageAccessKey }}
             - name: TUIST_S3_ACCESS_KEY_ID
               valueFrom:
@@ -171,11 +179,6 @@ spec:
                 secretKeyRef:
                   name: {{ $secretName }}
                   key: object-storage-secret-key
-            {{- end }}
-            - name: TUIST_S3_VIRTUAL_HOST
-              value: {{ .Values.server.s3.virtualHost | ternary "1" "0" | quote }}
-            - name: TUIST_S3_BUCKET_AS_HOST
-              value: {{ .Values.server.s3.bucketAsHost | ternary "1" "0" | quote }}
             {{- end }}
             {{- with .Values.server.extraEnv }}
             {{- toYaml . | nindent 12 }}
