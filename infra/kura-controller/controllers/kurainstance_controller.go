@@ -1670,6 +1670,18 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 	if environment == "" {
 		environment = "production"
 	}
+	// Mesh instances discover ALL of the account's in-cluster pods (every
+	// region) as Local-scope peers via the account peer Service, so managed↔
+	// managed peers dial each other pod-to-pod directly instead of hairpinning
+	// cross-region replication through the public peer gateway. Discovery scope
+	// is addressing-only in the runtime (replication policy is unchanged); the
+	// off-cluster self-hosted direction still routes through the gateway URL
+	// (KURA_PEER_GATEWAY_URL + the ?scope=global status path) and the static
+	// KURA_PEERS list, so no global DNS discovery is needed here.
+	discoveryDNSName := fmt.Sprintf("%s.$(POD_NAMESPACE).svc.cluster.local", headlessServiceName(instance))
+	if crossRegionRuntimeEnabled(instance) {
+		discoveryDNSName = accountPeerServiceDNSName(instance)
+	}
 	env := []corev1.EnvVar{
 		{Name: "POD_NAME", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"}}},
 		{Name: "POD_NAMESPACE", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"}}},
@@ -1680,7 +1692,7 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 		{Name: "KURA_TMP_DIR", Value: "/var/cache/kura/tmp"},
 		{Name: "KURA_DATA_DIR", Value: "/var/cache/kura"},
 		{Name: "KURA_NODE_URL", Value: fmt.Sprintf("https://$(POD_NAME).%s.$(POD_NAMESPACE).svc.cluster.local:%d", headlessServiceName(instance), peerPort)},
-		{Name: "KURA_DISCOVERY_DNS_NAME", Value: fmt.Sprintf("%s.$(POD_NAMESPACE).svc.cluster.local", headlessServiceName(instance))},
+		{Name: "KURA_DISCOVERY_DNS_NAME", Value: discoveryDNSName},
 		{Name: "KURA_INTERNAL_PORT", Value: fmt.Sprintf("%d", peerPort)},
 		{Name: "KURA_INTERNAL_TLS_CA_CERT_PATH", Value: peerTLSMountPath + "/" + peerTLSCAFile},
 		{Name: "KURA_INTERNAL_TLS_CERT_PATH", Value: peerTLSMountPath + "/" + peerTLSCertFile},
@@ -1700,14 +1712,12 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 			corev1.EnvVar{Name: "KURA_EXTENSION_SCRIPT_PATH", Value: "/etc/kura/extensions/hooks.lua"},
 		)
 	}
-	if crossRegionRuntimeEnabled(instance) {
-		env = append(env, corev1.EnvVar{Name: "KURA_GLOBAL_DISCOVERY_DNS_NAME", Value: accountPeerServiceDNSName(instance)})
-	}
 	// When the account peer plane is exposed publicly, advertise the public
-	// gateway URL for global-scope discovery so an off-cluster self-hosted node
-	// replicates through the LoadBalancer instead of the managed pods' in-cluster
-	// addresses (which it can't reach). In-cluster peers keep using direct
-	// addresses (Local-scope discovery); a node skips its own gateway.
+	// gateway URL so an off-cluster self-hosted node replicates through the
+	// gateway instead of the managed pods' in-cluster addresses (which it can't
+	// reach). It reaches this node via the `?scope=global` status path, which
+	// returns this gateway URL; in-cluster peers use Local-scope discovery
+	// (KURA_DISCOVERY_DNS_NAME above) and dial pod-to-pod directly.
 	if meshManagedPeerTLS(instance) && instance.Spec.MeshPublicPeerHost != "" {
 		env = append(env, corev1.EnvVar{
 			Name:  "KURA_PEER_GATEWAY_URL",

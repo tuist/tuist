@@ -907,8 +907,11 @@ func TestKuraInstanceReconcileCrossRegionAccountPeerService(t *testing.T) {
 	if got, ok := env["KURA_PEER_GATEWAY_URL"]; ok {
 		t.Fatalf("expected no peer gateway URL env, got %q", got)
 	}
-	if got := env["KURA_GLOBAL_DISCOVERY_DNS_NAME"]; got != "kura-tuist-peers.kura.svc.cluster.local" {
-		t.Fatalf("expected global discovery DNS env, got %q", got)
+	if got, ok := env["KURA_GLOBAL_DISCOVERY_DNS_NAME"]; ok {
+		t.Fatalf("expected no global discovery DNS env (in-cluster peers use Local-scope direct dial), got %q", got)
+	}
+	if got := env["KURA_DISCOVERY_DNS_NAME"]; got != "kura-tuist-peers.kura.svc.cluster.local" {
+		t.Fatalf("expected Local discovery to be the account peer Service for a mesh instance, got %q", got)
 	}
 	peerTLSVolume := volumeByName(sts.Spec.Template.Spec.Volumes, peerTLSVolumeName)
 	if peerTLSVolume == nil || peerTLSVolume.Secret == nil {
@@ -1200,7 +1203,10 @@ func TestKuraInstanceReconcileWithoutSharedTLSDoesNotEnableGlobalDiscovery(t *te
 		t.Fatal("expected peer gateway URL to stay disabled until shared peer TLS is configured")
 	}
 	if _, ok := env["KURA_GLOBAL_DISCOVERY_DNS_NAME"]; ok {
-		t.Fatal("expected global discovery to stay disabled until shared peer TLS is configured")
+		t.Fatal("expected global discovery to stay disabled; in-cluster peers use Local-scope direct dial")
+	}
+	if got := env["KURA_DISCOVERY_DNS_NAME"]; got != "kura-tuist-eu-1-headless.$(POD_NAMESPACE).svc.cluster.local" {
+		t.Fatalf("expected Local discovery to be the per-region headless for a non-mesh instance, got %q", got)
 	}
 
 	generatedSecret := &corev1.Secret{}
