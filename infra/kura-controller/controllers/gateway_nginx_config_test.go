@@ -14,11 +14,12 @@ import (
 const chartValuesPath = "../../helm/platform/values.yaml"
 
 // expectedGatewayRegions is the number of kura-*-ingress-nginx blocks the chart
-// is expected to define (kura-eu-central / kura-us-east / kura-us-west). It is
-// asserted so that accidentally removing or renaming a regional gateway block —
-// which would otherwise silently shrink the drift check's coverage — fails the
-// test. Update this when a regional gateway is intentionally added or removed.
-const expectedGatewayRegions = 3
+// is expected to define (kura-eu-central / kura-ca-east / kura-us-east /
+// kura-us-west). It is asserted so that accidentally removing or renaming a
+// regional gateway block — which would otherwise silently shrink the drift
+// check's coverage — fails the test. Update this when a regional gateway is
+// intentionally added or removed.
+const expectedGatewayRegions = 4
 
 // requiredGatewayConfigKeys are the nginx settings every regional Kura gateway
 // must carry and keep equal to the dedicated-gateway ConfigMap
