@@ -27,7 +27,7 @@ memmap2 = "0.9.10"
 mlua = { version = "0.11.4", features = ["async", "lua54", "send", "serialize", "vendored"] }
 opentelemetry = "0.31.0"
 opentelemetry-otlp = { version = "0.31.1", default-features = false, features = ["grpc-tonic", "http-proto", "reqwest-blocking-client", "trace"] }
-opentelemetry_sdk = { version = "0.31.0", features = ["rt-tokio"] }
+opentelemetry_sdk = { version = "0.32.0", features = ["rt-tokio"] }
 prost = "0.14.1"
 prometheus-client = "0.24.1"
 rcgen = "0.14.5"
