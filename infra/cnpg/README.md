@@ -125,3 +125,44 @@ kubectl cnpg backup-status -n "$NAMESPACE" "$CLUSTER"
 # Then build a restore manifest using `kubectl cnpg restore` (see the
 # CNPG docs); destroy it once the validation queries finish.
 ```
+
+## Operator version & upgrade path
+
+The CNPG operator version is pinned by the `cloudnative-pg` dependency in
+[`infra/helm/platform/Chart.yaml`](../helm/platform/Chart.yaml). The chart
+version maps to the operator `appVersion`: chart `0.23.x` is operator `1.25.x`,
+`0.24.0` is `1.26.0`, `0.25.0` is `1.26.1`. The platform chart is re-applied on
+every deploy, so bumping that pin upgrades the operator on the next merge.
+
+CNPG must be upgraded one minor at a time. The project only tests and supports
+sequential minor upgrades, not skips
+(<https://cloudnative-pg.io/docs/current/installation_upgrade/>). As of 2026-06
+we are catching up from an end-of-life `1.25` to the only supported line,
+`1.29.x`, in four steps, each its own PR:
+
+`1.25 -> 1.26 -> 1.27 -> 1.28 -> 1.29`
+
+The operand Postgres image (`postgresql.cnpg.image.tag`) stays pinned and out
+of the operator-bump PR. CNPG's admission webhook rejects changing the image
+and `postgresql.parameters` in the same apply, and keeping the operand fixed
+makes each step a clean instance-manager-only roll.
+
+### What an operator bump does to a running cluster
+
+Upgrading the operator triggers a rolling update of every CNPG cluster it
+manages, one instance at a time, ending in a primary switchover governed by
+`primaryUpdateStrategy` (currently `unsupervised`, the CNPG default, so the
+switchover completes automatically). With synchronous replication the promotion
+is fast and lossless (RPO 0); the write path sees a few seconds of dropped
+connections and errors during the switchover. Because the operator is
+cluster-wide, a bump on the production cluster rolls both the main `tuist`
+cluster and the single-instance `tuist-ops` cluster (the latter takes a brief
+restart, since it has no replica to fail over to).
+
+Merge an operator-bump PR at the start of a low-traffic window wider than the
+deploy lag (the prod step runs after the canary deploy and acceptance tests, so
+roughly 20-40 min after merge), so the switchover lands inside the quiet period.
+
+In-tree `barmanObjectStore` backups (deprecated since 1.26 in favor of the
+Barman Cloud Plugin) still work through 1.29, so this catch-up does not require
+a backup migration. Moving to the Barman Cloud Plugin is separate, later work.
