@@ -147,11 +147,15 @@ that this path is still in the filter.
 
 CNPG must be upgraded one minor at a time. The project only tests and supports
 sequential minor upgrades, not skips
-(<https://cloudnative-pg.io/docs/current/installation_upgrade/>). As of 2026-06
-we are catching up from an end-of-life `1.25` to the only supported line,
-`1.29.x`, in four steps, each its own PR:
+(<https://cloudnative-pg.io/docs/current/installation_upgrade/>). In 2026-06 we
+completed the catch-up from an end-of-life `1.25` to the supported `1.29.x`
+line; production now runs `1.29.1`. It was done in four sequential PRs, one
+minor each:
 
 `1.25 -> 1.26 -> 1.27 -> 1.28 -> 1.29`
+
+Any future minor bump follows the same rule: bump the chart pin one minor at a
+time and let it deploy via `platform-install`.
 
 The operand Postgres image (`postgresql.cnpg.image.tag`) stays pinned and out
 of the operator-bump PR. CNPG's admission webhook rejects changing the image
