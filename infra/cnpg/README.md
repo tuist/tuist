@@ -131,7 +131,8 @@ kubectl cnpg backup-status -n "$NAMESPACE" "$CLUSTER"
 The CNPG operator version is pinned by the `cloudnative-pg` dependency in
 [`infra/helm/platform/Chart.yaml`](../helm/platform/Chart.yaml). The chart
 version maps to the operator `appVersion`: chart `0.23.x` is operator `1.25.x`,
-`0.24.0` is `1.26.0`, `0.25.0` is `1.26.1`. The platform chart is re-applied by
+`0.24.0` is `1.26.0`, `0.25.0` is `1.26.1`, `0.26.1` is `1.27.1`, `0.27.1` is
+`1.28.1`, `0.28.3` is `1.29.1`. The platform chart is re-applied by
 the `platform-install` deploy job, so bumping that pin upgrades the operator on
 the next deploy.
 
