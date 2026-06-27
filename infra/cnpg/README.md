@@ -131,8 +131,18 @@ kubectl cnpg backup-status -n "$NAMESPACE" "$CLUSTER"
 The CNPG operator version is pinned by the `cloudnative-pg` dependency in
 [`infra/helm/platform/Chart.yaml`](../helm/platform/Chart.yaml). The chart
 version maps to the operator `appVersion`: chart `0.23.x` is operator `1.25.x`,
-`0.24.0` is `1.26.0`, `0.25.0` is `1.26.1`. The platform chart is re-applied on
-every deploy, so bumping that pin upgrades the operator on the next merge.
+`0.24.0` is `1.26.0`, `0.25.0` is `1.26.1`. The platform chart is re-applied by
+the `platform-install` deploy job, so bumping that pin upgrades the operator on
+the next deploy.
+
+For that to happen on merge, `infra/helm/platform/` must be in the
+`deployable-changed` path filter in
+[`.github/workflows/server-production-deployment.yml`](../../.github/workflows/server-production-deployment.yml).
+That filter gates the `build` job, which the whole canary -> acceptance ->
+production cascade depends on. A change to a path outside the filter skips
+`build` and therefore skips every deploy job, so the run goes green without ever
+reaching a cluster. If a platform-only bump ever merges without deploying, check
+that this path is still in the filter.
 
 CNPG must be upgraded one minor at a time. The project only tests and supports
 sequential minor upgrades, not skips
