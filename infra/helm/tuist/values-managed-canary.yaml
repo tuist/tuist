@@ -14,6 +14,27 @@ server:
 
   appUrl: https://canary.tuist.dev
 
+  # Stripe price IDs (identifiers, not secrets — the API keys live in the
+  # STRIPE 1Password item). Canary's own (test-mode) IDs; the chart
+  # JSON-encodes this into TUIST_STRIPE_PRICES.
+  stripe:
+    prices:
+      air:
+        usage: ["price_1S7xQ3Q9gGM5W1ag8IjnKx6f"]
+        flat_monthly: ["price_1S7xQ3Q9gGM5W1agupKva14g"]
+      pro:
+        usage: ["price_1S7xtWQ9gGM5W1agTslSzRAJ"]
+        flat_monthly: ["price_1S7xtWQ9gGM5W1agIuQD7KbJ"]
+      enterprise:
+        flat_monthly: ["price_1S7y0PQ9gGM5W1ag9rjNl7FP"]
+        flat_yearly: []
+
+  # Canary runs no PostHog analytics (no POSTHOG item in its vault), so opt out
+  # of syncing it — otherwise the all-or-nothing ESO config sync would fail.
+  config:
+    posthog:
+      enabled: false
+
   autoscaling:
     enabled: false
 
@@ -54,9 +75,9 @@ server:
         memory: "200Mi"
 
   extraEnv:
-    # Selects which priv/secrets/<env>.yml.enc file the app decrypts at
-    # boot. Image is env-agnostic (built with MIX_ENV=prod); this flag
-    # plus the MASTER_KEY ESO secret pick the runtime deployment target.
+    # Selects the runtime deployment target (Tuist.Environment.env()). The
+    # image is env-agnostic (built with MIX_ENV=prod); this flag picks which
+    # env's config the release runs as.
     - name: TUIST_DEPLOY_ENV
       value: can
     # Single web replica shares this pool between request handling and the
@@ -199,7 +220,7 @@ processor:
       maxUnavailable: 1
   extraEnv:
     # Must match the server's TUIST_DEPLOY_ENV above so the processor pod
-    # decrypts the same priv/secrets/<env>.yml.enc file the web tier does.
+    # runs as the same env (Tuist.Environment.env()) as the web tier.
     - name: TUIST_DEPLOY_ENV
       value: can
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
