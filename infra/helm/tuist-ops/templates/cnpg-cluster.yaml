@@ -47,6 +47,16 @@ spec:
     {{- toYaml .Values.postgresql.resources | nindent 4 }}
 
   {{- if .Values.postgresql.backup.enabled }}
+  {{- if .Values.postgresql.backup.plugin.enabled }}
+  # Barman Cloud Plugin (CNPG-I) path. serverName pinned to the cluster name
+  # to keep the existing archive prefix (continuity). See infra/cnpg/README.md.
+  plugins:
+    - name: {{ .Values.postgresql.backup.plugin.name | quote }}
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: {{ include "tuist-ops.pgClusterName" . }}-backup-store
+        serverName: {{ include "tuist-ops.pgClusterName" . | quote }}
+  {{- else }}
   backup:
     barmanObjectStore:
       destinationPath: {{ .Values.postgresql.backup.destinationPath | quote }}
@@ -65,6 +75,37 @@ spec:
         compression: gzip
     retentionPolicy: {{ .Values.postgresql.backup.retentionPolicy | quote }}
   {{- end }}
+  {{- end }}
+{{- if and .Values.postgresql.backup.enabled .Values.postgresql.backup.plugin.enabled }}
+---
+# Barman Cloud Plugin object-store config — mirrors the in-tree
+# barmanObjectStore stanza (same bucket/prefix, credentials, wal/data,
+# retention) so the plugin continues the existing archive. Retention moves
+# from the Cluster to here. See infra/cnpg/README.md.
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: {{ include "tuist-ops.pgClusterName" . }}-backup-store
+  labels:
+    {{- include "tuist-ops.labels" . | nindent 4 }}
+spec:
+  retentionPolicy: {{ .Values.postgresql.backup.retentionPolicy | quote }}
+  configuration:
+    destinationPath: {{ .Values.postgresql.backup.destinationPath | quote }}
+    endpointURL: {{ .Values.postgresql.backup.endpointURL | quote }}
+    s3Credentials:
+      accessKeyId:
+        name: {{ .Values.postgresql.backup.credentialsSecretName }}
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: {{ .Values.postgresql.backup.credentialsSecretName }}
+        key: ACCESS_SECRET_KEY
+    wal:
+      compression: gzip
+      maxParallel: 8
+    data:
+      compression: gzip
+{{- end }}
 {{- if .Values.postgresql.backup.enabled }}
 ---
 apiVersion: postgresql.cnpg.io/v1
@@ -77,6 +118,11 @@ spec:
   # Daily at 03:00 UTC. Internal tool; nothing urgent to recover.
   schedule: "0 0 3 * * *"
   backupOwnerReference: self
+  {{- if .Values.postgresql.backup.plugin.enabled }}
+  method: plugin
+  pluginConfiguration:
+    name: {{ .Values.postgresql.backup.plugin.name | quote }}
+  {{- end }}
   cluster:
     name: {{ include "tuist-ops.pgClusterName" . }}
 {{- end }}

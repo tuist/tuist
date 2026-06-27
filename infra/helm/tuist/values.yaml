@@ -1642,6 +1642,16 @@ postgresql:
       # bucket name in the path; the endpoint is shared.
       destinationPath: ""
       endpointURL: "https://t3.storage.dev"
+      # Barman Cloud Plugin (CNPG-I) migration. When enabled, the cluster
+      # archives via the plugin sidecar + an ObjectStore CR instead of the
+      # in-tree barmanObjectStore (deprecated since operator 1.26). Requires
+      # the plugin-barman-cloud manifest installed in the operator namespace
+      # (`platform`) — see infra/cnpg/README.md. Default off: this is a
+      # no-op until flipped per-env after validating WAL continuity (same
+      # bucket + serverName) and a restore drill from a plugin-written backup.
+      plugin:
+        enabled: false
+        name: barman-cloud.cloudnative-pg.io
     externalSecrets:
       refreshInterval: "1h"
       storeRef:

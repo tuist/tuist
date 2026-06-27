@@ -147,11 +147,15 @@ that this path is still in the filter.
 
 CNPG must be upgraded one minor at a time. The project only tests and supports
 sequential minor upgrades, not skips
-(<https://cloudnative-pg.io/docs/current/installation_upgrade/>). As of 2026-06
-we are catching up from an end-of-life `1.25` to the only supported line,
-`1.29.x`, in four steps, each its own PR:
+(<https://cloudnative-pg.io/docs/current/installation_upgrade/>). In 2026-06 we
+completed the catch-up from an end-of-life `1.25` to the supported `1.29.x`
+line; production now runs `1.29.1`. It was done in four sequential PRs, one
+minor each:
 
 `1.25 -> 1.26 -> 1.27 -> 1.28 -> 1.29`
+
+Any future minor bump follows the same rule: bump the chart pin one minor at a
+time and let it deploy via `platform-install`.
 
 The operand Postgres image (`postgresql.cnpg.image.tag`) stays pinned and out
 of the operator-bump PR. CNPG's admission webhook rejects changing the image
@@ -175,5 +179,47 @@ deploy lag (the prod step runs after the canary deploy and acceptance tests, so
 roughly 20-40 min after merge), so the switchover lands inside the quiet period.
 
 In-tree `barmanObjectStore` backups (deprecated since 1.26 in favor of the
-Barman Cloud Plugin) still work through 1.29, so this catch-up does not require
-a backup migration. Moving to the Barman Cloud Plugin is separate, later work.
+Barman Cloud Plugin) still work on 1.29, so the version catch-up did not require
+a backup migration. The plugin migration is wired up but gated off — see below.
+
+## Backup: in-tree barmanObjectStore -> Barman Cloud Plugin
+
+In-tree Barman Cloud is deprecated (since operator 1.26) and is being phased out
+of the core operator. This chart can render backups either way, switched per
+cluster by `…backup.plugin.enabled` (default `false` = the in-tree
+`barmanObjectStore`, unchanged). When enabled, the cluster archives via the
+Barman Cloud Plugin (CNPG-I): an `ObjectStore` CR holds the bucket config and
+the `Cluster` references it through `.spec.plugins`. Value keys: the main server
+uses `postgresql.cnpg.backup.plugin.*`; tuist-ops uses `postgresql.backup.plugin.*`.
+
+**Prerequisite (one-time, per cluster) — install the plugin** in the operator's
+namespace (`platform`, not the upstream-default `cnpg-system`), pinned to a
+version compatible with the operator (needs >= 1.26; we run 1.29.1):
+
+```bash
+curl -fsSL https://github.com/cloudnative-pg/plugin-barman-cloud/releases/download/v0.13.0/manifest.yaml \
+  | sed 's/namespace: cnpg-system/namespace: platform/g' \
+  | kubectl --context tuist-k8s-<env> apply -f -
+kubectl --context tuist-k8s-<env> -n platform rollout status deploy/barman-cloud
+```
+
+It needs cert-manager (already present via the platform chart) and adds the
+`objectstores.barmancloud.cnpg.io` CRD, the `barman-cloud` Deployment, a
+Service, and self-signed mTLS Certificates.
+
+**Cutover (per env, after the plugin is installed):** flip
+`…backup.plugin.enabled` to `true` and deploy. This is an atomic change to the
+`Cluster` (drops `.spec.backup.barmanObjectStore`, adds `.spec.plugins`), so it
+triggers a rolling update + switchover — merge it in a low-traffic window like
+an operator bump.
+
+**Continuity invariant (verify before trusting it):** the plugin must keep
+writing to the SAME archive. `serverName` is pinned to the cluster name (the
+value the in-tree path defaulted to) and the `ObjectStore` reuses the same
+`destinationPath` + credentials, so the prefix is unchanged. After cutover,
+confirm the primary's logs show `Archived WAL file` to the same
+`s3://…/<serverName>` path, then run a restore-validation drill from a
+plugin-written backup before retiring the in-tree path elsewhere.
+
+**Observability:** backup metrics rename from `cnpg_collector_*` to
+`barman_cloud_cloudnative_pg_io_*`; repoint any panels or backup-failure alerts.
