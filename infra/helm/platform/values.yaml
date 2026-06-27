@@ -116,6 +116,28 @@ kura-eu-central-ingress-nginx:
     metrics:
       enabled: true
 
+kura-ca-east-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-ca-east-ingress-nginx-leader
+    ingressClass: kura-ca-east
+    ingressClassResource:
+      name: kura-ca-east
+      controllerValue: k8s.io/kura-ca-east-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    # Shares the one anchored regional Kura nginx config (defined in the
+    # eu-central block above); see TestGatewayNginxConfigMatchesChart on why
+    # these cannot drift from the dedicated-gateway ConfigMap.
+    config: *kuraGatewayNginxConfig
+    metrics:
+      enabled: true
+
 kura-us-east-ingress-nginx:
   enabled: false
   controller:

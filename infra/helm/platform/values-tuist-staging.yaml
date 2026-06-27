@@ -58,3 +58,34 @@ kura-eu-central-ingress-nginx:
       type: ClusterIP
       externalTrafficPolicy: ""
       annotations: {}
+
+kura-ca-east-ingress-nginx:
+  enabled: true
+  controller:
+    # ca-east runs on the OVH bare-metal box: the regional gateway runs on the
+    # box's host network so serving traffic hits the box NIC directly (OVH has no
+    # Hetzner LB) — the same shape as eu-central on Dedibox. The DaemonSet binds
+    # one nginx per cache node; reportNodeInternalIp publishes the box's public
+    # IP (its node InternalIP) into each Ingress status so external-dns resolves
+    # the per-account hosts to the box.
+    kind: DaemonSet
+    hostNetwork: true
+    dnsPolicy: ClusterFirstWithHostNet
+    reportNodeInternalIp: true
+    # Direct client connections on this hostNetwork path: no Hetzner LB adds a
+    # PROXY header, so the shared regional default (use-proxy-protocol: true)
+    # would mangle every connection. Turn it off here.
+    config:
+      use-proxy-protocol: "false"
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-ca-east
+    tolerations:
+      - key: tuist.dev/kura-cache
+        operator: Exists
+        effect: NoSchedule
+    publishService:
+      enabled: false
+    service:
+      type: ClusterIP
+      externalTrafficPolicy: ""
+      annotations: {}
