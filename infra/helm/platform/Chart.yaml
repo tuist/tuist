@@ -46,6 +46,6 @@ dependencies:
     repository: https://kubernetes-sigs.github.io/metrics-server/
     condition: metrics-server.enabled
   - name: cloudnative-pg
-    version: 0.27.1  # operator 1.28.1; step minors 1.25->1.29 one at a time (see infra/cnpg/README.md)
+    version: 0.28.3  # operator 1.29.1 (supported line; final step of the 1.25->1.29 catch-up, see infra/cnpg/README.md)
     repository: https://cloudnative-pg.github.io/charts
     condition: cloudnative-pg.enabled
