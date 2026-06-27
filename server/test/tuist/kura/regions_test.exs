@@ -63,7 +63,7 @@ defmodule Tuist.Kura.RegionsTest do
       assert config.node_selector == %{"node.cluster.x-k8s.io/pool" => "kura-dedibox"}
       assert config.storage_class == "scw-local-nvme"
       assert config.gateway == :host_network
-      assert config.replicas == 1
+      assert config.replicas == 2
       assert config.storage_size == "50Gi"
       assert config.hetzner_location == nil
 

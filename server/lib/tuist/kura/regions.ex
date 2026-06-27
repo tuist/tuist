@@ -71,9 +71,11 @@ defmodule Tuist.Kura.Regions do
     # EU Central runs on Scaleway Dedibox bare metal: the `kura-dedibox` node
     # pool (each environment's `dediboxFleet`), local-NVMe storage, a hostNetwork
     # regional gateway bound to the box's public IP (Dedibox has no Hetzner LB),
-    # and one bounded-size replica. The region id, cluster_id, ingress class, and
-    # public hostnames are unchanged from the former Hetzner ccx13 backing, so
-    # the cutover is invisible to the customer and the CLI.
+    # and two bounded-size replicas so a rolling deploy fails the cache Service
+    # over to the warm standby instead of dropping traffic while the single pod
+    # restarts (they co-locate on the box until a second box lands). The region
+    # id, cluster_id, ingress class, and public hostnames are unchanged from the
+    # former Hetzner ccx13 backing, so the cutover is invisible to the customer.
     %{
       id: "eu-central",
       display_name: "EU Central",
@@ -82,7 +84,7 @@ defmodule Tuist.Kura.Regions do
       node_pool: "kura-dedibox",
       storage_class: "scw-local-nvme",
       gateway: :host_network,
-      replicas: 1,
+      replicas: 2,
       storage_size: "50Gi"
     },
     # Canada East (Beauharnois / OVHcloud BHS) on OVH bare metal: the
@@ -101,7 +103,7 @@ defmodule Tuist.Kura.Regions do
       node_pool: "kura-ca-east",
       storage_class: "scw-local-nvme",
       gateway: :host_network,
-      replicas: 1,
+      replicas: 2,
       storage_size: "50Gi"
     }
   ]
@@ -323,7 +325,8 @@ defmodule Tuist.Kura.Regions do
         storage_class: Map.get(spec, :storage_class, @managed_region_storage_class),
         gateway: Map.get(spec, :gateway, :hetzner),
         # nil for the multi-box Hetzner regions (controller default applies);
-        # single bare-metal boxes set 1 + a bounded storage_size.
+        # bare-metal regions set 2 (a warm standby for gapless rolling deploys)
+        # + a bounded storage_size.
         replicas: Map.get(spec, :replicas),
         storage_size: Map.get(spec, :storage_size),
         tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
