@@ -319,6 +319,56 @@ struct TuistCacheEEAcceptanceTests {
         )
     }
 
+    // Regression test for ARCore-style static Objective-C xcframeworks consumed through the
+    // binary cache. `NestedObjC`/`NestedObjCKit` are static `.a` xcframeworks whose public
+    // headers live in a `Headers/<Module>/` subdirectory and re-import each other with the
+    // `<Module/...>` prefix (and `NestedObjCKit` imports `NestedObjC`, mirroring ARCore's
+    // Geospatial -> GARSession). Caching `Library` turns it into a dynamic xcframework that links
+    // them behind it, so building `Tool` drives `StaticXCFrameworkModuleMapGraphMapper`. Earlier
+    // this produced `'NestedObjC/TrackingState.h' file not found` (missing `Headers` root) and,
+    // after that was "fixed" by adding the xcframework's own `Headers` root, `import of shadowed
+    // module 'Anchor'` (the module map reachable twice). The mapper now copies each module map +
+    // headers into a hermetic `<derived>/<name>/Headers/<name>/`, so the module is defined exactly
+    // once and the prefixed imports still resolve.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_macos_tool_with_cached_nested_header_xcframework")
+    ) func generated_macos_tool_with_cached_nested_header_xcframework() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "NestedHeaderXCFramework.xcodeproj")
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["Library", "--path", fixtureDirectory.pathString]
+        )
+
+        try await TuistTest.run(
+            GenerateCommand.self,
+            ["--no-open", "--path", fixtureDirectory.pathString, "Tool"]
+        )
+
+        try TuistAcceptanceTest.expectXCFrameworkLinked("Library", by: "Tool", xcodeprojPath: xcodeprojPath)
+
+        try await TuistTest.run(
+            XcodeBuildBuildCommand.self,
+            [
+                "-project",
+                xcodeprojPath.pathString,
+                "-scheme",
+                "Tool",
+                "-derivedDataPath",
+                temporaryDirectory.pathString,
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO",
+            ]
+        )
+    }
+
     @Test(
         .disabled("Requires SPM install"),
         .inTemporaryDirectory,

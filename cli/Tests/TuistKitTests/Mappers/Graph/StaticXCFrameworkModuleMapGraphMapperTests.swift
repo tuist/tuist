@@ -182,11 +182,13 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         )
     }
 
+    // ARCore-style xcframeworks keep their module map and headers in a `Headers/<ModuleName>/`
+    // subdirectory and re-import each other with the `<ModuleName/...>` prefix. Such a "nested"
+    // layout is consumed through the xcframework's own module map with the `Headers` root (the
+    // parent of the module subdirectory) on the search path — not a derived/rewritten copy — so
+    // both the umbrella's and the headers' prefixed imports resolve and the module is defined once.
     func test_map_when_static_xcframework_library_with_nested_module_headers_linked_via_dynamic_xcframework() async throws {
         // Given
-        // ARCore-like layout: the headers live in a `<Module>` subdirectory and re-import each other with the
-        // framework prefix (`#import <ARCoreGARSession/GARTrackingState.h>`). Resolving those prefixed imports
-        // requires the xcframework's `Headers` root on the search path, not only the module map's directory.
         let projectPath = try temporaryPath()
             .appending(component: "Project")
         given(manifestFilesLocator)
@@ -210,15 +212,6 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
             #import <ARCoreGARSession/GARTrackingState.h>
             """,
             at: arcoreModuleHeadersPath.appending(component: "ARCoreGARSession.h")
-        )
-
-        let derivedDirectory = projectPath.appending(
-            components: [
-                Constants.tuistDirectoryName,
-                Constants.SwiftPackageManager.packageBuildDirectoryName,
-                Constants.DerivedDirectory.dependenciesDerivedDirectory,
-                Constants.DerivedDirectory.dependenciesXCFrameworkDirectory,
-            ]
         )
 
         let graph: Graph = .test(
@@ -250,10 +243,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                         infoPlist: .test(
                             libraries: [
                                 .test(
-                                    identifier: "ios-arm64",
-                                    path: try RelativePath(validating: "ARCoreGARSession.a"),
-                                    headersPath: try RelativePath(validating: "Headers"),
-                                    platform: .iOS
+                                    path: try RelativePath(validating: "ARCoreGARSession.a")
                                 ),
                             ]
                         ),
@@ -277,15 +267,12 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                             base: [
                                 "OTHER_SWIFT_FLAGS": [
                                     "-Xcc",
-                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/ARCoreGARSession/Headers/module.modulemap\"",
+                                    "-fmodule-map-file=\"$(SRCROOT)/../ARCoreGARSession.xcframework/ios-arm64/Headers/ARCoreGARSession/module.modulemap\"",
                                 ],
                                 "OTHER_C_FLAGS": [
-                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/ARCoreGARSession/Headers/module.modulemap\"",
+                                    "-fmodule-map-file=\"$(SRCROOT)/../ARCoreGARSession.xcframework/ios-arm64/Headers/ARCoreGARSession/module.modulemap\"",
                                 ],
-                                "HEADER_SEARCH_PATHS": [
-                                    "\"$(SRCROOT)/../ARCoreGARSession.xcframework/ios-arm64/Headers/ARCoreGARSession\"",
-                                    "\"$(SRCROOT)/../ARCoreGARSession.xcframework/ios-arm64/Headers\"",
-                                ],
+                                "HEADER_SEARCH_PATHS": ["\"$(SRCROOT)/../ARCoreGARSession.xcframework/ios-arm64/Headers\""],
                             ]
                         )
                     ),
@@ -301,29 +288,8 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
             expectedGraph,
             gotGraph
         )
-        XCTAssertBetterEqual(
-            [
-                .directory(
-                    DirectoryDescriptor(path: derivedDirectory.appending(components: "ARCoreGARSession", "Headers"))
-                ),
-                .file(
-                    FileDescriptor(
-                        path: derivedDirectory.appending(components: "ARCoreGARSession", "Headers", "module.modulemap"),
-                        contents: "modulemap".data(using: .utf8)
-                    )
-                ),
-                .file(
-                    FileDescriptor(
-                        path: derivedDirectory.appending(components: "ARCoreGARSession", "Headers", "ARCoreGARSession.h"),
-                        contents: """
-                        #import <GARAnchor.h>
-                        #import <GARTrackingState.h>
-                        """.data(using: .utf8)
-                    )
-                ),
-            ],
-            gotSideEffects
-        )
+        // Nested layouts are consumed directly from the xcframework, so no derived copy is generated.
+        XCTAssertBetterEqual([], gotSideEffects)
     }
 
     func test_map_when_static_xcframework_framework_linked_via_dynamic_xcframework() async throws {
