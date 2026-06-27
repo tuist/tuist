@@ -141,18 +141,19 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                     }
                 )
                 settings["HEADER_SEARCH_PATHS"] = .array(
-                    staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies.compactMap { xcframework -> String? in
-                        guard let moduleMap = xcframework.moduleMaps.first
-                        else { return nil }
-                        // Nested ARCore-style headers re-import siblings with the `<ModuleName/...>`
-                        // prefix, which only resolves with the `Headers` root (the parent of the
-                        // module's subdirectory) on the search path. Flat layouts keep their headers
-                        // directly in the module map's own directory.
-                        let searchPath = Self.nestedModuleMap(for: xcframework) != nil
-                            ? moduleMap.parentDirectory.parentDirectory
-                            : moduleMap.parentDirectory
-                        return "\"$(SRCROOT)/\(searchPath.relative(to: project.path).pathString)\""
-                    }
+                    staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies
+                        .compactMap { xcframework -> String? in
+                            guard let moduleMap = xcframework.moduleMaps.first
+                            else { return nil }
+                            // Nested ARCore-style headers re-import siblings with the `<ModuleName/...>`
+                            // prefix, which only resolves with the `Headers` root (the parent of the
+                            // module's subdirectory) on the search path. Flat layouts keep their headers
+                            // directly in the module map's own directory.
+                            let searchPath = Self.nestedModuleMap(for: xcframework) != nil
+                                ? moduleMap.parentDirectory.parentDirectory
+                                : moduleMap.parentDirectory
+                            return "\"$(SRCROOT)/\(searchPath.relative(to: project.path).pathString)\""
+                        }
                 )
             }
 

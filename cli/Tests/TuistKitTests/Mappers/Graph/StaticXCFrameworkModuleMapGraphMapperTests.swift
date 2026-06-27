@@ -182,11 +182,11 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         )
     }
 
-    // ARCore-style xcframeworks keep their module map and headers in a `Headers/<ModuleName>/`
-    // subdirectory and re-import each other with the `<ModuleName/...>` prefix. Such a "nested"
-    // layout is consumed through the xcframework's own module map with the `Headers` root (the
-    // parent of the module subdirectory) on the search path — not a derived/rewritten copy — so
-    // both the umbrella's and the headers' prefixed imports resolve and the module is defined once.
+    /// ARCore-style xcframeworks keep their module map and headers in a `Headers/<ModuleName>/`
+    /// subdirectory and re-import each other with the `<ModuleName/...>` prefix. Such a "nested"
+    /// layout is consumed through the xcframework's own module map with the `Headers` root (the
+    /// parent of the module subdirectory) on the search path — not a derived/rewritten copy — so
+    /// both the umbrella's and the headers' prefixed imports resolve and the module is defined once.
     func test_map_when_static_xcframework_library_with_nested_module_headers_linked_via_dynamic_xcframework() async throws {
         // Given
         let projectPath = try temporaryPath()
