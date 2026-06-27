@@ -705,24 +705,32 @@ func (r *KuraInstanceReconciler) selectPrimaryPod(ctx context.Context, instance 
 }
 
 func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) map[string]bool {
-	kubernetesReady := map[string]bool{}
 	now := time.Now()
-	for i := range pods {
-		if podReady(&pods[i]) && podOldEnoughForPrimary(&pods[i], now, replicas(instance)) {
-			kubernetesReady[pods[i].Name] = true
-		}
-	}
 
 	statusClient := r.RuntimeStatusClient
 	if statusClient == nil {
 		statusClient = defaultRuntimeStatusClient()
 	}
 
+	// Age-gated Kubernetes readiness is only the FALLBACK, used when the runtime
+	// status endpoint is unreachable for every pod: without the runtime's
+	// bootstrap signal we keep the minPrimaryPodAge buffer so a still-bootstrapping
+	// pod isn't promoted. When the runtime status IS reachable it supersedes this —
+	// a pod that reports Ready+serving has already completed bootstrap (the runtime's
+	// is_serving requires bootstrapped_peers == known_peers), so the runtime-confirmed
+	// path does NOT age-gate. That lets a freshly-rolled but caught-up standby be
+	// promoted immediately, which is what makes a rolling deploy gapless instead of
+	// waiting out the 10-minute age with no eligible primary. The runtime status is
+	// therefore probed for every Ready pod, not just the age-eligible ones.
+	fallbackReady := map[string]bool{}
 	runtimeHealthy := map[string]bool{}
 	runtimeStatuses := 0
 	for i := range pods {
-		if !kubernetesReady[pods[i].Name] {
+		if !podReady(&pods[i]) {
 			continue
+		}
+		if podOldEnoughForPrimary(&pods[i], now, replicas(instance)) {
+			fallbackReady[pods[i].Name] = true
 		}
 		status, err := statusClient.Status(ctx, pods[i])
 		if err != nil {
@@ -734,7 +742,7 @@ func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance 
 	}
 
 	if runtimeStatuses == 0 {
-		return kubernetesReady
+		return fallbackReady
 	}
 	return runtimeHealthy
 }
