@@ -49,3 +49,7 @@ dependencies:
     version: 0.28.3
     repository: https://cloudnative-pg.github.io/charts
     condition: cloudnative-pg.enabled
+  - name: plugin-barman-cloud
+    version: 0.7.0
+    repository: https://cloudnative-pg.github.io/charts
+    condition: plugin-barman-cloud.enabled
