@@ -723,6 +723,12 @@ jobs:
               exit 1
             fi
           done
+      - name: Kick Swift registry sync
+        run: |
+          set -euo pipefail
+          SYNC_POD="$(kubectl -n "$NAMESPACE" get pod -l app.kubernetes.io/component=swift-registry-sync -o jsonpath='{.items[0].metadata.name}')"
+          kubectl -n "$NAMESPACE" exec "$SYNC_POD" -c swift-registry-sync -- \
+            /app/bin/tuist eval 'Tuist.Registry.Swift.SyncWorker.perform(%Oban.Job{args: %{"limit" => 1}})'
       - name: Seed preview account
         env:
           PREVIEW_ACCOUNT_HANDLE: tuist
