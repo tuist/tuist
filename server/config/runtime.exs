@@ -425,12 +425,25 @@ if Tuist.Environment.error_tracking_enabled?() do
 end
 
 if Tuist.Environment.env() not in [:test] do
-  s3_endpoint = Tuist.Environment.get([:s3, :endpoint], secrets)
+  s3_endpoint =
+    if Tuist.Environment.swift_registry_sync_mode?() do
+      case {System.get_env("S3_ENDPOINT"), System.get_env("S3_HOST")} do
+        {endpoint, _host} when endpoint not in [nil, ""] -> endpoint
+        {_endpoint, host} when host not in [nil, ""] -> "https://#{host}"
+        _ -> nil
+      end
+    else
+      Tuist.Environment.s3_endpoint(secrets)
+    end
 
   s3_runtime_configured? =
     Tuist.Environment.object_storage_provider(secrets) == :s3 or
       (is_binary(s3_endpoint) and s3_endpoint != "") or
       (not is_binary(s3_endpoint) and not is_nil(s3_endpoint))
+
+  if s3_runtime_configured? and s3_endpoint in [nil, ""] do
+    raise "S3 endpoint is required; set TUIST_S3_ENDPOINT, S3_ENDPOINT, or S3_HOST"
+  end
 
   config :ex_aws, :req_opts,
     # Note: connect_options cannot be used with Finch
@@ -458,7 +471,7 @@ if Tuist.Environment.env() not in [:test] do
 
   if s3_runtime_configured? do
     %{host: s3_endpoint_host, scheme: s3_scheme, port: s3_port} =
-      secrets |> Tuist.Environment.s3_endpoint() |> URI.parse()
+      URI.parse(s3_endpoint)
 
     s3_config =
       then(
