@@ -1,9 +1,9 @@
 # When available, load the tuist-specific configuration
 try-import %workspace%/.bazelrc.tuist
 
-# Build opt globally: the e2e image is assembled from this binary, so it must match the optimized
-# binary that ships, and one compilation mode keeps every job on a single warm cache keyspace.
-# Side effect: `bazel test` then runs with debug_assertions off (like `cargo test --release`).
+# Build opt globally: the runtime and e2e images are assembled from this binary, so it must match
+# the optimized binary that ships, and one compilation mode keeps every job on a single warm cache
+# keyspace. Side effect: `bazel test` then runs with debug_assertions off (like `cargo test --release`).
 build --compilation_mode=opt
 
 # Make build actions independent of the user's shell environment, so builds do
