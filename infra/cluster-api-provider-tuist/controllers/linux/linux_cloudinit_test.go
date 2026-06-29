@@ -65,6 +65,13 @@ func TestRenderLinuxCloudInit_DockerHubMirror(t *testing.T) {
 	if strings.Contains(out, "mount --bind /data/kubelet /var/lib/kubelet") {
 		t.Fatalf("cloud-init form must not bind-mount the kubelet root (Instances are single-disk), got:\n%s", out)
 	}
+	// The same /data guard relocates the local-path provisioner root, so the kura
+	// cache PVCs land on the big disk rather than the ~20G root (otherwise two
+	// co-located replicas overflow the root). Lives in the shared body, so it is
+	// guarded-no-op here and active in the SSH form below.
+	if !strings.Contains(out, "mount --bind /data/local-path-provisioner /opt/local-path-provisioner") {
+		t.Fatalf("expected the /data local-path-provisioner bind-mount, got:\n%s", out)
+	}
 
 	// The Elastic Metal (SSH script) form must carry the same mirror config.
 	script := renderLinuxBootstrapScript(linuxCloudInitOptions{
@@ -76,6 +83,11 @@ func TestRenderLinuxCloudInit_DockerHubMirror(t *testing.T) {
 	if !strings.Contains(script, `config_path = "/etc/containerd/certs.d"`) ||
 		!strings.Contains(script, `[host."https://mirror.gcr.io"]`) {
 		t.Fatalf("expected the bootstrap script to configure the docker.io mirror, got:\n%s", script)
+	}
+	// The SSH form (Dedibox/OVH/Elastic Metal — the boxes with a separate /data)
+	// must carry the local-path-provisioner bind-mount so cache PVCs land on /data.
+	if !strings.Contains(script, "mount --bind /data/local-path-provisioner /opt/local-path-provisioner") {
+		t.Fatalf("expected the SSH form to bind-mount the local-path provisioner root onto /data, got:\n%s", script)
 	}
 	// The SSH form binds the kubelet root onto /data BEFORE writing the kubelet
 	// config, so a separate-/data box doesn't shadow config.yaml + kubeconfig once

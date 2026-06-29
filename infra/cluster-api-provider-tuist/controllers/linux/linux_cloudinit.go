@@ -192,6 +192,14 @@ export DEBIAN_FRONTEND=noninteractive
 # mounted filesystem (single-partition Elastic Metal), and the trailing 'true'
 # keeps set -e happy regardless.
 %[2]ssh -c 'mountpoint -q /data && [ "$(findmnt -no SOURCE /data)" != "$(findmnt -no SOURCE /)" ] && { mkdir -p /data/containerd; sed -ri "s#^root = .*#root = \"/data/containerd\"#" /etc/containerd/config.toml; }; true'
+# The kura cache PVCs use a local-path StorageClass that carves each PV as a
+# directory under /opt/local-path-provisioner. Bind that onto /data too, so the
+# cache volumes land on the big disk rather than the ~20G root: without it two
+# co-located replicas (replicas>=2 on a single box) fill the root and the second
+# wedges on ENOSPC mid-bootstrap. Persisted via fstab (nofail) so it survives a
+# reboot. Same guard as containerd above: a no-op where /data is not its own
+# mounted filesystem, trailing 'true' keeps set -e happy.
+%[2]ssh -c 'mountpoint -q /data && [ "$(findmnt -no SOURCE /data)" != "$(findmnt -no SOURCE /)" ] && { mkdir -p /data/local-path-provisioner /opt/local-path-provisioner; mountpoint -q /opt/local-path-provisioner || { grep -q " /opt/local-path-provisioner " /etc/fstab || echo "/data/local-path-provisioner /opt/local-path-provisioner none bind,nofail 0 0" >> /etc/fstab; mount --bind /data/local-path-provisioner /opt/local-path-provisioner; }; }; true'
 %[2]ssystemctl restart containerd
 %[2]ssystemctl enable containerd
 %[2]smkdir -p /etc/apt/keyrings
