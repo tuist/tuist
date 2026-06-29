@@ -49,3 +49,7 @@ external-secrets:
 
 metrics-server:
   tolerations: *previewTolerations
+
+previewJanitor:
+  enabled: true
+  tolerations: *previewTolerations
