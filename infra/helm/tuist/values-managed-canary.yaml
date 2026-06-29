@@ -72,8 +72,11 @@ server:
       # scw-fr-par-runners is the macOS-serving private (runner-cache)
       # region: the canary cluster's Elastic Metal node (kuraFleet) hosts
       # the per-account cache pods and dispatch routes the Mac fleet's
-      # build cache to it over the Private Network.
-      value: eu-central,scw-fr-par-runners
+      # build cache to it over the Private Network. ca-east (Canada East /
+      # OVHcloud BHS) is the OVH bare-metal region — a geographic id; OVH is
+      # an implementation detail behind it (ovhFleet below, replicas 1) —
+      # mirroring staging.
+      value: eu-central,scw-fr-par-runners,ca-east
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
     # resolves to the node-port form (http://<node PN address>:<NodePort>
     # on scw-fr-par-runners), reached over the PN the minis attach to
@@ -258,19 +261,45 @@ kuraFleet:
 # reconciler adopts a pre-ordered Dedibox carrying the tuist-kura-canary tag (the
 # env boundary, since all Dedibox share the org's default project) and self-joins
 # it as the kura-dedibox pool that backs eu-central. PREREQ before merge: the
-# DEDIBOX_SCW_API 1Password item exists in the canary vault, and a Start-9-M box
-# is delivered + tagged tuist-kura-canary; an enabled fleet with no adoptable box
-# hangs helm --wait.
+# DEDIBOX_SCW_API 1Password item exists in the canary vault, and a Start-2-L box
+# in DC5 is delivered + tagged tuist-kura-canary; an enabled fleet with no
+# adoptable box hangs helm --wait.
 dediboxFleet:
   enabled: true
   machine:
     adoptTag: tuist-kura-canary
-    offer: Start-9-M
+    offer: Start-2-L
     datacenter: DC5
     os: ubuntu_24.04
   scaleway:
     externalSecrets:
       item: DEDIBOX_SCW_API
+
+# OVH fleet (OVHcloud bare-metal). Backs the `ca-east` region (Canada East /
+# OVHcloud BHS), mirroring staging. The reconciler adopts a pre-ordered OVH box
+# whose displayName starts with adoptDisplayNamePrefix, registers the fleet SSH
+# key, and self-joins it as the kura-ca-east pool. PREREQ before merge: the
+# OVH_API 1Password item exists in the canary vault (ovh-us entity; token scoped
+# GET /dedicated/server/* + GET /services/* + POST /dedicated/server/*/reinstall),
+# and a SYS-1 box in BHS is delivered + named tuist-kura-ovh-canary; an enabled
+# fleet with no adoptable box hangs helm --wait.
+ovhFleet:
+  enabled: true
+  replicas: 1
+  # OVHcloud US entity (api.us.ovhcloud.com). The BHS box sits on an OVHcloud US
+  # account, so the API endpoint is ovh-us; a token minted on ovh-ca/ovh-eu is
+  # rejected. The OVH_API token must be created on us.ovhcloud.com.
+  endpoint: ovh-us
+  nodePool: kura-ca-east
+  machine:
+    # Per-env adoption boundary (displayName prefix; one OVH account holds every
+    # env's boxes). The pre-ordered BHS box is named tuist-kura-ovh-canary.
+    adoptDisplayNamePrefix: tuist-kura-ovh-canary
+    offer: sys-1
+    datacenter: bhs
+    os: ubuntu_24.04
+  externalSecrets:
+    item: OVH_API
 
 # Mac mini fleet — declarative via CAPI.
 macosFleet:

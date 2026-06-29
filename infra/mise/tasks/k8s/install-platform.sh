@@ -144,6 +144,7 @@ case "$CLUSTER_NAME" in
   tuist-canary)
     ADMISSION_SECRETS+=(
       platform-kura-eu-central-ingress-nginx-admission
+      platform-kura-ca-east-ingress-nginx-admission
     )
     ;;
   tuist-staging)
