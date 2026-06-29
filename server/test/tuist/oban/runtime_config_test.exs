@@ -49,9 +49,9 @@ defmodule Tuist.Oban.RuntimeConfigTest do
       end
     end
 
-    test "empty for :web in non-prod-like envs, except hosted previews" do
+    test "empty for :web in non-prod-like envs, except previews" do
       for env <- [:dev, :test, :preview], tuist_hosted? <- [true, false] do
-        if env == :preview and tuist_hosted? do
+        if env == :preview do
           assert [{"* * * * *", SyncWorker}] = RuntimeConfig.crontab(:web, env, tuist_hosted?)
         else
           assert RuntimeConfig.crontab(:web, env, tuist_hosted?) == []
@@ -59,14 +59,14 @@ defmodule Tuist.Oban.RuntimeConfigTest do
       end
     end
 
-    test ":web + hosted preview only runs the Swift registry sync cron" do
-      assert RuntimeConfig.crontab(:web, :preview, true) == [{"* * * * *", SyncWorker}]
+    test ":web + preview only runs the Swift registry sync cron" do
+      for tuist_hosted? <- [true, false] do
+        assert RuntimeConfig.crontab(:web, :preview, tuist_hosted?) == [{"* * * * *", SyncWorker}]
+      end
 
       for mode <- Environment.modes(), mode != :web do
         assert RuntimeConfig.crontab(mode, :preview, true) == []
       end
-
-      assert RuntimeConfig.crontab(:web, :preview, false) == []
     end
 
     test ":web + non-preview non-prod-like envs stay empty" do
