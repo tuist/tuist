@@ -39,9 +39,20 @@ values="$root/infra/helm/tuist/values-managed-${env}.yaml"
 kube=(kubectl)
 [ -n "${PREP_KUBE_CONTEXT:-}" ] && kube=(kubectl --context "$PREP_KUBE_CONTEXT")
 
+# Resolve the fleet's values path. A map fleet (…-ovh-fleet-<key>, e.g.
+# tuist-tuist-ovh-fleet-us-east) reads .ovhFleets.<key>; the singular ca-east
+# fleet (tuist-tuist-ovh-fleet) reads .ovhFleet. `##*-ovh-fleet-` strips the
+# componentName prefix to the bare key, and returns the name unchanged (no map
+# lookup) for the singular fleet.
+key="${fleet##*-ovh-fleet-}"
+cfg=".ovhFleet"
+if [ "$key" != "$fleet" ] && [ "$(yq ".ovhFleets.\"$key\"" "$values" 2>/dev/null)" != "null" ]; then
+  cfg=".ovhFleets.\"$key\""
+fi
+
 # SSH key: prefer the 1Password-owned item (no cluster access needed); fall back
 # to the in-cluster <fleet>-ssh Secret for fleets still on controller-minted keys.
-item="$(yq '.ovhFleet.sshExternalSecret.item' "$values" 2>/dev/null || true)"
+item="$(yq "${cfg}.sshExternalSecret.item" "$values" 2>/dev/null || true)"
 [ "$item" = "null" ] && item=""
 pubkey=""
 [ -n "$item" ] && pubkey="$(op read "op://$vault/$item/public-key" 2>/dev/null || true)"
@@ -70,7 +81,7 @@ fi
 # template. Override via PREP_ADOPT_DISPLAY_NAME. mark-ovh signs against
 # OVH_API_BASE, so map the entity OVH_ENDPOINT selects to its API base.
 prefix="${PREP_ADOPT_DISPLAY_NAME:-}"
-[ -z "$prefix" ] && prefix="$(yq '.ovhFleet.machine.adoptDisplayNamePrefix' "$values" 2>/dev/null || true)"
+[ -z "$prefix" ] && prefix="$(yq "${cfg}.machine.adoptDisplayNamePrefix" "$values" 2>/dev/null || true)"
 [ "$prefix" = "null" ] && prefix=""
 [ -z "$prefix" ] && prefix="$("${kube[@]}" -n "$ns" get ovhdedicatedmachinetemplate "$fleet" -o jsonpath='{.spec.template.spec.adoptDisplayNamePrefix}' 2>/dev/null || true)"
 [ -z "$prefix" ] && { echo "prepped ${service} but could not resolve the adoptDisplayNamePrefix (looked in ${values} and ovhdedicatedmachinetemplate/${fleet}); name it manually: mise run baremetal:mark-ovh ${service} <display-name>" >&2; exit 1; }

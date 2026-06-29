@@ -67,6 +67,9 @@ ovh() {
 service_id="$(ovh GET "/dedicated/server/${service}/serviceInfos" | grep -o '"serviceId":[0-9]*' | grep -o '[0-9]*' | head -1)"
 [ -z "$service_id" ] && { echo "could not resolve serviceId for ${service} (check creds / OVH_API_BASE entity)" >&2; exit 1; }
 
-ovh PUT "/service/${service_id}" "{\"displayName\":\"${display_name}\"}" >/dev/null
+# displayName lives on the service resource; OVH's /service/{id} API takes it
+# nested under "resource", not flat (a flat {"displayName":...} 400s with
+# "Some properties does not exist: displayName").
+ovh PUT "/service/${service_id}" "{\"resource\":{\"displayName\":\"${display_name}\"}}" >/dev/null
 
 echo "✓ OVH ${service} (service ${service_id}) displayName set to '${display_name}'"
