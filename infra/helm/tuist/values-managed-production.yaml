@@ -103,12 +103,13 @@ server:
     # role via `SET LOCAL ROLE` by setting:
     #   - name: TUIST_ATLAS_DB_READONLY_ROLE
     #     value: tuist_ops_ro
-    # Left unset on purpose: that switch requires `GRANT tuist_ops_ro TO
-    # tuist_web` from infra/cnpg/tuist-ops-ro-grants.sql, which is a manual CNPG
-    # bootstrap/restore step — NOT applied by the Helm deploy. Enabling the env
-    # var before the grant is (re-)applied would make every Atlas DB query raise
-    # on `SET LOCAL ROLE`. Until then the runner stays on the web role behind the
-    # read-only transaction; flip this on in a follow-up once the grant has run.
+    # Left unset for now. The membership that permits the switch (web -> tuist_ops_ro)
+    # is now reconciled declaratively by CNPG (`managed.roles[tuist_web].inRoles`),
+    # so no manual grant is needed — but enable this only once CNPG has reconciled
+    # the membership on the cluster (verify: the tuist_web -> tuist_ops_ro row in
+    # pg_auth_members has inherit_option = false), otherwise the first Atlas DB
+    # query would raise on `SET LOCAL ROLE`. Until then the runner stays on the web
+    # role behind the read-only transaction.
     - name: TUIST_ATLAS_TOKEN_JWKS
       value: >-
         {"keys":[{"use":"sig","kty":"RSA","kid":"RlVpaMmFrqqIHY46_HT42inm4mfvqBKfwLVJiPCcl7g","alg":"RS256","n":"urnlzTgGSYHPHyc-sjXI7lzdx3ChfMpqUMpwuj1vgBMywpvdjFEKZ-5xWBBfS_GIna4q--YBau4zo21xFw0Jd-Ye8l4daXozFTwB1oOv-xOoIL7YITR8dtXsXzqeGIKx1rt90jE2vgvYQDBnkIf9ohgDIApbLICYGSAko5MfdypYhiO52KOxum8nB5dwIaKhr2-DiLQtFQbl__c6Uk2dFpW0_5u4d-uO6yspp5iVo54sc7XIlFNxPBlx2uVQZe8tvTH9Ipc_sovDjMfoKH7g0fG14q6xQU5CkQD1pNS__6J3xFvFYQEp3wXu4i_Rin65EI9GvNKtbZkH-sQ5e8jzLw","e":"AQAB"}]}

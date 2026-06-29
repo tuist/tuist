@@ -153,6 +153,17 @@ spec:
       - name: {{ .Values.postgresql.cnpg.roles.web.name | quote }}
         ensure: present
         login: true
+        # `inherit: false` so membership in tuist_ops_ro (below) lets the web
+        # role `SET ROLE tuist_ops_ro` for the internal Atlas query runner
+        # WITHOUT passively inheriting pg_read_all_data — keeping the web role's
+        # own footprint at its direct grants. NOINHERIT is safe here: the web
+        # role's application privileges are granted directly, not via any role
+        # membership. CNPG reconciles this membership, so no manual GRANT is
+        # needed (replaces the GRANT line that used to live in
+        # infra/cnpg/tuist-ops-ro-grants.sql).
+        inherit: false
+        inRoles:
+          - {{ .Values.postgresql.cnpg.roles.opsRo.name | quote }}
         comment: "Tuist web runtime role"
         passwordSecret:
           name: {{ $webRoleSecretName }}
