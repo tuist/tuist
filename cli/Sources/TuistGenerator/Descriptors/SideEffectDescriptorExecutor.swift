@@ -1,6 +1,7 @@
 import Command
 import FileSystem
 import Foundation
+import Path
 import TuistCore
 import TuistLogging
 import TuistSupport
@@ -36,6 +37,8 @@ public struct SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
                 try await process(file: fileDescriptor)
             case let .directory(directoryDescriptor):
                 try await process(directory: directoryDescriptor)
+            case let .symbolicLink(symbolicLinkDescriptor):
+                try await process(symbolicLink: symbolicLinkDescriptor)
             case let .testPlan(testPlanDescriptor):
                 try await process(testPlan: testPlanDescriptor)
             case let .generatedFilesCleanup(descriptor):
@@ -75,6 +78,30 @@ public struct SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
             if try await fileSystem.exists(directory.path) {
                 try await fileSystem.remove(directory.path)
             }
+        }
+    }
+
+    private func process(symbolicLink: SymbolicLinkDescriptor) async throws {
+        switch symbolicLink.state {
+        case .present:
+            try await fileSystem.makeDirectory(at: symbolicLink.path.parentDirectory)
+            if let destination = try? await fileSystem.resolveSymbolicLink(symbolicLink.path) {
+                if destination == symbolicLink.destination {
+                    return
+                }
+                try await removeIfPresent(symbolicLink.path)
+            } else {
+                try await removeIfPresent(symbolicLink.path)
+            }
+            try await fileSystem.createSymbolicLink(from: symbolicLink.path, to: symbolicLink.destination)
+        case .absent:
+            try await removeIfPresent(symbolicLink.path)
+        }
+    }
+
+    private func removeIfPresent(_ path: AbsolutePath) async throws {
+        if try await fileSystem.exists(path) {
+            try await fileSystem.remove(path)
         }
     }
 

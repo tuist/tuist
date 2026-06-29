@@ -55,7 +55,8 @@ final class FrameworkSearchPathsGraphMapperTests: TuistUnitTestCase {
         )
         let otherSwiftFlags = arrayValue(settings.base["OTHER_SWIFT_FLAGS"])
         XCTAssertTrue(otherSwiftFlags.contains("-F"))
-        XCTAssertTrue(otherSwiftFlags.contains("$(SRCROOT)/Frameworks/hash0"))
+        XCTAssertTrue(otherSwiftFlags.contains("$(SRCROOT)/Derived/FrameworkSearchPaths/Swift/App"))
+        XCTAssertFalse(otherSwiftFlags.contains("$(SRCROOT)/Frameworks/hash0"))
         // The precompiled paths live in the response file, not in FRAMEWORK_SEARCH_PATHS.
         XCTAssertFalse(arrayValue(settings.base["FRAMEWORK_SEARCH_PATHS"]).contains { $0.contains("/Frameworks/") })
 
@@ -67,6 +68,32 @@ final class FrameworkSearchPathsGraphMapperTests: TuistUnitTestCase {
         }.first)
         let contents = try XCTUnwrap(String(data: try XCTUnwrap(responseFile.contents), encoding: .utf8))
         XCTAssertTrue(contents.contains("-F\(projectPath.appending(components: "Frameworks", "hash0").pathString)"))
+
+        let swiftSearchPathCleanupDescriptor = try XCTUnwrap(
+            generatedFilesCleanupDescriptor(in: sideEffects, include: ["**/*.framework", "**/*.xcframework"])
+        )
+        let swiftSearchPathDirectory = projectPath.appending(components: "Derived", "FrameworkSearchPaths")
+        XCTAssertTrue(swiftSearchPathCleanupDescriptor.directories.contains(swiftSearchPathDirectory))
+        XCTAssertTrue(
+            swiftSearchPathCleanupDescriptor.activeFilesByDirectory[swiftSearchPathDirectory]?.contains(
+                projectPath.appending(components: "Derived", "FrameworkSearchPaths", "Swift", "App", "Module0.xcframework")
+            ) ?? false
+        )
+
+        XCTAssertTrue(
+            symbolicLinkDescriptors(in: sideEffects).contains(
+                SymbolicLinkDescriptor(
+                    path: projectPath.appending(
+                        components: "Derived",
+                        "FrameworkSearchPaths",
+                        "Swift",
+                        "App",
+                        "Module0.xcframework"
+                    ),
+                    destination: projectPath.appending(components: "Frameworks", "hash0", "Module0.xcframework")
+                )
+            )
+        )
     }
 
     func test_map_quotesResponseFileReference_whenTargetNameContainsWhitespace() async throws {
@@ -153,6 +180,53 @@ final class FrameworkSearchPathsGraphMapperTests: TuistUnitTestCase {
         )
     }
 
+    func test_map_keepsConflictingFrameworkNamesInline_whenConsolidatingSwiftSearchPaths() async throws {
+        // Given
+        let projectPath = try temporaryPath()
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(path: projectPath, sourceRootPath: projectPath, targets: [app])
+        var xcframeworks: [GraphDependency] = [
+            .testXCFramework(
+                path: projectPath.appending(components: "Frameworks", "hash0", "Shared.xcframework"),
+                linking: .dynamic
+            ),
+            .testXCFramework(
+                path: projectPath.appending(components: "Frameworks", "hash1", "Shared.xcframework"),
+                linking: .dynamic
+            ),
+        ]
+        for i in 2 ..< 25 {
+            xcframeworks.append(
+                .testXCFramework(
+                    path: projectPath.appending(components: "Frameworks", "hash\(i)", "Module\(i).xcframework"),
+                    linking: .dynamic
+                )
+            )
+        }
+        var dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: "App", path: projectPath): Set(xcframeworks),
+        ]
+        for xcframework in xcframeworks {
+            dependencies[xcframework] = Set()
+        }
+        let graph = Graph.test(projects: [projectPath: project], dependencies: dependencies)
+
+        // When
+        let (mappedGraph, sideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let settings = try XCTUnwrap(mappedGraph.projects[projectPath]?.targets["App"]?.settings)
+        let otherSwiftFlags = arrayValue(settings.base["OTHER_SWIFT_FLAGS"])
+        XCTAssertTrue(otherSwiftFlags.contains("$(SRCROOT)/Derived/FrameworkSearchPaths/Swift/App"))
+        XCTAssertTrue(otherSwiftFlags.contains("$(SRCROOT)/Frameworks/hash0"))
+        XCTAssertTrue(otherSwiftFlags.contains("$(SRCROOT)/Frameworks/hash1"))
+        XCTAssertFalse(otherSwiftFlags.contains("$(SRCROOT)/Frameworks/hash2"))
+
+        let symbolicLinks = symbolicLinkDescriptors(in: sideEffects)
+        XCTAssertFalse(symbolicLinks.contains { $0.destination.basename == "Shared.xcframework" })
+        XCTAssertTrue(symbolicLinks.contains { $0.destination.basename == "Module2.xcframework" })
+    }
+
     func test_map_keepsFrameworkSearchPaths_whenFewPrecompiledFrameworks() async throws {
         // Given
         let projectPath = try temporaryPath()
@@ -202,12 +276,20 @@ final class FrameworkSearchPathsGraphMapperTests: TuistUnitTestCase {
         }
     }
 
+    private func symbolicLinkDescriptors(in sideEffects: [SideEffectDescriptor]) -> [SymbolicLinkDescriptor] {
+        sideEffects.compactMap { sideEffect in
+            guard case let .symbolicLink(descriptor) = sideEffect else { return nil }
+            return descriptor
+        }
+    }
+
     private func generatedFilesCleanupDescriptor(
-        in sideEffects: [SideEffectDescriptor]
+        in sideEffects: [SideEffectDescriptor],
+        include: [String] = ["*.resp"]
     ) -> GeneratedFilesCleanupDescriptor? {
         sideEffects.compactMap { sideEffect in
             guard case let .generatedFilesCleanup(descriptor) = sideEffect else { return nil }
-            return descriptor
+            return descriptor.include == include ? descriptor : nil
         }.first
     }
 }
