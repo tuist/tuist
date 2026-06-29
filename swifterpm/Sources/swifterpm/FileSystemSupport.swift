@@ -132,10 +132,29 @@ extension FileSystem {
         try await move(from: temp.absolutePath, to: url.absolutePath, options: [])
     }
 
-    /// Materialise `source` at `destination`, removing any existing item first. By default, CI
-    /// runners copy cached directories; other environments symlink so the cached payload stays
-    /// shared.
+    /// Materialise `source` at `destination`, removing any existing item first. By default,
+    /// continuous integration runners copy cached directories; other environments symlink so the
+    /// cached payload stays shared.
     func replaceWithCachedDirectory(source: URL, destination: URL) async throws {
+        if Environment.cachedDirectoryMaterializationMode().shouldCopyCachedDirectories {
+            try await replaceWithCopiedDirectory(source: source, destination: destination)
+            return
+        }
+        try await replaceWithSymlink(source: source, destination: destination)
+    }
+
+    /// Registry downloads keep a real workspace-local package root in symlink mode. Xcode treats
+    /// symlinked registry roots differently during dependency scanning, but symlinked contents keep
+    /// the root stable while avoiding a full copy.
+    func replaceWithRegistryDownloadDirectory(source: URL, destination: URL) async throws {
+        if Environment.cachedDirectoryMaterializationMode().shouldCopyCachedDirectories {
+            try await replaceWithCopiedDirectory(source: source, destination: destination)
+            return
+        }
+        try await replaceWithDirectoryOfSymlinks(source: source, destination: destination)
+    }
+
+    private func replaceWithCopiedDirectory(source: URL, destination: URL) async throws {
         let destinationPath = try destination.absolutePath
         if existsIncludingSymlinks(destination) {
             try await remove(destinationPath)
@@ -143,11 +162,43 @@ extension FileSystem {
         try await makeDirectory(
             at: destinationPath.parentDirectory, options: [.createTargetParentDirectories]
         )
-        if Environment.cachedDirectoryMaterializationMode().shouldCopyCachedDirectories {
-            try await copy(source.absolutePath, to: destinationPath)
-            return
+        try await copy(source.absolutePath, to: destinationPath)
+    }
+
+    private func replaceWithSymlink(source: URL, destination: URL) async throws {
+        let destinationPath = try destination.absolutePath
+        if existsIncludingSymlinks(destination) {
+            try await remove(destinationPath)
         }
+        try await makeDirectory(
+            at: destinationPath.parentDirectory, options: [.createTargetParentDirectories]
+        )
         try await createSymbolicLink(from: destinationPath, to: source.absolutePath)
+    }
+
+    private func replaceWithDirectoryOfSymlinks(source: URL, destination: URL) async throws {
+        let destinationPath = try destination.absolutePath
+        let parent = destination.deletingLastPathComponent()
+        try await makeDirectory(
+            at: destinationPath.parentDirectory, options: [.createTargetParentDirectories]
+        )
+        let temp = try await temporaryDirectory(in: parent)
+        do {
+            let sourceEntries = try await contentsOfDirectory(at: source)
+            for sourceEntry in sourceEntries {
+                try await createSymbolicLink(
+                    from: temp.appendingPathComponent(sourceEntry.lastPathComponent).absolutePath,
+                    to: sourceEntry.absolutePath
+                )
+            }
+            if existsIncludingSymlinks(destination) {
+                try await remove(destinationPath)
+            }
+            try await move(from: temp.absolutePath, to: destinationPath, options: [])
+        } catch {
+            try? await remove(temp.absolutePath)
+            throw error
+        }
     }
 
     func replaceWithSymlinkedDirectory(source: URL, destination: URL) async throws {

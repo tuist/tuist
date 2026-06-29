@@ -140,6 +140,79 @@ struct SupportTests {
     }
 
     @Test
+    func registryDownloadReplacementAutomaticModeSymlinksContentsOutsideCI() async throws {
+        try await Environment.$values.withValue([:]) {
+            try await withTemporaryDirectory { root in
+                let source = root.appendingPathComponent("source")
+                let nested = source.appendingPathComponent("nested")
+                let destination = root.appendingPathComponent("destination")
+                try await fileSystem.makeDirectory(at: nested.absolutePath, options: [.createTargetParentDirectories])
+                try await fileSystem.atomicWrite(
+                    "value", to: nested.appendingPathComponent("file.txt"))
+                try await fileSystem.atomicWrite(
+                    "manifest", to: source.appendingPathComponent("Package.swift"))
+
+                try await fileSystem.replaceWithRegistryDownloadDirectory(
+                    source: source, destination: destination)
+
+                #expect(fileSystem.isDirectoryAndNotSymlink(destination))
+                #expect(!(fileSystem.isDirectoryAndNotSymlink(destination.appendingPathComponent("nested"))))
+                #expect(
+                    !(fileSystem.isDirectoryAndNotSymlink(
+                        destination.appendingPathComponent("Package.swift"))))
+                #expect(
+                    try await fileSystem.exists(destination.appendingPathComponent("nested/file.txt").absolutePath))
+                let data = try await fileSystem.readFile(at: destination.appendingPathComponent("nested/file.txt").absolutePath)
+                #expect(String(data: data, encoding: .utf8) == "value")
+            }
+        }
+    }
+
+    @Test
+    func registryDownloadReplacementAutomaticModeCopiesOnContinuousIntegration() async throws {
+        try await Environment.$values.withValue(["CI": "1"]) {
+            try await withTemporaryDirectory { root in
+                let source = root.appendingPathComponent("source")
+                let nested = source.appendingPathComponent("nested")
+                let destination = root.appendingPathComponent("destination")
+                try await fileSystem.makeDirectory(at: nested.absolutePath, options: [.createTargetParentDirectories])
+                try await fileSystem.atomicWrite(
+                    "value", to: nested.appendingPathComponent("file.txt"))
+
+                try await fileSystem.replaceWithRegistryDownloadDirectory(
+                    source: source, destination: destination)
+
+                #expect(fileSystem.isDirectoryAndNotSymlink(destination))
+                #expect(fileSystem.isDirectoryAndNotSymlink(destination.appendingPathComponent("nested")))
+                #expect(
+                    try await fileSystem.exists(destination.appendingPathComponent("nested/file.txt").absolutePath))
+            }
+        }
+    }
+
+    @Test
+    func registryDownloadReplacementSymlinksContentsWhenConfigured() async throws {
+        try await Environment.withCachedDirectoryMaterialization(.symlink) {
+            try await withTemporaryDirectory { root in
+                let source = root.appendingPathComponent("source")
+                let nested = source.appendingPathComponent("nested")
+                let destination = root.appendingPathComponent("destination")
+                try await fileSystem.makeDirectory(at: nested.absolutePath, options: [.createTargetParentDirectories])
+                try await fileSystem.atomicWrite(
+                    "value", to: nested.appendingPathComponent("file.txt"))
+
+                try await fileSystem.replaceWithRegistryDownloadDirectory(
+                    source: source, destination: destination)
+
+                #expect(fileSystem.isDirectoryAndNotSymlink(destination))
+                #expect(!(fileSystem.isDirectoryAndNotSymlink(destination.appendingPathComponent("nested"))))
+                #expect(
+                    try await fileSystem.exists(destination.appendingPathComponent("nested/file.txt").absolutePath))
+            }
+        }
+    }
+
+    @Test
     func cachedDirectoryReplacementSymlinksOnCIWhenConfigured() async throws {
         try await Environment.$values.withValue([
             "CI": "1",

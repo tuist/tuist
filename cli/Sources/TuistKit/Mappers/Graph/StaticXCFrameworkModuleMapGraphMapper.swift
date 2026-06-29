@@ -151,7 +151,7 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                             // directly in the module map's own directory.
                             let searchPath = Self.nestedModuleMap(for: xcframework) != nil
                                 ? moduleMap.parentDirectory.parentDirectory
-                                : moduleMap.parentDirectory
+                                : derivedHeadersDirectory(for: xcframework, derivedDirectory: derivedDirectory)
                             return "\"$(SRCROOT)/\(searchPath.relative(to: project.path).pathString)\""
                         }
                 )
@@ -222,7 +222,14 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
         return "-fmodule-map-file=\"$(SRCROOT)/\(moduleMapPath.relative(to: project.path).pathString)\""
     }
 
-    /// Generates modulemap and an umbrella header that can be referenced from downstream targets.
+    private func derivedHeadersDirectory(
+        for xcframework: GraphDependency.XCFramework,
+        derivedDirectory: AbsolutePath
+    ) -> AbsolutePath {
+        derivedDirectory.appending(components: xcframework.path.basenameWithoutExt, "Headers")
+    }
+
+    /// Generates a modulemap and headers that can be referenced from downstream targets.
     private func generateModuleMapAndUmbrellaHeader(
         for staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies: [GraphDependency.XCFramework],
         derivedDirectory: AbsolutePath
@@ -236,34 +243,68 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                 // (see `moduleMapFlag` / `HEADER_SEARCH_PATHS`), so no derived copy is generated.
                 guard Self.nestedModuleMap(for: xcframework) == nil else { return [] }
                 let name = xcframework.path.basenameWithoutExt
-                let umbrellaHeader = try await fileSystem.glob(directory: xcframework.path, include: ["**/\(name).h"]).collect()
-                    .first
+                let sourceHeadersDirectory = moduleMap.parentDirectory
+                let sourceHeaderEntries = try await fileSystem.glob(
+                    directory: sourceHeadersDirectory,
+                    include: [
+                        "**/*",
+                    ]
+                )
+                .collect()
+                .sorted(by: { $0.pathString < $1.pathString })
+                var sourceHeaderPaths: [AbsolutePath] = []
+                for sourceHeaderEntry in sourceHeaderEntries {
+                    guard sourceHeaderEntry.basename != "module.modulemap",
+                          try await !fileSystem.exists(sourceHeaderEntry, isDirectory: true)
+                    else { continue }
+                    sourceHeaderPaths.append(sourceHeaderEntry)
+                }
                 let headersDirectory = derivedDirectory.appending(components: name, "Headers")
-                var sideEffects: [SideEffectDescriptor] = [
-                    .directory(DirectoryDescriptor(path: headersDirectory)),
-                    .file(
-                        FileDescriptor(
-                            path: headersDirectory.appending(components: "module.modulemap"),
-                            contents: try await fileSystem.readFile(at: moduleMap)
-                        )
+                var directoryPaths = Set<AbsolutePath>([headersDirectory])
+                var fileDescriptors: [FileDescriptor] = [
+                    FileDescriptor(
+                        path: headersDirectory.appending(components: "module.modulemap"),
+                        contents: try await fileSystem.readFile(at: moduleMap)
                     ),
                 ]
 
-                if let umbrellaHeader {
-                    sideEffects.append(
-                        .file(
-                            FileDescriptor(
-                                path: headersDirectory.appending(components: "\(name).h"),
-                                contents: String(data: try await fileSystem.readFile(at: umbrellaHeader), encoding: .utf8)?
-                                    .replacingOccurrences(of: "<\(name)/", with: "<")
-                                    .data(using: .utf8)
-                            )
+                for headerPath in sourceHeaderPaths {
+                    let relativePath = headerPath.relative(to: sourceHeadersDirectory)
+                    let contents = rewrittenHeaderContents(
+                        try await fileSystem.readFile(at: headerPath),
+                        headerPath: headerPath,
+                        xcframeworkName: name
+                    )
+                    let destinationPath = headersDirectory.appending(relativePath)
+                    directoryPaths.insert(destinationPath.parentDirectory)
+                    fileDescriptors.append(
+                        FileDescriptor(
+                            path: destinationPath,
+                            contents: contents
                         )
                     )
                 }
 
-                return sideEffects
+                return directoryPaths
+                    .sorted(by: { $0.pathString < $1.pathString })
+                    .map { .directory(DirectoryDescriptor(path: $0)) }
+                    + fileDescriptors.map { .file($0) }
             }
+    }
+
+    private func rewrittenHeaderContents(
+        _ contents: Data,
+        headerPath: AbsolutePath,
+        xcframeworkName: String
+    ) -> Data {
+        guard headerPath.basename == "\(xcframeworkName).h",
+              let string = String(data: contents, encoding: .utf8),
+              let data = string.replacingOccurrences(of: "<\(xcframeworkName)/", with: "<")
+              .data(using: .utf8)
+        else {
+            return contents
+        }
+        return data
     }
 
     private func mapGraph(
