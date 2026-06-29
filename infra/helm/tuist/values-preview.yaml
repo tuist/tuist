@@ -90,6 +90,8 @@ server:
     limits:
       memory: 1Gi
   extraEnv:
+    - name: TUIST_DEPLOY_ENV
+      value: preview
     - name: TUIST_TEST_USER_LOGIN_ENABLED
       value: "1"
 
@@ -168,6 +170,9 @@ swiftRegistrySync:
   managedSecrets: false
   syncAllowlist: alamofire/alamofire
   syncLimit: "1"
+  extraEnv:
+    - name: TUIST_DEPLOY_ENV
+      value: preview
   resources:
     requests:
       cpu: 100m

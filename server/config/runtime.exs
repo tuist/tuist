@@ -95,7 +95,7 @@ if env != :test do
   config :tuist, TuistWeb.Endpoint, secret_key_base: secret_key_base
 end
 
-if Enum.member?([:prod, :stag, :can], env) do
+if Enum.member?([:prod, :stag, :can, :preview], env) do
   database_url =
     Tuist.Environment.database_url(secrets) ||
       raise """
@@ -354,7 +354,7 @@ if env == :test do
   config :tuist, TuistWeb.Endpoint, http: [ip: {127, 0, 0, 1}, port: test_port]
 end
 
-if Enum.member?([:prod, :stag, :can, :dev], env) do
+if Enum.member?([:prod, :stag, :can, :preview, :dev], env) do
   port =
     if env == :dev do
       String.to_integer(System.get_env("TUIST_SERVER_PORT") || "8080")
@@ -710,7 +710,7 @@ end
 # new one fails loudly rather than silently picking the wrong hook path.
 kura_hook_path =
   case env do
-    e when e in [:prod, :stag, :can] -> Application.app_dir(:tuist, "priv/kura/hooks/tuist.lua")
+    e when e in [:prod, :stag, :can, :preview] -> Application.app_dir(:tuist, "priv/kura/hooks/tuist.lua")
     e when e in [:dev, :test] -> Path.expand("../kura/ops/helm/kura/hooks/tuist.lua", File.cwd!())
     other -> raise "unknown env #{inspect(other)} for :kura_hook_path; add it to runtime.exs"
   end

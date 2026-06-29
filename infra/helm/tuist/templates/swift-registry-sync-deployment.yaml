@@ -98,6 +98,7 @@ spec:
                   name: {{ $registrySecretName }}
                   key: DATABASE_URL
             {{- include "tuist.githubEnv" . | nindent 12 }}
+            {{- include "tuist.licenseEnv" . | nindent 12 }}
             {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
             - name: MASTER_KEY
               valueFrom:
@@ -109,6 +110,13 @@ spec:
               value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
             - name: TUIST_LOG_LEVEL
               value: {{ .Values.server.logLevel | quote }}
+            {{- if not .Values.server.managedSecrets }}
+            - name: TUIST_SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: server-secret-key-base
+            {{- end }}
             # Registry-specific S3 credentials (separate Tigris key with
             # policy on the registry bucket). The ex_aws config in
             # runtime.exs detects swift_registry_sync mode and uses

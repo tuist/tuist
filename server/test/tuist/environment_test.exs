@@ -253,6 +253,12 @@ defmodule Tuist.EnvironmentTest do
     end
   end
 
+  describe "all_envs/0" do
+    test "includes preview as a runtime deployment environment" do
+      assert :preview in Environment.all_envs()
+    end
+  end
+
   describe "database_config_from_url/1" do
     test "preserves literal plus signs in credentials" do
       config = Environment.database_config_from_url("ecto://user:abc+def@example.com/tuist")
