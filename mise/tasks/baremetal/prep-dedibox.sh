@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-#MISE description="Prep a pre-ordered Dedibox (install Ubuntu + the fleet key) so the fleet self-joins it"
+#MISE description="Prep a pre-ordered Dedibox (install Ubuntu + the fleet key) and tag it into the pool"
 #
-# Adoption is now a fast self-join, so a box must be prepared before it is tagged
-# into the pool. This installs Ubuntu with the fleet's SSH key + the tuist login so
-# the controller can self-join it on the next claim — no hand-installing.
+# Adoption is a fast self-join, so a box must be prepared before it is tagged into
+# the pool. This installs Ubuntu with the fleet's SSH key + the tuist login, then —
+# as the final step — stamps the fleet's adoptTag so the controller self-joins it on
+# the next claim (no hand-installing, no separate mark step). Tagging last, here,
+# also removes the tag-before-prep footgun. Set PREP_SKIP_MARK=1 to prep without
+# tagging (to stage capacity ahead and release later with baremetal:mark-dedibox).
 #
 # Usage:
 #   mise run baremetal:prep-dedibox <server-id> [fleet-name]
@@ -39,5 +42,19 @@ sudopw="$("${kube[@]}" -n "$ns" get secret "${fleet}-ssh" -o jsonpath='{.data.su
 export DEDIBOX_SCW_SECRET_KEY="${DEDIBOX_SCW_SECRET_KEY:-$(op read 'op://tuist-k8s-staging/DEDIBOX_SCW_API/secret-key')}"
 export DEDIBOX_SCW_PROJECT_ID="${DEDIBOX_SCW_PROJECT_ID:-$(op read 'op://tuist-k8s-staging/DEDIBOX_SCW_API/project-id')}"
 
-cd "$(git rev-parse --show-toplevel)/infra/cluster-api-provider-tuist"
+root="$(git rev-parse --show-toplevel)"
+cd "$root/infra/cluster-api-provider-tuist"
 go run ./cmd/prep --provider dedibox --fleet "$fleet" --pubkey "$pubkey" --sudo-password "$sudopw" --server "$server_id"
+
+if [ -n "${PREP_SKIP_MARK:-}" ]; then
+  echo "PREP_SKIP_MARK set — ${server_id} is prepped but left untagged; release it with 'mise run baremetal:mark-dedibox ${server_id} <tag>'" >&2
+  exit 0
+fi
+
+# Tag the box into the pool as the final step — this is the adoption trigger, and
+# the box is prepped now, so the controller self-joins it the moment it sees the
+# tag. The tag is read from the deployed fleet template (one source of truth), then
+# applied via the same path as baremetal:mark-dedibox.
+tag="$("${kube[@]}" -n "$ns" get dediboxmachinetemplate "$fleet" -o jsonpath='{.spec.template.spec.adoptTag}' 2>/dev/null || true)"
+[ -z "$tag" ] && { echo "prepped ${server_id} but could not read adoptTag from dediboxmachinetemplate/${fleet} (-n $ns); tag it manually: mise run baremetal:mark-dedibox ${server_id} <tag>" >&2; exit 1; }
+bash "$root/mise/tasks/baremetal/mark-dedibox.sh" "$server_id" "$tag"
