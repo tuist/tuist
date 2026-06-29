@@ -213,11 +213,10 @@ enum PackageResolver {
                     "Package.resolved is required when forcing resolved versions, but no file exists at \(resolvedFileURL.path)"
                 )
             }
-            let resolved = try await ResolvedFile.read(packageDir: packageDir)
-            try await validateResolvedFileSatisfiesManifest(
-                resolved, packageDir: packageDir, disableSandbox: disableSandbox
-            )
-            return resolved
+            // The pins are trusted as-is here; whether they're still in sync with
+            // the manifest is verified by `assertResolvedFileUpToDate`, which the
+            // resolution flow runs once the checkouts are materialized.
+            return try await ResolvedFile.read(packageDir: packageDir)
         }
         // `--skip-update` is an explicit "trust the on-disk pins" signal:
         // read the file as-is even when it predates the `originHash` field
@@ -261,225 +260,42 @@ enum PackageResolver {
         )
     }
 
-    /// SwiftPM refuses to build against a `Package.resolved` whose pins no
-    /// longer satisfy the manifest when automatic resolution is disabled
-    /// (`--force-resolved-versions` / `--disable-automatic-resolution`); it
-    /// errors with an "out-of-date resolved file" instead of silently using the
-    /// stale pins. The `readOnly` path skipped that check, so a manifest bumped
-    /// past its lockfile (e.g. an `exact:` raised without re-resolving) was
-    /// restored to the old version and reported success — diverging from
-    /// SwiftPM and masking the very drift the flag is meant to catch.
+    /// Reject an out-of-date `Package.resolved` under `--force-resolved-versions`
+    /// the same way SwiftPM does, by delegating to SwiftPM itself rather than
+    /// reimplementing its resolver precomputation.
     ///
-    /// SwiftPM implements this in `ResolverPrecomputationProvider`: it runs the
-    /// resolver with each package's *only* available version fixed to its pin
-    /// (`LocalPackageContainer.versionsAscending` returns `[pinnedVersion]`), so
-    /// a `.required` result — and the error — fires when a pin can't satisfy a
-    /// constraint, not merely because a newer version exists within a still-
-    /// satisfied range.
-    ///
-    /// This is the fast, fail-fast half: it validates only the root manifest's
-    /// direct dependencies, so it needs no checkouts and runs before the restore.
-    /// `validateResolvedGraphSatisfiesManifests` runs after the restore and
-    /// extends the same satisfiability check across the whole pinned graph
-    /// (transitive constraints included) for full SwiftPM parity.
-    private static func validateResolvedFileSatisfiesManifest(
-        _ resolved: ResolvedPins,
+    /// The `readOnly` path restores the pins verbatim, so a manifest that has
+    /// drifted from its lockfile (an `exact:` bumped without re-resolving, a new
+    /// dependency added, a version requirement changed to a branch, …) would
+    /// otherwise be built against the stale pins and exit successfully — whereas
+    /// `swift package resolve --force-resolved-versions` fails closed with an
+    /// "out-of-date resolved file" error. We run exactly that command once the
+    /// checkouts are materialized: SwiftPM reuses the restored workspace state,
+    /// so the check is a fast precomputation (no fetch) and inherits SwiftPM's
+    /// full out-of-date semantics — direct, transitive, added/removed packages,
+    /// and version/branch/revision requirement changes alike. The command's
+    /// output is captured (not forwarded) so that, on the non-zero exit, the
+    /// SwiftPM out-of-date diagnostic on stderr becomes the `ToolError` message
+    /// instead of a bare exit code.
+    static func assertResolvedFileUpToDate(
         packageDir: URL,
-        disableSandbox: Bool
+        scratchDir: URL?,
+        cacheDir: URL,
+        registryConfigurationPath: URL?,
+        defaultRegistryURL: String?,
+        disableSandbox: Bool,
+        scmToRegistryTransformation: SCMToRegistryTransformation
     ) async throws {
-        let manifest = try await ManifestLoader.dumpPackage(
-            packageDir: packageDir, disableSandbox: disableSandbox
-        )
-        var dependencies = try ManifestParser.dependencies(manifest)
-        let localPackages = try await ManifestFileSystemDependencyGraph.collect(
-            rootPackageDir: packageDir,
-            rootManifest: manifest,
-            disableSandbox: disableSandbox
-        )
-        for localPackage in localPackages {
-            dependencies.append(contentsOf: try ManifestParser.dependencies(localPackage.manifest))
-        }
-
-        let pinsByIdentity = pinsByIdentity(resolved)
-        try validateConstraints(
-            dependencies, pinsByIdentity: pinsByIdentity, packageDir: packageDir, requiredBy: "Package.swift"
-        )
-    }
-
-    /// Whole-graph counterpart to `validateResolvedFileSatisfiesManifest`,
-    /// matching SwiftPM's `ResolverPrecomputationProvider`: it walks the pinned
-    /// dependency graph (root + every reachable pinned package's own manifest)
-    /// and fails when any pin can't satisfy a constraint placed on it —
-    /// including transitive ones the root manifest never names directly. It
-    /// reuses the checkouts a `readOnly` restore already materialized; a package
-    /// whose source isn't on disk (e.g. `--print-only`, which skips restore)
-    /// simply isn't recursed into, so the walk degrades to the direct check
-    /// rather than failing spuriously.
-    static func validateResolvedGraphSatisfiesManifests(
-        packageDir: URL,
-        scratchDir: URL,
-        resolved: ResolvedPins,
-        disableSandbox: Bool
-    ) async throws {
-        let pinsByIdentity = pinsByIdentity(resolved)
-
-        let rootManifest = try await ManifestLoader.dumpPackage(
-            packageDir: packageDir, disableSandbox: disableSandbox
-        )
-        var worklist = try ManifestParser.dependencies(rootManifest).map {
-            PendingConstraint(requiredBy: "Package.swift", dependency: $0)
-        }
-        let localPackages = try await ManifestFileSystemDependencyGraph.collect(
-            rootPackageDir: packageDir,
-            rootManifest: rootManifest,
-            disableSandbox: disableSandbox
-        )
-        for localPackage in localPackages {
-            let requiredBy = "'\(localPackage.dependency.identity)'"
-            worklist.append(
-                contentsOf: try ManifestParser.dependencies(localPackage.manifest).map {
-                    PendingConstraint(requiredBy: requiredBy, dependency: $0)
-                }
-            )
-        }
-
-        var expanded = Set<String>()
-        while let pending = worklist.popLast() {
-            let dependency = pending.dependency
-            let identity = dependency.identity.lowercased()
-            // Skip pins we can't confidently match (e.g. an SCM->registry
-            // identity remap) to avoid a false positive; the resolver only fails
-            // on pins it can prove unsatisfiable.
-            guard let pin = pinsByIdentity[identity] else { continue }
-            guard pinSatisfies(dependency.requirement, pin: pin) else {
-                throw ToolError.message(
-                    outOfDateMessage(
-                        packageDir: packageDir, dependency: dependency, pin: pin, requiredBy: pending.requiredBy
-                    )
-                )
-            }
-            guard expanded.insert(identity).inserted else { continue }
-
-            // Recurse into the pinned package's own manifest to validate its
-            // transitive constraints. This needs the materialized source; if the
-            // checkout/registry download is absent we can't (and don't) descend.
-            let sourcePath = materializedPackagePath(scratchDir: scratchDir, pin: pin)
-            guard let sourcePath,
-                  try await fileSystem.exists(sourcePath.appendingPathComponent("Package.swift").absolutePath)
-            else { continue }
-            let manifest = try await ManifestLoader.dumpPackage(
-                packageDir: sourcePath, disableSandbox: disableSandbox
-            )
-            let requiredBy = "'\(pin.identity)'"
-            worklist.append(
-                contentsOf: try ManifestParser.dependencies(manifest).map {
-                    PendingConstraint(requiredBy: requiredBy, dependency: $0)
-                }
-            )
-        }
-    }
-
-    private struct PendingConstraint {
-        let requiredBy: String
-        let dependency: ManifestDependency
-    }
-
-    private static func pinsByIdentity(_ resolved: ResolvedPins) -> [String: ResolvedPin] {
-        var pinsByIdentity: [String: ResolvedPin] = [:]
-        for pin in resolved.pins {
-            pinsByIdentity[pin.identity.lowercased()] = pin
-        }
-        return pinsByIdentity
-    }
-
-    /// Validate a single package's direct dependency constraints against the
-    /// pins. Only pins we can match by identity are checked; an unmatched
-    /// dependency may be an SCM->registry identity remap rather than genuine
-    /// drift, so it's skipped instead of risking a false positive that would
-    /// break a working lockfile.
-    private static func validateConstraints(
-        _ dependencies: [ManifestDependency],
-        pinsByIdentity: [String: ResolvedPin],
-        packageDir: URL,
-        requiredBy: String
-    ) throws {
-        for dependency in dependencies {
-            guard let pin = pinsByIdentity[dependency.identity.lowercased()] else { continue }
-            guard pinSatisfies(dependency.requirement, pin: pin) else {
-                throw ToolError.message(
-                    outOfDateMessage(
-                        packageDir: packageDir, dependency: dependency, pin: pin, requiredBy: requiredBy
-                    )
-                )
-            }
-        }
-    }
-
-    /// Whether `pin` satisfies `requirement`, mirroring SwiftPM precomputation
-    /// where each package offers only its pinned version. Version constraints
-    /// are checked strictly; branch/revision are checked leniently (a missing
-    /// field on the pin is treated as "no contradiction") so we never fail a
-    /// lockfile on an ambiguous short/long revision or unrecorded branch.
-    private static func pinSatisfies(_ requirement: Requirement, pin: ResolvedPin) -> Bool {
-        switch requirement {
-        case .exact, .range:
-            guard let range = ManifestParser.versionRange(for: requirement) else { return true }
-            // A version requirement against a branch/revision pin is genuine
-            // drift (the manifest no longer asks for a versioned dependency).
-            guard let versionString = pin.state.version else { return false }
-            // An unparseable pin version is not proof of drift; don't fail on it.
-            guard let version = try? SemVer(versionString) else { return true }
-            return range.contains(version)
-        case let .revision(revision):
-            guard let pinned = pin.state.revision, !pinned.isEmpty, !revision.isEmpty else { return true }
-            return pinned.hasPrefix(revision) || revision.hasPrefix(pinned)
-        case let .branch(branch):
-            guard let pinned = pin.state.branch else { return true }
-            return pinned == branch
-        }
-    }
-
-    /// On-disk source location a `readOnly` restore materializes a pin into,
-    /// mirroring `WorkspaceRestorer`: registry downloads live under
-    /// `registry/downloads/<scope>/<name>/<version>`, source-control checkouts
-    /// under `checkouts/<name>`.
-    private static func materializedPackagePath(scratchDir: URL, pin: ResolvedPin) -> URL? {
-        if PinKind.isRegistry(pin.kind) {
-            guard let subpath = try? PinKind.registryDownloadSubpath(pin) else { return nil }
-            return scratchDir.appendingPathComponent("registry/downloads").appendingPathComponent(subpath)
-        }
-        guard PinKind.isSourceControl(pin.kind) else { return nil }
-        return scratchDir.appendingPathComponent("checkouts")
-            .appendingPathComponent(PinKind.checkoutDirectoryName(pin))
-    }
-
-    private static func outOfDateMessage(
-        packageDir: URL,
-        dependency: ManifestDependency,
-        pin: ResolvedPin,
-        requiredBy: String
-    ) -> String {
-        let resolvedPath = packageDir.appendingPathComponent("Package.resolved").path
-        let pinned = pin.state.version ?? pin.state.branch ?? pin.state.revision ?? "<unknown>"
-        return """
-        an out-of-date Package.resolved was detected at \(resolvedPath), which is not allowed when \
-        --force-resolved-versions is set: '\(dependency.identity)' is pinned to \(pinned) but \(requiredBy) \
-        requires \(requirementDescription(dependency.requirement)). Update the resolved file (e.g. run \
-        `tuist install` or `swift package resolve`) and commit it.
-        """
-    }
-
-    private static func requirementDescription(_ requirement: Requirement) -> String {
-        switch requirement {
-        case let .exact(version):
-            return "exactly \(version)"
-        case let .range(lower, upper):
-            return "\(lower)..<\(upper)"
-        case let .revision(revision):
-            return "revision \(revision)"
-        case let .branch(branch):
-            return "branch \(branch)"
-        }
+        let arguments = swiftPackageResolveArguments(
+            packageDir: packageDir,
+            scratchDir: scratchDir,
+            cacheDir: cacheDir,
+            registryConfigurationPath: registryConfigurationPath,
+            defaultRegistryURL: defaultRegistryURL,
+            disableSandbox: disableSandbox,
+            scmToRegistryTransformation: scmToRegistryTransformation
+        ) + ["--force-resolved-versions"]
+        try await SystemProcess.run("swift", arguments, workingDirectory: packageDir)
     }
 
     private static func normalizeLoadedResolvedFile(

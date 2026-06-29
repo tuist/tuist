@@ -246,16 +246,19 @@ public struct SwifterPM: Sendable {
             )
         }
 
-        // `resolveOrLoad` already rejected a `Package.resolved` whose direct
-        // pins violate the root manifest. With the checkouts now materialized we
-        // can extend that to the whole pinned graph (SwiftPM's precomputation
-        // parity), catching transitive constraints the root never names.
-        if request.forceResolvedVersions {
-            try await PackageResolver.validateResolvedGraphSatisfiesManifests(
+        // With the pins restored, confirm they still satisfy the manifest the
+        // same way SwiftPM would. We only do this once the checkouts exist so
+        // SwiftPM reuses the restored workspace state and the check stays a fast
+        // precomputation rather than a fresh resolve.
+        if request.forceResolvedVersions, request.restorePackage {
+            try await PackageResolver.assertResolvedFileUpToDate(
                 packageDir: package,
                 scratchDir: scratch,
-                resolved: resolved,
-                disableSandbox: request.disableSandbox
+                cacheDir: cache.root,
+                registryConfigurationPath: request.registryConfigurationPath,
+                defaultRegistryURL: request.defaultRegistryURL,
+                disableSandbox: request.disableSandbox,
+                scmToRegistryTransformation: request.scmToRegistryTransformation
             )
         }
 

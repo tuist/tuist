@@ -574,18 +574,21 @@ enum CLIRunner {
             try await WorkspaceRestorer.writeWorkspaceState(
                 packageDir: package, scratchDir: scratch, resolved: resolved,
                 disableSandbox: cli.disableSandbox)
-        }
 
-        // `resolveOrLoad` rejected direct pins that violate the root manifest;
-        // with the checkouts materialized, extend that to the whole pinned graph
-        // (SwiftPM precomputation parity) so transitive drift fails here too.
-        if readOnly {
-            try await PackageResolver.validateResolvedGraphSatisfiesManifests(
-                packageDir: package,
-                scratchDir: scratch,
-                resolved: resolved,
-                disableSandbox: cli.disableSandbox
-            )
+            // With the pins restored, confirm they still satisfy the manifest the
+            // same way SwiftPM does. SwiftPM reuses the workspace state we just
+            // wrote, so this is a fast precomputation rather than a fresh resolve.
+            if readOnly {
+                try await PackageResolver.assertResolvedFileUpToDate(
+                    packageDir: package,
+                    scratchDir: scratch,
+                    cacheDir: cache.root,
+                    registryConfigurationPath: paths.resolve(cli.configPath),
+                    defaultRegistryURL: cli.defaultRegistryURL,
+                    disableSandbox: cli.disableSandbox,
+                    scmToRegistryTransformation: try scmToRegistryTransformation(cli)
+                )
+            }
         }
     }
 
