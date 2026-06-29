@@ -570,29 +570,36 @@ defmodule Tuist.Ops.Database do
   defp validate_grammar(_), do: {:error, "Query must be a string"}
 
   defp run_read_only(sql, limit, role) do
-    Repo.transaction(fn ->
-      {:ok, _} = Repo.query("SET TRANSACTION READ ONLY")
-      {:ok, _} = Repo.query("SET LOCAL statement_timeout = #{@statement_timeout_ms}")
-      # When a `role` is given (the internal Atlas runner passes `tuist_ops_ro`),
-      # drop to it for the duration of the transaction so the statement executes
-      # with a least-privilege role that has no write grants at all — writes are
-      # then blocked by privileges, not only by `SET TRANSACTION READ ONLY`.
-      # Resets automatically at transaction end.
-      maybe_set_local_role(role)
-
+    # Pin one connection for the whole operation so the advisory-lock cleanup
+    # below runs on the same backend that executed the statement — whether the
+    # transaction committed or rolled back.
+    Repo.checkout(fn ->
       result =
-        if cursorable?(sql) do
-          fetch_via_cursor(sql, limit)
-        else
-          build_result(Repo.query(sql), limit)
-        end
+        Repo.transaction(fn ->
+          {:ok, _} = Repo.query("SET TRANSACTION READ ONLY")
+          {:ok, _} = Repo.query("SET LOCAL statement_timeout = #{@statement_timeout_ms}")
+          # When a `role` is given (the internal Atlas runner passes `tuist_ops_ro`),
+          # drop to it for the duration of the transaction so the statement
+          # executes with a least-privilege role that has no write grants at all —
+          # writes are then blocked by privileges, not only by `SET TRANSACTION
+          # READ ONLY`. Resets automatically at transaction end.
+          maybe_set_local_role(role)
+
+          if cursorable?(sql) do
+            fetch_via_cursor(sql, limit)
+          else
+            build_result(Repo.query(sql), limit)
+          end
+        end)
 
       # `SET TRANSACTION READ ONLY` blocks writes but still permits side-effecting
       # functions like `SELECT pg_advisory_lock(...)`, whose session-level lock
-      # survives commit and would ride a pooled connection into the next caller
-      # (or collide with Oban's advisory locks). Release any such locks before
-      # the connection returns to the pool.
-      {:ok, _} = Repo.query("SELECT pg_advisory_unlock_all()")
+      # survives both COMMIT and ROLLBACK and would ride a pooled connection into
+      # the next caller (or collide with Oban's advisory locks). Release any such
+      # locks here, outside the transaction on the same checked-out connection,
+      # so it runs on every path — including the rollback from a lock-taking
+      # query that then fails.
+      Repo.query("SELECT pg_advisory_unlock_all()")
       result
     end)
   end
