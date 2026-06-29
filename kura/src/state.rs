@@ -83,7 +83,8 @@ impl AppState {
     pub fn bootstrap_fetch_lock(&self, artifact_id: &str) -> &Mutex<()> {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         std::hash::Hash::hash(artifact_id, &mut hasher);
-        let index = (std::hash::Hasher::finish(&hasher) as usize) % self.bootstrap_fetch_locks.len();
+        let index =
+            (std::hash::Hasher::finish(&hasher) as usize) % self.bootstrap_fetch_locks.len();
         &self.bootstrap_fetch_locks[index]
     }
 }

@@ -3420,8 +3420,7 @@ mod tests {
             "exactly one concurrent same-key apply should write; the rest are stale"
         );
 
-        let segments_bytes =
-            crate::utils::directory_size_bytes(&config.data_dir.join("segments"));
+        let segments_bytes = crate::utils::directory_size_bytes(&config.data_dir.join("segments"));
         assert!(
             segments_bytes <= (artifact_len as u64) * 2,
             "segment store held {segments_bytes} bytes, expected ~{artifact_len} (one copy); \

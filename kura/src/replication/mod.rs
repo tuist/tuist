@@ -439,7 +439,10 @@ async fn bootstrap_artifact_from_peer(
     // stranding the artifact. The gate is bootstrap-scoped so it never blocks the
     // live-replication apply path; the store's per-key apply lock remains the
     // last-line write-dedup.
-    let _fetch_guard = state.bootstrap_fetch_lock(&manifest.artifact_id).lock().await;
+    let _fetch_guard = state
+        .bootstrap_fetch_lock(&manifest.artifact_id)
+        .lock()
+        .await;
     let recheck = state.store.artifact_apply_outcome(
         manifest.producer,
         &manifest.namespace_id,
@@ -1997,7 +2000,10 @@ mod tests {
                 artifact_len as u64,
                 100 + index as u64,
             );
-            bodies.insert(manifest.artifact_id.clone(), vec![index as u8; artifact_len]);
+            bodies.insert(
+                manifest.artifact_id.clone(),
+                vec![index as u8; artifact_len],
+            );
             manifests.push(manifest);
         }
         let manifest_page = ManifestPage {
@@ -2094,7 +2100,11 @@ mod tests {
                 local
                     .state
                     .store
-                    .fetch_artifact(ArtifactProducer::Gradle, "ios", &format!("artifact-{index}"))
+                    .fetch_artifact(
+                        ArtifactProducer::Gradle,
+                        "ios",
+                        &format!("artifact-{index}")
+                    )
                     .await
                     .expect("artifact fetch should succeed")
                     .is_some(),
