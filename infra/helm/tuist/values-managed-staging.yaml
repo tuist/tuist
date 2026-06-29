@@ -250,6 +250,11 @@ postgresql:
         memory: "4Gi"
     backup:
       destinationPath: s3://tuist-stag-pg-backups/
+      # Cut over to the Barman Cloud Plugin (installed cluster-wide by the
+      # platform chart). Same bucket + serverName, so the archive prefix is
+      # unchanged. See infra/cnpg/README.md.
+      plugin:
+        enabled: true
 
 processor:
   # Single replica on staging — 2-replica redundancy isn't needed for a

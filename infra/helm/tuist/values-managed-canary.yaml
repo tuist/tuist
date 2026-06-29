@@ -208,6 +208,11 @@ postgresql:
         memory: "8Gi"
     backup:
       destinationPath: s3://tuist-can-pg-backups/
+      # Cut over to the Barman Cloud Plugin (installed cluster-wide by the
+      # platform chart). Same bucket + serverName, so the archive prefix is
+      # unchanged. See infra/cnpg/README.md.
+      plugin:
+        enabled: true
 
 processor:
   replicaCount: 1
