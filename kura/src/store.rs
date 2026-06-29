@@ -3371,6 +3371,65 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn concurrent_replicated_applies_of_same_key_write_once() {
+        // Several peers replicating the same artifact concurrently (same key,
+        // same version) must not each append their own copy to a segment. The
+        // per-key apply lock serializes them: the first writer commits the
+        // manifest and the rest re-read it and short-circuit to IgnoredStale. A
+        // sleep failpoint between the durable append and the metadata commit
+        // forces the writers to overlap, so without the lock every copy would be
+        // appended (writer_count x on disk). This guards the store invariant
+        // directly, independent of the bootstrap-level fetch gate.
+        let (_temp_dir, config, store) = temp_store();
+        store.failpoints().set_always(
+            FailpointName::AfterArtifactBytesDurableBeforeMetadata,
+            FailpointAction::Sleep(std::time::Duration::from_millis(150)),
+        );
+
+        let writer_count = 4_usize;
+        let artifact_len = 128 * 1024_usize;
+        let bytes = vec![9_u8; artifact_len];
+        let version_ms = 100_u64;
+
+        let mut sources = Vec::new();
+        for index in 0..writer_count {
+            let path = config.tmp_dir.join("uploads").join(format!("src-{index}"));
+            std::fs::write(&path, &bytes).expect("source should write");
+            sources.push(path);
+        }
+
+        let applies = sources.iter().map(|source_path| {
+            store.apply_replicated_artifact_from_path(
+                ArtifactProducer::Gradle,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                source_path,
+                version_ms,
+            )
+        });
+        let outcomes = futures_util::future::join_all(applies).await;
+
+        let applied = outcomes
+            .into_iter()
+            .map(|outcome| outcome.expect("apply should succeed"))
+            .filter(|outcome| outcome.applied())
+            .count();
+        assert_eq!(
+            applied, 1,
+            "exactly one concurrent same-key apply should write; the rest are stale"
+        );
+
+        let segments_bytes =
+            crate::utils::directory_size_bytes(&config.data_dir.join("segments"));
+        assert!(
+            segments_bytes <= (artifact_len as u64) * 2,
+            "segment store held {segments_bytes} bytes, expected ~{artifact_len} (one copy); \
+             concurrent same-key applies amplified on-disk data"
+        );
+    }
+
+    #[tokio::test]
     async fn persist_and_fetch_segment_backed_artifact_round_trip() {
         let (_temp_dir, _config, store) = temp_store();
 
