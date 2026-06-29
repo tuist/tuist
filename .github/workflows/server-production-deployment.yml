@@ -373,24 +373,33 @@ jobs:
     if: needs.check-releases.outputs.kura-should-release == 'true'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
+    # id-token: OIDC for `tuist bazel setup`. Job permissions replace (not merge) the workflow's,
+    # so contents:read must be restated for checkout.
+    permissions:
+      contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
+        # All targets build with Bazel and reuse the Tuist remote cache. macOS x86_64 is the only
+        # non-native target: it cross-compiles from the arm64 runner via --config=macos-x86_64-cross
+        # (apple_support supplies the cross cc toolchain for the -sys crates). The rest are native.
         include:
-          - runner: ubuntu-latest
+          - runner: tuist-linux
             target: x86_64-unknown-linux-gnu
           - runner: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
           - runner: tuist-macos
-            target: x86_64-apple-darwin
-          - runner: tuist-macos
             target: aarch64-apple-darwin
+          - runner: tuist-macos
+            target: x86_64-apple-darwin
+            compile-args: "--config=macos-x86_64-cross"
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "rust"
+          install_args: "rust bazel tuist"
           cache: "false"
           working_directory: kura
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -401,6 +410,22 @@ jobs:
           name: kura-release-metadata
           path: kura
 
+      # macOS gets clang/cmake from Xcode; this apt path is Linux-only.
+      - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
+      # Best-effort: continue-on-error + `.bazelrc` try-imports `.bazelrc.tuist`, so a failed setup
+      # falls back to a cold local build instead of blocking the release.
+      - name: Set up the Tuist remote cache
+        working-directory: kura
+        run: |
+          tuist auth login
+          tuist bazel setup
+        continue-on-error: true
+      - name: Warn when the Tuist remote cache is unavailable
+        if: hashFiles('kura/.bazelrc.tuist') == ''
+        run: echo "::warning::Tuist remote cache unavailable (.bazelrc.tuist not written); building cold against the local cache."
+
       - name: Build Kura binary
         working-directory: kura
         run: |
@@ -410,10 +435,16 @@ jobs:
 
           mkdir -p "$ARTIFACT_DIR"
 
-          env -u RUSTUP_TOOLCHAIN rustup target add "$TARGET"
-          env -u RUSTUP_TOOLCHAIN cargo build --release --locked --target "$TARGET"
+          # --binary-only builds just //:kura (opt via kura/.bazelrc); //... would pull in the test
+          # target, which can't cross-compile. compile-args adds the cross --config on the macOS
+          # x86_64 leg and is empty for the native legs.
+          mise run --skip-tools compile -- --binary-only ${{ matrix.compile-args }}
 
-          tar -C "target/$TARGET/release" -czf "$ARTIFACT_DIR/$ARTIFACT_NAME" kura
+          STAGE_DIR="$(mktemp -d)"
+          cp bazel-bin/kura "$STAGE_DIR/kura"
+          chmod +x "$STAGE_DIR/kura"
+
+          tar -C "$STAGE_DIR" -czf "$ARTIFACT_DIR/$ARTIFACT_NAME" kura
           shasum -a 256 "$ARTIFACT_DIR/$ARTIFACT_NAME" | awk '{print $1 "  " FILENAME}' FILENAME="$ARTIFACT_NAME" > "$ARTIFACT_DIR/sha256.txt"
           shasum -a 512 "$ARTIFACT_DIR/$ARTIFACT_NAME" | awk '{print $1 "  " FILENAME}' FILENAME="$ARTIFACT_NAME" > "$ARTIFACT_DIR/sha512.txt"
 
