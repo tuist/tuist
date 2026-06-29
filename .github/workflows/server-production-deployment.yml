@@ -1893,6 +1893,13 @@ jobs:
     # caught by skip-propagation and is itself skipped even when `build`
     # succeeded, so the whole deploy tail must re-assert success explicitly.
     if: ${{ always() && needs.build.result == 'success' && needs.check-releases.outputs.is-hotfix != 'true' }}
+    # server-deployment.yml's build-kura-runtime job requests id-token: write;
+    # a reusable workflow's permissions are validated against the caller at
+    # startup, so this leg must grant the callee's full permission union.
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     uses: ./.github/workflows/server-deployment.yml
     with:
       environment: canary
@@ -2037,6 +2044,11 @@ jobs:
       needs.acceptance-tests.result == 'success' &&
       needs.backward-compatibility-acceptance.result == 'success' &&
       needs.check-releases.outputs.is-hotfix != 'true'
+    # See `canary` above: grant the callee's full permission union.
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     uses: ./.github/workflows/server-deployment.yml
     with:
       environment: production
@@ -2053,6 +2065,11 @@ jobs:
   production-hotfix:
     needs: [check-releases, build]
     if: ${{ always() && needs.build.result == 'success' && needs.check-releases.outputs.is-hotfix == 'true' }}
+    # See `canary` above: grant the callee's full permission union.
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     uses: ./.github/workflows/server-deployment.yml
     with:
       environment: production
