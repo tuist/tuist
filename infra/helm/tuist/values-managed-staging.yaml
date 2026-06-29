@@ -332,6 +332,11 @@ dediboxFleet:
       # 1Password item with the default-project Dedibox IAM key (secret-key +
       # project-id), readable by the staging ClusterSecretStore.
       item: DEDIBOX_SCW_API
+  # Own the fleet SSH key from 1Password (the live key was extracted into this
+  # item); ESO adopts the existing in-cluster Secret in place, so no box churn.
+  sshExternalSecret:
+    enabled: true
+    item: DEDIBOX_FLEET_SSH
 
 # OVH fleet (OVHcloud bare-metal validation node). The reconciler adopts a
 # pre-ordered OVH box whose displayName starts with adoptDisplayNamePrefix,
@@ -374,6 +379,11 @@ ovhFleet:
     os: ubuntu_24.04
   externalSecrets:
     item: OVH_API
+  # Own the fleet SSH key from 1Password (the live key was extracted into this
+  # item); ESO adopts the existing in-cluster Secret in place, so no box churn.
+  sshExternalSecret:
+    enabled: true
+    item: OVH_FLEET_SSH
 
 # Mac mini fleet. The chart renders one ScalewayAppleSiliconMachine
 # CR per replica; the cluster-api-provider-tuist

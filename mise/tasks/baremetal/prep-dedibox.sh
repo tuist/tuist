@@ -12,9 +12,11 @@
 #   mise run baremetal:prep-dedibox <server-id> [fleet-name]
 #   e.g. mise run baremetal:prep-dedibox 188785
 #
-# Reads the fleet pubkey from the operator-minted <fleet>-ssh Secret (so the fleet
-# must be deployed first) and the Dedibox IAM key from 1Password. Override the
-# cluster via PREP_KUBE_CONTEXT / PREP_NAMESPACE, or the creds via env.
+# The fleet pubkey + sudo-password and the Dedibox IAM key come from the env's
+# 1Password vault (tuist-k8s-<env>, derived from PREP_NAMESPACE; override with
+# PREP_VAULT) — so a box can be prepped with no cluster access. Falls back to the
+# in-cluster <fleet>-ssh Secret for fleets still on controller-minted keys
+# (PREP_KUBE_CONTEXT selects the cluster for that fallback).
 
 set -euo pipefail
 
@@ -28,21 +30,34 @@ if [ -z "$server_id" ]; then
   exit 2
 fi
 
+root="$(git rev-parse --show-toplevel)"
+env="${ns#tuist-}"
+vault="${PREP_VAULT:-tuist-k8s-$env}"
+values="$root/infra/helm/tuist/values-managed-${env}.yaml"
+
 kube=(kubectl)
 [ -n "${PREP_KUBE_CONTEXT:-}" ] && kube=(kubectl --context "$PREP_KUBE_CONTEXT")
 
-pubkey="$("${kube[@]}" -n "$ns" get secret "${fleet}-ssh" -o jsonpath='{.data.id_ed25519\.pub}' 2>/dev/null | base64 -d || true)"
-[ -z "$pubkey" ] && { echo "no id_ed25519.pub in secret ${fleet}-ssh (-n $ns); is the fleet deployed and the key minted?" >&2; exit 1; }
+# SSH key: prefer the 1Password-owned item (no cluster access needed); fall back
+# to the in-cluster <fleet>-ssh Secret for fleets still on controller-minted keys.
+item="$(yq '.dediboxFleet.sshExternalSecret.item' "$values" 2>/dev/null || true)"
+[ "$item" = "null" ] && item=""
+pubkey=""; sudopw=""
+if [ -n "$item" ]; then
+  pubkey="$(op read "op://$vault/$item/public-key" 2>/dev/null || true)"
+  sudopw="$(op read "op://$vault/$item/sudo-password" 2>/dev/null || true)"
+fi
+if [ -z "$pubkey" ]; then
+  pubkey="$("${kube[@]}" -n "$ns" get secret "${fleet}-ssh" -o jsonpath='{.data.id_ed25519\.pub}' 2>/dev/null | base64 -d || true)"
+  sudopw="$("${kube[@]}" -n "$ns" get secret "${fleet}-ssh" -o jsonpath='{.data.sudo-password}' 2>/dev/null | base64 -d || true)"
+fi
+[ -z "$pubkey" ] && { echo "no fleet pubkey: tried op://$vault/${item:-<unset>}/public-key and the ${fleet}-ssh Secret (-n $ns); is the 1Password item present, or the key minted?" >&2; exit 1; }
+# The install sets this as the login password; the self-join uses it to establish NOPASSWD sudo.
+[ -z "$sudopw" ] && { echo "no sudo-password: tried op://$vault/${item:-<unset>}/sudo-password and the ${fleet}-ssh Secret (-n $ns)" >&2; exit 1; }
 
-# The install sets this as the login password; the self-join uses it to establish
-# NOPASSWD sudo. Run mint-fleet-key first if it's missing.
-sudopw="$("${kube[@]}" -n "$ns" get secret "${fleet}-ssh" -o jsonpath='{.data.sudo-password}' 2>/dev/null | base64 -d || true)"
-[ -z "$sudopw" ] && { echo "no sudo-password in secret ${fleet}-ssh (-n $ns); run 'mise run baremetal:mint-fleet-key ${fleet}' first" >&2; exit 1; }
+export DEDIBOX_SCW_SECRET_KEY="${DEDIBOX_SCW_SECRET_KEY:-$(op read "op://$vault/DEDIBOX_SCW_API/secret-key")}"
+export DEDIBOX_SCW_PROJECT_ID="${DEDIBOX_SCW_PROJECT_ID:-$(op read "op://$vault/DEDIBOX_SCW_API/project-id")}"
 
-export DEDIBOX_SCW_SECRET_KEY="${DEDIBOX_SCW_SECRET_KEY:-$(op read 'op://tuist-k8s-staging/DEDIBOX_SCW_API/secret-key')}"
-export DEDIBOX_SCW_PROJECT_ID="${DEDIBOX_SCW_PROJECT_ID:-$(op read 'op://tuist-k8s-staging/DEDIBOX_SCW_API/project-id')}"
-
-root="$(git rev-parse --show-toplevel)"
 cd "$root/infra/cluster-api-provider-tuist"
 go run ./cmd/prep --provider dedibox --fleet "$fleet" --pubkey "$pubkey" --sudo-password "$sudopw" --server "$server_id"
 
@@ -53,11 +68,9 @@ fi
 
 # Tag the box into the pool as the final step — this is the adoption trigger, and
 # the box is prepped now, so the controller self-joins it the moment it sees the
-# tag. Read the tag from the env's values file (where adoptTag is defined): it is
-# present before the fleet is ever deployed, so this stays a cold-start step. Fall
-# back to a deployed DediboxMachineTemplate. Override via PREP_ADOPT_TAG.
-env="${ns#tuist-}"
-values="$root/infra/helm/tuist/values-managed-${env}.yaml"
+# tag. Read the tag from the env's values file (present before the fleet is ever
+# deployed, so this stays a cold-start step); fall back to a deployed
+# DediboxMachineTemplate. Override via PREP_ADOPT_TAG.
 tag="${PREP_ADOPT_TAG:-}"
 [ -z "$tag" ] && tag="$(yq '.dediboxFleet.machine.adoptTag' "$values" 2>/dev/null || true)"
 [ "$tag" = "null" ] && tag=""

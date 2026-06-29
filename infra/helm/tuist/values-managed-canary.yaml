@@ -274,6 +274,10 @@ dediboxFleet:
   scaleway:
     externalSecrets:
       item: DEDIBOX_SCW_API
+  # Own the fleet SSH key from 1Password (generated fresh into this item).
+  sshExternalSecret:
+    enabled: true
+    item: DEDIBOX_FLEET_SSH
 
 # OVH fleet (OVHcloud bare-metal). Backs the `ca-east` region (Canada East /
 # OVHcloud BHS), mirroring staging. The reconciler adopts a pre-ordered OVH box
@@ -300,6 +304,10 @@ ovhFleet:
     os: ubuntu_24.04
   externalSecrets:
     item: OVH_API
+  # Own the fleet SSH key from 1Password (generated fresh into this item).
+  sshExternalSecret:
+    enabled: true
+    item: OVH_FLEET_SSH
 
 # Mac mini fleet — declarative via CAPI.
 macosFleet:

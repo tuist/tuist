@@ -656,6 +656,21 @@ dediboxFleet:
       fields:
         secretKey: secret-key
         projectID: project-id
+  # Per-fleet SSH keypair (+ install sudo-password) the reconciler self-joins
+  # boxes with, owned from 1Password instead of minted in-cluster. Default off
+  # keeps the controller's in-cluster minting; set enabled=true + item to a
+  # 1Password item carrying private-key / public-key / sudo-password fields.
+  sshExternalSecret:
+    enabled: false
+    item: ""
+    refreshInterval: 1h
+    storeRef:
+      name: onepassword
+      kind: ClusterSecretStore
+    fields:
+      privateKey: private-key
+      publicKey: public-key
+      sudoPassword: sudo-password
 
 ovhFleet:
   enabled: false
@@ -699,6 +714,21 @@ ovhFleet:
       applicationKey: application-key
       applicationSecret: application-secret
       consumerKey: consumer-key
+  # Per-fleet SSH keypair (+ install sudo-password) the reconciler self-joins
+  # boxes with, owned from 1Password instead of minted in-cluster. Default off
+  # keeps the controller's in-cluster minting; set enabled=true + item to a
+  # 1Password item carrying private-key / public-key / sudo-password fields.
+  sshExternalSecret:
+    enabled: false
+    item: ""
+    refreshInterval: 1h
+    storeRef:
+      name: onepassword
+      kind: ClusterSecretStore
+    fields:
+      privateKey: private-key
+      publicKey: public-key
+      sudoPassword: sudo-password
 
 # Scaling: `kubectl scale machinedeployment <name> --replicas=N`.
 macosFleet:

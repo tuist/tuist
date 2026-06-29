@@ -13,10 +13,11 @@
 #   mise run baremetal:prep-ovh <service-name> [fleet-name]
 #   e.g. mise run baremetal:prep-ovh ns543284.ip-144-217-252.net
 #
-# Reads the fleet pubkey from the operator-minted <fleet>-ssh Secret (so the fleet
-# must be deployed first) and the OVH_API triple from 1Password. OVH_API_BASE
-# selects the entity (default ovh-us). Override the cluster via PREP_KUBE_CONTEXT /
-# PREP_NAMESPACE, or the creds via env.
+# The fleet pubkey and the OVH API triple come from the env's 1Password vault
+# (tuist-k8s-<env>, derived from PREP_NAMESPACE; override with PREP_VAULT) — so a
+# box can be prepped with no cluster access. Falls back to the in-cluster
+# <fleet>-ssh Secret for fleets still on controller-minted keys. OVH_ENDPOINT
+# selects the entity (default ovh-us).
 
 set -euo pipefail
 
@@ -30,20 +31,30 @@ if [ -z "$service" ]; then
   exit 2
 fi
 
+root="$(git rev-parse --show-toplevel)"
+env="${ns#tuist-}"
+vault="${PREP_VAULT:-tuist-k8s-$env}"
+values="$root/infra/helm/tuist/values-managed-${env}.yaml"
+
 kube=(kubectl)
 [ -n "${PREP_KUBE_CONTEXT:-}" ] && kube=(kubectl --context "$PREP_KUBE_CONTEXT")
 
-pubkey="$("${kube[@]}" -n "$ns" get secret "${fleet}-ssh" -o jsonpath='{.data.id_ed25519\.pub}' 2>/dev/null | base64 -d || true)"
-[ -z "$pubkey" ] && { echo "no id_ed25519.pub in secret ${fleet}-ssh (-n $ns); is the fleet deployed and the key minted?" >&2; exit 1; }
+# SSH key: prefer the 1Password-owned item (no cluster access needed); fall back
+# to the in-cluster <fleet>-ssh Secret for fleets still on controller-minted keys.
+item="$(yq '.ovhFleet.sshExternalSecret.item' "$values" 2>/dev/null || true)"
+[ "$item" = "null" ] && item=""
+pubkey=""
+[ -n "$item" ] && pubkey="$(op read "op://$vault/$item/public-key" 2>/dev/null || true)"
+[ -z "$pubkey" ] && pubkey="$("${kube[@]}" -n "$ns" get secret "${fleet}-ssh" -o jsonpath='{.data.id_ed25519\.pub}' 2>/dev/null | base64 -d || true)"
+[ -z "$pubkey" ] && { echo "no fleet pubkey: tried op://$vault/${item:-<unset>}/public-key and the ${fleet}-ssh Secret (-n $ns); is the 1Password item present, or the key minted?" >&2; exit 1; }
 
 # go-ovh reads these from the env. OVH_ENDPOINT must match the box's entity (the
-# token is bound to it); the BHS staging box is on an OVHcloud US account.
+# token is bound to it); the BHS box is on an OVHcloud US account.
 export OVH_ENDPOINT="${OVH_ENDPOINT:-ovh-us}"
-export OVH_APPLICATION_KEY="${OVH_APPLICATION_KEY:-$(op read 'op://tuist-k8s-staging/OVH_API/application-key')}"
-export OVH_APPLICATION_SECRET="${OVH_APPLICATION_SECRET:-$(op read 'op://tuist-k8s-staging/OVH_API/application-secret')}"
-export OVH_CONSUMER_KEY="${OVH_CONSUMER_KEY:-$(op read 'op://tuist-k8s-staging/OVH_API/consumer-key')}"
+export OVH_APPLICATION_KEY="${OVH_APPLICATION_KEY:-$(op read "op://$vault/OVH_API/application-key")}"
+export OVH_APPLICATION_SECRET="${OVH_APPLICATION_SECRET:-$(op read "op://$vault/OVH_API/application-secret")}"
+export OVH_CONSUMER_KEY="${OVH_CONSUMER_KEY:-$(op read "op://$vault/OVH_API/consumer-key")}"
 
-root="$(git rev-parse --show-toplevel)"
 cd "$root/infra/cluster-api-provider-tuist"
 go run ./cmd/prep --provider ovh --fleet "$fleet" --pubkey "$pubkey" --server "$service"
 
@@ -54,12 +65,10 @@ fi
 
 # Set the box's displayName into the pool as the final step — the adoption trigger.
 # The box is prepped now, so the controller self-joins it the moment the prefix
-# matches. Read the prefix from the env's values file (where adoptDisplayNamePrefix
-# is defined): present before the fleet is ever deployed, so this stays a cold-start
-# step. Fall back to a deployed template. Override via PREP_ADOPT_DISPLAY_NAME.
-# mark-ovh signs against OVH_API_BASE, so map the entity OVH_ENDPOINT selects to it.
-env="${ns#tuist-}"
-values="$root/infra/helm/tuist/values-managed-${env}.yaml"
+# matches. Read the prefix from the env's values file (present before the fleet is
+# ever deployed, so this stays a cold-start step); fall back to a deployed
+# template. Override via PREP_ADOPT_DISPLAY_NAME. mark-ovh signs against
+# OVH_API_BASE, so map the entity OVH_ENDPOINT selects to its API base.
 prefix="${PREP_ADOPT_DISPLAY_NAME:-}"
 [ -z "$prefix" ] && prefix="$(yq '.ovhFleet.machine.adoptDisplayNamePrefix' "$values" 2>/dev/null || true)"
 [ "$prefix" = "null" ] && prefix=""
