@@ -11,6 +11,19 @@ defmodule TuistCommon.AWS.Client do
         receive_timeout: 30_000
 
   The default config handles setting the above.
+
+  ## Redirects
+
+  Req follows redirects by default, but AWS requests are signed with SigV4 for a
+  specific host. If Req transparently follows a redirect (for example S3
+  answering a region mismatch with a 301/307 to a different endpoint), it resends
+  the request to the new host while reusing the `Authorization` header signed for
+  the original host, which the new host rejects as an improperly signed request.
+
+  We disable Req's automatic redirect handling so that redirects surface to ExAws
+  (which knows how to re-sign and retry against the right region) instead of being
+  followed with a stale signature. We also drop the legacy `:follow_redirect`
+  option so it never leaks into `Req.request/1`.
   """
 
   @behaviour ExAws.Request.HttpClient
@@ -35,6 +48,7 @@ defmodule TuistCommon.AWS.Client do
       |> Keyword.merge(req_opts)
       |> Keyword.merge(http_opts_list)
       |> Keyword.delete(:follow_redirect)
+      |> Keyword.put(:redirect, false)
 
     opts =
       if Keyword.get(opts, :finch) do

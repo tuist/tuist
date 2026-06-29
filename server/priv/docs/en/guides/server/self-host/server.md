@@ -266,6 +266,30 @@ You can use any S3-compliant storage provider to store artifacts. The following 
 >
 > If your storage provider is AWS and you'd like to authenticate using a web identity token, you can set the environment variable `TUIST_S3_AUTHENTICATION_METHOD` to `aws_web_identity_token_from_env_vars`, and Tuist will use that method using the conventional AWS environment variables.
 
+#### Reverse-proxying cache traffic to object storage {#reverse-proxying-cache}
+
+Some self-hosted setups put their own reverse proxy (for example nginx) in front of the cache routes and proxy them straight to an S3-compatible bucket. This works, but two boundary details trip people up and cause cache reads or writes to fail while the server keeps reporting success:
+
+- **Strip the inbound `Authorization` header on the route that proxies to object storage.** Requests to Tuist carry the client's `Authorization: Bearer <token>`. If your proxy forwards that header to S3 *and* signs the upstream request with SigV4, S3 sees two authentication mechanisms and rejects the request with `400 Bad Request` (`InvalidArgument: Only one auth mechanism allowed`). Drop the client header before the request leaves your proxy so only the SigV4 signature reaches S3.
+- **Allow a large enough request body for multipart part uploads.** Cache artifacts are uploaded in multipart chunks. A low body-size limit (nginx's default `client_max_body_size` is `1m`) silently rejects part uploads. Raise it comfortably above your part size.
+
+```nginx
+# Example: a route that proxies cache traffic to S3
+location /cache/ {
+    # Don't forward the client's bearer token to S3 — the upstream request is
+    # signed with SigV4 and S3 allows only one auth mechanism per request.
+    proxy_set_header Authorization "";
+
+    # Multipart cache part uploads can be large; raise the body limit so they
+    # aren't rejected before reaching the bucket.
+    client_max_body_size 2g;
+
+    proxy_pass https://your-bucket.s3.your-region.amazonaws.com/;
+}
+```
+
+> [!NOTE]
+> If you don't terminate cache traffic with your own proxy (the default deployment lets Tuist talk to object storage directly), you don't need any of this.
 
 #### Google Cloud Storage {#google-cloud-storage}
 For Google Cloud Storage, follow [these docs](https://cloud.google.com/storage/docs/authentication/managing-hmackeys) to get the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` pair. The `AWS_ENDPOINT` should be set to `https://storage.googleapis.com`. Other environment variables are the same as for any other S3-compliant storage.

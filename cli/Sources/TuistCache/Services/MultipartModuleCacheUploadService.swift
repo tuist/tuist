@@ -61,73 +61,85 @@ public struct MultipartModuleCacheUploadService: MultipartModuleCacheUploadServi
         authenticationURL: URL,
         serverAuthenticationController: ServerAuthenticationControlling
     ) async throws {
-        guard let uploadId = try await startUploadService.startUpload(
-            accountHandle: accountHandle,
-            projectHandle: projectHandle,
-            hash: hash,
-            name: name,
-            cacheCategory: cacheCategory,
-            serverURL: serverURL,
-            authenticationURL: authenticationURL,
-            serverAuthenticationController: serverAuthenticationController
-        ) else {
-            return
-        }
+        do {
+            guard let uploadId = try await startUploadService.startUpload(
+                accountHandle: accountHandle,
+                projectHandle: projectHandle,
+                hash: hash,
+                name: name,
+                cacheCategory: cacheCategory,
+                serverURL: serverURL,
+                authenticationURL: authenticationURL,
+                serverAuthenticationController: serverAuthenticationController
+            ) else {
+                // A nil upload id is the server's "already cached, nothing to upload"
+                // signal, not a failure.
+                Logger.current.debug("Module cache artifact \(name) is already stored remotely; skipping upload.")
+                return
+            }
 
-        guard FileManager.default.fileExists(atPath: artifactPath.pathString) else {
-            throw MultipartModuleCacheUploadServiceError.fileNotFound(artifactPath)
-        }
+            guard FileManager.default.fileExists(atPath: artifactPath.pathString) else {
+                throw MultipartModuleCacheUploadServiceError.fileNotFound(artifactPath)
+            }
 
-        guard let inputStream = InputStream(fileAtPath: artifactPath.pathString) else {
-            throw MultipartModuleCacheUploadServiceError.fileNotFound(artifactPath)
-        }
+            guard let inputStream = InputStream(fileAtPath: artifactPath.pathString) else {
+                throw MultipartModuleCacheUploadServiceError.fileNotFound(artifactPath)
+            }
 
-        inputStream.open()
-        defer { inputStream.close() }
+            inputStream.open()
+            defer { inputStream.close() }
 
-        var partNumber = 1
-        var uploadedParts: [Int] = []
-        var buffer = [UInt8](repeating: 0, count: Self.partSize)
+            var partNumber = 1
+            var uploadedParts: [Int] = []
+            var buffer = [UInt8](repeating: 0, count: Self.partSize)
 
-        while inputStream.hasBytesAvailable {
-            let bytesRead = inputStream.read(&buffer, maxLength: Self.partSize)
+            while inputStream.hasBytesAvailable {
+                let bytesRead = inputStream.read(&buffer, maxLength: Self.partSize)
 
-            if bytesRead < 0 {
-                if let error = inputStream.streamError {
-                    throw MultipartModuleCacheUploadServiceError.fileReadError(artifactPath, error)
+                if bytesRead < 0 {
+                    if let error = inputStream.streamError {
+                        throw MultipartModuleCacheUploadServiceError.fileReadError(artifactPath, error)
+                    }
+                    break
                 }
-                break
+
+                if bytesRead == 0 {
+                    break
+                }
+
+                let partData = Data(bytes: buffer, count: bytesRead)
+
+                try await uploadPartService.uploadPart(
+                    accountHandle: accountHandle,
+                    projectHandle: projectHandle,
+                    uploadId: uploadId,
+                    partNumber: partNumber,
+                    data: partData,
+                    serverURL: serverURL,
+                    authenticationURL: authenticationURL,
+                    serverAuthenticationController: serverAuthenticationController
+                )
+
+                uploadedParts.append(partNumber)
+                partNumber += 1
             }
 
-            if bytesRead == 0 {
-                break
-            }
-
-            let partData = Data(bytes: buffer, count: bytesRead)
-
-            try await uploadPartService.uploadPart(
+            try await completeUploadService.completeUpload(
                 accountHandle: accountHandle,
                 projectHandle: projectHandle,
                 uploadId: uploadId,
-                partNumber: partNumber,
-                data: partData,
+                parts: uploadedParts,
                 serverURL: serverURL,
                 authenticationURL: authenticationURL,
                 serverAuthenticationController: serverAuthenticationController
             )
-
-            uploadedParts.append(partNumber)
-            partNumber += 1
+        } catch {
+            // Storing to the remote module cache is best-effort: a failed store must
+            // surface a clear diagnostic instead of being silently dropped (the
+            // failure mode that made this hard to debug). We log a warning and
+            // rethrow so the caller still decides whether the build should continue.
+            Logger.current.warning("Failed to store the module cache artifact \(name): \(error.localizedDescription)")
+            throw error
         }
-
-        try await completeUploadService.completeUpload(
-            accountHandle: accountHandle,
-            projectHandle: projectHandle,
-            uploadId: uploadId,
-            parts: uploadedParts,
-            serverURL: serverURL,
-            authenticationURL: authenticationURL,
-            serverAuthenticationController: serverAuthenticationController
-        )
     }
 }

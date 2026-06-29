@@ -1476,7 +1476,41 @@ async fn get_module(
     .await
 }
 
+/// First CLI version that understands a 204 on module upload start as "already
+/// cached, skip the upload". Older clients only know the legacy 200 + null
+/// `upload_id`, so they keep getting that. This change lands on `main`, which
+/// currently cuts the 4.202.0 release line (canaries/RCs of the next minor).
+///
+/// We compare on `major.minor.patch` only and ignore the pre-release suffix, so
+/// every 4.202.0 build — `4.202.0-canary.N`, `4.202.0-rc.N`, and the eventual
+/// `4.202.0` stable — qualifies, while 4.201.x and earlier do not. (Comparing
+/// the full semver would rank the canaries/RCs *below* `4.202.0` and wrongly
+/// exclude the very builds that first carry this change.)
+const MIN_CLI_VERSION_FOR_NO_CONTENT: (u64, u64, u64) = (4, 202, 0);
+
+fn cli_supports_no_content(headers: &HeaderMap) -> bool {
+    headers
+        .get("x-tuist-cli-version")
+        .and_then(|value| value.to_str().ok())
+        .and_then(parse_version_core)
+        .is_some_and(|version| version >= MIN_CLI_VERSION_FOR_NO_CONTENT)
+}
+
+fn parse_version_core(value: &str) -> Option<(u64, u64, u64)> {
+    // Parse a leading `major.minor.patch`, ignoring any pre-release/build suffix.
+    let core = value.split(|c| c == '-' || c == '+').next().unwrap_or(value);
+    let mut parts = core.split('.');
+    let major = parts.next()?.parse().ok()?;
+    let minor = parts.next()?.parse().ok()?;
+    let patch = parts.next()?.parse().ok()?;
+    if parts.next().is_some() {
+        return None;
+    }
+    Some((major, minor, patch))
+}
+
 async fn start_module_upload(
+    headers: HeaderMap,
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
 ) -> Response {
@@ -1494,8 +1528,21 @@ async fn start_module_upload(
         )
         .await
     {
+        // A 204 No Content is the contract for "the artifact is already cached,
+        // skip the upload" — not a failure. A distinct status (rather than a 200
+        // with a null `upload_id`) lets clients and operators tell a cache hit
+        // apart from a genuine failure that returns an empty body, so a write
+        // that never lands can't masquerade as success. It is gated on the CLI
+        // version: clients that predate the 204 signal keep getting the legacy
+        // 200 + null `upload_id` so the change stays backward compatible. The
+        // metric records the cache hit either way.
         Ok(true) => {
-            Json(serde_json::json!({ "upload_id": serde_json::Value::Null })).into_response()
+            state.metrics.record_multipart_start("already_exists");
+            if cli_supports_no_content(&headers) {
+                StatusCode::NO_CONTENT.into_response()
+            } else {
+                Json(serde_json::json!({ "upload_id": serde_json::Value::Null })).into_response()
+            }
         }
         Ok(false) => match state.store.start_multipart_upload(
             &query.namespace.tenant_id,
@@ -1504,16 +1551,37 @@ async fn start_module_upload(
             &query.hash,
             &query.name,
         ) {
-            Ok(upload_id) => Json(serde_json::json!({ "upload_id": upload_id })).into_response(),
-            Err(error) => error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to start upload: {error}"),
-            ),
+            Ok(upload_id) => {
+                state.metrics.record_multipart_start("started");
+                Json(serde_json::json!({ "upload_id": upload_id })).into_response()
+            }
+            Err(error) => {
+                state.metrics.record_multipart_start("start_failed");
+                tracing::warn!(
+                    namespace_id = %query.namespace.namespace_id,
+                    hash = %query.hash,
+                    name = %query.name,
+                    "failed to start module cache multipart upload: {error}"
+                );
+                error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Failed to start upload: {error}"),
+                )
+            }
         },
-        Err(error) => error_response(
-            StatusCode::SERVICE_UNAVAILABLE,
-            format!("Failed to inspect artifact: {error}"),
-        ),
+        Err(error) => {
+            state.metrics.record_multipart_start("exists_check_failed");
+            tracing::warn!(
+                namespace_id = %query.namespace.namespace_id,
+                hash = %query.hash,
+                name = %query.name,
+                "failed to inspect module cache artifact before upload: {error}"
+            );
+            error_response(
+                StatusCode::SERVICE_UNAVAILABLE,
+                format!("Failed to inspect artifact: {error}"),
+            )
+        }
     }
 }
 
@@ -3621,6 +3689,7 @@ mod tests {
             )
             .await
             .expect("start request failed");
+        assert_eq!(start.status(), StatusCode::OK);
         let payload: Value = serde_json::from_str(&response_text(start).await)
             .expect("failed to decode start payload");
         let upload_id = payload["upload_id"]
@@ -3679,6 +3748,7 @@ mod tests {
         assert_eq!(head.status(), StatusCode::NO_CONTENT);
 
         let get = app
+            .clone()
             .oneshot(
                 Request::builder()
                     .uri("/api/cache/module/module-1?tenant_id=acme&namespace_id=ios&hash=hash-1&name=Module.framework&cache_category=builds")
@@ -3695,6 +3765,42 @@ mod tests {
             Some("17")
         );
         assert_eq!(response_text(get).await, "part-one-part-two");
+
+        // Starting an upload for an already-cached artifact returns 204 No Content
+        // to a CLI new enough to understand it (advertised via x-tuist-cli-version),
+        // so a cache hit can't be confused with a failure that returns an empty body.
+        // A canary of the carrying release line qualifies (pre-release suffix ignored).
+        let restart = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/cache/module/start?tenant_id=acme&namespace_id=ios&hash=hash-1&name=Module.framework&cache_category=builds")
+                    .header("x-tuist-cli-version", "4.202.0-canary.7")
+                    .body(Body::empty())
+                    .expect("failed to build restart request"),
+            )
+            .await
+            .expect("restart request failed");
+        assert_eq!(restart.status(), StatusCode::NO_CONTENT);
+
+        // A CLI that predates the 204 signal (no x-tuist-cli-version header) still
+        // gets the legacy 200 with a null upload id, keeping the change backward
+        // compatible.
+        let legacy_restart = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/cache/module/start?tenant_id=acme&namespace_id=ios&hash=hash-1&name=Module.framework&cache_category=builds")
+                    .body(Body::empty())
+                    .expect("failed to build legacy restart request"),
+            )
+            .await
+            .expect("legacy restart request failed");
+        assert_eq!(legacy_restart.status(), StatusCode::OK);
+        let legacy_payload: Value = serde_json::from_str(&response_text(legacy_restart).await)
+            .expect("failed to decode legacy restart payload");
+        assert_eq!(legacy_payload["upload_id"], Value::Null);
     }
 
     #[tokio::test]

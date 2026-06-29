@@ -79,7 +79,7 @@ defmodule TuistCommon.AWS.ClientTest do
       Application.delete_env(:ex_aws, :req_opts)
     end
 
-    test "removes follow_redirect from options" do
+    test "removes follow_redirect from options and disables Req redirect following" do
       Application.put_env(:tuist_common, :finch_name, TestFinch)
       Application.put_env(:ex_aws, :req_opts, [])
 
@@ -87,12 +87,29 @@ defmodule TuistCommon.AWS.ClientTest do
 
       expect(Req, :request, fn opts ->
         refute Keyword.has_key?(opts, :follow_redirect)
+        assert Keyword.get(opts, :redirect) == false
 
         {:ok, %Req.Response{status: 200, headers: %{}, body: "ok"}}
       end)
 
       assert {:ok, %{status_code: 200}} =
                Client.request(:get, "https://example.com", "", [], http_opts)
+    after
+      Application.delete_env(:tuist_common, :finch_name)
+      Application.delete_env(:ex_aws, :req_opts)
+    end
+
+    test "keeps Req redirect following disabled even if req_opts try to enable it" do
+      Application.put_env(:tuist_common, :finch_name, TestFinch)
+      Application.put_env(:ex_aws, :req_opts, redirect: true)
+
+      expect(Req, :request, fn opts ->
+        assert Keyword.get(opts, :redirect) == false
+
+        {:ok, %Req.Response{status: 200, headers: %{}, body: "ok"}}
+      end)
+
+      assert {:ok, %{status_code: 200}} = Client.request(:get, "https://example.com")
     after
       Application.delete_env(:tuist_common, :finch_name)
       Application.delete_env(:ex_aws, :req_opts)

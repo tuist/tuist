@@ -3057,6 +3057,41 @@ public enum Operations {
                     }
                 }
             }
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// Artifact already cached, no upload needed
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/module/start/post(startModuleCacheMultipartUpload)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.startModuleCacheMultipartUpload.Output.NoContent)
+            /// Artifact already cached, no upload needed
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/module/start/post(startModuleCacheMultipartUpload)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.startModuleCacheMultipartUpload.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
             public struct BadRequest: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/cache/module/start/POST/responses/400/content`.
                 @frozen public enum Body: Sendable, Hashable {

@@ -266,7 +266,7 @@ defmodule Tuist.ShardsTest do
       stub(Tuist.Storage, :multipart_start, fn key, _account ->
         assert key =~ "shards/"
         assert key =~ "/bundle.zip"
-        "test-upload-id"
+        {:ok, "test-upload-id"}
       end)
 
       assert {:ok, "test-upload-id"} = Shards.start_upload(project, account, "upload-ref-1")
@@ -284,7 +284,7 @@ defmodule Tuist.ShardsTest do
 
       stub(Tuist.Storage, :multipart_start, fn key, _account ->
         assert key == Shards.bundle_object_key(account, project, plan.id)
-        "test-upload-id"
+        {:ok, "test-upload-id"}
       end)
 
       assert {:ok, "test-upload-id"} = Shards.start_upload_for_plan(project, account, plan)
@@ -297,7 +297,7 @@ defmodule Tuist.ShardsTest do
 
       stub(Tuist.Storage, :multipart_start, fn key, _account ->
         assert key == Shards.bundle_object_key(account, project, plan_id)
-        "test-upload-id"
+        {:ok, "test-upload-id"}
       end)
 
       assert {:ok, "test-upload-id"} = Shards.start_upload_for_plan_id(project, account, plan_id)

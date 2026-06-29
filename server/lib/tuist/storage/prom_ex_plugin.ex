@@ -117,6 +117,18 @@ defmodule Tuist.Storage.PromExPlugin do
             ],
             event_name: Telemetry.event_name_storage_multipart_start_upload(),
             description: "The count of multi-part uploads that have been started."
+          ),
+          counter(
+            [
+              :tuist,
+              :storage,
+              :multipart,
+              :start_upload,
+              :error,
+              :count
+            ],
+            event_name: Telemetry.event_name_storage_multipart_start_upload_error(),
+            description: "The count of multi-part uploads that failed to start."
           )
         ]
       ),

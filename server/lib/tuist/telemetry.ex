@@ -28,6 +28,10 @@ defmodule Tuist.Telemetry do
     [:tuist, :storage, :multipart, :start_upload]
   end
 
+  def event_name_storage_multipart_start_upload_error do
+    [:tuist, :storage, :multipart, :start_upload_error]
+  end
+
   def event_name_storage_get_object_as_string do
     [:tuist, :storage, :get_object_as_string]
   end

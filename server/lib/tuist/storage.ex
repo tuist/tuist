@@ -8,6 +8,8 @@ defmodule Tuist.Storage do
   alias Tuist.Environment
   alias Tuist.Performance
 
+  require Logger
+
   @delete_objects_max_concurrency 4
 
   def multipart_generate_url(object_key, upload_id, part_number, actor, opts \\ []) do
@@ -203,8 +205,17 @@ defmodule Tuist.Storage do
     end
   end
 
+  @doc """
+  Starts a multi-part upload for `object_key`.
+
+  Returns `{:ok, upload_id}` once the storage backend has acknowledged the
+  upload, or `{:error, reason}` when the backend rejects the request (for
+  example an improperly signed request reaching S3) or returns a success
+  response without an upload id. Surfacing the error lets callers respond with a
+  real failure instead of silently handing the client a `nil` upload id.
+  """
   def multipart_start(object_key, actor) do
-    {time, upload_id} =
+    {time, result} =
       Performance.measure_time_in_milliseconds(fn ->
         {config, bucket_name} = s3_config_and_bucket(actor)
         headers = region_headers(actor)
@@ -214,18 +225,37 @@ defmodule Tuist.Storage do
           |> ExAws.S3.initiate_multipart_upload(object_key)
           |> Map.put(:headers, Map.new(headers))
 
-        %{body: %{upload_id: upload_id}} = ExAws.request!(operation, Map.merge(config, fast_api_req_opts()))
+        case ExAws.request(operation, Map.merge(config, fast_api_req_opts())) do
+          {:ok, %{body: %{upload_id: upload_id}}} when is_binary(upload_id) and upload_id != "" ->
+            {:ok, upload_id}
 
-        upload_id
+          {:ok, response} ->
+            {:error, {:missing_upload_id, response}}
+
+          {:error, reason} ->
+            {:error, reason}
+        end
       end)
 
-    :telemetry.execute(
-      Tuist.Telemetry.event_name_storage_multipart_start_upload(),
-      %{duration: time},
-      %{object_key: object_key}
-    )
+    case result do
+      {:ok, _upload_id} ->
+        :telemetry.execute(
+          Tuist.Telemetry.event_name_storage_multipart_start_upload(),
+          %{duration: time},
+          %{object_key: object_key}
+        )
 
-    upload_id
+      {:error, reason} ->
+        :telemetry.execute(
+          Tuist.Telemetry.event_name_storage_multipart_start_upload_error(),
+          %{duration: time},
+          %{object_key: object_key, reason: reason}
+        )
+
+        Logger.error("Failed to start multi-part upload for #{object_key}: #{inspect(reason)}")
+    end
+
+    result
   end
 
   def delete_all_objects(prefix, actor) do

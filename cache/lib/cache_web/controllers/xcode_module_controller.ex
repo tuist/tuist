@@ -23,6 +23,17 @@ defmodule CacheWeb.XcodeModuleController do
 
   @max_part_size 10 * 1024 * 1024
 
+  # First CLI version that understands a 204 on `start_multipart` as "already
+  # cached, skip the upload". Older clients only know the legacy 200 + null
+  # upload id, so they keep getting that. This change lands on `main`, which
+  # currently cuts the 4.202.0 release line (canaries/RCs of the next minor).
+  # The `-0` pre-release sentinel is deliberate: `4.202.0-canary.N` and
+  # `4.202.0-rc.N` sort *below* `4.202.0` in semver, so a plain `4.202.0` floor
+  # would exclude the canaries and RCs that first carry this change. `-0` is the
+  # lowest possible pre-release, so every 4.202.0 build (canary, rc, stable) and
+  # anything newer qualifies, while 4.201.x and earlier do not.
+  @min_cli_version_for_no_content Version.parse!("4.202.0-0")
+
   operation(:download,
     summary: "Download a module cache artifact",
     operation_id: "downloadModuleCacheArtifact",
@@ -219,6 +230,7 @@ defmodule CacheWeb.XcodeModuleController do
     ],
     responses: %{
       ok: {"Upload started", "application/json", StartMultipartUploadResponse},
+      no_content: {"Artifact already cached, no upload needed", nil, nil},
       unauthorized: {"Unauthorized", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error},
       unprocessable_entity: {"Invalid request parameters", "application/json", Error}
@@ -232,7 +244,11 @@ defmodule CacheWeb.XcodeModuleController do
     category = Map.get(params, :cache_category, "builds")
 
     if Disk.exists?(account_handle, project_handle, category, hash, name) do
-      json(conn, %{upload_id: nil})
+      if no_content_supported?(conn) do
+        send_resp(conn, :no_content, "")
+      else
+        json(conn, %{upload_id: nil})
+      end
     else
       case MultipartUploads.start_upload(account_handle, project_handle, category, hash, name) do
         {:ok, upload_id} ->
@@ -242,6 +258,15 @@ defmodule CacheWeb.XcodeModuleController do
         {:error, _reason} ->
           {:error, :persist_error}
       end
+    end
+  end
+
+  defp no_content_supported?(conn) do
+    with [version_string | _] <- get_req_header(conn, "x-tuist-cli-version"),
+         {:ok, version} <- Version.parse(version_string) do
+      Version.compare(version, @min_cli_version_for_no_content) != :lt
+    else
+      _ -> false
     end
   end
 

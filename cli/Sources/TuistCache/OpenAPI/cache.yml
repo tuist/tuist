@@ -62,7 +62,7 @@ components:
       description: Response from starting a multipart upload
       properties:
         upload_id:
-          description: The upload ID to use for subsequent part uploads. Null if artifact already exists.
+          description: The upload ID to use for subsequent part uploads. Null on the legacy cache-hit response returned to CLIs that predate the 204 No Content signal.
           nullable: true
           type: string
           x-struct:
@@ -605,6 +605,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/StartMultipartUploadResponse'
           description: Upload started
+        '204':
+          description: Artifact already cached, no upload needed
         '400':
           content:
             application/json:

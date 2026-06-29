@@ -1261,6 +1261,8 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .ok(.init(body: body))
+                case 204:
+                    return .noContent(.init())
                 case 400:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
                     let body: Operations.startModuleCacheMultipartUpload.Output.BadRequest.Body

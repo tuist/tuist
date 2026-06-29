@@ -194,6 +194,11 @@ defmodule TuistWeb.API.ShardsController do
         conn
         |> put_status(:bad_request)
         |> json(%{message: "Either shard_plan_id or reference is required."})
+
+      {:error, _reason} ->
+        conn
+        |> put_status(:bad_gateway)
+        |> json(%{message: "The storage backend could not start the upload."})
     end
   end
 

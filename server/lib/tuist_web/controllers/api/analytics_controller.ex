@@ -666,8 +666,15 @@ defmodule TuistWeb.API.AnalyticsController do
       ) do
     with {:ok, object_key} <-
            get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}, conn) do
-      upload_id = Storage.multipart_start(object_key, selected_project.account)
-      json(conn, %{status: "success", data: %{upload_id: upload_id}})
+      case Storage.multipart_start(object_key, selected_project.account) do
+        {:ok, upload_id} ->
+          json(conn, %{status: "success", data: %{upload_id: upload_id}})
+
+        {:error, _reason} ->
+          conn
+          |> put_status(:bad_gateway)
+          |> json(%{status: "error", message: "The storage backend could not start the upload."})
+      end
     end
   end
 

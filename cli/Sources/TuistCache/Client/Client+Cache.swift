@@ -20,6 +20,10 @@ extension Client {
             transport: TuistURLSessionTransport(),
             middlewares: HARRecordingMiddlewareFactory.middlewares() + [
                 RequestIdMiddleware(),
+                // Advertise the CLI version so the cache server can return 204 on an
+                // already-cached upload start only to CLIs new enough to understand it,
+                // falling back to the legacy 200 + null upload id for older clients.
+                ServerClientCLIMetadataHeadersMiddleware(),
                 CacheClientAuthenticationMiddleware(
                     authenticationURL: authenticationURL,
                     serverAuthenticationController: serverAuthenticationController
