@@ -82,7 +82,14 @@
                 .willReturn(expectedData)
 
             given(analyticsDatabase)
-                .storeCASOutput(key: .any, size: .any, duration: .any, compressedSize: .any, transferDuration: .any, codecDuration: .any)
+                .storeCASOutput(
+                    key: .any,
+                    size: .any,
+                    duration: .any,
+                    compressedSize: .any,
+                    transferDuration: .any,
+                    codecDuration: .any
+                )
                 .willReturn()
 
             // When
@@ -115,7 +122,14 @@
             try await Task.sleep(for: .milliseconds(100))
 
             verify(analyticsDatabase)
-                .storeCASOutput(key: .value(casID), size: .any, duration: .any, compressedSize: .any, transferDuration: .any, codecDuration: .any)
+                .storeCASOutput(
+                    key: .value(casID),
+                    size: .any,
+                    duration: .any,
+                    compressedSize: .any,
+                    transferDuration: .any,
+                    codecDuration: .any
+                )
                 .called(1)
         }
 
@@ -182,7 +196,14 @@
                 .willReturn()
 
             given(analyticsDatabase)
-                .storeCASOutput(key: .any, size: .any, duration: .any, compressedSize: .any, transferDuration: .any, codecDuration: .any)
+                .storeCASOutput(
+                    key: .any,
+                    size: .any,
+                    duration: .any,
+                    compressedSize: .any,
+                    transferDuration: .any,
+                    codecDuration: .any
+                )
                 .willReturn()
 
             // When
@@ -218,7 +239,14 @@
             try await Task.sleep(for: .milliseconds(100))
 
             verify(analyticsDatabase)
-                .storeCASOutput(key: .value(fingerprint), size: .any, duration: .any, compressedSize: .any, transferDuration: .any, codecDuration: .any)
+                .storeCASOutput(
+                    key: .value(fingerprint),
+                    size: .any,
+                    duration: .any,
+                    compressedSize: .any,
+                    transferDuration: .any,
+                    codecDuration: .any
+                )
                 .called(1)
         }
 
@@ -354,7 +382,14 @@
             try await Task.sleep(for: .milliseconds(100))
 
             verify(analyticsDatabase)
-                .storeCASOutput(key: .any, size: .any, duration: .any, compressedSize: .any, transferDuration: .any, codecDuration: .any)
+                .storeCASOutput(
+                    key: .any,
+                    size: .any,
+                    duration: .any,
+                    compressedSize: .any,
+                    transferDuration: .any,
+                    codecDuration: .any
+                )
                 .called(0)
         }
 
