@@ -11,17 +11,22 @@ defmodule TuistWeb.Internal.AtlasDatabaseController do
 
   use TuistWeb, :controller
 
+  alias Tuist.Environment
   alias Tuist.Ops.Database
 
   @doc """
   Run a read-only SQL statement. Body: `{"query": "...", "limit": n}`.
+
+  Runs through the least-privilege `tuist_ops_ro` role (when configured) so a
+  write is blocked by role privileges, not only by the read-only transaction.
   """
   def query(conn, %{"query" => sql} = params) when is_binary(sql) do
     opts =
-      case params do
-        %{"limit" => limit} when is_integer(limit) and limit > 0 -> [limit: limit]
-        _ -> []
-      end
+      [role: Environment.atlas_db_readonly_role()] ++
+        case params do
+          %{"limit" => limit} when is_integer(limit) and limit > 0 -> [limit: limit]
+          _ -> []
+        end
 
     case Database.execute(sql, opts) do
       {:ok, result} ->
@@ -43,7 +48,7 @@ defmodule TuistWeb.Internal.AtlasDatabaseController do
 
   @doc "Describe a single table's columns. 404 when the table is not visible."
   def describe(conn, %{"schema" => schema, "name" => name}) do
-    if Database.table_exists?(schema, name) do
+    if Database.app_table_exists?(schema, name) do
       json(conn, %{schema: schema, name: name, columns: Database.list_table_columns(schema, name)})
     else
       conn |> put_status(:not_found) |> json(%{error: "table_not_found"})

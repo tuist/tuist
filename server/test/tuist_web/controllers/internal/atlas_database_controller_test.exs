@@ -47,6 +47,21 @@ defmodule TuistWeb.Internal.AtlasDatabaseControllerTest do
       assert error =~ "Only SELECT"
     end
 
+    test "clamps an oversized limit to the server-side maximum", %{conn: conn} do
+      ok_workload_identity_stub()
+
+      conn =
+        conn
+        |> authed()
+        |> post("/api/internal/atlas/db/query", %{
+          "query" => "SELECT generate_series(1, 1000) AS n",
+          "limit" => 100_000
+        })
+
+      assert %{"rows" => rows, "truncated" => true} = json_response(conn, 200)
+      assert length(rows) == 200
+    end
+
     test "returns 400 when query is missing", %{conn: conn} do
       ok_workload_identity_stub()
 
@@ -99,6 +114,14 @@ defmodule TuistWeb.Internal.AtlasDatabaseControllerTest do
       ok_workload_identity_stub()
 
       conn = conn |> authed() |> get("/api/internal/atlas/db/tables/public/does_not_exist")
+
+      assert %{"error" => "table_not_found"} = json_response(conn, 404)
+    end
+
+    test "returns 404 for catalog tables outside the app-owned schemas", %{conn: conn} do
+      ok_workload_identity_stub()
+
+      conn = conn |> authed() |> get("/api/internal/atlas/db/tables/pg_catalog/pg_class")
 
       assert %{"error" => "table_not_found"} = json_response(conn, 404)
     end
