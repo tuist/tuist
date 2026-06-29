@@ -425,6 +425,12 @@ defmodule TuistWeb.TestRunsLive do
         %{value: :ci, operator: op} ->
           [%{field: :is_ci, op: op, value: true}]
 
+        %{value: value, operator: :==} when not is_nil(value) ->
+          [
+            %{field: :is_ci, op: :==, value: false},
+            %{field: :account_id, op: :==, value: value}
+          ]
+
         %{value: value, operator: op} when not is_nil(value) ->
           [%{field: :account_id, op: op, value: value}]
 
