@@ -4,10 +4,9 @@
 # live in `Headers/<Module>/` subdirectories and re-import each other using the
 # framework-prefixed form `#import <Module/X.h>`:
 #
-#   NestedObjC.xcframework      — stand-in for ARCore's ARCoreGARSession
-#   NestedObjCKit.xcframework   — stand-in for ARCore's ARCoreGeospatial; its
-#                                 headers import `<NestedObjC/...>` (a cross-module
-#                                 import), mirroring ARCoreGeospatial -> ARCoreGARSession.
+#   NestedObjC.xcframework      — a static Objective-C module of that shape
+#   NestedObjCKit.xcframework   — a second module whose headers import
+#                                 `<NestedObjC/...>` (a cross-module import)
 #
 # Both broke when consumed through Tuist's binary cache behind a dynamic framework.
 # The bug is in clang header-search / module-map handling and is platform-agnostic,

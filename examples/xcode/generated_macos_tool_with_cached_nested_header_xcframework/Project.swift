@@ -1,6 +1,6 @@
 import ProjectDescription
 
-// Reproduces the ARCore caching failure: a static Objective-C `.a` xcframework
+// Reproduces a binary-cache failure: a static Objective-C `.a` xcframework
 // (`NestedObjC`) whose headers live in a `Headers/NestedObjC/` subdirectory and
 // re-import each other with the `<NestedObjC/...>` prefix, linked by a dynamic
 // framework (`Library`). When `Library` is cached, `Library.xcframework` becomes

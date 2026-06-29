@@ -182,7 +182,7 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         )
     }
 
-    /// ARCore-style xcframeworks keep their module map and headers in a `Headers/<ModuleName>/`
+    /// Some static Objective-C xcframeworks keep their module map and headers in a `Headers/<ModuleName>/`
     /// subdirectory and re-import each other with the `<ModuleName/...>` prefix. Such a "nested"
     /// layout is consumed through the xcframework's own module map with the `Headers` root (the
     /// parent of the module subdirectory) on the search path — not a derived/rewritten copy — so
@@ -196,22 +196,22 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
             .willReturn(
                 projectPath.appending(components: Constants.tuistDirectoryName, Constants.SwiftPackageManager.packageSwiftName)
             )
-        let arcorePath = projectPath
+        let nestedPath = projectPath
             .parentDirectory
-            .appending(component: "ARCoreGARSession.xcframework")
-        let arcoreHeadersRoot = arcorePath.appending(components: "ios-arm64", "Headers")
-        let arcoreModuleHeadersPath = arcoreHeadersRoot.appending(component: "ARCoreGARSession")
-        try await fileSystem.makeDirectory(at: arcoreModuleHeadersPath)
+            .appending(component: "NestedObjC.xcframework")
+        let nestedHeadersRoot = nestedPath.appending(components: "ios-arm64", "Headers")
+        let nestedModuleHeadersPath = nestedHeadersRoot.appending(component: "NestedObjC")
+        try await fileSystem.makeDirectory(at: nestedModuleHeadersPath)
         try await fileSystem.writeText(
             "modulemap",
-            at: arcoreModuleHeadersPath.appending(component: "module.modulemap")
+            at: nestedModuleHeadersPath.appending(component: "module.modulemap")
         )
         try await fileSystem.writeText(
             """
-            #import <ARCoreGARSession/GARAnchor.h>
-            #import <ARCoreGARSession/GARTrackingState.h>
+            #import <NestedObjC/Anchor.h>
+            #import <NestedObjC/TrackingState.h>
             """,
-            at: arcoreModuleHeadersPath.appending(component: "ARCoreGARSession.h")
+            at: nestedModuleHeadersPath.appending(component: "NestedObjC.h")
         )
 
         let graph: Graph = .test(
@@ -239,17 +239,17 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                         .appending(component: "DynamicFramework.xcframework")
                 ): [
                     .testXCFramework(
-                        path: arcorePath,
+                        path: nestedPath,
                         infoPlist: .test(
                             libraries: [
                                 .test(
-                                    path: try RelativePath(validating: "ARCoreGARSession.a")
+                                    path: try RelativePath(validating: "NestedObjC.a")
                                 ),
                             ]
                         ),
                         linking: .static,
                         moduleMaps: [
-                            arcoreModuleHeadersPath.appending(component: "module.modulemap"),
+                            nestedModuleHeadersPath.appending(component: "module.modulemap"),
                         ]
                     ),
                 ],
@@ -267,12 +267,12 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                             base: [
                                 "OTHER_SWIFT_FLAGS": [
                                     "-Xcc",
-                                    "-fmodule-map-file=\"$(SRCROOT)/../ARCoreGARSession.xcframework/ios-arm64/Headers/ARCoreGARSession/module.modulemap\"",
+                                    "-fmodule-map-file=\"$(SRCROOT)/../NestedObjC.xcframework/ios-arm64/Headers/NestedObjC/module.modulemap\"",
                                 ],
                                 "OTHER_C_FLAGS": [
-                                    "-fmodule-map-file=\"$(SRCROOT)/../ARCoreGARSession.xcframework/ios-arm64/Headers/ARCoreGARSession/module.modulemap\"",
+                                    "-fmodule-map-file=\"$(SRCROOT)/../NestedObjC.xcframework/ios-arm64/Headers/NestedObjC/module.modulemap\"",
                                 ],
-                                "HEADER_SEARCH_PATHS": ["\"$(SRCROOT)/../ARCoreGARSession.xcframework/ios-arm64/Headers\""],
+                                "HEADER_SEARCH_PATHS": ["\"$(SRCROOT)/../NestedObjC.xcframework/ios-arm64/Headers\""],
                             ]
                         )
                     ),

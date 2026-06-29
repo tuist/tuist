@@ -319,17 +319,17 @@ struct TuistCacheEEAcceptanceTests {
         )
     }
 
-    /// Regression test for ARCore-style static Objective-C xcframeworks consumed through the
-    /// binary cache. `NestedObjC`/`NestedObjCKit` are static `.a` xcframeworks whose public
-    /// headers live in a `Headers/<Module>/` subdirectory and re-import each other with the
-    /// `<Module/...>` prefix (and `NestedObjCKit` imports `NestedObjC`, mirroring ARCore's
-    /// Geospatial -> GARSession). Caching `Library` turns it into a dynamic xcframework that links
-    /// them behind it, so building `Tool` drives `StaticXCFrameworkModuleMapGraphMapper`. Earlier
-    /// this produced `'NestedObjC/TrackingState.h' file not found` (missing `Headers` root) and,
-    /// after that was "fixed" by adding the xcframework's own `Headers` root, `import of shadowed
-    /// module 'Anchor'` (the module map reachable twice). The mapper now copies each module map +
-    /// headers into a hermetic `<derived>/<name>/Headers/<name>/`, so the module is defined exactly
-    /// once and the prefixed imports still resolve.
+    /// Regression test for static Objective-C xcframeworks whose public headers live in a
+    /// `Headers/<Module>/` subdirectory and re-import each other with the `<Module/...>` prefix,
+    /// consumed through the binary cache. `NestedObjC`/`NestedObjCKit` are static `.a` xcframeworks
+    /// of that shape, and `NestedObjCKit` imports `NestedObjC`, so building one drives the other's
+    /// module. Caching `Library` turns it into a dynamic xcframework that links them behind it, so
+    /// building `Tool` drives `StaticXCFrameworkModuleMapGraphMapper`. Earlier this produced
+    /// `'NestedObjC/TrackingState.h' file not found` (missing `Headers` root) and, after that was
+    /// "fixed" by also adding the xcframework's own `Headers` root next to the derived module map,
+    /// `import of shadowed module 'Anchor'` (the module reachable through two module maps). The
+    /// mapper now consumes such nested xcframeworks through their own module map with the `Headers`
+    /// root on the search path, so the module is defined exactly once and the prefixed imports resolve.
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),

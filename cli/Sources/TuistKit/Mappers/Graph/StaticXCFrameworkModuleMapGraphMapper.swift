@@ -145,7 +145,7 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                         .compactMap { xcframework -> String? in
                             guard let moduleMap = xcframework.moduleMaps.first
                             else { return nil }
-                            // Nested ARCore-style headers re-import siblings with the `<ModuleName/...>`
+                            // Nested layouts re-import sibling headers with the `<ModuleName/...>`
                             // prefix, which only resolves with the `Headers` root (the parent of the
                             // module's subdirectory) on the search path. Flat layouts keep their headers
                             // directly in the module map's own directory.
@@ -195,7 +195,7 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
         }
     }
 
-    /// ARCore-style xcframeworks keep their module map and public headers inside a
+    /// Some static Objective-C xcframeworks keep their module map and public headers inside a
     /// `Headers/<ModuleName>/` subdirectory, and the headers re-import each other with the
     /// framework-prefixed form `#import <ModuleName/Header.h>`. When the module map's own
     /// directory is named after the module, the layout is "nested" and needs the `Headers`

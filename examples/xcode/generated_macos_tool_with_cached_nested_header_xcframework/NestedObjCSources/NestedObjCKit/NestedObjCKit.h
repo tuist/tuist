@@ -1,2 +1,2 @@
-// Umbrella header. Mirrors ARCore's `ARCoreGeospatial.h`.
+// Umbrella header.
 #import <NestedObjCKit/Feature.h>
