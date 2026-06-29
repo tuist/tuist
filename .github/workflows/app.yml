@@ -226,7 +226,7 @@ jobs:
         run: |
           sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${{ github.run_number }}\",/g" "app/Project.swift"
       - name: Generate TuistApp
-        run: mise x -- tuist generate TuistApp
+        run: mise x -- tuist generate TuistApp --configuration Release
       - name: Bundle iOS app
         if: |
           github.event_name == 'push' ||
