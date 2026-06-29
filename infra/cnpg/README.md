@@ -9,7 +9,7 @@ The chart-rendered `Cluster` CR ([`infra/helm/tuist/templates/postgresql-cnpg.ya
 - Web runtime grants are applied automatically by `Tuist.Release.migrate/0` when `TUIST_DATABASE_RUNTIME_ROLE` is set (the Helm chart sets it to `postgresql.cnpg.roles.web.name` for managed CNPG migration jobs). The migration role keeps owning schema changes, and the web role gets DML on application tables plus read-only access to `schema_migrations`.
 - [`tuist-processor-grants.sql`](./tuist-processor-grants.sql) — `oban_jobs` / `oban_peers` write grants for the `tuist_processor` role. The role itself is created declaratively by CNPG via `managed.roles[]`; this file adds the per-table privileges the worker needs. Pass `-v tuist_schema=<schema>` when the chart uses a non-`public` `postgresql.schema`.
 - [`tuist-ops-ro-grants.sql`](./tuist-ops-ro-grants.sql) — `CONNECT` on the application database for the `tuist_ops_ro` role, plus an explicit `REVOKE` of write privileges on the application schema (defense-in-depth against a future grant-by-default change in Postgres widening `pg_read_all_data`). The role is for ad-hoc operator psql access; the `/ops/db` LiveView uses Tuist.Repo under the web runtime role and enforces read-only at the app layer (see `Tuist.Ops.Database.execute/2`).
-- [`pg-stat-statements.sql`](./pg-stat-statements.sql) — `CREATE EXTENSION pg_stat_statements`, enabling the per-query latency metrics (`cnpg_tuist_query_stats_*`) that back the dashboard's query-latency panels. The library is preloaded via the chart (`postgresql.cnpg.sharedPreloadLibraries`); this creates the reading view. **Runs against `postgres`, not `tuist`** (the metrics exporter queries the instance-global view from the maintenance database). Only relevant when `postgresql.cnpg.queryStats.enabled` is set. **Only for clusters bootstrapped before query-stats was enabled** — fresh clusters create the extension automatically via the Cluster CR's `bootstrap.initdb.postInitSQL`, and it persists across restores. (A future CNPG >= 1.26 upgrade would let `Database.spec.extensions` reconcile it declaratively on existing clusters too.)
+- [`pg-stat-statements.sql`](./pg-stat-statements.sql) — `CREATE EXTENSION pg_stat_statements`, enabling the per-query latency metrics (`cnpg_tuist_query_stats_*`) that back the dashboard's query-latency panels. The library is preloaded via the chart (`postgresql.cnpg.sharedPreloadLibraries`); this creates the reading view. **Runs against `postgres`, not `tuist`** (the metrics exporter queries the instance-global view from the maintenance database). Only relevant when `postgresql.cnpg.queryStats.enabled` is set. **Only for clusters bootstrapped before query-stats was enabled** — fresh clusters create the extension automatically via the Cluster CR's `bootstrap.initdb.postInitSQL`, and it persists across restores. (The operator now supports `Database.spec.extensions`, which could reconcile it declaratively on existing clusters instead.)
 
 ## When to run
 
@@ -129,12 +129,13 @@ kubectl cnpg backup-status -n "$NAMESPACE" "$CLUSTER"
 ## Operator version & upgrade path
 
 The CNPG operator version is pinned by the `cloudnative-pg` dependency in
-[`infra/helm/platform/Chart.yaml`](../helm/platform/Chart.yaml). The chart
-version maps to the operator `appVersion`: chart `0.23.x` is operator `1.25.x`,
-`0.24.0` is `1.26.0`, `0.25.0` is `1.26.1`, `0.26.1` is `1.27.1`, `0.27.1` is
-`1.28.1`, `0.28.3` is `1.29.1`. The platform chart is re-applied by
-the `platform-install` deploy job, so bumping that pin upgrades the operator on
-the next deploy.
+[`infra/helm/platform/Chart.yaml`](../helm/platform/Chart.yaml). Production runs
+operator **1.29.1** (chart `0.28.3`), the latest supported line. The chart
+version and the operator `appVersion` are separate numbers; the authoritative
+map is the upstream Helm index (<https://cloudnative-pg.io/charts/index.yaml>,
+or `helm search repo cloudnative-pg --versions`). The platform chart is
+re-applied by the `platform-install` deploy job, so bumping that pin upgrades
+the operator on the next deploy.
 
 For that to happen on merge, `infra/helm/platform/` must be in the
 `deployable-changed` path filter in
@@ -145,18 +146,14 @@ production cascade depends on. A change to a path outside the filter skips
 reaching a cluster. If a platform-only bump ever merges without deploying, check
 that this path is still in the filter.
 
-CNPG must be upgraded one minor at a time. The project only tests and supports
-sequential minor upgrades, not skips
-(<https://cloudnative-pg.io/docs/current/installation_upgrade/>). As of 2026-06
-we are catching up from an end-of-life `1.25` to the only supported line,
-`1.29.x`, in four steps, each its own PR:
+Upgrade one minor at a time — CNPG only supports sequential N->N+1 upgrades,
+not skips (<https://cloudnative-pg.io/docs/current/installation_upgrade/>). Bump
+the chart pin by one minor, merge, and let it deploy via `platform-install`.
 
-`1.25 -> 1.26 -> 1.27 -> 1.28 -> 1.29`
-
-The operand Postgres image (`postgresql.cnpg.image.tag`) stays pinned and out
-of the operator-bump PR. CNPG's admission webhook rejects changing the image
-and `postgresql.parameters` in the same apply, and keeping the operand fixed
-makes each step a clean instance-manager-only roll.
+Keep the operand Postgres image (`postgresql.cnpg.image.tag`) pinned and out of
+the operator-bump PR: CNPG's admission webhook rejects changing the image and
+`postgresql.parameters` in the same apply, and a fixed operand makes the bump a
+clean instance-manager-only roll.
 
 ### What an operator bump does to a running cluster
 
@@ -174,6 +171,44 @@ Merge an operator-bump PR at the start of a low-traffic window wider than the
 deploy lag (the prod step runs after the canary deploy and acceptance tests, so
 roughly 20-40 min after merge), so the switchover lands inside the quiet period.
 
-In-tree `barmanObjectStore` backups (deprecated since 1.26 in favor of the
-Barman Cloud Plugin) still work through 1.29, so this catch-up does not require
-a backup migration. Moving to the Barman Cloud Plugin is separate, later work.
+In-tree `barmanObjectStore` backups are deprecated (since operator 1.26) in
+favor of the Barman Cloud Plugin but still work on 1.29. The plugin migration is
+wired up but gated off — see below.
+
+## Backup: in-tree barmanObjectStore -> Barman Cloud Plugin
+
+In-tree Barman Cloud is deprecated (since operator 1.26) and is being phased out
+of the core operator. This chart can render backups either way, switched per
+cluster by `…backup.plugin.enabled` (default `false` = the in-tree
+`barmanObjectStore`, unchanged). When enabled, the cluster archives via the
+Barman Cloud Plugin (CNPG-I): an `ObjectStore` CR holds the bucket config and
+the `Cluster` references it through `.spec.plugins`. Value keys: the main server
+uses `postgresql.cnpg.backup.plugin.*`; tuist-ops uses `postgresql.backup.plugin.*`.
+
+**The plugin is installed on every cluster by the platform deploy** — it's a
+dependency of the platform chart (`plugin-barman-cloud`, pinned in
+[`infra/helm/platform/Chart.yaml`](../helm/platform/Chart.yaml), toggled by
+`plugin-barman-cloud.enabled`). As a subchart of the `platform` release it lands
+in the `platform` namespace alongside the operator, which is where the plugin
+must run. It's idle until a `Cluster` opts in, so installing it changes no
+backups. Bump it like any other platform dependency: edit the pin and redeploy.
+It needs cert-manager (already a platform dependency) and adds the
+`objectstores.barmancloud.cnpg.io` CRD, the `barman-cloud` Deployment, a
+Service, and self-signed mTLS Certificates.
+
+**Cutover (per env):** with the plugin installed, flip
+`…backup.plugin.enabled` to `true` and deploy. This is an atomic change to the
+`Cluster` (drops `.spec.backup.barmanObjectStore`, adds `.spec.plugins`), so it
+triggers a rolling update + switchover — merge it in a low-traffic window like
+an operator bump.
+
+**Continuity invariant (verify before trusting it):** the plugin must keep
+writing to the SAME archive. `serverName` is pinned to the cluster name (the
+value the in-tree path defaulted to) and the `ObjectStore` reuses the same
+`destinationPath` + credentials, so the prefix is unchanged. After cutover,
+confirm the primary's logs show `Archived WAL file` to the same
+`s3://…/<serverName>` path, then run a restore-validation drill from a
+plugin-written backup before retiring the in-tree path elsewhere.
+
+**Observability:** backup metrics rename from `cnpg_collector_*` to
+`barman_cloud_cloudnative_pg_io_*`; repoint any panels or backup-failure alerts.

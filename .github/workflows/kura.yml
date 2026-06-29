@@ -41,17 +41,11 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: --force rust
+          install_args: "bazel"
           working_directory: kura
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: kura-rust-${{ runner.os }}
-          workspaces: |
-            kura -> target
-
       - name: Check formatting
-        run: env -u RUSTUP_TOOLCHAIN cargo fmt --check
+        run: mise run --skip-tools format -- --check
 
   # Split non-fork / fork (like gradle.yml / android.yml): only trusted runs get `id-token: write`
   # and authenticate; forks get `contents: read` alone and never see the OIDC token.

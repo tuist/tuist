@@ -221,6 +221,16 @@ cloudnative-pg:
   monitoring:
     podMonitorEnabled: false
 
+# Barman Cloud Plugin (CNPG-I) — the backup sidecar a CNPG cluster uses when
+# its backups run through the plugin instead of in-tree barman. As a subchart
+# of this release it installs into the release namespace (`platform`), which is
+# where the operator runs and where the plugin must live. Installing it is
+# inert: no cluster uses it until the tuist/tuist-ops chart sets
+# `…backup.plugin.enabled`. Flip off alongside cloudnative-pg for non-cnpg
+# (embedded/external) self-hosted setups.
+plugin-barman-cloud:
+  enabled: true
+
 # Optional Cilium egress gateway policy for managed-cluster workloads that
 # need a stable outbound source IP for customer allowlists.
 #

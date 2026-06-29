@@ -141,13 +141,19 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                     }
                 )
                 settings["HEADER_SEARCH_PATHS"] = .array(
-                    staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies.flatMap { xcframework -> [String] in
-                        guard !xcframework.moduleMaps.isEmpty
-                        else { return [] }
-                        return [
-                            "\"$(SRCROOT)/\(derivedHeadersDirectory(for: xcframework, derivedDirectory: derivedDirectory).relative(to: project.path).pathString)\"",
-                        ]
-                    }
+                    staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies
+                        .compactMap { xcframework -> String? in
+                            guard let moduleMap = xcframework.moduleMaps.first
+                            else { return nil }
+                            // Nested layouts re-import sibling headers with the `<ModuleName/...>`
+                            // prefix, which only resolves with the `Headers` root (the parent of the
+                            // module's subdirectory) on the search path. Flat layouts keep their headers
+                            // directly in the module map's own directory.
+                            let searchPath = Self.nestedModuleMap(for: xcframework) != nil
+                                ? moduleMap.parentDirectory.parentDirectory
+                                : derivedHeadersDirectory(for: xcframework, derivedDirectory: derivedDirectory)
+                            return "\"$(SRCROOT)/\(searchPath.relative(to: project.path).pathString)\""
+                        }
                 )
             }
 
@@ -189,13 +195,31 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
         }
     }
 
+    /// Some static Objective-C xcframeworks keep their module map and public headers inside a
+    /// `Headers/<ModuleName>/` subdirectory, and the headers re-import each other with the
+    /// framework-prefixed form `#import <ModuleName/Header.h>`. When the module map's own
+    /// directory is named after the module, the layout is "nested" and needs the `Headers`
+    /// root (the subdirectory's parent) on the search path so those prefixed imports resolve;
+    /// "flat" xcframeworks keep their headers directly next to the module map. Returns the
+    /// xcframework's module map when the layout is nested.
+    private static func nestedModuleMap(for xcframework: GraphDependency.XCFramework) -> AbsolutePath? {
+        guard let moduleMap = xcframework.moduleMaps.first else { return nil }
+        return moduleMap.parentDirectory.basename == xcframework.path.basenameWithoutExt ? moduleMap : nil
+    }
+
     private func moduleMapFlag(
         for xcframework: GraphDependency.XCFramework,
         derivedDirectory: AbsolutePath,
         project: Project
     ) -> String {
         let name = xcframework.path.basenameWithoutExt
-        return "-fmodule-map-file=\"$(SRCROOT)/\(derivedDirectory.appending(components: name, "Headers", "module.modulemap").relative(to: project.path).pathString)\""
+        // Nested layouts point at the xcframework's own module map: its umbrella imports the
+        // headers with the `<ModuleName/...>` prefix, which resolves against the `Headers` root.
+        // Flat layouts point at the derived module map, whose umbrella header was rewritten to
+        // drop the prefix so it resolves against the module map's own directory.
+        let moduleMapPath = Self.nestedModuleMap(for: xcframework)
+            ?? derivedDirectory.appending(components: name, "Headers", "module.modulemap")
+        return "-fmodule-map-file=\"$(SRCROOT)/\(moduleMapPath.relative(to: project.path).pathString)\""
     }
 
     private func derivedHeadersDirectory(
@@ -215,12 +239,11 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
             .concurrentFlatMap { xcframework -> [SideEffectDescriptor] in
                 guard let moduleMap = xcframework.moduleMaps.first
                 else { return [] }
+                // Nested layouts are consumed through the xcframework's own module map and headers
+                // (see `moduleMapFlag` / `HEADER_SEARCH_PATHS`), so no derived copy is generated.
+                guard Self.nestedModuleMap(for: xcframework) == nil else { return [] }
                 let name = xcframework.path.basenameWithoutExt
                 let sourceHeadersDirectory = moduleMap.parentDirectory
-                let shouldWritePrefixedHeaderCopies = shouldWritePrefixedHeaderCopies(
-                    for: xcframework,
-                    sourceHeadersDirectory: sourceHeadersDirectory
-                )
                 let sourceHeaderEntries = try await fileSystem.glob(
                     directory: sourceHeadersDirectory,
                     include: [
@@ -260,20 +283,6 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                             contents: contents
                         )
                     )
-
-                    let firstRelativePathComponent = relativePath.pathString.split(separator: "/").first.map { String($0) }
-                    if shouldWritePrefixedHeaderCopies, firstRelativePathComponent != name {
-                        let prefixedDestinationPath = headersDirectory
-                            .appending(component: name)
-                            .appending(relativePath)
-                        directoryPaths.insert(prefixedDestinationPath.parentDirectory)
-                        fileDescriptors.append(
-                            FileDescriptor(
-                                path: prefixedDestinationPath,
-                                contents: contents
-                            )
-                        )
-                    }
                 }
 
                 return directoryPaths
@@ -281,21 +290,6 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                     .map { .directory(DirectoryDescriptor(path: $0)) }
                     + fileDescriptors.map { .file($0) }
             }
-    }
-
-    private func shouldWritePrefixedHeaderCopies(
-        for xcframework: GraphDependency.XCFramework,
-        sourceHeadersDirectory: AbsolutePath
-    ) -> Bool {
-        let name = xcframework.path.basenameWithoutExt
-        return xcframework.infoPlist.libraries.contains { library in
-            guard let headersPath = library.headersPath
-            else { return false }
-            let headersRoot = xcframework.path
-                .appending(component: library.identifier)
-                .appending(headersPath)
-            return sourceHeadersDirectory == headersRoot.appending(component: name)
-        }
     }
 
     private func rewrittenHeaderContents(
