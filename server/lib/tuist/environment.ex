@@ -9,7 +9,7 @@ defmodule Tuist.Environment do
   @compile_env Mix.env()
   @dev_all_locales Application.compile_env(:tuist, :dev_all_locales, false)
 
-  @runtime_envs ~w(prod can stag)
+  @runtime_envs ~w(prod can stag preview)
   @default_database_schema "public"
   @postgres_identifier_regex ~r/^[a-zA-Z_][a-zA-Z0-9_]*$/
   @agent_auth_default_trusted_providers [
@@ -60,7 +60,7 @@ defmodule Tuist.Environment do
   @doc ~S"""
   Returns an list with all the supported environments.
   """
-  def all_envs, do: [:dev, :test, :can, :stag, :prod]
+  def all_envs, do: [:dev, :test, :preview, :can, :stag, :prod]
 
   def test? do
     @compile_env == :test
