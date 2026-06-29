@@ -54,11 +54,17 @@ fi
 
 # Set the box's displayName into the pool as the final step — the adoption trigger.
 # The box is prepped now, so the controller self-joins it the moment the prefix
-# matches. The prefix is read from the deployed fleet template (one source of
-# truth), then applied via the same path as baremetal:mark-ovh. mark-ovh signs
-# against OVH_API_BASE, so map the entity OVH_ENDPOINT selects to its API base.
-prefix="$("${kube[@]}" -n "$ns" get ovhdedicatedmachinetemplate "$fleet" -o jsonpath='{.spec.template.spec.adoptDisplayNamePrefix}' 2>/dev/null || true)"
-[ -z "$prefix" ] && { echo "prepped ${service} but could not read adoptDisplayNamePrefix from ovhdedicatedmachinetemplate/${fleet} (-n $ns); name it manually: mise run baremetal:mark-ovh ${service} <display-name>" >&2; exit 1; }
+# matches. Read the prefix from the env's values file (where adoptDisplayNamePrefix
+# is defined): present before the fleet is ever deployed, so this stays a cold-start
+# step. Fall back to a deployed template. Override via PREP_ADOPT_DISPLAY_NAME.
+# mark-ovh signs against OVH_API_BASE, so map the entity OVH_ENDPOINT selects to it.
+env="${ns#tuist-}"
+values="$root/infra/helm/tuist/values-managed-${env}.yaml"
+prefix="${PREP_ADOPT_DISPLAY_NAME:-}"
+[ -z "$prefix" ] && prefix="$(yq '.ovhFleet.machine.adoptDisplayNamePrefix' "$values" 2>/dev/null || true)"
+[ "$prefix" = "null" ] && prefix=""
+[ -z "$prefix" ] && prefix="$("${kube[@]}" -n "$ns" get ovhdedicatedmachinetemplate "$fleet" -o jsonpath='{.spec.template.spec.adoptDisplayNamePrefix}' 2>/dev/null || true)"
+[ -z "$prefix" ] && { echo "prepped ${service} but could not resolve the adoptDisplayNamePrefix (looked in ${values} and ovhdedicatedmachinetemplate/${fleet}); name it manually: mise run baremetal:mark-ovh ${service} <display-name>" >&2; exit 1; }
 case "$OVH_ENDPOINT" in
   ovh-ca) ovh_base="https://ca.api.ovh.com/1.0" ;;
   ovh-eu) ovh_base="https://eu.api.ovh.com/1.0" ;;

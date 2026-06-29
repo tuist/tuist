@@ -53,8 +53,14 @@ fi
 
 # Tag the box into the pool as the final step — this is the adoption trigger, and
 # the box is prepped now, so the controller self-joins it the moment it sees the
-# tag. The tag is read from the deployed fleet template (one source of truth), then
-# applied via the same path as baremetal:mark-dedibox.
-tag="$("${kube[@]}" -n "$ns" get dediboxmachinetemplate "$fleet" -o jsonpath='{.spec.template.spec.adoptTag}' 2>/dev/null || true)"
-[ -z "$tag" ] && { echo "prepped ${server_id} but could not read adoptTag from dediboxmachinetemplate/${fleet} (-n $ns); tag it manually: mise run baremetal:mark-dedibox ${server_id} <tag>" >&2; exit 1; }
+# tag. Read the tag from the env's values file (where adoptTag is defined): it is
+# present before the fleet is ever deployed, so this stays a cold-start step. Fall
+# back to a deployed DediboxMachineTemplate. Override via PREP_ADOPT_TAG.
+env="${ns#tuist-}"
+values="$root/infra/helm/tuist/values-managed-${env}.yaml"
+tag="${PREP_ADOPT_TAG:-}"
+[ -z "$tag" ] && tag="$(yq '.dediboxFleet.machine.adoptTag' "$values" 2>/dev/null || true)"
+[ "$tag" = "null" ] && tag=""
+[ -z "$tag" ] && tag="$("${kube[@]}" -n "$ns" get dediboxmachinetemplate "$fleet" -o jsonpath='{.spec.template.spec.adoptTag}' 2>/dev/null || true)"
+[ -z "$tag" ] && { echo "prepped ${server_id} but could not resolve the adoptTag (looked in ${values} and dediboxmachinetemplate/${fleet}); tag it manually: mise run baremetal:mark-dedibox ${server_id} <tag>" >&2; exit 1; }
 bash "$root/mise/tasks/baremetal/mark-dedibox.sh" "$server_id" "$tag"
