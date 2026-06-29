@@ -721,12 +721,43 @@ jobs:
               exit 1
             fi
           done
-      - name: Kick Swift registry sync
+      - name: Enqueue Swift registry sync
         run: |
           set -euo pipefail
-          SYNC_POD="$(kubectl -n "$NAMESPACE" get pod -l app.kubernetes.io/component=swift-registry-sync -o jsonpath='{.items[0].metadata.name}')"
-          kubectl -n "$NAMESPACE" exec "$SYNC_POD" -c swift-registry-sync -- \
-            /app/bin/tuist eval 'Tuist.Registry.Swift.SyncWorker.perform(%Oban.Job{args: %{"limit" => 1}})'
+          SERVER_POD="$(kubectl -n "$NAMESPACE" get pod -l app.kubernetes.io/component=server -o jsonpath='{.items[0].metadata.name}')"
+          SYNC_SCRIPT=$(cat <<'EOF'
+          Application.load(:tuist)
+
+          endpoint_config = Application.get_env(:tuist, TuistWeb.Endpoint, [])
+          Application.put_env(:tuist, TuistWeb.Endpoint, Keyword.put(endpoint_config, :server, false))
+
+          promex_config = Application.get_env(:tuist, Tuist.PromEx, [])
+          Application.put_env(:tuist, Tuist.PromEx, Keyword.put(promex_config, :disabled, true))
+
+          {:ok, _} = Application.ensure_all_started(:tuist)
+
+          %{"limit" => 1}
+          |> Tuist.Registry.Swift.SyncWorker.new()
+          |> Oban.insert!()
+
+          System.halt(0)
+          EOF
+          )
+          kubectl -n "$NAMESPACE" exec "$SERVER_POD" -c server -- \
+            /app/bin/tuist eval "$SYNC_SCRIPT"
+
+          for i in $(seq 1 60); do
+            if curl -fsSL --max-time 5 "https://${REGISTRY_HOST}/swift/alamofire/alamofire" >/dev/null; then
+              echo "OK: https://${REGISTRY_HOST}/swift/alamofire/alamofire returned 200"
+              break
+            fi
+            echo "Attempt $i: alamofire/alamofire not synced yet; retrying in 10s..."
+            sleep 10
+            if [ "$i" = "60" ]; then
+              echo "::error::alamofire/alamofire metadata was not synced after about 10 min."
+              exit 1
+            fi
+          done
       - name: Seed preview account
         env:
           PREVIEW_ACCOUNT_HANDLE: tuist
