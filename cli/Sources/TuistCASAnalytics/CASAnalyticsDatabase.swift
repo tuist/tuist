@@ -41,7 +41,13 @@ public struct CASAnalyticsDatabase: CASAnalyticsDatabasing {
             Environment.current.stateDirectory.appending(component: Self.databaseName).pathString
         )
         db.busyTimeout = 5
-        try db.execute("PRAGMA synchronous = NORMAL")
+        // This database is disposable per-build analytics, and `storeCASOutput` runs
+        // once per CAS operation on the shared cooperative pool. With synchronous=NORMAL
+        // every insert fsynced; under a build's disk contention those fsyncs starved the
+        // daemon's load/decompress tasks (per-op latency blew up). synchronous=OFF drops
+        // the fsync (durability isn't needed here); wal_autocheckpoint=1 stays so the main
+        // db remains current for the build-report upload, which copies the .db, not the WAL.
+        try db.execute("PRAGMA synchronous = OFF")
         try db.execute("PRAGMA wal_autocheckpoint = 1")
     }
 
