@@ -87,23 +87,49 @@ kura-eu-central-ingress-nginx:
 kura-us-east-ingress-nginx:
   enabled: true
   controller:
+    # US East is on the OVH Vint Hill (VA) bare-metal box: the regional gateway
+    # runs host-network so serving traffic hits the box NIC directly (OVH has no
+    # Hetzner LB), the same shape as eu-central on Dedibox above.
+    # reportNodeInternalIp publishes the box's public IP (its node InternalIP)
+    # into each Ingress status so external-dns resolves the per-account hosts.
+    kind: DaemonSet
+    hostNetwork: true
+    dnsPolicy: ClusterFirstWithHostNet
+    reportNodeInternalIp: true
+    config:
+      use-proxy-protocol: "false"
     nodeSelector:
       node.cluster.x-k8s.io/pool: kura-us-east
+    tolerations:
+      - key: tuist.dev/kura-cache
+        operator: Exists
+        effect: NoSchedule
+    publishService:
+      enabled: false
     service:
-      annotations:
-        load-balancer.hetzner.cloud/location: ash
-        load-balancer.hetzner.cloud/name: tuist-kura-us-east-ingress
-        load-balancer.hetzner.cloud/node-selector: node.cluster.x-k8s.io/pool=kura-us-east
-        load-balancer.hetzner.cloud/uses-proxyprotocol: "true"
+      type: ClusterIP
+      externalTrafficPolicy: ""
+      annotations: {}
 
 kura-us-west-ingress-nginx:
   enabled: true
   controller:
+    # US West is on the OVH Hillsboro (OR) bare-metal box; same host-network shape.
+    kind: DaemonSet
+    hostNetwork: true
+    dnsPolicy: ClusterFirstWithHostNet
+    reportNodeInternalIp: true
+    config:
+      use-proxy-protocol: "false"
     nodeSelector:
       node.cluster.x-k8s.io/pool: kura-us-west
+    tolerations:
+      - key: tuist.dev/kura-cache
+        operator: Exists
+        effect: NoSchedule
+    publishService:
+      enabled: false
     service:
-      annotations:
-        load-balancer.hetzner.cloud/location: hil
-        load-balancer.hetzner.cloud/name: tuist-kura-us-west-ingress
-        load-balancer.hetzner.cloud/node-selector: node.cluster.x-k8s.io/pool=kura-us-west
-        load-balancer.hetzner.cloud/uses-proxyprotocol: "true"
+      type: ClusterIP
+      externalTrafficPolicy: ""
+      annotations: {}

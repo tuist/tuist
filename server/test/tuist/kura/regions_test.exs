@@ -10,7 +10,6 @@ defmodule Tuist.Kura.RegionsTest do
   describe "all/0" do
     test "exposes concrete managed regions backed by KubernetesController" do
       ids = Enum.map(Regions.all(), & &1.id)
-      hetzner_locations = %{"us-east" => "ash", "us-west" => "hil"}
 
       ingress_classes = %{
         "eu-central" => "kura-eu-central",
@@ -31,12 +30,15 @@ defmodule Tuist.Kura.RegionsTest do
         assert config.ingress_class_name == ingress_classes[id]
       end
 
-      # us-east/us-west stay on Hetzner ccx13 with network-attached storage;
-      # eu-central has cut over to Dedibox bare metal (asserted below).
+      # us-east/us-west run on OVH bare metal (hostNetwork gateway, local-NVMe,
+      # two replicas); eu-central is on Dedibox bare metal (asserted below).
       for id <- ["us-east", "us-west"] do
         config = Regions.get(id).provisioner_config
-        assert config.hetzner_location == hetzner_locations[id]
-        assert config.storage_class == "hcloud-volumes"
+        assert config.hetzner_location == nil
+        assert config.storage_class == "scw-local-nvme"
+        assert config.gateway == :host_network
+        assert config.replicas == 2
+        assert config.storage_size == "50Gi"
       end
 
       assert Regions.get("us-east").provisioner_config.node_selector == %{

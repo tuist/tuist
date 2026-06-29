@@ -371,12 +371,67 @@ dediboxFleet:
   enabled: true
   machine:
     adoptTag: tuist-kura-production
-    offer: Start-9-M
+    offer: Pro-9-XS
     datacenter: DC5
     os: ubuntu_24.04
   scaleway:
     externalSecrets:
       item: DEDIBOX_SCW_API
+  # Own the fleet SSH key from 1Password (generated fresh into this item).
+  sshExternalSecret:
+    enabled: true
+    item: DEDIBOX_FLEET_SSH
+
+# Shared OVH config holder. The singular ovhFleet stays disabled in production
+# (it is the ca-east validation fleet); production's OVH regions are the us-east /
+# us-west map fleets below. The shared OVH IAM ExternalSecret + reconciler read
+# the API item + endpoint from here (one OVH account serves every OVH fleet).
+ovhFleet:
+  enabled: false
+  endpoint: ovh-us
+  externalSecrets:
+    item: OVH_API
+
+# US East (Vint Hill VA) and US West (Hillsboro OR) Kura cache regions on OVH
+# bare metal, replacing the former Hetzner ccx13 pools. Each adopts a pre-ordered,
+# operator-installed box by its displayName prefix (the env+region boundary, since
+# one OVH account holds every env's boxes), scoped further by datacenter + offer.
+#
+# DEPLOY ORDER (an enabled fleet with no adoptable box never wedges helm --wait
+# because replicas start at 0, but the IAM/SSH ExternalSecrets are pre-install
+# hooks): PREREQ the production vault holds OVH_API + OVH_FLEET_SSH, then prep each
+# box (mise run baremetal:prep-ovh) so it self-joins as kura-us-east / kura-us-west,
+# then scale the MachineDeployment to 2 (HA: two boxes, or both pods co-located on
+# one until the second lands). Only after the OVH nodes are Ready should the
+# Hetzner us-east/us-west pools be retired (already dropped from
+# cluster-production.yaml) — bring OVH up before Hetzner comes down.
+ovhFleets:
+  us-east:
+    enabled: true
+    replicas: 0
+    endpoint: ovh-us
+    nodePool: kura-us-east
+    machine:
+      adoptDisplayNamePrefix: tuist-kura-ovh-production-us-east
+      offer: advance-1
+      datacenter: vin
+      os: ubuntu_24.04
+    sshExternalSecret:
+      enabled: true
+      item: OVH_FLEET_SSH
+  us-west:
+    enabled: true
+    replicas: 0
+    endpoint: ovh-us
+    nodePool: kura-us-west
+    machine:
+      adoptDisplayNamePrefix: tuist-kura-ovh-production-us-west
+      offer: advance-1
+      datacenter: hil
+      os: ubuntu_24.04
+    sshExternalSecret:
+      enabled: true
+      item: OVH_FLEET_SSH
 
 # Mac mini fleet — declarative via CAPI. Production keeps 2 hosts so
 # a single-host Scaleway BMC reboot or macOS upgrade doesn't take all

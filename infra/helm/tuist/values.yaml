@@ -730,6 +730,13 @@ ovhFleet:
       publicKey: public-key
       sudoPassword: sudo-password
 
+# Additional OVH fleets keyed by region (e.g. us-east, us-west), each rendering its
+# own OVHDedicatedMachineTemplate + MachineDeployment (ovh-fleets.yaml) + SSH
+# ExternalSecret (ovh-fleets-ssh-external-secret.yaml), named tuist-tuist-ovh-fleet-<key>.
+# They share the env's OVH_API + OVH_FLEET_SSH (one OVH account). The singular
+# ovhFleet above stays the ca-east validation fleet. Empty by default.
+ovhFleets: {}
+
 # Scaling: `kubectl scale machinedeployment <name> --replicas=N`.
 macosFleet:
   enabled: false

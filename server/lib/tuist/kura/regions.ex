@@ -52,21 +52,42 @@ defmodule Tuist.Kura.Regions do
   @peer_port 7443
   @managed_region_storage_class "hcloud-volumes"
   @managed_region_specs [
+    # US East (Vint Hill VA) and US West (Hillsboro OR) run on OVH bare metal:
+    # their own OVH fleets (kura-us-east / kura-us-west node pools), local-NVMe
+    # storage, a hostNetwork regional gateway bound to the box's public IP (OVH
+    # has no Hetzner LB), and two bounded-size replicas — the same bare-metal
+    # shape as eu-central (Dedibox) and ca-east (OVH BHS). The region
+    # ids, cluster_ids, ingress classes, and public hostnames are unchanged from
+    # the former Hetzner backing, so the cutover is invisible to customers. Only
+    # production serves these regions (TUIST_KURA_AVAILABLE_REGIONS), so the
+    # switch is prod-only.
     %{
       id: "us-east",
       display_name: "US East",
       cluster_id: "us-east-1",
-      hetzner_location: "ash",
       ingress_class_name: "kura-us-east",
-      node_pool: "kura-us-east"
+      node_pool: "kura-us-east",
+      storage_class: "scw-local-nvme",
+      gateway: :host_network,
+      replicas: 2,
+      storage_size: "50Gi",
+      # WS5 per-pod egress ceiling (Cilium bandwidth manager): cap one tenant at
+      # ~half the box NIC (Advance-1 ~3 Gbit/s public) so it can't starve the rest.
+      egress_burst_mbps: 1500
     },
     %{
       id: "us-west",
       display_name: "US West",
       cluster_id: "us-west-1",
-      hetzner_location: "hil",
       ingress_class_name: "kura-us-west",
-      node_pool: "kura-us-west"
+      node_pool: "kura-us-west",
+      storage_class: "scw-local-nvme",
+      gateway: :host_network,
+      replicas: 2,
+      storage_size: "50Gi",
+      # WS5 per-pod egress ceiling (Cilium bandwidth manager): cap one tenant at
+      # ~half the box NIC (Advance-1 ~3 Gbit/s public) so it can't starve the rest.
+      egress_burst_mbps: 1500
     },
     # EU Central runs on Scaleway Dedibox bare metal: the `kura-dedibox` node
     # pool (each environment's `dediboxFleet`), local-NVMe storage, a hostNetwork
@@ -85,16 +106,18 @@ defmodule Tuist.Kura.Regions do
       storage_class: "scw-local-nvme",
       gateway: :host_network,
       replicas: 2,
-      storage_size: "50Gi"
+      storage_size: "50Gi",
+      # WS5 per-pod egress ceiling (Cilium bandwidth manager): cap one tenant at
+      # ~half the shared box NIC (~1 Gbit/s) so it can't starve the rest.
+      egress_burst_mbps: 500
     },
     # Canada East (Beauharnois / OVHcloud BHS) on OVH bare metal: the
     # `kura-ca-east` node pool (the `ovhFleet`), local-NVMe storage, and a
     # hostNetwork regional gateway bound to the box's public IP (OVH has no
     # Hetzner LB) — the same bare-metal shape as eu-central on Dedibox. The
-    # provider (OVH) is an implementation detail behind the geographic id; the
-    # Hetzner-backed us-east/us-west regions are untouched. Gated by
-    # TUIST_KURA_AVAILABLE_REGIONS (staging-only while the integration is
-    # validated).
+    # provider (OVH) is an implementation detail behind the geographic id. Gated
+    # by TUIST_KURA_AVAILABLE_REGIONS (staging/canary-only while the integration
+    # is validated; production serves us-east/us-west on their own OVH fleets).
     %{
       id: "ca-east",
       display_name: "Canada East",
@@ -104,7 +127,10 @@ defmodule Tuist.Kura.Regions do
       storage_class: "scw-local-nvme",
       gateway: :host_network,
       replicas: 2,
-      storage_size: "50Gi"
+      storage_size: "50Gi",
+      # WS5 per-pod egress ceiling (Cilium bandwidth manager): cap one tenant at
+      # ~half the box NIC (~1 Gbit/s) so it can't starve the rest.
+      egress_burst_mbps: 500
     }
   ]
   # Private runner-cache regions. Both share the same model: a single-
@@ -337,11 +363,25 @@ defmodule Tuist.Kura.Regions do
           %{"key" => "tuist.dev/kura-cache", "operator" => "Exists", "effect" => "NoSchedule"}
         ],
         dedicated_gateway_account_handles: Tuist.Environment.kura_dedicated_gateway_account_handles(),
+        # Per-pod egress ceiling (WS5) on the shared bare-metal boxes: a Cilium
+        # bandwidth-manager annotation so one tenant can't monopolize the box
+        # NIC. Empty on the Hetzner cloud regions (no shared-NIC contention).
+        pod_annotations: managed_region_pod_annotations(spec),
         # Controller-managed per-account peer mesh: an account's nodes
         # across regions replicate to each other under one per-account CA.
         mesh: true
       }
     }
+  end
+
+  # WS5 burst ceiling: a Cilium bandwidth-manager egress cap so one tenant pod
+  # can't monopolize the shared box NIC. Set on the bare-metal regions (from
+  # egress_burst_mbps); empty on the Hetzner cloud regions.
+  defp managed_region_pod_annotations(spec) do
+    case Map.get(spec, :egress_burst_mbps) do
+      nil -> %{}
+      mbps -> %{"kubernetes.io/egress-bandwidth" => "#{mbps}M"}
+    end
   end
 
   # Environment suffix woven into managed-region public hostnames so the

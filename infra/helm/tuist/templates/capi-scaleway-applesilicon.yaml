@@ -1,5 +1,14 @@
 {{- if and .Values.capi.enabled .Values.macosFleet.enabled }}
 {{- $name := include "tuist.componentName" (dict "root" . "component" "capi-scaleway-applesilicon") }}
+{{- /* The OVH reconciler serves the singular ovhFleet (ca-east) and every
+   ovhFleets map entry (us-east/us-west); wire its creds when ANY is enabled,
+   and take the endpoint from whichever is on (all our OVH boxes share one
+   account, so the endpoint is uniform). */ -}}
+{{- $ovhAny := .Values.ovhFleet.enabled -}}
+{{- $ovhEndpoint := .Values.ovhFleet.endpoint | default "ovh-eu" -}}
+{{- range $f := .Values.ovhFleets }}
+{{- if $f.enabled }}{{- $ovhAny = true -}}{{- $ovhEndpoint = $f.endpoint | default $ovhEndpoint -}}{{- end }}
+{{- end }}
 ---
 # Cluster API infrastructure provider for Scaleway Apple Silicon Mac
 # minis. Watches ScalewayAppleSiliconMachine CRs and reconciles them
@@ -441,13 +450,13 @@ spec:
                   name: {{ .Values.dediboxFleet.scaleway.secretName | default (include "tuist.componentName" (dict "root" . "component" "dedibox")) }}
                   key: project-id
             {{- end }}
-            {{- if .Values.ovhFleet.enabled }}
+            {{- if $ovhAny }}
             # OVH dedicated-server reconciler creds. The OVH SDK reads these from
             # the env; OVH_ENDPOINT (ovh-eu/ovh-ca/...) is non-secret config, the
             # rest sync from the OVH_API item. OVH_APPLICATION_KEY's presence also
             # gates the reconciler on (cmd/manager/main.go).
             - name: OVH_ENDPOINT
-              value: {{ .Values.ovhFleet.endpoint | default "ovh-eu" | quote }}
+              value: {{ $ovhEndpoint | quote }}
             - name: OVH_APPLICATION_KEY
               valueFrom:
                 secretKeyRef:
