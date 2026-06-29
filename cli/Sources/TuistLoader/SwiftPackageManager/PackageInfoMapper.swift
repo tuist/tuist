@@ -2136,6 +2136,11 @@ extension ProjectDescription.Settings {
 
         var baseSettingsDictionary = ProjectDescription.SettingsDictionary.from(settingsDictionary: settingsDictionary)
 
+        baseSettingsDictionary.merge(
+            .from(settingsDictionary: baseSettings.base),
+            uniquingKeysWith: { _, new in new }
+        )
+
         if let userDefinedBaseSettings = targetSettings?.base {
             baseSettingsDictionary.merge(
                 .from(settingsDictionary: userDefinedBaseSettings),
