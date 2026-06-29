@@ -70,7 +70,10 @@ final class FrameworkSearchPathsGraphMapperTests: TuistUnitTestCase {
         XCTAssertTrue(contents.contains("-F\(projectPath.appending(components: "Frameworks", "hash0").pathString)"))
 
         let swiftSearchPathCleanupDescriptor = try XCTUnwrap(
-            generatedFilesCleanupDescriptor(in: sideEffects, include: ["**/*.framework", "**/*.xcframework"])
+            generatedFilesCleanupDescriptor(
+                in: sideEffects,
+                include: ["Swift/*/*.framework", "Swift/*/*.xcframework"]
+            )
         )
         let swiftSearchPathDirectory = projectPath.appending(components: "Derived", "FrameworkSearchPaths")
         XCTAssertTrue(swiftSearchPathCleanupDescriptor.directories.contains(swiftSearchPathDirectory))

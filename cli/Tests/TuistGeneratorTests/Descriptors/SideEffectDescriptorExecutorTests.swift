@@ -126,7 +126,7 @@ struct SideEffectDescriptorExecutorTests {
                 GeneratedFilesCleanupDescriptor(
                     directories: [directory],
                     activeFilesByDirectory: [directory: [activeLink]],
-                    include: ["**/*.framework"]
+                    include: ["Swift/*/*.framework"]
                 )
             ),
         ])
@@ -136,6 +136,30 @@ struct SideEffectDescriptorExecutorTests {
             try await fileSystem.resolveSymbolicLink(staleLink)
         }
         #expect(try await !fileSystem.contentsOfDirectory(staleLink.parentDirectory).contains(staleLink))
+    }
+
+    @Test(.inTemporaryDirectory) func execute_doesNotCleanFilesInsideActiveGeneratedSymbolicLink() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let directory = temporaryDirectory.appending(component: "FrameworkSearchPaths")
+        let artifact = temporaryDirectory.appending(components: "Artifacts", "Module.xcframework")
+        let nestedFramework = artifact.appending(components: "ios-arm64", "Module.framework")
+        let activeLink = directory.appending(components: "Swift", "App", "Module.xcframework")
+        try await fileSystem.makeDirectory(at: nestedFramework)
+        try await fileSystem.makeDirectory(at: activeLink.parentDirectory)
+        try await fileSystem.createSymbolicLink(from: activeLink, to: artifact)
+
+        try await subject.execute(sideEffects: [
+            .generatedFilesCleanup(
+                GeneratedFilesCleanupDescriptor(
+                    directories: [directory],
+                    activeFilesByDirectory: [directory: [activeLink]],
+                    include: ["**/*.framework", "**/*.xcframework"]
+                )
+            ),
+        ])
+
+        #expect(try await fileSystem.resolveSymbolicLink(activeLink) == artifact)
+        #expect(try await fileSystem.exists(nestedFramework, isDirectory: true))
     }
 
     private func modificationDate(at path: AbsolutePath) throws -> Date {

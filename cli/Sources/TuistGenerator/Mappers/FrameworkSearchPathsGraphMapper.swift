@@ -163,7 +163,7 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
                     GeneratedFilesCleanupDescriptor(
                         directories: Set(activeFrameworkLinksByDirectory.keys),
                         activeFilesByDirectory: activeFrameworkLinksByDirectory,
-                        include: ["**/*.framework", "**/*.xcframework"]
+                        include: ["Swift/*/*.framework", "Swift/*/*.xcframework"]
                     )
                 )
             )
