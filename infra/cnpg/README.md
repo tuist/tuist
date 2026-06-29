@@ -185,13 +185,14 @@ Barman Cloud Plugin (CNPG-I): an `ObjectStore` CR holds the bucket config and
 the `Cluster` references it through `.spec.plugins`. Value keys: the main server
 uses `postgresql.cnpg.backup.plugin.*`; tuist-ops uses `postgresql.backup.plugin.*`.
 
-**The plugin is installed on every cluster by the platform deploy** —
-`install-platform.sh` applies the vendored, pinned manifest
-[`infra/cnpg/plugin-barman-cloud.yaml`](./plugin-barman-cloud.yaml) (upstream
-`v0.13.0`, namespace rewritten to `platform`, where the operator runs). It's
-idle until a `Cluster` opts in, so it changes no backups. No manual step. To
-bump the plugin version, refresh that file per the instructions in its header.
-It needs cert-manager (already present via the platform chart) and adds the
+**The plugin is installed on every cluster by the platform deploy** — it's a
+dependency of the platform chart (`plugin-barman-cloud`, pinned in
+[`infra/helm/platform/Chart.yaml`](../helm/platform/Chart.yaml), toggled by
+`plugin-barman-cloud.enabled`). As a subchart of the `platform` release it lands
+in the `platform` namespace alongside the operator, which is where the plugin
+must run. It's idle until a `Cluster` opts in, so installing it changes no
+backups. Bump it like any other platform dependency: edit the pin and redeploy.
+It needs cert-manager (already a platform dependency) and adds the
 `objectstores.barmancloud.cnpg.io` CRD, the `barman-cloud` Deployment, a
 Service, and self-signed mTLS Certificates.
 
