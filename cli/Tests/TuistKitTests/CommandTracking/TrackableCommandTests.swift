@@ -248,6 +248,58 @@ final class TrackableCommandTests: TuistTestCase {
         )
     }
 
+    func test_whenRunMetadataUploadTimesOut_andTestRunExists_printsFallbackTestRunURL() async throws {
+        // Given
+        uploadAnalyticsService.reset()
+        given(uploadAnalyticsService)
+            .upload(commandEvent: .any, fullHandle: .any, serverURL: .any, sessionDirectory: .any)
+            .willThrow(URLError(.timedOut))
+        try makeSubject(
+            command: TestRunIdCommand(testRunId: "test-run-id"),
+            commandArguments: ["test"]
+        )
+
+        // When
+        try await subject.run(
+            fullHandle: "tuist/tuist",
+            serverURL: .test(),
+            shouldTrackAnalytics: true
+        )
+
+        // Then
+        XCTAssertPrinterContains(
+            "View the analyzed test at https://test.tuist.io/tuist/tuist/tests/test-runs/test-run-id",
+            at: .info,
+            <=
+        )
+    }
+
+    func test_whenRunMetadataUploadTimesOut_andFullHandleInvalid_doesNotPrintFallbackTestRunURL() async throws {
+        // Given
+        uploadAnalyticsService.reset()
+        given(uploadAnalyticsService)
+            .upload(commandEvent: .any, fullHandle: .any, serverURL: .any, sessionDirectory: .any)
+            .willThrow(URLError(.timedOut))
+        try makeSubject(
+            command: TestRunIdCommand(testRunId: "test-run-id"),
+            commandArguments: ["test"]
+        )
+
+        // When
+        try await subject.run(
+            fullHandle: "invalid-handle",
+            serverURL: .test(),
+            shouldTrackAnalytics: true
+        )
+
+        // Then
+        XCTAssertPrinterNotContains(
+            "View the analyzed test at",
+            at: .info,
+            <=
+        )
+    }
+
     func test_whenRunMetadataCreationFails_doesNotFailCommand() async throws {
         // Given
         gitController.reset()
@@ -517,5 +569,18 @@ private struct ResolvedMetadataCommand: TrackableParsableCommand, AsyncParsableC
                 commandArguments: ["xcodebuild", "build", "-workspace", "App.xcworkspace"]
             )
         )
+    }
+}
+
+private struct TestRunIdCommand: TrackableParsableCommand, AsyncParsableCommand {
+    static var configuration: CommandConfiguration {
+        CommandConfiguration(commandName: "test")
+    }
+
+    var testRunId: String
+    var analyticsRequired: Bool { true }
+
+    func run() async throws {
+        await RunMetadataStorage.current.update(testRunId: testRunId)
     }
 }
