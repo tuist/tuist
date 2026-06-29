@@ -10,6 +10,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   alias Tuist.Oban.RuntimeConfig
   alias Tuist.Ops.DailySlackReportWorker
   alias Tuist.Ops.HourlySlackReportWorker
+  alias Tuist.Registry.Swift.SyncWorker
   alias Tuist.Runners.Workers.ExpireInteractiveSessionsWorker
   alias Tuist.Runners.Workers.PruneArchivedLogsWorker
   alias Tuist.Runners.Workers.StaleQueuedJobsWorker
@@ -48,7 +49,27 @@ defmodule Tuist.Oban.RuntimeConfigTest do
       end
     end
 
-    test "empty for :web in non-prod-like envs" do
+    test "empty for :web in non-prod-like envs, except hosted previews" do
+      for env <- [:dev, :test, :preview], tuist_hosted? <- [true, false] do
+        if env == :preview and tuist_hosted? do
+          assert [{"* * * * *", SyncWorker}] = RuntimeConfig.crontab(:web, env, tuist_hosted?)
+        else
+          assert RuntimeConfig.crontab(:web, env, tuist_hosted?) == []
+        end
+      end
+    end
+
+    test ":web + hosted preview only runs the Swift registry sync cron" do
+      assert RuntimeConfig.crontab(:web, :preview, true) == [{"* * * * *", SyncWorker}]
+
+      for mode <- Environment.modes(), mode != :web do
+        assert RuntimeConfig.crontab(mode, :preview, true) == []
+      end
+
+      assert RuntimeConfig.crontab(:web, :preview, false) == []
+    end
+
+    test ":web + non-preview non-prod-like envs stay empty" do
       for env <- [:dev, :test], tuist_hosted? <- [true, false] do
         assert RuntimeConfig.crontab(:web, env, tuist_hosted?) == []
       end
