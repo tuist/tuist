@@ -75,9 +75,9 @@
                 onlyTesting: []
             )
 
-            let appTests = result.first { $0.blueprintName == "AppTests" }
+            let appTests = result.targets.first { $0.blueprintName == "AppTests" }
             #expect(appTests?.onlyTestIdentifiers == ["LoginTests", "SignupTests"])
-            let coreTests = result.first { $0.blueprintName == "CoreTests" }
+            let coreTests = result.targets.first { $0.blueprintName == "CoreTests" }
             #expect(coreTests?.onlyTestIdentifiers == ["NetworkTests"])
         }
 
@@ -96,7 +96,7 @@
                 onlyTesting: []
             )
 
-            #expect(result == [XCTestRun.TestTarget(
+            #expect(result.targets == [XCTestRun.TestTarget(
                 blueprintName: "FeatureTests",
                 onlyTestIdentifiers: ["GammaSuite", "DeltaSuite"]
             )])
@@ -134,7 +134,7 @@
             )
 
             #expect(consecutive(captured.value, "-destination", "platform=iOS Simulator,name=iPhone 16"))
-            let uiTests = result.first { $0.blueprintName == "UITests" }
+            let uiTests = result.targets.first { $0.blueprintName == "UITests" }
             #expect(uiTests?.onlyTestIdentifiers == ["SnapshotTests"])
         }
 
@@ -151,7 +151,58 @@
 
             // An enumerated-but-empty target must be reported (with no identifiers) rather than dropped, so
             // callers can tell it apart from a target that failed to enumerate entirely.
-            #expect(result == [XCTestRun.TestTarget(blueprintName: "EmptyTarget", onlyTestIdentifiers: [])])
+            #expect(result.targets == [XCTestRun.TestTarget(blueprintName: "EmptyTarget", onlyTestIdentifiers: [])])
+        }
+
+        @Test(.inTemporaryDirectory)
+        func enumerateTests_capturesTopLevelSwiftTestingFunctions() async throws {
+            let testProductsPath = try #require(FileSystem.temporaryTestDirectory)
+            // A top-level `@Test` function with no enclosing `@Suite` is reported as a `test` node directly
+            // under the target (not under a `class`). It must be captured as a `-only-testing` identifier —
+            // verbatim, parentheses included — so the target is not dropped as "empty". The `test` nested
+            // inside the class (`loggedIn()`) must NOT be captured: we shard at suite granularity.
+            givenEnumeration(json: #"""
+            {"errors":[],"values":[{"kind":"plan","name":"P","children":[
+              {"kind":"target","name":"FeatureTests","children":[
+                {"kind":"class","name":"LoginSuite","children":[{"kind":"test","name":"loggedIn()"}]},
+                {"kind":"test","name":"freeStandingTest()"}
+              ]}
+            ]}]}
+            """#)
+
+            let result = try await subject.enumerateTests(
+                testProductsPath: testProductsPath,
+                destination: nil,
+                onlyTesting: []
+            )
+
+            #expect(result.targets == [XCTestRun.TestTarget(
+                blueprintName: "FeatureTests",
+                onlyTestIdentifiers: ["LoginSuite", "freeStandingTest()"]
+            )])
+        }
+
+        @Test(.inTemporaryDirectory)
+        func enumerateTests_surfacesErrorsForTargetsThatCannotBeTested() async throws {
+            let testProductsPath = try #require(FileSystem.temporaryTestDirectory)
+            // A target xcodebuild lists but cannot boot is reported present-but-empty *and* recorded in the
+            // top-level `errors` array. Both must be surfaced so callers can tell it apart from a genuinely
+            // empty target.
+            givenEnumeration(json: #"""
+            {"errors":["Cannot test target UITests on iPhone 16: simulator failed to boot."],
+             "values":[{"kind":"plan","name":"P","children":[
+               {"kind":"target","name":"UITests"}
+             ]}]}
+            """#)
+
+            let result = try await subject.enumerateTests(
+                testProductsPath: testProductsPath,
+                destination: nil,
+                onlyTesting: []
+            )
+
+            #expect(result.targets == [XCTestRun.TestTarget(blueprintName: "UITests", onlyTestIdentifiers: [])])
+            #expect(result.errors == ["Cannot test target UITests on iPhone 16: simulator failed to boot."])
         }
 
         @Test(.inTemporaryDirectory)
@@ -193,7 +244,7 @@
                 onlyTesting: []
             )
 
-            #expect(result.isEmpty)
+            #expect(result.targets.isEmpty)
         }
 
         @Test(.inTemporaryDirectory)
@@ -210,9 +261,9 @@
                 onlyTesting: []
             )
 
-            let targetA = result.first { $0.blueprintName == "TargetA" }
+            let targetA = result.targets.first { $0.blueprintName == "TargetA" }
             #expect(targetA?.onlyTestIdentifiers == ["SuiteA"])
-            let targetB = result.first { $0.blueprintName == "TargetB" }
+            let targetB = result.targets.first { $0.blueprintName == "TargetB" }
             #expect(targetB?.onlyTestIdentifiers == ["SuiteB"])
         }
 
