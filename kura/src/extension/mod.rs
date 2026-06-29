@@ -1823,6 +1823,97 @@ end
             assert!(deny.message.contains("Missing Authorization"));
         }
 
+        // Self-hosted nodes run the same hook with NO Guardian JWT verifier
+        // (that symmetric secret can mint tokens for any tenant and is never
+        // shared), so every request is authorized via tenant-scoped
+        // introspection. `test_engine` wipes all KURA_EXTENSION_* first, so the
+        // absence of the verifier here is the self-hosted configuration.
+        async fn engine_introspection_only(base_url: &str) -> SharedExtension {
+            let url = base_url.to_owned();
+            test_engine(&script(), move |_| unsafe {
+                std::env::set_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL", &url);
+                std::env::set_var("KURA_EXTENSION_HOOK_TIMEOUT_MS", "5000");
+                std::env::set_var(
+                    "KURA_EXTENSION_HTTP_CLIENT_TUIST_REQUEST_TIMEOUT_MS",
+                    "5000",
+                );
+                std::env::set_var(
+                    "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID",
+                    "00000000-0000-0000-0000-000000000001",
+                );
+                std::env::set_var(
+                    "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET",
+                    "kura-secret",
+                );
+            })
+            .await
+        }
+
+        #[tokio::test]
+        async fn self_hosted_introspection_only_loads_and_denies_without_authorization() {
+            // The hook builds with no verifier configured and still fails closed
+            // on an unauthenticated request.
+            let engine = engine_introspection_only("http://127.0.0.1:1").await;
+
+            let deny = expect_deny(engine.evaluate_access(&ctx()).await);
+            assert_eq!(deny.status, 401);
+            assert!(deny.message.contains("Missing Authorization"));
+        }
+
+        #[tokio::test]
+        async fn self_hosted_introspection_only_allows_valid_token() {
+            let base = spawn_tuist_auth_mock(
+                |_headers, _payload| {
+                    (
+                        StatusCode::OK,
+                        introspection_payload(cache_grants_payload(
+                            &[],
+                            &[],
+                            &["acme/ios"],
+                            &["acme/ios"],
+                        )),
+                    )
+                },
+                |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+            )
+            .await;
+            let engine = engine_introspection_only(&base).await;
+
+            let mut context = ctx();
+            context.tenant_id = Some("acme".into());
+            context.namespace_id = Some("ios".into());
+            context
+                .headers
+                .insert("authorization".into(), "Bearer opaque-token".into());
+
+            let decision = engine.evaluate_access(&context).await;
+            assert!(matches!(decision, AccessDecision::Allow(Some(_))));
+        }
+
+        #[tokio::test]
+        async fn self_hosted_introspection_only_denies_inactive_token() {
+            // A token the tenant-scoped introspection rejects (inactive, e.g. a
+            // foreign tenant's token) is denied with no verifier in play.
+            let base = spawn_tuist_auth_mock(
+                |_headers, _payload| (StatusCode::OK, json!({ "active": false })),
+                |_| (StatusCode::UNAUTHORIZED, json!({})),
+            )
+            .await;
+            let engine = engine_introspection_only(&base).await;
+
+            let mut context = ctx();
+            context.tenant_id = Some("acme".into());
+            context.namespace_id = Some("ios".into());
+            context
+                .headers
+                .insert("authorization".into(), "Bearer opaque-token".into());
+
+            assert!(matches!(
+                engine.evaluate_access(&context).await,
+                AccessDecision::Deny(_)
+            ));
+        }
+
         #[tokio::test]
         async fn allows_when_introspection_returns_project_grants() {
             let base = spawn_tuist_auth_mock(

@@ -136,6 +136,13 @@ while true; do
         export TUIST_CACHE_ENDPOINT="${cache_endpoint}"
       fi
       echo "$(date -u +%FT%TZ) dispatch-poll: dispatched, starting runner"
+      # Fork the machine-metrics sampler so it runs for the job's
+      # duration and POSTs CPU/memory/network/disk to the server. It
+      # dies with the VM when the EXIT trap halts us after the runner
+      # exits. Best-effort — never blocks the job from starting.
+      if [ -x /opt/tuist/metrics-poll.sh ]; then
+        /opt/tuist/metrics-poll.sh &
+      fi
       cd /Users/runner/actions-runner
       # `--jitconfig` implies ephemeral: the runner accepts one job
       # and exits. `--disableupdate` pins the runner to whatever

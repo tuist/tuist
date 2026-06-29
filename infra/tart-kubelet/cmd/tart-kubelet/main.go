@@ -232,6 +232,10 @@ func main() {
 			NodeName: nodeName,
 			Interval: 5 * time.Minute,
 			Store:    store,
+			// Keep an idle host's golden base for a day so the next
+			// burst clones from it instead of re-pulling the whole VM
+			// image. Zero would fall back to the same default.
+			GoldenRetention: 24 * time.Hour,
 		}
 		if err := mgr.Add(gcCollector); err != nil {
 			setupLog.Error(err, "add gc collector")
@@ -283,6 +287,27 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Publish which golden base VMs this host holds as
+	// `tuist.dev/golden-<hash>` Node labels so the runners-controller can
+	// steer a pool's Pods toward hosts that can clone its image locally
+	// instead of cold-pulling it. Mask a transient `tart list` failure
+	// with the last good result so a momentary hiccup doesn't flap the
+	// labels off (and briefly drop the affinity). The maintainer calls
+	// this serially from its single heartbeat goroutine, so the closed-over
+	// cache needs no lock.
+	var lastGoldenLabels map[string]string
+	goldenLabelProvider := func(ctx context.Context) (map[string]string, error) {
+		labels, err := podagent.GoldenNodeLabels(ctx, tartClient)
+		if err != nil {
+			if lastGoldenLabels != nil {
+				return lastGoldenLabels, nil
+			}
+			return nil, err
+		}
+		lastGoldenLabels = labels
+		return labels, nil
+	}
+
 	if err := mgr.Add(&nodeagent.Maintainer{
 		Client:     mgr.GetClient(),
 		NodeName:   nodeName,
@@ -296,6 +321,7 @@ func main() {
 		DiskPressure: func(ctx context.Context) (bool, string, error) {
 			return diskPressureFromGuests(ctx, tartClient, diskPressureThresholdPercent)
 		},
+		DynamicLabels: goldenLabelProvider,
 	}); err != nil {
 		setupLog.Error(err, "add node maintainer")
 		os.Exit(1)
@@ -583,17 +609,26 @@ func recoverState(
 	if err != nil {
 		return err
 	}
-	// Probe each local VM with `tart ip` — that's the only reliable
-	// liveness signal under Tart 2.32 (the on-disk State field stays
-	// "stopped" for backgrounded VMs even when they're running).
-	// Stopped clones (left over from a previous kubelet kill) get
-	// skipped here; createPod will pick them up and start them.
+	// A VM is live if its `tart run` process is still executing. The VM is
+	// Setsid-detached so it survives a kubelet restart, and pgrep is the
+	// canonical liveness signal (see tart.Client.IsRunning) — fast, and
+	// false the instant the VM exits.
+	//
+	// This used to probe each local VM with `tart ip`, which blocks up to
+	// 30s waiting for an IP that a stopped VM never gets. The golden-base
+	// feature then added stopped golden VMs to `tart list`, so a single
+	// golden could burn the whole 30s recovery budget before the
+	// actually-running workload VM was reached — leaving it unbound.
+	// createPod would `tart run` it again, hit "VM is already running",
+	// and loop forever (this wedged the xcresult-processor and blocked a
+	// prod deploy). IsRunning returns false instantly for stopped goldens
+	// and stopped clones, which createPod re-runs as before.
 	live := make(map[string]bool, len(vms))
 	for _, vm := range vms {
 		if vm.Source != "local" {
 			continue
 		}
-		if ip, ipErr := tartClient.IP(ctx, vm.Name); ipErr == nil && ip != "" {
+		if running, rErr := tartClient.IsRunning(ctx, vm.Name); rErr == nil && running {
 			live[vm.Name] = true
 		}
 	}

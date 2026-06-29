@@ -2413,7 +2413,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "editorMode": "code",
+                        "app": "grafana-assistant-app",
                         "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"kura\", container=\"kura\", cluster=~\"$cluster\", pod=~\"kura-(${tenant})-.*\"}[$__rate_interval]))",
                         "instant": false,
                         "legendFormat": "{{pod}}",
@@ -3845,6 +3845,126 @@
             "version": "13.1.0-27822252871"
           }
         }
+      },
+      "panel-60": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "app": "grafana-assistant-app",
+                        "expr": "(\n  sum by (instance) (rate(node_cpu_seconds_total{mode!=\"idle\", cluster=~\"$cluster\"}[$__rate_interval]))\n  / on(instance)\n  count by (instance) (node_cpu_seconds_total{mode=\"idle\", cluster=~\"$cluster\"})\n  * 100\n)\n* on(instance) group_left()\nlabel_replace(\n  group by (node) (kube_pod_info{namespace=\"kura\", pod=~\"kura-(${tenant})-(${region})-.*\", cluster=~\"$cluster\"}),\n  \"instance\", \"$1\", \"node\", \"(.*)\"\n)",
+                        "instant": false,
+                        "legendFormat": "{{instance}}",
+                        "queryType": "range",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "A"
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "CPU utilisation % per worker node running Kura pods for the selected tenant, region, and cluster.",
+          "id": 60,
+          "links": [],
+          "title": "Worker Node CPU Usage",
+          "vizConfig": {
+            "group": "timeseries",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "drawStyle": "line",
+                    "fillOpacity": 10,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "auto",
+                    "showValues": false,
+                    "spanNulls": true,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  },
+                  "max": 100,
+                  "min": 0,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  },
+                  "unit": "percent"
+                },
+                "overrides": []
+              },
+              "options": {
+                "annotations": {
+                  "clustering": -1,
+                  "multiLane": false
+                },
+                "legend": {
+                  "calcs": [],
+                  "displayMode": "list",
+                  "enableFacetedFilter": false,
+                  "placement": "bottom",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              }
+            },
+            "version": "13.1.0-27822252871"
+          }
+        }
       }
     },
     "layout": {
@@ -4253,11 +4373,24 @@
                         "x": 16,
                         "y": 8
                       }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-60"
+                        },
+                        "height": 8,
+                        "width": 12,
+                        "x": 0,
+                        "y": 16
+                      }
                     }
                   ]
                 }
               },
-              "title": "Host Health"
+              "title": "Kura Instance Health"
             }
           },
           {

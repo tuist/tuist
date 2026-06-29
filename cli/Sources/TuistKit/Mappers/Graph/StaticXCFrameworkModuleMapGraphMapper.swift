@@ -217,6 +217,10 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                 else { return [] }
                 let name = xcframework.path.basenameWithoutExt
                 let sourceHeadersDirectory = moduleMap.parentDirectory
+                let shouldWritePrefixedHeaderCopies = shouldWritePrefixedHeaderCopies(
+                    for: xcframework,
+                    sourceHeadersDirectory: sourceHeadersDirectory
+                )
                 let sourceHeaderEntries = try await fileSystem.glob(
                     directory: sourceHeadersDirectory,
                     include: [
@@ -243,20 +247,33 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
 
                 for headerPath in sourceHeaderPaths {
                     let relativePath = headerPath.relative(to: sourceHeadersDirectory)
+                    let contents = rewrittenHeaderContents(
+                        try await fileSystem.readFile(at: headerPath),
+                        headerPath: headerPath,
+                        xcframeworkName: name
+                    )
                     let destinationPath = headersDirectory.appending(relativePath)
                     directoryPaths.insert(destinationPath.parentDirectory)
-
-                    let contents = try await fileSystem.readFile(at: headerPath)
                     fileDescriptors.append(
                         FileDescriptor(
                             path: destinationPath,
-                            contents: rewrittenHeaderContents(
-                                contents,
-                                headerPath: headerPath,
-                                xcframeworkName: name
-                            )
+                            contents: contents
                         )
                     )
+
+                    let firstRelativePathComponent = relativePath.pathString.split(separator: "/").first.map { String($0) }
+                    if shouldWritePrefixedHeaderCopies, firstRelativePathComponent != name {
+                        let prefixedDestinationPath = headersDirectory
+                            .appending(component: name)
+                            .appending(relativePath)
+                        directoryPaths.insert(prefixedDestinationPath.parentDirectory)
+                        fileDescriptors.append(
+                            FileDescriptor(
+                                path: prefixedDestinationPath,
+                                contents: contents
+                            )
+                        )
+                    }
                 }
 
                 return directoryPaths
@@ -264,6 +281,21 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                     .map { .directory(DirectoryDescriptor(path: $0)) }
                     + fileDescriptors.map { .file($0) }
             }
+    }
+
+    private func shouldWritePrefixedHeaderCopies(
+        for xcframework: GraphDependency.XCFramework,
+        sourceHeadersDirectory: AbsolutePath
+    ) -> Bool {
+        let name = xcframework.path.basenameWithoutExt
+        return xcframework.infoPlist.libraries.contains { library in
+            guard let headersPath = library.headersPath
+            else { return false }
+            let headersRoot = xcframework.path
+                .appending(component: library.identifier)
+                .appending(headersPath)
+            return sourceHeadersDirectory == headersRoot.appending(component: name)
+        }
     }
 
     private func rewrittenHeaderContents(

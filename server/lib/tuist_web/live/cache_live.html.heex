@@ -1,0 +1,38 @@
+<div id="account-cache">
+  <div data-part="page-header">
+    <h1 data-part="title">{dgettext("dashboard_account", "Cache")}</h1>
+    <span data-part="subtitle">
+      {dgettext(
+        "dashboard_account",
+        "Manage where build artifacts are cached for this account: Tuist-managed cache servers and your own self-hosted nodes."
+      )}
+    </span>
+  </div>
+
+  <%= if @cache_enabled do %>
+    <.cache_servers_section
+      servers={@servers}
+      available_regions={@available_regions}
+      add_cache_server_form={@add_cache_server_form}
+      latest_version={@latest_version}
+    />
+    <.self_hosted_section
+      :if={@self_hosted_enabled}
+      self_hosted_clients={@self_hosted_clients}
+      new_self_hosted_client_form={@new_self_hosted_client_form}
+      new_self_hosted_client_secret={@new_self_hosted_client_secret}
+      registered_endpoints={@registered_endpoints}
+    />
+  <% else %>
+    <.card_section data-part="cache-disabled-card">
+      <.alert
+        status="information"
+        type="secondary"
+        size="small"
+        title={
+          dgettext("dashboard_account", "Cache servers are not enabled for this account yet.")
+        }
+      />
+    </.card_section>
+  <% end %>
+</div>

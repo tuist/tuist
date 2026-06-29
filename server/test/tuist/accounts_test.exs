@@ -22,6 +22,7 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Billing
   alias Tuist.Environment
   alias Tuist.FeatureFlags
+  alias Tuist.Kura.Registrations
   alias Tuist.Projects
   alias Tuist.Runners.Profiles, as: RunnerProfiles
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -3413,45 +3414,6 @@ defmodule Tuist.AccountsTest do
     end
   end
 
-  describe "create_namespace_tenant_for_account/1" do
-    test "creates a tenant and updates account with namespace_tenant_id" do
-      # Given
-      %{account: account} = AccountsFixtures.user_fixture()
-      namespace_tenant_id = "tenant-123"
-      account_name = account.name
-      account_id = account.id
-
-      expect(Tuist.Namespace, :create_tenant, 1, fn ^account_name, ^account_id ->
-        {:ok, %{"tenant" => %{"id" => namespace_tenant_id}}}
-      end)
-
-      # When
-      {:ok, updated_account} = Accounts.create_namespace_tenant_for_account(account)
-
-      # Then
-      assert updated_account.namespace_tenant_id == namespace_tenant_id
-      assert updated_account.id == account.id
-    end
-
-    test "returns error when Namespace.create_tenant fails" do
-      # Given
-      %{account: account} = AccountsFixtures.user_fixture()
-      error_reason = "Namespace API error"
-
-      expect(Tuist.Namespace, :create_tenant, 1, fn _account_name, _account_id ->
-        {:error, error_reason}
-      end)
-
-      # When
-      {:error, reason} = Accounts.create_namespace_tenant_for_account(account)
-
-      # Then
-      assert reason == error_reason
-      {:ok, reloaded_account} = Accounts.get_account_by_id(account.id)
-      assert is_nil(reloaded_account.namespace_tenant_id)
-    end
-  end
-
   describe "get_oauth2_identity/2" do
     test "returns {:ok, identity} when OAuth2 identity exists" do
       # Given
@@ -3977,6 +3939,40 @@ defmodule Tuist.AccountsTest do
 
       # Then
       assert endpoints == ["https://kura-cache.example.com"]
+    end
+
+    test "surfaces registered self-hosted node addresses for an entitled account" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      stub(FeatureFlags, :kura_cache_enabled?, fn %{id: account_id} -> account_id == account.id end)
+      stub(Registrations, :active_advertised_urls, fn _ -> ["https://node.acme.example:8080"] end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+
+      # Then
+      assert endpoints == ["https://node.acme.example:8080"]
+    end
+
+    test "hides registered self-hosted node addresses when the account is not entitled to self-hosting" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+      stub(FeatureFlags, :kura_cache_enabled?, fn %{id: account_id} -> account_id == account.id end)
+      reject(&Registrations.active_advertised_urls/1)
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+
+      # Then
+      assert endpoints == default_endpoints
     end
 
     test "returns custom endpoints when the client requests Kura but the account is not opted in" do

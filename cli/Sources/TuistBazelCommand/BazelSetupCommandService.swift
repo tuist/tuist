@@ -6,6 +6,7 @@ import TuistCAS
 import TuistConfigLoader
 import TuistEnvironment
 import TuistHTTP
+import TuistREAPI
 import TuistServer
 
 public protocol BazelSetupCommandServicing {
@@ -18,6 +19,7 @@ public struct BazelSetupCommandService: BazelSetupCommandServicing {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let cacheURLStore: CacheURLStoring
+    private let remoteCacheProbeService: RemoteCacheProbing
     private let fullHandleService: FullHandleServicing
     private let configLoader: ConfigLoading
     private let fileSystem: FileSysteming
@@ -26,6 +28,7 @@ public struct BazelSetupCommandService: BazelSetupCommandServicing {
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
         cacheURLStore: CacheURLStoring = CacheURLStore(),
+        remoteCacheProbeService: RemoteCacheProbing = RemoteCacheProbeService(),
         fullHandleService: FullHandleServicing = FullHandleService(),
         configLoader: ConfigLoading = ConfigLoader(),
         fileSystem: FileSysteming = FileSystem()
@@ -33,6 +36,7 @@ public struct BazelSetupCommandService: BazelSetupCommandServicing {
         self.serverEnvironmentService = serverEnvironmentService
         self.serverAuthenticationController = serverAuthenticationController
         self.cacheURLStore = cacheURLStore
+        self.remoteCacheProbeService = remoteCacheProbeService
         self.fullHandleService = fullHandleService
         self.configLoader = configLoader
         self.fileSystem = fileSystem
@@ -50,7 +54,7 @@ public struct BazelSetupCommandService: BazelSetupCommandServicing {
         }
         let (accountHandle, projectHandle) = try fullHandleService.parse(fullHandle)
 
-        guard try await serverAuthenticationController.authenticationToken(serverURL: serverURL) != nil
+        guard let token = try await serverAuthenticationController.authenticationToken(serverURL: serverURL)
         else {
             throw BazelSetupCommandServiceError.notAuthenticated
         }
@@ -59,22 +63,27 @@ public struct BazelSetupCommandService: BazelSetupCommandServicing {
         guard let host = cacheURL.host else {
             throw BazelSetupCommandServiceError.invalidCacheEndpoint(cacheURL.absoluteString)
         }
-        let endpoint = if let port = cacheURL.port {
-            "\(host):\(port)"
-        } else {
-            host
-        }
-        // Plaintext cache endpoints (e.g. local development deployments) expose
-        // plaintext gRPC, while TLS endpoints terminate TLS for gRPC too.
-        let remoteCacheScheme = cacheURL.scheme == "http" ? "grpc" : "grpcs"
+        let endpoint = GRPCEndpoint(host: host, explicitPort: cacheURL.port, isTLS: cacheURL.scheme != "http")
+
+        // Probe the resolved endpoint before writing the configuration so setup fails when the
+        // cache is unreachable or misbehaving, regardless of whether the URL came from
+        // TUIST_CACHE_ENDPOINT or from server-side endpoint selection. The latter measures
+        // latency and discards unreachable endpoints, but an override short-circuits that path,
+        // so this guarantees the endpoint we hand Bazel actually answers the REAPI handshake.
+        try await remoteCacheProbeService.probe(
+            endpoint: endpoint,
+            accountHandle: accountHandle,
+            instanceName: projectHandle,
+            token: token.value
+        )
 
         let credentialHelperPath = try await createCredentialHelperScriptIfNeeded()
 
         let bazelrcPath = directoryPath.appending(component: ".bazelrc.tuist")
         let bazelrcContent = """
-        build --remote_cache=\(remoteCacheScheme)://\(endpoint)
+        build --remote_cache=\(endpoint.url)
         build --remote_header=x-tuist-account-handle=\(accountHandle)
-        build --credential_helper=\(host)=\(credentialHelperPath.pathString)
+        build --credential_helper=\(endpoint.host)=\(credentialHelperPath.pathString)
         build --remote_instance_name=\(projectHandle)
 
         """

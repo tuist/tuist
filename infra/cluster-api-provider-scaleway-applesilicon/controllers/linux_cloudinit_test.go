@@ -96,7 +96,7 @@ func TestRenderLinuxCloudInit_ClusterDNS(t *testing.T) {
 	}
 }
 
-func TestRenderLinuxBootstrapScript_PNVlanIsPersistentAndSupervised(t *testing.T) {
+func TestRenderLinuxBootstrapScript_PNVlanIsPersistentAndStatic(t *testing.T) {
 	script := renderLinuxBootstrapScript(linuxCloudInitOptions{
 		NodeName:           "node-a",
 		KubeconfigYAML:     "apiVersion: v1\nkind: Config\n",
@@ -105,16 +105,16 @@ func TestRenderLinuxBootstrapScript_PNVlanIsPersistentAndSupervised(t *testing.T
 		PrivateNetworkVLAN: 3250,
 	})
 
-	// The VLAN must be installed as a reboot-durable, lease-renewing systemd
-	// unit rather than a one-shot. Assert the unit, its supervised dhclient, and
-	// the VLAN id wired through.
+	// The VLAN must be installed as a reboot-durable systemd unit that holds the
+	// PN address STATICALLY (DHCP-discover once, then pin it). Assert the unit,
+	// the static re-assert, and the VLAN id wired through.
 	for _, want := range []string{
 		"/etc/systemd/system/tuist-pn0.service",
 		"/usr/local/sbin/tuist-pn0-up.sh",
-		"ExecStartPre=/usr/local/sbin/tuist-pn0-up.sh",
-		"ExecStart=/usr/bin/env dhclient -d pn0",
+		"ExecStart=/usr/local/sbin/tuist-pn0-up.sh",
 		"Restart=always",
 		"name pn0 type vlan id 3250",
+		"ip addr replace",
 		"systemctl enable --now tuist-pn0.service",
 	} {
 		if !strings.Contains(script, want) {
@@ -122,10 +122,14 @@ func TestRenderLinuxBootstrapScript_PNVlanIsPersistentAndSupervised(t *testing.T
 		}
 	}
 
-	// The fragile one-shot bring-up (backgrounded, unrenewed, lost on reboot)
-	// must be gone — it is the bug this unit replaces.
-	if strings.Contains(script, "dhclient -nw pn0") {
-		t.Fatalf("expected the one-shot `dhclient -nw` bring-up to be removed, got:\n%s", script)
+	// Liveness must NOT hang on a renew-forever dhclient: neither the old
+	// one-shot `dhclient -nw` nor a supervised `dhclient -d` survives the PN DHCP
+	// server going silent (the lease expires and the address is dropped while the
+	// process keeps running). That is the bug this static hold replaces.
+	for _, banned := range []string{"dhclient -nw pn0", "dhclient -d pn0"} {
+		if strings.Contains(script, banned) {
+			t.Fatalf("expected no renew-forever dhclient %q, got:\n%s", banned, script)
+		}
 	}
 
 	// The Instance/cloud-init path never sets a VLAN, so it must render nothing

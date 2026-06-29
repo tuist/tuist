@@ -12,9 +12,8 @@ defmodule TuistWeb.RunnerPodsController do
 
   use TuistWeb, :controller
 
-  alias Tuist.Environment
-  alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners.RunnerSessions
+  alias TuistWeb.RunnerControllerAuth
 
   require Logger
 
@@ -38,9 +37,7 @@ defmodule TuistWeb.RunnerPodsController do
     * 503 — kubernetes apiserver unavailable (TokenReview failed).
   """
   def stopped(conn, params) do
-    with {:ok, token} <- bearer_token(conn),
-         {:ok, principal} <- K8sClient.create_controller_token_review(token),
-         :ok <- ensure_controller_principal(principal),
+    with :ok <- RunnerControllerAuth.authenticate(conn),
          {:ok, pod_name} <- parse_pod_name(params),
          {:ok, ended_at} <- parse_timestamp(params, "ended_at"),
          {:ok, _} <- RunnerSessions.close_by_pod_name(pod_name, ended_at) do
@@ -91,15 +88,6 @@ defmodule TuistWeb.RunnerPodsController do
     end
   end
 
-  defp ensure_controller_principal(%{namespace: ns, name: name} = principal) do
-    if ns == Environment.runners_controller_namespace() and
-         name == Environment.runners_controller_sa_name() do
-      :ok
-    else
-      {:error, {:wrong_principal, principal}}
-    end
-  end
-
   defp parse_pod_name(%{"pod_name" => pod_name}) when is_binary(pod_name) and pod_name != "", do: {:ok, pod_name}
 
   defp parse_pod_name(_), do: {:error, {:missing_field, "pod_name"}}
@@ -117,14 +105,6 @@ defmodule TuistWeb.RunnerPodsController do
 
       _ ->
         {:error, {:invalid_timestamp, field}}
-    end
-  end
-
-  defp bearer_token(conn) do
-    case Plug.Conn.get_req_header(conn, "authorization") do
-      ["Bearer " <> token] when token != "" -> {:ok, token}
-      ["bearer " <> token] when token != "" -> {:ok, token}
-      _ -> {:error, :missing_bearer}
     end
   end
 end

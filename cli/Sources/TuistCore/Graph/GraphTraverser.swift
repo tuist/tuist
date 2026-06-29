@@ -850,7 +850,15 @@ public class GraphTraverser: GraphTraversing {
             return publicHeaders
         }
         let xcframeworkLibraryPublicHeaders = dependencies.flatMap { dependency -> [Path.AbsolutePath] in
-            guard case let GraphDependency.xcframework(xcframework) = dependency else { return [] }
+            guard case let GraphDependency.xcframework(xcframework) = dependency,
+                  // Xcode's `ProcessXCFramework` already extracts the SDK-matching slice's headers — including
+                  // any `module.modulemap` — into `$(BUILT_PRODUCTS_DIR)/include`, which is on the header search
+                  // path. Re-adding every slice's `Headers` for an xcframework that ships a module map puts
+                  // additional copies of the same module on the search path, and the compiler fails with
+                  // "redefinition of module 'X'". Such xcframeworks rely on the `include/` copy instead; only
+                  // module-map-less xcframeworks (e.g. cached Swift/library products) still need the headers.
+                  xcframework.moduleMaps.isEmpty
+            else { return [] }
             return xcframework.infoPlist.libraries.compactMap { library in
                 guard let headersPath = library.headersPath else { return nil }
                 return try? AbsolutePath(validating: library.identifier, relativeTo: xcframework.path)

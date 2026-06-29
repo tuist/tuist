@@ -94,8 +94,12 @@ defmodule Tuist.Kura.Provisioner do
   @callback current_manifest_revision(ref :: String.t(), Regions.t()) ::
               {:ok, String.t() | nil} | {:error, term()}
 
-  @doc "Returns the manifest revision the provisioner currently renders."
-  @callback manifest_revision() :: String.t() | nil
+  @doc """
+  Returns the manifest revision the provisioner would render for `account` in
+  the given region, folding in any dynamic inputs (such as enrolled self-hosted
+  peers) that must trigger a re-apply when they change.
+  """
+  @callback manifest_revision(Account.t(), Regions.t()) :: String.t() | nil
 
   @doc "Returns the provisioner's default resource description for one Kura server."
   @callback resources_for(Server.t()) :: map()
@@ -151,10 +155,10 @@ defmodule Tuist.Kura.Provisioner do
     end
   end
 
-  @doc "Calls `manifest_revision/0` on the region's provisioner."
-  def manifest_revision(%Server{region: region_id}) do
+  @doc "Calls `manifest_revision/2` on the region's provisioner."
+  def manifest_revision(%Server{region: region_id} = server) do
     with {:ok, region} <- Regions.fetch(region_id) do
-      {:ok, region.provisioner.manifest_revision()}
+      {:ok, region.provisioner.manifest_revision(server.account, region)}
     end
   end
 end

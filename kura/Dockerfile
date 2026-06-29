@@ -77,6 +77,12 @@ WORKDIR /app
 COPY --from=build /usr/local/bin/kura /usr/local/bin/kura
 COPY --from=geoip /opt/geoip/dbip-city-lite.mmdb /opt/geoip/dbip-city-lite.mmdb
 
+# Bundle the Tuist adopter extension hook so self-hosted nodes (which have no
+# controller to render it from a ConfigMap) can enable cache-API auth by
+# pointing KURA_EXTENSION_SCRIPT_PATH at this path. It is inert unless the
+# extension is enabled; the binary stays generic.
+COPY ops/helm/kura/hooks/tuist.lua /etc/kura/extensions/tuist.lua
+
 EXPOSE 4000
 
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/kura"]

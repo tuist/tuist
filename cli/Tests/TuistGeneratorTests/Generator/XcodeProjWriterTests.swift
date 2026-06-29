@@ -36,6 +36,59 @@ final class XcodeProjWriterTests: TuistUnitTestCase {
         XCTAssertTrue(exists)
     }
 
+    func test_writeProject_doesNotRewritePBXProjWhenUnchanged() async throws {
+        // Given
+        let path = try temporaryPath()
+        let xcodeProjPath = path.appending(component: "Project.xcodeproj")
+        let pbxprojPath = xcodeProjPath.appending(component: "project.pbxproj")
+        let descriptor = ProjectDescriptor.test(path: path, xcodeprojPath: xcodeProjPath)
+
+        try await subject.write(project: descriptor)
+        let contentsAfterFirstWrite = try await fileSystem.readFile(at: pbxprojPath)
+
+        // Pin the modification date in the past so an unnecessary rewrite would be observable.
+        let pinnedDate = Date(timeIntervalSince1970: 0)
+        try FileManager.default.setAttributes([.modificationDate: pinnedDate], ofItemAtPath: pbxprojPath.pathString)
+
+        // When (re-generating an unchanged project)
+        try await subject.write(project: descriptor)
+
+        // Then (the file is left untouched, mtime preserved and contents intact)
+        let modificationDate = try XCTUnwrap(
+            FileManager.default.attributesOfItem(atPath: pbxprojPath.pathString)[.modificationDate] as? Date
+        )
+        XCTAssertEqual(modificationDate, pinnedDate)
+        let contentsAfterSecondWrite = try await fileSystem.readFile(at: pbxprojPath)
+        XCTAssertEqual(contentsAfterSecondWrite, contentsAfterFirstWrite)
+    }
+
+    func test_writeProject_rewritesPBXProjWhenOnDiskDiffers() async throws {
+        // Given
+        let path = try temporaryPath()
+        let xcodeProjPath = path.appending(component: "Project.xcodeproj")
+        let pbxprojPath = xcodeProjPath.appending(component: "project.pbxproj")
+        let descriptor = ProjectDescriptor.test(path: path, xcodeprojPath: xcodeProjPath)
+
+        try await subject.write(project: descriptor)
+        let expectedContents = try await fileSystem.readFile(at: pbxprojPath)
+
+        // Simulate a stale/divergent project file on disk.
+        try Data("stale".utf8).write(to: pbxprojPath.url)
+        let pinnedDate = Date(timeIntervalSince1970: 0)
+        try FileManager.default.setAttributes([.modificationDate: pinnedDate], ofItemAtPath: pbxprojPath.pathString)
+
+        // When (re-generating with the same descriptor)
+        try await subject.write(project: descriptor)
+
+        // Then (the divergent file is rewritten with the freshly serialized content)
+        let contents = try await fileSystem.readFile(at: pbxprojPath)
+        XCTAssertEqual(contents, expectedContents)
+        let modificationDate = try XCTUnwrap(
+            FileManager.default.attributesOfItem(atPath: pbxprojPath.pathString)[.modificationDate] as? Date
+        )
+        XCTAssertNotEqual(modificationDate, pinnedDate)
+    }
+
     func test_writeProject_fileSideEffects() async throws {
         // Given
         let path = try temporaryPath()

@@ -94,6 +94,23 @@ independent workqueues:
   replicas; the `hetzner-robot-controller` reflects the new server
   into a `HetznerBareMetalHost` CR automatically.
 
+## Machine-metrics sampling (in-VM, not in the controller)
+
+Runner-job machine metrics (CPU/memory/network/disk for the Metrics
+tab) are sampled **inside the runner VM**, not by this controller. An
+earlier design had the controller scrape each node's kubelet
+`/stats/summary` through the apiserver node proxy, but that source is
+unavailable in this cluster — the macOS Tart fleet's custom kubelet
+doesn't serve the cAdvisor Summary API, and the Linux kata nodes reject
+the proxied request — so it produced nothing. Sampling now lives in the
+runner images (`infra/linux-runner-image`, `infra/runner-image`): a
+loop reads the VM's own `/proc`+cgroup (Linux) or `vm_stat`/`netstat`
+(macOS) and POSTs to `POST /api/internal/runners/pods/:pod_name/metrics`
+with the runner's own per-pod SA token (audience
+`tuist-runners-dispatch`). On Linux the token is isolated from the
+customer container, so the sampler runs as a dedicated native sidecar
+that mounts the token and shares the pod's cgroup/network namespace.
+
 ## Linux runner substrate: Hetzner Robot bare-metal hosts (caph)
 
 Linux runner Pods run as Firecracker microVMs (via Kata Containers)

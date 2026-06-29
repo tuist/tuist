@@ -232,6 +232,30 @@ defmodule TuistOps.Previews.SlackBlocks do
     ]
   end
 
+  def deployed_thread(%Preview{} = preview) do
+    [
+      %{
+        type: "section",
+        text: %{
+          type: "mrkdwn",
+          text: "Preview deployment completed: <https://#{preview.host}|https://#{preview.host}>"
+        }
+      }
+    ]
+  end
+
+  def failed_thread(%Preview{} = preview) do
+    [
+      %{
+        type: "section",
+        text: %{
+          type: "mrkdwn",
+          text: failed_thread_text(preview.workflow_run_url)
+        }
+      }
+    ]
+  end
+
   defp format_ref(%Preview{ref_kind: nil}), do: "`workflow default`"
   defp format_ref(%Preview{ref_kind: kind, ref_value: value}), do: "`#{kind}:#{value}`"
 
@@ -265,6 +289,10 @@ defmodule TuistOps.Previews.SlackBlocks do
   defp workflow_line(nil), do: ""
   defp workflow_line(""), do: ""
   defp workflow_line(url), do: "*Workflow:* <#{url}|GitHub Actions run>"
+
+  defp failed_thread_text(nil), do: "Preview deployment failed."
+  defp failed_thread_text(""), do: "Preview deployment failed."
+  defp failed_thread_text(url), do: "Preview deployment failed: <#{url}|GitHub Actions run>"
 
   defp format_seconds(nil), do: "n/a"
   defp format_seconds(seconds) when seconds < 3600, do: "#{div(seconds, 60)} min"

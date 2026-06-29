@@ -184,6 +184,209 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         )
     }
 
+    func test_map_when_static_xcframework_library_with_nested_module_headers_linked_via_dynamic_xcframework() async throws {
+        // Given
+        // ARCore-like layout: the headers live in a `<Module>` subdirectory and re-import each other with the
+        // framework prefix (`#import <ARCoreGARSession/GARTrackingState.h>`). Resolving those prefixed imports
+        // requires the xcframework's `Headers` root on the search path, not only the module map's directory.
+        let projectPath = try temporaryPath()
+            .appending(component: "Project")
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(
+                projectPath.appending(components: Constants.tuistDirectoryName, Constants.SwiftPackageManager.packageSwiftName)
+            )
+        let arcorePath = projectPath
+            .parentDirectory
+            .appending(component: "ARCoreGARSession.xcframework")
+        let arcoreHeadersRoot = arcorePath.appending(components: "ios-arm64", "Headers")
+        let arcoreModuleHeadersPath = arcoreHeadersRoot.appending(component: "ARCoreGARSession")
+        try await fileSystem.makeDirectory(at: arcoreModuleHeadersPath)
+        try await fileSystem.writeText(
+            "modulemap",
+            at: arcoreModuleHeadersPath.appending(component: "module.modulemap")
+        )
+        try await fileSystem.writeText(
+            """
+            #import <ARCoreGARSession/GARAnchor.h>
+            #import <ARCoreGARSession/GARTrackingState.h>
+            """,
+            at: arcoreModuleHeadersPath.appending(component: "ARCoreGARSession.h")
+        )
+        try await fileSystem.writeText(
+            """
+            #import <ARCoreGARSession/GARTrackingState.h>
+            """,
+            at: arcoreModuleHeadersPath.appending(component: "GARAnchor.h")
+        )
+        try await fileSystem.writeText(
+            "typedef NS_ENUM(NSInteger, GARTrackingState) { GARTrackingStateTracking };",
+            at: arcoreModuleHeadersPath.appending(component: "GARTrackingState.h")
+        )
+
+        let derivedDirectory = projectPath.appending(
+            components: [
+                Constants.tuistDirectoryName,
+                Constants.SwiftPackageManager.packageBuildDirectoryName,
+                Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                Constants.DerivedDirectory.dependenciesXCFrameworkDirectory,
+            ]
+        )
+
+        let graph: Graph = .test(
+            name: "App",
+            path: projectPath,
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(
+                            name: "App"
+                        ),
+                    ]
+                ),
+            ],
+            dependencies: [
+                .target(name: "App", path: projectPath): [
+                    .testXCFramework(
+                        path: try temporaryPath()
+                            .appending(component: "DynamicFramework.xcframework")
+                    ),
+                ],
+                .testXCFramework(
+                    path: try temporaryPath()
+                        .appending(component: "DynamicFramework.xcframework")
+                ): [
+                    .testXCFramework(
+                        path: arcorePath,
+                        infoPlist: .test(
+                            libraries: [
+                                .test(
+                                    identifier: "ios-arm64",
+                                    path: try RelativePath(validating: "ARCoreGARSession.a"),
+                                    headersPath: try RelativePath(validating: "Headers"),
+                                    platform: .iOS
+                                ),
+                            ]
+                        ),
+                        linking: .static,
+                        moduleMaps: [
+                            arcoreModuleHeadersPath.appending(component: "module.modulemap"),
+                        ]
+                    ),
+                ],
+            ]
+        )
+
+        var expectedGraph = graph
+        expectedGraph.projects = [
+            projectPath: .test(
+                path: projectPath,
+                targets: [
+                    .test(
+                        name: "App",
+                        settings: .test(
+                            base: [
+                                "OTHER_SWIFT_FLAGS": [
+                                    "-Xcc",
+                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/ARCoreGARSession/Headers/module.modulemap\"",
+                                ],
+                                "OTHER_C_FLAGS": [
+                                    "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/ARCoreGARSession/Headers/module.modulemap\"",
+                                ],
+                                "HEADER_SEARCH_PATHS": [
+                                    "\"$(SRCROOT)/Tuist/.build/tuist-derived/XCFrameworks/ARCoreGARSession/Headers\"",
+                                ],
+                            ]
+                        )
+                    ),
+                ]
+            ),
+        ]
+
+        // When
+        let (gotGraph, gotSideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        XCTAssertBetterEqual(
+            expectedGraph,
+            gotGraph
+        )
+        XCTAssertBetterEqual(
+            [
+                .directory(
+                    DirectoryDescriptor(path: derivedDirectory.appending(components: "ARCoreGARSession", "Headers"))
+                ),
+                .directory(
+                    DirectoryDescriptor(
+                        path: derivedDirectory.appending(components: "ARCoreGARSession", "Headers", "ARCoreGARSession")
+                    )
+                ),
+                .file(
+                    FileDescriptor(
+                        path: derivedDirectory.appending(components: "ARCoreGARSession", "Headers", "module.modulemap"),
+                        contents: "modulemap".data(using: .utf8)
+                    )
+                ),
+                .file(
+                    FileDescriptor(
+                        path: derivedDirectory.appending(components: "ARCoreGARSession", "Headers", "ARCoreGARSession.h"),
+                        contents: """
+                        #import <GARAnchor.h>
+                        #import <GARTrackingState.h>
+                        """.data(using: .utf8)
+                    )
+                ),
+                .file(
+                    FileDescriptor(
+                        path: derivedDirectory.appending(
+                            components: "ARCoreGARSession", "Headers", "ARCoreGARSession", "ARCoreGARSession.h"
+                        ),
+                        contents: """
+                        #import <GARAnchor.h>
+                        #import <GARTrackingState.h>
+                        """.data(using: .utf8)
+                    )
+                ),
+                .file(
+                    FileDescriptor(
+                        path: derivedDirectory.appending(components: "ARCoreGARSession", "Headers", "GARAnchor.h"),
+                        contents: """
+                        #import <ARCoreGARSession/GARTrackingState.h>
+                        """.data(using: .utf8)
+                    )
+                ),
+                .file(
+                    FileDescriptor(
+                        path: derivedDirectory.appending(
+                            components: "ARCoreGARSession", "Headers", "ARCoreGARSession", "GARAnchor.h"
+                        ),
+                        contents: """
+                        #import <ARCoreGARSession/GARTrackingState.h>
+                        """.data(using: .utf8)
+                    )
+                ),
+                .file(
+                    FileDescriptor(
+                        path: derivedDirectory.appending(components: "ARCoreGARSession", "Headers", "GARTrackingState.h"),
+                        contents: "typedef NS_ENUM(NSInteger, GARTrackingState) { GARTrackingStateTracking };"
+                            .data(using: .utf8)
+                    )
+                ),
+                .file(
+                    FileDescriptor(
+                        path: derivedDirectory.appending(
+                            components: "ARCoreGARSession", "Headers", "ARCoreGARSession", "GARTrackingState.h"
+                        ),
+                        contents: "typedef NS_ENUM(NSInteger, GARTrackingState) { GARTrackingStateTracking };"
+                            .data(using: .utf8)
+                    )
+                ),
+            ],
+            gotSideEffects
+        )
+    }
+
     func test_map_when_static_xcframework_framework_linked_via_dynamic_xcframework() async throws {
         // Given
         let projectPath = try temporaryPath()

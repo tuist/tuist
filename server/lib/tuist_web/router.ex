@@ -451,11 +451,9 @@ defmodule TuistWeb.Router do
   scope "/.well-known", TuistWeb do
     pipe_through [:open_api, :non_authenticated_api]
 
-    get "/openid-configuration", WellKnownController, :openid_configuration
     get "/oauth-authorization-server", WellKnownController, :oauth_authorization_server
     get "/oauth-protected-resource", WellKnownController, :oauth_protected_resource
     get "/oauth-protected-resource/*resource_path", WellKnownController, :oauth_protected_resource
-    get "/jwks.json", WellKnownController, :jwks
     get "/mcp/server-card.json", WellKnownController, :mcp_server_card
     get "/apple-app-site-association", WellKnownController, :apple_app_site_association
     get "/assetlinks.json", WellKnownController, :assetlinks
@@ -742,6 +740,7 @@ defmodule TuistWeb.Router do
     post "/runners/dispatch", RunnersController, :dispatch
     get "/runners/desired_replicas", RunnersController, :desired_replicas
     post "/runners/pods/stopped", RunnerPodsController, :stopped
+    post "/runners/pods/:pod_name/metrics", RunnerJobMetricsController, :create
   end
 
   scope "/api/internal", TuistWeb.Internal do
@@ -754,6 +753,8 @@ defmodule TuistWeb.Router do
     pipe_through [:non_authenticated_api]
 
     post "/kura/usage", KuraUsageController, :create
+    post "/kura/mesh/enroll", KuraMeshController, :enroll
+    post "/kura/mesh/registrations", KuraMeshController, :register
   end
 
   scope "/oauth2", TuistWeb.Oauth do
@@ -1028,6 +1029,7 @@ defmodule TuistWeb.Router do
       live "/webhooks", WebhooksLive
       live "/webhooks/:id", WebhookLive
       live "/webhooks/:id/events/:attempt_id", WebhookEventLive
+      live "/cache", CacheLive
       live "/billing", BillingLive
       live "/usage", UsageLive
       live "/settings", AccountSettingsLive

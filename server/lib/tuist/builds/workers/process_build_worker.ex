@@ -75,7 +75,12 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
   # with a different personal account.
   defp process_build(build_id, storage_key, project_id, xcode_cache_upload_enabled) do
     with {:ok, account} <- storage_account(project_id) do
-      temp_path = Path.join(System.tmp_dir!(), "build_#{build_id}.zip")
+      # Unique per execution: the duplicate-enqueue race in `get_or_create_build`
+      # can leave two jobs running for the same build_id concurrently. A path
+      # keyed only on build_id makes them share one file — one job's download (or
+      # its `File.rm` cleanup) corrupts/removes the archive the other is mid-read,
+      # surfacing as a spurious xcactivitylog parse error.
+      temp_path = Path.join(System.tmp_dir!(), "build_#{build_id}_#{System.unique_integer([:positive])}.zip")
 
       try do
         case Storage.download_to_file(storage_key, temp_path, account) do

@@ -2,6 +2,7 @@ package tart
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -9,6 +10,30 @@ import (
 	"testing"
 	"time"
 )
+
+// Regression for the warm-path miss: `tart list` encodes Size as an
+// integer while `tart get` encodes it as a quoted decimal string. A plain
+// int64 field errored on the latter, which made Get() fail on every golden
+// and forced a re-pull each recycle. VM must unmarshal both forms.
+func TestVMUnmarshalSizeAcceptsListAndGetEncodings(t *testing.T) {
+	cases := map[string]string{
+		"tart list (integer)":       `{"Name":"tuist-golden-abc","Source":"local","Size":72}`,
+		"tart get (quoted decimal)": `{"Name":"tuist-golden-abc","Source":"local","Size":"72.660"}`,
+		"tart get (quoted integer)": `{"Name":"tuist-golden-abc","Source":"local","Size":"72"}`,
+		"bare decimal (defensive)":  `{"Name":"tuist-golden-abc","Source":"local","Size":72.66}`,
+	}
+	for name, payload := range cases {
+		t.Run(name, func(t *testing.T) {
+			var vm VM
+			if err := json.Unmarshal([]byte(payload), &vm); err != nil {
+				t.Fatalf("unmarshal %s failed: %v", name, err)
+			}
+			if vm.Name != "tuist-golden-abc" {
+				t.Fatalf("Name = %q, want tuist-golden-abc", vm.Name)
+			}
+		})
+	}
+}
 
 // TestCloneTimeoutKillsHungProcess verifies the per-op watchdog: a
 // `tart` invocation that hangs (here a fake binary that sleeps well

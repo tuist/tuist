@@ -69,14 +69,28 @@ Useful endpoints:
 
 ## Toolchain 🛠️
 
-Install Rust from `mise.toml`:
+Install the toolchain (Rust + Bazel) from `mise.toml`:
 
 ```bash
 mise trust mise.toml
 mise install
 ```
 
-Run tests:
+Build and test with Bazel (the path CI gates on):
+
+```bash
+mise run compile         # build all targets for the host
+mise run test-unit       # bazel test //...
+```
+
+rules_rs resolves the crate graph from `Cargo.toml`/`Cargo.lock` on each build, so changing Rust
+deps just updates `Cargo.lock` as usual.
+
+If you have access to the `tuist/kura` project on Tuist, run `tuist bazel setup` (and re-run it after
+changing location) to use the closest Kura remote cache; otherwise Bazel builds fine against the
+local cache.
+
+Cargo works as a fallback when Bazel is unavailable, and the end-to-end suite runs under shellspec:
 
 ```bash
 mise x rust@1.94.1 -- cargo test
@@ -242,6 +256,10 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_CONTROL_PLANE_URL` | Base URL for the control plane Kura reports usage to. When set with the client credentials below, Kura pushes usage rollups to `/_internal/kura/usage`. | Yes | disabled |
 | `KURA_CONTROL_PLANE_CLIENT_ID` | OAuth client id used for Kura control-plane calls. | Yes | disabled |
 | `KURA_CONTROL_PLANE_CLIENT_SECRET` | OAuth client secret used for Kura control-plane calls. | Yes | disabled |
+| `KURA_ENROLL_ON_BOOT` | When `true`, the node enrolls with the control plane on boot: it generates a keypair locally, sends a CSR to `/_internal/kura/mesh/enroll` with the control-plane credentials, writes the issued certificate, account CA, and key to the `KURA_INTERNAL_TLS_*` paths, and derives `KURA_TENANT_ID` and `KURA_PEERS` from the response. A background task then re-enrolls before the leaf expires and hot-reloads the new certificate into both the inbound mTLS server and the outbound peer client, so short leaves do not require a restart. Requires `KURA_CONTROL_PLANE_*`, `KURA_NODE_URL`, and the three `KURA_INTERNAL_TLS_*` paths. | Yes | `false` |
+| `KURA_REGISTRATION_URL` | Absolute URL of a control-plane registration endpoint. When set together with `KURA_ADVERTISED_HTTP_URL`, the node periodically POSTs a heartbeat (its node id, advertised HTTP cache URL, readiness, version, traffic state, ring size, and writer-lock ownership) authenticated with `KURA_CONTROL_PLANE_CLIENT_ID`/`KURA_CONTROL_PLANE_CLIENT_SECRET`. The control plane leases the registration and stops advertising the endpoint to clients when heartbeats stop. The payload is control-plane agnostic and the URL is absolute, so Kura never derives a control-plane route. | Yes | disabled |
+| `KURA_ADVERTISED_HTTP_URL` | Client-facing HTTP cache URL advertised in registration heartbeats (for example a regional load balancer in front of the node). Distinct from `KURA_NODE_URL`, which is the internal peer/replication URL and must not be advertised to clients. | Yes | `—` |
+| `KURA_REGISTRATION_INTERVAL_MS` | How often the node sends a registration heartbeat. | Yes | `60000` |
 | `KURA_USAGE_WINDOW_SECS` | Usage rollup window size. Kura aggregates request traffic in memory by bounded dimensions before writing closed windows to the durable usage outbox. | Yes | `60` |
 | `KURA_USAGE_FLUSH_INTERVAL_MS` | How often closed usage windows are flushed from memory to RocksDB. | Yes | `60000` |
 | `KURA_USAGE_DELIVERY_INTERVAL_MS` | How often the usage outbox attempts delivery to the control plane. Delivery pauses under critical memory pressure. | Yes | `5000` |

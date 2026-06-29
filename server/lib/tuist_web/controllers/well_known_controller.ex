@@ -2,7 +2,6 @@ defmodule TuistWeb.WellKnownController do
   use TuistWeb, :controller
 
   alias Tuist.Environment
-  alias Tuist.Namespace.JWTToken
   alias TuistWeb.AgentDiscovery
   alias TuistWeb.AgentSkillsDiscovery
   alias TuistWeb.RequestOrigin
@@ -73,27 +72,6 @@ defmodule TuistWeb.WellKnownController do
   end
 
   @doc """
-  Returns the OpenID configuration for JWT verification.
-  """
-  def openid_configuration(conn, _params) do
-    issuer = JWTToken.issuer()
-
-    configuration = %{
-      issuer: issuer,
-      jwks_uri: "#{issuer}/.well-known/jwks.json",
-      response_types_supported: ["id_token"],
-      subject_types_supported: ["public"],
-      id_token_signing_alg_values_supported: ["RS256"],
-      claims_supported: ["iss", "sub", "aud", "exp", "iat"],
-      scopes_supported: ["openid"]
-    }
-
-    conn
-    |> put_resp_content_type("application/json")
-    |> json(configuration)
-  end
-
-  @doc """
   Returns OAuth Authorization Server metadata.
   """
   def oauth_authorization_server(conn, _params) do
@@ -152,21 +130,6 @@ defmodule TuistWeb.WellKnownController do
         |> put_status(:not_found)
         |> json(%{error: "not_found"})
     end
-  end
-
-  @doc """
-  Returns the JSON Web Key Set (JWKS) for verifying JWT signatures.
-  """
-  def jwks(conn, _params) do
-    public_jwk = JWTToken.public_jwk()
-
-    jwks = %{
-      keys: [public_jwk]
-    }
-
-    conn
-    |> put_resp_content_type("application/json")
-    |> json(jwks)
   end
 
   @doc """

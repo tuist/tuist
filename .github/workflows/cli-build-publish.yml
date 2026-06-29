@@ -71,7 +71,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "--locked tuist git-cliff 1password-cli"
+          install_args: "--locked tuist git-cliff 1password-cli jq"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
@@ -83,7 +83,7 @@ jobs:
       - name: Initialize TuistCacheEE submodule
         env:
           TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-        run: mise run --no-deps cli:ee
+        run: mise run --no-deps --skip-tools cli:ee
       - name: Get release notes
         id: release-notes
         working-directory: cli
@@ -136,7 +136,7 @@ jobs:
           git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../" --tag "${{ inputs.version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Bundle CLI
-        run: mise run --no-deps cli:bundle
+        run: mise run --no-deps --skip-tools cli:bundle
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
@@ -271,4 +271,4 @@ jobs:
         if: ${{ inputs.update_homebrew }}
         run: |
           SHA256=$(cat build/SHASUMS256.txt | grep tuist.zip | awk '{print $1}')
-          mise run --no-deps cli:release:homebrew-formula --version "${{ inputs.version }}" --github-token "${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}" --sha256 "$SHA256"
+          mise run --no-deps --skip-tools cli:release:homebrew-formula --version "${{ inputs.version }}" --github-token "${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}" --sha256 "$SHA256"

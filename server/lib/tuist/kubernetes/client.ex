@@ -329,6 +329,14 @@ defmodule Tuist.Kubernetes.Client do
     {:ok, "/apis/kura.tuist.dev/v1alpha1/namespaces/#{namespace}/kuragateways/#{name}"}
   end
 
+  defp manifest_path(%{
+         "apiVersion" => "v1",
+         "kind" => "Secret",
+         "metadata" => %{"namespace" => namespace, "name" => name}
+       }) do
+    {:ok, "/api/v1/namespaces/#{namespace}/secrets/#{name}"}
+  end
+
   defp manifest_path(%{"kind" => kind}), do: {:error, "unsupported Kubernetes manifest kind #{kind}"}
   defp manifest_path(_), do: {:error, "unsupported Kubernetes manifest"}
 

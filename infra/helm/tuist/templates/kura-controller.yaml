@@ -189,6 +189,11 @@ rules:
   - apiGroups: [""]
     resources: [pods]
     verbs: [get, list, watch]
+  # The server applies the per-account mesh peer-TLS Secret alongside the
+  # KuraInstance when an account bridges into the managed mesh.
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [get, create, update, patch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

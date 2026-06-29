@@ -15,11 +15,12 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Billing.Entitlements
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client
+  alias Tuist.Kura.Mesh
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
 
   @namespace "kura"
-  @manifest_revision "2026-06-18-node-port-and-single-host-grpc-v1"
+  @manifest_revision "2026-06-19-single-host-grpc-and-two-way-public-peer-lb-v1"
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
   @gateway_annotation "tuist.dev/kura-gateway"
   @gateway_controller_image "registry.k8s.io/ingress-nginx/controller:v1.11.3"
@@ -36,10 +37,12 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     with {:ok, hook_script} <- hook_script(inputs) do
       gateway = gateway_assignment(account, region)
 
+      external_peers = self_hosted_peers(account, region)
+
       case apply_manifests(
              [
                gateway_manifest(gateway, account, region),
-               manifest(name, image_tag, account, region, server, hook_script, gateway)
+               manifest(name, image_tag, account, region, server, hook_script, gateway, external_peers)
              ],
              region
            ) do
@@ -146,6 +149,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @impl true
+  def manifest_revision(account, %Regions{} = region) do
+    @manifest_revision <> peers_revision_suffix(self_hosted_peers(account, region))
+  end
+
+  @doc "The base manifest revision, independent of dynamic per-account inputs."
   def manifest_revision, do: @manifest_revision
 
   @impl true
@@ -183,9 +191,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @doc false
-  def manifest(name, image_tag, account, %Regions{} = region, %Server{}, hook_script, gateway) do
+  def manifest(name, image_tag, account, %Regions{} = region, %Server{}, hook_script, gateway, external_peers \\ []) do
     account_handle = dns_handle(account.name)
-    annotations = maybe_put_gateway_annotation(%{@manifest_revision_annotation => @manifest_revision}, gateway)
+    revision = @manifest_revision <> peers_revision_suffix(external_peers)
+    annotations = maybe_put_gateway_annotation(%{@manifest_revision_annotation => revision}, gateway)
 
     %{
       "apiVersion" => "kura.tuist.dev/v1alpha1",
@@ -212,6 +221,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "ingressClassName" => ingress_class_name(region, gateway),
           "peerTLSSecretName" => peer_tls_secret_name(region),
           "mesh" => mesh_enabled?(region),
+          "meshPublicPeerHost" => mesh_public_peer_host(account_handle, region),
+          "meshExternalPeers" => mesh_external_peers(region, external_peers),
+          "meshPublicPeerLoadBalancerAnnotations" => mesh_public_peer_lb_annotations(region),
           "private" => Regions.private?(region),
           "exposeNodePort" => Regions.node_port_data_plane?(region),
           "clientCIDRs" => client_cidrs(region),
@@ -291,6 +303,66 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp mesh_enabled?(%Regions{provisioner_config: %{mesh: mesh}}) when is_boolean(mesh), do: mesh
   defp mesh_enabled?(_region), do: false
+
+  defp self_hosted_peers(account, %Regions{} = region) do
+    (mesh_enabled?(region) && Mesh.self_hosted_peer_urls(account)) || []
+  end
+
+  # Folded into the manifest revision so enrolling or dropping a self-hosted
+  # peer changes the desired revision and the reconciler re-applies the manifest.
+  defp peers_revision_suffix([]), do: ""
+
+  defp peers_revision_suffix(peer_urls) when is_list(peer_urls) do
+    digest =
+      peer_urls
+      |> Enum.sort()
+      |> Enum.join(",")
+      |> then(&:crypto.hash(:sha256, &1))
+      |> Base.encode16(case: :lower)
+      |> binary_part(0, 12)
+
+    "+peers-" <> digest
+  end
+
+  defp mesh_public_peer_host(handle, region) do
+    if mesh_enabled?(region), do: Regions.peer_public_host(handle, region)
+  end
+
+  defp mesh_external_peers(region, external_peers) do
+    case mesh_enabled?(region) && external_peers do
+      [_ | _] = urls -> urls
+      _ -> nil
+    end
+  end
+
+  # Targeting annotations for the public peer LoadBalancer: pin it to the
+  # region's hcloud location and restrict its targets to the account's node pool
+  # (otherwise the cloud controller targets every node, including ones that
+  # can't route to the account's pods). Mirrors the gateway LoadBalancer.
+  defp mesh_public_peer_lb_annotations(%Regions{provisioner_config: config} = region) do
+    location = Map.get(config, :hetzner_location)
+
+    if mesh_enabled?(region) and is_binary(location) and location != "" do
+      annotations = %{"load-balancer.hetzner.cloud/location" => location}
+
+      case node_selector_annotation(region) do
+        nil -> annotations
+        selector -> Map.put(annotations, "load-balancer.hetzner.cloud/node-selector", selector)
+      end
+    end
+  end
+
+  defp mesh_public_peer_lb_annotations(_region), do: nil
+
+  defp node_selector_annotation(region) do
+    case node_selector(region) do
+      %{} = selector when map_size(selector) > 0 ->
+        Enum.map_join(selector, ",", fn {key, value} -> "#{key}=#{value}" end)
+
+      _ ->
+        nil
+    end
+  end
 
   # Tuist-platform-wide secrets (JWT verifier, control-plane client
   # secret) are
