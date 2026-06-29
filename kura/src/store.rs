@@ -59,6 +59,7 @@ use crate::{
 };
 
 const MULTIPART_LOCK_STRIPES: usize = 64;
+const ARTIFACT_WRITE_LOCK_STRIPES: usize = 64;
 pub const EXISTENCE_CACHE_CAPACITY: usize = 65_536;
 const EXISTENCE_CACHE_TTL: Duration = Duration::from_secs(30);
 
@@ -96,6 +97,11 @@ pub struct Store {
     manifest_cache: StdMutex<ManifestCache>,
     existence_cache: StdMutex<ExistenceCache>,
     multipart_locks: [Mutex<()>; MULTIPART_LOCK_STRIPES],
+    // Serializes writers for the same artifact so concurrent applies of one key
+    // (e.g. a fresh node bootstrapping the same artifact from several peers at
+    // once) can't each append their own copy to a segment and orphan all but the
+    // last. Striped by artifact id so different keys still write concurrently.
+    artifact_write_locks: [Mutex<()>; ARTIFACT_WRITE_LOCK_STRIPES],
     failpoints: Arc<FailpointSet>,
 }
 
@@ -388,6 +394,7 @@ impl Store {
                 EXISTENCE_CACHE_TTL,
             )),
             multipart_locks: std::array::from_fn(|_| Mutex::new(())),
+            artifact_write_locks: std::array::from_fn(|_| Mutex::new(())),
             failpoints: Arc::new(FailpointSet::default()),
         };
         // `load_segment_state_from_db` needs `&self`, so the store must be fully
@@ -402,6 +409,13 @@ impl Store {
         std::hash::Hash::hash(upload_id, &mut hasher);
         let index = (std::hash::Hasher::finish(&hasher) as usize) % MULTIPART_LOCK_STRIPES;
         &self.multipart_locks[index]
+    }
+
+    fn artifact_write_lock_for(&self, artifact_id: &str) -> &Mutex<()> {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        std::hash::Hash::hash(artifact_id, &mut hasher);
+        let index = (std::hash::Hasher::finish(&hasher) as usize) % ARTIFACT_WRITE_LOCK_STRIPES;
+        &self.artifact_write_locks[index]
     }
 
     pub async fn artifact_exists(
@@ -552,6 +566,14 @@ impl Store {
     ) -> Result<PersistArtifactOutcome, String> {
         let artifact_id =
             artifact_storage_id(spec.producer, &self.tenant_id, spec.namespace_id, spec.key);
+        // Hold the per-artifact write lock across the read-check, segment append,
+        // and metadata commit. Without it, concurrent applies of the same key
+        // each observe "absent" below, each append a full copy to a segment, and
+        // only the last manifest write wins — leaving the rest as orphaned bytes
+        // that accumulate to N x on disk (the bootstrap-from-many-peers ENOSPC).
+        // Whoever wins the lock commits the manifest; the rest re-read it here and
+        // short-circuit to IgnoredStale without appending.
+        let _write_guard = self.artifact_write_lock_for(&artifact_id).lock().await;
         let size = self.io.metadata_len(source_path).await?;
 
         let existing = self.manifest_from_db(&artifact_id)?;

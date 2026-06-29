@@ -1940,6 +1940,131 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn concurrent_cross_peer_bootstrap_does_not_amplify_disk() {
+        // Reproduces the production ENOSPC: a fresh node bootstraps the SAME
+        // artifacts from several peers at once. Every peer serves an identical
+        // manifest page (same artifact ids and versions) and identical bodies.
+        // Before the per-artifact write lock, each peer's bootstrap raced past the
+        // staleness check, appended its own copy to a segment, and only the last
+        // manifest won — leaving peer_count-1 orphaned copies that filled the data
+        // volume. A sleep failpoint between the durable segment append and the
+        // metadata commit holds the race window open so the amplification is
+        // deterministic without the lock; with it, only one copy is ever appended.
+        use std::collections::HashMap;
+
+        use crate::failpoints::{FailpointAction, FailpointName};
+
+        let peer_count = 4_usize;
+        let artifact_count = 6_usize;
+        let artifact_len = 128 * 1024_usize;
+        let dataset_bytes = (artifact_count * artifact_len) as u64;
+
+        let mut manifests = Vec::new();
+        let mut bodies = HashMap::new();
+        for index in 0..artifact_count {
+            let manifest = bootstrap_test_manifest(
+                ArtifactProducer::Gradle,
+                false,
+                "ios",
+                &format!("artifact-{index}"),
+                "application/octet-stream",
+                artifact_len as u64,
+                100 + index as u64,
+            );
+            bodies.insert(manifest.artifact_id.clone(), vec![index as u8; artifact_len]);
+            manifests.push(manifest);
+        }
+        let manifest_page = ManifestPage {
+            manifests,
+            next_after: None,
+        };
+        let bodies = std::sync::Arc::new(bodies);
+
+        let mut peer_urls = Vec::new();
+        let mut servers = Vec::new();
+        for _ in 0..peer_count {
+            let manifest_page = manifest_page.clone();
+            let bodies = bodies.clone();
+            let app = Router::new()
+                .route(
+                    "/_internal/bootstrap/namespace_tombstones",
+                    get(|| async {
+                        Json(NamespaceTombstonePage {
+                            tombstones: Vec::new(),
+                            next_after: None,
+                        })
+                    }),
+                )
+                .route(
+                    "/_internal/bootstrap/manifests",
+                    get(move || {
+                        let manifest_page = manifest_page.clone();
+                        async move { Json(manifest_page) }
+                    }),
+                )
+                .route(
+                    "/_internal/bootstrap/artifacts/{artifact_id}",
+                    get(move |AxumPath(artifact_id): AxumPath<String>| {
+                        let bodies = bodies.clone();
+                        async move {
+                            match bodies.get(&artifact_id) {
+                                Some(body) => (StatusCode::OK, body.clone()),
+                                None => (StatusCode::NOT_FOUND, Vec::new()),
+                            }
+                        }
+                    }),
+                );
+            let (url, server) = spawn_server(app).await;
+            peer_urls.push(url);
+            servers.push(server);
+        }
+
+        let local = test_context(|_| {}).await;
+        local.state.store.failpoints().set_always(
+            FailpointName::AfterArtifactBytesDurableBeforeMetadata,
+            FailpointAction::Sleep(Duration::from_millis(150)),
+        );
+
+        let tasks: Vec<_> = peer_urls
+            .iter()
+            .map(|peer| {
+                let state = local.state.clone();
+                let peer = peer.clone();
+                tokio::spawn(async move { bootstrap_from_peer(&state, &peer).await })
+            })
+            .collect();
+        for task in tasks {
+            task.await
+                .expect("bootstrap task should not panic")
+                .expect("each concurrent peer bootstrap should converge");
+        }
+
+        // Every artifact landed exactly once: the segment store holds ~1x the
+        // dataset, not peer_count x. The slack of one artifact tolerates a benign
+        // race while staying far below the N x amplification this guards against.
+        let segments_bytes =
+            crate::utils::directory_size_bytes(&local.state.config.data_dir.join("segments"));
+        assert!(
+            segments_bytes <= dataset_bytes + artifact_len as u64,
+            "segment store held {segments_bytes} bytes, expected ~{dataset_bytes} (1x the \
+             dataset); cross-peer bootstrap amplified on-disk data"
+        );
+
+        for index in 0..artifact_count {
+            assert!(
+                local
+                    .state
+                    .store
+                    .fetch_artifact(ArtifactProducer::Gradle, "ios", &format!("artifact-{index}"))
+                    .await
+                    .expect("artifact fetch should succeed")
+                    .is_some(),
+                "every concurrently bootstrapped artifact should be present"
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn bootstrap_rejects_body_larger_than_reserved() {
         // An inconsistent peer streams a chunked body larger than its manifest
         // advertised (no Content-Length). The staged file is capped at the
