@@ -221,8 +221,9 @@ in the `platform` namespace alongside the operator, which is where the plugin
 must run. It's idle until a `Cluster` opts in, so installing it changes no
 backups. Bump it like any other platform dependency: edit the pin and redeploy.
 It needs cert-manager (already a platform dependency) and adds the
-`objectstores.barmancloud.cnpg.io` CRD, the `barman-cloud` Deployment, a
-Service, and self-signed mTLS Certificates.
+`objectstores.barmancloud.cnpg.io` CRD, the `platform-plugin-barman-cloud`
+Deployment (release-prefixed as a subchart), a Service, and self-signed mTLS
+Certificates.
 
 **Cutover (per env):** with the plugin installed, flip
 `…backup.plugin.enabled` to `true` and deploy. This is an atomic change to the
