@@ -62,12 +62,12 @@ defmodule Tuist.Oban.RuntimeConfig do
   sharded-test cleanup) — Tuist-hosted deployments additionally get the
   internal Slack ops reports, account-usage rollup, and Stripe
   metered-billing reconciler. Preview gets only the Swift registry sync
-  cron so registry previews can exercise the same queue path without
-  running production housekeeping.
+  cron, regardless of hosted flag, so registry previews can exercise the
+  same queue path without running production housekeeping.
   """
   def crontab(mode, env, tuist_hosted?) do
     cond do
-      mode == :web and env == :preview and tuist_hosted? ->
+      mode == :web and env == :preview ->
         @preview_crons
 
       mode == :web and env in @prod_like_envs ->
