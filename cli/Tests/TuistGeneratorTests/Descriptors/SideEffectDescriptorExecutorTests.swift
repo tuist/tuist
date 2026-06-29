@@ -63,6 +63,24 @@ struct SideEffectDescriptorExecutorTests {
         #expect(try await fileSystem.resolveSymbolicLink(link) == destination)
     }
 
+    @Test(.inTemporaryDirectory) func execute_replacesDanglingSymbolicLink() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let oldDestination = temporaryDirectory.appending(components: "Artifacts", "old", "Module.xcframework")
+        let newDestination = temporaryDirectory.appending(components: "Artifacts", "new", "Module.xcframework")
+        let link = temporaryDirectory.appending(components: "Derived", "FrameworkSearchPaths", "Module.xcframework")
+        try await fileSystem.makeDirectory(at: oldDestination)
+        try await fileSystem.makeDirectory(at: newDestination)
+        try await fileSystem.makeDirectory(at: link.parentDirectory)
+        try await fileSystem.createSymbolicLink(from: link, to: oldDestination)
+        try await fileSystem.remove(oldDestination)
+
+        try await subject.execute(sideEffects: [
+            .symbolicLink(SymbolicLinkDescriptor(path: link, destination: newDestination)),
+        ])
+
+        #expect(try await fileSystem.resolveSymbolicLink(link) == newDestination)
+    }
+
     @Test(.inTemporaryDirectory) func execute_cleansStaleGeneratedFiles() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory).appending(component: "ModuleMaps")
         let activeFile = directory.appending(component: "App-deps.modulemap")
@@ -101,6 +119,7 @@ struct SideEffectDescriptorExecutorTests {
         try await fileSystem.makeDirectory(at: staleLink.parentDirectory)
         try await fileSystem.createSymbolicLink(from: activeLink, to: activeDestination)
         try await fileSystem.createSymbolicLink(from: staleLink, to: staleDestination)
+        try await fileSystem.remove(staleDestination)
 
         try await subject.execute(sideEffects: [
             .generatedFilesCleanup(
@@ -116,6 +135,7 @@ struct SideEffectDescriptorExecutorTests {
         await #expect(throws: FileSystemError.absentSymbolicLink(staleLink)) {
             try await fileSystem.resolveSymbolicLink(staleLink)
         }
+        #expect(try await !fileSystem.contentsOfDirectory(staleLink.parentDirectory).contains(staleLink))
     }
 
     private func modificationDate(at path: AbsolutePath) throws -> Date {

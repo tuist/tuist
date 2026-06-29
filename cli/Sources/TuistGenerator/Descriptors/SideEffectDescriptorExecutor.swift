@@ -6,6 +6,14 @@ import TuistCore
 import TuistLogging
 import TuistSupport
 
+#if canImport(Darwin)
+    import Darwin
+#elseif canImport(Glibc)
+    import Glibc
+#elseif canImport(Musl)
+    import Musl
+#endif
+
 /// The protocol defines an interface for executing side effects.
 public protocol SideEffectDescriptorExecuting {
     /// Executes the given side effects sequentially.
@@ -89,20 +97,37 @@ public struct SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
                 if destination == symbolicLink.destination {
                     return
                 }
-                try await removeIfPresent(symbolicLink.path)
+                try await removeExistingEntry(symbolicLink.path)
             } else {
-                try await removeIfPresent(symbolicLink.path)
+                try await removeExistingEntry(symbolicLink.path)
             }
             try await fileSystem.createSymbolicLink(from: symbolicLink.path, to: symbolicLink.destination)
         case .absent:
-            try await removeIfPresent(symbolicLink.path)
+            try await removeExistingEntry(symbolicLink.path)
         }
     }
 
-    private func removeIfPresent(_ path: AbsolutePath) async throws {
+    private func removeExistingEntry(_ path: AbsolutePath) async throws {
         if try await fileSystem.exists(path) {
             try await fileSystem.remove(path)
+        } else if try await directoryContains(path) {
+            try await removeDirectoryEntry(path)
         }
+    }
+
+    private func directoryContains(_ path: AbsolutePath) async throws -> Bool {
+        guard try await fileSystem.exists(path.parentDirectory, isDirectory: true) else { return false }
+        return try await fileSystem.contentsOfDirectory(path.parentDirectory).contains(path)
+    }
+
+    private func removeDirectoryEntry(_ path: AbsolutePath) async throws {
+        #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
+            guard unlink(path.pathString) == 0 else {
+                throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+            }
+        #else
+            try await fileSystem.remove(path)
+        #endif
     }
 
     private func perform(command: CommandDescriptor) async throws {
@@ -127,7 +152,7 @@ public struct SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
             for generatedFile in generatedFiles.sorted(by: { $0.pathString < $1.pathString })
                 where !activeFiles.contains(generatedFile)
             {
-                try await fileSystem.remove(generatedFile)
+                try await removeExistingEntry(generatedFile)
             }
         }
     }
