@@ -185,22 +185,17 @@ Barman Cloud Plugin (CNPG-I): an `ObjectStore` CR holds the bucket config and
 the `Cluster` references it through `.spec.plugins`. Value keys: the main server
 uses `postgresql.cnpg.backup.plugin.*`; tuist-ops uses `postgresql.backup.plugin.*`.
 
-**Prerequisite (one-time, per cluster) — install the plugin** in the operator's
-namespace (`platform`, not the upstream-default `cnpg-system`), pinned to a
-version compatible with the operator (needs >= 1.26; we run 1.29.1):
-
-```bash
-curl -fsSL https://github.com/cloudnative-pg/plugin-barman-cloud/releases/download/v0.13.0/manifest.yaml \
-  | sed 's/namespace: cnpg-system/namespace: platform/g' \
-  | kubectl --context tuist-k8s-<env> apply -f -
-kubectl --context tuist-k8s-<env> -n platform rollout status deploy/barman-cloud
-```
-
+**The plugin is installed on every cluster by the platform deploy** —
+`install-platform.sh` applies the vendored, pinned manifest
+[`infra/cnpg/plugin-barman-cloud.yaml`](./plugin-barman-cloud.yaml) (upstream
+`v0.13.0`, namespace rewritten to `platform`, where the operator runs). It's
+idle until a `Cluster` opts in, so it changes no backups. No manual step. To
+bump the plugin version, refresh that file per the instructions in its header.
 It needs cert-manager (already present via the platform chart) and adds the
 `objectstores.barmancloud.cnpg.io` CRD, the `barman-cloud` Deployment, a
 Service, and self-signed mTLS Certificates.
 
-**Cutover (per env, after the plugin is installed):** flip
+**Cutover (per env):** with the plugin installed, flip
 `…backup.plugin.enabled` to `true` and deploy. This is an atomic change to the
 `Cluster` (drops `.spec.backup.barmanObjectStore`, adds `.spec.plugins`), so it
 triggers a rolling update + switchover — merge it in a low-traffic window like

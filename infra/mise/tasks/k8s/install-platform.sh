@@ -261,3 +261,13 @@ HELM_CMD+=(
 )
 
 KUBECONFIG="$WL_KUBECONFIG" "${HELM_CMD[@]}"
+
+# CloudNativePG Barman Cloud Plugin (CNPG-I). Vendored, pinned manifest
+# (infra/cnpg/plugin-barman-cloud.yaml) with the namespace set to `platform`,
+# where the CNPG operator runs. Installed on every cluster but idle until a
+# Cluster opts in via `…backup.plugin.enabled` — applying it changes no
+# backups. Runs after the helm upgrade so cert-manager (the plugin's mTLS
+# dependency) is already reconciled.
+log "Installing/updating the Barman Cloud Plugin"
+KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f "$REPO_ROOT/infra/cnpg/plugin-barman-cloud.yaml"
+KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform rollout status deploy/barman-cloud --timeout=5m
