@@ -70,6 +70,9 @@ on:
       commit_sha:
         description: Commit SHA to deploy
         required: false
+      platform_ref:
+        description: Optional Git ref for the cluster-wide platform chart
+        required: false
       ttl_hours:
         description: Auto-delete after N hours (1-168)
         required: false
@@ -150,6 +153,7 @@ jobs:
           DISPATCH_SLUG: ${{ inputs.slug }}
           DISPATCH_PR: ${{ inputs.pr_number }}
           DISPATCH_SHA: ${{ inputs.commit_sha }}
+          DISPATCH_PLATFORM_REF: ${{ inputs.platform_ref }}
           DISPATCH_TTL: ${{ inputs.ttl_hours }}
           REQUESTER_EMAIL: ${{ inputs.requester_email }}
           GH_TOKEN: ${{ github.token }}
@@ -243,6 +247,12 @@ jobs:
             PLATFORM_REF="$EVENT_BASE_SHA"
           else
             PLATFORM_REF="$DEFAULT_BRANCH"
+          fi
+          if [ -n "${DISPATCH_PLATFORM_REF:-}" ]; then
+            if [[ "$DISPATCH_PLATFORM_REF" =~ [[:space:]] ]]; then
+              echo "::error::platform_ref must not contain whitespace."; exit 1
+            fi
+            PLATFORM_REF="$DISPATCH_PLATFORM_REF"
           fi
 
           {
