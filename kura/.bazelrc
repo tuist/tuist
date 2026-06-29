@@ -15,11 +15,15 @@ test --test_output=errors
 # Apply the os-specific config blocks below based on the host OS.
 build --enable_platform_specific_config
 
-# macOS host-native builds (local dev and the arm64 release binary). Bazel's autodetected darwin
-# cc toolchain defaults --macos_minimum_os to 10.11,
+# Applies to every macOS-host build (local dev plus both release binaries — arm64 native and the
+# x86_64 cross below). Bazel's darwin cc toolchain defaults --macos_minimum_os to 10.11,
 # which rules_rust feeds into the -sys build scripts' CFLAGS as -mmacosx-version-min=10.11.
 # rocksdb's bundled C++ uses C++17 aligned new/delete, which Apple clang only permits at
 # >= 10.13, so that default breaks the rocksdb build. Raise the floor (host_* covers the
 # exec-config build-script actions). Linux is unaffected: these only apply on macOS hosts.
 build:macos --macos_minimum_os=11.0
 build:macos --host_macos_minimum_os=11.0
+
+# Cross-compile the macOS x86_64 release binary on an arm64 host (apple_support supplies the cross
+# cc toolchain for the -sys crates; rules_rs already carries the x86_64-apple-darwin rust toolchain).
+build:macos-x86_64-cross --platforms=//bazel/platforms:macos_x86_64
