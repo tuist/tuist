@@ -72,11 +72,7 @@ delete_preview() {
   log "==> Deleting: $namespace ($reason)"
 
   if ! kubectl -n "$KURA_NAMESPACE" delete kurainstance "${release}-kura" --ignore-not-found --wait=true --timeout "$TEARDOWN_TIMEOUT"; then
-    warn "failed to delete KuraInstance ${KURA_NAMESPACE}/${release}-kura; continuing to Helm uninstall"
-  fi
-
-  if ! helm uninstall "$release" --namespace "$namespace" --wait --timeout "$TEARDOWN_TIMEOUT"; then
-    warn "failed to uninstall Helm release $namespace/$release; continuing to namespace deletion"
+    warn "failed to delete KuraInstance ${KURA_NAMESPACE}/${release}-kura; continuing to namespace deletion"
   fi
 
   if ! kubectl delete namespace "$namespace" --ignore-not-found --wait=true --timeout "$TEARDOWN_TIMEOUT"; then

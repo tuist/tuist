@@ -35,38 +35,6 @@ rules:
   - apiGroups: ["kura.tuist.dev"]
     resources: ["kurainstances"]
     verbs: ["get", "list", "watch", "delete"]
-  # Helm uninstall needs access to release metadata and the namespaced
-  # resources in each dynamic preview namespace. Namespace deletion below
-  # remains the final backstop if a chart resource was added without a
-  # matching rule here.
-  - apiGroups: [""]
-    resources:
-      - configmaps
-      - endpoints
-      - persistentvolumeclaims
-      - pods
-      - secrets
-      - serviceaccounts
-      - services
-    verbs: ["get", "list", "watch", "delete"]
-  - apiGroups: ["apps"]
-    resources: ["deployments", "replicasets", "statefulsets"]
-    verbs: ["get", "list", "watch", "delete"]
-  - apiGroups: ["batch"]
-    resources: ["jobs"]
-    verbs: ["get", "list", "watch", "delete"]
-  - apiGroups: ["networking.k8s.io"]
-    resources: ["ingresses", "networkpolicies"]
-    verbs: ["get", "list", "watch", "delete"]
-  - apiGroups: ["autoscaling"]
-    resources: ["horizontalpodautoscalers"]
-    verbs: ["get", "list", "watch", "delete"]
-  - apiGroups: ["policy"]
-    resources: ["poddisruptionbudgets"]
-    verbs: ["get", "list", "watch", "delete"]
-  - apiGroups: ["external-secrets.io"]
-    resources: ["externalsecrets"]
-    verbs: ["get", "list", "watch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -134,14 +102,6 @@ spec:
               image: {{ printf "%s:%s" .image.repository .image.tag | quote }}
               imagePullPolicy: {{ .image.pullPolicy | quote }}
               env:
-                - name: HOME
-                  value: /tmp
-                - name: HELM_CACHE_HOME
-                  value: /tmp/helm/cache
-                - name: HELM_CONFIG_HOME
-                  value: /tmp/helm/config
-                - name: HELM_DATA_HOME
-                  value: /tmp/helm/data
                 - name: KURA_NAMESPACE
                   value: {{ .kuraNamespace | quote }}
                 - name: STUCK_CREATE_AGE_SECONDS
