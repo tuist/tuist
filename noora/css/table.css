@@ -539,6 +539,23 @@
         color: var(--noora-surface-label-secondary);
         font: var(--noora-font-body-small);
       }
+
+      /* Truncation, on by default (opt out with `truncate={false}`). The table is
+       * `min-width: max-content`, so an unbounded value (e.g. a generate command with dozens of
+       * target arguments) would otherwise size its column to the full text and push every other
+       * column off-screen. Capping the column and clipping each line with an ellipsis keeps the
+       * rest of the row visible. */
+      &[data-truncate] [data-part="column"] {
+        min-width: 0;
+        max-width: 30rem;
+      }
+
+      &[data-truncate] [data-part="label"],
+      &[data-truncate] [data-part="description"] {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
     }
 
     &[data-type="badge"],

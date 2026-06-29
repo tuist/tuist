@@ -90,6 +90,36 @@ defmodule TuistWeb.BuildRunsLiveTest do
     refute has_element?(lv, "[data-part='build-runs-table'] span", "Framework")
   end
 
+  test "filters build runs by ran_by user without including continuous integration runs", %{
+    conn: conn,
+    user: user,
+    organization: organization,
+    project: project
+  } do
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      user_id: user.account.id,
+      scheme: "local-user-build",
+      is_ci: false
+    )
+
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      user_id: user.account.id,
+      scheme: "ci-user-build",
+      is_ci: true
+    )
+
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/builds/build-runs?filter_ran_by_op===&filter_ran_by_val=#{user.account.id}"
+      )
+
+    assert has_element?(lv, "[data-part='build-runs-table'] span", "local-user-build")
+    refute has_element?(lv, "[data-part='build-runs-table'] span", "ci-user-build")
+  end
+
   test "filters build runs whose branch does not contain a substring", %{
     conn: conn,
     organization: organization,

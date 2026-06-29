@@ -54,9 +54,9 @@ jobs:
           install_args: "erlang elixir ruby"
           working_directory: cache
       - name: Install dependencies
-        run: mise run install
+        run: mise run --skip-tools install
       - name: Check format
-        run: mise run format --check
+        run: mise run --skip-tools format --check
 
   credo:
     name: Credo
@@ -78,9 +78,9 @@ jobs:
           install_args: "erlang elixir ruby"
           working_directory: cache
       - name: Install dependencies
-        run: mise run install
+        run: mise run --skip-tools install
       - name: Run Credo
-        run: mise run credo
+        run: mise run --skip-tools credo
 
   test:
     name: Test
@@ -102,9 +102,9 @@ jobs:
           install_args: "erlang elixir ruby"
           working_directory: cache
       - name: Install dependencies
-        run: mise run install
+        run: mise run --skip-tools install
       - name: Run tests
-        run: mise run test
+        run: mise run --skip-tools test
 
   compile-prod:
     name: Compile (prod)
@@ -126,7 +126,7 @@ jobs:
           install_args: "erlang elixir ruby"
           working_directory: cache
       - name: Install dependencies
-        run: mise run install
+        run: mise run --skip-tools install
       - name: Compile with MIX_ENV=prod
         run: MIX_ENV=prod mix compile --warnings-as-errors
 

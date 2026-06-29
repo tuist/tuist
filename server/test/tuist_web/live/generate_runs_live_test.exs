@@ -128,6 +128,14 @@ defmodule TuistWeb.GenerateRunsLiveTest do
         command_arguments: ["generate", "OtherUserApp"]
       )
 
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        user_id: user.id,
+        name: "generate",
+        command_arguments: ["generate", "ContinuousIntegrationUserApp"],
+        is_ci: true
+      )
+
       {:ok, lv, _html} =
         live(
           conn,
@@ -136,6 +144,7 @@ defmodule TuistWeb.GenerateRunsLiveTest do
 
       assert has_element?(lv, "span", "generate UserApp")
       refute has_element?(lv, "span", "generate OtherUserApp")
+      refute has_element?(lv, "span", "generate ContinuousIntegrationUserApp")
     end
 
     test "filters generate runs by displayed command", %{
@@ -222,6 +231,36 @@ defmodule TuistWeb.GenerateRunsLiveTest do
         live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/generate-runs")
 
       assert has_element?(lv, "span", "tuist generate")
+    end
+
+    test "truncates the command column for runs with a long argument list", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      project: project
+    } do
+      # Given - a generate run with many target arguments, which otherwise widens the command
+      # column unbounded and pushes every other column off-screen.
+      targets = Enum.map(1..40, &"Target#{&1}")
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        user_id: user.id,
+        name: "generate",
+        command_arguments: ["generate" | targets]
+      )
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/generate-runs")
+
+      # Then - the command cell truncates (the default for text_and_description cells) so the
+      # column can no longer grow unbounded.
+      assert has_element?(
+               lv,
+               ~s([data-part="cell"][data-type="text_and_description"][data-truncate]),
+               "generate Target1"
+             )
     end
 
     test "filters generate runs whose branch does not contain a substring", %{

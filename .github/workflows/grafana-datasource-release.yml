@@ -42,7 +42,7 @@ jobs:
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - id: check
-        run: mise run release:check grafana-datasource
+        run: mise run --skip-tools release:check grafana-datasource
 
   release:
     name: Build and release

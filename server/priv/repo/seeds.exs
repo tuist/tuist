@@ -21,6 +21,7 @@ alias Tuist.Projects
 alias Tuist.Projects.Project
 alias Tuist.Repo
 alias Tuist.Runners.Job
+alias Tuist.Runners.JobMetrics
 alias Tuist.Runners.Jobs
 alias Tuist.Runners.JobSteps
 alias Tuist.Runners.Profile
@@ -3478,6 +3479,57 @@ build_runner_job_steps = fn workflow_job_id, account_id, started_at, completed_a
   end)
 end
 
+# Builds a runner's machine-metrics trace across the job's runtime,
+# sampled every few seconds. Values oscillate so the charts read like
+# a real build (CPU spikes during compile, memory ramps and plateaus,
+# storage creeps up) and so the step-hover highlight has something
+# worth correlating against. macOS has no iowait accounting, so that
+# series stays flat at 0 for macOS fleets.
+build_runner_job_metrics = fn workflow_job_id, account_id, fleet, started_at, completed_at ->
+  memory_total = 16 * 1000 * 1000 * 1000
+  disk_total = 64 * 1000 * 1000 * 1000
+  linux? = String.starts_with?(fleet, "linux")
+  total_seconds = max(DateTime.diff(completed_at, started_at, :second), 1)
+  sample_interval = 5
+
+  # Deterministic per-sample jitter (no `:rand`, so seeds stay reproducible)
+  # in [-amp, amp]. Real telemetry is spiky between samples; the sine bases
+  # alone are too smooth to show that, which hides the chart's sharp lines.
+  hash01 = fn n ->
+    v = :math.sin(n * 12.9898 + 78.233) * 43_758.5453
+    v - Float.floor(v)
+  end
+
+  noise = fn seed, amp -> (hash01.(seed) - 0.5) * 2 * amp end
+
+  Enum.map(0..div(total_seconds, sample_interval), fn step ->
+    offset = step * sample_interval
+    # Two out-of-phase waves give the busy/idle alternation, plus per-sample
+    # noise so the charts read like real (spiky) telemetry.
+    fast = :math.sin(offset / 18)
+    slow = :math.sin(offset / 55)
+
+    cpu = 55 + 38 * fast + noise.(step, 11)
+    iowait = if linux?, do: max(0.0, 6 + 5 * slow + noise.(step + 500, 3)), else: 0.0
+    mem_fraction = 0.30 + 0.45 * (0.5 + 0.5 * slow) + noise.(step + 1000, 0.025)
+    net_in = trunc(max(0.0, 4 + 3 * (0.5 + 0.5 * fast) + noise.(step + 1500, 1.2)) * 1024 * 1024)
+    net_out = trunc(max(0.0, 1 + 2 * (0.5 + 0.5 * slow) + noise.(step + 2000, 0.8)) * 1024 * 1024)
+    disk_fraction = 0.58 + 0.04 * (offset / total_seconds)
+
+    %{
+      timestamp: DateTime.to_unix(DateTime.add(started_at, offset, :second)) * 1.0,
+      cpu_usage_percent: Float.round(max(2.0, min(100.0, cpu)), 1),
+      cpu_iowait_percent: Float.round(iowait, 1),
+      memory_used_bytes: trunc(memory_total * mem_fraction),
+      memory_total_bytes: memory_total,
+      network_bytes_in: net_in,
+      network_bytes_out: net_out,
+      disk_used_bytes: trunc(disk_total * disk_fraction),
+      disk_total_bytes: disk_total
+    }
+  end)
+end
+
 # Completed jobs — history (most recent first by `enqueued_at`)
 completed_jobs = [
   %{
@@ -3667,6 +3719,13 @@ completed_jobs
         completed_at,
         job.conclusion
       )
+    )
+
+  :ok =
+    JobMetrics.record(
+      workflow_job_id,
+      runner_jobs_account_id,
+      build_runner_job_metrics.(workflow_job_id, runner_jobs_account_id, fleet, started_at, completed_at)
     )
 
   # In production `Tuist.Runners.serve_claim/5` opens a billing

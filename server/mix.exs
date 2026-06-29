@@ -64,6 +64,11 @@ defmodule Tuist.MixProject do
       {:jason, "~> 1.2"},
       {:libcluster, "~> 3.5"},
       {:bandit, "~> 1.11.1", override: true},
+      # Pinned: plug >= 1.19.3 crashes WebSocket upgrades on bandit 1.11.1
+      # (ArgumentError ":upgrade not a binary"). Without this pin, plug is an
+      # unconstrained transitive dep and every `mix deps.get` re-resolves it to
+      # the latest, churning the lock and forcing full recompiles.
+      {:plug, "1.19.2", override: true},
       {:credo, "== 1.7.13", only: [:dev, :test], runtime: false},
       {:sentry, "~> 11.0.4"},
       {:tower, "0.8.0"},
@@ -71,7 +76,6 @@ defmodule Tuist.MixProject do
       {:hackney, "~> 1.8"},
       {:castore, "~> 1.0.12"},
       {:uniq, "~> 0.6"},
-      {:encrypted_secrets, "~> 0.3.0"},
       {:ex_aws, "~> 2.6"},
       {:ex_aws_s3,
        git: "https://github.com/tuist/ex_aws_s3/", ref: "7f3278bef49cc3fa6b4138a4077804d328a41c9c", override: true},

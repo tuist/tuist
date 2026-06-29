@@ -10,6 +10,7 @@ import TuistConfigLoader
 import TuistEnvironment
 import TuistEnvironmentTesting
 import TuistHTTP
+import TuistREAPI
 import TuistServer
 import TuistTesting
 
@@ -23,11 +24,13 @@ struct BazelSetupCommandServiceTests {
     private func makeSubject(cacheURL: URL? = nil) -> (
         subject: BazelSetupCommandService,
         serverAuthenticationController: MockServerAuthenticationControlling,
-        configLoader: MockConfigLoading
+        configLoader: MockConfigLoading,
+        remoteCacheProbeService: MockRemoteCacheProbing
     ) {
         let serverEnvironmentService = MockServerEnvironmentServicing()
         let serverAuthenticationController = MockServerAuthenticationControlling()
         let cacheURLStore = MockCacheURLStoring()
+        let remoteCacheProbeService = MockRemoteCacheProbing()
         let configLoader = MockConfigLoading()
 
         given(configLoader)
@@ -42,10 +45,15 @@ struct BazelSetupCommandServiceTests {
             .getCacheURL(for: .any, accountHandle: .value("my-account"))
             .willReturn(cacheURL ?? self.cacheURL)
 
+        given(remoteCacheProbeService)
+            .probe(endpoint: .any, accountHandle: .any, instanceName: .any, token: .any)
+            .willReturn(())
+
         let subject = BazelSetupCommandService(
             serverEnvironmentService: serverEnvironmentService,
             serverAuthenticationController: serverAuthenticationController,
             cacheURLStore: cacheURLStore,
+            remoteCacheProbeService: remoteCacheProbeService,
             fullHandleService: FullHandleService(),
             configLoader: configLoader,
             fileSystem: fileSystem
@@ -54,7 +62,8 @@ struct BazelSetupCommandServiceTests {
         return (
             subject,
             serverAuthenticationController,
-            configLoader
+            configLoader,
+            remoteCacheProbeService
         )
     }
 
@@ -67,7 +76,7 @@ struct BazelSetupCommandServiceTests {
     func run_generates_bazelrc_and_credential_helper_script() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let (subject, serverAuthenticationController, _) = makeSubject()
+        let (subject, serverAuthenticationController, _, _) = makeSubject()
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .any)
             .willReturn(.project("token"))
@@ -105,7 +114,7 @@ struct BazelSetupCommandServiceTests {
     func run_keeps_cache_endpoint_port_in_remote_cache_url() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let (subject, serverAuthenticationController, _) = makeSubject(
+        let (subject, serverAuthenticationController, _, remoteCacheProbeService) = makeSubject(
             cacheURL: URL(string: "https://cache.tuist.dev:8443")!
         )
         given(serverAuthenticationController)
@@ -122,13 +131,21 @@ struct BazelSetupCommandServiceTests {
         )
         #expect(bazelrcContent.contains("build --remote_cache=grpcs://cache.tuist.dev:8443"))
         #expect(bazelrcContent.contains("build --credential_helper=cache.tuist.dev=\(scriptPath.pathString)"))
+        verify(remoteCacheProbeService)
+            .probe(
+                endpoint: .value(GRPCEndpoint(host: "cache.tuist.dev", explicitPort: 8443, isTLS: true)),
+                accountHandle: .any,
+                instanceName: .any,
+                token: .any
+            )
+            .called(1)
     }
 
     @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
     func run_uses_plaintext_grpc_for_http_cache_endpoints() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let (subject, serverAuthenticationController, _) = makeSubject(
+        let (subject, serverAuthenticationController, _, remoteCacheProbeService) = makeSubject(
             cacheURL: URL(string: "http://localhost:5091")!
         )
         given(serverAuthenticationController)
@@ -145,13 +162,21 @@ struct BazelSetupCommandServiceTests {
         )
         #expect(bazelrcContent.contains("build --remote_cache=grpc://localhost:5091"))
         #expect(bazelrcContent.contains("build --credential_helper=localhost=\(scriptPath.pathString)"))
+        verify(remoteCacheProbeService)
+            .probe(
+                endpoint: .value(GRPCEndpoint(host: "localhost", explicitPort: 5091, isTLS: false)),
+                accountHandle: .any,
+                instanceName: .any,
+                token: .any
+            )
+            .called(1)
     }
 
     @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
     func run_does_not_overwrite_an_existing_credential_helper_script() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let (subject, serverAuthenticationController, _) = makeSubject()
+        let (subject, serverAuthenticationController, _, _) = makeSubject()
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .any)
             .willReturn(.project("token"))
@@ -172,7 +197,7 @@ struct BazelSetupCommandServiceTests {
     func run_overwrites_an_existing_bazelrc_file() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let (subject, serverAuthenticationController, _) = makeSubject()
+        let (subject, serverAuthenticationController, _, _) = makeSubject()
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .any)
             .willReturn(.project("token"))
@@ -192,7 +217,7 @@ struct BazelSetupCommandServiceTests {
     func run_throws_when_not_authenticated() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let (subject, serverAuthenticationController, _) = makeSubject()
+        let (subject, serverAuthenticationController, _, _) = makeSubject()
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .any)
             .willReturn(nil)
@@ -207,7 +232,7 @@ struct BazelSetupCommandServiceTests {
     func run_throws_when_full_handle_is_missing() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let (subject, _, configLoader) = makeSubject()
+        let (subject, _, configLoader, _) = makeSubject()
         configLoader.reset()
         given(configLoader)
             .loadConfig(path: .any)
@@ -217,5 +242,54 @@ struct BazelSetupCommandServiceTests {
         await #expect(throws: BazelSetupCommandServiceError.missingFullHandle) {
             try await subject.run(directory: temporaryDirectory.pathString)
         }
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
+    func run_probes_the_resolved_cache_endpoint() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let (subject, serverAuthenticationController, _, remoteCacheProbeService) = makeSubject()
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("token"))
+
+        // When
+        try await subject.run(directory: temporaryDirectory.pathString)
+
+        // Then
+        verify(remoteCacheProbeService)
+            .probe(
+                endpoint: .value(GRPCEndpoint(host: "cache.tuist.dev", explicitPort: nil, isTLS: true)),
+                accountHandle: .value("my-account"),
+                instanceName: .value("my-project"),
+                token: .value("token")
+            )
+            .called(1)
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
+    func run_throws_when_the_cache_endpoint_is_not_reachable() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let (subject, serverAuthenticationController, _, remoteCacheProbeService) = makeSubject()
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("token"))
+        let probeError = RemoteCacheProbeError.unavailable(
+            endpoint: "cache.tuist.dev:443",
+            code: "unavailable",
+            message: "connection refused"
+        )
+        remoteCacheProbeService.reset()
+        given(remoteCacheProbeService)
+            .probe(endpoint: .any, accountHandle: .any, instanceName: .any, token: .any)
+            .willThrow(probeError)
+
+        // When/Then
+        await #expect(throws: probeError) {
+            try await subject.run(directory: temporaryDirectory.pathString)
+        }
+
+        #expect(try await !fileSystem.exists(temporaryDirectory.appending(component: ".bazelrc.tuist")))
     }
 }

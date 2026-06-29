@@ -15,6 +15,12 @@ kuraController:
 server:
   replicaCount: 1
 
+  # Staging runs no PostHog analytics (no POSTHOG item in its vault), so opt out
+  # of syncing it — otherwise the all-or-nothing ESO config sync would fail.
+  config:
+    posthog:
+      enabled: false
+
   # Non-secret runtime config. Traces go to the in-cluster Alloy receiver
   # (deployed by infra/helm/k8s-monitoring) via OTLP gRPC; Alloy forwards
   # them to Grafana Cloud Tempo. Logs follow a different path — the server
@@ -22,9 +28,9 @@ server:
   # so TUIST_LOKI_URL stays unset (the in-app LokiLoggerHandler only
   # attaches when TUIST_LOKI_INPROC=1).
   extraEnv:
-    # Selects which priv/secrets/<env>.yml.enc file the app decrypts at
-    # boot. Image is env-agnostic (built with MIX_ENV=prod); this flag
-    # plus the MASTER_KEY ESO secret pick the runtime deployment target.
+    # Selects the runtime deployment target (Tuist.Environment.env()). The
+    # image is env-agnostic (built with MIX_ENV=prod); this flag picks which
+    # env's config the release runs as.
     - name: TUIST_DEPLOY_ENV
       value: stag
     - name: TUIST_DATABASE_POOL_SIZE
@@ -83,6 +89,21 @@ server:
       value: tuist-server-staging
 
   appUrl: https://staging.tuist.dev
+
+  # Stripe price IDs (identifiers, not secrets — the API keys live in the
+  # STRIPE 1Password item). Staging's own (test-mode) IDs; the chart
+  # JSON-encodes this into TUIST_STRIPE_PRICES.
+  stripe:
+    prices:
+      air:
+        usage: ["price_1S7xNpLlKoN51eczL4aWRqIs"]
+        flat_monthly: ["price_1S7xNpLlKoN51eczL4aWRqIs"]
+      pro:
+        usage: ["price_1S7xoRLlKoN51eczGiWEndD1"]
+        flat_monthly: ["price_1S7xoRLlKoN51eczbV7sWKIk"]
+      enterprise:
+        flat_monthly: ["price_1S7xz0LlKoN51eczmTQ1yhhk"]
+        flat_yearly: []
 
   # ingress-nginx fronts the server on port 443 with a Cloudflare Origin CA
   # cert (synced into the tuist-tls-cloudflare-origin Secret out-of-band;
@@ -247,7 +268,7 @@ processor:
       maxUnavailable: 1
   extraEnv:
     # Must match the server's TUIST_DEPLOY_ENV above so the processor pod
-    # decrypts the same priv/secrets/<env>.yml.enc file the web tier does.
+    # runs as the same env (Tuist.Environment.env()) as the web tier.
     - name: TUIST_DEPLOY_ENV
       value: stag
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
@@ -451,6 +472,11 @@ runnersFleet:
         minWarmPoolFloor: 0
         maxReplicas: 1
     "26.3":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 1
+    "26.0.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0

@@ -174,6 +174,11 @@ defmodule Tuist.Storage do
     bucket_name
     |> ExAws.S3.download_file(object_key, file_path)
     |> ExAws.request(Map.merge(config, fast_api_req_opts()))
+  catch
+    # ExAws downloads each chunk in a Task.async_stream whose per-chunk timeout
+    # exits rather than raising, so a stalled S3 chunk escapes ExAws' own rescue
+    # and would crash the calling job. Surface it as a retryable error instead.
+    :exit, reason -> {:error, reason}
   end
 
   def get_object_as_string(object_key, actor) do

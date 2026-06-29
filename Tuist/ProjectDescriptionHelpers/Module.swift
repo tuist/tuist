@@ -40,6 +40,7 @@ public enum Module: String, CaseIterable {
     case xcodeBuildProducts = "TuistXcodeBuildProducts"
     case xcResultService = "TuistXCResultService"
     case cas = "TuistCAS"
+    case reapi = "TuistREAPI"
     case casAnalytics = "TuistCASAnalytics"
     case launchctl = "TuistLaunchctl"
     case jobSummary = "TuistJobSummary"
@@ -358,7 +359,7 @@ public enum Module: String, CaseIterable {
              .tuistExtension, .config, .nooraTesting, .loggerTesting,
              .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
              .registryCommand, .buildCommand, .generateCommand,
-             .runCommand, .shareCommand, .inspectCommand, .android:
+             .runCommand, .shareCommand, .inspectCommand, .android, .reapi:
             return nil
         default:
             return "\(rawValue)Tests"
@@ -512,7 +513,7 @@ public enum Module: String, CaseIterable {
         case .plugin:
             moduleTags.append("domain:plugins")
         case .simulator, .xcActivityLog, .git, .rootDirectoryLocator,
-             .process, .ci, .cas, .casAnalytics, .launchctl, .xcResultService, .xcodeProjectOrWorkspacePathLocator,
+             .process, .ci, .cas, .reapi, .casAnalytics, .launchctl, .xcResultService, .xcodeProjectOrWorkspacePathLocator,
              .xcodeBuildProducts,
              .http, .har, .configLoader, .machineMetrics, .appleArchiver, .jobSummary:
             moduleTags.append("domain:infrastructure")
@@ -1115,6 +1116,15 @@ public enum Module: String, CaseIterable {
                     .external(name: "SwiftProtobuf"),
                     .external(name: "libzstd"),
                 ]
+            case .reapi:
+                [
+                    .target(name: Module.logging.targetName),
+                    .external(name: "GRPCCore"),
+                    .external(name: "GRPCNIOTransportHTTP2"),
+                    .external(name: "GRPCProtobuf"),
+                    .external(name: "SwiftProtobuf"),
+                    .external(name: "Mockable"),
+                ]
             case .casAnalytics:
                 [
                     .target(name: Module.environment.targetName),
@@ -1187,6 +1197,7 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.alert.targetName),
                     .target(name: Module.cas.targetName),
+                    .target(name: Module.reapi.targetName),
                     .target(name: Module.configLoader.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.envKey.targetName),
@@ -1560,7 +1571,7 @@ public enum Module: String, CaseIterable {
                  .uniqueIDGenerator, .opener, .config,
                  .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
                  .registryCommand, .buildCommand, .generateCommand,
-                 .runCommand, .shareCommand, .inspectCommand, .android:
+                 .runCommand, .shareCommand, .inspectCommand, .android, .reapi:
                 []
             case .xcodeGraph:
                 []
@@ -1634,6 +1645,7 @@ public enum Module: String, CaseIterable {
             case .bazelCommand:
                 [
                     .target(name: Module.cas.targetName),
+                    .target(name: Module.reapi.targetName),
                     .target(name: Module.config.targetName),
                     .target(name: Module.configLoader.targetName),
                     .target(name: Module.http.targetName),

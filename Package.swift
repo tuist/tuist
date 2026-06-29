@@ -71,6 +71,7 @@ var tuistBazelCommandDependencies: [Target.Dependency] = [
     "TuistServer",
     "TuistEnvKey",
     "TuistCAS",
+    "TuistREAPI",
     "TuistHTTP",
     "TuistAlert",
     "TuistConfigLoader",
@@ -154,6 +155,14 @@ var tuistCASDependencies: [Target.Dependency] = [
     .product(name: "libzstd", package: "facebook.zstd"),
     mockableDependency,
     pathDependency,
+]
+var tuistREAPIDependencies: [Target.Dependency] = [
+    "TuistLogging",
+    .product(name: "GRPCCore", package: "grpc.grpc-swift-2"),
+    .product(name: "GRPCProtobuf", package: "grpc.grpc-swift-protobuf"),
+    .product(name: "GRPCNIOTransportHTTP2", package: "grpc.grpc-swift-nio-transport"),
+    .product(name: "SwiftProtobuf", package: "apple.swift-protobuf"),
+    mockableDependency,
 ]
 var tuistAccountCommandDependencies: [Target.Dependency] = [
     pathDependency,
@@ -798,6 +807,15 @@ var targets: [Target] = [
         dependencies: tuistCASDependencies,
         path: "cli/Sources/TuistCAS",
         exclude: ["cas.proto", "keyvalue.proto", "grpc-swift-proto-generator-config.json", "AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistREAPI",
+        dependencies: tuistREAPIDependencies,
+        path: "cli/Sources/TuistREAPI",
+        exclude: ["capabilities.proto", "AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]
