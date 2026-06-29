@@ -421,8 +421,23 @@ end
 
 # Ex.AWS
 if Tuist.Environment.env() not in [:test] do
+  s3_endpoint =
+    if Tuist.Environment.swift_registry_sync_mode?() do
+      case {System.get_env("S3_ENDPOINT"), System.get_env("S3_HOST")} do
+        {endpoint, _host} when endpoint not in [nil, ""] -> endpoint
+        {_endpoint, host} when host not in [nil, ""] -> "https://#{host}"
+        _ -> nil
+      end
+    else
+      Tuist.Environment.s3_endpoint(secrets)
+    end
+
+  if s3_endpoint in [nil, ""] do
+    raise "S3 endpoint is required; set TUIST_S3_ENDPOINT, S3_ENDPOINT, or S3_HOST"
+  end
+
   %{host: s3_endpoint_host, scheme: s3_scheme, port: s3_port} =
-    secrets |> Tuist.Environment.s3_endpoint() |> URI.parse()
+    URI.parse(s3_endpoint)
 
   s3_config =
     then(
