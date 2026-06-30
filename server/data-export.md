@@ -130,17 +130,19 @@ dashboards remain intact. Retention windows, in days, by plan:
 | --- | --- | --- | --- |
 | Cache artifacts (Xcode compilation, legacy CAS, module, Gradle) | 14 | 30 | 90 |
 | App preview builds and icons | 60 | 90 | 180 |
-| Build archives | 30 | 90 | 180 |
-| Run artifacts | 30 | 90 | 180 |
+| Build archives | 30 | 30 | 30 |
+| Run artifacts | 30 | 30 | 30 |
 | Test run attachments | 30 | 90 | 180 |
 | Shard bundles | 7 | 14 | 30 |
 
 Retention status is computed when cleanup runs. Cache artifacts use the object
-storage `last_modified` timestamp, while previews, build archives, test
+storage `last_modified` timestamp, while previews, current build archives, test
 attachments, and shard bundles use their database `inserted_at` timestamp. Run
-artifacts use the command event `ran_at` timestamp. The active account
-plan determines the applicable window, with Air used when an account has no
-active subscription.
+artifacts use the command event `ran_at` timestamp. Legacy build artifacts use
+the object storage `last_modified` timestamp; legacy build artifacts whose
+account prefix no longer resolves to a live account use the Air build archive
+window. The active account plan determines the applicable window, with Air used
+when an account has no active subscription.
 
 Tuist stores per-account cleanup progress for database-backed artifact families so
 daily retention jobs can resume after previously-purged metadata rows without
