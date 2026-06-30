@@ -90,9 +90,10 @@ func main() {
 		os.Exit(1)
 	}
 	if err := (&controllers.PeerDemuxReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		Image:  os.Getenv("KURA_PEER_DEMUX_IMAGE"),
+		Client:    mgr.GetClient(),
+		APIReader: mgr.GetAPIReader(),
+		Scheme:    mgr.GetScheme(),
+		Image:     os.Getenv("KURA_PEER_DEMUX_IMAGE"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup PeerDemuxReconciler")
 		os.Exit(1)

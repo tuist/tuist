@@ -50,8 +50,11 @@ const (
 // region has no host-network peering instances left.
 type PeerDemuxReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
-	Image  string
+	// APIReader bypasses the manager's namespace-scoped cache for the one-off
+	// kube-system/kube-dns lookup, a namespace the cache does not watch.
+	APIReader client.Reader
+	Scheme    *runtime.Scheme
+	Image     string
 }
 
 // +kubebuilder:rbac:groups=kura.tuist.dev,resources=kurainstances,verbs=get;list;watch
@@ -238,7 +241,7 @@ func peerDemuxPodTemplate(region, name, configHash string, nodeSelector map[stri
 // k8s exposes CoreDNS under the conventional kube-system/kube-dns Service name.
 func (r *PeerDemuxReconciler) clusterDNSIP(ctx context.Context) (string, error) {
 	svc := &corev1.Service{}
-	if err := r.Get(ctx, types.NamespacedName{Name: "kube-dns", Namespace: "kube-system"}, svc); err != nil {
+	if err := r.APIReader.Get(ctx, types.NamespacedName{Name: "kube-dns", Namespace: "kube-system"}, svc); err != nil {
 		return "", fmt.Errorf("resolving cluster DNS service kube-system/kube-dns: %w", err)
 	}
 	if svc.Spec.ClusterIP == "" || svc.Spec.ClusterIP == corev1.ClusterIPNone {

@@ -119,7 +119,7 @@ func TestPeerDemuxReconcileCreatesAndTearsDown(t *testing.T) {
 		Spec:       corev1.ServiceSpec{ClusterIP: "10.96.0.10"},
 	}
 	client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, dns).Build()
-	reconciler := &PeerDemuxReconciler{Client: client, Scheme: scheme}
+	reconciler := &PeerDemuxReconciler{Client: client, APIReader: client, Scheme: scheme}
 
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Name: "eu-central", Namespace: "kura"}}
 	if _, err := reconciler.Reconcile(ctx, req); err != nil {
