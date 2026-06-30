@@ -8730,14 +8730,6 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: Page number for pagination.
           in: query
           name: page
@@ -8760,6 +8752,14 @@ paths:
           required: false
           schema:
             type: integer
+            x-struct:
+            x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
             x-struct:
             x-validate:
         - description: The handle of the project.
@@ -17561,22 +17561,38 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: Return cache runs that executed at or after this timestamp. Accepts Unix seconds or a timestamp string such as 2026-01-15T10:00:00Z.
+        - description: Filter by execution time using ran_at[gt], ran_at[gte], ran_at[lt], or ran_at[lte] Unix seconds.
+          explode: true
           in: query
-          name: ran_after
+          name: ran_at
           required: false
           schema:
-            type: string
+            additionalProperties: false
+            properties:
+              gt:
+                format: int64
+                type: integer
+                x-struct:
+                x-validate:
+              gte:
+                format: int64
+                type: integer
+                x-struct:
+                x-validate:
+              lt:
+                format: int64
+                type: integer
+                x-struct:
+                x-validate:
+              lte:
+                format: int64
+                type: integer
+                x-struct:
+                x-validate:
+            type: object
             x-struct:
             x-validate:
-        - description: Return cache runs that executed at or before this timestamp. Accepts Unix seconds or a timestamp string such as 2026-01-15T10:00:00Z.
-          in: query
-          name: ran_before
-          required: false
-          schema:
-            type: string
-            x-struct:
-            x-validate:
+          style: deepObject
         - description: ''
           in: query
           name: page_size

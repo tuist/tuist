@@ -96,7 +96,7 @@ defmodule TuistWeb.API.CacheRunsControllerTest do
       assert returned["id"] == cache_run.id
     end
 
-    test "filters by ran_after and ran_before", %{conn: conn, user: user, project: project} do
+    test "filters by ran_at gte and lte", %{conn: conn, user: user, project: project} do
       CommandEventsFixtures.command_event_fixture(
         project_id: project.id,
         name: "cache",
@@ -118,8 +118,8 @@ defmodule TuistWeb.API.CacheRunsControllerTest do
 
       query =
         URI.encode_query(%{
-          ran_after: DateTime.to_unix(~U[2026-01-12 00:00:00Z]),
-          ran_before: DateTime.to_iso8601(~U[2026-01-16 00:00:00Z])
+          "ran_at[gte]" => DateTime.to_unix(~U[2026-01-12 00:00:00Z]),
+          "ran_at[lte]" => DateTime.to_unix(~U[2026-01-16 00:00:00Z])
         })
 
       conn =
@@ -132,14 +132,16 @@ defmodule TuistWeb.API.CacheRunsControllerTest do
       assert returned["ran_at"] == DateTime.to_unix(~U[2026-01-15 10:00:00Z])
     end
 
-    test "returns bad request for invalid ran_after", %{conn: conn, user: user, project: project} do
+    test "returns bad request for invalid ran_at operator", %{conn: conn, user: user, project: project} do
+      query = URI.encode_query(%{"ran_at[gte]" => -1})
+
       conn =
         conn
         |> Authentication.put_current_user(user)
-        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/cache-runs?ran_after=invalid")
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/cache-runs" <> "?#{query}")
 
       assert %{
-               "message" => "`ran_after` must be a valid Unix timestamp or timestamp string such as 2026-01-15T10:00:00Z."
+               "message" => "`ran_at[gte]` must be a valid Unix timestamp."
              } = json_response(conn, 400)
     end
   end

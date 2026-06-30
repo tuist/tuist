@@ -18323,10 +18323,6 @@ public enum Operations {
             public var path: Operations.listBundles.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query`.
             public struct Query: Sendable, Hashable {
-                /// Filter bundles by git branch.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
-                public var git_branch: Swift.String?
                 /// Page number for pagination.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
@@ -18335,20 +18331,24 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
                 public var page_size: Swift.Int?
+                /// Filter bundles by git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
+                public var git_branch: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - git_branch: Filter bundles by git branch.
                 ///   - page: Page number for pagination.
                 ///   - page_size: Number of items per page.
+                ///   - git_branch: Filter bundles by git branch.
                 public init(
-                    git_branch: Swift.String? = nil,
                     page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil
+                    page_size: Swift.Int? = nil,
+                    git_branch: Swift.String? = nil
                 ) {
-                    self.git_branch = git_branch
                     self.page = page
                     self.page_size = page_size
+                    self.git_branch = git_branch
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -46903,14 +46903,70 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/query/git_commit_sha`.
                 public var git_commit_sha: Swift.String?
-                /// Return cache runs that executed at or after this timestamp. Accepts Unix seconds or a timestamp string such as 2026-01-15T10:00:00Z.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/query/ran_at`.
+                public struct ran_atPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/query/ran_at/gt`.
+                    public var gt: Swift.Int64?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/query/ran_at/gte`.
+                    public var gte: Swift.Int64?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/query/ran_at/lt`.
+                    public var lt: Swift.Int64?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/query/ran_at/lte`.
+                    public var lte: Swift.Int64?
+                    /// Creates a new `ran_atPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - gt:
+                    ///   - gte:
+                    ///   - lt:
+                    ///   - lte:
+                    public init(
+                        gt: Swift.Int64? = nil,
+                        gte: Swift.Int64? = nil,
+                        lt: Swift.Int64? = nil,
+                        lte: Swift.Int64? = nil
+                    ) {
+                        self.gt = gt
+                        self.gte = gte
+                        self.lt = lt
+                        self.lte = lte
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case gt
+                        case gte
+                        case lt
+                        case lte
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        let container = try decoder.container(keyedBy: CodingKeys.self)
+                        self.gt = try container.decodeIfPresent(
+                            Swift.Int64.self,
+                            forKey: .gt
+                        )
+                        self.gte = try container.decodeIfPresent(
+                            Swift.Int64.self,
+                            forKey: .gte
+                        )
+                        self.lt = try container.decodeIfPresent(
+                            Swift.Int64.self,
+                            forKey: .lt
+                        )
+                        self.lte = try container.decodeIfPresent(
+                            Swift.Int64.self,
+                            forKey: .lte
+                        )
+                        try decoder.ensureNoAdditionalProperties(knownKeys: [
+                            "gt",
+                            "gte",
+                            "lt",
+                            "lte"
+                        ])
+                    }
+                }
+                /// Filter by execution time using ran_at[gt], ran_at[gte], ran_at[lt], or ran_at[lte] Unix seconds.
                 ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/query/ran_after`.
-                public var ran_after: Swift.String?
-                /// Return cache runs that executed at or before this timestamp. Accepts Unix seconds or a timestamp string such as 2026-01-15T10:00:00Z.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/query/ran_before`.
-                public var ran_before: Swift.String?
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/query/ran_at`.
+                public var ran_at: Operations.listCacheRuns.Input.Query.ran_atPayload?
                 ///
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/query/page_size`.
@@ -46925,24 +46981,21 @@ public enum Operations {
                 ///   - git_ref: Filter by git ref.
                 ///   - git_branch: Filter by git branch.
                 ///   - git_commit_sha: Filter by git commit SHA.
-                ///   - ran_after: Return cache runs that executed at or after this timestamp. Accepts Unix seconds or a timestamp string such as 2026-01-15T10:00:00Z.
-                ///   - ran_before: Return cache runs that executed at or before this timestamp. Accepts Unix seconds or a timestamp string such as 2026-01-15T10:00:00Z.
+                ///   - ran_at: Filter by execution time using ran_at[gt], ran_at[gte], ran_at[lt], or ran_at[lte] Unix seconds.
                 ///   - page_size:
                 ///   - page:
                 public init(
                     git_ref: Swift.String? = nil,
                     git_branch: Swift.String? = nil,
                     git_commit_sha: Swift.String? = nil,
-                    ran_after: Swift.String? = nil,
-                    ran_before: Swift.String? = nil,
+                    ran_at: Operations.listCacheRuns.Input.Query.ran_atPayload? = nil,
                     page_size: Swift.Int? = nil,
                     page: Swift.Int? = nil
                 ) {
                     self.git_ref = git_ref
                     self.git_branch = git_branch
                     self.git_commit_sha = git_commit_sha
-                    self.ran_after = ran_after
-                    self.ran_before = ran_before
+                    self.ran_at = ran_at
                     self.page_size = page_size
                     self.page = page
                 }

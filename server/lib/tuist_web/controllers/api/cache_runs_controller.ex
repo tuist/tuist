@@ -48,17 +48,21 @@ defmodule TuistWeb.API.CacheRunsController do
         type: :string,
         description: "Filter by git commit SHA."
       ],
-      ran_after: [
+      ran_at: [
         in: :query,
-        type: :string,
-        description:
-          "Return cache runs that executed at or after this timestamp. Accepts Unix seconds or a timestamp string such as 2026-01-15T10:00:00Z."
-      ],
-      ran_before: [
-        in: :query,
-        type: :string,
-        description:
-          "Return cache runs that executed at or before this timestamp. Accepts Unix seconds or a timestamp string such as 2026-01-15T10:00:00Z."
+        style: :deepObject,
+        explode: true,
+        type: %Schema{
+          type: :object,
+          additionalProperties: false,
+          properties: %{
+            gt: %Schema{type: :integer, format: :int64},
+            gte: %Schema{type: :integer, format: :int64},
+            lt: %Schema{type: :integer, format: :int64},
+            lte: %Schema{type: :integer, format: :int64}
+          }
+        },
+        description: "Filter by execution time using ran_at[gt], ran_at[gte], ran_at[lt], or ran_at[lte] Unix seconds."
       ],
       page_size: [
         in: :query,
@@ -332,69 +336,34 @@ defmodule TuistWeb.API.CacheRunsController do
     end
   end
 
-  defp ran_at_filters_from_params(params) do
-    with {:ok, ran_after_filter} <- ran_at_filter_from_params(params, :ran_after, :>=),
-         {:ok, ran_before_filter} <- ran_at_filter_from_params(params, :ran_before, :<=) do
-      {:ok, Enum.reject([ran_after_filter, ran_before_filter], &is_nil/1)}
-    end
+  defp ran_at_filters_from_params(%{ran_at: ran_at}) when is_map(ran_at) do
+    Enum.reduce_while([{:gt, :>}, {:gte, :>=}, {:lt, :<}, {:lte, :<=}], {:ok, []}, fn {param, op}, {:ok, filters} ->
+      case Map.get(ran_at, param) do
+        nil ->
+          {:cont, {:ok, filters}}
+
+        value ->
+          case parse_unix_timestamp(value) do
+            {:ok, datetime} ->
+              {:cont, {:ok, filters ++ [%{field: :ran_at, op: op, value: datetime}]}}
+
+            :error ->
+              {:halt, {:error, "`ran_at[#{param}]` must be a valid Unix timestamp."}}
+          end
+      end
+    end)
   end
 
-  defp ran_at_filter_from_params(params, param, op) do
-    case Map.get(params, param) do
-      nil ->
-        {:ok, nil}
+  defp ran_at_filters_from_params(_params), do: {:ok, []}
 
-      value ->
-        case parse_datetime_filter(value) do
-          {:ok, datetime} ->
-            {:ok, %{field: :ran_at, op: op, value: datetime}}
-
-          :error ->
-            {:error, "`#{param}` must be a valid Unix timestamp or timestamp string such as 2026-01-15T10:00:00Z."}
-        end
-    end
-  end
-
-  defp parse_datetime_filter(value) when is_integer(value), do: parse_unix_timestamp(value)
-
-  defp parse_datetime_filter(value) when is_binary(value) do
-    value = String.trim(value)
-
-    cond do
-      value == "" ->
-        :error
-
-      Regex.match?(~r/^-?\d+$/, value) ->
-        value
-        |> String.to_integer()
-        |> parse_unix_timestamp()
-
-      true ->
-        parse_timestamp_string(value)
-    end
-  end
-
-  defp parse_datetime_filter(_), do: :error
-
-  defp parse_unix_timestamp(value) do
+  defp parse_unix_timestamp(value) when is_integer(value) and value >= 0 do
     case DateTime.from_unix(value) do
       {:ok, datetime} -> {:ok, DateTime.to_naive(datetime)}
       _ -> :error
     end
   end
 
-  defp parse_timestamp_string(value) do
-    case DateTime.from_iso8601(value) do
-      {:ok, datetime, _offset} ->
-        {:ok, DateTime.to_naive(datetime)}
-
-      _ ->
-        case NaiveDateTime.from_iso8601(value) do
-          {:ok, datetime} -> {:ok, datetime}
-          _ -> :error
-        end
-    end
-  end
+  defp parse_unix_timestamp(_value), do: :error
 
   defp date_to_unix(%DateTime{} = datetime), do: DateTime.to_unix(datetime)
 
