@@ -114,6 +114,21 @@ defmodule TuistWeb.CacheLiveTest do
     assert html =~ "0.5.2"
   end
 
+  test "renders a replicating server without crashing", %{conn: conn, account: account} do
+    enable_cache(account)
+    stub(Kura, :latest_versions, fn 1 -> [] end)
+
+    {:ok, server} =
+      Kura.create_server(%{account_id: account.id, region: "local-controller", image_tag: "0.5.2"})
+
+    {:ok, _server} =
+      Kura.record_observation(server, %{status: :replicating, current_image_tag: "0.5.2"})
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/cache")
+
+    assert html =~ "Replicating"
+  end
+
   test "renders the self-hosted sections", %{conn: conn, account: account} do
     enable_cache(account)
     stub(Kura, :latest_versions, fn 1 -> [] end)
