@@ -82,6 +82,7 @@ func main() {
 		tartKubeletHostCPU           int
 		tartKubeletHostMemory        int
 		tartKubeletMaxPods           int
+		tartKubeletRunnerCacheRoot   string
 		tartKubeletMaxUpdateAttempts int
 		bootstrapRebootAfter         int
 		bootstrapMaxAttempts         int
@@ -200,6 +201,9 @@ func main() {
 		"Max concurrent Pods on each Mac mini. Capped at 2 by Apple's macOS SLA "+
 			"(no more than two simultaneous virtualized macOS instances per host); "+
 			"Tart refuses to start a third VM.")
+	flag.StringVar(&tartKubeletRunnerCacheRoot, "tartkubelet-runner-cache-root",
+		envOrDefault("CAPI_TARTKUBELET_RUNNER_CACHE_ROOT", ""),
+		"Host directory passed through to tart-kubelet --runner-cache-root. Empty disables host-local runner cache volume mounting.")
 	flag.IntVar(&tartKubeletMaxUpdateAttempts, "tartkubelet-max-update-attempts", 5,
 		"Drift-loop retries before transitioning the CR to a terminal Failed state. "+
 			"Set to 0 to disable the cap (not recommended for production).")
@@ -476,6 +480,7 @@ func main() {
 		TartKubeletHostCPU:           tartKubeletHostCPU,
 		TartKubeletHostMemoryMB:      tartKubeletHostMemory,
 		TartKubeletMaxPods:           tartKubeletMaxPods,
+		TartKubeletRunnerCacheRoot:   tartKubeletRunnerCacheRoot,
 		TartKubeletMaxUpdateAttempts: int32(tartKubeletMaxUpdateAttempts),
 		BootstrapRebootAfter:         int32(bootstrapRebootAfter),
 		BootstrapMaxAttempts:         int32(bootstrapMaxAttempts),

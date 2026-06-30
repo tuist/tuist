@@ -105,6 +105,12 @@ variable "runner_version" {
   default = "2.334.0"
 }
 
+variable "kura_version" {
+  type        = string
+  description = "Kura release version to install into the runner image for the runner-local cache endpoint. Empty skips installation."
+  default     = ""
+}
+
 # VM CPU/memory baked into the Tart image. Kept at 4 / 8 (same
 # shape as the xcresult-processor image) so the build runs on
 # the existing M1-M `vm-image-builder` Mac mini — the host has
@@ -146,8 +152,8 @@ source "tart-cli" "runner" {
   # tight values held for years on the original Mac mini but timed out
   # on newly-onboarded hosts. 15m gives headroom for the cold path on a
   # cirruslabs Tahoe base; the warm path returns long before then.
-  ssh_timeout  = "15m"
-  headless     = true
+  ssh_timeout = "15m"
+  headless    = true
 }
 
 build {
@@ -221,6 +227,26 @@ build {
     ]
   }
 
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "if [ -z \"${var.kura_version}\" ]; then echo 'Skipping Kura install: kura_version is empty'; exit 0; fi",
+      "ARCH=\"$(uname -m)\"",
+      "case \"$ARCH\" in arm64) KURA_ASSET='kura-aarch64-apple-darwin.tar.gz' ;; x86_64) KURA_ASSET='kura-x86_64-apple-darwin.tar.gz' ;; *) echo \"Unsupported Kura architecture: $ARCH\" >&2; exit 1 ;; esac",
+      "KURA_URL=\"https://github.com/tuist/tuist/releases/download/kura@${var.kura_version}/$KURA_ASSET\"",
+      "echo \"Installing Kura ${var.kura_version} from $KURA_URL\"",
+      "rm -rf /tmp/kura-install /tmp/kura.tar.gz",
+      "mkdir -p /tmp/kura-install",
+      "curl -fsSL -o /tmp/kura.tar.gz \"$KURA_URL\"",
+      "tar -xzf /tmp/kura.tar.gz -C /tmp/kura-install",
+      "KURA_BIN=\"$(find /tmp/kura-install -type f -name kura | head -n 1)\"",
+      "test -n \"$KURA_BIN\"",
+      "sudo install -m 0755 \"$KURA_BIN\" /usr/local/bin/kura",
+      "test -x /usr/local/bin/kura",
+      "rm -rf /tmp/kura-install /tmp/kura.tar.gz"
+    ]
+  }
+
   provisioner "file" {
     source      = "${path.root}/inject-env.sh"
     destination = "/tmp/inject-env.sh"
@@ -236,12 +262,18 @@ build {
     destination = "/tmp/metrics-poll.sh"
   }
 
+  provisioner "file" {
+    source      = "${path.root}/local-kura.sh"
+    destination = "/tmp/local-kura.sh"
+  }
+
   provisioner "shell" {
     inline = [
       "echo 'admin' | sudo -S install -m 0755 /tmp/inject-env.sh /opt/tuist/inject-env.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/dispatch-poll.sh /opt/tuist/dispatch-poll.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/metrics-poll.sh /opt/tuist/metrics-poll.sh",
-      "rm -f /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh"
+      "echo 'admin' | sudo -S install -m 0755 /tmp/local-kura.sh /opt/tuist/local-kura.sh",
+      "rm -f /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh /tmp/local-kura.sh"
     ]
   }
 

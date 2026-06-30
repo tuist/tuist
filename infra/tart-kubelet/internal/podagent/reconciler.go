@@ -71,6 +71,11 @@ type Reconciler struct {
 	Resolver *envresolver.Resolver
 	Store    *Store
 
+	// CacheVolumes prepares per-VM runner cache shares for Pods that
+	// opt in via RunnerCacheVolumeAnnotation. Optional; nil keeps
+	// the current no-cache-share behavior.
+	CacheVolumes *CacheVolumeManager
+
 	// TokenMinter mints projected ServiceAccount tokens for Pods
 	// whose Spec.AutomountServiceAccountToken is true. Optional —
 	// when nil, no token is staged (the env file is the only file
@@ -142,7 +147,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			// fires today is if the Pod was created without our
 			// finalizer or someone yanked it manually). Best-effort
 			// VM cleanup still runs from the in-memory Store.
-			r.deleteByKey(ctx, req.Namespace, req.Name)
+			if err := r.deleteByKey(ctx, req.Namespace, req.Name); err != nil {
+				logger.Error(err, "delete orphaned VM; will retry")
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
@@ -235,7 +243,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// Store entry); only the published Phase differs.
 	if entry := r.Store.Get(pod.Namespace, pod.Name); entry != nil && entry.Run != nil {
 		if exitErr, exited := entry.Run.Exited(); exited {
-			_ = r.deleteByKey(ctx, pod.Namespace, pod.Name)
+			if err := r.deleteByKey(ctx, pod.Namespace, pod.Name); err != nil {
+				logger.Error(err, "delete exited VM; will retry")
+				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+			}
 
 			status := &corev1.PodStatus{Reason: "TartRunExited"}
 			if exitErr == nil {
@@ -252,6 +263,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 			_ = r.publishStatus(ctx, pod, status)
 			return ctrl.Result{}, nil
+		}
+	}
+
+	if entry := r.Store.Get(pod.Namespace, pod.Name); entry != nil {
+		if err := r.prepareCacheVolume(ctx, pod, entry); err != nil {
+			logger.Error(err, "prepare runner cache volume; will retry")
+			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 		}
 	}
 
@@ -311,6 +329,7 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	if err != nil {
 		return err
 	}
+	sharedDirs := []string{"env:" + envDir + ":ro"}
 
 	// Mint + stage a projected SA token alongside the env file when
 	// the Pod opts in via AutomountServiceAccountToken. The VM's
@@ -406,6 +425,15 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	// pull/clone time the boot histogram (which starts at `tart run`) can't.
 	podProvisionDelaySeconds.WithLabelValues(pool).Observe(time.Since(pod.CreationTimestamp.Time).Seconds())
 
+	cacheShareDir := ""
+	if r.CacheVolumes.EnabledForPod(pod) {
+		cacheShareDir, err = r.CacheVolumes.StageVM(vmName)
+		if err != nil {
+			return fmt.Errorf("stage runner cache volume: %w", err)
+		}
+		sharedDirs = append(sharedDirs, RunnerCacheShareName+":"+cacheShareDir+":rw")
+	}
+
 	// Record the Pod ↔ VM mapping before kicking the VM off so the
 	// rest of the system (deletePod, GC, recoverState) can keep
 	// track of it even if `tart run` exits oddly. Without this an
@@ -413,18 +441,22 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	// and the GC loop would happily reap it on the next pass —
 	// exactly the orphan we used to clean up reactively.
 	entry := &Entry{
-		VMName:  vmName,
-		StartTS: metav1.Now(),
+		VMName:        vmName,
+		StartTS:       metav1.Now(),
+		CacheShareDir: cacheShareDir,
 	}
 	r.Store.Put(pod.Namespace, pod.Name, entry)
 
-	handle, err := r.Tart.Run(ctx, vmName, []string{"env:" + envDir + ":ro"})
+	handle, err := r.Tart.Run(ctx, vmName, sharedDirs)
 	if err != nil {
 		// Roll back the Store entry — the VM either never started
 		// (cmd.Start error) or `tart run` exited immediately, so
 		// there is no live VM for podStatus to observe and no
 		// background process for deletePod to tear down.
 		r.Store.Delete(pod.Namespace, pod.Name)
+		if r.CacheVolumes.EnabledForPod(pod) {
+			_ = r.CacheVolumes.CleanupVM(vmName)
+		}
 		return fmt.Errorf("tart run: %w", err)
 	}
 	entry.Run = handle
@@ -690,12 +722,27 @@ func (r *Reconciler) deleteByKey(ctx context.Context, namespace, name string) er
 	}
 
 	_ = r.Tart.Stop(ctx, entry.VMName, 30*time.Second)
+	if r.CacheVolumes != nil {
+		if err := r.CacheVolumes.Finalize(ctx, entry); err != nil {
+			return err
+		}
+		if err := r.CacheVolumes.CleanupVM(entry.VMName); err != nil {
+			return err
+		}
+	}
 	if err := r.Tart.Delete(ctx, entry.VMName); err != nil {
 		return fmt.Errorf("tart delete: %w", err)
 	}
 	_ = r.Tart.CleanupVMUserData(entry.VMName)
 	r.Store.Delete(namespace, name)
 	return nil
+}
+
+func (r *Reconciler) prepareCacheVolume(ctx context.Context, pod *corev1.Pod, entry *Entry) error {
+	if r.CacheVolumes == nil {
+		return nil
+	}
+	return r.CacheVolumes.Bind(ctx, pod, entry)
 }
 
 // podStatus reads the underlying VM and translates to a Pod status.
@@ -748,7 +795,9 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 		// entry so the host state mirrors what the API server
 		// will see post-update, then mark the Pod Succeeded so
 		// the watcher refills the warm pool.
-		_ = r.deleteByKey(ctx, pod.Namespace, pod.Name)
+		if err := r.deleteByKey(ctx, pod.Namespace, pod.Name); err != nil {
+			return nil, err
+		}
 		status.Phase = corev1.PodSucceeded
 		status.Reason = "TartRunExited"
 		return status, nil
@@ -955,6 +1004,12 @@ type Entry struct {
 	VMName  string
 	StartTS metav1.Time
 	Run     *tart.RunHandle
+	// CacheShareDir is the host directory mounted into the VM as
+	// RunnerCacheShareName. CachePreparedAccountID is set after the
+	// dispatch-time account label has been observed and the per-VM
+	// share has been populated from that account's warm cache.
+	CacheShareDir          string
+	CachePreparedAccountID string
 	// BootObserved is true after we've recorded
 	// `tart_kubelet_vm_boot_duration_seconds` for this VM. The
 	// histogram observes once per VM (at the Pending→Running

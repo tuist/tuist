@@ -65,6 +65,7 @@ func main() {
 		metricsAddr        string
 		probeAddr          string
 		tartBinary         string
+		runnerCacheRoot    string
 		disableVMGC        bool
 	)
 	flag.StringVar(&nodeName, "node-name", envOr("TART_KUBELET_NODE_NAME", ""), "Node name to register as. Defaults to os.Hostname() when empty.")
@@ -102,6 +103,8 @@ func main() {
 			"the endpoint on the WAN.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint.")
 	flag.StringVar(&tartBinary, "tart-binary", "/usr/local/bin/tart", "Path to the local tart CLI.")
+	flag.StringVar(&runnerCacheRoot, "runner-cache-root", envOr("TART_KUBELET_RUNNER_CACHE_ROOT", ""),
+		"Host directory containing runner cache volumes. When set, Pods annotated with tart-kubelet.tuist.dev/runner-cache-volume=true get a per-VM tuist-cache share cloned from <root>/accounts/<account-id>/current once the Tuist server stamps tuist.dev/runner-account.")
 	flag.BoolVar(&disableVMGC, "disable-vm-gc", false,
 		"Disable the periodic orphan-VM garbage collector. The GC deletes every local "+
 			"Tart VM not backed by a Pod scheduled to this Node. On builder-fleet Nodes — "+
@@ -255,6 +258,11 @@ func main() {
 		setupLog.Error(err, "state recovery failed; reconciles may treat existing VMs as stale")
 	}
 
+	var cacheVolumes *podagent.CacheVolumeManager
+	if runnerCacheRoot != "" {
+		cacheVolumes = &podagent.CacheVolumeManager{RootDir: runnerCacheRoot}
+	}
+
 	// Typed kubernetes.Interface for TokenRequest — the
 	// controller-runtime client doesn't expose CreateToken on
 	// ServiceAccounts because TokenRequest is a subresource that
@@ -273,6 +281,7 @@ func main() {
 		Tart:               tartClient,
 		Resolver:           resolver,
 		Store:              store,
+		CacheVolumes:       cacheVolumes,
 		TokenMinter:        &satoken.ClientMinter{Client: typedClient, ExpirationSeconds: 3600},
 		GC:                 gcCollector,
 		Recorder:           mgr.GetEventRecorderFor("tart-kubelet"),

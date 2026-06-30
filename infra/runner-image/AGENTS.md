@@ -39,6 +39,11 @@ runtime — no service, sudo entry, or auto-login targets it.
   (`top`/`vm_stat`/`netstat`/`df`) for the job's duration and POSTs to
   `…/pods/<pod>/metrics` with the same SA token, dying with the VM when
   the job ends. Best-effort; never blocks the job.
+- `/opt/tuist/local-kura.sh` — waits for tart-kubelet's
+  `tuist-cache` shared directory to be populated for the dispatched
+  account, starts the baked `/usr/local/bin/kura` against that directory,
+  and lets `dispatch-poll.sh` route the job's `TUIST_CACHE_ENDPOINT` to
+  the in-VM localhost cache endpoint.
 - `/Users/runner/Library/LaunchAgents/dev.tuist.runner.plist` —
   the LaunchAgent that auto-runs `inject-env.sh` then
   `dispatch-poll.sh` once runner's user session starts at boot.

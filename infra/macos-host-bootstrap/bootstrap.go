@@ -215,6 +215,12 @@ type Config struct {
 	// follow with `kubeadm`'s `kubeletExtraArgs.node-labels`.
 	NodeLabels map[string]string
 
+	// RunnerCacheRoot is the host directory tart-kubelet uses for
+	// dispatch-bound runner cache volumes. When set, tart-kubelet can
+	// mount per-VM `tuist-cache` shares and clone account warm caches
+	// from <root>/accounts/<account-id>/current into them.
+	RunnerCacheRoot string
+
 	// KnownHostFingerprint is the SHA256 fingerprint of the SSH
 	// server's host key, persisted by the controller after the first
 	// successful bootstrap. When empty (first reconcile, fleet
@@ -605,6 +611,13 @@ func loadTartKubeletLaunchd(ctx context.Context, client *ssh.Client, cfg Config)
 // owns kubelet's writable paths, so it is config-shaped and folds into
 // the host config hash.
 func renderTartKubeletLaunchdScript(cfg Config) string {
+	installDirs := "/var/log/tart-vms /var/lib/tart-userdata /etc/tart-kubelet"
+	chownDirs := "/var/log/tart-vms /var/lib/tart-userdata /var/log/tart-kubelet.log"
+	if cfg.RunnerCacheRoot != "" {
+		quotedRoot := shellQuote(cfg.RunnerCacheRoot)
+		installDirs += " " + quotedRoot
+		chownDirs += " " + quotedRoot
+	}
 	return fmt.Sprintf(`set -euo pipefail
 PLIST=/Library/LaunchDaemons/dev.tuist.tart-kubelet.plist
 NEW="$(mktemp)"
@@ -614,9 +627,9 @@ cat >"$NEW"
 # owned by the user with the live GUI console session — see
 # renderLaunchdPlist's UserName field. Hand kubelet-writable paths to
 # that user so it can write VM logs / userdata / read its kubeconfig.
-sudo mkdir -p /var/log/tart-vms /var/lib/tart-userdata /etc/tart-kubelet
+sudo mkdir -p %[2]s
 sudo touch /var/log/tart-kubelet.log
-sudo chown -R %[1]s:staff /var/log/tart-vms /var/lib/tart-userdata /var/log/tart-kubelet.log
+sudo chown -R %[1]s:staff %[3]s
 sudo chown %[1]s:staff /etc/tart-kubelet/kubeconfig
 sudo chmod 0600 /etc/tart-kubelet/kubeconfig
 
@@ -663,7 +676,7 @@ sudo launchctl kickstart -k system/dev.tuist.tart-kubelet 2>/dev/null || true
 settled && exit 0
 echo "tart-kubelet did not reach a running state after launchd reload" >&2
 exit 1
-`, shellQuote(cfg.SSHUser))
+`, shellQuote(cfg.SSHUser), installDirs, chownDirs)
 }
 
 func renderLaunchdPlist(cfg Config) string {
@@ -750,6 +763,10 @@ func renderLaunchdPlist(cfg Config) string {
 	if cfg.GHActionsRunner != nil || cfg.DisableVMGC {
 		disableVMGCArg = "\n    <string>--disable-vm-gc</string>"
 	}
+	runnerCacheRootArg := ""
+	if cfg.RunnerCacheRoot != "" {
+		runnerCacheRootArg = fmt.Sprintf("\n    <string>--runner-cache-root=%s</string>", cfg.RunnerCacheRoot)
+	}
 	// Run tart-kubelet as the SSH user (m1). Apple's
 	// Virtualization.framework requires the calling process to be the
 	// same user that holds the live GUI console session — Tart's
@@ -772,7 +789,7 @@ func renderLaunchdPlist(cfg Config) string {
     <string>--kubeconfig=/etc/tart-kubelet/kubeconfig</string>
     <string>--host-cpu=%[2]d</string>
     <string>--host-memory-mb=%[3]d</string>
-    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s
+    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s%[10]s
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -786,7 +803,7 @@ func renderLaunchdPlist(cfg Config) string {
   </dict>
 </dict>
 </plist>
-`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg)
+`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg, runnerCacheRootArg)
 }
 
 func shellQuote(s string) string {
