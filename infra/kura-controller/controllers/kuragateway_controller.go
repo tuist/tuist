@@ -143,10 +143,19 @@ func (r *KuraGatewayReconciler) deleteRenamedIngressClass(ctx context.Context, g
 // infra/helm/platform/values.yaml must stay equal; TestGatewayNginxConfigMatchesChart
 // asserts that (required keys present and matching, any other shared key
 // matching where a region sets it) so the two render paths cannot drift.
-func gatewayNginxConfigData() map[string]string {
+//
+// hostNetwork gateways (bare-metal regions) sit directly on the box NIC with no
+// LoadBalancer to prepend a PROXY header, so proxy-protocol must be off there or
+// it mangles every connection — the same override the platform chart applies to
+// its host-network regional gateways. The LB-fronted path keeps it on.
+func gatewayNginxConfigData(hostNetwork bool) map[string]string {
+	useProxyProtocol := "true"
+	if hostNetwork {
+		useProxyProtocol = "false"
+	}
 	return map[string]string{
 		"use-forwarded-headers":       "true",
-		"use-proxy-protocol":          "true",
+		"use-proxy-protocol":          useProxyProtocol,
 		"compute-full-forwarded-for":  "true",
 		"upstream-keepalive-timeout":  "10",
 		"allow-snippet-annotations":   "false",
@@ -179,7 +188,7 @@ func (r *KuraGatewayReconciler) reconcileGatewayConfigMap(ctx context.Context, g
 			return err
 		}
 		configMap.Labels = gatewayLabels(gateway)
-		configMap.Data = gatewayNginxConfigData()
+		configMap.Data = gatewayNginxConfigData(gateway.Spec.HostNetwork)
 		return nil
 	})
 	return err
@@ -245,6 +254,30 @@ func (r *KuraGatewayReconciler) reconcileGatewayDeployment(ctx context.Context, 
 	return err
 }
 
+// gatewayControllerArgs builds the ingress-nginx controller flags. A
+// LoadBalancer-fronted gateway publishes its Service's external IP into Ingress
+// status via --publish-service. A host-network gateway has no LoadBalancer, so it
+// must report the node's own InternalIP (the box's public IP) instead —
+// otherwise external-dns would resolve the per-account host to the unreachable
+// ClusterIP. Mirrors the platform chart's reportNodeInternalIp for its
+// host-network regional gateways.
+func gatewayControllerArgs(gateway *kurav1alpha1.KuraGateway) []string {
+	args := []string{
+		"/nginx-ingress-controller",
+		"--election-id=" + gateway.Name + "-leader",
+		"--controller-class=" + gatewayControllerClassName(gateway),
+		"--ingress-class=" + gatewayIngressClassName(gateway),
+		"--configmap=$(POD_NAMESPACE)/" + gatewayWorkloadName(gateway),
+		"--watch-namespace=$(POD_NAMESPACE)",
+	}
+	if gateway.Spec.HostNetwork {
+		args = append(args, "--report-node-internal-ip-address=true")
+	} else {
+		args = append(args, "--publish-service=$(POD_NAMESPACE)/"+gatewayWorkloadName(gateway))
+	}
+	return args
+}
+
 func gatewayPodTemplate(gateway *kurav1alpha1.KuraGateway, serviceAccountName string) corev1.PodTemplateSpec {
 	return corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{Labels: gatewaySelectorLabels(gateway)},
@@ -257,15 +290,7 @@ func gatewayPodTemplate(gateway *kurav1alpha1.KuraGateway, serviceAccountName st
 				Name:            "controller",
 				Image:           gatewayControllerImage(gateway),
 				ImagePullPolicy: corev1.PullIfNotPresent,
-				Args: []string{
-					"/nginx-ingress-controller",
-					"--publish-service=$(POD_NAMESPACE)/" + gatewayWorkloadName(gateway),
-					"--election-id=" + gateway.Name + "-leader",
-					"--controller-class=" + gatewayControllerClassName(gateway),
-					"--ingress-class=" + gatewayIngressClassName(gateway),
-					"--configmap=$(POD_NAMESPACE)/" + gatewayWorkloadName(gateway),
-					"--watch-namespace=$(POD_NAMESPACE)",
-				},
+				Args: gatewayControllerArgs(gateway),
 				Env: gateway.Spec.Environment(),
 				Ports: []corev1.ContainerPort{
 					{Name: "http", ContainerPort: 80, Protocol: corev1.ProtocolTCP},

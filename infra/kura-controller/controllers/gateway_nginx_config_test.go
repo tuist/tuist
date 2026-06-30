@@ -66,7 +66,10 @@ func TestGatewayNginxConfigMatchesChart(t *testing.T) {
 		t.Fatalf("parse chart values: %v", err)
 	}
 
-	controller := gatewayNginxConfigData()
+	// false = the LB-fronted config the chart's base values.yaml encodes
+	// (use-proxy-protocol: true). Host-network is a per-region override (false),
+	// not part of this anchored-config parity check.
+	controller := gatewayNginxConfigData(false)
 
 	// Guard the required list against drifting from the controller itself: a
 	// required key the controller no longer produces is a test-maintenance bug.
