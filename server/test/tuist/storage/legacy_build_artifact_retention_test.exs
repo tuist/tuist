@@ -1,5 +1,5 @@
 defmodule Tuist.Storage.LegacyBuildArtifactRetentionTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   use Mimic
 
   alias Tuist.Accounts.Account
@@ -8,6 +8,8 @@ defmodule Tuist.Storage.LegacyBuildArtifactRetentionTest do
   alias Tuist.Repo
   alias Tuist.Storage
   alias Tuist.Storage.LegacyBuildArtifactRetention
+
+  setup :set_mimic_from_context
 
   describe "delete_expired/1" do
     test "deletes expired legacy build artifacts from the managed storage bucket" do
