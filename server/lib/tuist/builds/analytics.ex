@@ -2253,6 +2253,340 @@ defmodule Tuist.Builds.Analytics do
   end
 
   @doc """
+  Returns per-module cache invalidation analytics for a project over a time period.
+
+  For each cacheable module (keyed by `name` + `product`) it reports how often the
+  module was a cache miss ("invalidated"), how often it appeared, and — by comparing
+  each missed build to the module's previous build on the same branch — whether the
+  invalidation was caused by the module's own content changing (`self_changes`) or
+  only by one of its dependencies changing (`dependency_induced`).
+
+  The classification window partitions by branch so a `main` build is never compared
+  against a feature-branch build, regardless of the `:git_branch` filter.
+
+  ## Options
+    * `:project_id` - The project ID (required)
+    * `:start_datetime` / `:end_datetime` - Analytics window
+    * `:is_ci` - When set, restricts to CI (`true`) or local (`false`) runs
+    * `:git_branch` - When set, restricts to a single branch
+    * `:limit` - Max number of modules returned (default 30), ordered by invalidations desc
+
+  ## Returns
+    A list of maps with `:name`, `:product`, `:appearances`, `:invalidations`,
+    `:invalidation_rate` (percentage), `:self_changes`, `:dependency_induced`, and
+    `:unclassified` (misses with no comparable prior build: first-seen / cold / evicted).
+  """
+  def module_invalidations(opts \\ []) do
+    project_id = Keyword.fetch!(opts, :project_id)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    limit = Keyword.get(opts, :limit, 30)
+
+    {filter_sql, filter_params} = module_invalidation_filters(opts)
+    {name_sql, name_params} = module_name_filter(opts)
+
+    params =
+      %{project_id: project_id, start: start_datetime, end: end_datetime, limit: limit}
+      |> Map.merge(filter_params)
+      |> Map.merge(name_params)
+
+    query = """
+    SELECT name, product, appearances, invalidations, self_changes, dependency_induced
+    FROM (
+      SELECT
+        name,
+        product,
+        count() AS appearances,
+        countIf(hit = 'miss') AS invalidations,
+        countIf(hit = 'miss' AND rn > 1 AND own != prev_own) AS self_changes,
+        countIf(
+          hit = 'miss' AND rn > 1 AND own = prev_own AND (deps != prev_deps OR ext != prev_ext)
+        ) AS dependency_induced
+      FROM (
+        SELECT
+          name, product, hit, own, deps, ext,
+          row_number() OVER w AS rn,
+          lagInFrame(own, 1) OVER w AS prev_own,
+          lagInFrame(deps, 1) OVER w AS prev_deps,
+          lagInFrame(ext, 1) OVER w AS prev_ext
+        FROM (
+          SELECT
+            xt.name AS name,
+            xt.product AS product,
+            xt.binary_cache_hit AS hit,
+            e.ran_at AS ran_at,
+            coalesce(e.git_branch, '') AS branch,
+            cityHash64(
+              xt.sources_hash, xt.resources_hash, xt.copy_files_hash, xt.core_data_models_hash,
+              xt.target_scripts_hash, xt.environment_hash, xt.headers_hash, xt.deployment_target_hash,
+              xt.info_plist_hash, xt.entitlements_hash, xt.project_settings_hash,
+              xt.target_settings_hash, xt.buildable_folders_hash
+            ) AS own,
+            xt.dependencies_hash AS deps,
+            xt.external_hash AS ext
+          FROM xcode_targets AS xt
+          INNER JOIN command_events AS e ON xt.command_event_id = e.id
+          WHERE e.project_id = {project_id:Int64}
+            AND e.ran_at >= {start:DateTime64(6)}
+            AND e.ran_at <= {end:DateTime64(6)}
+            AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{name_sql}
+        )
+        WINDOW w AS (
+          PARTITION BY name, product, branch
+          ORDER BY ran_at ASC
+          ROWS BETWEEN 1 PRECEDING AND CURRENT ROW
+        )
+      )
+      GROUP BY name, product
+      HAVING invalidations > 0
+    )
+    ORDER BY invalidations DESC, appearances DESC
+    LIMIT {limit:UInt32}
+    """
+
+    case ClickHouseRepo.query(query, params) do
+      {:ok, %{rows: rows}} ->
+        radii = opts |> latest_graph_dependencies() |> blast_radii()
+
+        Enum.map(rows, fn [name, product, appearances, invalidations, self_changes, dependency_induced] ->
+          %{
+            name: name,
+            product: product,
+            appearances: appearances,
+            invalidations: invalidations,
+            invalidation_rate: invalidation_rate(invalidations, appearances),
+            self_changes: self_changes,
+            dependency_induced: dependency_induced,
+            unclassified: max(invalidations - (self_changes + dependency_induced), 0),
+            # nil when the latest graph carries no dependency edges (older CLI);
+            # an integer (0 for a leaf) once edges are present.
+            blast_radius: Map.get(radii, name)
+          }
+        end)
+
+      _ ->
+        []
+    end
+  end
+
+  # Fetches the most recent build (in the window/filters) that carries dependency
+  # edges and returns a `%{module_name => [dependency names]}` map for its targets.
+  # Empty when no build has edges yet, which keeps blast radius unknown (nil).
+  defp latest_graph_dependencies(opts) do
+    project_id = Keyword.fetch!(opts, :project_id)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    {filter_sql, filter_params} = module_invalidation_filters(opts)
+
+    params =
+      Map.merge(%{project_id: project_id, start: start_datetime, end: end_datetime}, filter_params)
+
+    query = """
+    SELECT xt.name AS name, xt.dependencies AS dependencies
+    FROM xcode_targets AS xt
+    WHERE xt.command_event_id = (
+      SELECT e.id
+      FROM command_events AS e
+      INNER JOIN xcode_targets AS dep_xt ON dep_xt.command_event_id = e.id
+      WHERE e.project_id = {project_id:Int64}
+        AND e.ran_at >= {start:DateTime64(6)}
+        AND e.ran_at <= {end:DateTime64(6)}
+        AND notEmpty(dep_xt.dependencies)#{filter_sql}
+      ORDER BY e.ran_at DESC
+      LIMIT 1
+    )
+    """
+
+    case ClickHouseRepo.query(query, params) do
+      {:ok, %{rows: rows}} -> Map.new(rows, fn [name, dependencies] -> {name, dependencies} end)
+      _ -> %{}
+    end
+  end
+
+  # Blast radius of a module = the number of other modules that transitively depend
+  # on it, i.e. how many modules it invalidates when it changes. Computed by
+  # reverse-reachability over the dependency graph.
+  defp blast_radii(deps_by_module) when map_size(deps_by_module) == 0, do: %{}
+
+  defp blast_radii(deps_by_module) do
+    reverse = reverse_edges(deps_by_module)
+
+    deps_by_module
+    |> Map.keys()
+    |> Map.new(fn module -> {module, module |> downstream_dependents(reverse) |> MapSet.size()} end)
+  end
+
+  @doc """
+  Given the dependency `edges` (`%{module => [dependencies]}`) and a module name,
+  returns the transitive set of modules that depend on it — i.e. everything it
+  invalidates downstream when it changes. Matches the module's blast radius.
+  """
+  def module_transitive_dependents(edges, name) do
+    edges
+    |> reverse_edges()
+    |> then(&downstream_dependents(name, &1))
+    |> MapSet.to_list()
+  end
+
+  defp reverse_edges(deps_by_module) do
+    module_set = deps_by_module |> Map.keys() |> MapSet.new()
+
+    Enum.reduce(deps_by_module, %{}, fn {module, deps}, acc ->
+      deps
+      |> Enum.filter(&MapSet.member?(module_set, &1))
+      |> Enum.uniq()
+      |> Enum.reduce(acc, fn dep, acc2 -> Map.update(acc2, dep, [module], &[module | &1]) end)
+    end)
+  end
+
+  defp downstream_dependents(module, reverse), do: do_downstream([module], reverse, MapSet.new())
+
+  defp do_downstream([], _reverse, visited), do: visited
+
+  defp do_downstream([module | rest], reverse, visited) do
+    new = reverse |> Map.get(module, []) |> Enum.reject(&MapSet.member?(visited, &1))
+    visited = Enum.reduce(new, visited, &MapSet.put(&2, &1))
+    do_downstream(rest ++ new, reverse, visited)
+  end
+
+  @doc """
+  Returns the distinct git branches with cacheable runs for a project in a window,
+  used to populate the branch filter on the module cache dashboard.
+  """
+  def cache_branches(opts \\ []) do
+    project_id = Keyword.fetch!(opts, :project_id)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    ClickHouseRepo.all(
+      from(e in Event,
+        where:
+          e.project_id == ^project_id and
+            e.ran_at >= ^start_datetime and
+            e.ran_at <= ^end_datetime and
+            e.cacheable_targets_count > 0 and
+            not is_nil(e.git_branch) and e.git_branch != "",
+        distinct: true,
+        order_by: [asc: e.git_branch],
+        limit: 100,
+        select: e.git_branch
+      )
+    )
+  end
+
+  defp module_invalidation_filters(opts) do
+    {sql, params} =
+      case Keyword.get(opts, :is_ci) do
+        true -> {" AND e.is_ci = true", %{}}
+        false -> {" AND e.is_ci = false", %{}}
+        _ -> {"", %{}}
+      end
+
+    case Keyword.get(opts, :git_branch) do
+      branch when is_binary(branch) and branch != "" ->
+        {sql <> " AND e.git_branch = {branch:String}", Map.put(params, :branch, branch)}
+
+      _ ->
+        {sql, params}
+    end
+  end
+
+  defp invalidation_rate(_invalidations, 0), do: 0.0
+  defp invalidation_rate(invalidations, appearances), do: Float.round(invalidations / appearances * 100, 1)
+
+  defp module_name_filter(opts) do
+    case Keyword.get(opts, :name) do
+      name when is_binary(name) and name != "" -> {" AND xt.name = {name:String}", %{name: name}}
+      _ -> {"", %{}}
+    end
+  end
+
+  @doc """
+  Returns a daily time series for a single module of how often it was a cache
+  miss ("invalidations") versus a hit ("reuses"), for the invalidations vs reuse
+  chart on the module detail page. Requires the `:name` option.
+  """
+  def module_invalidation_timeseries(opts) do
+    project_id = Keyword.fetch!(opts, :project_id)
+    name = Keyword.fetch!(opts, :name)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    {filter_sql, filter_params} = module_invalidation_filters(opts)
+
+    params =
+      Map.merge(
+        %{project_id: project_id, start: start_datetime, end: end_datetime, name: name},
+        filter_params
+      )
+
+    query = """
+    SELECT
+      toDate(e.ran_at) AS day,
+      countIf(xt.binary_cache_hit = 'miss') AS invalidations,
+      countIf(xt.binary_cache_hit != 'miss') AS reuses
+    FROM xcode_targets AS xt
+    INNER JOIN command_events AS e ON xt.command_event_id = e.id
+    WHERE e.project_id = {project_id:Int64}
+      AND e.ran_at >= {start:DateTime64(6)}
+      AND e.ran_at <= {end:DateTime64(6)}
+      AND xt.binary_cache_hash IS NOT NULL
+      AND xt.name = {name:String}#{filter_sql}
+    GROUP BY day
+    ORDER BY day
+    """
+
+    by_day =
+      case ClickHouseRepo.query(query, params) do
+        {:ok, %{rows: rows}} ->
+          Map.new(rows, fn [day, invalidations, reuses] ->
+            {normalize_date(day), %{invalidations: invalidations, reuses: reuses}}
+          end)
+
+        _ ->
+          %{}
+      end
+
+    dates =
+      DateTime.to_date(start_datetime)
+      |> Date.range(DateTime.to_date(end_datetime))
+      |> Enum.to_list()
+
+    %{
+      dates: Enum.map(dates, &Date.to_iso8601/1),
+      invalidations: Enum.map(dates, fn date -> get_in(by_day, [date, :invalidations]) || 0 end),
+      reuses: Enum.map(dates, fn date -> get_in(by_day, [date, :reuses]) || 0 end)
+    }
+  end
+
+  @doc """
+  Returns the project's latest module dependency graph as
+  `%{edges: %{module => [dependency names]}, radii: %{module => blast_radius}}`.
+
+  Used by the module detail page to show what a module is invalidated by (its
+  direct dependencies) and what it invalidates downstream (its direct dependents).
+  Empty edges when no build carries dependency edges yet (older CLI).
+  """
+  def module_dependency_graph(opts) do
+    edges = latest_graph_dependencies(opts)
+    %{edges: edges, radii: blast_radii(edges)}
+  end
+
+  defp normalize_date(%Date{} = date), do: date
+  defp normalize_date(date) when is_binary(date), do: Date.from_iso8601!(date)
+
+  @doc """
   Gets module cache hit rate percentile analytics for a project over a time period.
 
   This function calculates percentile-based hit rates by analyzing individual runs

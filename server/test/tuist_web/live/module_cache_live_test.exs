@@ -7,6 +7,7 @@ defmodule TuistWeb.ModuleCacheLiveTest do
   import Phoenix.LiveViewTest
 
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.XcodeFixtures
   alias TuistWeb.Runs.ModuleCacheTab
 
   describe "module cache page" do
@@ -33,6 +34,45 @@ defmodule TuistWeb.ModuleCacheLiveTest do
       assert has_element?(lv, "#widget-cache-hit-rate")
       assert has_element?(lv, "#widget-cache-hits")
       assert has_element?(lv, "#widget-cache-misses")
+    end
+
+    test "renders the module invalidation card with worst offenders", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-01-31 10:20:30Z] end)
+
+      build = fn created_at, hit, sources ->
+        event =
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            git_branch: "main",
+            created_at: created_at
+          )
+
+        XcodeFixtures.xcode_target_fixture(
+          command_event_id: event.id,
+          name: "Core",
+          product: "framework",
+          binary_cache_hash: "h-#{sources}",
+          binary_cache_hit: hit,
+          sources_hash: sources
+        )
+      end
+
+      build.(~N[2024-01-30 10:00:00], :miss, "s1")
+      build.(~N[2024-01-31 09:00:00], :miss, "s2")
+
+      # When
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache")
+      html = render_async(lv)
+
+      # Then
+      assert has_element?(lv, "#module-invalidations-table")
+      assert has_element?(lv, "#widget-most-invalidated-module")
+      assert html =~ "Core"
     end
   end
 

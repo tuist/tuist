@@ -1,0 +1,273 @@
+<div id="module-cache-module">
+  <div data-part="header">
+    <.link
+      navigate={~p"/#{@selected_project.account.name}/#{@selected_project.name}/module-cache/modules"}
+      data-part="back-link"
+    >
+      {dgettext("dashboard_cache", "← All modules")}
+    </.link>
+    <div data-part="title">
+      <span data-part="name">{@module_name}</span>
+      <.badge
+        :if={@module.ok? && @module.result.product != ""}
+        label={@module.result.product}
+        color="neutral"
+        size="small"
+      />
+    </div>
+  </div>
+
+  <div data-part="filters">
+    <.dropdown
+      id="module-detail-environment-dropdown"
+      label={environment_label(@analytics_environment)}
+      secondary_text={dgettext("dashboard_cache", "Environment:")}
+    >
+      <.dropdown_item
+        :for={{value, label} <- [{"any", dgettext("dashboard_cache", "Any")}, {"local", dgettext("dashboard_cache", "Local")}, {"ci", dgettext("dashboard_cache", "CI")}]}
+        value={value}
+        label={label}
+        patch={"?#{Query.put(@uri.query, "analytics-environment", value)}"}
+        data-selected={@analytics_environment == value}
+      >
+        <:right_icon :if={@analytics_environment == value}><.check /></:right_icon>
+      </.dropdown_item>
+    </.dropdown>
+    <.dropdown
+      id="module-detail-branch-dropdown"
+      label={branch_label(@analytics_branch)}
+      secondary_text={dgettext("dashboard_cache", "Branch:")}
+    >
+      <.dropdown_item
+        value="any"
+        label={dgettext("dashboard_cache", "Any")}
+        patch={"?#{Query.put(@uri.query, "analytics-branch", "any")}"}
+        data-selected={@analytics_branch == "any"}
+      >
+        <:right_icon :if={@analytics_branch == "any"}><.check /></:right_icon>
+      </.dropdown_item>
+      <%= if @cache_branches.ok? do %>
+        <.dropdown_item
+          :for={branch <- @cache_branches.result}
+          value={branch}
+          label={branch}
+          patch={"?#{Query.put(@uri.query, "analytics-branch", branch)}"}
+          data-selected={@analytics_branch == branch}
+        >
+          <:right_icon :if={@analytics_branch == branch}><.check /></:right_icon>
+        </.dropdown_item>
+      <% end %>
+    </.dropdown>
+    <.date_picker
+      id="module-detail-date-range-picker"
+      name="analytics-date-range"
+      presets={[
+        %{id: "last-24-hours", label: dgettext("dashboard_cache", "Last 24 hours"), period: {24, :hour}},
+        %{id: "last-7-days", label: dgettext("dashboard_cache", "Last 7 days"), period: {7, :day}},
+        %{id: "last-30-days", label: dgettext("dashboard_cache", "Last 30 days"), period: {30, :day}},
+        %{id: "last-12-months", label: dgettext("dashboard_cache", "Last 12 months"), period: {12, :month}},
+        %{id: "custom", label: dgettext("dashboard_cache", "Custom")}
+      ]}
+      selected_preset={@analytics_preset}
+      period={@analytics_period}
+      on_period_change="analytics_period_changed"
+      max={Date.utc_today()}
+    >
+      <:actions>
+        <.button
+          label={dgettext("dashboard_cache", "Cancel")}
+          variant="secondary"
+          phx-click={JS.dispatch("phx:date-picker-cancel", detail: %{id: "module-detail-date-range-picker"})}
+        />
+        <.button
+          label={dgettext("dashboard_cache", "Apply")}
+          phx-click={JS.dispatch("phx:date-picker-apply", detail: %{id: "module-detail-date-range-picker"})}
+        />
+      </:actions>
+    </.date_picker>
+  </div>
+
+  <div :if={@module.ok?} data-part="widgets">
+    <.widget
+      id="widget-module-invalidations"
+      title={dgettext("dashboard_cache", "Invalidations")}
+      legend_color="destructive"
+      description={dgettext("dashboard_cache", "Builds where this module was a cache miss and had to be rebuilt.")}
+      value={Integer.to_string(@module.result.invalidations)}
+    />
+    <.widget
+      id="widget-module-reuses"
+      title={dgettext("dashboard_cache", "Reuses")}
+      legend_color="primary"
+      description={dgettext("dashboard_cache", "Builds where this module was served from cache instead of rebuilt.")}
+      value={Integer.to_string(@module.result.reuses)}
+    />
+    <.widget
+      id="widget-module-rate"
+      title={dgettext("dashboard_cache", "Invalidation rate")}
+      legend_color="secondary"
+      description={dgettext("dashboard_cache", "Share of this module's builds that were invalidated.")}
+      value={dgettext("dashboard_cache", "%{rate}%", rate: @module.result.invalidation_rate)}
+    />
+    <.widget
+      :if={@module.result.blast_radius}
+      id="widget-module-blast-radius"
+      title={dgettext("dashboard_cache", "Blast radius")}
+      legend_color="primary"
+      description={dgettext("dashboard_cache", "How many modules this one invalidates downstream when it changes.")}
+      value={Integer.to_string(@module.result.blast_radius)}
+    />
+    <.widget
+      :if={is_nil(@module.result.blast_radius)}
+      id="widget-module-blast-radius"
+      title={dgettext("dashboard_cache", "Blast radius")}
+      value=""
+      empty
+      empty_label={dgettext("dashboard_cache", "Needs CLI graph edges")}
+    />
+  </div>
+
+  <.card
+    title={dgettext("dashboard_cache", "Invalidations vs reuses")}
+    icon="chart_arcs"
+    data-part="timeline-card"
+  >
+    <.card_section :if={!@timeseries.ok?}>
+      <.skeleton_chart />
+    </.card_section>
+    <.card_section :if={@timeseries.ok?}>
+      <.chart
+        id="module-invalidations-timeline-chart"
+        type="bar"
+        extra_options={
+          %{
+            grid: %{width: "96%", left: "0.4%", right: "3%", height: "78%", top: "8%"},
+            tooltip: %{},
+            xAxis: %{
+              type: "category",
+              data: @timeseries.result.dates,
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary",
+                formatter: "fn:toLocaleDate",
+                customValues: [
+                  List.first(@timeseries.result.dates),
+                  List.last(@timeseries.result.dates)
+                ]
+              }
+            },
+            yAxis: %{
+              splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+              axisLabel: %{color: "var:noora-surface-label-secondary"}
+            },
+            legend: %{
+              show: true,
+              bottom: 0,
+              textStyle: %{color: "var:noora-surface-label-secondary", fontSize: 11}
+            }
+          }
+        }
+        series={[
+          %{
+            name: dgettext("dashboard_cache", "Reuses"),
+            data: @timeseries.result.reuses,
+            type: "bar",
+            stack: "total",
+            color: "var:noora-chart-primary",
+            barMaxWidth: 18
+          },
+          %{
+            name: dgettext("dashboard_cache", "Invalidations"),
+            data: @timeseries.result.invalidations,
+            type: "bar",
+            stack: "total",
+            color: "var:noora-chart-destructive",
+            barMaxWidth: 18
+          }
+        ]}
+        y_axis_min={0}
+        grid_lines
+      />
+    </.card_section>
+  </.card>
+
+  <div data-part="reasons-grid">
+    <.card
+      title={dgettext("dashboard_cache", "Why it invalidates")}
+      icon="git_branch"
+      data-part="reasons-card"
+    >
+      <.card_section :if={@module.ok?}>
+        <.why_split module={@module.result} />
+        <p data-part="reasons-note">
+          {dgettext(
+            "dashboard_cache",
+            "%{self} invalidations from its own changes, %{deps} from a dependency changing, %{other} cold or first-seen.",
+            self: @module.result.self_changes,
+            deps: @module.result.dependency_induced,
+            other: @module.result.unclassified
+          )}
+        </p>
+      </.card_section>
+    </.card>
+
+    <.card
+      title={dgettext("dashboard_cache", "Invalidated by")}
+      icon="square_rounded_arrow_down"
+      data-part="invalidated-by-card"
+    >
+      <.card_section :if={@invalidated_by.ok? && not Enum.empty?(@invalidated_by.result)}>
+        <.table id="invalidated-by-table" rows={@invalidated_by.result}>
+          <:col :let={dep} label={dgettext("dashboard_cache", "Dependency")}>
+            <.text_cell label={dep.name} />
+          </:col>
+          <:col :let={dep} label={dgettext("dashboard_cache", "Times changed")}>
+            <.text_cell label={Integer.to_string(dep.self_changes)} />
+          </:col>
+        </.table>
+      </.card_section>
+      <.empty_card_section
+        :if={@invalidated_by.ok? && Enum.empty?(@invalidated_by.result)}
+        title={dgettext("dashboard_cache", "No dependency edges")}
+      >
+        <:image>
+          <img src="/images/empty_table_light.png" data-theme="light" />
+          <img src="/images/empty_table_dark.png" data-theme="dark" />
+        </:image>
+      </.empty_card_section>
+    </.card>
+  </div>
+
+  <.card
+    title={dgettext("dashboard_cache", "Invalidates downstream")}
+    icon="square_rounded_arrow_up"
+    data-part="invalidates-card"
+  >
+    <.card_section :if={@invalidates.ok? && not Enum.empty?(@invalidates.result)}>
+      <.table
+        id="invalidates-table"
+        rows={@invalidates.result}
+        row_navigate={
+          fn dependent ->
+            ~p"/#{@selected_project.account.name}/#{@selected_project.name}/module-cache/modules/#{dependent.name}"
+          end
+        }
+      >
+        <:col :let={dependent} label={dgettext("dashboard_cache", "Module")}>
+          <.text_cell label={dependent.name} />
+        </:col>
+        <:col :let={dependent} label={dgettext("dashboard_cache", "Invalidations")}>
+          <.text_cell label={Integer.to_string(dependent.invalidations)} />
+        </:col>
+      </.table>
+    </.card_section>
+    <.empty_card_section
+      :if={@invalidates.ok? && Enum.empty?(@invalidates.result)}
+      title={dgettext("dashboard_cache", "Nothing depends on this module")}
+    >
+      <:image>
+        <img src="/images/empty_table_light.png" data-theme="light" />
+        <img src="/images/empty_table_dark.png" data-theme="dark" />
+      </:image>
+    </.empty_card_section>
+  </.card>
+</div>

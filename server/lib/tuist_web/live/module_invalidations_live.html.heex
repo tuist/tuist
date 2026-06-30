@@ -1,0 +1,131 @@
+<div id="module-invalidations">
+  <div data-part="header">
+    <.link
+      navigate={~p"/#{@selected_project.account.name}/#{@selected_project.name}/module-cache"}
+      data-part="back-link"
+    >
+      {dgettext("dashboard_cache", "← Module Cache")}
+    </.link>
+  </div>
+  <div data-part="filters">
+    <.dropdown
+      id="module-invalidations-environment-dropdown"
+      label={environment_label(@analytics_environment)}
+      secondary_text={dgettext("dashboard_cache", "Environment:")}
+    >
+      <.dropdown_item
+        :for={{value, label} <- [{"any", dgettext("dashboard_cache", "Any")}, {"local", dgettext("dashboard_cache", "Local")}, {"ci", dgettext("dashboard_cache", "CI")}]}
+        value={value}
+        label={label}
+        patch={"?#{Query.put(@uri.query, "analytics-environment", value)}"}
+        data-selected={@analytics_environment == value}
+      >
+        <:right_icon :if={@analytics_environment == value}><.check /></:right_icon>
+      </.dropdown_item>
+    </.dropdown>
+    <.dropdown
+      id="module-invalidations-branch-dropdown"
+      label={branch_label(@analytics_branch)}
+      secondary_text={dgettext("dashboard_cache", "Branch:")}
+    >
+      <.dropdown_item
+        value="any"
+        label={dgettext("dashboard_cache", "Any")}
+        patch={"?#{Query.put(@uri.query, "analytics-branch", "any")}"}
+        data-selected={@analytics_branch == "any"}
+      >
+        <:right_icon :if={@analytics_branch == "any"}><.check /></:right_icon>
+      </.dropdown_item>
+      <%= if @cache_branches.ok? do %>
+        <.dropdown_item
+          :for={branch <- @cache_branches.result}
+          value={branch}
+          label={branch}
+          patch={"?#{Query.put(@uri.query, "analytics-branch", branch)}"}
+          data-selected={@analytics_branch == branch}
+        >
+          <:right_icon :if={@analytics_branch == branch}><.check /></:right_icon>
+        </.dropdown_item>
+      <% end %>
+    </.dropdown>
+    <.dropdown
+      id="module-invalidations-sort-dropdown"
+      label={sort_label(@sort_by)}
+      secondary_text={dgettext("dashboard_cache", "Sort by:")}
+    >
+      <.dropdown_item
+        :for={value <- ~w(invalidations invalidation_rate blast_radius self_changes dependency_induced)}
+        value={value}
+        label={sort_label(value)}
+        patch={"?#{Query.put(@uri.query, "sort-by", value)}"}
+        data-selected={@sort_by == value}
+      >
+        <:right_icon :if={@sort_by == value}><.check /></:right_icon>
+      </.dropdown_item>
+    </.dropdown>
+    <.date_picker
+      id="module-invalidations-date-range-picker"
+      name="analytics-date-range"
+      presets={[
+        %{id: "last-24-hours", label: dgettext("dashboard_cache", "Last 24 hours"), period: {24, :hour}},
+        %{id: "last-7-days", label: dgettext("dashboard_cache", "Last 7 days"), period: {7, :day}},
+        %{id: "last-30-days", label: dgettext("dashboard_cache", "Last 30 days"), period: {30, :day}},
+        %{id: "last-12-months", label: dgettext("dashboard_cache", "Last 12 months"), period: {12, :month}},
+        %{id: "custom", label: dgettext("dashboard_cache", "Custom")}
+      ]}
+      selected_preset={@analytics_preset}
+      period={@analytics_period}
+      on_period_change="analytics_period_changed"
+      max={Date.utc_today()}
+    >
+      <:actions>
+        <.button
+          label={dgettext("dashboard_cache", "Cancel")}
+          variant="secondary"
+          phx-click={JS.dispatch("phx:date-picker-cancel", detail: %{id: "module-invalidations-date-range-picker"})}
+        />
+        <.button
+          label={dgettext("dashboard_cache", "Apply")}
+          phx-click={JS.dispatch("phx:date-picker-apply", detail: %{id: "module-invalidations-date-range-picker"})}
+        />
+      </:actions>
+    </.date_picker>
+  </div>
+  <.card
+    title={dgettext("dashboard_cache", "Module invalidations")}
+    icon="git_branch"
+    data-part="modules-card"
+  >
+    <.card_section :if={!@modules.ok?}>
+      <div class="flex flex-col gap-4">
+        <.skeleton_box width="100%" height="44px" border_radius="12px" />
+        <.skeleton_box width="100%" height="44px" border_radius="12px" />
+        <.skeleton_box width="100%" height="44px" border_radius="12px" />
+        <.skeleton_box width="100%" height="44px" border_radius="12px" />
+        <.skeleton_box width="100%" height="44px" border_radius="12px" />
+      </div>
+    </.card_section>
+    <.card_section :if={@modules.ok? && not Enum.empty?(@modules.result)}>
+      <.module_invalidations_table
+        id="all-modules-table"
+        rows={@modules.result}
+        row_navigate={
+          fn module ->
+            ~p"/#{@selected_project.account.name}/#{@selected_project.name}/module-cache/modules/#{module.name}"
+          end
+        }
+      />
+    </.card_section>
+    <div :if={@modules.ok? && Enum.empty?(@modules.result)}>
+      <.empty_card_section
+        title={dgettext("dashboard_cache", "No invalidations yet")}
+        get_started_href="https://tuist.dev/en/docs/guides/features/cache"
+      >
+        <:image>
+          <img src="/images/empty_table_light.png" data-theme="light" />
+          <img src="/images/empty_table_dark.png" data-theme="dark" />
+        </:image>
+      </.empty_card_section>
+    </div>
+  </.card>
+</div>

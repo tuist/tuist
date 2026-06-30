@@ -79,6 +79,7 @@ The following data is stored in ClickHouse for analytics purposes:
 - **Build files** (`build_files` table): Individual file compilation metrics
 - **Build targets** (`build_targets` table): Target/module build performance
 - **Cacheable tasks** (`cacheable_tasks` table): Xcode cache task analytics with hit/miss status
+- **Xcode targets** (`xcode_targets` table): Per-target binary-cache and selective-testing analytics — target name, product, bundle id, hit/miss status, per-component content subhashes, and the target's direct dependency names (`dependencies`, the module-graph edges used to compute a module's downstream invalidation blast radius)
 - **CAS outputs** (`cas_outputs` table): Content-addressable storage upload/download records, including the denormalized project id used for project-scoped analytics
 - **Shard plans** (`shard_plans` table): Test sharding plan data including reference, shard count, and granularity
 - **Shard plan modules** (`shard_plan_modules` table): Per-shard module assignments with estimated durations
