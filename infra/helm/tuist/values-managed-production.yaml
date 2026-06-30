@@ -401,10 +401,11 @@ ovhFleet:
 # operator-installed box by its displayName prefix (the env+region boundary, since
 # one OVH account holds every env's boxes), scoped further by datacenter + offer.
 #
-# replicas is the number of boxes: one per region today. The region's KuraInstance
-# runs two pods (a primary plus a warm standby for gapless rolling deploys) that
-# co-locate on this single box; raise replicas to 2 once a second box per region is
-# added, which spreads the pods for box-failure HA. PREREQ: the production vault
+# replicas is the number of boxes (one per region today). It is independent of an
+# account's pod count: every account's KuraInstance keeps its pods (primary + warm
+# standby, for gapless deploys) co-located on one box via controller pod affinity.
+# Add boxes to grow region capacity (more accounts, distributed across boxes by the
+# egress bin-packing), not to split a single account. PREREQ: the production vault
 # holds OVH_API + OVH_FLEET_SSH and the box is prepped (mise run baremetal:prep-ovh)
 # so the fleet self-joins it as kura-us-east / kura-us-west. Bring the OVH nodes up
 # and serving before retiring the Hetzner us-east/us-west pools (already dropped

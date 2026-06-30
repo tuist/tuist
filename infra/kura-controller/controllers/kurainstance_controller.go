@@ -1438,7 +1438,7 @@ func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string,
 			TerminationGracePeriodSeconds: ptr(terminationGracePeriodSeconds()),
 			NodeSelector:                  nodeSelector(instance),
 			Tolerations:                   instance.Spec.Tolerations,
-			TopologySpreadConstraints:     topologySpreadConstraints(instance),
+			Affinity:                      instancePodAffinity(instance),
 			Containers: []corev1.Container{{
 				Name:            "kura",
 				Image:           instance.Spec.Image,
@@ -1676,13 +1676,29 @@ func nodeSelector(instance *kurav1alpha1.KuraInstance) map[string]string {
 	return selector
 }
 
-func topologySpreadConstraints(instance *kurav1alpha1.KuraInstance) []corev1.TopologySpreadConstraint {
-	return []corev1.TopologySpreadConstraint{{
-		MaxSkew:           1,
-		TopologyKey:       "kubernetes.io/hostname",
-		WhenUnsatisfiable: corev1.DoNotSchedule,
-		LabelSelector:     &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
-	}}
+// instancePodAffinity co-locates all of an account's Kura pods (an instance's
+// primary + warm standby) on a single box. Co-location, not spreading: the
+// standby exists for gapless rolling deploys (in-box pod failover), and
+// box-level resilience comes from the regenerable cache + cross-region mesh, not
+// from a same-box replica. Different accounts still spread across a region's
+// boxes via the egress (tuist.dev/egress-mbps) + cpu/memory bin-packing.
+//
+// Soft (preferred), not required: a required self-referential podAffinity would
+// deadlock the first replica — no pod matching the selector exists yet, so no
+// node satisfies the term and the pod stays Pending forever. Preferred
+// co-locates in practice while letting the first pod schedule anywhere.
+func instancePodAffinity(instance *kurav1alpha1.KuraInstance) *corev1.Affinity {
+	return &corev1.Affinity{
+		PodAffinity: &corev1.PodAffinity{
+			PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{{
+				Weight: 100,
+				PodAffinityTerm: corev1.PodAffinityTerm{
+					TopologyKey:   "kubernetes.io/hostname",
+					LabelSelector: &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
+				},
+			}},
+		},
+	}
 }
 
 // baseEnv carries only the values the controller must set: identity,

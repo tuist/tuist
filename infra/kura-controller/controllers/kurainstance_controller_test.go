@@ -273,11 +273,19 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if got := sts.Spec.Template.Spec.NodeSelector["node.cluster.x-k8s.io/pool"]; got != "kura" {
 		t.Fatalf("expected kura node pool selector, got %q", got)
 	}
-	if got := len(sts.Spec.Template.Spec.TopologySpreadConstraints); got != 1 {
-		t.Fatalf("expected one topology spread constraint, got %d", got)
+	// An account's pods co-locate on one box (preferred pod-affinity), not spread.
+	if sts.Spec.Template.Spec.TopologySpreadConstraints != nil {
+		t.Fatalf("instance pods must co-locate on one box, not carry a spread constraint")
 	}
-	if got := sts.Spec.Template.Spec.TopologySpreadConstraints[0].TopologyKey; got != "kubernetes.io/hostname" {
-		t.Fatalf("expected hostname topology spread, got %q", got)
+	pref := sts.Spec.Template.Spec.Affinity.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution
+	if got := len(pref); got != 1 {
+		t.Fatalf("expected one preferred pod-affinity term to co-locate the instance's pods, got %d", got)
+	}
+	if got := pref[0].PodAffinityTerm.TopologyKey; got != "kubernetes.io/hostname" {
+		t.Fatalf("expected hostname co-location topology, got %q", got)
+	}
+	if got := pref[0].PodAffinityTerm.LabelSelector.MatchLabels["app.kubernetes.io/instance"]; got != sts.Name {
+		t.Fatalf("expected the affinity to select the instance's own pods (%q), got %q", sts.Name, got)
 	}
 	if got := sts.Spec.Template.Labels["tuist.dev/account"]; got != "tuist" {
 		t.Fatalf("expected pod template account label, got %q", got)
