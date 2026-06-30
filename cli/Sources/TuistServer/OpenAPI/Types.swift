@@ -4687,7 +4687,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/reference`.
             public var reference: Swift.String
-            /// Maximum number of balanced shards.
+            /// Maximum number of shards.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/shard_max`.
             public var shard_max: Swift.Int?
@@ -4695,11 +4695,11 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/shard_max_duration`.
             public var shard_max_duration: Swift.Int?
-            /// Minimum number of balanced shards.
+            /// Minimum number of shards.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/shard_min`.
             public var shard_min: Swift.Int?
-            /// Exact number of balanced shards. Suite granularity may append one final catch-all shard.
+            /// Exact number of shards. With suite granularity, the final shard is the catch-all.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/shard_total`.
             public var shard_total: Swift.Int?
@@ -4715,10 +4715,10 @@ public enum Components {
             ///   - granularity: Sharding granularity level.
             ///   - modules: Test module names (for module-level granularity).
             ///   - reference: A unique shard plan reference, typically derived from CI environment.
-            ///   - shard_max: Maximum number of balanced shards.
+            ///   - shard_max: Maximum number of shards.
             ///   - shard_max_duration: Target maximum duration per shard in milliseconds.
-            ///   - shard_min: Minimum number of balanced shards.
-            ///   - shard_total: Exact number of balanced shards. Suite granularity may append one final catch-all shard.
+            ///   - shard_min: Minimum number of shards.
+            ///   - shard_total: Exact number of shards. With suite granularity, the final shard is the catch-all.
             ///   - test_suites: Test suite names (for suite-level granularity).
             public init(
                 build_run_id: Swift.String? = nil,
@@ -5541,7 +5541,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Shard/shard_plan_id`.
             public var shard_plan_id: Swift.String
-            /// Test identifiers this shard must skip (`-skip-testing`). Set on the final catch-all shard, which runs everything not explicitly assigned to another shard so newly added or un-enumerated suites are not dropped. Empty for regular shards.
+            /// Test identifiers this shard must skip (`-skip-testing`). Set on the final suite catch-all shard, which runs everything not explicitly assigned to earlier shards so newly added or un-enumerated suites are not dropped. Empty for regular shards.
             ///
             /// - Remark: Generated from `#/components/schemas/Shard/skip`.
             public var skip: [Swift.String]?
@@ -5575,7 +5575,7 @@ public enum Components {
             ///   - download_url: Presigned URL to download the shared test products bundle.
             ///   - modules: The test modules assigned to this shard.
             ///   - shard_plan_id: The UUID of the shard plan.
-            ///   - skip: Test identifiers this shard must skip (`-skip-testing`). Set on the final catch-all shard, which runs everything not explicitly assigned to another shard so newly added or un-enumerated suites are not dropped. Empty for regular shards.
+            ///   - skip: Test identifiers this shard must skip (`-skip-testing`). Set on the final suite catch-all shard, which runs everything not explicitly assigned to earlier shards so newly added or un-enumerated suites are not dropped. Empty for regular shards.
             ///   - suites: The test suites assigned to this shard, grouped by module name.
             public init(
                 download_url: Swift.String,
@@ -52437,7 +52437,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/reference`.
                     public var reference: Swift.String
-                    /// Maximum number of balanced shards.
+                    /// Maximum number of shards.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/shard_max`.
                     public var shard_max: Swift.Int?
@@ -52445,11 +52445,11 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/shard_max_duration`.
                     public var shard_max_duration: Swift.Int?
-                    /// Minimum number of balanced shards.
+                    /// Minimum number of shards.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/shard_min`.
                     public var shard_min: Swift.Int?
-                    /// Exact number of balanced shards. Suite granularity may append one final catch-all shard.
+                    /// Exact number of shards. With suite granularity, the final shard is the catch-all.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/shard_total`.
                     public var shard_total: Swift.Int?
@@ -52465,10 +52465,10 @@ public enum Operations {
                     ///   - granularity: Sharding granularity level.
                     ///   - modules: Test module names (for module-level granularity).
                     ///   - reference: A unique shard plan reference, typically derived from CI environment.
-                    ///   - shard_max: Maximum number of balanced shards.
+                    ///   - shard_max: Maximum number of shards.
                     ///   - shard_max_duration: Target maximum duration per shard in milliseconds.
-                    ///   - shard_min: Minimum number of balanced shards.
-                    ///   - shard_total: Exact number of balanced shards. Suite granularity may append one final catch-all shard.
+                    ///   - shard_min: Minimum number of shards.
+                    ///   - shard_total: Exact number of shards. With suite granularity, the final shard is the catch-all.
                     ///   - test_suites: Test suite names (for suite-level granularity).
                     public init(
                         build_run_id: Swift.String? = nil,

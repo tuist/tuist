@@ -42,29 +42,20 @@ defmodule Tuist.Shards do
         max_duration: Map.get(params, :shard_max_duration)
       )
 
-    packed = BinPacker.pack(units_with_durations, shard_count)
+    assignment_shards = BinPacker.pack(units_with_durations, shard_count)
 
     # For suite granularity the unit list (history-derived, or client-enumerated) may not be
-    # exhaustive — a brand-new suite has no history and `xcodebuild -enumerate-tests` can flakily
-    # omit one. Append a catch-all shard (always the last index) that runs everything NOT explicitly
-    # assigned, via `-skip-testing` of every assigned suite, so such a suite still runs instead of
-    # being silently dropped. Module granularity needs no catch-all: the module universe comes from
-    # the deterministic `.xctestrun`.
-    assigned = Enum.flat_map(packed, fn {_index, units, _total} -> units end)
-
-    {shards, shard_count} =
-      if granularity == "suite" and assigned != [] do
-        {packed ++ [{shard_count, assigned, 0}], shard_count + 1}
-      else
-        # No assigned suites (e.g. a first run with no history) means the single packed shard already
-        # runs everything, so a catch-all would just double-run. Module granularity never needs one.
-        {packed, shard_count}
-      end
+    # exhaustive: a brand-new suite has no history and `xcodebuild -enumerate-tests` can flakily omit
+    # one. The final shard is therefore the catch-all. Instead of `-only-testing`, it runs everything
+    # except the suites assigned to earlier shards, so its balanced assignment plus any unplanned
+    # suites still run without adding another CI job. Module granularity needs no catch-all: the
+    # module universe comes from the deterministic `.xctestrun`.
+    storage_shards = storage_shards(assignment_shards, granularity, shard_count)
 
     now = NaiveDateTime.utc_now()
 
     shard_assignments =
-      Enum.map(shards, fn {index, shard_units, total} ->
+      Enum.map(assignment_shards, fn {index, shard_units, total} ->
         %{
           "index" => index,
           "test_targets" => Enum.map(shard_units, fn {name, _} -> name end),
@@ -85,7 +76,7 @@ defmodule Tuist.Shards do
 
     {:ok, plan} = %ShardPlan{} |> ShardPlan.create_changeset(attrs) |> IngestRepo.insert()
 
-    insert_shard_targets(plan, project.id, shards, granularity, now)
+    insert_shard_targets(plan, project.id, storage_shards, granularity, now)
 
     %{
       plan: plan,
@@ -186,6 +177,25 @@ defmodule Tuist.Shards do
   def bundle_object_key(account, project, plan_id) do
     "#{account.id}/#{project.id}/shards/#{plan_id}/bundle.zip"
   end
+
+  defp storage_shards(shards, "suite", shard_count) do
+    catch_all_index = shard_count - 1
+
+    Enum.map(shards, fn
+      {^catch_all_index, _shard_units, _total} ->
+        skip_units =
+          shards
+          |> Enum.filter(fn {index, _units, _total} -> index < catch_all_index end)
+          |> Enum.flat_map(fn {_index, units, _total} -> units end)
+
+        {catch_all_index, skip_units, 0}
+
+      shard ->
+        shard
+    end)
+  end
+
+  defp storage_shards(shards, _granularity, _shard_count), do: shards
 
   defp insert_shard_targets(plan, project_id, shards, "module", now) do
     rows =

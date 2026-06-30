@@ -56,11 +56,11 @@ defmodule TuistWeb.API.ShardsController do
              items: %Schema{type: :string},
              description: "Test suite names (for suite-level granularity)."
            },
-           shard_min: %Schema{type: :integer, description: "Minimum number of balanced shards."},
-           shard_max: %Schema{type: :integer, description: "Maximum number of balanced shards."},
+           shard_min: %Schema{type: :integer, description: "Minimum number of shards."},
+           shard_max: %Schema{type: :integer, description: "Maximum number of shards."},
            shard_total: %Schema{
              type: :integer,
-             description: "Exact number of balanced shards. Suite granularity may append one final catch-all shard."
+             description: "Exact number of shards. With suite granularity, the final shard is the catch-all."
            },
            shard_max_duration: %Schema{
              type: :integer,

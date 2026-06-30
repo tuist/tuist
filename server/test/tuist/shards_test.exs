@@ -91,11 +91,10 @@ defmodule Tuist.ShardsTest do
       }
 
       result = Shards.create_shard_plan(project, params)
-      # 2 balanced shards plus the appended catch-all shard.
-      assert result.shard_count == 3
+      assert result.shard_count == 2
     end
 
-    test "appends a catch-all shard whose get_shard returns the skip list (suite granularity)" do
+    test "uses the final suite shard as the catch-all" do
       project = ProjectsFixtures.project_fixture()
       account = project.account
 
@@ -109,21 +108,26 @@ defmodule Tuist.ShardsTest do
       stub(Tuist.Storage, :generate_download_url, fn _key, _account -> "https://download.example.com" end)
 
       result = Shards.create_shard_plan(project, params)
-      # 2 balanced shards + 1 catch-all = 3; the catch-all is the last index.
-      assert result.shard_count == 3
+      assert result.shard_count == 2
+
+      assert result.shard_assignments == [
+               %{"index" => 0, "test_targets" => ["AppTests/LoginSuite"], "estimated_duration_ms" => 5000},
+               %{"index" => 1, "test_targets" => ["AppTests/SignupSuite"], "estimated_duration_ms" => 5000}
+             ]
+
       catch_all_index = result.shard_count - 1
 
       assert {:ok, shard} = Shards.get_shard(project, account, "catch-all-1", catch_all_index)
-      # The catch-all carries no -only-testing and skips every assigned suite, so it runs the remainder
-      # (newly added / un-enumerated suites) instead of dropping it.
+      # The catch-all carries no -only-testing and skips suites assigned to earlier shards, so it runs
+      # its own planned suite plus any newly added / un-enumerated suites instead of dropping them.
       assert shard.modules == []
       assert shard.suites == %{}
-      assert Enum.sort(shard.skip) == ["AppTests/LoginSuite", "AppTests/SignupSuite"]
+      assert shard.skip == ["AppTests/LoginSuite"]
 
       # A regular shard still selects via suites, with an empty skip list.
       assert {:ok, regular} = Shards.get_shard(project, account, "catch-all-1", 0)
       assert regular.skip == []
-      refute regular.suites == %{}
+      assert regular.suites == %{"AppTests" => ["LoginSuite"]}
     end
 
     test "does not append a catch-all shard for module granularity" do
@@ -174,8 +178,7 @@ defmodule Tuist.ShardsTest do
 
       durations =
         result.shard_assignments
-        # Drop empty shards and the catch-all (last) shard, whose test_targets are its skip list.
-        |> Enum.reject(fn a -> a["test_targets"] == [] or a["index"] == result.shard_count - 1 end)
+        |> Enum.reject(fn a -> a["test_targets"] == [] end)
         |> Map.new(fn a -> {hd(a["test_targets"]), a["estimated_duration_ms"]} end)
 
       assert durations["AppTests/SlowSuite"] == 90_000
@@ -215,12 +218,10 @@ defmodule Tuist.ShardsTest do
       }
 
       result = Shards.create_shard_plan(project, params)
-      # 2 balanced shards (one per historical suite) plus the catch-all.
-      assert result.shard_count == 3
+      assert result.shard_count == 2
 
       planned =
         result.shard_assignments
-        |> Enum.reject(fn a -> a["index"] == result.shard_count - 1 end)
         |> Enum.flat_map(fn a -> a["test_targets"] end)
         |> MapSet.new()
 
@@ -308,9 +309,8 @@ defmodule Tuist.ShardsTest do
       }
 
       result = Shards.create_shard_plan(project, params)
-      # 2 balanced shards plus the appended catch-all shard.
-      assert result.shard_count == 3
-      assert length(result.shard_assignments) == 3
+      assert result.shard_count == 2
+      assert length(result.shard_assignments) == 2
 
       all_targets =
         result.shard_assignments
