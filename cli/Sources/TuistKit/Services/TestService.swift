@@ -396,6 +396,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         )
 
         let schemes: [Scheme]
+        let isolateHostlessUnitTests: Bool
         if let schemeName {
             guard let scheme = graphTraverser.schemes().first(where: { $0.name == schemeName })
             else {
@@ -456,12 +457,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
             }
 
             schemes = [scheme]
+            isolateHostlessUnitTests = false
         } else {
             let workspaceSchemes = buildGraphInspector.workspaceSchemes(graphTraverser: graphTraverser)
             let testableSchemes =
                 buildGraphInspector.testableSchemes(graphTraverser: graphTraverser)
                     + workspaceSchemes
-            schemes = defaultSchemes(
+            (schemes, isolateHostlessUnitTests) = defaultSchemes(
                 testableSchemes: testableSchemes,
                 workspaceSchemes: workspaceSchemes,
                 graphTraverser: graphTraverser,
@@ -531,6 +533,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 config: config,
                 quarantinedTests: mutedQuarantinedTests,
+                isolateHostlessUnitTests: isolateHostlessUnitTests,
                 mode: mode
             )
             if !didRunTests {
@@ -1157,6 +1160,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         passthroughXcodeBuildArguments: [String],
         config: Tuist,
         quarantinedTests: [TestIdentifier],
+        isolateHostlessUnitTests: Bool = false,
         mode: TestProcessingMode = .local
     ) async throws -> Bool {
         let graphTraverser = GraphTraverser(graph: graph)
@@ -1196,6 +1200,29 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 }
 
                 didRunTests = true
+
+                // A host-less unit-test bundle crashes during xctest bootstrap when its build-products
+                // directory also contains the app's frameworks (e.g. swift-sharing). When such a scheme is
+                // split out of a mixed workspace scheme, run it against its own derived data so its products
+                // directory stays clean. An explicit derived data path is honored by nesting under it.
+                let schemeDerivedDataPath: AbsolutePath?
+                if isolateHostlessUnitTests, isHostlessUnitTestScheme(
+                    scheme: testScheme,
+                    graphTraverser: graphTraverser,
+                    testPlanConfiguration: testPlanConfiguration,
+                    action: action
+                ) {
+                    if let derivedDataPath {
+                        schemeDerivedDataPath = derivedDataPath
+                            .appending(components: "HostlessTests", testScheme.name)
+                    } else {
+                        schemeDerivedDataPath = try await fileSystem
+                            .makeTemporaryDirectory(prefix: "hostless-tests")
+                    }
+                } else {
+                    schemeDerivedDataPath = derivedDataPath
+                }
+
                 try await self.testScheme(
                     scheme: testScheme,
                     graphTraverser: graphTraverser,
@@ -1207,7 +1234,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     action: action,
                     rosetta: rosetta,
                     resultBundlePath: resultBundlePath,
-                    derivedDataPath: derivedDataPath,
+                    derivedDataPath: schemeDerivedDataPath,
                     retryCount: retryCount,
                     testTargets: testSchemeTestTargets,
                     skipTestTargets: skipTestTargets,
@@ -1351,7 +1378,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         graphTraverser: GraphTraversing,
         testPlanConfiguration: TestPlanConfiguration?,
         action: XcodeBuildTestAction
-    ) -> [Scheme] {
+    ) -> (schemes: [Scheme], isolatedHostlessUnitTests: Bool) {
         guard action != .build,
               containsMixedHostedAndHostlessUnitTests(
                   schemes: workspaceSchemes,
@@ -1360,7 +1387,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                   action: action
               )
         else {
-            return workspaceSchemes
+            return (workspaceSchemes, false)
         }
 
         let workspaceSchemeNames = Set(workspaceSchemes.map(\.name))
@@ -1388,13 +1415,41 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return !schemeTestTargets.isDisjoint(with: workspaceTestTargets)
         }
         guard !projectSchemes.isEmpty else {
-            return workspaceSchemes
+            return (workspaceSchemes, false)
         }
 
         Logger.current.debug(
             "Workspace schemes include hosted tests and host-less unit tests; running generated project schemes separately."
         )
-        return projectSchemes
+        return (projectSchemes, true)
+    }
+
+    /// A scheme is host-less when at least one of its test targets is a `.unitTests` bundle that has
+    /// dependencies but no host application. Such a bundle crashes during xctest bootstrap when it runs
+    /// against a build-products directory that also contains the app's frameworks (see swift-sharing),
+    /// so it must be isolated into its own derived data when split out of the workspace scheme.
+    private func isHostlessUnitTestScheme(
+        scheme: Scheme,
+        graphTraverser: GraphTraversing,
+        testPlanConfiguration: TestPlanConfiguration?,
+        action: XcodeBuildTestAction
+    ) -> Bool {
+        testActionTargetReferences(
+            scheme: scheme,
+            testPlanConfiguration: testPlanConfiguration,
+            action: action
+        ).contains { targetReference in
+            guard let graphTarget = graphTraverser.target(
+                path: targetReference.projectPath,
+                name: targetReference.name
+            ), graphTarget.target.product == .unitTests else {
+                return false
+            }
+
+            let dependencies = graphTraverser
+                .directTargetDependencies(path: graphTarget.path, name: graphTarget.target.name)
+            return !dependencies.isEmpty && !dependencies.contains(where: { $0.target.product.canHostTests() })
+        }
     }
 
     private func containsMixedHostedAndHostlessUnitTests(
