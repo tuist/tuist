@@ -2,6 +2,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   use ExUnit.Case, async: true
   use Mimic
 
+  alias Tuist.Accounts.Account
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura.Mesh
   alias Tuist.Kura.Provisioner.KubernetesController
@@ -68,6 +69,66 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       # anyone with list/watch on KuraInstance would otherwise read the
       # global JWT signing secret.
       refute Map.has_key?(env, "KURA_EXTENSION_JWT_VERIFIER_TUIST_SECRET")
+    end
+
+    test "reserves the WS5 egress floor for enterprise accounts" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Billing, :get_current_active_subscription, fn _ -> %{plan: :enterprise} end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %Account{id: 1, name: "tuist"},
+          eu_region(%{
+            egress_guaranteed_mbps: 25,
+            pod_annotations: %{"kubernetes.io/egress-bandwidth" => "1500M"}
+          }),
+          %Server{},
+          "return true"
+        )
+
+      spec = manifest["spec"]
+      # Enterprise floor: bin-packed against the node's tuist.dev/egress-mbps capacity.
+      assert spec["egressGuaranteedMbps"] == 25
+      # Burst ceiling rides the pod annotation (everyone gets it).
+      assert spec["podAnnotations"] == %{"kubernetes.io/egress-bandwidth" => "1500M"}
+    end
+
+    test "withholds the egress floor from non-enterprise accounts (burst ceiling only)" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Billing, :get_current_active_subscription, fn _ -> %{plan: :air} end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %Account{id: 1, name: "tuist"},
+          eu_region(%{
+            egress_guaranteed_mbps: 25,
+            pod_annotations: %{"kubernetes.io/egress-bandwidth" => "1500M"}
+          }),
+          %Server{},
+          "return true"
+        )
+
+      spec = manifest["spec"]
+      # No floor for the bursty default tenant ...
+      refute Map.has_key?(spec, "egressGuaranteedMbps")
+      # ... but the burst ceiling still applies.
+      assert spec["podAnnotations"] == %{"kubernetes.io/egress-bandwidth" => "1500M"}
     end
 
     test "emits the mesh flag only when the region enables the per-account peer mesh" do

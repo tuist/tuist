@@ -64,6 +64,16 @@ type KuraInstanceSpec struct {
 	// shared by many tenants.
 	PodAnnotations map[string]string `json:"podAnnotations,omitempty"`
 
+	// EgressGuaranteedMbps is the per-tenant egress floor, in Mbps, this
+	// instance reserves on a shared bare-metal box. When set, the pod requests
+	// it as the `tuist.dev/egress-mbps` extended resource (request == limit;
+	// extended resources are integer and non-overcommittable), so the scheduler
+	// bin-packs instances against the node's advertised egress budget (the CAPI
+	// provider patches matching node capacity from the box's EgressBudgetMbps).
+	// Pairs with the `kubernetes.io/egress-bandwidth` PodAnnotation, which is the
+	// burst ceiling. Zero on cloud regions whose NIC isn't shared.
+	EgressGuaranteedMbps int32 `json:"egressGuaranteedMbps,omitempty"`
+
 	// Mesh enables controller-managed cross-region peering for this
 	// instance. The controller maintains a per-account CA
 	// (`kura-<account>-peer-ca`) and signs a leaf for the instance whose

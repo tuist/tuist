@@ -51,6 +51,15 @@ defmodule Tuist.Kura.Regions do
   # controller's peerPort). Self-hosted nodes dial the public peer host here.
   @peer_port 7443
   @managed_region_storage_class "hcloud-volumes"
+  # WS5: the guaranteed egress floor an enterprise tenant reserves on a shared
+  # bare-metal box, requested as the tuist.dev/egress-mbps extended resource the
+  # scheduler bin-packs against the node's budget. Uniform across regions — a
+  # tenant's guaranteed minimum shouldn't depend on which box it lands on.
+  # Deliberately low to start: at 25 Mbps all ~20 enterprise tenants pack onto a
+  # single box (even a ~1 Gbit/s one would still admit ~40); the per-region burst
+  # ceiling does the real sharing. Bump as real per-tenant usage data lands. The
+  # default bursty tenant reserves nothing (best-effort under the burst ceiling).
+  @enterprise_egress_floor_mbps 25
   @managed_region_specs [
     # US East (Vint Hill VA) and US West (Hillsboro OR) run on OVH bare metal:
     # their own OVH fleets (kura-us-east / kura-us-west node pools), local-NVMe
@@ -71,8 +80,11 @@ defmodule Tuist.Kura.Regions do
       gateway: :host_network,
       replicas: 2,
       storage_size: "50Gi",
-      # WS5 per-pod egress ceiling (Cilium bandwidth manager): cap one tenant at
-      # ~half the box NIC (Advance-1 ~3 Gbit/s public) so it can't starve the rest.
+      # WS5 egress governance on the shared box (Advance-1 ~3 Gbit/s public NIC):
+      # the enterprise per-tenant floor (uniform across regions) is bin-packed as
+      # the tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst
+      # ceiling (~half the NIC) every tenant gets.
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
       egress_burst_mbps: 1500
     },
     %{
@@ -85,8 +97,11 @@ defmodule Tuist.Kura.Regions do
       gateway: :host_network,
       replicas: 2,
       storage_size: "50Gi",
-      # WS5 per-pod egress ceiling (Cilium bandwidth manager): cap one tenant at
-      # ~half the box NIC (Advance-1 ~3 Gbit/s public) so it can't starve the rest.
+      # WS5 egress governance on the shared box (Advance-1 ~3 Gbit/s public NIC):
+      # the enterprise per-tenant floor (uniform across regions) is bin-packed as
+      # the tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst
+      # ceiling (~half the NIC) every tenant gets.
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
       egress_burst_mbps: 1500
     },
     # EU Central runs on Scaleway Dedibox bare metal: the `kura-dedibox` node
@@ -107,8 +122,10 @@ defmodule Tuist.Kura.Regions do
       gateway: :host_network,
       replicas: 2,
       storage_size: "50Gi",
-      # WS5 per-pod egress ceiling (Cilium bandwidth manager): cap one tenant at
-      # ~half the shared box NIC (~1 Gbit/s) so it can't starve the rest.
+      # WS5 egress governance on the shared box (~1 Gbit/s NIC): the enterprise
+      # per-tenant floor (uniform across regions) is bin-packed as the
+      # tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst ceiling.
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
       egress_burst_mbps: 500
     },
     # Canada East (Beauharnois / OVHcloud BHS) on OVH bare metal: the
@@ -128,8 +145,10 @@ defmodule Tuist.Kura.Regions do
       gateway: :host_network,
       replicas: 2,
       storage_size: "50Gi",
-      # WS5 per-pod egress ceiling (Cilium bandwidth manager): cap one tenant at
-      # ~half the box NIC (~1 Gbit/s) so it can't starve the rest.
+      # WS5 egress governance on the shared box (SYS-1 ~1 Gbit/s NIC): the
+      # enterprise per-tenant floor (uniform across regions) is bin-packed as the
+      # tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst ceiling.
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
       egress_burst_mbps: 500
     }
   ]
@@ -363,10 +382,15 @@ defmodule Tuist.Kura.Regions do
           %{"key" => "tuist.dev/kura-cache", "operator" => "Exists", "effect" => "NoSchedule"}
         ],
         dedicated_gateway_account_handles: Tuist.Environment.kura_dedicated_gateway_account_handles(),
-        # Per-pod egress ceiling (WS5) on the shared bare-metal boxes: a Cilium
-        # bandwidth-manager annotation so one tenant can't monopolize the box
-        # NIC. Empty on the Hetzner cloud regions (no shared-NIC contention).
+        # Per-pod egress governance (WS5) on the shared bare-metal boxes: every
+        # tenant gets the Cilium burst ceiling (a pod annotation); enterprise
+        # tenants additionally reserve egress_guaranteed_mbps as a bin-packed
+        # tuist.dev/egress-mbps request (gated in the provisioner via Entitlements)
+        # against the node budget the CAPI provider advertises. The default,
+        # bursty tenant runs best-effort under the ceiling alone. Both unset on
+        # the Hetzner cloud regions (no shared-NIC contention to govern).
         pod_annotations: managed_region_pod_annotations(spec),
+        egress_guaranteed_mbps: Map.get(spec, :egress_guaranteed_mbps),
         # Controller-managed per-account peer mesh: an account's nodes
         # across regions replicate to each other under one per-account CA.
         mesh: true

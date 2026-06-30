@@ -374,6 +374,10 @@ dediboxFleet:
     offer: Pro-9-XS
     datacenter: DC5
     os: ubuntu_24.04
+    # WS5 node egress budget (Mbps): the box's ~1 Gbit/s NIC, advertised as
+    # tuist.dev/egress-mbps node capacity so the scheduler bin-packs eu-central's
+    # 250-Mbps-floor cache pods against it.
+    egressBudgetMbps: 1000
   scaleway:
     externalSecrets:
       item: DEDIBOX_SCW_API
@@ -416,6 +420,9 @@ ovhFleets:
       offer: advance-1
       datacenter: vin
       os: ubuntu_24.04
+      # WS5 node egress budget (Mbps): Advance-1 ~3 Gbit/s, advertised as
+      # tuist.dev/egress-mbps so the scheduler bin-packs the 750-Mbps-floor pods.
+      egressBudgetMbps: 3000
     sshExternalSecret:
       enabled: true
       item: OVH_FLEET_SSH
@@ -429,6 +436,9 @@ ovhFleets:
       offer: advance-1
       datacenter: hil
       os: ubuntu_24.04
+      # WS5 node egress budget (Mbps): Advance-1 ~3 Gbit/s, advertised as
+      # tuist.dev/egress-mbps so the scheduler bin-packs the 750-Mbps-floor pods.
+      egressBudgetMbps: 3000
     sshExternalSecret:
       enabled: true
       item: OVH_FLEET_SSH

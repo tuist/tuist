@@ -79,6 +79,12 @@ rules:
     # (so CAPI links Machine<->Node) and the dynamic tuist.dev/pn-ipv4 label.
     verbs: [get, list, watch, patch, delete]
   - apiGroups: [""]
+    # WS5: the Linux machine reconcilers (OVH/Dedibox) advertise the box's egress
+    # budget as the node's tuist.dev/egress-mbps extended-resource capacity, which
+    # lives on the status subresource.
+    resources: [nodes/status]
+    verbs: [get, update, patch]
+  - apiGroups: [""]
     # The operator owns four Secret families in its own namespace:
     #   - <fleet>-ssh: per-fleet Ed25519 keypair, generated once
     #   - <machine>-bootstrap: per-machine sudo password +

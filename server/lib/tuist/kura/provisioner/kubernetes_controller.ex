@@ -228,6 +228,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "exposeNodePort" => Regions.node_port_data_plane?(region),
           "clientCIDRs" => client_cidrs(region),
           "podAnnotations" => pod_annotations(region),
+          "egressGuaranteedMbps" => egress_guaranteed_mbps(account, region),
           "storageClassName" => storage_class(region),
           "storageSize" => storage_size(region),
           "replicas" => replicas(region),
@@ -447,6 +448,19 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
        when is_map(annotations) and map_size(annotations) > 0, do: annotations
 
   defp pod_annotations(_), do: nil
+
+  # WS5 guaranteed egress floor: the region's per-tenant Mbps reserved as the
+  # tuist.dev/egress-mbps extended resource so the scheduler bin-packs the pod
+  # against the node's advertised budget. Enterprise-only — the default pattern
+  # is bursty, so non-enterprise tenants run best-effort under the Cilium burst
+  # ceiling alone and pack densely. nil (dropped) when the region has no floor or
+  # the account isn't entitled.
+  defp egress_guaranteed_mbps(account, %Regions{provisioner_config: %{egress_guaranteed_mbps: mbps}})
+       when is_integer(mbps) and mbps > 0 do
+    if Entitlements.allows?(account, :guaranteed_egress_floor), do: mbps
+  end
+
+  defp egress_guaranteed_mbps(_account, _region), do: nil
 
   # Private (runner-cache) regions never get a gateway: their whole
   # invariant is "no public endpoint, no LoadBalancer" — a dedicated

@@ -59,6 +59,17 @@ defmodule Tuist.Kura.RegionsTest do
       end
     end
 
+    test "sets a uniform enterprise egress floor across the bare-metal regions" do
+      for id <- ["us-east", "us-west", "eu-central", "ca-east"] do
+        assert Regions.get(id).provisioner_config.egress_guaranteed_mbps == 25
+      end
+
+      # The burst ceiling stays per-box and rides the pod annotation.
+      assert Regions.get("us-east").provisioner_config.pod_annotations == %{
+               "kubernetes.io/egress-bandwidth" => "1500M"
+             }
+    end
+
     test "runs eu-central on Dedibox bare metal" do
       config = Regions.get("eu-central").provisioner_config
 

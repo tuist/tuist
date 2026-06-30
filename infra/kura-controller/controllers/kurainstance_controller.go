@@ -1446,7 +1446,7 @@ func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string,
 				Ports:           containerPorts(instance),
 				Env:             append(baseEnv(instance, otlpTracesEndpoint, environment), instance.Spec.ExtraEnv...),
 				EnvFrom:         sharedSecretsEnvFrom(),
-				Resources:       defaultResources(),
+				Resources:       defaultResources(instance),
 				VolumeMounts:    volumeMounts(instance),
 				Lifecycle:       preStopLifecycle(),
 				ReadinessProbe:  httpProbe("/ready", 5, 10),
@@ -1510,12 +1510,19 @@ func sharedSecretsEnvFrom() []corev1.EnvFromSource {
 	}}
 }
 
+// egressMbpsResource is the integer extended resource a shared bare-metal node
+// advertises as capacity (the CAPI provider patches it from the box's egress
+// budget) and a cache pod reserves as a request==limit. It lets the scheduler
+// bin-pack instances against the box's egress budget. See
+// KuraInstanceSpec.EgressGuaranteedMbps.
+const egressMbpsResource corev1.ResourceName = "tuist.dev/egress-mbps"
+
 // The memory request matches the limit because Kura sizes its memory
 // budget from the cgroup limit (soft limit 70%, hard limit 85% of it)
 // and routinely operates above 1Gi, so the full 2Gi must be reserved
 // at scheduling time to avoid node overcommit.
-func defaultResources() corev1.ResourceRequirements {
-	return corev1.ResourceRequirements{
+func defaultResources(instance *kurav1alpha1.KuraInstance) corev1.ResourceRequirements {
+	r := corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
 			corev1.ResourceCPU:    resource.MustParse("500m"),
 			corev1.ResourceMemory: resource.MustParse("2Gi"),
@@ -1524,6 +1531,17 @@ func defaultResources() corev1.ResourceRequirements {
 			corev1.ResourceMemory: resource.MustParse("2Gi"),
 		},
 	}
+	// WS5 egress floor: reserve the region's guaranteed Mbps as the
+	// tuist.dev/egress-mbps extended resource (request == limit; extended
+	// resources are integer and non-overcommittable) so the scheduler bin-packs
+	// cache pods against the node's advertised egress budget. Unset on cloud
+	// regions whose NIC isn't shared.
+	if mbps := instance.Spec.EgressGuaranteedMbps; mbps > 0 {
+		q := *resource.NewQuantity(int64(mbps), resource.DecimalSI)
+		r.Requests[egressMbpsResource] = q
+		r.Limits[egressMbpsResource] = q
+	}
+	return r
 }
 
 func publicIngressAnnotations() map[string]string {

@@ -327,6 +327,9 @@ dediboxFleet:
     offer: Start-9-M
     datacenter: DC5
     os: ubuntu_24.04
+    # WS5 node egress budget (Mbps): ~1 Gbit/s box, advertised as
+    # tuist.dev/egress-mbps so eu-central's 250-Mbps-floor pods bin-pack.
+    egressBudgetMbps: 1000
   scaleway:
     externalSecrets:
       # 1Password item with the default-project Dedibox IAM key (secret-key +
@@ -377,6 +380,9 @@ ovhFleet:
     offer: sys-1
     datacenter: bhs
     os: ubuntu_24.04
+    # WS5 node egress budget (Mbps): SYS-1 ~1 Gbit/s, advertised as
+    # tuist.dev/egress-mbps so ca-east's 250-Mbps-floor pods bin-pack.
+    egressBudgetMbps: 1000
   externalSecrets:
     item: OVH_API
   # Own the fleet SSH key from 1Password (the live key was extracted into this
