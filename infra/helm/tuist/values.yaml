@@ -116,34 +116,21 @@ server:
   hosted: false
   skipEmailConfirmation: true
   secretKeyBase: ""
-  # MASTER_KEY for decrypting priv/secrets/<env>.yml.enc at runtime. Required
-  # for hosted deployments that rely on encrypted secrets baked into the image.
-  # Leave empty to skip wiring the env var (self-hosted installs don't need it).
-  masterKey: ""
   # When true, the chart skips emitting DATABASE_URL / TUIST_CLICKHOUSE_URL /
-  # TUIST_SECRET_KEY_BASE / TUIST_S3_* env vars and lets the Elixir release
-  # read those values from the encrypted priv/secrets/<env>.yml.enc file that
-  # MASTER_KEY unlocks. Pair with `masterKey: <...>` or externalSecrets below.
-  # Intended for the managed-cloud shape where secrets ship inside the image.
-  # Self-hosted installs leave this false so values.yaml drives all runtime config.
+  # TUIST_SECRET_KEY_BASE / TUIST_S3_* env vars and expects those to come from
+  # elsewhere — the consolidated config Secret (config.managedSecrets) and CNPG
+  # for managed envs. Self-hosted installs leave this false so values.yaml
+  # drives all runtime config.
   managedSecrets: false
-  # Sync secrets from an external store via external-secrets-operator. Only
-  # consulted when managedSecrets is true and masterKey is empty. The store
-  # must already exist (ClusterSecretStore/SecretStore) and be configured
-  # elsewhere (see infra/k8s/onboarding.md for the 1Password flow).
+  # Sync secrets from an external store via external-secrets-operator (the Tuist
+  # license and Kura OAuth creds). The store must already exist
+  # (ClusterSecretStore/SecretStore) and be configured elsewhere (see
+  # infra/k8s/onboarding.md for the 1Password flow).
   externalSecrets:
     refreshInterval: "1h"
     storeRef:
       kind: ClusterSecretStore
       name: onepassword
-    masterKey:
-      # 1Password item name in the vault referenced by the SecretStore.
-      # For the 1P SDK provider the item + field are joined as "<item>/<field>"
-      # and the vault is set on the ClusterSecretStore, not here.
-      item: MASTER_KEY
-      # Field within the item. 1P "Password" category items expose their
-      # value under `password`; custom items can use any label.
-      field: password
     # Sync the Tuist license key from the external store. Independent of
     # managedSecrets — preview environments use this without the encrypted
     # priv/secrets blob. Leave `item` empty to skip license sync.
@@ -226,6 +213,45 @@ server:
         fields:
           clientId: client_id
           clientSecret: client_secret
+  # Bulk runtime secrets (Sentry, Stripe API keys, Slack, Apple, the Tuist
+  # OAuth/OIDC provider keys, the Mailgun API key, PostHog, Loops, the ClickHouse
+  # URL, Plain, the cache API key, and the Phoenix/Cloak/Guardian secret keys)
+  # synced from 1Password by ESO into a single Secret whose keys are TUIST_*
+  # env var names, mounted via envFrom. This is what lets managed envs drop
+  # the encrypted priv/secrets/<env>.yml.enc blob + MASTER_KEY. Per-concern 1P
+  # items live in the per-env vault — see
+  # templates/server-config-external-secrets.yaml for the item/field layout.
+  # Off by default: self-hosted installs supply config via extraEnv / their
+  # own Secret, and a managed env must have every 1P item populated before
+  # flipping this on (the migration-job hook waits on the ExternalSecret).
+  config:
+    managedSecrets: false
+    # PostHog analytics is per-env. The ESO secret's `data` is all-or-nothing,
+    # so an env without a POSTHOG 1P item must opt out here (otherwise its whole
+    # config sync fails). Off → TUIST_POSTHOG_* unset → analytics_enabled? false.
+    posthog:
+      enabled: true
+    externalSecrets:
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+  # Stripe price IDs, keyed plan -> category -> [price ids]. Not secrets (just
+  # identifiers), so they live here rather than 1Password; the chart JSON-encodes
+  # them into TUIST_STRIPE_PRICES (Environment.stripe_prices/1). Empty by default
+  # — managed values set the real map. The Stripe API keys themselves stay in the
+  # secret store (server.config / 1Password STRIPE item).
+  stripe:
+    prices: {}
+  # Mailing identity (Mailgun sending domain + from/reply-to addresses). Not
+  # secrets — just the sender identity, shared across envs — so they live here,
+  # wired to TUIST_MAILING_* env vars. The Mailgun API key stays in the secret
+  # store (server.config / 1Password MAILGUN item). Empty by default; managed
+  # values set them.
+  mailing:
+    domain: ""
+    fromAddress: ""
+    replyToAddress: ""
   license:
     key: ""
     certificateBase64: ""
@@ -1782,6 +1808,16 @@ postgresql:
       # bucket name in the path; the endpoint is shared.
       destinationPath: ""
       endpointURL: "https://t3.storage.dev"
+      # Barman Cloud Plugin (CNPG-I) migration. When enabled, the cluster
+      # archives via the plugin sidecar + an ObjectStore CR instead of the
+      # in-tree barmanObjectStore (deprecated since operator 1.26). Requires
+      # the plugin-barman-cloud manifest installed in the operator namespace
+      # (`platform`) — see infra/cnpg/README.md. Default off: this is a
+      # no-op until flipped per-env after validating WAL continuity (same
+      # bucket + serverName) and a restore drill from a plugin-written backup.
+      plugin:
+        enabled: false
+        name: barman-cloud.cloudnative-pg.io
     externalSecrets:
       refreshInterval: "1h"
       storeRef:

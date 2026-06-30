@@ -1,6 +1,5 @@
 {{- if .Values.server.enabled }}
 {{- $secretName := include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
-{{- $masterKeySecretName := ternary (include "tuist.componentName" (dict "root" . "component" "server-external-secrets")) $secretName .Values.server.managedSecrets }}
 {{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" . -}}
 {{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" . -}}
 apiVersion: apps/v1
@@ -231,13 +230,8 @@ spec:
             {{- include "tuist.kuraIntrospectionEnv" . | nindent 12 }}
             {{- include "tuist.githubEnv" . | nindent 12 }}
             {{- include "tuist.googleEnv" . | nindent 12 }}
-            {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
-            - name: MASTER_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $masterKeySecretName }}
-                  key: server-master-key
-            {{- end }}
+            {{- include "tuist.stripePricesEnv" . | nindent 12 }}
+            {{- include "tuist.mailingEnv" . | nindent 12 }}
             {{- if .Values.server.cluster.enabled }}
             - name: TUIST_CLUSTER_DNS_SERVICE
               value: {{ include "tuist.serverHeadlessServiceName" . | quote }}
@@ -325,9 +319,15 @@ spec:
             {{- with .Values.server.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-          {{- with .Values.server.extraEnvFrom }}
+          {{- $serverConfigEnvFrom := include "tuist.serverConfigEnvFrom" . | trim }}
+          {{- if or $serverConfigEnvFrom .Values.server.extraEnvFrom }}
           envFrom:
+            {{- with $serverConfigEnvFrom }}
+            {{- . | nindent 12 }}
+            {{- end }}
+            {{- with .Values.server.extraEnvFrom }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- end }}
           startupProbe:
             httpGet:

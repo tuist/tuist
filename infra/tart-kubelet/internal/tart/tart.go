@@ -233,7 +233,13 @@ func (c *Client) Run(ctx context.Context, name string, sharedDirs []string) (*Ru
 		}
 	}
 
-	args := []string{"run", name, "--no-graphics"}
+	// Host-cache the VM's disk-image reads. Tart's default (caching=automatic)
+	// leaves read throughput on the table for our read/page-in-heavy build
+	// workload (compilers + dylibs paged in per task). An on-host A/B on a
+	// runner Mac mini measured ~1.8x faster warm reads with caching=cached
+	// (7.7 vs 4.2 GB/s) and no durability tradeoff — these VMs are ephemeral
+	// (cloned per Pod, discarded on exit), so host caching is pure upside.
+	args := []string{"run", name, "--no-graphics", "--root-disk-opts", "caching=cached"}
 	for _, dir := range sharedDirs {
 		args = append(args, "--dir", dir)
 	}

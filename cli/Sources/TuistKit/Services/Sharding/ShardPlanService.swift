@@ -191,17 +191,20 @@
         /// Enumerates the test suites in the built test products for suite-granularity sharding.
         ///
         /// The module universe is taken from the `.xctestrun` (`expectedModules`), which is deterministic.
-        /// Suite discovery via `xcodebuild -enumerate-tests` is not — a flaky bulk pass can omit modules —
-        /// so to keep the plan complete we:
+        /// Suite discovery via `xcodebuild -enumerate-tests` is not: it boots the test bundles, so a module
+        /// can be reported either missing or — more insidiously — *present-but-empty* when its target fails to
+        /// boot (e.g. a flaky simulator under load). Both look identical to a genuinely empty target except
+        /// that xcodebuild records the failure in the enumeration's `errors`. To keep the plan complete we:
         ///
         /// 1. Run one bulk enumeration pass.
-        /// 2. Re-enumerate, per module, any `expectedModules` the bulk pass never reported (isolating a
-        ///    slow/failing target instead of redoing all of them).
+        /// 2. Re-enumerate, in isolation, every `expectedModules` the bulk pass produced *no suites* for —
+        ///    whether missing entirely or present-but-empty. An isolated pass disambiguates: finding suites
+        ///    recovers the module; reporting it present-but-empty with no errors confirms it is genuinely
+        ///    empty; anything else (errors, or still missing) is a real failure.
         /// 3. Reconcile against `expectedModules`:
         ///    - modules with suites are sharded at suite granularity;
-        ///    - modules that enumerated but reported *no* tests are genuinely empty and excluded;
-        ///    - a module that never enumerated at all (even after recovery) is a genuine failure and throws,
-        ///      rather than being silently dropped from the plan.
+        ///    - modules confirmed genuinely empty are excluded;
+        ///    - any remaining module failed to enumerate and throws, rather than being silently dropped.
         private func enumerateTestSuites(
             testProductsPath: AbsolutePath,
             destination: String?,
@@ -209,11 +212,9 @@
         ) async throws -> [String] {
             let expectedModules = Set(expectedModules)
             var suitesByModule: [String: Set<String>] = [:]
-            var enumeratedModules: Set<String> = []
 
-            func ingest(_ targets: [XCTestRun.TestTarget]) {
-                for target in targets {
-                    enumeratedModules.insert(target.blueprintName)
+            func ingest(_ enumeration: XCTestEnumeration) {
+                for target in enumeration.targets {
                     let suites = target.onlyTestIdentifiers ?? []
                     guard !suites.isEmpty else { continue }
                     suitesByModule[target.blueprintName, default: []].formUnion(suites)
@@ -223,39 +224,60 @@
             // 1. Bulk pass.
             ingest(try await enumerate(testProductsPath: testProductsPath, destination: destination, onlyTesting: []))
 
-            // 2. Per-target recovery for modules the bulk pass never reported.
-            let missingAfterBulk = expectedModules.subtracting(enumeratedModules).sorted()
-            if !missingAfterBulk.isEmpty {
+            // 2. Recovery for every expected module the bulk pass produced no suites for. A present-but-empty
+            //    target is ambiguous (genuinely empty vs. failed to boot), so we re-enumerate it in isolation
+            //    and let that pass arbitrate.
+            var confirmedEmptyModules: Set<String> = []
+            var failureDetailByModule: [String: String] = [:]
+            let modulesNeedingRecovery = expectedModules.filter { suitesByModule[$0] == nil }.sorted()
+            if !modulesNeedingRecovery.isEmpty {
                 Logger.current.warning(
-                    "Test enumeration reported \(expectedModules.intersection(enumeratedModules).count) of \(expectedModules.count) module(s); recovering \(missingAfterBulk.count) module(s) individually to avoid dropping tests from the shard plan."
+                    "Test enumeration produced suites for \(suitesByModule.count) of \(expectedModules.count) module(s); re-enumerating \(modulesNeedingRecovery.count) module(s) individually to avoid dropping tests from the shard plan."
                 )
-                for module in missingAfterBulk {
+                for module in modulesNeedingRecovery {
                     for _ in 1 ... Self.maxModuleRecoveryAttempts {
-                        ingest(try await enumerate(
+                        let enumeration = try await enumerate(
                             testProductsPath: testProductsPath,
                             destination: destination,
                             onlyTesting: [module]
-                        ))
-                        if enumeratedModules.contains(module) { break }
+                        )
+                        ingest(enumeration)
+                        if suitesByModule[module] != nil { break }
+                        if enumeration.errors.isEmpty,
+                           enumeration.targets.contains(where: { $0.blueprintName == module })
+                        {
+                            // Booted and enumerated cleanly, it simply has no tests.
+                            confirmedEmptyModules.insert(module)
+                            break
+                        }
+                        failureDetailByModule[module] = enumeration.errors.first
+                            ?? "the module was not reported by `xcodebuild -enumerate-tests`"
                     }
                 }
             }
 
-            // 3. Reconcile against the deterministic `.xctestrun` universe. A module that still can't be
-            // enumerated after per-target recovery is a genuine failure (e.g. a target that won't load), so
-            // fail loudly rather than silently dropping its tests from the plan.
-            let unenumerableModules = expectedModules.subtracting(enumeratedModules).sorted()
-            guard unenumerableModules.isEmpty else {
-                throw ShardPlanServiceError.modulesFailedToEnumerate(unenumerableModules)
+            // 3. Reconcile against the deterministic `.xctestrun` universe. A module we could neither find
+            // suites for nor confirm as genuinely empty failed to enumerate (e.g. a target that won't boot),
+            // so fail loudly — with the underlying xcodebuild error — rather than silently dropping its tests.
+            let failedModules = expectedModules
+                .filter { suitesByModule[$0] == nil }
+                .subtracting(confirmedEmptyModules)
+                .sorted()
+            guard failedModules.isEmpty else {
+                let details = failedModules.compactMap { module in
+                    failureDetailByModule[module].map { "\(module): \($0)" }
+                }
+                if !details.isEmpty {
+                    Logger.current.error(
+                        "Test enumeration failed for \(failedModules.count) module(s):\n\(details.joined(separator: "\n"))"
+                    )
+                }
+                throw ShardPlanServiceError.modulesFailedToEnumerate(failedModules)
             }
 
-            let emptyModules = expectedModules
-                .intersection(enumeratedModules)
-                .subtracting(suitesByModule.keys)
-                .sorted()
-            if !emptyModules.isEmpty {
+            if !confirmedEmptyModules.isEmpty {
                 Logger.current.debug(
-                    "\(emptyModules.count) module(s) enumerated no tests and are excluded as empty: \(emptyModules.joined(separator: ", "))."
+                    "\(confirmedEmptyModules.count) module(s) enumerated no tests and are excluded as empty: \(confirmedEmptyModules.sorted().joined(separator: ", "))."
                 )
             }
 
@@ -264,14 +286,15 @@
                 .sorted()
         }
 
-        /// Runs a single enumeration pass. A failed *isolated recovery* pass (`onlyTesting` non-empty) is
-        /// non-fatal — the module stays unenumerable and is handled by the whole-module backstop — while a
-        /// failed *bulk* pass is fatal, since there would be nothing to shard.
+        /// Runs a single enumeration pass. A failed *bulk* pass is fatal — there would be nothing to shard. A
+        /// failed *isolated recovery* pass (`onlyTesting` non-empty) is non-fatal but is surfaced as an
+        /// `errors` entry for the module being recovered, so the reconcile step fails loudly instead of
+        /// silently dropping it.
         private func enumerate(
             testProductsPath: AbsolutePath,
             destination: String?,
             onlyTesting: [String]
-        ) async throws -> [XCTestRun.TestTarget] {
+        ) async throws -> XCTestEnumeration {
             do {
                 return try await xcTestEnumerator.enumerateTests(
                     testProductsPath: testProductsPath,
@@ -283,7 +306,7 @@
                 Logger.current.debug(
                     "Per-target enumeration of \(onlyTesting.joined(separator: ", ")) failed: \(error.localizedDescription)"
                 )
-                return []
+                return XCTestEnumeration(targets: [], errors: [error.localizedDescription])
             }
         }
 

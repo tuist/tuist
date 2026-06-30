@@ -247,6 +247,16 @@ cloudnative-pg:
   monitoring:
     podMonitorEnabled: false
 
+# Barman Cloud Plugin (CNPG-I) — the backup sidecar a CNPG cluster uses when
+# its backups run through the plugin instead of in-tree barman. As a subchart
+# of this release it installs into the release namespace (`platform`), which is
+# where the operator runs and where the plugin must live. Installing it is
+# inert: no cluster uses it until the tuist/tuist-ops chart sets
+# `…backup.plugin.enabled`. Flip off alongside cloudnative-pg for non-cnpg
+# (embedded/external) self-hosted setups.
+plugin-barman-cloud:
+  enabled: true
+
 # Optional Cilium egress gateway policy for managed-cluster workloads that
 # need a stable outbound source IP for customer allowlists.
 #
@@ -324,6 +334,39 @@ ciliumEgressGateway:
         # `token` is the canonical key bootstrap-workload waits for.
         name: hcloud
         key: token
+
+# Optional in-cluster cleanup loop for the managed preview cluster. Disabled
+# by default so ordinary platform installs do not get cluster-wide delete
+# permissions. The tuist-preview overlay enables it.
+previewJanitor:
+  enabled: false
+  # Runs after preview-sweep.yml's on-the-hour schedule and 15 minute timeout,
+  # so the external workflow gets first chance to run helm uninstall.
+  schedule: "20 * * * *"
+  suspend: false
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 900
+  backoffLimit: 0
+  activeDeadlineSeconds: 900
+  stuckCreateAgeSeconds: 1800
+  teardownTimeout: 5m
+  kuraNamespace: kura
+  serviceAccount:
+    name: preview-janitor
+  image:
+    repository: alpine/k8s
+    tag: "1.36.1"
+    pullPolicy: IfNotPresent
+  nodeSelector: {}
+  tolerations: []
+  resources:
+    requests:
+      cpu: 25m
+      memory: 96Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
 
 # Whether to emit the ClusterIssuer template below. Turn off if you manage
 # cert-manager issuers with a separate GitOps process.

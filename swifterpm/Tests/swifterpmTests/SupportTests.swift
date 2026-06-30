@@ -57,26 +57,33 @@ struct SupportTests {
             try await fileSystem.makeDirectory(at: source.absolutePath, options: [.createTargetParentDirectories])
             try await fileSystem.makeDirectory(at: nested.absolutePath, options: [.createTargetParentDirectories])
             try await fileSystem.atomicWrite(
-                "value", to: source.appendingPathComponent("file.txt"))
+                "value", to: source.appendingPathComponent("file.txt")
+            )
             try await fileSystem.atomicWrite(
-                "nested", to: nested.appendingPathComponent("nested.txt"))
+                "nested", to: nested.appendingPathComponent("nested.txt")
+            )
 
             try await fileSystem.flattenSingleDirectory(root.appendingPathComponent("outer"))
             #expect(
-                try await fileSystem.exists(root.appendingPathComponent("outer/nested.txt").absolutePath))
+                try await fileSystem.exists(root.appendingPathComponent("outer/nested.txt").absolutePath)
+            )
 
             let destination = root.appendingPathComponent("destination")
             try await fileSystem.replaceWithSymlinkedDirectory(
-                source: source, destination: destination)
+                source: source, destination: destination
+            )
             #expect(try await fileSystem.exists(destination.absolutePath))
             #expect(!(fileSystem.isDirectoryAndNotSymlink(destination)))
             #expect(
-                try await fileSystem.exists(destination.appendingPathComponent("file.txt").absolutePath))
+                try await fileSystem.exists(destination.appendingPathComponent("file.txt").absolutePath)
+            )
             let data = try await fileSystem.readFile(at: destination.appendingPathComponent("file.txt").absolutePath)
             #expect(String(data: data, encoding: .utf8) == "value")
             #expect(
                 !(fileSystem.isDirectoryAndNotSymlink(
-                    destination.appendingPathComponent("file.txt"))))
+                    destination.appendingPathComponent("file.txt")
+                ))
+            )
         }
     }
 
@@ -89,14 +96,17 @@ struct SupportTests {
                 let destination = root.appendingPathComponent("destination")
                 try await fileSystem.makeDirectory(at: nested.absolutePath, options: [.createTargetParentDirectories])
                 try await fileSystem.atomicWrite(
-                    "value", to: nested.appendingPathComponent("file.txt"))
+                    "value", to: nested.appendingPathComponent("file.txt")
+                )
 
                 try await fileSystem.replaceWithCachedDirectory(
-                    source: source, destination: destination)
+                    source: source, destination: destination
+                )
 
                 #expect(fileSystem.isDirectoryAndNotSymlink(destination))
                 #expect(
-                    try await fileSystem.exists(destination.appendingPathComponent("nested/file.txt").absolutePath))
+                    try await fileSystem.exists(destination.appendingPathComponent("nested/file.txt").absolutePath)
+                )
                 let data = try await fileSystem.readFile(at: destination.appendingPathComponent("nested/file.txt").absolutePath)
                 #expect(String(data: data, encoding: .utf8) == "value")
             }
@@ -112,16 +122,92 @@ struct SupportTests {
                 let destination = root.appendingPathComponent("destination")
                 try await fileSystem.makeDirectory(at: nested.absolutePath, options: [.createTargetParentDirectories])
                 try await fileSystem.atomicWrite(
-                    "value", to: nested.appendingPathComponent("file.txt"))
+                    "value", to: nested.appendingPathComponent("file.txt")
+                )
 
                 try await fileSystem.replaceWithCachedDirectory(
-                    source: source, destination: destination)
+                    source: source, destination: destination
+                )
 
                 #expect(!(fileSystem.isDirectoryAndNotSymlink(destination)))
+                #expect(
+                    try await fileSystem.exists(destination.appendingPathComponent("nested/file.txt").absolutePath)
+                )
+                let data = try await fileSystem.readFile(at: destination.appendingPathComponent("nested/file.txt").absolutePath)
+                #expect(String(data: data, encoding: .utf8) == "value")
+            }
+        }
+    }
+
+    @Test
+    func registryDownloadReplacementAutomaticModeSymlinksContentsOutsideCI() async throws {
+        try await Environment.$values.withValue([:]) {
+            try await withTemporaryDirectory { root in
+                let source = root.appendingPathComponent("source")
+                let nested = source.appendingPathComponent("nested")
+                let destination = root.appendingPathComponent("destination")
+                try await fileSystem.makeDirectory(at: nested.absolutePath, options: [.createTargetParentDirectories])
+                try await fileSystem.atomicWrite(
+                    "value", to: nested.appendingPathComponent("file.txt"))
+                try await fileSystem.atomicWrite(
+                    "manifest", to: source.appendingPathComponent("Package.swift"))
+
+                try await fileSystem.replaceWithRegistryDownloadDirectory(
+                    source: source, destination: destination)
+
+                #expect(fileSystem.isDirectoryAndNotSymlink(destination))
+                #expect(!(fileSystem.isDirectoryAndNotSymlink(destination.appendingPathComponent("nested"))))
+                #expect(
+                    !(fileSystem.isDirectoryAndNotSymlink(
+                        destination.appendingPathComponent("Package.swift"))))
                 #expect(
                     try await fileSystem.exists(destination.appendingPathComponent("nested/file.txt").absolutePath))
                 let data = try await fileSystem.readFile(at: destination.appendingPathComponent("nested/file.txt").absolutePath)
                 #expect(String(data: data, encoding: .utf8) == "value")
+            }
+        }
+    }
+
+    @Test
+    func registryDownloadReplacementAutomaticModeCopiesOnContinuousIntegration() async throws {
+        try await Environment.$values.withValue(["CI": "1"]) {
+            try await withTemporaryDirectory { root in
+                let source = root.appendingPathComponent("source")
+                let nested = source.appendingPathComponent("nested")
+                let destination = root.appendingPathComponent("destination")
+                try await fileSystem.makeDirectory(at: nested.absolutePath, options: [.createTargetParentDirectories])
+                try await fileSystem.atomicWrite(
+                    "value", to: nested.appendingPathComponent("file.txt"))
+
+                try await fileSystem.replaceWithRegistryDownloadDirectory(
+                    source: source, destination: destination)
+
+                #expect(fileSystem.isDirectoryAndNotSymlink(destination))
+                #expect(fileSystem.isDirectoryAndNotSymlink(destination.appendingPathComponent("nested")))
+                #expect(
+                    try await fileSystem.exists(destination.appendingPathComponent("nested/file.txt").absolutePath))
+            }
+        }
+    }
+
+    @Test
+    func registryDownloadReplacementSymlinksContentsWhenConfigured() async throws {
+        try await Environment.withCachedDirectoryMaterialization(.symlink) {
+            try await withTemporaryDirectory { root in
+                let source = root.appendingPathComponent("source")
+                let nested = source.appendingPathComponent("nested")
+                let destination = root.appendingPathComponent("destination")
+                try await fileSystem.makeDirectory(at: nested.absolutePath, options: [.createTargetParentDirectories])
+                try await fileSystem.atomicWrite(
+                    "value", to: nested.appendingPathComponent("file.txt"))
+
+                try await fileSystem.replaceWithRegistryDownloadDirectory(
+                    source: source, destination: destination)
+
+                #expect(fileSystem.isDirectoryAndNotSymlink(destination))
+                #expect(!(fileSystem.isDirectoryAndNotSymlink(destination.appendingPathComponent("nested"))))
+                #expect(
+                    try await fileSystem.exists(destination.appendingPathComponent("nested/file.txt").absolutePath))
             }
         }
     }
@@ -138,14 +224,17 @@ struct SupportTests {
                     let destination = root.appendingPathComponent("destination")
                     try await fileSystem.makeDirectory(at: nested.absolutePath, options: [.createTargetParentDirectories])
                     try await fileSystem.atomicWrite(
-                        "value", to: nested.appendingPathComponent("file.txt"))
+                        "value", to: nested.appendingPathComponent("file.txt")
+                    )
 
                     try await fileSystem.replaceWithCachedDirectory(
-                        source: source, destination: destination)
+                        source: source, destination: destination
+                    )
 
                     #expect(!(fileSystem.isDirectoryAndNotSymlink(destination)))
                     #expect(
-                        try await fileSystem.exists(destination.appendingPathComponent("nested/file.txt").absolutePath))
+                        try await fileSystem.exists(destination.appendingPathComponent("nested/file.txt").absolutePath)
+                    )
                 }
             }
         }
@@ -159,20 +248,23 @@ struct SupportTests {
                 let destination = root.appendingPathComponent("destination")
                 try await fileSystem.makeDirectory(at: source.absolutePath, options: [.createTargetParentDirectories])
                 try await fileSystem.atomicWrite(
-                    "value", to: source.appendingPathComponent("file.txt"))
+                    "value", to: source.appendingPathComponent("file.txt")
+                )
 
                 try await fileSystem.replaceWithCachedDirectory(
-                    source: source, destination: destination)
+                    source: source, destination: destination
+                )
 
                 #expect(fileSystem.isDirectoryAndNotSymlink(destination))
                 #expect(
-                    try await fileSystem.exists(destination.appendingPathComponent("file.txt").absolutePath))
+                    try await fileSystem.exists(destination.appendingPathComponent("file.txt").absolutePath)
+                )
             }
         }
     }
 
     @Test
-    func ciDetectionMatchesAubeEnvironmentLogic() async throws {
+    func ciDetectionMatchesAubeEnvironmentLogic() {
         Environment.$values.withValue([:]) {
             #expect(!Environment.isCI)
         }
@@ -196,5 +288,40 @@ struct SupportTests {
             #expect(try await fileSystem.exists(temp.absolutePath))
             #expect(SafeFileName.make("a/b:c") == "a_b_c")
         }
+    }
+
+    @Test
+    func netrcCredentialBeatsGitHubEnvToken() {
+        let credential = RegistryCredential(user: "x-access-token", password: "harbor-token")
+        let header = HTTPAuthorization.prioritizedHeader(
+            isGitHub: true,
+            netrcCredential: credential,
+            gitHubEnvToken: "ghs_repo_scoped_token"
+        )
+
+        let expected = "Basic " + Data("x-access-token:harbor-token".utf8).base64EncodedString()
+        #expect(header == expected)
+    }
+
+    @Test
+    func gitHubEnvTokenUsedWhenNoNetrcCredential() {
+        let header = HTTPAuthorization.prioritizedHeader(
+            isGitHub: true,
+            netrcCredential: nil,
+            gitHubEnvToken: "ghs_repo_scoped_token"
+        )
+
+        #expect(header == "Bearer ghs_repo_scoped_token")
+    }
+
+    @Test
+    func gitHubEnvTokenIgnoredForNonGitHubHostWithoutNetrc() {
+        #expect(
+            HTTPAuthorization.prioritizedHeader(
+                isGitHub: false,
+                netrcCredential: nil,
+                gitHubEnvToken: "ghs_repo_scoped_token"
+            ) == nil
+        )
     }
 }

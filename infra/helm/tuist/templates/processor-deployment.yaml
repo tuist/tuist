@@ -134,19 +134,13 @@ spec:
             - name: TUIST_DATABASE_SCHEMA
               value: {{ .Values.postgresql.schema | quote }}
             {{- include "tuist.githubEnv" . | nindent 12 }}
-            {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
-            # MASTER_KEY unlocks the rest of priv/secrets/<env>.yml.enc
-            # (ClickHouse URL, S3 creds, Sentry, Stripe, etc.). The release
-            # boots with the same secrets the web server would, minus the
-            # DATABASE_URL override above.
-            - name: MASTER_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ ternary (include "tuist.componentName" (dict "root" . "component" "server-external-secrets")) (include "tuist.componentName" (dict "root" . "component" "app-secrets")) .Values.server.managedSecrets }}
-                  key: server-master-key
-            {{- end }}
             - name: TUIST_HOSTED
               value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
+            # Tuist.License.assert_valid!/0 runs unconditionally at boot
+            # (application.ex), so the processor needs the license key. It used
+            # to come from the encrypted blob; with the blob gone it must be
+            # wired like the server Deployment, or boot crashes "license missing".
+            {{- include "tuist.licenseEnv" . | nindent 12 }}
             - name: TUIST_LOG_LEVEL
               value: {{ .Values.server.logLevel | quote }}
             - name: TUIST_S3_BUCKET_NAME
@@ -185,9 +179,15 @@ spec:
             {{- with .Values.processor.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-          {{- with .Values.server.extraEnvFrom }}
+          {{- $serverConfigEnvFrom := include "tuist.serverConfigEnvFrom" . | trim }}
+          {{- if or $serverConfigEnvFrom .Values.server.extraEnvFrom }}
           envFrom:
+            {{- with $serverConfigEnvFrom }}
+            {{- . | nindent 12 }}
+            {{- end }}
+            {{- with .Values.server.extraEnvFrom }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- end }}
           # No HTTP probes — the pod has no web endpoint. Liveness is proved
           # by Oban's heartbeat into oban_peers: a wedged BEAM stops updating

@@ -256,9 +256,13 @@ struct ShardPlanServiceTests {
             .enumerateTests(testProductsPath: .any, destination: .any, onlyTesting: .any)
             .willProduce { _, _, onlyTesting in
                 if onlyTesting.isEmpty {
-                    return [XCTestRun.TestTarget(blueprintName: "AppTests", onlyTestIdentifiers: ["LoginTests"])]
+                    return XCTestEnumeration(targets: [
+                        XCTestRun.TestTarget(blueprintName: "AppTests", onlyTestIdentifiers: ["LoginTests"]),
+                    ])
                 }
-                return [XCTestRun.TestTarget(blueprintName: "FeatureTests", onlyTestIdentifiers: ["FeatureFlagTests"])]
+                return XCTestEnumeration(targets: [
+                    XCTestRun.TestTarget(blueprintName: "FeatureTests", onlyTestIdentifiers: ["FeatureFlagTests"]),
+                ])
             }
 
         var capturedTestSuites: [String]?
@@ -305,10 +309,10 @@ struct ShardPlanServiceTests {
         let xcTestEnumerator = MockXCTestEnumerating()
         given(xcTestEnumerator)
             .enumerateTests(testProductsPath: .any, destination: .any, onlyTesting: .any)
-            .willReturn([
+            .willReturn(XCTestEnumeration(targets: [
                 XCTestRun.TestTarget(blueprintName: "AppTests", onlyTestIdentifiers: ["LoginTests", "SignupTests"]),
                 XCTestRun.TestTarget(blueprintName: "FeatureTests", onlyTestIdentifiers: ["FeatureFlagTests"]),
-            ])
+            ]))
 
         var capturedTestSuites: [String]?
         let createShardPlanService = mockCreateShardPlanService(capturingTestSuites: { capturedTestSuites = $0 })
@@ -352,14 +356,16 @@ struct ShardPlanServiceTests {
         let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
         try await writeXCTestProducts(modules: ["AppTests", "EmptyTests"], at: testProductsPath, fileSystem: fileSystem)
 
-        // EmptyTests enumerates but reports no tests (an empty target); AppTests reports a suite.
+        // EmptyTests enumerates but reports no tests (an empty target) with no errors; AppTests reports a
+        // suite. Because a present-but-empty target is ambiguous, EmptyTests is re-enumerated in isolation,
+        // which confirms (no errors) that it is genuinely empty.
         let xcTestEnumerator = MockXCTestEnumerating()
         given(xcTestEnumerator)
             .enumerateTests(testProductsPath: .any, destination: .any, onlyTesting: .any)
-            .willReturn([
+            .willReturn(XCTestEnumeration(targets: [
                 XCTestRun.TestTarget(blueprintName: "AppTests", onlyTestIdentifiers: ["LoginTests"]),
                 XCTestRun.TestTarget(blueprintName: "EmptyTests", onlyTestIdentifiers: []),
-            ])
+            ]))
 
         var capturedTestSuites: [String]?
         let createShardPlanService = mockCreateShardPlanService(capturingTestSuites: { capturedTestSuites = $0 })
@@ -391,8 +397,8 @@ struct ShardPlanServiceTests {
 
         // EmptyTests enumerated no tests, so it is excluded; AppTests is unaffected.
         #expect(capturedTestSuites == ["AppTests/LoginTests"])
-        // Every module enumerated (EmptyTests is simply empty), so no per-target recovery is needed.
-        verify(xcTestEnumerator).enumerateTests(testProductsPath: .any, destination: .any, onlyTesting: .any).called(1)
+        // One bulk pass plus one isolated pass that confirms EmptyTests is genuinely empty (no errors).
+        verify(xcTestEnumerator).enumerateTests(testProductsPath: .any, destination: .any, onlyTesting: .any).called(2)
     }
 
     /// A module that never enumerates — even after per-target recovery — must not be silently dropped: it is a
@@ -408,7 +414,9 @@ struct ShardPlanServiceTests {
         let xcTestEnumerator = MockXCTestEnumerating()
         given(xcTestEnumerator)
             .enumerateTests(testProductsPath: .any, destination: .any, onlyTesting: .any)
-            .willReturn([XCTestRun.TestTarget(blueprintName: "AppTests", onlyTestIdentifiers: ["LoginTests"])])
+            .willReturn(XCTestEnumeration(targets: [
+                XCTestRun.TestTarget(blueprintName: "AppTests", onlyTestIdentifiers: ["LoginTests"]),
+            ]))
 
         let createShardPlanService = mockCreateShardPlanService(capturingTestSuites: { _ in })
         let shardMatrixOutputService = MockShardMatrixOutputServicing()
@@ -443,6 +451,122 @@ struct ShardPlanServiceTests {
         // Bulk pass plus the bounded per-target recovery attempts before failing.
         verify(xcTestEnumerator)
             .enumerateTests(testProductsPath: .any, destination: .any, onlyTesting: .any).called(3)
+    }
+
+    /// A module the bulk pass reports present-but-empty *with* an accompanying enumeration error (e.g. a
+    /// target that failed to boot) is ambiguous, so it is re-enumerated in isolation. When the isolated pass
+    /// succeeds the module is recovered into the plan rather than silently dropped — the trade-me flaky-boot
+    /// scenario where a re-boot discovers the tests the bulk pass missed.
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func plan_suiteGranularity_recoversModuleReportedEmptyWithErrorsThatThenEnumerates() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await writeXCTestProducts(modules: ["AppTests", "UITests"], at: testProductsPath, fileSystem: fileSystem)
+
+        let xcTestEnumerator = MockXCTestEnumerating()
+        given(xcTestEnumerator)
+            .enumerateTests(testProductsPath: .any, destination: .any, onlyTesting: .any)
+            .willProduce { _, _, onlyTesting in
+                if onlyTesting.isEmpty {
+                    // Bulk pass: UITests failed to boot — present but empty, with an error.
+                    return XCTestEnumeration(
+                        targets: [
+                            XCTestRun.TestTarget(blueprintName: "AppTests", onlyTestIdentifiers: ["LoginTests"]),
+                            XCTestRun.TestTarget(blueprintName: "UITests", onlyTestIdentifiers: []),
+                        ],
+                        errors: ["Cannot test target UITests: simulator failed to boot."]
+                    )
+                }
+                // Isolated recovery pass: UITests boots and enumerates this time.
+                return XCTestEnumeration(targets: [
+                    XCTestRun.TestTarget(blueprintName: "UITests", onlyTestIdentifiers: ["SnapshotTests"]),
+                ])
+            }
+
+        var capturedTestSuites: [String]?
+        let createShardPlanService = mockCreateShardPlanService(capturingTestSuites: { capturedTestSuites = $0 })
+        let shardMatrixOutputService = MockShardMatrixOutputServicing()
+        given(shardMatrixOutputService).output(.any).willReturn()
+
+        let subject = ShardPlanService(
+            xcTestEnumerator: xcTestEnumerator,
+            createShardPlanService: createShardPlanService,
+            fileSystem: fileSystem,
+            shardMatrixOutputService: shardMatrixOutputService
+        )
+
+        _ = try await subject.plan(
+            xctestproductsPath: testProductsPath,
+            destination: "platform=macOS",
+            reference: "ref",
+            shardGranularity: .suite,
+            shardMin: nil,
+            shardMax: nil,
+            shardTotal: 1,
+            shardMaxDuration: nil,
+            fullHandle: "tuist/tuist",
+            serverURL: try #require(URL(string: "https://tuist.dev")),
+            buildRunId: nil,
+            skipUpload: true,
+            archivePath: nil
+        )
+
+        // UITests is recovered by the isolated pass rather than silently dropped as "empty".
+        #expect(capturedTestSuites?.sorted() == ["AppTests/LoginTests", "UITests/SnapshotTests"])
+    }
+
+    /// A module reported present-but-empty *with* an enumeration error on every pass (bulk and every isolated
+    /// recovery attempt) failed to enumerate — a boot failure looks like a genuinely empty target except for
+    /// the error. It must fail the plan loudly rather than being silently dropped, which is exactly the
+    /// trade-me regression (a 70-target plan shipping only the dozen that happened to boot).
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func plan_suiteGranularity_throwsForModuleThatAlwaysEnumeratesEmptyWithErrors() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await writeXCTestProducts(modules: ["AppTests", "UITests"], at: testProductsPath, fileSystem: fileSystem)
+
+        let xcTestEnumerator = MockXCTestEnumerating()
+        given(xcTestEnumerator)
+            .enumerateTests(testProductsPath: .any, destination: .any, onlyTesting: .any)
+            .willReturn(XCTestEnumeration(
+                targets: [
+                    XCTestRun.TestTarget(blueprintName: "AppTests", onlyTestIdentifiers: ["LoginTests"]),
+                    XCTestRun.TestTarget(blueprintName: "UITests", onlyTestIdentifiers: []),
+                ],
+                errors: ["Cannot test target UITests: simulator failed to boot."]
+            ))
+
+        let createShardPlanService = mockCreateShardPlanService(capturingTestSuites: { _ in })
+        let shardMatrixOutputService = MockShardMatrixOutputServicing()
+        given(shardMatrixOutputService).output(.any).willReturn()
+
+        let subject = ShardPlanService(
+            xcTestEnumerator: xcTestEnumerator,
+            createShardPlanService: createShardPlanService,
+            fileSystem: fileSystem,
+            shardMatrixOutputService: shardMatrixOutputService
+        )
+
+        let serverURL = try #require(URL(string: "https://tuist.dev"))
+        await #expect(throws: ShardPlanServiceError.modulesFailedToEnumerate(["UITests"])) {
+            _ = try await subject.plan(
+                xctestproductsPath: testProductsPath,
+                destination: "platform=macOS",
+                reference: "ref",
+                shardGranularity: .suite,
+                shardMin: nil,
+                shardMax: nil,
+                shardTotal: 1,
+                shardMaxDuration: nil,
+                fullHandle: "tuist/tuist",
+                serverURL: serverURL,
+                buildRunId: nil,
+                skipUpload: true,
+                archivePath: nil
+            )
+        }
     }
 
     private func mockCreateShardPlanService(

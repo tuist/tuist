@@ -59,6 +59,7 @@ use crate::{
 };
 
 const MULTIPART_LOCK_STRIPES: usize = 64;
+const ARTIFACT_WRITE_LOCK_STRIPES: usize = 64;
 pub const EXISTENCE_CACHE_CAPACITY: usize = 65_536;
 const EXISTENCE_CACHE_TTL: Duration = Duration::from_secs(30);
 
@@ -96,6 +97,11 @@ pub struct Store {
     manifest_cache: StdMutex<ManifestCache>,
     existence_cache: StdMutex<ExistenceCache>,
     multipart_locks: [Mutex<()>; MULTIPART_LOCK_STRIPES],
+    // Serializes writers for the same artifact so concurrent applies of one key
+    // (e.g. a fresh node bootstrapping the same artifact from several peers at
+    // once) can't each append their own copy to a segment and orphan all but the
+    // last. Striped by artifact id so different keys still write concurrently.
+    artifact_write_locks: [Mutex<()>; ARTIFACT_WRITE_LOCK_STRIPES],
     failpoints: Arc<FailpointSet>,
 }
 
@@ -388,6 +394,7 @@ impl Store {
                 EXISTENCE_CACHE_TTL,
             )),
             multipart_locks: std::array::from_fn(|_| Mutex::new(())),
+            artifact_write_locks: std::array::from_fn(|_| Mutex::new(())),
             failpoints: Arc::new(FailpointSet::default()),
         };
         // `load_segment_state_from_db` needs `&self`, so the store must be fully
@@ -402,6 +409,13 @@ impl Store {
         std::hash::Hash::hash(upload_id, &mut hasher);
         let index = (std::hash::Hasher::finish(&hasher) as usize) % MULTIPART_LOCK_STRIPES;
         &self.multipart_locks[index]
+    }
+
+    fn artifact_write_lock_for(&self, artifact_id: &str) -> &Mutex<()> {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        std::hash::Hash::hash(artifact_id, &mut hasher);
+        let index = (std::hash::Hasher::finish(&hasher) as usize) % ARTIFACT_WRITE_LOCK_STRIPES;
+        &self.artifact_write_locks[index]
     }
 
     pub async fn artifact_exists(
@@ -552,6 +566,14 @@ impl Store {
     ) -> Result<PersistArtifactOutcome, String> {
         let artifact_id =
             artifact_storage_id(spec.producer, &self.tenant_id, spec.namespace_id, spec.key);
+        // Hold the per-artifact write lock across the read-check, segment append,
+        // and metadata commit. Without it, concurrent applies of the same key
+        // each observe "absent" below, each append a full copy to a segment, and
+        // only the last manifest write wins — leaving the rest as orphaned bytes
+        // that accumulate to N x on disk (the bootstrap-from-many-peers ENOSPC).
+        // Whoever wins the lock commits the manifest; the rest re-read it here and
+        // short-circuit to IgnoredStale without appending.
+        let _write_guard = self.artifact_write_lock_for(&artifact_id).lock().await;
         let size = self.io.metadata_len(source_path).await?;
 
         let existing = self.manifest_from_db(&artifact_id)?;
@@ -3346,6 +3368,64 @@ mod tests {
             .read_artifact_bytes(manifest)
             .await
             .expect("artifact bytes should read")
+    }
+
+    #[tokio::test]
+    async fn concurrent_replicated_applies_of_same_key_write_once() {
+        // Several peers replicating the same artifact concurrently (same key,
+        // same version) must not each append their own copy to a segment. The
+        // per-key apply lock serializes them: the first writer commits the
+        // manifest and the rest re-read it and short-circuit to IgnoredStale. A
+        // sleep failpoint between the durable append and the metadata commit
+        // forces the writers to overlap, so without the lock every copy would be
+        // appended (writer_count x on disk). This guards the store invariant
+        // directly, independent of the bootstrap-level fetch gate.
+        let (_temp_dir, config, store) = temp_store();
+        store.failpoints().set_always(
+            FailpointName::AfterArtifactBytesDurableBeforeMetadata,
+            FailpointAction::Sleep(std::time::Duration::from_millis(150)),
+        );
+
+        let writer_count = 4_usize;
+        let artifact_len = 128 * 1024_usize;
+        let bytes = vec![9_u8; artifact_len];
+        let version_ms = 100_u64;
+
+        let mut sources = Vec::new();
+        for index in 0..writer_count {
+            let path = config.tmp_dir.join("uploads").join(format!("src-{index}"));
+            std::fs::write(&path, &bytes).expect("source should write");
+            sources.push(path);
+        }
+
+        let applies = sources.iter().map(|source_path| {
+            store.apply_replicated_artifact_from_path(
+                ArtifactProducer::Gradle,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                source_path,
+                version_ms,
+            )
+        });
+        let outcomes = futures_util::future::join_all(applies).await;
+
+        let applied = outcomes
+            .into_iter()
+            .map(|outcome| outcome.expect("apply should succeed"))
+            .filter(|outcome| outcome.applied())
+            .count();
+        assert_eq!(
+            applied, 1,
+            "exactly one concurrent same-key apply should write; the rest are stale"
+        );
+
+        let segments_bytes = crate::utils::directory_size_bytes(&config.data_dir.join("segments"));
+        assert!(
+            segments_bytes <= (artifact_len as u64) * 2,
+            "segment store held {segments_bytes} bytes, expected ~{artifact_len} (one copy); \
+             concurrent same-key applies amplified on-disk data"
+        );
     }
 
     #[tokio::test]

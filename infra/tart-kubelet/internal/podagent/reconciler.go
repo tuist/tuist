@@ -328,10 +328,11 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 		}
 	}
 
-	// Reuse an existing local clone if one is on disk: a kubelet
-	// restart kills the running VM (launchctl bootout signals the
-	// process group) but the cloned image stays. Re-running it skips
-	// the clone cycle entirely.
+	// Reuse an existing local clone if one is on disk. A kubelet restart
+	// leaves the cloned image behind — and because `tart run` is
+	// Setsid-detached, usually the running VM itself — so we skip the
+	// clone cycle and either adopt the running VM (below) or re-run a
+	// stopped clone.
 	existingClone, _ := r.Tart.Get(ctx, vmName)
 
 	if existingClone == nil {
@@ -366,6 +367,23 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 		// warm clonefile from a cold re-pull so a slow provision can be
 		// attributed to one or the other instead of guessed at.
 		RecordVMProvisionWork(pool, provisionPath, time.Since(cloneStart))
+	}
+
+	// If the clone is already running — it survived a kubelet restart and
+	// recoverState didn't rebind it — adopt it instead of starting it
+	// again. A duplicate `tart run` exits immediately with "VM is already
+	// running", which loops here and strands the Pod (the failure mode
+	// that wedged the xcresult-processor and blocked a prod deploy).
+	// Register a Store entry with no RunHandle; podStatus then tracks
+	// liveness via IsRunning, exactly like recoverState's recovered
+	// entries. BootObserved is set because we didn't witness this boot.
+	if running, _ := r.Tart.IsRunning(ctx, vmName); running {
+		r.Store.Put(pod.Namespace, pod.Name, &Entry{
+			VMName:       vmName,
+			StartTS:      metav1.Now(),
+			BootObserved: true,
+		})
+		return nil
 	}
 
 	// Resize the cloned VM to match the Pod's resource requests.

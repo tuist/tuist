@@ -241,3 +241,27 @@ func TestHostKeyState_DetectsMidBootstrapKeyRotation(t *testing.T) {
 		t.Fatalf("mid-bootstrap key rotation should error")
 	}
 }
+
+func TestRenderVMNATScript_AssertsDefaultRouteNATLeg(t *testing.T) {
+	out := renderVMNATScript(Config{
+		VMKuraEgressCIDR: "10.96.0.0/12",
+		VMCachePNCIDR:    "172.16.0.0/22",
+	})
+	// The general-internet leg must NAT VM egress on the default-route
+	// NIC from this anchor, not rely on vmnet/InternetSharing — the
+	// 2026-06-26 outage was VMs egressing un-NAT'd (private
+	// 192.168.64.x source) after InternetSharing's separate en0 NAT
+	// anchor was clobbered, so tailscaled could never reach control.
+	if !strings.Contains(out, "route -n get default") {
+		t.Fatalf("expected default-route interface discovery\n%s", out)
+	}
+	if !strings.Contains(out, "nat on $DEFIF from 192.168.64.0/22 to any -> ($DEFIF)") {
+		t.Fatalf("expected general-internet NAT leg on the default route\n%s", out)
+	}
+	// The idempotency short-circuit must re-converge after an external
+	// anchor flush: skipping the reload purely on a snapshot match would
+	// leave a flushed anchor empty forever (the snapshot still matches).
+	if !strings.Contains(out, `pfctl -a "com.apple/tuist.vmnat" -s nat`) {
+		t.Fatalf("expected short-circuit to verify the live anchor still holds rules\n%s", out)
+	}
+}
