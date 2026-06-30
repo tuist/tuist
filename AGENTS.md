@@ -84,11 +84,11 @@ Avoid minimal PR descriptions that only restate the code diff. The goal is that 
 - Do not add one-line comments unless you think they are really useful.
 
 ## Workflow
-- For faster builds, generate only the required targets: `tuist generate tuist ProjectDescription --no-open`
-- When compiling Swift changes, use `xcodebuild build -workspace Tuist.xcworkspace -scheme tuist CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""` instead of `swift build`
-- When testing Swift changes, use `xcodebuild test -workspace Tuist.xcworkspace -scheme Tuist-Workspace -only-testing MyTests/SuiteTests CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""` instead of `swift test`.
+- For faster builds, generate only the required targets before compiling or testing, for example `tuist generate tuist ProjectDescription --no-open`. If the target or test suite you need is not present in the current generated workspace, regenerate with that specific production target and test target instead of falling back to SwiftPM.
+- When compiling Swift changes, use `xcodebuild build -workspace Tuist.xcworkspace -scheme tuist CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""` instead of `swift build`.
+- When testing Swift changes, use `xcodebuild test -workspace Tuist.xcworkspace -scheme Tuist-Workspace -only-testing MyTests/SuiteTests CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""` or `xcsiftbuild test` instead of `swift test`.
 - Prefer running test suites or individual test cases, and not the whole test target, for performance
-- When using `swift build`, `swift test`, or `swift package resolve` always include `--replace-scm-with-registry` to avoid switching packages from registry to source control resolution
+- Do not use `swift build` or `swift test` as a fallback for CLI work. Only use SwiftPM commands when the user explicitly asks for them or when changing package-resolution behavior; in those exceptional cases, always include `--replace-scm-with-registry` to avoid switching packages from registry to source control resolution.
 
 ## Testing
 - Use Swift Testing framework with custom traits for tests that need temporary directories
