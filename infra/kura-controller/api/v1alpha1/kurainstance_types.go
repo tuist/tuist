@@ -80,21 +80,23 @@ type KuraInstanceSpec struct {
 	// SANs cover the account peer Service, so every one of an account's
 	// instances mutually authenticates while another account's leaf
 	// (signed by a different CA) is rejected at the TLS layer. Each
-	// account's pods then discover and replicate to each other through
-	// the account peer Service (`KURA_GLOBAL_DISCOVERY_DNS_NAME`).
+	// account's pods then discover and replicate to each other directly
+	// pod-to-pod through the account peer Service
+	// (`KURA_DISCOVERY_DNS_NAME`, Local scope — no LB hairpin).
 	// `PeerTLSSecretName` takes precedence when set (externally managed
 	// peer TLS); Mesh is the in-cluster, controller-issued path.
 	Mesh bool `json:"mesh,omitempty"`
 
 	// MeshPublicPeerHost is the public hostname the account peer plane is
-	// reachable at from outside the cluster. When set (Mesh mode), the
-	// controller provisions a LoadBalancer Service for the account peer
-	// port (TLS-passthrough: the peer connection is end-to-end mTLS, so the
-	// LB only forwards L4) and adds the host to every managed instance's
-	// peer-cert SAN. That lets a customer's self-hosted Kura node dial into
-	// the managed mesh over the internet and verify the managed peers
-	// against the shared account CA. The reverse leg (managed dialing the
-	// self-hosted nodes) is `MeshExternalPeers`.
+	// reachable at from outside the cluster, so a customer's self-hosted Kura
+	// node can dial into the managed mesh over the internet and verify the
+	// managed peers against the shared account CA. When set (Mesh mode) the host
+	// is added to every managed instance's peer-cert SAN; how it is served
+	// depends on the region: a TLS-passthrough LoadBalancer Service on cloud
+	// regions, or (MeshPeerHostNetwork) a host-network SNI-passthrough demux on
+	// the box NIC behind a failover IP on bare-metal regions. Either way the peer
+	// connection is end-to-end mTLS — nothing terminates TLS. The reverse leg
+	// (managed dialing the self-hosted nodes) is `MeshExternalPeers`.
 	MeshPublicPeerHost string `json:"meshPublicPeerHost,omitempty"`
 
 	// MeshExternalPeers are peer URLs of the account's self-hosted Kura

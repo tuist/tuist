@@ -81,9 +81,12 @@ func TestPeerDemuxDesiredStateFiltersHostNetworkInstances(t *testing.T) {
 func TestPeerDemuxNginxConfRoutesBySNI(t *testing.T) {
 	conf := peerDemuxNginxConf([]peerDemuxRoute{
 		{host: "peer.acme-eu-central.kura.tuist.dev", backend: "kura-acme-peers-public.kura.svc.cluster.local:7443"},
-	})
+	}, "10.96.0.10")
 
 	for _, want := range []string{
+		// A resolver is mandatory for the variable proxy_pass to resolve the
+		// .svc.cluster.local backends at request time.
+		"resolver 10.96.0.10 valid=10s;",
 		"map $ssl_preread_server_name $kura_peer_backend {",
 		"ssl_preread on;",
 		"listen 7443;",
@@ -111,7 +114,11 @@ func TestPeerDemuxReconcileCreatesAndTearsDown(t *testing.T) {
 	}
 
 	instance := hostNetworkPeerInstance("kura-acme", "eu-central", "peer.acme-eu-central.kura.tuist.dev")
-	client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).Build()
+	dns := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{Name: "kube-dns", Namespace: "kube-system"},
+		Spec:       corev1.ServiceSpec{ClusterIP: "10.96.0.10"},
+	}
+	client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, dns).Build()
 	reconciler := &PeerDemuxReconciler{Client: client, Scheme: scheme}
 
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Name: "eu-central", Namespace: "kura"}}
@@ -225,5 +232,41 @@ func TestPeerDNSEndpointPublishesFailoverIP(t *testing.T) {
 	targets := record["targets"].([]interface{})
 	if len(targets) != 1 || targets[0] != "203.0.113.10" {
 		t.Fatalf("expected the failover IP target, got %v", targets)
+	}
+}
+
+func TestPeerDNSEndpointDeletedWhenFailoverIPMissing(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	scheme.AddKnownTypeWithName(dnsEndpointGVK, &unstructured.Unstructured{})
+	mapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{dnsEndpointGVK.GroupVersion()})
+	mapper.Add(dnsEndpointGVK, meta.RESTScopeNamespace)
+
+	// A DNSEndpoint left over from when the region's failover IP was configured.
+	existing := &unstructured.Unstructured{}
+	existing.SetGroupVersionKind(dnsEndpointGVK)
+	existing.SetNamespace("kura")
+	existing.SetName("kura-acme-peer-dns")
+
+	instance := hostNetworkPeerInstance("kura-acme", "eu-central", "peer.acme-eu-central.kura.tuist.dev")
+	instance.Spec.MeshPeerFailoverIP = "" // failover IP removed / not yet provisioned
+
+	client := fake.NewClientBuilder().WithScheme(scheme).WithRESTMapper(mapper).WithObjects(instance, existing).Build()
+	reconciler := &KuraInstanceReconciler{Client: client, Scheme: scheme}
+
+	if err := reconciler.reconcilePeerDNSEndpoint(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+
+	got := &unstructured.Unstructured{}
+	got.SetGroupVersionKind(dnsEndpointGVK)
+	if err := client.Get(ctx, types.NamespacedName{Name: "kura-acme-peer-dns", Namespace: "kura"}, got); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected the stale DNSEndpoint to be deleted, got %v", err)
 	}
 }

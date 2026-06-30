@@ -57,6 +57,7 @@ type PeerDemuxReconciler struct {
 // +kubebuilder:rbac:groups=kura.tuist.dev,resources=kurainstances,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apps,resources=daemonsets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch
 
 func (r *PeerDemuxReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithValues("region", req.Name)
@@ -85,7 +86,11 @@ func (r *PeerDemuxReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, nil
 	}
 
-	nginxConf := peerDemuxNginxConf(routes)
+	dnsIP, err := r.clusterDNSIP(ctx)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	nginxConf := peerDemuxNginxConf(routes, dnsIP)
 	configHash := fmt.Sprintf("%x", sha256.Sum256([]byte(nginxConf)))
 
 	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, configMap, func() error {
@@ -146,14 +151,21 @@ func peerDemuxDesiredState(region, namespace string, instances []kurav1alpha1.Ku
 
 // peerDemuxNginxConf renders a stream-only nginx config that routes each peer
 // SNI host to its account's ClusterIP peer Service. Unknown SNI maps to an empty
-// upstream, which nginx closes — only enrolled hosts are routable.
-func peerDemuxNginxConf(routes []peerDemuxRoute) string {
+// value, which nginx closes — only enrolled hosts are routable.
+//
+// proxy_pass uses a *variable* (the SNI map result), so nginx resolves the
+// backend hostname per-connection and a `resolver` is mandatory — without it the
+// stream block can't resolve the `.svc.cluster.local` Service names and every
+// peer connection fails (while the pod still passes a TCP readiness check).
+// dnsIP is the cluster DNS Service ClusterIP the controller looked up.
+func peerDemuxNginxConf(routes []peerDemuxRoute, dnsIP string) string {
 	var b strings.Builder
 	b.WriteString("worker_processes auto;\n")
 	b.WriteString("error_log /dev/stderr warn;\n")
 	b.WriteString("pid /tmp/nginx.pid;\n")
 	b.WriteString("events {\n  worker_connections 4096;\n}\n")
 	b.WriteString("stream {\n")
+	fmt.Fprintf(&b, "  resolver %s valid=10s;\n", dnsIP)
 	b.WriteString("  map $ssl_preread_server_name $kura_peer_backend {\n")
 	b.WriteString("    default \"\";\n")
 	for _, route := range routes {
@@ -219,6 +231,20 @@ func peerDemuxPodTemplate(region, name, configHash string, nodeSelector map[stri
 			}},
 		},
 	}
+}
+
+// clusterDNSIP returns the cluster DNS Service ClusterIP, which the demux's
+// nginx `resolver` needs to resolve the peer Service backends at request time.
+// k8s exposes CoreDNS under the conventional kube-system/kube-dns Service name.
+func (r *PeerDemuxReconciler) clusterDNSIP(ctx context.Context) (string, error) {
+	svc := &corev1.Service{}
+	if err := r.Get(ctx, types.NamespacedName{Name: "kube-dns", Namespace: "kube-system"}, svc); err != nil {
+		return "", fmt.Errorf("resolving cluster DNS service kube-system/kube-dns: %w", err)
+	}
+	if svc.Spec.ClusterIP == "" || svc.Spec.ClusterIP == corev1.ClusterIPNone {
+		return "", fmt.Errorf("kube-system/kube-dns has no ClusterIP")
+	}
+	return svc.Spec.ClusterIP, nil
 }
 
 func peerDemuxName(region string) string {

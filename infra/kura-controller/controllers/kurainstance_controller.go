@@ -442,7 +442,10 @@ var dnsEndpointGVK = schema.GroupVersionKind{Group: "externaldns.k8s.io", Versio
 // touches the API on host-network regions (a region never flips host-network
 // state, so the LoadBalancer path needs no DNSEndpoint cleanup here).
 func (r *KuraInstanceReconciler) reconcilePeerDNSEndpoint(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
-	if !instance.Spec.MeshPeerHostNetwork || instance.Spec.MeshPublicPeerHost == "" || instance.Spec.MeshPeerFailoverIP == "" {
+	// Only host-network regions ever get a peer DNSEndpoint (LB regions publish
+	// DNS off the public peer Service). Never touching the DNSEndpoint API for
+	// non-host-network regions keeps the common reconcile path free of it.
+	if !instance.Spec.MeshPeerHostNetwork {
 		return nil
 	}
 
@@ -450,6 +453,16 @@ func (r *KuraInstanceReconciler) reconcilePeerDNSEndpoint(ctx context.Context, i
 	endpoint.SetGroupVersionKind(dnsEndpointGVK)
 	endpoint.SetNamespace(instance.Namespace)
 	endpoint.SetName(instance.Name + "-peer-dns")
+
+	// Host cleared or the region's failover IP not (yet) provisioned: tear down
+	// any DNSEndpoint created earlier so external-dns stops publishing a stale
+	// peer record, mirroring reconcileInstancePublicPeerService's teardown.
+	if instance.Spec.MeshPublicPeerHost == "" || instance.Spec.MeshPeerFailoverIP == "" {
+		if err := r.Delete(ctx, endpoint); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+		return nil
+	}
 
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, endpoint, func() error {
 		endpoint.SetLabels(map[string]string{
