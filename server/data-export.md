@@ -120,6 +120,9 @@ All uploaded files associated with the account are included:
 
 ## Data Retention
 
+The customer-facing summary of these windows lives in the public data retention
+guide at `server/priv/docs/en/guides/server/data-retention.md`.
+
 Stored artifact blobs are subject to plan-based retention. Once an artifact is
 older than its retention window, its binary is removed from object storage by a
 daily cleanup process; the associated metadata rows (build runs, test runs,
