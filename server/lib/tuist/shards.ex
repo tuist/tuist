@@ -9,6 +9,7 @@ defmodule Tuist.Shards do
   import Ecto.Query
 
   alias Tuist.Accounts.Account
+  alias Tuist.Builds
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
@@ -30,7 +31,7 @@ defmodule Tuist.Shards do
     reference = Map.fetch!(params, :reference)
 
     timing_data = fetch_timing_data(project, granularity)
-    units = resolve_units(params, granularity, timing_data)
+    units = resolve_units(project, params, granularity, timing_data)
     units_with_durations = assign_durations(units, timing_data, granularity)
 
     shard_count =
@@ -268,9 +269,9 @@ defmodule Tuist.Shards do
     )
   end
 
-  defp resolve_units(params, "module", _timing_data), do: Map.get(params, :modules, [])
+  defp resolve_units(_project, params, "module", _timing_data), do: Map.get(params, :modules, [])
 
-  defp resolve_units(params, "suite", timing_data) do
+  defp resolve_units(project, params, "suite", _timing_data) do
     case Map.get(params, :test_suites, []) do
       suites when suites != [] ->
         # The client enumerated suites itself (legacy path).
@@ -278,21 +279,96 @@ defmodule Tuist.Shards do
 
       _ ->
         # The client no longer enumerates suites — booting every test bundle on the simulator is slow
-        # and flaky. Derive the unit list from historical suite timings instead, scoped to the modules
-        # present in this build's `.xctestrun`. Any suite without history (e.g. a newly added one) is not
-        # planned here but still runs via the catch-all shard, so nothing is dropped.
-        modules = MapSet.new(Map.get(params, :modules, []))
-
-        timing_data
-        |> Map.keys()
-        |> Enum.filter(fn key ->
-          case String.split(key, "/", parts: 2) do
-            [module, _suite] -> MapSet.member?(modules, module)
-            _ -> false
-          end
-        end)
+        # and flaky. Use the latest CI run for the build branch as the known suite inventory,
+        # falling back to the default branch, and scope it to the modules present in this build's
+        # `.xctestrun`. Any suite absent from that inventory still runs via the catch-all shard.
+        latest_branch_suite_units(project, params, Map.get(params, :modules, []))
     end
   end
+
+  defp latest_branch_suite_units(_project, _params, []), do: []
+
+  defp latest_branch_suite_units(project, params, modules) do
+    module_set = MapSet.new(modules)
+
+    project
+    |> suite_inventory_branches(params)
+    |> Enum.find_value(fn branch ->
+      project
+      |> latest_branch_test_run_suite_units(branch, modules)
+      |> then(fn
+        [] -> nil
+        suite_units -> suite_units
+      end)
+    end)
+    |> List.wrap()
+    |> Enum.filter(fn key ->
+      case String.split(key, "/", parts: 2) do
+        [module, _suite] -> MapSet.member?(module_set, module)
+        _ -> false
+      end
+    end)
+  end
+
+  defp suite_inventory_branches(project, params) do
+    [
+      Map.get(params, :git_branch),
+      build_run_git_branch(project, Map.get(params, :build_run_id)),
+      project.default_branch
+    ]
+    |> Enum.reject(&blank?/1)
+    |> Enum.uniq()
+  end
+
+  defp build_run_git_branch(_project, nil), do: nil
+
+  defp build_run_git_branch(project, build_run_id) do
+    case Builds.get_build(build_run_id, project_id: project.id) do
+      {:ok, build} -> build.git_branch
+      {:error, :not_found} -> nil
+    end
+  end
+
+  defp latest_branch_test_run_suite_units(project, branch, modules) do
+    cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
+
+    test_run_id =
+      ClickHouseRepo.one(
+        from(sr in TestSuiteRun,
+          join: mr in TestModuleRun,
+          on: sr.test_module_run_id == mr.id,
+          where: sr.project_id == ^project.id,
+          where: sr.is_ci == true,
+          where: sr.git_branch == ^branch,
+          where: sr.ran_at >= ^cutoff,
+          where: mr.name in ^modules,
+          group_by: sr.test_run_id,
+          order_by: [desc: max(sr.ran_at)],
+          limit: 1,
+          select: sr.test_run_id
+        )
+      )
+
+    if is_nil(test_run_id) do
+      []
+    else
+      from(sr in TestSuiteRun,
+        join: mr in TestModuleRun,
+        on: sr.test_module_run_id == mr.id,
+        where: sr.project_id == ^project.id,
+        where: sr.test_run_id == ^test_run_id,
+        where: mr.name in ^modules,
+        group_by: fragment("concat(?, '/', ?)", mr.name, sr.name),
+        select: %{name: fragment("concat(?, '/', ?)", mr.name, sr.name)}
+      )
+      |> ClickHouseRepo.all()
+      |> Enum.map(& &1.name)
+    end
+  end
+
+  defp blank?(nil), do: true
+  defp blank?(""), do: true
+  defp blank?(_), do: false
 
   defp fetch_timing_data(project, "module") do
     cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)

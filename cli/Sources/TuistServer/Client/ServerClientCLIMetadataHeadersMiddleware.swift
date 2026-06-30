@@ -10,6 +10,7 @@ import OpenAPIRuntime
 /// warnings if the on-premise installation is too old.
 struct ServerClientCLIMetadataHeadersMiddleware: ClientMiddleware {
     let releaseDate = "2024.09.26"
+    static let localDevelopmentVersion = "4.202.0-canary.21"
 
     func intercept(
         _ request: HTTPRequest,
@@ -26,7 +27,9 @@ struct ServerClientCLIMetadataHeadersMiddleware: ClientMiddleware {
 
         request.headerFields.append(.init(name: cliReleaseDateName, value: releaseDate))
         #if canImport(TuistSupport)
-            request.headerFields.append(.init(name: cliVersionName, value: Constants.version))
+            let cliVersion =
+                Constants.version == "x.y.z" ? Self.localDevelopmentVersion : Constants.version!
+            request.headerFields.append(.init(name: cliVersionName, value: cliVersion))
         #endif
         return try await next(request, body, baseURL)
     }

@@ -234,6 +234,139 @@ defmodule Tuist.ShardsTest do
       assert MapSet.equal?(planned, MapSet.new(["AppTests/LoginSuite", "AppTests/SignupSuite"]))
     end
 
+    test "prefers suite inventory from the linked build branch" do
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      older_ran_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -2, :day)
+      latest_ran_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -1, :day)
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "main",
+        ran_at: older_ran_at,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 9_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "DeletedSuite", status: "success", duration: 9_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "feature/some-branch",
+        ran_at: NaiveDateTime.utc_now(),
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 7_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "BranchOnlySuite", status: "success", duration: 7_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "main",
+        ran_at: latest_ran_at,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 3_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "LoginSuite", status: "success", duration: 3_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          is_ci: true,
+          git_branch: "feature/some-branch"
+        )
+
+      params = %{
+        reference: "linked-build-branch-inventory",
+        modules: ["AppTests"],
+        granularity: "suite",
+        shard_total: 3,
+        build_run_id: build.id
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      planned =
+        result.shard_assignments
+        |> Enum.flat_map(fn a -> a["test_targets"] end)
+        |> MapSet.new()
+
+      assert MapSet.equal?(planned, MapSet.new(["AppTests/BranchOnlySuite"]))
+    end
+
+    test "falls back to default branch suite inventory when linked build branch has no suite history" do
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "main",
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 3_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "LoginSuite", status: "success", duration: 3_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          is_ci: true,
+          git_branch: "feature/no-suite-history"
+        )
+
+      params = %{
+        reference: "default-branch-fallback-inventory",
+        modules: ["AppTests"],
+        granularity: "suite",
+        shard_total: 3,
+        build_run_id: build.id
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      planned =
+        result.shard_assignments
+        |> Enum.flat_map(fn a -> a["test_targets"] end)
+        |> MapSet.new()
+
+      assert MapSet.equal?(planned, MapSet.new(["AppTests/LoginSuite"]))
+    end
+
     test "stores build_run_id on the shard plan" do
       project = ProjectsFixtures.project_fixture()
       build_run_id = Ecto.UUID.generate()

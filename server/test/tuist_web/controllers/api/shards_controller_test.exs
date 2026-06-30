@@ -340,31 +340,6 @@ defmodule TuistWeb.API.ShardsControllerTest do
       assert response["skip"] == ["AppTests/LoginTests"]
     end
 
-    test "passes suite catch-all support for local development CLI builds", %{conn: conn, user: user, project: project} do
-      stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index, opts ->
-        assert Keyword.fetch!(opts, :suite_catch_all?)
-
-        {:ok,
-         %{
-           shard_plan_id: Ecto.UUID.generate(),
-           modules: [],
-           suites: %{},
-           skip: ["AppTests/LoginTests"],
-           download_url: "https://download.example.com"
-         }}
-      end)
-
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
-        |> Headers.put_cli_version("x.y.z")
-        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/session-1/1")
-
-      response = json_response(conn, :ok)
-      assert response["modules"] == []
-      assert response["skip"] == ["AppTests/LoginTests"]
-    end
-
     test "returns not found for nonexistent plan", %{conn: conn, user: user, project: project} do
       stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index, _opts ->
         {:error, :not_found}

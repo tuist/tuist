@@ -21,10 +21,12 @@ Test sharding for generated projects uses `tuist test` for both the build and te
 
 Test sharding follows a two-phase workflow:
 
-1. **Build phase:** Tuist enumerates your tests and creates a **shard plan** on the server. The server uses historical test timing data from the last 30 days to distribute tests across shards so each shard takes roughly the same amount of time. The build phase outputs a **shard matrix** that your CI system uses to spawn parallel runners.
+1. **Build phase:** Tuist reads the test modules from the built `.xctestrun` file and creates a **shard plan** on the server. The server uses historical test timing data from the last 30 days to distribute tests across shards so each shard takes roughly the same amount of time. The build phase outputs a **shard matrix** that your CI system uses to spawn parallel runners.
 2. **Test phase:** Each CI runner receives a **shard index** and executes that shard's test selection.
 
-When `--shard-granularity suite` is used, Tuist balances known suites across the requested shard count and uses the final shard as the catch-all. For example, `--shard-total 5` produces shard indexes `0` through `4`, with shard index `4` as the catch-all. Regular shards run with `-only-testing` for their assigned suites. The final shard runs without `-only-testing` and passes `-skip-testing` for every suite assigned to the earlier shards, so it runs its planned suites plus newly added suites or suites omitted during enumeration. Module granularity does not need a catch-all because the `.xctestrun` file provides the module list.
+When `--shard-granularity suite` is used, Tuist does not boot every test bundle to enumerate suites during the build phase. Instead, the current `.xctestrun` file provides the module list, and the server uses the latest CI run for the build's branch as the known suite inventory for those modules. If that branch has no suite history, the server falls back to the project's default branch. The server still uses the last 30 days of suite timings to estimate durations.
+
+Tuist balances those known suites across the requested shard count and uses the final shard as the catch-all. For example, `--shard-total 5` produces shard indexes `0` through `4`, with shard index `4` as the catch-all. Regular shards run with `-only-testing` for their assigned suites. The final shard runs without `-only-testing` and passes `-skip-testing` for every suite assigned to the earlier shards, so it also runs newly added suites, renamed suites, or suites missing from historical inventory. Module granularity does not need a catch-all because the `.xctestrun` file provides the module list.
 
 ## Build phase {#build-phase}
 

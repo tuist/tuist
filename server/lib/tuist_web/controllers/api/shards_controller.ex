@@ -500,7 +500,7 @@ defmodule TuistWeb.API.ShardsController do
 
   defp suite_catch_all_supported?(conn) do
     case Headers.get_cli_version(conn) do
-      nil -> Headers.get_cli_version_string(conn) == "x.y.z"
+      nil -> false
       cli_version -> Version.compare(cli_version, @suite_catch_all_minimum_cli_version) != :lt
     end
   end
