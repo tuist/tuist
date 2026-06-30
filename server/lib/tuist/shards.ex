@@ -274,14 +274,9 @@ defmodule Tuist.Shards do
   defp resolve_units(project, params, "suite", _timing_data) do
     case Map.get(params, :test_suites, []) do
       suites when suites != [] ->
-        # The client enumerated suites itself (legacy path).
         suites
 
       _ ->
-        # The client no longer enumerates suites — booting every test bundle on the simulator is slow
-        # and flaky. Use the latest CI run for the build branch as the known suite inventory,
-        # falling back to the default branch, and scope it to the modules present in this build's
-        # `.xctestrun`. Any suite absent from that inventory still runs via the catch-all shard.
         latest_branch_suite_units(project, params, Map.get(params, :modules, []))
     end
   end
