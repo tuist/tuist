@@ -427,6 +427,32 @@ async fn bootstrap_artifact_from_peer(
     peer: &str,
     manifest: &ArtifactManifest,
 ) -> Result<ArtifactApplyOutcome, String> {
+    // Single-flight the body download across peers. A fresh node bootstraps from
+    // every peer concurrently, and the mesh is near-fully overlapping, so absent
+    // this gate each peer-task would pull the same artifact and the node would
+    // transfer the whole dataset once per peer. Hold a per-artifact gate across
+    // the fetch+apply and re-check presence after acquiring it: the first
+    // peer-task to claim a key downloads it, and the rest observe it already
+    // applied and skip the network entirely. On failure the owner releases the
+    // gate with the key still absent, so the next waiter re-checks, sees the gap,
+    // and fetches it from its own peer — the dedup self-heals instead of
+    // stranding the artifact. The gate is bootstrap-scoped so it never blocks the
+    // live-replication apply path; the store's per-key apply lock remains the
+    // last-line write-dedup.
+    let _fetch_guard = state
+        .bootstrap_fetch_lock(&manifest.artifact_id)
+        .lock()
+        .await;
+    let recheck = state.store.artifact_apply_outcome(
+        manifest.producer,
+        &manifest.namespace_id,
+        &manifest.key,
+        manifest.version_ms,
+    )?;
+    if !recheck.applied() {
+        return Ok(recheck);
+    }
+
     let url = format!(
         "{peer}/_internal/bootstrap/artifacts/{}",
         url_encode(&manifest.artifact_id)
@@ -1922,6 +1948,154 @@ mod tests {
         );
 
         for index in 0..peer_count {
+            assert!(
+                local
+                    .state
+                    .store
+                    .fetch_artifact(
+                        ArtifactProducer::Gradle,
+                        "ios",
+                        &format!("artifact-{index}")
+                    )
+                    .await
+                    .expect("artifact fetch should succeed")
+                    .is_some(),
+                "every concurrently bootstrapped artifact should be present"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn concurrent_cross_peer_bootstrap_fetches_and_writes_each_artifact_once() {
+        // A fresh node bootstraps the SAME artifacts from several peers at once:
+        // every peer serves an identical manifest page (same ids and versions)
+        // and identical bodies, as the near-fully-overlapping mesh does. The
+        // per-artifact fetch gate single-flights each key, so exactly one peer
+        // downloads each body and writes it once. Two invariants are asserted
+        // together: the segment store holds ~1x the dataset (not peer_count x —
+        // the production ENOSPC), and the peers serve each artifact body once
+        // total (not once per peer — the redundant WAN transfer). A sleep
+        // failpoint between the durable append and the metadata commit holds the
+        // gate's owner busy so waiters genuinely contend; without the gate they
+        // would all fetch, and without the apply lock they would all write.
+        use std::collections::HashMap;
+        use std::sync::atomic::{AtomicU64, Ordering};
+
+        use crate::failpoints::{FailpointAction, FailpointName};
+
+        let peer_count = 4_usize;
+        let artifact_count = 6_usize;
+        let artifact_len = 128 * 1024_usize;
+        let dataset_bytes = (artifact_count * artifact_len) as u64;
+
+        let mut manifests = Vec::new();
+        let mut bodies = HashMap::new();
+        for index in 0..artifact_count {
+            let manifest = bootstrap_test_manifest(
+                ArtifactProducer::Gradle,
+                false,
+                "ios",
+                &format!("artifact-{index}"),
+                "application/octet-stream",
+                artifact_len as u64,
+                100 + index as u64,
+            );
+            bodies.insert(
+                manifest.artifact_id.clone(),
+                vec![index as u8; artifact_len],
+            );
+            manifests.push(manifest);
+        }
+        let manifest_page = ManifestPage {
+            manifests,
+            next_after: None,
+        };
+        let bodies = std::sync::Arc::new(bodies);
+        // Shared across every peer router: counts total artifact-body requests so
+        // the test can assert the fetch was single-flighted across peers.
+        let body_requests = std::sync::Arc::new(AtomicU64::new(0));
+
+        let mut peer_urls = Vec::new();
+        let mut servers = Vec::new();
+        for _ in 0..peer_count {
+            let manifest_page = manifest_page.clone();
+            let bodies = bodies.clone();
+            let body_requests = body_requests.clone();
+            let app = Router::new()
+                .route(
+                    "/_internal/bootstrap/namespace_tombstones",
+                    get(|| async {
+                        Json(NamespaceTombstonePage {
+                            tombstones: Vec::new(),
+                            next_after: None,
+                        })
+                    }),
+                )
+                .route(
+                    "/_internal/bootstrap/manifests",
+                    get(move || {
+                        let manifest_page = manifest_page.clone();
+                        async move { Json(manifest_page) }
+                    }),
+                )
+                .route(
+                    "/_internal/bootstrap/artifacts/{artifact_id}",
+                    get(move |AxumPath(artifact_id): AxumPath<String>| {
+                        let bodies = bodies.clone();
+                        let body_requests = body_requests.clone();
+                        async move {
+                            body_requests.fetch_add(1, Ordering::Relaxed);
+                            match bodies.get(&artifact_id) {
+                                Some(body) => (StatusCode::OK, body.clone()),
+                                None => (StatusCode::NOT_FOUND, Vec::new()),
+                            }
+                        }
+                    }),
+                );
+            let (url, server) = spawn_server(app).await;
+            peer_urls.push(url);
+            servers.push(server);
+        }
+
+        let local = test_context(|_| {}).await;
+        local.state.store.failpoints().set_always(
+            FailpointName::AfterArtifactBytesDurableBeforeMetadata,
+            FailpointAction::Sleep(Duration::from_millis(150)),
+        );
+
+        let tasks: Vec<_> = peer_urls
+            .iter()
+            .map(|peer| {
+                let state = local.state.clone();
+                let peer = peer.clone();
+                tokio::spawn(async move { bootstrap_from_peer(&state, &peer).await })
+            })
+            .collect();
+        for task in tasks {
+            task.await
+                .expect("bootstrap task should not panic")
+                .expect("each concurrent peer bootstrap should converge");
+        }
+
+        // Written once: the segment store holds ~1x the dataset, not peer_count x.
+        let segments_bytes =
+            crate::utils::directory_size_bytes(&local.state.config.data_dir.join("segments"));
+        assert!(
+            segments_bytes <= dataset_bytes + artifact_len as u64,
+            "segment store held {segments_bytes} bytes, expected ~{dataset_bytes} (1x the \
+             dataset); cross-peer bootstrap amplified on-disk data"
+        );
+
+        // Fetched once: the peers served each body a single time across the whole
+        // mesh, not once per peer.
+        let observed_requests = body_requests.load(Ordering::Relaxed);
+        assert_eq!(
+            observed_requests, artifact_count as u64,
+            "expected {artifact_count} artifact-body requests (one per key); observed \
+             {observed_requests} — the cross-peer fetch was not single-flighted"
+        );
+
+        for index in 0..artifact_count {
             assert!(
                 local
                     .state

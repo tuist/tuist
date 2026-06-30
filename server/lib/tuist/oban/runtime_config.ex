@@ -27,6 +27,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
     {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
     {"30 2 * * *", Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker},
+    {"0 4 * * *", Tuist.Storage.Workers.DeleteExpiredLegacyBuildArtifactsWorker},
     {"0 3 * * *", Tuist.Storage.Workers.DeleteExpiredXcodeCacheArtifactsWorker},
     {"15 3 * * *", Tuist.Storage.Workers.DeleteExpiredXcodeModuleCacheArtifactsWorker},
     {"30 3 * * *", Tuist.Storage.Workers.DeleteExpiredGradleCacheArtifactsWorker},

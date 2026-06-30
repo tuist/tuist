@@ -168,6 +168,9 @@ async fn run_with_config(
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
         bootstrap_semaphore,
         bootstrap_staging_budget,
+        bootstrap_fetch_locks: (0..crate::constants::BOOTSTRAP_FETCH_LOCK_STRIPES)
+            .map(|_| tokio::sync::Mutex::new(()))
+            .collect(),
         replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
     });
     state.sync_runtime_metrics().await;

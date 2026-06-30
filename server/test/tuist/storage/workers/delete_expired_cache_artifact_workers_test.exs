@@ -3,8 +3,10 @@ defmodule Tuist.Storage.Workers.DeleteExpiredCacheArtifactWorkersTest do
   use Mimic
 
   alias Tuist.Storage.CacheArtifactRetention
+  alias Tuist.Storage.LegacyBuildArtifactRetention
   alias Tuist.Storage.Workers.DeleteExpiredCasCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredGradleCacheArtifactsWorker
+  alias Tuist.Storage.Workers.DeleteExpiredLegacyBuildArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredXcodeCacheArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredXcodeModuleCacheArtifactsWorker
 
@@ -57,6 +59,19 @@ defmodule Tuist.Storage.Workers.DeleteExpiredCacheArtifactWorkersTest do
 
       assert_enqueued(
         worker: DeleteExpiredCasCacheArtifactsWorker,
+        args: %{"continuation_token" => "next-cursor"}
+      )
+    end
+
+    test "the legacy build artifact worker deletes expired legacy build artifacts and schedules the next page" do
+      expect(LegacyBuildArtifactRetention, :delete_expired, fn [continuation_token: "cursor"] ->
+        {:ok, "next-cursor"}
+      end)
+
+      assert :ok = perform_job(DeleteExpiredLegacyBuildArtifactsWorker, %{"continuation_token" => "cursor"})
+
+      assert_enqueued(
+        worker: DeleteExpiredLegacyBuildArtifactsWorker,
         args: %{"continuation_token" => "next-cursor"}
       )
     end

@@ -441,6 +441,42 @@ struct ModuleMapMapperTests {
     }
 
     @Test(.inTemporaryDirectory)
+    func removes_static_framework_modulemap_without_copy_script() throws {
+        // Given
+        let workspace = Workspace.test()
+        let projectPath = try temporaryPath().appending(component: "A")
+        let moduleMapPath = projectPath.appending(components: "A", "A.modulemap")
+        let target = Target.test(
+            name: "A",
+            product: .staticFramework,
+            settings: .test(base: [
+                "MODULEMAP_FILE": .string(moduleMapPath.pathString),
+            ])
+        )
+        let project = Project.test(
+            path: projectPath,
+            name: "A",
+            targets: [target]
+        )
+
+        // When
+        let (gotGraph, _, _) = try subject.map(
+            graph: .test(
+                workspace: workspace,
+                projects: [
+                    projectPath: project,
+                ]
+            ),
+            environment: MapperEnvironment()
+        )
+
+        // Then
+        let gotTarget = try #require(gotGraph.projects[projectPath]?.targets["A"])
+        #expect(gotTarget.settings?.base["MODULEMAP_FILE"] == nil)
+        #expect(gotTarget.scripts.isEmpty)
+    }
+
+    @Test(.inTemporaryDirectory)
     func maps_modulemap_flags_to_configurations_that_override_other_swift_flags() throws {
         // Given
         let workspace = Workspace.test()

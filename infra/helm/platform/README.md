@@ -14,6 +14,7 @@ Platform-level Helm umbrella chart installed **once per Kubernetes cluster** tha
 | `metrics-server` | Resource metrics API (`pods.metrics.k8s.io`) consumed by HPAs and `kubectl top` |
 | `ClusterIssuer` | Shared Let's Encrypt issuer wired to Cloudflare DNS-01 |
 | `CiliumEgressGatewayPolicy` | Optional stable outbound source IP for hosted Tuist server traffic |
+| `preview-janitor` | Optional in-cluster cleanup loop for expired preview namespaces |
 
 ## Bootstrap
 
@@ -48,6 +49,24 @@ reconciles the dedicated ingress-nginx + LoadBalancer lifecycle.
 `k8s:install-platform` also loads `values-<cluster-name>.yaml` when present.
 Use that cluster overlay for static environment configuration such as stable
 egress IPs and managed-cluster LoadBalancer locations.
+
+## Preview Janitor
+
+The `tuist-preview` overlay enables `previewJanitor`, a Kubernetes CronJob that
+deletes expired preview namespaces inside the preview cluster. It reads
+namespaces labeled `tuist.dev/preview=true`, deletes the matching
+`KuraInstance` from the `kura` namespace, and deletes the preview namespace as
+the backstop.
+
+The janitor intentionally does not run `helm uninstall`, because that would
+require read access to Helm release Secrets in every dynamic preview namespace.
+The external `preview-sweep.yml` workflow keeps that Helm-aware cleanup path
+with its explicit preview-cluster kubeconfig. The workflow runs at the top of
+the hour, and the janitor follows at minute 20 as the in-cluster backstop.
+
+The janitor is disabled by default because it needs cluster-wide delete access
+to dynamic preview namespaces. Keep it enabled only for the managed preview
+cluster overlay.
 
 ## Local validation
 
