@@ -5,6 +5,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
+  alias TuistWeb.Headers
 
   setup do
     user = AccountsFixtures.user_fixture(preload: [:account])
@@ -263,7 +264,9 @@ defmodule TuistWeb.API.ShardsControllerTest do
 
   describe "GET /api/projects/:account/:project/tests/shards/:reference/:shard_index" do
     test "returns shard for valid params", %{conn: conn, user: user, project: project} do
-      stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index ->
+      stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index, opts ->
+        refute Keyword.fetch!(opts, :suite_catch_all?)
+
         {:ok,
          %{
            shard_plan_id: Ecto.UUID.generate(),
@@ -286,8 +289,34 @@ defmodule TuistWeb.API.ShardsControllerTest do
       assert response["download_url"] == "https://download.example.com"
     end
 
+    test "passes suite catch-all support for skip-aware clients", %{conn: conn, user: user, project: project} do
+      stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index, opts ->
+        assert Keyword.fetch!(opts, :suite_catch_all?)
+
+        {:ok,
+         %{
+           shard_plan_id: Ecto.UUID.generate(),
+           modules: [],
+           suites: %{},
+           skip: ["AppTests/LoginTests"],
+           download_url: "https://download.example.com"
+         }}
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> Headers.put_client_feature_flags(["shard-skip-testing"])
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/session-1/1")
+
+      response = json_response(conn, :ok)
+      assert response["modules"] == []
+      assert response["suites"] == %{}
+      assert response["skip"] == ["AppTests/LoginTests"]
+    end
+
     test "returns not found for nonexistent plan", %{conn: conn, user: user, project: project} do
-      stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index ->
+      stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index, _opts ->
         {:error, :not_found}
       end)
 
@@ -301,7 +330,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
     end
 
     test "returns not found for out-of-range shard index", %{conn: conn, user: user, project: project} do
-      stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index ->
+      stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index, _opts ->
         {:error, :invalid_shard_index}
       end)
 

@@ -6,7 +6,10 @@ import TuistEnvironment
 
 public enum ClientFeatureFlags {
     public static let headerName = "x-tuist-feature-flags"
+    public static let shardSkipTesting = "shard-skip-testing"
+
     private static let environmentPrefix = "TUIST_FEATURE_FLAG_"
+    private static let builtInFeatureFlags: Set<String> = [shardSkipTesting]
 
     public static func headerValue(environment: Environmenting = Environment.current) -> String? {
         let featureFlags = featureFlags(environment: environment)
@@ -35,6 +38,7 @@ public enum ClientFeatureFlags {
                     featureName(from: variable.key)
                 }
             )
+            .union(builtInFeatureFlags)
         )
         .sorted()
     }

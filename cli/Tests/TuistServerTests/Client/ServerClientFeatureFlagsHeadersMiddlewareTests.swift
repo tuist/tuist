@@ -34,6 +34,6 @@ struct ServerClientFeatureFlagsHeadersMiddlewareTests {
 
         let featureFlagsHeaderName = try #require(HTTPField.Name(ClientFeatureFlags.headerName))
         #expect(gotResponse == response)
-        #expect(gotRequest?.headerFields[featureFlagsHeaderName] == "A")
+        #expect(gotRequest?.headerFields[featureFlagsHeaderName] == "A,shard-skip-testing")
     }
 }

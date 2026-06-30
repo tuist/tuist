@@ -7,6 +7,7 @@ defmodule TuistWeb.API.ShardsController do
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Shards.Shard
   alias TuistWeb.API.Schemas.Shards.ShardPlan
+  alias TuistWeb.Headers
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
@@ -251,7 +252,8 @@ defmodule TuistWeb.API.ShardsController do
            selected_project,
            selected_project.account,
            reference,
-           shard_index
+           shard_index,
+           suite_catch_all?: Headers.get_client_feature_flag(conn, "shard-skip-testing")
          ) do
       {:ok, result} ->
         json(conn, %{

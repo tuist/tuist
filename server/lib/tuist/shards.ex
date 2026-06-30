@@ -44,14 +44,6 @@ defmodule Tuist.Shards do
 
     assignment_shards = BinPacker.pack(units_with_durations, shard_count)
 
-    # For suite granularity the unit list (history-derived, or client-enumerated) may not be
-    # exhaustive: a brand-new suite has no history and `xcodebuild -enumerate-tests` can flakily omit
-    # one. The final shard is therefore the catch-all. Instead of `-only-testing`, it runs everything
-    # except the suites assigned to earlier shards, so its balanced assignment plus any unplanned
-    # suites still run without adding another CI job. Module granularity needs no catch-all: the
-    # module universe comes from the deterministic `.xctestrun`.
-    storage_shards = storage_shards(assignment_shards, granularity, shard_count)
-
     now = NaiveDateTime.utc_now()
 
     shard_assignments =
@@ -76,7 +68,7 @@ defmodule Tuist.Shards do
 
     {:ok, plan} = %ShardPlan{} |> ShardPlan.create_changeset(attrs) |> IngestRepo.insert()
 
-    insert_shard_targets(plan, project.id, storage_shards, granularity, now)
+    insert_shard_targets(plan, project.id, assignment_shards, granularity, now)
 
     %{
       plan: plan,
@@ -111,13 +103,13 @@ defmodule Tuist.Shards do
     {:ok, upload_id}
   end
 
-  def get_shard(%Project{} = project, %Account{} = account, reference, shard_index) do
+  def get_shard(%Project{} = project, %Account{} = account, reference, shard_index, opts \\ []) do
     case get_plan(project.id, reference) do
       nil ->
         {:error, :not_found}
 
       plan ->
-        case fetch_shard_data(plan, shard_index) do
+        case fetch_shard_data(plan, shard_index, opts) do
           nil ->
             {:error, :invalid_shard_index}
 
@@ -178,25 +170,6 @@ defmodule Tuist.Shards do
     "#{account.id}/#{project.id}/shards/#{plan_id}/bundle.zip"
   end
 
-  defp storage_shards(shards, "suite", shard_count) do
-    catch_all_index = shard_count - 1
-
-    Enum.map(shards, fn
-      {^catch_all_index, _shard_units, _total} ->
-        skip_units =
-          shards
-          |> Enum.filter(fn {index, _units, _total} -> index < catch_all_index end)
-          |> Enum.flat_map(fn {_index, units, _total} -> units end)
-
-        {catch_all_index, skip_units, 0}
-
-      shard ->
-        shard
-    end)
-  end
-
-  defp storage_shards(shards, _granularity, _shard_count), do: shards
-
   defp insert_shard_targets(plan, project_id, shards, "module", now) do
     rows =
       Enum.flat_map(shards, fn {index, shard_units, _total} ->
@@ -240,7 +213,7 @@ defmodule Tuist.Shards do
     if rows != [], do: IngestRepo.insert_all(ShardPlanTestSuite, rows)
   end
 
-  defp fetch_shard_data(%ShardPlan{granularity: "module"} = plan, shard_index) do
+  defp fetch_shard_data(%ShardPlan{granularity: "module"} = plan, shard_index, _opts) do
     plan = ClickHouseRepo.preload(plan, :modules)
 
     modules =
@@ -251,8 +224,9 @@ defmodule Tuist.Shards do
     if modules == [], do: nil, else: %{modules: modules, suites: %{}, skip: []}
   end
 
-  defp fetch_shard_data(%ShardPlan{granularity: "suite"} = plan, shard_index) do
+  defp fetch_shard_data(%ShardPlan{granularity: "suite"} = plan, shard_index, opts) do
     plan = ClickHouseRepo.preload(plan, :test_suites)
+    suite_catch_all? = Keyword.get(opts, :suite_catch_all?, false)
 
     results =
       plan.test_suites
@@ -260,37 +234,26 @@ defmodule Tuist.Shards do
       |> Enum.map(&{&1.module_name, &1.test_suite_name})
 
     cond do
-      catch_all_suite_shard?(plan, shard_index, results) ->
-        skip = Enum.map(results, fn {mod, suite} -> "#{mod}/#{suite}" end)
+      shard_index < 0 or shard_index >= plan.shard_count ->
+        nil
+
+      suite_catch_all? and shard_index == plan.shard_count - 1 ->
+        skip =
+          plan.test_suites
+          |> Enum.filter(&(&1.shard_index < shard_index))
+          |> Enum.map(&"#{&1.module_name}/#{&1.test_suite_name}")
+
         %{modules: [], suites: %{}, skip: skip}
 
       results == [] ->
-        nil
+        if shard_index == plan.shard_count - 1 do
+          %{modules: [], suites: %{}, skip: []}
+        end
 
       true ->
         suites = Enum.group_by(results, fn {mod, _} -> mod end, fn {_, suite} -> suite end)
         modules = Map.keys(suites)
         %{modules: modules, suites: suites, skip: []}
-    end
-  end
-
-  defp catch_all_suite_shard?(plan, shard_index, results) do
-    cond do
-      shard_index != plan.shard_count - 1 ->
-        false
-
-      results == [] ->
-        true
-
-      true ->
-        # New suite-granularity plans duplicate every assigned suite on the final shard so the
-        # CLI can pass them as -skip-testing. Legacy plans used the final shard normally.
-        previously_assigned =
-          plan.test_suites
-          |> Enum.filter(&(&1.shard_index < shard_index))
-          |> MapSet.new(&{&1.module_name, &1.test_suite_name})
-
-        MapSet.equal?(MapSet.new(results), previously_assigned)
     end
   end
 

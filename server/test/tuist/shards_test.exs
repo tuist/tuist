@@ -117,7 +117,13 @@ defmodule Tuist.ShardsTest do
 
       catch_all_index = result.shard_count - 1
 
-      assert {:ok, shard} = Shards.get_shard(project, account, "catch-all-1", catch_all_index)
+      assert {:ok, legacy_shard} = Shards.get_shard(project, account, "catch-all-1", catch_all_index)
+      assert legacy_shard.skip == []
+      assert legacy_shard.suites == %{"AppTests" => ["SignupSuite"]}
+
+      assert {:ok, shard} =
+               Shards.get_shard(project, account, "catch-all-1", catch_all_index, suite_catch_all?: true)
+
       # The catch-all carries no -only-testing and skips suites assigned to earlier shards, so it runs
       # its own planned suite plus any newly added / un-enumerated suites instead of dropping them.
       assert shard.modules == []
