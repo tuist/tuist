@@ -255,6 +255,7 @@ defmodule TuistWeb.API.ShardsController do
           shard_plan_id: result.shard_plan_id,
           modules: result.modules,
           suites: result.suites,
+          skip: result.skip,
           download_url: result.download_url
         })
 

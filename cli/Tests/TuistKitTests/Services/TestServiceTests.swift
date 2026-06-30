@@ -5719,6 +5719,7 @@ final class TestServiceTests: TuistUnitTestCase {
                     shardPlanId: "plan-123",
                     testProductsPath: extractedTestProductsPath,
                     testIdentifiers: ["AppTests"],
+                    skipTestIdentifiers: [],
                     modules: ["AppTests"],
                     selectiveTestingGraph: nil
                 )
@@ -5781,6 +5782,7 @@ final class TestServiceTests: TuistUnitTestCase {
                     shardPlanId: "plan-123",
                     testProductsPath: extractedTestProductsPath,
                     testIdentifiers: ["AppTests"],
+                    skipTestIdentifiers: [],
                     modules: ["AppTests"],
                     selectiveTestingGraph: nil
                 )

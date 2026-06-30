@@ -29,8 +29,8 @@ defmodule Tuist.Shards do
     granularity = Map.get(params, :granularity, "module")
     reference = Map.fetch!(params, :reference)
 
-    units = extract_units(params, granularity)
     timing_data = fetch_timing_data(project, granularity)
+    units = resolve_units(params, granularity, timing_data)
     units_with_durations = assign_durations(units, timing_data, granularity)
 
     shard_count =
@@ -42,7 +42,25 @@ defmodule Tuist.Shards do
         max_duration: Map.get(params, :shard_max_duration)
       )
 
-    shards = BinPacker.pack(units_with_durations, shard_count)
+    packed = BinPacker.pack(units_with_durations, shard_count)
+
+    # For suite granularity the unit list (history-derived, or client-enumerated) may not be
+    # exhaustive — a brand-new suite has no history and `xcodebuild -enumerate-tests` can flakily
+    # omit one. Append a catch-all shard (always the last index) that runs everything NOT explicitly
+    # assigned, via `-skip-testing` of every assigned suite, so such a suite still runs instead of
+    # being silently dropped. Module granularity needs no catch-all: the module universe comes from
+    # the deterministic `.xctestrun`.
+    assigned = Enum.flat_map(packed, fn {_index, units, _total} -> units end)
+
+    {shards, shard_count} =
+      if granularity == "suite" and assigned != [] do
+        {packed ++ [{shard_count, assigned, 0}], shard_count + 1}
+      else
+        # No assigned suites (e.g. a first run with no history) means the single packed shard already
+        # runs everything, so a catch-all would just double-run. Module granularity never needs one.
+        {packed, shard_count}
+      end
+
     now = NaiveDateTime.utc_now()
 
     shard_assignments =
@@ -112,7 +130,7 @@ defmodule Tuist.Shards do
           nil ->
             {:error, :invalid_shard_index}
 
-          %{modules: modules, suites: suites} ->
+          %{modules: modules, suites: suites, skip: skip} ->
             download_url =
               Storage.generate_download_url(bundle_object_key(account, project, plan.id), account)
 
@@ -121,6 +139,7 @@ defmodule Tuist.Shards do
                shard_plan_id: plan.id,
                modules: modules,
                suites: suites,
+               skip: skip,
                download_url: download_url
              }}
         end
@@ -219,7 +238,7 @@ defmodule Tuist.Shards do
       |> Enum.filter(&(&1.shard_index == shard_index))
       |> Enum.map(& &1.module_name)
 
-    if modules == [], do: nil, else: %{modules: modules, suites: %{}}
+    if modules == [], do: nil, else: %{modules: modules, suites: %{}, skip: []}
   end
 
   defp fetch_shard_data(%ShardPlan{granularity: "suite"} = plan, shard_index) do
@@ -230,12 +249,21 @@ defmodule Tuist.Shards do
       |> Enum.filter(&(&1.shard_index == shard_index))
       |> Enum.map(&{&1.module_name, &1.test_suite_name})
 
-    if results == [] do
-      nil
-    else
-      suites = Enum.group_by(results, fn {mod, _} -> mod end, fn {_, suite} -> suite end)
-      modules = Map.keys(suites)
-      %{modules: modules, suites: suites}
+    cond do
+      # The last shard is the catch-all: the suites recorded against it are the ones to SKIP, so it
+      # runs everything NOT explicitly assigned to another shard (new/unenumerated suites included)
+      # via `-skip-testing`, with no `-only-testing`. Always present for suite granularity.
+      shard_index == plan.shard_count - 1 ->
+        skip = Enum.map(results, fn {mod, suite} -> "#{mod}/#{suite}" end)
+        %{modules: [], suites: %{}, skip: skip}
+
+      results == [] ->
+        nil
+
+      true ->
+        suites = Enum.group_by(results, fn {mod, _} -> mod end, fn {_, suite} -> suite end)
+        modules = Map.keys(suites)
+        %{modules: modules, suites: suites, skip: []}
     end
   end
 
@@ -250,8 +278,31 @@ defmodule Tuist.Shards do
     )
   end
 
-  defp extract_units(params, "module"), do: Map.get(params, :modules, [])
-  defp extract_units(params, "suite"), do: Map.get(params, :test_suites, [])
+  defp resolve_units(params, "module", _timing_data), do: Map.get(params, :modules, [])
+
+  defp resolve_units(params, "suite", timing_data) do
+    case Map.get(params, :test_suites, []) do
+      suites when suites != [] ->
+        # The client enumerated suites itself (legacy path).
+        suites
+
+      _ ->
+        # The client no longer enumerates suites — booting every test bundle on the simulator is slow
+        # and flaky. Derive the unit list from historical suite timings instead, scoped to the modules
+        # present in this build's `.xctestrun`. Any suite without history (e.g. a newly added one) is not
+        # planned here but still runs via the catch-all shard, so nothing is dropped.
+        modules = MapSet.new(Map.get(params, :modules, []))
+
+        timing_data
+        |> Map.keys()
+        |> Enum.filter(fn key ->
+          case String.split(key, "/", parts: 2) do
+            [module, _suite] -> MapSet.member?(modules, module)
+            _ -> false
+          end
+        end)
+    end
+  end
 
   defp fetch_timing_data(project, "module") do
     cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)

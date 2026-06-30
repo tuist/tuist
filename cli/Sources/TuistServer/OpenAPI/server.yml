@@ -2275,6 +2275,15 @@ components:
           type: string
           x-struct:
           x-validate:
+        skip:
+          description: Test identifiers this shard must skip (`-skip-testing`). Set on the catch-all shard, which runs everything not explicitly assigned to another shard so newly added or un-enumerated suites are not dropped. Empty/absent for regular shards.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
         suites:
           additionalProperties:
             items:

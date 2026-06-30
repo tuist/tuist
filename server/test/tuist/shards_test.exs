@@ -91,6 +91,52 @@ defmodule Tuist.ShardsTest do
       }
 
       result = Shards.create_shard_plan(project, params)
+      # 2 balanced shards plus the appended catch-all shard.
+      assert result.shard_count == 3
+    end
+
+    test "appends a catch-all shard whose get_shard returns the skip list (suite granularity)" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+
+      params = %{
+        reference: "catch-all-1",
+        test_suites: ["AppTests/LoginSuite", "AppTests/SignupSuite"],
+        granularity: "suite",
+        shard_max: 2
+      }
+
+      stub(Tuist.Storage, :generate_download_url, fn _key, _account -> "https://download.example.com" end)
+
+      result = Shards.create_shard_plan(project, params)
+      # 2 balanced shards + 1 catch-all = 3; the catch-all is the last index.
+      assert result.shard_count == 3
+      catch_all_index = result.shard_count - 1
+
+      assert {:ok, shard} = Shards.get_shard(project, account, "catch-all-1", catch_all_index)
+      # The catch-all carries no -only-testing and skips every assigned suite, so it runs the remainder
+      # (newly added / un-enumerated suites) instead of dropping it.
+      assert shard.modules == []
+      assert shard.suites == %{}
+      assert Enum.sort(shard.skip) == ["AppTests/LoginSuite", "AppTests/SignupSuite"]
+
+      # A regular shard still selects via suites, with an empty skip list.
+      assert {:ok, regular} = Shards.get_shard(project, account, "catch-all-1", 0)
+      assert regular.skip == []
+      refute regular.suites == %{}
+    end
+
+    test "does not append a catch-all shard for module granularity" do
+      project = ProjectsFixtures.project_fixture()
+
+      params = %{
+        reference: "no-catch-all-1",
+        modules: ["AppTests", "CoreTests", "FeatureTests"],
+        shard_max: 2
+      }
+
+      result = Shards.create_shard_plan(project, params)
+      # No extra shard appended; the module universe is the deterministic .xctestrun.
       assert result.shard_count == 2
     end
 
@@ -128,11 +174,57 @@ defmodule Tuist.ShardsTest do
 
       durations =
         result.shard_assignments
-        |> Enum.reject(fn a -> a["test_targets"] == [] end)
+        # Drop empty shards and the catch-all (last) shard, whose test_targets are its skip list.
+        |> Enum.reject(fn a -> a["test_targets"] == [] or a["index"] == result.shard_count - 1 end)
         |> Map.new(fn a -> {hd(a["test_targets"]), a["estimated_duration_ms"]} end)
 
       assert durations["AppTests/SlowSuite"] == 90_000
       assert durations["AppTests/FastSuite"] == 1_000
+    end
+
+    test "derives suite units from history when the client does not enumerate" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 10_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "LoginSuite", status: "success", duration: 6_000},
+              %{name: "SignupSuite", status: "success", duration: 4_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      # No test_suites: the client did not enumerate. Units come from historical suite timings,
+      # scoped to the modules in the build.
+      params = %{
+        reference: "history-derived-1",
+        modules: ["AppTests"],
+        granularity: "suite",
+        shard_total: 2
+      }
+
+      result = Shards.create_shard_plan(project, params)
+      # 2 balanced shards (one per historical suite) plus the catch-all.
+      assert result.shard_count == 3
+
+      planned =
+        result.shard_assignments
+        |> Enum.reject(fn a -> a["index"] == result.shard_count - 1 end)
+        |> Enum.flat_map(fn a -> a["test_targets"] end)
+        |> MapSet.new()
+
+      assert MapSet.equal?(planned, MapSet.new(["AppTests/LoginSuite", "AppTests/SignupSuite"]))
     end
 
     test "stores build_run_id on the shard plan" do
@@ -216,8 +308,9 @@ defmodule Tuist.ShardsTest do
       }
 
       result = Shards.create_shard_plan(project, params)
-      assert result.shard_count == 2
-      assert length(result.shard_assignments) == 2
+      # 2 balanced shards plus the appended catch-all shard.
+      assert result.shard_count == 3
+      assert length(result.shard_assignments) == 3
 
       all_targets =
         result.shard_assignments

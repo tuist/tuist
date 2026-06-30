@@ -17,6 +17,10 @@ public struct Shard {
     /// xcodebuild `-only-testing` identifiers selecting this shard's work. Suite granularity yields
     /// `Module/Suite` entries; module granularity yields bare `Module` entries.
     public let testIdentifiers: [String]
+    /// xcodebuild `-skip-testing` identifiers. Non-empty only on the catch-all shard, which carries no
+    /// `-only-testing` and instead skips every suite assigned to other shards — so it runs everything
+    /// NOT explicitly assigned (newly added or un-enumerated suites included) rather than dropping it.
+    public let skipTestIdentifiers: [String]
     public let modules: [String]
     public let selectiveTestingGraph: SelectiveTestingGraph?
 }
@@ -91,7 +95,13 @@ public struct ShardService: ShardServicing {
         )
 
         let suites = shard.suites.additionalProperties
-        if suites.isEmpty {
+        let skipTestIdentifiers = shard.skip ?? []
+        if !skipTestIdentifiers.isEmpty {
+            Logger.current.notice(
+                "Shard \(shardIndex) (catch-all): running every test except the \(skipTestIdentifiers.count) suite(s) already assigned to other shards.",
+                metadata: .section
+            )
+        } else if suites.isEmpty {
             Logger.current.notice("Shard \(shardIndex): \(shard.modules.joined(separator: ", "))", metadata: .section)
         } else {
             let names = suites
@@ -154,6 +164,7 @@ public struct ShardService: ShardServicing {
             shardPlanId: shard.shard_plan_id,
             testProductsPath: resolvedTestProductsPath,
             testIdentifiers: testIdentifiers,
+            skipTestIdentifiers: skipTestIdentifiers,
             modules: shard.modules,
             selectiveTestingGraph: selectiveTestingGraph
         )

@@ -5541,6 +5541,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Shard/shard_plan_id`.
             public var shard_plan_id: Swift.String
+            /// Test identifiers this shard must skip (`-skip-testing`). Set on the catch-all shard, which runs everything not explicitly assigned to another shard so newly added or un-enumerated suites are not dropped. Empty/absent for regular shards.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Shard/skip`.
+            public var skip: [Swift.String]?
             /// The test suites assigned to this shard, grouped by module name.
             ///
             /// - Remark: Generated from `#/components/schemas/Shard/suites`.
@@ -5571,22 +5575,26 @@ public enum Components {
             ///   - download_url: Presigned URL to download the shared test products bundle.
             ///   - modules: The test modules assigned to this shard.
             ///   - shard_plan_id: The UUID of the shard plan.
+            ///   - skip: Test identifiers this shard must skip (`-skip-testing`).
             ///   - suites: The test suites assigned to this shard, grouped by module name.
             public init(
                 download_url: Swift.String,
                 modules: [Swift.String],
                 shard_plan_id: Swift.String,
+                skip: [Swift.String]? = nil,
                 suites: Components.Schemas.Shard.suitesPayload
             ) {
                 self.download_url = download_url
                 self.modules = modules
                 self.shard_plan_id = shard_plan_id
+                self.skip = skip
                 self.suites = suites
             }
             public enum CodingKeys: String, CodingKey {
                 case download_url
                 case modules
                 case shard_plan_id
+                case skip
                 case suites
             }
         }

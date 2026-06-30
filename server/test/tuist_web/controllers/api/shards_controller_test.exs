@@ -269,6 +269,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
            shard_plan_id: Ecto.UUID.generate(),
            modules: ["AppTests"],
            suites: %{},
+           skip: [],
            download_url: "https://download.example.com"
          }}
       end)
@@ -281,6 +282,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
       response = json_response(conn, :ok)
       assert response["modules"] == ["AppTests"]
       assert response["suites"] == %{}
+      assert response["skip"] == []
       assert response["download_url"] == "https://download.example.com"
     end
 
