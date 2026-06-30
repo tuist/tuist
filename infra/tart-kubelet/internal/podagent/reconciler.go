@@ -297,6 +297,10 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	}
 
 	c := pod.Spec.Containers[0]
+	pool := pod.Labels["tuist.dev/runner-pool"]
+	if pool == "" {
+		pool = "unknown"
+	}
 	env, err := r.Resolver.Resolve(ctx, pod, c)
 	if err != nil {
 		return fmt.Errorf("resolve env: %w", err)
@@ -324,10 +328,11 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 		}
 	}
 
-	// Reuse an existing local clone if one is on disk: a kubelet
-	// restart kills the running VM (launchctl bootout signals the
-	// process group) but the cloned image stays. Re-running it skips
-	// the clone cycle entirely.
+	// Reuse an existing local clone if one is on disk. A kubelet restart
+	// leaves the cloned image behind — and because `tart run` is
+	// Setsid-detached, usually the running VM itself — so we skip the
+	// clone cycle and either adopt the running VM (below) or re-run a
+	// stopped clone.
 	existingClone, _ := r.Tart.Get(ctx, vmName)
 
 	if existingClone == nil {
@@ -337,12 +342,17 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 		// at most once per digest per host; back-to-back recycles take
 		// only the clonefile path. This is what stops the fleet
 		// re-downloading the whole VM image between jobs.
+		cloneStart := time.Now()
 		base, materialized, err := r.ensureGolden(ctx, c.Image)
 		if err != nil {
 			return err
 		}
+		provisionPath := "warm"
 		if materialized {
-			RecordGoldenMaterialized(pod.Labels["tuist.dev/runner-pool"])
+			provisionPath = "cold"
+			RecordGoldenMaterialized(pool)
+		} else {
+			RecordGoldenReused(pool)
 		}
 		if err := r.Tart.Clone(ctx, base, vmName); err != nil {
 			// The golden was reaped out from under us (GC race) or is
@@ -351,6 +361,29 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 			_ = r.Tart.Delete(ctx, base)
 			return fmt.Errorf("tart clone from golden: %w", err)
 		}
+		// Split the on-host provisioning segment (golden probe +
+		// pull/clone + runner clone) out from podProvisionDelaySeconds,
+		// which also folds in scheduling/queue wait. `path` separates a
+		// warm clonefile from a cold re-pull so a slow provision can be
+		// attributed to one or the other instead of guessed at.
+		RecordVMProvisionWork(pool, provisionPath, time.Since(cloneStart))
+	}
+
+	// If the clone is already running — it survived a kubelet restart and
+	// recoverState didn't rebind it — adopt it instead of starting it
+	// again. A duplicate `tart run` exits immediately with "VM is already
+	// running", which loops here and strands the Pod (the failure mode
+	// that wedged the xcresult-processor and blocked a prod deploy).
+	// Register a Store entry with no RunHandle; podStatus then tracks
+	// liveness via IsRunning, exactly like recoverState's recovered
+	// entries. BootObserved is set because we didn't witness this boot.
+	if running, _ := r.Tart.IsRunning(ctx, vmName); running {
+		r.Store.Put(pod.Namespace, pod.Name, &Entry{
+			VMName:       vmName,
+			StartTS:      metav1.Now(),
+			BootObserved: true,
+		})
+		return nil
 	}
 
 	// Resize the cloned VM to match the Pod's resource requests.
@@ -371,10 +404,6 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	// createPod retry and skew the metric toward retry delay; here it
 	// fires exactly once per Pod that reaches `tart run`, and captures the
 	// pull/clone time the boot histogram (which starts at `tart run`) can't.
-	pool := pod.Labels["tuist.dev/runner-pool"]
-	if pool == "" {
-		pool = "unknown"
-	}
 	podProvisionDelaySeconds.WithLabelValues(pool).Observe(time.Since(pod.CreationTimestamp.Time).Seconds())
 
 	// Record the Pod ↔ VM mapping before kicking the VM off so the
@@ -491,8 +520,18 @@ func (r *Reconciler) ensureGolden(ctx context.Context, image string) (name strin
 	defer unlock()
 
 	// Warm path: golden already on disk for this digest — no network.
-	if vm, getErr := r.Tart.Get(ctx, name); getErr == nil && vm != nil {
+	vm, getErr := r.Tart.Get(ctx, name)
+	if getErr == nil && vm != nil {
 		return name, false, nil
+	}
+	if getErr != nil {
+		// Not the (nil, nil) "not found" case — `tart get` actually
+		// errored (timeout, lock contention, parse). The golden may well
+		// exist on disk; falling through to the cold path re-pulls the
+		// whole image needlessly, so surface the probe failure instead
+		// of silently churning. A run of these lines is the signal that
+		// a rising materialized rate is a warm-path miss, not first-sight.
+		log.FromContext(ctx).Error(getErr, "golden warm-path probe failed; taking cold path (may re-pull)", "golden", name)
 	}
 
 	// Cold path: pull + materialize once. Mirror the disk-pressure

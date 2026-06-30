@@ -54,6 +54,7 @@ packer {
 #   /Users/runner/work/<owner>/<repo>           <- workspace, set via JIT work_folder
 #   /Users/runner/Library/LaunchAgents/         <- dev.tuist.runner.plist
 #   /opt/tuist/dispatch-poll.sh                 <- the dispatch poll loop (root-owned)
+#   /opt/tuist/metrics-poll.sh                  <- machine-metrics sampler (forked during a job)
 #   /opt/tuist/inject-env.sh                    <- reads kubelet env mount → /etc/tuist.env
 #   /Applications/Xcode_<version>.app           <- inherited from the base
 #
@@ -230,11 +231,17 @@ build {
     destination = "/tmp/dispatch-poll.sh"
   }
 
+  provisioner "file" {
+    source      = "${path.root}/metrics-poll.sh"
+    destination = "/tmp/metrics-poll.sh"
+  }
+
   provisioner "shell" {
     inline = [
       "echo 'admin' | sudo -S install -m 0755 /tmp/inject-env.sh /opt/tuist/inject-env.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/dispatch-poll.sh /opt/tuist/dispatch-poll.sh",
-      "rm -f /tmp/inject-env.sh /tmp/dispatch-poll.sh"
+      "echo 'admin' | sudo -S install -m 0755 /tmp/metrics-poll.sh /opt/tuist/metrics-poll.sh",
+      "rm -f /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh"
     ]
   }
 

@@ -56,6 +56,9 @@ defmodule Tuist.Runners.CatalogTest do
 
       assert Catalog.pool_name(%{platform: :macos, xcode_version: "26.3"}) ==
                "#{Tuist.Environment.runners_macos_pool_name_prefix()}-26-3"
+
+      assert Catalog.pool_name(%{platform: :macos, xcode_version: "26.0.1"}) ==
+               "#{Tuist.Environment.runners_macos_pool_name_prefix()}-26-0-1"
     end
   end
 
@@ -93,18 +96,21 @@ defmodule Tuist.Runners.CatalogTest do
         [
           {"xcodeVersion":"26.5","default":true},
           {"xcodeVersion":"26.4.1"},
-          {"xcodeVersion":"26.3"}
+          {"xcodeVersion":"26.3"},
+          {"xcodeVersion":"26.0.1"}
         ]
         """
 
       assert [
                %{xcode_version: "26.5", default: true},
                %{xcode_version: "26.4.1"} = second,
-               %{xcode_version: "26.3"} = third
+               %{xcode_version: "26.3"} = third,
+               %{xcode_version: "26.0.1"} = fourth
              ] = Catalog.parse_xcode_versions_json(json)
 
       refute Map.has_key?(second, :default)
       refute Map.has_key?(third, :default)
+      refute Map.has_key?(fourth, :default)
     end
 
     test "returns :error on malformed JSON" do

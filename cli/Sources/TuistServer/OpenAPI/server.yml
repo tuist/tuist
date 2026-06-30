@@ -17561,6 +17561,38 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: Filter by execution time using ran_at[gt], ran_at[gte], ran_at[lt], or ran_at[lte] Unix seconds.
+          explode: true
+          in: query
+          name: ran_at
+          required: false
+          schema:
+            additionalProperties: false
+            properties:
+              gt:
+                format: int64
+                type: integer
+                x-struct:
+                x-validate:
+              gte:
+                format: int64
+                type: integer
+                x-struct:
+                x-validate:
+              lt:
+                format: int64
+                type: integer
+                x-struct:
+                x-validate:
+              lte:
+                format: int64
+                type: integer
+                x-struct:
+                x-validate:
+            type: object
+            x-struct:
+            x-validate:
+          style: deepObject
         - description: ''
           in: query
           name: page_size
@@ -17732,6 +17764,12 @@ paths:
                 x-struct:
                 x-validate:
           description: List of cache runs
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was invalid
         '403':
           content:
             application/json:

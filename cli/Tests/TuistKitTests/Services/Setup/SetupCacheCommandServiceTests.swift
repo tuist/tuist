@@ -24,6 +24,7 @@ struct SetupCacheCommandServiceTests {
     private let launchAgentService = MockLaunchAgentServicing()
     private let configLoader = MockConfigLoading()
     private let serverEnvironmentService = MockServerEnvironmentServicing()
+    private let serverAuthenticationController = MockServerAuthenticationControlling()
     private let manifestLoader = MockManifestLoading()
 
     init() {
@@ -31,6 +32,7 @@ struct SetupCacheCommandServiceTests {
             launchAgentService: launchAgentService,
             configLoader: configLoader,
             serverEnvironmentService: serverEnvironmentService,
+            serverAuthenticationController: serverAuthenticationController,
             manifestLoader: manifestLoader
         )
 
@@ -41,6 +43,10 @@ struct SetupCacheCommandServiceTests {
         given(serverEnvironmentService)
             .url(configServerURL: .any)
             .willReturn(Constants.URLs.production)
+
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("token"))
 
         given(manifestLoader)
             .hasRootManifest(at: .any)
@@ -193,6 +199,27 @@ struct SetupCacheCommandServiceTests {
         await #expect(throws: SetupCacheCommandServiceError.missingFullHandle) {
             try await subject.run(path: nil)
         }
+    }
+
+    @Test(.withMockedEnvironment()) func setupCache_notAuthenticated() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+
+        serverAuthenticationController.reset()
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(nil)
+
+        // When/Then: setup must fail fast rather than installing a LaunchAgent whose
+        // daemon would immediately exit because there are no credentials.
+        await #expect(throws: SetupCacheCommandServiceError.notAuthenticated) {
+            try await subject.run(path: nil)
+        }
+
+        verify(launchAgentService)
+            .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
+            .called(0)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_includesEnvironmentToken() async throws {

@@ -1,6 +1,8 @@
 package podagent
 
 import (
+	"time"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 )
@@ -48,6 +50,24 @@ var goldenBaseMaterializedTotal = prometheus.NewCounterVec(
 	[]string{"pool"},
 )
 
+// goldenBaseReusedTotal counts provisions that cloned from an existing
+// golden base — the APFS clonefile fast path that touches the network
+// zero times. It's the counterpart to goldenBaseMaterializedTotal:
+// reused/(reused+materialized) is the golden-base hit rate, and a
+// materialized rate that climbs while reused stays flat is the
+// "goldens aren't sticking, we're re-pulling per job" regression the
+// whole golden-base scheme exists to kill. Without this counter that
+// regression is invisible — a silent warm-path miss (a `tart get` that
+// errors and falls through to a cold re-pull) looks identical to a
+// legitimate first-sight materialization.
+var goldenBaseReusedTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "tart_kubelet_golden_base_reused_total",
+		Help: "Provisions that cloned from an existing golden base (APFS clonefile, no network), per pool.",
+	},
+	[]string{"pool"},
+)
+
 // guestDiskUsagePercent is the percent-used of each running VM's guest
 // root volume, as read by the node maintainer's DiskPressure probe. It's
 // the gradient signal behind the binary DiskPressure node condition:
@@ -85,8 +105,33 @@ var podProvisionDelaySeconds = prometheus.NewHistogramVec(
 	[]string{"pool"},
 )
 
+// vmProvisionWorkSeconds isolates the on-host provisioning work a fresh
+// Pod triggers — ensureGolden (warm clonefile or cold pull+clone) plus
+// the runner `tart clone` — from podProvisionDelaySeconds, which starts
+// at Pod creation and so also folds in scheduling/queue wait (a Pod can
+// sit Pending behind the host's previous single-VM job for minutes).
+// The `path` label ("warm" = golden reused, "cold" = golden
+// materialized) makes the cold-pull tail explicit, so a high
+// podProvisionDelaySeconds can be attributed to queue wait vs. a genuine
+// re-pull at a glance rather than guessed at.
+var vmProvisionWorkSeconds = prometheus.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Name:    "tart_kubelet_vm_provision_work_seconds",
+		Help:    "Wall-clock for on-host provisioning work (ensureGolden + runner clone), per pool and path (warm=clonefile, cold=pull).",
+		Buckets: []float64{1, 5, 10, 20, 30, 60, 120, 180, 300, 600},
+	},
+	[]string{"pool", "path"},
+)
+
 func init() {
-	metrics.Registry.MustRegister(vmBootDurationSeconds, guestDiskUsagePercent, podProvisionDelaySeconds, goldenBaseMaterializedTotal)
+	metrics.Registry.MustRegister(
+		vmBootDurationSeconds,
+		guestDiskUsagePercent,
+		podProvisionDelaySeconds,
+		goldenBaseMaterializedTotal,
+		goldenBaseReusedTotal,
+		vmProvisionWorkSeconds,
+	)
 }
 
 // RecordGoldenMaterialized increments the per-pool count of golden base
@@ -98,6 +143,25 @@ func RecordGoldenMaterialized(pool string) {
 		pool = "unknown"
 	}
 	goldenBaseMaterializedTotal.WithLabelValues(pool).Inc()
+}
+
+// RecordGoldenReused increments the per-pool count of provisions that
+// cloned from an already-present golden base (the warm clonefile path).
+func RecordGoldenReused(pool string) {
+	if pool == "" {
+		pool = "unknown"
+	}
+	goldenBaseReusedTotal.WithLabelValues(pool).Inc()
+}
+
+// RecordVMProvisionWork records the wall-clock of the on-host
+// provisioning work for one Pod. path is "warm" (golden reused) or
+// "cold" (golden materialized via pull).
+func RecordVMProvisionWork(pool, path string, d time.Duration) {
+	if pool == "" {
+		pool = "unknown"
+	}
+	vmProvisionWorkSeconds.WithLabelValues(pool, path).Observe(d.Seconds())
 }
 
 // RecordGuestDiskUsage publishes a VM's guest root-volume usage percent.

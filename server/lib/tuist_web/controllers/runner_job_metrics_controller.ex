@@ -8,17 +8,17 @@ defmodule TuistWeb.RunnerJobMetricsController do
   Unlike `runner_job_logs` (pulled from GitHub's Logs API after the
   job completes), machine metrics have no GitHub-side source — they
   describe the runner Pod/VM, which only our infrastructure can see.
-  The collector runs alongside the runners-controller, samples CPU /
-  memory / network / disk for each running Pod, and POSTs batches
-  here keyed by Pod name, authenticating with the same in-cluster
-  ServiceAccount token as `pods/stopped`.
+  Each runner samples its own CPU / memory / network / disk from inside
+  the VM and POSTs batches here for the Pod it is, authenticating with
+  the same per-pod ServiceAccount token it uses for `dispatch` (see
+  `TuistWeb.RunnerPodAuth`) — the kubelet can't observe the runner from
+  outside (the macOS Tart fleet's kubelet serves no stats API), so the
+  VM is the only vantage point.
 
-  The collector deliberately does not know which job a Pod is running
-  — that mapping lives in `runner_claims`. We resolve `pod_name` to
-  its live claim's `workflow_job_id` and `account_id` here, the same
-  Pod-name-keyed shape as `pods/stopped`. A Pod with no live claim
-  (idle/warm, or its job already finished) is a no-op, since the
-  collector samples every running runner Pod.
+  The runner does not know which job it's running — that mapping lives
+  in `runner_claims`. We resolve `pod_name` to its live claim's
+  `workflow_job_id` and `account_id` here. A Pod with no live claim
+  (idle/warm, or its job already finished) is a no-op.
 
   ## Contract
 
@@ -49,7 +49,7 @@ defmodule TuistWeb.RunnerJobMetricsController do
 
   alias Tuist.Runners.Claims
   alias Tuist.Runners.JobMetrics
-  alias TuistWeb.RunnerControllerAuth
+  alias TuistWeb.RunnerPodAuth
 
   require Logger
 
@@ -73,7 +73,7 @@ defmodule TuistWeb.RunnerJobMetricsController do
     * 503 — kubernetes apiserver unavailable (TokenReview failed).
   """
   def create(conn, %{"pod_name" => pod_name} = params) when is_binary(pod_name) and pod_name != "" do
-    with :ok <- RunnerControllerAuth.authenticate(conn),
+    with :ok <- RunnerPodAuth.authenticate(conn, pod_name),
          {:ok, samples} <- parse_samples(params) do
       case Claims.by_pod_name(pod_name) do
         {:ok, %{workflow_job_id: workflow_job_id, account_id: account_id}} ->

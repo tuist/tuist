@@ -11,6 +11,34 @@ server:
 
   appUrl: https://tuist.dev
 
+  # Stripe price IDs (identifiers, not secrets — the API keys live in the
+  # STRIPE 1Password item). Live-mode prices, so they're set per env: staging
+  # and canary use their own (test-mode) IDs in their overlays. The chart
+  # JSON-encodes this into TUIST_STRIPE_PRICES.
+  stripe:
+    prices:
+      air:
+        usage: ["price_1PIYcvLWue9IBlPS8el65GXj"]
+        flat_monthly: ["price_1PIYcvLWue9IBlPSGvUJIZ5Y"]
+      pro:
+        usage: ["price_1R7fOMLWue9IBlPSrEgHqsMg"]
+        flat_monthly: ["price_1QMtyXLWue9IBlPSlgeHHDvg"]
+      enterprise:
+        flat_monthly:
+          - price_1OWxeCLWue9IBlPSc6OnjqE4
+          - price_1QPK3YLWue9IBlPS3gmVGJin
+          - price_1RRZ6fLWue9IBlPS51mM1R3s
+          - price_1RRZ68LWue9IBlPSj4xaA8cJ
+          - price_1RRZ3wLWue9IBlPSoL1bMoIY
+        flat_yearly:
+          - price_1PXgu8LWue9IBlPSnE5Kd3S9
+          - price_1RRZ8hLWue9IBlPSDxv2a78d
+          - price_1RRZ8FLWue9IBlPSIP2xXtD2
+          - price_1RRZ7jLWue9IBlPSoPgEg4Ui
+      open_source:
+        usage: ["price_1QAYGqLWue9IBlPSQ6vapx9F"]
+        flat_monthly: ["price_1QAYJZLWue9IBlPSJzMjk1BZ"]
+
   # HA scale-out needs distributed Erlang so PubSub + the in-memory rate
   # limiter work across pods. Emits a headless Service that libcluster's
   # Kubernetes.DNS strategy uses to discover peers; the chart wires
@@ -20,9 +48,9 @@ server:
     applicationName: tuist
 
   extraEnv:
-    # Selects which priv/secrets/<env>.yml.enc file the app decrypts at
-    # boot. Image is env-agnostic (built with MIX_ENV=prod); this flag
-    # plus the MASTER_KEY ESO secret pick the runtime deployment target.
+    # Selects the runtime deployment target (Tuist.Environment.env()). The
+    # image is env-agnostic (built with MIX_ENV=prod); this flag picks which
+    # env's config the release runs as.
     - name: TUIST_DEPLOY_ENV
       value: prod
     - name: TUIST_DATABASE_POOL_SIZE
@@ -71,6 +99,12 @@ server:
       value: tuist-server
     - name: TUIST_ATLAS_TOKEN_MAX_TTL_SECONDS
       value: "3600"
+    # The internal Atlas SQL runner drops to the least-privilege tuist_ops_ro role
+    # via `SET LOCAL ROLE`, so writes are blocked by role privileges, not only by
+    # the read-only transaction. The web -> tuist_ops_ro membership that permits
+    # the switch is reconciled by CNPG (`managed.roles[tuist_web].inRoles`).
+    - name: TUIST_ATLAS_DB_READONLY_ROLE
+      value: tuist_ops_ro
     - name: TUIST_ATLAS_TOKEN_JWKS
       value: >-
         {"keys":[{"use":"sig","kty":"RSA","kid":"RlVpaMmFrqqIHY46_HT42inm4mfvqBKfwLVJiPCcl7g","alg":"RS256","n":"urnlzTgGSYHPHyc-sjXI7lzdx3ChfMpqUMpwuj1vgBMywpvdjFEKZ-5xWBBfS_GIna4q--YBau4zo21xFw0Jd-Ye8l4daXozFTwB1oOv-xOoIL7YITR8dtXsXzqeGIKx1rt90jE2vgvYQDBnkIf9ohgDIApbLICYGSAko5MfdypYhiO52KOxum8nB5dwIaKhr2-DiLQtFQbl__c6Uk2dFpW0_5u4d-uO6yspp5iVo54sc7XIlFNxPBlx2uVQZe8tvTH9Ipc_sovDjMfoKH7g0fG14q6xQU5CkQD1pNS__6J3xFvFYQEp3wXu4i_Rin65EI9GvNKtbZkH-sQ5e8jzLw","e":"AQAB"}]}
@@ -262,7 +296,7 @@ registryCache:
 processor:
   extraEnv:
     # Must match the server's TUIST_DEPLOY_ENV above so the processor pod
-    # decrypts the same priv/secrets/<env>.yml.enc file the web tier does.
+    # runs as the same env (Tuist.Environment.env()) as the web tier.
     - name: TUIST_DEPLOY_ENV
       value: prod
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
@@ -312,8 +346,9 @@ processor:
     whenUnsatisfiable: DoNotSchedule
   affinity: {}
 
-# Same priv/secrets selection as the build processor; the Tart image
-# embeds the encrypted bundle and decrypts it via MASTER_KEY.
+# Runs as the same env as the build processor; the Tart VM reads its secrets
+# from the environment (config Secret via envFrom + object-storage ESO), same
+# as the Linux pods.
 xcresultProcessor:
   # replicaCount stays at the chart default (2). The topology spread
   # in xcresult-processor-deployment.yaml forces the two replicas onto
@@ -452,6 +487,11 @@ runnersFleet:
         minWarmPoolFloor: 0
         maxReplicas: 9
     "26.3":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 9
+    "26.0.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0

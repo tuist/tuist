@@ -18,6 +18,27 @@ public struct MachineMetricsReader {
         self.fileSystem = fileSystem
     }
 
+    /// Copies the metrics file to `destination`, holding the sampler's shared lock so the
+    /// snapshot is consistent with respect to the always-on daemon that appends to and
+    /// periodically rewrites the file. Copying without the lock races those writes and can
+    /// capture the file mid-write, which has surfaced server-side as a bad-CRC entry that
+    /// aborts build processing. Returns `false` (copying nothing) when no metrics file exists.
+    @discardableResult
+    public func snapshotMetricsFile(to destination: Path.AbsolutePath) async throws -> Bool {
+        guard try await fileSystem.exists(Self.metricsFilePath) else { return false }
+
+        let lockPath = Self.metricsFilePath.pathString + ".lock"
+        let fileLock = TSCBasic.FileLock(
+            at: try TSCBasic.AbsolutePath(validating: lockPath)
+        )
+
+        try await fileLock.withLock(type: .shared) {
+            try await fileSystem.copy(Self.metricsFilePath, to: destination)
+        }
+
+        return true
+    }
+
     public func readSamples(
         startDate: Date,
         endDate: Date,

@@ -18,14 +18,32 @@
             subject = XCTestEnumerator(commandRunner: commandRunner)
         }
 
-        private func givenCommandOutput(_ output: String) {
+        /// Builds a hierarchical `-test-enumeration-format json` document for the given `target -> [class]` map.
+        private func enumerationJSON(_ targets: [(String, [String])]) -> String {
+            let targetNodes = targets.map { name, classes in
+                let classNodes = classes.map { className in
+                    """
+                    {"kind":"class","name":"\(className)","children":[{"kind":"test","name":"t()"}]}
+                    """
+                }.joined(separator: ",")
+                return #"{"kind":"target","name":"\#(name)","children":[\#(classNodes)]}"#
+            }.joined(separator: ",")
+            return #"{"errors":[],"values":[{"kind":"plan","name":"P","children":[\#(targetNodes)]}]}"#
+        }
+
+        /// Sets up the command runner mock to write `json` to the `-test-enumeration-output-path` the subject
+        /// passes, mirroring how `xcodebuild` writes the enumeration file. Optionally captures the arguments.
+        private func givenEnumeration(json: String, capturing box: ArgumentsBox? = nil) {
             given(commandRunner)
                 .run(arguments: .any, environment: .any, workingDirectory: .any)
-                .willProduce { _, _, _ in
-                    AsyncThrowingStream { continuation in
-                        continuation.yield(CommandEvent.standardOutput(Array(output.utf8)))
-                        continuation.finish()
+                .willProduce { arguments, _, _ in
+                    box?.value = arguments
+                    if let index = arguments.firstIndex(of: "-test-enumeration-output-path"),
+                       index + 1 < arguments.count
+                    {
+                        try? json.write(toFile: arguments[index + 1], atomically: true, encoding: .utf8)
                     }
+                    return AsyncThrowingStream { continuation in continuation.finish() }
                 }
         }
 
@@ -46,65 +64,145 @@
         @Test(.inTemporaryDirectory)
         func enumerateTests_parsesMultipleTargetsAndClasses() async throws {
             let testProductsPath = try #require(FileSystem.temporaryTestDirectory)
-            let textOutput = """
-            Plan MyScheme
-            \tTarget AppTests
-            \t\tClass LoginTests
-            \t\t\tTest testLogin()
-            \t\tClass SignupTests
-            \t\t\tTest testSignup()
-            \tTarget CoreTests
-            \t\tClass NetworkTests
-            \t\t\tTest testFetch()
-            """
-            givenCommandOutput(textOutput)
+            givenEnumeration(json: enumerationJSON([
+                ("AppTests", ["LoginTests", "SignupTests"]),
+                ("CoreTests", ["NetworkTests"]),
+            ]))
 
             let result = try await subject.enumerateTests(
                 testProductsPath: testProductsPath,
-                destination: nil
+                destination: nil,
+                onlyTesting: []
             )
 
-            let appTests = result.first { $0.blueprintName == "AppTests" }
+            let appTests = result.targets.first { $0.blueprintName == "AppTests" }
             #expect(appTests?.onlyTestIdentifiers == ["LoginTests", "SignupTests"])
-            let coreTests = result.first { $0.blueprintName == "CoreTests" }
+            let coreTests = result.targets.first { $0.blueprintName == "CoreTests" }
             #expect(coreTests?.onlyTestIdentifiers == ["NetworkTests"])
         }
 
         @Test(.inTemporaryDirectory)
-        func enumerateTests_withDestination() async throws {
+        func enumerateTests_capturesSwiftTestingSuitesByTypeName() async throws {
             let testProductsPath = try #require(FileSystem.temporaryTestDirectory)
-            let textOutput = """
-            Plan MyScheme
-            \tTarget UITests
-            \t\tClass SnapshotTests
-            \t\t\tTest testSnapshot()
-            """
-            givenCommandOutput(textOutput)
+            // Swift Testing suites are reported with `kind == "class"` and their type name (not the
+            // `@Suite("display name")`), so they shard with valid `-only-testing` identifiers.
+            givenEnumeration(json: enumerationJSON([
+                ("FeatureTests", ["GammaSuite", "DeltaSuite"]),
+            ]))
 
             let result = try await subject.enumerateTests(
                 testProductsPath: testProductsPath,
-                destination: "platform=iOS Simulator,name=iPhone 16"
+                destination: nil,
+                onlyTesting: []
             )
 
-            let uiTests = result.first { $0.blueprintName == "UITests" }
+            #expect(result.targets == [XCTestRun.TestTarget(
+                blueprintName: "FeatureTests",
+                onlyTestIdentifiers: ["GammaSuite", "DeltaSuite"]
+            )])
+        }
+
+        @Test(.inTemporaryDirectory)
+        func enumerateTests_requestsJSONOutputToAFile() async throws {
+            let testProductsPath = try #require(FileSystem.temporaryTestDirectory)
+            let captured = ArgumentsBox()
+            givenEnumeration(json: enumerationJSON([("AppTests", ["LoginTests"])]), capturing: captured)
+
+            _ = try await subject.enumerateTests(
+                testProductsPath: testProductsPath,
+                destination: nil,
+                onlyTesting: []
+            )
+
+            let arguments = captured.value
+            #expect(arguments.contains("-enumerate-tests"))
+            #expect(consecutive(arguments, "-test-enumeration-format", "json"))
+            #expect(consecutive(arguments, "-test-enumeration-style", "hierarchical"))
+            #expect(arguments.contains("-test-enumeration-output-path"))
+        }
+
+        @Test(.inTemporaryDirectory)
+        func enumerateTests_withDestination_passesDestination() async throws {
+            let testProductsPath = try #require(FileSystem.temporaryTestDirectory)
+            let captured = ArgumentsBox()
+            givenEnumeration(json: enumerationJSON([("UITests", ["SnapshotTests"])]), capturing: captured)
+
+            let result = try await subject.enumerateTests(
+                testProductsPath: testProductsPath,
+                destination: "platform=iOS Simulator,name=iPhone 16",
+                onlyTesting: []
+            )
+
+            #expect(consecutive(captured.value, "-destination", "platform=iOS Simulator,name=iPhone 16"))
+            let uiTests = result.targets.first { $0.blueprintName == "UITests" }
             #expect(uiTests?.onlyTestIdentifiers == ["SnapshotTests"])
         }
 
         @Test(.inTemporaryDirectory)
-        func enumerateTests_targetWithNoClasses() async throws {
+        func enumerateTests_targetWithNoClasses_isReportedAsEnumeratedButEmpty() async throws {
             let testProductsPath = try #require(FileSystem.temporaryTestDirectory)
-            let textOutput = """
-            Plan MyScheme
-            \tTarget EmptyTarget
-            """
-            givenCommandOutput(textOutput)
+            givenEnumeration(json: enumerationJSON([("EmptyTarget", [])]))
 
             let result = try await subject.enumerateTests(
                 testProductsPath: testProductsPath,
-                destination: nil
+                destination: nil,
+                onlyTesting: []
             )
 
-            #expect(result.isEmpty)
+            // An enumerated-but-empty target must be reported (with no identifiers) rather than dropped, so
+            // callers can tell it apart from a target that failed to enumerate entirely.
+            #expect(result.targets == [XCTestRun.TestTarget(blueprintName: "EmptyTarget", onlyTestIdentifiers: [])])
+        }
+
+        @Test(.inTemporaryDirectory)
+        func enumerateTests_capturesTopLevelSwiftTestingFunctions() async throws {
+            let testProductsPath = try #require(FileSystem.temporaryTestDirectory)
+            // A top-level `@Test` function with no enclosing `@Suite` is reported as a `test` node directly
+            // under the target (not under a `class`). It must be captured as a `-only-testing` identifier —
+            // verbatim, parentheses included — so the target is not dropped as "empty". The `test` nested
+            // inside the class (`loggedIn()`) must NOT be captured: we shard at suite granularity.
+            givenEnumeration(json: #"""
+            {"errors":[],"values":[{"kind":"plan","name":"P","children":[
+              {"kind":"target","name":"FeatureTests","children":[
+                {"kind":"class","name":"LoginSuite","children":[{"kind":"test","name":"loggedIn()"}]},
+                {"kind":"test","name":"freeStandingTest()"}
+              ]}
+            ]}]}
+            """#)
+
+            let result = try await subject.enumerateTests(
+                testProductsPath: testProductsPath,
+                destination: nil,
+                onlyTesting: []
+            )
+
+            #expect(result.targets == [XCTestRun.TestTarget(
+                blueprintName: "FeatureTests",
+                onlyTestIdentifiers: ["LoginSuite", "freeStandingTest()"]
+            )])
+        }
+
+        @Test(.inTemporaryDirectory)
+        func enumerateTests_surfacesErrorsForTargetsThatCannotBeTested() async throws {
+            let testProductsPath = try #require(FileSystem.temporaryTestDirectory)
+            // A target xcodebuild lists but cannot boot is reported present-but-empty *and* recorded in the
+            // top-level `errors` array. Both must be surfaced so callers can tell it apart from a genuinely
+            // empty target.
+            givenEnumeration(json: #"""
+            {"errors":["Cannot test target UITests on iPhone 16: simulator failed to boot."],
+             "values":[{"kind":"plan","name":"P","children":[
+               {"kind":"target","name":"UITests"}
+             ]}]}
+            """#)
+
+            let result = try await subject.enumerateTests(
+                testProductsPath: testProductsPath,
+                destination: nil,
+                onlyTesting: []
+            )
+
+            #expect(result.targets == [XCTestRun.TestTarget(blueprintName: "UITests", onlyTestIdentifiers: [])])
+            #expect(result.errors == ["Cannot test target UITests on iPhone 16: simulator failed to boot."])
         }
 
         @Test(.inTemporaryDirectory)
@@ -115,47 +213,91 @@
             await #expect(throws: XCTestEnumeratorError.self) {
                 try await subject.enumerateTests(
                     testProductsPath: testProductsPath,
-                    destination: nil
+                    destination: nil,
+                    onlyTesting: []
                 )
             }
         }
 
         @Test(.inTemporaryDirectory)
-        func enumerateTests_returnsEmptyForUnrecognizedOutput() async throws {
+        func enumerateTests_throwsWhenOutputIsMalformed() async throws {
             let testProductsPath = try #require(FileSystem.temporaryTestDirectory)
-            givenCommandOutput("some random text")
+            givenEnumeration(json: "this is not json")
+
+            await #expect(throws: XCTestEnumeratorError.self) {
+                try await subject.enumerateTests(
+                    testProductsPath: testProductsPath,
+                    destination: nil,
+                    onlyTesting: []
+                )
+            }
+        }
+
+        @Test(.inTemporaryDirectory)
+        func enumerateTests_returnsEmptyWhenNoTargetsEnumerated() async throws {
+            let testProductsPath = try #require(FileSystem.temporaryTestDirectory)
+            givenEnumeration(json: #"{"errors":[],"values":[{"kind":"plan","name":"P","children":[]}]}"#)
 
             let result = try await subject.enumerateTests(
                 testProductsPath: testProductsPath,
-                destination: nil
+                destination: nil,
+                onlyTesting: []
             )
 
-            #expect(result.isEmpty)
+            #expect(result.targets.isEmpty)
         }
 
         @Test(.inTemporaryDirectory)
         func enumerateTests_multipleTargets() async throws {
             let testProductsPath = try #require(FileSystem.temporaryTestDirectory)
-            let textOutput = """
-            Plan MyScheme
-            \tTarget TargetA
-            \t\tClass SuiteA
-            \t\t\tTest testA()
-            \tTarget TargetB
-            \t\tClass SuiteB
-            \t\t\tTest testB()
-            """
-            givenCommandOutput(textOutput)
+            givenEnumeration(json: enumerationJSON([
+                ("TargetA", ["SuiteA"]),
+                ("TargetB", ["SuiteB"]),
+            ]))
 
             let result = try await subject.enumerateTests(
                 testProductsPath: testProductsPath,
-                destination: nil
+                destination: nil,
+                onlyTesting: []
             )
 
-            let targetA = result.first { $0.blueprintName == "TargetA" }
+            let targetA = result.targets.first { $0.blueprintName == "TargetA" }
             #expect(targetA?.onlyTestIdentifiers == ["SuiteA"])
-            let targetB = result.first { $0.blueprintName == "TargetB" }
+            let targetB = result.targets.first { $0.blueprintName == "TargetB" }
             #expect(targetB?.onlyTestIdentifiers == ["SuiteB"])
         }
+
+        @Test(.inTemporaryDirectory)
+        func enumerateTests_withOnlyTesting_passesOnlyTestingArgumentsPerIdentifier() async throws {
+            let testProductsPath = try #require(FileSystem.temporaryTestDirectory)
+            let capturedArguments = ArgumentsBox()
+            givenEnumeration(json: enumerationJSON([]), capturing: capturedArguments)
+
+            _ = try await subject.enumerateTests(
+                testProductsPath: testProductsPath,
+                destination: nil,
+                onlyTesting: ["AppTests", "FeatureTests"]
+            )
+
+            let arguments = capturedArguments.value
+            #expect(arguments.contains("-enumerate-tests"))
+            var onlyTestingValues: [String] = []
+            for (index, argument) in arguments.enumerated() where argument == "-only-testing" && index + 1 < arguments.count {
+                onlyTestingValues.append(arguments[index + 1])
+            }
+            #expect(onlyTestingValues.sorted() == ["AppTests", "FeatureTests"])
+        }
+
+        /// Returns true if `value` immediately follows `flag` in `arguments`.
+        private func consecutive(_ arguments: [String], _ flag: String, _ value: String) -> Bool {
+            for (index, argument) in arguments.enumerated() where argument == flag && index + 1 < arguments.count {
+                if arguments[index + 1] == value { return true }
+            }
+            return false
+        }
+    }
+
+    private final class ArgumentsBox: @unchecked Sendable {
+        var value: [String] = []
     }
 #endif

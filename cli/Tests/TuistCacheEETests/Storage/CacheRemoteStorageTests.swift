@@ -118,6 +118,35 @@ struct CacheRemoteStorageTests {
         #expect(try artifactSigner.isValid(path) == true)
     }
 
+    @Test(.inTemporaryDirectory) func fetch_when_macro_product_name_differs_from_target_name() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let macroPath = temporaryDirectory.appending(component: "MacroProduct.macro")
+        try await fileSystem.touch(macroPath)
+        let zipPath = try await FileArchiver(paths: [macroPath]).zip(name: "test")
+
+        let serverCacheArtifact = ServerCacheArtifact.test()
+
+        given(getCacheService).getCache(
+            serverURL: .value(Constants.URLs.production),
+            projectId: .value(fullHandle),
+            hash: .value("hash"),
+            name: .value("MacroTarget"),
+            cacheCategory: .value(.binaries)
+        ).willReturn(serverCacheArtifact)
+        given(downloader).download(item: .any, url: .value(serverCacheArtifact.url)).willReturn(zipPath)
+
+        let got = try await subject.fetch(
+            Set([.init(name: "MacroTarget", hash: "hash")]),
+            cacheCategory: .binaries
+        )
+
+        let path = try #require(
+            got[.test(name: "MacroTarget", hash: "hash", source: .remote, cacheCategory: .binaries)]
+        )
+        #expect(path.basename == "MacroProduct.macro")
+        #expect(try artifactSigner.isValid(path) == true)
+    }
+
     @Test(.inTemporaryDirectory) func fetch_when_framework_artifact_exists() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
