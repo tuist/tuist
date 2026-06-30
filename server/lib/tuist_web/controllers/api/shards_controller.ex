@@ -9,6 +9,8 @@ defmodule TuistWeb.API.ShardsController do
   alias TuistWeb.API.Schemas.Shards.ShardPlan
   alias TuistWeb.Headers
 
+  @suite_catch_all_minimum_cli_version Version.parse!("4.202.0-canary.21")
+
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
@@ -253,7 +255,7 @@ defmodule TuistWeb.API.ShardsController do
            selected_project.account,
            reference,
            shard_index,
-           suite_catch_all?: Headers.get_client_feature_flag(conn, "shard-skip-testing")
+           suite_catch_all?: suite_catch_all_supported?(conn)
          ) do
       {:ok, result} ->
         json(conn, %{
@@ -493,6 +495,13 @@ defmodule TuistWeb.API.ShardsController do
       is_binary(shard_plan_id) and shard_plan_id != "" -> {:plan_id, shard_plan_id}
       is_binary(reference) and reference != "" -> {:reference, reference}
       true -> {:error, :missing_shard_plan_identifier}
+    end
+  end
+
+  defp suite_catch_all_supported?(conn) do
+    case Headers.get_cli_version(conn) do
+      nil -> Headers.get_cli_version_string(conn) == "x.y.z"
+      cli_version -> Version.compare(cli_version, @suite_catch_all_minimum_cli_version) != :lt
     end
   end
 end
