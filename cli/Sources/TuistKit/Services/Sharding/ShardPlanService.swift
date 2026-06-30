@@ -16,7 +16,6 @@
     public protocol ShardPlanServicing {
         func plan(
             xctestproductsPath: AbsolutePath,
-            destination: String?,
             reference: String?,
             shardGranularity: ShardGranularity,
             shardMin: Int?,
@@ -89,9 +88,6 @@
 
         public func plan(
             xctestproductsPath: AbsolutePath,
-            // Retained for API symmetry with the test-run destination; suite planning is now done
-            // server-side from history, so the destination is no longer needed to enumerate locally.
-            destination _: String? = nil,
             reference: String?,
             shardGranularity: ShardGranularity,
             shardMin: Int?,
