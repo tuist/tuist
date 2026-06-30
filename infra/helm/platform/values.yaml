@@ -182,6 +182,10 @@ external-dns:
   sources:
     - service
     - ingress
+    # crd sources DNSEndpoint CRs (externaldns.k8s.io). The kura-controller emits
+    # one per host-network region peer host -> the region's failover IP, since a
+    # bare-metal peer plane has no LoadBalancer for the service source to read.
+    - crd
   # Must be unique per workload cluster because several managed clusters
   # write records under tuist.dev. The bootstrap task overrides this with
   # "<cluster-name>-platform".

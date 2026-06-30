@@ -522,6 +522,12 @@ func main() {
 	}
 
 	// OVH dedicated (bare-metal) machines (customer-facing Kura cache regions).
+	// Per-vendor failover-IP movers, populated below for whichever vendors have
+	// creds in this environment. The FailoverIP placement reconciler (registered
+	// after the vendor blocks) keeps each region's public peer failover IP routed
+	// to a healthy box of its pool.
+	failoverMovers := map[string]shared.FailoverIPMover{}
+
 	// Same provider, separate reconciler: pre-ordered OVH boxes adopted by
 	// display-name prefix that pass through an OS install, then SSH-bootstrap
 	// the shared Linux self-join over their public IP (no Scaleway Private
@@ -550,6 +556,7 @@ func main() {
 			setupLog.Error(err, "setup OVHDedicatedMachineReconciler")
 			os.Exit(1)
 		}
+		failoverMovers["ovh"] = shared.OVHFailoverMover{Client: ovhClient}
 		setupLog.Info("OVH dedicated machine reconciler enabled")
 	}
 
@@ -586,7 +593,24 @@ func main() {
 			setupLog.Error(err, "setup DediboxMachineReconciler")
 			os.Exit(1)
 		}
+		failoverMovers["dedibox"] = shared.DediboxFailoverMover{Client: dediboxClient, Zones: dedibox.Zones()}
 		setupLog.Info("Dedibox machine reconciler enabled")
+	}
+
+	// Failover-IP placement: keep each region's public peer failover IP routed to
+	// a healthy box of its pool. Registered only when at least one vendor's creds
+	// are present (so the mover map is non-empty); a FailoverIP whose vendor has
+	// no mover is a surfaced no-op rather than an error.
+	if len(failoverMovers) > 0 {
+		if err := (&shared.FailoverIPReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+			Movers: failoverMovers,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "setup FailoverIPReconciler")
+			os.Exit(1)
+		}
+		setupLog.Info("failover IP reconciler enabled", "vendors", len(failoverMovers))
 	}
 
 	if fleetSpreadDeployment != "" {

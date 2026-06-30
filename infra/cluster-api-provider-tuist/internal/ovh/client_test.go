@@ -203,3 +203,37 @@ func TestIsNotFound(t *testing.T) {
 		t.Fatal("IsNotFound(500) = true, want false")
 	}
 }
+
+func TestIPRoutedTo(t *testing.T) {
+	api := &fakeAPI{get: map[string]any{
+		"/ip/203.0.113.10": map[string]any{
+			"routedTo": map[string]any{"serviceName": "ns1.ip-1-2-3.eu"},
+		},
+	}}
+	c := &Client{API: api}
+	got, err := c.IPRoutedTo(context.Background(), "203.0.113.10")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "ns1.ip-1-2-3.eu" {
+		t.Fatalf("IPRoutedTo = %q, want ns1.ip-1-2-3.eu", got)
+	}
+}
+
+func TestMoveIP(t *testing.T) {
+	api := &fakeAPI{}
+	c := &Client{API: api}
+	if err := c.MoveIP(context.Background(), "203.0.113.10", "ns2.ip-9-9-9.eu"); err != nil {
+		t.Fatal(err)
+	}
+	if len(api.posts) != 1 {
+		t.Fatalf("expected one POST, got %d", len(api.posts))
+	}
+	if api.posts[0].url != "/ip/203.0.113.10/move" {
+		t.Fatalf("move URL = %q", api.posts[0].url)
+	}
+	b, _ := json.Marshal(api.posts[0].body)
+	if string(b) != `{"to":"ns2.ip-9-9-9.eu"}` {
+		t.Fatalf("move body = %s", b)
+	}
+}

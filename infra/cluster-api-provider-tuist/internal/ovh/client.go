@@ -23,6 +23,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/ovh/go-ovh/ovh"
@@ -357,4 +358,32 @@ func IsNotFound(err error) bool {
 		return apiErr.Code == 404
 	}
 	return false
+}
+
+type ipRouting struct {
+	RoutedTo struct {
+		ServiceName string `json:"serviceName"`
+	} `json:"routedTo"`
+}
+
+// IPRoutedTo returns the dedicated-server service name the (failover) IP block
+// currently routes to, or "" when it is not routed to a server. Used for
+// idempotency: the failover-IP controller only issues a move when the IP is not
+// already on the target box.
+func (c *Client) IPRoutedTo(ctx context.Context, ip string) (string, error) {
+	var routing ipRouting
+	if err := c.API.GetWithContext(ctx, "/ip/"+url.PathEscape(ip), &routing); err != nil {
+		return "", err
+	}
+	return routing.RoutedTo.ServiceName, nil
+}
+
+// MoveIP routes the (failover) IP block to the given dedicated server
+// (POST /ip/{ip}/move with {to: serviceName}). OVH completes the move in well
+// under a minute with no service interruption.
+func (c *Client) MoveIP(ctx context.Context, ip, toServiceName string) error {
+	body := struct {
+		To string `json:"to"`
+	}{To: toServiceName}
+	return c.API.PostWithContext(ctx, "/ip/"+url.PathEscape(ip)+"/move", body, nil)
 }

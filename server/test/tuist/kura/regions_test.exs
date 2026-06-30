@@ -86,6 +86,16 @@ defmodule Tuist.Kura.RegionsTest do
       assert Regions.get("eu-central").display_name == "EU Central"
     end
 
+    test "threads the per-region public peer failover IP from the environment" do
+      stub(Tuist.Environment, :kura_peer_failover_ip, fn
+        "eu-central" -> "203.0.113.10"
+        _ -> nil
+      end)
+
+      assert Regions.get("eu-central").provisioner_config.failover_ip == "203.0.113.10"
+      assert Regions.get("us-east").provisioner_config.failover_ip == nil
+    end
+
     test "enables the per-account peer mesh on managed and private regions" do
       for id <- ["us-east", "us-west", "eu-central", "scw-fr-par-runners", "hetzner-staging-runners"] do
         assert Regions.get(id).provisioner_config.mesh == true,

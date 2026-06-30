@@ -204,6 +204,42 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(unbridged["spec"], "meshExternalPeers")
     end
 
+    test "fronts the public peer plane with host-network + failover IP on a bare-metal region" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      host_network =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{mesh: true, gateway: :host_network, hetzner_location: nil, failover_ip: "203.0.113.10"}),
+          %Server{},
+          "return true"
+        )
+
+      assert host_network["spec"]["meshPeerHostNetwork"] == true
+      assert host_network["spec"]["meshPeerFailoverIp"] == "203.0.113.10"
+      # The Hetzner peer LoadBalancer annotations drop out on host-network regions.
+      refute Map.has_key?(host_network["spec"], "meshPublicPeerLoadBalancerAnnotations")
+
+      hetzner =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{mesh: true}),
+          %Server{},
+          "return true"
+        )
+
+      refute Map.has_key?(hetzner["spec"], "meshPeerHostNetwork")
+      refute Map.has_key?(hetzner["spec"], "meshPeerFailoverIp")
+    end
+
     test "omits external peers for a meshed region with no self-hosted nodes" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 

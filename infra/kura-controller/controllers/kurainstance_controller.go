@@ -186,6 +186,7 @@ func terminationGracePeriodSeconds() int64 {
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses;networkpolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=policy,resources=poddisruptionbudgets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=externaldns.k8s.io,resources=dnsendpoints,verbs=get;list;watch;create;update;patch;delete
 
 func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithValues("kurainstance", req.NamespacedName)
@@ -220,6 +221,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileInstancePublicPeerService(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcilePeerDNSEndpoint(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
 	primaryPod, err := r.selectPrimaryPod(ctx, instance)
@@ -377,22 +381,33 @@ func (r *KuraInstanceReconciler) reconcileInstancePublicPeerService(ctx context.
 			"app.kubernetes.io/managed-by": "kura-controller",
 			"tuist.dev/account":            instance.Spec.AccountHandle,
 		}
-		if service.Annotations == nil {
-			service.Annotations = map[string]string{}
+		if instance.Spec.MeshPeerHostNetwork {
+			// Bare-metal region: no cloud LoadBalancer. This Service is the
+			// ClusterIP backend the regional host-network SNI demux (:7443) routes
+			// to; DNS is published by a DNSEndpoint to the failover IP, not an LB
+			// annotation. Clear any LB-era annotation/policy in case the region was
+			// migrated off the LB path.
+			service.Annotations = nil
+			service.Spec.Type = corev1.ServiceTypeClusterIP
+			service.Spec.ExternalTrafficPolicy = ""
+		} else {
+			if service.Annotations == nil {
+				service.Annotations = map[string]string{}
+			}
+			for k, v := range instance.Spec.MeshPublicPeerLoadBalancerAnnotations {
+				service.Annotations[k] = v
+			}
+			service.Annotations["external-dns.alpha.kubernetes.io/hostname"] = instance.Spec.MeshPublicPeerHost
+			service.Spec.Type = corev1.ServiceTypeLoadBalancer
+			// Local routes the LoadBalancer straight to a node that hosts a peer pod
+			// instead of round-robining across every node and SNAT-hopping to the
+			// pod, which intermittently reset long-lived bootstrap connections.
+			service.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyTypeLocal
 		}
-		for k, v := range instance.Spec.MeshPublicPeerLoadBalancerAnnotations {
-			service.Annotations[k] = v
-		}
-		service.Annotations["external-dns.alpha.kubernetes.io/hostname"] = instance.Spec.MeshPublicPeerHost
-		service.Spec.Type = corev1.ServiceTypeLoadBalancer
-		// Local routes the LoadBalancer straight to a node that hosts a peer pod
-		// instead of round-robining across every node and SNAT-hopping to the
-		// pod, which intermittently reset long-lived bootstrap connections.
-		service.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyTypeLocal
 		// Per-region (per-instance): MeshPublicPeerHost and the peer cert SAN are
-		// region-scoped, so the LoadBalancer must select only this instance's
-		// pods. An account-scoped selector would route one region's hostname to
-		// another region's pods and mismatch the cert.
+		// region-scoped, so the Service must select only this instance's pods. An
+		// account-scoped selector would route one region's hostname to another
+		// region's pods and mismatch the cert.
 		service.Spec.Selector = selectorLabels(instance)
 		service.Spec.Ports = []corev1.ServicePort{
 			{Name: "peer", Port: peerPort, TargetPort: intstr.FromString("peer")},
@@ -413,6 +428,49 @@ func instancePublicPeerServiceName(instance *kurav1alpha1.KuraInstance) string {
 	_, _ = hash.Write([]byte(instance.Name))
 	suffix := fmt.Sprintf("-%x", hash.Sum32())
 	return strings.TrimRight(name[:63-len(suffix)], "-") + suffix
+}
+
+// dnsEndpointGVK is the external-dns CRD we emit to publish a host-network
+// region's public peer host. external-dns must run with the `crd` source.
+var dnsEndpointGVK = schema.GroupVersionKind{Group: "externaldns.k8s.io", Version: "v1alpha1", Kind: "DNSEndpoint"}
+
+// reconcilePeerDNSEndpoint publishes the region's public peer host to its
+// failover IP on host-network (bare-metal) regions, where there is no
+// LoadBalancer for external-dns to source a record from. The CAPI provider keeps
+// the failover IP routed to a healthy box of the region's pool, and the regional
+// SNI demux on :7443 forwards the connection to the right account's pod. Only
+// touches the API on host-network regions (a region never flips host-network
+// state, so the LoadBalancer path needs no DNSEndpoint cleanup here).
+func (r *KuraInstanceReconciler) reconcilePeerDNSEndpoint(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	if !instance.Spec.MeshPeerHostNetwork || instance.Spec.MeshPublicPeerHost == "" || instance.Spec.MeshPeerFailoverIP == "" {
+		return nil
+	}
+
+	endpoint := &unstructured.Unstructured{}
+	endpoint.SetGroupVersionKind(dnsEndpointGVK)
+	endpoint.SetNamespace(instance.Namespace)
+	endpoint.SetName(instance.Name + "-peer-dns")
+
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, endpoint, func() error {
+		endpoint.SetLabels(map[string]string{
+			"app.kubernetes.io/name":       "kura",
+			"app.kubernetes.io/instance":   instance.Name,
+			"app.kubernetes.io/managed-by": "kura-controller",
+			"tuist.dev/account":            instance.Spec.AccountHandle,
+		})
+		if err := unstructured.SetNestedSlice(endpoint.Object, []interface{}{
+			map[string]interface{}{
+				"dnsName":    instance.Spec.MeshPublicPeerHost,
+				"recordType": "A",
+				"recordTTL":  int64(300),
+				"targets":    []interface{}{instance.Spec.MeshPeerFailoverIP},
+			},
+		}, "spec", "endpoints"); err != nil {
+			return err
+		}
+		return controllerutil.SetControllerReference(instance, endpoint, r.Scheme)
+	})
+	return err
 }
 
 func (r *KuraInstanceReconciler) reconcileService(ctx context.Context, instance *kurav1alpha1.KuraInstance, primaryPod string) error {

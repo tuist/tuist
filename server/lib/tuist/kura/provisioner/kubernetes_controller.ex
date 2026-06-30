@@ -224,6 +224,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "meshPublicPeerHost" => mesh_public_peer_host(account_handle, region),
           "meshExternalPeers" => mesh_external_peers(region, external_peers),
           "meshPublicPeerLoadBalancerAnnotations" => mesh_public_peer_lb_annotations(region),
+          "meshPeerHostNetwork" => mesh_peer_host_network?(region),
+          "meshPeerFailoverIp" => mesh_peer_failover_ip(region),
           "private" => Regions.private?(region),
           "exposeNodePort" => Regions.node_port_data_plane?(region),
           "clientCIDRs" => client_cidrs(region),
@@ -355,6 +357,21 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   defp mesh_public_peer_lb_annotations(_region), do: nil
+
+  # The peer plane is host-network exactly when the regional gateway is: on
+  # bare metal there is no cloud LB, so the public peer endpoint is served by a
+  # host-network SNI-passthrough demux on the box NIC instead of a per-instance
+  # LoadBalancer. Tells the controller to make the per-instance peer Service
+  # ClusterIP and publish DNS via a DNSEndpoint to the region's failover IP.
+  defp mesh_peer_host_network?(region) do
+    mesh_enabled?(region) and gateway_host_network?(region)
+  end
+
+  # The region's public peer failover IP that the host-network peer DNSEndpoint
+  # targets. nil (dropped) on the Hetzner LB regions or when none is configured.
+  defp mesh_peer_failover_ip(region) do
+    if mesh_peer_host_network?(region), do: Map.get(region.provisioner_config, :failover_ip)
+  end
 
   defp node_selector_annotation(region) do
     case node_selector(region) do

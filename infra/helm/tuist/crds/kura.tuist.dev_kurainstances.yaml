@@ -139,6 +139,17 @@ spec:
                   type: object
                   additionalProperties:
                     type: string
+                # Host-network public peer plane (bare-metal regions, no LB): the
+                # per-instance peer Service becomes ClusterIP behind a regional
+                # SNI demux on :7443, and DNS is published via a DNSEndpoint to
+                # meshPeerFailoverIp.
+                meshPeerHostNetwork:
+                  type: boolean
+                # The region's stable public peer IP the host-network peer
+                # DNSEndpoint targets (kept routed to a healthy box by the CAPI
+                # provider). Only used when meshPeerHostNetwork is true.
+                meshPeerFailoverIp:
+                  type: string
                 storageClassName:
                   type: string
                 storageSize:

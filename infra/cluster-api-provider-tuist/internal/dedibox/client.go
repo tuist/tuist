@@ -39,6 +39,12 @@ const defaultBaseURL = "https://api.scaleway.com"
 // one of these zones); the matched server's own zone is used for follow-up calls.
 var dediboxZones = []string{"fr-par-1", "fr-par-2", "nl-ams-1"}
 
+// Zones returns the Dedibox zones a fleet may live in (a copy), so callers like
+// the failover-IP controller can scan them without importing the private var.
+func Zones() []string {
+	return append([]string(nil), dediboxZones...)
+}
+
 // apiError carries the Scaleway HTTP status so a 404 reads as "gone".
 type apiError struct {
 	status int
@@ -265,6 +271,44 @@ func (c *Client) GetServer(ctx context.Context, zone string, id uint64) (*Server
 		return nil, fmt.Errorf("get dedibox server %d: %w", id, err)
 	}
 	return serverFromDetail(&s), nil
+}
+
+// FailoverIPByAddress finds a failover IP by its address across the given zones,
+// returning the SDK record and the zone it lives in. Failover IPs are zonal and
+// a fleet's box may sit in any of the Dedibox zones, so adoption scans them.
+func (c *Client) FailoverIPByAddress(ctx context.Context, zones []string, address string) (*scwdedibox.FailoverIP, string, error) {
+	for _, zone := range zones {
+		q := url.Values{}
+		q.Set("project_id", c.ProjectID)
+		q.Set("page_size", "1000")
+		var resp scwdedibox.ListFailoverIPsResponse
+		if err := c.t.get(ctx, "/dedibox/v1/zones/"+zone+"/failover-ips", q, &resp); err != nil {
+			if IsNotFound(err) {
+				continue
+			}
+			return nil, "", fmt.Errorf("list dedibox failover IPs in %s: %w", zone, err)
+		}
+		for _, fip := range resp.FailoverIPs {
+			if fip.Address.String() == address {
+				return fip, zone, nil
+			}
+		}
+	}
+	return nil, "", fmt.Errorf("failover IP %s not found in zones %v", address, zones)
+}
+
+// AttachFailoverIP routes the failover IP (by id) to the target server, moving
+// it off whatever server it was on. Idempotent: attaching to the server it is
+// already on is a no-op server-side.
+func (c *Client) AttachFailoverIP(ctx context.Context, zone string, serverID, fipID uint64) error {
+	body := struct {
+		ServerID uint64   `json:"server_id"`
+		FipsIDs  []uint64 `json:"fips_ids"`
+	}{ServerID: serverID, FipsIDs: []uint64{fipID}}
+	if err := c.t.post(ctx, "/dedibox/v1/zones/"+zone+"/failover-ips/attach", body, nil); err != nil {
+		return fmt.Errorf("attach dedibox failover IP %d to server %d: %w", fipID, serverID, err)
+	}
+	return nil
 }
 
 // RegisterSSHKey registers publicKey as a Scaleway IAM SSH key named `name` in

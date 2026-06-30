@@ -111,6 +111,19 @@ type KuraInstanceSpec struct {
 	// controller targets every node, including ones that can't route to the
 	// account's pods), so the control plane supplies them.
 	MeshPublicPeerLoadBalancerAnnotations map[string]string `json:"meshPublicPeerLoadBalancerAnnotations,omitempty"`
+
+	// MeshPeerHostNetwork makes the public peer plane host-network instead of a
+	// cloud LoadBalancer (bare-metal regions, which have no LB). The per-instance
+	// peer Service becomes ClusterIP, a regional host-network SNI-passthrough
+	// demux on :7443 (PeerDemuxReconciler) fronts it on the box NIC, and DNS is
+	// published by a DNSEndpoint to MeshPeerFailoverIP instead of an LB
+	// external-dns annotation.
+	MeshPeerHostNetwork bool `json:"meshPeerHostNetwork,omitempty"`
+
+	// MeshPeerFailoverIP is the region's stable public peer IP that the
+	// host-network peer DNSEndpoint targets (the CAPI provider keeps it routed to
+	// a healthy box of the region's pool). Only used when MeshPeerHostNetwork.
+	MeshPeerFailoverIP string `json:"meshPeerFailoverIp,omitempty"`
 }
 
 type KuraInstanceStatus struct {

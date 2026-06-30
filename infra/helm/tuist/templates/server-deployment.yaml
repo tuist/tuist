@@ -318,6 +318,10 @@ spec:
             - name: TUIST_LOKI_URL
               value: "http://{{ include "tuist.componentName" (dict "root" . "component" "loki") }}:3100"
             {{- end }}
+            {{- if .Values.server.kuraPeerFailoverIps }}
+            - name: TUIST_KURA_PEER_FAILOVER_IPS
+              value: "{{- range $i, $e := .Values.server.kuraPeerFailoverIps }}{{ if $i }},{{ end }}{{ $e.region }}={{ $e.ip }}{{- end }}"
+            {{- end }}
             {{- with .Values.server.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

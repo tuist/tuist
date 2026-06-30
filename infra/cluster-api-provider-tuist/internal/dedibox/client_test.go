@@ -265,3 +265,39 @@ func TestIsNotFound(t *testing.T) {
 		t.Fatal("IsNotFound(500) = true, want false")
 	}
 }
+
+func TestFailoverIPByAddress(t *testing.T) {
+	f := &fakeTransport{gets: map[string]any{
+		"/dedibox/v1/zones/fr-par-1/failover-ips": map[string]any{
+			"failover_ips": []any{
+				map[string]any{"id": 42, "address": "203.0.113.10", "server_id": 100, "server_zone": "fr-par-1"},
+			},
+		},
+	}}
+	c := &Client{t: f, ProjectID: "proj"}
+	fip, zone, err := c.FailoverIPByAddress(context.Background(), []string{"fr-par-2", "fr-par-1"}, "203.0.113.10")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if zone != "fr-par-1" || fip.ID != 42 || fip.Address.String() != "203.0.113.10" {
+		t.Fatalf("got zone=%q id=%d addr=%s", zone, fip.ID, fip.Address)
+	}
+	if fip.ServerID == nil || *fip.ServerID != 100 {
+		t.Fatalf("server id = %v", fip.ServerID)
+	}
+}
+
+func TestAttachFailoverIP(t *testing.T) {
+	f := &fakeTransport{}
+	c := &Client{t: f, ProjectID: "proj"}
+	if err := c.AttachFailoverIP(context.Background(), "fr-par-1", 200, 42); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.posts) != 1 || f.posts[0].path != "/dedibox/v1/zones/fr-par-1/failover-ips/attach" {
+		t.Fatalf("attach posts = %+v", f.posts)
+	}
+	b, _ := json.Marshal(f.posts[0].body)
+	if string(b) != `{"server_id":200,"fips_ids":[42]}` {
+		t.Fatalf("attach body = %s", b)
+	}
+}

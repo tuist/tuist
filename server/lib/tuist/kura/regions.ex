@@ -371,6 +371,11 @@ defmodule Tuist.Kura.Regions do
         ingress_class_name: spec.ingress_class_name,
         storage_class: Map.get(spec, :storage_class, @managed_region_storage_class),
         gateway: Map.get(spec, :gateway, :hetzner),
+        # The region's public peer failover IP (bare-metal regions only): the
+        # stable IP self-hosted nodes resolve `peer.<host>` to, kept routed to a
+        # healthy box by the CAPI provider. nil on the Hetzner cloud regions
+        # (their public peer plane is a per-instance LoadBalancer instead).
+        failover_ip: Tuist.Environment.kura_peer_failover_ip(spec.id),
         # nil for the multi-box Hetzner regions (controller default applies);
         # bare-metal regions set 2 (a warm standby for gapless rolling deploys)
         # + a bounded storage_size.

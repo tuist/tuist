@@ -247,6 +247,16 @@ server:
   # marked them Enterprise. Leave empty in committed managed values;
   # prefer wiring this through external runtime config when needed.
   kuraDedicatedGatewayAccounts: []
+  # Per-region public peer failover IPs for the bare-metal regions (operator
+  # provisioned out of band, like the fleets — parked until ordered). Each entry
+  # renders a FailoverIP CR (the CAPI provider keeps the IP on a healthy box of
+  # the pool) and feeds TUIST_KURA_PEER_FAILOVER_IPS so the server points the
+  # region's peer DNSEndpoint at it. Leave empty until a region's IP exists.
+  kuraPeerFailoverIps: []
+  # - region: eu-central
+  #   ip: "1.2.3.4"
+  #   vendor: dedibox
+  #   pool: kura-dedibox
   # Erlang distribution / libcluster configuration. Emits a headless Service
   # and wires TUIST_CLUSTER_DNS_SERVICE + TUIST_CLUSTER_APP_NAME into the pod.
   cluster:
