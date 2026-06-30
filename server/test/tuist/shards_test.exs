@@ -468,6 +468,44 @@ defmodule Tuist.ShardsTest do
       assert result.download_url == "https://download.example.com"
     end
 
+    test "returns legacy final suite shard as assigned suites when no catch-all rows exist" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+
+      plan =
+        ShardsFixtures.shard_plan_fixture(
+          project_id: project.id,
+          reference: "legacy-suite-plan",
+          granularity: "suite",
+          shard_count: 2
+        )
+
+      ShardsFixtures.shard_plan_test_suite_fixture(
+        shard_plan_id: plan.id,
+        project_id: project.id,
+        shard_index: 0,
+        module_name: "AppTests",
+        test_suite_name: "LoginTests"
+      )
+
+      ShardsFixtures.shard_plan_test_suite_fixture(
+        shard_plan_id: plan.id,
+        project_id: project.id,
+        shard_index: 1,
+        module_name: "AppTests",
+        test_suite_name: "SignupTests"
+      )
+
+      stub(Tuist.Storage, :generate_download_url, fn _key, _account ->
+        "https://download.example.com"
+      end)
+
+      assert {:ok, result} = Shards.get_shard(project, account, "legacy-suite-plan", 1)
+      assert result.modules == ["AppTests"]
+      assert result.suites == %{"AppTests" => ["SignupTests"]}
+      assert result.skip == []
+    end
+
     test "returns error for nonexistent plan" do
       project = ProjectsFixtures.project_fixture()
       account = project.account

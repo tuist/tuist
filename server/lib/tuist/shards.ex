@@ -250,10 +250,7 @@ defmodule Tuist.Shards do
       |> Enum.map(&{&1.module_name, &1.test_suite_name})
 
     cond do
-      # The last shard is the catch-all: the suites recorded against it are the ones to SKIP, so it
-      # runs everything NOT explicitly assigned to another shard (new/unenumerated suites included)
-      # via `-skip-testing`, with no `-only-testing`. Always present for suite granularity.
-      shard_index == plan.shard_count - 1 ->
+      catch_all_suite_shard?(plan, shard_index, results) ->
         skip = Enum.map(results, fn {mod, suite} -> "#{mod}/#{suite}" end)
         %{modules: [], suites: %{}, skip: skip}
 
@@ -264,6 +261,26 @@ defmodule Tuist.Shards do
         suites = Enum.group_by(results, fn {mod, _} -> mod end, fn {_, suite} -> suite end)
         modules = Map.keys(suites)
         %{modules: modules, suites: suites, skip: []}
+    end
+  end
+
+  defp catch_all_suite_shard?(plan, shard_index, results) do
+    cond do
+      shard_index != plan.shard_count - 1 ->
+        false
+
+      results == [] ->
+        true
+
+      true ->
+        # New suite-granularity plans duplicate every assigned suite on the final shard so the
+        # CLI can pass them as -skip-testing. Legacy plans used the final shard normally.
+        previously_assigned =
+          plan.test_suites
+          |> Enum.filter(&(&1.shard_index < shard_index))
+          |> MapSet.new(&{&1.module_name, &1.test_suite_name})
+
+        MapSet.equal?(MapSet.new(results), previously_assigned)
     end
   end
 

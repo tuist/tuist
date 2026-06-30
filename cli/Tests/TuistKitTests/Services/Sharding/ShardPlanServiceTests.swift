@@ -76,7 +76,6 @@ struct ShardPlanServiceTests {
 
         _ = try await subject.plan(
             xctestproductsPath: testProductsPath,
-            destination: nil,
             reference: "ref",
             shardGranularity: .module,
             shardMin: nil,
@@ -218,7 +217,6 @@ struct ShardPlanServiceTests {
 
         _ = try await subject.plan(
             xctestproductsPath: testProductsPath,
-            destination: nil,
             reference: "ref",
             shardGranularity: .module,
             shardMin: nil,
