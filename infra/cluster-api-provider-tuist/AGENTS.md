@@ -221,48 +221,70 @@ linux/<arch> the cluster runs on.
 ### Bring a pre-ordered bare-metal box into the pool (Dedibox / OVH)
 
 The Dedibox and OVH kinds adopt a *pre-prepared* box rather than ordering or
-installing one — the same shape as the Apple Silicon fleet. **Adoption is a
-claim + SSH self-join only; the OS install never runs on the adoption path**
-(that is what keeps a *claimed* box's self-join fast). A box must therefore be
-installed (Ubuntu + the fleet key + a known sudo password) *before* it joins the
-pool. And because a fleet at `replicas: 1` whose box isn't up yet sits at MD 0/1
-and wedges `helm --wait`, a cold start brings the fleet up at **0** and scales it
-to 1 only once the box is ready:
+installing one, the same shape as the Apple Silicon fleet. **Adoption is a claim
++ SSH self-join only; the OS install never runs on the adoption path** (that is
+what keeps a *claimed* box's self-join fast). A box must be installed (Ubuntu +
+the fleet key + a known sudo password) and marked *before* it joins the pool. The
+`baremetal:prep-*` tasks do the install and the marking in one step.
 
-1. **Deploy the fleet at `replicas: 0`** (`<fleet>.replicas: 0` in
-   `values-managed-<env>.yaml`) — the MachineDeployment renders 0/0, so the
-   deploy never wedges. (The `dig`-based template preserves an explicit 0.)
-2. **Mint the fleet key out-of-band** — at replicas 0 there's no Machine yet to
-   make the operator mint it:
+**Prerequisites, per env, in the `tuist-k8s-<env>` 1Password vault:**
+
+- Provider API token:
+  - OVH: `OVH_API` with fields `application-key` / `application-secret` /
+    `consumer-key`, minted on the **same entity** as the fleet's `endpoint` (the
+    US boxes live on OVHcloud US, so `ovh-us` / api.us.ovhcloud.com; a token
+    minted on a different entity reads as "invalid"). It must be scoped for the
+    whole flow, not just reinstall: a reinstall-only token still 403s on naming
+    (`PUT /service/*`) and can't read the displayName for adoption
+    (`GET /services/*`). Mint it with this pre-filled link (OVH US):
+    `https://api.us.ovhcloud.com/createToken/?GET=/dedicated/server&GET=/dedicated/server/*&GET=/services/*&GET=/service/*&GET=/me/*&POST=/dedicated/server/*&POST=/me/*&PUT=/service/*`
+  - Dedibox: `DEDIBOX_SCW_API` with fields `secret-key` / `project-id`.
+  - Exactly one item per title per vault. A duplicate makes `op read` (prep) and
+    ESO ambiguous and wedges both.
+- Fleet SSH key, when the fleet sets `sshExternalSecret.enabled: true` (the
+  current default for managed fleets): a 1Password item (`OVH_FLEET_SSH` /
+  `DEDIBOX_FLEET_SSH`) with fields `private-key` / `public-key` / `sudo-password`.
+  ESO syncs it to the `<fleet>-ssh` Secret, and the prep task reads the key
+  material straight from 1Password (no cluster access needed). Legacy fleets that
+  still mint the key in-cluster use `baremetal:mint-fleet-key` instead.
+
+**Steps:**
+
+1. **Pre-order the box** in the provider console (out of band; the controllers
+   never order). OVH ADVANCE-1 for the US regions, Dedibox for eu-central.
+2. **Prep it.** Installs Ubuntu + the fleet key + sudo password, then sets the
+   adoption marker as its final step, reading the tag / displayName prefix from
+   `values-managed-<env>.yaml`. The install is async (~20-40 min; poll the
+   console). `PREP_NAMESPACE` selects the env (hence the `tuist-k8s-<env>` vault
+   and the values file); the OVH second arg is the fleet name:
    ```bash
-   mise run baremetal:mint-fleet-key tuist-tuist-dedibox-fleet
+   PREP_NAMESPACE=tuist-production mise run baremetal:prep-dedibox 184798
+   PREP_NAMESPACE=tuist-production mise run baremetal:prep-ovh ns1034936.ip-40-160-72.us tuist-tuist-ovh-fleet-us-east
    ```
-3. **Prep the box** — installs Ubuntu + the fleet key + the sudo password the
-   self-join uses once to establish NOPASSWD sudo. Pulls both from the
-   `<fleet>-ssh` Secret and drives the provider install; async (~20–40 min, poll
-   the console):
-   ```bash
-   mise run baremetal:prep-dedibox 188785
-   mise run baremetal:prep-ovh ns543284.ip-144-217-252.net
-   ```
-4. **Mark the box** so the fleet claims it — a Scaleway **tag** for Dedibox, the
-   service **displayName** for OVH; must match the fleet's `adoptTag` /
-   `adoptDisplayNamePrefix` (OVH is a prefix match, so boxes are `tuist-staging-1`,
-   `-2`):
-   ```bash
-   mise run baremetal:mark-dedibox 188785 tuist-staging
-   mise run baremetal:mark-ovh ns543284.ip-144-217-252.net tuist-staging-1
-   ```
-5. **Scale the fleet to 1** (`kubectl scale machinedeployment <fleet> --replicas=1`,
-   or bump `<fleet>.replicas` and redeploy) — the controller claims the marked box
-   and self-joins it in ~2–5 min.
+   Pass `PREP_SKIP_MARK=1` to stage capacity without marking it in yet, then
+   release it later with `baremetal:mark-dedibox` / `baremetal:mark-ovh` (those
+   are also the tasks to re-name a box).
+3. **Declare the fleet at `replicas: 1`** in `values-managed-<env>.yaml` and
+   deploy. The controller claims the marked box and self-joins it in ~2-5 min.
+   `replicas` here is the **box** count (one per region today); a region's
+   KuraInstance runs its own pod replicas on top of the box. Because the box is
+   prepped before the deploy, the fleet can come up at 1 directly. Only a *true*
+   cold start (deploying before any box is prepped) needs the old `replicas: 0`
+   then-scale dance, since an enabled fleet with no adoptable box sits at MD 0/1
+   and wedges `helm --wait` (the `dig`-based template preserves an explicit 0).
+
+**Fleet naming.** The singular `ovhFleet` renders `tuist-tuist-ovh-fleet` and
+`dediboxFleet` renders `tuist-tuist-dedibox-fleet`. Additional OVH regions live
+in the `ovhFleets` map and render `tuist-tuist-ovh-fleet-<key>` (e.g.
+`tuist-tuist-ovh-fleet-us-east`). The adopt marker comes from that fleet's
+values: `adoptTag` (Dedibox) or `adoptDisplayNamePrefix` (OVH, a prefix match).
+Production today: tag `tuist-kura-production` (eu-central), displayName prefixes
+`tuist-kura-ovh-production-us-east` / `-us-west` (OVH).
 
 Release (`reconcileDelete`) drops the Node + identity + TOFU pin but **leaves the
 box installed** (it is a monthly contract, not a reinstall-on-release); a released
 box keeps its OS + key, so re-marking it back into the pool re-claims it with no
-re-prep. All tasks read creds from 1Password and the cluster via
-`PREP_KUBE_CONTEXT` / `PREP_NAMESPACE`; the OVH token must be minted on the same
-entity as `OVH_ENDPOINT` (a mismatched-entity token reads as "invalid").
+re-prep.
 
 ### Scale up
 ```bash
