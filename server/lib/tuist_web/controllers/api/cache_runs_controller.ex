@@ -48,6 +48,18 @@ defmodule TuistWeb.API.CacheRunsController do
         type: :string,
         description: "Filter by git commit SHA."
       ],
+      ran_after: [
+        in: :query,
+        type: :string,
+        description:
+          "Return cache runs that executed at or after this timestamp. Accepts Unix seconds or a timestamp string such as 2026-01-15T10:00:00Z."
+      ],
+      ran_before: [
+        in: :query,
+        type: :string,
+        description:
+          "Return cache runs that executed at or before this timestamp. Accepts Unix seconds or a timestamp string such as 2026-01-15T10:00:00Z."
+      ],
       page_size: [
         in: :query,
         type: %Schema{
@@ -132,6 +144,7 @@ defmodule TuistWeb.API.CacheRunsController do
            },
            required: [:cache_runs, :pagination_metadata]
          }},
+      bad_request: {"The request was invalid", "application/json", Error},
       forbidden: {"You don't have permission to access this resource", "application/json", Error}
     }
   )
@@ -140,64 +153,69 @@ defmodule TuistWeb.API.CacheRunsController do
         %{assigns: %{selected_project: selected_project}, params: %{page_size: page_size, page: page} = params} = conn,
         _params
       ) do
-    filters =
-      [
-        %{field: :project_id, op: :==, value: selected_project.id},
-        %{field: :name, op: :==, value: "cache"}
-      ] ++ filters_from_params(params)
+    case filters_from_params(params) do
+      {:ok, params_filters} ->
+        filters =
+          [
+            %{field: :project_id, op: :==, value: selected_project.id},
+            %{field: :name, op: :==, value: "cache"}
+          ] ++ params_filters
 
-    {command_events, meta} =
-      CommandEvents.list_command_events(%{
-        page: page,
-        page_size: page_size,
-        filters: filters,
-        order_by: [:ran_at],
-        order_directions: [:desc]
-      })
+        {command_events, meta} =
+          CommandEvents.list_command_events(%{
+            page: page,
+            page_size: page_size,
+            filters: filters,
+            order_by: [:ran_at],
+            order_directions: [:desc]
+          })
 
-    json(conn, %{
-      cache_runs:
-        Enum.map(command_events, fn event ->
-          ran_by =
-            if event.user_account_name,
-              do: %{handle: event.user_account_name}
+        json(conn, %{
+          cache_runs:
+            Enum.map(command_events, fn event ->
+              ran_by =
+                if event.user_account_name,
+                  do: %{handle: event.user_account_name}
 
-          event
-          |> Map.take([
-            :id,
-            :duration,
-            :tuist_version,
-            :swift_version,
-            :macos_version,
-            :git_ref,
-            :git_commit_sha,
-            :git_branch,
-            :command_arguments,
-            :cacheable_targets,
-            :local_cache_target_hits,
-            :remote_cache_target_hits
-          ])
-          |> Map.put(:status, status_to_string(event.status))
-          |> Map.put(:is_ci, event.is_ci)
-          |> Map.put(
-            :url,
-            ~p"/#{selected_project.account.name}/#{selected_project.name}/runs/#{event.id}"
-          )
-          |> Map.put(
-            :ran_at,
-            event.created_at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix()
-          )
-          |> Map.put(:ran_by, ran_by)
-        end),
-      pagination_metadata: %{
-        has_next_page: meta.has_next_page?,
-        has_previous_page: meta.has_previous_page?,
-        current_page: meta.current_page,
-        page_size: meta.page_size,
-        total_count: meta.total_count,
-        total_pages: meta.total_pages
-      }
-    })
+              event
+              |> Map.take([
+                :id,
+                :duration,
+                :tuist_version,
+                :swift_version,
+                :macos_version,
+                :git_ref,
+                :git_commit_sha,
+                :git_branch,
+                :command_arguments,
+                :cacheable_targets,
+                :local_cache_target_hits,
+                :remote_cache_target_hits
+              ])
+              |> Map.put(:status, status_to_string(event.status))
+              |> Map.put(:is_ci, event.is_ci)
+              |> Map.put(
+                :url,
+                ~p"/#{selected_project.account.name}/#{selected_project.name}/runs/#{event.id}"
+              )
+              |> Map.put(:ran_at, date_to_unix(event.ran_at))
+              |> Map.put(:ran_by, ran_by)
+            end),
+          pagination_metadata: %{
+            has_next_page: meta.has_next_page?,
+            has_previous_page: meta.has_previous_page?,
+            current_page: meta.current_page,
+            page_size: meta.page_size,
+            total_count: meta.total_count,
+            total_pages: meta.total_pages
+          }
+        })
+
+      {:error, message} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: message})
+    end
   end
 
   operation(:show,
@@ -287,7 +305,7 @@ defmodule TuistWeb.API.CacheRunsController do
             cacheable_targets: event.cacheable_targets,
             local_cache_target_hits: event.local_cache_target_hits,
             remote_cache_target_hits: event.remote_cache_target_hits,
-            ran_at: event.created_at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix(),
+            ran_at: date_to_unix(event.ran_at),
             url: ~p"/#{selected_project.account.name}/#{selected_project.name}/runs/#{event.id}"
           })
         else
@@ -304,9 +322,86 @@ defmodule TuistWeb.API.CacheRunsController do
   end
 
   defp filters_from_params(params) do
-    [:git_ref, :git_branch, :git_commit_sha]
-    |> Enum.map(&%{field: &1, op: :==, value: Map.get(params, &1)})
-    |> Enum.filter(&(&1.value != nil))
+    with {:ok, ran_at_filters} <- ran_at_filters_from_params(params) do
+      filters =
+        [:git_ref, :git_branch, :git_commit_sha]
+        |> Enum.map(&%{field: &1, op: :==, value: Map.get(params, &1)})
+        |> Enum.filter(&(&1.value != nil))
+
+      {:ok, filters ++ ran_at_filters}
+    end
+  end
+
+  defp ran_at_filters_from_params(params) do
+    with {:ok, ran_after_filter} <- ran_at_filter_from_params(params, :ran_after, :>=),
+         {:ok, ran_before_filter} <- ran_at_filter_from_params(params, :ran_before, :<=) do
+      {:ok, Enum.reject([ran_after_filter, ran_before_filter], &is_nil/1)}
+    end
+  end
+
+  defp ran_at_filter_from_params(params, param, op) do
+    case Map.get(params, param) do
+      nil ->
+        {:ok, nil}
+
+      value ->
+        case parse_datetime_filter(value) do
+          {:ok, datetime} ->
+            {:ok, %{field: :ran_at, op: op, value: datetime}}
+
+          :error ->
+            {:error, "`#{param}` must be a valid Unix timestamp or timestamp string such as 2026-01-15T10:00:00Z."}
+        end
+    end
+  end
+
+  defp parse_datetime_filter(value) when is_integer(value), do: parse_unix_timestamp(value)
+
+  defp parse_datetime_filter(value) when is_binary(value) do
+    value = String.trim(value)
+
+    cond do
+      value == "" ->
+        :error
+
+      Regex.match?(~r/^-?\d+$/, value) ->
+        value
+        |> String.to_integer()
+        |> parse_unix_timestamp()
+
+      true ->
+        parse_timestamp_string(value)
+    end
+  end
+
+  defp parse_datetime_filter(_), do: :error
+
+  defp parse_unix_timestamp(value) do
+    case DateTime.from_unix(value) do
+      {:ok, datetime} -> {:ok, DateTime.to_naive(datetime)}
+      _ -> :error
+    end
+  end
+
+  defp parse_timestamp_string(value) do
+    case DateTime.from_iso8601(value) do
+      {:ok, datetime, _offset} ->
+        {:ok, DateTime.to_naive(datetime)}
+
+      _ ->
+        case NaiveDateTime.from_iso8601(value) do
+          {:ok, datetime} -> {:ok, datetime}
+          _ -> :error
+        end
+    end
+  end
+
+  defp date_to_unix(%DateTime{} = datetime), do: DateTime.to_unix(datetime)
+
+  defp date_to_unix(%NaiveDateTime{} = datetime) do
+    datetime
+    |> DateTime.from_naive!("Etc/UTC")
+    |> DateTime.to_unix()
   end
 
   defp status_to_string(0), do: "success"
