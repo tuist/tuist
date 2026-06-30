@@ -1207,6 +1207,20 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Least-privilege database role the internal Atlas query runner drops to via
+  `SET LOCAL ROLE` before executing operator-supplied SQL. Set to `tuist_ops_ro`
+  by the chart in managed environments (requires `GRANT tuist_ops_ro TO
+  tuist_web` — see `infra/cnpg/tuist-ops-ro-grants.sql`). Unset in dev/test, where
+  queries run as the default role.
+  """
+  def atlas_db_readonly_role do
+    case System.get_env("TUIST_ATLAS_DB_READONLY_ROLE") do
+      role when role in [nil, ""] -> nil
+      role -> role
+    end
+  end
+
+  @doc """
   Cross-cluster trust policy for Atlas workload tokens.
   """
   def atlas_workload_identity_policy do

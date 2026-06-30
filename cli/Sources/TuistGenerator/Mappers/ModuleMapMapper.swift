@@ -85,7 +85,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                         from: mappedSettingsDictionary[Self.modulemapFileSetting],
                         projectPath: project.path
                     ),
-                        target.product.isFramework
+                        target.product == .framework
                     {
                         // swift-build gives ExtractAPI dependency module maps explicitly and models framework module maps
                         // at `Modules/module.modulemap`. Generated Xcode projects need the same canonical framework path.

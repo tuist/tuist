@@ -48,7 +48,7 @@ env:
 jobs:
   release-cli:
     name: Release CLI
-    runs-on: macos-26
+    runs-on: tuist-macos-26-0-1
     timeout-minutes: 75
     permissions:
       contents: write
@@ -66,8 +66,6 @@ jobs:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version-releases).app
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}

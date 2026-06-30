@@ -218,7 +218,7 @@
                 ]
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -305,7 +305,7 @@
                 "wideLayout": true
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -395,7 +395,7 @@
                 "wideLayout": true
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -485,7 +485,7 @@
                 "wideLayout": true
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -590,6 +590,7 @@
                   "calcs": [],
                   "displayMode": "list",
                   "enableFacetedFilter": false,
+                  "overflow": "ellipsis",
                   "placement": "bottom",
                   "showLegend": true
                 },
@@ -600,7 +601,7 @@
                 }
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -705,6 +706,7 @@
                   "calcs": [],
                   "displayMode": "list",
                   "enableFacetedFilter": false,
+                  "overflow": "ellipsis",
                   "placement": "bottom",
                   "showLegend": true
                 },
@@ -715,7 +717,7 @@
                 }
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -820,6 +822,7 @@
                   "calcs": [],
                   "displayMode": "list",
                   "enableFacetedFilter": false,
+                  "overflow": "ellipsis",
                   "placement": "bottom",
                   "showLegend": true
                 },
@@ -830,7 +833,7 @@
                 }
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -975,6 +978,7 @@
                   "calcs": [],
                   "displayMode": "list",
                   "enableFacetedFilter": false,
+                  "overflow": "ellipsis",
                   "placement": "bottom",
                   "showLegend": true
                 },
@@ -985,7 +989,7 @@
                 }
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -1090,6 +1094,7 @@
                   "calcs": [],
                   "displayMode": "list",
                   "enableFacetedFilter": false,
+                  "overflow": "ellipsis",
                   "placement": "bottom",
                   "showLegend": true
                 },
@@ -1100,7 +1105,7 @@
                 }
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -1205,6 +1210,7 @@
                   "calcs": [],
                   "displayMode": "list",
                   "enableFacetedFilter": false,
+                  "overflow": "ellipsis",
                   "placement": "bottom",
                   "showLegend": true
                 },
@@ -1215,7 +1221,7 @@
                 }
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -1309,32 +1315,7 @@
                   },
                   "unit": "reqps"
                 },
-                "overrides": [
-                  {
-                    "__systemRef": "hideSeriesFrom",
-                    "matcher": {
-                      "id": "byNames",
-                      "options": {
-                        "mode": "exclude",
-                        "names": [
-                          "reapi"
-                        ],
-                        "prefix": "All except:",
-                        "readOnly": true
-                      }
-                    },
-                    "properties": [
-                      {
-                        "id": "custom.hideFrom",
-                        "value": {
-                          "legend": false,
-                          "tooltip": true,
-                          "viz": true
-                        }
-                      }
-                    ]
-                  }
-                ]
+                "overrides": []
               },
               "options": {
                 "annotations": {
@@ -1345,6 +1326,7 @@
                   "calcs": [],
                   "displayMode": "list",
                   "enableFacetedFilter": false,
+                  "overflow": "ellipsis",
                   "placement": "bottom",
                   "showLegend": true
                 },
@@ -1355,7 +1337,7 @@
                 }
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -1449,32 +1431,7 @@
                   },
                   "unit": "reqps"
                 },
-                "overrides": [
-                  {
-                    "__systemRef": "hideSeriesFrom",
-                    "matcher": {
-                      "id": "byNames",
-                      "options": {
-                        "mode": "exclude",
-                        "names": [
-                          "reapi"
-                        ],
-                        "prefix": "All except:",
-                        "readOnly": true
-                      }
-                    },
-                    "properties": [
-                      {
-                        "id": "custom.hideFrom",
-                        "value": {
-                          "legend": false,
-                          "tooltip": true,
-                          "viz": true
-                        }
-                      }
-                    ]
-                  }
-                ]
+                "overrides": []
               },
               "options": {
                 "annotations": {
@@ -1485,6 +1442,7 @@
                   "calcs": [],
                   "displayMode": "list",
                   "enableFacetedFilter": false,
+                  "overflow": "ellipsis",
                   "placement": "bottom",
                   "showLegend": true
                 },
@@ -1495,7 +1453,7 @@
                 }
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -1600,6 +1558,7 @@
                   "calcs": [],
                   "displayMode": "list",
                   "enableFacetedFilter": false,
+                  "overflow": "ellipsis",
                   "placement": "bottom",
                   "showLegend": true
                 },
@@ -1610,7 +1569,7 @@
                 }
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -1755,6 +1714,7 @@
                   "calcs": [],
                   "displayMode": "list",
                   "enableFacetedFilter": false,
+                  "overflow": "ellipsis",
                   "placement": "bottom",
                   "showLegend": true
                 },
@@ -1765,7 +1725,7 @@
                 }
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -1870,6 +1830,7 @@
                   "calcs": [],
                   "displayMode": "list",
                   "enableFacetedFilter": false,
+                  "overflow": "ellipsis",
                   "placement": "bottom",
                   "showLegend": true
                 },
@@ -1880,7 +1841,7 @@
                 }
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -2037,6 +1998,7 @@
                   ],
                   "displayMode": "table",
                   "enableFacetedFilter": false,
+                  "overflow": "ellipsis",
                   "placement": "right",
                   "showLegend": true
                 },
@@ -2047,7 +2009,7 @@
                 }
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -2181,6 +2143,7 @@
                   ],
                   "displayMode": "table",
                   "enableFacetedFilter": false,
+                  "overflow": "ellipsis",
                   "placement": "right",
                   "showLegend": true
                 },
@@ -2191,7 +2154,7 @@
                 }
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -2271,6 +2234,7 @@
                 "legend": {
                   "calcs": [],
                   "displayMode": "list",
+                  "overflow": "ellipsis",
                   "placement": "bottom",
                   "showLegend": false
                 },
@@ -2291,7 +2255,7 @@
                 "valueMode": "color"
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -2371,6 +2335,7 @@
                 "legend": {
                   "calcs": [],
                   "displayMode": "list",
+                  "overflow": "ellipsis",
                   "placement": "bottom",
                   "showLegend": false
                 },
@@ -2391,7 +2356,7 @@
                 "valueMode": "color"
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -2499,6 +2464,7 @@
                   "calcs": [],
                   "displayMode": "list",
                   "enableFacetedFilter": false,
+                  "overflow": "ellipsis",
                   "placement": "bottom",
                   "showLegend": true
                 },
@@ -2509,7 +2475,7 @@
                 }
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -2617,6 +2583,7 @@
                   "calcs": [],
                   "displayMode": "list",
                   "enableFacetedFilter": false,
+                  "overflow": "ellipsis",
                   "placement": "bottom",
                   "showLegend": true
                 },
@@ -2627,7 +2594,7 @@
                 }
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -2743,6 +2710,7 @@
                   "calcs": [],
                   "displayMode": "list",
                   "enableFacetedFilter": false,
+                  "overflow": "ellipsis",
                   "placement": "bottom",
                   "showLegend": true
                 },
@@ -2753,7 +2721,7 @@
                 }
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -2884,6 +2852,7 @@
                   "calcs": [],
                   "displayMode": "list",
                   "enableFacetedFilter": false,
+                  "overflow": "ellipsis",
                   "placement": "bottom",
                   "showLegend": true
                 },
@@ -2894,7 +2863,7 @@
                 }
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -3002,6 +2971,7 @@
                   "calcs": [],
                   "displayMode": "list",
                   "enableFacetedFilter": false,
+                  "overflow": "ellipsis",
                   "placement": "bottom",
                   "showLegend": true
                 },
@@ -3012,7 +2982,7 @@
                 }
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -3076,7 +3046,7 @@
                 "wrapLogMessage": false
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -3154,7 +3124,7 @@
                 "showHeader": true
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -3420,7 +3390,7 @@
                 }
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -3532,6 +3502,7 @@
                   ],
                   "displayMode": "table",
                   "enableFacetedFilter": false,
+                  "overflow": "ellipsis",
                   "placement": "bottom",
                   "showLegend": true
                 },
@@ -3542,7 +3513,7 @@
                 }
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -3654,6 +3625,7 @@
                   ],
                   "displayMode": "table",
                   "enableFacetedFilter": false,
+                  "overflow": "ellipsis",
                   "placement": "bottom",
                   "showLegend": true
                 },
@@ -3664,7 +3636,7 @@
                 }
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -3832,6 +3804,7 @@
                   "calcs": [],
                   "displayMode": "list",
                   "enableFacetedFilter": false,
+                  "overflow": "ellipsis",
                   "placement": "bottom",
                   "showLegend": true
                 },
@@ -3842,7 +3815,7 @@
                 }
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       },
@@ -3952,6 +3925,7 @@
                   "calcs": [],
                   "displayMode": "list",
                   "enableFacetedFilter": false,
+                  "overflow": "ellipsis",
                   "placement": "bottom",
                   "showLegend": true
                 },
@@ -3962,7 +3936,7 @@
                 }
               }
             },
-            "version": "13.1.0-27822252871"
+            "version": "13.2.0-28013533988"
           }
         }
       }
@@ -4664,9 +4638,7 @@
           "allValue": ".*",
           "allowCustomValue": true,
           "current": {
-            "text": [
-              "All"
-            ],
+            "text": "All",
             "value": [
               "$__all"
             ]
@@ -4736,9 +4708,7 @@
         "spec": {
           "allowCustomValue": true,
           "current": {
-            "text": [
-              "All"
-            ],
+            "text": "All",
             "value": [
               "$__all"
             ]

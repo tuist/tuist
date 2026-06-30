@@ -43,6 +43,13 @@ pub const DEFAULT_USAGE_OUTBOX_MAX_DEPTH: usize = 100_000;
 pub const MAX_BOOTSTRAP_PAGE_BYTES: u64 = 32 * 1024 * 1024;
 pub const MAX_INLINE_REPLICATION_BODY_BYTES: u64 = 4 * 1024 * 1024;
 pub const DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS: usize = 8;
+// Stripes for the per-artifact bootstrap fetch gate that single-flights the
+// body download across peers. Sized well above the peak concurrent fetches
+// (bootstrap_max_concurrent_peers x per-peer fetch concurrency) so distinct
+// keys rarely share a stripe; false sharing only over-serializes briefly and is
+// correctness-neutral because the gate is paired with an exact per-artifact
+// presence recheck.
+pub const BOOTSTRAP_FETCH_LOCK_STRIPES: usize = 1024;
 
 pub const ROCKSDB_CF_MANIFESTS: &str = "manifests";
 pub const ROCKSDB_CF_KEY_VALUE: &str = "key_value";
