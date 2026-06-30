@@ -79,7 +79,7 @@
     text-align: left;
   }
 
-  & .noora-table table tbody tr td {
+  & .noora-table table tbody tr:not([data-part="expanded-row"]) td {
     vertical-align: middle;
     background-color: var(--noora-surface-background-primary);
     padding: 22px var(--noora-spacing-7);
