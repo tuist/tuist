@@ -79,8 +79,15 @@ spec:
             - name: TUIST_MODE
               value: swift_registry_sync
             {{- if ne .Values.postgresql.mode "cnpg" }}
+            {{- if .Values.swiftRegistrySync.managedSecrets }}
+            # Managed non-CNPG installs compose DATABASE_URL from the
+            # swiftRegistrySync.database block, which is expected to point at a
+            # transaction-mode pooler.
             - name: TUIST_DATABASE_POOLED
               value: "1"
+            {{- end }}
+            - name: TUIST_USE_SSL_FOR_DATABASE
+              value: {{ .Values.server.database.ssl | ternary "1" "0" | quote }}
             {{- else }}
             {{- if .Values.postgresql.cnpg.pooler.enabled }}
             - name: TUIST_DATABASE_POOLED
@@ -97,6 +104,12 @@ spec:
                 secretKeyRef:
                   name: {{ $registrySecretName }}
                   key: DATABASE_URL
+            - name: TUIST_DATABASE_SCHEMA
+              value: {{ .Values.postgresql.schema | quote }}
+            {{- if not .Values.server.managedSecrets }}
+            - name: TUIST_CLICKHOUSE_URL
+              value: {{ include "tuist.clickhouseUrl" . | quote }}
+            {{- end }}
             {{- include "tuist.githubEnv" . | nindent 12 }}
             {{- include "tuist.licenseEnv" . | nindent 12 }}
             {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
@@ -176,9 +189,15 @@ spec:
             {{- with .Values.swiftRegistrySync.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-          {{- with .Values.server.extraEnvFrom }}
+          {{- $serverConfigEnvFrom := include "tuist.serverConfigEnvFrom" . | trim }}
+          {{- if or $serverConfigEnvFrom .Values.server.extraEnvFrom }}
           envFrom:
+            {{- with $serverConfigEnvFrom }}
+            {{- . | nindent 12 }}
+            {{- end }}
+            {{- with .Values.server.extraEnvFrom }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- end }}
           resources:
             {{- toYaml .Values.swiftRegistrySync.resources | nindent 12 }}
