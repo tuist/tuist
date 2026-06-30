@@ -1624,7 +1624,7 @@ components:
           x-struct:
           x-validate:
         shard_max:
-          description: Maximum number of shards.
+          description: Maximum number of balanced shards.
           type: integer
           x-struct:
           x-validate:
@@ -1634,12 +1634,12 @@ components:
           x-struct:
           x-validate:
         shard_min:
-          description: Minimum number of shards.
+          description: Minimum number of balanced shards.
           type: integer
           x-struct:
           x-validate:
         shard_total:
-          description: Exact number of shards.
+          description: Exact number of balanced shards. Suite granularity may append one final catch-all shard.
           type: integer
           x-struct:
           x-validate:
@@ -2276,7 +2276,7 @@ components:
           x-struct:
           x-validate:
         skip:
-          description: Test identifiers this shard must skip (`-skip-testing`). Set on the catch-all shard, which runs everything not explicitly assigned to another shard so newly added or un-enumerated suites are not dropped. Empty/absent for regular shards.
+          description: Test identifiers this shard must skip (`-skip-testing`). Set on the final catch-all shard, which runs everything not explicitly assigned to another shard so newly added or un-enumerated suites are not dropped. Empty for regular shards.
           items:
             type: string
             x-struct:
@@ -19702,7 +19702,7 @@ paths:
                   x-struct:
                   x-validate:
                 shard_max:
-                  description: Maximum number of shards.
+                  description: Maximum number of balanced shards.
                   type: integer
                   x-struct:
                   x-validate:
@@ -19712,12 +19712,12 @@ paths:
                   x-struct:
                   x-validate:
                 shard_min:
-                  description: Minimum number of shards.
+                  description: Minimum number of balanced shards.
                   type: integer
                   x-struct:
                   x-validate:
                 shard_total:
-                  description: Exact number of shards.
+                  description: Exact number of balanced shards. Suite granularity may append one final catch-all shard.
                   type: integer
                   x-struct:
                   x-validate:

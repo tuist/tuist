@@ -6,6 +6,8 @@ import Path
 import Testing
 import TuistAppleArchiver
 import TuistCI
+import TuistLoggerTesting
+import TuistLogging
 import TuistServer
 import TuistSupport
 import TuistTesting
@@ -37,7 +39,7 @@ struct ShardServiceTests {
         #expect(shard.testIdentifiers == ["AppTests", "CoreTests"])
     }
 
-    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), .withMockedLogger())
     func shard_suiteGranularity_emitsModuleSlashSuiteOnlyTestingIdentifiers() async throws {
         // Given: a plan with suites grouped by module (suite granularity)
         let (subject, testProductsPath) = try await makeSubjectWithLocalProducts(
@@ -64,6 +66,8 @@ struct ShardServiceTests {
             "AppTests/SignupTests",
             "CoreTests/NetworkTests",
         ])
+        #expect(Logger.testingLogHandler
+            .collected[.notice, ==] == "Shard 0: AppTests/LoginTests, AppTests/SignupTests, CoreTests/NetworkTests")
     }
 
     // MARK: - shard() with local test products path
@@ -136,7 +140,7 @@ struct ShardServiceTests {
         #expect(blueprintNames(from: originalPlist) == ["AppTests", "CoreTests"])
     }
 
-    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), .withMockedLogger())
     func shard_catchAllShard_carriesSkipTestIdentifiersAndNoOnlyTesting() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let fileSystem = FileSystem()
@@ -183,6 +187,7 @@ struct ShardServiceTests {
         // No -only-testing; the remainder is selected by skipping everything already assigned.
         #expect(shard.testIdentifiers.isEmpty)
         #expect(shard.skipTestIdentifiers == ["AppTests/LoginTests", "CoreTests/NetworkTests"])
+        #expect(Logger.testingLogHandler.collected[.notice, ==] == "Shard 2: AppTests/LoginTests, CoreTests/NetworkTests")
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())

@@ -260,21 +260,21 @@
 
         @Option(
             name: .long,
-            help: "Maximum number of shards to distribute tests across.",
+            help: "Maximum number of balanced shards to distribute tests across.",
             envKey: .testShardMax
         )
         var shardMax: Int?
 
         @Option(
             name: .long,
-            help: "Minimum number of shards.",
+            help: "Minimum number of balanced shards.",
             envKey: .testShardMin
         )
         var shardMin: Int?
 
         @Option(
             name: .long,
-            help: "Exact number of shards (mutually exclusive with --shard-min/--shard-max).",
+            help: "Exact number of balanced shards (mutually exclusive with --shard-min/--shard-max). Suite granularity may append one final catch-all shard.",
             envKey: .testShardTotal
         )
         var shardTotal: Int?

@@ -22,7 +22,9 @@ Test sharding for generated projects uses `tuist test` for both the build and te
 Test sharding follows a two-phase workflow:
 
 1. **Build phase:** Tuist enumerates your tests and creates a **shard plan** on the server. The server uses historical test timing data from the last 30 days to distribute tests across shards so each shard takes roughly the same amount of time. The build phase outputs a **shard matrix** that your CI system uses to spawn parallel runners.
-2. **Test phase:** Each CI runner receives a **shard index** and executes only the tests assigned to that shard.
+2. **Test phase:** Each CI runner receives a **shard index** and executes that shard's test selection.
+
+When `--shard-granularity suite` is used, Tuist creates the requested balanced shards and appends a final catch-all shard. For example, `--shard-total 5` produces five balanced shards plus shard index `5` as the catch-all. Regular shards run with `-only-testing` for their assigned suites. The final catch-all shard runs without `-only-testing` and passes `-skip-testing` for every suite assigned to the earlier shards, so newly added suites or suites omitted during enumeration still run. Module granularity does not need a catch-all because the `.xctestrun` file provides the module list.
 
 ## Build phase {#build-phase}
 
@@ -46,9 +48,9 @@ This command:
 
 | Flag | Environment variable | Description |
 |------|---------------------|-------------|
-| `--shard-max <N>` | `TUIST_TEST_SHARD_MAX` | Maximum number of shards. Used with `--shard-max-duration` to cap the shard count |
-| `--shard-min <N>` | `TUIST_TEST_SHARD_MIN` | Minimum number of shards |
-| `--shard-total <N>` | `TUIST_TEST_SHARD_TOTAL` | Exact number of shards (mutually exclusive with `--shard-min`/`--shard-max`) |
+| `--shard-max <N>` | `TUIST_TEST_SHARD_MAX` | Maximum number of balanced shards. Used with `--shard-max-duration` to cap the shard count |
+| `--shard-min <N>` | `TUIST_TEST_SHARD_MIN` | Minimum number of balanced shards |
+| `--shard-total <N>` | `TUIST_TEST_SHARD_TOTAL` | Exact number of balanced shards (mutually exclusive with `--shard-min`/`--shard-max`). Suite granularity may append one final catch-all shard |
 | `--shard-max-duration <MS>` | `TUIST_TEST_SHARD_MAX_DURATION` | Target maximum duration per shard in milliseconds |
 | `--shard-granularity <LEVEL>` | `TUIST_TEST_SHARD_GRANULARITY` | `module` (default) distributes entire test modules across shards; `suite` distributes individual test classes for finer-grained balancing |
 | `--shard-reference <REF>` | `TUIST_SHARD_REFERENCE` | Unique identifier for the shard plan (auto-derived on supported CI providers) |

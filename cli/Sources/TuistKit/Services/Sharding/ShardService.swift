@@ -96,21 +96,10 @@ public struct ShardService: ShardServicing {
 
         let suites = shard.suites.additionalProperties
         let skipTestIdentifiers = shard.skip ?? []
-        if !skipTestIdentifiers.isEmpty {
-            Logger.current.notice(
-                "Shard \(shardIndex) (catch-all): running every test except the \(skipTestIdentifiers.count) suite(s) already assigned to other shards.",
-                metadata: .section
-            )
-        } else if suites.isEmpty {
-            Logger.current.notice("Shard \(shardIndex): \(shard.modules.joined(separator: ", "))", metadata: .section)
-        } else {
-            let names = suites
-                .flatMap { module, suiteNames in
-                    suiteNames.map { "\(module)/\($0)" }
-                }
-                .sorted()
-            Logger.current.notice("Shard \(shardIndex): \(names.joined(separator: ", "))", metadata: .section)
-        }
+        Logger.current.notice(
+            "Shard \(shardIndex): \(noticeIdentifiers(modules: shard.modules, suites: suites, skipTestIdentifiers: skipTestIdentifiers).joined(separator: ", "))",
+            metadata: .section
+        )
 
         let resolvedTestProductsPath: AbsolutePath
 
@@ -179,5 +168,23 @@ public struct ShardService: ShardServicing {
             .appending(component: "\(extractedPath.basename).xctestproducts")
         try await fileSystem.move(from: extractedPath, to: normalizedPath)
         return normalizedPath
+    }
+
+    private func noticeIdentifiers(
+        modules: [String],
+        suites: [String: [String]],
+        skipTestIdentifiers: [String]
+    ) -> [String] {
+        if !suites.isEmpty {
+            return suites
+                .flatMap { module, suiteNames in
+                    suiteNames.map { "\(module)/\($0)" }
+                }
+                .sorted()
+        } else if !modules.isEmpty {
+            return modules.sorted()
+        } else {
+            return skipTestIdentifiers.sorted()
+        }
     }
 }
