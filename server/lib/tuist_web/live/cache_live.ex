@@ -396,8 +396,10 @@ defmodule TuistWeb.CacheLive do
   defp server_status_color(:destroying), do: "warning"
   defp server_status_color(:destroyed), do: "neutral"
 
+  # :replicating is intentionally NOT here: it has its own "Replicating" label and
+  # "information" color via server_status_label/2 + server_status_color/1. Forcing
+  # the "Deploying" short-circuit here would shadow that label.
   defp show_deploying?(%{status: :provisioning}), do: true
-  defp show_deploying?(%{status: :replicating}), do: true
   defp show_deploying?(_), do: false
 
   defp region_label(region_id) do
