@@ -43,28 +43,28 @@ defmodule Tuist.Storage.RetentionPolicyTest do
   end
 
   describe "retention_days/2" do
-    test "returns plan-specific cache artifact retention" do
+    test "returns cache artifact retention capped at 30 days" do
       assert RetentionPolicy.retention_days(:cache_artifact, :air) == 14
       assert RetentionPolicy.retention_days(:cache_artifact, :open_source) == 14
       assert RetentionPolicy.retention_days(:cache_artifact, :pro) == 30
-      assert RetentionPolicy.retention_days(:cache_artifact, :enterprise) == 90
+      assert RetentionPolicy.retention_days(:cache_artifact, :enterprise) == 30
 
       assert RetentionPolicy.retention_days(:xcode_cache_artifact, :air) == 14
       assert RetentionPolicy.retention_days(:xcode_cache_artifact, :open_source) == 14
       assert RetentionPolicy.retention_days(:xcode_cache_artifact, :pro) == 30
-      assert RetentionPolicy.retention_days(:xcode_cache_artifact, :enterprise) == 90
+      assert RetentionPolicy.retention_days(:xcode_cache_artifact, :enterprise) == 30
     end
 
-    test "returns plan-specific app preview retention" do
-      assert RetentionPolicy.retention_days(:preview_app_build, :air) == 60
-      assert RetentionPolicy.retention_days(:preview_app_build, :open_source) == 60
-      assert RetentionPolicy.retention_days(:preview_app_build, :pro) == 90
-      assert RetentionPolicy.retention_days(:preview_app_build, :enterprise) == 180
+    test "returns 30-day app preview retention for all plans" do
+      assert RetentionPolicy.retention_days(:preview_app_build, :air) == 30
+      assert RetentionPolicy.retention_days(:preview_app_build, :open_source) == 30
+      assert RetentionPolicy.retention_days(:preview_app_build, :pro) == 30
+      assert RetentionPolicy.retention_days(:preview_app_build, :enterprise) == 30
 
-      assert RetentionPolicy.retention_days(:preview_icon, :air) == 60
-      assert RetentionPolicy.retention_days(:preview_icon, :open_source) == 60
-      assert RetentionPolicy.retention_days(:preview_icon, :pro) == 90
-      assert RetentionPolicy.retention_days(:preview_icon, :enterprise) == 180
+      assert RetentionPolicy.retention_days(:preview_icon, :air) == 30
+      assert RetentionPolicy.retention_days(:preview_icon, :open_source) == 30
+      assert RetentionPolicy.retention_days(:preview_icon, :pro) == 30
+      assert RetentionPolicy.retention_days(:preview_icon, :enterprise) == 30
     end
 
     test "returns short build and run artifact retention for all plans" do
@@ -79,11 +79,11 @@ defmodule Tuist.Storage.RetentionPolicyTest do
       assert RetentionPolicy.retention_days(:run_session, :enterprise) == 30
     end
 
-    test "returns plan-specific test artifact retention" do
+    test "returns 30-day test artifact retention for all plans" do
       assert RetentionPolicy.retention_days(:test_attachment, :air) == 30
       assert RetentionPolicy.retention_days(:test_attachment, :open_source) == 30
-      assert RetentionPolicy.retention_days(:test_attachment, :pro) == 90
-      assert RetentionPolicy.retention_days(:test_attachment, :enterprise) == 180
+      assert RetentionPolicy.retention_days(:test_attachment, :pro) == 30
+      assert RetentionPolicy.retention_days(:test_attachment, :enterprise) == 30
     end
 
     test "returns short shard bundle retention" do
@@ -94,17 +94,17 @@ defmodule Tuist.Storage.RetentionPolicyTest do
     end
 
     test "falls back to Air for unknown plan values" do
-      assert RetentionPolicy.retention_days(:preview_app_build, :unknown) == 60
+      assert RetentionPolicy.retention_days(:cache_artifact, :unknown) == 14
     end
   end
 
   describe "cutoff/2" do
     test "subtracts the selected retention window from now" do
-      before_cutoff = DateTime.add(DateTime.utc_now(), -90, :day)
+      before_cutoff = DateTime.add(DateTime.utc_now(), -30, :day)
 
       cutoff = RetentionPolicy.cutoff(:cache_artifact, :enterprise)
 
-      after_cutoff = DateTime.add(DateTime.utc_now(), -90, :day)
+      after_cutoff = DateTime.add(DateTime.utc_now(), -30, :day)
 
       assert DateTime.compare(cutoff, before_cutoff) in [:gt, :eq]
       assert DateTime.compare(cutoff, after_cutoff) in [:lt, :eq]

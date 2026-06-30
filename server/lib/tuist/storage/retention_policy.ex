@@ -10,16 +10,16 @@ defmodule Tuist.Storage.RetentionPolicy do
 
   @default_plan :air
   @known_plans [:air, :open_source, :pro, :enterprise]
-  @maximum_retention_days 180
+  @maximum_retention_days 30
 
   @retention_days %{
-    cache_artifact: %{air: 14, open_source: 14, pro: 30, enterprise: 90},
-    xcode_cache_artifact: %{air: 14, open_source: 14, pro: 30, enterprise: 90},
-    preview_app_build: %{air: 60, open_source: 60, pro: 90, enterprise: 180},
-    preview_icon: %{air: 60, open_source: 60, pro: 90, enterprise: 180},
+    cache_artifact: %{air: 14, open_source: 14, pro: 30, enterprise: 30},
+    xcode_cache_artifact: %{air: 14, open_source: 14, pro: 30, enterprise: 30},
+    preview_app_build: %{air: 30, open_source: 30, pro: 30, enterprise: 30},
+    preview_icon: %{air: 30, open_source: 30, pro: 30, enterprise: 30},
     build_archive: %{air: 30, open_source: 30, pro: 30, enterprise: 30},
     run_session: %{air: 30, open_source: 30, pro: 30, enterprise: 30},
-    test_attachment: %{air: 30, open_source: 30, pro: 90, enterprise: 180},
+    test_attachment: %{air: 30, open_source: 30, pro: 30, enterprise: 30},
     shard_bundle: %{air: 7, open_source: 7, pro: 14, enterprise: 30}
   }
 

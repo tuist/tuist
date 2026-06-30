@@ -123,7 +123,8 @@ All uploaded files associated with the account are included:
 The customer-facing summary of these windows lives in the public data retention
 guide at `server/priv/docs/en/guides/server/data-retention.md`.
 
-Stored artifact blobs are subject to plan-based retention. Once an artifact is
+Stored artifact blobs are subject to plan-based retention, capped at 30 days.
+Once an artifact is
 older than its retention window, its binary is removed from object storage by a
 daily cleanup process; the associated metadata rows (build runs, test runs,
 command events, preview records, shard plans) are kept so analytics and
@@ -131,11 +132,11 @@ dashboards remain intact. Retention windows, in days, by plan:
 
 | Artifact | Air / Open Source | Pro | Enterprise |
 | --- | --- | --- | --- |
-| Cache artifacts (Xcode compilation, legacy CAS, module, Gradle) | 14 | 30 | 90 |
-| App preview builds and icons | 60 | 90 | 180 |
+| Cache artifacts (Xcode compilation, legacy CAS, module, Gradle) | 14 | 30 | 30 |
+| App preview builds and icons | 30 | 30 | 30 |
 | Build archives | 30 | 30 | 30 |
 | Run artifacts | 30 | 30 | 30 |
-| Test run attachments | 30 | 90 | 180 |
+| Test run attachments | 30 | 30 | 30 |
 | Shard bundles | 7 | 14 | 30 |
 
 Retention status is computed when cleanup runs. Cache artifacts use the object

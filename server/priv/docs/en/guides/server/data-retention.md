@@ -7,7 +7,7 @@
 ---
 # Data retention {#data-retention}
 
-Tuist keeps product metadata so dashboards and analytics continue to work over time, while large artifact files are removed after the retention window for the account's plan.
+Tuist keeps product metadata so dashboards and analytics continue to work over time, while large artifact files are removed after the retention window for the account's plan. No artifact file is kept for more than 30 days.
 
 ## Artifact files {#artifact-files}
 
@@ -15,14 +15,14 @@ Artifact retention applies to uploaded files and generated archives stored by Tu
 
 | Artifact | Air and Open Source | Pro | Enterprise |
 | --- | --- | --- | --- |
-| Cache artifacts, including Xcode cache, module cache, and Gradle cache files | 14 days | 30 days | 90 days |
-| App preview builds and icons | 60 days | 90 days | 180 days |
+| Cache artifacts, including Xcode cache, module cache, and Gradle cache files | 14 days | 30 days | 30 days |
+| App preview builds and icons | 30 days | 30 days | 30 days |
 | Build archives | 30 days | 30 days | 30 days |
 | Run artifacts, including result bundles and session archives | 30 days | 30 days | 30 days |
-| Test run attachments | 30 days | 90 days | 180 days |
+| Test run attachments | 30 days | 30 days | 30 days |
 | Shard bundles | 7 days | 14 days | 30 days |
 
-The active account plan determines the retention window. If an account does not have an active subscription, Tuist uses the Air retention window.
+The active account plan determines the retention window. If an account does not have an active subscription, Tuist uses the Air retention window. Some artifact types have shorter retention windows when they are cheap to regenerate.
 
 ## Operational records {#operational-records}
 
