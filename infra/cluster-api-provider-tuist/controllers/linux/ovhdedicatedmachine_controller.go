@@ -2,6 +2,7 @@ package linux
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -261,6 +262,16 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 			}
 		}
 		if bootErr != nil {
+			if errors.Is(bootErr, bootstrap.ErrHostKeyMismatch) {
+				// Reinstall-on-release race: reinstallToPool is fire-and-forget,
+				// so a fresh claim can dial the box mid-reimage and pin a key the
+				// completed reinstall then rotates. Clear the stale pin so the next
+				// dial re-TOFUs the reinstalled key. Bounded to bootstrap — a
+				// Provisioned box is never re-dialed.
+				if perr := r.CredentialsManager.SetMachineHostFingerprint(ctx, machine.Name, ""); perr != nil {
+					logger.Error(perr, "clear stale host fingerprint after reinstall; will retry")
+				}
+			}
 			conditions.MarkFalse(machine, shared.ProvisionedCondition, "BootstrapFailed",
 				clusterv1.ConditionSeverityWarning, "%v", bootErr)
 			machine.Status.BootstrapAttempts++
