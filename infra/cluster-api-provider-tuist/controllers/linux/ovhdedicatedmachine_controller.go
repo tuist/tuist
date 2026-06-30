@@ -190,6 +190,13 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 			machine.Status.Phase = "Adopting"
 			r.event(machine, "Adopted", "Adopted OVH server %s in %s", server.Name, datacenter)
 			logger.Info("adopted OVH server", "service", server.Name, "datacenter", datacenter)
+			// Persist the claim before the long bootstrap that follows (mint
+			// identity, SSH self-join): a crash or leader failover before the
+			// deferred status patch would drop the in-memory claim and let a sibling
+			// Machine adopt the same box. Requeue so the deferred patch flushes
+			// Status.ServiceName now; the next reconcile resumes from the durable
+			// claim (re-fetching the box via GetServer).
+			return ctrl.Result{RequeueAfter: time.Second}, nil
 		}
 
 		server, getErr := r.OVHClient.GetServer(ctx, machine.Status.ServiceName)
@@ -288,6 +295,13 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 		if err := helper.Patch(ctx, node); err != nil {
 			return ctrl.Result{}, err
 		}
+	}
+
+	// WS5: advertise the box's egress budget as node capacity so the scheduler
+	// bin-packs egress-floored Kura cache pods against it. Idempotent and
+	// re-applied each reconcile so a kubelet re-register can't strand it.
+	if err := shared.ReconcileNodeEgressCapacity(ctx, r.Client, node, machine.Spec.EgressBudgetMbps); err != nil {
+		return ctrl.Result{}, err
 	}
 
 	if nodeReady(node) {

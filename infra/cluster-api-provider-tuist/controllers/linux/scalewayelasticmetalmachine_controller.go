@@ -234,7 +234,12 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileNormal(
 			machine.Status.Phase = "Adopting"
 			r.event(machine, "Adopted", "Adopted Elastic Metal server %s in %s", adopted.ID, zone)
 			logger.Info("adopted Elastic Metal server", "id", adopted.ID, "zone", zone)
-			server = adopted
+			// Persist the claim before the long bootstrap that follows: a crash or
+			// leader failover before the deferred status patch would drop the
+			// in-memory claim and let a sibling Machine adopt the same box. Requeue
+			// so the deferred patch flushes Status.ServerID now; the next reconcile
+			// takes the else branch (GetServer) from the durable claim.
+			return ctrl.Result{RequeueAfter: time.Second}, nil
 		} else {
 			got, getErr := r.ScalewayClient.GetServer(ctx, zone, machine.Status.ServerID)
 			if getErr != nil {
