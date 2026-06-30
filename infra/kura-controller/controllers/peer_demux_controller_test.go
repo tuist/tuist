@@ -255,7 +255,9 @@ func TestPeerDNSEndpointDeletedWhenFailoverIPMissing(t *testing.T) {
 	existing.SetName("kura-acme-peer-dns")
 
 	instance := hostNetworkPeerInstance("kura-acme", "eu-central", "peer.acme-eu-central.kura.tuist.dev")
-	instance.Spec.MeshPeerFailoverIP = "" // failover IP removed / not yet provisioned
+	// No failover IP, and the fake client has no pods, so there is no node-IP
+	// fallback target either -> the stale DNSEndpoint must be torn down.
+	instance.Spec.MeshPeerFailoverIP = ""
 
 	client := fake.NewClientBuilder().WithScheme(scheme).WithRESTMapper(mapper).WithObjects(instance, existing).Build()
 	reconciler := &KuraInstanceReconciler{Client: client, Scheme: scheme}
@@ -268,5 +270,58 @@ func TestPeerDNSEndpointDeletedWhenFailoverIPMissing(t *testing.T) {
 	got.SetGroupVersionKind(dnsEndpointGVK)
 	if err := client.Get(ctx, types.NamespacedName{Name: "kura-acme-peer-dns", Namespace: "kura"}, got); !apierrors.IsNotFound(err) {
 		t.Fatalf("expected the stale DNSEndpoint to be deleted, got %v", err)
+	}
+}
+
+func TestPeerDNSEndpointFallsBackToBoxIPWithoutFailoverIP(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	scheme.AddKnownTypeWithName(dnsEndpointGVK, &unstructured.Unstructured{})
+	mapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{dnsEndpointGVK.GroupVersion()})
+	mapper.Add(dnsEndpointGVK, meta.RESTScopeNamespace)
+
+	instance := hostNetworkPeerInstance("kura-acme", "eu-central", "peer.acme-eu-central.kura.tuist.dev")
+	instance.Spec.MeshPeerFailoverIP = "" // no region failover IP provisioned yet
+
+	// The account's pod is scheduled on box-1, whose InternalIP is the box's
+	// public IP on a bare-metal region.
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "kura-acme-0",
+			Namespace: "kura",
+			Labels:    map[string]string{"app.kubernetes.io/name": "kura", "app.kubernetes.io/instance": "kura-acme"},
+		},
+		Spec: corev1.PodSpec{NodeName: "box-1"},
+	}
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "box-1"},
+		Status:     corev1.NodeStatus{Addresses: []corev1.NodeAddress{{Type: corev1.NodeInternalIP, Address: "203.0.113.50"}}},
+	}
+
+	client := fake.NewClientBuilder().WithScheme(scheme).WithRESTMapper(mapper).WithObjects(instance, pod, node).Build()
+	reconciler := &KuraInstanceReconciler{Client: client, Scheme: scheme}
+
+	if err := reconciler.reconcilePeerDNSEndpoint(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+
+	endpoint := &unstructured.Unstructured{}
+	endpoint.SetGroupVersionKind(dnsEndpointGVK)
+	if err := client.Get(ctx, types.NamespacedName{Name: "kura-acme-peer-dns", Namespace: "kura"}, endpoint); err != nil {
+		t.Fatal(err)
+	}
+	endpoints, _, _ := unstructured.NestedSlice(endpoint.Object, "spec", "endpoints")
+	if len(endpoints) != 1 {
+		t.Fatalf("expected one DNS endpoint, got %v", endpoints)
+	}
+	targets := endpoints[0].(map[string]interface{})["targets"].([]interface{})
+	if len(targets) != 1 || targets[0] != "203.0.113.50" {
+		t.Fatalf("expected the box node IP as the DNS target, got %v", targets)
 	}
 }

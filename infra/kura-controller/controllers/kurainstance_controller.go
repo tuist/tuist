@@ -434,13 +434,16 @@ func instancePublicPeerServiceName(instance *kurav1alpha1.KuraInstance) string {
 // region's public peer host. external-dns must run with the `crd` source.
 var dnsEndpointGVK = schema.GroupVersionKind{Group: "externaldns.k8s.io", Version: "v1alpha1", Kind: "DNSEndpoint"}
 
-// reconcilePeerDNSEndpoint publishes the region's public peer host to its
-// failover IP on host-network (bare-metal) regions, where there is no
-// LoadBalancer for external-dns to source a record from. The CAPI provider keeps
-// the failover IP routed to a healthy box of the region's pool, and the regional
-// SNI demux on :7443 forwards the connection to the right account's pod. Only
-// touches the API on host-network regions (a region never flips host-network
-// state, so the LoadBalancer path needs no DNSEndpoint cleanup here).
+// reconcilePeerDNSEndpoint publishes the region's public peer host on
+// host-network (bare-metal) regions, where there is no LoadBalancer for
+// external-dns to source a record from. It points the host at the region's
+// failover IP when one is provisioned (kept routed to a healthy box by the CAPI
+// provider — the multi-box HA path), and otherwise at the box the account's pods
+// run on, so self-hosted peering resolves on a single box without an
+// operator-provisioned failover IP. The regional SNI demux on :7443 forwards the
+// connection to the right account's pod. Only touches the API on host-network
+// regions (a region never flips host-network state, so the LoadBalancer path
+// needs no DNSEndpoint cleanup here).
 func (r *KuraInstanceReconciler) reconcilePeerDNSEndpoint(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	// Only host-network regions ever get a peer DNSEndpoint (LB regions publish
 	// DNS off the public peer Service). Never touching the DNSEndpoint API for
@@ -454,10 +457,25 @@ func (r *KuraInstanceReconciler) reconcilePeerDNSEndpoint(ctx context.Context, i
 	endpoint.SetNamespace(instance.Namespace)
 	endpoint.SetName(instance.Name + "-peer-dns")
 
-	// Host cleared or the region's failover IP not (yet) provisioned: tear down
-	// any DNSEndpoint created earlier so external-dns stops publishing a stale
-	// peer record, mirroring reconcileInstancePublicPeerService's teardown.
-	if instance.Spec.MeshPublicPeerHost == "" || instance.Spec.MeshPeerFailoverIP == "" {
+	// Target priority: the region's failover IP if provisioned (stable, survives
+	// box reassignment, the multi-box HA path), else the IP of the box the
+	// account's pods run on. The account is pinned to one box per region
+	// (co-location), so the box IP is a valid per-account target and self-hosted
+	// peering resolves on a single box without an operator-provisioned failover
+	// IP. On bare-metal regions the node InternalIP is the box's public IP.
+	target := instance.Spec.MeshPeerFailoverIP
+	if target == "" {
+		ip, err := r.instancePeerNodeIP(ctx, instance)
+		if err != nil {
+			return err
+		}
+		target = ip
+	}
+
+	// No public host, or no routable target yet (failover IP unset and no pod
+	// scheduled): tear down any DNSEndpoint created earlier so external-dns stops
+	// publishing a dead peer record, mirroring reconcileInstancePublicPeerService.
+	if instance.Spec.MeshPublicPeerHost == "" || target == "" {
 		if err := r.Delete(ctx, endpoint); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
@@ -476,7 +494,7 @@ func (r *KuraInstanceReconciler) reconcilePeerDNSEndpoint(ctx context.Context, i
 				"dnsName":    instance.Spec.MeshPublicPeerHost,
 				"recordType": "A",
 				"recordTTL":  int64(300),
-				"targets":    []interface{}{instance.Spec.MeshPeerFailoverIP},
+				"targets":    []interface{}{target},
 			},
 		}, "spec", "endpoints"); err != nil {
 			return err
@@ -484,6 +502,36 @@ func (r *KuraInstanceReconciler) reconcilePeerDNSEndpoint(ctx context.Context, i
 		return controllerutil.SetControllerReference(instance, endpoint, r.Scheme)
 	})
 	return err
+}
+
+// instancePeerNodeIP returns the InternalIP of a node running one of the
+// instance's pods (the account's co-located box), or "" when none is scheduled
+// yet. On bare-metal regions the node InternalIP is the box's public IP, which
+// is what a self-hosted node must resolve the peer host to.
+func (r *KuraInstanceReconciler) instancePeerNodeIP(ctx context.Context, instance *kurav1alpha1.KuraInstance) (string, error) {
+	var pods corev1.PodList
+	if err := r.List(ctx, &pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
+		return "", err
+	}
+	for i := range pods.Items {
+		nodeName := pods.Items[i].Spec.NodeName
+		if nodeName == "" {
+			continue
+		}
+		var node corev1.Node
+		if err := r.Get(ctx, types.NamespacedName{Name: nodeName}, &node); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return "", err
+		}
+		for _, addr := range node.Status.Addresses {
+			if addr.Type == corev1.NodeInternalIP && addr.Address != "" {
+				return addr.Address, nil
+			}
+		}
+	}
+	return "", nil
 }
 
 func (r *KuraInstanceReconciler) reconcileService(ctx context.Context, instance *kurav1alpha1.KuraInstance, primaryPod string) error {
