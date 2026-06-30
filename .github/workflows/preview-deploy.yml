@@ -769,10 +769,16 @@ jobs:
           echo "::group::events"
           kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp | tail -50 || true
           echo "::endgroup::"
-          for pod in $(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/component=server -o name 2>/dev/null); do
-            echo "::group::$pod logs"
-            kubectl -n "$NAMESPACE" logs "$pod" --all-containers --tail=200 || true
+          for component in server registry swift-registry-sync; do
+            echo "::group::$component pods"
+            kubectl -n "$NAMESPACE" describe pods -l "app.kubernetes.io/component=$component" || true
             echo "::endgroup::"
+
+            for pod in $(kubectl -n "$NAMESPACE" get pods -l "app.kubernetes.io/component=$component" -o name 2>/dev/null); do
+              echo "::group::$pod logs"
+              kubectl -n "$NAMESPACE" logs "$pod" --all-containers --tail=300 || true
+              echo "::endgroup::"
+            done
           done
 
   delete:
