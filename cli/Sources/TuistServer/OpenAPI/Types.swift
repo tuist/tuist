@@ -46903,6 +46903,70 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/query/git_commit_sha`.
                 public var git_commit_sha: Swift.String?
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/query/ran_at`.
+                public struct ran_atPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/query/ran_at/gt`.
+                    public var gt: Swift.Int64?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/query/ran_at/gte`.
+                    public var gte: Swift.Int64?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/query/ran_at/lt`.
+                    public var lt: Swift.Int64?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/query/ran_at/lte`.
+                    public var lte: Swift.Int64?
+                    /// Creates a new `ran_atPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - gt:
+                    ///   - gte:
+                    ///   - lt:
+                    ///   - lte:
+                    public init(
+                        gt: Swift.Int64? = nil,
+                        gte: Swift.Int64? = nil,
+                        lt: Swift.Int64? = nil,
+                        lte: Swift.Int64? = nil
+                    ) {
+                        self.gt = gt
+                        self.gte = gte
+                        self.lt = lt
+                        self.lte = lte
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case gt
+                        case gte
+                        case lt
+                        case lte
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        let container = try decoder.container(keyedBy: CodingKeys.self)
+                        self.gt = try container.decodeIfPresent(
+                            Swift.Int64.self,
+                            forKey: .gt
+                        )
+                        self.gte = try container.decodeIfPresent(
+                            Swift.Int64.self,
+                            forKey: .gte
+                        )
+                        self.lt = try container.decodeIfPresent(
+                            Swift.Int64.self,
+                            forKey: .lt
+                        )
+                        self.lte = try container.decodeIfPresent(
+                            Swift.Int64.self,
+                            forKey: .lte
+                        )
+                        try decoder.ensureNoAdditionalProperties(knownKeys: [
+                            "gt",
+                            "gte",
+                            "lt",
+                            "lte"
+                        ])
+                    }
+                }
+                /// Filter by execution time using ran_at[gt], ran_at[gte], ran_at[lt], or ran_at[lte] Unix seconds.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/query/ran_at`.
+                public var ran_at: Operations.listCacheRuns.Input.Query.ran_atPayload?
                 ///
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/query/page_size`.
@@ -46917,18 +46981,21 @@ public enum Operations {
                 ///   - git_ref: Filter by git ref.
                 ///   - git_branch: Filter by git branch.
                 ///   - git_commit_sha: Filter by git commit SHA.
+                ///   - ran_at: Filter by execution time using ran_at[gt], ran_at[gte], ran_at[lt], or ran_at[lte] Unix seconds.
                 ///   - page_size:
                 ///   - page:
                 public init(
                     git_ref: Swift.String? = nil,
                     git_branch: Swift.String? = nil,
                     git_commit_sha: Swift.String? = nil,
+                    ran_at: Operations.listCacheRuns.Input.Query.ran_atPayload? = nil,
                     page_size: Swift.Int? = nil,
                     page: Swift.Int? = nil
                 ) {
                     self.git_ref = git_ref
                     self.git_branch = git_branch
                     self.git_commit_sha = git_commit_sha
+                    self.ran_at = ran_at
                     self.page_size = page_size
                     self.page = page
                 }
@@ -47207,6 +47274,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listCacheRuns.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listCacheRuns.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request was invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache-runs/get(listCacheRuns)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.listCacheRuns.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.listCacheRuns.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
                             response: self
                         )
                     }
