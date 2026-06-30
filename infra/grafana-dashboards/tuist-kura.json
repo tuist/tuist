@@ -3971,7 +3971,7 @@
         "spec": {
           "id": 9001,
           "title": "Box NIC egress utilisation vs budget",
-          "description": "Per-box NIC transmit as a fraction of the box's advertised tuist.dev/egress-mbps budget (3 Gbit/s us, 1 Gbit/s eu-central/ca-east). The primary \"add a box / shard the region\" signal: sustained >85% means the NIC is the bottleneck. Populates once WS5 advertises egress-mbps node capacity; until then use the raw-throughput panel.",
+          "description": "Per-box NIC transmit as a fraction of the box's advertised tuist.dev/egress-mbps budget (3 Gbit/s us, 1 Gbit/s eu-central/ca-east). The primary \"add a box / shard the region\" signal: sustained >85% means the NIC is the bottleneck. Populates once the CAPI provider advertises egress-mbps node capacity; until then use the raw-throughput panel.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -4221,7 +4221,7 @@
         "spec": {
           "id": 9003,
           "title": "Enterprise egress floor reserved vs node capacity",
-          "description": "Enterprise egress floors reserved on each bare-metal node as a fraction of the node's advertised tuist.dev/egress-mbps capacity. Scheduling headroom, not live traffic: 100% means no more enterprise-floored tenants can be admitted to that box. Default (bursty) tenants don't reserve and don't show. Populates once WS5 is deployed.",
+          "description": "Enterprise egress floors reserved on each bare-metal node as a fraction of the node's advertised tuist.dev/egress-mbps capacity. Scheduling headroom, not live traffic: 100% means no more enterprise-floored tenants can be admitted to that box. Default (bursty) tenants don't reserve and don't show. Populates once enterprise egress floors are in use.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -4892,7 +4892,7 @@
           {
             "kind": "RowsLayoutRow",
             "spec": {
-              "title": "Bare-metal capacity (WS5)",
+              "title": "Bare-metal capacity",
               "collapse": false,
               "layout": {
                 "kind": "GridLayout",

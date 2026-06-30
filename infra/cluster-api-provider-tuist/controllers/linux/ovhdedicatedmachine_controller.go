@@ -297,7 +297,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 		}
 	}
 
-	// WS5: advertise the box's egress budget as node capacity so the scheduler
+	// Advertise the box's egress budget as node capacity so the scheduler
 	// bin-packs egress-floored Kura cache pods against it. Idempotent and
 	// re-applied each reconcile so a kubelet re-register can't strand it.
 	if err := shared.ReconcileNodeEgressCapacity(ctx, r.Client, node, machine.Spec.EgressBudgetMbps); err != nil {

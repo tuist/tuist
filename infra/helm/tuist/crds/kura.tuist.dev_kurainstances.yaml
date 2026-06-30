@@ -106,7 +106,7 @@ spec:
                   type: object
                   additionalProperties:
                     type: string
-                # WS5 per-tenant egress floor (Mbps). When set, the pod requests
+                # Per-tenant egress floor (Mbps). When set, the pod requests
                 # it as the tuist.dev/egress-mbps extended resource so the
                 # scheduler bin-packs instances against the box's egress budget.
                 egressGuaranteedMbps:

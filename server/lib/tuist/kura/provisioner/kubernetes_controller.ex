@@ -449,7 +449,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp pod_annotations(_), do: nil
 
-  # WS5 guaranteed egress floor: the region's per-tenant Mbps reserved as the
+  # Guaranteed egress floor: the region's per-tenant Mbps reserved as the
   # tuist.dev/egress-mbps extended resource so the scheduler bin-packs the pod
   # against the node's advertised budget. Enterprise-only — the default pattern
   # is bursty, so non-enterprise tenants run best-effort under the Cilium burst

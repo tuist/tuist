@@ -6,7 +6,7 @@ import (
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
 )
 
-// WS5: a region with a guaranteed egress floor reserves it as the
+// A region with a guaranteed egress floor reserves it as the
 // tuist.dev/egress-mbps extended resource, request == limit (extended resources
 // are integer and non-overcommittable), so the scheduler bin-packs cache pods
 // against the node's advertised budget.

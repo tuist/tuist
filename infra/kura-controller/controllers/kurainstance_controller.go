@@ -1531,7 +1531,7 @@ func defaultResources(instance *kurav1alpha1.KuraInstance) corev1.ResourceRequir
 			corev1.ResourceMemory: resource.MustParse("2Gi"),
 		},
 	}
-	// WS5 egress floor: reserve the region's guaranteed Mbps as the
+	// Egress floor: reserve the region's guaranteed Mbps as the
 	// tuist.dev/egress-mbps extended resource (request == limit; extended
 	// resources are integer and non-overcommittable) so the scheduler bin-packs
 	// cache pods against the node's advertised egress budget. Unset on cloud

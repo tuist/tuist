@@ -11,7 +11,7 @@ import (
 // EgressMbpsResource is the integer extended resource a shared bare-metal node
 // advertises so the scheduler can bin-pack egress-floored workloads against the
 // box's budget. The Kura cache pods request it (request == limit) via the
-// matching string in the kura-controller; this is the capacity side. WS5.
+// matching string in the kura-controller; this is the capacity side.
 const EgressMbpsResource corev1.ResourceName = "tuist.dev/egress-mbps"
 
 // ReconcileNodeEgressCapacity advertises mbps as the node's

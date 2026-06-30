@@ -71,7 +71,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(env, "KURA_EXTENSION_JWT_VERIFIER_TUIST_SECRET")
     end
 
-    test "reserves the WS5 egress floor for enterprise accounts" do
+    test "reserves the Egress floor for enterprise accounts" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
       stub(Tuist.Environment, :kura_control_plane_client_id, fn ->

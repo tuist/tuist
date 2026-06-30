@@ -13,7 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
-// WS5: a bare-metal node advertises its egress budget as tuist.dev/egress-mbps
+// A bare-metal node advertises its egress budget as tuist.dev/egress-mbps
 // capacity without clobbering the kubelet-managed resources, idempotently; a
 // cloud node (zero budget) advertises nothing so its cache pods don't pend.
 func TestReconcileNodeEgressCapacity(t *testing.T) {

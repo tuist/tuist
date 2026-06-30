@@ -79,7 +79,7 @@ rules:
     # (so CAPI links Machine<->Node) and the dynamic tuist.dev/pn-ipv4 label.
     verbs: [get, list, watch, patch, delete]
   - apiGroups: [""]
-    # WS5: the Linux machine reconcilers (OVH/Dedibox) advertise the box's egress
+    # The Linux machine reconcilers (OVH/Dedibox) advertise the box's egress
     # budget as the node's tuist.dev/egress-mbps extended-resource capacity, which
     # lives on the status subresource.
     resources: [nodes/status]
