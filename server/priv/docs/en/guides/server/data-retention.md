@@ -2,7 +2,7 @@
 {
   "title": "Data retention",
   "titleTemplate": ":title | Server | Guides | Tuist",
-  "description": "Learn how long Tuist keeps artifact files, analytics records, runner logs, and runner metrics."
+  "description": "Learn how long Tuist keeps downloadable artifacts and dashboard activity data."
 }
 ---
 # Data retention {#data-retention}
@@ -26,7 +26,7 @@ The active account plan determines the retention window. If an account does not 
 
 ## Dashboard and activity data {#dashboard-and-activity-data}
 
-Some dashboard and activity data has its own retention window:
+These windows define how long selected dashboard and activity data remains available in Tuist.
 
 | Data | Retention |
 | --- | --- |
@@ -34,5 +34,4 @@ Some dashboard and activity data has its own retention window:
 | Gradle build records, task records, and cache event records | 90 days |
 | Build machine metrics | 90 days |
 | Runner job logs, archived runner logs, and runner job machine metrics | 90 days |
-
-Webhook delivery history has no fixed deletion schedule so teams can review past deliveries.
+| Webhook delivery history | No fixed deletion schedule |
