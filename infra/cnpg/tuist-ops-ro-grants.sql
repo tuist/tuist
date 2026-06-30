@@ -29,12 +29,6 @@ GRANT USAGE ON SCHEMA :"tuist_schema" TO tuist_ops_ro;
 GRANT USAGE ON SCHEMA pg_catalog TO tuist_ops_ro;
 GRANT USAGE ON SCHEMA information_schema TO tuist_ops_ro;
 
--- NOTE: the web runtime role's membership in tuist_ops_ro (so the internal
--- Atlas query runner can `SET ROLE tuist_ops_ro`) is managed declaratively by
--- CNPG via `managed.roles[tuist_web].inRoles` + `inherit: false` in
--- infra/helm/tuist/templates/postgresql-cnpg.yaml — CNPG reconciles it, so there
--- is no manual GRANT here.
-
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
   ON ALL TABLES IN SCHEMA :"tuist_schema" FROM tuist_ops_ro;
 ALTER DEFAULT PRIVILEGES IN SCHEMA :"tuist_schema"
