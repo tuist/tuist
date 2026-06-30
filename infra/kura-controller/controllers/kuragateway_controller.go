@@ -290,8 +290,8 @@ func gatewayPodTemplate(gateway *kurav1alpha1.KuraGateway, serviceAccountName st
 				Name:            "controller",
 				Image:           gatewayControllerImage(gateway),
 				ImagePullPolicy: corev1.PullIfNotPresent,
-				Args: gatewayControllerArgs(gateway),
-				Env: gateway.Spec.Environment(),
+				Args:            gatewayControllerArgs(gateway),
+				Env:             gateway.Spec.Environment(),
 				Ports: []corev1.ContainerPort{
 					{Name: "http", ContainerPort: 80, Protocol: corev1.ProtocolTCP},
 					{Name: "https", ContainerPort: 443, Protocol: corev1.ProtocolTCP},
