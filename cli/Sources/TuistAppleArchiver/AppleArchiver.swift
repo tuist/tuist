@@ -27,6 +27,11 @@ public protocol AppleArchiving {
         excludePatterns: [String],
         preservesBaseDirectory: Bool
     ) async throws
+    func compress(
+        subdirectory: AbsolutePath,
+        relativeTo baseDirectory: AbsolutePath,
+        to archivePath: AbsolutePath
+    ) async throws
     func decompress(archive: AbsolutePath, to directory: AbsolutePath) async throws
 }
 
@@ -74,33 +79,6 @@ public struct AppleArchiver: AppleArchiving {
             source = FilePath(directory.pathString)
             bundleScope = nil
         }
-        let destination = FilePath(archivePath.pathString)
-
-        guard let writeStream = ArchiveByteStream.fileStream(
-            path: destination,
-            mode: .writeOnly,
-            options: [.create, .truncate],
-            permissions: [.ownerReadWrite, .groupRead, .otherRead]
-        ) else {
-            throw AppleArchiverError.compressionFailed("could not create file stream")
-        }
-        defer { try? writeStream.close() }
-
-        guard let compressStream = ArchiveByteStream.compressionStream(
-            using: .lzfse,
-            writingTo: writeStream
-        ) else {
-            throw AppleArchiverError.compressionFailed("could not create compression stream")
-        }
-        defer { try? compressStream.close() }
-
-        guard let encodeStream = ArchiveStream.encodeStream(writingTo: compressStream) else {
-            throw AppleArchiverError.compressionFailed("could not create encode stream")
-        }
-        defer { try? encodeStream.close() }
-
-        let keySet = ArchiveHeader.FieldKeySet("TYP,PAT,DAT,UID,GID,MOD,FLG,MTM,CTM,SLC,LNK")!
-
         // writeDirectoryContents may visit the same file twice when the source
         // directory contains symlinks to sibling directories. Track seen paths
         // and skip duplicates to prevent EEXIST errors during extraction.
@@ -134,6 +112,78 @@ public struct AppleArchiver: AppleArchiving {
             guard inserted else { return .skip }
             return .ok
         }
+
+        try writeArchive(from: source, to: archivePath, filter: filter)
+    }
+
+    /// Archives the subtree rooted at `subdirectory` (which must live inside
+    /// `baseDirectory`), writing entry paths relative to `baseDirectory` so the
+    /// subtree's full relative path is preserved. Extracting the archive into a
+    /// directory reconstructs `subdirectory` at its original location.
+    ///
+    /// Unlike staging the subtree into a temporary directory and archiving that,
+    /// this reads the files in place — no copy of the payload is made. Sharding
+    /// uses it to split a large `.xctestproducts` bundle into one archive per
+    /// `.xctest` without duplicating gigabytes of test binaries on disk.
+    public func compress(
+        subdirectory: AbsolutePath,
+        relativeTo baseDirectory: AbsolutePath,
+        to archivePath: AbsolutePath
+    ) async throws {
+        let relativePath = subdirectory.relative(to: baseDirectory).pathString
+
+        // writeDirectoryContents may visit the same file twice when the source
+        // directory contains symlinks to sibling directories. Track seen paths
+        // and skip duplicates to prevent EEXIST errors during extraction.
+        let seenPaths = Mutex(Set<String>())
+        let filter: ArchiveHeader.EntryFilter = { _, path, _ in
+            let pathString = path.string
+            // Keep the target subtree plus the ancestor directories leading down
+            // to it (so the walk descends that far) and prune everything else.
+            // `.skip` on a directory header also prunes its descendants, so the
+            // sibling bundles in the same products directory are never read.
+            let isWithinTarget = pathString == relativePath || pathString.hasPrefix("\(relativePath)/")
+            let isAncestor = relativePath.hasPrefix("\(pathString)/")
+            guard isWithinTarget || isAncestor else { return .skip }
+            let inserted = seenPaths.withLock { $0.insert(pathString).inserted }
+            guard inserted else { return .skip }
+            return .ok
+        }
+
+        try writeArchive(from: FilePath(baseDirectory.pathString), to: archivePath, filter: filter)
+    }
+
+    private func writeArchive(
+        from source: FilePath,
+        to archivePath: AbsolutePath,
+        filter: @escaping ArchiveHeader.EntryFilter
+    ) throws {
+        let destination = FilePath(archivePath.pathString)
+
+        guard let writeStream = ArchiveByteStream.fileStream(
+            path: destination,
+            mode: .writeOnly,
+            options: [.create, .truncate],
+            permissions: [.ownerReadWrite, .groupRead, .otherRead]
+        ) else {
+            throw AppleArchiverError.compressionFailed("could not create file stream")
+        }
+        defer { try? writeStream.close() }
+
+        guard let compressStream = ArchiveByteStream.compressionStream(
+            using: .lzfse,
+            writingTo: writeStream
+        ) else {
+            throw AppleArchiverError.compressionFailed("could not create compression stream")
+        }
+        defer { try? compressStream.close() }
+
+        guard let encodeStream = ArchiveStream.encodeStream(writingTo: compressStream) else {
+            throw AppleArchiverError.compressionFailed("could not create encode stream")
+        }
+        defer { try? encodeStream.close() }
+
+        let keySet = ArchiveHeader.FieldKeySet("TYP,PAT,DAT,UID,GID,MOD,FLG,MTM,CTM,SLC,LNK")!
         try encodeStream.writeDirectoryContents(
             archiveFrom: source,
             keySet: keySet,

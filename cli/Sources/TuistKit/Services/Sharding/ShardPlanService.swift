@@ -274,19 +274,19 @@
         }
 
         /// Archives a single module's `.xctest` preserving its path relative to the products root,
-        /// so extracting it alongside the shared artifact reconstructs the original layout.
+        /// so extracting it alongside the shared artifact reconstructs the original layout. The
+        /// `.xctest` is read in place — a project with hundreds of modules would otherwise copy
+        /// every (multi-hundred-MB) test bundle into a staging directory before compressing it.
         private func archiveModuleProduct(
             _ xctestPath: AbsolutePath,
             productsPath: AbsolutePath,
             to archivePath: AbsolutePath
         ) async throws {
-            let relativePath = xctestPath.relative(to: productsPath)
-            let stageDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-module")
-            let stagedXCTestPath = stageDirectory.appending(relativePath)
-            try await fileSystem.makeDirectory(at: stagedXCTestPath.parentDirectory)
-            try await fileSystem.copy(xctestPath, to: stagedXCTestPath)
-            try await appleArchiver.compress(directory: stageDirectory, to: archivePath, excludePatterns: [])
-            try? await fileSystem.remove(stageDirectory)
+            try await appleArchiver.compress(
+                subdirectory: xctestPath,
+                relativeTo: productsPath,
+                to: archivePath
+            )
         }
 
         /// Creates a compressed archive of the test products bundle, excluding dSYMs

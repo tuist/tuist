@@ -241,4 +241,54 @@ struct AppleArchiverTests {
         )
         #expect(linkDest == "/nonexistent/target")
     }
+
+    /// The shard split archives one module's `.xctest` out of a products directory that also holds
+    /// the other modules and the shared bundle. The archive must carry the `.xctest`'s full path
+    /// relative to the products root (so it merges back in place), while nothing else is read.
+    @Test(.inTemporaryDirectory) func compress_subdirectory_preservesRelativePath_andPrunesSiblings() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        let productsDir = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        let builtProductsDir = productsDir.appending(components: ["Binaries", "0", "Debug-iphonesimulator"])
+        let targetXCTest = builtProductsDir.appending(component: "FooTests.xctest")
+        try await fileSystem.makeDirectory(at: targetXCTest)
+        try await fileSystem.writeText("foo-binary", at: targetXCTest.appending(component: "FooTests"))
+
+        // A sibling module and a shared framework in the same built-products directory, plus a
+        // root-level file — none of these should be read into the module archive.
+        let siblingXCTest = builtProductsDir.appending(component: "BarTests.xctest")
+        try await fileSystem.makeDirectory(at: siblingXCTest)
+        try await fileSystem.writeText("bar-binary", at: siblingXCTest.appending(component: "BarTests"))
+        let framework = builtProductsDir.appending(component: "Shared.framework")
+        try await fileSystem.makeDirectory(at: framework)
+        try await fileSystem.writeText("shared", at: framework.appending(component: "Shared"))
+        try await fileSystem.writeText("meta", at: productsDir.appending(component: "run-metadata.json"))
+
+        let archivePath = temporaryDirectory.appending(component: "FooTests.aar")
+        try await subject.compress(subdirectory: targetXCTest, relativeTo: productsDir, to: archivePath)
+
+        let extractDir = temporaryDirectory.appending(component: "extracted")
+        try await fileSystem.makeDirectory(at: extractDir)
+        try await subject.decompress(archive: archivePath, to: extractDir)
+
+        // The target lands at its original relative path.
+        let extractedBinary = extractDir.appending(
+            components: ["Binaries", "0", "Debug-iphonesimulator", "FooTests.xctest", "FooTests"]
+        )
+        let extractedContent = try await fileSystem.readTextFile(at: extractedBinary)
+        #expect(extractedContent == "foo-binary")
+
+        // Everything outside the target subtree is pruned.
+        let siblingExists = try await fileSystem.exists(
+            extractDir.appending(components: ["Binaries", "0", "Debug-iphonesimulator", "BarTests.xctest"])
+        )
+        #expect(!siblingExists)
+        let frameworkExists = try await fileSystem.exists(
+            extractDir.appending(components: ["Binaries", "0", "Debug-iphonesimulator", "Shared.framework"])
+        )
+        #expect(!frameworkExists)
+        let metadataExists = try await fileSystem.exists(extractDir.appending(component: "run-metadata.json"))
+        #expect(!metadataExists)
+    }
 }
