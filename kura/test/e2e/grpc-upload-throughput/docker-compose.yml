@@ -1,10 +1,12 @@
 name: kura-throughput-e2e
 
-# Topology (single injected RTT applied identically to all three paths):
+# Topology (single injected RTT applied identically to all three paths). All
+# three reach kura through its co-hosted combined HTTP + h2c gRPC listener
+# (KURA_COMBINED_PORT=8080):
 #
-#   client ─► toxiproxy ─► nginx-baseline (default window)        ─► kura
-#                       ─► nginx-patched  (raised window, from chart) ─► kura
-#                       ─► kura combined port (co-hosted HTTP+gRPC, kura's own stream window)
+#   client ─► toxiproxy ─► nginx-baseline (default window)            ─► kura combined port
+#                       ─► nginx-patched  (raised window, from chart) ─► kura combined port
+#                       ─► kura combined port (direct, kura's own stream window)
 #
 # toxiproxy's proxies + latency toxics are created at runtime by the client.
 
