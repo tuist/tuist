@@ -373,6 +373,36 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(gateway_manifest["spec"], "hostNetwork")
     end
 
+    test "uses the shared regional ingress class (no dedicated gateway) for a dedicated account on a host-network region" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      # tuist is a dedicated-gateway account, but on a host-network (bare-metal)
+      # region a second per-account host-network gateway can't bind the box's
+      # :443, so the account falls back to the shared regional gateway.
+      region =
+        us_east_region(%{
+          gateway: :host_network,
+          dedicated_gateway_account_handles: ["tuist"]
+        })
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-us-east-1",
+          "0.5.2",
+          %{name: "tuist"},
+          region,
+          %Server{},
+          "return true"
+        )
+
+      assert manifest["spec"]["ingressClassName"] == "kura-us-east"
+      refute Map.has_key?(manifest["metadata"]["annotations"], "tuist.dev/kura-gateway")
+    end
+
     test "renders a host-network gateway without Hetzner LoadBalancer annotations on bare-metal regions" do
       region =
         us_east_region(%{
