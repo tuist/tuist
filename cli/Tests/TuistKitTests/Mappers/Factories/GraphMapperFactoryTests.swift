@@ -312,11 +312,11 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.automation(
                 config: config,
-                ignoreBinaryCache: false,
                 ignoreSelectiveTesting: false,
                 testPlan: nil,
                 includedTargets: [],
                 excludedTargets: [],
+                cacheProfile: .allPossible,
                 configuration: "Debug",
                 cacheStorage: cacheStorage,
                 destination: nil
@@ -334,11 +334,11 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.automation(
                 config: config,
-                ignoreBinaryCache: false,
                 ignoreSelectiveTesting: true,
                 testPlan: nil,
                 includedTargets: includedTargets,
                 excludedTargets: [],
+                cacheProfile: .allPossible,
                 configuration: "Debug",
                 cacheStorage: cacheStorage,
                 destination: nil
@@ -407,11 +407,11 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.automation(
                 config: config,
-                ignoreBinaryCache: false,
                 ignoreSelectiveTesting: false,
                 testPlan: nil,
                 includedTargets: [],
                 excludedTargets: [],
+                cacheProfile: .allPossible,
                 configuration: "Debug",
                 cacheStorage: cacheStorage,
                 destination: nil
@@ -453,11 +453,11 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.automation(
                 config: config,
-                ignoreBinaryCache: false,
                 ignoreSelectiveTesting: false,
                 testPlan: nil,
                 includedTargets: [],
                 excludedTargets: [],
+                cacheProfile: .allPossible,
                 configuration: "Debug",
                 cacheStorage: cacheStorage,
                 destination: nil
@@ -534,11 +534,11 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.automation(
                 config: config,
-                ignoreBinaryCache: false,
                 ignoreSelectiveTesting: false,
                 testPlan: nil,
                 includedTargets: [],
                 excludedTargets: [],
+                cacheProfile: .allPossible,
                 configuration: "Debug",
                 cacheStorage: cacheStorage,
                 destination: nil
@@ -756,11 +756,11 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let automationMappers = subject.automation(
                 config: config,
-                ignoreBinaryCache: true,
                 ignoreSelectiveTesting: true,
                 testPlan: nil,
                 includedTargets: targets,
                 excludedTargets: [],
+                cacheProfile: .none,
                 configuration: "Debug",
                 cacheStorage: cacheStorage,
                 destination: nil
