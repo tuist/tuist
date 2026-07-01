@@ -143,9 +143,25 @@ while true; do
       #   2. In-VM local Kura (clone-in path) — start Kura against the mounted
       #      share cloned from the account's warm cache.
       #   3. Dispatch cache_endpoint_url (L2, in-cluster) — the cold path.
+      # tart-kubelet writes the marker only after the dispatch-time account is
+      # stamped on the Pod and the per-account host Kura is serving, which races
+      # with this poll (we've only just received the claim). Wait briefly for it
+      # to appear before falling through to L2 — otherwise every one-shot VM
+      # would read an absent marker and never route to the host Kura. When the
+      # host has no Kura configured the marker never appears and we wait out the
+      # cap once, then use L2.
       host_kura_endpoint=""
-      if [ -n "${TUIST_RUNNER_CACHE_ENDPOINT_FILE:-}" ] && [ -s "${TUIST_RUNNER_CACHE_ENDPOINT_FILE}" ]; then
-        host_kura_endpoint="$(head -n 1 "${TUIST_RUNNER_CACHE_ENDPOINT_FILE}" | tr -d '[:space:]')"
+      if [ -n "${TUIST_RUNNER_CACHE_ENDPOINT_FILE:-}" ]; then
+        host_kura_wait="${TUIST_RUNNER_HOST_KURA_WAIT_SECONDS:-30}"
+        host_kura_waited=0
+        while [ "${host_kura_waited}" -lt "${host_kura_wait}" ]; do
+          if [ -s "${TUIST_RUNNER_CACHE_ENDPOINT_FILE}" ]; then
+            host_kura_endpoint="$(head -n 1 "${TUIST_RUNNER_CACHE_ENDPOINT_FILE}" | tr -d '[:space:]')"
+            break
+          fi
+          sleep 1
+          host_kura_waited=$((host_kura_waited + 1))
+        done
       fi
 
       if [ -n "${host_kura_endpoint}" ] &&
