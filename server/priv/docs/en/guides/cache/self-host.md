@@ -154,8 +154,9 @@ services:
       KURA_PEERS: "https://kura-2.acme.internal:7443,https://kura-3.acme.internal:7443"
 
       # Peer mTLS secures node-to-node traffic, so it only applies with more than one node.
-      # A single node has no peers: omit these three and set KURA_NODE_URL to http://...:7443
-      # (the peer URL must be http when peer TLS is off).
+      # A single node has no peers: omit these three and switch KURA_NODE_URL to
+      # http:// (keep the same host and port; the peer URL must use http, not
+      # https, when peer TLS is off).
       KURA_INTERNAL_TLS_CA_CERT_PATH: "/tls/ca.pem"
       KURA_INTERNAL_TLS_CERT_PATH: "/tls/tls.crt"
       KURA_INTERNAL_TLS_KEY_PATH: "/tls/tls.key"
@@ -181,7 +182,7 @@ volumes:
   kura-data: {}
 ```
 
-What you provide that the bridged path does not: for a multi-node mesh, your **own peer TLS** mounted at `/tls` (a CA plus a leaf certificate and key per node, sharing a CA so the nodes trust each other) and `KURA_PEERS` describing your topology. A single standalone node needs neither: with no peers, nothing travels over the peer plane, so omit `KURA_INTERNAL_TLS_*` and `KURA_PEERS` and set `KURA_NODE_URL` to `http://...:7443`.
+What you provide that the bridged path does not: for a multi-node mesh, your **own peer TLS** mounted at `/tls` (a CA plus a leaf certificate and key per node, sharing a CA so the nodes trust each other) and `KURA_PEERS` describing your topology. A single standalone node needs neither: with no peers, nothing travels over the peer plane, so omit `KURA_INTERNAL_TLS_*` and `KURA_PEERS`, and use the `http://` scheme for `KURA_NODE_URL` (peer TLS off requires `http` rather than `https`; the host and `KURA_INTERNAL_PORT` stay the same).
 
 ## What each topology requires {#requirements-summary}
 
