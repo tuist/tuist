@@ -181,9 +181,7 @@ jobs:
         run: |
           set -uo pipefail
           SIGN='CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO'
-          CAS='COMPILATION_CACHE_ENABLE_CACHING=YES COMPILATION_CACHE_ENABLE_PLUGIN=YES COMPILATION_CACHE_REMOTE_SERVICE_PATH="$HOME/.local/state/tuist/tuist_mastodon.sock"'
           BUILD_BASE='xcodebuild -workspace Tuist.xcworkspace -scheme tuist -destination "generic/platform=macOS" build '"$SIGN"' ARCHS=arm64'
-          BUILD_CAS="$BUILD_BASE"' '"$CAS"
           BUILD_NO_CACHE="$BUILD_BASE"' COMPILATION_CACHE_ENABLE_CACHING=NO'
           CLEAN_DD='rm -rf "$HOME/Library/Developer/Xcode/DerivedData"'
           rc=0
@@ -195,6 +193,18 @@ jobs:
               tuist setup cache
               tuist install
               tuist generate --no-binary-cache
+              # The CAS daemon socket name derives from the connected project, so
+              # discover it rather than hard-code it (tuist/tuist != tuist/mastodon).
+              CAS_SOCK=""
+              for _ in $(seq 1 20); do
+                CAS_SOCK=$(ls -t "$HOME/.local/state/tuist/"*.sock 2>/dev/null | head -1)
+                [ -n "$CAS_SOCK" ] && break
+                sleep 1
+              done
+              echo "CAS daemon socket: ${CAS_SOCK:-<none found>}"
+              [ -n "$CAS_SOCK" ] || { echo "::error::no CAS daemon socket after tuist setup cache"; exit 1; }
+              CAS="COMPILATION_CACHE_ENABLE_CACHING=YES COMPILATION_CACHE_ENABLE_PLUGIN=YES COMPILATION_CACHE_REMOTE_SERVICE_PATH=${CAS_SOCK}"
+              BUILD_CAS="$BUILD_BASE $CAS"
               hyperfine --warmup 1 --runs "$HYPERFINE_RUNS" --export-json result.json --show-output \
                 --setup "$BUILD_CAS" --prepare "$CLEAN_DD" "$BUILD_CAS" || rc=$? ;;
             module-cache)
