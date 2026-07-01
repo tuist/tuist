@@ -144,7 +144,7 @@ public struct XCResultParser: Sendable {
     ) {
         let currentModule = (node.nodeType == "Unit test bundle" || node.nodeType == "UI test bundle") ? node.name : module
 
-        if node.nodeType == "Test Case", let name = node.name {
+        if node.nodeType == "Test Case", let name = node.name, !isRunnerError(name) {
             results.append(
                 TestResultStatuses.TestCaseStatus(
                     name: name,
@@ -251,7 +251,13 @@ public struct XCResultParser: Sendable {
             return testCase
         }
 
-        let overallStatus = overallStatus(from: allTestCases)
+        var runErrors: [TestRunError] = []
+        for testNode in output.testNodes {
+            extractErrors(from: testNode, module: nil, into: &runErrors)
+        }
+        let errors = dedupedErrors(runErrors)
+
+        let overallStatus = overallStatus(from: allTestCases, hasErrors: !errors.isEmpty)
         let testModules = testModules(from: allTestCases, suiteDurations: suiteDurations, moduleDurations: moduleDurations)
         let runDestinations = (output.devices ?? []).compactMap { device -> RunDestination? in
             guard let name = device.deviceName,
@@ -266,18 +272,55 @@ public struct XCResultParser: Sendable {
             status: overallStatus,
             duration: overallDuration,
             testModules: testModules,
-            runDestinations: runDestinations
+            runDestinations: runDestinations,
+            errors: errors
         )
     }
 
-    private func overallStatus(from testCases: [TestCase]) -> TestStatus {
-        if testCases.contains(where: { $0.status == .failed }) {
+    private func overallStatus(from testCases: [TestCase], hasErrors: Bool) -> TestStatus {
+        if hasErrors || testCases.contains(where: { $0.status == .failed }) {
             return .failed
         } else if testCases.allSatisfy({ $0.status == .skipped }) {
             return .skipped
         } else {
             return .passed
         }
+    }
+
+    /// xctest emits a synthetic "test case" when the runner itself errors —
+    /// named "xctest (<pid>) encountered an error" — when a whole target's
+    /// `.xctest` bundle can't be loaded or the app can't launch. Xcode surfaces
+    /// these in a separate "Errors" section per target, not as test cases. We do
+    /// the same: lift them out of the test cases (so they don't inflate counts,
+    /// create unbounded per-pid rows, or fire `test_case.created` webhooks) and
+    /// collect them as target-keyed errors. The pid varies per run, so we dedup
+    /// by (target, message) to land one per target like Xcode.
+    private static let xctestRunnerErrorRegex = /xctest \(\d+\) encountered an error/
+
+    private func isRunnerError(_ name: String?) -> Bool {
+        guard let name else { return false }
+        return name.wholeMatch(of: Self.xctestRunnerErrorRegex) != nil
+    }
+
+    private func extractErrors(from node: TestNode, module: String?, into errors: inout [TestRunError]) {
+        let currentModule = (node.nodeType == "Unit test bundle" || node.nodeType == "UI test bundle") ? node.name : module
+
+        if node.nodeType == "Test Case", isRunnerError(node.name) {
+            let message = (node.children ?? [])
+                .first { $0.nodeType == "Failure Message" }?.name
+                ?? node.name
+                ?? "The test runner encountered an error"
+            errors.append(TestRunError(target: currentModule, message: message))
+        }
+
+        for child in node.children ?? [] {
+            extractErrors(from: child, module: currentModule, into: &errors)
+        }
+    }
+
+    private func dedupedErrors(_ errors: [TestRunError]) -> [TestRunError] {
+        var seen = Set<String>()
+        return errors.filter { seen.insert("\($0.target ?? "")\u{0}\($0.message)").inserted }
     }
 
     private func extractTestCases(
@@ -330,7 +373,7 @@ public struct XCResultParser: Sendable {
         rootDirectory: AbsolutePath?,
         actionLogFailures: [String: [TestFailure]]
     ) -> TestCase? {
-        guard node.nodeType == "Test Case", let name = node.name else { return nil }
+        guard node.nodeType == "Test Case", let name = node.name, !isRunnerError(name) else { return nil }
 
         let suiteName = extractSuiteName(from: node.nodeIdentifier)
 
@@ -640,11 +683,11 @@ public struct XCResultParser: Sendable {
 
     // MARK: - Crash Attachment Extraction
 
-    private struct AttachmentManifest: Decodable, Sendable {
+    private struct AttachmentManifest: Decodable {
         let testIdentifier: String?
         let attachments: [Attachment]
 
-        struct Attachment: Decodable, Sendable {
+        struct Attachment: Decodable {
             let exportedFileName: String
             let suggestedHumanReadableName: String?
             let isAssociatedWithFailure: Bool?
