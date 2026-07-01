@@ -141,9 +141,16 @@ case "$CLUSTER_NAME" in
       platform-kura-us-west-ingress-nginx-admission
     )
     ;;
-  tuist-canary | tuist-staging)
+  tuist-canary)
     ADMISSION_SECRETS+=(
       platform-kura-eu-central-ingress-nginx-admission
+      platform-kura-ca-east-ingress-nginx-admission
+    )
+    ;;
+  tuist-staging)
+    ADMISSION_SECRETS+=(
+      platform-kura-eu-central-ingress-nginx-admission
+      platform-kura-ca-east-ingress-nginx-admission
     )
     ;;
 esac

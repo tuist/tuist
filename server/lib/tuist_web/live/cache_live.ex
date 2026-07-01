@@ -383,17 +383,22 @@ defmodule TuistWeb.CacheLive do
   end
 
   defp server_status_label(:provisioning), do: dgettext("dashboard_account", "Deploying")
+  defp server_status_label(:replicating), do: dgettext("dashboard_account", "Replicating")
   defp server_status_label(:active), do: dgettext("dashboard_account", "Active")
   defp server_status_label(:failed), do: dgettext("dashboard_account", "Failed")
   defp server_status_label(:destroying), do: dgettext("dashboard_account", "Destroying")
   defp server_status_label(:destroyed), do: dgettext("dashboard_account", "Destroyed")
 
   defp server_status_color(:provisioning), do: "information"
+  defp server_status_color(:replicating), do: "information"
   defp server_status_color(:active), do: "success"
   defp server_status_color(:failed), do: "destructive"
   defp server_status_color(:destroying), do: "warning"
   defp server_status_color(:destroyed), do: "neutral"
 
+  # :replicating is intentionally NOT here: it has its own "Replicating" label and
+  # "information" color via server_status_label/2 + server_status_color/1. Forcing
+  # the "Deploying" short-circuit here would shadow that label.
   defp show_deploying?(%{status: :provisioning}), do: true
   defp show_deploying?(_), do: false
 

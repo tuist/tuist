@@ -186,6 +186,7 @@ func terminationGracePeriodSeconds() int64 {
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses;networkpolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=policy,resources=poddisruptionbudgets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=externaldns.k8s.io,resources=dnsendpoints,verbs=get;list;watch;create;update;patch;delete
 
 func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithValues("kurainstance", req.NamespacedName)
@@ -220,6 +221,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileInstancePublicPeerService(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcilePeerDNSEndpoint(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
 	primaryPod, err := r.selectPrimaryPod(ctx, instance)
@@ -377,22 +381,33 @@ func (r *KuraInstanceReconciler) reconcileInstancePublicPeerService(ctx context.
 			"app.kubernetes.io/managed-by": "kura-controller",
 			"tuist.dev/account":            instance.Spec.AccountHandle,
 		}
-		if service.Annotations == nil {
-			service.Annotations = map[string]string{}
+		if instance.Spec.MeshPeerHostNetwork {
+			// Bare-metal region: no cloud LoadBalancer. This Service is the
+			// ClusterIP backend the regional host-network SNI demux (:7443) routes
+			// to; DNS is published by a DNSEndpoint to the failover IP, not an LB
+			// annotation. Clear any LB-era annotation/policy in case the region was
+			// migrated off the LB path.
+			service.Annotations = nil
+			service.Spec.Type = corev1.ServiceTypeClusterIP
+			service.Spec.ExternalTrafficPolicy = ""
+		} else {
+			if service.Annotations == nil {
+				service.Annotations = map[string]string{}
+			}
+			for k, v := range instance.Spec.MeshPublicPeerLoadBalancerAnnotations {
+				service.Annotations[k] = v
+			}
+			service.Annotations["external-dns.alpha.kubernetes.io/hostname"] = instance.Spec.MeshPublicPeerHost
+			service.Spec.Type = corev1.ServiceTypeLoadBalancer
+			// Local routes the LoadBalancer straight to a node that hosts a peer pod
+			// instead of round-robining across every node and SNAT-hopping to the
+			// pod, which intermittently reset long-lived bootstrap connections.
+			service.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyTypeLocal
 		}
-		for k, v := range instance.Spec.MeshPublicPeerLoadBalancerAnnotations {
-			service.Annotations[k] = v
-		}
-		service.Annotations["external-dns.alpha.kubernetes.io/hostname"] = instance.Spec.MeshPublicPeerHost
-		service.Spec.Type = corev1.ServiceTypeLoadBalancer
-		// Local routes the LoadBalancer straight to a node that hosts a peer pod
-		// instead of round-robining across every node and SNAT-hopping to the
-		// pod, which intermittently reset long-lived bootstrap connections.
-		service.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyTypeLocal
 		// Per-region (per-instance): MeshPublicPeerHost and the peer cert SAN are
-		// region-scoped, so the LoadBalancer must select only this instance's
-		// pods. An account-scoped selector would route one region's hostname to
-		// another region's pods and mismatch the cert.
+		// region-scoped, so the Service must select only this instance's pods. An
+		// account-scoped selector would route one region's hostname to another
+		// region's pods and mismatch the cert.
 		service.Spec.Selector = selectorLabels(instance)
 		service.Spec.Ports = []corev1.ServicePort{
 			{Name: "peer", Port: peerPort, TargetPort: intstr.FromString("peer")},
@@ -413,6 +428,110 @@ func instancePublicPeerServiceName(instance *kurav1alpha1.KuraInstance) string {
 	_, _ = hash.Write([]byte(instance.Name))
 	suffix := fmt.Sprintf("-%x", hash.Sum32())
 	return strings.TrimRight(name[:63-len(suffix)], "-") + suffix
+}
+
+// dnsEndpointGVK is the external-dns CRD we emit to publish a host-network
+// region's public peer host. external-dns must run with the `crd` source.
+var dnsEndpointGVK = schema.GroupVersionKind{Group: "externaldns.k8s.io", Version: "v1alpha1", Kind: "DNSEndpoint"}
+
+// reconcilePeerDNSEndpoint publishes the region's public peer host on
+// host-network (bare-metal) regions, where there is no LoadBalancer for
+// external-dns to source a record from. It points the host at the region's
+// failover IP when one is provisioned (kept routed to a healthy box by the CAPI
+// provider — the multi-box HA path), and otherwise at the box the account's pods
+// run on, so self-hosted peering resolves on a single box without an
+// operator-provisioned failover IP. The regional SNI demux on :7443 forwards the
+// connection to the right account's pod. Only touches the API on host-network
+// regions (a region never flips host-network state, so the LoadBalancer path
+// needs no DNSEndpoint cleanup here).
+func (r *KuraInstanceReconciler) reconcilePeerDNSEndpoint(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	// Only host-network regions ever get a peer DNSEndpoint (LB regions publish
+	// DNS off the public peer Service). Never touching the DNSEndpoint API for
+	// non-host-network regions keeps the common reconcile path free of it.
+	if !instance.Spec.MeshPeerHostNetwork {
+		return nil
+	}
+
+	endpoint := &unstructured.Unstructured{}
+	endpoint.SetGroupVersionKind(dnsEndpointGVK)
+	endpoint.SetNamespace(instance.Namespace)
+	endpoint.SetName(instance.Name + "-peer-dns")
+
+	// Target priority: the region's failover IP if provisioned (stable, survives
+	// box reassignment, the multi-box HA path), else the IP of the box the
+	// account's pods run on. The account is pinned to one box per region
+	// (co-location), so the box IP is a valid per-account target and self-hosted
+	// peering resolves on a single box without an operator-provisioned failover
+	// IP. On bare-metal regions the node InternalIP is the box's public IP.
+	target := instance.Spec.MeshPeerFailoverIP
+	if target == "" {
+		ip, err := r.instancePeerNodeIP(ctx, instance)
+		if err != nil {
+			return err
+		}
+		target = ip
+	}
+
+	// No public host, or no routable target yet (failover IP unset and no pod
+	// scheduled): tear down any DNSEndpoint created earlier so external-dns stops
+	// publishing a dead peer record, mirroring reconcileInstancePublicPeerService.
+	if instance.Spec.MeshPublicPeerHost == "" || target == "" {
+		if err := r.Delete(ctx, endpoint); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+		return nil
+	}
+
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, endpoint, func() error {
+		endpoint.SetLabels(map[string]string{
+			"app.kubernetes.io/name":       "kura",
+			"app.kubernetes.io/instance":   instance.Name,
+			"app.kubernetes.io/managed-by": "kura-controller",
+			"tuist.dev/account":            instance.Spec.AccountHandle,
+		})
+		if err := unstructured.SetNestedSlice(endpoint.Object, []interface{}{
+			map[string]interface{}{
+				"dnsName":    instance.Spec.MeshPublicPeerHost,
+				"recordType": "A",
+				"recordTTL":  int64(300),
+				"targets":    []interface{}{target},
+			},
+		}, "spec", "endpoints"); err != nil {
+			return err
+		}
+		return controllerutil.SetControllerReference(instance, endpoint, r.Scheme)
+	})
+	return err
+}
+
+// instancePeerNodeIP returns the InternalIP of a node running one of the
+// instance's pods (the account's co-located box), or "" when none is scheduled
+// yet. On bare-metal regions the node InternalIP is the box's public IP, which
+// is what a self-hosted node must resolve the peer host to.
+func (r *KuraInstanceReconciler) instancePeerNodeIP(ctx context.Context, instance *kurav1alpha1.KuraInstance) (string, error) {
+	var pods corev1.PodList
+	if err := r.List(ctx, &pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
+		return "", err
+	}
+	for i := range pods.Items {
+		nodeName := pods.Items[i].Spec.NodeName
+		if nodeName == "" {
+			continue
+		}
+		var node corev1.Node
+		if err := r.Get(ctx, types.NamespacedName{Name: nodeName}, &node); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return "", err
+		}
+		for _, addr := range node.Status.Addresses {
+			if addr.Type == corev1.NodeInternalIP && addr.Address != "" {
+				return addr.Address, nil
+			}
+		}
+	}
+	return "", nil
 }
 
 func (r *KuraInstanceReconciler) reconcileService(ctx context.Context, instance *kurav1alpha1.KuraInstance, primaryPod string) error {
@@ -705,24 +824,32 @@ func (r *KuraInstanceReconciler) selectPrimaryPod(ctx context.Context, instance 
 }
 
 func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) map[string]bool {
-	kubernetesReady := map[string]bool{}
 	now := time.Now()
-	for i := range pods {
-		if podReady(&pods[i]) && podOldEnoughForPrimary(&pods[i], now, replicas(instance)) {
-			kubernetesReady[pods[i].Name] = true
-		}
-	}
 
 	statusClient := r.RuntimeStatusClient
 	if statusClient == nil {
 		statusClient = defaultRuntimeStatusClient()
 	}
 
+	// Age-gated Kubernetes readiness is only the FALLBACK, used when the runtime
+	// status endpoint is unreachable for every pod: without the runtime's
+	// bootstrap signal we keep the minPrimaryPodAge buffer so a still-bootstrapping
+	// pod isn't promoted. When the runtime status IS reachable it supersedes this —
+	// a pod that reports Ready+serving has already completed bootstrap (the runtime's
+	// is_serving requires bootstrapped_peers == known_peers), so the runtime-confirmed
+	// path does NOT age-gate. That lets a freshly-rolled but caught-up standby be
+	// promoted immediately, which is what makes a rolling deploy gapless instead of
+	// waiting out the 10-minute age with no eligible primary. The runtime status is
+	// therefore probed for every Ready pod, not just the age-eligible ones.
+	fallbackReady := map[string]bool{}
 	runtimeHealthy := map[string]bool{}
 	runtimeStatuses := 0
 	for i := range pods {
-		if !kubernetesReady[pods[i].Name] {
+		if !podReady(&pods[i]) {
 			continue
+		}
+		if podOldEnoughForPrimary(&pods[i], now, replicas(instance)) {
+			fallbackReady[pods[i].Name] = true
 		}
 		status, err := statusClient.Status(ctx, pods[i])
 		if err != nil {
@@ -734,7 +861,7 @@ func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance 
 	}
 
 	if runtimeStatuses == 0 {
-		return kubernetesReady
+		return fallbackReady
 	}
 	return runtimeHealthy
 }
@@ -1430,7 +1557,7 @@ func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string,
 			TerminationGracePeriodSeconds: ptr(terminationGracePeriodSeconds()),
 			NodeSelector:                  nodeSelector(instance),
 			Tolerations:                   instance.Spec.Tolerations,
-			TopologySpreadConstraints:     topologySpreadConstraints(instance),
+			Affinity:                      instancePodAffinity(instance),
 			Containers: []corev1.Container{{
 				Name:            "kura",
 				Image:           instance.Spec.Image,
@@ -1438,7 +1565,7 @@ func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string,
 				Ports:           containerPorts(instance),
 				Env:             append(baseEnv(instance, otlpTracesEndpoint, environment), instance.Spec.ExtraEnv...),
 				EnvFrom:         sharedSecretsEnvFrom(),
-				Resources:       defaultResources(),
+				Resources:       defaultResources(instance),
 				VolumeMounts:    volumeMounts(instance),
 				Lifecycle:       preStopLifecycle(),
 				ReadinessProbe:  httpProbe("/ready", 5, 10),
@@ -1502,12 +1629,19 @@ func sharedSecretsEnvFrom() []corev1.EnvFromSource {
 	}}
 }
 
+// egressMbpsResource is the integer extended resource a shared bare-metal node
+// advertises as capacity (the CAPI provider patches it from the box's egress
+// budget) and a cache pod reserves as a request==limit. It lets the scheduler
+// bin-pack instances against the box's egress budget. See
+// KuraInstanceSpec.EgressGuaranteedMbps.
+const egressMbpsResource corev1.ResourceName = "tuist.dev/egress-mbps"
+
 // The memory request matches the limit because Kura sizes its memory
 // budget from the cgroup limit (soft limit 70%, hard limit 85% of it)
 // and routinely operates above 1Gi, so the full 2Gi must be reserved
 // at scheduling time to avoid node overcommit.
-func defaultResources() corev1.ResourceRequirements {
-	return corev1.ResourceRequirements{
+func defaultResources(instance *kurav1alpha1.KuraInstance) corev1.ResourceRequirements {
+	r := corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
 			corev1.ResourceCPU:    resource.MustParse("500m"),
 			corev1.ResourceMemory: resource.MustParse("2Gi"),
@@ -1516,6 +1650,17 @@ func defaultResources() corev1.ResourceRequirements {
 			corev1.ResourceMemory: resource.MustParse("2Gi"),
 		},
 	}
+	// Egress floor: reserve the region's guaranteed Mbps as the
+	// tuist.dev/egress-mbps extended resource (request == limit; extended
+	// resources are integer and non-overcommittable) so the scheduler bin-packs
+	// cache pods against the node's advertised egress budget. Unset on cloud
+	// regions whose NIC isn't shared.
+	if mbps := instance.Spec.EgressGuaranteedMbps; mbps > 0 {
+		q := *resource.NewQuantity(int64(mbps), resource.DecimalSI)
+		r.Requests[egressMbpsResource] = q
+		r.Limits[egressMbpsResource] = q
+	}
+	return r
 }
 
 func publicIngressAnnotations() map[string]string {
@@ -1650,13 +1795,29 @@ func nodeSelector(instance *kurav1alpha1.KuraInstance) map[string]string {
 	return selector
 }
 
-func topologySpreadConstraints(instance *kurav1alpha1.KuraInstance) []corev1.TopologySpreadConstraint {
-	return []corev1.TopologySpreadConstraint{{
-		MaxSkew:           1,
-		TopologyKey:       "kubernetes.io/hostname",
-		WhenUnsatisfiable: corev1.DoNotSchedule,
-		LabelSelector:     &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
-	}}
+// instancePodAffinity co-locates all of an account's Kura pods (an instance's
+// primary + warm standby) on a single box. Co-location, not spreading: the
+// standby exists for gapless rolling deploys (in-box pod failover), and
+// box-level resilience comes from the regenerable cache + cross-region mesh, not
+// from a same-box replica. Different accounts still spread across a region's
+// boxes via the egress (tuist.dev/egress-mbps) + cpu/memory bin-packing.
+//
+// Soft (preferred), not required: a required self-referential podAffinity would
+// deadlock the first replica — no pod matching the selector exists yet, so no
+// node satisfies the term and the pod stays Pending forever. Preferred
+// co-locates in practice while letting the first pod schedule anywhere.
+func instancePodAffinity(instance *kurav1alpha1.KuraInstance) *corev1.Affinity {
+	return &corev1.Affinity{
+		PodAffinity: &corev1.PodAffinity{
+			PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{{
+				Weight: 100,
+				PodAffinityTerm: corev1.PodAffinityTerm{
+					TopologyKey:   "kubernetes.io/hostname",
+					LabelSelector: &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
+				},
+			}},
+		},
+	}
 }
 
 // baseEnv carries only the values the controller must set: identity,
@@ -1670,6 +1831,18 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 	if environment == "" {
 		environment = "production"
 	}
+	// Mesh instances discover ALL of the account's in-cluster pods (every
+	// region) as Local-scope peers via the account peer Service, so managed↔
+	// managed peers dial each other pod-to-pod directly instead of hairpinning
+	// cross-region replication through the public peer gateway. Discovery scope
+	// is addressing-only in the runtime (replication policy is unchanged); the
+	// off-cluster self-hosted direction still routes through the gateway URL
+	// (KURA_PEER_GATEWAY_URL + the ?scope=global status path) and the static
+	// KURA_PEERS list, so no global DNS discovery is needed here.
+	discoveryDNSName := fmt.Sprintf("%s.$(POD_NAMESPACE).svc.cluster.local", headlessServiceName(instance))
+	if crossRegionRuntimeEnabled(instance) {
+		discoveryDNSName = accountPeerServiceDNSName(instance)
+	}
 	env := []corev1.EnvVar{
 		{Name: "POD_NAME", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"}}},
 		{Name: "POD_NAMESPACE", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"}}},
@@ -1680,7 +1853,7 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 		{Name: "KURA_TMP_DIR", Value: "/var/cache/kura/tmp"},
 		{Name: "KURA_DATA_DIR", Value: "/var/cache/kura"},
 		{Name: "KURA_NODE_URL", Value: fmt.Sprintf("https://$(POD_NAME).%s.$(POD_NAMESPACE).svc.cluster.local:%d", headlessServiceName(instance), peerPort)},
-		{Name: "KURA_DISCOVERY_DNS_NAME", Value: fmt.Sprintf("%s.$(POD_NAMESPACE).svc.cluster.local", headlessServiceName(instance))},
+		{Name: "KURA_DISCOVERY_DNS_NAME", Value: discoveryDNSName},
 		{Name: "KURA_INTERNAL_PORT", Value: fmt.Sprintf("%d", peerPort)},
 		{Name: "KURA_INTERNAL_TLS_CA_CERT_PATH", Value: peerTLSMountPath + "/" + peerTLSCAFile},
 		{Name: "KURA_INTERNAL_TLS_CERT_PATH", Value: peerTLSMountPath + "/" + peerTLSCertFile},
@@ -1700,14 +1873,12 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 			corev1.EnvVar{Name: "KURA_EXTENSION_SCRIPT_PATH", Value: "/etc/kura/extensions/hooks.lua"},
 		)
 	}
-	if crossRegionRuntimeEnabled(instance) {
-		env = append(env, corev1.EnvVar{Name: "KURA_GLOBAL_DISCOVERY_DNS_NAME", Value: accountPeerServiceDNSName(instance)})
-	}
 	// When the account peer plane is exposed publicly, advertise the public
-	// gateway URL for global-scope discovery so an off-cluster self-hosted node
-	// replicates through the LoadBalancer instead of the managed pods' in-cluster
-	// addresses (which it can't reach). In-cluster peers keep using direct
-	// addresses (Local-scope discovery); a node skips its own gateway.
+	// gateway URL so an off-cluster self-hosted node replicates through the
+	// gateway instead of the managed pods' in-cluster addresses (which it can't
+	// reach). It reaches this node via the `?scope=global` status path, which
+	// returns this gateway URL; in-cluster peers use Local-scope discovery
+	// (KURA_DISCOVERY_DNS_NAME above) and dial pod-to-pod directly.
 	if meshManagedPeerTLS(instance) && instance.Spec.MeshPublicPeerHost != "" {
 		env = append(env, corev1.EnvVar{
 			Name:  "KURA_PEER_GATEWAY_URL",

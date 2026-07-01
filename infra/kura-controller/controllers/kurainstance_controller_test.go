@@ -273,11 +273,19 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if got := sts.Spec.Template.Spec.NodeSelector["node.cluster.x-k8s.io/pool"]; got != "kura" {
 		t.Fatalf("expected kura node pool selector, got %q", got)
 	}
-	if got := len(sts.Spec.Template.Spec.TopologySpreadConstraints); got != 1 {
-		t.Fatalf("expected one topology spread constraint, got %d", got)
+	// An account's pods co-locate on one box (preferred pod-affinity), not spread.
+	if sts.Spec.Template.Spec.TopologySpreadConstraints != nil {
+		t.Fatalf("instance pods must co-locate on one box, not carry a spread constraint")
 	}
-	if got := sts.Spec.Template.Spec.TopologySpreadConstraints[0].TopologyKey; got != "kubernetes.io/hostname" {
-		t.Fatalf("expected hostname topology spread, got %q", got)
+	pref := sts.Spec.Template.Spec.Affinity.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution
+	if got := len(pref); got != 1 {
+		t.Fatalf("expected one preferred pod-affinity term to co-locate the instance's pods, got %d", got)
+	}
+	if got := pref[0].PodAffinityTerm.TopologyKey; got != "kubernetes.io/hostname" {
+		t.Fatalf("expected hostname co-location topology, got %q", got)
+	}
+	if got := pref[0].PodAffinityTerm.LabelSelector.MatchLabels["app.kubernetes.io/instance"]; got != sts.Name {
+		t.Fatalf("expected the affinity to select the instance's own pods (%q), got %q", sts.Name, got)
 	}
 	if got := sts.Spec.Template.Labels["tuist.dev/account"]; got != "tuist" {
 		t.Fatalf("expected pod template account label, got %q", got)
@@ -466,6 +474,65 @@ func TestKuraGatewayReconcileCreatesDedicatedIngressInfrastructure(t *testing.T)
 	}
 	if !containsString(container.Args, "--watch-namespace=$(POD_NAMESPACE)") {
 		t.Fatalf("expected namespace-scoped ingress watch, got %v", container.Args)
+	}
+}
+
+func TestKuraGatewayReconcileHostNetworkBindsNodeDirectly(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	gateway := &kurav1alpha1.KuraGateway{
+		ObjectMeta: metav1.ObjectMeta{Name: "kgw-def456-dedibox-staging", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraGatewaySpec{
+			Region:           "dedibox-staging",
+			IngressClassName: "kura-dedibox-staging-kgw-def456",
+			Replicas:         ptr(int32(1)),
+			NodeSelector:     map[string]string{"node.cluster.x-k8s.io/pool": "kura-dedibox"},
+			HostNetwork:      true,
+		},
+	}
+	reconciler := &KuraGatewayReconciler{
+		Client:                    fake.NewClientBuilder().WithScheme(scheme).WithObjects(gateway).WithStatusSubresource(gateway).Build(),
+		Scheme:                    scheme,
+		GatewayServiceAccountName: "tuist-kura-controller-gateway-ingress-nginx",
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: gateway.Name, Namespace: gateway.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	service := &corev1.Service{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: gatewayWorkloadName(gateway), Namespace: gateway.Namespace}, service); err != nil {
+		t.Fatalf("expected gateway Service: %v", err)
+	}
+	if service.Spec.Type != corev1.ServiceTypeClusterIP {
+		t.Fatalf("expected ClusterIP Service on bare metal, got %q", service.Spec.Type)
+	}
+	if service.Spec.ExternalTrafficPolicy != "" {
+		t.Fatalf("expected no externalTrafficPolicy on ClusterIP Service, got %q", service.Spec.ExternalTrafficPolicy)
+	}
+	if len(service.Annotations) != 0 {
+		t.Fatalf("expected no Hetzner LB annotations on host-network gateway, got %v", service.Annotations)
+	}
+
+	deployment := &appsv1.Deployment{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: gatewayWorkloadName(gateway), Namespace: gateway.Namespace}, deployment); err != nil {
+		t.Fatalf("expected gateway Deployment: %v", err)
+	}
+	if !deployment.Spec.Template.Spec.HostNetwork {
+		t.Fatalf("expected host-network pod so nginx binds the node public IP")
+	}
+	if got := deployment.Spec.Template.Spec.DNSPolicy; got != corev1.DNSClusterFirstWithHostNet {
+		t.Fatalf("expected ClusterFirstWithHostNet DNS, got %q", got)
+	}
+	if got := deployment.Spec.Template.Spec.NodeSelector["node.cluster.x-k8s.io/pool"]; got != "kura-dedibox" {
+		t.Fatalf("expected gateway pinned to the bare-metal pool, got %q", got)
 	}
 }
 
@@ -848,8 +915,11 @@ func TestKuraInstanceReconcileCrossRegionAccountPeerService(t *testing.T) {
 	if got, ok := env["KURA_PEER_GATEWAY_URL"]; ok {
 		t.Fatalf("expected no peer gateway URL env, got %q", got)
 	}
-	if got := env["KURA_GLOBAL_DISCOVERY_DNS_NAME"]; got != "kura-tuist-peers.kura.svc.cluster.local" {
-		t.Fatalf("expected global discovery DNS env, got %q", got)
+	if got, ok := env["KURA_GLOBAL_DISCOVERY_DNS_NAME"]; ok {
+		t.Fatalf("expected no global discovery DNS env (in-cluster peers use Local-scope direct dial), got %q", got)
+	}
+	if got := env["KURA_DISCOVERY_DNS_NAME"]; got != "kura-tuist-peers.kura.svc.cluster.local" {
+		t.Fatalf("expected Local discovery to be the account peer Service for a mesh instance, got %q", got)
 	}
 	peerTLSVolume := volumeByName(sts.Spec.Template.Spec.Volumes, peerTLSVolumeName)
 	if peerTLSVolume == nil || peerTLSVolume.Secret == nil {
@@ -1141,7 +1211,10 @@ func TestKuraInstanceReconcileWithoutSharedTLSDoesNotEnableGlobalDiscovery(t *te
 		t.Fatal("expected peer gateway URL to stay disabled until shared peer TLS is configured")
 	}
 	if _, ok := env["KURA_GLOBAL_DISCOVERY_DNS_NAME"]; ok {
-		t.Fatal("expected global discovery to stay disabled until shared peer TLS is configured")
+		t.Fatal("expected global discovery to stay disabled; in-cluster peers use Local-scope direct dial")
+	}
+	if got := env["KURA_DISCOVERY_DNS_NAME"]; got != "kura-tuist-eu-1-headless.$(POD_NAMESPACE).svc.cluster.local" {
+		t.Fatalf("expected Local discovery to be the per-region headless for a non-mesh instance, got %q", got)
 	}
 
 	generatedSecret := &corev1.Secret{}
@@ -2039,7 +2112,11 @@ func TestChoosePrimaryPodUsesRuntimeRoutability(t *testing.T) {
 	}
 }
 
-func TestPrimaryPodHealthIgnoresFreshPodsWhenReplicated(t *testing.T) {
+func TestPrimaryPodHealthRuntimeConfirmedIgnoresAge(t *testing.T) {
+	// A freshly-rolled pod the runtime confirms as Ready+serving (bootstrap
+	// complete) is promotable immediately — the minPrimaryPodAge gate does NOT
+	// apply on the runtime-confirmed path, so a rolling deploy can fail over to a
+	// just-restarted standby without a gap.
 	const name = "kura-tuist-eu-1"
 	now := time.Now()
 	instance := &kurav1alpha1.KuraInstance{
@@ -2062,14 +2139,42 @@ func TestPrimaryPodHealthIgnoresFreshPodsWhenReplicated(t *testing.T) {
 	}
 
 	routable := reconciler.primaryPodHealth(context.Background(), instance, pods)
-	if routable[name+"-0"] {
-		t.Fatal("expected fresh pod to be excluded from primary routing")
+	if !routable[name+"-0"] {
+		t.Fatal("expected a runtime-confirmed fresh pod to be routable (gapless deploy)")
 	}
 	if !routable[name+"-1"] || !routable[name+"-2"] {
 		t.Fatalf("expected older pods to stay routable, got %v", routable)
 	}
+}
+
+func TestPrimaryPodHealthAgeGatesWhenRuntimeStatusUnavailable(t *testing.T) {
+	// Fallback path: when the runtime status endpoint is unreachable for every
+	// pod we have no bootstrap signal, so the minPrimaryPodAge buffer still
+	// excludes a freshly-restarted pod from becoming primary.
+	const name = "kura-tuist-eu-1"
+	now := time.Now()
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "kura"},
+		Spec:       kurav1alpha1.KuraInstanceSpec{Replicas: ptr(int32(3))},
+	}
+	pods := []corev1.Pod{
+		*kuraPodCreatedAt(name, "kura", 0, true, now.Add(-2*time.Minute)),
+		*kuraPodCreatedAt(name, "kura", 1, true, now.Add(-30*time.Minute)),
+		*kuraPodCreatedAt(name, "kura", 2, true, now.Add(-30*time.Minute)),
+	}
+	reconciler := &KuraInstanceReconciler{
+		RuntimeStatusClient: fakeRuntimeStatusClient{err: fmt.Errorf("status endpoint unreachable")},
+	}
+
+	routable := reconciler.primaryPodHealth(context.Background(), instance, pods)
+	if routable[name+"-0"] {
+		t.Fatal("expected fresh pod to be excluded when the runtime bootstrap signal is unavailable")
+	}
+	if !routable[name+"-1"] || !routable[name+"-2"] {
+		t.Fatalf("expected older pods to stay eligible in the fallback, got %v", routable)
+	}
 	if got := choosePrimaryPod(name+"-0", name, pods, routable); got != name+"-1" {
-		t.Fatalf("expected fresh current primary to fail over to an older routable pod, got %q", got)
+		t.Fatalf("expected fresh current primary to fail over to an older eligible pod, got %q", got)
 	}
 }
 
