@@ -23,6 +23,7 @@ defmodule Tuist.Release do
           ensure_database_schema(repo)
           Ecto.Migrator.run(repo, :up, all: true)
           grant_runtime_role(repo)
+          grant_processor_role(repo)
         end)
     end
   end
@@ -152,6 +153,58 @@ defmodule Tuist.Release do
           "ON TABLES TO #{role}",
         "ALTER DEFAULT PRIVILEGES IN SCHEMA #{quoted_schema} GRANT USAGE, SELECT ON SEQUENCES TO #{role}",
         "ALTER DEFAULT PRIVILEGES IN SCHEMA #{quoted_schema} GRANT EXECUTE ON FUNCTIONS TO #{role}"
+      ],
+      &SQL.query!(repo, &1, [])
+    )
+  end
+
+  # The processor role (the macOS xcresult processor and the in-cluster
+  # build processor connect as it) runs the Oban ingestion path, which
+  # touches a small, explicitly enumerated set of tables. Applying its
+  # per-table grants here — as the schema owner, on every migrate — keeps
+  # them in lockstep with schema changes instead of drifting behind the
+  # manual `infra/cnpg/tuist-processor-grants.sql` runbook. That drift is
+  # exactly what let a new table (`webhook_endpoints`) reach the ingestion
+  # path ungranted, raising `42501` mid-run and discarding the job into
+  # partial data. Gated on TUIST_DATABASE_PROCESSOR_ROLE, which the chart
+  # sets only for managed CNPG migration Jobs, so self-hosted and non-CNPG
+  # deployments leave the role untouched.
+  defp grant_processor_role(repo) when repo == Tuist.Repo do
+    case Environment.database_processor_role() do
+      role when is_binary(role) and role != "" ->
+        do_grant_processor_role(repo, role)
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp grant_processor_role(_repo), do: :ok
+
+  defp do_grant_processor_role(repo, role) do
+    Environment.validate_postgres_identifier!(role, "TUIST_DATABASE_PROCESSOR_ROLE")
+
+    role = Environment.quote_postgres_identifier(role)
+    database = repo.config() |> Keyword.fetch!(:database) |> Environment.quote_postgres_identifier()
+    quoted_schema = Environment.quote_postgres_identifier(Environment.database_schema())
+
+    # Deny-by-default: strip every table privilege first, then re-grant only
+    # the enumerated surface. A table dropped from the list (or granted
+    # out-of-band) can't linger, and any table a future migration adds stays
+    # off-limits until it's listed here. `REVOKE … ON ALL TABLES` only warns
+    # (never errors) on tables this role can't revoke, and every GRANT below
+    # targets a table this migration role owns, so none can hit the
+    # permission-denied abort a blanket `GRANT … ON ALL` would.
+    Enum.each(
+      [
+        "REVOKE ALL ON ALL TABLES IN SCHEMA #{quoted_schema} FROM #{role}",
+        "GRANT CONNECT ON DATABASE #{database} TO #{role}",
+        "GRANT USAGE ON SCHEMA #{quoted_schema} TO #{role}",
+        "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE " <>
+          "#{quoted_schema}.oban_jobs, #{quoted_schema}.oban_peers TO #{role}",
+        "GRANT USAGE, SELECT ON SEQUENCE #{quoted_schema}.oban_jobs_id_seq TO #{role}",
+        "GRANT SELECT ON TABLE " <>
+          "#{quoted_schema}.accounts, #{quoted_schema}.projects, #{quoted_schema}.webhook_endpoints TO #{role}"
       ],
       &SQL.query!(repo, &1, [])
     )

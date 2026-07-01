@@ -179,6 +179,13 @@ defmodule Tuist.Environment do
     end
   end
 
+  def database_processor_role do
+    case System.get_env("TUIST_DATABASE_PROCESSOR_ROLE") do
+      role when is_binary(role) and role != "" -> role
+      _ -> nil
+    end
+  end
+
   def database_config_from_url(url) do
     parsed_url = URI.parse(url)
 

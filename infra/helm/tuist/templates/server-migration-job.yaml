@@ -122,6 +122,8 @@ spec:
             {{- if .Values.server.managedSecrets }}
             - name: TUIST_DATABASE_RUNTIME_ROLE
               value: {{ .Values.postgresql.cnpg.roles.web.name | quote }}
+            - name: TUIST_DATABASE_PROCESSOR_ROLE
+              value: {{ .Values.postgresql.cnpg.roles.processor.name | quote }}
             {{- end }}
             - name: TUIST_USE_SSL_FOR_DATABASE
               value: "0"

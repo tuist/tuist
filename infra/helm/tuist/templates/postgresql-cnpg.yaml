@@ -145,9 +145,12 @@ spec:
 
   # Managed roles. CNPG creates the role on bootstrap and rotates the
   # password whenever the referenced Secret changes — there is no
-  # `CREATE ROLE` SQL to run by hand. Web runtime grants are applied by
-  # Tuist.Release.migrate after each migration; processor/Ops grants that
-  # need superuser/catalog roles stay in the infra/cnpg SQL runbook.
+  # `CREATE ROLE` SQL to run by hand. Web and processor per-table grants
+  # are both applied by Tuist.Release.migrate after each migration (as the
+  # schema owner, gated on TUIST_DATABASE_{RUNTIME,PROCESSOR}_ROLE). The
+  # infra/cnpg SQL runbook is now only a bootstrap/restore fallback for the
+  # window before the first migrate, plus the Ops role's CONNECT + REVOKE
+  # defense-in-depth.
   managed:
     roles:
       - name: {{ .Values.postgresql.cnpg.roles.web.name | quote }}
