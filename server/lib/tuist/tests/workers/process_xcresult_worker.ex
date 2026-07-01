@@ -127,7 +127,8 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
         status: run_status(parsed_data, test_modules),
         duration: parsed_data["duration"] || 0,
         test_modules: test_modules,
-        run_destinations: normalize_run_destinations(parsed_data["run_destinations"] || [])
+        run_destinations: normalize_run_destinations(parsed_data["run_destinations"] || []),
+        run_errors: parsed_data["errors"] || []
       })
 
     case Tests.create_test(attrs) do

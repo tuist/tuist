@@ -220,6 +220,23 @@
 
   <div :if={@selected_tab == "overview" and @run.status != "processing"} data-part="overview">
     <.card
+      :if={@run_errors != []}
+      title={dgettext("dashboard_tests", "Errors")}
+      icon="alert_triangle"
+      data-part="run-errors"
+    >
+      <.card_section>
+        <div data-part="metadata-grid">
+          <div :for={error <- @run_errors} data-part="metadata-row">
+            <div data-part="metadata">
+              <div :if={error.module_name != ""} data-part="title">{error.module_name}</div>
+              <div data-part="value">{error.message}</div>
+            </div>
+          </div>
+        </div>
+      </.card_section>
+    </.card>
+    <.card
       title={dgettext("dashboard_tests", "Test Details")}
       icon="chart_arcs"
       data-part="test-details"
