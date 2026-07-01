@@ -53,13 +53,20 @@ The key difference in configuration is that the **bridged** topology uses **enro
 
 ## Create a control-plane client {#control-plane-client}
 
-Every node authenticates to Tuist with an account-scoped control-plane client.
+A node uses an account-scoped control-plane client to authenticate cache requests (token introspection), report to the dashboard, and deliver usage. It is **not** how clients are routed to your nodes (see [How clients reach your nodes](#routing)), so a single node on a trusted network can run without one.
 
-1. Open your account's **Cache** page.
+1. Open your account's **Cache** page. If you don't see it, enable the `kura` feature flag for the account. On a self-hosted Tuist server the Enterprise entitlement is granted automatically, so the flag is the only prerequisite.
 2. Choose **Generate credential**.
 3. Copy the `client_id` and the one-time `secret`.
 
 The server derives the account from this credential, so the node never asserts its own tenant. Rotate or revoke it from the same page.
+
+## How clients reach your nodes {#routing}
+
+How the Tuist CLI is pointed at your nodes depends on which server your nodes report to:
+
+- **Hosted Tuist server (`tuist.dev`).** The server routes clients to your nodes automatically from their registration heartbeats. Set `KURA_REGISTRATION_URL` and `KURA_ADVERTISED_HTTP_URL` on each node (below), and the advertised URL is handed to the CLI once the node is ready.
+- **Self-hosted Tuist server.** You tell the server which cache endpoints to advertise by setting `TUIST_CACHE_ENDPOINTS` (Helm `server.cacheEndpointUrl`) to your node's client-facing URL, comma-separated for multiple nodes. Registration heartbeats still populate the **Cache** page, but they do not drive routing on a self-hosted server.
 
 ## Bridged setup {#bridged-setup}
 
@@ -131,7 +138,10 @@ services:
       - "4000:4000"
       - "7443:7443"
     environment:
-      # Register with Tuist (dashboard, CLI routing, usage, introspection)
+      # Report to Tuist: dashboard visibility, usage, and token introspection (cache auth).
+      # On a self-hosted server these do not drive routing (see the Routing section), so the
+      # control-plane client and KURA_REGISTRATION_URL/KURA_ADVERTISED_HTTP_URL are optional
+      # there. KURA_TENANT_ID is always required.
       KURA_TENANT_ID: "<account-handle>"
       KURA_CONTROL_PLANE_URL: "https://tuist.dev"
       KURA_REGISTRATION_URL: "https://tuist.dev/_internal/kura/mesh/registrations"
@@ -143,7 +153,9 @@ services:
       KURA_NODE_URL: "https://kura-1.acme.internal:7443"
       KURA_PEERS: "https://kura-2.acme.internal:7443,https://kura-3.acme.internal:7443"
 
-      # YOU provide these certs: your CA and a leaf per node
+      # Peer mTLS secures node-to-node traffic, so it only applies with more than one node.
+      # A single node has no peers: omit these three and set KURA_NODE_URL to http://...:7443
+      # (the peer URL must be http when peer TLS is off).
       KURA_INTERNAL_TLS_CA_CERT_PATH: "/tls/ca.pem"
       KURA_INTERNAL_TLS_CERT_PATH: "/tls/tls.crt"
       KURA_INTERNAL_TLS_KEY_PATH: "/tls/tls.key"
@@ -169,22 +181,24 @@ volumes:
   kura-data: {}
 ```
 
-What you provide that the bridged path does not: your **own peer TLS** mounted at `/tls` (a CA plus a leaf certificate and key, where a single node can use a self-signed certificate while multiple nodes must share a CA so they trust each other), and `KURA_PEERS` describing your topology. A single standalone node needs no `KURA_PEERS`; it just serves and registers.
+What you provide that the bridged path does not: for a multi-node mesh, your **own peer TLS** mounted at `/tls` (a CA plus a leaf certificate and key per node, sharing a CA so the nodes trust each other) and `KURA_PEERS` describing your topology. A single standalone node needs neither: with no peers, nothing travels over the peer plane, so omit `KURA_INTERNAL_TLS_*` and `KURA_PEERS` and set `KURA_NODE_URL` to `http://...:7443`.
 
 ## What each topology requires {#requirements-summary}
 
 | You provide | Bridged | Standalone |
 |---|---|---|
-| Control-plane client (`client_id` / `secret`) | Yes | Yes |
-| `KURA_ADVERTISED_HTTP_URL` / `KURA_NODE_URL` | Yes | Yes |
+| Control-plane client (`client_id` / `secret`) | Yes | For cache auth, dashboard, and usage; optional for a trusted single node |
+| `KURA_NODE_URL` | Yes | Yes |
+| `KURA_ADVERTISED_HTTP_URL` | Yes | For dashboard registration; routing is separate (see below) |
+| Routing to the CLI | Automatic (registration) | Automatic against the hosted server; on a self-hosted server, `TUIST_CACHE_ENDPOINTS` |
 | Data + temp volume | Yes | Yes |
 | `KURA_ENROLL_ON_BOOT` | Yes | No (would return `ca_unavailable`) |
-| Peer TLS (`/tls` CA + leaf) | No, enrollment writes it | **Yes, you provide it** |
+| Peer TLS (`/tls` CA + leaf) | No, enrollment writes it | Only for a multi-node mesh |
 | `KURA_PEERS` (peer list) | No, enrollment seeds the gateway | Yes, if more than one node |
 
 ## Required configuration {#required-config}
 
-These variables are required on every node regardless of topology:
+These variables configure every node, regardless of topology (peer TLS is the exception noted below):
 
 | Variable | Description |
 |---|---|
@@ -193,10 +207,10 @@ These variables are required on every node regardless of topology:
 | `KURA_REGION` | A free-form region label (e.g. `office`, `ci`). |
 | `KURA_PORT` / `KURA_GRPC_PORT` / `KURA_INTERNAL_PORT` | HTTP cache, gRPC, and mesh peer ports (`4000` / `50051` / `7443`). |
 | `KURA_DATA_DIR` / `KURA_TMP_DIR` | On-disk artifact storage and scratch directory. |
-| `KURA_INTERNAL_TLS_CA_CERT_PATH` / `KURA_INTERNAL_TLS_CERT_PATH` / `KURA_INTERNAL_TLS_KEY_PATH` | Peer TLS files. Written by enrollment (bridged) or provided by you (standalone). |
+| `KURA_INTERNAL_TLS_CA_CERT_PATH` / `KURA_INTERNAL_TLS_CERT_PATH` / `KURA_INTERNAL_TLS_KEY_PATH` | Peer TLS files. Written by enrollment (bridged) or provided by you (multi-node standalone). Not needed for a single node; omit them and use an `http://` `KURA_NODE_URL`. |
 | `KURA_OTEL_SERVICE_NAME` / `KURA_OTEL_DEPLOYMENT_ENVIRONMENT` | Service name and environment label for telemetry. |
 
-Bridged nodes additionally set `KURA_ENROLL_ON_BOOT`, `KURA_CONTROL_PLANE_URL`, and the control-plane client credentials. Both topologies set `KURA_REGISTRATION_URL` and `KURA_ADVERTISED_HTTP_URL` to appear in the dashboard and receive traffic from the CLI.
+Bridged nodes additionally set `KURA_ENROLL_ON_BOOT`, `KURA_CONTROL_PLANE_URL`, and the control-plane client credentials. `KURA_REGISTRATION_URL` and `KURA_ADVERTISED_HTTP_URL` register a node so it appears on the **Cache** page; against the hosted server they also route the CLI to it, while a self-hosted server routes via `TUIST_CACHE_ENDPOINTS` (see [How clients reach your nodes](#routing)).
 
 ## Authentication of cache requests {#cache-auth}
 

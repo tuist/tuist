@@ -32,15 +32,14 @@ helm upgrade --install kura oci://ghcr.io/tuist/charts/kura \
   --set config.region=local
 ```
 
-For a self-hosted Tuist server running in the same cluster, expose the Kura service through the Tuist chart:
+For a self-hosted Tuist server running in the same cluster, tell the server which cache endpoints to hand to clients:
 
 ```yaml
 server:
-  kuraEndpointUrls:
-    - http://kura.kura.svc.cluster.local:4000
+  cacheEndpointUrl: "http://kura.kura.svc.cluster.local:4000"
 ```
 
-This renders `TUIST_KURA_ENDPOINTS` in the server pod. When clients request the Kura cache technology, the server returns those endpoints.
+This renders `TUIST_CACHE_ENDPOINTS` in the server pod. On a self-hosted server the CLI is routed to whatever `TUIST_CACHE_ENDPOINTS` lists, so point it at your Kura service. For multiple nodes, use a comma-separated list.
 
 > [!IMPORTANT]
 > Every Kura node must own its own `KURA_DATA_DIR`. Kura takes an application-level writer lock on the data directory and expects exactly one process to own it. In Kubernetes, use one persistent volume per pod. Outside Kubernetes, do not point multiple processes at the same mounted directory.
@@ -72,7 +71,7 @@ docker run -d --name kura \
 Then configure the Tuist server with the URLs that clients can reach:
 
 ```bash
-TUIST_KURA_ENDPOINTS=https://kura-1.example.com,https://kura-2.example.com
+TUIST_CACHE_ENDPOINTS=https://kura-1.example.com,https://kura-2.example.com
 ```
 
 ## Build a cache mesh {#build-a-cache-mesh}
