@@ -140,8 +140,11 @@ jobs:
           set -euo pipefail
           mise use --global "tuist@${TUIST_CANARY_TAG}"
           mise use --global "hyperfine@1.19.0"
-          tuist version
-          hyperfine --version
+          # We don't use jdx/mise-action, so wire the shims onto PATH for the
+          # subsequent build step (GITHUB_PATH affects later steps).
+          echo "$HOME/.local/share/mise/shims" >> "$GITHUB_PATH"
+          mise exec -- tuist version
+          mise exec -- hyperfine --version
 
       - name: Check out the tuist modular fixture (public; fullHandle stays tuist/tuist)
         run: |
