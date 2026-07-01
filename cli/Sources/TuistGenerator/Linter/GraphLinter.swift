@@ -857,6 +857,15 @@ public struct GraphLinter: GraphLinting {
             LintableTarget(platform: .visionOS, product: .bundle),
             LintableTarget(platform: .macOS, product: .macro),
         ],
+        LintableTarget(platform: .visionOS, product: .uiTests): [
+            LintableTarget(platform: .visionOS, product: .app),
+            LintableTarget(platform: .visionOS, product: .staticLibrary),
+            LintableTarget(platform: .visionOS, product: .dynamicLibrary),
+            LintableTarget(platform: .visionOS, product: .framework),
+            LintableTarget(platform: .visionOS, product: .staticFramework),
+            LintableTarget(platform: .visionOS, product: .bundle),
+            LintableTarget(platform: .macOS, product: .macro),
+        ],
         LintableTarget(platform: .visionOS, product: .appExtension): [
             LintableTarget(platform: .visionOS, product: .staticLibrary),
             LintableTarget(platform: .visionOS, product: .dynamicLibrary),
