@@ -857,6 +857,15 @@ macosFleet:
     # disables the tart-kubelet cache share path; managed envs can set
     # this to a writable host path such as /var/lib/tuist-runner-cache.
     runnerCacheRoot: ""
+    # kura release version installed on each Mac host for the persistent
+    # per-account host Kura (Option A). Requires runnerCacheRoot. Empty
+    # disables the host-Kura path (the clone-in cache share path is used).
+    hostKuraVersion: ""
+    # Plaintext http URL template (with a single %s for the account id)
+    # of the Elastic Metal Kura peer each host Kura replicates with over
+    # the Private Network. Empty runs each host Kura islanded (no peer);
+    # the PN mesh fan-out beyond EM is EM's job, not the Mac's.
+    emPeerURLTemplate: ""
   scaleway:
     # Name of the Secret holding `access-key`, `secret-key`,
     # `project-id`. ESO populates it from 1Password by default; set

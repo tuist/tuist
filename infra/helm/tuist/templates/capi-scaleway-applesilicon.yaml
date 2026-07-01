@@ -327,6 +327,12 @@ spec:
             {{- with .Values.macosFleet.tartKubelet.runnerCacheRoot }}
             - --tartkubelet-runner-cache-root={{ . }}
             {{- end }}
+            {{- with .Values.macosFleet.tartKubelet.hostKuraVersion }}
+            - --tartkubelet-host-kura-version={{ . }}
+            {{- end }}
+            {{- with .Values.macosFleet.tartKubelet.emPeerURLTemplate }}
+            - --tartkubelet-em-peer-url-template={{ . }}
+            {{- end }}
             {{- if .Values.macosFleet.tailscale.enabled }}
             # Tailscale + node_exporter artifact paths. Both are
             # baked into the operator image at the Dockerfile-pinned
