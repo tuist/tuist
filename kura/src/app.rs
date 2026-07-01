@@ -45,13 +45,11 @@ const HTTP2_MAX_SEND_BUFFER_BYTES: usize = 512 * 1024;
 const HTTP2_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(30);
 const HTTP2_KEEP_ALIVE_TIMEOUT: Duration = Duration::from_secs(20);
 
-// The combined HTTP+gRPC listener carries large Bazel REAPI uploads, so it
-// advertises the REAPI server's flow-control windows (4 MiB stream / 16 MiB
-// connection) as its starting point rather than the smaller public-HTTP
-// defaults, which would cap a single ByteStream write at ~window/RTT. Kept in
-// sync with REAPI_HTTP2_{STREAM,CONNECTION}_WINDOW_BYTES in reapi.
+// The combined HTTP+gRPC listener carries large Bazel REAPI uploads, so it pins
+// the REAPI server's 4 MiB stream window instead of the smaller public-HTTP one,
+// which would cap a single ByteStream write at ~window/RTT. It reuses the shared
+// 16 MiB connection window. Kept in sync with REAPI_HTTP2_STREAM_WINDOW_BYTES.
 const COMBINED_HTTP2_STREAM_WINDOW_BYTES: u32 = 4 * 1024 * 1024;
-const COMBINED_HTTP2_CONNECTION_WINDOW_BYTES: u32 = 16 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug)]
 struct ShutdownBudget {
@@ -477,50 +475,48 @@ async fn run_with_config(
     Ok(())
 }
 
-fn configure_public_http_builder(builder: &mut HttpBuilder<TokioExecutor>) {
+// Shared HTTP/1 + HTTP/2 tuning for the plaintext auto-negotiating listeners.
+// `stream_window` and `adaptive` are the only knobs that differ between them, so
+// they are explicit parameters — `adaptive` in particular, because hyper's
+// `adaptive_window(true)` OVERRIDES the fixed `initial_stream_window_size` and
+// ramps a single stream up from hyper's ~64KB default, which under WAN latency
+// halves single-stream REAPI upload throughput (measured 9.84 vs 20.65 MB/s at
+// 100ms RTT). The combined port must therefore pin a fixed window (adaptive =
+// false); the public port keeps its adaptive one.
+fn configure_http_builder(
+    builder: &mut HttpBuilder<TokioExecutor>,
+    stream_window: u32,
+    adaptive: bool,
+) {
     builder
         .http1()
         .keep_alive(true)
         .timer(TokioTimer::new())
         .header_read_timeout(Some(Duration::from_secs(30)));
-    builder
-        .http2()
-        .initial_stream_window_size(Some(HTTP2_INITIAL_STREAM_WINDOW_BYTES))
+    let mut http2 = builder.http2();
+    http2
+        .initial_stream_window_size(Some(stream_window))
         .initial_connection_window_size(Some(HTTP2_INITIAL_CONNECTION_WINDOW_BYTES))
-        .adaptive_window(true)
         .max_concurrent_streams(Some(HTTP2_MAX_CONCURRENT_STREAMS))
         .max_frame_size(Some(HTTP2_MAX_FRAME_SIZE))
         .max_send_buf_size(HTTP2_MAX_SEND_BUFFER_BYTES)
         .keep_alive_interval(Some(HTTP2_KEEP_ALIVE_INTERVAL))
         .keep_alive_timeout(HTTP2_KEEP_ALIVE_TIMEOUT)
         .timer(TokioTimer::new());
+    if adaptive {
+        http2.adaptive_window(true);
+    }
 }
 
-// Matches the REAPI gRPC server's HTTP/2 flow control so co-hosted Bazel
-// ByteStream uploads on the combined port are not throttled: FIXED large stream
-// and connection windows, NOT adaptive. hyper's `adaptive_window(true)` would
-// override `initial_stream_window_size`/`initial_connection_window_size` and
-// ramp a single upload stream up from hyper's ~64KB default, which under WAN
-// latency halves throughput versus the dedicated gRPC port's fixed 4MB window
-// (measured 9.84 vs 20.65 MB/s at 100ms RTT before this was removed). The auto
-// builder serves both HTTP/1.1 and HTTP/2 (incl. h2c prior-knowledge), so the
-// same listener handles HTTP cache requests and gRPC.
+fn configure_public_http_builder(builder: &mut HttpBuilder<TokioExecutor>) {
+    configure_http_builder(builder, HTTP2_INITIAL_STREAM_WINDOW_BYTES, true);
+}
+
+// The combined listener co-hosts REAPI gRPC, so it pins a fixed window (see
+// `configure_http_builder`) — never adaptive. The auto builder serves HTTP/1.1
+// and HTTP/2 (incl. h2c prior-knowledge), so one listener handles cache + gRPC.
 fn configure_combined_http_builder(builder: &mut HttpBuilder<TokioExecutor>) {
-    builder
-        .http1()
-        .keep_alive(true)
-        .timer(TokioTimer::new())
-        .header_read_timeout(Some(Duration::from_secs(30)));
-    builder
-        .http2()
-        .initial_stream_window_size(Some(COMBINED_HTTP2_STREAM_WINDOW_BYTES))
-        .initial_connection_window_size(Some(COMBINED_HTTP2_CONNECTION_WINDOW_BYTES))
-        .max_concurrent_streams(Some(HTTP2_MAX_CONCURRENT_STREAMS))
-        .max_frame_size(Some(HTTP2_MAX_FRAME_SIZE))
-        .max_send_buf_size(HTTP2_MAX_SEND_BUFFER_BYTES)
-        .keep_alive_interval(Some(HTTP2_KEEP_ALIVE_INTERVAL))
-        .keep_alive_timeout(HTTP2_KEEP_ALIVE_TIMEOUT)
-        .timer(TokioTimer::new());
+    configure_http_builder(builder, COMBINED_HTTP2_STREAM_WINDOW_BYTES, false);
 }
 
 async fn shutdown_signal() {
