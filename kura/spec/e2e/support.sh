@@ -62,13 +62,16 @@ resolve_host_port() {
   dc port "$1" "$2" | head -n1 | sed 's/.*://'
 }
 
-# Resolve SERVICE's published HTTP port (CONTAINER_PORT, default 4000) into the shell
-# vars <PREFIX>_PORT and <PREFIX>_URL, e.g. `resolve_http_node KURA_US kura-us` sets
-# KURA_US_PORT and KURA_US_URL=http://localhost:<port>. Call it after every `dc up`,
-# `dc restart`, or `dc stop`+`dc up` of the service: an ephemeral host port is
+# Resolve SERVICE's published client port (CONTAINER_PORT, default 8080 — kura's
+# combined HTTP + h2c gRPC listener, which the e2e suite exercises so both cache
+# and REAPI traffic ride one endpoint) into the shell vars <PREFIX>_PORT and
+# <PREFIX>_URL, e.g. `resolve_http_node KURA_US kura-us` sets KURA_US_PORT and
+# KURA_US_URL=http://localhost:<port>. Pass an explicit CONTAINER_PORT (e.g. 4000)
+# to reach a dedicated listener instead. Call it after every `dc up`, `dc
+# restart`, or `dc stop`+`dc up` of the service: an ephemeral host port is
 # re-allocated on each container start (recreate AND plain restart change it).
 resolve_http_node() {
-  local prefix="$1" service="$2" container_port="${3:-4000}" port
+  local prefix="$1" service="$2" container_port="${3:-8080}" port
   port="$(resolve_host_port "$service" "$container_port")"
   printf -v "${prefix}_PORT" '%s' "$port"
   printf -v "${prefix}_URL" 'http://localhost:%s' "$port"
