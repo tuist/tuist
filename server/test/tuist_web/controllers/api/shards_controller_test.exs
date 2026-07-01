@@ -5,6 +5,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
+  alias TuistWeb.Headers
 
   setup do
     user = AccountsFixtures.user_fixture(preload: [:account])
@@ -263,12 +264,15 @@ defmodule TuistWeb.API.ShardsControllerTest do
 
   describe "GET /api/projects/:account/:project/tests/shards/:reference/:shard_index" do
     test "returns shard for valid params", %{conn: conn, user: user, project: project} do
-      stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index ->
+      stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index, opts ->
+        refute Keyword.fetch!(opts, :suite_catch_all?)
+
         {:ok,
          %{
            shard_plan_id: Ecto.UUID.generate(),
            modules: ["AppTests"],
            suites: %{},
+           skip: [],
            download_url: "https://download.example.com"
          }}
       end)
@@ -281,11 +285,63 @@ defmodule TuistWeb.API.ShardsControllerTest do
       response = json_response(conn, :ok)
       assert response["modules"] == ["AppTests"]
       assert response["suites"] == %{}
+      assert response["skip"] == []
       assert response["download_url"] == "https://download.example.com"
     end
 
+    test "does not pass suite catch-all support for older CLI versions", %{conn: conn, user: user, project: project} do
+      stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index, opts ->
+        refute Keyword.fetch!(opts, :suite_catch_all?)
+
+        {:ok,
+         %{
+           shard_plan_id: Ecto.UUID.generate(),
+           modules: ["AppTests"],
+           suites: %{},
+           skip: [],
+           download_url: "https://download.example.com"
+         }}
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> Headers.put_cli_version("4.202.0-canary.20")
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/session-1/1")
+
+      response = json_response(conn, :ok)
+      assert response["modules"] == ["AppTests"]
+      assert response["skip"] == []
+    end
+
+    test "passes suite catch-all support for supported CLI versions", %{conn: conn, user: user, project: project} do
+      stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index, opts ->
+        assert Keyword.fetch!(opts, :suite_catch_all?)
+
+        {:ok,
+         %{
+           shard_plan_id: Ecto.UUID.generate(),
+           modules: [],
+           suites: %{},
+           skip: ["AppTests/LoginTests"],
+           download_url: "https://download.example.com"
+         }}
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> Headers.put_cli_version("4.202.0-canary.21")
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/session-1/1")
+
+      response = json_response(conn, :ok)
+      assert response["modules"] == []
+      assert response["suites"] == %{}
+      assert response["skip"] == ["AppTests/LoginTests"]
+    end
+
     test "returns not found for nonexistent plan", %{conn: conn, user: user, project: project} do
-      stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index ->
+      stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index, _opts ->
         {:error, :not_found}
       end)
 
@@ -299,7 +355,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
     end
 
     test "returns not found for out-of-range shard index", %{conn: conn, user: user, project: project} do
-      stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index ->
+      stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index, _opts ->
         {:error, :invalid_shard_index}
       end)
 

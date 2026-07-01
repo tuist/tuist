@@ -20,8 +20,12 @@ Test sharding for Xcode projects uses `tuist xcodebuild build-for-testing` to cr
 
 Test sharding follows a two-phase workflow:
 
-1. **Build phase:** Tuist enumerates your tests and creates a **shard plan** on the server. The server uses historical test timing data from the last 30 days to distribute tests across shards so each shard takes roughly the same amount of time. The build phase outputs a **shard matrix** that your CI system uses to spawn parallel runners.
-2. **Test phase:** Each CI runner receives a **shard index** and executes only the tests assigned to that shard.
+1. **Build phase:** Tuist reads the test modules from the built `.xctestrun` file and creates a **shard plan** on the server. The server uses historical test timing data from the last 30 days to distribute tests across shards so each shard takes roughly the same amount of time. The build phase outputs a **shard matrix** that your CI system uses to spawn parallel runners.
+2. **Test phase:** Each CI runner receives a **shard index** and executes that shard's test selection.
+
+With suite granularity, the server chooses known suites per module: for each module in the current `.xctestrun`, it uses the latest CI run on the build branch that included that module, falling back to the project's default branch for modules without branch history. This keeps selective testing runs from hiding modules that were skipped in the latest branch run.
+
+When `--shard-granularity suite` is used, Tuist balances known suites across the requested shard count and uses the final shard as the catch-all. For example, `--shard-total 5` produces shard indexes `0` through `4`, with shard index `4` as the catch-all. Regular shards run with `-only-testing` for their assigned suites. The final shard runs without `-only-testing` and passes `-skip-testing` for every suite assigned to the earlier shards, so it runs its planned suites plus newly added suites or suites missing from historical inventory. Module granularity does not need a catch-all because the `.xctestrun` file provides the module list.
 
 ## Build phase {#build-phase}
 
@@ -46,7 +50,7 @@ This command:
 |------|---------------------|-------------|
 | `--shard-max <N>` | `TUIST_TEST_SHARD_MAX` | Maximum number of shards. Used with `--shard-max-duration` to cap the shard count |
 | `--shard-min <N>` | `TUIST_TEST_SHARD_MIN` | Minimum number of shards |
-| `--shard-total <N>` | `TUIST_TEST_SHARD_TOTAL` | Exact number of shards (mutually exclusive with `--shard-min`/`--shard-max`) |
+| `--shard-total <N>` | `TUIST_TEST_SHARD_TOTAL` | Exact number of shards (mutually exclusive with `--shard-min`/`--shard-max`). With suite granularity, the final shard is the catch-all |
 | `--shard-max-duration <MS>` | `TUIST_TEST_SHARD_MAX_DURATION` | Target maximum duration per shard in milliseconds |
 | `--shard-granularity <LEVEL>` | `TUIST_TEST_SHARD_GRANULARITY` | `module` (default) distributes entire test modules across shards; `suite` distributes individual test classes for finer-grained balancing |
 | `--shard-reference <REF>` | `TUIST_SHARD_REFERENCE` | Unique identifier for the shard plan (auto-derived on supported CI providers) |

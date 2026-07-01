@@ -130,6 +130,10 @@ struct XcodeBuildTestCommandService {
             // Selection is delegated to `-only-testing` because xctestrun-level `OnlyTestIdentifiers`
             // does not filter Swift Testing tests.
             passthroughXcodebuildArguments += shard.testIdentifiers.flatMap { ["-only-testing", $0] }
+            // The catch-all shard carries no `-only-testing` and instead skips every suite assigned to
+            // other shards, so it runs whatever was not explicitly assigned (newly added or un-enumerated
+            // suites) rather than dropping it.
+            passthroughXcodebuildArguments += shard.skipTestIdentifiers.flatMap { ["-skip-testing", $0] }
         }
 
         let xcodeBuildArguments = try await xcodeBuildArgumentParser.parse(passthroughXcodebuildArguments)

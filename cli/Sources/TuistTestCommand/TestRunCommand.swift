@@ -274,7 +274,7 @@
 
         @Option(
             name: .long,
-            help: "Exact number of shards (mutually exclusive with --shard-min/--shard-max).",
+            help: "Exact number of shards (mutually exclusive with --shard-min/--shard-max). With suite granularity, the final shard is the catch-all.",
             envKey: .testShardTotal
         )
         var shardTotal: Int?

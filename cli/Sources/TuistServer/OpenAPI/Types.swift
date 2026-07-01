@@ -4699,7 +4699,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/shard_min`.
             public var shard_min: Swift.Int?
-            /// Exact number of shards.
+            /// Exact number of shards. With suite granularity, the final shard is the catch-all.
             ///
             /// - Remark: Generated from `#/components/schemas/CreateShardPlanParams/shard_total`.
             public var shard_total: Swift.Int?
@@ -4718,7 +4718,7 @@ public enum Components {
             ///   - shard_max: Maximum number of shards.
             ///   - shard_max_duration: Target maximum duration per shard in milliseconds.
             ///   - shard_min: Minimum number of shards.
-            ///   - shard_total: Exact number of shards.
+            ///   - shard_total: Exact number of shards. With suite granularity, the final shard is the catch-all.
             ///   - test_suites: Test suite names (for suite-level granularity).
             public init(
                 build_run_id: Swift.String? = nil,
@@ -5541,6 +5541,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Shard/shard_plan_id`.
             public var shard_plan_id: Swift.String
+            /// Test identifiers this shard must skip (`-skip-testing`). Set on the final suite catch-all shard, which runs everything not explicitly assigned to earlier shards so newly added or un-enumerated suites are not dropped. Empty for regular shards.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Shard/skip`.
+            public var skip: [Swift.String]?
             /// The test suites assigned to this shard, grouped by module name.
             ///
             /// - Remark: Generated from `#/components/schemas/Shard/suites`.
@@ -5571,22 +5575,26 @@ public enum Components {
             ///   - download_url: Presigned URL to download the shared test products bundle.
             ///   - modules: The test modules assigned to this shard.
             ///   - shard_plan_id: The UUID of the shard plan.
+            ///   - skip: Test identifiers this shard must skip (`-skip-testing`). Set on the final suite catch-all shard, which runs everything not explicitly assigned to earlier shards so newly added or un-enumerated suites are not dropped. Empty for regular shards.
             ///   - suites: The test suites assigned to this shard, grouped by module name.
             public init(
                 download_url: Swift.String,
                 modules: [Swift.String],
                 shard_plan_id: Swift.String,
+                skip: [Swift.String]? = nil,
                 suites: Components.Schemas.Shard.suitesPayload
             ) {
                 self.download_url = download_url
                 self.modules = modules
                 self.shard_plan_id = shard_plan_id
+                self.skip = skip
                 self.suites = suites
             }
             public enum CodingKeys: String, CodingKey {
                 case download_url
                 case modules
                 case shard_plan_id
+                case skip
                 case suites
             }
         }
@@ -52441,7 +52449,7 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/shard_min`.
                     public var shard_min: Swift.Int?
-                    /// Exact number of shards.
+                    /// Exact number of shards. With suite granularity, the final shard is the catch-all.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/POST/requestBody/json/shard_total`.
                     public var shard_total: Swift.Int?
@@ -52460,7 +52468,7 @@ public enum Operations {
                     ///   - shard_max: Maximum number of shards.
                     ///   - shard_max_duration: Target maximum duration per shard in milliseconds.
                     ///   - shard_min: Minimum number of shards.
-                    ///   - shard_total: Exact number of shards.
+                    ///   - shard_total: Exact number of shards. With suite granularity, the final shard is the catch-all.
                     ///   - test_suites: Test suite names (for suite-level granularity).
                     public init(
                         build_run_id: Swift.String? = nil,
