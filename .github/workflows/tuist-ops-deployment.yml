@@ -91,7 +91,7 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@v4.0.1
         with:
-          install_args: "helm kubectl"
+          install_args: "--locked helm kubectl"
           cache: "false"
       - uses: 1password/install-cli-action@v2
       - name: Load kubeconfig from 1Password

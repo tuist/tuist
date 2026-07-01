@@ -13,6 +13,22 @@ defmodule TuistWeb.UserLoginLiveTest do
       assert html =~ "Log in"
     end
 
+    test "does not render test user login button by default", %{conn: conn} do
+      stub(Tuist.Environment, :test_user_login_enabled?, fn -> false end)
+
+      {:ok, _lv, html} = live(conn, ~p"/users/log_in")
+
+      refute html =~ "Log in as test user"
+    end
+
+    test "renders test user login button when enabled", %{conn: conn} do
+      stub(Tuist.Environment, :test_user_login_enabled?, fn -> true end)
+
+      {:ok, _lv, html} = live(conn, ~p"/users/log_in")
+
+      assert html =~ "Log in as test user"
+    end
+
     test "redirects if already logged in", %{conn: conn} do
       user = user_fixture(preload: [:account])
 
@@ -49,6 +65,31 @@ defmodule TuistWeb.UserLoginLiveTest do
       {:ok, _lv, html} = live(conn, ~p"/users/log_in")
 
       assert html =~ "SSO"
+    end
+
+    test "renders SSO button if an organization has SSO configured even when not tuist hosted", %{conn: conn} do
+      stub(Tuist.Environment, :okta_oauth_configured?, fn -> false end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+      stub(Tuist.Accounts, :sso_configured?, fn -> true end)
+      {:ok, _lv, html} = live(conn, ~p"/users/log_in")
+
+      assert html =~ "SSO"
+    end
+
+    test "renders GitHub button when GitHub OAuth is configured and GitHub auth is enabled", %{conn: conn} do
+      stub(Tuist.Environment, :github_oauth_configured?, fn -> true end)
+      stub(Tuist.Environment, :github_auth_enabled?, fn -> true end)
+      {:ok, _lv, html} = live(conn, ~p"/users/log_in")
+
+      assert html =~ "GitHub"
+    end
+
+    test "hides GitHub button when GitHub auth is disabled even if GitHub OAuth is configured", %{conn: conn} do
+      stub(Tuist.Environment, :github_oauth_configured?, fn -> true end)
+      stub(Tuist.Environment, :github_auth_enabled?, fn -> false end)
+      {:ok, _lv, html} = live(conn, ~p"/users/log_in")
+
+      refute html =~ "GitHub"
     end
 
     test "renders email and password fields regardless of mail configuration", %{conn: conn} do

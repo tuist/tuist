@@ -67,6 +67,20 @@ defmodule Tuist.Billing.EntitlementsTest do
       refute Entitlements.allows?(account, :dedicated_kura_gateway)
     end
 
+    test "true for self-hosted cache when the active subscription is enterprise" do
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+
+      assert Entitlements.allows?(account, :self_hosted_cache)
+    end
+
+    test "false for self-hosted cache when the active subscription is not enterprise" do
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+
+      refute Entitlements.allows?(account, :self_hosted_cache)
+    end
+
     test "false for unknown features when the active subscription is not enterprise" do
       account = AccountsFixtures.organization_fixture(preload: [:account]).account
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)

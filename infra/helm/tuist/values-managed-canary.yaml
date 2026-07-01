@@ -14,6 +14,27 @@ server:
 
   appUrl: https://canary.tuist.dev
 
+  # Stripe price IDs (identifiers, not secrets — the API keys live in the
+  # STRIPE 1Password item). Canary's own (test-mode) IDs; the chart
+  # JSON-encodes this into TUIST_STRIPE_PRICES.
+  stripe:
+    prices:
+      air:
+        usage: ["price_1S7xQ3Q9gGM5W1ag8IjnKx6f"]
+        flat_monthly: ["price_1S7xQ3Q9gGM5W1agupKva14g"]
+      pro:
+        usage: ["price_1S7xtWQ9gGM5W1agTslSzRAJ"]
+        flat_monthly: ["price_1S7xtWQ9gGM5W1agIuQD7KbJ"]
+      enterprise:
+        flat_monthly: ["price_1S7y0PQ9gGM5W1ag9rjNl7FP"]
+        flat_yearly: []
+
+  # Canary runs no PostHog analytics (no POSTHOG item in its vault), so opt out
+  # of syncing it — otherwise the all-or-nothing ESO config sync would fail.
+  config:
+    posthog:
+      enabled: false
+
   autoscaling:
     enabled: false
 
@@ -54,9 +75,9 @@ server:
         memory: "200Mi"
 
   extraEnv:
-    # Selects which priv/secrets/<env>.yml.enc file the app decrypts at
-    # boot. Image is env-agnostic (built with MIX_ENV=prod); this flag
-    # plus the MASTER_KEY ESO secret pick the runtime deployment target.
+    # Selects the runtime deployment target (Tuist.Environment.env()). The
+    # image is env-agnostic (built with MIX_ENV=prod); this flag picks which
+    # env's config the release runs as.
     - name: TUIST_DEPLOY_ENV
       value: can
     # Single web replica shares this pool between request handling and the
@@ -69,7 +90,21 @@ server:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      value: eu-central
+      # scw-fr-par-runners is the macOS-serving private (runner-cache)
+      # region: the canary cluster's Elastic Metal node (kuraFleet) hosts
+      # the per-account cache pods and dispatch routes the Mac fleet's
+      # build cache to it over the Private Network. ca-east (Canada East /
+      # OVHcloud BHS) is the OVH bare-metal region — a geographic id; OVH is
+      # an implementation detail behind it (ovhFleet below, replicas 1) —
+      # mirroring staging.
+      value: eu-central,scw-fr-par-runners,ca-east
+    # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
+    # resolves to the node-port form (http://<node PN address>:<NodePort>
+    # on scw-fr-par-runners), reached over the PN the minis attach to
+    # (macosFleet.vmCachePrivateNetwork below). linux is the default and
+    # stays inert here (canary advertises no Linux private cache region).
+    - name: TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS
+      value: linux,macos
 
 objectStorage:
   external:
@@ -143,6 +178,10 @@ postgresql:
     # an entry under `parameters`.
     sharedPreloadLibraries:
       - pg_stat_statements
+    # Expose pg_stat_statements as query-latency metrics. The library above
+    # is loaded; create the extension once via infra/cnpg/pg-stat-statements.sql.
+    queryStats:
+      enabled: true
     # Route the processor through the transaction-mode PgBouncer pooler so
     # this soak env matches production's post-CNPG-cutover topology
     # (processor pooled, web tier direct on -rw). CNPG's built-in
@@ -184,7 +223,7 @@ processor:
       maxUnavailable: 1
   extraEnv:
     # Must match the server's TUIST_DEPLOY_ENV above so the processor pod
-    # decrypts the same priv/secrets/<env>.yml.enc file the web tier does.
+    # runs as the same env (Tuist.Environment.env()) as the web tier.
     - name: TUIST_DEPLOY_ENV
       value: can
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
@@ -224,6 +263,79 @@ xcresultProcessor:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
 
+# Declarative Scaleway Elastic Metal kura runner-cache node, co-located with the
+# Mac fleet in fr-par. The provider orders the bare-metal server, attaches it to
+# the runner-cache PN, mints a kubelet identity, and renders a self-join
+# cloud-init that registers the Node with the runner-cache taint. The control
+# plane is externally managed, so there's no CAPI kubeadm join; the reconciler
+# bootstraps the node itself.
+kuraFleet:
+  enabled: true
+  replicas: 1
+  machine:
+    # EM-B220E-NVME (~EUR120/mo) is the cheapest in-stock Elastic Metal box
+    # that still mirrors the production NVMe + 10G PN path, so canary validates
+    # the same local-NVMe + bare-metal-PN data plane prod runs on.
+    offerType: EM-B220E-NVME
+
+# Dedibox fleet (EU customer-facing Kura cache, the eu-central cutover). The
+# reconciler adopts a pre-ordered Dedibox carrying the tuist-kura-canary tag (the
+# env boundary, since all Dedibox share the org's default project) and self-joins
+# it as the kura-dedibox pool that backs eu-central. PREREQ before merge: the
+# DEDIBOX_SCW_API 1Password item exists in the canary vault, and a Start-2-L box
+# in DC5 is delivered + tagged tuist-kura-canary; an enabled fleet with no
+# adoptable box hangs helm --wait.
+dediboxFleet:
+  enabled: true
+  machine:
+    adoptTag: tuist-kura-canary
+    offer: Start-2-L
+    datacenter: DC5
+    os: ubuntu_24.04
+    # Node egress budget (Mbps): ~1 Gbit/s box, advertised as
+    # tuist.dev/egress-mbps so eu-central's 250-Mbps-floor pods bin-pack.
+    egressBudgetMbps: 1000
+  scaleway:
+    externalSecrets:
+      item: DEDIBOX_SCW_API
+  # Own the fleet SSH key from 1Password (generated fresh into this item).
+  sshExternalSecret:
+    enabled: true
+    item: DEDIBOX_FLEET_SSH
+
+# OVH fleet (OVHcloud bare-metal). Backs the `ca-east` region (Canada East /
+# OVHcloud BHS), mirroring staging. The reconciler adopts a pre-ordered OVH box
+# whose displayName starts with adoptDisplayNamePrefix, registers the fleet SSH
+# key, and self-joins it as the kura-ca-east pool. PREREQ before merge: the
+# OVH_API 1Password item exists in the canary vault (ovh-us entity; token scoped
+# GET /dedicated/server/* + GET /services/* + POST /dedicated/server/*/reinstall),
+# and a SYS-1 box in BHS is delivered + named tuist-kura-ovh-canary; an enabled
+# fleet with no adoptable box hangs helm --wait.
+ovhFleet:
+  enabled: true
+  replicas: 1
+  # OVHcloud US entity (api.us.ovhcloud.com). The BHS box sits on an OVHcloud US
+  # account, so the API endpoint is ovh-us; a token minted on ovh-ca/ovh-eu is
+  # rejected. The OVH_API token must be created on us.ovhcloud.com.
+  endpoint: ovh-us
+  nodePool: kura-ca-east
+  machine:
+    # Per-env adoption boundary (displayName prefix; one OVH account holds every
+    # env's boxes). The pre-ordered BHS box is named tuist-kura-ovh-canary.
+    adoptDisplayNamePrefix: tuist-kura-ovh-canary
+    offer: sys-1
+    datacenter: bhs
+    os: ubuntu_24.04
+    # Node egress budget (Mbps): SYS-1 ~1 Gbit/s, advertised as
+    # tuist.dev/egress-mbps so ca-east's 250-Mbps-floor pods bin-pack.
+    egressBudgetMbps: 1000
+  externalSecrets:
+    item: OVH_API
+  # Own the fleet SSH key from 1Password (generated fresh into this item).
+  sshExternalSecret:
+    enabled: true
+    item: OVH_FLEET_SSH
+
 # Mac mini fleet — declarative via CAPI.
 macosFleet:
   replicas: 1
@@ -236,6 +348,19 @@ macosFleet:
     tags: ["tag:tuist-macmini-canary"]
   controlPlane:
     host: api-canary.tuist.dev
+  # Runner-cache data plane: attach the minis to the same Private
+  # Network as the kura node (kuraFleet.machine.privateNetworkName), so
+  # the CAPI operator resolves each host's VLAN and bootstrap
+  # materializes the VLAN interface + VM egress pass + NAT. Dispatch
+  # hands the Mac fleet the node-port endpoint because
+  # TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS includes `macos` above.
+  # Note clients treat the cache endpoint as a hard override: if a mini
+  # isn't yet attached/bootstrapped, runner_cache_endpoint_url/2 returns
+  # nil (no active KuraInstance) and the build falls back to the public
+  # cache, so the cutover degrades rather than breaks while it converges.
+  vmCachePrivateNetwork:
+    name: tuist-runner-cache
+    cidr: 172.16.0.0/22
 
 # Customer-runner Mac mini fleet — sibling of macosFleet.
 # Canary keeps one warm runner so the production rollout can be
@@ -274,6 +399,11 @@ runnersFleet:
         minWarmPoolFloor: 0
         maxReplicas: 1
     "26.3":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 1
+    "26.0.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0

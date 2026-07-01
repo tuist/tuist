@@ -1,9 +1,10 @@
 name: Preview Sweep
 
-# Hourly cleanup pass over the preview cluster. Deletes preview namespaces
-# whose `tuist.dev/expires-at` label is in the past — uninstalls the
-# release and drops the namespace. Also exposed as workflow_dispatch for
-# force-runs (e.g. after manually uninstalling something out-of-band).
+# External cleanup backstop for the in-cluster preview-janitor CronJob.
+# Deletes preview namespaces whose `tuist.dev/expires-at` label is in the
+# past — uninstalls the release and drops the namespace. Also exposed as
+# workflow_dispatch for force-runs (e.g. after manually uninstalling
+# something out-of-band).
 #
 # No worker-pool scaling here: the preview cluster keeps a fixed worker
 # pool (see infra/k8s/clusters/cluster-preview.yaml + the §8.3 step in
@@ -30,9 +31,10 @@ jobs:
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
+      - uses: actions/checkout@v4
       - uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "helm kubectl"
+          install_args: "--locked helm@4.2.0 kubectl@1.36.1 jq@1.8.1"
           cache: "false"
       - name: Load kubeconfig
         run: |
@@ -45,28 +47,73 @@ jobs:
         # chance to run, then drop the namespace. `kubectl delete namespace`
         # is itself a backstop — if helm uninstall fails, the namespace
         # delete cascades through anyway.
+        #
+        # Namespaces in `state=creating` are skipped while the create is
+        # still plausibly in flight — the deploy workflow writes that label
+        # before any chart mutation and flips to `state=ready` once helm
+        # upgrade returns. A cancelled / failed create would otherwise leave
+        # the namespace orphaned indefinitely, so we treat `state=creating`
+        # plus a stale `created-at` (older than STUCK_CREATE_AGE_SECONDS) as
+        # a botched create and tear it down.
+        env:
+          STUCK_CREATE_AGE_SECONDS: "1800"
         run: |
           set -euo pipefail
+
           NOW=$(date +%s)
-          MAPPING=$(kubectl get namespaces -l tuist.dev/preview=true \
-            -o jsonpath='{range .items[*]}{.metadata.name}={.metadata.labels.tuist\.dev/expires-at}{"\n"}{end}')
+          MAPPING=$(kubectl get namespaces -l tuist.dev/preview=true -o json | jq -c '
+            .items[] |
+            {
+              name: .metadata.name,
+              release: (.metadata.labels["tuist.dev/release"] // ""),
+              expires_at: (.metadata.labels["tuist.dev/expires-at"] // ""),
+              state: (.metadata.labels["tuist.dev/state"] // ""),
+              created_at: (.metadata.annotations["tuist.dev/created-at"] // "")
+            }
+          ')
           if [ -z "$MAPPING" ]; then
             echo "No preview namespaces found."
             exit 0
           fi
           echo "Found preview namespaces:"
-          echo "$MAPPING"
+          echo "$MAPPING" | jq -r '[.name, .release, .expires_at, .state, .created_at] | @tsv'
 
-          while IFS='=' read -r NS EXP; do
-            [ -z "$NS" ] && continue
-            if [ -z "$EXP" ] || ! [[ "$EXP" =~ ^[0-9]+$ ]]; then
-              echo "::warning::namespace $NS has missing/invalid expires-at label; skipping"
-              continue
-            fi
-            if [ "$EXP" -le "$NOW" ]; then
-              echo "==> Expired: $NS (expired $((NOW - EXP))s ago) — uninstalling"
+          while IFS= read -r PREVIEW; do
+            [ -z "$PREVIEW" ] && continue
+            NS=$(jq -r '.name' <<< "$PREVIEW")
+            RELEASE=$(jq -r '.release' <<< "$PREVIEW")
+            EXP=$(jq -r '.expires_at' <<< "$PREVIEW")
+            STATE=$(jq -r '.state' <<< "$PREVIEW")
+            CREATED_AT=$(jq -r '.created_at' <<< "$PREVIEW")
+
+            if [ -z "$RELEASE" ]; then
               # Strip the `preview-` prefix to get the helm release name.
               RELEASE="${NS#preview-}"
+            fi
+
+            DELETE_REASON=""
+            if [ "$STATE" = "creating" ]; then
+              if [[ "$CREATED_AT" =~ ^[0-9]+$ ]] && [ $((NOW - CREATED_AT)) -ge "$STUCK_CREATE_AGE_SECONDS" ]; then
+                DELETE_REASON="stuck creating $((NOW - CREATED_AT))s — past STUCK_CREATE_AGE_SECONDS=$STUCK_CREATE_AGE_SECONDS"
+              else
+                echo "    Skipping mid-create: $NS"
+                continue
+              fi
+            elif [ -z "$EXP" ] || ! [[ "$EXP" =~ ^[0-9]+$ ]]; then
+              echo "::warning::namespace $NS has missing/invalid expires-at label; skipping"
+              continue
+            elif [ "$EXP" -le "$NOW" ]; then
+              DELETE_REASON="expired $((NOW - EXP))s ago"
+            fi
+
+            if [ -n "$DELETE_REASON" ]; then
+              echo "==> Deleting: $NS ($DELETE_REASON)"
+              # The cluster-wide Kura controller in the `kura` namespace
+              # owns the KuraInstance for this preview; delete it with
+              # --wait so the finalizer drains the public Ingress and the
+              # cert-manager Certificate before we drop the preview's
+              # helm release and namespace.
+              kubectl -n kura delete kurainstance "${RELEASE}-kura" --ignore-not-found --wait=true --timeout 5m || true
               helm uninstall "$RELEASE" --namespace "$NS" --wait --timeout 5m || true
               kubectl delete namespace "$NS" --wait=true --timeout 5m || true
             else

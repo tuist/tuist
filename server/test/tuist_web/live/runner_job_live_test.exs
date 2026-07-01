@@ -7,6 +7,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.JobLogs
+  alias Tuist.Runners.JobMetrics
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.JobSteps
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -409,6 +410,64 @@ defmodule TuistWeb.RunnerJobLiveTest do
     refute has_element?(lv2, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Overview")
   end
 
+  test "renders the machine metrics charts on the Metrics tab", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_810,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 318_010,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Test",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    :ok =
+      JobMetrics.record(31_810, account.id, [
+        %{
+          timestamp: 1_750_000_000.0,
+          cpu_usage_percent: 70.0,
+          cpu_iowait_percent: 3.0,
+          memory_used_bytes: 8_000_000_000,
+          memory_total_bytes: 16_000_000_000,
+          network_bytes_in: 1_048_576,
+          network_bytes_out: 524_288,
+          disk_used_bytes: 40_000_000_000,
+          disk_total_bytes: 64_000_000_000
+        }
+      ])
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/318010/jobs/31810?tab=metrics")
+
+    assert html =~ "CPU I/O Wait"
+    assert html =~ "Storage"
+    assert html =~ "runner-job-metrics-cpu"
+  end
+
+  test "shows the metrics empty state when a job has no samples", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_820,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 318_020,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Test",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/318020/jobs/31820?tab=metrics")
+
+    assert html =~ "Machine metrics will appear here"
+    refute html =~ "runner-job-metrics-cpu"
+  end
+
   test "loads only the tail and pages older logs on demand", %{conn: conn, account: account} do
     :ok =
       Jobs.enqueue(%{
@@ -633,6 +692,25 @@ defmodule TuistWeb.RunnerJobLiveTest do
   test "raises 404 for a non-integer workflow_job_id", %{conn: conn, account: account} do
     assert_raise NotFoundError, fn ->
       live(conn, ~p"/#{account.name}/runners/runs/312010/jobs/notanumber")
+    end
+  end
+
+  describe "step_window/1" do
+    test "spans the first step's start to the last step's end in epoch ms" do
+      steps = [
+        %{started_at: ~U[2026-05-28 10:00:00Z], completed_at: ~U[2026-05-28 10:00:05Z]},
+        %{started_at: ~U[2026-05-28 10:00:05Z], completed_at: ~U[2026-05-28 10:01:00Z]}
+      ]
+
+      assert TuistWeb.RunnerJobLive.step_window(steps) == %{
+               min: DateTime.to_unix(~U[2026-05-28 10:00:00Z], :millisecond),
+               max: DateTime.to_unix(~U[2026-05-28 10:01:00Z], :millisecond)
+             }
+    end
+
+    test "returns nil when there are no steps with timestamps" do
+      assert TuistWeb.RunnerJobLive.step_window([]) == nil
+      assert TuistWeb.RunnerJobLive.step_window([%{started_at: nil, completed_at: nil}]) == nil
     end
   end
 end

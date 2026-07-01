@@ -50,6 +50,7 @@ When instantiating a `Target`, you can pass the `dependencies` argument with any
 - `XCFramework`: Declares a dependency with a binary XCFramework.
 - `SDK`: Declares a dependency with a system SDK.
 - `XCTest`: Declares a dependency with XCTest.
+- `Macro`: Declares a dependency with a Swift macro target defined in the same project (see [Swift Macros](#swift-macros)).
 
 > [!NOTE]
 > **Dependency Conditions**
@@ -216,40 +217,37 @@ let target = .target(name: "MyTarget", dependencies: [
 ])
 ```
 
-For Swift Macros and Build Tool Plugins, you'll need to use the types `.macro` and `.plugin` respectively.
+When integrating a Swift Macro or Build Tool Plugin from an external Swift Package through Xcode's default integration, declare it with the types `.macro` and `.plugin` respectively. Macros can also be consumed through [Tuist's XcodeProj-based integration](#tuists-xcodeprojbased-integration), and if you want to define a Swift macro of your own instead of consuming one from a package, see [Swift Macros](#swift-macros).
 
 > [!WARNING]
-> **Spm Build Tool Plugins**
+> **SPM Build Tool Plugins**
 >
-> SPM build tool plugins must be declared using [Xcode's default integration](#xcode-s-default-integration) mechanism, even when using Tuist's [XcodeProj-based integration](#tuist-s-xcodeproj-based-integration) for your project dependencies.
+> SPM build tool plugins must be declared using [Xcode's default integration](#xcodes-default-integration) mechanism, even when using Tuist's [XcodeProj-based integration](#tuists-xcodeprojbased-integration) for your project dependencies.
 
+SPM build tool plugins are Swift programs that Xcode and SwiftPM execute to discover the concrete build commands that should run for a target.
+Those commands can depend on the package graph, target files, plugin work directory, resolved plugin tools, and the outputs declared by the plugin.
+Some plugins also generate files that must become part of the same target build.
 
-A practical application of an SPM build tool plugin is performing code linting during Xcode's "Run Build Tool Plug-ins" build phase. In a package manifest this is defined as follows:
+Tuist's XcodeProj-based integration maps package products into native Xcode targets when the mapping is static, for example libraries, binaries, executables, and macros.
+Build tool plugins do not have an equivalent native Xcode project primitive outside Xcode's SwiftPM integration.
+Although a plugin can eventually run an executable, invoking that executable from a regular script build phase is not equivalent to running the plugin: Tuist would first need to evaluate the plugin's Swift code, reproduce SwiftPM's plugin context, discover the commands, model the declared inputs and outputs, and add any generated files to the target graph before Xcode plans the build.
 
-```swift
-// swift-tools-version: 5.9
-import PackageDescription
+For this reason, declaring a plugin package only in `Tuist/Package.swift` and consuming it through `.external(name:)` is not supported.
+The supported alternative is to declare the package in `Project.packages` and add the plugin product to the consuming target with `.package(product:type: .plugin)`.
+This keeps the plugin attached to the generated Xcode project as a Swift Package product dependency, so Xcode and SwiftPM can run it with the native plugin context.
 
-let package = Package(
-    name: "Framework",
-    products: [
-        .library(name: "Framework", targets: ["Framework"]),
-    ],
-    dependencies: [
-        .package(url: "https://github.com/SimplyDanny/SwiftLintPlugins", .upToNextMajor(from: "0.56.1")),
-    ],
-    targets: [
-        .target(
-            name: "Framework",
-            plugins: [
-                .plugin(name: "SwiftLint", package: "SwiftLintPlugin"),
-            ]
-        ),
-    ]
-)
-```
+The tradeoff is that Xcode owns that plugin integration:
 
-To generate an Xcode project with the build tool plugin intact, you must declare the package in the project manifest's `packages` array, and then include a package with type `.plugin` in a target's dependencies.
+- Xcode resolves and builds the plugin package through its SwiftPM integration.
+- The package appears in the generated project as a Swift Package reference instead of a Tuist-generated external target.
+- Tuist cannot give the plugin the same level of control, validation, caching, and selective-testing behavior that it can provide for statically mapped package products.
+- CI and local builds must allow Xcode's package resolution for those plugin packages.
+
+Because of these implications, we generally don't recommend using SPM build tool plugins in Tuist projects.
+When possible, prefer a build phase script declared in the target, or run the tool from a script outside the generated Xcode project before invoking Tuist or Xcode.
+
+A practical application of an SPM build tool plugin is performing code linting during Xcode's "Run Build Tool Plug-ins" build phase.
+To generate an Xcode project with the build tool plugin intact, declare the package in the project manifest's `packages` array, and then include a package with type `.plugin` in a target's dependencies.
 
 ```swift
 import ProjectDescription
@@ -300,6 +298,74 @@ pod install
 
 > [!WARNING]
 > CocoaPods dependencies are not compatible with workflows like `build` or `test` that run `xcodebuild` right after generating the project. They are also incompatible with binary caching and selective testing since the fingerprinting logic doesn't account for the Pods dependencies.
+
+
+## Swift Macros {#swift-macros}
+
+There are two distinct scenarios when working with [Swift Macros](https://docs.swift.org/swift-book/documentation/the-swift-programming-language/macros/) in a Tuist project, and it's worth being explicit about which one you're in:
+
+- **Consuming a macro defined in an external Swift Package.** Both integration mechanisms support macros. With [Tuist's XcodeProj-based integration](#tuists-xcodeprojbased-integration), you declare the package in `Tuist/Package.swift` and depend on it with `.external(name:)` — Tuist maps the macro product into a native target. With [Xcode's default integration](#xcodes-default-integration), you declare the dependency with `.package(product:type: .macro)`. Unlike build tool plugins, macros are not restricted to Xcode's default integration.
+- **Defining your own macro** as part of your project — for example in a shared library within your monorepo. You don't need a `Package.swift` for this: Tuist has a first-class `.macro` product type, so you can declare the macro target directly in your manifests.
+
+### Defining your own macro {#defining-your-own-macro}
+
+A Swift macro is a compiler plugin: an executable that the Swift compiler loads and runs at compile time. Tuist models this natively with the `.macro` product type. Although Apple doesn't expose a Swift Macro target type in Xcode projects, Tuist enables it by generating a command-line tool target, wiring it as a dependency of the targets that use the macro, and injecting the `-load-plugin-executable` flag into their Swift compiler settings. All of that plumbing is handled for you.
+
+A typical macro is split into two targets: the **plugin** target that implements the macro (`product: .macro`), and the **library** target that declares the macro's public interface (`@attached`/`@freestanding` declarations) and depends on the plugin via `.macro(name:)`. Because the plugin runs on the build machine, its target is host-only (macOS).
+
+The macro implementation depends on [swift-syntax](https://github.com/swiftlang/swift-syntax), which you declare as a regular external dependency in `Tuist/Package.swift`:
+
+```swift [Tuist/Package.swift]
+// swift-tools-version: 5.9
+import PackageDescription
+
+let package = Package(
+    name: "PackageName",
+    dependencies: [
+        .package(url: "https://github.com/swiftlang/swift-syntax", from: "600.0.0"),
+    ]
+)
+```
+
+You can then define the macro plugin and library targets directly in your project:
+
+```swift [Project.swift]
+import ProjectDescription
+
+let project = Project(
+    name: "MyLibrary",
+    targets: [
+        // The compiler plugin that implements the macro. macOS-only, since it
+        // runs on the build machine at compile time.
+        .target(
+            name: "MyMacrosImplementation",
+            destinations: [.mac],
+            product: .macro,
+            bundleId: "dev.tuist.MyMacrosImplementation",
+            sources: ["Sources/MyMacrosImplementation/**"],
+            dependencies: [
+                .external(name: "SwiftSyntax"),
+                .external(name: "SwiftSyntaxMacros"),
+                .external(name: "SwiftCompilerPlugin"),
+            ]
+        ),
+        // The library that exposes the macro declarations to consumers and
+        // depends on the plugin via `.macro(name:)`.
+        .target(
+            name: "MyLibrary",
+            destinations: .iOS,
+            product: .framework,
+            bundleId: "dev.tuist.MyLibrary",
+            sources: ["Sources/MyLibrary/**"],
+            dependencies: [
+                .macro(name: "MyMacrosImplementation"),
+            ]
+        ),
+    ]
+)
+```
+
+Any target that links `MyLibrary` can now use the macro — Tuist propagates the plugin so the compiler can load it.
 
 
 ## Static or dynamic {#static-or-dynamic}

@@ -1,0 +1,47 @@
+# Template for the gateway nginx config used by the throughput harness.
+#
+# The confgen step (the client's `genconfs` subcommand) renders two files from
+# this template by substituting the single marker line in the http{} block below:
+#   - generated/patched.conf : marker replaced with the HTTP/2 upload-window
+#     directives DERIVED FROM the live chart values
+#     (infra/helm/platform/values.yaml), so the test tracks the real config
+#     instead of a hand-copied snapshot.
+#   - generated/baseline.conf: marker removed, leaving nginx defaults -- i.e.
+#     production before the fix.
+#
+# Everything else mirrors the kura gateway (h2c listener, grpc_pass, unlimited
+# body, long grpc timeouts, no buffering) and is identical between the two, so
+# the measured difference is attributable to the window directives alone.
+
+worker_processes auto;
+events { worker_connections 4096; }
+
+http {
+    access_log off;
+    error_log /dev/stderr warn;
+
+    # __WINDOW_DIRECTIVES__
+
+    upstream kura_grpc {
+        server kura:50051;
+        keepalive 16;
+        keepalive_requests 10000;
+        keepalive_timeout 10s;
+    }
+
+    server {
+        listen 8443;
+        http2 on;                      # cleartext HTTP/2 (h2c)
+
+        client_max_body_size 0;        # proxy-body-size: 0
+        proxy_buffering off;           # proxy-buffering: off
+        proxy_request_buffering off;   # no-op for grpc, kept for parity
+        proxy_max_temp_file_size 0;    # proxy-max-temp-file-size: 0
+
+        location / {
+            grpc_pass grpc://kura_grpc;
+            grpc_read_timeout 3600s;   # proxy-read-timeout: 3600
+            grpc_send_timeout 3600s;   # proxy-send-timeout: 3600
+        }
+    }
+}

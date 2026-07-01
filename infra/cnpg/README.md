@@ -6,15 +6,30 @@ The chart-rendered `Cluster` CR ([`infra/helm/tuist/templates/postgresql-cnpg.ya
 
 ## Files
 
-- [`tuist-processor-grants.sql`](./tuist-processor-grants.sql) — `oban_jobs` / `oban_peers` write grants for the `tuist_processor` role. The role itself is created declaratively by CNPG via `managed.roles[]`; this file adds the per-table privileges the worker needs.
-- [`tuist-ops-ro-grants.sql`](./tuist-ops-ro-grants.sql) — `CONNECT` on the application database for the `tuist_ops_ro` role, plus an explicit `REVOKE` of write privileges on `public` (defense-in-depth against a future grant-by-default change in Postgres widening `pg_read_all_data`). The role is for ad-hoc operator psql access; the `/ops/db` LiveView uses Tuist.Repo and enforces read-only at the app layer (see `Tuist.Ops.Database.execute/2`).
+- Web runtime grants are applied automatically by `Tuist.Release.migrate/0` when `TUIST_DATABASE_RUNTIME_ROLE` is set (the Helm chart sets it to `postgresql.cnpg.roles.web.name` for managed CNPG migration jobs). The migration role keeps owning schema changes, and the web role gets DML on application tables plus read-only access to `schema_migrations`.
+- [`tuist-processor-grants.sql`](./tuist-processor-grants.sql) — per-table grants for the `tuist_processor` role (`oban_jobs`/`oban_peers` writes, plus `accounts`/`projects`/`webhook_endpoints` reads). The role itself is created declaratively by CNPG via `managed.roles[]`. **These grants are now applied automatically by `Tuist.Release.migrate/0` (`do_grant_processor_role`) on every migrate for managed CNPG envs**, so this file is a bootstrap/restore fallback for the window before the first migrate runs — keep it in sync with `do_grant_processor_role`. Pass `-v tuist_schema=<schema>` when the chart uses a non-`public` `postgresql.schema`.
+- [`tuist-ops-ro-grants.sql`](./tuist-ops-ro-grants.sql) — `CONNECT` on the application database for the `tuist_ops_ro` role, plus an explicit `REVOKE` of write privileges on the application schema (defense-in-depth against a future grant-by-default change in Postgres widening `pg_read_all_data`). The role is for ad-hoc operator psql access; the `/ops/db` LiveView uses Tuist.Repo under the web runtime role and enforces read-only at the app layer (see `Tuist.Ops.Database.execute/2`).
+- [`pg-stat-statements.sql`](./pg-stat-statements.sql) — `CREATE EXTENSION pg_stat_statements`, enabling the per-query latency metrics (`cnpg_tuist_query_stats_*`) that back the dashboard's query-latency panels. The library is preloaded via the chart (`postgresql.cnpg.sharedPreloadLibraries`); this creates the reading view. **Runs against `postgres`, not `tuist`** (the metrics exporter queries the instance-global view from the maintenance database). Only relevant when `postgresql.cnpg.queryStats.enabled` is set. **Only for clusters bootstrapped before query-stats was enabled** — fresh clusters create the extension automatically via the Cluster CR's `bootstrap.initdb.postInitSQL`, and it persists across restores. (The operator now supports `Database.spec.extensions`, which could reconcile it declaratively on existing clusters instead.)
 
 ## When to run
 
-- **Once per env, immediately after the CNPG `Cluster` reports `phase: Cluster in healthy state`** — the cluster has bootstrapped its primary, ESO has synced the managed-role password Secrets, and CNPG has created the roles themselves. The `oban_jobs` table only exists after the first Ecto migration, so run these *after* the migration Job ran for the first time too.
+- **Once per env, immediately after the CNPG `Cluster` reports `phase: Cluster in healthy state`** — the cluster has bootstrapped its primary, ESO has synced the managed-role password Secrets, and CNPG has created the roles themselves. Web runtime grants are part of the managed CNPG migration Job; the processor's `oban_jobs` grants only make sense after the first Ecto migration, so run the SQL files *after* the migration Job ran for the first time too.
 - **After a fresh cluster restore from a backup** — `pg_basebackup`-style restores re-create role objects but not the per-table GRANT state, so the SQL re-runs are needed.
 
 The files use `GRANT … TO <role>` against pre-existing tables and roles, so re-running them on an existing cluster is a no-op outside of explicit grant changes.
+
+## Managed web runtime role cutover
+
+Managed CNPG deployments use an explicit least-privilege steady state:
+migration jobs use the CNPG owner Secret, server pods use the `tuist_web`
+runtime role Secret, and migrations grant `tuist_web` after schema changes by
+setting `TUIST_DATABASE_RUNTIME_ROLE`.
+
+Before deploying this setting to an environment, confirm ESO has synced
+`WEB_DATABASE_PASSWORD` and CNPG has reconciled the managed role Secret. For a
+brand-new managed environment, provision the web-role Secret before switching
+`server.managedSecrets` with `postgresql.mode: cnpg`, otherwise the server
+Deployment and migration Job will reference a role that is not ready yet.
 
 ## How to run
 
@@ -24,17 +39,25 @@ The cluster's `postgres` superuser Secret (`<cluster-name>-superuser`) is genera
 ENV=staging  # or canary | production
 NAMESPACE=tuist-$ENV
 CLUSTER=tuist-tuist-pg
+TUIST_SCHEMA=public
 
 # -d tuist switches psql to the application database that CNPG creates
 # via `bootstrap.initdb.database`. The maintenance database (`postgres`)
 # the cluster's superuser defaults to does not have the application's
 # schema, so GRANTs against `oban_jobs`/`accounts`/`projects` need the
-# right -d on the psql side.
-kubectl cnpg psql -n "$NAMESPACE" "$CLUSTER" -- -d tuist -f - \
+# right -d on the psql side. `tuist_schema` should match the chart's
+# `postgresql.schema` value.
+kubectl cnpg psql -n "$NAMESPACE" "$CLUSTER" -- -d tuist -v "tuist_schema=$TUIST_SCHEMA" -f - \
   < infra/cnpg/tuist-processor-grants.sql
 
-kubectl cnpg psql -n "$NAMESPACE" "$CLUSTER" -- -d tuist -f - \
+kubectl cnpg psql -n "$NAMESPACE" "$CLUSTER" -- -d tuist -v "tuist_schema=$TUIST_SCHEMA" -f - \
   < infra/cnpg/tuist-ops-ro-grants.sql
+
+# pg_stat_statements is instance-global and the metrics exporter reads it
+# from the maintenance database, so this one runs against `postgres`, not
+# `tuist`. Only needed where postgresql.cnpg.queryStats.enabled is set.
+kubectl cnpg psql -n "$NAMESPACE" "$CLUSTER" -- -d postgres -f - \
+  < infra/cnpg/pg-stat-statements.sql
 ```
 
 Each file ends with a sanity-check `SELECT … information_schema.role_table_grants …` query that prints the exact privilege set the role holds after the run. A clean run shows the expected `arwd/postgres` shape on the granted tables.
@@ -102,3 +125,90 @@ kubectl cnpg backup-status -n "$NAMESPACE" "$CLUSTER"
 # Then build a restore manifest using `kubectl cnpg restore` (see the
 # CNPG docs); destroy it once the validation queries finish.
 ```
+
+## Operator version & upgrade path
+
+The CNPG operator version is pinned by the `cloudnative-pg` dependency in
+[`infra/helm/platform/Chart.yaml`](../helm/platform/Chart.yaml). Production runs
+operator **1.29.1** (chart `0.28.3`), the latest supported line. The chart
+version and the operator `appVersion` are separate numbers; the authoritative
+map is the upstream Helm index (<https://cloudnative-pg.io/charts/index.yaml>,
+or `helm search repo cloudnative-pg --versions`). The platform chart is
+re-applied by the `platform-install` deploy job, so bumping that pin upgrades
+the operator on the next deploy.
+
+For that to happen on merge, `infra/helm/platform/` must be in the
+`deployable-changed` path filter in
+[`.github/workflows/server-production-deployment.yml`](../../.github/workflows/server-production-deployment.yml).
+That filter gates the `build` job, which the whole canary -> acceptance ->
+production cascade depends on. A change to a path outside the filter skips
+`build` and therefore skips every deploy job, so the run goes green without ever
+reaching a cluster. If a platform-only bump ever merges without deploying, check
+that this path is still in the filter.
+
+Upgrade one minor at a time — CNPG only supports sequential N->N+1 upgrades,
+not skips (<https://cloudnative-pg.io/docs/current/installation_upgrade/>). Bump
+the chart pin by one minor, merge, and let it deploy via `platform-install`.
+
+Keep the operand Postgres image (`postgresql.cnpg.image.tag`) pinned and out of
+the operator-bump PR: CNPG's admission webhook rejects changing the image and
+`postgresql.parameters` in the same apply, and a fixed operand makes the bump a
+clean instance-manager-only roll.
+
+### What an operator bump does to a running cluster
+
+Upgrading the operator triggers a rolling update of every CNPG cluster it
+manages, one instance at a time, ending in a primary switchover governed by
+`primaryUpdateStrategy` (currently `unsupervised`, the CNPG default, so the
+switchover completes automatically). With synchronous replication the promotion
+is fast and lossless (RPO 0); the write path sees a few seconds of dropped
+connections and errors during the switchover. Because the operator is
+cluster-wide, a bump on the production cluster rolls both the main `tuist`
+cluster and the single-instance `tuist-ops` cluster (the latter takes a brief
+restart, since it has no replica to fail over to).
+
+Merge an operator-bump PR at the start of a low-traffic window wider than the
+deploy lag (the prod step runs after the canary deploy and acceptance tests, so
+roughly 20-40 min after merge), so the switchover lands inside the quiet period.
+
+In-tree `barmanObjectStore` backups are deprecated (since operator 1.26) in
+favor of the Barman Cloud Plugin but still work on 1.29. The plugin migration is
+wired up but gated off — see below.
+
+## Backup: in-tree barmanObjectStore -> Barman Cloud Plugin
+
+In-tree Barman Cloud is deprecated (since operator 1.26) and is being phased out
+of the core operator. This chart can render backups either way, switched per
+cluster by `…backup.plugin.enabled` (default `false` = the in-tree
+`barmanObjectStore`, unchanged). When enabled, the cluster archives via the
+Barman Cloud Plugin (CNPG-I): an `ObjectStore` CR holds the bucket config and
+the `Cluster` references it through `.spec.plugins`. Value keys: the main server
+uses `postgresql.cnpg.backup.plugin.*`; tuist-ops uses `postgresql.backup.plugin.*`.
+
+**The plugin is installed on every cluster by the platform deploy** — it's a
+dependency of the platform chart (`plugin-barman-cloud`, pinned in
+[`infra/helm/platform/Chart.yaml`](../helm/platform/Chart.yaml), toggled by
+`plugin-barman-cloud.enabled`). As a subchart of the `platform` release it lands
+in the `platform` namespace alongside the operator, which is where the plugin
+must run. It's idle until a `Cluster` opts in, so installing it changes no
+backups. Bump it like any other platform dependency: edit the pin and redeploy.
+It needs cert-manager (already a platform dependency) and adds the
+`objectstores.barmancloud.cnpg.io` CRD, the `barman-cloud` Deployment, a
+Service, and self-signed mTLS Certificates.
+
+**Cutover (per env):** with the plugin installed, flip
+`…backup.plugin.enabled` to `true` and deploy. This is an atomic change to the
+`Cluster` (drops `.spec.backup.barmanObjectStore`, adds `.spec.plugins`), so it
+triggers a rolling update + switchover — merge it in a low-traffic window like
+an operator bump.
+
+**Continuity invariant (verify before trusting it):** the plugin must keep
+writing to the SAME archive. `serverName` is pinned to the cluster name (the
+value the in-tree path defaulted to) and the `ObjectStore` reuses the same
+`destinationPath` + credentials, so the prefix is unchanged. After cutover,
+confirm the primary's logs show `Archived WAL file` to the same
+`s3://…/<serverName>` path, then run a restore-validation drill from a
+plugin-written backup before retiring the in-tree path elsewhere.
+
+**Observability:** backup metrics rename from `cnpg_collector_*` to
+`barman_cloud_cloudnative_pg_io_*`; repoint any panels or backup-failure alerts.

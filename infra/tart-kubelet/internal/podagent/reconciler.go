@@ -11,12 +11,14 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -78,6 +80,22 @@ type Reconciler struct {
 	// GC reclaims disk when a Tart pull errors with no-space. Optional
 	// — when nil, the reconciler just surfaces the error.
 	GC *Collector
+
+	// Recorder emits Pod Events (e.g. "CreatingVM") so the
+	// Scheduled→Running gap — previously a silent dead zone with no
+	// events between the scheduler placing the Pod and the VM getting
+	// an IP — is visible in `kubectl describe`. Optional; nil skips
+	// event emission.
+	Recorder record.EventRecorder
+
+	// goldenMu guards goldenLocks; goldenLocks serializes golden-base
+	// materialization per image digest so two Pods admitted close
+	// together don't both run the one-time pull+clone for the same
+	// golden (the second `tart clone` would fail "VM exists"). Reconcile
+	// concurrency is 1 today, but the lock keeps ensureGolden correct if
+	// that's ever raised, and costs nothing on the warm fast path.
+	goldenMu    sync.Mutex
+	goldenLocks map[string]*sync.Mutex
 }
 
 // MetricsScrapeAnnotation is the pod annotation that tells
@@ -188,9 +206,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			}
 			return ctrl.Result{}, fmt.Errorf("add finalizer: %w", err)
 		}
-		// Patch landed; let the watch fire the next reconcile with
-		// the updated object so we don't risk acting on a stale copy.
-		return ctrl.Result{}, nil
+		// Patch landed. Requeue explicitly instead of relying solely on
+		// the watch to re-fire: a missed or delayed watch event would
+		// otherwise leave the Pod Pending with no VM and nothing to
+		// re-trigger provisioning until the informer's resync (hours) —
+		// the stranded-Pending failure mode seen in prod.
+		return ctrl.Result{Requeue: true}, nil
 	}
 
 	// If a previous reconcile recorded a RunHandle and the
@@ -268,7 +289,18 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 		return nil
 	}
 
+	// Mark the start of provisioning so the Scheduled→Running gap is no
+	// longer a silent dead zone in `kubectl describe`. k8s aggregates
+	// duplicate events, so a retried createPod doesn't spam.
+	if r.Recorder != nil {
+		r.Recorder.Event(pod, corev1.EventTypeNormal, "CreatingVM", "starting Tart VM provisioning (clone from golden base; pulls only on a new image digest)")
+	}
+
 	c := pod.Spec.Containers[0]
+	pool := pod.Labels["tuist.dev/runner-pool"]
+	if pool == "" {
+		pool = "unknown"
+	}
 	env, err := r.Resolver.Resolve(ctx, pod, c)
 	if err != nil {
 		return fmt.Errorf("resolve env: %w", err)
@@ -296,31 +328,62 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 		}
 	}
 
-	// Reuse an existing local clone if one is on disk: a kubelet
-	// restart kills the running VM (launchctl bootout signals the
-	// process group) but the cloned image stays. Re-running it skips
-	// the multi-minute pull + clone cycle.
+	// Reuse an existing local clone if one is on disk. A kubelet restart
+	// leaves the cloned image behind — and because `tart run` is
+	// Setsid-detached, usually the running VM itself — so we skip the
+	// clone cycle and either adopt the running VM (below) or re-run a
+	// stopped clone.
 	existingClone, _ := r.Tart.Get(ctx, vmName)
 
 	if existingClone == nil {
-		if err := r.Tart.Pull(ctx, c.Image); err != nil {
-			// On disk-pressure failures, free space (orphan VMs / stale
-			// OCI caches from terminated Pods) and retry once. Without
-			// this the host fills with leftovers and every subsequent
-			// reconcile fails the same way until something cleans up
-			// by hand.
-			if r.GC != nil && IsNoSpaceError(err) {
-				r.GC.RunOnce(ctx)
-				if err2 := r.Tart.Pull(ctx, c.Image); err2 != nil {
-					return fmt.Errorf("tart pull (after gc): %w", err2)
-				}
-			} else {
-				return fmt.Errorf("tart pull: %w", err)
-			}
+		// Clone the runner from this host's golden base for the image's
+		// digest — a local APFS clonefile (sub-second, zero network),
+		// not a fresh OCI pull. ensureGolden pays the full multi-GB pull
+		// at most once per digest per host; back-to-back recycles take
+		// only the clonefile path. This is what stops the fleet
+		// re-downloading the whole VM image between jobs.
+		cloneStart := time.Now()
+		base, materialized, err := r.ensureGolden(ctx, c.Image)
+		if err != nil {
+			return err
 		}
-		if err := r.Tart.Clone(ctx, c.Image, vmName); err != nil {
-			return fmt.Errorf("tart clone: %w", err)
+		provisionPath := "warm"
+		if materialized {
+			provisionPath = "cold"
+			RecordGoldenMaterialized(pool)
+		} else {
+			RecordGoldenReused(pool)
 		}
+		if err := r.Tart.Clone(ctx, base, vmName); err != nil {
+			// The golden was reaped out from under us (GC race) or is
+			// corrupt. Drop it so the next reconcile re-materializes a
+			// fresh one, and surface the error to requeue.
+			_ = r.Tart.Delete(ctx, base)
+			return fmt.Errorf("tart clone from golden: %w", err)
+		}
+		// Split the on-host provisioning segment (golden probe +
+		// pull/clone + runner clone) out from podProvisionDelaySeconds,
+		// which also folds in scheduling/queue wait. `path` separates a
+		// warm clonefile from a cold re-pull so a slow provision can be
+		// attributed to one or the other instead of guessed at.
+		RecordVMProvisionWork(pool, provisionPath, time.Since(cloneStart))
+	}
+
+	// If the clone is already running — it survived a kubelet restart and
+	// recoverState didn't rebind it — adopt it instead of starting it
+	// again. A duplicate `tart run` exits immediately with "VM is already
+	// running", which loops here and strands the Pod (the failure mode
+	// that wedged the xcresult-processor and blocked a prod deploy).
+	// Register a Store entry with no RunHandle; podStatus then tracks
+	// liveness via IsRunning, exactly like recoverState's recovered
+	// entries. BootObserved is set because we didn't witness this boot.
+	if running, _ := r.Tart.IsRunning(ctx, vmName); running {
+		r.Store.Put(pod.Namespace, pod.Name, &Entry{
+			VMName:       vmName,
+			StartTS:      metav1.Now(),
+			BootObserved: true,
+		})
+		return nil
 	}
 
 	// Resize the cloned VM to match the Pod's resource requests.
@@ -334,6 +397,14 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 			return fmt.Errorf("tart set: %w", err)
 		}
 	}
+
+	// Record provisioning duration once, on the path that actually starts
+	// the VM: Pod creation → here (after pull + clone + set). Recording
+	// before the Store entry exists would re-observe on every failed
+	// createPod retry and skew the metric toward retry delay; here it
+	// fires exactly once per Pod that reaches `tart run`, and captures the
+	// pull/clone time the boot histogram (which starts at `tart run`) can't.
+	podProvisionDelaySeconds.WithLabelValues(pool).Observe(time.Since(pod.CreationTimestamp.Time).Seconds())
 
 	// Record the Pod ↔ VM mapping before kicking the VM off so the
 	// rest of the system (deletePod, GC, recoverState) can keep
@@ -363,6 +434,149 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	// the forwarder needs at least an upstream to dial when the
 	// scraper hits it.
 	return nil
+}
+
+// goldenBaseVMPrefix marks a Tart VM as a per-digest golden base: a
+// once-materialized, never-run image clone that every runner on this
+// host clones from. The prefix lets the GC tell goldens apart from
+// per-Pod runner clones (which are namespace-prefixed, e.g.
+// `tuist-runners-…`) so it retains them across the no-Pod recycle gap
+// instead of reaping them as orphan clones.
+const goldenBaseVMPrefix = "tuist-golden-"
+
+// goldenVMName derives the deterministic golden base VM name for an
+// image ref. Runner images are digest-pinned, so the hash changes only
+// when the digest rolls — a new digest gets its own golden and the
+// superseded one ages out of the GC. An 8-byte SHA-256 prefix is
+// collision-safe for the handful of digests a host ever sees and keeps
+// the name well inside Tart's 63-char limit.
+func goldenVMName(image string) string {
+	sum := sha256.Sum256([]byte(image))
+	return goldenBaseVMPrefix + hex.EncodeToString(sum[:8])
+}
+
+// isGoldenVMName reports whether a Tart VM name is a golden base.
+func isGoldenVMName(name string) bool {
+	return strings.HasPrefix(name, goldenBaseVMPrefix)
+}
+
+// goldenNodeLabelPrefix namespaces the per-digest Node labels that advertise
+// which golden bases a host holds. The runners-controller adds soft
+// node-affinity toward `goldenNodeLabelPrefix + <digest-hash>` so a pool's
+// Pods prefer hosts that can clone its image locally instead of cold-pulling.
+//
+// CONTRACT: this prefix and the hash (the same 8-byte SHA-256 prefix of the
+// image ref that goldenVMName embeds) MUST match the runners-controller's
+// `podtemplate.goldenNodeLabelPrefix` / `goldenNodeAffinityKey`. They live in
+// separate Go modules, coupled by convention, not shared code.
+const goldenNodeLabelPrefix = "tuist.dev/golden-"
+
+// goldenNodeLabel returns the Node-label key advertising that this host holds
+// the golden base named `vmName`, and false when the name isn't a golden.
+func goldenNodeLabel(vmName string) (string, bool) {
+	if !isGoldenVMName(vmName) {
+		return "", false
+	}
+	return goldenNodeLabelPrefix + strings.TrimPrefix(vmName, goldenBaseVMPrefix), true
+}
+
+// GoldenNodeLabels lists this host's golden base VMs and returns the Node
+// labels that advertise them, for the node maintainer to publish. Driven off
+// `tart list` (the on-disk truth) so the labels self-heal across kubelet
+// restarts and GC evictions without any shared in-memory state to keep
+// consistent.
+func GoldenNodeLabels(ctx context.Context, t *tart.Client) (map[string]string, error) {
+	vms, err := t.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	labels := map[string]string{}
+	for _, vm := range vms {
+		if vm.Source != "local" {
+			continue
+		}
+		if key, ok := goldenNodeLabel(vm.Name); ok {
+			labels[key] = "true"
+		}
+	}
+	return labels, nil
+}
+
+// ensureGolden materializes this host's golden base VM for `image`
+// exactly once and returns its name. The first call for a digest pays
+// the full `tart pull` + `tart clone` (download + extract the multi-GB
+// image into a runnable bundle); every later call returns immediately
+// off the on-disk golden, and the runner clones the caller makes from
+// it are APFS clonefiles that touch the network zero times. `materialized`
+// is true only on the cold path so the caller can count real pulls.
+//
+// The golden is never run; it's a stable copy-on-write base. Deleting
+// its source OCI cache later is safe — APFS keeps the shared blocks
+// alive as long as the golden references them.
+func (r *Reconciler) ensureGolden(ctx context.Context, image string) (name string, materialized bool, err error) {
+	name = goldenVMName(image)
+
+	unlock := r.lockGolden(name)
+	defer unlock()
+
+	// Warm path: golden already on disk for this digest — no network.
+	vm, getErr := r.Tart.Get(ctx, name)
+	if getErr == nil && vm != nil {
+		return name, false, nil
+	}
+	if getErr != nil {
+		// Not the (nil, nil) "not found" case — `tart get` actually
+		// errored (timeout, lock contention, parse). The golden may well
+		// exist on disk; falling through to the cold path re-pulls the
+		// whole image needlessly, so surface the probe failure instead
+		// of silently churning. A run of these lines is the signal that
+		// a rising materialized rate is a warm-path miss, not first-sight.
+		log.FromContext(ctx).Error(getErr, "golden warm-path probe failed; taking cold path (may re-pull)", "golden", name)
+	}
+
+	// Cold path: pull + materialize once. Mirror the disk-pressure
+	// handling the per-recycle pull used to have so a full host frees
+	// space and retries rather than wedging the digest's first
+	// provision. RunOnceReclaim is the aggressive variant: under genuine
+	// no-space it evicts even within-retention unreferenced goldens,
+	// which a non-aggressive pass would keep.
+	if pullErr := r.Tart.Pull(ctx, image); pullErr != nil {
+		if r.GC != nil && IsNoSpaceError(pullErr) {
+			r.GC.RunOnceReclaim(ctx)
+			if pullErr2 := r.Tart.Pull(ctx, image); pullErr2 != nil {
+				return "", false, fmt.Errorf("tart pull (after gc): %w", pullErr2)
+			}
+		} else {
+			return "", false, fmt.Errorf("tart pull: %w", pullErr)
+		}
+	}
+	if cloneErr := r.Tart.Clone(ctx, image, name); cloneErr != nil {
+		// A half-created golden (clone failed mid-way) would make every
+		// later clone-from-golden fail. Best-effort delete so the next
+		// provision re-materializes from scratch.
+		_ = r.Tart.Delete(ctx, name)
+		return "", false, fmt.Errorf("materialize golden base: %w", cloneErr)
+	}
+	return name, true, nil
+}
+
+// lockGolden returns the unlock func for the per-golden-name mutex,
+// lazily creating the lock map on first use (the Reconciler is built as
+// a struct literal, so the map starts nil).
+func (r *Reconciler) lockGolden(name string) func() {
+	r.goldenMu.Lock()
+	if r.goldenLocks == nil {
+		r.goldenLocks = map[string]*sync.Mutex{}
+	}
+	m, ok := r.goldenLocks[name]
+	if !ok {
+		m = &sync.Mutex{}
+		r.goldenLocks[name] = m
+	}
+	r.goldenMu.Unlock()
+
+	m.Lock()
+	return m.Unlock
 }
 
 // startMetricsForwarder spins up the host-side TCP relay declared by

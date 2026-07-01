@@ -326,14 +326,6 @@ defmodule TuistWeb.BundlesLive do
     "?#{URI.encode_query(query_params)}"
   end
 
-  def sort_icon("desc") do
-    "square_rounded_arrow_down"
-  end
-
-  def sort_icon("asc") do
-    "square_rounded_arrow_up"
-  end
-
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
     updated_params =
       filter_id

@@ -7,6 +7,9 @@ defmodule TuistWeb.API.ShardsController do
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Shards.Shard
   alias TuistWeb.API.Schemas.Shards.ShardPlan
+  alias TuistWeb.Headers
+
+  @suite_catch_all_minimum_cli_version Version.parse!("4.202.0-canary.21")
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
@@ -58,7 +61,10 @@ defmodule TuistWeb.API.ShardsController do
            },
            shard_min: %Schema{type: :integer, description: "Minimum number of shards."},
            shard_max: %Schema{type: :integer, description: "Maximum number of shards."},
-           shard_total: %Schema{type: :integer, description: "Exact number of shards."},
+           shard_total: %Schema{
+             type: :integer,
+             description: "Exact number of shards. With suite granularity, the final shard is the catch-all."
+           },
            shard_max_duration: %Schema{
              type: :integer,
              description: "Target maximum duration per shard in milliseconds."
@@ -106,12 +112,16 @@ defmodule TuistWeb.API.ShardsController do
 
     result = Shards.create_shard_plan(selected_project, params)
 
-    json(conn, %{
+    response = %{
       id: result.plan.id,
       reference: result.plan.reference,
       shard_count: result.shard_count,
+      upload_url:
+        url(~p"/api/projects/#{selected_project.account.name}/#{selected_project.name}/tests/shards/upload/start"),
       shards: result.shard_assignments
-    })
+    }
+
+    json(conn, response)
   end
 
   operation(:start_upload,
@@ -137,14 +147,18 @@ defmodule TuistWeb.API.ShardsController do
          title: "StartShardUploadParams",
          type: :object,
          properties: %{
+           shard_plan_id: %Schema{
+             type: :string,
+             format: :uuid,
+             description: "The shard plan id returned by createShardPlan."
+           },
            reference: %Schema{type: :string, description: "The shard plan reference."},
            artifact: %Schema{
              type: :string,
              description:
                ~s(The artifact to upload: "shared" for the shared products, or "module:<name>" for a single module's test bundle. Defaults to the legacy single bundle when omitted.)
            }
-         },
-         required: [:reference]
+         }
        }},
     responses: %{
       ok:
@@ -159,20 +173,28 @@ defmodule TuistWeb.API.ShardsController do
            }
          }},
       unauthorized: {"You need to be authenticated", "application/json", Error},
-      forbidden: {"The authenticated subject is not authorized", "application/json", Error}
+      forbidden: {"The authenticated subject is not authorized", "application/json", Error},
+      not_found: {"The shard plan was not found", "application/json", Error},
+      bad_request: {"Invalid parameters", "application/json", Error}
     }
   )
 
-  def start_upload(
-        %{assigns: %{selected_project: selected_project}, body_params: %{reference: reference} = body_params} = conn,
-        _params
-      ) do
-    case Shards.start_upload(
-           selected_project,
-           selected_project.account,
-           reference,
-           Map.get(body_params, :artifact)
-         ) do
+  def start_upload(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
+    artifact = Map.get(body_params, :artifact)
+
+    result =
+      case upload_identifier(body_params) do
+        {:plan_id, plan_id} ->
+          Shards.start_upload_for_plan_id(selected_project, selected_project.account, plan_id, artifact)
+
+        {:reference, reference} ->
+          Shards.start_upload(selected_project, selected_project.account, reference, artifact)
+
+        {:error, :missing_shard_plan_identifier} ->
+          {:error, :missing_shard_plan_identifier}
+      end
+
+    case result do
       {:ok, upload_id} ->
         json(conn, %{data: %{upload_id: upload_id}})
 
@@ -180,6 +202,11 @@ defmodule TuistWeb.API.ShardsController do
         conn
         |> put_status(:not_found)
         |> json(%{message: "The shard plan was not found."})
+
+      {:error, :missing_shard_plan_identifier} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "Either shard_plan_id or reference is required."})
     end
   end
 
@@ -234,13 +261,15 @@ defmodule TuistWeb.API.ShardsController do
            selected_project,
            selected_project.account,
            reference,
-           shard_index
+           shard_index,
+           suite_catch_all?: suite_catch_all_supported?(conn)
          ) do
       {:ok, result} ->
         json(conn, %{
           shard_plan_id: result.shard_plan_id,
           modules: result.modules,
           suites: result.suites,
+          skip: result.skip,
           download_url: result.download_url,
           download_urls: result.download_urls
         })
@@ -280,6 +309,11 @@ defmodule TuistWeb.API.ShardsController do
          title: "GenerateShardUploadURLParams",
          type: :object,
          properties: %{
+           shard_plan_id: %Schema{
+             type: :string,
+             format: :uuid,
+             description: "The shard plan id returned by createShardPlan."
+           },
            reference: %Schema{type: :string, description: "The shard plan reference."},
            upload_id: %Schema{type: :string, description: "The multipart upload ID."},
            part_number: %Schema{type: :integer, description: "The part number."},
@@ -289,7 +323,7 @@ defmodule TuistWeb.API.ShardsController do
                ~s{The artifact being uploaded ("shared" or "module:<name>"). Matches the start-upload artifact.}
            }
          },
-         required: [:reference, :upload_id, :part_number]
+         required: [:upload_id, :part_number]
        }},
     responses: %{
       ok:
@@ -304,25 +338,47 @@ defmodule TuistWeb.API.ShardsController do
            }
          }},
       unauthorized: {"You need to be authenticated", "application/json", Error},
-      forbidden: {"The authenticated subject is not authorized", "application/json", Error}
+      forbidden: {"The authenticated subject is not authorized", "application/json", Error},
+      bad_request: {"Invalid parameters", "application/json", Error}
     }
   )
 
   def generate_url(
         %{
           assigns: %{selected_project: selected_project},
-          body_params: %{reference: reference, upload_id: upload_id, part_number: part_number} = body_params
+          body_params: %{upload_id: upload_id, part_number: part_number} = body_params
         } = conn,
         _params
       ) do
-    case Shards.generate_upload_url(
-           selected_project,
-           selected_project.account,
-           reference,
-           upload_id,
-           part_number,
-           Map.get(body_params, :artifact)
-         ) do
+    artifact = Map.get(body_params, :artifact)
+
+    result =
+      case upload_identifier(body_params) do
+        {:plan_id, plan_id} ->
+          Shards.generate_upload_url_for_plan(
+            selected_project,
+            selected_project.account,
+            plan_id,
+            upload_id,
+            part_number,
+            artifact
+          )
+
+        {:reference, reference} ->
+          Shards.generate_upload_url(
+            selected_project,
+            selected_project.account,
+            reference,
+            upload_id,
+            part_number,
+            artifact
+          )
+
+        {:error, :missing_shard_plan_identifier} ->
+          {:error, :missing_shard_plan_identifier}
+      end
+
+    case result do
       {:ok, url} ->
         json(conn, %{data: %{url: url}})
 
@@ -330,6 +386,11 @@ defmodule TuistWeb.API.ShardsController do
         conn
         |> put_status(:not_found)
         |> json(%{message: "The shard plan was not found."})
+
+      {:error, :missing_shard_plan_identifier} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "Either shard_plan_id or reference is required."})
     end
   end
 
@@ -356,6 +417,11 @@ defmodule TuistWeb.API.ShardsController do
          title: "CompleteShardUploadParams",
          type: :object,
          properties: %{
+           shard_plan_id: %Schema{
+             type: :string,
+             format: :uuid,
+             description: "The shard plan id returned by createShardPlan."
+           },
            reference: %Schema{type: :string, description: "The shard plan reference."},
            upload_id: %Schema{type: :string, description: "The multipart upload ID."},
            parts: %Schema{
@@ -376,7 +442,7 @@ defmodule TuistWeb.API.ShardsController do
                ~s{The artifact being completed ("shared" or "module:<name>"). Matches the start-upload artifact.}
            }
          },
-         required: [:reference, :upload_id, :parts]
+         required: [:upload_id, :parts]
        }},
     responses: %{
       ok:
@@ -386,14 +452,15 @@ defmodule TuistWeb.API.ShardsController do
            properties: %{status: %Schema{type: :string}}
          }},
       unauthorized: {"You need to be authenticated", "application/json", Error},
-      forbidden: {"The authenticated subject is not authorized", "application/json", Error}
+      forbidden: {"The authenticated subject is not authorized", "application/json", Error},
+      bad_request: {"Invalid parameters", "application/json", Error}
     }
   )
 
   def complete(
         %{
           assigns: %{selected_project: selected_project},
-          body_params: %{reference: reference, upload_id: upload_id, parts: parts} = body_params
+          body_params: %{upload_id: upload_id, parts: parts} = body_params
         } = conn,
         _params
       ) do
@@ -402,14 +469,35 @@ defmodule TuistWeb.API.ShardsController do
         {part.part_number, part.etag}
       end)
 
-    case Shards.complete_upload(
-           selected_project,
-           selected_project.account,
-           reference,
-           upload_id,
-           parts_list,
-           Map.get(body_params, :artifact)
-         ) do
+    artifact = Map.get(body_params, :artifact)
+
+    result =
+      case upload_identifier(body_params) do
+        {:plan_id, plan_id} ->
+          Shards.complete_upload_for_plan(
+            selected_project,
+            selected_project.account,
+            plan_id,
+            upload_id,
+            parts_list,
+            artifact
+          )
+
+        {:reference, reference} ->
+          Shards.complete_upload(
+            selected_project,
+            selected_project.account,
+            reference,
+            upload_id,
+            parts_list,
+            artifact
+          )
+
+        {:error, :missing_shard_plan_identifier} ->
+          {:error, :missing_shard_plan_identifier}
+      end
+
+    case result do
       :ok ->
         json(conn, %{status: "success"})
 
@@ -417,6 +505,29 @@ defmodule TuistWeb.API.ShardsController do
         conn
         |> put_status(:not_found)
         |> json(%{message: "The shard plan was not found."})
+
+      {:error, :missing_shard_plan_identifier} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "Either shard_plan_id or reference is required."})
+    end
+  end
+
+  defp upload_identifier(body_params) do
+    shard_plan_id = Map.get(body_params, :shard_plan_id)
+    reference = Map.get(body_params, :reference)
+
+    cond do
+      is_binary(shard_plan_id) and shard_plan_id != "" -> {:plan_id, shard_plan_id}
+      is_binary(reference) and reference != "" -> {:reference, reference}
+      true -> {:error, :missing_shard_plan_identifier}
+    end
+  end
+
+  defp suite_catch_all_supported?(conn) do
+    case Headers.get_cli_version(conn) do
+      nil -> false
+      cli_version -> Version.compare(cli_version, @suite_catch_all_minimum_cli_version) != :lt
     end
   end
 end

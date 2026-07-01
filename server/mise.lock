@@ -27,6 +27,60 @@ backend = "asdf:aeons/asdf-minio"
 version = "1.6.2"
 backend = "github:endevco/aube"
 
+[tools.aube."platforms.linux-arm64"]
+checksum = "sha256:1c47d2c0a50cf80f49aedcc2f58ce8abcbdf763092e772c8961c6e5b18916e8b"
+url = "https://github.com/jdx/aube/releases/download/v1.6.2/aube-v1.6.2-aarch64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/jdx/aube/releases/assets/410164231"
+
+[tools.aube."platforms.linux-x64"]
+checksum = "sha256:16fcc40dfbaac110ce8f4e88728a440f2366094a45fd6c189bcbcc2b3ea31f06"
+url = "https://github.com/jdx/aube/releases/download/v1.6.2/aube-v1.6.2-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/jdx/aube/releases/assets/410164107"
+
+[tools.aube."platforms.macos-arm64"]
+checksum = "sha256:4ce92482500f77f0779f288328cb7411f7ae2441b8618eae36a2ab5ea7591a32"
+url = "https://github.com/jdx/aube/releases/download/v1.6.2/aube-v1.6.2-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/jdx/aube/releases/assets/410166750"
+
+[tools.aube."platforms.windows-x64"]
+checksum = "sha256:916594efae8f8b59fc898913f96d199a21d212c7037043853ee04df7264611d0"
+url = "https://github.com/jdx/aube/releases/download/v1.6.2/aube-v1.6.2-x86_64-pc-windows-msvc.zip"
+url_api = "https://api.github.com/repos/jdx/aube/releases/assets/410174742"
+
+[[tools.fnox]]
+version = "1.27.1"
+backend = "github:jdx/fnox"
+
+[tools.fnox."platforms.linux-arm64"]
+checksum = "sha256:5f18410dd9a777386d9dbdd4029e13436195dcfaa55f594a99ff6a4bc1b3ca03"
+url = "https://github.com/jdx/fnox/releases/download/v1.27.1/fnox-aarch64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/jdx/fnox/releases/assets/450745507"
+provenance = "github-attestations"
+
+[tools.fnox."platforms.linux-x64"]
+checksum = "sha256:fe272bebbb0825ba1df0c7502054979815fae8251b4a90c61c28cd13d64887bf"
+url = "https://github.com/jdx/fnox/releases/download/v1.27.1/fnox-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/jdx/fnox/releases/assets/450745538"
+provenance = "github-attestations"
+
+[tools.fnox."platforms.macos-arm64"]
+checksum = "sha256:0f82d0346872bc98843c8428bfd05e72ca9f8ac9eb699be4549e7a21d2cf0a7f"
+url = "https://github.com/jdx/fnox/releases/download/v1.27.1/fnox-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/jdx/fnox/releases/assets/450745511"
+provenance = "github-attestations"
+
+[tools.fnox."platforms.macos-x64"]
+checksum = "sha256:7aafc5e8fea5dea4471f2a92abc6d8211f5b1f8fcbdbfac611ea6a52101483e1"
+url = "https://github.com/jdx/fnox/releases/download/v1.27.1/fnox-x86_64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/jdx/fnox/releases/assets/450745508"
+provenance = "github-attestations"
+
+[tools.fnox."platforms.windows-x64"]
+checksum = "sha256:6373ee5457e8c36941f688aeff9ac630923c588fd78faff14e0548a1d1dbd89a"
+url = "https://github.com/jdx/fnox/releases/download/v1.27.1/fnox-x86_64-pc-windows-msvc.zip"
+url_api = "https://api.github.com/repos/jdx/fnox/releases/assets/450745535"
+provenance = "github-attestations"
+
 [[tools."github:ClickHouse/ClickHouse"]]
 version = "26.1.2.11-stable"
 backend = "github:ClickHouse/ClickHouse"
@@ -63,9 +117,39 @@ url_api = "https://api.github.com/repos/ClickHouse/ClickHouse/releases/assets/34
 version = "3.16.3"
 backend = "aqua:helm/helm"
 
+[tools.helm."platforms.linux-arm64"]
+url = "https://get.helm.sh/helm-3.16.3-linux-arm64.tar.gz"
+
+[tools.helm."platforms.linux-x64"]
+url = "https://get.helm.sh/helm-3.16.3-linux-amd64.tar.gz"
+
+[tools.helm."platforms.macos-arm64"]
+url = "https://get.helm.sh/helm-3.16.3-darwin-arm64.tar.gz"
+
+[tools.helm."platforms.macos-x64"]
+url = "https://get.helm.sh/helm-3.16.3-darwin-amd64.tar.gz"
+
+[tools.helm."platforms.windows-x64"]
+url = "https://get.helm.sh/helm-3.16.3-windows-amd64.tar.gz"
+
 [[tools.kubectl]]
 version = "1.31.3"
 backend = "aqua:kubernetes/kubernetes/kubectl"
+
+[tools.kubectl."platforms.linux-arm64"]
+url = "https://dl.k8s.io/1.31.3/bin/linux/arm64/kubectl"
+
+[tools.kubectl."platforms.linux-x64"]
+url = "https://dl.k8s.io/1.31.3/bin/linux/amd64/kubectl"
+
+[tools.kubectl."platforms.macos-arm64"]
+url = "https://dl.k8s.io/1.31.3/bin/darwin/arm64/kubectl"
+
+[tools.kubectl."platforms.macos-x64"]
+url = "https://dl.k8s.io/1.31.3/bin/darwin/amd64/kubectl"
+
+[tools.kubectl."platforms.windows-x64"]
+url = "https://dl.k8s.io/1.31.3/bin/windows/amd64/kubectl.exe"
 
 [[tools.node]]
 version = "24.11.0"
@@ -107,21 +191,36 @@ backend = "aqua:getsops/sops"
 checksum = "sha256:49515aba9264e507eab884ebf902098046b8922d32f588f9a2beecb4a601d2ef"
 url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.linux.arm64"
 
+[tools.sops."platforms.linux-arm64".provenance.slsa]
+url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.intoto.jsonl"
+
 [tools.sops."platforms.linux-x64"]
 checksum = "sha256:835ee92ef7269e1e40d69cbe5e1042975f3cd38044e8a0fa3c1a13543b7dcfaa"
 url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.linux.amd64"
+
+[tools.sops."platforms.linux-x64".provenance.slsa]
+url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.intoto.jsonl"
 
 [tools.sops."platforms.macos-arm64"]
 checksum = "sha256:a087bd505b23dceb7debf60e02f4520c16fe32b02c0253c4e52821575f5d5027"
 url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.darwin.arm64"
 
+[tools.sops."platforms.macos-arm64".provenance.slsa]
+url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.intoto.jsonl"
+
 [tools.sops."platforms.macos-x64"]
 checksum = "sha256:995a4571357b02fbbbba1f4ab1298b97eb5d976b02dc6f678edd6a3f7c7a952f"
 url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.darwin.amd64"
 
+[tools.sops."platforms.macos-x64".provenance.slsa]
+url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.intoto.jsonl"
+
 [tools.sops."platforms.windows-x64"]
 checksum = "sha256:df9372dd551a872918d70fcc4394e58a498d4f16bae414b1995555059ba8d4f6"
 url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.exe"
+
+[tools.sops."platforms.windows-x64".provenance.slsa]
+url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.intoto.jsonl"
 
 [[tools.trivy]]
 version = "0.69.3"
@@ -130,19 +229,24 @@ backend = "aqua:aquasecurity/trivy"
 [tools.trivy."platforms.linux-arm64"]
 checksum = "sha256:7e3924a974e912e57b4a99f65ece7931f8079584dae12eb7845024f97087bdfd"
 url = "https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_Linux-ARM64.tar.gz"
+provenance = "cosign"
 
 [tools.trivy."platforms.linux-x64"]
 checksum = "sha256:1816b632dfe529869c740c0913e36bd1629cb7688bd5634f4a858c1d57c88b75"
 url = "https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_Linux-64bit.tar.gz"
+provenance = "cosign"
 
 [tools.trivy."platforms.macos-arm64"]
 checksum = "sha256:a2f2179afd4f8bb265ca3c7aefb56a666bc4a9a411663bc0f22c3549fbc643a5"
 url = "https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_macOS-ARM64.tar.gz"
+provenance = "cosign"
 
 [tools.trivy."platforms.macos-x64"]
 checksum = "sha256:fec4a9f7569b624dd9d044fca019e5da69e032700edbb1d7318972c448ec2f4e"
 url = "https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_macOS-64bit.tar.gz"
+provenance = "cosign"
 
 [tools.trivy."platforms.windows-x64"]
 checksum = "sha256:74362dc711383255308230ecbeb587eb1e4e83a8d332be5b0259afac6e0c2224"
 url = "https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_windows-64bit.zip"
+provenance = "cosign"

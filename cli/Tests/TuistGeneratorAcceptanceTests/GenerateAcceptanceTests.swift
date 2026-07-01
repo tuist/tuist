@@ -521,6 +521,50 @@ struct GenerateAcceptanceTestiOSAppWithLocalSwiftPackage {
     }
 }
 
+struct GenerateAcceptanceTestiOSAppWithObjCStaticFrameworkPackage {
+    @Test(.withFixture("generated_ios_app_with_objc_static_framework_package"), .inTemporaryDirectory)
+    func ios_app_with_objc_static_framework_package() async throws {
+        let fixturePath = try fixtureDirectory()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+
+        try await CommandRunner().runAndWait(arguments: [
+            "/usr/bin/xcodebuild",
+            "archive",
+            "-workspace",
+            fixturePath.appending(component: "App.xcworkspace").pathString,
+            "-scheme",
+            "App",
+            "-destination",
+            "generic/platform=iOS",
+            "-derivedDataPath",
+            derivedDataPath.pathString,
+            "-archivePath",
+            temporaryDirectory.appending(component: "App.xcarchive").pathString,
+            "CODE_SIGNING_ALLOWED=NO",
+            "CODE_SIGNING_REQUIRED=NO",
+            "CODE_SIGN_IDENTITY=",
+        ])
+
+        let copiedModuleMapPath = derivedDataPath.appending(
+            components: "Build",
+            "Intermediates.noindex",
+            "ArchiveIntermediates",
+            "App",
+            "BuildProductsPath",
+            "Release-iphoneos",
+            "ObjCPlayerSupport.framework",
+            "Modules",
+            "module.modulemap"
+        )
+        let copiedModuleMapExists = try await FileSystem().exists(copiedModuleMapPath)
+        #expect(!copiedModuleMapExists)
+    }
+}
+
 struct GenerateAcceptanceTestiOSAppWithMultiConfigs {
     @Test(.disabled(), .withFixture("generated_ios_app_with_multi_configs"), .inTemporaryDirectory)
     func ios_app_with_multi_configs() async throws {

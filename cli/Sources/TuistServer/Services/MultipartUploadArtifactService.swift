@@ -11,6 +11,11 @@ import TuistThreadSafe
 public struct MultipartUploadArtifactPart {
     public let number: Int
     public let contentLength: Int
+
+    public init(number: Int, contentLength: Int) {
+        self.number = number
+        self.contentLength = contentLength
+    }
 }
 
 enum MultipartUploadArtifactServiceError: LocalizedError {

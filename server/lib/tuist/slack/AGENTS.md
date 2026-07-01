@@ -30,7 +30,7 @@ Slack's OAuth redirect URI must be HTTPS, and the URI Tuist sends to Slack is bu
    Phoenix still binds to `127.0.0.1:$TUIST_SERVER_PORT`; cloudflared forwards from there. The OAuth `redirect_uri` Tuist hands Slack now matches the tunnel.
 4. Hit the dashboard at the tunnel URL — **not** `localhost`. Session cookies are origin-scoped, so logging in on `localhost:<port>` won't carry over to the tunnel host, and the OAuth callback would land on a different origin.
 
-Revert the manifest's `redirect_urls` back to `https://tuist.dev/integrations/slack/callback` when you're done, and stop the tunnel. The `priv/secrets/dev.yml.enc` Slack credentials are the dev app's credentials — they don't need to change for this loop.
+Revert the manifest's `redirect_urls` back to `https://tuist.dev/integrations/slack/callback` when you're done, and stop the tunnel. The dev Slack credentials (the `SLACK` item in the 1Password `Development` vault, sourced via fnox — see `server/fnox.toml`) are the dev app's credentials — they don't need to change for this loop.
 
 Test user creds (from the seed): `tuistrocks@tuist.dev` / `tuistrocks`. If login fails with "Invalid email or password" despite those creds, the password hash in your local DB has drifted from the seed. Reset it with the salted bcrypt the auth path expects:
 

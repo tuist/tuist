@@ -1,6 +1,5 @@
 {{- if .Values.server.enabled }}
 {{- $secretName := include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
-{{- $masterKeySecretName := ternary (include "tuist.componentName" (dict "root" . "component" "server-external-secrets")) $secretName .Values.server.managedSecrets }}
 {{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" . -}}
 {{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" . -}}
 apiVersion: apps/v1
@@ -79,22 +78,29 @@ spec:
             # need to set it explicitly here. The processor Deployment sets
             # TUIST_MODE=processor; everything else is :web.
             {{- if eq .Values.postgresql.mode "cnpg" }}
-            # CNPG creates a `<cluster>-app` Secret carrying the owner
-            # role's URI. Override DATABASE_URL from the priv/secrets
-            # bundle so it points at the in-cluster cluster. The
-            # service hostname (`<cluster>-rw`) only ever resolves to the
-            # current primary; CNPG fails the Service over during a
-            # promotion.
+            # Managed CNPG uses the least-privilege runtime role
+            # (`tuist_web` by default). Self-hosted chart installs without
+            # managedSecrets keep using the owner Secret for backwards
+            # compatibility. The service hostname (`<cluster>-rw`) only
+            # resolves to the current primary; CNPG fails the Service over
+            # during a promotion.
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
+                  {{- if .Values.server.managedSecrets }}
+                  name: {{ include "tuist.cnpgWebRoleSecretName" . }}
+                  {{- else }}
                   name: {{ include "tuist.cnpgAppSecretName" . }}
+                  {{- end }}
                   key: uri
             - name: TUIST_USE_SSL_FOR_DATABASE
               value: "0"
             {{- end }}
+            - name: TUIST_DATABASE_SCHEMA
+              value: {{ .Values.postgresql.schema | quote }}
             {{- if not .Values.server.managedSecrets }}
             {{- if ne .Values.postgresql.mode "cnpg" }}
+            {{- include "tuist.externalPostgresqlSecretEnv" . | nindent 12 }}
             - name: DATABASE_URL
               value: {{ include "tuist.databaseUrl" . | quote }}
             - name: TUIST_USE_SSL_FOR_DATABASE
@@ -223,13 +229,9 @@ spec:
             {{- include "tuist.licenseEnv" . | nindent 12 }}
             {{- include "tuist.kuraIntrospectionEnv" . | nindent 12 }}
             {{- include "tuist.githubEnv" . | nindent 12 }}
-            {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
-            - name: MASTER_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $masterKeySecretName }}
-                  key: server-master-key
-            {{- end }}
+            {{- include "tuist.googleEnv" . | nindent 12 }}
+            {{- include "tuist.stripePricesEnv" . | nindent 12 }}
+            {{- include "tuist.mailingEnv" . | nindent 12 }}
             {{- if .Values.server.cluster.enabled }}
             - name: TUIST_CLUSTER_DNS_SERVICE
               value: {{ include "tuist.serverHeadlessServiceName" . | quote }}
@@ -310,12 +312,22 @@ spec:
             - name: TUIST_LOKI_URL
               value: "http://{{ include "tuist.componentName" (dict "root" . "component" "loki") }}:3100"
             {{- end }}
+            {{- if .Values.server.kuraPeerFailoverIps }}
+            - name: TUIST_KURA_PEER_FAILOVER_IPS
+              value: "{{- range $i, $e := .Values.server.kuraPeerFailoverIps }}{{ if $i }},{{ end }}{{ $e.region }}={{ $e.ip }}{{- end }}"
+            {{- end }}
             {{- with .Values.server.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-          {{- with .Values.server.extraEnvFrom }}
+          {{- $serverConfigEnvFrom := include "tuist.serverConfigEnvFrom" . | trim }}
+          {{- if or $serverConfigEnvFrom .Values.server.extraEnvFrom }}
           envFrom:
+            {{- with $serverConfigEnvFrom }}
+            {{- . | nindent 12 }}
+            {{- end }}
+            {{- with .Values.server.extraEnvFrom }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- end }}
           startupProbe:
             httpGet:

@@ -1,8 +1,10 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
     sync::Arc,
 };
 
+use arc_swap::ArcSwap;
+use axum_server::tls_rustls::RustlsConfig;
 use reqwest::Client;
 use tokio::{
     sync::{Mutex, Notify, Semaphore},
@@ -13,6 +15,7 @@ use crate::{
     analytics::Analytics,
     bandwidth::BandwidthLimiter,
     config::Config,
+    constants::{REPLICATION_BACKOFF_BASE_SECS, REPLICATION_BACKOFF_MAX_SECS},
     extension::SharedExtension,
     geoip::GeoIp,
     io::IoController,
@@ -22,6 +25,7 @@ use crate::{
     runtime::{DataDirLock, HttpTrafficClass, InflightGuard, RuntimeState, TrafficState},
     store::Store,
     usage::Usage,
+    utils::TmpBudget,
 };
 
 const READINESS_SETTLE_WINDOW: Duration = Duration::from_secs(5);
@@ -38,12 +42,51 @@ pub struct AppState {
     pub analytics: Option<Analytics>,
     pub usage: Option<Usage>,
     pub geoip: Option<GeoIp>,
-    pub client: Client,
+    // Outbound peer client, behind an atomic swap so cert rotation can replace
+    // it in place. Read it with `state.client()`.
+    pub client: ArcSwap<Client>,
     pub peer_client_factory: PeerClientFactory,
+    // The inbound internal mTLS server config, retained so cert rotation can
+    // hot-reload the leaf via `reload_from_config`. `None` when peer TLS is off.
+    pub internal_tls: Option<RustlsConfig>,
+    // Peers learned after boot (e.g. from cert-renewal re-enrollment), merged
+    // into discovery/replication targets on top of the static `config.peers`.
+    pub dynamic_peers: ArcSwap<Vec<String>>,
     pub replication_bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
     pub notify: Notify,
     pub readiness: Mutex<ReadinessState>,
     pub bootstrap_semaphore: Arc<Semaphore>,
+    pub bootstrap_staging_budget: Arc<TmpBudget>,
+    // Per-artifact gate that single-flights the bootstrap body download across
+    // peers: only the first peer-task to claim a key fetches it, and the rest
+    // observe it already applied and skip the network. Striped (see
+    // `bootstrap_fetch_lock`). Bootstrap-scoped so it never blocks the
+    // live-replication apply path, which the node still serves while joining.
+    pub bootstrap_fetch_locks: Vec<Mutex<()>>,
+    pub replication_backoff: Mutex<HashMap<String, ReplicationBackoff>>,
+}
+
+pub struct ReplicationBackoff {
+    next_attempt: Instant,
+    failures: u32,
+}
+
+impl AppState {
+    /// The current outbound peer HTTP client (picks up rotated certs).
+    pub fn client(&self) -> arc_swap::Guard<Arc<Client>> {
+        self.client.load()
+    }
+
+    /// The bootstrap fetch gate for an artifact. Striped by artifact id so
+    /// distinct keys fetch concurrently; same-key fetches across peers serialize
+    /// onto one stripe and single-flight via the caller's presence recheck.
+    pub fn bootstrap_fetch_lock(&self, artifact_id: &str) -> &Mutex<()> {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        std::hash::Hash::hash(artifact_id, &mut hasher);
+        let index =
+            (std::hash::Hasher::finish(&hasher) as usize) % self.bootstrap_fetch_locks.len();
+        &self.bootstrap_fetch_locks[index]
+    }
 }
 
 pub type SharedState = Arc<AppState>;
@@ -244,6 +287,33 @@ impl AppState {
         self.runtime.request_drain()
     }
 
+    pub async fn replication_target_backed_off(&self, target: &str, now: Instant) -> bool {
+        self.replication_backoff
+            .lock()
+            .await
+            .get(target)
+            .is_some_and(|backoff| backoff.next_attempt > now)
+    }
+
+    pub async fn note_replication_success(&self, target: &str) {
+        self.replication_backoff.lock().await.remove(target);
+    }
+
+    pub async fn note_replication_failure(&self, target: &str, now: Instant) {
+        let mut backoffs = self.replication_backoff.lock().await;
+        let backoff = backoffs
+            .entry(target.to_string())
+            .or_insert(ReplicationBackoff {
+                next_attempt: now,
+                failures: 0,
+            });
+        backoff.failures = backoff.failures.saturating_add(1);
+        let delay_secs = REPLICATION_BACKOFF_BASE_SECS
+            .saturating_mul(2u64.saturating_pow(backoff.failures - 1))
+            .min(REPLICATION_BACKOFF_MAX_SECS);
+        backoff.next_attempt = now + Duration::from_secs(delay_secs);
+    }
+
     #[cfg(test)]
     pub async fn expire_readiness_settle_window(&self) {
         self.readiness.lock().await.settle_until = Instant::now();
@@ -304,6 +374,7 @@ impl AppState {
     pub async fn replication_targets(&self) -> Vec<String> {
         let snapshot = self.readiness_snapshot().await;
         let mut targets = self.config.peers.iter().cloned().collect::<BTreeSet<_>>();
+        targets.extend(self.dynamic_peers.load().iter().cloned());
         targets.extend(snapshot.known_peers);
         targets.remove(&self.config.node_url);
         targets.into_iter().collect()

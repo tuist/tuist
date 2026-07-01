@@ -14,6 +14,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -50,6 +51,8 @@ func main() {
 		watchedNS           string
 		dindImage           string
 		registryMirror      string
+		clusterDNSIP        string
+		clusterDomain       string
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -67,6 +70,10 @@ func main() {
 		"OCI ref for the dockerd sidecar image stamped on Linux runner Pods (e.g. docker:28-dind@sha256:...). Required when any RunnerPool has spec.os=linux.")
 	flag.StringVar(&registryMirror, "registry-mirror-url", envOr("TUIST_RUNNER_REGISTRY_MIRROR_URL", ""),
 		"In-cluster Docker Hub pull-through cache URL stamped into the dind dockerd's --registry-mirror (with a matching --insecure-registry, since it's http in-cluster). Optional; empty leaves dockerd pulling docker.io directly.")
+	flag.StringVar(&clusterDNSIP, "cluster-dns-ip", envOr("TUIST_RUNNER_CLUSTER_DNS_IP", ""),
+		"kube-dns ClusterIP injected into macOS pool Pods as TUIST_CLUSTER_DNS_IP. dispatch-poll.sh inside the Tart VM writes /etc/resolver/<cluster-domain> from it so the dispatch-provided cache_endpoint_url (*.svc.cluster.local) resolves in the VM. Optional; empty skips the injection (macOS runners then never receive a resolvable in-cluster cache URL — pair with the server's TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS gate).")
+	flag.StringVar(&clusterDomain, "cluster-domain", envOr("TUIST_RUNNER_CLUSTER_DOMAIN", "cluster.local"),
+		"Cluster DNS suffix paired with --cluster-dns-ip (TUIST_CLUSTER_DOMAIN in macOS pool Pods; names the /etc/resolver file in the VM).")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
@@ -105,6 +112,8 @@ func main() {
 		DispatchInternalURL: dispatchInternalURL,
 		DindImage:           dindImage,
 		RegistryMirror:      registryMirror,
+		ClusterDNSIP:        clusterDNSIP,
+		ClusterDomain:       clusterDomain,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RunnerPool reconciler")
 		os.Exit(1)
@@ -138,10 +147,20 @@ func main() {
 	// keeps its max-lifetime safety clamp, which bounds the
 	// over-bill while we get the controller plumbed in.
 	if sessionsURL != "" {
+		// Typed clientset for the `pods/log` subresource: the cached
+		// controller-runtime client can't read container logs, and the
+		// PodLifecycle reconciler re-emits an abnormally-ended runner's
+		// log before the reap deletes it.
+		clientset, err := kubernetes.NewForConfig(cfg)
+		if err != nil {
+			setupLog.Error(err, "build clientset for log capture")
+			os.Exit(1)
+		}
 		if err := (&controllers.PodLifecycleReconciler{
 			Client:         mgr.GetClient(),
 			Scheme:         mgr.GetScheme(),
 			SessionsClient: sessions.NewClient(sessionsURL),
+			Logs:           clientset,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "setup PodLifecycle reconciler")
 			os.Exit(1)

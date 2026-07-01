@@ -171,6 +171,31 @@ wait_for_status() {
   return 1
 }
 
+# Like wait_for_status but forwards trailing arguments to status_only (and thus
+# curl), so callers can attach an auth header or method. The extension suite needs
+# this: every cache request must carry a Bearer token, so the bare wait_for_status
+# (which only sends an unauthenticated GET) can never reach a 2xx there.
+wait_for_status_with() {
+  local url="$1"
+  local expected_status="$2"
+  shift 2
+  local attempts=45
+  local sleep_seconds=2
+  local actual_status
+
+  for _ in $(seq 1 "$attempts"); do
+    actual_status="$(status_only "$url" "$@" 2>/dev/null || true)"
+    if [ "$actual_status" = "$expected_status" ]; then
+      printf '%s' "$actual_status"
+      return 0
+    fi
+    sleep "$sleep_seconds"
+  done
+
+  printf 'Timed out waiting for %s to return %s (last status %s)\n' "$url" "$expected_status" "${actual_status:-unknown}" >&2
+  return 1
+}
+
 wait_for_head_status() {
   local url="$1"
   local expected_status="$2"

@@ -39,6 +39,39 @@
           "type": "datasource"
         },
         {
+          "current": {
+            "selected": true,
+            "text": "production",
+            "value": "production"
+          },
+          "hide": 0,
+          "includeAll": false,
+          "label": "Environment",
+          "multi": false,
+          "name": "env",
+          "options": [
+            {
+              "selected": true,
+              "text": "production",
+              "value": "production"
+            },
+            {
+              "selected": false,
+              "text": "canary",
+              "value": "canary"
+            },
+            {
+              "selected": false,
+              "text": "staging",
+              "value": "staging"
+            }
+          ],
+          "query": "production,canary,staging",
+          "queryValue": "",
+          "skipUrlSync": false,
+          "type": "custom"
+        },
+        {
           "allValue": ".*",
           "current": {
             "selected": true,
@@ -139,7 +172,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum(sum by (platform) (label_replace(max by (fleet) (tuist_runners_queue_length{fleet=~\".*$platform.*\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\")))",
+            "expr": "sum(sum by (platform) (label_replace(max by (fleet) (tuist_runners_queue_length{fleet=~\".*$platform.*\", env=\"$env\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\")))",
             "instant": true,
             "refId": "A"
           }
@@ -198,7 +231,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum(max by (fleet) (tuist_runners_claims_count{lifecycle_state=\"claimed\"}))",
+            "expr": "sum(max by (fleet) (tuist_runners_claims_count{lifecycle_state=\"claimed\", env=\"$env\"}))",
             "instant": true,
             "refId": "A"
           }
@@ -249,7 +282,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum(max by (fleet) (tuist_runners_claims_count{lifecycle_state=\"running\"}))",
+            "expr": "sum(max by (fleet) (tuist_runners_claims_count{lifecycle_state=\"running\", env=\"$env\"}))",
             "instant": true,
             "refId": "A"
           }
@@ -259,7 +292,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Sum of `spec.replicas` across every RunnerPool — the warm-pool capacity the controller is asked to maintain. Compare with the `observed` ribbon below to see when the controller is mid-rollout or short on Mac mini capacity.",
+        "description": "Sum of `spec.replicas` across every RunnerPool, the warm-pool capacity the controller is asked to maintain. Compare with the ready and cold-booting lines below to see when the controller is mid-rollout or short on Mac mini capacity.",
         "fieldConfig": {
           "defaults": {
             "color": {
@@ -300,7 +333,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum(max by (fleet) (tuist_runners_pool_replicas_desired))",
+            "expr": "sum(max by (fleet) (tuist_runners_pool_replicas_desired{env=\"$env\"}))",
             "instant": true,
             "refId": "A"
           }
@@ -593,6 +626,74 @@
         "type": "timeseries"
       },
       {
+        "datasource": "$datasource",
+        "description": "Per-VM wall-clock from `tart clone` start to the VM's first IP (network up), scraped from tart-kubelet on each Mac mini (tart_kubelet_vm_boot_duration_seconds). This is the moment the Pod flips Running, and it is typically seconds. It does NOT capture boot-to-ready: the macOS first-boot / login work that runs after the network is up and before the launchd dispatch agent starts polling — where the real cold-boot cost (minutes) lives. Treat this as an infra-side floor; the user-facing wait is the Queue time (enqueue → claim) panel. macOS-only — Linux runners are Kata microVMs, not tart VMs.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "showPoints": "never",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              }
+            },
+            "unit": "s"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 40
+        },
+        "id": 312,
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "histogram_quantile(0.50, sum by (le) (rate(tart_kubelet_vm_boot_duration_seconds_bucket{pool=~\".*macos.*\"}[30m])))",
+            "legendFormat": "p50",
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "histogram_quantile(0.90, sum by (le) (rate(tart_kubelet_vm_boot_duration_seconds_bucket{pool=~\".*macos.*\"}[30m])))",
+            "legendFormat": "p90",
+            "refId": "B"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "histogram_quantile(0.99, sum by (le) (rate(tart_kubelet_vm_boot_duration_seconds_bucket{pool=~\".*macos.*\"}[30m])))",
+            "legendFormat": "p99",
+            "refId": "C"
+          }
+        ],
+        "title": "macOS VM boot (clone → first IP)",
+        "type": "timeseries"
+      },
+      {
         "collapsed": false,
         "gridPos": {
           "h": 1,
@@ -607,7 +708,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Desired warm-pool target (spec.replicas, summed per platform) vs alive runner Pods actually present in the namespace (Pending + Running phase, from kube-state-metrics). Alive counts Linux warm Pods (which sit in Pending while their poller init container runs) and macOS warm Pods (Running) correctly, unlike a readiness check. desired > alive means the controller hasn't created the Pod objects yet or createRunner is erroring (a controller-health signal); alive > desired means Pods are still running jobs above the warm target while the autoscaler lags scale-down. status.observedReplicas is intentionally not plotted here: the controller derives it from the target, so it shadowed desired tautologically. A scheduler placement failure shows as unschedulable Pods (which still count as alive here), not as a gap. Requires kube-state-metrics.",
+        "description": "Desired warm-pool target (spec.replicas, summed per platform) vs runner Pods actually present, using the runners-controller's low-cardinality pool phase metric instead of kube-state-metrics pod phase series. macOS is split into 'ready' (Running phase: Tart VM booted, can take a job) and 'cold-booting' (Pending phase: VM still booting, cannot accept work yet); stacked, they equal the macOS Pods alive, and the gap between 'macos desired' and 'macos ready' is the cold-boot deficit driving queue wait. Linux is a single 'alive' line on purpose: Linux warm Pods sit in Pending while their poller init container runs, so for Linux Pending means ready-to-claim (the opposite of macOS) and a Pending=cold split would mislead. desired above ready+booting means the controller has not created the Pod objects yet or createRunner is erroring; a scheduler placement failure shows as unschedulable Pods (see the Unscheduled stat), not as a gap here.",
         "fieldConfig": {
           "defaults": {
             "color": {
@@ -627,7 +728,83 @@
               }
             },
             "unit": "short"
-          }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byRegexp",
+                "options": "/ desired$/"
+              },
+              "properties": [
+                {
+                  "id": "custom.lineStyle",
+                  "value": {
+                    "fill": "dash",
+                    "dash": [
+                      10,
+                      10
+                    ]
+                  }
+                },
+                {
+                  "id": "custom.fillOpacity",
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "macos ready"
+              },
+              "properties": [
+                {
+                  "id": "custom.stacking",
+                  "value": {
+                    "group": "macos",
+                    "mode": "normal"
+                  }
+                },
+                {
+                  "id": "custom.fillOpacity",
+                  "value": 35
+                },
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "green",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "macos cold-booting"
+              },
+              "properties": [
+                {
+                  "id": "custom.stacking",
+                  "value": {
+                    "group": "macos",
+                    "mode": "normal"
+                  }
+                },
+                {
+                  "id": "custom.fillOpacity",
+                  "value": 35
+                },
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "orange",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            }
+          ]
         },
         "gridPos": {
           "h": 8,
@@ -651,16 +828,30 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (platform) (label_replace(max by (fleet) (tuist_runners_pool_replicas_desired{fleet=~\".*$platform.*\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\"))",
+            "expr": "sum by (platform) (label_replace(max by (fleet) (tuist_runners_pool_replicas_desired{fleet=~\".*$platform.*\", env=\"$env\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\"))",
             "legendFormat": "{{platform}} desired",
             "refId": "A"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (platform) (label_replace(kube_pod_status_phase{namespace=\"tuist-runners\", phase=~\"Pending|Running\", pod=~\".*runner-pool-(linux|macos).*\", pod=~\".*$platform.*\"}, \"platform\", \"$1\", \"pod\", \".*runner-pool-(linux|macos).*\"))",
-            "legendFormat": "{{platform}} alive",
+            "expr": "sum(tuist_runners_pool_phase_replicas{pool=~\".*runner-pool-linux.*\", pool=~\".*$platform.*\", phase=~\"Pending|Running\", env=\"$env\"})",
+            "legendFormat": "linux alive",
             "refId": "B"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(tuist_runners_pool_phase_replicas{pool=~\".*runner-pool-macos.*\", pool=~\".*$platform.*\", phase=\"Running\", env=\"$env\"})",
+            "legendFormat": "macos ready",
+            "refId": "C"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(tuist_runners_pool_phase_replicas{pool=~\".*runner-pool-macos.*\", pool=~\".*$platform.*\", phase=\"Pending\", env=\"$env\"})",
+            "legendFormat": "macos cold-booting",
+            "refId": "D"
           }
         ],
         "title": "RunnerPool replicas",
@@ -668,7 +859,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Running claims as a fraction of the pool capacity ceiling (max(autoscaling.maxReplicas, spec.replicas), summed per platform). 100% means the autoscaler is maxed out and cannot grow the warm pool, so further queued work can't be served: raise maxReplicas or add hosts. The denominator is the fixed ceiling, not the live target (which chases load), so this reads as true saturation rather than the old running/observed ratio that floored at 1 and spiked past 100%. Caveat: the numerator is PG running claims, which can briefly include claims whose Pods just finished before the recovery sweep, so small transient overshoots above 100% are possible.",
+        "description": "Running claims as a fraction of the platform's concurrency ceiling. macOS pools (one per Xcode version) share a single bare-metal host budget (hostCount, 1 VM/host) and the controller's allocator caps their joint replica sum to it, so the ceiling is max(maxReplicas) across the platform's pools, NOT the sum: each macOS pool reports maxReplicas = hostCount, so summing triple-counts the shared budget and pins utilisation near 33% even at full saturation. 100% means the platform is at its host budget and further queued work can't be served until hosts are added (raising maxReplicas does not help a host-bound macOS fleet). The denominator is the fixed ceiling, not the live target, so this reads as true saturation. Caveat: the numerator is PG running claims, which can briefly include claims whose Pods just finished before the recovery sweep, so small transient overshoots above 100% are possible.",
         "fieldConfig": {
           "defaults": {
             "color": {
@@ -758,7 +949,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (platform) (label_replace(max by (fleet) (tuist_runners_claims_count{fleet=~\".*$platform.*\", lifecycle_state=\"running\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\")) / clamp_min(sum by (platform) (label_replace(max by (fleet) (tuist_runners_pool_replicas_max{fleet=~\".*$platform.*\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\")), 1)",
+            "expr": "sum by (platform) (label_replace(max by (fleet) (tuist_runners_claims_count{fleet=~\".*$platform.*\", lifecycle_state=\"running\", env=\"$env\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\")) / clamp_min(max by (platform) (label_replace(max by (fleet) (tuist_runners_pool_replicas_max{fleet=~\".*$platform.*\", env=\"$env\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\")), 1)",
             "legendFormat": "{{platform}}",
             "refId": "A"
           }
@@ -812,7 +1003,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (platform) (label_replace(max by (fleet) (tuist_runners_queue_length{fleet=~\".*$platform.*\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\"))",
+            "expr": "sum by (platform) (label_replace(max by (fleet) (tuist_runners_queue_length{fleet=~\".*$platform.*\", env=\"$env\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\"))",
             "legendFormat": "{{platform}}",
             "refId": "A"
           }
@@ -866,7 +1057,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (platform) (label_replace(max by (fleet) (tuist_runners_claims_count{fleet=~\".*$platform.*\", lifecycle_state=\"running\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\"))",
+            "expr": "sum by (platform) (label_replace(max by (fleet) (tuist_runners_claims_count{fleet=~\".*$platform.*\", lifecycle_state=\"running\", env=\"$env\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\"))",
             "legendFormat": "{{platform}}",
             "refId": "A"
           }
@@ -1122,13 +1313,130 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum(kube_pod_status_unschedulable{namespace=\"tuist-runners\"}) or vector(0)",
+            "expr": "sum(kube_pod_status_unschedulable{namespace=\"tuist-runners\", env=\"$env\"}) or vector(0)",
             "instant": true,
             "refId": "A"
           }
         ],
         "title": "Unscheduled",
         "type": "stat"
+      },
+      {
+        "collapsed": false,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 48
+        },
+        "id": 130,
+        "panels": [],
+        "title": "Allocation (cold-boot risk)",
+        "type": "row"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Warm Pods the fleet allocator WANTED to keep ready (minWarmPoolFloor above real load) but could not fund because the shared bare-metal node pool was memory-contended. Emitted by the runners-controller (tuist_runners_autoscaler_warm_deficit_replicas). 0 = warm pool fully funded. A sustained non-zero value means this shape's warm buffer is reaped toward its raw load, so the next demand burst pays cold-start. This is the leading indicator for cold boots that alive/desired can't surface.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 20,
+              "lineWidth": 2,
+              "stacking": {
+                "mode": "normal"
+              }
+            },
+            "min": 0,
+            "unit": "short"
+          }
+        },
+        "gridPos": {
+          "h": 9,
+          "w": 12,
+          "x": 0,
+          "y": 49
+        },
+        "id": 131,
+        "options": {
+          "legend": {
+            "calcs": ["max", "lastNotNull"],
+            "displayMode": "table",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (platform) (label_replace(max by (pool) (tuist_runners_autoscaler_warm_deficit_replicas{pool=~\".*$platform.*\", env=\"$env\"}), \"platform\", \"$1\", \"pool\", \".*runner-pool-(linux|macos).*\"))",
+            "legendFormat": "{{platform}}",
+            "refId": "A"
+          }
+        ],
+        "title": "Warm-pool deficit (unfunded warm replicas) by platform",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "What the autoscaler wanted (target = DesiredReplicas, the pool's full ask incl. warm floor + p95 headroom) vs what the fleet allocator granted (allocated = spec.replicas) after splitting shared capacity across sibling shapes. A persistent gap is the squeeze: warm pool and headroom yielding to other pools' real queued work under contention. Both emitted by the runners-controller.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 2
+            },
+            "min": 0,
+            "unit": "short"
+          }
+        },
+        "gridPos": {
+          "h": 9,
+          "w": 12,
+          "x": 12,
+          "y": 49
+        },
+        "id": 132,
+        "options": {
+          "legend": {
+            "calcs": ["lastNotNull"],
+            "displayMode": "table",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (platform) (label_replace(max by (pool) (tuist_runners_autoscaler_target_replicas{pool=~\".*$platform.*\", env=\"$env\"}), \"platform\", \"$1\", \"pool\", \".*runner-pool-(linux|macos).*\"))",
+            "legendFormat": "{{platform}} target",
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (platform) (label_replace(max by (pool) (tuist_runners_autoscaler_allocated_replicas{pool=~\".*$platform.*\", env=\"$env\"}), \"platform\", \"$1\", \"pool\", \".*runner-pool-(linux|macos).*\"))",
+            "legendFormat": "{{platform}} allocated",
+            "refId": "B"
+          }
+        ],
+        "title": "Autoscaler target vs allocated by platform",
+        "type": "timeseries"
       }
     ]
   }

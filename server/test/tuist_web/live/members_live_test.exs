@@ -6,6 +6,7 @@ defmodule TuistWeb.MembersLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Accounts
+  alias Tuist.Environment
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup %{conn: conn} do
@@ -53,6 +54,83 @@ defmodule TuistWeb.MembersLiveTest do
 
       # Then: the invitation should still exist
       assert Accounts.get_invitation_by_id(other_invitation.id)
+    end
+  end
+
+  describe "invitations table" do
+    test "surfaces a copy-able invite link so members can be onboarded without email delivery", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      account: account
+    } do
+      # Given: a pending invitation to the current organization
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization(
+          "invitee@example.com",
+          %{
+            inviter: user,
+            to: organization,
+            url: &"/auth/invitations/#{&1}"
+          }
+        )
+
+      # When: visiting the members page and switching to the invitations tab
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
+
+      html =
+        lv
+        |> element("[phx-value-tab='invitations']")
+        |> render_click()
+
+      # Then: the invitation row exposes the acceptance link for the clipboard action
+      assert html =~ "copy-invite-link-#{invitation.id}"
+      assert html =~ "/auth/invitations/#{invitation.token}"
+    end
+
+    test "reveals the invite link and notes no email was sent when mail is not configured", %{
+      conn: conn,
+      organization: organization,
+      account: account
+    } do
+      stub(Environment, :mail_configured?, fn -> false end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
+
+      html =
+        lv
+        |> form("#invite-member-form", invitation: %{invitee_email: "newcomer@example.com"})
+        |> render_submit()
+
+      # Then: the modal swaps to a confirmation that surfaces the acceptance link
+      invitation =
+        Accounts.get_invitation_by_invitee_email_and_organization(
+          "newcomer@example.com",
+          organization
+        )
+
+      assert html =~ "Invitation link"
+      assert html =~ "/auth/invitations/#{invitation.token}"
+      assert html =~ "invite-member-form-copy-invitation-link"
+      assert html =~ "Share this link with newcomer@example.com so they can join"
+    end
+
+    test "tells the inviter an email was sent when mail is configured", %{
+      conn: conn,
+      account: account
+    } do
+      stub(Environment, :mail_configured?, fn -> true end)
+      stub(Accounts.UserNotifier, :deliver_invitation, fn _email, _opts -> :ok end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
+
+      html =
+        lv
+        |> form("#invite-member-form", invitation: %{invitee_email: "emailed@example.com"})
+        |> render_submit()
+
+      assert html =~ "Invitation link"
+      assert html =~ "emailed this invitation to emailed@example.com"
     end
   end
 

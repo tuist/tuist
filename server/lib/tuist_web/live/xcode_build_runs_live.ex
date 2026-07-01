@@ -143,9 +143,6 @@ defmodule TuistWeb.XcodeBuildRunsLive do
     end
   end
 
-  def sort_icon("desc"), do: "square_rounded_arrow_down"
-  def sort_icon("asc"), do: "square_rounded_arrow_up"
-
   def column_patch_sort(
         %{uri: uri, build_runs_sort_by: build_runs_sort_by, build_runs_sort_order: build_runs_sort_order},
         column_value
@@ -170,12 +167,22 @@ defmodule TuistWeb.XcodeBuildRunsLive do
   defp build_flop_filters(filters) do
     {ran_by, filters} = Enum.split_with(filters, &(&1.id == "ran_by"))
     {tags_filters, filters} = Enum.split_with(filters, &(&1.id == "custom_tags"))
-    flop_filters = Filter.Operations.convert_filters_to_flop(filters)
+
+    flop_filters =
+      filters
+      |> Enum.map(&normalize_text_filter_operator/1)
+      |> Filter.Operations.convert_filters_to_flop()
 
     ran_by_flop_filters =
       Enum.flat_map(ran_by, fn
         %{value: :ci, operator: op} ->
           [%{field: :is_ci, op: op, value: true}]
+
+        %{value: value, operator: :==} when not is_nil(value) ->
+          [
+            %{field: :is_ci, op: :==, value: false},
+            %{field: :account_id, op: :==, value: value}
+          ]
 
         %{value: value, operator: op} when not is_nil(value) ->
           [%{field: :account_id, op: op, value: value}]
@@ -196,6 +203,10 @@ defmodule TuistWeb.XcodeBuildRunsLive do
 
     flop_filters ++ ran_by_flop_filters ++ tag_flop_filters
   end
+
+  defp normalize_text_filter_operator(%Filter.Filter{operator: :"!=~"} = filter), do: %{filter | operator: :not_ilike}
+
+  defp normalize_text_filter_operator(filter), do: filter
 
   defp define_filters(project, schemes, configurations, tags) do
     base = [

@@ -58,7 +58,7 @@ msgstr ""
 msgid "Bad request"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:414
+#: lib/tuist_web/components/app_layout_components.ex:424
 #, elixir-autogen, elixir-format
 msgid "Billing"
 msgstr ""
@@ -104,7 +104,7 @@ msgstr ""
 msgid "Download macOS app"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:515
+#: lib/tuist_web/components/app_layout_components.ex:525
 #, elixir-autogen, elixir-format
 msgid "Emails"
 msgstr ""
@@ -116,12 +116,12 @@ msgstr ""
 msgid "Error"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:530
+#: lib/tuist_web/components/app_layout_components.ex:540
 #, elixir-autogen, elixir-format
 msgid "Errors"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:508
+#: lib/tuist_web/components/app_layout_components.ex:518
 #, elixir-autogen, elixir-format
 msgid "Flags"
 msgstr ""
@@ -137,13 +137,13 @@ msgstr ""
 msgid "Go to dashboard"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:538
+#: lib/tuist_web/components/app_layout_components.ex:548
 #: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Grafana"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:454
+#: lib/tuist_web/components/app_layout_components.ex:464
 #, elixir-autogen, elixir-format
 msgid "Integrations"
 msgstr ""
@@ -160,7 +160,7 @@ msgid "Invalid installation request. Please try again."
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:386
-#: lib/tuist_web/components/app_layout_components.ex:502
+#: lib/tuist_web/components/app_layout_components.ex:512
 #, elixir-autogen, elixir-format
 msgid "Jobs"
 msgstr ""
@@ -170,7 +170,7 @@ msgstr ""
 msgid "Learn more"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:496
+#: lib/tuist_web/components/app_layout_components.ex:506
 #, elixir-autogen, elixir-format
 msgid "LiveDashboard"
 msgstr ""
@@ -276,7 +276,7 @@ msgstr ""
 msgid "Server error"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:428
+#: lib/tuist_web/components/app_layout_components.ex:438
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr ""
@@ -301,7 +301,7 @@ msgstr ""
 msgid "Sorry, you made too many requests. Please try again later."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:522
+#: lib/tuist_web/components/app_layout_components.ex:532
 #, elixir-autogen, elixir-format
 msgid "Storage"
 msgstr ""
@@ -339,7 +339,8 @@ msgstr ""
 msgid "The account you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:29
+#: lib/tuist_web/controllers/auth_controller.ex:30
+#: lib/tuist_web/controllers/auth_controller.ex:140
 #, elixir-autogen, elixir-format
 msgid "The authentication URL is not supported"
 msgstr ""
@@ -387,8 +388,8 @@ msgstr ""
 msgid "Too many requests."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:562
-#: lib/tuist_web/components/app_layout_components.ex:599
+#: lib/tuist_web/components/app_layout_components.ex:572
+#: lib/tuist_web/components/app_layout_components.ex:614
 #, elixir-autogen, elixir-format
 msgid "Tuist Icon"
 msgstr ""
@@ -501,7 +502,8 @@ msgstr ""
 msgid "Create project"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:477
+#: lib/tuist_web/components/app_layout_components.ex:417
+#: lib/tuist_web/components/app_layout_components.ex:487
 #: lib/tuist_web/live/ops_cache_live.html.heex:3
 #, elixir-autogen, elixir-format
 msgid "Cache"
@@ -522,8 +524,8 @@ msgstr ""
 msgid "Authentication failed"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:343
-#: lib/tuist_web/controllers/auth_controller.ex:515
+#: lib/tuist_web/controllers/auth_controller.ex:349
+#: lib/tuist_web/controllers/auth_controller.ex:521
 #, elixir-autogen, elixir-format
 msgid "Your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
 msgstr ""
@@ -534,42 +536,42 @@ msgstr ""
 msgid "Shards"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:352
+#: lib/tuist_web/controllers/auth_controller.ex:358
 #, elixir-autogen, elixir-format
 msgid "Authentication with the identity provider failed. Please try again."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:599
+#: lib/tuist_web/controllers/auth_controller.ex:605
 #, elixir-autogen, elixir-format
 msgid "Failed to authenticate with the SSO provider. Please try again."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:494
+#: lib/tuist_web/controllers/auth_controller.ex:500
 #, elixir-autogen, elixir-format
 msgid "SSO is not fully configured for this organization. Ask an organization admin to review the SSO settings."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:557
+#: lib/tuist_web/controllers/auth_controller.ex:563
 #, elixir-autogen, elixir-format
 msgid "The SSO authorization code is invalid or expired. Please restart the sign-in flow."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:529
+#: lib/tuist_web/controllers/auth_controller.ex:535
 #, elixir-autogen, elixir-format
 msgid "The SSO provider callback is missing an authorization code. Please restart the sign-in flow."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:480
+#: lib/tuist_web/controllers/auth_controller.ex:486
 #, elixir-autogen, elixir-format
 msgid "The SSO request is missing an organization identifier. Please start the sign-in flow again from the login page."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:508
+#: lib/tuist_web/controllers/auth_controller.ex:514
 #, elixir-autogen, elixir-format
 msgid "The SSO response could not be validated because the request state did not match. Please try again."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:536
+#: lib/tuist_web/controllers/auth_controller.ex:542
 #, elixir-autogen, elixir-format
 msgid "The configured SSO endpoints are invalid. Ask your organization admin to review the SSO settings."
 msgstr ""
@@ -579,52 +581,52 @@ msgstr ""
 msgid "Tuist Ops"
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:543
+#: lib/tuist_web/controllers/auth_controller.ex:549
 #, elixir-autogen, elixir-format
 msgid "Tuist couldn't exchange the authorization code with your identity provider. Ask your organization admin to verify the SSO credentials and callback URL."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:550
+#: lib/tuist_web/controllers/auth_controller.ex:556
 #, elixir-autogen, elixir-format
 msgid "Tuist couldn't fetch your profile from your identity provider. Ask your organization admin to verify the user info endpoint and configured scopes."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:592
+#: lib/tuist_web/controllers/auth_controller.ex:598
 #, elixir-autogen, elixir-format
 msgid "We couldn't complete the SSO callback for this request. Please try again."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:487
+#: lib/tuist_web/controllers/auth_controller.ex:493
 #, elixir-autogen, elixir-format
 msgid "We couldn't find the organization for this SSO request. Please verify that you are using the correct SSO link."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:585
+#: lib/tuist_web/controllers/auth_controller.ex:591
 #, elixir-autogen, elixir-format
 msgid "We couldn't start the SSO flow for this organization. Please verify the SSO configuration and try again."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:501
+#: lib/tuist_web/controllers/auth_controller.ex:507
 #, elixir-autogen, elixir-format
 msgid "Your SSO session has expired. Please restart the sign-in flow from the login page."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:578
+#: lib/tuist_web/controllers/auth_controller.ex:584
 #, elixir-autogen, elixir-format
 msgid "Your Tuist account already exists, but it isn't a member of this organization. Ask an organization admin to add you, then sign in with SSO again."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:564
+#: lib/tuist_web/controllers/auth_controller.ex:570
 #, elixir-autogen, elixir-format
 msgid "Your identity provider response is missing a stable user identifier. Ask your organization admin to review the user info claims."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:571
+#: lib/tuist_web/controllers/auth_controller.ex:577
 #, elixir-autogen, elixir-format
 msgid "Your identity provider response is missing an email address. Ask your organization admin to include the email claim."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:522
+#: lib/tuist_web/controllers/auth_controller.ex:528
 #, elixir-autogen, elixir-format
 msgid "Your identity provider returned an authentication error. Please try again or contact your organization admin."
 msgstr ""
@@ -634,7 +636,7 @@ msgstr ""
 msgid "Dashboard"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:484
+#: lib/tuist_web/components/app_layout_components.ex:494
 #: lib/tuist_web/live/ops_accounts_live.ex:18
 #: lib/tuist_web/live/ops_accounts_live.html.heex:3
 #: lib/tuist_web/live/ops_accounts_live.html.heex:5
@@ -642,7 +644,7 @@ msgstr ""
 msgid "Accounts"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:463
+#: lib/tuist_web/components/app_layout_components.ex:473
 #, elixir-autogen, elixir-format
 msgid "Authentication"
 msgstr ""
@@ -1334,7 +1336,7 @@ msgstr ""
 msgid "Tuist could not resolve %{url}. Double-check the GitHub Enterprise Server URL is correct and publicly resolvable."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:448
+#: lib/tuist_web/components/app_layout_components.ex:458
 #, elixir-autogen, elixir-format
 msgid "General"
 msgstr ""
@@ -1442,7 +1444,7 @@ msgstr ""
 msgid "Could not read the cluster's Backup resources from the Kubernetes API — check the server ServiceAccount's RBAC on postgresql.cnpg.io."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:490
+#: lib/tuist_web/components/app_layout_components.ex:500
 #: lib/tuist_web/live/ops_database_live.html.heex:3
 #: lib/tuist_web/live/ops_database_live.html.heex:58
 #, elixir-autogen, elixir-format
@@ -1823,7 +1825,12 @@ msgstr ""
 msgid "Write lag (bytes)"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:421
+#: lib/tuist_web/components/app_layout_components.ex:431
 #, elixir-autogen, elixir-format
 msgid "Usage"
+msgstr ""
+
+#: lib/tuist_web/components/app_layout_components.ex:595
+#, elixir-autogen, elixir-format
+msgid "Documentation"
 msgstr ""

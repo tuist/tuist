@@ -63,7 +63,9 @@ defmodule Tuist.PromEx do
         # Plugins.PhoenixLiveView,
         # Plugins.Absinthe,
         # Plugins.Broadway,
-        PromEx.Plugins.Finch,
+        # Plugins.Finch — superseded by Tuist.HTTP.PromExPlugin (Finch event metrics +
+        # polled pool gauges). The default plugin only adds duplicate pool gauges with
+        # no extra signal.
         PromEx.Plugins.Beam,
         Tuist.Storage.PromExPlugin,
         Tuist.CommandEvents.PromExPlugin,

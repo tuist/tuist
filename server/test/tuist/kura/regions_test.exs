@@ -10,7 +10,6 @@ defmodule Tuist.Kura.RegionsTest do
   describe "all/0" do
     test "exposes concrete managed regions backed by KubernetesController" do
       ids = Enum.map(Regions.all(), & &1.id)
-      hetzner_locations = %{"eu-central" => "fsn1", "us-east" => "ash", "us-west" => "hil"}
 
       ingress_classes = %{
         "eu-central" => "kura-eu-central",
@@ -28,9 +27,18 @@ defmodule Tuist.Kura.RegionsTest do
 
         refute Regions.get(id).display_name =~ "Hetzner"
         assert config.cluster_id == "#{id}-1"
-        assert config.hetzner_location == hetzner_locations[id]
         assert config.ingress_class_name == ingress_classes[id]
-        assert config.storage_class == "hcloud-volumes"
+      end
+
+      # us-east/us-west run on OVH bare metal (hostNetwork gateway, local-NVMe,
+      # two replicas); eu-central is on Dedibox bare metal (asserted below).
+      for id <- ["us-east", "us-west"] do
+        config = Regions.get(id).provisioner_config
+        assert config.hetzner_location == nil
+        assert config.storage_class == "scw-local-nvme"
+        assert config.gateway == :host_network
+        assert config.replicas == 2
+        assert config.storage_size == "50Gi"
       end
 
       assert Regions.get("us-east").provisioner_config.node_selector == %{
@@ -42,13 +50,66 @@ defmodule Tuist.Kura.RegionsTest do
              }
 
       assert Regions.get("eu-central").provisioner_config.node_selector == %{
-               "node.cluster.x-k8s.io/pool" => "kura"
+               "node.cluster.x-k8s.io/pool" => "kura-dedibox"
              }
 
       for id <- ["us-east", "us-west", "eu-central"] do
         refute Map.has_key?(Regions.get(id).provisioner_config, :kubernetes_client)
         refute Map.has_key?(Regions.get(id).provisioner_config, :peer_tls_secret_name)
       end
+    end
+
+    test "sets a uniform enterprise egress floor across the bare-metal regions" do
+      for id <- ["us-east", "us-west", "eu-central", "ca-east"] do
+        assert Regions.get(id).provisioner_config.egress_guaranteed_mbps == 25
+      end
+
+      # The burst ceiling stays per-box and rides the pod annotation.
+      assert Regions.get("us-east").provisioner_config.pod_annotations == %{
+               "kubernetes.io/egress-bandwidth" => "1500M"
+             }
+    end
+
+    test "runs eu-central on Dedibox bare metal" do
+      config = Regions.get("eu-central").provisioner_config
+
+      assert config.node_selector == %{"node.cluster.x-k8s.io/pool" => "kura-dedibox"}
+      assert config.storage_class == "scw-local-nvme"
+      assert config.gateway == :host_network
+      assert config.replicas == 2
+      assert config.storage_size == "50Gi"
+      assert config.hetzner_location == nil
+
+      # Identity is unchanged so the cutover is invisible to the customer and CLI.
+      assert config.cluster_id == "eu-central-1"
+      assert config.ingress_class_name == "kura-eu-central"
+      assert Regions.get("eu-central").display_name == "EU Central"
+    end
+
+    test "threads the per-region public peer failover IP from the environment" do
+      stub(Tuist.Environment, :kura_peer_failover_ip, fn
+        "eu-central" -> "203.0.113.10"
+        _ -> nil
+      end)
+
+      assert Regions.get("eu-central").provisioner_config.failover_ip == "203.0.113.10"
+      assert Regions.get("us-east").provisioner_config.failover_ip == nil
+    end
+
+    test "enables the per-account peer mesh on managed and private regions" do
+      for id <- ["us-east", "us-west", "eu-central", "scw-fr-par-runners", "hetzner-staging-runners"] do
+        assert Regions.get(id).provisioner_config.mesh == true,
+               "expected region #{id} to enable the peer mesh"
+      end
+    end
+
+    test "tolerates the runner-cache node taint only on the scaleway runner-cache region" do
+      assert Regions.get("scw-fr-par-runners").provisioner_config.tolerations == [
+               %{"key" => "tuist.dev/runner-cache", "operator" => "Exists", "effect" => "NoSchedule"}
+             ]
+
+      # The Hetzner runner-cache pool isn't tainted, so its region carries no toleration.
+      assert Regions.get("hetzner-staging-runners").provisioner_config.tolerations == []
     end
 
     test "exposes a local controller-backed region for kind smoke tests" do
@@ -75,8 +136,8 @@ defmodule Tuist.Kura.RegionsTest do
 
       assert config.public_host_template == "{account_handle}-{cluster_id}-staging.kura.tuist.dev"
 
-      assert config.grpc_public_host_template ==
-               "grpc.{account_handle}-{cluster_id}-staging.kura.tuist.dev"
+      # gRPC co-hosts on the single public host (no separate grpc. hostname).
+      assert config.grpc_public_host_template == config.public_host_template
 
       stub(Tuist.Environment, :env, fn -> :can end)
 
@@ -85,8 +146,7 @@ defmodule Tuist.Kura.RegionsTest do
       assert canary_config.public_host_template ==
                "{account_handle}-{cluster_id}-canary.kura.tuist.dev"
 
-      assert canary_config.grpc_public_host_template ==
-               "grpc.{account_handle}-{cluster_id}-canary.kura.tuist.dev"
+      assert canary_config.grpc_public_host_template == canary_config.public_host_template
     end
 
     test "omits the environment suffix from managed-region public hostnames in production" do
@@ -96,8 +156,7 @@ defmodule Tuist.Kura.RegionsTest do
 
       assert config.public_host_template == "{account_handle}-{cluster_id}.kura.tuist.dev"
 
-      assert config.grpc_public_host_template ==
-               "grpc.{account_handle}-{cluster_id}.kura.tuist.dev"
+      assert config.grpc_public_host_template == config.public_host_template
     end
 
     test "reads the managed-region Tuist base URL from the environment adapter" do
@@ -179,7 +238,7 @@ defmodule Tuist.Kura.RegionsTest do
     test "scaleway and hetzner-staging runner regions are registered as private" do
       assert %Regions{provisioner_config: scw_config} = Regions.get("scw-fr-par-runners")
       assert scw_config.private == true
-      assert scw_config.storage_class == "scw-bssd"
+      assert scw_config.storage_class == "scw-local-nvme"
       assert scw_config.replicas == 1
       assert scw_config.node_selector == %{"node.cluster.x-k8s.io/pool" => "kura-scw-fr-par"}
       refute Map.has_key?(scw_config, :public_host_template)
@@ -200,6 +259,37 @@ defmodule Tuist.Kura.RegionsTest do
       refute Regions.private?(Regions.get("eu-central"))
       refute Regions.private?(Regions.get("local-controller"))
       refute Regions.private?(nil)
+    end
+  end
+
+  describe "serves_runner_platform?/2" do
+    test "scaleway region serves only the co-located macOS fleet" do
+      scw = Regions.get("scw-fr-par-runners")
+
+      assert scw.runner_platforms == [:macos]
+      assert Regions.serves_runner_platform?(scw, :macos)
+      refute Regions.serves_runner_platform?(scw, :linux)
+    end
+
+    test "staging hetzner region serves only the co-located linux fleet" do
+      staging = Regions.get("hetzner-staging-runners")
+
+      assert staging.runner_platforms == [:linux]
+      assert Regions.serves_runner_platform?(staging, :linux)
+      refute Regions.serves_runner_platform?(staging, :macos)
+    end
+
+    test "scw region uses the node-port data plane; hetzner stays on cluster DNS" do
+      assert Regions.node_port_data_plane?(Regions.get("scw-fr-par-runners"))
+      refute Regions.node_port_data_plane?(Regions.get("hetzner-staging-runners"))
+      refute Regions.node_port_data_plane?(Regions.get("eu-central"))
+      refute Regions.node_port_data_plane?(nil)
+    end
+
+    test "public regions and nil serve no runner platform" do
+      refute Regions.serves_runner_platform?(Regions.get("eu-central"), :linux)
+      refute Regions.serves_runner_platform?(Regions.get("local-controller"), :macos)
+      refute Regions.serves_runner_platform?(nil, :linux)
     end
   end
 
@@ -313,5 +403,23 @@ defmodule Tuist.Kura.RegionsTest do
         machine_deployment["failureDomain"]
       end
     end)
+  end
+
+  describe "peer_public_host/2 and peer_public_url/2" do
+    test "interpolate the account handle and cluster for a managed region" do
+      region = Regions.get("eu-central")
+
+      assert Regions.peer_public_host("Acme", region) == "peer.acme-eu-central-1.kura.tuist.dev"
+
+      assert Regions.peer_public_url("Acme", region) ==
+               "https://peer.acme-eu-central-1.kura.tuist.dev:7443"
+    end
+
+    test "return nil for regions without a peer public host (local controller)" do
+      region = Regions.get("local-controller")
+
+      assert Regions.peer_public_host("acme", region) == nil
+      assert Regions.peer_public_url("acme", region) == nil
+    end
   end
 end

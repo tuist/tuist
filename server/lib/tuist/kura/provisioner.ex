@@ -88,11 +88,18 @@ defmodule Tuist.Kura.Provisioner do
   the control plane re-apply config-only changes independently from Kura
   runtime image changes.
   """
+  @callback external_endpoint(ref :: String.t(), Regions.t()) ::
+              {:ok, String.t()} | {:error, term()}
+
   @callback current_manifest_revision(ref :: String.t(), Regions.t()) ::
               {:ok, String.t() | nil} | {:error, term()}
 
-  @doc "Returns the manifest revision the provisioner currently renders."
-  @callback manifest_revision() :: String.t() | nil
+  @doc """
+  Returns the manifest revision the provisioner would render for `account` in
+  the given region, folding in any dynamic inputs (such as enrolled self-hosted
+  peers) that must trigger a re-apply when they change.
+  """
+  @callback manifest_revision(Account.t(), Regions.t()) :: String.t() | nil
 
   @doc "Returns the provisioner's default resource description for one Kura server."
   @callback resources_for(Server.t()) :: map()
@@ -134,6 +141,13 @@ defmodule Tuist.Kura.Provisioner do
     end
   end
 
+  @doc "Calls `external_endpoint/2` on the region's provisioner."
+  def external_endpoint(%Server{provisioner_node_ref: ref, region: region_id}) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provisioner.external_endpoint(ref, region)
+    end
+  end
+
   @doc "Calls `current_manifest_revision/2` on the region's provisioner."
   def current_manifest_revision(%Server{provisioner_node_ref: ref, region: region_id}) do
     with {:ok, region} <- Regions.fetch(region_id) do
@@ -141,10 +155,10 @@ defmodule Tuist.Kura.Provisioner do
     end
   end
 
-  @doc "Calls `manifest_revision/0` on the region's provisioner."
-  def manifest_revision(%Server{region: region_id}) do
+  @doc "Calls `manifest_revision/2` on the region's provisioner."
+  def manifest_revision(%Server{region: region_id} = server) do
     with {:ok, region} <- Regions.fetch(region_id) do
-      {:ok, region.provisioner.manifest_revision()}
+      {:ok, region.provisioner.manifest_revision(server.account, region)}
     end
   end
 end

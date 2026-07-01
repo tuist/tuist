@@ -11,6 +11,8 @@ defmodule Tuist.Kura.ReconcilerTest do
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
+  @moduletag capture_log: true
+
   setup :set_mimic_from_context
 
   setup do
@@ -98,7 +100,11 @@ defmodule Tuist.Kura.ReconcilerTest do
     assert :ok = Reconciler.reconcile()
 
     assert %Deployment{status: :running} = Repo.get!(Deployment, deployment.id)
-    assert %Server{status: :provisioning, current_image_tag: nil, url: nil} = Repo.get!(Server, server.id)
+
+    # The workload is up on the desired image but its public endpoint is not
+    # serving yet, so the server surfaces :replicating while the deployment keeps
+    # retrying (it is not activated until the endpoint is healthy).
+    assert %Server{status: :replicating, current_image_tag: nil, url: nil} = Repo.get!(Server, server.id)
   end
 
   test "schedules and applies runtime image drift for active servers" do
@@ -168,6 +174,39 @@ defmodule Tuist.Kura.ReconcilerTest do
 
     assert %Server{status: :active, url: "http://localhost:4200"} = Repo.get!(Server, server.id)
     assert [%{url: "http://localhost:4200"}] = Accounts.list_account_cache_endpoints(account, :kura)
+  end
+
+  test "refreshes a converged node-port server instead of re-activating it every tick" do
+    {_account, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+
+    # Move the converged server into a node-port private region with its
+    # node-published dispatch URL. `public_url/2` renders the cluster-DNS
+    # template, which this never matches, so the pre-fix `endpoint_in_sync?/1`
+    # reported drift on every tick and re-activated the node (DB write +
+    # broadcast) instead of letting the node-port refresh path own the endpoint.
+    server =
+      server
+      |> Ecto.Changeset.change(region: "scw-fr-par-runners", url: "http://172.16.0.5:32000")
+      |> Repo.update!()
+
+    stub(Provisioner, :current_image_tag, fn _ -> {:ok, "0.5.2"} end)
+    stub(Provisioner, :manifest_revision, fn _ -> {:ok, nil} end)
+    stub(Provisioner, :current_manifest_revision, fn _ -> {:ok, "rev"} end)
+
+    # The fix routes a converged node-port server through the endpoint refresh,
+    # not back through activation.
+    reject(&Kura.activate_server/2)
+
+    expect(Kura, :refresh_private_server_url, fn %Server{id: id} ->
+      assert id == server.id
+      :ok
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Server{status: :active, url: "http://172.16.0.5:32000"} = Repo.get!(Server, server.id)
   end
 
   test "marks destroying servers destroyed after the KuraInstance disappears" do

@@ -101,9 +101,16 @@ defmodule Noora.Sidebar do
               </button>
             </div>
           <% else %>
-            <.tab_menu_vertical label={@label} data-part="trigger" data-selected={@selected}>
-              <:icon_left><.icon name={@icon} /></:icon_left>
-              <:icon_right>
+            <button
+              type="button"
+              class="noora-tab-menu-vertical"
+              data-part="trigger"
+              data-selected={@selected}
+              disabled={@disabled}
+            >
+              <div data-part="icon-left"><.icon name={@icon} /></div>
+              <span data-part="label">{@label}</span>
+              <div data-part="icon-right">
                 <div data-part="indicator">
                   <.icon
                     id={@id <> "-indicator"}
@@ -113,8 +120,8 @@ defmodule Noora.Sidebar do
                     active_state="open"
                   />
                 </div>
-              </:icon_right>
-            </.tab_menu_vertical>
+              </div>
+            </button>
           <% end %>
           <div data-part="content" hidden={!@default_open}>
             {render_slot(@inner_block)}

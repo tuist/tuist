@@ -353,7 +353,7 @@
             :let={w}
             label={dgettext("dashboard_runners", "Workflow")}
             patch={TuistWeb.RunnerWorkflowsLive.column_sort_patch(assigns, "workflow")}
-            icon={@sort_by == "workflow" && TuistWeb.RunnerWorkflowsLive.sort_icon(@sort_order)}
+            sort_order={@sort_by == "workflow" && @sort_order}
           >
             <.text_cell label={
               if(w.workflow_name == "",
@@ -374,7 +374,7 @@
             :let={w}
             label={dgettext("dashboard_runners", "Jobs")}
             patch={TuistWeb.RunnerWorkflowsLive.column_sort_patch(assigns, "jobs")}
-            icon={@sort_by == "jobs" && TuistWeb.RunnerWorkflowsLive.sort_icon(@sort_order)}
+            sort_order={@sort_by == "jobs" && @sort_order}
           >
             <.text_cell label={Integer.to_string(w.total_jobs)} />
           </:col>
@@ -382,9 +382,7 @@
             :let={w}
             label={dgettext("dashboard_runners", "Success rate")}
             patch={TuistWeb.RunnerWorkflowsLive.column_sort_patch(assigns, "success_rate")}
-            icon={
-              @sort_by == "success_rate" && TuistWeb.RunnerWorkflowsLive.sort_icon(@sort_order)
-            }
+            sort_order={@sort_by == "success_rate" && @sort_order}
           >
             <.text_cell label={TuistWeb.RunnerWorkflowsLive.success_rate(w)} />
           </:col>
@@ -392,9 +390,7 @@
             :let={w}
             label={dgettext("dashboard_runners", "Avg duration")}
             patch={TuistWeb.RunnerWorkflowsLive.column_sort_patch(assigns, "avg_duration")}
-            icon={
-              @sort_by == "avg_duration" && TuistWeb.RunnerWorkflowsLive.sort_icon(@sort_order)
-            }
+            sort_order={@sort_by == "avg_duration" && @sort_order}
           >
             <.text_cell
               icon="history"

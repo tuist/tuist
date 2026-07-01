@@ -145,7 +145,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                 let hash: String?
                 switch dependency.packageRef.kind {
                 case "remote", "remoteSourceControl":
-                    packageFolder = checkoutsFolder.appending(component: dependency.subpath)
+                    packageFolder = checkoutsFolder.appending(component: sanitizedSwiftPackageManagerPath(dependency.subpath))
                     hash = dependency.state?.checkoutState?.revision
                 case "local", "fileSystem", "localSourceControl":
                     // Depending on the swift version, the information is available either in `path` or in `location`
@@ -158,13 +158,15 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                     // Anchor against `scratchDirectory` so swifterpm's relative-path encoding resolves correctly;
                     // absolute paths from older swifterpm output pass through unchanged.
                     packageFolder = try AbsolutePath(
-                        validating: path.replacingOccurrences(of: "/private/var", with: "/var"),
+                        validating: sanitizedSwiftPackageManagerPath(path),
                         relativeTo: scratchDirectory
                     )
                     hash = nil
                 case "registry":
                     let registryFolder = path.appending(try RelativePath(validating: "registry/downloads"))
-                    packageFolder = registryFolder.appending(try RelativePath(validating: dependency.subpath))
+                    packageFolder = registryFolder.appending(
+                        try RelativePath(validating: sanitizedSwiftPackageManagerPath(dependency.subpath))
+                    )
                     hash = try dependency.state?.version.map { try contentHasher.hash([dependency.packageRef.identity, $0]) }
                 default:
                     throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
@@ -181,7 +183,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                     .filter { $0.packageRef.identity == dependency.packageRef.identity }
                     .reduce(into: [:]) { result, artifact in
                         result[artifact.targetName] = try AbsolutePath(
-                            validating: artifact.path,
+                            validating: sanitizedSwiftPackageManagerPath(artifact.path),
                             relativeTo: scratchDirectory
                         )
                     }
@@ -291,7 +293,11 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                     packageType: .external(
                         origin: Self.packageOrigin(for: packageInfo.kind),
                         artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:],
-                        packagePrebuilts: packagePrebuilts
+                        packagePrebuilts: packagePrebuilts,
+                        derivedXCFrameworksPath: scratchDirectory.appending(
+                            components: Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                            Constants.DerivedDirectory.dependenciesXCFrameworkDirectory
+                        )
                     ),
                     packageSettings: packageSettings,
                     packageModuleAliases: packageModuleAliases,
@@ -469,11 +475,21 @@ private func mapPackagePrebuilts(
                 identity: prebuilt.identity,
                 version: prebuilt.version,
                 libraryName: prebuilt.libraryName,
-                path: try AbsolutePath(validating: prebuilt.path, relativeTo: scratchDirectory),
+                path: try AbsolutePath(
+                    validating: sanitizedSwiftPackageManagerPath(prebuilt.path),
+                    relativeTo: scratchDirectory
+                ),
                 checkoutPath: try prebuilt.checkoutPath
-                    .map { try AbsolutePath(validating: $0, relativeTo: scratchDirectory) },
+                    .map {
+                        try AbsolutePath(
+                            validating: sanitizedSwiftPackageManagerPath($0),
+                            relativeTo: scratchDirectory
+                        )
+                    },
                 products: prebuilt.products,
-                includePath: try prebuilt.includePath?.map { try RelativePath(validating: $0) },
+                includePath: try prebuilt.includePath?.map {
+                    try RelativePath(validating: sanitizedSwiftPackageManagerPath($0))
+                },
                 cModules: prebuilt.cModules
             )
 
@@ -631,8 +647,13 @@ private struct SwifterPMPackageInfoCache {
     }
 
     private static func normalizedPackagePath(_ path: String) -> String {
-        path.replacingOccurrences(of: "/private/var", with: "/var")
+        sanitizedSwiftPackageManagerPath(path)
     }
+}
+
+private func sanitizedSwiftPackageManagerPath(_ path: String) -> String {
+    String(path.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) })
+        .replacingOccurrences(of: "/private/var", with: "/var")
 }
 
 extension ProjectDescription.Platform {

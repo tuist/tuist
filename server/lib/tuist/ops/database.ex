@@ -118,6 +118,34 @@ defmodule Tuist.Ops.Database do
   end
 
   @doc """
+  Like `table_exists?/2` but scoped to the same application-owned schemas
+  `list_table_overviews/0` exposes — `information_schema.tables` would
+  otherwise let a caller describe `pg_catalog` / operator relations the table
+  list hides. Used by the internal Atlas describe endpoint so listing and
+  describing share one visibility predicate.
+  """
+  def app_table_exists?(schema, name) do
+    {:ok, %{num_rows: n}} =
+      Repo.query(
+        """
+        SELECT 1
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind = 'r'
+          AND n.nspname = $1
+          AND c.relname = $2
+          AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+          AND n.nspname NOT LIKE 'pg_%'
+          AND n.nspname NOT LIKE 'cnpg_%'
+          AND n.nspname NOT LIKE '%timescaledb%'
+        """,
+        [schema, name]
+      )
+
+    n > 0
+  end
+
+  @doc """
   Paginated preview of a table's rows. Same read-only enforcement as
   the ad-hoc SQL runner: `BEGIN READ ONLY` + `statement_timeout`.
 
@@ -500,12 +528,13 @@ defmodule Tuist.Ops.Database do
   truncated?: bool}}` or `{:error, reason}`.
   """
   def execute(sql, opts \\ []) do
-    limit = Keyword.get(opts, :limit, @max_rows)
+    limit = opts |> Keyword.get(:limit, @max_rows) |> clamp_limit()
+    role = Keyword.get(opts, :role)
 
     with :ok <- validate_grammar(sql) do
       started = System.monotonic_time(:microsecond)
 
-      case run_read_only(sql, limit) do
+      case run_read_only(sql, limit, role) do
         {:ok, result} ->
           {:ok, Map.put(result, :duration_us, System.monotonic_time(:microsecond) - started)}
 
@@ -514,6 +543,12 @@ defmodule Tuist.Ops.Database do
       end
     end
   end
+
+  # The row cap is a server-side maximum, never something the caller can lift —
+  # an oversized `:limit` would otherwise make the cursor pull `limit + 1` rows
+  # and force the web process to build a huge response.
+  defp clamp_limit(limit) when is_integer(limit) and limit > 0, do: min(limit, @max_rows)
+  defp clamp_limit(_limit), do: @max_rows
 
   defp validate_grammar(sql) when is_binary(sql) do
     trimmed = sql |> String.trim() |> String.trim_trailing(";")
@@ -534,17 +569,50 @@ defmodule Tuist.Ops.Database do
 
   defp validate_grammar(_), do: {:error, "Query must be a string"}
 
-  defp run_read_only(sql, limit) do
-    Repo.transaction(fn ->
-      {:ok, _} = Repo.query("SET TRANSACTION READ ONLY")
-      {:ok, _} = Repo.query("SET LOCAL statement_timeout = #{@statement_timeout_ms}")
+  defp run_read_only(sql, limit, role) do
+    # Pin one connection for the whole operation so the advisory-lock cleanup
+    # below runs on the same backend that executed the statement — whether the
+    # transaction committed or rolled back.
+    Repo.checkout(fn ->
+      result =
+        Repo.transaction(fn ->
+          {:ok, _} = Repo.query("SET TRANSACTION READ ONLY")
+          {:ok, _} = Repo.query("SET LOCAL statement_timeout = #{@statement_timeout_ms}")
+          # When a `role` is given (the internal Atlas runner passes `tuist_ops_ro`),
+          # drop to it for the duration of the transaction so the statement
+          # executes with a least-privilege role that has no write grants at all —
+          # writes are then blocked by privileges, not only by `SET TRANSACTION
+          # READ ONLY`. Resets automatically at transaction end.
+          maybe_set_local_role(role)
 
-      if cursorable?(sql) do
-        fetch_via_cursor(sql, limit)
-      else
-        build_result(Repo.query(sql), limit)
-      end
+          if cursorable?(sql) do
+            fetch_via_cursor(sql, limit)
+          else
+            build_result(Repo.query(sql), limit)
+          end
+        end)
+
+      # `SET TRANSACTION READ ONLY` blocks writes but still permits side-effecting
+      # functions like `SELECT pg_advisory_lock(...)`, whose session-level lock
+      # survives both COMMIT and ROLLBACK and would ride a pooled connection into
+      # the next caller (or collide with Oban's advisory locks). Release any such
+      # locks here, outside the transaction on the same checked-out connection,
+      # so it runs on every path — including the rollback from a lock-taking
+      # query that then fails.
+      Repo.query("SELECT pg_advisory_unlock_all()")
+      result
     end)
+  end
+
+  defp maybe_set_local_role(nil), do: :ok
+
+  defp maybe_set_local_role(role) when is_binary(role) do
+    if !Regex.match?(~r/\A[a-zA-Z_][a-zA-Z0-9_]*\z/, role) do
+      raise ArgumentError, "invalid database role: #{inspect(role)}"
+    end
+
+    {:ok, _} = Repo.query(~s(SET LOCAL ROLE "#{role}"))
+    :ok
   end
 
   # SELECT / WITH go through a server-side cursor so we pull only `limit + 1`
@@ -633,6 +701,21 @@ defmodule Tuist.Ops.Database do
       Map.new(cols, fn c -> {c, json_safe(Map.get(row, c))} end)
     end)
     |> JSON.encode!()
+  end
+
+  @doc """
+  JSON-safe structured view of an `execute/2` result, for API responses.
+  Rows become column-keyed maps with datetime/other values coerced the same
+  way as `to_json/1`; preserves the `columns` order and the `num_rows` /
+  `truncated?` metadata that a bare row list would drop.
+  """
+  def to_json_map(%{columns: cols, rows: rows} = result) do
+    %{
+      columns: cols,
+      rows: Enum.map(rows, fn row -> Map.new(cols, fn c -> {c, json_safe(Map.get(row, c))} end) end),
+      num_rows: Map.get(result, :num_rows, length(rows)),
+      truncated: Map.get(result, :truncated?, false)
+    }
   end
 
   @doc "Render the result rows as RFC 4180 CSV with a header row."

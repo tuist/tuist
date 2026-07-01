@@ -1,5 +1,5 @@
 {
-  "originHash" : "653b4dcf38b38dc03e00ddd5e3196a3813c2c5e91a120df622a1ae7e04adc4b2",
+  "originHash" : "c43cf70f36629408797bdd80a00fabacd2ff60fdc96eb62c204647f30dc8c37d",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -562,15 +562,6 @@
       }
     },
     {
-      "identity" : "swifterpm",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tuist/swifterpm",
-      "state" : {
-        "revision" : "d48e02d2991e4020764fc93bd5d7189549f34767",
-        "version" : "0.8.12"
-      }
-    },
-    {
       "identity" : "swiftGen.StencilSwiftKit",
       "kind" : "registry",
       "location" : "",
@@ -608,7 +599,6 @@
       "identity" : "swiftlang.swift-subprocess",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/swiftlang/swift-subprocess.git",
       "state" : {
         "version" : "0.4.0"
       }

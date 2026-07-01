@@ -22,6 +22,7 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Billing
   alias Tuist.Environment
   alias Tuist.FeatureFlags
+  alias Tuist.Kura.Registrations
   alias Tuist.Projects
   alias Tuist.Runners.Profiles, as: RunnerProfiles
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -468,25 +469,15 @@ defmodule Tuist.AccountsTest do
     test "organization_user? returns true if the user's sso matches the organization's when the sso is Google" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      provider_organization_id = unique_sso_domain("okta")
 
       user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :okta,
-          uid: 123,
-          info: %{
-            email: "tuist@tuist.dev"
-          },
-          extra: %{
-            raw_info: %{
-              provider_organization_id: "tuist.okta.com"
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(okta_oauth_identity(provider_organization_id))
 
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :okta,
-          sso_organization_id: "tuist.okta.com",
+          sso_organization_id: provider_organization_id,
           oauth2_client_id: "client-id",
           oauth2_client_secret: "client-secret"
         )
@@ -498,27 +489,15 @@ defmodule Tuist.AccountsTest do
     test "organization_user? returns true if the user's sso matches the organization's when the sso is Okta" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
 
       user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: 123,
-          info: %{
-            email: "tuist@tuist.dev"
-          },
-          extra: %{
-            raw_info: %{
-              user: %{
-                "hd" => "tuist.io"
-              }
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
 
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain
         )
 
       # When
@@ -528,27 +507,15 @@ defmodule Tuist.AccountsTest do
     test "organization_user? returns false if the user's sso domain matches the organization's but the providers are different" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
 
       user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: 123,
-          info: %{
-            email: "tuist@tuist.dev"
-          },
-          extra: %{
-            raw_info: %{
-              user: %{
-                "hd" => "tuist.io"
-              }
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
 
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :okta,
-          sso_organization_id: "tuist.io",
+          sso_organization_id: domain,
           oauth2_client_id: "client-id",
           oauth2_client_secret: "client-secret"
         )
@@ -560,27 +527,16 @@ defmodule Tuist.AccountsTest do
     test "organization_user? returns false if the user's sso does not match the organization's when both are Google" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      user_domain = unique_sso_domain("tools")
+      organization_domain = unique_sso_domain()
 
       user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: 123,
-          info: %{
-            email: "tuist@tools.io"
-          },
-          extra: %{
-            raw_info: %{
-              user: %{
-                "hd" => "tools.io"
-              }
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(user_domain))
 
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: organization_domain
         )
 
       # When
@@ -618,27 +574,15 @@ defmodule Tuist.AccountsTest do
     test "returns true if the user's sso matches the organization's" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
 
       user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: 123,
-          info: %{
-            email: "tuist@tuist.dev"
-          },
-          extra: %{
-            raw_info: %{
-              user: %{
-                "hd" => "tuist.io"
-              }
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
 
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain
         )
 
       # When
@@ -699,27 +643,15 @@ defmodule Tuist.AccountsTest do
     test "returns true if the user's sso matches the organization's" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
 
       user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: 123,
-          info: %{
-            email: "tuist@tuist.dev"
-          },
-          extra: %{
-            raw_info: %{
-              user: %{
-                "hd" => "tuist.io"
-              }
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
 
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain
         )
 
       # When
@@ -732,27 +664,16 @@ defmodule Tuist.AccountsTest do
     test "returns false if the user's sso does not match the organization's" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      user_domain = unique_sso_domain("tools")
+      organization_domain = unique_sso_domain()
 
       user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: 123,
-          info: %{
-            email: "tuist@tools.io"
-          },
-          extra: %{
-            raw_info: %{
-              user: %{
-                "hd" => "tools.io"
-              }
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(user_domain))
 
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: organization_domain
         )
 
       # When
@@ -1384,6 +1305,7 @@ defmodule Tuist.AccountsTest do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
       user = AccountsFixtures.user_fixture()
+      domain = unique_sso_domain()
 
       # When
       {:ok, organization} =
@@ -1393,7 +1315,7 @@ defmodule Tuist.AccountsTest do
             creator: user
           },
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain
         )
 
       # Then
@@ -1401,7 +1323,7 @@ defmodule Tuist.AccountsTest do
                Accounts.get_organization_by_id(organization.id, preload: [:account])
 
       assert organization.sso_provider == :google
-      assert organization.sso_organization_id == "tuist.io"
+      assert organization.sso_organization_id == domain
       assert Accounts.organization_admin?(user, organization) == true
     end
 
@@ -1462,13 +1384,13 @@ defmodule Tuist.AccountsTest do
 
       first_oauth_identity = %{
         provider: :github,
-        uid: 123,
+        uid: System.unique_integer([:positive]),
         info: %{email: "find_or_create_user_from_oauth2@tuist.io"}
       }
 
       second_oauth_identity = %{
         provider: :github,
-        uid: 456,
+        uid: System.unique_integer([:positive]),
         info: %{email: "find_or_create_user_from_oauth1@tuist.test.io"}
       }
 
@@ -1486,25 +1408,17 @@ defmodule Tuist.AccountsTest do
 
     test "assigns user role to SSO users for Google SSO" do
       # Given
+      domain = unique_sso_domain()
+
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain
         )
 
-      oauth_identity = %{
-        provider: :google,
-        uid: System.unique_integer([:positive]),
-        info: %{email: "google-sso@tuist.io"},
-        extra: %{
-          raw_info: %{
-            user: %{"hd" => "tuist.io"}
-          }
-        }
-      }
-
       # When
-      user = Accounts.find_or_create_user_from_oauth2(oauth_identity)
+      user =
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain, email: unique_email(domain, "google-sso")))
 
       # Then
       assert Accounts.belongs_to_organization?(user, organization)
@@ -1513,27 +1427,21 @@ defmodule Tuist.AccountsTest do
 
     test "assigns user role to SSO users for Okta SSO" do
       # Given
+      provider_organization_id = unique_sso_domain("okta")
+
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :okta,
-          sso_organization_id: "tuist.okta.com",
+          sso_organization_id: provider_organization_id,
           oauth2_client_id: "client-id",
           oauth2_client_secret: "client-secret"
         )
 
-      oauth_identity = %{
-        provider: :okta,
-        uid: 890,
-        info: %{email: "okta-sso@tuist.io"},
-        extra: %{
-          raw_info: %{
-            provider_organization_id: "tuist.okta.com"
-          }
-        }
-      }
-
       # When
-      user = Accounts.find_or_create_user_from_oauth2(oauth_identity)
+      user =
+        Accounts.find_or_create_user_from_oauth2(
+          okta_oauth_identity(provider_organization_id, email: unique_email("tuist.dev", "okta-sso"))
+        )
 
       # Then
       assert Accounts.belongs_to_organization?(user, organization)
@@ -1608,7 +1516,7 @@ defmodule Tuist.AccountsTest do
 
       Accounts.find_or_create_user_from_oauth2(%{
         provider: :github,
-        uid: 123,
+        uid: System.unique_integer([:positive]),
         info: %{
           email: user.email
         }
@@ -1616,7 +1524,7 @@ defmodule Tuist.AccountsTest do
 
       Accounts.find_or_create_user_from_oauth2(%{
         provider: :google,
-        uid: 123,
+        uid: System.unique_integer([:positive]),
         info: %{
           email: user.email
         },
@@ -1640,7 +1548,7 @@ defmodule Tuist.AccountsTest do
 
       Accounts.find_or_create_user_from_oauth2(%{
         provider: :google,
-        uid: 123,
+        uid: System.unique_integer([:positive]),
         info: %{
           email: user.email
         },
@@ -1664,13 +1572,13 @@ defmodule Tuist.AccountsTest do
 
       Accounts.find_or_create_user_from_oauth2(%{
         provider: :okta,
-        uid: "uid",
+        uid: "uid-#{System.unique_integer([:positive])}",
         info: %{
           email: user.email
         },
         extra: %{
           raw_info: %{
-            provider_organization_id: "tuist.okta.com"
+            provider_organization_id: unique_sso_domain("okta")
           }
         }
       })
@@ -1688,7 +1596,7 @@ defmodule Tuist.AccountsTest do
 
       Accounts.find_or_create_user_from_oauth2(%{
         provider: :github,
-        uid: 123,
+        uid: System.unique_integer([:positive]),
         info: %{
           email: user.email
         }
@@ -1711,7 +1619,7 @@ defmodule Tuist.AccountsTest do
 
       Accounts.find_or_create_user_from_oauth2(%{
         provider: :github,
-        uid: 123,
+        uid: System.unique_integer([:positive]),
         info: %{
           email: user.email
         }
@@ -2251,6 +2159,7 @@ defmodule Tuist.AccountsTest do
   describe "update_organization/2" do
     test "updates organization with a google hosted domain" do
       # Given
+      domain = unique_sso_domain()
       user = AccountsFixtures.user_fixture()
       organization = AccountsFixtures.organization_fixture(creator: user)
 
@@ -2258,16 +2167,17 @@ defmodule Tuist.AccountsTest do
       {:ok, organization} =
         Accounts.update_organization(organization, %{
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain
         })
 
       # Then
-      assert organization.sso_organization_id == "tuist.io"
+      assert organization.sso_organization_id == domain
       assert organization.sso_provider == :google
     end
 
     test "updates organization with an okta hosted domain" do
       # Given
+      provider_organization_id = unique_sso_domain("okta")
       user = AccountsFixtures.user_fixture()
       organization = AccountsFixtures.organization_fixture(creator: user)
 
@@ -2275,37 +2185,29 @@ defmodule Tuist.AccountsTest do
       {:ok, organization} =
         Accounts.update_organization(organization, %{
           sso_provider: :okta,
-          sso_organization_id: "tuist.okta.com",
+          sso_organization_id: provider_organization_id,
           oauth2_client_id: "client-id",
           oauth2_encrypted_client_secret: "client-secret",
-          oauth2_authorize_url: "https://tuist.okta.com/oauth2/v1/authorize",
-          oauth2_token_url: "https://tuist.okta.com/oauth2/v1/token",
-          oauth2_user_info_url: "https://tuist.okta.com/oauth2/v1/userinfo"
+          oauth2_authorize_url: "https://#{provider_organization_id}/oauth2/v1/authorize",
+          oauth2_token_url: "https://#{provider_organization_id}/oauth2/v1/token",
+          oauth2_user_info_url: "https://#{provider_organization_id}/oauth2/v1/userinfo"
         })
 
       # Then
-      assert organization.sso_organization_id == "tuist.okta.com"
+      assert organization.sso_organization_id == provider_organization_id
       assert organization.sso_provider == :okta
     end
 
     test "assigns existing SSO users when enabling Google SSO" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
 
       organization = AccountsFixtures.organization_fixture()
 
       # Create an existing user with Google OAuth2 identity
       existing_user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: System.unique_integer([:positive]),
-          info: %{email: "user@tuist.io"},
-          extra: %{
-            raw_info: %{
-              user: %{"hd" => "tuist.io"}
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain, email: unique_email(domain, "user")))
 
       # Verify user is not yet assigned to organization
       refute Accounts.belongs_to_organization?(existing_user, organization)
@@ -2314,12 +2216,12 @@ defmodule Tuist.AccountsTest do
       {:ok, updated_organization} =
         Accounts.update_organization(organization, %{
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain
         })
 
       # Then
       assert updated_organization.sso_provider == :google
-      assert updated_organization.sso_organization_id == "tuist.io"
+      assert updated_organization.sso_organization_id == domain
 
       # Existing SSO user should now be assigned to the organization with explicit role
       assert Accounts.belongs_to_organization?(existing_user, updated_organization)
@@ -2331,21 +2233,15 @@ defmodule Tuist.AccountsTest do
     test "assigns existing SSO users when enabling Okta SSO" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      provider_organization_id = unique_sso_domain("okta")
 
       organization = AccountsFixtures.organization_fixture()
 
       # Create an existing user with Okta OAuth2 identity
       existing_user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :okta,
-          uid: System.unique_integer([:positive]),
-          info: %{email: "user@tuist.io"},
-          extra: %{
-            raw_info: %{
-              provider_organization_id: "tuist.okta.com"
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(
+          okta_oauth_identity(provider_organization_id, email: unique_email("tuist.dev", "user"))
+        )
 
       # Verify user is not yet assigned to organization
       refute Accounts.belongs_to_organization?(existing_user, organization)
@@ -2354,17 +2250,17 @@ defmodule Tuist.AccountsTest do
       {:ok, updated_organization} =
         Accounts.update_organization(organization, %{
           sso_provider: :okta,
-          sso_organization_id: "tuist.okta.com",
+          sso_organization_id: provider_organization_id,
           oauth2_client_id: "client-id",
           oauth2_encrypted_client_secret: "client-secret",
-          oauth2_authorize_url: "https://tuist.okta.com/oauth2/v1/authorize",
-          oauth2_token_url: "https://tuist.okta.com/oauth2/v1/token",
-          oauth2_user_info_url: "https://tuist.okta.com/oauth2/v1/userinfo"
+          oauth2_authorize_url: "https://#{provider_organization_id}/oauth2/v1/authorize",
+          oauth2_token_url: "https://#{provider_organization_id}/oauth2/v1/token",
+          oauth2_user_info_url: "https://#{provider_organization_id}/oauth2/v1/userinfo"
         })
 
       # Then
       assert updated_organization.sso_provider == :okta
-      assert updated_organization.sso_organization_id == "tuist.okta.com"
+      assert updated_organization.sso_organization_id == provider_organization_id
 
       # Existing SSO user should now be assigned to the organization with explicit role
       assert Accounts.belongs_to_organization?(existing_user, updated_organization)
@@ -2376,26 +2272,21 @@ defmodule Tuist.AccountsTest do
     test "does not assign users when SSO is updated but not newly enabled" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      existing_domain = unique_sso_domain("existing")
+      new_domain = unique_sso_domain()
 
       # Create organization with SSO already enabled
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :google,
-          sso_organization_id: "existing.io"
+          sso_organization_id: existing_domain
         )
 
       # Create a user with a domain that doesn't match any SSO organization yet
       other_user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: System.unique_integer([:positive]),
-          info: %{email: "user@tuist.io"},
-          extra: %{
-            raw_info: %{
-              user: %{"hd" => "tuist.io"}
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(
+          google_oauth_identity(new_domain, email: unique_email(new_domain, "user"))
+        )
 
       # Verify user is not assigned to organization (different domain)
       refute Accounts.belongs_to_organization?(other_user, organization)
@@ -2403,11 +2294,11 @@ defmodule Tuist.AccountsTest do
       # When - Update SSO organization ID (not newly enabling)
       {:ok, updated_organization} =
         Accounts.update_organization(organization, %{
-          sso_organization_id: "tuist.io"
+          sso_organization_id: new_domain
         })
 
       # Then
-      assert updated_organization.sso_organization_id == "tuist.io"
+      assert updated_organization.sso_organization_id == new_domain
 
       # User should have SSO-based access (automatic through belongs_to_sso_organization)
       assert Accounts.belongs_to_sso_organization?(other_user, updated_organization)
@@ -2419,33 +2310,16 @@ defmodule Tuist.AccountsTest do
     test "assigns multiple existing SSO users when enabling SSO" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
 
       organization = AccountsFixtures.organization_fixture()
 
       # Create multiple existing users with Google OAuth2 identities
       user1 =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: System.unique_integer([:positive]),
-          info: %{email: "user1@tuist.io"},
-          extra: %{
-            raw_info: %{
-              user: %{"hd" => "tuist.io"}
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain, email: unique_email(domain, "user1")))
 
       user2 =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: System.unique_integer([:positive]),
-          info: %{email: "user2@tuist.io"},
-          extra: %{
-            raw_info: %{
-              user: %{"hd" => "tuist.io"}
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain, email: unique_email(domain, "user2")))
 
       # Verify users are not yet assigned to organization
       refute Accounts.belongs_to_organization?(user1, organization)
@@ -2455,7 +2329,7 @@ defmodule Tuist.AccountsTest do
       {:ok, updated_organization} =
         Accounts.update_organization(organization, %{
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain
         })
 
       # Then
@@ -2471,59 +2345,52 @@ defmodule Tuist.AccountsTest do
     test "creates a user from a github identity" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      email = unique_user_email()
 
       # When
       user =
         Accounts.find_or_create_user_from_oauth2(%{
           provider: :github,
-          uid: 123,
+          uid: System.unique_integer([:positive]),
           info: %{
-            email: "tuist@tuist.dev"
+            email: email
           }
         })
 
       # Then
-      assert user.email == "tuist@tuist.dev"
+      assert user.email == email
     end
 
     test "creates a user from a google identity with a hosted domain" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
+      uid = System.unique_integer([:positive])
+      email = unique_email(domain)
 
       # When
       user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: 123,
-          info: %{
-            email: "tuist@tuist.dev"
-          },
-          extra: %{
-            raw_info: %{
-              user: %{
-                "hd" => "tuist.io"
-              }
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain, uid: uid, email: email))
 
       # Then
-      assert user.email == "tuist@tuist.dev"
-      oauth2_identity = Accounts.get_oauth2_identity_by_provider_and_id(:google, 123)
-      assert oauth2_identity.provider_organization_id == "tuist.io"
+      assert user.email == email
+      oauth2_identity = Accounts.get_oauth2_identity_by_provider_and_id(:google, uid)
+      assert oauth2_identity.provider_organization_id == domain
     end
 
     test "creates a user from a google identity without a hosted domain" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      uid = System.unique_integer([:positive])
+      email = unique_user_email()
 
       # When
       user =
         Accounts.find_or_create_user_from_oauth2(%{
           provider: :google,
-          uid: 123,
+          uid: uid,
           info: %{
-            email: "tuist@tuist.dev"
+            email: email
           },
           extra: %{
             raw_info: %{
@@ -2535,20 +2402,21 @@ defmodule Tuist.AccountsTest do
         })
 
       # Then
-      assert user.email == "tuist@tuist.dev"
-      oauth2_identity = Accounts.get_oauth2_identity_by_provider_and_id(:google, 123)
+      assert user.email == email
+      oauth2_identity = Accounts.get_oauth2_identity_by_provider_and_id(:google, uid)
       assert oauth2_identity.provider_organization_id == nil
     end
 
     test "updates an existing user with a new github identity" do
-      user = user_fixture(email: "tuist@tuist.dev")
+      email = unique_user_email()
+      user = user_fixture(email: email)
 
       got =
         Accounts.find_or_create_user_from_oauth2(%{
           provider: :github,
-          uid: 123,
+          uid: System.unique_integer([:positive]),
           info: %{
-            email: "tuist@tuist.dev"
+            email: email
           }
         })
 
@@ -2557,21 +2425,12 @@ defmodule Tuist.AccountsTest do
     end
 
     test "updates an existing user with a new okta identity" do
-      user = user_fixture(email: "tuist@tuist.dev")
+      email = unique_user_email()
+      provider_organization_id = unique_sso_domain("okta")
+      user = user_fixture(email: email)
 
       got =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :okta,
-          uid: 123,
-          info: %{
-            email: "tuist@tuist.dev"
-          },
-          extra: %{
-            raw_info: %{
-              provider_organization_id: "tuist.okta.com"
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(okta_oauth_identity(provider_organization_id, email: email))
 
       assert user.email == got.email
       assert Accounts.find_oauth2_identity(%{user: user, provider: :okta})
@@ -2582,7 +2441,7 @@ defmodule Tuist.AccountsTest do
       user =
         Accounts.find_or_create_user_from_oauth2(%{
           provider: :github,
-          uid: 123,
+          uid: System.unique_integer([:positive]),
           info: %{
             email: "admin@example.com"
           }
@@ -2657,28 +2516,16 @@ defmodule Tuist.AccountsTest do
     test "deletes a user when a user belongs to the SSO organization" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
 
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain
         )
 
       user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: 123,
-          info: %{
-            email: "tuist@tuist.dev"
-          },
-          extra: %{
-            raw_info: %{
-              user: %{
-                "hd" => "tuist.io"
-              }
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
 
       # When
       :ok = Accounts.remove_user_from_organization(user, organization)
@@ -2807,11 +2654,12 @@ defmodule Tuist.AccountsTest do
     test "returns users of an organization" do
       # Given
       user_one = AccountsFixtures.user_fixture()
+      domain = unique_sso_domain()
 
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain
         )
 
       Accounts.add_user_to_organization(user_one, organization, role: :user)
@@ -2834,46 +2682,24 @@ defmodule Tuist.AccountsTest do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
       user_one = AccountsFixtures.user_fixture()
+      domain = unique_sso_domain()
+      other_domain = unique_sso_domain("tools")
 
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain
         )
 
       Accounts.add_user_to_organization(user_one, organization, role: :user)
       AccountsFixtures.user_fixture()
 
       user_three =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: 123,
-          info: %{
-            email: "tuist@tuist.dev"
-          },
-          extra: %{
-            raw_info: %{
-              user: %{
-                "hd" => "tuist.io"
-              }
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
 
-      Accounts.find_or_create_user_from_oauth2(%{
-        provider: :google,
-        uid: 1234,
-        info: %{
-          email: "tuist-tools@tools.io"
-        },
-        extra: %{
-          raw_info: %{
-            user: %{
-              "hd" => "tools.io"
-            }
-          }
-        }
-      })
+      Accounts.find_or_create_user_from_oauth2(
+        google_oauth_identity(other_domain, email: unique_email(other_domain, "tools"))
+      )
 
       # When
       got = Accounts.get_organization_members(organization, :user)
@@ -2886,11 +2712,13 @@ defmodule Tuist.AccountsTest do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
       user_one = AccountsFixtures.user_fixture()
+      provider_organization_id = unique_sso_domain("okta")
+      other_provider_organization_id = unique_sso_domain("different-org")
 
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :okta,
-          sso_organization_id: "tuist.okta.com",
+          sso_organization_id: provider_organization_id,
           oauth2_client_id: "client-id",
           oauth2_client_secret: "client-secret"
         )
@@ -2899,31 +2727,11 @@ defmodule Tuist.AccountsTest do
       AccountsFixtures.user_fixture()
 
       user_three =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :okta,
-          uid: 123,
-          info: %{
-            email: "tuist@tuist.dev"
-          },
-          extra: %{
-            raw_info: %{
-              provider_organization_id: "tuist.okta.com"
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(okta_oauth_identity(provider_organization_id))
 
-      Accounts.find_or_create_user_from_oauth2(%{
-        provider: :okta,
-        uid: 1234,
-        info: %{
-          email: "tuist-tools@tools.io"
-        },
-        extra: %{
-          raw_info: %{
-            provider_organization_id: "different-org.okta.com"
-          }
-        }
-      })
+      Accounts.find_or_create_user_from_oauth2(
+        okta_oauth_identity(other_provider_organization_id, email: unique_email("tuist.dev", "tools"))
+      )
 
       # When
       got = Accounts.get_organization_members(organization, :user)
@@ -2957,26 +2765,18 @@ defmodule Tuist.AccountsTest do
 
     test "includes SSO users for organizations with Google SSO" do
       user_one = AccountsFixtures.user_fixture()
+      domain = unique_sso_domain()
 
       organization =
         AccountsFixtures.organization_fixture(
           creator: user_one,
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain
         )
 
       # Create an SSO user
       sso_user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: 123,
-          info: %{email: "sso@tuist.io"},
-          extra: %{
-            raw_info: %{
-              user: %{"hd" => "tuist.io"}
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain, email: unique_email(domain, "sso")))
 
       # Add a regular user
       user_two = AccountsFixtures.user_fixture()
@@ -2997,28 +2797,22 @@ defmodule Tuist.AccountsTest do
 
     test "includes SSO users for organizations with Okta SSO" do
       user_one = AccountsFixtures.user_fixture()
+      provider_organization_id = unique_sso_domain("okta")
 
       organization =
         AccountsFixtures.organization_fixture(
           creator: user_one,
           sso_provider: :okta,
-          sso_organization_id: "tuist.okta.com",
+          sso_organization_id: provider_organization_id,
           oauth2_client_id: "client-id",
           oauth2_client_secret: "client-secret"
         )
 
       # Create an SSO user
       sso_user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :okta,
-          uid: 456,
-          info: %{email: "okta@tuist.io"},
-          extra: %{
-            raw_info: %{
-              provider_organization_id: "tuist.okta.com"
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(
+          okta_oauth_identity(provider_organization_id, email: unique_email("tuist.dev", "okta"))
+        )
 
       # When
       got =
@@ -3348,35 +3142,18 @@ defmodule Tuist.AccountsTest do
     test "finds users with matching SSO credentials not assigned to organization" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
 
       # Create organization without SSO initially
       organization = AccountsFixtures.organization_fixture()
 
       # Create a user with matching Google OAuth2 identity
       unassigned_user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: System.unique_integer([:positive]),
-          info: %{email: "unassigned@tuist.io"},
-          extra: %{
-            raw_info: %{
-              user: %{"hd" => "tuist.io"}
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain, email: unique_email(domain, "unassigned")))
 
       # Create a user already assigned to the organization
       assigned_user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: System.unique_integer([:positive]),
-          info: %{email: "assigned@tuist.io"},
-          extra: %{
-            raw_info: %{
-              user: %{"hd" => "tuist.io"}
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain, email: unique_email(domain, "assigned")))
 
       Accounts.add_user_to_organization(assigned_user, organization, role: :user)
 
@@ -3385,11 +3162,11 @@ defmodule Tuist.AccountsTest do
         Accounts.find_or_create_user_from_oauth2(%{
           provider: :github,
           uid: System.unique_integer([:positive]),
-          info: %{email: "github@tuist.io"}
+          info: %{email: unique_email(domain, "github")}
         })
 
       # When
-      unassigned_users = Accounts.find_unassigned_sso_users(organization, :google, "tuist.io")
+      unassigned_users = Accounts.find_unassigned_sso_users(organization, :google, domain)
 
       # Then
       user_ids = Enum.map(unassigned_users, & &1.id)
@@ -3400,14 +3177,16 @@ defmodule Tuist.AccountsTest do
 
     test "returns empty list when no matching users exist" do
       # Given
+      domain = unique_sso_domain()
+
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain
         )
 
       # When
-      unassigned_users = Accounts.find_unassigned_sso_users(organization, :google, "tuist.io")
+      unassigned_users = Accounts.find_unassigned_sso_users(organization, :google, domain)
 
       # Then
       assert unassigned_users == []
@@ -3418,33 +3197,16 @@ defmodule Tuist.AccountsTest do
     test "assigns matching SSO users to organization and returns count" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
 
       organization = AccountsFixtures.organization_fixture()
 
       # Create multiple users with matching Google OAuth2 identities
       user1 =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: System.unique_integer([:positive]),
-          info: %{email: "user1@tuist.io"},
-          extra: %{
-            raw_info: %{
-              user: %{"hd" => "tuist.io"}
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain, email: unique_email(domain, "user1")))
 
       user2 =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: System.unique_integer([:positive]),
-          info: %{email: "user2@tuist.io"},
-          extra: %{
-            raw_info: %{
-              user: %{"hd" => "tuist.io"}
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain, email: unique_email(domain, "user2")))
 
       # Verify users are not assigned to organization
       refute Accounts.belongs_to_organization?(user1, organization)
@@ -3452,7 +3214,7 @@ defmodule Tuist.AccountsTest do
 
       # When
       count =
-        Accounts.assign_existing_sso_users_to_organization(organization, :google, "tuist.io")
+        Accounts.assign_existing_sso_users_to_organization(organization, :google, domain)
 
       # Then
       assert count == 2
@@ -3464,11 +3226,12 @@ defmodule Tuist.AccountsTest do
 
     test "returns 0 when no matching users exist" do
       # Given
+      domain = unique_sso_domain()
       organization = AccountsFixtures.organization_fixture()
 
       # When
       count =
-        Accounts.assign_existing_sso_users_to_organization(organization, :google, "tuist.io")
+        Accounts.assign_existing_sso_users_to_organization(organization, :google, domain)
 
       # Then
       assert count == 0
@@ -3501,6 +3264,45 @@ defmodule Tuist.AccountsTest do
       # Then
       assert Accounts.get_organization_by_id(organization.id) == {:error, :not_found}
       assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
+    end
+  end
+
+  describe "sso_configured?/0" do
+    test "returns false when no organization has SSO configured" do
+      AccountsFixtures.organization_fixture()
+
+      refute Accounts.sso_configured?()
+    end
+
+    test "returns true when an organization has Okta SSO configured" do
+      AccountsFixtures.organization_fixture(
+        sso_provider: :okta,
+        sso_organization_id: "company.okta.com",
+        oauth2_client_id: "client-id",
+        oauth2_client_secret: "client-secret"
+      )
+
+      assert Accounts.sso_configured?()
+    end
+
+    test "returns true when an organization has generic OAuth2 SSO configured" do
+      AccountsFixtures.organization_fixture(
+        sso_provider: :oauth2,
+        sso_organization_id: "https://id.company.com",
+        oauth2_client_id: "client-id",
+        oauth2_client_secret: "client-secret",
+        oauth2_authorize_url: "https://id.company.com/authorize",
+        oauth2_token_url: "https://id.company.com/token",
+        oauth2_user_info_url: "https://id.company.com/userinfo"
+      )
+
+      assert Accounts.sso_configured?()
+    end
+
+    test "returns false when the only SSO organization uses Google" do
+      AccountsFixtures.organization_fixture(sso_provider: :google, sso_organization_id: "company.com")
+
+      refute Accounts.sso_configured?()
     end
   end
 
@@ -3609,45 +3411,6 @@ defmodule Tuist.AccountsTest do
 
       assert {:error, :not_found} ==
                Accounts.sso_organization_for_user_email("someone@example.com")
-    end
-  end
-
-  describe "create_namespace_tenant_for_account/1" do
-    test "creates a tenant and updates account with namespace_tenant_id" do
-      # Given
-      %{account: account} = AccountsFixtures.user_fixture()
-      namespace_tenant_id = "tenant-123"
-      account_name = account.name
-      account_id = account.id
-
-      expect(Tuist.Namespace, :create_tenant, 1, fn ^account_name, ^account_id ->
-        {:ok, %{"tenant" => %{"id" => namespace_tenant_id}}}
-      end)
-
-      # When
-      {:ok, updated_account} = Accounts.create_namespace_tenant_for_account(account)
-
-      # Then
-      assert updated_account.namespace_tenant_id == namespace_tenant_id
-      assert updated_account.id == account.id
-    end
-
-    test "returns error when Namespace.create_tenant fails" do
-      # Given
-      %{account: account} = AccountsFixtures.user_fixture()
-      error_reason = "Namespace API error"
-
-      expect(Tuist.Namespace, :create_tenant, 1, fn _account_name, _account_id ->
-        {:error, error_reason}
-      end)
-
-      # When
-      {:error, reason} = Accounts.create_namespace_tenant_for_account(account)
-
-      # Then
-      assert reason == error_reason
-      {:ok, reloaded_account} = Accounts.get_account_by_id(account.id)
-      assert is_nil(reloaded_account.namespace_tenant_id)
     end
   end
 
@@ -4176,6 +3939,40 @@ defmodule Tuist.AccountsTest do
 
       # Then
       assert endpoints == ["https://kura-cache.example.com"]
+    end
+
+    test "surfaces registered self-hosted node addresses for an entitled account" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      stub(FeatureFlags, :kura_cache_enabled?, fn %{id: account_id} -> account_id == account.id end)
+      stub(Registrations, :active_advertised_urls, fn _ -> ["https://node.acme.example:8080"] end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+
+      # Then
+      assert endpoints == ["https://node.acme.example:8080"]
+    end
+
+    test "hides registered self-hosted node addresses when the account is not entitled to self-hosting" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+      stub(FeatureFlags, :kura_cache_enabled?, fn %{id: account_id} -> account_id == account.id end)
+      reject(&Registrations.active_advertised_urls/1)
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+
+      # Then
+      assert endpoints == default_endpoints
     end
 
     test "returns custom endpoints when the client requests Kura but the account is not opted in" do
@@ -4924,6 +4721,46 @@ defmodule Tuist.AccountsTest do
   defp extract_claim_view_token(html_body) do
     [_, encoded_token] = Regex.run(~r{/agent/auth/claim/view\?token=([^"&]+)}, html_body)
     URI.decode_www_form(encoded_token)
+  end
+
+  defp unique_sso_domain(prefix \\ "tuist") do
+    "#{prefix}-#{TuistTestSupport.Utilities.unique_integer(6)}.io"
+  end
+
+  defp unique_email(domain, local \\ "tuist") do
+    "#{local}-#{TuistTestSupport.Utilities.unique_integer(6)}@#{domain}"
+  end
+
+  defp google_oauth_identity(domain, opts \\ []) do
+    %{
+      provider: :google,
+      uid: Keyword.get_lazy(opts, :uid, fn -> System.unique_integer([:positive]) end),
+      info: %{
+        email: Keyword.get_lazy(opts, :email, fn -> unique_email(domain) end)
+      },
+      extra: %{
+        raw_info: %{
+          user: %{
+            "hd" => domain
+          }
+        }
+      }
+    }
+  end
+
+  defp okta_oauth_identity(provider_organization_id, opts \\ []) do
+    %{
+      provider: :okta,
+      uid: Keyword.get_lazy(opts, :uid, fn -> System.unique_integer([:positive]) end),
+      info: %{
+        email: Keyword.get_lazy(opts, :email, fn -> unique_email("tuist.dev") end)
+      },
+      extra: %{
+        raw_info: %{
+          provider_organization_id: provider_organization_id
+        }
+      }
+    }
   end
 
   defp agent_registration_events(agent_registration_id) do

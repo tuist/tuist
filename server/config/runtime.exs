@@ -103,8 +103,9 @@ if Enum.member?([:prod, :stag, :can], env) do
       For example: ecto://USER:PASS@HOST/DATABASE
       """
 
-  parsed_url = URI.parse(database_url)
-  [username, password] = String.split(parsed_url.userinfo, ":")
+  database_config = Tuist.Environment.database_config_from_url(database_url)
+  database_hostname = Keyword.fetch!(database_config, :hostname)
+  database_schema = Tuist.Environment.database_schema()
 
   # `{:keepalive, true}` enables SO_KEEPALIVE but inherits the OS default
   # `tcp_keepalive_time` (7200s on Linux), so the pool keeps handing out
@@ -155,24 +156,47 @@ if Enum.member?([:prod, :stag, :can], env) do
         tcp_keepalives_count: "3"
       ]
 
-  database_options = [
-    pool_size: Tuist.Environment.database_pool_size(secrets),
-    queue_target: Tuist.Environment.database_queue_target(secrets),
-    queue_interval: Tuist.Environment.database_queue_interval(secrets),
-    database: String.replace_prefix(parsed_url.path, "/", ""),
-    username: username,
-    password: password,
-    hostname: parsed_url.host,
-    port: parsed_url.port || 5432,
-    socket_options: socket_opts,
-    parameters: postgres_parameters,
-    prepare: if(pooled?, do: :unnamed, else: :named)
-  ]
+  postgres_parameters =
+    if Tuist.Environment.default_database_schema?(database_schema) do
+      postgres_parameters
+    else
+      Keyword.put(
+        postgres_parameters,
+        :search_path,
+        Tuist.Environment.quote_postgres_identifier(database_schema)
+      )
+    end
+
+  database_options =
+    [
+      pool_size: Tuist.Environment.database_pool_size(secrets),
+      queue_target: Tuist.Environment.database_queue_target(secrets),
+      queue_interval: Tuist.Environment.database_queue_interval(secrets),
+      socket_options: socket_opts,
+      parameters: postgres_parameters,
+      prepare: if(pooled?, do: :unnamed, else: :named)
+    ] ++ database_config
+
+  # The `search_path` connection parameter above is a startup-packet
+  # parameter, which poolers and managed-Postgres proxies routinely drop —
+  # leaving the session on the default `public` path. Issue an explicit
+  # `SET search_path` on every connection (migrator included) so a custom
+  # schema resolves even when the startup parameter doesn't survive.
+  database_options =
+    if Tuist.Environment.default_database_schema?(database_schema) do
+      database_options
+    else
+      Keyword.put(
+        database_options,
+        :after_connect,
+        {Postgrex, :query!, ["SET search_path TO #{Tuist.Environment.quote_postgres_identifier(database_schema)}", []]}
+      )
+    end
 
   database_options =
     if Tuist.Environment.use_ssl_for_database?() do
       Keyword.put(database_options, :ssl,
-        server_name_indication: to_charlist(parsed_url.host),
+        server_name_indication: to_charlist(database_hostname),
         verify: :verify_none
       )
 
@@ -540,7 +564,14 @@ crontab = RuntimeConfig.crontab(mode, env, Tuist.Environment.tuist_hosted?())
 config :tuist, Oban,
   queues: oban_queues,
   plugins: [
-    {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
+    # Retain completed jobs just long enough to outlive the
+    # AutomationScheduler per-alert dedup window: it skips re-enqueuing an
+    # evaluation that ran within the alert's `cadence`, which is validated
+    # to <= 1h (Tuist.Automations.Alerts.Alert). 2h keeps a 2x margin over
+    # that cap while holding oban_jobs at tens of thousands of rows. `limit`
+    # lets one pass clear the steady churn (the :default queue alone
+    # produces millions/week).
+    {Oban.Plugins.Pruner, max_age: 60 * 60 * 2, limit: 50_000},
     {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
     {Oban.Plugins.Cron, crontab: crontab}
   ]

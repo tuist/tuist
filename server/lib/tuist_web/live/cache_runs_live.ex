@@ -6,6 +6,7 @@ defmodule TuistWeb.CacheRunsLive do
   import Noora.Filter
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Runs.CacheEndpointFormatter
+  import TuistWeb.Runs.CommandFormatter
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
@@ -34,7 +35,7 @@ defmodule TuistWeb.CacheRunsLive do
     base = [
       %Filter.Filter{
         id: "name",
-        field: :name,
+        field: :command_arguments,
         display_name: dgettext("dashboard_cache", "Command"),
         type: :text,
         operator: :=~,
@@ -279,12 +280,23 @@ defmodule TuistWeb.CacheRunsLive do
 
   defp build_flop_filters(filters) do
     {ran_by, filters} = Enum.split_with(filters, &(&1.id == "ran_by"))
-    flop_filters = Filter.Operations.convert_filters_to_flop(filters)
+
+    flop_filters =
+      filters
+      |> Enum.map(&normalize_command_filter/1)
+      |> Enum.map(&normalize_text_filter_operator/1)
+      |> Filter.Operations.convert_filters_to_flop()
 
     ran_by_flop_filters =
       Enum.flat_map(ran_by, fn
         %{value: :ci, operator: op} ->
           [%{field: :is_ci, op: op, value: true}]
+
+        %{value: value, operator: :==} when not is_nil(value) ->
+          [
+            %{field: :is_ci, op: :==, value: false},
+            %{field: :user_id, op: :==, value: value}
+          ]
 
         %{value: value, operator: op} when not is_nil(value) ->
           [%{field: :user_id, op: op, value: value}]
@@ -296,13 +308,15 @@ defmodule TuistWeb.CacheRunsLive do
     flop_filters ++ ran_by_flop_filters
   end
 
-  def sort_icon("desc") do
-    "square_rounded_arrow_down"
+  defp normalize_command_filter(%Filter.Filter{id: "name", value: value} = filter) when is_binary(value) do
+    %{filter | value: normalize_command_filter_value(value)}
   end
 
-  def sort_icon("asc") do
-    "square_rounded_arrow_up"
-  end
+  defp normalize_command_filter(filter), do: filter
+
+  defp normalize_text_filter_operator(%Filter.Filter{operator: :"!=~"} = filter), do: %{filter | operator: :not_ilike}
+
+  defp normalize_text_filter_operator(filter), do: filter
 
   def column_patch_sort(
         %{uri: uri, cache_runs_sort_by: cache_runs_sort_by, cache_runs_sort_order: cache_runs_sort_order} = _assigns,

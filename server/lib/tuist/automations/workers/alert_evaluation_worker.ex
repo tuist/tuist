@@ -15,6 +15,11 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
 
   require Logger
 
+  # Recovery candidates are counted in ClickHouse in batches of this size so the
+  # `Array(UUID)` parameter and the run scan stay within the engine's request
+  # limits no matter how many tests an alert has quarantined.
+  @recovery_candidate_batch_size 500
+
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"alert_id" => alert_id} = args}) do
     case Automations.get_alert(alert_id) do
@@ -234,13 +239,14 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     end)
   end
 
-  # Each candidate has its own `triggered_at` cutoff, so we can't push the
-  # per-candidate filter cleanly into a single SQL `GROUP BY` without a
-  # cross-join. Instead, one query pulls every run for the candidate test
-  # cases above the global minimum `triggered_at`, and the per-candidate
-  # cutoff is applied in Elixir. That trades a small over-fetch (rows
-  # between `min(triggered_at)` and each candidate's own `triggered_at`)
-  # for one round-trip instead of one-per-candidate.
+  # Counts, per candidate, the runs that followed its own `triggered_at`. The
+  # count is aggregated inside ClickHouse (one row per candidate) rather than
+  # streaming every run back to be tallied in Elixir — a long-muted,
+  # high-frequency test would otherwise return millions of rows. Candidates are
+  # processed in batches because a bare `test_case_id in ^ids` over a large
+  # quarantined set overflows ClickHouse's request limits (the same reason
+  # `Tests.test_case_ids_with_successful_default_branch_run` batches with an
+  # `Array(UUID)` parameter); each batch bounds the parameter and the scan.
   #
   # We don't use `FINAL` here for the same reason as in the rolling-window
   # monitor: `test_case_runs` is a ReplacingMergeTree on a hot table where
@@ -250,30 +256,46 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   defp batch_runs_since_trigger(_project_id, []), do: %{}
 
   defp batch_runs_since_trigger(project_id, candidates) do
-    test_case_ids = Enum.map(candidates, & &1.test_case_id)
-    trigger_by_id = Map.new(candidates, &{&1.test_case_id, &1.triggered_at})
-    min_triggered_at = candidates |> Enum.map(& &1.triggered_at) |> Enum.min(NaiveDateTime)
+    candidates
+    |> Enum.chunk_every(@recovery_candidate_batch_size)
+    |> Enum.reduce(%{}, fn batch, acc ->
+      Map.merge(acc, batch_run_counts(project_id, batch))
+    end)
+  end
+
+  # `cutoffs` is positionally aligned with `test_case_ids`, so for each run row
+  # `arrayElement(cutoffs, indexOf(test_case_ids, test_case_id))` resolves the
+  # candidate's own `triggered_at` (in microseconds) and the count only includes
+  # runs strictly after it. The `ran_at > min_triggered_at` clause narrows the
+  # primary-key scan to runs after the earliest trigger in the batch.
+  defp batch_run_counts(project_id, batch) do
+    test_case_ids = Enum.map(batch, & &1.test_case_id)
+    cutoffs = Enum.map(batch, &triggered_at_micros(&1.triggered_at))
+    min_triggered_at = batch |> Enum.map(& &1.triggered_at) |> Enum.min(NaiveDateTime)
 
     from(r in TestCaseRun,
       where: r.project_id == ^project_id,
-      where: r.test_case_id in ^test_case_ids,
+      where: fragment("? IN (?)", r.test_case_id, type(^test_case_ids, {:array, Ecto.UUID})),
       where: r.ran_at > ^min_triggered_at,
-      select: {r.test_case_id, r.ran_at}
+      where:
+        fragment(
+          "toUnixTimestamp64Micro(?) > arrayElement(?, indexOf(?, ?))",
+          r.ran_at,
+          type(^cutoffs, {:array, :integer}),
+          type(^test_case_ids, {:array, Ecto.UUID}),
+          r.test_case_id
+        ),
+      group_by: r.test_case_id,
+      select: {r.test_case_id, fragment("count(*)")}
     )
-    |> ClickHouseRepo.all()
-    |> Enum.reduce(%{}, fn {test_case_id, ran_at}, acc ->
-      case Map.get(trigger_by_id, test_case_id) do
-        nil ->
-          acc
+    |> ClickHouseRepo.all(multipart: true)
+    |> Map.new()
+  end
 
-        triggered_at ->
-          if NaiveDateTime.after?(ran_at, triggered_at) do
-            Map.update(acc, test_case_id, 1, &(&1 + 1))
-          else
-            acc
-          end
-      end
-    end)
+  defp triggered_at_micros(%NaiveDateTime{} = triggered_at) do
+    triggered_at
+    |> DateTime.from_naive!("Etc/UTC")
+    |> DateTime.to_unix(:microsecond)
   end
 
   defp parse_rolling_size(size) when is_integer(size) and size > 0, do: min(size, Alert.max_rolling_window_size())

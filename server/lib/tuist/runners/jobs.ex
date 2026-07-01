@@ -1030,6 +1030,51 @@ defmodule Tuist.Runners.Jobs do
     |> ClickHouseRepo.all()
   end
 
+  @doc """
+  Lists `runner_jobs` rows whose latest state is `queued` and whose
+  `enqueued_at` falls in `[enqueued_after, enqueued_before)` —
+  candidates for the "queued but never reconciled" recovery path that
+  `StaleQueuedJobsWorker` drives.
+
+  A queued row only ever leaves the queue by a Pod claiming it
+  (`queued → claimed → running → completed`) or a
+  `workflow_job.completed` webhook marking it `completed`. When no
+  runner ever registers to accept the job AND no completion webhook
+  arrives (GitHub kept it `queued` on its side, or the delivery was
+  lost past the redelivery window), nothing terminates the row:
+  `StaleClaimsWorker` only sees PG `claimed` rows and
+  `OrphanedRunnersWorker` only sees CH `running` rows, so neither
+  covers `queued`.
+
+  Both bounds are on `enqueued_at`, which `runner_jobs` is partitioned
+  by and which is stable across a workflow_job's state transitions.
+  `enqueued_before` drops jobs queued too recently to be stale; the
+  `enqueued_after` floor bounds the scan to a finite window so the
+  `argMax` dedup never has to aggregate the table's full history
+  (partition pruning skips everything older). The caller sets the floor
+  comfortably beyond the backstop age, so a stuck job is always reaped
+  while still inside the window.
+
+  Returns the fields the worker needs to address GitHub's Actions
+  jobs API (`repository`) and to apply the hard backstop
+  (`enqueued_at`).
+  """
+  def list_stale_queued(%DateTime{} = enqueued_after, %DateTime{} = enqueued_before) do
+    ClickHouseRepo.all(
+      from(j in Job,
+        where: j.enqueued_at > ^enqueued_after and j.enqueued_at < ^enqueued_before,
+        group_by: j.workflow_job_id,
+        having: fragment("argMax(?, ?) = ?", j.status, j.updated_at, "queued"),
+        select: %{
+          workflow_job_id: j.workflow_job_id,
+          account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at),
+          repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
+          enqueued_at: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at)
+        }
+      )
+    )
+  end
+
   # ----- internal -----
 
   # Fetch the current state of a workflow_job. Single-row lookup

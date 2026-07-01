@@ -49,6 +49,28 @@ source /etc/tuist.env
 
 : "${TUIST_RUNNER_DISPATCH_URL:?TUIST_RUNNER_DISPATCH_URL not set}"
 
+# In-VM cluster DNS for the runner-cache path. When the
+# runners-controller staged TUIST_CLUSTER_DNS_IP (macOS pools in
+# environments whose Mac minis have the tailnet route into the
+# cluster), point a macOS scoped resolver for the cluster domain at
+# kube-dns so the dispatch-provided cache_endpoint_url
+# (`*.svc.cluster.local`) resolves inside the VM. Scoped per-domain:
+# only cluster-domain lookups go to kube-dns, everything else keeps
+# the vmnet default path. getaddrinfo (curl, the Tuist CLI, JVM, Go's
+# darwin cgo resolver) honors /etc/resolver entries via
+# mDNSResponder. Best-effort: a failure here degrades to "cache URL
+# doesn't resolve" which the build treats like any unreachable
+# endpoint — never block the job claim on it.
+if [ -n "${TUIST_CLUSTER_DNS_IP:-}" ]; then
+  cluster_domain="${TUIST_CLUSTER_DOMAIN:-cluster.local}"
+  sudo mkdir -p /etc/resolver 2>/dev/null || true
+  if printf 'nameserver %s\n' "${TUIST_CLUSTER_DNS_IP}" | sudo tee "/etc/resolver/${cluster_domain}" >/dev/null 2>&1; then
+    echo "$(date -u +%FT%TZ) dispatch-poll: cluster DNS resolver installed (/etc/resolver/${cluster_domain} -> ${TUIST_CLUSTER_DNS_IP})"
+  else
+    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING could not install /etc/resolver/${cluster_domain}; in-cluster cache URLs will not resolve"
+  fi
+fi
+
 SA_TOKEN_PATH=/etc/tuist-sa-token
 if [ ! -f "${SA_TOKEN_PATH}" ]; then
   echo "$(date -u +%FT%TZ) dispatch-poll: ${SA_TOKEN_PATH} missing; aborting"
@@ -114,6 +136,28 @@ while true; do
         export TUIST_CACHE_ENDPOINT="${cache_endpoint}"
       fi
       echo "$(date -u +%FT%TZ) dispatch-poll: dispatched, starting runner"
+      # Force an NTP step before the job runs. A golden-base VM can be
+      # handed a job within seconds of boot — before macOS `timed` has
+      # synced the guest clock, which can start minutes behind. The
+      # GitHub runner stamps step times and metrics-poll stamps samples
+      # off this clock, so an unsynced VM lands the two on different
+      # timelines (the step timeline only drifts into alignment once
+      # `timed` catches up mid-job). `sntp -sS` steps a large offset via
+      # clock_settime (and slews a sub-50ms one); the network is already
+      # up here since dispatch just succeeded. Best-effort: on failure
+      # `timed` still converges, just later.
+      if sudo /usr/bin/sntp -sS -t 5 time.apple.com >/dev/null 2>&1; then
+        echo "$(date -u +%FT%TZ) dispatch-poll: clock stepped to NTP before runner start"
+      else
+        echo "$(date -u +%FT%TZ) dispatch-poll: WARNING NTP step failed; relying on timed"
+      fi
+      # Fork the machine-metrics sampler so it runs for the job's
+      # duration and POSTs CPU/memory/network/disk to the server. It
+      # dies with the VM when the EXIT trap halts us after the runner
+      # exits. Best-effort — never blocks the job from starting.
+      if [ -x /opt/tuist/metrics-poll.sh ]; then
+        /opt/tuist/metrics-poll.sh &
+      fi
       cd /Users/runner/actions-runner
       # `--jitconfig` implies ephemeral: the runner accepts one job
       # and exits. `--disableupdate` pins the runner to whatever

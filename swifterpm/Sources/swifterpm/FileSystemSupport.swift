@@ -1,0 +1,207 @@
+import FileSystem
+import Foundation
+import Path
+
+#if canImport(Darwin)
+    import Darwin
+#elseif canImport(Glibc)
+    import Glibc
+#elseif canImport(Musl)
+    import Musl
+#endif
+
+let fileSystem = FileSystem()
+
+extension URL {
+    var absolutePath: AbsolutePath {
+        get throws {
+            try AbsolutePath(validating: path)
+        }
+    }
+}
+
+extension AbsolutePath {
+    var fileURL: URL {
+        URL(fileURLWithPath: pathString)
+    }
+}
+
+extension FileSystem {
+    /// Write `data` atomically by writing to a temp sibling and then replacing the destination.
+    /// Creates parent directories if missing.
+    func write(_ data: Data, to url: URL) async throws {
+        try await write(data, to: url.absolutePath)
+    }
+
+    func write(_ data: Data, to path: AbsolutePath) async throws {
+        let parent = path.parentDirectory
+        if !(try await exists(parent, isDirectory: true)) {
+            try await makeDirectory(at: parent, options: [.createTargetParentDirectories])
+        }
+        // `Data.write(options: .atomic)` is synchronous, so offload it to a detached task to
+        // avoid blocking the cooperative executor while the temp file is renamed into place.
+        let url = path.fileURL
+        try await Task.detached {
+            try data.write(to: url, options: .atomic)
+        }.value
+    }
+
+    /// Atomically write text to `url`, overwriting any existing file.
+    func atomicWrite(_ string: String, to url: URL) async throws {
+        try await atomicWrite(Data(string.utf8), to: url)
+    }
+
+    func atomicWrite(_ data: Data, to url: URL) async throws {
+        try await write(data, to: url)
+    }
+
+    /// Remove the item at `url`. No-op if absent.
+    func removePath(_ url: URL) async throws {
+        if isSymlink(url) {
+            try unlinkPath(url)
+            return
+        }
+        try await remove(url.absolutePath)
+    }
+
+    /// List the contents of `url` as URLs.
+    func contentsOfDirectory(at url: URL) async throws -> [URL] {
+        try await contentsOfDirectory(url.absolutePath).map(\.fileURL)
+    }
+
+    /// True if a path is a directory and not a symbolic link.
+    /// `FileSystem.exists(_:, isDirectory: true)` follows symlinks, so we need to use lstat here.
+    /// Synchronous because `lstat` is a single non-blocking metadata call.
+    func isDirectoryAndNotSymlink(_ url: URL) -> Bool {
+        var stats = stat()
+        let result = url.path.withCString { lstat($0, &stats) }
+        guard result == 0 else { return false }
+        return (stats.st_mode & S_IFMT) == S_IFDIR
+    }
+
+    /// True if a path exists or is a (potentially broken) symlink.
+    /// Synchronous because `lstat` is a single non-blocking metadata call.
+    func existsIncludingSymlinks(_ url: URL) -> Bool {
+        var stats = stat()
+        return url.path.withCString { lstat($0, &stats) } == 0
+    }
+
+    func isSymlink(_ url: URL) -> Bool {
+        var stats = stat()
+        let result = url.path.withCString { lstat($0, &stats) }
+        guard result == 0 else { return false }
+        return (stats.st_mode & S_IFMT) == S_IFLNK
+    }
+
+    private func unlinkPath(_ url: URL) throws {
+        let result = url.path.withCString { unlink($0) }
+        guard result != -1 || errno == ENOENT else {
+            let message: String
+            if let cString = strerror(errno) {
+                message = String(cString: cString)
+            } else {
+                message = "unknown error"
+            }
+            throw ToolError.message("failed to remove \(url.path): \(message)")
+        }
+    }
+
+    /// Create a temporary directory underneath `parent` and return its URL.
+    func temporaryDirectory(in parent: URL) async throws -> URL {
+        let parentPath = try parent.absolutePath
+        try await makeDirectory(at: parentPath, options: [.createTargetParentDirectories])
+        let url = parent.appendingPathComponent(".tmp-\(UUID().uuidString)")
+        try await makeDirectory(at: url.absolutePath, options: [.createTargetParentDirectories])
+        return url
+    }
+
+    /// If `directory` contains exactly one subdirectory, replace `directory` with that subdirectory's contents.
+    func flattenSingleDirectory(_ url: URL) async throws {
+        let entries = try await contentsOfDirectory(url.absolutePath)
+        guard entries.count == 1 else { return }
+        let nested = entries[0].fileURL
+        guard isDirectoryAndNotSymlink(nested) else { return }
+
+        let temp = url.deletingLastPathComponent().appendingPathComponent(
+            "\(url.lastPathComponent).flattening")
+        if try await exists(temp.absolutePath) {
+            try await remove(temp.absolutePath)
+        }
+        try await move(from: nested.absolutePath, to: temp.absolutePath, options: [])
+        try await remove(url.absolutePath)
+        try await move(from: temp.absolutePath, to: url.absolutePath, options: [])
+    }
+
+    /// Materialise `source` at `destination`, removing any existing item first. By default,
+    /// continuous integration runners copy cached directories; other environments symlink so the
+    /// cached payload stays shared.
+    func replaceWithCachedDirectory(source: URL, destination: URL) async throws {
+        if Environment.cachedDirectoryMaterializationMode().shouldCopyCachedDirectories {
+            try await replaceWithCopiedDirectory(source: source, destination: destination)
+            return
+        }
+        try await replaceWithSymlink(source: source, destination: destination)
+    }
+
+    /// Registry downloads keep a real workspace-local package root in symlink mode. Xcode treats
+    /// symlinked registry roots differently during dependency scanning, but symlinked contents keep
+    /// the root stable while avoiding a full copy.
+    func replaceWithRegistryDownloadDirectory(source: URL, destination: URL) async throws {
+        if Environment.cachedDirectoryMaterializationMode().shouldCopyCachedDirectories {
+            try await replaceWithCopiedDirectory(source: source, destination: destination)
+            return
+        }
+        try await replaceWithDirectoryOfSymlinks(source: source, destination: destination)
+    }
+
+    private func replaceWithCopiedDirectory(source: URL, destination: URL) async throws {
+        let destinationPath = try destination.absolutePath
+        if existsIncludingSymlinks(destination) {
+            try await remove(destinationPath)
+        }
+        try await makeDirectory(
+            at: destinationPath.parentDirectory, options: [.createTargetParentDirectories]
+        )
+        try await copy(source.absolutePath, to: destinationPath)
+    }
+
+    private func replaceWithSymlink(source: URL, destination: URL) async throws {
+        let destinationPath = try destination.absolutePath
+        if existsIncludingSymlinks(destination) {
+            try await remove(destinationPath)
+        }
+        try await makeDirectory(
+            at: destinationPath.parentDirectory, options: [.createTargetParentDirectories]
+        )
+        try await createSymbolicLink(from: destinationPath, to: source.absolutePath)
+    }
+
+    private func replaceWithDirectoryOfSymlinks(source: URL, destination: URL) async throws {
+        let destinationPath = try destination.absolutePath
+        let parent = destination.deletingLastPathComponent()
+        try await makeDirectory(
+            at: destinationPath.parentDirectory, options: [.createTargetParentDirectories]
+        )
+        let temp = try await temporaryDirectory(in: parent)
+        do {
+            let sourceEntries = try await contentsOfDirectory(at: source)
+            for sourceEntry in sourceEntries {
+                try await createSymbolicLink(
+                    from: temp.appendingPathComponent(sourceEntry.lastPathComponent).absolutePath,
+                    to: sourceEntry.absolutePath
+                )
+            }
+            if existsIncludingSymlinks(destination) {
+                try await remove(destinationPath)
+            }
+            try await move(from: temp.absolutePath, to: destinationPath, options: [])
+        } catch {
+            try? await remove(temp.absolutePath)
+            throw error
+        }
+    }
+
+    func replaceWithSymlinkedDirectory(source: URL, destination: URL) async throws {
+        try await replaceWithCachedDirectory(source: source, destination: destination)
+    }
+}

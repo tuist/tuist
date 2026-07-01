@@ -77,6 +77,12 @@ func (in *KuraGatewaySpec) DeepCopyInto(out *KuraGatewaySpec) {
 			out.LoadBalancerAnnotations[key] = value
 		}
 	}
+	if in.Tolerations != nil {
+		out.Tolerations = make([]corev1.Toleration, len(in.Tolerations))
+		for i := range in.Tolerations {
+			in.Tolerations[i].DeepCopyInto(&out.Tolerations[i])
+		}
+	}
 }
 
 func (in *KuraGatewaySpec) DeepCopy() *KuraGatewaySpec {
@@ -168,10 +174,36 @@ func (in *KuraInstanceSpec) DeepCopyInto(out *KuraInstanceSpec) {
 			out.NodeSelector[key] = value
 		}
 	}
+	if in.Tolerations != nil {
+		out.Tolerations = make([]corev1.Toleration, len(in.Tolerations))
+		for i := range in.Tolerations {
+			in.Tolerations[i].DeepCopyInto(&out.Tolerations[i])
+		}
+	}
 	if in.ExtraEnv != nil {
 		out.ExtraEnv = make([]corev1.EnvVar, len(in.ExtraEnv))
 		for i := range in.ExtraEnv {
 			in.ExtraEnv[i].DeepCopyInto(&out.ExtraEnv[i])
+		}
+	}
+	if in.ClientCIDRs != nil {
+		out.ClientCIDRs = make([]string, len(in.ClientCIDRs))
+		copy(out.ClientCIDRs, in.ClientCIDRs)
+	}
+	if in.PodAnnotations != nil {
+		out.PodAnnotations = make(map[string]string, len(in.PodAnnotations))
+		for key, value := range in.PodAnnotations {
+			out.PodAnnotations[key] = value
+		}
+	}
+	if in.MeshExternalPeers != nil {
+		out.MeshExternalPeers = make([]string, len(in.MeshExternalPeers))
+		copy(out.MeshExternalPeers, in.MeshExternalPeers)
+	}
+	if in.MeshPublicPeerLoadBalancerAnnotations != nil {
+		out.MeshPublicPeerLoadBalancerAnnotations = make(map[string]string, len(in.MeshPublicPeerLoadBalancerAnnotations))
+		for key, value := range in.MeshPublicPeerLoadBalancerAnnotations {
+			out.MeshPublicPeerLoadBalancerAnnotations[key] = value
 		}
 	}
 }

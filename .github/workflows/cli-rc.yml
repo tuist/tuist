@@ -68,7 +68,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "git-cliff jq"
+          install_args: "--locked git-cliff jq"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - id: resolve
@@ -77,9 +77,9 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "$BRANCH" ]; then
-            mise run --no-deps cli:release:channel-version -- rc-new
+            mise run --no-deps --skip-tools cli:release:channel-version -- rc-new
           else
-            mise run --no-deps cli:release:channel-version -- rc "$BRANCH"
+            mise run --no-deps --skip-tools cli:release:channel-version -- rc "$BRANCH"
           fi
 
   build-publish:

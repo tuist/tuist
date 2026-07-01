@@ -14,7 +14,13 @@ public struct Shard {
     public let reference: String
     public let shardPlanId: String
     public let testProductsPath: AbsolutePath
-    public let xcTestRunPath: AbsolutePath?
+    /// xcodebuild `-only-testing` identifiers selecting this shard's work. Suite granularity yields
+    /// `Module/Suite` entries; module granularity yields bare `Module` entries.
+    public let testIdentifiers: [String]
+    /// xcodebuild `-skip-testing` identifiers. Non-empty only on the catch-all shard, which carries no
+    /// `-only-testing` and instead skips every suite assigned to other shards — so it runs everything
+    /// NOT explicitly assigned (newly added or un-enumerated suites included) rather than dropping it.
+    public let skipTestIdentifiers: [String]
     public let modules: [String]
     public let selectiveTestingGraph: SelectiveTestingGraph?
 }
@@ -34,8 +40,6 @@ public protocol ShardServicing {
 public enum ShardServiceError: LocalizedError, Equatable {
     case cannotDeriveReference
     case invalidDownloadURL(String)
-    case invalidXCTestRun
-    case xcTestRunNotFound(AbsolutePath)
 
     public var errorDescription: String? {
         switch self {
@@ -44,10 +48,6 @@ public enum ShardServiceError: LocalizedError, Equatable {
                 "Cannot derive a shard plan reference. Pass --shard-reference explicitly or run in a supported CI environment (GitHub Actions, GitLab CI, CircleCI, Buildkite, Codemagic)."
         case let .invalidDownloadURL(url):
             return "Invalid shard download URL: \(url)"
-        case .invalidXCTestRun:
-            return "The .xctestrun file has an invalid format."
-        case let .xcTestRunNotFound(path):
-            return "No .xctestrun file found in \(path.pathString)"
         }
     }
 }
@@ -98,15 +98,13 @@ public struct ShardService: ShardServicing {
         )
 
         let suites = shard.suites.additionalProperties
-        if suites.isEmpty {
-            Logger.current.notice("Shard \(shardIndex): \(shard.modules.joined(separator: ", "))", metadata: .section)
-        } else {
-            let names = suites.values.flatMap { $0 }.sorted()
-            Logger.current.notice("Shard \(shardIndex): \(names.joined(separator: ", "))", metadata: .section)
-        }
+        let skipTestIdentifiers = shard.skip ?? []
+        Logger.current.notice(
+            "Shard \(shardIndex): \(noticeIdentifiers(modules: shard.modules, suites: suites, skipTestIdentifiers: skipTestIdentifiers).joined(separator: ", "))",
+            metadata: .section
+        )
 
         let resolvedTestProductsPath: AbsolutePath
-        var xcTestRunPath: AbsolutePath?
 
         if let testProductsPath {
             resolvedTestProductsPath = testProductsPath
@@ -135,29 +133,18 @@ public struct ShardService: ShardServicing {
             Logger.current.debug("Extracted test products to \(resolvedTestProductsPath.pathString)")
         }
 
-        guard let xcTestRunSourcePath = try await fileSystem
-            .glob(directory: resolvedTestProductsPath, include: ["**/*.xctestrun"])
-            .collect()
-            .first(where: { !$0.basename.contains(".tuist-shard-") })
-        else {
-            throw ShardServiceError.xcTestRunNotFound(resolvedTestProductsPath)
-        }
-
-        let plistData = try await fileSystem.readFile(at: xcTestRunSourcePath)
-        let filteredData = try filterXCTestRun(
-            plistData: plistData,
-            modules: shard.modules,
-            suites: shard.suites.additionalProperties
-        )
-        let plistString = String(decoding: filteredData, as: UTF8.self)
-        if testProductsPath != nil {
-            let baseName = xcTestRunSourcePath.basenameWithoutExt
-            let destPath = xcTestRunSourcePath.parentDirectory
-                .appending(component: "\(baseName).tuist-shard-\(shardIndex).xctestrun")
-            try await fileSystem.writeText(plistString, at: destPath)
-            xcTestRunPath = destPath
+        // Selection is delegated to xcodebuild's `-only-testing` arguments rather than rewriting the
+        // bundle's `.xctestrun`. xctestrun-level `OnlyTestIdentifiers` does not filter Swift Testing
+        // tests, so a rewritten xctestrun silently runs zero tests for Swift Testing suites.
+        let testIdentifiers: [String]
+        if suites.isEmpty {
+            testIdentifiers = shard.modules.sorted()
         } else {
-            try await fileSystem.writeText(plistString, at: xcTestRunSourcePath, encoding: .utf8, options: [.overwrite])
+            testIdentifiers = suites
+                .flatMap { module, suiteNames in
+                    suiteNames.map { "\(module)/\($0)" }
+                }
+                .sorted()
         }
 
         let selectiveTestingGraphPath = resolvedTestProductsPath.appending(component: SelectiveTestingGraph.fileName)
@@ -173,7 +160,8 @@ public struct ShardService: ShardServicing {
             reference: reference,
             shardPlanId: shard.shard_plan_id,
             testProductsPath: resolvedTestProductsPath,
-            xcTestRunPath: xcTestRunPath,
+            testIdentifiers: testIdentifiers,
+            skipTestIdentifiers: skipTestIdentifiers,
             modules: shard.modules,
             selectiveTestingGraph: selectiveTestingGraph
         )
@@ -190,62 +178,21 @@ public struct ShardService: ShardServicing {
         return normalizedPath
     }
 
-    /// Filters xctestrun plist data using raw PropertyListSerialization rather than Decodable because we need
-    /// to preserve all fields (environment variables, test host paths, etc.) that aren't part of XCTestRun's typed model.
-    func filterXCTestRun(
-        plistData data: Data,
+    private func noticeIdentifiers(
         modules: [String],
-        suites: [String: [String]]
-    ) throws -> Data {
-        guard var plist = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else {
-            throw ShardServiceError.invalidXCTestRun
-        }
-
-        let moduleSet = Set(modules)
-
-        if var configurations = plist["TestConfigurations"] as? [[String: Any]] {
-            configurations = configurations.map { config in
-                var config = config
-                guard var targets = config["TestTargets"] as? [[String: Any]] else { return config }
-
-                targets = targets.filter { target in
-                    guard let name = target["BlueprintName"] as? String else { return false }
-                    return moduleSet.contains(name)
+        suites: [String: [String]],
+        skipTestIdentifiers: [String]
+    ) -> [String] {
+        if !suites.isEmpty {
+            return suites
+                .flatMap { module, suiteNames in
+                    suiteNames.map { "\(module)/\($0)" }
                 }
-
-                if !suites.isEmpty {
-                    targets = targets.map { target in
-                        var target = target
-                        if let name = target["BlueprintName"] as? String,
-                           let suiteNames = suites[name]
-                        {
-                            target["OnlyTestIdentifiers"] = suiteNames
-                        }
-                        return target
-                    }
-                }
-
-                config["TestTargets"] = targets
-                return config
-            }
-
-            plist["TestConfigurations"] = configurations
+                .sorted()
+        } else if !modules.isEmpty {
+            return modules.sorted()
         } else {
-            for key in plist.keys where !key.hasPrefix("__") {
-                guard let entry = plist[key] as? [String: Any],
-                      let name = entry["BlueprintName"] as? String
-                else { continue }
-
-                if !moduleSet.contains(name) {
-                    plist.removeValue(forKey: key)
-                } else if !suites.isEmpty, let suiteNames = suites[name] {
-                    var entry = entry
-                    entry["OnlyTestIdentifiers"] = suiteNames
-                    plist[key] = entry
-                }
-            }
+            return skipTestIdentifiers.sorted()
         }
-
-        return try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
     }
 }

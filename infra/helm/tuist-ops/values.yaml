@@ -78,6 +78,14 @@ postgresql:
     # server uses. See `infra/helm/tuist/templates/postgresql-cnpg.yaml`
     # for the established pattern.
     credentialsSecretName: tuist-ops-backup-credentials
+    # Barman Cloud Plugin (CNPG-I) migration. When enabled, this cluster
+    # archives via the plugin + an ObjectStore CR instead of the in-tree
+    # barmanObjectStore. Requires the plugin installed in the operator
+    # namespace (`platform`) — see infra/cnpg/README.md. Default off: no-op
+    # until flipped after validating WAL continuity + a restore drill.
+    plugin:
+      enabled: false
+      name: barman-cloud.cloudnative-pg.io
 
 ingress:
   enabled: true
@@ -109,7 +117,8 @@ service:
 # ESO ExternalSecret for the bot's credentials. Single 1P item per
 # Fields expected on TUIST_OPS_BOT:
 #   tailscale_client_id, tailscale_client_secret, tailscale_tailnet,
-#   slack_signing_secret, slack_bot_token, slack_approvals_channel_id
+#   slack_signing_secret, slack_bot_token, slack_approvals_channel_id,
+#   github_app_id, github_app_installation_id, github_app_private_key
 externalSecret:
   enabled: true
   refreshInterval: "1h"

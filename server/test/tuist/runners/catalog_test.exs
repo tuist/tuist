@@ -1,5 +1,6 @@
 defmodule Tuist.Runners.CatalogTest do
   use ExUnit.Case, async: true
+  use Mimic
 
   alias Tuist.Runners.Catalog
 
@@ -55,6 +56,9 @@ defmodule Tuist.Runners.CatalogTest do
 
       assert Catalog.pool_name(%{platform: :macos, xcode_version: "26.3"}) ==
                "#{Tuist.Environment.runners_macos_pool_name_prefix()}-26-3"
+
+      assert Catalog.pool_name(%{platform: :macos, xcode_version: "26.0.1"}) ==
+               "#{Tuist.Environment.runners_macos_pool_name_prefix()}-26-0-1"
     end
   end
 
@@ -92,24 +96,56 @@ defmodule Tuist.Runners.CatalogTest do
         [
           {"xcodeVersion":"26.5","default":true},
           {"xcodeVersion":"26.4.1"},
-          {"xcodeVersion":"26.3"}
+          {"xcodeVersion":"26.3"},
+          {"xcodeVersion":"26.0.1"}
         ]
         """
 
       assert [
                %{xcode_version: "26.5", default: true},
                %{xcode_version: "26.4.1"} = second,
-               %{xcode_version: "26.3"} = third
+               %{xcode_version: "26.3"} = third,
+               %{xcode_version: "26.0.1"} = fourth
              ] = Catalog.parse_xcode_versions_json(json)
 
       refute Map.has_key?(second, :default)
       refute Map.has_key?(third, :default)
+      refute Map.has_key?(fourth, :default)
     end
 
     test "returns :error on malformed JSON" do
       assert :error = Catalog.parse_xcode_versions_json("not json")
       assert :error = Catalog.parse_xcode_versions_json("{}")
       assert :error = Catalog.parse_xcode_versions_json(nil)
+    end
+  end
+
+  describe "fleet_on_cluster_network?/1" do
+    test "linux fleets are on the cluster network by default" do
+      # The unset default is `linux`: kata Pods always ride the CNI,
+      # while macOS Tart VMs need the per-env tailnet route first.
+      assert Catalog.fleet_on_cluster_network?("linux-amd64")
+      refute Catalog.fleet_on_cluster_network?("macos-26-5")
+      refute Catalog.fleet_on_cluster_network?("unknown-fleet")
+      refute Catalog.fleet_on_cluster_network?(nil)
+    end
+
+    test "macOS fleets qualify when the environment declares the tailnet route" do
+      stub(Tuist.Environment, :runners_cluster_network_platforms, fn -> [:linux, :macos] end)
+
+      assert Catalog.fleet_on_cluster_network?("linux-amd64")
+      assert Catalog.fleet_on_cluster_network?("macos-26-5")
+      assert Catalog.fleet_on_cluster_network?("#{Tuist.Environment.runners_macos_pool_name_prefix()}-26-5")
+      # Unrecognized fleets still fail closed: a hard-override cache
+      # URL handed to an unknown runtime breaks caching outright.
+      refute Catalog.fleet_on_cluster_network?("windows-arm64")
+    end
+
+    test "an environment can turn the gate off entirely" do
+      stub(Tuist.Environment, :runners_cluster_network_platforms, fn -> [] end)
+
+      refute Catalog.fleet_on_cluster_network?("linux-amd64")
+      refute Catalog.fleet_on_cluster_network?("macos-26-5")
     end
   end
 end

@@ -13,6 +13,26 @@ Noora Storybook ships from the standalone `infra/helm/noora-storybook/` chart so
 
 Each dependency defaults to `embedded` (deployed within the chart). To use an external provider instead, set its `mode` to `external` and configure the connection details under the corresponding section in `values.yaml`.
 
+External PostgreSQL with an existing Secret:
+
+```yaml
+postgresql:
+  mode: external
+  external:
+    port: 5432
+    database: tuist
+    existingSecret: tuist-postgresql
+    existingSecretKeys:
+      host: host
+      username: username
+      password: password
+```
+
+The chart reads `host`, `username`, and `password` from the named Secret and
+builds `DATABASE_URL` through Kubernetes env-var substitution, so the password
+does not appear in the rendered manifest. The Secret value for `password`
+should be URL-safe because it is interpolated into a database URL.
+
 ## Local validation
 
 Render manifests:
@@ -84,12 +104,26 @@ Embedded PostgreSQL, ClickHouse, and MinIO continue to use the namespace default
 Some cluster-specific fixes are intentionally opt-in:
 
 - `cache.podSecurityContext` is empty by default. Set `fsGroup` only if your storage class needs it.
+- `cache.nginx.clientMaxBodySize` defaults to `10m`, matching the cache application's module part size limit. Raise it only when the application limit is raised too.
 - `clickhouse.embedded.service.nativePort` defaults to ClickHouse's standard `9000` service port and can be overridden for mesh or port-allocation conflicts.
+- `clickhouse.external.pingUrl` lets the migration job wait for an external ClickHouse instance through a dedicated `/ping` URL when `clickhouse.external.url` includes a database path.
 
-Example:
+External ClickHouse example:
+
+```yaml
+clickhouse:
+  mode: external
+  external:
+    url: http://user:password@clickhouse.example.com:8123/tuist
+    pingUrl: http://clickhouse.example.com:8123/ping
+```
+
+Embedded compatibility override example:
 
 ```yaml
 cache:
+  nginx:
+    clientMaxBodySize: 10m
   podSecurityContext:
     fsGroup: 990
 

@@ -11,8 +11,8 @@
 # downstream installs that depend on cert-manager.io/v1 Certificate.
 #
 # Reads the Cloudflare DNS-01 API token from `CLOUDFLARE_API_TOKEN` if
-# set (CI wires it from the workflow's 1Password integration). Falls
-# back to `op read` for local invocations from bootstrap-workload.
+# set. Falls back to `op read` only for local invocations from
+# bootstrap-workload.
 
 set -euo pipefail
 
@@ -30,19 +30,35 @@ fi
 
 log "Platform install for $CLUSTER_NAME"
 
-if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
-  CLOUDFLARE_API_TOKEN="$(op read --account tuist.1password.com \
-    "op://Founders/cloudflare-tuist-dns/credential")"
-fi
-
 helm dependency update "$CHART_PATH" >/dev/null
 
 KUBECONFIG="$WL_KUBECONFIG" kubectl create namespace platform \
   --dry-run=client -o yaml | KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
-KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform create secret generic cloudflare-api-token \
-  --from-literal=api-token="$CLOUDFLARE_API_TOKEN" \
-  --dry-run=client -o yaml | KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
-unset CLOUDFLARE_API_TOKEN
+
+# Only require / propagate the Cloudflare DNS-edit token when the Secret
+# isn't already materialised on the cluster. Normal preview deploys then
+# don't have to read or pass the token at all — the bootstrap step that
+# created the Secret is the only place it has to live. First-cluster
+# bootstrap still needs the token (from $CLOUDFLARE_API_TOKEN in CI, or
+# `op read` for local invocations).
+if ! KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform get secret cloudflare-api-token >/dev/null 2>&1; then
+  log "cloudflare-api-token Secret missing — provisioning it"
+  if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+    if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+      echo "ERROR: platform/cloudflare-api-token is missing and CLOUDFLARE_API_TOKEN is not set." >&2
+      echo "Restore the workload cluster bootstrap secret before running deploys." >&2
+      exit 1
+    fi
+    CLOUDFLARE_API_TOKEN="$(op read --account tuist.1password.com \
+      "op://Founders/cloudflare-tuist-dns/credential")"
+  fi
+  KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform create secret generic cloudflare-api-token \
+    --from-literal=api-token="$CLOUDFLARE_API_TOKEN" \
+    --dry-run=client -o yaml | KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
+  unset CLOUDFLARE_API_TOKEN
+else
+  log "cloudflare-api-token Secret already present — skipping token refresh"
+fi
 
 HELM_SET_ARGS=(
   --set "external-dns.txtOwnerId=${CLUSTER_NAME}-platform"
@@ -125,17 +141,59 @@ case "$CLUSTER_NAME" in
       platform-kura-us-west-ingress-nginx-admission
     )
     ;;
-  tuist-canary | tuist-staging)
+  tuist-canary)
     ADMISSION_SECRETS+=(
       platform-kura-eu-central-ingress-nginx-admission
+      platform-kura-ca-east-ingress-nginx-admission
+    )
+    ;;
+  tuist-staging)
+    ADMISSION_SECRETS+=(
+      platform-kura-eu-central-ingress-nginx-admission
+      platform-kura-ca-east-ingress-nginx-admission
     )
     ;;
 esac
 
 if KUBECONFIG="$WL_KUBECONFIG" helm status platform --namespace platform >/dev/null 2>&1; then
   HAVE_ALL_ADMISSION_SECRETS=true
+
+  admission_webhook_matches_secret() {
+    local secret="$1"
+    local secret_ca
+    local webhook_cas
+    local ca
+
+    secret_ca="$(
+      KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform get secret "$secret" \
+        -o jsonpath='{.data.ca}' 2>/dev/null || true
+    )"
+    if [ -z "$secret_ca" ]; then
+      return 1
+    fi
+
+    webhook_cas="$(
+      KUBECONFIG="$WL_KUBECONFIG" kubectl get validatingwebhookconfiguration "$secret" \
+        -o jsonpath='{range .webhooks[*]}{.clientConfig.caBundle}{"\n"}{end}' 2>/dev/null || true
+    )"
+    if [ -z "$webhook_cas" ]; then
+      return 1
+    fi
+
+    while IFS= read -r ca; do
+      if [ -z "$ca" ] || [ "$ca" != "$secret_ca" ]; then
+        return 1
+      fi
+    done <<< "$webhook_cas"
+  }
+
   for secret in "${ADMISSION_SECRETS[@]}"; do
     if ! KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform get secret "$secret" >/dev/null 2>&1; then
+      HAVE_ALL_ADMISSION_SECRETS=false
+      break
+    fi
+    if ! admission_webhook_matches_secret "$secret"; then
+      log "Admission webhook $secret is missing or has a stale CA bundle; running Helm hooks"
       HAVE_ALL_ADMISSION_SECRETS=false
       break
     fi

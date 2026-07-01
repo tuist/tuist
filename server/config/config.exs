@@ -156,6 +156,9 @@ config :logger, :console,
     :owner,
     :count,
     :stale_after_seconds,
+    :verify_after_seconds,
+    :reap_after_seconds,
+    :enqueued_at,
     :grace_seconds,
     :delivery_id,
     :workflow_job_id,
@@ -378,7 +381,8 @@ config :tuist, :runner_macos_shapes, [
 config :tuist, :runner_macos_xcode_versions, [
   %{xcode_version: "26.5", default: true},
   %{xcode_version: "26.4.1"},
-  %{xcode_version: "26.3"}
+  %{xcode_version: "26.3"},
+  %{xcode_version: "26.0.1"}
 ]
 
 config :tuist, :urls,

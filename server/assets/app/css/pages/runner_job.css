@@ -513,3 +513,44 @@
     }
   }
 }
+
+.tuist-runner-metrics {
+  & [data-part="charts-grid"] {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="chart-card"] {
+    gap: var(--noora-spacing-7);
+    overflow: clip;
+  }
+
+  & [data-part="chart-title"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+  }
+
+  /* The Metrics tab's five-chart grid. */
+  & .noora-chart {
+    height: 180px;
+  }
+
+  /* The compact CPU / Memory / Network row above the Steps card on
+     the Overview tab — shorter so the steps stay above the fold. */
+  &[data-part="overview"] .noora-chart {
+    height: 148px;
+  }
+
+  /* Single column on narrow viewports so charts stay legible. */
+  @media (max-width: 900px) {
+    & [data-part="charts-grid"] {
+      grid-template-columns: 1fr;
+    }
+  }
+}
+
+#runner-job [data-part="metrics-empty"] {
+  color: var(--noora-surface-label-secondary);
+  font: var(--noora-font-body-medium);
+}

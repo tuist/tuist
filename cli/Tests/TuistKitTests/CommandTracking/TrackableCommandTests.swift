@@ -4,6 +4,8 @@ import Mockable
 import Path
 import TuistAlert
 import TuistCore
+import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistGit
 import TuistJobSummary
 import TuistLogging
@@ -65,7 +67,9 @@ final class TrackableCommandTests: TuistTestCase {
         flag: Bool = true,
         shouldFail: Bool = false,
         analyticsRequired: Bool = false,
-        commandArguments: [String] = ["cache", "warm"]
+        commandArguments: [String] = ["cache", "warm"],
+        uploadAnalyticsService: UploadAnalyticsServicing? = nil,
+        bestEffortForegroundUploadTimeout: Duration = .seconds(15)
     ) throws {
         let temporaryPath = try temporaryPath()
         subject = TrackableCommand(
@@ -80,9 +84,10 @@ final class TrackableCommandTests: TuistTestCase {
                 gitController: gitController
             ),
             backgroundProcessRunner: backgroundProcessRunner,
-            uploadAnalyticsService: uploadAnalyticsService,
+            uploadAnalyticsService: uploadAnalyticsService ?? self.uploadAnalyticsService,
             serverAuthenticationController: serverAuthenticationController,
             gitHubActionsJobSummaryService: gitHubActionsJobSummaryService,
+            bestEffortForegroundUploadTimeout: bestEffortForegroundUploadTimeout,
             sessionDirectory: temporaryPath
         )
     }
@@ -367,6 +372,31 @@ final class TrackableCommandTests: TuistTestCase {
             .called(1)
     }
 
+    func test_whenBestEffortForegroundUploadTimesOut_doesNotWriteGitHubActionsJobSummary() async throws {
+        // Given
+        try await withMockedEnvironment {
+            Environment.mocked?.variables["CI"] = "true"
+            let delayedUploadAnalyticsService = DelayedUploadAnalyticsService(delay: .seconds(1))
+            try makeSubject(
+                analyticsRequired: false,
+                uploadAnalyticsService: delayedUploadAnalyticsService,
+                bestEffortForegroundUploadTimeout: .milliseconds(1)
+            )
+
+            // When
+            try await subject.run(
+                fullHandle: "tuist/tuist",
+                serverURL: .test(),
+                shouldTrackAnalytics: true
+            )
+
+            // Then
+            verify(gitHubActionsJobSummaryService)
+                .writeJobSummary(testRunReports: .any, buildRunReports: .any, runURL: .any)
+                .called(0)
+        }
+    }
+
     func test_whenBackgroundUpload_doesNotWriteGitHubActionsJobSummary() async throws {
         // Given
         try makeSubject(analyticsRequired: false)
@@ -382,6 +412,21 @@ final class TrackableCommandTests: TuistTestCase {
         verify(gitHubActionsJobSummaryService)
             .writeJobSummary(testRunReports: .any, buildRunReports: .any, runURL: .any)
             .called(0)
+    }
+}
+
+private struct DelayedUploadAnalyticsService: UploadAnalyticsServicing {
+    let delay: Duration
+
+    @discardableResult
+    func upload(
+        commandEvent _: CommandEvent,
+        fullHandle _: String,
+        serverURL _: URL,
+        sessionDirectory _: AbsolutePath?
+    ) async throws -> ServerCommandEvent {
+        try await Task.sleep(for: delay)
+        return .test()
     }
 }
 

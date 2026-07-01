@@ -21,6 +21,8 @@
 package podtemplate
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"strings"
 
@@ -56,6 +58,14 @@ const (
 // every Linux runner Pod (k8s 1.29+ native sidecar). Empty skips
 // the sidecar, which is fine for macOS-only installs.
 //
+// `clusterDNSIP` + `clusterDomain`, when set, ride to macOS Pods as
+// TUIST_CLUSTER_DNS_IP / TUIST_CLUSTER_DOMAIN: tart-kubelet stages
+// the Pod env into the VM's /etc/tuist.env, and dispatch-poll.sh
+// writes an /etc/resolver/<domain> entry from them so the
+// dispatch-provided `cache_endpoint_url` (`*.svc.cluster.local`)
+// resolves inside the VM. Linux Pods are on the CNI's DNS already
+// and don't get them.
+//
 // Returns an error (fails closed) when a Linux pool would get the
 // privileged dind sidecar without `spec.runtimeClass == kata-qemu`.
 // The sidecar runs `privileged: true`; that's only safe because the
@@ -63,7 +73,7 @@ const (
 // class the Pod falls back to runc on the host kernel and the
 // privileged container escapes onto the bare-metal host — so refuse
 // to build it rather than ship an unbounded privileged container.
-func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInternalURL, dindImage, registryMirror string) (*corev1.Pod, error) {
+func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInternalURL, dindImage, registryMirror, clusterDNSIP, clusterDomain string) (*corev1.Pod, error) {
 	cpu := resource.NewMilliQuantity(int64(pool.Spec.PodCPUMilli), resource.DecimalSI)
 	mem := resource.NewQuantity(int64(pool.Spec.PodMemoryMB)*1024*1024, resource.BinarySI)
 
@@ -102,6 +112,17 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 				FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"},
 			},
 		},
+	}
+
+	if !linuxPod && clusterDNSIP != "" {
+		// In-VM cluster DNS for the runner-cache path (macOS only:
+		// Linux Pods resolve cluster names via the CNI's DNS).
+		// dispatch-poll.sh writes /etc/resolver/<domain> from these
+		// before its first poll.
+		dispatchEnv = append(dispatchEnv,
+			corev1.EnvVar{Name: "TUIST_CLUSTER_DNS_IP", Value: clusterDNSIP},
+			corev1.EnvVar{Name: "TUIST_CLUSTER_DOMAIN", Value: clusterDomain},
+		)
 	}
 
 	resources := corev1.ResourceRequirements{
@@ -300,6 +321,34 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			})
 		}
 
+		// Machine-metrics sampler: a native sidecar (restartPolicy=
+		// Always) that samples the microVM's CPU/memory/network/disk and
+		// POSTs them to the server for the job detail page's Metrics tab.
+		// It holds the dispatch token (trusted code, like the poller —
+		// never the customer container) and reads VM-wide /proc plus the
+		// JIT emptyDir's backing filesystem for disk. It idles until the
+		// poller stages the JIT (i.e. a job is claimed), so warm-standby
+		// Pods don't sample. No startupProbe, so it never blocks the
+		// poller/runner from starting; kubelet stops it when the runner
+		// container exits.
+		metricsEnv := append(append([]corev1.EnvVar{}, dispatchEnv...),
+			corev1.EnvVar{Name: "TUIST_RUNNER_JIT_PATH", Value: jitFilePath},
+		)
+		initContainers = append(initContainers, corev1.Container{
+			Name:          "metrics",
+			Image:         pool.Spec.Image,
+			Command:       []string{"/usr/local/bin/metrics-sampler.sh"},
+			Env:           metricsEnv,
+			RestartPolicy: ptr(corev1.ContainerRestartPolicyAlways),
+			VolumeMounts: []corev1.VolumeMount{
+				{Name: "tuist-runner-token", MountPath: "/var/run/secrets/tuist-runner", ReadOnly: true},
+				{Name: "tuist-runner-jit", MountPath: jitMountPath, ReadOnly: true},
+			},
+			// Root only to read the token mount and run our trusted
+			// sampling script — never customer code.
+			SecurityContext: &corev1.SecurityContext{RunAsUser: ptr(int64(0))},
+		})
+
 		// poller runs after the dind sidecar (when present) so it
 		// waits on the dind startupProbe exactly as the single runner
 		// container did before the split.
@@ -371,6 +420,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			// container only — see the Linux branch above.
 			AutomountServiceAccountToken: ptr(automount),
 			NodeSelector:                 nodeSelector,
+			Affinity:                     goldenAffinity(pool),
 			Tolerations:                  tolerations,
 			Volumes:                      volumes,
 			InitContainers:               initContainers,
@@ -441,6 +491,55 @@ func runtimeClassName(pool *tuistv1.RunnerPool) *string {
 	}
 	rc := pool.Spec.RuntimeClass
 	return &rc
+}
+
+// goldenNodeLabelPrefix namespaces the per-digest Node labels tart-kubelet
+// publishes to advertise which golden base VMs a host already holds.
+//
+// CONTRACT: this prefix and goldenNodeAffinityKey's hashing MUST stay in
+// lockstep with tart-kubelet's `podagent.goldenNodeLabelPrefix` /
+// `goldenVMName` — the two live in separate Go modules, so they're coupled
+// by this convention, not shared code. A mismatch silently disables the
+// affinity (no node ever carries the key the controller prefers), which
+// degrades to today's image-blind placement rather than breaking
+// scheduling, so it's failure-safe but worth a test on both sides.
+const goldenNodeLabelPrefix = "tuist.dev/golden-"
+
+// goldenNodeAffinityKey is the Node-label key advertising that a host holds
+// the golden base for `image`. The suffix is the same 8-byte SHA-256 prefix
+// of the image ref that tart-kubelet embeds in the golden VM name, so both
+// sides derive an identical key from the same digest-pinned ref.
+func goldenNodeAffinityKey(image string) string {
+	sum := sha256.Sum256([]byte(image))
+	return goldenNodeLabelPrefix + hex.EncodeToString(sum[:8])
+}
+
+// goldenAffinity returns soft node-affinity steering a pool's Pods toward
+// hosts that already hold the golden base for its image, so a recycle is a
+// local APFS clonefile instead of a multi-GB cold pull. Preferred, not
+// required: when no warm host has a free slot the Pod still schedules onto
+// a cold host (and pays the one-time materialize) rather than going Pending.
+//
+// macOS only — Linux runners are kata microVMs with no golden-base concept,
+// and `image` re-pull there is a different (much smaller) story. Returns nil
+// for Linux so their Pods keep memory-bin-packed placement untouched.
+func goldenAffinity(pool *tuistv1.RunnerPool) *corev1.Affinity {
+	if pool.Spec.OS == "linux" {
+		return nil
+	}
+	return &corev1.Affinity{
+		NodeAffinity: &corev1.NodeAffinity{
+			PreferredDuringSchedulingIgnoredDuringExecution: []corev1.PreferredSchedulingTerm{{
+				Weight: 100,
+				Preference: corev1.NodeSelectorTerm{
+					MatchExpressions: []corev1.NodeSelectorRequirement{{
+						Key:      goldenNodeAffinityKey(pool.Spec.Image),
+						Operator: corev1.NodeSelectorOpExists,
+					}},
+				},
+			}},
+		},
+	}
 }
 
 // schedulingFor returns the nodeSelector + tolerations for a pool's

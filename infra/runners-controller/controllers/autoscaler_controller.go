@@ -15,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
+	"github.com/tuist/tuist/infra/runners-controller/internal/metrics"
 	"github.com/tuist/tuist/infra/runners-controller/internal/scaling"
 )
 
@@ -100,6 +101,9 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	pool := &tuistv1.RunnerPool{}
 	if err := r.Get(ctx, req.NamespacedName, pool); err != nil {
 		if apierrors.IsNotFound(err) {
+			// Pool is gone — drop its allocation series so the
+			// dashboard doesn't keep charting a stale warm deficit.
+			metrics.ClearAutoscaler(req.Name)
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
@@ -109,6 +113,7 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		// Pool is being drained by the RunnerPoolReconciler's
 		// finalizer. Don't patch replicas on a Terminating CR, and
 		// don't requeue — the drain owns its lifecycle from here.
+		metrics.ClearAutoscaler(pool.Name)
 		return ctrl.Result{}, nil
 	}
 
@@ -116,6 +121,7 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		// Pool opted out (or never opted in) — don't requeue.
 		// A future patch that flips `enabled` true will trigger
 		// a fresh reconcile via the For() watch.
+		metrics.ClearAutoscaler(pool.Name)
 		return ctrl.Result{}, nil
 	}
 
@@ -217,7 +223,28 @@ func (r *AutoscalerReconciler) desiredForPool(
 	logger logr.Logger,
 ) int32 {
 	perPool := scaling.DesiredReplicas(signals, knobs)
+	allocated := r.allocate(ctx, pool, signals, knobs, perPool, logger)
 
+	// Publish the allocation outcome so the warm-pool squeeze (target
+	// reaped down to `allocated` under fleet contention) is observable
+	// on its own series, not inferred from alive-vs-desired.
+	metrics.RecordAllocation(pool.Name, signals.Claimed+signals.Queued, knobs.MinWarmPoolFloor, perPool, allocated)
+
+	return allocated
+}
+
+// allocate runs the shared-capacity fleet allocator for `pool`,
+// returning the (possibly squeezed) replica target. Any failure
+// gathering the fleet view falls back to the per-pool target — a
+// node-read blip must never trigger a mass scale-down.
+func (r *AutoscalerReconciler) allocate(
+	ctx context.Context,
+	pool *tuistv1.RunnerPool,
+	signals scaling.Signals,
+	knobs scaling.PolicyKnobs,
+	perPool int32,
+	logger logr.Logger,
+) int32 {
 	if knobs.MaxReplicas <= 0 {
 		return perPool
 	}

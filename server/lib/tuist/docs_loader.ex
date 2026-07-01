@@ -208,7 +208,7 @@ defmodule Tuist.Docs.Loader do
       |> MDEx.to_html!()
       |> convert_github_alerts()
       |> HTML.wrap_code_blocks()
-      |> wrap_tables()
+      |> HTML.wrap_tables()
       |> strip_unsupported_tags()
       |> rewrite_image_paths()
       |> replace_heading_ids(custom_ids)
@@ -335,12 +335,6 @@ defmodule Tuist.Docs.Loader do
     |> String.replace(~r/<HomeCards[^>]*>.*?<\/HomeCards>/s, "")
     |> String.replace(~r/<HomeVideos[^>]*\/>/, "")
     |> String.replace(~r/<HomeCommunity[^>]*>.*?<\/HomeCommunity>/s, "")
-  end
-
-  defp wrap_tables(html) do
-    html
-    |> String.replace("<table>", ~s(<div class="noora-table"><table>))
-    |> String.replace("</table>", "</table></div>")
   end
 
   defp rewrite_image_paths(html) do

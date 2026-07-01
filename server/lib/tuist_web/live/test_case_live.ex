@@ -419,7 +419,10 @@ defmodule TuistWeb.TestCaseLive do
           [%{field: :is_ci, op: :==, value: true}]
 
         %{id: "ran_by", value: value, operator: :==} when not is_nil(value) ->
-          [%{field: :account_id, op: :==, value: value}]
+          [
+            %{field: :is_ci, op: :==, value: false},
+            %{field: :account_id, op: :==, value: value}
+          ]
 
         %{field: field, operator: op, value: value} when not is_nil(value) and value != "" ->
           [%{field: field, op: op, value: value}]
@@ -442,9 +445,6 @@ defmodule TuistWeb.TestCaseLive do
   defp sort_by_patch(uri, sort_by) do
     "?#{uri.query |> Query.put("sort_by", sort_by) |> Query.drop("page")}"
   end
-
-  defp sort_icon("asc"), do: "square_rounded_arrow_up"
-  defp sort_icon("desc"), do: "square_rounded_arrow_down"
 
   defp toggle_sort_order("asc"), do: "desc"
   defp toggle_sort_order("desc"), do: "asc"

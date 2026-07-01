@@ -17,7 +17,7 @@ import XcodeGraph
 /// once written — the same way `ModuleMapMapper` writes the dependency module maps.
 public struct FrameworkSearchPathsGraphMapper: GraphMapping {
     /// Targets with at least this many unique precompiled framework search paths get those paths
-    /// consolidated into a response file to keep C/ObjC compilation and linking under ARG_MAX.
+    /// consolidated into a response file to keep C, Objective-C, and linking command lines short.
     private static let consolidationThreshold = 20
 
     private static let frameworkSearchPathsSetting = "FRAMEWORK_SEARCH_PATHS"
@@ -28,6 +28,18 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
     private struct TargetID: Hashable {
         let projectPath: AbsolutePath
         let targetName: String
+    }
+
+    private struct PrecompiledArtifact: Hashable {
+        let path: AbsolutePath
+
+        var searchPath: LinkGeneratorPath {
+            .absolutePath(path.removingLastComponent())
+        }
+
+        var canBeLinkedIntoSwiftSearchPath: Bool {
+            path.extension == "framework" || path.extension == "xcframework"
+        }
     }
 
     public init() {}
@@ -41,15 +53,25 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
         let graphTraverser = GraphTraverser(graph: graph)
 
         var settingsByTarget: [TargetID: [(key: String, values: [String])]] = [:]
-        var sideEffects: [SideEffectDescriptor] = []
+        var generatedFileSideEffects: [SideEffectDescriptor] = []
+        var generatedSymbolicLinkSideEffects: [SideEffectDescriptor] = []
+        var generatedResponseFileDirectories: Set<AbsolutePath> = []
+        var activeFilesByDirectory: [AbsolutePath: Set<AbsolutePath>] = [:]
+        var activeFrameworkLinksByDirectory: [AbsolutePath: Set<AbsolutePath>] = [:]
 
         for (_, project) in graph.projects {
+            let responseFileDirectory = project.sourceRootPath.appending(
+                components: Constants.DerivedDirectory.name,
+                Constants.DerivedDirectory.frameworkSearchPaths
+            )
+            generatedResponseFileDirectories.insert(responseFileDirectory)
+
             for (_, target) in project.targets {
                 let linkableModules = try graphTraverser
                     .searchablePathDependencies(path: project.path, name: target.name).sorted()
 
-                let precompiledPaths = Set(linkableModules.compactMap(\.precompiledPath)
-                    .map { LinkGeneratorPath.absolutePath($0.removingLastComponent()) })
+                let precompiledArtifacts = Set(linkableModules.compactMap(\.precompiledPath).map(PrecompiledArtifact.init))
+                let precompiledPaths = Set(precompiledArtifacts.map(\.searchPath))
                 let sdkPaths = Set(linkableModules.compactMap { (dependency: GraphDependencyReference) -> LinkGeneratorPath? in
                     if case let GraphDependencyReference.sdk(_, _, source, _) = dependency {
                         return source.frameworkSearchPath.map { LinkGeneratorPath.string($0) }
@@ -62,11 +84,7 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
 
                 var additions: [(key: String, values: [String])] = []
                 if precompiledPaths.count >= Self.consolidationThreshold {
-                    let responseFilePath = project.sourceRootPath.appending(
-                        components: Constants.DerivedDirectory.name,
-                        Constants.DerivedDirectory.frameworkSearchPaths,
-                        "\(target.name).resp"
-                    )
+                    let responseFilePath = responseFileDirectory.appending(component: "\(target.name).resp")
                     let precompiledXcodeValues = precompiledPaths
                         .map { $0.xcodeValue(sourceRootPath: project.sourceRootPath) }
                         .uniqued()
@@ -77,22 +95,34 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
                         .map { "-F" + $0.replacingOccurrences(of: "$(SRCROOT)", with: project.sourceRootPath.pathString) }
                         .joined(separator: "\n")
                         + "\n"
-                    sideEffects.append(
+                    activeFilesByDirectory[responseFileDirectory, default: []].insert(responseFilePath)
+                    generatedFileSideEffects.append(
                         .file(FileDescriptor(path: responseFilePath, contents: Data(responseFileContents.utf8)))
                     )
 
-                    let responseFileReference = "@$(SRCROOT)/\(responseFilePath.relative(to: project.sourceRootPath))"
-                    // FRAMEWORK_SEARCH_PATHS keeps only the SDK paths; clang and ld read the precompiled
-                    // paths from the response file via @file to stay under ARG_MAX.
+                    let responseFileReference = "\"@$(SRCROOT)/\(responseFilePath.relative(to: project.sourceRootPath))\""
+                    let swiftFrameworkSearchPath = responseFileDirectory.appending(
+                        components: "Swift",
+                        target.name
+                    )
+                    let swiftSearchPathAdditions = swiftSearchPathValues(
+                        precompiledArtifacts: precompiledArtifacts,
+                        swiftFrameworkSearchPath: swiftFrameworkSearchPath,
+                        cleanupDirectory: responseFileDirectory,
+                        sourceRootPath: project.sourceRootPath,
+                        activeFrameworkLinksByDirectory: &activeFrameworkLinksByDirectory,
+                        generatedSymbolicLinkSideEffects: &generatedSymbolicLinkSideEffects
+                    )
+                    // FRAMEWORK_SEARCH_PATHS keeps only platform framework paths; Clang and the linker read the
+                    // precompiled paths from the response file via @file to keep command lines short.
                     additions.append((
                         Self.frameworkSearchPathsSetting,
                         xcodeValues(of: sdkPaths, sourceRootPath: project.sourceRootPath)
                     ))
                     additions.append((Self.otherCFlagsSetting, [responseFileReference]))
-                    // OTHER_SWIFT_FLAGS gets inline -F flags instead of @file: Swift has no ARG_MAX
-                    // problem here and the Xcode 26 ClangImporter / integrated SwiftDriver mishandle a
-                    // @file token.
-                    additions.append((Self.otherSwiftFlagsSetting, precompiledXcodeValues.flatMap { ["-F", $0] }))
+                    // OTHER_SWIFT_FLAGS gets -F flags instead of @file because the Xcode 26 ClangImporter and
+                    // integrated SwiftDriver mishandle a @file token.
+                    additions.append((Self.otherSwiftFlagsSetting, swiftSearchPathAdditions.flatMap { ["-F", $0] }))
                     additions.append((Self.otherLinkerFlagsSetting, [responseFileReference]))
                 } else {
                     additions.append((
@@ -118,11 +148,84 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
             return (projectPath, project)
         })
 
+        var sideEffects: [SideEffectDescriptor] = generatedResponseFileDirectories.isEmpty ? [] : [
+            .generatedFilesCleanup(
+                GeneratedFilesCleanupDescriptor(
+                    directories: generatedResponseFileDirectories,
+                    activeFilesByDirectory: activeFilesByDirectory,
+                    include: ["*.resp"]
+                )
+            ),
+        ]
+        if !activeFrameworkLinksByDirectory.isEmpty {
+            sideEffects.append(
+                .generatedFilesCleanup(
+                    GeneratedFilesCleanupDescriptor(
+                        directories: Set(activeFrameworkLinksByDirectory.keys),
+                        activeFilesByDirectory: activeFrameworkLinksByDirectory,
+                        include: ["Swift/*/*.framework", "Swift/*/*.xcframework"]
+                    )
+                )
+            )
+        }
+        sideEffects.append(contentsOf: generatedFileSideEffects)
+        sideEffects.append(contentsOf: generatedSymbolicLinkSideEffects)
         return (graph, sideEffects, environment)
     }
 
     private func xcodeValues(of paths: Set<LinkGeneratorPath>, sourceRootPath: AbsolutePath) -> [String] {
         paths.map { $0.xcodeValue(sourceRootPath: sourceRootPath) }.uniqued().sorted()
+    }
+
+    private func swiftSearchPathValues(
+        precompiledArtifacts: Set<PrecompiledArtifact>,
+        swiftFrameworkSearchPath: AbsolutePath,
+        cleanupDirectory: AbsolutePath,
+        sourceRootPath: AbsolutePath,
+        activeFrameworkLinksByDirectory: inout [AbsolutePath: Set<AbsolutePath>],
+        generatedSymbolicLinkSideEffects: inout [SideEffectDescriptor]
+    ) -> [String] {
+        let frameworkArtifacts = precompiledArtifacts.filter(\.canBeLinkedIntoSwiftSearchPath)
+        let frameworkArtifactsByBasename = Dictionary(grouping: frameworkArtifacts, by: \.path.basename)
+
+        let linkableArtifacts = frameworkArtifactsByBasename.values
+            .filter { $0.count == 1 }
+            .compactMap(\.first)
+            .sorted { $0.path.pathString < $1.path.pathString }
+        let conflictingFrameworkSearchPaths = frameworkArtifactsByBasename.values
+            .filter { $0.count > 1 }
+            .flatMap { $0.map(\.searchPath) }
+        let unsupportedSearchPaths = precompiledArtifacts
+            .filter { !$0.canBeLinkedIntoSwiftSearchPath }
+            .map(\.searchPath)
+
+        var values: [String] = []
+        if !linkableArtifacts.isEmpty {
+            values.append(LinkGeneratorPath.absolutePath(swiftFrameworkSearchPath).xcodeValue(sourceRootPath: sourceRootPath))
+            let linkPaths = Set(linkableArtifacts.map { artifact in
+                swiftFrameworkSearchPath.appending(component: artifact.path.basename)
+            })
+            activeFrameworkLinksByDirectory[cleanupDirectory, default: []].formUnion(linkPaths)
+            generatedSymbolicLinkSideEffects.append(
+                contentsOf: linkableArtifacts.map { artifact in
+                    .symbolicLink(
+                        SymbolicLinkDescriptor(
+                            path: swiftFrameworkSearchPath.appending(component: artifact.path.basename),
+                            destination: artifact.path
+                        )
+                    )
+                }
+            )
+        }
+
+        values.append(
+            contentsOf: xcodeValues(
+                of: Set(conflictingFrameworkSearchPaths + unsupportedSearchPaths),
+                sourceRootPath: sourceRootPath
+            )
+        )
+
+        return values
     }
 
     /// Applies the settings to the target's base settings and to any configuration that already

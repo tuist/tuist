@@ -138,6 +138,7 @@ where
     )
     .map(Arc::new);
     let bootstrap_semaphore = Arc::new(Semaphore::new(config.bootstrap_max_concurrent_peers));
+    let bootstrap_staging_budget = crate::utils::TmpBudget::new(config.tmp_dir_max_bytes);
     let state = Arc::new(AppState {
         config,
         _data_dir_lock: data_dir_lock,
@@ -150,12 +151,19 @@ where
         analytics,
         usage,
         geoip: None,
-        client,
+        client: arc_swap::ArcSwap::from_pointee(client),
         peer_client_factory: PeerClientFactory::plain(),
+        internal_tls: None,
+        dynamic_peers: arc_swap::ArcSwap::from_pointee(Vec::new()),
         replication_bandwidth_limiter,
         notify: Notify::new(),
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
         bootstrap_semaphore,
+        bootstrap_staging_budget,
+        bootstrap_fetch_locks: (0..crate::constants::BOOTSTRAP_FETCH_LOCK_STRIPES)
+            .map(|_| tokio::sync::Mutex::new(()))
+            .collect(),
+        replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
     });
     state.sync_runtime_metrics().await;
 

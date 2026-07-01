@@ -2,6 +2,7 @@ defmodule Tuist.Accounts.Workers.UpdateAllAccountsUsageWorkerTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  alias Tuist.Accounts
   alias Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
@@ -143,6 +144,41 @@ defmodule Tuist.Accounts.Workers.UpdateAllAccountsUsageWorkerTest do
     end
   end
 
+  describe "when there are more accounts than fit in a single insert" do
+    test "inserts the account usage workers in batches that stay under the PostgreSQL parameter limit" do
+      # Given
+      account_count = 2_500
+      accounts = Enum.map(1..account_count, fn id -> %{id: id} end)
+
+      meta = %Flop.Meta{
+        flop: %Flop{page: 1, page_size: 1_000},
+        current_page: 1,
+        total_pages: 1
+      }
+
+      stub(Accounts, :list_accounts_with_usage_not_updated_today, fn _attrs ->
+        {accounts, meta}
+      end)
+
+      test_pid = self()
+
+      stub(Oban, :insert_all, fn workers ->
+        send(test_pid, {:insert_all, length(workers)})
+        workers
+      end)
+
+      # When
+      assert :ok == UpdateAllAccountsUsageWorker.perform(%{args: %{}})
+
+      # Then
+      batch_sizes = collect_batch_sizes([])
+
+      assert Enum.sum(batch_sizes) == account_count
+      assert Enum.all?(batch_sizes, &(&1 <= 1_000))
+      assert length(batch_sizes) > 1
+    end
+  end
+
   describe "when the job is called more than once the same day" do
     test "it skips the account the second time",
          %{project: project, account: account} do
@@ -188,6 +224,14 @@ defmodule Tuist.Accounts.Workers.UpdateAllAccountsUsageWorkerTest do
       account = Repo.reload!(account)
       assert account.current_month_remote_cache_hits_count == 1
       assert account.current_month_remote_cache_hits_count_updated_at == ~N[2025-04-18 16:00:00]
+    end
+  end
+
+  defp collect_batch_sizes(acc) do
+    receive do
+      {:insert_all, size} -> collect_batch_sizes([size | acc])
+    after
+      0 -> Enum.reverse(acc)
     end
   end
 end
