@@ -1918,7 +1918,7 @@ msgstr ""
 msgid "Cache servers"
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.html.heex:33
+#: lib/tuist_web/live/cache_live.html.heex:34
 #, elixir-autogen, elixir-format
 msgid "Cache servers are not enabled for this account yet."
 msgstr ""
