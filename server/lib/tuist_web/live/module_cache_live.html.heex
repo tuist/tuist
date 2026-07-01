@@ -513,6 +513,16 @@
     icon="git_branch"
     data-part="module-invalidation"
   >
+    <:actions :if={@module_invalidations.ok? && not Enum.empty?(@module_invalidations.result)}>
+      <.button
+        variant="secondary"
+        size="small"
+        navigate={~p"/#{@selected_project.account.name}/#{@selected_project.name}/module-cache/modules"}
+        label={dgettext("dashboard_cache", "View all modules")}
+      >
+        <:icon_right><.arrow_right /></:icon_right>
+      </.button>
+    </:actions>
     <.card_section :if={!@module_invalidations.ok?} data-part="module-invalidation-skeleton">
       <div class="flex flex-col gap-4">
         <.skeleton_box width="100%" height="64px" border_radius="12px" />
@@ -584,13 +594,6 @@
           end
         }
       />
-      <div data-part="module-invalidation-footer">
-        <.link navigate={
-          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/module-cache/modules"
-        }>
-          {dgettext("dashboard_cache", "View all modules")}
-        </.link>
-      </div>
       <p data-part="module-invalidation-note">
         {dgettext(
           "dashboard_cache",

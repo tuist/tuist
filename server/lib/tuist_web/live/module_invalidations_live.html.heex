@@ -1,11 +1,13 @@
 <div id="module-invalidations">
   <div data-part="header">
-    <.link
+    <.button
+      variant="secondary"
+      size="small"
       navigate={~p"/#{@selected_project.account.name}/#{@selected_project.name}/module-cache"}
-      data-part="back-link"
+      label={dgettext("dashboard_cache", "Module Cache")}
     >
-      {dgettext("dashboard_cache", "← Module Cache")}
-    </.link>
+      <:icon_left><.arrow_left /></:icon_left>
+    </.button>
   </div>
   <div data-part="filters">
     <.dropdown

@@ -1,11 +1,13 @@
 <div id="module-cache-module">
   <div data-part="header">
-    <.link
+    <.button
+      variant="secondary"
+      size="small"
       navigate={~p"/#{@selected_project.account.name}/#{@selected_project.name}/module-cache/modules"}
-      data-part="back-link"
+      label={dgettext("dashboard_cache", "All modules")}
     >
-      {dgettext("dashboard_cache", "← All modules")}
-    </.link>
+      <:icon_left><.arrow_left /></:icon_left>
+    </.button>
     <div data-part="title">
       <span data-part="name">{@module_name}</span>
       <.badge
