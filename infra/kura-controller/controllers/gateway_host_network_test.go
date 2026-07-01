@@ -42,6 +42,25 @@ func TestGatewayPodTemplateDefaultNetwork(t *testing.T) {
 	}
 }
 
+// A bare-metal cache node carries tuist.dev/kura-cache=true:NoSchedule, and the
+// host-network gateway is pinned to that node (it binds the box's public IP), so
+// the pod template must carry the toleration or the gateway never schedules and
+// the region has no ingress.
+func TestGatewayPodTemplatePropagatesTolerations(t *testing.T) {
+	gateway := gatewayFixture(true)
+	gateway.Spec.Tolerations = []corev1.Toleration{{
+		Key:      "tuist.dev/kura-cache",
+		Operator: corev1.TolerationOpExists,
+		Effect:   corev1.TaintEffectNoSchedule,
+	}}
+	pod := gatewayPodTemplate(gateway, defaultGatewayServiceAccount)
+	if !slices.ContainsFunc(pod.Spec.Tolerations, func(tol corev1.Toleration) bool {
+		return tol.Key == "tuist.dev/kura-cache" && tol.Effect == corev1.TaintEffectNoSchedule
+	}) {
+		t.Errorf("gateway pod must carry the kura-cache toleration, got %+v", pod.Spec.Tolerations)
+	}
+}
+
 // A host-network gateway has no LoadBalancer to prepend a PROXY header, so
 // proxy-protocol must be off (it would mangle every connection); LB-fronted
 // gateways keep it on.

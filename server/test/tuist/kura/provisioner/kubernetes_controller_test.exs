@@ -391,6 +391,30 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(gateway_manifest["spec"], "loadBalancerAnnotations")
     end
 
+    test "propagates the region tolerations onto the gateway so it schedules on tainted bare-metal nodes" do
+      tolerations = [%{"key" => "tuist.dev/kura-cache", "operator" => "Exists", "effect" => "NoSchedule"}]
+
+      gateway_manifest =
+        KubernetesController.gateway_manifest(
+          %{name: "kgw-test-us-east", ingress_class_name: "kura-us-east-kgw-test-us-east"},
+          %{name: "tuist"},
+          us_east_region(%{gateway: :host_network, tolerations: tolerations})
+        )
+
+      assert gateway_manifest["spec"]["tolerations"] == tolerations
+    end
+
+    test "omits gateway tolerations when the region declares none" do
+      gateway_manifest =
+        KubernetesController.gateway_manifest(
+          %{name: "kgw-test-us-east", ingress_class_name: "kura-us-east-kgw-test-us-east"},
+          %{name: "tuist"},
+          us_east_region(%{gateway: :host_network})
+        )
+
+      refute Map.has_key?(gateway_manifest["spec"], "tolerations")
+    end
+
     test "uses the region-configured Tuist server URL for managed eu-central Kura instances" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
