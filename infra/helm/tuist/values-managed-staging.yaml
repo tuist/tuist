@@ -419,6 +419,18 @@ ovhFleet:
 macosFleet:
   enabled: true
   replicas: 1
+  # Option A host-Kura: install kura on each staging Mac host and run a
+  # persistent per-account host Kura that the runner VMs talk to over the
+  # host<->VM bridge (endpoint marker in the tuist-cache share), instead
+  # of cloning the cache into the share. emPeerURLTemplate is left empty
+  # for now — the host Kura runs islanded (host-local serving + same-host
+  # warm) until the staging kura-scw-fr-par EM node is healthy again;
+  # then set it to the EM node's PN peer endpoint (http://<PN IP>:7443)
+  # to enable EM replicate/push.
+  tartKubelet:
+    runnerCacheRoot: /var/lib/tuist-runner-cache
+    hostKuraVersion: "0.10.15"
+    emPeerURLTemplate: ""
   # Share the pre-ordered pool with runnersFleet (same prefix
   # below). Both MachineDeployments draw from one Scaleway-side
   # pool of `tuist-pool-*` hosts; the controller claims the first
@@ -539,13 +551,13 @@ runnersFleet:
   # don't double-book the cluster.
   xcodeOverrides:
     "26.5":
-      # Pinned to the feat/kura-macos-runner-cache branch bake whose
-      # dispatch-poll exports TUIST_CACHE_ENDPOINT from the claim
-      # response and installs the in-VM /etc/resolver cluster-DNS
-      # entry — the in-VM halves of the runner-cache path. Drop this
-      # pin (back to the semver-derived tag) once a runner-image
-      # release containing those changes is cut.
-      imageTag: macos-26-5-8ab1924e
+      # Pinned to the codex/macos-runner-cache-volumes bake (PR #11580)
+      # whose dispatch-poll adds the host-Kura endpoint-marker branch
+      # (routes the job's cache at the persistent per-account host Kura
+      # over the host<->VM bridge, Option A), on top of the earlier L2 +
+      # in-VM cluster-DNS halves. Drop this pin (back to the semver-
+      # derived tag) once a runner-image release with these changes ships.
+      imageTag: macos-26-5-ba53ed56
       autoscaling:
         enabled: true
         minWarmPoolFloor: 1

@@ -157,9 +157,12 @@ type ScalewayAppleSiliconMachineReconciler struct {
 
 	// TartKubelet host advertising — passed into bootstrap which bakes
 	// them into the launchd plist on each Mac mini.
-	TartKubeletHostCPU      int
-	TartKubeletHostMemoryMB int
-	TartKubeletMaxPods      int
+	TartKubeletHostCPU           int
+	TartKubeletHostMemoryMB      int
+	TartKubeletMaxPods           int
+	TartKubeletRunnerCacheRoot   string
+	TartKubeletHostKuraVersion   string
+	TartKubeletEMPeerURLTemplate string
 
 	// TartKubeletMaxUpdateAttempts caps how many times the drift loop
 	// retries a failing UpdateTartKubelet before transitioning the CR
@@ -611,6 +614,9 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			HostMemoryMB:          hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
 			MaxPods:               r.TartKubeletMaxPods,
 			NodeLabels:            machineNodeLabels(machine),
+			RunnerCacheRoot:       r.TartKubeletRunnerCacheRoot,
+			HostKuraVersion:       r.TartKubeletHostKuraVersion,
+			EMPeerURLTemplate:     r.TartKubeletEMPeerURLTemplate,
 			KnownHostFingerprint:  bootstrapCreds.HostFingerprint,
 			GHActionsRunner:       ghRunner,
 		})
@@ -743,6 +749,9 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			HostMemoryMB:       hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
 			MaxPods:            r.TartKubeletMaxPods,
 			NodeLabels:         machineNodeLabels(machine),
+			RunnerCacheRoot:    r.TartKubeletRunnerCacheRoot,
+			HostKuraVersion:    r.TartKubeletHostKuraVersion,
+			EMPeerURLTemplate:  r.TartKubeletEMPeerURLTemplate,
 			// Builder hosts must keep `--disable-vm-gc` across binary
 			// rolls. This path re-renders the plist but doesn't re-resolve
 			// GHActionsRunner (which renderLaunchdPlist otherwise keys the

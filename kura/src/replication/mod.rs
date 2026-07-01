@@ -192,8 +192,10 @@ async fn membership_task_loop(state: SharedState) {
         state
             .metrics
             .update_discovered_peer_nodes(membership_update.known_peer_count);
-        for peer in state.peers_needing_bootstrap().await {
-            maybe_spawn_bootstrap_task(state.clone(), peer).await;
+        if state.config.bootstrap_enabled {
+            for peer in state.peers_needing_bootstrap().await {
+                maybe_spawn_bootstrap_task(state.clone(), peer).await;
+            }
         }
         state.maybe_mark_serving().await;
         sleep(Duration::from_secs(2)).await;

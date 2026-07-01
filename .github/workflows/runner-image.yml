@@ -47,6 +47,8 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # Log in BEFORE Packer build so Tart's clone of the
       # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
@@ -81,13 +83,20 @@ jobs:
           BASE_TAG="${XCODE//./-}"
           BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
           PROFILE="macos-${BASE_TAG}"
+          KURA_VERSION="$(git tag -l 'kura@[0-9]*.[0-9]*.[0-9]*' | sed 's/^kura@//' | sort -t. -k1,1n -k2,2n -k3,3n | tail -n 1)"
+          if [ -z "${KURA_VERSION}" ]; then
+            echo "No kura@ release tag found" >&2
+            exit 1
+          fi
           echo "Xcode:      ${XCODE}"
           echo "Base image: ${BASE_IMAGE}"
           echo "Profile:    ${PROFILE}"
+          echo "Kura:       ${KURA_VERSION}"
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
             -var "base_image=${BASE_IMAGE}" \
             -var "output_image=tuist-runner" \
             -var "runner_version=${{ inputs.runner_version || '2.334.0' }}" \
+            -var "kura_version=${KURA_VERSION}" \
             runner.pkr.hcl
           echo "profile=${PROFILE}" >> "$GITHUB_OUTPUT"
 

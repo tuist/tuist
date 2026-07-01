@@ -12,9 +12,10 @@
 # Server contract:
 #   POST <url> with header `Authorization: Bearer <sa_token>`
 #     200 with body { encoded_jit_config: "...", pool: "...", owner: "...",
-#                      cache_endpoint_url?: "..." }
-#       -> export TUIST_CACHE_ENDPOINT when cache_endpoint_url is present,
-#          then exec ./run.sh --jitconfig <jit> --disableupdate
+#                      cache_endpoint_url?: "...", cache_peer_url?: "..." }
+#       -> start runner-local Kura when a mounted cache volume is ready,
+#          otherwise export TUIST_CACHE_ENDPOINT when cache_endpoint_url
+#          is present, then exec ./run.sh --jitconfig <jit> --disableupdate
 #     204  -> no work yet, keep polling
 #     401  -> auth failed, abort (the SA was likely GCed already)
 #     403  -> server-side authz refused the SA, abort
@@ -125,14 +126,66 @@ while true; do
       fi
       # Optional: route the job's Tuist cache at the account's private
       # runner-cache Kura node (in-cluster, near this runner) when the
-      # server includes it. Exported here so the GitHub Actions runner —
-      # and therefore every job step — inherits it; the Tuist CLI honors
-      # TUIST_CACHE_ENDPOINT as a cache-endpoint override. Same value-
-      # safety as the JIT extraction: the URL is a plain http(s) URL
-      # with no embedded quotes.
+      # server includes it. If tart-kubelet also mounted a local cache
+      # volume, wait until that volume is populated for the claimed account,
+      # start Kura against it inside the VM, and point the job at localhost.
+      # Exported here so the GitHub Actions runner — and therefore every job
+      # step — inherits it; the Tuist CLI honors TUIST_CACHE_ENDPOINT as a
+      # cache-endpoint override. Same value-safety as the JIT extraction: the
+      # URL is a plain http(s) URL with no embedded quotes.
       cache_endpoint=$(sed -n 's/.*"cache_endpoint_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
-      if [ -n "${cache_endpoint}" ]; then
-        echo "$(date -u +%FT%TZ) dispatch-poll: routing cache to runner-local endpoint ${cache_endpoint}"
+      cache_peer_url=$(sed -n 's/.*"cache_peer_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
+      # Cache routing precedence:
+      #   1. Host-Kura endpoint marker (Option A) — tart-kubelet points us at
+      #      the persistent per-account host Kura over the host<->VM bridge. The
+      #      marker only appears once that Kura is serving, so its presence is
+      #      the "warm" signal; absence means cold, so we fall through to L2.
+      #   2. In-VM local Kura (clone-in path) — start Kura against the mounted
+      #      share cloned from the account's warm cache.
+      #   3. Dispatch cache_endpoint_url (L2, in-cluster) — the cold path.
+      # tart-kubelet writes the marker only after the dispatch-time account is
+      # stamped on the Pod and the per-account host Kura is serving, which races
+      # with this poll (we've only just received the claim). Wait briefly for it
+      # to appear before falling through to L2 — otherwise every one-shot VM
+      # would read an absent marker and never route to the host Kura. When the
+      # host has no Kura configured the marker never appears and we wait out the
+      # cap once, then use L2.
+      host_kura_endpoint=""
+      if [ -n "${TUIST_RUNNER_CACHE_ENDPOINT_FILE:-}" ]; then
+        host_kura_wait="${TUIST_RUNNER_HOST_KURA_WAIT_SECONDS:-30}"
+        host_kura_waited=0
+        while [ "${host_kura_waited}" -lt "${host_kura_wait}" ]; do
+          if [ -s "${TUIST_RUNNER_CACHE_ENDPOINT_FILE}" ]; then
+            host_kura_endpoint="$(head -n 1 "${TUIST_RUNNER_CACHE_ENDPOINT_FILE}" | tr -d '[:space:]')"
+            break
+          fi
+          sleep 1
+          host_kura_waited=$((host_kura_waited + 1))
+        done
+      fi
+
+      if [ -n "${host_kura_endpoint}" ] &&
+        curl -fsS --max-time 5 "${host_kura_endpoint}/ready" >/dev/null 2>&1; then
+        echo "$(date -u +%FT%TZ) dispatch-poll: routing cache to host Kura endpoint ${host_kura_endpoint}"
+        export TUIST_CACHE_ENDPOINT="${host_kura_endpoint}"
+      elif [ -n "${host_kura_endpoint}" ] && [ -n "${cache_endpoint}" ]; then
+        echo "$(date -u +%FT%TZ) dispatch-poll: host Kura endpoint ${host_kura_endpoint} unreachable; routing cache to dispatch endpoint ${cache_endpoint}"
+        export TUIST_CACHE_ENDPOINT="${cache_endpoint}"
+      elif [ -n "${TUIST_RUNNER_LOCAL_KURA_ENDPOINT:-}" ] &&
+        [ -n "${TUIST_RUNNER_LOCAL_CACHE_READY_FILE:-}" ] &&
+        [ -n "${TUIST_RUNNER_LOCAL_CACHE_DIR:-}" ] &&
+        [ -x /opt/tuist/local-kura.sh ]; then
+        if /opt/tuist/local-kura.sh "${cache_peer_url}"; then
+          echo "$(date -u +%FT%TZ) dispatch-poll: routing cache to in-VM local Kura endpoint ${TUIST_RUNNER_LOCAL_KURA_ENDPOINT}"
+          export TUIST_CACHE_ENDPOINT="${TUIST_RUNNER_LOCAL_KURA_ENDPOINT}"
+        elif [ -n "${cache_endpoint}" ]; then
+          echo "$(date -u +%FT%TZ) dispatch-poll: local Kura unavailable; routing cache to dispatch endpoint ${cache_endpoint}"
+          export TUIST_CACHE_ENDPOINT="${cache_endpoint}"
+        else
+          echo "$(date -u +%FT%TZ) dispatch-poll: local Kura unavailable and no dispatch cache endpoint; continuing without cache override"
+        fi
+      elif [ -n "${cache_endpoint}" ]; then
+        echo "$(date -u +%FT%TZ) dispatch-poll: routing cache to dispatch endpoint ${cache_endpoint}"
         export TUIST_CACHE_ENDPOINT="${cache_endpoint}"
       fi
       echo "$(date -u +%FT%TZ) dispatch-poll: dispatched, starting runner"

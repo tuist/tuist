@@ -138,6 +138,17 @@ func TestRenderLaunchdPlist_RendersDisableVMGCWhenSet(t *testing.T) {
 	}
 }
 
+func TestRenderLaunchdPlist_RendersRunnerCacheRoot(t *testing.T) {
+	out := renderLaunchdPlist(Config{
+		NodeName:        "n1",
+		SSHUser:         "m1",
+		RunnerCacheRoot: "/var/lib/tuist-runner-cache",
+	})
+	if !strings.Contains(out, "<string>--runner-cache-root=/var/lib/tuist-runner-cache</string>") {
+		t.Fatalf("expected --runner-cache-root in plist\n%s", out)
+	}
+}
+
 // HostKeyState is the SSH-side TOFU primitive. The first observation
 // of a host key on a fresh state is captured; later observations
 // against a state seeded with KnownHostFingerprint must match.
