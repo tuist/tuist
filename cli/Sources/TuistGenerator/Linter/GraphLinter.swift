@@ -548,6 +548,7 @@ public struct GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .framework),
             LintableTarget(platform: .iOS, product: .staticFramework),
             LintableTarget(platform: .iOS, product: .appExtension),
+            LintableTarget(platform: .iOS, product: .bundle),
             LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .iOS, product: .extensionKitExtension): [
