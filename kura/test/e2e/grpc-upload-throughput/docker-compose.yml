@@ -1,12 +1,16 @@
 name: kura-throughput-e2e
 
-# Topology (single injected RTT applied identically to all three paths). All
-# three reach kura through its co-hosted combined HTTP + h2c gRPC listener
-# (KURA_COMBINED_PORT=8080):
+# Topology (single injected RTT applied identically to all five paths). The
+# combined paths reach kura's co-hosted HTTP + h2c gRPC listener
+# (KURA_COMBINED_PORT=8080); the *-grpc paths reach the dedicated REAPI gRPC
+# port (50051), so the run compares combined-vs-dedicated backends under an
+# identical nginx window and direct:
 #
-#   client ─► toxiproxy ─► nginx-baseline (default window)            ─► kura combined port
-#                       ─► nginx-patched  (raised window, from chart) ─► kura combined port
+#   client ─► toxiproxy ─► nginx-baseline     (default window)          ─► kura combined port
+#                       ─► nginx-patched      (raised window, from chart) ─► kura combined port
 #                       ─► kura combined port (direct, kura's own stream window)
+#                       ─► nginx-patched-grpc (raised window, from chart) ─► kura dedicated gRPC port
+#                       ─► kura dedicated gRPC port (direct)
 #
 # toxiproxy's proxies + latency toxics are created at runtime by the client.
 
@@ -54,6 +58,16 @@ services:
     volumes:
       - ./generated/patched.conf:/etc/nginx/nginx.conf:ro
 
+  # Same raised (patched) window as nginx-patched, but its rendered conf proxies
+  # to kura's dedicated REAPI gRPC port (50051) instead of the combined port, so
+  # the client can compare combined-vs-dedicated backends behind an identical
+  # nginx window.
+  nginx-patched-grpc:
+    image: nginx:1.27
+    depends_on: [kura]
+    volumes:
+      - ./generated/patched-grpc.conf:/etc/nginx/nginx.conf:ro
+
   toxiproxy:
     image: ghcr.io/shopify/toxiproxy:2.12.0
     # Default entrypoint already runs the server with -host=0.0.0.0 (API :8474).
@@ -61,7 +75,7 @@ services:
   client:
     build: ./client
     image: kura-throughput-client
-    depends_on: [toxiproxy, nginx-baseline, nginx-patched, kura]
+    depends_on: [toxiproxy, nginx-baseline, nginx-patched, nginx-patched-grpc, kura]
     environment:
       TOXIPROXY_API: "http://toxiproxy:8474"
       TOXIPROXY_HOST: "toxiproxy"

@@ -1,15 +1,21 @@
 // Measurement client for the Kura gRPC upload-throughput e2e test.
 //
 // It programs toxiproxy with symmetric WAN latency, then uploads an identical
-// blob via the REAPI google.bytestream.ByteStream/Write RPC through three
-// paths under the SAME injected RTT:
+// blob via the REAPI google.bytestream.ByteStream/Write RPC through five paths
+// under the SAME injected RTT:
 //
-//	baseline    client -> toxiproxy -> nginx (default window)            -> kura combined port
-//	patched     client -> toxiproxy -> nginx (raised window, from chart) -> kura combined port
-//	direct_kura client -> toxiproxy -> kura combined port (co-hosted HTTP+gRPC, kura's own stream window)
+//	baseline     client -> toxiproxy -> nginx (default window)            -> kura combined port (8080)
+//	patched      client -> toxiproxy -> nginx (raised window, from chart) -> kura combined port (8080)
+//	direct_kura  client -> toxiproxy -> kura combined port (8080, co-hosted HTTP+gRPC)
+//	patched_grpc client -> toxiproxy -> nginx (raised window, from chart) -> kura dedicated gRPC port (50051)
+//	direct_grpc  client -> toxiproxy -> kura dedicated gRPC port (50051)
 //
-// All three paths reach kura through the co-hosted combined HTTP + h2c gRPC
-// listener; the nginx paths differ only in their HTTP/2 upload window.
+// The primary comparison is patched vs baseline (the nginx window). The
+// *_grpc paths mirror `patched` and `direct_kura` against kura's dedicated
+// REAPI gRPC listener instead of the combined port, so the run also reports
+// combined-vs-dedicated backend throughput under an identical nginx window and
+// direct — a control that co-hosting HTTP + gRPC on one port does not regress
+// large REAPI uploads. Both listeners advertise the same 4MB HTTP/2 window.
 //
 // It prints per-path throughput and asserts that the patched path is at least
 // MIN_SPEEDUP times faster than baseline — i.e. that raising nginx's HTTP/2
@@ -49,6 +55,15 @@ import (
 const (
 	nginxDefaultWindowBytes = 64 * 1024
 	kuraStreamWindowBytes   = 4 * 1024 * 1024
+)
+
+// Kura backends the paths dial. The combined listener co-hosts HTTP + h2c gRPC;
+// the *_grpc variants dial the dedicated REAPI gRPC port so the run can compare
+// combined-vs-dedicated throughput both direct and behind the patched nginx
+// window. Both listeners advertise the same 4MB HTTP/2 stream window.
+const (
+	kuraCombinedUpstream = "kura:8080"
+	kuraGrpcUpstream     = "kura:50051"
 )
 
 type target struct {
@@ -134,11 +149,18 @@ func genConfs() error {
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return fmt.Errorf("mkdir %s: %w", outDir, err)
 	}
-	if err := os.WriteFile(filepath.Join(outDir, "patched.conf"), renderConf(tmpl, directives.String()), 0o644); err != nil {
-		return err
+	// baseline/patched proxy to the combined port; patched-grpc reuses the
+	// patched window but proxies to the dedicated gRPC port, so the client can
+	// isolate the backend-port effect under an identical nginx window.
+	confs := []struct{ name, directives, upstream string }{
+		{"patched.conf", directives.String(), kuraCombinedUpstream},
+		{"baseline.conf", "", kuraCombinedUpstream},
+		{"patched-grpc.conf", directives.String(), kuraGrpcUpstream},
 	}
-	if err := os.WriteFile(filepath.Join(outDir, "baseline.conf"), renderConf(tmpl, ""), 0o644); err != nil {
-		return err
+	for _, c := range confs {
+		if err := os.WriteFile(filepath.Join(outDir, c.name), renderConf(tmpl, c.directives, c.upstream), 0o644); err != nil {
+			return err
+		}
 	}
 
 	// Reference ceiling for the client: the advertised window from the chart,
@@ -231,16 +253,18 @@ func gatewayConfig(doc map[string]any, gatewayKey string) map[string]string {
 	return out
 }
 
-// renderConf emits the template with the marker line replaced by directives
-// (patched) or removed (baseline).
-func renderConf(tmpl []byte, directives string) []byte {
+// renderConf emits the template with the window marker line replaced by
+// directives (patched) or removed (baseline), and the __KURA_UPSTREAM__ marker
+// substituted with the backend the config proxies to (combined vs dedicated
+// gRPC port).
+func renderConf(tmpl []byte, directives, upstream string) []byte {
 	var out strings.Builder
 	for _, line := range strings.Split(strings.TrimRight(string(tmpl), "\n"), "\n") {
 		if strings.Contains(line, "__WINDOW_DIRECTIVES__") {
 			out.WriteString(directives)
 			continue
 		}
-		out.WriteString(line)
+		out.WriteString(strings.ReplaceAll(line, "__KURA_UPSTREAM__", upstream))
 		out.WriteByte('\n')
 	}
 	return []byte(out.String())
@@ -303,7 +327,9 @@ func main() {
 	targets := []target{
 		{"baseline", "0.0.0.0:21001", toxHost + ":21001", "nginx-baseline:8443"},
 		{"patched", "0.0.0.0:21002", toxHost + ":21002", "nginx-patched:8443"},
-		{"direct_kura", "0.0.0.0:21003", toxHost + ":21003", "kura:8080"},
+		{"direct_kura", "0.0.0.0:21003", toxHost + ":21003", kuraCombinedUpstream},
+		{"patched_grpc", "0.0.0.0:21004", toxHost + ":21004", "nginx-patched-grpc:8443"},
+		{"direct_grpc", "0.0.0.0:21005", toxHost + ":21005", kuraGrpcUpstream},
 	}
 
 	waitToxiproxy(toxAPI, 60*time.Second)
@@ -322,11 +348,11 @@ func main() {
 	for i, t := range targets {
 		got, dur, err := measure(t.dial, sizeBytes, chunk, i+1)
 		if err != nil {
-			fmt.Printf("[%-11s] ERROR: %v\n", t.name, err)
+			fmt.Printf("[%-12s] ERROR: %v\n", t.name, err)
 			os.Exit(2)
 		}
 		results[t.name] = got
-		fmt.Printf("[%-11s] %7.2f MB/s   (%dMB in %s)   via %s\n",
+		fmt.Printf("[%-12s] %7.2f MB/s   (%dMB in %s)   via %s\n",
 			t.name, got, sizeMB, dur.Round(time.Millisecond), t.upstream)
 	}
 
@@ -338,13 +364,21 @@ func main() {
 	}
 
 	fmt.Printf("\nspeedup (patched / baseline) = %.1fx   (threshold >= %.0fx)\n", speedup, minSpeedup)
+	// Combined vs dedicated gRPC backend under an identical window — the two
+	// comparison pairs the extra paths exist for. Both should be within noise if
+	// co-hosting doesn't regress REAPI throughput.
+	fmt.Printf("combined vs dedicated-gRPC backend (same window):\n")
+	fmt.Printf("  patched : combined %6.2f MB/s   vs   grpc %6.2f MB/s\n", results["patched"], results["patched_grpc"])
+	fmt.Printf("  direct  : combined %6.2f MB/s   vs   grpc %6.2f MB/s\n", results["direct_kura"], results["direct_grpc"])
 	out, _ := json.Marshal(map[string]any{
-		"payload_mb":       sizeMB,
-		"rtt_ms":           rttMs,
-		"baseline_mbps":    round2(base),
-		"patched_mbps":     round2(patched),
-		"direct_kura_mbps": round2(results["direct_kura"]),
-		"speedup":          round2(speedup),
+		"payload_mb":        sizeMB,
+		"rtt_ms":            rttMs,
+		"baseline_mbps":     round2(base),
+		"patched_mbps":      round2(patched),
+		"patched_grpc_mbps": round2(results["patched_grpc"]),
+		"direct_kura_mbps":  round2(results["direct_kura"]),
+		"direct_grpc_mbps":  round2(results["direct_grpc"]),
+		"speedup":           round2(speedup),
 	})
 	fmt.Printf("RESULT_JSON %s\n", string(out))
 

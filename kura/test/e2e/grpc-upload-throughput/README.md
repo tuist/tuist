@@ -15,22 +15,29 @@ uplink-bound.
 
 The test runs the **same** kura backend behind two nginx configs that differ
 only in those window directives, plus a direct-to-kura control, all behind
-toxiproxy injecting identical symmetric latency:
+toxiproxy injecting identical symmetric latency. Two extra `*_grpc` paths mirror
+`patched` and the direct control against kura's **dedicated** REAPI gRPC port so
+combined-vs-dedicated backend throughput can be compared:
 
 ```
-client ─► toxiproxy ─► nginx-baseline (default window, today)            ─► kura combined port
-       (latency)    ─► nginx-patched  (raised window from chart, the fix) ─► kura combined port
+client ─► toxiproxy ─► nginx-baseline     (default window, today)          ─► kura combined port
+       (latency)    ─► nginx-patched      (raised window from chart, the fix) ─► kura combined port
                     ─► kura combined port (direct, kura's own stream window)
+                    ─► nginx-patched-grpc (raised window from chart)          ─► kura dedicated gRPC port
+                    ─► kura dedicated gRPC port (direct)
 ```
 
-All three paths reach kura through its **combined port** (`KURA_COMBINED_PORT`,
-the co-hosted HTTP + h2c gRPC listener) rather than the dedicated gRPC port. The
-nginx upstream is held constant across baseline and patched — so the measured
-speedup is still attributable to the HTTP/2 window alone — while the patched
-path additionally confirms the combined listener works behind the production
-gateway window, and the direct control confirms co-hosting does not regress
-large REAPI upload throughput (the combined listener advertises the same 4MB
-HTTP/2 stream window as the dedicated gRPC listener).
+The primary comparison — `patched` vs `baseline` — reaches kura through its
+**combined port** (`KURA_COMBINED_PORT`, the co-hosted HTTP + h2c gRPC listener).
+The nginx upstream is held constant within each rendered config, so the measured
+speedup is still attributable to the HTTP/2 window alone, and the patched path
+confirms the combined listener works behind the production gateway window. The
+`patched_grpc` / `direct_grpc` paths reuse the patched window and the direct
+control but proxy to the **dedicated** gRPC port (50051), so the run reports a
+same-window combined-vs-dedicated comparison — a control that co-hosting HTTP and
+gRPC on one port does not regress large REAPI upload throughput (both listeners
+advertise the same 4MB HTTP/2 stream window). The client prints those two pairs
+explicitly and includes `patched_grpc_mbps` / `direct_grpc_mbps` in `RESULT_JSON`.
 
 Both nginx configs are **generated** by the harness (the client image's
 `genconfs` subcommand) from a single template (`nginx/nginx.conf.tmpl`):
