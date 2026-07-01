@@ -4,23 +4,20 @@ Describe 'accelerated artifact serving'
   Include spec/e2e/support.sh
 
   setup_suite() {
-    # Unlike the rest of the suite, this test targets kura's DEDICATED HTTP
-    # listener (4000), not the combined port: the same-port accelerator only
-    # runs there. The override compose publishes 4000; the base still publishes
-    # the combined listener as KURA_US_PORT.
-    COMPOSE_FILES=(
-      -f "${PROJECT_ROOT}/docker-compose.yml"
-      -f "${PROJECT_ROOT}/spec/e2e/docker-compose.accelerated.yml"
-    )
+    # Exercises the accelerator on the COMBINED port like the rest of the suite:
+    # kura routes the combined listener through the same accelerated server, so
+    # HTTP/1.1 artifact GETs hit the sendfile fast path while gRPC co-hosts on
+    # the same port. No dedicated-port override needed.
+    COMPOSE_FILES=(-f "${PROJECT_ROOT}/docker-compose.yml")
     setup_suite_tmpdir
 
     suite_env COMPOSE_PROJECT_NAME kura-accelerated
-    ephemeral_ports KURA_US_PORT KURA_US_GRPC_PORT KURA_US_HTTP_PORT
+    ephemeral_ports KURA_US_PORT KURA_US_GRPC_PORT
 
     dc down -v --remove-orphans >/dev/null 2>&1 || true
     compose_up kura-us || return 1
 
-    resolve_http_node KURA_US kura-us 4000
+    resolve_http_node KURA_US kura-us
     wait_for_http "${KURA_US_URL}/up"
   }
 

@@ -338,6 +338,7 @@ async fn run_with_config(
     let combined_shutdown_handle = combined_handle.clone();
     let public_shutdown_state = state.clone();
     let (public_plain_shutdown_tx, public_plain_shutdown_rx) = watch::channel(false);
+    let (combined_plain_shutdown_tx, combined_plain_shutdown_rx) = watch::channel(false);
     tokio::spawn(
         async move {
             shutdown_signal().await;
@@ -346,9 +347,12 @@ async fn run_with_config(
             let _ = public_shutdown_state.enter_draining();
             public_shutdown_state.sync_runtime_metrics().await;
             let _ = public_plain_shutdown_tx.send(true);
+            // The combined listener runs either the accelerated server (watch
+            // channel) or the axum fallback (handle); signal both, whichever is
+            // bound. No-ops when the combined listener is disabled.
+            let _ = combined_plain_shutdown_tx.send(true);
             public_shutdown_handle.graceful_shutdown(Some(budget.remaining()));
             https_shutdown_handle.graceful_shutdown(Some(budget.remaining()));
-            // No-op when the combined listener is disabled (no server bound).
             combined_shutdown_handle.graceful_shutdown(Some(budget.remaining()));
         }
         .in_current_span(),
@@ -378,21 +382,50 @@ async fn run_with_config(
     // URL) serve both protocols, so a client that derives its gRPC target from
     // the cache URL reaches REAPI instead of the plain-HTTP listener. The
     // dedicated `port`/`grpc_port` listeners are unaffected and keep serving.
+    //
+    // It runs through the SAME accelerated server as the public port, so HTTP
+    // artifact GETs get the sendfile/splice fast path and only the gRPC (h2c)
+    // and other non-accelerable requests fall through to hyper — configured
+    // with the fixed gRPC-sized HTTP/2 windows so co-hosted REAPI uploads run at
+    // full speed. When acceleration is disabled it serves the merged router over
+    // the plain axum builder instead.
     let combined_handle_task = if let Some(combined_port) = state.config.combined_port {
         let combined_address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, combined_port));
         info!("Kura combined HTTP+gRPC service listening on {combined_address}");
         let combined_router =
             http::public_router(state.clone()).merge(reapi::routes(state.clone()));
-        Some(tokio::spawn(
-            async move {
-                let mut server = axum_server::bind(combined_address).handle(combined_handle);
-                configure_combined_http_builder(server.http_builder());
-                if let Err(error) = server.serve(combined_router.into_make_service()).await {
-                    tracing::error!("combined HTTP+gRPC server failed: {error}");
+        if state.config.accelerated_file_serving.enabled {
+            let combined_state = state.clone();
+            let combined_config = state.config.accelerated_file_serving.clone();
+            Some(tokio::spawn(
+                async move {
+                    if let Err(error) = accelerated_file_serving::serve_public_http(
+                        combined_address,
+                        combined_router,
+                        combined_state,
+                        combined_config,
+                        combined_plain_shutdown_rx,
+                        configure_combined_http_builder,
+                    )
+                    .await
+                    {
+                        tracing::error!("combined HTTP+gRPC server failed: {error}");
+                    }
                 }
-            }
-            .in_current_span(),
-        ))
+                .in_current_span(),
+            ))
+        } else {
+            Some(tokio::spawn(
+                async move {
+                    let mut server = axum_server::bind(combined_address).handle(combined_handle);
+                    configure_combined_http_builder(server.http_builder());
+                    if let Err(error) = server.serve(combined_router.into_make_service()).await {
+                        tracing::error!("combined HTTP+gRPC server failed: {error}");
+                    }
+                }
+                .in_current_span(),
+            ))
+        }
     } else {
         None
     };
@@ -404,6 +437,7 @@ async fn run_with_config(
             state.clone(),
             state.config.accelerated_file_serving.clone(),
             public_plain_shutdown_rx,
+            configure_public_http_builder,
         )
         .await
         .map_err(|error| format!("server error: {error}"))?;

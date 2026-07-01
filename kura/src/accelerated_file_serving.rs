@@ -13,7 +13,7 @@ use axum::{
 };
 use hyper::{body::Incoming, service::service_fn};
 use hyper_util::{
-    rt::{TokioExecutor, TokioIo, TokioTimer},
+    rt::{TokioExecutor, TokioIo},
     server::conn::auto::Builder as HttpBuilder,
 };
 use tokio::{
@@ -40,16 +40,16 @@ const MAX_HEADER_BYTES: usize = 16 * 1024;
 const HEADER_TIMEOUT: Duration = Duration::from_secs(30);
 const IO_TIMEOUT: Duration = Duration::from_secs(120);
 const KEEP_ALIVE_IDLE_TIMEOUT: Duration = Duration::from_secs(60);
-const HTTP2_MAX_CONCURRENT_STREAMS: u32 = 128;
-const HTTP2_INITIAL_STREAM_WINDOW_BYTES: u32 = 1024 * 1024;
-const HTTP2_INITIAL_CONNECTION_WINDOW_BYTES: u32 = 16 * 1024 * 1024;
-const HTTP2_MAX_FRAME_SIZE: u32 = 64 * 1024;
-const HTTP2_MAX_SEND_BUFFER_BYTES: usize = 512 * 1024;
-const HTTP2_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(30);
-const HTTP2_KEEP_ALIVE_TIMEOUT: Duration = Duration::from_secs(20);
 const NX_NAMESPACE_ID: &str = "nx";
 const METRO_NAMESPACE_ID: &str = "metro";
 const TENANT_SCOPE_NAMESPACE_ID: &str = "";
+
+// Applies each listener's HTTP/1 + HTTP/2 settings to the fallback hyper
+// builder that serves everything the sendfile fast path does not. Passed in per
+// listener so the combined HTTP+gRPC port can advertise the fixed gRPC-sized
+// HTTP/2 windows (so co-hosted REAPI uploads are not throttled) while the plain
+// public port keeps its own tuning.
+type Http2BuilderConfig = fn(&mut HttpBuilder<TokioExecutor>);
 
 pub async fn serve_public_http(
     address: SocketAddr,
@@ -57,6 +57,7 @@ pub async fn serve_public_http(
     state: SharedState,
     config: AcceleratedFileServingConfig,
     mut shutdown_rx: watch::Receiver<bool>,
+    configure_http2: Http2BuilderConfig,
 ) -> Result<(), String> {
     let listener = TcpListener::bind(address)
         .await
@@ -85,7 +86,7 @@ pub async fn serve_public_http(
                 let semaphore = semaphore.clone();
                 tokio::spawn(
                     async move {
-                        if let Err(error) = serve_connection(stream, router, state, config, semaphore).await {
+                        if let Err(error) = serve_connection(stream, router, state, config, semaphore, configure_http2).await {
                             tracing::debug!("public HTTP connection failed: {error}");
                         }
                     }
@@ -107,6 +108,7 @@ async fn serve_connection(
     state: SharedState,
     config: AcceleratedFileServingConfig,
     semaphore: Arc<Semaphore>,
+    configure_http2: Http2BuilderConfig,
 ) -> std::io::Result<()> {
     loop {
         // Bound the wait for the next request so idle keep-alive connections do
@@ -127,12 +129,12 @@ async fn serve_connection(
         // re-evaluating access twice. The peek does not consume bytes, so Hyper
         // re-reads the request from the start.
         let Some((parsed, artifact)) = classified else {
-            return serve_hyper(stream, router).await;
+            return serve_hyper(stream, router, configure_http2).await;
         };
         let keep_alive = request_wants_keep_alive(&parsed);
         let request_started_at = Instant::now();
         let Ok(permit) = semaphore.clone().try_acquire_owned() else {
-            return serve_hyper(stream, router).await;
+            return serve_hyper(stream, router, configure_http2).await;
         };
         match open_and_authorize(&state, parsed, artifact).await {
             ClassifiedRequest::Accelerate(candidate) => {
@@ -179,7 +181,7 @@ async fn serve_connection(
             }
             ClassifiedRequest::Fallback => {
                 drop(permit);
-                return serve_hyper(stream, router).await;
+                return serve_hyper(stream, router, configure_http2).await;
             }
         }
     }
@@ -212,9 +214,13 @@ fn request_wants_keep_alive(parsed: &ParsedRequest) -> bool {
     true
 }
 
-async fn serve_hyper(stream: TcpStream, router: Router) -> std::io::Result<()> {
+async fn serve_hyper(
+    stream: TcpStream,
+    router: Router,
+    configure_http2: Http2BuilderConfig,
+) -> std::io::Result<()> {
     let mut builder = HttpBuilder::new(TokioExecutor::new());
-    configure_public_http_builder(&mut builder);
+    configure_http2(&mut builder);
     let service = service_fn(move |request: Request<Incoming>| {
         let router = router.clone();
         async move {
@@ -228,25 +234,6 @@ async fn serve_hyper(stream: TcpStream, router: Router) -> std::io::Result<()> {
         .serve_connection(TokioIo::new(stream), service)
         .await
         .map_err(std::io::Error::other)
-}
-
-fn configure_public_http_builder(builder: &mut HttpBuilder<TokioExecutor>) {
-    builder
-        .http1()
-        .keep_alive(true)
-        .timer(TokioTimer::new())
-        .header_read_timeout(Some(HEADER_TIMEOUT));
-    builder
-        .http2()
-        .initial_stream_window_size(Some(HTTP2_INITIAL_STREAM_WINDOW_BYTES))
-        .initial_connection_window_size(Some(HTTP2_INITIAL_CONNECTION_WINDOW_BYTES))
-        .adaptive_window(true)
-        .max_concurrent_streams(Some(HTTP2_MAX_CONCURRENT_STREAMS))
-        .max_frame_size(Some(HTTP2_MAX_FRAME_SIZE))
-        .max_send_buf_size(HTTP2_MAX_SEND_BUFFER_BYTES)
-        .keep_alive_interval(Some(HTTP2_KEEP_ALIVE_INTERVAL))
-        .keep_alive_timeout(HTTP2_KEEP_ALIVE_TIMEOUT)
-        .timer(TokioTimer::new());
 }
 
 enum ClassifiedRequest {
