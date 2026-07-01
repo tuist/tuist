@@ -24,6 +24,15 @@ name: Runners Staging Smoke Test
 
 on:
   workflow_dispatch:
+    inputs:
+      strategy:
+        description: "Cache benchmark to run on the host-Kura runner after the smoke (empty = smoke only). xcode-cache | module-cache | combined | no-cache"
+        required: false
+        default: ""
+      runs:
+        description: "hyperfine timed runs for the benchmark"
+        required: false
+        default: "3"
   # Also fires when this workflow file itself changes on the
   # feat/runners-shape-2 branch. The smoke isn't a default CI
   # hook (would burn a runner slot on every PR), but during the
@@ -38,11 +47,10 @@ on:
     paths:
       - .github/workflows/runners-staging-smoke.yml
 
-# Smoke job runs shell inside the Tart VM and curls public
-# github.com plus the account's private runner-cache over the PN —
-# it never reads or mutates repo state, so the GITHUB_TOKEN needs
-# zero scopes.
-permissions: {}
+# The smoke curls public github.com + the runner-cache /up; the
+# optional bench job clones public repos, so it needs contents:read.
+permissions:
+  contents: read
 
 jobs:
   smoke:
@@ -100,3 +108,77 @@ jobs:
           cat /tmp/up 2>/dev/null || true; echo
           [ "${code}" = "200" ] || { echo "::error::cache /up over the PN returned ${code}"; exit 1; }
           echo "Runner reached the Kura runner-cache over the PN."
+
+  # Optional cached-build benchmark on the host-Kura runner. Runs the
+  # runners-benchmark scenarios against the account the staging host Kura
+  # serves (tuist/tuist → account 2), so the CAS/module cache routes to the
+  # host Kura over the host<->VM bridge. Gated on the `strategy` input so a
+  # plain smoke dispatch stays cheap.
+  bench:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.strategy != '' }}
+    runs-on: tuist-staging-macos
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RUNNER_LABEL: staging-hostkura
+      BENCH_PROJECT: tuist
+      TUIST_CANARY_TAG: 4.202.0-canary.14
+      TUIST_FIXTURE_REF: 4.202.0-canary.14
+      HYPERFINE_RUNS: ${{ inputs.runs }}
+    steps:
+      - name: Diagnostics — cache endpoint the dispatch handed us
+        run: |
+          echo "hostname:            $(hostname)"
+          echo "TUIST_CACHE_ENDPOINT=${TUIST_CACHE_ENDPOINT:-<unset>}"
+          if [ -n "${TUIST_CACHE_ENDPOINT:-}" ]; then
+            code=$(curl -sS -m 5 -o /dev/null -w '%{http_code}' "${TUIST_CACHE_ENDPOINT%/}/up" || echo 000)
+            echo "GET ${TUIST_CACHE_ENDPOINT%/}/up -> HTTP ${code}"
+          fi
+
+      - name: Fetch the benchmark scripts
+        run: git clone --depth 1 https://github.com/tuist/runners-benchmark.git rb
+
+      - name: Install Tuist canary + hyperfine via mise
+        run: |
+          set -euo pipefail
+          mise use --global "tuist@${TUIST_CANARY_TAG}"
+          mise use --global "hyperfine@1.19.0"
+          tuist version
+          hyperfine --version
+
+      - name: Check out the tuist modular fixture (fullHandle stays tuist/tuist)
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch "$TUIST_FIXTURE_REF" \
+            https://github.com/tuist/tuist.git rb/tuist
+          grep fullHandle rb/tuist/Tuist.swift || true
+          rm -f rb/tuist/mise.toml rb/tuist/.mise.toml rb/tuist/.tool-versions
+
+      - name: Skip Xcode macro/package fingerprint validation
+        run: |
+          defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+          defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
+
+      - name: Run benchmark + harvest CAS analytics
+        working-directory: rb
+        run: |
+          set -uo pipefail
+          echo "== scripts/benchmark.sh ${{ inputs.strategy }} (BENCH_PROJECT=tuist) =="
+          scripts/benchmark.sh "${{ inputs.strategy }}"; rc=$?
+          echo "== benchmark.sh exit=${rc} =="
+          echo "== hyperfine result =="
+          python3 - "results/${RUNNER_LABEL}-${{ inputs.strategy }}.json" <<'PY' 2>/dev/null || echo "  (no json)"
+          import sys, json
+          with open(sys.argv[1]) as f:
+              for r in json.load(f)["results"]:
+                  print(f"  mean={r['mean']:.1f}s min={r['min']:.1f}s max={r['max']:.1f}s")
+          PY
+          echo "== CAS daemon analytics (ground truth for cache hits) =="
+          CAS_DB="$HOME/.local/state/tuist/cas_analytics.db"
+          if [ -f "$CAS_DB" ]; then
+            sqlite3 "$CAS_DB" "PRAGMA wal_checkpoint(TRUNCATE);" >/dev/null 2>&1 || true
+            sqlite3 "$CAS_DB" "SELECT count(*) AS ops, round(avg(duration),1) AS avg_ms, round(sum(duration)/1000.0,1) AS total_s, round(avg(size)) AS avg_bytes FROM cas_outputs;" 2>&1 || true
+          else
+            echo "  no cas_analytics.db — the CAS daemon never talked to a remote (endpoint/auth issue)"
+          fi
+          exit "${rc}"
