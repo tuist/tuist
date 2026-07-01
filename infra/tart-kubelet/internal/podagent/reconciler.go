@@ -442,7 +442,7 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 		if err != nil {
 			return fmt.Errorf("stage runner cache volume: %w", err)
 		}
-		sharedDirs = append(sharedDirs, RunnerCacheShareName+":"+cacheShareDir+":rw")
+		sharedDirs = append(sharedDirs, cacheShareMount(cacheShareDir))
 	}
 
 	// Record the Pod ↔ VM mapping before kicking the VM off so the
@@ -752,6 +752,14 @@ func (r *Reconciler) deleteByKey(ctx context.Context, namespace, name string) er
 	_ = r.Tart.CleanupVMUserData(entry.VMName)
 	r.Store.Delete(namespace, name)
 	return nil
+}
+
+// cacheShareMount returns the `tart run --dir` argument mounting the per-VM
+// cache share into the runner VM. Read-write is Tart's default; the only valid
+// `--dir` suffix is `:ro`. A `:rw` suffix is a malformed mount tag that makes
+// `tart run` exit 1 immediately, so the share is mounted with no suffix.
+func cacheShareMount(shareDir string) string {
+	return RunnerCacheShareName + ":" + shareDir
 }
 
 func (r *Reconciler) prepareCacheVolume(ctx context.Context, pod *corev1.Pod, entry *Entry) error {
