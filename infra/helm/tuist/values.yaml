@@ -273,6 +273,16 @@ server:
   # marked them Enterprise. Leave empty in committed managed values;
   # prefer wiring this through external runtime config when needed.
   kuraDedicatedGatewayAccounts: []
+  # Per-region public peer failover IPs for the bare-metal regions (operator
+  # provisioned out of band, like the fleets — parked until ordered). Each entry
+  # renders a FailoverIP CR (the CAPI provider keeps the IP on a healthy box of
+  # the pool) and feeds TUIST_KURA_PEER_FAILOVER_IPS so the server points the
+  # region's peer DNSEndpoint at it. Leave empty until a region's IP exists.
+  kuraPeerFailoverIps: []
+  # - region: eu-central
+  #   ip: "1.2.3.4"
+  #   vendor: dedibox
+  #   pool: kura-dedibox
   # Erlang distribution / libcluster configuration. Emits a headless Service
   # and wires TUIST_CLUSTER_DNS_SERVICE + TUIST_CLUSTER_APP_NAME into the pod.
   cluster:
@@ -467,7 +477,7 @@ xcresultProcessor:
   #
   # Requires at least one Mac mini joined to the cluster. Tuist-managed
   # deployments declare the fleet via `macosFleet.enabled=true` (see
-  # below) and the cluster-api-provider-scaleway-applesilicon operator
+  # below) and the cluster-api-provider-tuist operator
   # provisions hosts from Scaleway and bootstraps Tart + tart-kubelet
   # over SSH. Self-hosters without a macOS fleet should leave this off;
   # xcresult ingestion silently no-ops for them (acceptable — Linux-only
@@ -622,6 +632,12 @@ kuraFleet:
     # server with a 10G+ PN NIC and local NVMe. EM-B220E-NVME is the benchmarked
     # staging/canary shape; production uses EM-I220E-NVME.
     offerType: EM-B220E-NVME
+    # Name prefix of the pre-ordered Elastic Metal pool. The operator orders the
+    # boxes out-of-band (named with this prefix, authorized with the fleet SSH
+    # key); the controller claims a free one rather than ordering inline, so a
+    # rollout never blocks on out-of-stock capacity, and releases it back to the
+    # pool (reinstall) on delete.
+    adoptNamePrefix: tuist-kura-em-
     zone: fr-par-1
     # Elastic Metal OS install label.
     os: ubuntu_noble
@@ -632,6 +648,130 @@ kuraFleet:
     # own project, so there's no collision).
     privateNetworkName: tuist-runner-cache
     privateNetworkCIDR: 172.16.0.0/22
+
+# Dedibox fleet — the EU customer-facing Kura cache region on Scaleway Dedibox
+# bare metal. Off by default; an env opts in via values-managed-<env>.yaml.
+dediboxFleet:
+  enabled: false
+  replicas: 1
+  # Propagated to the Node as node.cluster.x-k8s.io/pool; the region's
+  # nodeSelector pins its Kura cache pods here.
+  nodePool: kura-dedibox
+  kubernetesVersion: "v1.34.8"
+  machine:
+    # Per-fleet tag the operator stamps on each pre-ordered Dedibox box. THIS is
+    # the environment boundary: every Dedibox in the org shares the default
+    # Scaleway project (a Dedibox can't be moved between projects), so the
+    # reconciler claims only boxes carrying this tag. Required when enabled.
+    adoptTag: ""
+    # Dedibox commercial offer to narrow adoption within the tag-scoped pool
+    # (e.g. Start-9-M). Empty matches any offer carrying the tag.
+    offer: ""
+    # Console datacenter the box lives in (DC2/DC3/DC5/AMS1).
+    datacenter: DC2
+    # Install OS label; needs a modern-CPU box (old SKUs lack 24.04 images).
+    os: ubuntu_24.04
+    # Per-box egress budget in Mbps advertised as the tuist.dev/egress-mbps
+    # extended resource (0 = unset).
+    egressBudgetMbps: 0
+  scaleway:
+    # Override to point the reconciler at a Secret you manage instead of the
+    # ESO-synced one. Holds the default-project Dedibox IAM key (secret-key +
+    # project-id).
+    secretName: ""
+    externalSecrets:
+      enabled: true
+      # 1Password item holding the default-project Dedibox IAM key. The same key
+      # serves every env (all Dedibox share the default project), so it lives in
+      # a vault each env's ClusterSecretStore can read.
+      item: ""
+      refreshInterval: 1h
+      storeRef:
+        name: onepassword
+        kind: ClusterSecretStore
+      fields:
+        secretKey: secret-key
+        projectID: project-id
+  # Per-fleet SSH keypair (+ install sudo-password) the reconciler self-joins
+  # boxes with, owned from 1Password instead of minted in-cluster. Default off
+  # keeps the controller's in-cluster minting; set enabled=true + item to a
+  # 1Password item carrying private-key / public-key / sudo-password fields.
+  sshExternalSecret:
+    enabled: false
+    item: ""
+    refreshInterval: 1h
+    storeRef:
+      name: onepassword
+      kind: ClusterSecretStore
+    fields:
+      privateKey: private-key
+      publicKey: public-key
+      sudoPassword: sudo-password
+
+ovhFleet:
+  enabled: false
+  replicas: 1
+  # Propagated to the Node as node.cluster.x-k8s.io/pool; the region's
+  # nodeSelector pins its Kura cache pods here.
+  nodePool: kura-ovh
+  kubernetesVersion: "v1.34.8"
+  # OVH API entity the account is registered with (ovh-eu, ovh-ca, ovh-us, ...).
+  # Non-secret; must match where the OVH_API token was minted.
+  endpoint: ovh-eu
+  machine:
+    # Reverse-DNS prefix the operator sets on each pre-ordered, operator-installed
+    # box. THIS is the adoption signal: the reconciler claims only boxes whose OVH
+    # reverse DNS starts with it. Required when enabled.
+    adoptDisplayNamePrefix: ""
+    # OVH commercial range to narrow adoption (case-insensitive substring, e.g.
+    # SYS-1). Empty matches any range under the prefix.
+    offer: ""
+    # OVH datacenter to narrow adoption (e.g. bhs6, gra2, vin). Empty matches any
+    # datacenter under the prefix; the providerID uses the adopted box's real one.
+    datacenter: ""
+    # OS the operator pre-installs; informational (the controller never installs).
+    os: ubuntu_24.04
+    # Per-box egress budget in Mbps advertised as the tuist.dev/egress-mbps
+    # extended resource (0 = unset).
+    egressBudgetMbps: 0
+  # Override to point the reconciler at a Secret you manage instead of the
+  # ESO-synced one. Holds application-key + application-secret + consumer-key.
+  secretName: ""
+  externalSecrets:
+    enabled: true
+    # 1Password item holding the OVH API credentials (application-key,
+    # application-secret, consumer-key) scoped to /dedicated/server/*.
+    item: ""
+    refreshInterval: 1h
+    storeRef:
+      name: onepassword
+      kind: ClusterSecretStore
+    fields:
+      applicationKey: application-key
+      applicationSecret: application-secret
+      consumerKey: consumer-key
+  # Per-fleet SSH keypair (+ install sudo-password) the reconciler self-joins
+  # boxes with, owned from 1Password instead of minted in-cluster. Default off
+  # keeps the controller's in-cluster minting; set enabled=true + item to a
+  # 1Password item carrying private-key / public-key / sudo-password fields.
+  sshExternalSecret:
+    enabled: false
+    item: ""
+    refreshInterval: 1h
+    storeRef:
+      name: onepassword
+      kind: ClusterSecretStore
+    fields:
+      privateKey: private-key
+      publicKey: public-key
+      sudoPassword: sudo-password
+
+# Additional OVH fleets keyed by region (e.g. us-east, us-west), each rendering its
+# own OVHDedicatedMachineTemplate + MachineDeployment (ovh-fleets.yaml) + SSH
+# ExternalSecret (ovh-fleets-ssh-external-secret.yaml), named tuist-tuist-ovh-fleet-<key>.
+# They share the env's OVH_API + OVH_FLEET_SSH (one OVH account). The singular
+# ovhFleet above stays the ca-east validation fleet. Empty by default.
+ovhFleets: {}
 
 # Scaling: `kubectl scale machinedeployment <name> --replicas=N`.
 macosFleet:
@@ -867,7 +1007,7 @@ macosFleet:
     os: macos-tahoe-26.3
 
 # Customer-runner Mac mini fleet — sibling of macosFleet, hosted by
-# the same cluster-api-provider-scaleway-applesilicon operator and
+# the same cluster-api-provider-tuist operator and
 # the same tart-kubelet binary. Split out so customer-bought
 # concurrency lives on its own hardware and isn't preempted by
 # internal queue consumers (xcresult-processor, etc.).

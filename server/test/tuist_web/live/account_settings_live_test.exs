@@ -34,6 +34,27 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     assert html =~ "Settings · #{account.name} · Tuist"
   end
 
+  test "renders the Kura cache servers and cache endpoints sections when available", %{
+    conn: conn,
+    account: account
+  } do
+    # Given
+    stub(FunWithFlags, :enabled?, fn
+      :kura, _ -> true
+      _, _ -> false
+    end)
+
+    stub(Environment, :tuist_hosted?, fn -> true end)
+    stub(Tuist.Billing, :get_current_active_subscription, fn _ -> %{plan: :enterprise} end)
+
+    # When
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings")
+
+    # Then
+    assert html =~ "Kura cache servers"
+    assert html =~ "Cache endpoints"
+  end
+
   test "raises UnauthorizedError when the user is not authorized to update settings", %{
     conn: conn
   } do

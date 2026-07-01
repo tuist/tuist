@@ -1,0 +1,79 @@
+{{- /*
+Additional OVH fleets, keyed by region (e.g. us-east, us-west) so one cluster can
+back several OVHcloud bare-metal Kura regions. The singular `ovhFleet` (ovh-fleet.yaml)
+stays as-is for the ca-east validation region — its Secret/MachineDeployment name
+(tuist-tuist-ovh-fleet) is load-bearing for the live staging/canary boxes, so it is
+deliberately not folded into this map. Each entry here renders the same
+OVHDedicatedMachineTemplate + MachineDeployment pair as the singular fleet, named
+tuist-tuist-ovh-fleet-<key>, and shares the env's OVH_API + OVH_FLEET_SSH (one OVH
+account; the per-fleet displayName prefix + datacenter scope adoption).
+*/ -}}
+{{- if .Values.capi.enabled }}
+{{- $clusterName := include "tuist.componentName" (dict "root" . "component" "capi") }}
+{{- $bootstrapSecret := include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
+{{- range $key, $fleet := .Values.ovhFleets }}
+{{- if $fleet.enabled }}
+{{- $fleetName := include "tuist.componentName" (dict "root" $ "component" (printf "ovh-fleet-%s" $key)) }}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: OVHDedicatedMachineTemplate
+metadata:
+  name: {{ $fleetName }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: ovh-fleet
+    tuist.dev/fleet: {{ $fleetName }}
+spec:
+  template:
+    spec:
+      adoptDisplayNamePrefix: {{ required (printf "ovhFleets.%s.machine.adoptDisplayNamePrefix is required: it is the per-env adoption boundary" $key) $fleet.machine.adoptDisplayNamePrefix | quote }}
+      datacenter: {{ $fleet.machine.datacenter | default "" | quote }}
+      offer: {{ $fleet.machine.offer | default "" | quote }}
+      os: {{ $fleet.machine.os | default "ubuntu_24.04" | quote }}
+      fleetName: {{ $fleetName | quote }}
+      nodeTaints:
+        - key: tuist.dev/kura-cache
+          value: "true"
+          effect: NoSchedule
+      {{- with $fleet.machine.egressBudgetMbps }}
+      egressBudgetMbps: {{ . }}
+      {{- end }}
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineDeployment
+metadata:
+  name: {{ $fleetName }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: ovh-fleet
+    tuist.dev/fleet: {{ $fleetName }}
+    cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+spec:
+  clusterName: {{ $clusterName }}
+  replicas: {{ dig "replicas" 1 $fleet }}
+  strategy:
+    type: OnDelete
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+      tuist.dev/fleet: {{ $fleetName }}
+  template:
+    metadata:
+      labels:
+        cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+        tuist.dev/fleet: {{ $fleetName }}
+        node.cluster.x-k8s.io/pool: {{ $fleet.nodePool | default (printf "kura-%s" $key) | quote }}
+    spec:
+      clusterName: {{ $clusterName }}
+      version: {{ $fleet.kubernetesVersion | default "v1.34.8" | quote }}
+      bootstrap:
+        dataSecretName: {{ $bootstrapSecret }}
+      infrastructureRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+        kind: OVHDedicatedMachineTemplate
+        name: {{ $fleetName }}
+{{- end }}
+{{- end }}
+{{- end }}
