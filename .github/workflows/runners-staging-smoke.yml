@@ -135,9 +135,6 @@ jobs:
             echo "GET ${TUIST_CACHE_ENDPOINT%/}/up -> HTTP ${code}"
           fi
 
-      - name: Fetch the benchmark scripts
-        run: git clone --depth 1 https://github.com/tuist/runners-benchmark.git rb
-
       - name: Install Tuist canary + hyperfine via mise
         run: |
           set -euo pipefail
@@ -146,32 +143,63 @@ jobs:
           tuist version
           hyperfine --version
 
-      - name: Check out the tuist modular fixture (fullHandle stays tuist/tuist)
+      - name: Check out the tuist modular fixture (public; fullHandle stays tuist/tuist)
         run: |
           set -euo pipefail
           git clone --depth 1 --branch "$TUIST_FIXTURE_REF" \
-            https://github.com/tuist/tuist.git rb/tuist
-          grep fullHandle rb/tuist/Tuist.swift || true
-          rm -f rb/tuist/mise.toml rb/tuist/.mise.toml rb/tuist/.tool-versions
+            https://github.com/tuist/tuist.git fixture
+          grep fullHandle fixture/Tuist.swift || true
+          rm -f fixture/mise.toml fixture/.mise.toml fixture/.tool-versions
 
       - name: Skip Xcode macro/package fingerprint validation
         run: |
           defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
           defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
 
-      - name: Run benchmark + harvest CAS analytics
-        working-directory: rb
+      - name: Run cached build + harvest CAS analytics
+        working-directory: fixture
+        env:
+          STRATEGY: ${{ inputs.strategy }}
         run: |
           set -uo pipefail
-          echo "== scripts/benchmark.sh ${{ inputs.strategy }} (BENCH_PROJECT=tuist) =="
-          scripts/benchmark.sh "${{ inputs.strategy }}"; rc=$?
-          echo "== benchmark.sh exit=${rc} =="
-          echo "== hyperfine result =="
-          python3 - "results/${RUNNER_LABEL}-${{ inputs.strategy }}.json" <<'PY' 2>/dev/null || echo "  (no json)"
+          SIGN='CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO'
+          CAS='COMPILATION_CACHE_ENABLE_CACHING=YES COMPILATION_CACHE_ENABLE_PLUGIN=YES COMPILATION_CACHE_REMOTE_SERVICE_PATH="$HOME/.local/state/tuist/tuist_mastodon.sock"'
+          BUILD_BASE='xcodebuild -workspace Tuist.xcworkspace -scheme tuist -destination "generic/platform=macOS" build '"$SIGN"' ARCHS=arm64'
+          BUILD_CAS="$BUILD_BASE"' '"$CAS"
+          BUILD_NO_CACHE="$BUILD_BASE"' COMPILATION_CACHE_ENABLE_CACHING=NO'
+          CLEAN_DD='rm -rf "$HOME/Library/Developer/Xcode/DerivedData"'
+          rc=0
+          echo "== strategy=$STRATEGY runs=$HYPERFINE_RUNS =="
+          case "$STRATEGY" in
+            xcode-cache)
+              # Xcode CAS warmed on the host Kura; every clean rebuild resolves
+              # its compilations as remote CAS hits against the host Kura.
+              tuist setup cache
+              tuist install
+              tuist generate --no-binary-cache
+              hyperfine --warmup 1 --runs "$HYPERFINE_RUNS" --export-json result.json --show-output \
+                --setup "$BUILD_CAS" --prepare "$CLEAN_DD" "$BUILD_CAS" || rc=$? ;;
+            module-cache)
+              # Binary (module) cache: each run clears local binaries, re-pulls
+              # them via generate, then builds the app target.
+              tuist install
+              tuist cache
+              hyperfine --warmup 1 --runs "$HYPERFINE_RUNS" --export-json result.json --show-output \
+                --prepare "$CLEAN_DD"' && tuist clean binaries' \
+                'tuist generate tuist && '"$BUILD_NO_CACHE" || rc=$? ;;
+            no-cache)
+              tuist install
+              tuist generate --no-binary-cache
+              hyperfine --warmup 1 --runs "$HYPERFINE_RUNS" --export-json result.json --show-output \
+                --prepare "$CLEAN_DD" "$BUILD_NO_CACHE" || rc=$? ;;
+            *) echo "unsupported strategy: $STRATEGY"; exit 2 ;;
+          esac
+          echo "== hyperfine result (exit=$rc) =="
+          python3 - result.json <<'PY' 2>/dev/null || echo "  (no result.json)"
           import sys, json
           with open(sys.argv[1]) as f:
               for r in json.load(f)["results"]:
-                  print(f"  mean={r['mean']:.1f}s min={r['min']:.1f}s max={r['max']:.1f}s")
+                  print(f"  mean={r['mean']:.1f}s  min={r['min']:.1f}s  max={r['max']:.1f}s")
           PY
           echo "== CAS daemon analytics (ground truth for cache hits) =="
           CAS_DB="$HOME/.local/state/tuist/cas_analytics.db"
@@ -181,4 +209,4 @@ jobs:
           else
             echo "  no cas_analytics.db — the CAS daemon never talked to a remote (endpoint/auth issue)"
           fi
-          exit "${rc}"
+          exit "$rc"
