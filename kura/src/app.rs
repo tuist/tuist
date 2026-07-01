@@ -462,10 +462,15 @@ fn configure_public_http_builder(builder: &mut HttpBuilder<TokioExecutor>) {
         .timer(TokioTimer::new());
 }
 
-// Like the public builder, but starting from the larger REAPI flow-control
-// windows so co-hosted Bazel ByteStream uploads on the combined port are not
-// throttled. The auto builder serves both HTTP/1.1 and HTTP/2 (incl. h2c
-// prior-knowledge), so the same listener handles HTTP cache requests and gRPC.
+// Matches the REAPI gRPC server's HTTP/2 flow control so co-hosted Bazel
+// ByteStream uploads on the combined port are not throttled: FIXED large stream
+// and connection windows, NOT adaptive. hyper's `adaptive_window(true)` would
+// override `initial_stream_window_size`/`initial_connection_window_size` and
+// ramp a single upload stream up from hyper's ~64KB default, which under WAN
+// latency halves throughput versus the dedicated gRPC port's fixed 4MB window
+// (measured 9.84 vs 20.65 MB/s at 100ms RTT before this was removed). The auto
+// builder serves both HTTP/1.1 and HTTP/2 (incl. h2c prior-knowledge), so the
+// same listener handles HTTP cache requests and gRPC.
 fn configure_combined_http_builder(builder: &mut HttpBuilder<TokioExecutor>) {
     builder
         .http1()
@@ -476,7 +481,6 @@ fn configure_combined_http_builder(builder: &mut HttpBuilder<TokioExecutor>) {
         .http2()
         .initial_stream_window_size(Some(COMBINED_HTTP2_STREAM_WINDOW_BYTES))
         .initial_connection_window_size(Some(COMBINED_HTTP2_CONNECTION_WINDOW_BYTES))
-        .adaptive_window(true)
         .max_concurrent_streams(Some(HTTP2_MAX_CONCURRENT_STREAMS))
         .max_frame_size(Some(HTTP2_MAX_FRAME_SIZE))
         .max_send_buf_size(HTTP2_MAX_SEND_BUFFER_BYTES)
