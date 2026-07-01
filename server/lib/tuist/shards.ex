@@ -284,25 +284,17 @@ defmodule Tuist.Shards do
   defp latest_branch_suite_units(_project, _params, []), do: []
 
   defp latest_branch_suite_units(project, params, modules) do
-    module_set = MapSet.new(modules)
+    modules = Enum.uniq(modules)
+    branches = suite_inventory_branches(project, params)
+    suites_by_branch_module = latest_branch_module_suite_units(project, branches, modules)
 
-    project
-    |> suite_inventory_branches(params)
-    |> Enum.find_value(fn branch ->
-      project
-      |> latest_branch_test_run_suite_units(branch, modules)
-      |> then(fn
-        [] -> nil
-        suite_units -> suite_units
-      end)
+    modules
+    |> Enum.flat_map(fn module ->
+      branches
+      |> Enum.find_value(fn branch -> Map.get(suites_by_branch_module, {branch, module}) end)
+      |> List.wrap()
     end)
-    |> List.wrap()
-    |> Enum.filter(fn key ->
-      case String.split(key, "/", parts: 2) do
-        [module, _suite] -> MapSet.member?(module_set, module)
-        _ -> false
-      end
-    end)
+    |> Enum.uniq()
   end
 
   defp suite_inventory_branches(project, params) do
@@ -324,41 +316,49 @@ defmodule Tuist.Shards do
     end
   end
 
-  defp latest_branch_test_run_suite_units(project, branch, modules) do
+  defp latest_branch_module_suite_units(_project, [], _modules), do: %{}
+  defp latest_branch_module_suite_units(_project, _branches, []), do: %{}
+
+  defp latest_branch_module_suite_units(project, branches, modules) do
     cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
 
-    test_run_id =
-      ClickHouseRepo.one(
-        from(sr in TestSuiteRun,
-          join: mr in TestModuleRun,
-          on: sr.test_module_run_id == mr.id,
-          where: sr.project_id == ^project.id,
-          where: sr.is_ci == true,
-          where: sr.git_branch == ^branch,
-          where: sr.ran_at >= ^cutoff,
-          where: mr.name in ^modules,
-          group_by: sr.test_run_id,
-          order_by: [desc: max(sr.ran_at)],
-          limit: 1,
-          select: sr.test_run_id
-        )
+    latest_module_runs_query =
+      from(mr in TestModuleRun,
+        where: mr.project_id == ^project.id,
+        where: mr.is_ci == true,
+        where: mr.git_branch in ^branches,
+        where: mr.ran_at >= ^cutoff,
+        where: mr.name in ^modules,
+        where: mr.test_suite_count > 0,
+        group_by: [mr.git_branch, mr.name],
+        select: %{
+          branch: mr.git_branch,
+          module_name: mr.name,
+          test_run_id: fragment("argMax(?, ?)", mr.test_run_id, mr.ran_at)
+        }
       )
 
-    if is_nil(test_run_id) do
-      []
-    else
-      from(sr in TestSuiteRun,
-        join: mr in TestModuleRun,
-        on: sr.test_module_run_id == mr.id,
-        where: sr.project_id == ^project.id,
-        where: sr.test_run_id == ^test_run_id,
-        where: mr.name in ^modules,
-        group_by: fragment("concat(?, '/', ?)", mr.name, sr.name),
-        select: %{name: fragment("concat(?, '/', ?)", mr.name, sr.name)}
-      )
-      |> ClickHouseRepo.all()
-      |> Enum.map(& &1.name)
-    end
+    from(sr in TestSuiteRun,
+      join: mr in TestModuleRun,
+      on: sr.test_module_run_id == mr.id,
+      join: latest in subquery(latest_module_runs_query),
+      on:
+        latest.test_run_id == sr.test_run_id and latest.module_name == mr.name and
+          latest.branch == sr.git_branch,
+      where: sr.project_id == ^project.id,
+      where: sr.is_ci == true,
+      where: sr.git_branch in ^branches,
+      where: sr.ran_at >= ^cutoff,
+      where: mr.name in ^modules,
+      group_by: [latest.branch, latest.module_name, sr.name],
+      select: %{
+        branch: latest.branch,
+        module: latest.module_name,
+        name: fragment("concat(?, '/', ?)", latest.module_name, sr.name)
+      }
+    )
+    |> ClickHouseRepo.all()
+    |> Enum.group_by(fn row -> {row.branch, row.module} end, & &1.name)
   end
 
   defp blank?(nil), do: true

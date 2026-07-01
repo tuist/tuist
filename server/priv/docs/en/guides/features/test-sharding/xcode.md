@@ -20,10 +20,12 @@ Test sharding for Xcode projects uses `tuist xcodebuild build-for-testing` to cr
 
 Test sharding follows a two-phase workflow:
 
-1. **Build phase:** Tuist enumerates your tests and creates a **shard plan** on the server. The server uses historical test timing data from the last 30 days to distribute tests across shards so each shard takes roughly the same amount of time. The build phase outputs a **shard matrix** that your CI system uses to spawn parallel runners.
+1. **Build phase:** Tuist reads the test modules from the built `.xctestrun` file and creates a **shard plan** on the server. The server uses historical test timing data from the last 30 days to distribute tests across shards so each shard takes roughly the same amount of time. The build phase outputs a **shard matrix** that your CI system uses to spawn parallel runners.
 2. **Test phase:** Each CI runner receives a **shard index** and executes that shard's test selection.
 
-When `--shard-granularity suite` is used, Tuist balances known suites across the requested shard count and uses the final shard as the catch-all. For example, `--shard-total 5` produces shard indexes `0` through `4`, with shard index `4` as the catch-all. Regular shards run with `-only-testing` for their assigned suites. The final shard runs without `-only-testing` and passes `-skip-testing` for every suite assigned to the earlier shards, so it runs its planned suites plus newly added suites or suites omitted during enumeration. Module granularity does not need a catch-all because the `.xctestrun` file provides the module list.
+With suite granularity, the server chooses known suites per module: for each module in the current `.xctestrun`, it uses the latest CI run on the build branch that included that module, falling back to the project's default branch for modules without branch history. This keeps selective testing runs from hiding modules that were skipped in the latest branch run.
+
+When `--shard-granularity suite` is used, Tuist balances known suites across the requested shard count and uses the final shard as the catch-all. For example, `--shard-total 5` produces shard indexes `0` through `4`, with shard index `4` as the catch-all. Regular shards run with `-only-testing` for their assigned suites. The final shard runs without `-only-testing` and passes `-skip-testing` for every suite assigned to the earlier shards, so it runs its planned suites plus newly added suites or suites missing from historical inventory. Module granularity does not need a catch-all because the `.xctestrun` file provides the module list.
 
 ## Build phase {#build-phase}
 

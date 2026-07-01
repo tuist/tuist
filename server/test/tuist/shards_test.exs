@@ -320,6 +320,118 @@ defmodule Tuist.ShardsTest do
       assert MapSet.equal?(planned, MapSet.new(["AppTests/BranchOnlySuite"]))
     end
 
+    test "uses the latest preferred branch suite inventory per module" do
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      default_ran_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -4, :day)
+      branch_older_ran_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -2, :day)
+      branch_latest_ran_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -1, :day)
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "main",
+        ran_at: default_ran_at,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 1_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "DefaultAppSuite", status: "success", duration: 1_000}
+            ]
+          },
+          %{
+            name: "CoreTests",
+            status: "success",
+            duration: 2_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "DefaultCoreSuite", status: "success", duration: 2_000}
+            ]
+          },
+          %{
+            name: "UITests",
+            status: "success",
+            duration: 3_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "DefaultUISuite", status: "success", duration: 3_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "feature/selective",
+        ran_at: branch_older_ran_at,
+        test_modules: [
+          %{
+            name: "CoreTests",
+            status: "success",
+            duration: 2_500,
+            test_cases: [],
+            test_suites: [
+              %{name: "BranchCoreSuite", status: "success", duration: 2_500}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "feature/selective",
+        ran_at: branch_latest_ran_at,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 1_500,
+            test_cases: [],
+            test_suites: [
+              %{name: "BranchAppSuite", status: "success", duration: 1_500}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          is_ci: true,
+          git_branch: "feature/selective"
+        )
+
+      params = %{
+        reference: "per-module-branch-inventory",
+        modules: ["AppTests", "CoreTests", "UITests"],
+        granularity: "suite",
+        shard_total: 3,
+        build_run_id: build.id
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      planned =
+        result.shard_assignments
+        |> Enum.flat_map(fn a -> a["test_targets"] end)
+        |> MapSet.new()
+
+      assert MapSet.equal?(
+               planned,
+               MapSet.new([
+                 "AppTests/BranchAppSuite",
+                 "CoreTests/BranchCoreSuite",
+                 "UITests/DefaultUISuite"
+               ])
+             )
+    end
+
     test "falls back to default branch suite inventory when linked build branch has no suite history" do
       project = ProjectsFixtures.project_fixture(default_branch: "main")
 
