@@ -4,7 +4,7 @@
 
     <div data-part="container">
       <div data-part="background" aria-hidden="true">
-        <img src="/marketing/images/background.webp" alt="Background decoration" />
+        <img src={~p"/marketing/images/background.webp"} alt="Background decoration" />
       </div>
     </div>
 
@@ -179,7 +179,7 @@
           <div data-part="image-container">
             <img
               data-part="illustration"
-              src="/marketing/images/features/section/cache.webp"
+              src={~p"/marketing/images/features/section/cache.webp"}
               alt={
                 dgettext(
                   "marketing",
@@ -213,7 +213,7 @@
           <div data-part="image-container">
             <img
               data-part="illustration"
-              src="/marketing/images/features/section/insights.webp"
+              src={~p"/marketing/images/features/section/insights.webp"}
               alt={
                 dgettext(
                   "marketing",
@@ -263,7 +263,7 @@
           <div data-part="image-container">
             <img
               data-part="illustration"
-              src="/marketing/images/features/section/selective-testing.webp"
+              src={~p"/marketing/images/features/section/selective-testing.webp"}
               alt={
                 dgettext(
                   "marketing",
@@ -300,7 +300,7 @@
             <div data-part="image-container">
               <img
                 data-part="illustration"
-                src="/marketing/images/features/section/flaky-tests.webp"
+                src={~p"/marketing/images/features/section/flaky-tests.webp"}
                 alt={
                   dgettext(
                     "marketing",
@@ -336,7 +336,7 @@
             <div data-part="image-container">
               <img
                 data-part="illustration"
-                src="/marketing/images/features/section/test-insights.webp"
+                src={~p"/marketing/images/features/section/test-insights.webp"}
                 alt={
                   dgettext(
                     "marketing",
@@ -391,7 +391,7 @@
           <div data-part="image-container">
             <img
               data-part="illustration"
-              src="/marketing/images/features/section/previews.webp"
+              src={~p"/marketing/images/features/section/previews.webp"}
               alt={
                 dgettext(
                   "marketing",
@@ -496,10 +496,13 @@
           aria-label={dgettext("marketing", "Explore Tuist's features")}
         >
         </a>
-        <img data-part="default" src="/marketing/images/home/dashboard.webp" />
-        <img data-part="hover" src="/marketing/images/home/dashboard-hover.webp" />
-        <img data-part="default-mobile" src="/marketing/images/home/dashboard-mobile.webp" />
-        <img data-part="hover-mobile" src="/marketing/images/home/dashboard-hover-mobile.webp" />
+        <img data-part="default" src={~p"/marketing/images/home/dashboard.webp"} />
+        <img data-part="hover" src={~p"/marketing/images/home/dashboard-hover.webp"} />
+        <img data-part="default-mobile" src={~p"/marketing/images/home/dashboard-mobile.webp"} />
+        <img
+          data-part="hover-mobile"
+          src={~p"/marketing/images/home/dashboard-hover-mobile.webp"}
+        />
         <.button
           href="/tuist/tuist"
           label={dgettext("marketing", "Explore Tuist's features")}
@@ -539,7 +542,7 @@
         </a>
         <div data-part="background" aria-hidden="true">
           <img
-            src="/marketing/images/testimonials/trendyol/background.webp"
+            src={~p"/marketing/images/testimonials/trendyol/background.webp"}
             alt=""
           />
         </div>
@@ -558,7 +561,10 @@
           <h3>{dgettext("marketing", "Trendyol reduced build times by 65% with Tuist")}</h3>
         </header>
         <div data-part="graphic">
-          <img src="/marketing/images/testimonials/trendyol/graphic.webp" alt="Trendyol graph" />
+          <img
+            src={~p"/marketing/images/testimonials/trendyol/graphic.webp"}
+            alt="Trendyol graph"
+          />
         </div>
       </article>
 
@@ -571,7 +577,7 @@
         </a>
         <div data-part="background" aria-hidden="true">
           <img
-            src="/marketing/images/testimonials/bumble/background.webp"
+            src={~p"/marketing/images/testimonials/bumble/background.webp"}
             alt=""
           />
         </div>
@@ -595,7 +601,7 @@
           </h3>
         </header>
         <div data-part="graphic">
-          <img src="/marketing/images/testimonials/bumble/graphic.webp" alt="Bumble graphic" />
+          <img src={~p"/marketing/images/testimonials/bumble/graphic.webp"} alt="Bumble graphic" />
         </div>
       </article>
     </section>
@@ -609,7 +615,7 @@
       <div data-part="column">
         <article data-part="github-card">
           <div data-part="background">
-            <img src="/marketing/images/stats/github.webp" alt="" />
+            <img src={~p"/marketing/images/stats/github.webp"} alt="" />
           </div>
           <div data-part="content">
             <h1>{dgettext("marketing", "5K+")}</h1>
@@ -619,7 +625,7 @@
 
         <article data-part="oss-card">
           <div data-part="background">
-            <img src="/marketing/images/stats/oss.webp" alt="" />
+            <img src={~p"/marketing/images/stats/oss.webp"} alt="" />
           </div>
           <div data-part="content">
             <h1>{dgettext("marketing", "9+")}</h1>
@@ -631,7 +637,7 @@
       <div data-part="column">
         <article data-part="minutes-card">
           <div data-part="background">
-            <img src="/marketing/images/stats/minutes.webp" alt="" />
+            <img src={~p"/marketing/images/stats/minutes.webp"} alt="" />
           </div>
           <div data-part="content">
             <h1>{dgettext("marketing", "8300+")}</h1>
@@ -641,7 +647,7 @@
 
         <article data-part="slack-card">
           <div data-part="background">
-            <img src="/marketing/images/stats/slack.webp" alt="" />
+            <img src={~p"/marketing/images/stats/slack.webp"} alt="" />
           </div>
           <div data-part="content">
             <h1>{dgettext("marketing", "1400+")}</h1>
@@ -653,7 +659,7 @@
       <div data-part="column">
         <article data-part="teams-card">
           <div data-part="background">
-            <img src="/marketing/images/stats/teams.webp" alt="" />
+            <img src={~p"/marketing/images/stats/teams.webp"} alt="" />
           </div>
           <div data-part="content">
             <h1>{dgettext("marketing", "10K+")}</h1>
@@ -663,7 +669,7 @@
 
         <article data-part="contributors-card">
           <div data-part="background">
-            <img src="/marketing/images/stats/contributors.webp" alt="" />
+            <img src={~p"/marketing/images/stats/contributors.webp"} alt="" />
           </div>
           <div data-part="content">
             <h1>{dgettext("marketing", "300+")}</h1>
@@ -675,7 +681,7 @@
 
     <section data-part="testimonials" aria-labelledby="testimonials-title">
       <div data-part="background" aria-hidden="true">
-        <img src="/marketing/images/home/testimonials/background.webp" alt="" />
+        <img src={~p"/marketing/images/home/testimonials/background.webp"} alt="" />
       </div>
       <header data-part="header">
         <h2 id="testimonials-title" data-part="title">

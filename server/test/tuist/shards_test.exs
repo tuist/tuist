@@ -94,6 +94,62 @@ defmodule Tuist.ShardsTest do
       assert result.shard_count == 2
     end
 
+    test "uses the final suite shard as the catch-all" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+
+      params = %{
+        reference: "catch-all-1",
+        test_suites: ["AppTests/LoginSuite", "AppTests/SignupSuite"],
+        granularity: "suite",
+        shard_max: 2
+      }
+
+      stub(Tuist.Storage, :generate_download_url, fn _key, _account -> "https://download.example.com" end)
+
+      result = Shards.create_shard_plan(project, params)
+      assert result.shard_count == 2
+
+      assert result.shard_assignments == [
+               %{"index" => 0, "test_targets" => ["AppTests/LoginSuite"], "estimated_duration_ms" => 5000},
+               %{"index" => 1, "test_targets" => ["AppTests/SignupSuite"], "estimated_duration_ms" => 5000}
+             ]
+
+      catch_all_index = result.shard_count - 1
+
+      assert {:ok, legacy_shard} = Shards.get_shard(project, account, "catch-all-1", catch_all_index)
+      assert legacy_shard.skip == []
+      assert legacy_shard.suites == %{"AppTests" => ["SignupSuite"]}
+
+      assert {:ok, shard} =
+               Shards.get_shard(project, account, "catch-all-1", catch_all_index, suite_catch_all?: true)
+
+      # The catch-all carries no -only-testing and skips suites assigned to earlier shards, so it runs
+      # its own planned suite plus any newly added / un-enumerated suites instead of dropping them.
+      assert shard.modules == []
+      assert shard.suites == %{}
+      assert shard.skip == ["AppTests/LoginSuite"]
+
+      # A regular shard still selects via suites, with an empty skip list.
+      assert {:ok, regular} = Shards.get_shard(project, account, "catch-all-1", 0)
+      assert regular.skip == []
+      assert regular.suites == %{"AppTests" => ["LoginSuite"]}
+    end
+
+    test "does not append a catch-all shard for module granularity" do
+      project = ProjectsFixtures.project_fixture()
+
+      params = %{
+        reference: "no-catch-all-1",
+        modules: ["AppTests", "CoreTests", "FeatureTests"],
+        shard_max: 2
+      }
+
+      result = Shards.create_shard_plan(project, params)
+      # No extra shard appended; the module universe is the deterministic .xctestrun.
+      assert result.shard_count == 2
+    end
+
     test "matches suite timing data by module-qualified name" do
       project = ProjectsFixtures.project_fixture()
 
@@ -133,6 +189,294 @@ defmodule Tuist.ShardsTest do
 
       assert durations["AppTests/SlowSuite"] == 90_000
       assert durations["AppTests/FastSuite"] == 1_000
+    end
+
+    test "derives suite units from history when the client does not enumerate" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 10_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "LoginSuite", status: "success", duration: 6_000},
+              %{name: "SignupSuite", status: "success", duration: 4_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      # No test_suites: the client did not enumerate. Units come from historical suite timings,
+      # scoped to the modules in the build.
+      params = %{
+        reference: "history-derived-1",
+        modules: ["AppTests"],
+        granularity: "suite",
+        shard_total: 2
+      }
+
+      result = Shards.create_shard_plan(project, params)
+      assert result.shard_count == 2
+
+      planned =
+        result.shard_assignments
+        |> Enum.flat_map(fn a -> a["test_targets"] end)
+        |> MapSet.new()
+
+      assert MapSet.equal?(planned, MapSet.new(["AppTests/LoginSuite", "AppTests/SignupSuite"]))
+    end
+
+    test "prefers suite inventory from the linked build branch" do
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      older_ran_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -2, :day)
+      latest_ran_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -1, :day)
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "main",
+        ran_at: older_ran_at,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 9_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "DeletedSuite", status: "success", duration: 9_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "feature/some-branch",
+        ran_at: NaiveDateTime.utc_now(),
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 7_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "BranchOnlySuite", status: "success", duration: 7_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "main",
+        ran_at: latest_ran_at,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 3_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "LoginSuite", status: "success", duration: 3_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          is_ci: true,
+          git_branch: "feature/some-branch"
+        )
+
+      params = %{
+        reference: "linked-build-branch-inventory",
+        modules: ["AppTests"],
+        granularity: "suite",
+        shard_total: 3,
+        build_run_id: build.id
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      planned =
+        result.shard_assignments
+        |> Enum.flat_map(fn a -> a["test_targets"] end)
+        |> MapSet.new()
+
+      assert MapSet.equal?(planned, MapSet.new(["AppTests/BranchOnlySuite"]))
+    end
+
+    test "uses the latest preferred branch suite inventory per module" do
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+      default_ran_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -4, :day)
+      branch_older_ran_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -2, :day)
+      branch_latest_ran_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -1, :day)
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "main",
+        ran_at: default_ran_at,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 1_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "DefaultAppSuite", status: "success", duration: 1_000}
+            ]
+          },
+          %{
+            name: "CoreTests",
+            status: "success",
+            duration: 2_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "DefaultCoreSuite", status: "success", duration: 2_000}
+            ]
+          },
+          %{
+            name: "UITests",
+            status: "success",
+            duration: 3_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "DefaultUISuite", status: "success", duration: 3_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "feature/selective",
+        ran_at: branch_older_ran_at,
+        test_modules: [
+          %{
+            name: "CoreTests",
+            status: "success",
+            duration: 2_500,
+            test_cases: [],
+            test_suites: [
+              %{name: "BranchCoreSuite", status: "success", duration: 2_500}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "feature/selective",
+        ran_at: branch_latest_ran_at,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 1_500,
+            test_cases: [],
+            test_suites: [
+              %{name: "BranchAppSuite", status: "success", duration: 1_500}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          is_ci: true,
+          git_branch: "feature/selective"
+        )
+
+      params = %{
+        reference: "per-module-branch-inventory",
+        modules: ["AppTests", "CoreTests", "UITests"],
+        granularity: "suite",
+        shard_total: 3,
+        build_run_id: build.id
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      planned =
+        result.shard_assignments
+        |> Enum.flat_map(fn a -> a["test_targets"] end)
+        |> MapSet.new()
+
+      assert MapSet.equal?(
+               planned,
+               MapSet.new([
+                 "AppTests/BranchAppSuite",
+                 "CoreTests/BranchCoreSuite",
+                 "UITests/DefaultUISuite"
+               ])
+             )
+    end
+
+    test "falls back to default branch suite inventory when linked build branch has no suite history" do
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: "main",
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 3_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "LoginSuite", status: "success", duration: 3_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          is_ci: true,
+          git_branch: "feature/no-suite-history"
+        )
+
+      params = %{
+        reference: "default-branch-fallback-inventory",
+        modules: ["AppTests"],
+        granularity: "suite",
+        shard_total: 3,
+        build_run_id: build.id
+      }
+
+      result = Shards.create_shard_plan(project, params)
+
+      planned =
+        result.shard_assignments
+        |> Enum.flat_map(fn a -> a["test_targets"] end)
+        |> MapSet.new()
+
+      assert MapSet.equal?(planned, MapSet.new(["AppTests/LoginSuite"]))
     end
 
     test "stores build_run_id on the shard plan" do
@@ -373,6 +717,44 @@ defmodule Tuist.ShardsTest do
       assert result.modules == ["AppTests"]
       assert Enum.sort(result.suites["AppTests"]) == ["LoginTests", "SignupTests"]
       assert result.download_url == "https://download.example.com"
+    end
+
+    test "returns legacy final suite shard as assigned suites when no catch-all rows exist" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+
+      plan =
+        ShardsFixtures.shard_plan_fixture(
+          project_id: project.id,
+          reference: "legacy-suite-plan",
+          granularity: "suite",
+          shard_count: 2
+        )
+
+      ShardsFixtures.shard_plan_test_suite_fixture(
+        shard_plan_id: plan.id,
+        project_id: project.id,
+        shard_index: 0,
+        module_name: "AppTests",
+        test_suite_name: "LoginTests"
+      )
+
+      ShardsFixtures.shard_plan_test_suite_fixture(
+        shard_plan_id: plan.id,
+        project_id: project.id,
+        shard_index: 1,
+        module_name: "AppTests",
+        test_suite_name: "SignupTests"
+      )
+
+      stub(Tuist.Storage, :generate_download_url, fn _key, _account ->
+        "https://download.example.com"
+      end)
+
+      assert {:ok, result} = Shards.get_shard(project, account, "legacy-suite-plan", 1)
+      assert result.modules == ["AppTests"]
+      assert result.suites == %{"AppTests" => ["SignupTests"]}
+      assert result.skip == []
     end
 
     test "returns error for nonexistent plan" do

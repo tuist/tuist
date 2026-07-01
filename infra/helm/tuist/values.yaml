@@ -116,34 +116,21 @@ server:
   hosted: false
   skipEmailConfirmation: true
   secretKeyBase: ""
-  # MASTER_KEY for decrypting priv/secrets/<env>.yml.enc at runtime. Required
-  # for hosted deployments that rely on encrypted secrets baked into the image.
-  # Leave empty to skip wiring the env var (self-hosted installs don't need it).
-  masterKey: ""
   # When true, the chart skips emitting DATABASE_URL / TUIST_CLICKHOUSE_URL /
-  # TUIST_SECRET_KEY_BASE / TUIST_S3_* env vars and lets the Elixir release
-  # read those values from the encrypted priv/secrets/<env>.yml.enc file that
-  # MASTER_KEY unlocks. Pair with `masterKey: <...>` or externalSecrets below.
-  # Intended for the managed-cloud shape where secrets ship inside the image.
-  # Self-hosted installs leave this false so values.yaml drives all runtime config.
+  # TUIST_SECRET_KEY_BASE / TUIST_S3_* env vars and expects those to come from
+  # elsewhere — the consolidated config Secret (config.managedSecrets) and CNPG
+  # for managed envs. Self-hosted installs leave this false so values.yaml
+  # drives all runtime config.
   managedSecrets: false
-  # Sync secrets from an external store via external-secrets-operator. Only
-  # consulted when managedSecrets is true and masterKey is empty. The store
-  # must already exist (ClusterSecretStore/SecretStore) and be configured
-  # elsewhere (see infra/k8s/onboarding.md for the 1Password flow).
+  # Sync secrets from an external store via external-secrets-operator (the Tuist
+  # license and Kura OAuth creds). The store must already exist
+  # (ClusterSecretStore/SecretStore) and be configured elsewhere (see
+  # infra/k8s/onboarding.md for the 1Password flow).
   externalSecrets:
     refreshInterval: "1h"
     storeRef:
       kind: ClusterSecretStore
       name: onepassword
-    masterKey:
-      # 1Password item name in the vault referenced by the SecretStore.
-      # For the 1P SDK provider the item + field are joined as "<item>/<field>"
-      # and the vault is set on the ClusterSecretStore, not here.
-      item: MASTER_KEY
-      # Field within the item. 1P "Password" category items expose their
-      # value under `password`; custom items can use any label.
-      field: password
     # Sync the Tuist license key from the external store. Independent of
     # managedSecrets — preview environments use this without the encrypted
     # priv/secrets blob. Leave `item` empty to skip license sync.
@@ -226,6 +213,45 @@ server:
         fields:
           clientId: client_id
           clientSecret: client_secret
+  # Bulk runtime secrets (Sentry, Stripe API keys, Slack, Apple, the Tuist
+  # OAuth/OIDC provider keys, the Mailgun API key, PostHog, Loops, the ClickHouse
+  # URL, Plain, the cache API key, and the Phoenix/Cloak/Guardian secret keys)
+  # synced from 1Password by ESO into a single Secret whose keys are TUIST_*
+  # env var names, mounted via envFrom. This is what lets managed envs drop
+  # the encrypted priv/secrets/<env>.yml.enc blob + MASTER_KEY. Per-concern 1P
+  # items live in the per-env vault — see
+  # templates/server-config-external-secrets.yaml for the item/field layout.
+  # Off by default: self-hosted installs supply config via extraEnv / their
+  # own Secret, and a managed env must have every 1P item populated before
+  # flipping this on (the migration-job hook waits on the ExternalSecret).
+  config:
+    managedSecrets: false
+    # PostHog analytics is per-env. The ESO secret's `data` is all-or-nothing,
+    # so an env without a POSTHOG 1P item must opt out here (otherwise its whole
+    # config sync fails). Off → TUIST_POSTHOG_* unset → analytics_enabled? false.
+    posthog:
+      enabled: true
+    externalSecrets:
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+  # Stripe price IDs, keyed plan -> category -> [price ids]. Not secrets (just
+  # identifiers), so they live here rather than 1Password; the chart JSON-encodes
+  # them into TUIST_STRIPE_PRICES (Environment.stripe_prices/1). Empty by default
+  # — managed values set the real map. The Stripe API keys themselves stay in the
+  # secret store (server.config / 1Password STRIPE item).
+  stripe:
+    prices: {}
+  # Mailing identity (Mailgun sending domain + from/reply-to addresses). Not
+  # secrets — just the sender identity, shared across envs — so they live here,
+  # wired to TUIST_MAILING_* env vars. The Mailgun API key stays in the secret
+  # store (server.config / 1Password MAILGUN item). Empty by default; managed
+  # values set them.
+  mailing:
+    domain: ""
+    fromAddress: ""
+    replyToAddress: ""
   license:
     key: ""
     certificateBase64: ""
@@ -247,6 +273,16 @@ server:
   # marked them Enterprise. Leave empty in committed managed values;
   # prefer wiring this through external runtime config when needed.
   kuraDedicatedGatewayAccounts: []
+  # Per-region public peer failover IPs for the bare-metal regions (operator
+  # provisioned out of band, like the fleets — parked until ordered). Each entry
+  # renders a FailoverIP CR (the CAPI provider keeps the IP on a healthy box of
+  # the pool) and feeds TUIST_KURA_PEER_FAILOVER_IPS so the server points the
+  # region's peer DNSEndpoint at it. Leave empty until a region's IP exists.
+  kuraPeerFailoverIps: []
+  # - region: eu-central
+  #   ip: "1.2.3.4"
+  #   vendor: dedibox
+  #   pool: kura-dedibox
   # Erlang distribution / libcluster configuration. Emits a headless Service
   # and wires TUIST_CLUSTER_DNS_SERVICE + TUIST_CLUSTER_APP_NAME into the pod.
   cluster:
@@ -441,7 +477,7 @@ xcresultProcessor:
   #
   # Requires at least one Mac mini joined to the cluster. Tuist-managed
   # deployments declare the fleet via `macosFleet.enabled=true` (see
-  # below) and the cluster-api-provider-scaleway-applesilicon operator
+  # below) and the cluster-api-provider-tuist operator
   # provisions hosts from Scaleway and bootstraps Tart + tart-kubelet
   # over SSH. Self-hosters without a macOS fleet should leave this off;
   # xcresult ingestion silently no-ops for them (acceptable — Linux-only
@@ -596,6 +632,12 @@ kuraFleet:
     # server with a 10G+ PN NIC and local NVMe. EM-B220E-NVME is the benchmarked
     # staging/canary shape; production uses EM-I220E-NVME.
     offerType: EM-B220E-NVME
+    # Name prefix of the pre-ordered Elastic Metal pool. The operator orders the
+    # boxes out-of-band (named with this prefix, authorized with the fleet SSH
+    # key); the controller claims a free one rather than ordering inline, so a
+    # rollout never blocks on out-of-stock capacity, and releases it back to the
+    # pool (reinstall) on delete.
+    adoptNamePrefix: tuist-kura-em-
     zone: fr-par-1
     # Elastic Metal OS install label.
     os: ubuntu_noble
@@ -606,6 +648,130 @@ kuraFleet:
     # own project, so there's no collision).
     privateNetworkName: tuist-runner-cache
     privateNetworkCIDR: 172.16.0.0/22
+
+# Dedibox fleet — the EU customer-facing Kura cache region on Scaleway Dedibox
+# bare metal. Off by default; an env opts in via values-managed-<env>.yaml.
+dediboxFleet:
+  enabled: false
+  replicas: 1
+  # Propagated to the Node as node.cluster.x-k8s.io/pool; the region's
+  # nodeSelector pins its Kura cache pods here.
+  nodePool: kura-dedibox
+  kubernetesVersion: "v1.34.8"
+  machine:
+    # Per-fleet tag the operator stamps on each pre-ordered Dedibox box. THIS is
+    # the environment boundary: every Dedibox in the org shares the default
+    # Scaleway project (a Dedibox can't be moved between projects), so the
+    # reconciler claims only boxes carrying this tag. Required when enabled.
+    adoptTag: ""
+    # Dedibox commercial offer to narrow adoption within the tag-scoped pool
+    # (e.g. Start-9-M). Empty matches any offer carrying the tag.
+    offer: ""
+    # Console datacenter the box lives in (DC2/DC3/DC5/AMS1).
+    datacenter: DC2
+    # Install OS label; needs a modern-CPU box (old SKUs lack 24.04 images).
+    os: ubuntu_24.04
+    # Per-box egress budget in Mbps advertised as the tuist.dev/egress-mbps
+    # extended resource (0 = unset).
+    egressBudgetMbps: 0
+  scaleway:
+    # Override to point the reconciler at a Secret you manage instead of the
+    # ESO-synced one. Holds the default-project Dedibox IAM key (secret-key +
+    # project-id).
+    secretName: ""
+    externalSecrets:
+      enabled: true
+      # 1Password item holding the default-project Dedibox IAM key. The same key
+      # serves every env (all Dedibox share the default project), so it lives in
+      # a vault each env's ClusterSecretStore can read.
+      item: ""
+      refreshInterval: 1h
+      storeRef:
+        name: onepassword
+        kind: ClusterSecretStore
+      fields:
+        secretKey: secret-key
+        projectID: project-id
+  # Per-fleet SSH keypair (+ install sudo-password) the reconciler self-joins
+  # boxes with, owned from 1Password instead of minted in-cluster. Default off
+  # keeps the controller's in-cluster minting; set enabled=true + item to a
+  # 1Password item carrying private-key / public-key / sudo-password fields.
+  sshExternalSecret:
+    enabled: false
+    item: ""
+    refreshInterval: 1h
+    storeRef:
+      name: onepassword
+      kind: ClusterSecretStore
+    fields:
+      privateKey: private-key
+      publicKey: public-key
+      sudoPassword: sudo-password
+
+ovhFleet:
+  enabled: false
+  replicas: 1
+  # Propagated to the Node as node.cluster.x-k8s.io/pool; the region's
+  # nodeSelector pins its Kura cache pods here.
+  nodePool: kura-ovh
+  kubernetesVersion: "v1.34.8"
+  # OVH API entity the account is registered with (ovh-eu, ovh-ca, ovh-us, ...).
+  # Non-secret; must match where the OVH_API token was minted.
+  endpoint: ovh-eu
+  machine:
+    # Reverse-DNS prefix the operator sets on each pre-ordered, operator-installed
+    # box. THIS is the adoption signal: the reconciler claims only boxes whose OVH
+    # reverse DNS starts with it. Required when enabled.
+    adoptDisplayNamePrefix: ""
+    # OVH commercial range to narrow adoption (case-insensitive substring, e.g.
+    # SYS-1). Empty matches any range under the prefix.
+    offer: ""
+    # OVH datacenter to narrow adoption (e.g. bhs6, gra2, vin). Empty matches any
+    # datacenter under the prefix; the providerID uses the adopted box's real one.
+    datacenter: ""
+    # OS the operator pre-installs; informational (the controller never installs).
+    os: ubuntu_24.04
+    # Per-box egress budget in Mbps advertised as the tuist.dev/egress-mbps
+    # extended resource (0 = unset).
+    egressBudgetMbps: 0
+  # Override to point the reconciler at a Secret you manage instead of the
+  # ESO-synced one. Holds application-key + application-secret + consumer-key.
+  secretName: ""
+  externalSecrets:
+    enabled: true
+    # 1Password item holding the OVH API credentials (application-key,
+    # application-secret, consumer-key) scoped to /dedicated/server/*.
+    item: ""
+    refreshInterval: 1h
+    storeRef:
+      name: onepassword
+      kind: ClusterSecretStore
+    fields:
+      applicationKey: application-key
+      applicationSecret: application-secret
+      consumerKey: consumer-key
+  # Per-fleet SSH keypair (+ install sudo-password) the reconciler self-joins
+  # boxes with, owned from 1Password instead of minted in-cluster. Default off
+  # keeps the controller's in-cluster minting; set enabled=true + item to a
+  # 1Password item carrying private-key / public-key / sudo-password fields.
+  sshExternalSecret:
+    enabled: false
+    item: ""
+    refreshInterval: 1h
+    storeRef:
+      name: onepassword
+      kind: ClusterSecretStore
+    fields:
+      privateKey: private-key
+      publicKey: public-key
+      sudoPassword: sudo-password
+
+# Additional OVH fleets keyed by region (e.g. us-east, us-west), each rendering its
+# own OVHDedicatedMachineTemplate + MachineDeployment (ovh-fleets.yaml) + SSH
+# ExternalSecret (ovh-fleets-ssh-external-secret.yaml), named tuist-tuist-ovh-fleet-<key>.
+# They share the env's OVH_API + OVH_FLEET_SSH (one OVH account). The singular
+# ovhFleet above stays the ca-east validation fleet. Empty by default.
+ovhFleets: {}
 
 # Scaling: `kubectl scale machinedeployment <name> --replicas=N`.
 macosFleet:
@@ -841,7 +1007,7 @@ macosFleet:
     os: macos-tahoe-26.3
 
 # Customer-runner Mac mini fleet — sibling of macosFleet, hosted by
-# the same cluster-api-provider-scaleway-applesilicon operator and
+# the same cluster-api-provider-tuist operator and
 # the same tart-kubelet binary. Split out so customer-bought
 # concurrency lives on its own hardware and isn't preempted by
 # internal queue consumers (xcresult-processor, etc.).
@@ -954,6 +1120,7 @@ runnersFleet:
       default: true
     - xcodeVersion: "26.4.1"
     - xcodeVersion: "26.3"
+    - xcodeVersion: "26.0.1"
   # Per-Xcode fleet tuning, keyed by `xcodeVersion` string. The
   # catalog stays in `xcodeVersions` above so it's shared via the
   # common values file; each managed env layers its overrides here
@@ -1641,6 +1808,16 @@ postgresql:
       # bucket name in the path; the endpoint is shared.
       destinationPath: ""
       endpointURL: "https://t3.storage.dev"
+      # Barman Cloud Plugin (CNPG-I) migration. When enabled, the cluster
+      # archives via the plugin sidecar + an ObjectStore CR instead of the
+      # in-tree barmanObjectStore (deprecated since operator 1.26). Requires
+      # the plugin-barman-cloud manifest installed in the operator namespace
+      # (`platform`) — see infra/cnpg/README.md. Default off: this is a
+      # no-op until flipped per-env after validating WAL continuity (same
+      # bucket + serverName) and a restore drill from a plugin-written backup.
+      plugin:
+        enabled: false
+        name: barman-cloud.cloudnative-pg.io
     externalSecrets:
       refreshInterval: "1h"
       storeRef:

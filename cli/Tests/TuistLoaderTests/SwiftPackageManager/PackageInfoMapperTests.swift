@@ -3565,6 +3565,7 @@ struct PackageInfoMapperTests {
                             destinations: .iOS,
                             deploymentTargets: .iOS("12.0"),
                             customSettings: [
+                                "EXCLUDED_ARCHS[sdk=iphonesimulator*]": .string("x86_64"),
                                 "OTHER_LDFLAGS": ["$(inherited)", "key1", "key2", "key3"],
                                 "OTHER_SWIFT_FLAGS": [
                                     "$(inherited)",
@@ -7438,6 +7439,46 @@ struct PackageInfoMapperTests {
             ])
         )
         #expect(target.settings?.base["OTHER_LDFLAGS"] == .array(["$(inherited)", "-lSwiftSyntax"]))
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_macroTarget_appliesBaseSettingsBaseToMacroTarget() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/Library"))
+        )
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/MyMacro"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .local,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Library", type: .library(.automatic), targets: ["Library"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Library",
+                            dependencies: [.target(name: "MyMacro", condition: nil)]
+                        ),
+                        .test(name: "MyMacro", type: .macro),
+                    ],
+                    platforms: [.init(platformName: "macos", version: "11.0", options: [])]
+                ),
+            ],
+            packageSettings: .test(
+                baseSettings: Settings.default.with(base: ["MACOSX_DEPLOYMENT_TARGET": "15.0"])
+            )
+        )
+
+        let macroTarget = try #require(project?.targets.first(where: { $0.name == "MyMacro" }))
+        #expect(macroTarget.settings?.base["MACOSX_DEPLOYMENT_TARGET"] == .string("15.0"))
     }
 
     @Test(

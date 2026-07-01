@@ -27,6 +27,12 @@ defmodule TuistWeb.API.Schemas.Shards.Shard do
         },
         description: "The test suites assigned to this shard, grouped by module name."
       },
+      skip: %Schema{
+        type: :array,
+        items: %Schema{type: :string},
+        description:
+          "Test identifiers this shard must skip (`-skip-testing`). Set on the final suite catch-all shard, which runs everything not explicitly assigned to earlier shards so newly added or un-enumerated suites are not dropped. Empty for regular shards."
+      },
       download_url: %Schema{
         type: :string,
         description: "Presigned URL to download the shared test products bundle."

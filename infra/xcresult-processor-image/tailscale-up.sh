@@ -49,13 +49,25 @@ else
   if [ -n "${TAILSCALE_HOSTNAME:-}" ]; then
     HOSTNAME_FLAG="--hostname=${TAILSCALE_HOSTNAME}"
   fi
+  # --timeout is load-bearing: without it `tailscale up` blocks
+  # indefinitely when tailscaled can't reach the control plane (e.g.
+  # the 2026-06-26 incident, where a clobbered host VM-NAT left the
+  # VM unable to complete a TCP handshake to control — SYN_SENT
+  # forever). A hung `up` wedges this whole launchd chain before
+  # `exec tuist start`, so the release never boots, yet the pod still
+  # shows Running/Ready (tart-kubelet has no container probe). Bound
+  # it instead: on timeout `up` exits non-zero, we exit 1, and
+  # launchd's KeepAlive restarts the chain — so once NAT/control
+  # recovers a retry succeeds and the BEAM comes up on its own,
+  # rather than stranding the VM until a manual recycle.
   if ! ${TAILSCALE} up \
+      --timeout=60s \
       --authkey="${TAILSCALE_AUTH_KEY}" \
       --reset \
       --ssh=true \
       --accept-dns=true \
       ${HOSTNAME_FLAG}; then
-    echo "tailscale-up: tailscale up failed" >&2
+    echo "tailscale-up: tailscale up did not reach Running within timeout (control unreachable?); exiting so launchd retries" >&2
     exit 1
   fi
   TAILNET_IP=""

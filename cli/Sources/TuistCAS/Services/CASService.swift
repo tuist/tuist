@@ -89,6 +89,7 @@
 
             do {
                 let cacheURL = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
+                let fetchStart = ProcessInfo.processInfo.systemUptime
                 let compressedData = try await loadCacheCASService.loadCacheCAS(
                     casId: casID,
                     fullHandle: fullHandle,
@@ -96,10 +97,14 @@
                     authenticationURL: serverURL,
                     serverAuthenticationController: serverAuthenticationController
                 )
+                let transferDuration = ProcessInfo.processInfo.systemUptime - fetchStart
 
                 let decompressedData: Data
+                let codecDuration: TimeInterval
                 do {
+                    let decompressStart = ProcessInfo.processInfo.systemUptime
                     decompressedData = try await dataCompressingService.decompress(compressedData)
+                    codecDuration = ProcessInfo.processInfo.systemUptime - decompressStart
                 } catch {
                     Logger.current.error("CAS.load failed to decompress data: \(error)")
                     response.outcome = .error
@@ -125,6 +130,8 @@
                     size: decompressedData.count,
                     compressedSize: compressedData.count,
                     duration: duration * 1000,
+                    transferDuration: transferDuration * 1000,
+                    codecDuration: codecDuration * 1000,
                     for: casID
                 )
                 Logger.current
@@ -180,8 +187,11 @@
             }
 
             let compressedData: Data
+            let codecDuration: TimeInterval
             do {
+                let compressStart = ProcessInfo.processInfo.systemUptime
                 compressedData = try await dataCompressingService.compress(data)
+                codecDuration = ProcessInfo.processInfo.systemUptime - compressStart
             } catch {
                 Logger.current.error("CAS.save failed to compress data: \(error)")
                 var responseError = CompilationCacheService_Cas_V1_ResponseError()
@@ -212,6 +222,7 @@
 
             do {
                 let cacheURL = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
+                let uploadStart = ProcessInfo.processInfo.systemUptime
                 try await saveCacheCASService.saveCacheCAS(
                     compressedData,
                     casId: fingerprint,
@@ -220,6 +231,7 @@
                     authenticationURL: serverURL,
                     serverAuthenticationController: serverAuthenticationController
                 )
+                let transferDuration = ProcessInfo.processInfo.systemUptime - uploadStart
                 response.casID = message
                 response.contents = .casID(message)
 
@@ -229,6 +241,8 @@
                     size: data.count,
                     compressedSize: compressedData.count,
                     duration: duration * 1000,
+                    transferDuration: transferDuration * 1000,
+                    codecDuration: codecDuration * 1000,
                     for: fingerprint
                 )
                 Logger.current
@@ -279,6 +293,8 @@
             size: Int,
             compressedSize: Int,
             duration: TimeInterval,
+            transferDuration: TimeInterval,
+            codecDuration: TimeInterval,
             for casID: String
         ) {
             Task {
@@ -287,7 +303,9 @@
                         key: casID,
                         size: size,
                         duration: duration,
-                        compressedSize: compressedSize
+                        compressedSize: compressedSize,
+                        transferDuration: transferDuration,
+                        codecDuration: codecDuration
                     )
                 } catch {
                     Logger.current.error(

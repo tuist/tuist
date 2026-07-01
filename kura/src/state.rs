@@ -57,6 +57,12 @@ pub struct AppState {
     pub readiness: Mutex<ReadinessState>,
     pub bootstrap_semaphore: Arc<Semaphore>,
     pub bootstrap_staging_budget: Arc<TmpBudget>,
+    // Per-artifact gate that single-flights the bootstrap body download across
+    // peers: only the first peer-task to claim a key fetches it, and the rest
+    // observe it already applied and skip the network. Striped (see
+    // `bootstrap_fetch_lock`). Bootstrap-scoped so it never blocks the
+    // live-replication apply path, which the node still serves while joining.
+    pub bootstrap_fetch_locks: Vec<Mutex<()>>,
     pub replication_backoff: Mutex<HashMap<String, ReplicationBackoff>>,
 }
 
@@ -69,6 +75,17 @@ impl AppState {
     /// The current outbound peer HTTP client (picks up rotated certs).
     pub fn client(&self) -> arc_swap::Guard<Arc<Client>> {
         self.client.load()
+    }
+
+    /// The bootstrap fetch gate for an artifact. Striped by artifact id so
+    /// distinct keys fetch concurrently; same-key fetches across peers serialize
+    /// onto one stripe and single-flight via the caller's presence recheck.
+    pub fn bootstrap_fetch_lock(&self, artifact_id: &str) -> &Mutex<()> {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        std::hash::Hash::hash(artifact_id, &mut hasher);
+        let index =
+            (std::hash::Hasher::finish(&hasher) as usize) % self.bootstrap_fetch_locks.len();
+        &self.bootstrap_fetch_locks[index]
     }
 }
 

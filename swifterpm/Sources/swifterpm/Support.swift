@@ -30,18 +30,38 @@ enum ToolError: Error, CustomStringConvertible {
 
     var description: String {
         switch self {
-        case .message(let message):
+        case let .message(message):
             return message
         }
     }
 }
 
+/// Reports every candidate location that was tried and how each failed, instead of only the
+/// last error. The previous behaviour surfaced just `lastError`, which for an SSH-declared
+/// dependency is always the trailing SSH candidate, masking whether the HTTPS fallback was
+/// even attempted and why it failed. Listing each attempt makes the actual cause diagnosable.
+enum GitFetchFailure {
+    static func error(location: String, attempts: [(candidate: String, error: any Error)])
+        -> ToolError
+    {
+        guard !attempts.isEmpty else {
+            return ToolError.message("no source-control locations available for \(location)")
+        }
+        let details = attempts
+            .map { "  - \($0.candidate): \($0.error)" }
+            .joined(separator: "\n")
+        return ToolError.message(
+            "could not fetch any candidate location for \(location):\n\(details)"
+        )
+    }
+}
+
 enum SystemProcess {
-    // swifterpm invokes git non-interactively: output is captured and fetches run
-    // in parallel, so a built-in credential prompt (git opens /dev/tty directly)
-    // would block invisibly in any environment, not just CI. Force git to fail fast
-    // on a missing credential instead. Credential helpers, ssh-agent, and ~/.netrc
-    // are unaffected, so configured authentication still works.
+    /// swifterpm invokes git non-interactively: output is captured and fetches run
+    /// in parallel, so a built-in credential prompt (git opens /dev/tty directly)
+    /// would block invisibly in any environment, not just CI. Force git to fail fast
+    /// on a missing credential instead. Credential helpers, ssh-agent, and ~/.netrc
+    /// are unaffected, so configured authentication still works.
     static let nonInteractiveGitEnvironment = ["GIT_TERMINAL_PROMPT": "0"]
 
     struct Result {
@@ -97,7 +117,8 @@ enum SystemProcess {
             let stdoutText = String(data: Data(result.standardOutput), encoding: .utf8) ?? ""
             let message = stderrText.isEmpty ? stdoutText : stderrText
             throw ToolError.message(
-                message.isEmpty ? result.terminationStatus.description : message)
+                message.isEmpty ? result.terminationStatus.description : message
+            )
         }
 
         return Result(stdout: Data(result.standardOutput), stderr: Data(result.standardError))
@@ -161,7 +182,7 @@ enum HTTPClient {
         }
         let (data, response) = try await URLSession.shared.data(for: request)
         if let httpResponse = response as? HTTPURLResponse,
-            !(200..<300).contains(httpResponse.statusCode)
+           !(200 ..< 300).contains(httpResponse.statusCode)
         {
             throw ToolError.message("HTTP \(httpResponse.statusCode) for \(url.absoluteString)")
         }
@@ -175,7 +196,7 @@ enum HTTPClient {
         }
         let (downloaded, response) = try await URLSession.shared.download(for: request)
         if let httpResponse = response as? HTTPURLResponse,
-            !(200..<300).contains(httpResponse.statusCode)
+           !(200 ..< 300).contains(httpResponse.statusCode)
         {
             try? await fileSystem.remove(downloaded.absolutePath)
             throw ToolError.message("HTTP \(httpResponse.statusCode) for \(url.absoluteString)")
@@ -192,14 +213,51 @@ enum HTTPClient {
 enum HTTPAuthorization {
     static func header(for url: URL) async -> String? {
         let environment = ProcessInfo.processInfo.environment
-        if isGitHub(url), let token = nonEmpty(environment["GITHUB_TOKEN"] ?? environment["GH_TOKEN"]) {
+
+        // Explicit, host-scoped credentials win over an ambient GitHub token. A
+        // `machine api.github.com` entry in ~/.netrc (or SWIFTPM_NETRC_DATA) is a
+        // deliberate per-host credential, so it must beat a generic GITHUB_TOKEN /
+        // GH_TOKEN that may be scoped to an unrelated repository — otherwise a
+        // repo-scoped CI token shadows the netrc credential that can actually read
+        // a private release asset. This mirrors SwiftPM, whose download
+        // AuthorizationProvider resolves netrc and never consults GITHUB_TOKEN.
+        if let header = prioritizedHeader(
+            isGitHub: isGitHub(url),
+            netrcCredential: await netrcCredential(for: url, environment: environment),
+            gitHubEnvToken: environment["GITHUB_TOKEN"] ?? environment["GH_TOKEN"]
+        ) {
+            return header
+        }
+
+        if isGitHub(url), let token = await GitHubAuth.token() {
             return bearerHeader(token)
         }
 
+        return nil
+    }
+
+    static func prioritizedHeader(
+        isGitHub: Bool,
+        netrcCredential: RegistryCredential?,
+        gitHubEnvToken: String?
+    ) -> String? {
+        if let credential = netrcCredential {
+            return basicHeader(credential)
+        }
+        if isGitHub, let token = nonEmpty(gitHubEnvToken) {
+            return bearerHeader(token)
+        }
+        return nil
+    }
+
+    private static func netrcCredential(
+        for url: URL,
+        environment: [String: String]
+    ) async -> RegistryCredential? {
         if let netrcData = nonEmpty(environment["SWIFTPM_NETRC_DATA"]),
            let credential = RegistryNetrc(content: netrcData).credential(for: url)
         {
-            return basicHeader(credential)
+            return credential
         }
 
         if let home = environment["HOME"] {
@@ -208,12 +266,8 @@ enum HTTPAuthorization {
                let content = String(data: data, encoding: .utf8),
                let credential = RegistryNetrc(content: content).credential(for: url)
             {
-                return basicHeader(credential)
+                return credential
             }
-        }
-
-        if isGitHub(url), let token = await GitHubAuth.token() {
-            return bearerHeader(token)
         }
 
         return nil
@@ -279,7 +333,7 @@ enum ConcurrentTasks {
         return try await withThrowingTaskGroup(of: (Int, Output).self) { group in
             var iterator = elements.enumerated().makeIterator()
             var activeTasks = 0
-            var results = Array<Output?>(repeating: nil, count: elements.count)
+            var results = [Output?](repeating: nil, count: elements.count)
 
             while activeTasks < limit, let (index, element) = iterator.next() {
                 group.addTask {
@@ -320,7 +374,7 @@ enum ConcurrentTasks {
     ) async throws {
         _ =
             try await map(elements, maxConcurrentTasks: maxConcurrentTasks, operation: operation)
-            as [Void]
+                as [Void]
     }
 }
 
@@ -329,7 +383,8 @@ final class PathLock: @unchecked Sendable {
 
     init(path: URL) throws {
         fd = open(
-            path.path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH)
+            path.path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH
+        )
         if fd < 0 {
             throw ToolError.message("failed to open lock \(path.path)")
         }
@@ -361,7 +416,8 @@ enum JSONFormatter {
     static func prettyData(_ object: Any) throws -> Data {
         let data = try JSONSerialization.data(
             withJSONObject: object,
-            options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+            options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        )
         return data + Data("\n".utf8)
     }
 }
@@ -370,15 +426,16 @@ enum SafeFileName {
     static func make(_ name: String) -> String {
         String(
             name.map { character in
-                if character.isASCII
-                    && (character.isLetter || character.isNumber || character == "-"
-                        || character == "_"
-                        || character == ".")
+                if character.isASCII,
+                   character.isLetter || character.isNumber || character == "-"
+                   || character == "_"
+                   || character == "."
                 {
                     return character
                 }
                 return "_"
-            })
+            }
+        )
     }
 }
 

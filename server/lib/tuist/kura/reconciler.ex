@@ -187,7 +187,12 @@ defmodule Tuist.Kura.Reconciler do
             "[Kura.Reconciler] waiting on public endpoint for server #{server.id} (#{host}): #{inspect(reason)}"
           )
 
-          :ok
+          # The workload is up on the desired image but the endpoint is not
+          # serving yet: the pod is typically still replicating from mesh peers
+          # behind the /ready bootstrap gate, so it offers no healthy upstream to
+          # the gateway. Surface :replicating so the dashboard shows progress
+          # instead of a stuck "Deploying" for the whole bootstrap.
+          record(server, :replicating, deployment.image_tag, now())
 
         {:error, :node_port_endpoint_not_ready} ->
           # The controller has not yet observed the full node-port

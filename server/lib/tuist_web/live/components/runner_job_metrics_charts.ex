@@ -21,6 +21,7 @@ defmodule TuistWeb.Components.RunnerJobMetricsCharts do
 
   attr :id, :string, default: "runner-job-metrics"
   attr :metrics, :list, required: true
+  attr :window, :any, default: nil
 
   def runner_job_metrics_charts(assigns) do
     assigns = assign(assigns, :series, build_series(assigns.metrics))
@@ -35,6 +36,7 @@ defmodule TuistWeb.Components.RunnerJobMetricsCharts do
             series={[%{name: dgettext("dashboard_runners", "Usage"), values: @series.cpu}]}
             y_max={100}
             unit="%"
+            window={@window}
           />
           <.metric_chart
             id={"#{@id}-memory"}
@@ -42,6 +44,7 @@ defmodule TuistWeb.Components.RunnerJobMetricsCharts do
             series={[%{name: dgettext("dashboard_runners", "Used"), values: @series.memory}]}
             y_max={@series.memory_total_gb}
             unit=" GB"
+            window={@window}
           />
           <.metric_chart
             id={"#{@id}-network"}
@@ -52,6 +55,7 @@ defmodule TuistWeb.Components.RunnerJobMetricsCharts do
             ]}
             unit=" MiB"
             show_legend
+            window={@window}
           />
           <.metric_chart
             id={"#{@id}-iowait"}
@@ -59,6 +63,7 @@ defmodule TuistWeb.Components.RunnerJobMetricsCharts do
             series={[%{name: dgettext("dashboard_runners", "Wait"), values: @series.iowait}]}
             y_max={100}
             unit="%"
+            window={@window}
           />
           <.metric_chart
             id={"#{@id}-storage"}
@@ -66,6 +71,7 @@ defmodule TuistWeb.Components.RunnerJobMetricsCharts do
             series={[%{name: dgettext("dashboard_runners", "Used"), values: @series.storage}]}
             y_max={100}
             unit="%"
+            window={@window}
           />
         </.card_section>
       </.card>
@@ -75,6 +81,7 @@ defmodule TuistWeb.Components.RunnerJobMetricsCharts do
 
   attr :id, :string, default: "runner-job-metrics-overview"
   attr :metrics, :list, required: true
+  attr :window, :any, default: nil
 
   def runner_job_metrics_overview(assigns) do
     assigns = assign(assigns, :series, build_series(assigns.metrics))
@@ -88,6 +95,7 @@ defmodule TuistWeb.Components.RunnerJobMetricsCharts do
           series={[%{name: dgettext("dashboard_runners", "Usage"), values: @series.cpu}]}
           y_max={100}
           unit="%"
+          window={@window}
         />
         <.metric_chart
           id={"#{@id}-memory"}
@@ -95,6 +103,7 @@ defmodule TuistWeb.Components.RunnerJobMetricsCharts do
           series={[%{name: dgettext("dashboard_runners", "Used"), values: @series.memory}]}
           y_max={@series.memory_total_gb}
           unit=" GB"
+          window={@window}
         />
         <.metric_chart
           id={"#{@id}-network"}
@@ -105,6 +114,7 @@ defmodule TuistWeb.Components.RunnerJobMetricsCharts do
           ]}
           unit=" MiB"
           show_legend
+          window={@window}
         />
       </div>
     </div>
@@ -117,6 +127,7 @@ defmodule TuistWeb.Components.RunnerJobMetricsCharts do
   attr :unit, :string, required: true
   attr :y_max, :any, default: nil
   attr :show_legend, :boolean, default: false
+  attr :window, :any, default: nil
 
   defp metric_chart(assigns) do
     ~H"""
@@ -149,26 +160,44 @@ defmodule TuistWeb.Components.RunnerJobMetricsCharts do
       |> Map.merge(if(assigns.unit == "%", do: %{interval: 25}, else: %{splitNumber: 4}))
       |> maybe_put(:max, assigns.y_max)
 
+    {x_min, x_max, x_labels} = x_axis_bounds(assigns)
+
+    x_axis =
+      %{
+        type: "time",
+        boundaryGap: false,
+        axisLabel: %{
+          color: "var:noora-surface-label-secondary",
+          customValues: x_labels,
+          hideOverlap: true,
+          padding: [10, 0, 0, 0],
+          formatter: "fn:toLocaleTime"
+        }
+      }
+      |> maybe_put(:min, x_min)
+      |> maybe_put(:max, x_max)
+
     maybe_put_legend(
       %{
         grid: %{left: "3%", right: "8%", bottom: bottom_padding(assigns.show_legend), top: "8%", containLabel: true},
-        xAxis: %{
-          type: "time",
-          boundaryGap: false,
-          axisLabel: %{
-            color: "var:noora-surface-label-secondary",
-            customValues: label_values(assigns.series),
-            hideOverlap: true,
-            padding: [10, 0, 0, 0],
-            formatter: "fn:toLocaleTime"
-          }
-        },
+        xAxis: x_axis,
         yAxis: y_axis,
         tooltip: %{valueFormat: "{value}#{assigns.unit}", dateFormat: "minute"}
       },
       assigns.show_legend
     )
   end
+
+  # Anchor the time axis to the job's step window (first step start ->
+  # last step end) so the step-hover bands line up with where the steps
+  # actually ran. Without this the axis auto-scales to the metric-sample
+  # extent, which starts before the first step (pod boot) and can end
+  # before the job does (a truncated sampler run), so steps drift out of
+  # alignment. Falls back to the sample extent when no window is given.
+  defp x_axis_bounds(%{window: %{min: min, max: max}}) when is_integer(min) and is_integer(max) and max > min,
+    do: {min, max, [min, max]}
+
+  defp x_axis_bounds(assigns), do: {nil, nil, label_values(assigns.series)}
 
   defp bottom_padding(true), do: "25%"
   defp bottom_padding(false), do: "10%"

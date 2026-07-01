@@ -72,17 +72,10 @@
     max-width: 100%;
   }
 
-  & .noora-table th {
-    padding: var(--noora-spacing-4) var(--noora-spacing-7) var(--noora-spacing-5) var(--noora-spacing-7);
-    color: var(--noora-surface-label-primary);
-    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
-    text-align: left;
-  }
-
-  & .noora-table table tbody tr td {
+  & .noora-table table tbody tr:not([data-part="expanded-row"]) td {
     vertical-align: middle;
     background-color: var(--noora-surface-background-primary);
-    padding: 22px var(--noora-spacing-7);
+    padding: var(--noora-spacing-7);
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-body-medium);
     line-height: 20px;

@@ -1,0 +1,268 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
+  name: dediboxmachines.infrastructure.cluster.x-k8s.io
+  labels:
+    cluster.x-k8s.io/v1beta1: v1alpha1
+spec:
+  group: infrastructure.cluster.x-k8s.io
+  names:
+    categories:
+      - cluster-api
+    kind: DediboxMachine
+    listKind: DediboxMachineList
+    plural: dediboxmachines
+    shortNames:
+      - dbm
+    singular: dediboxmachine
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns:
+        - jsonPath: .status.phase
+          name: Phase
+          type: string
+        - jsonPath: .spec.providerID
+          name: ProviderID
+          type: string
+        - jsonPath: .status.ready
+          name: Ready
+          type: boolean
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: |-
+            DediboxMachine is one Scaleway Dedibox (online.net) dedicated server in the
+            cluster.
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: |-
+                DediboxMachineSpec is the desired state of one Scaleway Dedibox dedicated
+                server. Structurally it mirrors the OVH kind — a customer-facing public box
+                that adopts a pre-ordered server, installs on claim, self-joins over its
+                public IP, and (monthly contract) is not terminated on delete. It is driven
+                through the Scaleway Dedibox API with a default-project IAM key (every Dedibox
+                in the org shares the default project — a Dedibox cannot be assigned to
+                another one — so the project can't isolate environments; a per-fleet tag
+                does). The private network is RPN rather than a Scaleway VPC PN (unused at
+                Qty-1).
+              properties:
+                adoptTag:
+                  description: |-
+                    AdoptTag is the per-fleet tag the operator stamps on each pre-ordered box
+                    (e.g. `tuist-kura-staging`) and the marker the controller scans to claim a
+                    server. It is the ENVIRONMENT BOUNDARY: every Dedibox in the org shares the
+                    default Scaleway project, so the project can't isolate environments — this
+                    tag does (the Dedibox analog of the Apple Silicon / OVH name prefix).
+                    Enforced as required by the fleet helm template, not the CRD: a required CRD
+                    field breaks helm rollbacks to revisions predating it (the rollback patch
+                    strips it, the apiserver rejects).
+                  type: string
+                datacenter:
+                  default: dc3
+                  description: |-
+                    Datacenter is the online.net datacenter the server lives in (e.g. `dc3`
+                    for Paris, `ams1` for Amsterdam). Scopes adoption and composes the
+                    providerID.
+                  type: string
+                egressBudgetMbps:
+                  description: |-
+                    EgressBudgetMbps is the throughput, in Mbps, this box may assign across the
+                    Kura pods it hosts — its NIC ceiling minus headroom. When set, the
+                    controller advertises it as the Node's `tuist.dev/egress-mbps` extended
+                    resource (the multi-box distribution follow-up). Zero leaves it unset.
+                  format: int32
+                  type: integer
+                fleetName:
+                  description: |-
+                    FleetName groups Machines that share one SSH key, like the Apple Silicon
+                    kind. Set by the MachineTemplate so every Machine the MachineDeployment
+                    clones derives the SAME fleet key the operator authorizes on the
+                    pre-ordered pool boxes; without it the per-Machine-name key would not match
+                    a pre-ordered box, so the bootstrap SSH would fail.
+                  type: string
+                nodeTaints:
+                  description: |-
+                    NodeTaints are passed to the kubelet's `--register-with-taints` in the
+                    generated self-join.
+                  items:
+                    description: |-
+                      The node this Taint is attached to has the "effect" on
+                      any pod that does not tolerate the Taint.
+                    properties:
+                      effect:
+                        description: |-
+                          Required. The effect of the taint on pods
+                          that do not tolerate the taint.
+                          Valid effects are NoSchedule, PreferNoSchedule and NoExecute.
+                        type: string
+                      key:
+                        description: Required. The taint key to be applied to a node.
+                        type: string
+                      timeAdded:
+                        description: |-
+                          TimeAdded represents the time at which the taint was added.
+                          It is only written for NoExecute taints.
+                        format: date-time
+                        type: string
+                      value:
+                        description: The taint value corresponding to the taint key.
+                        type: string
+                    required:
+                      - effect
+                      - key
+                    type: object
+                  type: array
+                offer:
+                  description: |-
+                    Offer is the Dedibox commercial offer the fleet's pool is made of (e.g.
+                    `Start-1-M-SSD`). It narrows adoption within the tag-scoped pool; empty
+                    matches any offer carrying the fleet tag.
+                  type: string
+                os:
+                  default: ubuntu_24.04
+                  description: |-
+                    OS is the online.net install template label, resolved to an os-id at
+                    install time (e.g. `ubuntu_24.04`).
+                  type: string
+                providerID:
+                  description: |-
+                    ProviderID, set by the controller after the self-join completes, takes the
+                    shape `dedibox://<datacenter>/<server-id>` — a foreign providerID host so
+                    the Hetzner CCM never reaps the node, the same guard the other kinds use.
+                  type: string
+                rpnGroup:
+                  description: |-
+                    RPNGroup is the online.net RPN (private network) group the server joins for
+                    the private intra-region mesh. Unused at Qty-1 (a single public box needs
+                    no private fabric); wired in the multi-box follow-up.
+                  type: string
+              type: object
+            status:
+              description: DediboxMachineStatus is the observed state of the Machine.
+              properties:
+                addresses:
+                  description: Addresses surfaces the server's public address for kubectl describe.
+                  items:
+                    description: MachineAddress contains information for the node's address.
+                    properties:
+                      address:
+                        description: The machine address.
+                        type: string
+                      type:
+                        description: Machine address type, one of Hostname, ExternalIP, InternalIP, ExternalDNS or InternalDNS.
+                        type: string
+                    required:
+                      - address
+                      - type
+                    type: object
+                  type: array
+                bootstrapAttempts:
+                  description: |-
+                    BootstrapAttempts counts consecutive bootstrap failures on the current
+                    server, reset on success or whenever the ServerID changes.
+                  format: int32
+                  type: integer
+                bootstrapRebootIssued:
+                  description: |-
+                    BootstrapRebootIssued records that a recovery reboot has already fired for
+                    the current server. Cleared when the ServerID changes or on success.
+                  type: boolean
+                conditions:
+                  description: Conditions are CAPI-style condition entries (Provisioned, NodeReady).
+                  items:
+                    description: Condition defines an observation of a Cluster API resource operational state.
+                    properties:
+                      lastTransitionTime:
+                        description: |-
+                          Last time the condition transitioned from one status to another.
+                          This should be when the underlying condition changed. If that is not known, then using the time when
+                          the API field changed is acceptable.
+                        format: date-time
+                        type: string
+                      message:
+                        description: |-
+                          A human readable message indicating details about the transition.
+                          This field may be empty.
+                        type: string
+                      reason:
+                        description: |-
+                          The reason for the condition's last transition in CamelCase.
+                          The specific API may choose whether or not this field is considered a guaranteed API.
+                          This field may be empty.
+                        type: string
+                      severity:
+                        description: |-
+                          severity provides an explicit classification of Reason code, so the users or machines can immediately
+                          understand the current situation and act accordingly.
+                          The Severity field MUST be set only when Status=False.
+                        type: string
+                      status:
+                        description: status of the condition, one of True, False, Unknown.
+                        type: string
+                      type:
+                        description: |-
+                          type of condition in CamelCase or in foo.example.com/CamelCase.
+                          Many .condition.type values are consistent across resources like Available, but because arbitrary conditions
+                          can be useful (see .node.status.conditions), the ability to deconflict is important.
+                        type: string
+                    required:
+                      - lastTransitionTime
+                      - status
+                      - type
+                    type: object
+                  type: array
+                failureMessage:
+                  type: string
+                failureReason:
+                  description: FailureReason / FailureMessage are set on terminal failures.
+                  type: string
+                phase:
+                  description: |-
+                    Phase tracks lifecycle: Pending | Adopting | Installing | Provisioning |
+                    Bootstrapping | Ready | Deleting | Failed.
+                  type: string
+                ready:
+                  description: |-
+                    Ready is true once the server has joined the cluster and its Node reports
+                    Ready=True. CAPI core reads this to mark the parent Machine Ready.
+                  type: boolean
+                serverID:
+                  description: |-
+                    ServerID is the Scaleway Dedibox numeric server id, used for install polling
+                    and status. Zero until a server is claimed.
+                  type: integer
+                zone:
+                  description: |-
+                    Zone is the Scaleway zone the adopted server lives in (e.g. fr-par-1),
+                    recorded at adoption and used for every follow-up Dedibox API call and the
+                    providerID. Empty until a server is claimed.
+                  type: string
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}

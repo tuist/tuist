@@ -4,13 +4,13 @@ on:
   push:
     branches: [main]
     paths:
-      - infra/cluster-api-provider-scaleway-applesilicon/**
+      - infra/cluster-api-provider-tuist/**
       - infra/macos-host-bootstrap/**
       - infra/tart-kubelet/**
       - .github/workflows/capi-provider-scaleway-applesilicon-image.yml
   pull_request:
     paths:
-      - infra/cluster-api-provider-scaleway-applesilicon/**
+      - infra/cluster-api-provider-tuist/**
       - infra/macos-host-bootstrap/**
       - infra/tart-kubelet/**
       - .github/workflows/capi-provider-scaleway-applesilicon-image.yml
@@ -32,10 +32,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: infra/cluster-api-provider-scaleway-applesilicon/go.mod
-          cache-dependency-path: infra/cluster-api-provider-scaleway-applesilicon/go.sum
+          go-version-file: infra/cluster-api-provider-tuist/go.mod
+          cache-dependency-path: infra/cluster-api-provider-tuist/go.sum
       - name: Check formatting (provider)
-        working-directory: infra/cluster-api-provider-scaleway-applesilicon
+        working-directory: infra/cluster-api-provider-tuist
         run: |
           files="$(gofmt -l .)"
           if [ -n "$files" ]; then
@@ -43,10 +43,10 @@ jobs:
             exit 1
           fi
       - name: Test (provider)
-        working-directory: infra/cluster-api-provider-scaleway-applesilicon
+        working-directory: infra/cluster-api-provider-tuist
         run: go test ./...
       - name: Vet (provider)
-        working-directory: infra/cluster-api-provider-scaleway-applesilicon
+        working-directory: infra/cluster-api-provider-tuist
         run: go vet ./...
 
   test-macos-host-bootstrap:
@@ -120,7 +120,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          file: infra/cluster-api-provider-scaleway-applesilicon/Dockerfile
+          file: infra/cluster-api-provider-tuist/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.tags.outputs.tags }}

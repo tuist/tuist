@@ -7,6 +7,9 @@ defmodule TuistWeb.API.ShardsController do
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Shards.Shard
   alias TuistWeb.API.Schemas.Shards.ShardPlan
+  alias TuistWeb.Headers
+
+  @suite_catch_all_minimum_cli_version Version.parse!("4.202.0-canary.21")
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
@@ -58,7 +61,10 @@ defmodule TuistWeb.API.ShardsController do
            },
            shard_min: %Schema{type: :integer, description: "Minimum number of shards."},
            shard_max: %Schema{type: :integer, description: "Maximum number of shards."},
-           shard_total: %Schema{type: :integer, description: "Exact number of shards."},
+           shard_total: %Schema{
+             type: :integer,
+             description: "Exact number of shards. With suite granularity, the final shard is the catch-all."
+           },
            shard_max_duration: %Schema{
              type: :integer,
              description: "Target maximum duration per shard in milliseconds."
@@ -248,13 +254,15 @@ defmodule TuistWeb.API.ShardsController do
            selected_project,
            selected_project.account,
            reference,
-           shard_index
+           shard_index,
+           suite_catch_all?: suite_catch_all_supported?(conn)
          ) do
       {:ok, result} ->
         json(conn, %{
           shard_plan_id: result.shard_plan_id,
           modules: result.modules,
           suites: result.suites,
+          skip: result.skip,
           download_url: result.download_url
         })
 
@@ -487,6 +495,13 @@ defmodule TuistWeb.API.ShardsController do
       is_binary(shard_plan_id) and shard_plan_id != "" -> {:plan_id, shard_plan_id}
       is_binary(reference) and reference != "" -> {:reference, reference}
       true -> {:error, :missing_shard_plan_identifier}
+    end
+  end
+
+  defp suite_catch_all_supported?(conn) do
+    case Headers.get_cli_version(conn) do
+      nil -> false
+      cli_version -> Version.compare(cli_version, @suite_catch_all_minimum_cli_version) != :lt
     end
   end
 end

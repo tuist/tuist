@@ -142,6 +142,7 @@ jobs:
             "tuist (production)|infra/helm/tuist|tuist|values-managed-common.yaml values-managed-production.yaml values-ci.yaml"
             "k8s-monitoring (production)|infra/helm/k8s-monitoring|k8s-monitoring|values-production.yaml"
             "platform (hetzner)|infra/helm/platform|platform|values-hetzner.yaml"
+            "platform (preview)|infra/helm/platform|platform|values-hetzner.yaml values-tuist-preview.yaml"
           )
           failed=()
           for entry in "${configs[@]}"; do

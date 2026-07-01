@@ -1639,7 +1639,7 @@ components:
           x-struct:
           x-validate:
         shard_total:
-          description: Exact number of shards.
+          description: Exact number of shards. With suite granularity, the final shard is the catch-all.
           type: integer
           x-struct:
           x-validate:
@@ -2273,6 +2273,15 @@ components:
           description: The UUID of the shard plan.
           format: uuid
           type: string
+          x-struct:
+          x-validate:
+        skip:
+          description: Test identifiers this shard must skip (`-skip-testing`). Set on the final suite catch-all shard, which runs everything not explicitly assigned to earlier shards so newly added or un-enumerated suites are not dropped. Empty for regular shards.
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
           x-struct:
           x-validate:
         suites:
@@ -17561,6 +17570,38 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: Filter by execution time using ran_at[gt], ran_at[gte], ran_at[lt], or ran_at[lte] Unix seconds.
+          explode: true
+          in: query
+          name: ran_at
+          required: false
+          schema:
+            additionalProperties: false
+            properties:
+              gt:
+                format: int64
+                type: integer
+                x-struct:
+                x-validate:
+              gte:
+                format: int64
+                type: integer
+                x-struct:
+                x-validate:
+              lt:
+                format: int64
+                type: integer
+                x-struct:
+                x-validate:
+              lte:
+                format: int64
+                type: integer
+                x-struct:
+                x-validate:
+            type: object
+            x-struct:
+            x-validate:
+          style: deepObject
         - description: ''
           in: query
           name: page_size
@@ -17732,6 +17773,12 @@ paths:
                 x-struct:
                 x-validate:
           description: List of cache runs
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request was invalid
         '403':
           content:
             application/json:
@@ -19670,7 +19717,7 @@ paths:
                   x-struct:
                   x-validate:
                 shard_total:
-                  description: Exact number of shards.
+                  description: Exact number of shards. With suite granularity, the final shard is the catch-all.
                   type: integer
                   x-struct:
                   x-validate:

@@ -6,6 +6,8 @@ import Path
 import Testing
 import TuistAppleArchiver
 import TuistCI
+import TuistLoggerTesting
+import TuistLogging
 import TuistServer
 import TuistSupport
 import TuistTesting
@@ -37,7 +39,7 @@ struct ShardServiceTests {
         #expect(shard.testIdentifiers == ["AppTests", "CoreTests"])
     }
 
-    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), .withMockedLogger())
     func shard_suiteGranularity_emitsModuleSlashSuiteOnlyTestingIdentifiers() async throws {
         // Given: a plan with suites grouped by module (suite granularity)
         let (subject, testProductsPath) = try await makeSubjectWithLocalProducts(
@@ -64,6 +66,8 @@ struct ShardServiceTests {
             "AppTests/SignupTests",
             "CoreTests/NetworkTests",
         ])
+        #expect(Logger.testingLogHandler
+            .collected[.notice, ==] == "Shard 0: AppTests/LoginTests, AppTests/SignupTests, CoreTests/NetworkTests")
     }
 
     // MARK: - shard() with local test products path
@@ -106,6 +110,7 @@ struct ShardServiceTests {
                 download_url: "https://example.com/should-not-be-used",
                 modules: ["AppTests"],
                 shard_plan_id: "plan-123",
+                skip: [],
                 suites: .init()
             )
         )
@@ -133,6 +138,56 @@ struct ShardServiceTests {
         let originalXCTestRunData = try await fileSystem.readFile(at: xctestrunPath)
         let originalPlist = try parsePlist(originalXCTestRunData)
         #expect(blueprintNames(from: originalPlist) == ["AppTests", "CoreTests"])
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), .withMockedLogger())
+    func shard_catchAllShard_carriesSkipTestIdentifiersAndNoOnlyTesting() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+
+        let ciController = MockCIControlling()
+        given(ciController).ciInfo().willReturn(.test(provider: .github))
+
+        // The catch-all shard carries no modules/suites (no -only-testing) and a skip list of every suite
+        // assigned to other shards, so it runs the remainder via -skip-testing.
+        let getShardService = MockGetShardServicing()
+        given(getShardService).getShard(
+            fullHandle: .any,
+            serverURL: .any,
+            reference: .any,
+            shardIndex: .any
+        ).willReturn(
+            Components.Schemas.Shard(
+                download_url: "https://example.com/should-not-be-used",
+                modules: [],
+                shard_plan_id: "plan-123",
+                skip: ["AppTests/LoginTests", "CoreTests/NetworkTests"],
+                suites: .init()
+            )
+        )
+
+        let subject = ShardService(
+            getShardService: getShardService,
+            ciController: ciController,
+            fileSystem: fileSystem
+        )
+
+        let shard = try await subject.shard(
+            shardIndex: 2,
+            fullHandle: "org/project",
+            serverURL: URL(string: "https://tuist.dev")!,
+            reference: nil,
+            testProductsPath: testProductsPath,
+            testProductsArchivePath: nil
+        )
+
+        // No -only-testing; the remainder is selected by skipping everything already assigned.
+        #expect(shard.testIdentifiers.isEmpty)
+        #expect(shard.skipTestIdentifiers == ["AppTests/LoginTests", "CoreTests/NetworkTests"])
+        #expect(Logger.testingLogHandler.collected[.notice, ==] == "Shard 2: AppTests/LoginTests, CoreTests/NetworkTests")
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
@@ -167,6 +222,7 @@ struct ShardServiceTests {
                 download_url: "https://example.com/unused",
                 modules: ["AppTests"],
                 shard_plan_id: "plan-123",
+                skip: [],
                 suites: .init()
             )
         )
@@ -235,6 +291,7 @@ struct ShardServiceTests {
                 download_url: "https://example.com/unused",
                 modules: ["AppTests"],
                 shard_plan_id: "plan-123",
+                skip: [],
                 suites: .init()
             )
         )
@@ -307,6 +364,7 @@ struct ShardServiceTests {
                 download_url: "https://example.com/unused",
                 modules: modules,
                 shard_plan_id: "plan-123",
+                skip: [],
                 suites: .init(additionalProperties: suites)
             )
         )

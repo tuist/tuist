@@ -438,6 +438,7 @@ struct XcodeBuildTestCommandServiceTests {
                     shardPlanId: "plan-123",
                     testProductsPath: testProductsPath,
                     testIdentifiers: ["AppTests"],
+                    skipTestIdentifiers: [],
                     modules: ["AppTests"],
                     selectiveTestingGraph: nil
                 )

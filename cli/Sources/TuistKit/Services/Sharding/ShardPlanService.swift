@@ -16,7 +16,6 @@
     public protocol ShardPlanServicing {
         func plan(
             xctestproductsPath: AbsolutePath,
-            destination: String?,
             reference: String?,
             shardGranularity: ShardGranularity,
             shardMin: Int?,
@@ -50,7 +49,6 @@
     }
 
     public struct ShardPlanService: ShardPlanServicing {
-        private let xcTestEnumerator: XCTestEnumerating
         private let createShardPlanService: CreateShardPlanServicing
         private let startShardUploadService: StartShardUploadServicing
         private let multipartUploadArtifactService: MultipartUploadArtifactServicing
@@ -63,7 +61,6 @@
         private let appleArchiver: AppleArchiving
 
         public init(
-            xcTestEnumerator: XCTestEnumerating = XCTestEnumerator(),
             createShardPlanService: CreateShardPlanServicing = CreateShardPlanService(),
             startShardUploadService: StartShardUploadServicing = StartShardUploadService(),
             multipartUploadArtifactService: MultipartUploadArtifactServicing = MultipartUploadArtifactService(),
@@ -77,7 +74,6 @@
             shardMatrixOutputService: ShardMatrixOutputServicing = ShardMatrixOutputService(),
             appleArchiver: AppleArchiving = AppleArchiver()
         ) {
-            self.xcTestEnumerator = xcTestEnumerator
             self.createShardPlanService = createShardPlanService
             self.startShardUploadService = startShardUploadService
             self.multipartUploadArtifactService = multipartUploadArtifactService
@@ -92,7 +88,6 @@
 
         public func plan(
             xctestproductsPath: AbsolutePath,
-            destination: String? = nil,
             reference: String?,
             shardGranularity: ShardGranularity,
             shardMin: Int?,
@@ -123,17 +118,11 @@
                 throw ShardPlanServiceError.noTestModulesFound
             }
 
-            var testSuites: [String]?
-            if shardGranularity == .suite {
-                let targets = try await xcTestEnumerator.enumerateTests(
-                    testProductsPath: xctestproductsPath,
-                    destination: destination
-                )
-                testSuites = targets.flatMap { target in
-                    (target.onlyTestIdentifiers ?? []).map { "\(target.blueprintName)/\($0)" }
-                }
-            }
-
+            // Suite-granularity plans are balanced server-side from historical per-suite timings, and the
+            // catch-all shard guarantees any suite without history still runs. The client therefore no
+            // longer enumerates suites by booting every test bundle on the simulator (slow and flaky on
+            // large plans — it could take an hour) and sends only the module universe from the
+            // deterministic `.xctestrun`.
             Logger.current.notice("Creating shard plan with \(modules.count) test module(s)", metadata: .section)
 
             let shardPlan = try await createShardPlanService.createShardPlan(
@@ -141,7 +130,7 @@
                 serverURL: serverURL,
                 reference: reference,
                 modules: modules,
-                testSuites: testSuites,
+                testSuites: nil,
                 shardMin: shardMin,
                 shardMax: shardMax,
                 shardTotal: shardTotal,

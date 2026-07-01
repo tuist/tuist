@@ -251,6 +251,44 @@ struct CacheLocalStorageTests {
     }
 
     @Test(.inTemporaryDirectory)
+    func fetch_whenMacroProductNameDiffersFromTargetNameWithValidSignature() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        let hash = "123"
+        let cacheDirectory = temporaryDirectory.appending(component: "cache")
+        try await fileSystem.makeDirectory(at: cacheDirectory)
+
+        let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.binaries))
+            .willReturn(cacheDirectory)
+
+        let hashDirectory = cacheDirectory.appending(component: hash)
+        let artifactPath = hashDirectory.appending(component: "MacroProduct.macro")
+        try await fileSystem.makeDirectory(at: hashDirectory)
+        try await fileSystem.touch(artifactPath)
+
+        let artifactSigner = MockArtifactSigning()
+        given(artifactSigner).isValid(.value(artifactPath)).willReturn(true)
+
+        let subject = CacheLocalStorage(
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            artifactSigner: artifactSigner,
+            fileSystem: fileSystem
+        )
+
+        let got = try await subject.fetch(
+            Set([.init(name: "MacroTarget", hash: hash)]), cacheCategory: .binaries
+        )
+
+        #expect(got.count == 1)
+        let artifact = try #require(got.first)
+        #expect(artifact.key.hash == hash)
+        #expect(artifact.key.name == "MacroTarget")
+        #expect(artifact.value == artifactPath)
+    }
+
+    @Test(.inTemporaryDirectory)
     func fetch_whenMacroExistsWithInvalidSignature() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 

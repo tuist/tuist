@@ -146,6 +146,10 @@ defmodule Tuist.Environment do
     System.get_env("DATABASE_URL") || get([:database_url], secrets)
   end
 
+  def ipv4_database_url(secrets \\ secrets()) do
+    System.get_env("TUIST_IPV4_DATABASE_URL") || get([:ipv4_database_url], secrets)
+  end
+
   def database_schema do
     "TUIST_DATABASE_SCHEMA" |> System.get_env() |> database_schema()
   end
@@ -170,6 +174,13 @@ defmodule Tuist.Environment do
 
   def database_runtime_role do
     case System.get_env("TUIST_DATABASE_RUNTIME_ROLE") do
+      role when is_binary(role) and role != "" -> role
+      _ -> nil
+    end
+  end
+
+  def database_processor_role do
+    case System.get_env("TUIST_DATABASE_PROCESSOR_ROLE") do
       role when is_binary(role) and role != "" -> role
       _ -> nil
     end
@@ -203,10 +214,6 @@ defmodule Tuist.Environment do
 
   def quote_postgres_identifier(identifier) do
     ~s("#{String.replace(to_string(identifier), "\"", "\"\"")}")
-  end
-
-  def ipv4_database_url(secrets \\ secrets()) do
-    System.get_env("TUIST_IPV4_DATABASE_URL") || get([:ipv4_database_url], secrets)
   end
 
   def tuist_hosted? do
@@ -253,6 +260,25 @@ defmodule Tuist.Environment do
 
   def kura_runtime_image_tag(secrets \\ secrets()) do
     System.get_env("TUIST_KURA_RUNTIME_IMAGE_TAG") || get([:kura, :runtime_image_tag], secrets)
+  end
+
+  @doc """
+  The public peer failover IP for a bare-metal region, or `nil` when none is
+  configured. Self-hosted nodes resolve a region's `peer.` host to this IP; the
+  CAPI provider keeps it routed to a healthy box of the region's pool. Read from
+  `TUIST_KURA_PEER_FAILOVER_IPS` as a `region=ip` comma list (e.g.
+  `eu-central=1.2.3.4,ca-east=5.6.7.8`).
+  """
+  def kura_peer_failover_ip(region_id) when is_binary(region_id) do
+    "TUIST_KURA_PEER_FAILOVER_IPS"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.find_value(fn pair ->
+      case pair |> String.split("=", parts: 2) |> Enum.map(&String.trim/1) do
+        [key, ip] when key == region_id and ip != "" -> ip
+        _ -> nil
+      end
+    end)
   end
 
   def kura_tuist_base_url do
@@ -640,18 +666,13 @@ defmodule Tuist.Environment do
   end
 
   def stripe_prices(secrets \\ secrets()) do
-    prices = get([:stripe, :prices], secrets)
-    prices_base64_json = get([:stripe, :prices, :base64, :json], secrets)
-
-    cond do
-      is_map(prices) ->
-        prices
-
-      is_binary(prices_base64_json) ->
-        prices_base64_json |> Base.decode64!() |> JSON.decode!()
-
-      true ->
-        nil
+    case get([:stripe, :prices], secrets) do
+      # TUIST_STRIPE_PRICES carries the plan -> category -> [price ids] map as a
+      # JSON string (rendered by the chart / set in mise for dev). A raw map is
+      # only seen in tests that stub it directly.
+      prices when is_map(prices) -> prices
+      prices when is_binary(prices) -> JSON.decode!(prices)
+      _ -> nil
     end
   end
 
@@ -660,14 +681,6 @@ defmodule Tuist.Environment do
       port when is_binary(port) -> String.to_integer(port)
       _ -> get([:minio, :console_port], secrets, default_value: 9098)
     end
-  end
-
-  def mautic_username(secrets \\ secrets()) do
-    get([:mautic, :username], secrets)
-  end
-
-  def mautic_password(secrets \\ secrets()) do
-    get([:mautic, :password], secrets)
   end
 
   def loops_api_key(secrets \\ secrets()) do
@@ -849,14 +862,6 @@ defmodule Tuist.Environment do
       queue_target when is_binary(queue_target) -> String.to_integer(queue_target)
       _ -> database_queue_target(secrets)
     end
-  end
-
-  def anthropic_api_key(secrets \\ secrets()) do
-    get([:anthropic, :api_key], secrets)
-  end
-
-  def openai_api_key(secrets \\ secrets()) do
-    get([:openai, :api_key], secrets)
   end
 
   def cache_api_key(secrets \\ secrets()) do
@@ -1127,44 +1132,6 @@ defmodule Tuist.Environment do
 
   def kura_introspection_configured?(secrets \\ secrets()), do: kura_control_plane_configured?(secrets)
 
-  @doc """
-  Returns the Namespace SSH private key used to establish secure SSH connections between the server and the Namespace runner.
-  """
-  def namespace_ssh_private_key(secrets \\ secrets()) do
-    get([:namespace, :ssh_private_key], secrets)
-  end
-
-  @doc """
-  Returns the Namespace SSH public key used to establish secure SSH connections between the server and the Namespace runner.
-  """
-  def namespace_ssh_public_key(secrets \\ secrets()) do
-    get([:namespace, :ssh_public_key], secrets)
-  end
-
-  @doc """
-  Returns the Namespace partner ID that identifies this Tuist instance
-  as an authorized partner in the Namespace ecosystem. This ID is used
-  when issuing Namespace tenant tokens.
-  """
-  def namespace_partner_id(secrets \\ secrets()) do
-    get([:namespace, :partner_id], secrets)
-  end
-
-  @doc """
-  Returns the Namespace JWT private key used for signing authentication tokens
-  that are exchanged between Tuist and Namespace services when issuing Namespace tenant tokens.
-  """
-  def namespace_jwt_private_key(secrets \\ secrets()) do
-    case get([:namespace, :jwt_private_key], secrets) do
-      nil -> nil
-      base64_key -> Base.decode64!(base64_key)
-    end
-  end
-
-  def namespace_enabled?(secrets \\ secrets()) do
-    namespace_partner_id(secrets) != nil and namespace_jwt_private_key(secrets) != nil
-  end
-
   def typesense_host do
     get([:typesense, :host], secrets(), default_value: "https://search.tuist.dev")
   end
@@ -1263,6 +1230,20 @@ defmodule Tuist.Environment do
   """
   def runners_controller_sa_name do
     System.get_env("TUIST_RUNNERS_CONTROLLER_SA_NAME", "tuist-runners-controller")
+  end
+
+  @doc """
+  Least-privilege database role the internal Atlas query runner drops to via
+  `SET LOCAL ROLE` before executing operator-supplied SQL. Set to `tuist_ops_ro`
+  by the chart in managed environments (requires `GRANT tuist_ops_ro TO
+  tuist_web` — see `infra/cnpg/tuist-ops-ro-grants.sql`). Unset in dev/test, where
+  queries run as the default role.
+  """
+  def atlas_db_readonly_role do
+    case System.get_env("TUIST_ATLAS_DB_READONLY_ROLE") do
+      role when role in [nil, ""] -> nil
+      role -> role
+    end
   end
 
   @doc """
@@ -1402,7 +1383,13 @@ defmodule Tuist.Environment do
   end
 
   @doc ~s"""
-  It decrypts the secrets and returns them.
+  Returns the secrets map the accessors fall back to.
+
+  Outside the test environment this is always empty: runtime secrets are read
+  straight from the environment (1Password via ESO in the managed envs, fnox in
+  local dev), so `get/3` resolves them from `TUIST_*` env vars. The encrypted
+  `priv/secrets/<env>.yml.enc` blob it used to decrypt has been removed. Tests
+  still load their fixture values from the plain `priv/secrets/test.yml`.
   """
   def decrypt_secrets do
     if @compile_env == :test do
@@ -1413,25 +1400,7 @@ defmodule Tuist.Environment do
 
       to_string_map(secrets_map)
     else
-      master_key_path = Path.join("priv/secrets", "#{Atom.to_string(env())}.key")
-      master_key_env_variable = "MASTER_KEY"
-
-      secrets_path =
-        case System.get_env("SECRETS_DIRECTORY") do
-          env_directory when is_binary(env_directory) ->
-            Path.join(env_directory, "#{Atom.to_string(env())}.yml.enc")
-
-          _ ->
-            Path.join("priv/secrets", "#{Atom.to_string(env())}.yml.enc")
-        end
-
-      if System.get_env(master_key_env_variable) || File.exists?(master_key_path) do
-        key = System.get_env(master_key_env_variable) || File.read!(master_key_path)
-
-        key |> EncryptedSecrets.read!(secrets_path) |> to_string_map()
-      else
-        %{}
-      end
+      %{}
     end
   end
 

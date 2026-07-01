@@ -1,6 +1,6 @@
 {{- if .Values.xcresultProcessor.enabled }}
-{{- $secretName := include "tuist.componentName" (dict "root" . "component" "xcresult-processor") }}
-{{- $masterKeySecretName := ternary (include "tuist.componentName" (dict "root" . "component" "server-external-secrets")) (include "tuist.componentName" (dict "root" . "component" "app-secrets")) .Values.server.managedSecrets }}
+{{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" . -}}
+{{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" . -}}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -121,6 +121,11 @@ spec:
               value: "xcresult_processor"
             - name: TUIST_HOSTED
               value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
+            # Tuist.License.assert_valid!/0 runs unconditionally at boot
+            # (application.ex), so the xcresult processor needs the license key.
+            # It used to come from the encrypted blob; with the blob gone it must
+            # be wired like the server Deployment, or boot crashes "license missing".
+            {{- include "tuist.licenseEnv" . | nindent 12 }}
             - name: TUIST_LOG_LEVEL
               value: {{ .Values.server.logLevel | quote }}
             - name: TUIST_PROCESS_XCRESULT_QUEUE_CONCURRENCY
@@ -138,12 +143,41 @@ spec:
                   key: {{ .Values.xcresultProcessor.databaseUrlSecretKey | default "processor-database-url" }}
             - name: TUIST_DATABASE_SCHEMA
               value: {{ .Values.postgresql.schema | quote }}
-            {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
-            - name: MASTER_KEY
+            # Object storage: the xcresult archive is downloaded from S3 to be
+            # parsed. Same wiring as the build processor — creds from the
+            # object-storage ESO Secret (managed) or app-secrets (self-hosted).
+            - name: TUIST_S3_BUCKET_NAME
+              value: {{ include "tuist.objectStorageBucketDefault" . | quote }}
+            - name: TUIST_S3_ENDPOINT
+              value: {{ include "tuist.objectStorageEndpoint" . | quote }}
+            - name: TUIST_S3_REGION
+              value: {{ include "tuist.objectStorageRegion" . | quote }}
+            - name: TUIST_S3_VIRTUAL_HOST
+              value: {{ .Values.server.s3.virtualHost | ternary "1" "0" | quote }}
+            - name: TUIST_S3_BUCKET_AS_HOST
+              value: {{ .Values.server.s3.bucketAsHost | ternary "1" "0" | quote }}
+            {{- if and (eq .Values.objectStorage.mode "external") .Values.objectStorage.external.managedSecrets }}
+            - name: TUIST_S3_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  name: {{ $masterKeySecretName }}
-                  key: server-master-key
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "object-storage-external-secrets") }}
+                  key: object-storage-access-key
+            - name: TUIST_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "object-storage-external-secrets") }}
+                  key: object-storage-secret-key
+            {{- else if and $objectStorageAccessKey $objectStorageSecretKey }}
+            - name: TUIST_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: object-storage-access-key
+            - name: TUIST_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: object-storage-secret-key
             {{- end }}
             {{- if .Values.xcresultProcessor.tailscale.enabled }}
             # Per-VM tailnet identity. tailscale-up.sh inside the VM
@@ -176,6 +210,15 @@ spec:
             {{- with .Values.xcresultProcessor.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          {{- $serverConfigEnvFrom := include "tuist.serverConfigEnvFrom" . | trim }}
+          {{- if $serverConfigEnvFrom }}
+          # Bulk runtime config (ClickHouse URL, Sentry, the Phoenix/Cloak/
+          # Guardian secret keys, etc.) from the consolidated config Secret —
+          # the kubelet resolves envFrom and inject-env.sh handles multi-line
+          # values, so this replaces what the removed MASTER_KEY blob unlocked.
+          envFrom:
+            {{- $serverConfigEnvFrom | nindent 12 }}
+          {{- end }}
           resources:
             {{- toYaml .Values.xcresultProcessor.resources | nindent 12 }}
 {{- end }}

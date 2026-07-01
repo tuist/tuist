@@ -11,7 +11,14 @@ public enum KeyValueOperationType: String, Codable {
 
 @Mockable
 public protocol CASAnalyticsDatabasing: Sendable {
-    func storeCASOutput(key: String, size: Int, duration: TimeInterval, compressedSize: Int) throws
+    func storeCASOutput(
+        key: String,
+        size: Int,
+        duration: TimeInterval,
+        compressedSize: Int,
+        transferDuration: TimeInterval,
+        codecDuration: TimeInterval
+    ) throws
     func casOutput(for key: String) throws -> CASOutputMetadata?
 
     func storeNode(key: String, checksum: String) throws
@@ -34,7 +41,13 @@ public struct CASAnalyticsDatabase: CASAnalyticsDatabasing {
             Environment.current.stateDirectory.appending(component: Self.databaseName).pathString
         )
         db.busyTimeout = 5
-        try db.execute("PRAGMA synchronous = NORMAL")
+        // This database is disposable per-build analytics, and `storeCASOutput` runs
+        // once per CAS operation on the shared cooperative pool. With synchronous=NORMAL
+        // every insert fsynced; under a build's disk contention those fsyncs starved the
+        // daemon's load/decompress tasks (per-op latency blew up). synchronous=OFF drops
+        // the fsync (durability isn't needed here); wal_autocheckpoint=1 stays so the main
+        // db remains current for the build-report upload, which copies the .db, not the WAL.
+        try db.execute("PRAGMA synchronous = OFF")
         try db.execute("PRAGMA wal_autocheckpoint = 1")
     }
 
@@ -46,7 +59,12 @@ public struct CASAnalyticsDatabase: CASAnalyticsDatabasing {
             t.column(CASOutputsSchema.duration)
             t.column(CASOutputsSchema.compressedSize)
             t.column(CASOutputsSchema.createdAt, defaultValue: Date())
+            t.column(CASOutputsSchema.transferDuration, defaultValue: 0)
+            t.column(CASOutputsSchema.codecDuration, defaultValue: 0)
         })
+        for column in [CASOutputsSchema.transferDuration, CASOutputsSchema.codecDuration] {
+            try? db.run(CASOutputsSchema.table.addColumn(column, defaultValue: 0))
+        }
 
         try db.run(NodesSchema.table.create(ifNotExists: true) { t in
             t.column(NodesSchema.key, primaryKey: true)
@@ -65,14 +83,23 @@ public struct CASAnalyticsDatabase: CASAnalyticsDatabasing {
 
     // MARK: - CAS Outputs
 
-    public func storeCASOutput(key: String, size: Int, duration: TimeInterval, compressedSize: Int) throws {
+    public func storeCASOutput(
+        key: String,
+        size: Int,
+        duration: TimeInterval,
+        compressedSize: Int,
+        transferDuration: TimeInterval,
+        codecDuration: TimeInterval
+    ) throws {
         try db.run(CASOutputsSchema.table.insert(
             or: .replace,
             CASOutputsSchema.key <- key,
             CASOutputsSchema.size <- size,
             CASOutputsSchema.duration <- duration,
             CASOutputsSchema.compressedSize <- compressedSize,
-            CASOutputsSchema.createdAt <- Date()
+            CASOutputsSchema.createdAt <- Date(),
+            CASOutputsSchema.transferDuration <- transferDuration,
+            CASOutputsSchema.codecDuration <- codecDuration
         ))
     }
 
@@ -83,7 +110,9 @@ public struct CASAnalyticsDatabase: CASAnalyticsDatabasing {
         return CASOutputMetadata(
             size: row[CASOutputsSchema.size],
             duration: row[CASOutputsSchema.duration],
-            compressedSize: row[CASOutputsSchema.compressedSize]
+            compressedSize: row[CASOutputsSchema.compressedSize],
+            transferDuration: row[CASOutputsSchema.transferDuration],
+            codecDuration: row[CASOutputsSchema.codecDuration]
         )
     }
 
