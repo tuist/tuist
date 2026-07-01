@@ -45,6 +45,14 @@ const HTTP2_MAX_SEND_BUFFER_BYTES: usize = 512 * 1024;
 const HTTP2_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(30);
 const HTTP2_KEEP_ALIVE_TIMEOUT: Duration = Duration::from_secs(20);
 
+// The combined HTTP+gRPC listener carries large Bazel REAPI uploads, so it
+// advertises the REAPI server's flow-control windows (4 MiB stream / 16 MiB
+// connection) as its starting point rather than the smaller public-HTTP
+// defaults, which would cap a single ByteStream write at ~window/RTT. Kept in
+// sync with REAPI_HTTP2_{STREAM,CONNECTION}_WINDOW_BYTES in reapi.
+const COMBINED_HTTP2_STREAM_WINDOW_BYTES: u32 = 4 * 1024 * 1024;
+const COMBINED_HTTP2_CONNECTION_WINDOW_BYTES: u32 = 16 * 1024 * 1024;
+
 #[derive(Clone, Copy, Debug)]
 struct ShutdownBudget {
     deadline: Instant,
@@ -324,8 +332,10 @@ async fn run_with_config(
     let router = http::public_router(state.clone());
     let public_handle = Handle::new();
     let https_handle = Handle::new();
+    let combined_handle = Handle::new();
     let public_shutdown_handle = public_handle.clone();
     let https_shutdown_handle = https_handle.clone();
+    let combined_shutdown_handle = combined_handle.clone();
     let public_shutdown_state = state.clone();
     let (public_plain_shutdown_tx, public_plain_shutdown_rx) = watch::channel(false);
     tokio::spawn(
@@ -338,6 +348,8 @@ async fn run_with_config(
             let _ = public_plain_shutdown_tx.send(true);
             public_shutdown_handle.graceful_shutdown(Some(budget.remaining()));
             https_shutdown_handle.graceful_shutdown(Some(budget.remaining()));
+            // No-op when the combined listener is disabled (no server bound).
+            combined_shutdown_handle.graceful_shutdown(Some(budget.remaining()));
         }
         .in_current_span(),
     );
@@ -352,6 +364,31 @@ async fn run_with_config(
                 configure_public_http_builder(server.http_builder());
                 if let Err(error) = server.serve(https_router.into_make_service()).await {
                     tracing::error!("public HTTPS server failed: {error}");
+                }
+            }
+            .in_current_span(),
+        ))
+    } else {
+        None
+    };
+
+    // Optional additive listener that co-hosts the HTTP cache API and the h2c
+    // REAPI gRPC service on one plaintext port, dispatching by request path.
+    // It lets a single client-facing endpoint (e.g. the NodePort runner-cache
+    // URL) serve both protocols, so a client that derives its gRPC target from
+    // the cache URL reaches REAPI instead of the plain-HTTP listener. The
+    // dedicated `port`/`grpc_port` listeners are unaffected and keep serving.
+    let combined_handle_task = if let Some(combined_port) = state.config.combined_port {
+        let combined_address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, combined_port));
+        info!("Kura combined HTTP+gRPC service listening on {combined_address}");
+        let combined_router =
+            http::public_router(state.clone()).merge(reapi::routes(state.clone()));
+        Some(tokio::spawn(
+            async move {
+                let mut server = axum_server::bind(combined_address).handle(combined_handle);
+                configure_combined_http_builder(server.http_builder());
+                if let Err(error) = server.serve(combined_router.into_make_service()).await {
+                    tracing::error!("combined HTTP+gRPC server failed: {error}");
                 }
             }
             .in_current_span(),
@@ -399,6 +436,9 @@ async fn run_with_config(
     if let Some(https_handle_task) = https_handle_task {
         wait_for_task_shutdown(https_handle_task, "public HTTPS", shutdown_budget).await;
     }
+    if let Some(combined_handle_task) = combined_handle_task {
+        wait_for_task_shutdown(combined_handle_task, "combined HTTP+gRPC", shutdown_budget).await;
+    }
 
     Ok(())
 }
@@ -413,6 +453,29 @@ fn configure_public_http_builder(builder: &mut HttpBuilder<TokioExecutor>) {
         .http2()
         .initial_stream_window_size(Some(HTTP2_INITIAL_STREAM_WINDOW_BYTES))
         .initial_connection_window_size(Some(HTTP2_INITIAL_CONNECTION_WINDOW_BYTES))
+        .adaptive_window(true)
+        .max_concurrent_streams(Some(HTTP2_MAX_CONCURRENT_STREAMS))
+        .max_frame_size(Some(HTTP2_MAX_FRAME_SIZE))
+        .max_send_buf_size(HTTP2_MAX_SEND_BUFFER_BYTES)
+        .keep_alive_interval(Some(HTTP2_KEEP_ALIVE_INTERVAL))
+        .keep_alive_timeout(HTTP2_KEEP_ALIVE_TIMEOUT)
+        .timer(TokioTimer::new());
+}
+
+// Like the public builder, but starting from the larger REAPI flow-control
+// windows so co-hosted Bazel ByteStream uploads on the combined port are not
+// throttled. The auto builder serves both HTTP/1.1 and HTTP/2 (incl. h2c
+// prior-knowledge), so the same listener handles HTTP cache requests and gRPC.
+fn configure_combined_http_builder(builder: &mut HttpBuilder<TokioExecutor>) {
+    builder
+        .http1()
+        .keep_alive(true)
+        .timer(TokioTimer::new())
+        .header_read_timeout(Some(Duration::from_secs(30)));
+    builder
+        .http2()
+        .initial_stream_window_size(Some(COMBINED_HTTP2_STREAM_WINDOW_BYTES))
+        .initial_connection_window_size(Some(COMBINED_HTTP2_CONNECTION_WINDOW_BYTES))
         .adaptive_window(true)
         .max_concurrent_streams(Some(HTTP2_MAX_CONCURRENT_STREAMS))
         .max_frame_size(Some(HTTP2_MAX_FRAME_SIZE))
@@ -871,6 +934,89 @@ mod tests {
 
         assert!(builder.is_http1_available());
         assert!(builder.is_http2_available());
+    }
+
+    #[test]
+    fn combined_http_builder_accepts_http1_and_http2() {
+        let mut builder = HttpBuilder::new(TokioExecutor::new());
+
+        configure_combined_http_builder(&mut builder);
+
+        // The combined listener must accept HTTP/1.1 (HTTP cache clients) and
+        // HTTP/2 (h2c REAPI gRPC) on the same socket.
+        assert!(builder.is_http1_available());
+        assert!(builder.is_http2_available());
+    }
+
+    // End-to-end proof that the co-hosted listener dispatches by path: an HTTP
+    // cache probe and a REAPI gRPC call both succeed against the same port. This
+    // is the behavior the combined port exists to provide — a client that
+    // derives its gRPC target from the single cache URL reaches REAPI, not the
+    // plain-HTTP listener.
+    #[tokio::test]
+    async fn combined_listener_serves_http_and_grpc() {
+        use bazel_remote_apis::build::bazel::remote::execution::v2::{
+            GetCapabilitiesRequest, capabilities_client::CapabilitiesClient,
+        };
+
+        let context = test_context(|_| {}).await;
+        let state = context.state.clone();
+
+        let router =
+            crate::http::public_router(state.clone()).merge(crate::reapi::routes(state.clone()));
+        let handle = Handle::new();
+        let server_handle = handle.clone();
+        let server = tokio::spawn(async move {
+            let mut server =
+                axum_server::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0))).handle(server_handle);
+            configure_combined_http_builder(server.http_builder());
+            let _ = server.serve(router.into_make_service()).await;
+        });
+
+        let addr = timeout(Duration::from_secs(5), handle.listening())
+            .await
+            .expect("combined listener should bind within timeout")
+            .expect("combined listener should report its bound address");
+
+        // HTTP cache surface answers on the combined port.
+        let http = reqwest::Client::new()
+            .get(format!("http://{addr}/up"))
+            .send()
+            .await
+            .expect("combined port should answer the HTTP /up probe");
+        assert_eq!(http.status(), reqwest::StatusCode::OK);
+
+        // REAPI gRPC (h2c) answers on the same port.
+        let mut grpc_client = None;
+        for _ in 0..50 {
+            match tonic::transport::Endpoint::from_shared(format!("http://{addr}"))
+                .expect("valid gRPC endpoint")
+                .connect()
+                .await
+            {
+                Ok(channel) => {
+                    grpc_client = Some(CapabilitiesClient::new(channel));
+                    break;
+                }
+                Err(_) => tokio::time::sleep(Duration::from_millis(20)).await,
+            }
+        }
+        let mut grpc_client =
+            grpc_client.expect("combined port should accept gRPC (h2c) connections");
+        let capabilities = grpc_client
+            .get_capabilities(GetCapabilitiesRequest {
+                instance_name: String::new(),
+            })
+            .await
+            .expect("combined port should answer REAPI GetCapabilities")
+            .into_inner();
+        assert!(
+            capabilities.cache_capabilities.is_some(),
+            "REAPI GetCapabilities over the combined port should return cache capabilities"
+        );
+
+        handle.shutdown();
+        let _ = server.await;
     }
 
     #[tokio::test]

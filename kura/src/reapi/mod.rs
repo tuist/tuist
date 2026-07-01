@@ -37,7 +37,6 @@ use tokio_stream::wrappers::TcpListenerStream;
 use tokio_util::io::ReaderStream;
 use tonic::{
     Request, Response, Status,
-    body::Body as TonicBody,
     codegen::{Body as HttpBody, Service, http},
     transport::{Identity, Server, ServerTlsConfig},
 };
@@ -103,19 +102,58 @@ struct GrpcExtensionSpec<'a> {
     artifact_hash: Option<String>,
 }
 
+const REAPI_MAX_DECODING_MESSAGE_SIZE: usize = 64 << 20;
+
+type ReapiServers = (
+    CapabilitiesServer<ReapiService>,
+    ActionCacheServer<ReapiService>,
+    ContentAddressableStorageServer<ReapiService>,
+    ByteStreamServer<ReapiService>,
+);
+
+// The four REAPI gRPC services, configured identically for the dedicated gRPC
+// listener (`serve`) and the co-hosted combined listener (`routes`) so the two
+// never drift in decoding limits or wiring.
+fn reapi_servers(state: SharedState) -> ReapiServers {
+    let service = ReapiService { state };
+    (
+        CapabilitiesServer::new(service.clone())
+            .max_decoding_message_size(REAPI_MAX_DECODING_MESSAGE_SIZE),
+        ActionCacheServer::new(service.clone())
+            .max_decoding_message_size(REAPI_MAX_DECODING_MESSAGE_SIZE),
+        ContentAddressableStorageServer::new(service.clone())
+            .max_decoding_message_size(REAPI_MAX_DECODING_MESSAGE_SIZE),
+        ByteStreamServer::new(service).max_decoding_message_size(REAPI_MAX_DECODING_MESSAGE_SIZE),
+    )
+}
+
+// Build the REAPI services as an `axum`/`tower` router for co-hosting on the
+// combined HTTP+gRPC listener. Unlike [`serve`], this owns no transport or
+// accept loop and applies no gRPC-specific HTTP/2 tuning or connection-age
+// recycling — the combined listener owns the socket and its HTTP/2 settings —
+// but it carries the same [`GrpcRequestAccountingLayer`], so combined-port gRPC
+// traffic still shows up in inflight/latency metrics and counts toward the
+// shutdown drain. tonic's `Routes` is itself an `axum::Router` that mounts each
+// service at `/{service.name}/{*rest}`; those paths never collide with the HTTP
+// cache routes, so the combined router dispatches gRPC and HTTP unambiguously by
+// path. Its `unimplemented` fallback (gRPC status 12) becomes the combined
+// router's fallback for otherwise-unmatched paths.
+pub fn routes(state: SharedState) -> axum::Router {
+    let (capabilities, action_cache, cas, byte_stream) = reapi_servers(state.clone());
+    tonic::service::Routes::new(capabilities)
+        .add_service(action_cache)
+        .add_service(cas)
+        .add_service(byte_stream)
+        .into_axum_router()
+        .layer(GrpcRequestAccountingLayer { state })
+}
+
 pub async fn serve<F>(listener: TcpListener, state: SharedState, shutdown: F) -> Result<(), String>
 where
     F: Future<Output = ()> + Send + 'static,
 {
     let tls = state.config.grpc_tls.clone();
-    let service = ReapiService {
-        state: state.clone(),
-    };
-    let capabilities = CapabilitiesServer::new(service.clone()).max_decoding_message_size(64 << 20);
-    let action_cache = ActionCacheServer::new(service.clone()).max_decoding_message_size(64 << 20);
-    let cas =
-        ContentAddressableStorageServer::new(service.clone()).max_decoding_message_size(64 << 20);
-    let byte_stream = ByteStreamServer::new(service).max_decoding_message_size(64 << 20);
+    let (capabilities, action_cache, cas, byte_stream) = reapi_servers(state.clone());
 
     let mut builder = Server::builder()
         .initial_stream_window_size(REAPI_HTTP2_STREAM_WINDOW_BYTES)
@@ -161,9 +199,12 @@ struct GrpcRequestAccountingService<S> {
     state: SharedState,
 }
 
-impl<S, ResBody> Service<http::Request<TonicBody>> for GrpcRequestAccountingService<S>
+// Generic over the request body so the same accounting wraps both the dedicated
+// gRPC transport (`TonicBody`) and the combined listener's axum router
+// (`axum::body::Body`).
+impl<S, ReqBody, ResBody> Service<http::Request<ReqBody>> for GrpcRequestAccountingService<S>
 where
-    S: Service<http::Request<TonicBody>, Response = http::Response<ResBody>> + Send + 'static,
+    S: Service<http::Request<ReqBody>, Response = http::Response<ResBody>> + Send + 'static,
     S::Future: Send + 'static,
     S::Error: Send + 'static,
     ResBody: HttpBody<Data = Bytes> + Send + 'static,
@@ -177,7 +218,7 @@ where
         self.inner.poll_ready(cx)
     }
 
-    fn call(&mut self, request: http::Request<TonicBody>) -> Self::Future {
+    fn call(&mut self, request: http::Request<ReqBody>) -> Self::Future {
         let started_at = Instant::now();
         let route = request.uri().path().to_owned();
         let guard = self.state.start_grpc_request();
@@ -1379,6 +1420,8 @@ fn parse_blob_resource_name(
 mod tests {
     use super::*;
     use std::{convert::Infallible, time::Duration};
+
+    use tonic::body::Body as TonicBody;
 
     use crate::{
         artifact::producer::ArtifactProducer,

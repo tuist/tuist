@@ -12,6 +12,7 @@ use crate::constants::{
 
 const KURA_PORT: &str = "KURA_PORT";
 const KURA_GRPC_PORT: &str = "KURA_GRPC_PORT";
+const KURA_COMBINED_PORT: &str = "KURA_COMBINED_PORT";
 const KURA_TENANT_ID: &str = "KURA_TENANT_ID";
 const KURA_REGION: &str = "KURA_REGION";
 const KURA_TMP_DIR: &str = "KURA_TMP_DIR";
@@ -107,6 +108,14 @@ const FALLBACK_HOST_CPU_COUNT: usize = 4;
 pub struct Config {
     pub port: u16,
     pub grpc_port: u16,
+    /// Optional plaintext port that co-hosts the HTTP cache API and the h2c
+    /// REAPI gRPC service on a single listener, routing each request to the
+    /// right subsystem by path. Additive: when unset the combined listener is
+    /// not started and only the dedicated `port`/`grpc_port` listeners serve
+    /// traffic. Lets one client-facing endpoint speak both protocols (e.g. the
+    /// NodePort runner-cache URL dispatch hands out) without a separate gRPC
+    /// port that off-pod-network clients can't derive.
+    pub combined_port: Option<u16>,
     pub internal_port: u16,
     pub tenant_id: String,
     pub region: String,
@@ -566,6 +575,12 @@ impl Config {
                     .map_err(|_| format!("{KURA_HTTPS_PORT} must be a valid u16"))
             })
             .unwrap_or(DEFAULT_HTTPS_PORT);
+        let combined_port =
+            optional_parsed_value(&mut lookup, KURA_COMBINED_PORT, &mut invalid, |value| {
+                value
+                    .parse::<u16>()
+                    .map_err(|_| format!("{KURA_COMBINED_PORT} must be a valid u16"))
+            });
         let file_descriptor_pool_size = optional_parsed_value(
             &mut lookup,
             KURA_FILE_DESCRIPTOR_POOL_SIZE,
@@ -1223,6 +1238,29 @@ impl Config {
             }
         }
 
+        if let (Some(combined_port), Some(port), Some(grpc_port), Some(internal_port)) =
+            (combined_port, port, grpc_port, internal_port)
+        {
+            if combined_port == port {
+                invalid.push(format!("{KURA_COMBINED_PORT} must differ from {KURA_PORT}"));
+            }
+            if combined_port == grpc_port {
+                invalid.push(format!(
+                    "{KURA_COMBINED_PORT} must differ from {KURA_GRPC_PORT}"
+                ));
+            }
+            if combined_port == internal_port {
+                invalid.push(format!(
+                    "{KURA_COMBINED_PORT} must differ from {KURA_INTERNAL_PORT}"
+                ));
+            }
+            if public_tls.is_some() && combined_port == https_port {
+                invalid.push(format!(
+                    "{KURA_COMBINED_PORT} must differ from {KURA_HTTPS_PORT}"
+                ));
+            }
+        }
+
         if let (Some(node_url), Some(peers), Some(internal_port)) =
             (node_url.as_ref(), peers.as_ref(), internal_port)
         {
@@ -1300,6 +1338,7 @@ impl Config {
         Ok(Self {
             port: port.expect("port should be present when configuration is valid"),
             grpc_port: grpc_port.expect("grpc_port should be present when configuration is valid"),
+            combined_port,
             internal_port: internal_port
                 .expect("internal_port should be present when configuration is valid"),
             tenant_id: tenant_id.expect("tenant_id should be present when configuration is valid"),
@@ -2367,6 +2406,46 @@ mod tests {
 
         assert!(error.contains(KURA_HTTPS_PORT));
         assert!(error.contains(KURA_PORT));
+    }
+
+    #[test]
+    fn from_lookup_leaves_combined_port_unset_by_default() {
+        let config = config_from(&[]).expect("base config should be valid");
+
+        assert_eq!(config.combined_port, None);
+    }
+
+    #[test]
+    fn from_lookup_parses_combined_port() {
+        let config = config_from(&[(KURA_COMBINED_PORT, "6500")])
+            .expect("config with a combined port should be valid");
+
+        assert_eq!(config.combined_port, Some(6500));
+    }
+
+    #[test]
+    fn from_lookup_rejects_invalid_combined_port() {
+        let error = config_from(&[(KURA_COMBINED_PORT, "not-a-port")])
+            .expect_err("expected invalid combined port to fail");
+
+        assert!(error.contains(KURA_COMBINED_PORT));
+    }
+
+    #[test]
+    fn from_lookup_rejects_combined_port_colliding_with_other_ports() {
+        // Base values set KURA_PORT=4500, KURA_GRPC_PORT=5500, KURA_INTERNAL_PORT=7443.
+        for colliding in [KURA_PORT, KURA_GRPC_PORT, KURA_INTERNAL_PORT] {
+            let port = match colliding {
+                KURA_PORT => "4500",
+                KURA_GRPC_PORT => "5500",
+                _ => "7443",
+            };
+            let error = config_from(&[(KURA_COMBINED_PORT, port)])
+                .expect_err("expected colliding combined port to fail");
+
+            assert!(error.contains(KURA_COMBINED_PORT));
+            assert!(error.contains(colliding));
+        }
     }
 
     #[test]
