@@ -13,9 +13,11 @@
 //
 // The token is bound to the Pod (via TokenRequestSpec.BoundObjectRef)
 // so the apiserver invalidates it the moment the Pod is deleted —
-// matching kubelet's automount lifecycle. TTL is short (10 min); the
-// caller is responsible for re-running this on each reconcile if
-// the Pod is long-running.
+// matching kubelet's automount lifecycle. It is minted once at VM
+// boot and not rotated, so its TTL (set at the call site) must be
+// generous enough to outlive warm-time plus the whole job: besides
+// the one-shot dispatch call, the in-VM metrics sampler reuses the
+// same token to POST samples for the job's full duration.
 //
 // The token is also audience-bound. The dispatch endpoint passes
 // the same audience to its TokenReview, so a default-audience SA
@@ -52,9 +54,11 @@ type ClientMinter struct {
 	Client kubernetes.Interface
 
 	// ExpirationSeconds is the token TTL. Real kubelets rotate the
-	// projected token every ~10 min by default; we mint once per
-	// VM boot and don't rotate (the dispatch poll runs once,
-	// minutes after boot at most), so set this generously.
+	// projected token every ~10 min by default; we mint once per VM
+	// boot and don't rotate, so set this generously — the token must
+	// outlive warm-time plus the whole job, since the in-VM metrics
+	// sampler reuses it to POST for the job's full duration, not just
+	// the one-shot dispatch call.
 	ExpirationSeconds int64
 
 	// Audiences scopes the token to specific consumers. Defaults

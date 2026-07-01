@@ -273,9 +273,14 @@ func main() {
 		Tart:               tartClient,
 		Resolver:           resolver,
 		Store:              store,
-		TokenMinter:        &satoken.ClientMinter{Client: typedClient, ExpirationSeconds: 3600},
-		GC:                 gcCollector,
-		Recorder:           mgr.GetEventRecorderFor("tart-kubelet"),
+		// 8h TTL: minted once at boot and not rotated, the token must
+		// outlive warm-time + the whole job, because the in-VM metrics
+		// sampler reuses it to POST for the job's full duration (a 1h TTL
+		// expired mid-run on long jobs and truncated their charts). It's
+		// Pod-bound, so it dies when the Pod is reaped regardless.
+		TokenMinter: &satoken.ClientMinter{Client: typedClient, ExpirationSeconds: 28800},
+		GC:          gcCollector,
+		Recorder:    mgr.GetEventRecorderFor("tart-kubelet"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup pod reconciler")
 		os.Exit(1)
