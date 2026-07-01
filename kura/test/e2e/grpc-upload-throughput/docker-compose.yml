@@ -4,7 +4,7 @@ name: kura-throughput-e2e
 #
 #   client ─► toxiproxy ─► nginx-baseline (default window)        ─► kura
 #                       ─► nginx-patched  (raised window, from chart) ─► kura
-#                       ─► kura (direct, kura's own stream window)
+#                       ─► kura combined port (co-hosted HTTP+gRPC, kura's own stream window)
 #
 # toxiproxy's proxies + latency toxics are created at runtime by the client.
 
@@ -20,9 +20,12 @@ services:
       context: ../../..
       dockerfile: Dockerfile
     environment:
-      # Minimal standalone config: gRPC h2c on 50051, no peers, no auth extension.
+      # Minimal standalone config: HTTP on 4000, dedicated gRPC h2c on 50051,
+      # and the co-hosted HTTP+gRPC combined listener on 8080 (the direct path
+      # measures REAPI throughput through it). No peers, no auth extension.
       KURA_PORT: "4000"
       KURA_GRPC_PORT: "50051"
+      KURA_COMBINED_PORT: "8080"
       KURA_INTERNAL_PORT: "7443"
       KURA_TENANT_ID: "e2e"
       KURA_REGION: "local"

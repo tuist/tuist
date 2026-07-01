@@ -6,7 +6,7 @@
 //
 //	baseline    client -> toxiproxy -> nginx (default window)        -> kura
 //	patched     client -> toxiproxy -> nginx (raised window, from chart) -> kura
-//	direct_kura client -> toxiproxy -> kura (kura's own stream window)
+//	direct_kura client -> toxiproxy -> kura combined port (co-hosted HTTP+gRPC, kura's own stream window)
 //
 // It prints per-path throughput and asserts that the patched path is at least
 // MIN_SPEEDUP times faster than baseline — i.e. that raising nginx's HTTP/2
@@ -38,11 +38,11 @@ import (
 
 // Reference points used only for the informational ceilings printed below —
 // NOT chart values, so they are not read from helm: the baseline path inherits
-// nginx's default 64KB HTTP/2 request-body window, and the direct path is
-// bounded by the 4MB HTTP/2 stream window kura's tonic/hyper server now
-// advertises (REAPI_HTTP2_STREAM_WINDOW_BYTES in kura/src/reapi/mod.rs, raised
-// from the old 1MB tonic default — keep in sync). The patched window IS a chart
-// value and arrives via PATCHED_WINDOW_BYTES.
+// nginx's default 64KB HTTP/2 request-body window, and the direct path (now the
+// co-hosted combined HTTP+gRPC listener) is bounded by the 4MB HTTP/2 stream
+// window kura advertises on that port (COMBINED_HTTP2_STREAM_WINDOW_BYTES in
+// kura/src/app.rs, matching REAPI's window — keep in sync). The patched window
+// IS a chart value and arrives via PATCHED_WINDOW_BYTES.
 const (
 	nginxDefaultWindowBytes = 64 * 1024
 	kuraStreamWindowBytes   = 4 * 1024 * 1024
@@ -300,7 +300,7 @@ func main() {
 	targets := []target{
 		{"baseline", "0.0.0.0:21001", toxHost + ":21001", "nginx-baseline:8443"},
 		{"patched", "0.0.0.0:21002", toxHost + ":21002", "nginx-patched:8443"},
-		{"direct_kura", "0.0.0.0:21003", toxHost + ":21003", "kura:50051"},
+		{"direct_kura", "0.0.0.0:21003", toxHost + ":21003", "kura:8080"},
 	}
 
 	waitToxiproxy(toxAPI, 60*time.Second)
@@ -313,7 +313,7 @@ func main() {
 	fmt.Printf("window-bound throughput ceilings at %dms RTT (1 stream):\n", rttMs)
 	fmt.Printf("  baseline nginx  default ~64KB window      -> ~%6.2f MB/s\n", mbpsCeiling(nginxDefaultWindowBytes, rttMs))
 	fmt.Printf("  patched  nginx  %-5s window (from chart)   -> ~%6.2f MB/s\n", patchedWindowLabel, mbpsCeiling(patchedWindowBytes, rttMs))
-	fmt.Printf("  direct   kura   window (kura code)         -> ~%6.2f MB/s\n\n", mbpsCeiling(kuraStreamWindowBytes, rttMs))
+	fmt.Printf("  direct   kura   combined port (kura code)  -> ~%6.2f MB/s\n\n", mbpsCeiling(kuraStreamWindowBytes, rttMs))
 
 	results := map[string]float64{}
 	for i, t := range targets {
