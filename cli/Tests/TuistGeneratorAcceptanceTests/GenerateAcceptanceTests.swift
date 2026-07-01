@@ -1087,6 +1087,11 @@ struct GenerateAcceptanceTestiOSAppWithAppClip {
             destination: "Debug-iphonesimulator",
             extension: "AppClip1Widgets"
         )
+        try await XCTAssertProductWithDestinationContainsResource(
+            "AppClip1.app",
+            destination: "Debug-iphonesimulator",
+            resource: "Bundle.bundle/dummy.jpg"
+        )
     }
 }
 
