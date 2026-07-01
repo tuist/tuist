@@ -375,24 +375,43 @@ async fn run_with_config(
     };
 
     // Optional additive listener that co-hosts the HTTP cache API and the h2c
-    // REAPI gRPC service on one plaintext port, dispatching by request path.
-    // It lets a single client-facing endpoint (e.g. the NodePort runner-cache
-    // URL) serve both protocols, so a client that derives its gRPC target from
-    // the cache URL reaches REAPI instead of the plain-HTTP listener. The
-    // dedicated `port`/`grpc_port` listeners are unaffected and keep serving.
+    // REAPI gRPC service on one port, dispatching by request path. It lets a
+    // single client-facing endpoint (e.g. the runner-cache URL) serve both
+    // protocols, so a client that derives its gRPC target from the cache URL
+    // reaches REAPI instead of the plain-HTTP listener. The dedicated
+    // `port`/`grpc_port` listeners are unaffected and keep serving.
     //
-    // It runs through the SAME accelerated server as the public port, so HTTP
-    // artifact GETs get the sendfile/splice fast path and only the gRPC (h2c)
-    // and other non-accelerable requests fall through to hyper — configured
-    // with the fixed gRPC-sized HTTP/2 windows so co-hosted REAPI uploads run at
-    // full speed. When acceleration is disabled it serves the merged router over
-    // the plain axum builder instead.
+    // Three modes, in precedence order:
+    //   * TLS (when `public_tls` is set): terminates TLS with the public cert
+    //     and serves HTTP + gRPC over one TLS port, ALPN-negotiated (`h2` for
+    //     gRPC, `http/1.1` for HTTP). TLS is incompatible with the sendfile
+    //     accelerator, so it uses the plain hyper path like the HTTPS listener.
+    //   * accelerated plaintext: routes through the same accelerated server as
+    //     the public port, so HTTP/1 artifact GETs get the sendfile/splice fast
+    //     path and gRPC (h2c) / other requests fall through to hyper.
+    //   * plain plaintext: the merged router over the axum builder.
+    // All modes use the fixed gRPC-sized HTTP/2 windows so co-hosted REAPI
+    // uploads run at full speed.
     let combined_handle_task = if let Some(combined_port) = state.config.combined_port {
         let combined_address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, combined_port));
-        info!("Kura combined HTTP+gRPC service listening on {combined_address}");
         let combined_router =
             http::public_router(state.clone()).merge(reapi::routes(state.clone()));
-        if state.config.accelerated_file_serving.enabled {
+        if let Some(public_tls) = state.config.public_tls.clone() {
+            info!("Kura combined HTTP+gRPC service listening on {combined_address} (TLS)");
+            let tls_config = build_public_rustls_config(&public_tls).await?;
+            Some(tokio::spawn(
+                async move {
+                    let mut server =
+                        axum_server::bind_rustls(combined_address, tls_config).handle(combined_handle);
+                    configure_combined_http_builder(server.http_builder());
+                    if let Err(error) = server.serve(combined_router.into_make_service()).await {
+                        tracing::error!("combined HTTP+gRPC server failed: {error}");
+                    }
+                }
+                .in_current_span(),
+            ))
+        } else if state.config.accelerated_file_serving.enabled {
+            info!("Kura combined HTTP+gRPC service listening on {combined_address}");
             let combined_state = state.clone();
             let combined_config = state.config.accelerated_file_serving.clone();
             Some(tokio::spawn(
@@ -413,6 +432,7 @@ async fn run_with_config(
                 .in_current_span(),
             ))
         } else {
+            info!("Kura combined HTTP+gRPC service listening on {combined_address}");
             Some(tokio::spawn(
                 async move {
                     let mut server = axum_server::bind(combined_address).handle(combined_handle);
@@ -1047,6 +1067,101 @@ mod tests {
         assert!(
             capabilities.cache_capabilities.is_some(),
             "REAPI GetCapabilities over the combined port should return cache capabilities"
+        );
+
+        handle.shutdown();
+        let _ = server.await;
+    }
+
+    // Same as above but over TLS (reusing the public cert): both HTTPS and REAPI
+    // gRPC ride one TLS port, ALPN-negotiated (http/1.1 for HTTP, h2 for gRPC).
+    #[tokio::test]
+    async fn combined_listener_serves_http_and_grpc_over_tls() {
+        use bazel_remote_apis::build::bazel::remote::execution::v2::{
+            GetCapabilitiesRequest, capabilities_client::CapabilitiesClient,
+        };
+
+        let context = test_context(|_| {}).await;
+        let state = context.state.clone();
+
+        // Self-signed cert for "localhost", loaded through PublicTlsConfig so the
+        // test exercises the real build_public_rustls_config path (ALPN + all).
+        let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_string()])
+            .expect("generate self-signed cert");
+        let cert_pem = cert.cert.pem();
+        let key_pem = cert.signing_key.serialize_pem();
+        let dir = tempfile::tempdir().expect("temp dir");
+        let cert_path = dir.path().join("tls.crt");
+        let key_path = dir.path().join("tls.key");
+        std::fs::write(&cert_path, &cert_pem).expect("write cert");
+        std::fs::write(&key_path, &key_pem).expect("write key");
+        let public_tls = crate::config::PublicTlsConfig { cert_path, key_path };
+        let tls_config = crate::peer_tls::build_public_rustls_config(&public_tls)
+            .await
+            .expect("build public rustls config");
+
+        let router =
+            crate::http::public_router(state.clone()).merge(crate::reapi::routes(state.clone()));
+        let handle = Handle::new();
+        let server_handle = handle.clone();
+        let server = tokio::spawn(async move {
+            let mut server =
+                axum_server::bind_rustls(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)), tls_config)
+                    .handle(server_handle);
+            configure_combined_http_builder(server.http_builder());
+            let _ = server.serve(router.into_make_service()).await;
+        });
+
+        let addr = timeout(Duration::from_secs(5), handle.listening())
+            .await
+            .expect("combined TLS listener should bind within timeout")
+            .expect("combined TLS listener should report its bound address");
+
+        // HTTPS cache surface answers on the combined port.
+        let http = reqwest::Client::builder()
+            .add_root_certificate(
+                reqwest::Certificate::from_pem(cert_pem.as_bytes()).expect("trust test cert"),
+            )
+            .resolve("localhost", addr)
+            .build()
+            .expect("build https client")
+            .get(format!("https://localhost:{}/up", addr.port()))
+            .send()
+            .await
+            .expect("combined TLS port should answer HTTPS /up");
+        assert_eq!(http.status(), reqwest::StatusCode::OK);
+
+        // REAPI gRPC answers over TLS (ALPN h2) on the same port. Dial the IP and
+        // pin the cert domain so the test never depends on localhost resolution.
+        let client_tls = tonic::transport::ClientTlsConfig::new()
+            .ca_certificate(tonic::transport::Certificate::from_pem(cert_pem.as_bytes()))
+            .domain_name("localhost");
+        let mut grpc_client = None;
+        for _ in 0..50 {
+            let endpoint = tonic::transport::Endpoint::from_shared(format!("https://{addr}"))
+                .expect("valid gRPC endpoint")
+                .tls_config(client_tls.clone())
+                .expect("apply client tls");
+            match endpoint.connect().await {
+                Ok(channel) => {
+                    grpc_client = Some(CapabilitiesClient::new(channel));
+                    break;
+                }
+                Err(_) => tokio::time::sleep(Duration::from_millis(20)).await,
+            }
+        }
+        let mut grpc_client =
+            grpc_client.expect("combined TLS port should accept gRPC (h2 over TLS) connections");
+        let capabilities = grpc_client
+            .get_capabilities(GetCapabilitiesRequest {
+                instance_name: String::new(),
+            })
+            .await
+            .expect("combined TLS port should answer REAPI GetCapabilities")
+            .into_inner();
+        assert!(
+            capabilities.cache_capabilities.is_some(),
+            "REAPI GetCapabilities over the combined TLS port should return cache capabilities"
         );
 
         handle.shutdown();
