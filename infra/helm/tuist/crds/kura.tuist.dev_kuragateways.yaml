@@ -80,6 +80,8 @@ spec:
                   type: object
                   additionalProperties:
                     type: string
+                hostNetwork:
+                  type: boolean
             status:
               type: object
               properties:

@@ -14,6 +14,11 @@ type KuraGatewaySpec struct {
 	Replicas                *int32            `json:"replicas,omitempty"`
 	NodeSelector            map[string]string `json:"nodeSelector,omitempty"`
 	LoadBalancerAnnotations map[string]string `json:"loadBalancerAnnotations,omitempty"`
+	// HostNetwork runs the gateway nginx on the node's host network and
+	// exposes it via a ClusterIP Service instead of a cloud LoadBalancer.
+	// Bare-metal nodes (Dedibox) have no Hetzner LB, so the gateway binds
+	// the node's public IP directly.
+	HostNetwork bool `json:"hostNetwork,omitempty"`
 }
 
 type KuraGatewayStatus struct {

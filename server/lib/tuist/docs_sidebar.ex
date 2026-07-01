@@ -374,6 +374,7 @@ defmodule Tuist.Docs.Sidebar do
             slug: "/en/guides/server/accounts-and-projects"
           },
           %Item{label: "Authentication", slug: "/en/guides/server/authentication"},
+          %Item{label: "Data retention", slug: "/en/guides/server/data-retention"},
           %Item{label: "Network", slug: "/en/guides/server/network"},
           %Item{
             label: "Self-hosting",

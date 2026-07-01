@@ -3,12 +3,46 @@ package bootstrap
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"errors"
 	"net"
 	"strings"
 	"testing"
 
 	"golang.org/x/crypto/ssh"
 )
+
+func TestHostKeyState_PinnedMismatchReturnsTypedError(t *testing.T) {
+	_, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signer, err := ssh.NewSignerFromKey(priv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pub := signer.PublicKey()
+	fp := ssh.FingerprintSHA256(pub)
+
+	// TOFU: an empty pin accepts the first key and records it.
+	tofu := NewHostKeyState("")
+	if err := tofu.Callback()("host", &net.IPAddr{}, pub); err != nil {
+		t.Fatalf("TOFU should accept the first key: %v", err)
+	}
+	if tofu.Observed() != fp {
+		t.Fatalf("Observed = %q, want %q", tofu.Observed(), fp)
+	}
+
+	// A pin that doesn't match the presented key is rejected with a typed
+	// error so the reinstall-on-release controllers can re-TOFU (errors.Is).
+	pinned := NewHostKeyState("SHA256:0000000000000000000000000000000000000000000")
+	err = pinned.Callback()("host", &net.IPAddr{}, pub)
+	if err == nil {
+		t.Fatal("expected a host key mismatch error")
+	}
+	if !errors.Is(err, ErrHostKeyMismatch) {
+		t.Fatalf("error %v does not match ErrHostKeyMismatch", err)
+	}
+}
 
 func TestEncodeKCPasswordPadsToTwelveBytes(t *testing.T) {
 	out := encodeKCPassword("hello")

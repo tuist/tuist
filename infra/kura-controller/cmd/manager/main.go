@@ -89,6 +89,15 @@ func main() {
 		setupLog.Error(err, "setup KuraGatewayReconciler")
 		os.Exit(1)
 	}
+	if err := (&controllers.PeerDemuxReconciler{
+		Client:    mgr.GetClient(),
+		APIReader: mgr.GetAPIReader(),
+		Scheme:    mgr.GetScheme(),
+		Image:     os.Getenv("KURA_PEER_DEMUX_IMAGE"),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup PeerDemuxReconciler")
+		os.Exit(1)
+	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "set up health check")

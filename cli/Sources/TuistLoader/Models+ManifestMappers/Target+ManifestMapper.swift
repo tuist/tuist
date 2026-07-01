@@ -20,6 +20,15 @@ public enum TargetManifestMapperError: FatalError, Equatable {
     }
 }
 
+extension XcodeGraph.TargetDependency {
+    fileprivate var isXCFrameworkDependency: Bool {
+        if case .xcframework = self {
+            return true
+        }
+        return false
+    }
+}
+
 // swiftlint:disable function_body_length
 extension XcodeGraph.Target {
     /// Maps a ProjectDescription.Target instance into a XcodeGraph.Target instance.
@@ -44,12 +53,28 @@ extension XcodeGraph.Target {
         let productName = manifest.productName
         let deploymentTargets = manifest.deploymentTargets.map { XcodeGraph.DeploymentTargets.from(manifest: $0) } ?? .empty()
 
-        let dependencies = try manifest.dependencies.flatMap {
-            try XcodeGraph.TargetDependency.from(
-                manifest: $0,
+        var dependencies: [XcodeGraph.TargetDependency] = []
+        var externalXCFrameworkDependencies = Set<XcodeGraph.TargetDependency>()
+        for manifestDependency in manifest.dependencies {
+            let mappedDependencies = try XcodeGraph.TargetDependency.from(
+                manifest: manifestDependency,
                 generatorPaths: generatorPaths,
                 externalDependencies: externalDependencies
             )
+
+            if case .external = manifestDependency {
+                for mappedDependency in mappedDependencies {
+                    guard !mappedDependency.isXCFrameworkDependency else {
+                        if externalXCFrameworkDependencies.insert(mappedDependency).inserted {
+                            dependencies.append(mappedDependency)
+                        }
+                        continue
+                    }
+                    dependencies.append(mappedDependency)
+                }
+            } else {
+                dependencies.append(contentsOf: mappedDependencies)
+            }
         }
 
         let infoPlist = try XcodeGraph.InfoPlist.from(manifest: manifest.infoPlist, generatorPaths: generatorPaths)

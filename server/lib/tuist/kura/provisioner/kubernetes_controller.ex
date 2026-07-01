@@ -224,10 +224,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "meshPublicPeerHost" => mesh_public_peer_host(account_handle, region),
           "meshExternalPeers" => mesh_external_peers(region, external_peers),
           "meshPublicPeerLoadBalancerAnnotations" => mesh_public_peer_lb_annotations(region),
+          "meshPeerHostNetwork" => mesh_peer_host_network?(region),
+          "meshPeerFailoverIp" => mesh_peer_failover_ip(region),
           "private" => Regions.private?(region),
           "exposeNodePort" => Regions.node_port_data_plane?(region),
           "clientCIDRs" => client_cidrs(region),
           "podAnnotations" => pod_annotations(region),
+          "egressGuaranteedMbps" => egress_guaranteed_mbps(account, region),
           "storageClassName" => storage_class(region),
           "storageSize" => storage_size(region),
           "replicas" => replicas(region),
@@ -266,6 +269,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "nodeSelector" => node_selector(region),
           "loadBalancerAnnotations" => gateway_load_balancer_annotations(gateway_name, region)
         }
+        |> maybe_put_host_network(region)
         |> Enum.reject(fn {_key, value} -> value in [nil, ""] or value == %{} end)
         |> Map.new()
     }
@@ -353,6 +357,21 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   defp mesh_public_peer_lb_annotations(_region), do: nil
+
+  # The peer plane is host-network exactly when the regional gateway is: on
+  # bare metal there is no cloud LB, so the public peer endpoint is served by a
+  # host-network SNI-passthrough demux on the box NIC instead of a per-instance
+  # LoadBalancer. Tells the controller to make the per-instance peer Service
+  # ClusterIP and publish DNS via a DNSEndpoint to the region's failover IP.
+  defp mesh_peer_host_network?(region) do
+    mesh_enabled?(region) and gateway_host_network?(region)
+  end
+
+  # The region's public peer failover IP that the host-network peer DNSEndpoint
+  # targets. nil (dropped) on the Hetzner LB regions or when none is configured.
+  defp mesh_peer_failover_ip(region) do
+    if mesh_peer_host_network?(region), do: Map.get(region.provisioner_config, :failover_ip)
+  end
 
   defp node_selector_annotation(region) do
     case node_selector(region) do
@@ -447,6 +466,19 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp pod_annotations(_), do: nil
 
+  # Guaranteed egress floor: the region's per-tenant Mbps reserved as the
+  # tuist.dev/egress-mbps extended resource so the scheduler bin-packs the pod
+  # against the node's advertised budget. Enterprise-only — the default pattern
+  # is bursty, so non-enterprise tenants run best-effort under the Cilium burst
+  # ceiling alone and pack densely. nil (dropped) when the region has no floor or
+  # the account isn't entitled.
+  defp egress_guaranteed_mbps(account, %Regions{provisioner_config: %{egress_guaranteed_mbps: mbps}})
+       when is_integer(mbps) and mbps > 0 do
+    if Entitlements.allows?(account, :guaranteed_egress_floor), do: mbps
+  end
+
+  defp egress_guaranteed_mbps(_account, _region), do: nil
+
   # Private (runner-cache) regions never get a gateway: their whole
   # invariant is "no public endpoint, no LoadBalancer" — a dedicated
   # gateway for a hosted-enterprise account would silently recreate
@@ -513,6 +545,15 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp gateway_replicas(%Regions{provisioner_config: %{gateway_replicas: replicas}}), do: replicas
   defp gateway_replicas(_region), do: 2
+
+  defp maybe_put_host_network(spec, region) do
+    if gateway_host_network?(region), do: Map.put(spec, "hostNetwork", true), else: spec
+  end
+
+  defp gateway_host_network?(%Regions{provisioner_config: %{gateway: :host_network}}), do: true
+  defp gateway_host_network?(_region), do: false
+
+  defp gateway_load_balancer_annotations(_gateway_name, %Regions{provisioner_config: %{gateway: :host_network}}), do: %{}
 
   defp gateway_load_balancer_annotations(gateway_name, %Regions{provisioner_config: config}) do
     annotations = %{
