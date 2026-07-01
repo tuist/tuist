@@ -230,4 +230,3 @@ func (m *HostKuraManager) now() time.Time {
 	}
 	return time.Now()
 }
-
