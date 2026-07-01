@@ -44,12 +44,18 @@ GRANT USAGE, SELECT ON SEQUENCE :"tuist_schema".oban_jobs_id_seq TO tuist_proces
 -- to by the worker — hence no INSERT/UPDATE.
 GRANT SELECT ON :"tuist_schema".accounts, :"tuist_schema".projects TO tuist_processor;
 
--- The test ingestion path (create_test -> create_test_modules ->
--- dispatch_test_case_created_webhooks) reads webhook_endpoints to resolve
--- outbound webhook subscribers whenever a run introduces a test case seen
--- for the first time on the default branch. Without this SELECT the whole
--- ingestion Oban job raises 42501 mid-run and retries into partial data.
-GRANT SELECT ON :"tuist_schema".webhook_endpoints TO tuist_processor;
+-- Outbound-feature reads the test ingestion path (create_test ->
+-- create_test_modules -> create_test_cases_for_module) performs when a run
+-- introduces a test case seen for the first time on the default branch:
+--   * webhook_endpoints  — dispatch_test_case_created_webhooks resolves
+--                          `test_case.created` subscribers.
+--   * automation_alerts  — enqueue_flaky_alert_evaluations looks up enabled
+--                          flaky-test monitors to schedule evaluations.
+-- Both were wired into the shared ingestion path after this grant set was
+-- first scoped; without the SELECTs the Oban job raises 42501 mid-run and
+-- retries into partial data (one surfaces only once the prior is granted
+-- and ingestion runs one table further down).
+GRANT SELECT ON :"tuist_schema".webhook_endpoints, :"tuist_schema".automation_alerts TO tuist_processor;
 
 -- Re-assert the intersection explicitly. New tables added by future
 -- migrations stay off-limits until grants are re-issued here; the
@@ -57,7 +63,7 @@ GRANT SELECT ON :"tuist_schema".webhook_endpoints TO tuist_processor;
 REVOKE ALL ON ALL TABLES IN SCHEMA :"tuist_schema" FROM tuist_processor;
 GRANT SELECT, INSERT, UPDATE, DELETE ON :"tuist_schema".oban_jobs, :"tuist_schema".oban_peers TO tuist_processor;
 GRANT SELECT ON :"tuist_schema".accounts, :"tuist_schema".projects TO tuist_processor;
-GRANT SELECT ON :"tuist_schema".webhook_endpoints TO tuist_processor;
+GRANT SELECT ON :"tuist_schema".webhook_endpoints, :"tuist_schema".automation_alerts TO tuist_processor;
 
 COMMIT;
 
