@@ -118,6 +118,10 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.strategy != '' }}
     runs-on: tuist-staging-macos
     timeout-minutes: 90
+    # id-token for the secretless OIDC `tuist auth login` against staging.
+    permissions:
+      contents: read
+      id-token: write
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       RUNNER_LABEL: staging-hostkura
@@ -125,6 +129,9 @@ jobs:
       TUIST_CANARY_TAG: 4.202.0-canary.14
       TUIST_FIXTURE_REF: 4.202.0-canary.14
       HYPERFINE_RUNS: ${{ inputs.runs }}
+      # Auth control-plane against staging; the CAS data-plane stays on the
+      # dispatch-set TUIST_CACHE_ENDPOINT (the host Kura).
+      TUIST_URL: https://staging.tuist.dev
     steps:
       - name: Diagnostics — cache endpoint the dispatch handed us
         run: |
@@ -153,6 +160,14 @@ jobs:
             https://github.com/tuist/tuist.git fixture
           grep fullHandle fixture/Tuist.swift || true
           rm -f fixture/mise.toml fixture/.mise.toml fixture/.tool-versions
+
+      - name: Authenticate Tuist against staging (GitHub OIDC)
+        working-directory: fixture
+        run: |
+          set -euo pipefail
+          echo "TUIST_URL=${TUIST_URL}"
+          tuist auth login
+          tuist auth whoami || true
 
       - name: Skip Xcode macro/package fingerprint validation
         run: |
