@@ -1,0 +1,62 @@
+{{- if and .Values.registry.enabled .Values.registry.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "registry") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: registry
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "registry") | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.registry.networkPolicy.ingressControllerNamespace | quote }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.registry.networkPolicy.ingressControllerPodLabels | nindent 14 }}
+    {{- if and .Values.registry.metrics.enabled .Values.registry.networkPolicy.observabilityNamespace }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.registry.networkPolicy.observabilityNamespace | quote }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.registry.metrics.port }}
+    {{- end }}
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.registry.networkPolicy.dnsNamespace | quote }}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- with .Values.registry.networkPolicy.observabilityNamespace }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ . | quote }}
+      ports:
+        - protocol: TCP
+          port: 4317
+        - protocol: TCP
+          port: 4318
+    {{- end }}
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 4317
+{{- end }}

@@ -13,12 +13,19 @@ defmodule Tuist.Oban.RuntimeConfig do
   has an empty crontab, so the gate stays an allowlist by construction.
   """
 
+  alias Tuist.Registry.Swift.SyncWorker
+
   @shared_crons [
     {"@hourly", Tuist.Slack.Workers.ReportWorker},
     {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
     {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
     {"* * * * *", Tuist.Automations.Workers.AutomationScheduler},
     {"@daily", Tuist.Runners.Workers.PruneArchivedLogsWorker}
+  ]
+
+  @swift_registry_sync_cron {"*/10 * * * *", SyncWorker}
+  @preview_crons [
+    {"* * * * *", SyncWorker}
   ]
 
   @hosted_only_crons [
@@ -38,7 +45,12 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"* * * * *", Tuist.Runners.Workers.OrphanedRunnersWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedStampedPodsWorker},
     {"*/5 * * * *", Tuist.Runners.Workers.WebhookRedeliveryWorker},
-    {"*/5 * * * *", Tuist.Runners.Workers.StaleQueuedJobsWorker}
+    {"*/5 * * * *", Tuist.Runners.Workers.StaleQueuedJobsWorker},
+    # Cron fires on the :web leader; the resulting `:swift_registry_sync`
+    # job is consumed by the swift-registry-sync pod
+    # (`TUIST_MODE=swift_registry_sync`). Hosted-only because the
+    # registry mirror is a hosted-only feature.
+    @swift_registry_sync_cron
   ]
 
   @prod_like_envs [:prod, :stag, :can]
@@ -46,21 +58,28 @@ defmodule Tuist.Oban.RuntimeConfig do
   @doc """
   Crontab for the given pod mode, deploy env, and `tuist_hosted?` flag.
 
-  Empty for any non-`:web` pod, any non-prod-like env, or any
-  combination thereof. On `:web` + prod-like env, returns project-level
-  crons (alerts, automations, per-project Slack reports, sharded-test
-  cleanup) — Tuist-hosted deployments additionally get the internal Slack
-  ops reports, account-usage rollup, and Stripe metered-billing reconciler.
+  Empty for any non-`:web` pod. On `:web` + prod-like env, returns
+  project-level crons (alerts, automations, per-project Slack reports,
+  sharded-test cleanup) — Tuist-hosted deployments additionally get the
+  internal Slack ops reports, account-usage rollup, and Stripe
+  metered-billing reconciler. Preview gets only the Swift registry sync
+  cron, regardless of hosted flag, so registry previews can exercise the
+  same queue path without running production housekeeping.
   """
   def crontab(mode, env, tuist_hosted?) do
-    if mode == :web and env in @prod_like_envs do
-      if tuist_hosted? do
-        @hosted_only_crons ++ @shared_crons
-      else
-        @shared_crons
-      end
-    else
-      []
+    cond do
+      mode == :web and env == :preview ->
+        @preview_crons
+
+      mode == :web and env in @prod_like_envs ->
+        if tuist_hosted? do
+          @hosted_only_crons ++ @shared_crons
+        else
+          @shared_crons
+        end
+
+      true ->
+        []
     end
   end
 

@@ -1,4 +1,8 @@
 {{- if and .Values.server.enabled .Values.server.migrationJob.enabled }}
+{{- $secretName := include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+{{- $masterKeySecretName := ternary (include "tuist.componentName" (dict "root" . "component" "server-external-secrets")) $secretName .Values.server.managedSecrets }}
+{{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" . -}}
+{{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" . -}}
 {{- if .Values.server.migrationJob.asHook }}
 # Dedicated SA for the migration Job: pre-install/upgrade hooks run
 # before regular release resources exist, so the Job can't reference
@@ -23,9 +27,6 @@ metadata:
     helm.sh/hook-delete-policy: before-hook-creation
 ---
 {{- end }}
-{{- $secretName := include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
-{{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" . -}}
-{{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" . -}}
 apiVersion: batch/v1
 kind: Job
 metadata:
