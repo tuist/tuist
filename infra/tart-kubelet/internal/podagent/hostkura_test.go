@@ -3,10 +3,27 @@ package podagent
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 )
+
+func TestWriteEndpoint(t *testing.T) {
+	dir := t.TempDir()
+	if err := WriteEndpoint(dir, "192.168.64.1", 4000); err != nil {
+		t.Fatalf("WriteEndpoint: %v", err)
+	}
+	b, err := os.ReadFile(filepath.Join(dir, RunnerCacheEndpointFile))
+	if err != nil {
+		t.Fatalf("read marker: %v", err)
+	}
+	if got := strings.TrimSpace(string(b)); got != "http://192.168.64.1:4000" {
+		t.Fatalf("endpoint marker = %q, want http://192.168.64.1:4000", got)
+	}
+}
 
 // fakeKura is a KuraProcess that never execs anything.
 type fakeKura struct {

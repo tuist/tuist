@@ -3,10 +3,29 @@ package podagent
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
 )
+
+// RunnerCacheEndpointFile is the marker tart-kubelet writes into the per-VM
+// share once the account's host Kura is up. dispatch-poll.sh reads it and
+// exports it as TUIST_CACHE_ENDPOINT, so the job's cache client talks to the
+// host Kura over the vmnet bridge. This replaces #11580's cache clone-in: the
+// share carries an endpoint, not a copy of the cache.
+const RunnerCacheEndpointFile = ".tuist-cache-endpoint"
+
+// WriteEndpoint writes http://<hostAddr>:<port> into the per-VM share. hostAddr
+// is the host's vmnet-bridge IP (the VM's gateway), resolved by the reconciler
+// from the VM IP; port is the account's host Kura cache port.
+func WriteEndpoint(shareDir, hostAddr string, port int) error {
+	url := fmt.Sprintf("http://%s:%d", hostAddr, port)
+	if err := os.WriteFile(filepath.Join(shareDir, RunnerCacheEndpointFile), []byte(url+"\n"), 0o644); err != nil {
+		return fmt.Errorf("write cache endpoint marker: %w", err)
+	}
+	return nil
+}
 
 // HostKuraManager runs one persistent Kura process per account on the Mac host
 // (Option A). Each process serves that account's cache volume
