@@ -13,11 +13,14 @@
 # body, long grpc timeouts, no buffering) and is identical between the two, so
 # the measured difference is attributable to the window directives alone.
 #
-# The upstream targets kura's co-hosted combined HTTP + h2c gRPC listener
-# (KURA_COMBINED_PORT=8080), not the dedicated gRPC port, so the patched path —
-# nginx with the production HTTP/2 window — also validates REAPI uploads through
-# the combined listener behind the gateway. Baseline uses the same upstream, so
-# the backend is held constant and only the window differs between the two.
+# The upstream server is a marker (__KURA_UPSTREAM__) the confgen step
+# substitutes: baseline.conf and patched.conf proxy to kura's co-hosted combined
+# HTTP + h2c gRPC listener (kura:8080), so the patched path validates REAPI
+# uploads through the combined listener behind the production gateway window;
+# patched-grpc.conf reuses the patched window but proxies to the dedicated gRPC
+# port (kura:50051), giving a same-window combined-vs-dedicated comparison.
+# Within any single rendered config baseline and patched share one upstream, so
+# the measured speedup stays attributable to the window alone.
 
 worker_processes auto;
 events { worker_connections 4096; }
@@ -29,7 +32,7 @@ http {
     # __WINDOW_DIRECTIVES__
 
     upstream kura_grpc {
-        server kura:8080;
+        server __KURA_UPSTREAM__;
         keepalive 16;
         keepalive_requests 10000;
         keepalive_timeout 10s;
