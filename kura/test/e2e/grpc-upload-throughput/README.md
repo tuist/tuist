@@ -20,8 +20,14 @@ toxiproxy injecting identical symmetric latency:
 ```
 client ─► toxiproxy ─► nginx-baseline (default window, today)        ─► kura
        (latency)    ─► nginx-patched  (raised window from chart, the fix) ─► kura
-                    ─► kura (direct, kura's own stream window)
+                    ─► kura combined port (co-hosted HTTP+gRPC, kura's own stream window)
 ```
+
+The direct control targets kura's **combined port** (`KURA_COMBINED_PORT`, the
+co-hosted HTTP + h2c gRPC listener) rather than the dedicated gRPC port, so it
+also confirms that co-hosting both protocols on one port does not regress large
+REAPI upload throughput — the combined listener advertises the same 4MB HTTP/2
+stream window as the dedicated gRPC listener.
 
 Both nginx configs are **generated** by the harness (the client image's
 `genconfs` subcommand) from a single template (`nginx/nginx.conf.tmpl`):
