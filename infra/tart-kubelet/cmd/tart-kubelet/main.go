@@ -66,6 +66,9 @@ func main() {
 		probeAddr          string
 		tartBinary         string
 		runnerCacheRoot    string
+		hostKuraBinary     string
+		hostKuraBasePort   int
+		emPeerURLTemplate  string
 		disableVMGC        bool
 	)
 	flag.StringVar(&nodeName, "node-name", envOr("TART_KUBELET_NODE_NAME", ""), "Node name to register as. Defaults to os.Hostname() when empty.")
@@ -105,6 +108,12 @@ func main() {
 	flag.StringVar(&tartBinary, "tart-binary", "/usr/local/bin/tart", "Path to the local tart CLI.")
 	flag.StringVar(&runnerCacheRoot, "runner-cache-root", envOr("TART_KUBELET_RUNNER_CACHE_ROOT", ""),
 		"Host directory containing runner cache volumes. When set, Pods annotated with tart-kubelet.tuist.dev/runner-cache-volume=true get a per-VM tuist-cache share cloned from <root>/accounts/<account-id>/current once the Tuist server stamps tuist.dev/runner-account.")
+	flag.StringVar(&hostKuraBinary, "host-kura-binary", envOr("TART_KUBELET_HOST_KURA_BINARY", ""),
+		"Path to the kura executable on the host. When set together with --runner-cache-root, tart-kubelet runs a persistent per-account host Kura (Option A) and points each runner VM at it via an endpoint marker in the tuist-cache share, instead of cloning the cache into the share. Empty disables the host-Kura path (the clone-in path is used).")
+	flag.IntVar(&hostKuraBasePort, "host-kura-base-port", 4100,
+		"First host port handed to a per-account host Kura; subsequent accounts get the next free port at or above it. Must not collide with the in-VM Kura port (4000).")
+	flag.StringVar(&emPeerURLTemplate, "em-peer-url-template", envOr("TART_KUBELET_EM_PEER_URL_TEMPLATE", ""),
+		"Plaintext http URL template for the Elastic Metal (EM) Kura peer the host Kura replicates with, with %s replaced by the account id (e.g. http://10.0.0.5:5000). Empty runs each host Kura islanded (no EM peer); the PN mesh fan-out beyond EM is EM's responsibility, not the Mac's.")
 	flag.BoolVar(&disableVMGC, "disable-vm-gc", false,
 		"Disable the periodic orphan-VM garbage collector. The GC deletes every local "+
 			"Tart VM not backed by a Pod scheduled to this Node. On builder-fleet Nodes — "+
@@ -263,6 +272,22 @@ func main() {
 		cacheVolumes = &podagent.CacheVolumeManager{RootDir: runnerCacheRoot}
 	}
 
+	// Option A: a persistent per-account host Kura the runner VMs talk to over
+	// the host<->VM bridge. Requires both the cache root and a kura binary.
+	var hostKura *podagent.HostKuraManager
+	if runnerCacheRoot != "" && hostKuraBinary != "" {
+		hostKura = &podagent.HostKuraManager{
+			Root:       runnerCacheRoot,
+			KuraBinary: hostKuraBinary,
+			BasePort:   hostKuraBasePort,
+		}
+		if emPeerURLTemplate != "" {
+			hostKura.PeerURLFor = func(accountID string) string {
+				return fmt.Sprintf(emPeerURLTemplate, accountID)
+			}
+		}
+	}
+
 	// Typed kubernetes.Interface for TokenRequest — the
 	// controller-runtime client doesn't expose CreateToken on
 	// ServiceAccounts because TokenRequest is a subresource that
@@ -282,6 +307,7 @@ func main() {
 		Resolver:           resolver,
 		Store:              store,
 		CacheVolumes:       cacheVolumes,
+		HostKura:           hostKura,
 		TokenMinter:        &satoken.ClientMinter{Client: typedClient, ExpirationSeconds: 3600},
 		GC:                 gcCollector,
 		Recorder:           mgr.GetEventRecorderFor("tart-kubelet"),

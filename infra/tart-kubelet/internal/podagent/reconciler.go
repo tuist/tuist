@@ -76,6 +76,17 @@ type Reconciler struct {
 	// the current no-cache-share behavior.
 	CacheVolumes *CacheVolumeManager
 
+	// HostKura runs the persistent per-account host Kura (Option A). When set it
+	// takes precedence over CacheVolumes' clone-in: instead of copying the cache
+	// into the per-VM share, tart-kubelet points the VM at the host Kura via an
+	// endpoint marker in the share, and the merge-back on teardown is skipped
+	// (the host Kura owns the account cache and persists across VMs). Optional.
+	HostKura *HostKuraManager
+	// hostBridgeIP resolves the host's vmnet-bridge IP for a VM IP (the address
+	// the VM uses to reach the host Kura). Defaults to HostBridgeIPForVM;
+	// injectable for tests.
+	hostBridgeIP func(vmIP string) (string, error)
+
 	// TokenMinter mints projected ServiceAccount tokens for Pods
 	// whose Spec.AutomountServiceAccountToken is true. Optional —
 	// when nil, no token is staged (the env file is the only file
@@ -723,8 +734,13 @@ func (r *Reconciler) deleteByKey(ctx context.Context, namespace, name string) er
 
 	_ = r.Tart.Stop(ctx, entry.VMName, 30*time.Second)
 	if r.CacheVolumes != nil {
-		if err := r.CacheVolumes.Finalize(ctx, entry); err != nil {
-			return err
+		// Under the host-Kura path the persistent host Kura owns the account
+		// cache, so there is no per-VM merge-back — only tear down the share.
+		// The clone-in path (no HostKura) still merges the share into `current`.
+		if r.HostKura == nil {
+			if err := r.CacheVolumes.Finalize(ctx, entry); err != nil {
+				return err
+			}
 		}
 		if err := r.CacheVolumes.CleanupVM(entry.VMName); err != nil {
 			return err
@@ -739,10 +755,65 @@ func (r *Reconciler) deleteByKey(ctx context.Context, namespace, name string) er
 }
 
 func (r *Reconciler) prepareCacheVolume(ctx context.Context, pod *corev1.Pod, entry *Entry) error {
+	if r.HostKura.EnabledForPod(pod) {
+		return r.bindHostKura(ctx, pod, entry)
+	}
 	if r.CacheVolumes == nil {
 		return nil
 	}
 	return r.CacheVolumes.Bind(ctx, pod, entry)
+}
+
+// bindHostKura points a runner VM at the persistent per-account host Kura
+// (Option A). Once the dispatch-time account label is observed, it ensures the
+// account's host Kura is running and ready, resolves the host's bridge IP for
+// the VM, and writes the endpoint marker into the per-VM share. Returning a
+// non-nil error requeues the reconcile (e.g. the Kura is still bootstrapping or
+// the VM has no IP yet), which is the intended "wait and retry" behavior.
+func (r *Reconciler) bindHostKura(ctx context.Context, pod *corev1.Pod, entry *Entry) error {
+	accountID := strings.TrimSpace(pod.Labels[RunnerAccountLabel])
+	if accountID == "" {
+		return nil // account not stamped yet; nothing to bind
+	}
+	if entry.CachePreparedAccountID == accountID {
+		return nil // endpoint already written for this account
+	}
+	if entry.CacheShareDir == "" {
+		return nil // share not staged yet (createPod stages it first)
+	}
+
+	port, ready, err := r.HostKura.Ensure(ctx, accountID)
+	if err != nil {
+		return fmt.Errorf("ensure host kura for account %s: %w", accountID, err)
+	}
+	if !ready {
+		// Bootstrapping from EM; requeue until it is serving.
+		return fmt.Errorf("host kura for account %s not ready yet", accountID)
+	}
+
+	vmIP, err := r.Tart.IP(ctx, entry.VMName)
+	if err != nil {
+		return fmt.Errorf("resolve ip for vm %s: %w", entry.VMName, err)
+	}
+	if vmIP == "" {
+		return fmt.Errorf("vm %s has no IP yet", entry.VMName)
+	}
+
+	resolve := r.hostBridgeIP
+	if resolve == nil {
+		resolve = HostBridgeIPForVM
+	}
+	hostIP, err := resolve(vmIP)
+	if err != nil {
+		return fmt.Errorf("resolve host bridge ip for vm %s (%s): %w", entry.VMName, vmIP, err)
+	}
+
+	if err := WriteEndpoint(entry.CacheShareDir, hostIP, port); err != nil {
+		return fmt.Errorf("write cache endpoint marker: %w", err)
+	}
+	r.HostKura.Touch(accountID)
+	entry.CachePreparedAccountID = accountID
+	return nil
 }
 
 // podStatus reads the underlying VM and translates to a Pod status.

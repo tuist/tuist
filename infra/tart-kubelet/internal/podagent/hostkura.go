@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	corev1 "k8s.io/api/core/v1"
 )
 
 // RunnerCacheEndpointFile is the marker tart-kubelet writes into the per-VM
@@ -89,6 +91,15 @@ type KuraProcess interface {
 
 // ProcessStarter launches a Kura process for the given spec.
 type ProcessStarter func(ctx context.Context, binary string, spec KuraSpec) (KuraProcess, error)
+
+// EnabledForPod reports whether the host-Kura path applies to a Pod: the manager
+// is configured (Root set) and the Pod opts into the runner cache volume (same
+// annotation #11580 uses). Mirrors CacheVolumeManager.EnabledForPod.
+func (m *HostKuraManager) EnabledForPod(pod *corev1.Pod) bool {
+	return m != nil &&
+		m.Root != "" &&
+		pod.Annotations[RunnerCacheVolumeAnnotation] == "true"
+}
 
 // Ensure guarantees a host Kura for accountID is running against its cache
 // volume, starting one if needed. It returns the host port the process listens
