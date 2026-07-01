@@ -16,8 +16,9 @@ public func parseXCResult(
         XCResultParserError.failedToParseOutput(try! AbsolutePath(validating: path))
     )
     let semaphore = DispatchSemaphore(value: 0)
+    let progress = XCResultParserProgress()
 
-    Task { @Sendable in
+    let parseTask = Task { @Sendable in
         do {
             let xcresultPath = try AbsolutePath(validating: path)
             let rootDirectory = try AbsolutePath(validating: rootDir)
@@ -29,7 +30,8 @@ public func parseXCResult(
             guard let parsed = try await XCResultParser().parse(
                 path: xcresultPath,
                 rootDirectory: rootDirectory,
-                attachmentsDirectory: rootDirectory
+                attachmentsDirectory: rootDirectory,
+                progress: progress
             ) else {
                 result = .failure(XCResultParserError.failedToParseOutput(xcresultPath))
                 semaphore.signal()
@@ -45,7 +47,14 @@ public func parseXCResult(
     let timeoutSeconds = 600
     let timeout = semaphore.wait(timeout: .now() + .seconds(timeoutSeconds))
     if timeout == .timedOut {
-        result = .failure(XCResultParserError.timedOut(try! AbsolutePath(validating: path), seconds: timeoutSeconds))
+        parseTask.cancel()
+        result = .failure(
+            XCResultParserError.timedOut(
+                try! AbsolutePath(validating: path),
+                seconds: timeoutSeconds,
+                stage: progress.currentStage
+            )
+        )
     }
 
     switch result {
