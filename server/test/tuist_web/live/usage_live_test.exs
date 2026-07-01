@@ -40,6 +40,9 @@ defmodule TuistWeb.UsageLiveTest do
 
   defp disable_kura(account) do
     stub(Environment, :dev?, fn -> false end)
+    # Kura is on by default on non-hosted deployments, so the flag only gates
+    # visibility on the hosted server.
+    stub(Environment, :tuist_hosted?, fn -> true end)
     stub_kura_flag(account, false)
   end
 

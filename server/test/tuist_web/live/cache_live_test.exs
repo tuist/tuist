@@ -80,6 +80,40 @@ defmodule TuistWeb.CacheLiveTest do
     refute html =~ "cache-servers-table"
   end
 
+  test "is available on a self-hosted server without the kura flag", %{conn: conn, account: account} do
+    # Non-hosted deployments grant the Kura surface unconditionally, so the
+    # page and credential generation work even with the flag off.
+    stub(Environment, :dev?, fn -> false end)
+    stub(Environment, :tuist_hosted?, fn -> false end)
+    stub_cache_flag(account, false)
+    stub(Kura, :latest_versions, fn 1 -> [] end)
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/cache")
+
+    refute html =~ "not enabled for this account"
+    assert html =~ "Self-hosted cache servers"
+    assert html =~ "create_self_hosted_client"
+  end
+
+  test "hides the managed cache-servers section on a self-hosted server with no regions", %{
+    conn: conn,
+    account: account
+  } do
+    # Simulate a self-hosted production server: no managed regions are
+    # available, so only the self-hosted section should render.
+    stub(Environment, :dev?, fn -> false end)
+    stub(Environment, :test?, fn -> false end)
+    stub(Environment, :tuist_hosted?, fn -> false end)
+    stub(Environment, :kura_available_region_ids, fn -> [] end)
+    stub_cache_flag(account, false)
+    stub(Kura, :latest_versions, fn 1 -> [] end)
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/cache")
+
+    refute html =~ "cache-servers-table"
+    assert html =~ "Self-hosted cache servers"
+  end
+
   test "renders cache servers for cache-enabled accounts", %{conn: conn, account: account} do
     enable_cache(account)
     stub(Kura, :latest_versions, fn 1 -> [%{version: "0.5.2", released_at: DateTime.utc_now(:second)}] end)
@@ -265,6 +299,9 @@ defmodule TuistWeb.CacheLiveTest do
 
   defp disable_cache(account) do
     stub(Environment, :dev?, fn -> false end)
+    # The Cache surface is on by default on non-hosted deployments, so the
+    # only way it stays hidden is the hosted server with the flag off.
+    stub(Environment, :tuist_hosted?, fn -> true end)
     stub_cache_flag(account, false)
   end
 

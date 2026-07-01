@@ -10,7 +10,7 @@ defmodule TuistWeb.AccountSettingsLive do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Authorization
-  alias Tuist.Environment
+  alias Tuist.FeatureFlags
   alias Tuist.Kura
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
@@ -349,7 +349,7 @@ defmodule TuistWeb.AccountSettingsLive do
   end
 
   defp kura_enabled?(account) do
-    Environment.dev?() or FunWithFlags.enabled?(:kura, for: account)
+    FeatureFlags.kura_enabled?(account)
   end
 
   defp available_kura_regions(regions, servers) do

@@ -55,7 +55,7 @@ The key difference in configuration is that the **bridged** topology uses **enro
 
 A node uses an account-scoped control-plane client to authenticate cache requests (token introspection), report to the dashboard, and deliver usage. It is **not** how clients are routed to your nodes (see [How clients reach your nodes](#routing)), so a single node on a trusted network can run without one.
 
-1. Open your account's **Cache** page. If you don't see it, enable the `kura` feature flag for the account. On a self-hosted Tuist server the Enterprise entitlement is granted automatically, so the flag is the only prerequisite.
+1. Open your account's **Cache** page. On a self-hosted Tuist server it is available by default (the deployment's license is the entitlement). On the hosted `tuist.dev` server it requires an Enterprise plan and the `kura` feature flag.
 2. Choose **Generate credential**.
 3. Copy the `client_id` and the one-time `secret`.
 

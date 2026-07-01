@@ -8,7 +8,7 @@ defmodule TuistWeb.CacheLive do
   alias Phoenix.HTML.Form
   alias Tuist.Authorization
   alias Tuist.Billing.Entitlements
-  alias Tuist.Environment
+  alias Tuist.FeatureFlags
   alias Tuist.Kura
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Registrations
@@ -242,7 +242,7 @@ defmodule TuistWeb.CacheLive do
   end
 
   defp cache_enabled?(account) do
-    Environment.dev?() or FunWithFlags.enabled?(:kura, for: account)
+    FeatureFlags.kura_enabled?(account)
   end
 
   defp available_regions(regions, servers) do
