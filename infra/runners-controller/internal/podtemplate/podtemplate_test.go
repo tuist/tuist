@@ -593,6 +593,9 @@ func TestBuild_MacOSOptsIntoRunnerCacheVolume(t *testing.T) {
 	if got := envValue(runner.Env, "TUIST_RUNNER_LOCAL_KURA_ENDPOINT"); got != runnerLocalKuraEndpoint {
 		t.Errorf("local kura endpoint env = %q, want %q", got, runnerLocalKuraEndpoint)
 	}
+	if got := envValue(runner.Env, "TUIST_RUNNER_CACHE_ENDPOINT_FILE"); got != runnerCacheEndpointFile {
+		t.Errorf("cache endpoint file env = %q, want %q", got, runnerCacheEndpointFile)
+	}
 }
 
 func TestBuild_LinuxDoesNotOptIntoRunnerCacheVolume(t *testing.T) {
@@ -606,6 +609,7 @@ func TestBuild_LinuxDoesNotOptIntoRunnerCacheVolume(t *testing.T) {
 		"TUIST_RUNNER_LOCAL_CACHE_DIR",
 		"TUIST_RUNNER_LOCAL_CACHE_READY_FILE",
 		"TUIST_RUNNER_LOCAL_KURA_ENDPOINT",
+		"TUIST_RUNNER_CACHE_ENDPOINT_FILE",
 	} {
 		if got := envValue(runner.Env, name); got != "" {
 			t.Errorf("Linux runner env %s = %q, want absent", name, got)

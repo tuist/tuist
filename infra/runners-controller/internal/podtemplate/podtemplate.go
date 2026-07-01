@@ -47,6 +47,12 @@ const (
 	runnerLocalCacheDir         = "/Volumes/My Shared Files/tuist-cache"
 	runnerLocalCacheReadyFile   = runnerLocalCacheDir + "/.tuist-cache-ready"
 	runnerLocalKuraEndpoint     = "http://127.0.0.1:4000"
+	// runnerCacheEndpointFile is the marker tart-kubelet writes into the share
+	// under the host-Kura path (Option A): the http URL of the persistent
+	// per-account host Kura reachable over the host<->VM bridge. When present,
+	// dispatch-poll.sh routes the job's cache there instead of standing up an
+	// in-VM Kura. Keep the basename in sync with podagent.RunnerCacheEndpointFile.
+	runnerCacheEndpointFile = runnerLocalCacheDir + "/.tuist-cache-endpoint"
 )
 
 // Build returns the Pod manifest the controller stamps on the API
@@ -135,6 +141,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			corev1.EnvVar{Name: "TUIST_RUNNER_LOCAL_CACHE_DIR", Value: runnerLocalCacheDir},
 			corev1.EnvVar{Name: "TUIST_RUNNER_LOCAL_CACHE_READY_FILE", Value: runnerLocalCacheReadyFile},
 			corev1.EnvVar{Name: "TUIST_RUNNER_LOCAL_KURA_ENDPOINT", Value: runnerLocalKuraEndpoint},
+			corev1.EnvVar{Name: "TUIST_RUNNER_CACHE_ENDPOINT_FILE", Value: runnerCacheEndpointFile},
 		)
 	}
 

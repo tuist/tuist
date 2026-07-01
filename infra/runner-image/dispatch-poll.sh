@@ -135,7 +135,27 @@ while true; do
       # URL is a plain http(s) URL with no embedded quotes.
       cache_endpoint=$(sed -n 's/.*"cache_endpoint_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
       cache_peer_url=$(sed -n 's/.*"cache_peer_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
-      if [ -n "${TUIST_RUNNER_LOCAL_KURA_ENDPOINT:-}" ] &&
+      # Cache routing precedence:
+      #   1. Host-Kura endpoint marker (Option A) — tart-kubelet points us at
+      #      the persistent per-account host Kura over the host<->VM bridge. The
+      #      marker only appears once that Kura is serving, so its presence is
+      #      the "warm" signal; absence means cold, so we fall through to L2.
+      #   2. In-VM local Kura (clone-in path) — start Kura against the mounted
+      #      share cloned from the account's warm cache.
+      #   3. Dispatch cache_endpoint_url (L2, in-cluster) — the cold path.
+      host_kura_endpoint=""
+      if [ -n "${TUIST_RUNNER_CACHE_ENDPOINT_FILE:-}" ] && [ -s "${TUIST_RUNNER_CACHE_ENDPOINT_FILE}" ]; then
+        host_kura_endpoint="$(head -n 1 "${TUIST_RUNNER_CACHE_ENDPOINT_FILE}" | tr -d '[:space:]')"
+      fi
+
+      if [ -n "${host_kura_endpoint}" ] &&
+        curl -fsS --max-time 5 "${host_kura_endpoint}/ready" >/dev/null 2>&1; then
+        echo "$(date -u +%FT%TZ) dispatch-poll: routing cache to host Kura endpoint ${host_kura_endpoint}"
+        export TUIST_CACHE_ENDPOINT="${host_kura_endpoint}"
+      elif [ -n "${host_kura_endpoint}" ] && [ -n "${cache_endpoint}" ]; then
+        echo "$(date -u +%FT%TZ) dispatch-poll: host Kura endpoint ${host_kura_endpoint} unreachable; routing cache to dispatch endpoint ${cache_endpoint}"
+        export TUIST_CACHE_ENDPOINT="${cache_endpoint}"
+      elif [ -n "${TUIST_RUNNER_LOCAL_KURA_ENDPOINT:-}" ] &&
         [ -n "${TUIST_RUNNER_LOCAL_CACHE_READY_FILE:-}" ] &&
         [ -n "${TUIST_RUNNER_LOCAL_CACHE_DIR:-}" ] &&
         [ -x /opt/tuist/local-kura.sh ]; then
