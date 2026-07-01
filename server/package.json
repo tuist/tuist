@@ -3,7 +3,7 @@
   "private": true,
   "dependencies": {
     "@scalar/api-reference": "^1.52.0",
-    "echarts": "^5.6.0",
+    "echarts": "^6.0.0",
     "prettier-plugin-css-order": "^2.2.0",
     "typesense": "^3.0.5",
     "vanilla-cookieconsent": "3.1.0"
