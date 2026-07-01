@@ -13,12 +13,13 @@
 -- fallback for the window before the first migrate runs. Keep the two in
 -- sync: a table added to `do_grant_processor_role` belongs here too.
 --
--- The grant set tracks the PG surface the processor role touches: the
+-- The grant set tracks the Postgres surface the processor role touches: the
 -- build worker (`server/lib/tuist/builds/workers/process_build_worker.ex`)
 -- and the xcresult/test ingestion path (`Tuist.Tests.create_test/1` ->
--- `create_test_modules`, which reads `webhook_endpoints` when a run
--- introduces a first-run test case). Adding a new PG read or write in
--- those paths means adding the corresponding GRANT here and in
+-- `create_test_modules`, which reads `automation_alerts` when scheduling
+-- scoped flaky-test evaluations and `webhook_endpoints` when a run
+-- introduces a first-run test case). Adding a new Postgres read or write
+-- in those paths means adding the corresponding GRANT here and in
 -- `do_grant_processor_role` in the same change.
 --
 -- See infra/cnpg/README.md for how to run this file against a fresh
@@ -38,11 +39,11 @@ GRANT USAGE ON SCHEMA :"tuist_schema" TO tuist_processor;
 GRANT SELECT, INSERT, UPDATE, DELETE ON :"tuist_schema".oban_jobs, :"tuist_schema".oban_peers TO tuist_processor;
 GRANT USAGE, SELECT ON SEQUENCE :"tuist_schema".oban_jobs_id_seq TO tuist_processor;
 
--- Read-only lookups the worker performs. accounts.get_account_by_id/1
--- resolves the account for S3 scoping; Project |> Repo.get/2 reads the
--- project to decide whether to broadcast PubSub. Neither row is written
--- to by the worker — hence no INSERT/UPDATE.
-GRANT SELECT ON :"tuist_schema".accounts, :"tuist_schema".projects TO tuist_processor;
+-- Read-only lookups the workers perform. The build and xcresult workers
+-- resolve the project account for storage scoping; the xcresult worker also
+-- reads automation alerts when it schedules scoped flaky-test evaluations.
+-- These rows are not written by the processors, hence no INSERT/UPDATE.
+GRANT SELECT ON :"tuist_schema".accounts, :"tuist_schema".projects, :"tuist_schema".automation_alerts TO tuist_processor;
 
 -- The test ingestion path (create_test -> create_test_modules ->
 -- dispatch_test_case_created_webhooks) reads webhook_endpoints to resolve
@@ -56,7 +57,7 @@ GRANT SELECT ON :"tuist_schema".webhook_endpoints TO tuist_processor;
 -- REVOKE + re-GRANT pattern keeps the intent obvious.
 REVOKE ALL ON ALL TABLES IN SCHEMA :"tuist_schema" FROM tuist_processor;
 GRANT SELECT, INSERT, UPDATE, DELETE ON :"tuist_schema".oban_jobs, :"tuist_schema".oban_peers TO tuist_processor;
-GRANT SELECT ON :"tuist_schema".accounts, :"tuist_schema".projects TO tuist_processor;
+GRANT SELECT ON :"tuist_schema".accounts, :"tuist_schema".projects, :"tuist_schema".automation_alerts TO tuist_processor;
 GRANT SELECT ON :"tuist_schema".webhook_endpoints TO tuist_processor;
 
 COMMIT;

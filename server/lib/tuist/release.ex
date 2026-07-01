@@ -164,11 +164,11 @@ defmodule Tuist.Release do
   # per-table grants here — as the schema owner, on every migrate — keeps
   # them in lockstep with schema changes instead of drifting behind the
   # manual `infra/cnpg/tuist-processor-grants.sql` runbook. That drift is
-  # exactly what let a new table (`webhook_endpoints`) reach the ingestion
-  # path ungranted, raising `42501` mid-run and discarding the job into
-  # partial data. Gated on TUIST_DATABASE_PROCESSOR_ROLE, which the chart
-  # sets only for managed CNPG migration Jobs, so self-hosted and non-CNPG
-  # deployments leave the role untouched.
+  # exactly what let new tables (`automation_alerts`, `webhook_endpoints`)
+  # reach the ingestion path ungranted, raising `42501` mid-run and
+  # discarding the job into partial data. Gated on TUIST_DATABASE_PROCESSOR_ROLE,
+  # which the chart sets only for managed CNPG migration Jobs, so self-hosted
+  # and non-CNPG deployments leave the role untouched.
   defp grant_processor_role(repo) when repo == Tuist.Repo do
     case Environment.database_processor_role() do
       role when is_binary(role) and role != "" ->
@@ -204,7 +204,8 @@ defmodule Tuist.Release do
           "#{quoted_schema}.oban_jobs, #{quoted_schema}.oban_peers TO #{role}",
         "GRANT USAGE, SELECT ON SEQUENCE #{quoted_schema}.oban_jobs_id_seq TO #{role}",
         "GRANT SELECT ON TABLE " <>
-          "#{quoted_schema}.accounts, #{quoted_schema}.projects, #{quoted_schema}.webhook_endpoints TO #{role}"
+          "#{quoted_schema}.accounts, #{quoted_schema}.projects, #{quoted_schema}.automation_alerts, " <>
+          "#{quoted_schema}.webhook_endpoints TO #{role}"
       ],
       &SQL.query!(repo, &1, [])
     )
