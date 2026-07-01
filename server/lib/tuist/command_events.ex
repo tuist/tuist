@@ -126,6 +126,17 @@ defmodule Tuist.CommandEvents do
     Storage.generate_download_url(get_result_bundle_key(command_event), project.account)
   end
 
+  # Run-scoped variants for remote-processed test runs (`tuist inspect test`),
+  # which store the bundle under the test run id and have no command_event.
+  # `project` must have `:account` preloaded.
+  def has_result_bundle?(run_id, project) when is_binary(run_id) do
+    Storage.object_exists?(get_result_bundle_key(run_id, project), project.account)
+  end
+
+  def generate_result_bundle_url(run_id, project) when is_binary(run_id) do
+    Storage.generate_download_url(get_result_bundle_key(run_id, project), project.account)
+  end
+
   def has_session?(command_event) do
     {:ok, project} = get_project_for_command_event(command_event, preload: :account)
     Storage.object_exists?(get_session_key(command_event), project.account)
