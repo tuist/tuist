@@ -484,8 +484,18 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # invariant is "no public endpoint, no LoadBalancer" — a dedicated
   # gateway for a hosted-enterprise account would silently recreate
   # the public surface the region exists to avoid.
+  #
+  # Host-network (bare-metal) regions also never get a per-account gateway.
+  # The region's ingress runs as a single host-network gateway bound to the
+  # box's :80/:443; a second per-account host-network gateway can't bind the
+  # same ports on the same box, so it would sit unschedulable and its account
+  # would never serve. On bare metal every account uses the shared regional
+  # ingress class instead; account isolation there is a dedicated box, not a
+  # dedicated gateway. Dedicated gateways stay available on LoadBalancer
+  # regions, where each gets its own LB.
   defp gateway_assignment(account, %Regions{} = region) do
-    if not Regions.private?(region) and dedicated_gateway?(account, region) do
+    if not Regions.private?(region) and not gateway_host_network?(region) and
+         dedicated_gateway?(account, region) do
       gateway_name = gateway_name(account, region)
 
       %{
