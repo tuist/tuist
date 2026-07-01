@@ -1,0 +1,89 @@
+name: Staging Host-Kura Cache Bench
+
+# Runs the runners-benchmark cached-build scenarios on the staging macOS
+# host-Kura fleet (runs-on: tuist-staging-macos), against the account the
+# staging host Kura serves. tuist/tuist is the only repo connected to the
+# staging server for dispatch, so the benchmark lives here rather than in
+# runners-benchmark (which is connected to production). Dispatch-only; never
+# a default CI hook.
+on:
+  workflow_dispatch:
+    inputs:
+      strategy:
+        description: "benchmark.sh strategy (xcode-cache | module-cache | combined | no-cache)"
+        required: true
+        default: xcode-cache
+      runs:
+        description: "hyperfine timed runs"
+        required: false
+        default: "3"
+
+permissions:
+  contents: read
+
+jobs:
+  bench:
+    name: ${{ inputs.strategy }} on staging host-Kura
+    runs-on: tuist-staging-macos
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RUNNER_LABEL: staging-hostkura
+      BENCH_PROJECT: tuist
+      TUIST_CANARY_TAG: 4.202.0-canary.14
+      TUIST_FIXTURE_REF: 4.202.0-canary.14
+      HYPERFINE_RUNS: ${{ inputs.runs }}
+    steps:
+      - name: Diagnostics — cache endpoint the dispatch handed us
+        run: |
+          echo "hostname:            $(hostname)"
+          echo "TUIST_CACHE_ENDPOINT=${TUIST_CACHE_ENDPOINT:-<unset>}"
+          if [ -n "${TUIST_CACHE_ENDPOINT:-}" ]; then
+            code=$(curl -sS -m 5 -o /dev/null -w '%{http_code}' "${TUIST_CACHE_ENDPOINT%/}/up" || echo 000)
+            echo "GET ${TUIST_CACHE_ENDPOINT%/}/up -> HTTP ${code}"
+          fi
+
+      - name: Fetch the benchmark scripts
+        run: git clone --depth 1 https://github.com/tuist/runners-benchmark.git rb
+
+      - name: Install Tuist canary + hyperfine via mise
+        run: |
+          set -euo pipefail
+          mise use --global "tuist@${TUIST_CANARY_TAG}"
+          mise use --global "hyperfine@1.19.0"
+          tuist version
+          hyperfine --version
+
+      - name: Check out the tuist modular fixture (fullHandle stays tuist/tuist)
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch "$TUIST_FIXTURE_REF" \
+            https://github.com/tuist/tuist.git rb/tuist
+          # Deliberately NOT rewriting fullHandle: on staging tuist/tuist maps to
+          # the account the host Kura serves, so cache R/W routes to the host Kura.
+          grep fullHandle rb/tuist/Tuist.swift || true
+          rm -f rb/tuist/mise.toml rb/tuist/.mise.toml rb/tuist/.tool-versions
+
+      - name: Skip Xcode macro/package fingerprint validation
+        run: |
+          defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+          defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
+
+      - name: Run benchmark + harvest CAS analytics
+        working-directory: rb
+        run: |
+          set -uo pipefail
+          echo "== running scripts/benchmark.sh ${{ inputs.strategy }} (BENCH_PROJECT=tuist) =="
+          scripts/benchmark.sh "${{ inputs.strategy }}"; rc=$?
+          echo "== benchmark.sh exit=${rc} =="
+          echo "== hyperfine result =="
+          cat "results/${RUNNER_LABEL}-${{ inputs.strategy }}.json" 2>/dev/null | python3 -c 'import sys,json;d=json.load(sys.stdin);[print(f"  mean={r[\"mean\"]:.1f}s min={r[\"min\"]:.1f}s max={r[\"max\"]:.1f}s") for r in d["results"]]' 2>/dev/null || echo "  (no json)"
+          echo "== CAS daemon analytics (ground truth for cache hits) =="
+          CAS_DB="$HOME/.local/state/tuist/cas_analytics.db"
+          if [ -f "$CAS_DB" ]; then
+            sqlite3 "$CAS_DB" "PRAGMA wal_checkpoint(TRUNCATE);" >/dev/null 2>&1 || true
+            sqlite3 "$CAS_DB" "SELECT count(*) AS ops, round(avg(duration),1) AS avg_ms, round(sum(duration)/1000.0,1) AS total_s, round(avg(size)) AS avg_bytes FROM cas_outputs;" 2>&1 || true
+          else
+            echo "  no cas_analytics.db — CAS daemon never talked to a remote (endpoint/auth issue)"
+          fi
+          exit "${rc}"
