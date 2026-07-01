@@ -45,6 +45,7 @@ where
     let mut config = Config {
         port: 0,
         grpc_port: 0,
+        combined_port: None,
         internal_port: 7443,
         tenant_id: "test-tenant".into(),
         region: "local".into(),

@@ -218,6 +218,7 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | --- | --- | --- | --- |
 | `KURA_PORT` | Public HTTP port. | No | `—` |
 | `KURA_GRPC_PORT` | gRPC port for REAPI. | No | `—` |
+| `KURA_COMBINED_PORT` | Optional plaintext port that co-hosts the public HTTP cache API and the h2c REAPI gRPC service on one listener, dispatching by request path. Lets a single client-facing endpoint speak both protocols. When unset, only `KURA_PORT`/`KURA_GRPC_PORT` serve traffic. | Yes | disabled |
 | `KURA_INTERNAL_PORT` | Internal HTTP or mTLS port used for peer replication and discovery. | No | `—` |
 | `KURA_GRPC_TLS_CERT_PATH` | PEM cert path used to terminate TLS on the public gRPC listener. | Yes | disabled |
 | `KURA_GRPC_TLS_KEY_PATH` | PEM private-key path paired with `KURA_GRPC_TLS_CERT_PATH`. | Yes | disabled |
