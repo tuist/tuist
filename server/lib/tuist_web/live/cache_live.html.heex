@@ -11,7 +11,7 @@
 
   <%= if @cache_enabled do %>
     <.cache_servers_section
-      :if={@servers != [] or @available_regions != []}
+      :if={@managed_cache_visible?}
       servers={@servers}
       available_regions={@available_regions}
       add_cache_server_form={@add_cache_server_form}

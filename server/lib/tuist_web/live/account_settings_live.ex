@@ -321,6 +321,7 @@ defmodule TuistWeb.AccountSettingsLive do
     |> assign(:kura_regions, [])
     |> assign(:available_kura_regions, [])
     |> assign(:latest_kura_version, nil)
+    |> assign(:managed_kura_visible?, false)
     |> assign(:add_kura_server_form, default_kura_server_form([]))
   end
 
@@ -345,6 +346,7 @@ defmodule TuistWeb.AccountSettingsLive do
     |> assign(:kura_regions, regions)
     |> assign(:available_kura_regions, available_regions)
     |> assign(:latest_kura_version, latest)
+    |> assign(:managed_kura_visible?, servers != [] or available_regions != [])
     |> assign(:add_kura_server_form, default_kura_server_form(available_regions))
   end
 

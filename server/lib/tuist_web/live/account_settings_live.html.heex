@@ -12,7 +12,7 @@
       region_form={@region_form}
       selected_account={@selected_account}
     />
-    <%= if @kura_enabled and (@kura_servers != [] or @available_kura_regions != []) do %>
+    <%= if @managed_kura_visible? do %>
       <.kura_servers_section
         kura_servers={@kura_servers}
         available_kura_regions={@available_kura_regions}
@@ -178,7 +178,7 @@
       region_form={@region_form}
       selected_account={@selected_account}
     />
-    <%= if @kura_enabled and (@kura_servers != [] or @available_kura_regions != []) do %>
+    <%= if @managed_kura_visible? do %>
       <.kura_servers_section
         kura_servers={@kura_servers}
         available_kura_regions={@available_kura_regions}

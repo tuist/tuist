@@ -114,6 +114,21 @@ defmodule TuistWeb.CacheLiveTest do
     assert html =~ "Self-hosted cache servers"
   end
 
+  test "renders on the hosted server when the kura flag is on", %{conn: conn, account: account} do
+    # Positive coverage for the hosted branch: with tuist_hosted? true the
+    # `not tuist_hosted?()` disjunct is false, so the surface appears only
+    # because the :kura flag is on for the account.
+    stub(Environment, :dev?, fn -> false end)
+    stub(Environment, :tuist_hosted?, fn -> true end)
+    stub_cache_flag(account, true)
+    stub(Kura, :latest_versions, fn 1 -> [] end)
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/cache")
+
+    refute html =~ "not enabled for this account"
+    assert html =~ "Cache servers"
+  end
+
   test "renders cache servers for cache-enabled accounts", %{conn: conn, account: account} do
     enable_cache(account)
     stub(Kura, :latest_versions, fn 1 -> [%{version: "0.5.2", released_at: DateTime.utc_now(:second)}] end)
