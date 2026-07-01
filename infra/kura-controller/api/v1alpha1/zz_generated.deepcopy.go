@@ -77,6 +77,12 @@ func (in *KuraGatewaySpec) DeepCopyInto(out *KuraGatewaySpec) {
 			out.LoadBalancerAnnotations[key] = value
 		}
 	}
+	if in.Tolerations != nil {
+		out.Tolerations = make([]corev1.Toleration, len(in.Tolerations))
+		for i := range in.Tolerations {
+			in.Tolerations[i].DeepCopyInto(&out.Tolerations[i])
+		}
+	}
 }
 
 func (in *KuraGatewaySpec) DeepCopy() *KuraGatewaySpec {

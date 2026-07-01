@@ -286,6 +286,7 @@ func gatewayPodTemplate(gateway *kurav1alpha1.KuraGateway, serviceAccountName st
 			DNSPolicy:          gatewayDNSPolicy(gateway),
 			ServiceAccountName: serviceAccountName,
 			NodeSelector:       gateway.Spec.PodNodeSelector(),
+			Tolerations:        gateway.Spec.Tolerations,
 			Containers: []corev1.Container{{
 				Name:            "controller",
 				Image:           gatewayControllerImage(gateway),

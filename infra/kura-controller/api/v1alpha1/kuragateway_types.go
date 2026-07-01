@@ -19,6 +19,12 @@ type KuraGatewaySpec struct {
 	// Bare-metal nodes (Dedibox) have no Hetzner LB, so the gateway binds
 	// the node's public IP directly.
 	HostNetwork bool `json:"hostNetwork,omitempty"`
+	// Tolerations let the gateway nginx schedule onto tainted nodes. Bare-metal
+	// cache nodes carry tuist.dev/kura-cache=true:NoSchedule to keep general
+	// workloads off the box; the host-network gateway has to run there (it binds
+	// the node's public IP), so it needs the matching toleration or it never
+	// schedules and the region has no ingress.
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 }
 
 type KuraGatewayStatus struct {

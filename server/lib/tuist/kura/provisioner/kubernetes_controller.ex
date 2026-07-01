@@ -267,6 +267,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "controllerImage" => gateway_controller_image(region),
           "replicas" => gateway_replicas(region),
           "nodeSelector" => node_selector(region),
+          "tolerations" => tolerations(region),
           "loadBalancerAnnotations" => gateway_load_balancer_annotations(gateway_name, region)
         }
         |> maybe_put_host_network(region)
