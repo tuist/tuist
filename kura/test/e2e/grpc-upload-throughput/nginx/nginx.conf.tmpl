@@ -12,6 +12,12 @@
 # Everything else mirrors the kura gateway (h2c listener, grpc_pass, unlimited
 # body, long grpc timeouts, no buffering) and is identical between the two, so
 # the measured difference is attributable to the window directives alone.
+#
+# The upstream targets kura's co-hosted combined HTTP + h2c gRPC listener
+# (KURA_COMBINED_PORT=8080), not the dedicated gRPC port, so the patched path —
+# nginx with the production HTTP/2 window — also validates REAPI uploads through
+# the combined listener behind the gateway. Baseline uses the same upstream, so
+# the backend is held constant and only the window differs between the two.
 
 worker_processes auto;
 events { worker_connections 4096; }
@@ -23,7 +29,7 @@ http {
     # __WINDOW_DIRECTIVES__
 
     upstream kura_grpc {
-        server kura:50051;
+        server kura:8080;
         keepalive 16;
         keepalive_requests 10000;
         keepalive_timeout 10s;

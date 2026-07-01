@@ -18,16 +18,19 @@ only in those window directives, plus a direct-to-kura control, all behind
 toxiproxy injecting identical symmetric latency:
 
 ```
-client ─► toxiproxy ─► nginx-baseline (default window, today)        ─► kura
-       (latency)    ─► nginx-patched  (raised window from chart, the fix) ─► kura
-                    ─► kura combined port (co-hosted HTTP+gRPC, kura's own stream window)
+client ─► toxiproxy ─► nginx-baseline (default window, today)            ─► kura combined port
+       (latency)    ─► nginx-patched  (raised window from chart, the fix) ─► kura combined port
+                    ─► kura combined port (direct, kura's own stream window)
 ```
 
-The direct control targets kura's **combined port** (`KURA_COMBINED_PORT`, the
-co-hosted HTTP + h2c gRPC listener) rather than the dedicated gRPC port, so it
-also confirms that co-hosting both protocols on one port does not regress large
-REAPI upload throughput — the combined listener advertises the same 4MB HTTP/2
-stream window as the dedicated gRPC listener.
+All three paths reach kura through its **combined port** (`KURA_COMBINED_PORT`,
+the co-hosted HTTP + h2c gRPC listener) rather than the dedicated gRPC port. The
+nginx upstream is held constant across baseline and patched — so the measured
+speedup is still attributable to the HTTP/2 window alone — while the patched
+path additionally confirms the combined listener works behind the production
+gateway window, and the direct control confirms co-hosting does not regress
+large REAPI upload throughput (the combined listener advertises the same 4MB
+HTTP/2 stream window as the dedicated gRPC listener).
 
 Both nginx configs are **generated** by the harness (the client image's
 `genconfs` subcommand) from a single template (`nginx/nginx.conf.tmpl`):

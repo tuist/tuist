@@ -4,9 +4,12 @@
 // blob via the REAPI google.bytestream.ByteStream/Write RPC through three
 // paths under the SAME injected RTT:
 //
-//	baseline    client -> toxiproxy -> nginx (default window)        -> kura
-//	patched     client -> toxiproxy -> nginx (raised window, from chart) -> kura
+//	baseline    client -> toxiproxy -> nginx (default window)            -> kura combined port
+//	patched     client -> toxiproxy -> nginx (raised window, from chart) -> kura combined port
 //	direct_kura client -> toxiproxy -> kura combined port (co-hosted HTTP+gRPC, kura's own stream window)
+//
+// All three paths reach kura through the co-hosted combined HTTP + h2c gRPC
+// listener; the nginx paths differ only in their HTTP/2 upload window.
 //
 // It prints per-path throughput and asserts that the patched path is at least
 // MIN_SPEEDUP times faster than baseline — i.e. that raising nginx's HTTP/2
