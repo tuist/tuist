@@ -566,11 +566,11 @@ struct GenerateAcceptanceTestiOSAppWithObjCStaticFrameworkPackage {
 }
 
 struct GenerateAcceptanceTestAppWithSPMCTargetHeaders {
-    // Regression coverage for the request to include SwiftPM target headers in generated projects
-    // (https://community.tuist.dev/t/988): a C-family SwiftPM target's headers must appear in the
-    // generated project, matching how SwiftPM classifies them. Before the fix, a target with a custom
-    // module map produced no headers at all, and nested/non-public headers were dropped, so this
-    // assertion fails without it (red -> green).
+    /// Regression coverage for the request to include SwiftPM target headers in generated projects
+    /// (https://community.tuist.dev/t/988): a C-family SwiftPM target's headers must appear in the
+    /// generated project, matching how SwiftPM classifies them. Before the fix, a target with a custom
+    /// module map produced no headers at all, and nested/non-public headers were dropped, so this
+    /// assertion fails without it (red -> green).
     @Test(.withFixture("generated_app_with_spm_c_target_headers"), .inTemporaryDirectory)
     func app_with_spm_c_target_headers() async throws {
         let fixturePath = try fixtureDirectory()
