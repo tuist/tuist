@@ -1,0 +1,63 @@
+name: Kura Cache Benchmark
+
+# Manually-dispatched CAS A/B benchmark: Kura (bare-metal, local-NVMe) vs the
+# legacy Kamal cache (S3 write-through), run from a Tuist Linux runner so the
+# client sits inside our network (low RTT, fat pipe) — the numbers a laptop over
+# the public internet can't produce. See kura/benchmarks/cas_ab.sh.
+
+on:
+  workflow_dispatch:
+    inputs:
+      sizes_mb:
+        description: "Throughput blob sizes in MB, space-separated (each <= 24; CAS cap is 25MB)"
+        default: "1 8 24"
+      iters:
+        description: "Iterations per size for the throughput medians"
+        default: "6"
+      parallel:
+        description: "Concurrent streams for the aggregate-throughput probe"
+        default: "16"
+      latency_kb:
+        description: "Object size (KB) for the latency sweep"
+        default: "256"
+  # TEMPORARY: kicks the first run from the feature branch, since workflow_dispatch
+  # only becomes available once this file lands on the default branch. Removed
+  # before merge — workflow_dispatch is the intended trigger.
+  push:
+    branches: [claude/kura-cas-benchmark]
+    paths:
+      - "kura/benchmarks/**"
+      - ".github/workflows/kura-cache-benchmark.yml"
+
+permissions:
+  contents: read
+
+env:
+  MISE_VERSION: "2026.5.15"
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_APP_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_ATTESTATIONS: 0
+
+concurrency:
+  group: kura-cache-benchmark-${{ github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    name: CAS A/B (Kura vs legacy)
+    runs-on: tuist-linux
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Run CAS A/B benchmark
+        env:
+          SIZES_MB: ${{ inputs.sizes_mb }}
+          ITERS: ${{ inputs.iters }}
+          PARALLEL: ${{ inputs.parallel }}
+          LATENCY_KB: ${{ inputs.latency_kb }}
+        run: bash kura/benchmarks/cas_ab.sh
