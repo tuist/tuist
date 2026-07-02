@@ -20,6 +20,10 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
   attr :available_filters, :list, required: true
   attr :binary_cache_active_filters, :list, required: true
 
+  attr :module_cache_transfer_summary, :map,
+    default: nil,
+    doc: "Per-run module cache network transfer summary (download/upload bytes + fetch time), or nil."
+
   def module_cache_tab(assigns) do
     assigns = assign(assigns, :binary_cache_json, binary_cache_targets_json(assigns.run))
 
@@ -66,6 +70,52 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
             }
             value={"#{@binary_cache_analytics.cache_hit_rate}%"}
             id="widget-optimization-summary-cache-hit-rate"
+          />
+          <.widget
+            :if={@module_cache_transfer_summary && @module_cache_transfer_summary.download.size > 0}
+            title={dgettext("dashboard_builds", "Downloaded")}
+            description={
+              dgettext(
+                "dashboard_builds",
+                "Total size of modules downloaded from the remote cache during this run (%{count} artifacts).",
+                count: @module_cache_transfer_summary.download.count
+              )
+            }
+            value={
+              Tuist.Utilities.ByteFormatter.format_bytes(@module_cache_transfer_summary.download.size)
+            }
+            id="widget-optimization-summary-module-cache-downloaded"
+          />
+          <.widget
+            :if={@module_cache_transfer_summary && @module_cache_transfer_summary.upload.size > 0}
+            title={dgettext("dashboard_builds", "Uploaded")}
+            description={
+              dgettext(
+                "dashboard_builds",
+                "Total size of modules uploaded to the remote cache during this run (%{count} artifacts).",
+                count: @module_cache_transfer_summary.upload.count
+              )
+            }
+            value={
+              Tuist.Utilities.ByteFormatter.format_bytes(@module_cache_transfer_summary.upload.size)
+            }
+            id="widget-optimization-summary-module-cache-uploaded"
+          />
+          <.widget
+            :if={@module_cache_transfer_summary && @module_cache_transfer_summary.fetch_duration_ms}
+            title={dgettext("dashboard_builds", "Fetch time")}
+            description={
+              dgettext(
+                "dashboard_builds",
+                "Overall wall-clock time spent fetching modules from the remote cache during this run."
+              )
+            }
+            value={
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @module_cache_transfer_summary.fetch_duration_ms
+              )
+            }
+            id="widget-optimization-summary-module-cache-fetch-time"
           />
         </.card_section>
       </.card>

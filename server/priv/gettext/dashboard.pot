@@ -191,15 +191,6 @@ msgid "Module Cache"
 msgstr ""
 
 #: lib/tuist_web/components/percentile_dropdown_widget.ex:117
-#: lib/tuist_web/live/module_cache_live.html.heex:276
-#: lib/tuist_web/live/module_cache_live.html.heex:293
-#: lib/tuist_web/live/module_cache_live.html.heex:310
-#: lib/tuist_web/live/module_cache_live.html.heex:365
-#: lib/tuist_web/live/module_cache_live.html.heex:385
-#: lib/tuist_web/live/module_cache_live.html.heex:405
-#: lib/tuist_web/live/module_cache_live.html.heex:460
-#: lib/tuist_web/live/module_cache_live.html.heex:480
-#: lib/tuist_web/live/module_cache_live.html.heex:500
 #: lib/tuist_web/live/xcode_cache_live.html.heex:234
 #: lib/tuist_web/live/xcode_cache_live.html.heex:251
 #: lib/tuist_web/live/xcode_cache_live.html.heex:268

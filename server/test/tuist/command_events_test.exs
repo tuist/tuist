@@ -2220,4 +2220,42 @@ defmodule Tuist.CommandEventsTest do
       assert count == 0
     end
   end
+
+  describe "module_cache_transfer_summary/1" do
+    test "returns download/upload bytes+counts and the fetch duration for a command event" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      CommandEvents.create_module_cache_outputs(command_event, [
+        %{operation: "download", name: "A", hash: "h1", size: 1000, compressed_size: 500, duration: 100},
+        %{operation: "download", name: "B", hash: "h2", size: 3000, compressed_size: 1500, duration: 300},
+        %{operation: "upload", name: "C", hash: "h3", size: 2000, compressed_size: 1000, duration: 200}
+      ])
+
+      CommandEvents.create_module_cache_transfer_duration(command_event, 45_000)
+
+      # When
+      summary = CommandEvents.module_cache_transfer_summary(command_event.id)
+
+      # Then
+      assert summary.download == %{size: 4000, count: 2}
+      assert summary.upload == %{size: 2000, count: 1}
+      assert summary.fetch_duration_ms == 45_000
+    end
+
+    test "returns zeros and a nil fetch duration when the run has no transfers" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      # When
+      summary = CommandEvents.module_cache_transfer_summary(command_event.id)
+
+      # Then
+      assert summary.download == %{size: 0, count: 0}
+      assert summary.upload == %{size: 0, count: 0}
+      assert summary.fetch_duration_ms == nil
+    end
+  end
 end

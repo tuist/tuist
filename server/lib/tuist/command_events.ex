@@ -295,6 +295,50 @@ defmodule Tuist.CommandEvents do
     ModuleCacheTransferDuration.Buffer.insert_all([row])
   end
 
+  @doc """
+  Returns the module (binary) cache network transfer summary for a single command event: the total
+  bytes and artifact counts downloaded from and uploaded to the remote cache, plus the overall
+  wall-clock fetch time (nil when the run didn't record one). Used to surface per-run transfer cost
+  on the run detail page.
+  """
+  def module_cache_transfer_summary(command_event_id) do
+    %{rows: rows} =
+      ClickHouseRepo.query!(
+        """
+        SELECT toString(operation) AS op, SUM(size) AS total_size, COUNT() AS artifact_count
+        FROM module_cache_outputs
+        WHERE command_event_id = {command_event_id:UUID}
+        GROUP BY op
+        """,
+        %{command_event_id: command_event_id}
+      )
+
+    by_operation =
+      Map.new(rows, fn [operation, total_size, artifact_count] ->
+        {operation, %{size: total_size || 0, count: artifact_count || 0}}
+      end)
+
+    fetch_duration_ms =
+      case ClickHouseRepo.query!(
+             """
+             SELECT duration_ms
+             FROM module_cache_transfer_durations
+             WHERE command_event_id = {command_event_id:UUID}
+             LIMIT 1
+             """,
+             %{command_event_id: command_event_id}
+           ) do
+        %{rows: [[duration_ms] | _]} -> duration_ms
+        _ -> nil
+      end
+
+    %{
+      download: Map.get(by_operation, "download", %{size: 0, count: 0}),
+      upload: Map.get(by_operation, "upload", %{size: 0, count: 0}),
+      fetch_duration_ms: fetch_duration_ms
+    }
+  end
+
   defp truncate_error_message(error_message) do
     if not is_nil(error_message) and String.length(error_message) > 255 do
       String.slice(error_message, 0, 240) <> "... (truncated)"

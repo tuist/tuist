@@ -15,7 +15,6 @@ defmodule TuistWeb.ModuleCacheLive do
   alias Tuist.Builds.Analytics
   alias Tuist.CommandEvents
   alias Tuist.CommandEvents.Event
-  alias Tuist.Utilities.ByteFormatter
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
@@ -70,24 +69,19 @@ defmodule TuistWeb.ModuleCacheLive do
       |> assign(:uri, uri)
       |> push_event("replace-url", %{url: "?" <> query})
 
-    if analytics_loaded?(socket) do
-      chart_data = analytics_chart_data(widget, analytics_results(socket))
+    if socket.assigns.hit_rate_analytics.ok? do
+      chart_data =
+        analytics_chart_data(
+          widget,
+          socket.assigns.hits_analytics.result,
+          socket.assigns.misses_analytics.result,
+          socket.assigns.hit_rate_analytics.result
+        )
+
       {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
     else
       {:noreply, socket}
     end
-  end
-
-  def handle_event("select_transfer_type", %{"type" => type}, socket) do
-    {:noreply, replace_split_query_param(socket, "transfer-type", type)}
-  end
-
-  def handle_event("select_latency_type", %{"type" => type}, socket) do
-    {:noreply, replace_split_query_param(socket, "latency-type", type)}
-  end
-
-  def handle_event("select_throughput_type", %{"type" => type}, socket) do
-    {:noreply, replace_split_query_param(socket, "throughput-type", type)}
   end
 
   def handle_event(
@@ -162,49 +156,25 @@ defmodule TuistWeb.ModuleCacheLive do
     opts = analytics_opts(socket.assigns)
 
     socket
-    |> assign(:selected_transfer_type, params["transfer-type"] || "combined")
-    |> assign(:selected_latency_type, params["latency-type"] || "combined")
-    |> assign(:selected_throughput_type, params["throughput-type"] || "combined")
-    |> assign_async(
-      [
-        :hit_rate_analytics,
-        :hits_analytics,
-        :misses_analytics,
-        :transfer_analytics,
-        :latency_analytics,
-        :throughput_analytics,
-        :fetch_duration_analytics,
-        :analytics_chart_data
-      ],
-      fn ->
-        hit_rate_analytics = Analytics.module_cache_hit_rate_analytics(opts)
-        hits_analytics = Analytics.module_cache_hits_analytics(opts)
-        misses_analytics = Analytics.module_cache_misses_analytics(opts)
-        network = Analytics.module_cache_analytics(project.id, opts)
-        fetch_duration_analytics = Analytics.module_cache_transfer_duration_analytics(project.id, opts)
+    |> assign_async([:hit_rate_analytics, :hits_analytics, :misses_analytics, :analytics_chart_data], fn ->
+      hit_rate_analytics = Analytics.module_cache_hit_rate_analytics(opts)
+      hits_analytics = Analytics.module_cache_hits_analytics(opts)
+      misses_analytics = Analytics.module_cache_misses_analytics(opts)
 
-        {:ok,
-         %{
-           hit_rate_analytics: hit_rate_analytics,
-           hits_analytics: hits_analytics,
-           misses_analytics: misses_analytics,
-           transfer_analytics: network.transfer,
-           latency_analytics: network.latency,
-           throughput_analytics: network.throughput,
-           fetch_duration_analytics: fetch_duration_analytics,
-           analytics_chart_data:
-             analytics_chart_data(analytics_selected_widget, %{
-               hits: hits_analytics,
-               misses: misses_analytics,
-               hit_rate: hit_rate_analytics,
-               transfer: network.transfer,
-               latency: network.latency,
-               throughput: network.throughput,
-               fetch: fetch_duration_analytics
-             })
-         }}
-      end
-    )
+      {:ok,
+       %{
+         hit_rate_analytics: hit_rate_analytics,
+         hits_analytics: hits_analytics,
+         misses_analytics: misses_analytics,
+         analytics_chart_data:
+           analytics_chart_data(
+             analytics_selected_widget,
+             hits_analytics,
+             misses_analytics,
+             hit_rate_analytics
+           )
+       }}
+    end)
     |> assign_async(:hit_rate_p99, fn ->
       {:ok, %{hit_rate_p99: Analytics.module_cache_hit_rate_percentile(project.id, 0.99, opts)}}
     end)
@@ -311,116 +281,32 @@ defmodule TuistWeb.ModuleCacheLive do
     end)
   end
 
-  defp analytics_chart_data("cache_hits", %{hits: hits}) do
+  defp analytics_chart_data("cache_hits", hits_analytics, _misses_analytics, _hit_rate_analytics) do
     %{
-      dates: hits.dates,
-      values: hits.values,
+      dates: hits_analytics.dates,
+      values: hits_analytics.values,
       name: dgettext("dashboard_cache", "Cache hits"),
       value_formatter: "{value}"
     }
   end
 
-  defp analytics_chart_data("cache_misses", %{misses: misses}) do
+  defp analytics_chart_data("cache_misses", _hits_analytics, misses_analytics, _hit_rate_analytics) do
     %{
-      dates: misses.dates,
-      values: misses.values,
+      dates: misses_analytics.dates,
+      values: misses_analytics.values,
       name: dgettext("dashboard_cache", "Cache misses"),
       value_formatter: "{value}"
     }
   end
 
-  defp analytics_chart_data("module_cache_transfer", %{transfer: transfer}) do
+  defp analytics_chart_data(_cache_hit_rate, _hits_analytics, _misses_analytics, hit_rate_analytics) do
     %{
-      dates: transfer.dates,
-      values: transfer.values,
-      name: dgettext("dashboard_cache", "Cache transfer"),
-      value_formatter: "fn:formatBytes"
-    }
-  end
-
-  defp analytics_chart_data("module_cache_latency", %{latency: latency}) do
-    %{
-      dates: latency.dates,
-      values: latency.values,
-      name: dgettext("dashboard_cache", "Cache latency"),
-      value_formatter: "fn:formatMilliseconds"
-    }
-  end
-
-  defp analytics_chart_data("module_cache_throughput", %{throughput: throughput}) do
-    %{
-      dates: throughput.dates,
-      values: throughput.values,
-      name: dgettext("dashboard_cache", "Cache throughput"),
-      value_formatter: "fn:formatMbps"
-    }
-  end
-
-  defp analytics_chart_data("module_cache_fetch_time", %{fetch: fetch}) do
-    %{
-      dates: fetch.dates,
-      values: fetch.values,
-      name: dgettext("dashboard_cache", "Fetch time"),
-      value_formatter: "fn:formatMilliseconds"
-    }
-  end
-
-  defp analytics_chart_data(_cache_hit_rate, %{hit_rate: hit_rate}) do
-    %{
-      dates: hit_rate.dates,
-      values: hit_rate.values,
+      dates: hit_rate_analytics.dates,
+      values: hit_rate_analytics.values,
       name: dgettext("dashboard_cache", "Cache hit rate"),
       value_formatter: "{value}%"
     }
   end
-
-  defp analytics_loaded?(socket) do
-    socket.assigns.hit_rate_analytics.ok? and socket.assigns.transfer_analytics.ok? and
-      socket.assigns.fetch_duration_analytics.ok?
-  end
-
-  defp analytics_results(socket) do
-    %{
-      hits: socket.assigns.hits_analytics.result,
-      misses: socket.assigns.misses_analytics.result,
-      hit_rate: socket.assigns.hit_rate_analytics.result,
-      transfer: socket.assigns.transfer_analytics.result,
-      latency: socket.assigns.latency_analytics.result,
-      throughput: socket.assigns.throughput_analytics.result,
-      fetch: socket.assigns.fetch_duration_analytics.result
-    }
-  end
-
-  defp replace_split_query_param(
-         %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket,
-         key,
-         value
-       ) do
-    push_patch(
-      socket,
-      to: "/#{selected_account.name}/#{selected_project.name}/module-cache?#{Query.put(uri.query, key, value)}",
-      replace: true
-    )
-  end
-
-  def transfer_value(result, "downloads"), do: result.downloads.total
-  def transfer_value(result, "uploads"), do: result.uploads.total
-  def transfer_value(result, _combined), do: result.total
-
-  def latency_value(result, "read"), do: result.downloads.total
-  def latency_value(result, "write"), do: result.uploads.total
-  def latency_value(result, _combined), do: result.total
-
-  def throughput_value(result, "downloads"), do: result.downloads.total
-  def throughput_value(result, "uploads"), do: result.uploads.total
-  def throughput_value(result, _combined), do: result.total
-
-  def split_legend_color(selected, combined_color \\ "primary")
-  def split_legend_color("downloads", _combined_color), do: "secondary"
-  def split_legend_color("uploads", _combined_color), do: "p99"
-  def split_legend_color("read", _combined_color), do: "secondary"
-  def split_legend_color("write", _combined_color), do: "p99"
-  def split_legend_color(_combined, combined_color), do: combined_color
 
   def cache_hit_rate(event) do
     total = event.cacheable_targets_count || 0
