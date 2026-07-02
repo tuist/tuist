@@ -2610,7 +2610,7 @@ struct PackageInfoMapperTests {
                                     tags: []
                                 ),
                             ],
-                            headers: .spmTarget(headersPath.parentDirectory, publicHeadersRelativePath: "Headers"),
+                            headers: .spmTarget(headersPath.parentDirectory),
                             customSettings: [
                                 "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Custom/Headers"],
                                 "DEFINES_MODULE": "NO",
@@ -8137,19 +8137,15 @@ extension ProjectDescription.Target {
 }
 
 extension ProjectDescription.Headers {
-    /// Mirrors the headers `PackageInfoMapper` produces for a C-family SwiftPM target: public headers
-    /// under the target's public headers directory (recursively) and all other headers as project headers.
+    /// Mirrors the headers `PackageInfoMapper` produces for a C-family SwiftPM target: every header in the
+    /// target is surfaced as a project header (the module map, not the `Public` attribute, defines the module).
     fileprivate static func spmTarget(
         _ targetBasePath: AbsolutePath,
-        publicHeadersRelativePath: String = "include",
         excluding: [ProjectDescription.Path] = []
     ) -> ProjectDescription.Headers {
-        let publicHeadersPath = targetBasePath.appending(try! RelativePath(validating: publicHeadersRelativePath))
         let glob = "**/*.{h,hh,hpp,h++,hp,hxx,H,ipp,def}"
         return .headers(
-            public: .list([.glob(.path("\(publicHeadersPath.pathString)/\(glob)"), excluding: excluding)]),
-            project: .list([.glob(.path("\(targetBasePath.pathString)/\(glob)"), excluding: excluding)]),
-            exclusionRule: .projectExcludesPrivateAndPublic
+            project: .list([.glob(.path("\(targetBasePath.pathString)/\(glob)"), excluding: excluding)])
         )
     }
 }

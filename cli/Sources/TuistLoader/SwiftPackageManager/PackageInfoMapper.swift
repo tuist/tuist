@@ -827,11 +827,10 @@ public struct PackageInfoMapper: PackageInfoMapping {
         var resources: ProjectDescription.ResourceFileElements?
 
         if target.type.supportsPublicHeaderPath {
-            headers = try await discoveredHeaders(
+            headers = try discoveredHeaders(
                 for: target,
                 moduleMap: moduleMap,
-                targetPath: targetPath,
-                packageFolder: path
+                targetPath: targetPath
             )
         }
 
@@ -998,19 +997,25 @@ public struct PackageInfoMapper: PackageInfoMapping {
         )
     }
 
-    /// Builds the headers for a target so the generated project mirrors how SwiftPM classifies
-    /// them: every header under the target's public headers directory (recursively) is public,
-    /// and every other header in the target is a project (private) header. This matches the file
-    /// discovery SwiftPM performs for C-family targets, including the recognized header extensions.
+    /// Surfaces every header in a C-family target in the generated project so they can be browsed and
+    /// indexed, matching the file discovery SwiftPM performs (including the recognized header extensions).
+    ///
+    /// The headers are added as project headers, not public ones. These targets already carry an explicit
+    /// module map (`.custom`, `.header`, or `.directory`), which is what defines the module's interface, so
+    /// tagging headers `Public` is redundant. It is also harmful: SwiftPM C targets generate as frameworks,
+    /// and a `Public` header is copied into the framework bundle's `Headers` directory. That copy flips
+    /// `__has_include(<Module/Header.h>)` checks in sibling shim targets (for example swift-nio-ssl's
+    /// `CNIOBoringSSLShims.h`, which includes `<CNIOBoringSSL/CNIOBoringSSL.h>`), which re-homes the
+    /// included declarations into the shim module and breaks consumers under the `MemberImportVisibility`
+    /// upcoming feature. Keeping the headers as project headers leaves the module composition untouched.
     ///
     /// Only targets with a module map (i.e. C-family targets) have headers. Swift targets resolve
     /// to `ModuleMap.none` and keep `nil` headers.
     private func discoveredHeaders(
         for target: PackageInfo.Target,
         moduleMap: ModuleMap?,
-        targetPath: AbsolutePath,
-        packageFolder: AbsolutePath
-    ) async throws -> ProjectDescription.Headers? {
+        targetPath: AbsolutePath
+    ) throws -> ProjectDescription.Headers? {
         guard let moduleMap else { return nil }
         switch moduleMap {
         case .none:
@@ -1019,7 +1024,6 @@ public struct PackageInfoMapper: PackageInfoMapping {
             break
         }
 
-        let publicHeadersPath = try await target.publicHeadersPath(packageFolder: packageFolder)
         // Header extensions recognized by SwiftPM's `FileRuleDescription.header`.
         let headersGlob = "**/*.{h,hh,hpp,h++,hp,hxx,H,ipp,def}"
         // SwiftPM's `exclude` paths are relative to the target's directory; drop headers under them so
@@ -1031,9 +1035,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
         }
 
         return .headers(
-            public: .list([.glob(.path("\(publicHeadersPath.pathString)/\(headersGlob)"), excluding: excluding)]),
-            project: .list([.glob(.path("\(targetPath.pathString)/\(headersGlob)"), excluding: excluding)]),
-            exclusionRule: .projectExcludesPrivateAndPublic
+            project: .list([.glob(.path("\(targetPath.pathString)/\(headersGlob)"), excluding: excluding)])
         )
     }
 
