@@ -9,6 +9,8 @@ defmodule Tuist.Release do
   require Logger
 
   @app :tuist
+  @processor_write_tables ~w(oban_jobs oban_peers)
+  @processor_read_tables ~w(accounts projects automation_alerts webhook_endpoints)
 
   def migrate do
     load_app()
@@ -188,27 +190,37 @@ defmodule Tuist.Release do
     database = repo.config() |> Keyword.fetch!(:database) |> Environment.quote_postgres_identifier()
     quoted_schema = Environment.quote_postgres_identifier(Environment.database_schema())
 
-    # Deny-by-default: strip every table privilege first, then re-grant only
-    # the enumerated surface. A table dropped from the list (or granted
-    # out-of-band) can't linger, and any table a future migration adds stays
-    # off-limits until it's listed here. `REVOKE … ON ALL TABLES` only warns
-    # (never errors) on tables this role can't revoke, and every GRANT below
-    # targets a table this migration role owns, so none can hit the
-    # permission-denied abort a blanket `GRANT … ON ALL` would.
-    Enum.each(
-      [
-        "REVOKE ALL ON ALL TABLES IN SCHEMA #{quoted_schema} FROM #{role}",
-        "GRANT CONNECT ON DATABASE #{database} TO #{role}",
-        "GRANT USAGE ON SCHEMA #{quoted_schema} TO #{role}",
-        "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE " <>
-          "#{quoted_schema}.oban_jobs, #{quoted_schema}.oban_peers TO #{role}",
-        "GRANT USAGE, SELECT ON SEQUENCE #{quoted_schema}.oban_jobs_id_seq TO #{role}",
-        "GRANT SELECT ON TABLE " <>
-          "#{quoted_schema}.accounts, #{quoted_schema}.projects, #{quoted_schema}.automation_alerts, " <>
-          "#{quoted_schema}.webhook_endpoints TO #{role}"
-      ],
-      &SQL.query!(repo, &1, [])
-    )
+    {:ok, :ok} =
+      repo.transaction(fn ->
+        Enum.each(
+          processor_role_grant_statements(role, database, quoted_schema),
+          &SQL.query!(repo, &1, [])
+        )
+
+        :ok
+      end)
+  end
+
+  @doc false
+  def processor_role_grant_statements(role, database, quoted_schema) do
+    write_tables = qualify_tables(quoted_schema, @processor_write_tables)
+    read_tables = qualify_tables(quoted_schema, @processor_read_tables)
+
+    # Deny by default: strip every table privilege first, then re-grant only
+    # the enumerated surface. A table dropped from the list, or granted out of
+    # band, cannot linger.
+    [
+      "REVOKE ALL ON ALL TABLES IN SCHEMA #{quoted_schema} FROM #{role}",
+      "GRANT CONNECT ON DATABASE #{database} TO #{role}",
+      "GRANT USAGE ON SCHEMA #{quoted_schema} TO #{role}",
+      "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE #{write_tables} TO #{role}",
+      "GRANT USAGE, SELECT ON SEQUENCE #{quoted_schema}.oban_jobs_id_seq TO #{role}",
+      "GRANT SELECT ON TABLE #{read_tables} TO #{role}"
+    ]
+  end
+
+  defp qualify_tables(quoted_schema, tables) do
+    Enum.map_join(tables, ", ", &"#{quoted_schema}.#{&1}")
   end
 
   # `GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA <schema>` requires the

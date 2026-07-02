@@ -32,33 +32,21 @@
 
 BEGIN;
 
-GRANT CONNECT ON DATABASE tuist TO tuist_processor;
-GRANT USAGE ON SCHEMA :"tuist_schema" TO tuist_processor;
-
--- Oban coordination. DELETE is needed for Oban.Plugins.Pruner.
-GRANT SELECT, INSERT, UPDATE, DELETE ON :"tuist_schema".oban_jobs, :"tuist_schema".oban_peers TO tuist_processor;
-GRANT USAGE, SELECT ON SEQUENCE :"tuist_schema".oban_jobs_id_seq TO tuist_processor;
-
--- Read-only lookups the workers perform. The build and xcresult workers
--- resolve the project account for storage scoping; the xcresult worker also
--- reads automation alerts when it schedules scoped flaky-test evaluations.
--- These rows are not written by the processors, hence no INSERT/UPDATE.
-GRANT SELECT ON :"tuist_schema".accounts, :"tuist_schema".projects, :"tuist_schema".automation_alerts TO tuist_processor;
-
--- The test ingestion path (create_test -> create_test_modules ->
--- dispatch_test_case_created_webhooks) reads webhook_endpoints to resolve
--- outbound webhook subscribers whenever a run introduces a test case seen
--- for the first time on the default branch. Without this SELECT the whole
--- ingestion Oban job raises 42501 mid-run and retries into partial data.
-GRANT SELECT ON :"tuist_schema".webhook_endpoints TO tuist_processor;
-
 -- Re-assert the intersection explicitly. New tables added by future
 -- migrations stay off-limits until grants are re-issued here; the
 -- REVOKE + re-GRANT pattern keeps the intent obvious.
 REVOKE ALL ON ALL TABLES IN SCHEMA :"tuist_schema" FROM tuist_processor;
-GRANT SELECT, INSERT, UPDATE, DELETE ON :"tuist_schema".oban_jobs, :"tuist_schema".oban_peers TO tuist_processor;
-GRANT SELECT ON :"tuist_schema".accounts, :"tuist_schema".projects, :"tuist_schema".automation_alerts TO tuist_processor;
-GRANT SELECT ON :"tuist_schema".webhook_endpoints TO tuist_processor;
+
+GRANT CONNECT ON DATABASE tuist TO tuist_processor;
+GRANT USAGE ON SCHEMA :"tuist_schema" TO tuist_processor;
+
+-- Oban coordination. DELETE is needed for Oban.Plugins.Pruner.
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE :"tuist_schema".oban_jobs, :"tuist_schema".oban_peers TO tuist_processor;
+GRANT USAGE, SELECT ON SEQUENCE :"tuist_schema".oban_jobs_id_seq TO tuist_processor;
+
+-- Read-only lookups the workers perform. These rows are not written by the
+-- processors, hence no INSERT/UPDATE.
+GRANT SELECT ON TABLE :"tuist_schema".accounts, :"tuist_schema".projects, :"tuist_schema".automation_alerts, :"tuist_schema".webhook_endpoints TO tuist_processor;
 
 COMMIT;
 
