@@ -269,6 +269,9 @@ spec:
             matchLabels:
               app.kubernetes.io/name: kura
       ports:
+        # 4000 co-hosts the HTTP cache API and REAPI gRPC (h2c) on one
+        # Kura listener; 50051 is the pod's legacy dedicated-gRPC port,
+        # kept while pre-cohosted Kura images can still be pinned.
         - protocol: TCP
           port: 4000
         - protocol: TCP

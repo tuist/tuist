@@ -968,10 +968,12 @@ macosFleet:
   #   kuraServiceCIDR — the cluster's Service CIDR
   #     (infra/k8s/clusters/cluster-<env>.yaml,
   #     .spec.clusterNetwork.services; 10.128.0.0/12 in managed
-  #     envs), reachable on TCP 4000 (Kura cache HTTP) + 50051
-  #     (gRPC). Mirrors the Linux runner namespace's NetworkPolicy
-  #     egress carve-out; per-account isolation stays at Kura's
-  #     app layer (JWT tenant check), same as for Linux runners.
+  #     envs), reachable on TCP 4000 (Kura cache, co-hosted HTTP +
+  #     gRPC) + 50051 (legacy dedicated-gRPC Service port kept for
+  #     dial-address compat). Mirrors the Linux runner namespace's
+  #     NetworkPolicy egress carve-out; per-account isolation stays
+  #     at Kura's app layer (JWT tenant check), same as for Linux
+  #     runners.
   #   clusterDNSIP — kube-dns's ClusterIP (`kubectl -n kube-system
   #     get svc kube-dns`; 10.128.0.10 in managed envs), reachable
   #     on 53 so the runner VM's /etc/resolver entry can resolve

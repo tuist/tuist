@@ -47,8 +47,14 @@ spec:
             - name: http
               containerPort: {{ .Values.service.httpPort }}
               protocol: TCP
+            # Kura co-hosts gRPC (h2c) with HTTP on KURA_PORT, so the named
+            # `grpc` port points at the same containerPort as `http`. Keeping
+            # the name preserves the Services' `targetPort: grpc` routing:
+            # during a rolling upgrade from a pre-cohosted release, old pods
+            # resolve `grpc` to their dedicated listener and new pods to the
+            # co-hosted one, so gRPC clients stay routed either way.
             - name: grpc
-              containerPort: {{ .Values.service.grpcPort }}
+              containerPort: {{ .Values.service.httpPort }}
               protocol: TCP
             - name: peer
               containerPort: {{ .Values.peerTls.internalPort }}
@@ -64,8 +70,6 @@ spec:
                   fieldPath: metadata.namespace
             - name: KURA_PORT
               value: {{ printf "%d" (int .Values.service.httpPort) | quote }}
-            - name: KURA_GRPC_PORT
-              value: {{ printf "%d" (int .Values.service.grpcPort) | quote }}
             - name: KURA_TENANT_ID
               value: {{ .Values.config.tenantId | quote }}
             - name: KURA_REGION

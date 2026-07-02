@@ -35,6 +35,12 @@ service:
   annotations: {}
   loadBalancerIP: ""
   externalTrafficPolicy: ""
+  # Kura serves the HTTP cache API and REAPI gRPC (h2c) on one co-hosted
+  # listener (KURA_PORT = httpPort). grpcPort only sets the Service-level
+  # port so existing :50051 clients keep working; it routes to the same
+  # co-hosted container port via the named `grpc` targetPort. This chart
+  # requires a Kura image with the co-hosted listener (releases after
+  # kura@0.10.15).
   httpPort: 4000
   grpcPort: 50051
 

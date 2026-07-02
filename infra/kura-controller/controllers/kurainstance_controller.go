@@ -48,8 +48,24 @@ const (
 	KuraInstanceFinalizer = "kurainstances.kura.tuist.dev/finalizer"
 
 	httpPort int32 = 4000
+	// grpcPort is the Service-level gRPC port. Kura releases after
+	// lastDedicatedGRPCListenerVersion co-host REAPI gRPC (h2c) with HTTP
+	// on KURA_PORT, so for those images the Services' named `grpc`
+	// targetPort resolves to the http container port; the 50051 Service
+	// port only remains so existing clients keep their dial address.
 	grpcPort int32 = 50051
 	peerPort int32 = 7443
+
+	// lastDedicatedGRPCListenerVersion is the newest Kura release that
+	// still runs a dedicated gRPC listener (KURA_GRPC_PORT). Any semver
+	// tag above this — and any non-semver tag, which is a per-commit
+	// sha-<…> build from the same tree as this controller — serves gRPC
+	// co-hosted on KURA_PORT instead. Gating the pod wiring on the
+	// per-instance image keeps the port flip atomic with the image inside
+	// one StatefulSet template update: mid-roll, old pods resolve the
+	// named `grpc` port to their dedicated listener and new pods to the
+	// co-hosted one, so Services and Ingresses stay correctly routed.
+	lastDedicatedGRPCListenerVersion = "0.10.15"
 
 	// drainCompletionTimeoutMs and preStopDelaySeconds together set how
 	// long a Kura pod is given to bleed connections off before SIGTERM.
@@ -1914,7 +1930,11 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 		{Name: "POD_NAME", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"}}},
 		{Name: "POD_NAMESPACE", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"}}},
 		{Name: "KURA_PORT", Value: fmt.Sprintf("%d", httpPort)},
-		{Name: "KURA_GRPC_PORT", Value: fmt.Sprintf("%d", grpcPort)},
+	}
+	if !cohostedGRPC(instance) {
+		env = append(env, corev1.EnvVar{Name: "KURA_GRPC_PORT", Value: fmt.Sprintf("%d", grpcPort)})
+	}
+	env = append(env, []corev1.EnvVar{
 		{Name: "KURA_TENANT_ID", Value: instance.Spec.TenantID},
 		{Name: "KURA_REGION", Value: instance.Spec.Region},
 		{Name: "KURA_TMP_DIR", Value: "/var/cache/kura/tmp"},
@@ -1927,7 +1947,7 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 		{Name: "KURA_INTERNAL_TLS_KEY_PATH", Value: peerTLSMountPath + "/" + peerTLSKeyFile},
 		{Name: "KURA_DRAIN_COMPLETION_TIMEOUT_MS", Value: strconv.FormatInt(drainCompletionTimeoutMs, 10)},
 		{Name: "KURA_OTEL_SERVICE_NAME", Value: "$(POD_NAME)"},
-	}
+	}...)
 	if !hasEnvVar(instance.Spec.ExtraEnv, environmentEnvVar) {
 		env = append(env, corev1.EnvVar{Name: environmentEnvVar, Value: environment})
 	}
@@ -1973,13 +1993,80 @@ func hasEnvVar(env []corev1.EnvVar, name string) bool {
 
 // containerPorts exposes only the plain HTTP, gRPC, and internal mTLS
 // peer ports. Customer-facing TLS terminates at the regional Kura ingress, not
-// inside each Kura runtime pod.
+// inside each Kura runtime pod. For co-hosted images the named `grpc` port
+// points at the same container port as `http`: the name is what the Services'
+// `targetPort: grpc` resolves per pod, so it must keep existing across the
+// migration roll (see lastDedicatedGRPCListenerVersion).
 func containerPorts(instance *kurav1alpha1.KuraInstance) []corev1.ContainerPort {
+	grpcContainerPort := grpcPort
+	if cohostedGRPC(instance) {
+		grpcContainerPort = httpPort
+	}
 	return []corev1.ContainerPort{
 		{Name: "http", ContainerPort: httpPort},
-		{Name: "grpc", ContainerPort: grpcPort},
+		{Name: "grpc", ContainerPort: grpcContainerPort},
 		{Name: "peer", ContainerPort: peerPort},
 	}
+}
+
+// cohostedGRPC reports whether the instance's image serves REAPI gRPC (h2c)
+// co-hosted with HTTP on KURA_PORT instead of a dedicated KURA_GRPC_PORT
+// listener. See lastDedicatedGRPCListenerVersion for the gating rule.
+func cohostedGRPC(instance *kurav1alpha1.KuraInstance) bool {
+	version, ok := parseSemverTag(imageTag(instance.Spec.Image))
+	if !ok {
+		return true
+	}
+	last, ok := parseSemverTag(lastDedicatedGRPCListenerVersion)
+	if !ok {
+		return true
+	}
+	return version.newerThan(last)
+}
+
+// imageTag extracts the tag from an image reference, tolerating registries
+// with ports (the last colon after the last slash separates the tag).
+// Digest-pinned references yield the digest hex, which is non-semver and
+// therefore treated as co-hosted.
+func imageTag(image string) string {
+	name := image
+	if i := strings.LastIndex(name, "/"); i >= 0 {
+		name = name[i+1:]
+	}
+	if i := strings.LastIndex(name, ":"); i >= 0 {
+		return name[i+1:]
+	}
+	return ""
+}
+
+type semverTag struct {
+	major, minor, patch int
+}
+
+func (v semverTag) newerThan(other semverTag) bool {
+	if v.major != other.major {
+		return v.major > other.major
+	}
+	if v.minor != other.minor {
+		return v.minor > other.minor
+	}
+	return v.patch > other.patch
+}
+
+func parseSemverTag(tag string) (semverTag, bool) {
+	parts := strings.Split(tag, ".")
+	if len(parts) != 3 {
+		return semverTag{}, false
+	}
+	var version semverTag
+	for i, field := range []*int{&version.major, &version.minor, &version.patch} {
+		number, err := strconv.Atoi(parts[i])
+		if err != nil || number < 0 {
+			return semverTag{}, false
+		}
+		*field = number
+	}
+	return version, true
 }
 
 func volumeMounts(instance *kurav1alpha1.KuraInstance) []corev1.VolumeMount {
