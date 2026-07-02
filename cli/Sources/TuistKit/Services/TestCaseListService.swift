@@ -32,21 +32,31 @@ struct TestCaseListService: TestCaseListServicing {
         serverURL: URL,
         state: Operations.listTestCases.Input.Query.statePayload
     ) async throws -> [TestIdentifier] {
-        let response = try await listTestCasesService.listTestCases(
-            fullHandle: fullHandle,
-            serverURL: serverURL,
-            flaky: nil,
-            quarantined: nil,
-            state: state,
-            page: 1,
-            pageSize: 500
-        )
-        return try response.test_cases.map { testCase in
-            try TestIdentifier(
-                target: testCase.module.name,
-                class: testCase.suite?.name,
-                method: testCase.name
+        var allIdentifiers: [TestIdentifier] = []
+        var page = 1
+        while true {
+            let response = try await listTestCasesService.listTestCases(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                flaky: nil,
+                quarantined: nil,
+                state: state,
+                page: page,
+                pageSize: 500
             )
+            let identifiers = try response.test_cases.map { testCase in
+                try TestIdentifier(
+                    target: testCase.module.name,
+                    class: testCase.suite?.name,
+                    method: testCase.name
+                )
+            }
+            allIdentifiers.append(contentsOf: identifiers)
+            if !response.pagination_metadata.has_next_page {
+                break
+            }
+            page += 1
         }
+        return allIdentifiers
     }
 }
