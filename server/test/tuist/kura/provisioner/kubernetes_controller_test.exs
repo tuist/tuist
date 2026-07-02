@@ -223,6 +223,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       assert host_network["spec"]["meshPeerHostNetwork"] == true
       assert host_network["spec"]["meshPeerFailoverIp"] == "203.0.113.10"
+      # The customer plane is host-network too, so each account resolves to its
+      # own box via a per-account DNSEndpoint the controller publishes.
+      assert host_network["spec"]["publicHostNetwork"] == true
       # The Hetzner peer LoadBalancer annotations drop out on host-network regions.
       refute Map.has_key?(host_network["spec"], "meshPublicPeerLoadBalancerAnnotations")
 
@@ -238,6 +241,51 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       refute Map.has_key?(hetzner["spec"], "meshPeerHostNetwork")
       refute Map.has_key?(hetzner["spec"], "meshPeerFailoverIp")
+      # LB regions publish the customer host off the gateway Service/Ingress, so
+      # the per-account DNSEndpoint (publicHostNetwork) stays off.
+      refute Map.has_key?(hetzner["spec"], "publicHostNetwork")
+    end
+
+    test "withholds the customer host and pins the box for a moving-in warm-handoff target" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      region = eu_region(%{gateway: :host_network})
+
+      moving_in =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1-m",
+          "0.5.2",
+          %{name: "tuist"},
+          region,
+          %Server{move_phase: :moving_in, target_node: "box-2"},
+          "return true"
+        )
+
+      # A warm-handoff target warms on the peer plane only: no customer host, so
+      # the controller leaves its Ingress/DNS/Certificate unreconciled and the
+      # source keeps sole ownership until the target is promoted.
+      refute Map.has_key?(moving_in["spec"], "publicHost")
+      refute Map.has_key?(moving_in["spec"], "grpcPublicHost")
+      # And it is pinned to the destination box.
+      assert moving_in["spec"]["nodeSelector"]["kubernetes.io/hostname"] == "box-2"
+
+      steady_state =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %{name: "tuist"},
+          region,
+          %Server{move_phase: :none},
+          "return true"
+        )
+
+      # The steady-state (:none) server owns the customer host.
+      assert is_binary(steady_state["spec"]["publicHost"])
+      refute Map.get(steady_state["spec"]["nodeSelector"] || %{}, "kubernetes.io/hostname")
     end
 
     test "omits external peers for a meshed region with no self-hosted nodes" do
