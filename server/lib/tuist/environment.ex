@@ -179,6 +179,13 @@ defmodule Tuist.Environment do
     end
   end
 
+  def database_processor_role do
+    case System.get_env("TUIST_DATABASE_PROCESSOR_ROLE") do
+      role when is_binary(role) and role != "" -> role
+      _ -> nil
+    end
+  end
+
   def database_config_from_url(url) do
     parsed_url = URI.parse(url)
 
@@ -253,6 +260,25 @@ defmodule Tuist.Environment do
 
   def kura_runtime_image_tag(secrets \\ secrets()) do
     System.get_env("TUIST_KURA_RUNTIME_IMAGE_TAG") || get([:kura, :runtime_image_tag], secrets)
+  end
+
+  @doc """
+  The public peer failover IP for a bare-metal region, or `nil` when none is
+  configured. Self-hosted nodes resolve a region's `peer.` host to this IP; the
+  CAPI provider keeps it routed to a healthy box of the region's pool. Read from
+  `TUIST_KURA_PEER_FAILOVER_IPS` as a `region=ip` comma list (e.g.
+  `eu-central=1.2.3.4,ca-east=5.6.7.8`).
+  """
+  def kura_peer_failover_ip(region_id) when is_binary(region_id) do
+    "TUIST_KURA_PEER_FAILOVER_IPS"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.find_value(fn pair ->
+      case pair |> String.split("=", parts: 2) |> Enum.map(&String.trim/1) do
+        [key, ip] when key == region_id and ip != "" -> ip
+        _ -> nil
+      end
+    end)
   end
 
   def kura_tuist_base_url do

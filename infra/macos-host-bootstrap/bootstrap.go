@@ -45,6 +45,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -804,6 +805,13 @@ type HostKeyState struct {
 	captured string // SHA256 of the key the host actually presented
 }
 
+// ErrHostKeyMismatch is returned by the host-key callback when the host
+// presents a key that differs from the operator's pinned fingerprint. Callers
+// that adopt boxes from a reinstall-on-release pool match against it (errors.Is)
+// to re-TOFU during bootstrap: a freshly-claimed box can be reimaged after its
+// key was pinned, legitimately rotating the host key.
+var ErrHostKeyMismatch = errors.New("host key fingerprint mismatch")
+
 func NewHostKeyState(known string) *HostKeyState {
 	return &HostKeyState{expected: known}
 }
@@ -839,7 +847,7 @@ func (h *HostKeyState) Callback() ssh.HostKeyCallback {
 		// host-fingerprint from a prior reconcile), refuse anything
 		// else regardless of TOFU state.
 		if h.expected != "" && got != h.expected {
-			return fmt.Errorf("host key fingerprint mismatch: expected %s, got %s", h.expected, got)
+			return fmt.Errorf("%w: expected %s, got %s", ErrHostKeyMismatch, h.expected, got)
 		}
 		h.captured = got
 		return nil

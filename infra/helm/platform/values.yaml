@@ -116,6 +116,28 @@ kura-eu-central-ingress-nginx:
     metrics:
       enabled: true
 
+kura-ca-east-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-ca-east-ingress-nginx-leader
+    ingressClass: kura-ca-east
+    ingressClassResource:
+      name: kura-ca-east
+      controllerValue: k8s.io/kura-ca-east-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    # Shares the one anchored regional Kura nginx config (defined in the
+    # eu-central block above); see TestGatewayNginxConfigMatchesChart on why
+    # these cannot drift from the dedicated-gateway ConfigMap.
+    config: *kuraGatewayNginxConfig
+    metrics:
+      enabled: true
+
 kura-us-east-ingress-nginx:
   enabled: false
   controller:
@@ -160,6 +182,10 @@ external-dns:
   sources:
     - service
     - ingress
+    # crd sources DNSEndpoint CRs (externaldns.k8s.io). The kura-controller emits
+    # one per host-network region peer host -> the region's failover IP, since a
+    # bare-metal peer plane has no LoadBalancer for the service source to read.
+    - crd
   # Must be unique per workload cluster because several managed clusters
   # write records under tuist.dev. The bootstrap task overrides this with
   # "<cluster-name>-platform".

@@ -827,7 +827,12 @@ public struct PackageInfoMapper: PackageInfoMapping {
         var resources: ProjectDescription.ResourceFileElements?
 
         if target.type.supportsPublicHeaderPath {
-            headers = try Headers.from(moduleMap: moduleMap)
+            headers = try await discoveredHeaders(
+                for: target,
+                moduleMap: moduleMap,
+                targetPath: targetPath,
+                packageFolder: path
+            )
         }
 
         if target.type.supportsSources {
@@ -990,6 +995,45 @@ public struct PackageInfoMapper: PackageInfoMapping {
             dependencies: dependencies,
             settings: settings,
             metadata: .metadata(tags: metadataTags)
+        )
+    }
+
+    /// Builds the headers for a target so the generated project mirrors how SwiftPM classifies
+    /// them: every header under the target's public headers directory (recursively) is public,
+    /// and every other header in the target is a project (private) header. This matches the file
+    /// discovery SwiftPM performs for C-family targets, including the recognized header extensions.
+    ///
+    /// Only targets with a module map (i.e. C-family targets) have headers. Swift targets resolve
+    /// to `ModuleMap.none` and keep `nil` headers.
+    private func discoveredHeaders(
+        for target: PackageInfo.Target,
+        moduleMap: ModuleMap?,
+        targetPath: AbsolutePath,
+        packageFolder: AbsolutePath
+    ) async throws -> ProjectDescription.Headers? {
+        guard let moduleMap else { return nil }
+        switch moduleMap {
+        case .none:
+            return nil
+        case .custom, .header, .directory:
+            break
+        }
+
+        let publicHeadersPath = try await target.publicHeadersPath(packageFolder: packageFolder)
+        // Header extensions recognized by SwiftPM's `FileRuleDescription.header`.
+        let headersGlob = "**/*.{h,hh,hpp,h++,hp,hxx,H,ipp,def}"
+        // SwiftPM's `exclude` paths are relative to the target's directory; drop headers under them so
+        // the generated target matches SwiftPM's discovery. Mirrors `SourceFilesList.from`.
+        let excluding: [ProjectDescription.Path] = try target.exclude.map {
+            let excludePath = targetPath.appending(try RelativePath(validating: $0))
+            let excludeGlob = excludePath.extension != nil ? excludePath : excludePath.appending(component: "**")
+            return .path(excludeGlob.pathString)
+        }
+
+        return .headers(
+            public: .list([.glob(.path("\(publicHeadersPath.pathString)/\(headersGlob)"), excluding: excluding)]),
+            project: .list([.glob(.path("\(targetPath.pathString)/\(headersGlob)"), excluding: excluding)]),
+            exclusionRule: .projectExcludesPrivateAndPublic
         )
     }
 
@@ -1888,6 +1932,7 @@ extension ProjectDescription.ResourceFileElements {
     /// Check https://developer.apple.com/documentation/swift_packages/bundling_resources_with_a_swift_package
     private static let defaultSpmResourceFileExtensions = Set([
         "xib",
+        "nib",
         "storyboard",
         "xcdatamodeld",
         "xcmappingmodel",
@@ -1966,26 +2011,6 @@ extension ProjectDescription.TargetDependency {
         }
 
         return targetDependencies + linkerDependencies
-    }
-}
-
-extension ProjectDescription.Headers {
-    fileprivate static func from(moduleMap: ModuleMap?) throws -> Self? {
-        guard let moduleMap else { return nil }
-        // As per SPM logic, headers should be added only when using the umbrella header without modulemap:
-        // https://github.com/apple/swift-package-manager/blob/9b9bed7eaf0f38eeccd0d8ca06ae08f6689d1c3f/Sources/Xcodeproj/pbxproj.swift#L588-L609
-        switch moduleMap {
-        case let .directory(moduleMapPath: _, umbrellaDirectory: umbrellaDirectory):
-            return .headers(
-                public: .list(
-                    [
-                        .glob("\(umbrellaDirectory.pathString)/*.h"),
-                    ]
-                )
-            )
-        case .none, .header, .custom:
-            return nil
-        }
     }
 }
 
@@ -2136,8 +2161,15 @@ extension ProjectDescription.Settings {
 
         var baseSettingsDictionary = ProjectDescription.SettingsDictionary.from(settingsDictionary: settingsDictionary)
 
+        var propagatedBaseSettings = baseSettings.base
+        // The target's own sanitized bundle identifier is authoritative. A package-wide
+        // PRODUCT_BUNDLE_IDENTIFIER template such as com.acme.$(PRODUCT_NAME) is applied at
+        // the project level, where each target's identifier overrides it. Copying it onto the
+        // target would instead override the sanitized identifier, and modules whose names start
+        // with an underscore (e.g. _RopeModule) would produce identifiers Xcode rejects.
+        propagatedBaseSettings.removeValue(forKey: "PRODUCT_BUNDLE_IDENTIFIER")
         baseSettingsDictionary.merge(
-            .from(settingsDictionary: baseSettings.base),
+            .from(settingsDictionary: propagatedBaseSettings),
             uniquingKeysWith: { _, new in new }
         )
 

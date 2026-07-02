@@ -31,6 +31,13 @@ spec:
   template:
     spec:
       offerType: {{ .Values.kuraFleet.machine.offerType | default "EM-B220E-NVME" | quote }}
+      # Pre-ordered pool: the operator orders Elastic Metal boxes named with this
+      # prefix out-of-band (never inline during a rollout); the controller claims
+      # a free one and releases it back to the pool (reinstall) on delete.
+      adoptNamePrefix: {{ .Values.kuraFleet.machine.adoptNamePrefix | default "tuist-kura-em-" | quote }}
+      # Stable fleet name so every Machine the MachineDeployment clones shares one
+      # SSH key — the key the operator authorizes on the pre-ordered pool boxes.
+      fleetName: {{ $fleetName | quote }}
       zone: {{ .Values.kuraFleet.machine.zone | default "fr-par-1" | quote }}
       os: {{ .Values.kuraFleet.machine.os | default "ubuntu_noble" | quote }}
       privateNetworkName: {{ .Values.kuraFleet.machine.privateNetworkName | default "tuist-runner-cache" | quote }}
@@ -52,7 +59,10 @@ metadata:
     cluster.x-k8s.io/cluster-name: {{ $clusterName }}
 spec:
   clusterName: {{ $clusterName }}
-  replicas: {{ .Values.kuraFleet.replicas | default 1 }}
+  # `dig` (not `| default 1`) so an explicit replicas: 0 renders 0 — Helm's default
+  # treats 0 as empty and would force 1. 0 lets a fresh fleet deploy at MD 0/0
+  # (never wedging helm --wait on an unjoined box); prep the box, then scale to 1.
+  replicas: {{ dig "replicas" 1 .Values.kuraFleet }}
   strategy:
     type: OnDelete
   selector:
@@ -77,4 +87,44 @@ spec:
         apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
         kind: ScalewayElasticMetalMachineTemplate
         name: {{ $fleetName }}
+---
+{{- /*
+MachineHealthCheck — the auto-remediation backstop for a box that stays dead.
+The in-box bootstrap hardening (systemd hardware watchdog + panic sysctls) reboots
+a silently-locked-up box in ~30s without touching the OS, so this only fires when
+that self-heal fails: a Node NotReady for 10 continuous minutes is remediated. The
+provider's release path is a wipe-and-reinstall, so remediation reinstalls the box
+and re-adopts it once it comes back clean. Without this, a frozen box sits NotReady
+forever, drops the observability node-exporter DaemonSet below full availability,
+and wedges every deploy.
+
+unhealthyRange "[0-1]" remediates a single dead box but never reinstalls a whole
+region at once: a cluster-wide blip that NotReadies every replica is left for an
+operator rather than mass-reinstalled. nodeStartupTimeout is generous because a
+bare-metal reinstall + boot is slow.
+*/ -}}
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineHealthCheck
+metadata:
+  name: {{ $fleetName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-fleet
+    tuist.dev/fleet: {{ $fleetName }}
+spec:
+  clusterName: {{ $clusterName }}
+  nodeStartupTimeout: 30m
+  unhealthyRange: "[0-1]"
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+      tuist.dev/fleet: {{ $fleetName }}
+  unhealthyConditions:
+    - type: Ready
+      status: Unknown
+      timeout: 600s
+    - type: Ready
+      status: "False"
+      timeout: 600s
 {{- end }}

@@ -2,6 +2,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   use ExUnit.Case, async: true
   use Mimic
 
+  alias Tuist.Accounts.Account
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura.Mesh
   alias Tuist.Kura.Provisioner.KubernetesController
@@ -68,6 +69,66 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       # anyone with list/watch on KuraInstance would otherwise read the
       # global JWT signing secret.
       refute Map.has_key?(env, "KURA_EXTENSION_JWT_VERIFIER_TUIST_SECRET")
+    end
+
+    test "reserves the Egress floor for enterprise accounts" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Billing, :get_current_active_subscription, fn _ -> %{plan: :enterprise} end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %Account{id: 1, name: "tuist"},
+          eu_region(%{
+            egress_guaranteed_mbps: 25,
+            pod_annotations: %{"kubernetes.io/egress-bandwidth" => "1500M"}
+          }),
+          %Server{},
+          "return true"
+        )
+
+      spec = manifest["spec"]
+      # Enterprise floor: bin-packed against the node's tuist.dev/egress-mbps capacity.
+      assert spec["egressGuaranteedMbps"] == 25
+      # Burst ceiling rides the pod annotation (everyone gets it).
+      assert spec["podAnnotations"] == %{"kubernetes.io/egress-bandwidth" => "1500M"}
+    end
+
+    test "withholds the egress floor from non-enterprise accounts (burst ceiling only)" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Billing, :get_current_active_subscription, fn _ -> %{plan: :air} end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %Account{id: 1, name: "tuist"},
+          eu_region(%{
+            egress_guaranteed_mbps: 25,
+            pod_annotations: %{"kubernetes.io/egress-bandwidth" => "1500M"}
+          }),
+          %Server{},
+          "return true"
+        )
+
+      spec = manifest["spec"]
+      # No floor for the bursty default tenant ...
+      refute Map.has_key?(spec, "egressGuaranteedMbps")
+      # ... but the burst ceiling still applies.
+      assert spec["podAnnotations"] == %{"kubernetes.io/egress-bandwidth" => "1500M"}
     end
 
     test "emits the mesh flag only when the region enables the per-account peer mesh" do
@@ -141,6 +202,42 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       refute Map.has_key?(unbridged["spec"], "meshPublicPeerHost")
       refute Map.has_key?(unbridged["spec"], "meshExternalPeers")
+    end
+
+    test "fronts the public peer plane with host-network + failover IP on a bare-metal region" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      host_network =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{mesh: true, gateway: :host_network, hetzner_location: nil, failover_ip: "203.0.113.10"}),
+          %Server{},
+          "return true"
+        )
+
+      assert host_network["spec"]["meshPeerHostNetwork"] == true
+      assert host_network["spec"]["meshPeerFailoverIp"] == "203.0.113.10"
+      # The Hetzner peer LoadBalancer annotations drop out on host-network regions.
+      refute Map.has_key?(host_network["spec"], "meshPublicPeerLoadBalancerAnnotations")
+
+      hetzner =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{mesh: true}),
+          %Server{},
+          "return true"
+        )
+
+      refute Map.has_key?(hetzner["spec"], "meshPeerHostNetwork")
+      refute Map.has_key?(hetzner["spec"], "meshPeerFailoverIp")
     end
 
     test "omits external peers for a meshed region with no self-hosted nodes" do
@@ -272,6 +369,80 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert annotations["load-balancer.hetzner.cloud/uses-proxyprotocol"] == "true"
       assert String.starts_with?(annotations["load-balancer.hetzner.cloud/name"], "tuist-kgw-")
       refute String.contains?(annotations["load-balancer.hetzner.cloud/name"], "tuist-us")
+
+      refute Map.has_key?(gateway_manifest["spec"], "hostNetwork")
+    end
+
+    test "uses the shared regional ingress class (no dedicated gateway) for a dedicated account on a host-network region" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      # tuist is a dedicated-gateway account, but on a host-network (bare-metal)
+      # region a second per-account host-network gateway can't bind the box's
+      # :443, so the account falls back to the shared regional gateway.
+      region =
+        us_east_region(%{
+          gateway: :host_network,
+          dedicated_gateway_account_handles: ["tuist"]
+        })
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-us-east-1",
+          "0.5.2",
+          %{name: "tuist"},
+          region,
+          %Server{},
+          "return true"
+        )
+
+      assert manifest["spec"]["ingressClassName"] == "kura-us-east"
+      refute Map.has_key?(manifest["metadata"]["annotations"], "tuist.dev/kura-gateway")
+    end
+
+    test "renders a host-network gateway without Hetzner LoadBalancer annotations on bare-metal regions" do
+      region =
+        us_east_region(%{
+          gateway: :host_network,
+          dedicated_gateway_account_handles: ["tuist"]
+        })
+
+      gateway_manifest =
+        KubernetesController.gateway_manifest(
+          %{name: "kgw-test-us-east", ingress_class_name: "kura-us-east-kgw-test-us-east"},
+          %{name: "tuist"},
+          region
+        )
+
+      assert gateway_manifest["spec"]["hostNetwork"] == true
+      refute Map.has_key?(gateway_manifest["spec"], "loadBalancerAnnotations")
+    end
+
+    test "propagates the region tolerations onto the gateway so it schedules on tainted bare-metal nodes" do
+      tolerations = [%{"key" => "tuist.dev/kura-cache", "operator" => "Exists", "effect" => "NoSchedule"}]
+
+      gateway_manifest =
+        KubernetesController.gateway_manifest(
+          %{name: "kgw-test-us-east", ingress_class_name: "kura-us-east-kgw-test-us-east"},
+          %{name: "tuist"},
+          us_east_region(%{gateway: :host_network, tolerations: tolerations})
+        )
+
+      assert gateway_manifest["spec"]["tolerations"] == tolerations
+    end
+
+    test "omits gateway tolerations when the region declares none" do
+      gateway_manifest =
+        KubernetesController.gateway_manifest(
+          %{name: "kgw-test-us-east", ingress_class_name: "kura-us-east-kgw-test-us-east"},
+          %{name: "tuist"},
+          us_east_region(%{gateway: :host_network})
+        )
+
+      refute Map.has_key?(gateway_manifest["spec"], "tolerations")
     end
 
     test "uses the region-configured Tuist server URL for managed eu-central Kura instances" do

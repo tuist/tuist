@@ -16,7 +16,6 @@
     public protocol ShardPlanServicing {
         func plan(
             xctestproductsPath: AbsolutePath,
-            destination: String?,
             reference: String?,
             shardGranularity: ShardGranularity,
             shardMin: Int?,
@@ -35,7 +34,6 @@
         case noTestModulesFound
         case cannotDeriveSessionId
         case xcTestRunNotFound(AbsolutePath)
-        case modulesFailedToEnumerate([String])
 
         public var errorDescription: String? {
             switch self {
@@ -46,15 +44,21 @@
                     "Cannot derive a shard plan reference. Pass --shard-reference explicitly or run in a supported CI environment (GitHub Actions, GitLab CI, CircleCI, Buildkite, Codemagic)."
             case let .xcTestRunNotFound(path):
                 return "No .xctestrun file found in \(path.pathString)"
-            case let .modulesFailedToEnumerate(modules):
-                return
-                    "Could not enumerate tests for \(modules.count) module(s) after retries: \(modules.joined(separator: ", ")). Ensure these test targets build and run, or remove them from the test plan."
             }
         }
     }
 
     public struct ShardPlanService: ShardPlanServicing {
-        private let xcTestEnumerator: XCTestEnumerating
+        /// Cap on concurrent artifact (shared + per-module) compress+upload operations, so a project
+        /// with many modules doesn't spawn an unbounded number at once. Matches the URLSession
+        /// per-host connection cap.
+        private static let maxConcurrentArtifactUploads = 20
+
+        private enum SplitArtifact {
+            case shared
+            case module(AbsolutePath)
+        }
+
         private let createShardPlanService: CreateShardPlanServicing
         private let startShardUploadService: StartShardUploadServicing
         private let multipartUploadArtifactService: MultipartUploadArtifactServicing
@@ -67,7 +71,6 @@
         private let appleArchiver: AppleArchiving
 
         public init(
-            xcTestEnumerator: XCTestEnumerating = XCTestEnumerator(),
             createShardPlanService: CreateShardPlanServicing = CreateShardPlanService(),
             startShardUploadService: StartShardUploadServicing = StartShardUploadService(),
             multipartUploadArtifactService: MultipartUploadArtifactServicing = MultipartUploadArtifactService(),
@@ -81,7 +84,6 @@
             shardMatrixOutputService: ShardMatrixOutputServicing = ShardMatrixOutputService(),
             appleArchiver: AppleArchiving = AppleArchiver()
         ) {
-            self.xcTestEnumerator = xcTestEnumerator
             self.createShardPlanService = createShardPlanService
             self.startShardUploadService = startShardUploadService
             self.multipartUploadArtifactService = multipartUploadArtifactService
@@ -96,7 +98,6 @@
 
         public func plan(
             xctestproductsPath: AbsolutePath,
-            destination: String? = nil,
             reference: String?,
             shardGranularity: ShardGranularity,
             shardMin: Int?,
@@ -127,15 +128,11 @@
                 throw ShardPlanServiceError.noTestModulesFound
             }
 
-            var testSuites: [String]?
-            if shardGranularity == .suite {
-                testSuites = try await enumerateTestSuites(
-                    testProductsPath: xctestproductsPath,
-                    destination: destination,
-                    expectedModules: modules
-                )
-            }
-
+            // Suite-granularity plans are balanced server-side from historical per-suite timings, and the
+            // catch-all shard guarantees any suite without history still runs. The client therefore no
+            // longer enumerates suites by booting every test bundle on the simulator (slow and flaky on
+            // large plans — it could take an hour) and sends only the module universe from the
+            // deterministic `.xctestrun`.
             Logger.current.notice("Creating shard plan with \(modules.count) test module(s)", metadata: .section)
 
             let shardPlan = try await createShardPlanService.createShardPlan(
@@ -143,7 +140,7 @@
                 serverURL: serverURL,
                 reference: reference,
                 modules: modules,
-                testSuites: testSuites,
+                testSuites: nil,
                 shardMin: shardMin,
                 shardMax: shardMax,
                 shardTotal: shardTotal,
@@ -161,19 +158,12 @@
                 Logger.current
                     .notice("Skipping test products upload. Ensure shard runners can access the test products locally.")
             } else {
-                let uploadId = try await startShardUploadService.startUpload(
+                try await uploadSplitArtifacts(
+                    xctestproductsPath: xctestproductsPath,
                     fullHandle: fullHandle,
                     serverURL: serverURL,
-                    shardPlanId: shardPlan.id
-                )
-
-                try await uploadXCTestProducts(
-                    xctestproductsPath,
-                    fullHandle: fullHandle,
-                    serverURL: serverURL,
-                    reference: reference,
-                    shardPlan: shardPlan,
-                    uploadId: uploadId
+                    shardPlanId: shardPlan.id,
+                    reference: reference
                 )
             }
             try await shardMatrixOutputService.output(shardPlan)
@@ -181,174 +171,119 @@
             return shardPlan
         }
 
-        /// Per-module recovery attempts when the bulk enumeration pass omits a module declared in the
-        /// `.xctestrun`. `xcodebuild -enumerate-tests` boots the test bundles to discover their tests and
-        /// can intermittently return an incomplete set (e.g. a slow UI-test host), silently dropping a
-        /// module — and therefore its tests — from a suite-granularity plan. Re-enumerating just the
-        /// missing module in isolation recovers it without redoing the whole (expensive) pass.
-        private static let maxModuleRecoveryAttempts = 2
-
-        /// Enumerates the test suites in the built test products for suite-granularity sharding.
-        ///
-        /// The module universe is taken from the `.xctestrun` (`expectedModules`), which is deterministic.
-        /// Suite discovery via `xcodebuild -enumerate-tests` is not: it boots the test bundles, so a module
-        /// can be reported either missing or — more insidiously — *present-but-empty* when its target fails to
-        /// boot (e.g. a flaky simulator under load). Both look identical to a genuinely empty target except
-        /// that xcodebuild records the failure in the enumeration's `errors`. To keep the plan complete we:
-        ///
-        /// 1. Run one bulk enumeration pass.
-        /// 2. Re-enumerate, in isolation, every `expectedModules` the bulk pass produced *no suites* for —
-        ///    whether missing entirely or present-but-empty. An isolated pass disambiguates: finding suites
-        ///    recovers the module; reporting it present-but-empty with no errors confirms it is genuinely
-        ///    empty; anything else (errors, or still missing) is a real failure.
-        /// 3. Reconcile against `expectedModules`:
-        ///    - modules with suites are sharded at suite granularity;
-        ///    - modules confirmed genuinely empty are excluded;
-        ///    - any remaining module failed to enumerate and throws, rather than being silently dropped.
-        private func enumerateTestSuites(
-            testProductsPath: AbsolutePath,
-            destination: String?,
-            expectedModules: [String]
-        ) async throws -> [String] {
-            let expectedModules = Set(expectedModules)
-            var suitesByModule: [String: Set<String>] = [:]
-
-            func ingest(_ enumeration: XCTestEnumeration) {
-                for target in enumeration.targets {
-                    let suites = target.onlyTestIdentifiers ?? []
-                    guard !suites.isEmpty else { continue }
-                    suitesByModule[target.blueprintName, default: []].formUnion(suites)
-                }
-            }
-
-            // 1. Bulk pass.
-            ingest(try await enumerate(testProductsPath: testProductsPath, destination: destination, onlyTesting: []))
-
-            // 2. Recovery for every expected module the bulk pass produced no suites for. A present-but-empty
-            //    target is ambiguous (genuinely empty vs. failed to boot), so we re-enumerate it in isolation
-            //    and let that pass arbitrate.
-            var confirmedEmptyModules: Set<String> = []
-            var failureDetailByModule: [String: String] = [:]
-            let modulesNeedingRecovery = expectedModules.filter { suitesByModule[$0] == nil }.sorted()
-            if !modulesNeedingRecovery.isEmpty {
-                Logger.current.warning(
-                    "Test enumeration produced suites for \(suitesByModule.count) of \(expectedModules.count) module(s); re-enumerating \(modulesNeedingRecovery.count) module(s) individually to avoid dropping tests from the shard plan."
-                )
-                for module in modulesNeedingRecovery {
-                    for _ in 1 ... Self.maxModuleRecoveryAttempts {
-                        let enumeration = try await enumerate(
-                            testProductsPath: testProductsPath,
-                            destination: destination,
-                            onlyTesting: [module]
-                        )
-                        ingest(enumeration)
-                        if suitesByModule[module] != nil { break }
-                        if enumeration.errors.isEmpty,
-                           enumeration.targets.contains(where: { $0.blueprintName == module })
-                        {
-                            // Booted and enumerated cleanly, it simply has no tests.
-                            confirmedEmptyModules.insert(module)
-                            break
-                        }
-                        failureDetailByModule[module] = enumeration.errors.first
-                            ?? "the module was not reported by `xcodebuild -enumerate-tests`"
-                    }
-                }
-            }
-
-            // 3. Reconcile against the deterministic `.xctestrun` universe. A module we could neither find
-            // suites for nor confirm as genuinely empty failed to enumerate (e.g. a target that won't boot),
-            // so fail loudly — with the underlying xcodebuild error — rather than silently dropping its tests.
-            let failedModules = expectedModules
-                .filter { suitesByModule[$0] == nil }
-                .subtracting(confirmedEmptyModules)
-                .sorted()
-            guard failedModules.isEmpty else {
-                let details = failedModules.compactMap { module in
-                    failureDetailByModule[module].map { "\(module): \($0)" }
-                }
-                if !details.isEmpty {
-                    Logger.current.error(
-                        "Test enumeration failed for \(failedModules.count) module(s):\n\(details.joined(separator: "\n"))"
-                    )
-                }
-                throw ShardPlanServiceError.modulesFailedToEnumerate(failedModules)
-            }
-
-            if !confirmedEmptyModules.isEmpty {
-                Logger.current.debug(
-                    "\(confirmedEmptyModules.count) module(s) enumerated no tests and are excluded as empty: \(confirmedEmptyModules.sorted().joined(separator: ", "))."
-                )
-            }
-
-            return suitesByModule
-                .flatMap { module, suites in suites.map { "\(module)/\($0)" } }
-                .sorted()
-        }
-
-        /// Runs a single enumeration pass. A failed *bulk* pass is fatal — there would be nothing to shard. A
-        /// failed *isolated recovery* pass (`onlyTesting` non-empty) is non-fatal but is surfaced as an
-        /// `errors` entry for the module being recovered, so the reconcile step fails loudly instead of
-        /// silently dropping it.
-        private func enumerate(
-            testProductsPath: AbsolutePath,
-            destination: String?,
-            onlyTesting: [String]
-        ) async throws -> XCTestEnumeration {
-            do {
-                return try await xcTestEnumerator.enumerateTests(
-                    testProductsPath: testProductsPath,
-                    destination: destination,
-                    onlyTesting: onlyTesting
-                )
-            } catch {
-                if onlyTesting.isEmpty { throw error }
-                Logger.current.debug(
-                    "Per-target enumeration of \(onlyTesting.joined(separator: ", ")) failed: \(error.localizedDescription)"
-                )
-                return XCTestEnumeration(targets: [], errors: [error.localizedDescription])
-            }
-        }
-
-        private func uploadXCTestProducts(
-            _ xctestproductsPath: AbsolutePath,
+        /// Uploads the shard test products split so each shard downloads only what it needs: a single
+        /// `shared` artifact (everything except the per-module test bundles) plus one artifact per
+        /// module's `.xctest`. The server hands each shard the shared artifact plus its modules' artifacts.
+        private func uploadSplitArtifacts(
+            xctestproductsPath: AbsolutePath,
             fullHandle: String,
             serverURL: URL,
-            reference: String,
-            shardPlan: Components.Schemas.ShardPlan,
-            uploadId: String
+            shardPlanId: String,
+            reference: String
         ) async throws {
-            Logger.current.debug("Uploading test products bundle...")
+            Logger.current.debug("Uploading test products artifacts...")
+
             let archiveDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-archive")
-            let archivePath = archiveDirectory.appending(component: "bundle.aar")
-            try await archiveXCTestProducts(xctestproductsPath, to: archivePath)
+            let xctestPaths = try await fileSystem.glob(directory: xctestproductsPath, include: ["**/*.xctest"]).collect()
+
+            // Each artifact (the shared bundle plus one per module) is an independent compress + upload;
+            // run them concurrently, capped so a project with many modules doesn't oversubscribe the host.
+            let artifacts: [SplitArtifact] = [.shared] + xctestPaths.map(SplitArtifact.module)
+            _ = try await artifacts.concurrentMap(maxConcurrentTasks: Self.maxConcurrentArtifactUploads) { artifact in
+                switch artifact {
+                case .shared:
+                    let sharedArchive = archiveDirectory.appending(component: "shared.aar")
+                    // ".xctest/" (with the trailing slash) excludes the per-module test bundles' contents
+                    // without also dropping the sibling ".xctestrun" — excludePatterns is a substring match,
+                    // and ".xctestrun" contains ".xctest". The .xctestrun must stay in the shared artifact.
+                    try await appleArchiver.compress(
+                        directory: xctestproductsPath,
+                        to: sharedArchive,
+                        excludePatterns: [".dSYM", ".xctest/"]
+                    )
+                    try await uploadArtifact(
+                        archivePath: sharedArchive,
+                        artifact: "shared",
+                        fullHandle: fullHandle,
+                        serverURL: serverURL,
+                        shardPlanId: shardPlanId,
+                        reference: reference
+                    )
+                case let .module(xctestPath):
+                    let module = xctestPath.basenameWithoutExt
+                    let moduleArchive = archiveDirectory.appending(component: "\(module).aar")
+                    try await archiveModuleProduct(xctestPath, productsPath: xctestproductsPath, to: moduleArchive)
+                    try await uploadArtifact(
+                        archivePath: moduleArchive,
+                        artifact: "module:\(module)",
+                        fullHandle: fullHandle,
+                        serverURL: serverURL,
+                        shardPlanId: shardPlanId,
+                        reference: reference
+                    )
+                }
+            }
+
+            Logger.current.debug("Upload complete. Shard matrix ready.")
+        }
+
+        private func uploadArtifact(
+            archivePath: AbsolutePath,
+            artifact: String,
+            fullHandle: String,
+            serverURL: URL,
+            shardPlanId: String,
+            reference: String
+        ) async throws {
+            let uploadId = try await startShardUploadService.startUpload(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                shardPlanId: shardPlanId,
+                reference: reference,
+                artifact: artifact
+            )
             let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
                 artifactPath: archivePath,
                 generateUploadURL: { part in
                     try await multipartUploadGenerateURLShardsService.generateUploadURL(
                         fullHandle: fullHandle,
                         serverURL: serverURL,
-                        shardPlanId: shardPlan.id,
+                        shardPlanId: shardPlanId,
                         reference: reference,
                         uploadId: uploadId,
-                        partNumber: part.number
+                        partNumber: part.number,
+                        artifact: artifact
                     )
                 },
                 updateProgress: { progress in
-                    Logger.current.debug("Upload progress: \(Int(progress * 100))%")
+                    Logger.current.debug("Upload progress (\(artifact)): \(Int(progress * 100))%")
                 }
             )
-
             try await multipartUploadCompleteShardsService.completeUpload(
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                shardPlanId: shardPlan.id,
+                shardPlanId: shardPlanId,
                 reference: reference,
                 uploadId: uploadId,
-                parts: parts.map { (partNumber: $0.partNumber, etag: $0.etag) }
+                parts: parts.map { (partNumber: $0.partNumber, etag: $0.etag) },
+                artifact: artifact
             )
+        }
 
-            Logger.current.debug("Upload complete. Shard matrix ready.")
+        /// Archives a single module's `.xctest` preserving its path relative to the products root,
+        /// so extracting it alongside the shared artifact reconstructs the original layout. The
+        /// `.xctest` is read in place — a project with hundreds of modules would otherwise copy
+        /// every (multi-hundred-MB) test bundle into a staging directory before compressing it.
+        private func archiveModuleProduct(
+            _ xctestPath: AbsolutePath,
+            productsPath: AbsolutePath,
+            to archivePath: AbsolutePath
+        ) async throws {
+            try await appleArchiver.compress(
+                subdirectory: xctestPath,
+                relativeTo: productsPath,
+                to: archivePath
+            )
         }
 
         /// Creates a compressed archive of the test products bundle, excluding dSYMs

@@ -80,6 +80,13 @@ spec:
                   type: object
                   additionalProperties:
                     type: string
+                hostNetwork:
+                  type: boolean
+                tolerations:
+                  type: array
+                  items:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
             status:
               type: object
               properties:

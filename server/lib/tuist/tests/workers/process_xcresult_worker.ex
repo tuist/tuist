@@ -132,12 +132,14 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   end
 
   defp replace_test_run(parsed_data, args) do
+    test_modules = parsed_data["test_modules"] || []
+
     attrs =
       Map.merge(base_attrs(args), %{
         scheme: parsed_data["test_plan_name"] || Map.get(args, "scheme"),
-        status: parsed_data["status"] || "success",
+        status: run_status(parsed_data, test_modules),
         duration: parsed_data["duration"] || 0,
-        test_modules: parsed_data["test_modules"] || [],
+        test_modules: test_modules,
         run_destinations: normalize_run_destinations(parsed_data["run_destinations"] || [])
       })
 
@@ -146,6 +148,14 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
       error -> error
     end
   end
+
+  # A parse that extracted no test modules found nothing usable in the bundle
+  # (an aborted or empty xcresult). The Swift parser reports that as "skipped"
+  # — vacuously, from an empty test-case list — which reads on the dashboard as
+  # a real skip rather than "we couldn't parse this". Surface it as
+  # failed_processing so it isn't mistaken for a passing or skipped run.
+  defp run_status(_parsed_data, []), do: "failed_processing"
+  defp run_status(parsed_data, _test_modules), do: parsed_data["status"] || "success"
 
   # The xcresult `platform` field uses display strings ("iOS Simulator",
   # "macOS"). We persist the snake-case form in `test_run_destinations` so
