@@ -2067,6 +2067,16 @@ extension ProjectDescription.Settings {
             "OTHER_SWIFT_FLAGS": ["$(inherited)"],
         ]
 
+        // Swift's back-deployment compatibility dylibs (e.g. libswiftCompatibilitySpan) ship only in the
+        // toolchain's versioned prebuilt directory, not in the simulator/device runtime. Packages that adopt
+        // back-deployed stdlib types (Span, RawSpan, ...) reference them via @rpath, so expose that directory
+        // to dyld; otherwise loading the product fails with "Library not loaded: @rpath/libswiftCompatibilitySpan.dylib".
+        settingsDictionary.appendArraySetting(
+            key: "LD_RUNPATH_SEARCH_PATHS",
+            values: try await SwiftBackDeploymentLibrariesProvider.current.runpathSearchPaths(),
+            includeInherited: true
+        )
+
         if !enabledTraits.isEmpty {
             var traitConditions: Set<String> = []
 

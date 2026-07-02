@@ -13,6 +13,7 @@ import XcodeGraph
 @testable import TuistLoader
 @testable import TuistTesting
 
+@Suite(.withMockedSwiftBackDeploymentLibrariesProvider)
 struct PackageInfoMapperTests {
     private var subject: PackageInfoMapper!
     private let fileSystem = FileSystem()
@@ -22,6 +23,10 @@ struct PackageInfoMapperTests {
         given(swiftVersionProviderMock)
             .swiftVersion()
             .willReturn("5.9")
+        let swiftBackDeploymentLibrariesProviderMock = try #require(SwiftBackDeploymentLibrariesProvider.mocked)
+        given(swiftBackDeploymentLibrariesProviderMock)
+            .runpathSearchPaths()
+            .willReturn([])
         subject = PackageInfoMapper()
     }
 
@@ -7223,6 +7228,50 @@ struct PackageInfoMapperTests {
 
         let mappedTarget = try #require(project?.targets.first(where: { $0.name == "FirebaseCrashlyticsTarget" }))
         #expect(mappedTarget.productName == "FirebaseCrashlyticsTarget")
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_addsSwiftBackDeploymentLibrariesToRunpathSearchPaths() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/Library"))
+        )
+
+        let backDeploymentProvider = MockSwiftBackDeploymentLibrariesProviding()
+        given(backDeploymentProvider)
+            .runpathSearchPaths()
+            .willReturn(["$(TOOLCHAIN_DIR)/usr/lib/swift-test/$(PLATFORM_NAME)"])
+
+        let project = try await SwiftBackDeploymentLibrariesProvider.$current.withValue(backDeploymentProvider) {
+            try await subject.map(
+                package: "Package",
+                basePath: basePath,
+                packageInfos: [
+                    "Package": .test(
+                        name: "Package",
+                        products: [
+                            .init(name: "Library", type: .library(.automatic), targets: ["Library"]),
+                        ],
+                        targets: [
+                            .test(name: "Library"),
+                        ],
+                        platforms: [.ios],
+                        cLanguageStandard: nil,
+                        cxxLanguageStandard: nil,
+                        swiftLanguageVersions: nil
+                    ),
+                ]
+            )
+        }
+
+        let mappedTarget = try #require(project?.targets.first(where: { $0.name == "Library" }))
+        #expect(
+            mappedTarget.settings?.base["LD_RUNPATH_SEARCH_PATHS"] == .array([
+                "$(inherited)",
+                "$(TOOLCHAIN_DIR)/usr/lib/swift-test/$(PLATFORM_NAME)",
+            ])
+        )
     }
 
     @Test(
