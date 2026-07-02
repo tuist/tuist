@@ -1774,7 +1774,14 @@ defmodule Tuist.Tests do
       if Enum.any?(all_arguments) do
         TestCaseRunArgument.Buffer.insert_all(all_arguments)
       end
+    end)
 
+    # Scheduling the flaky-test alert evaluations runs in its own task, separate
+    # from the buffered inserts above. When they shared one task, a failure in
+    # any of the `insert_all` calls aborted it before the enqueue ran, silently
+    # leaving the project's alerts unscheduled. Rolling-window alerts have no
+    # cadence fallback, so that left them idle indefinitely.
+    Tuist.Tasks.run_async(fn ->
       enqueue_flaky_alert_evaluations(test, test_case_runs)
     end)
 
