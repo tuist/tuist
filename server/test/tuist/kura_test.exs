@@ -422,6 +422,27 @@ defmodule Tuist.KuraTest do
       assert kept.id in ids
       refute gone.id in ids
     end
+
+    test "hides transient warm-handoff move rows (customer sees one server per region)" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, source} =
+        %{account_id: account.id, region: "eu-central", provisioner_node_ref: "kura-move-source"}
+        |> Server.create_changeset()
+        |> Repo.insert()
+
+      {:ok, source} =
+        source
+        |> Server.status_changeset(%{status: :active, url: "https://x", current_image_tag: "0.5.2"})
+        |> Repo.update()
+
+      {:ok, moving_in} = Kura.move_server(source, "box-2")
+
+      ids = account.id |> Kura.list_servers_for_account() |> Enum.map(& &1.id)
+      assert source.id in ids
+      refute moving_in.id in ids
+    end
   end
 
   describe "activate_server/2" do

@@ -289,15 +289,21 @@ defmodule Tuist.Kura do
   defp deployment_cluster_id(%Regions{id: id}), do: id
 
   @doc """
-  Returns the non-destroyed servers for an account, each with its
-  deployment history preloaded newest-first so the /ops UI can link
+  Returns the non-destroyed steady-state servers for an account, one per region,
+  each with its deployment history preloaded newest-first so the UI can link
   straight to the latest deployment attempt.
+
+  Only `move_phase == :none` rows are returned: a warm handoff's transient
+  `:moving_in`/`:moving_out` instances are internal rebalancing, not something
+  the account owns or acts on, so they never surface in the dashboard. Through a
+  move the account keeps seeing exactly the one steady-state server for the
+  region (the source until the target is promoted).
   """
   def list_servers_for_account(account_id) do
     deployments_query = from(d in Deployment, order_by: [desc: d.inserted_at, desc: d.id])
 
     Server
-    |> where([s], s.account_id == ^account_id and s.status != :destroyed)
+    |> where([s], s.account_id == ^account_id and s.status != :destroyed and s.move_phase == :none)
     |> order_by([s], asc: s.region)
     |> preload(deployments: ^deployments_query)
     |> Repo.all()
