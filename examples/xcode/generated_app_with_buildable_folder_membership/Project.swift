@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "App",
     targets: [
-        // The App target's buildable folder holds its xcconfigs and Info.plist (which must not be duplicated as flat
+        // The App target's buildable folder holds its support files (which must not be duplicated as flat
         // root-level references) and SharedStub.swift, which is also a member of the AppTests target.
         .target(
             name: "App",
@@ -14,13 +14,33 @@ let project = Project(
             buildableFolders: [
                 .folder("App", exceptions: [
                     .exception(excluded: ["Supporting/App-Info.plist"]),
+                    .exception(excluded: [
+                        "Supporting Files/App-Debug.entitlements",
+                        "Supporting Files/App-Debug.plist",
+                        "Supporting Files/App-Release.entitlements",
+                        "Supporting Files/App-Release.plist",
+                    ]),
                     .exception(target: "AppTests", included: ["SharedStub.swift"]),
                 ]),
             ],
             settings: .settings(
                 configurations: [
-                    .debug(name: "Debug", xcconfig: "App/Supporting/Configurations/App-Debug.xcconfig"),
-                    .release(name: "Release", xcconfig: "App/Supporting/Configurations/App-Release.xcconfig"),
+                    .debug(
+                        name: "Debug",
+                        settings: [
+                            "CODE_SIGN_ENTITLEMENTS": "App/Supporting Files/App-Debug.entitlements",
+                            "INFOPLIST_FILE": "App/Supporting Files/App-Debug.plist",
+                        ],
+                        xcconfig: "App/Supporting/Configurations/App-Debug.xcconfig"
+                    ),
+                    .release(
+                        name: "Release",
+                        settings: [
+                            "CODE_SIGN_ENTITLEMENTS": "App/Supporting Files/App-Release.entitlements",
+                            "INFOPLIST_FILE": "App/Supporting Files/App-Release.plist",
+                        ],
+                        xcconfig: "App/Supporting/Configurations/App-Release.xcconfig"
+                    ),
                 ]
             )
         ),

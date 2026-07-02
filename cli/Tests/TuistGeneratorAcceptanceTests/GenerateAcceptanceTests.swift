@@ -1797,6 +1797,12 @@ struct GenerateAcceptanceTestAppWithBuildableFolderMembership {
         let debugConfiguration = try #require(appTarget.buildConfigurationList?.configuration(name: "Debug"))
         #expect(debugConfiguration.baseConfiguration == nil)
         #expect(debugConfiguration.baseConfigurationReferenceRelativePath == "Supporting/Configurations/App-Debug.xcconfig")
+        #expect(debugConfiguration.buildSettings["CODE_SIGN_ENTITLEMENTS"] == "App/Supporting Files/App-Debug.entitlements")
+        #expect(debugConfiguration.buildSettings["INFOPLIST_FILE"] == "App/Supporting Files/App-Debug.plist")
+
+        let releaseConfiguration = try #require(appTarget.buildConfigurationList?.configuration(name: "Release"))
+        #expect(releaseConfiguration.buildSettings["CODE_SIGN_ENTITLEMENTS"] == "App/Supporting Files/App-Release.entitlements")
+        #expect(releaseConfiguration.buildSettings["INFOPLIST_FILE"] == "App/Supporting Files/App-Release.plist")
 
         // SharedStub.swift is added to AppTests via a foreign-target exception set, not a flat reference.
         let synchronizedGroup = try #require(
@@ -1815,6 +1821,10 @@ struct GenerateAcceptanceTestAppWithBuildableFolderMembership {
         let fileReferenceNames = pbxproj.fileReferences.compactMap(\.path) + pbxproj.fileReferences.compactMap(\.name)
         #expect(!fileReferenceNames.contains { $0.hasSuffix("App-Debug.xcconfig") })
         #expect(!fileReferenceNames.contains { $0.hasSuffix("App-Info.plist") })
+        #expect(!fileReferenceNames.contains { $0.hasSuffix("App-Debug.entitlements") })
+        #expect(!fileReferenceNames.contains { $0.hasSuffix("App-Debug.plist") })
+        #expect(!fileReferenceNames.contains { $0.hasSuffix("App-Release.entitlements") })
+        #expect(!fileReferenceNames.contains { $0.hasSuffix("App-Release.plist") })
         #expect(!fileReferenceNames.contains { $0.hasSuffix("SharedStub.swift") })
     }
 }
