@@ -295,11 +295,12 @@ public struct XCResultParser: Sendable {
     /// create unbounded per-pid rows, or fire `test_case.created` webhooks) and
     /// collect them as target-keyed errors. The pid varies per run, so we dedup
     /// by (target, message) to land one per target like Xcode.
-    private static let xctestRunnerErrorRegex = /xctest \(\d+\) encountered an error/
-
     private func isRunnerError(_ name: String?) -> Bool {
         guard let name else { return false }
-        return name.wholeMatch(of: Self.xctestRunnerErrorRegex) != nil
+        // Built inline rather than cached in a `static let`: `Regex` isn't `Sendable`, so a shared static
+        // needs `nonisolated(unsafe)`. The per-call cost is negligible next to xcresult parsing
+        // (`xcresulttool` subprocess + JSON decoding), so we skip the shared state entirely.
+        return name.wholeMatch(of: /xctest \(\d+\) encountered an error/) != nil
     }
 
     private func extractErrors(from node: TestNode, module: String?, into errors: inout [TestRunError]) {
