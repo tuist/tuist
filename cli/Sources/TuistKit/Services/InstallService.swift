@@ -165,6 +165,14 @@ struct InstallService: InstallServicing {
         try await fileSystem.copy(sourcePath, to: destinationPath)
     }
 
+    /// Recursively resolves the external dependencies declared by local path packages.
+    ///
+    /// SwiftPM prunes a path dependency's test-only external dependencies from the root resolution,
+    /// so those products are missing from the root `workspace-state.json` even though Tuist loads the
+    /// local package's full manifest. To make them available, each local package is resolved as its own
+    /// root in its own scratch directory (its default `.build`), which is why the custom
+    /// `--scratch-path`/`--build-path` are stripped from `arguments`. As a result, SwiftPM state
+    /// (`.build`, `Package.resolved`) is created inside each local package directory.
     private func resolveLocalPackageDependencies(
         scratchDirectory: AbsolutePath,
         update: Bool,
@@ -172,7 +180,10 @@ struct InstallService: InstallServicing {
         knownPackageIdentities: inout Set<String>,
         visitedPackageFolders: inout Set<String>
     ) async throws {
-        guard let workspaceState = try await workspaceState(scratchDirectory: scratchDirectory) else {
+        guard let workspaceState = try await SwiftPackageManagerWorkspaceState.load(
+            from: scratchDirectory,
+            fileSystem: fileSystem
+        ) else {
             return
         }
         knownPackageIdentities.formUnion(
@@ -180,9 +191,9 @@ struct InstallService: InstallServicing {
         )
 
         for dependency in workspaceState.object.dependencies
-            where isLocalDependencyKind(dependency.packageRef.kind)
+            where SwiftPackageManagerWorkspaceState.isLocalDependencyKind(dependency.packageRef.kind)
         {
-            guard let packageFolder = localPackageFolder(for: dependency, scratchDirectory: scratchDirectory),
+            guard let packageFolder = dependency.localPackageFolder(relativeTo: scratchDirectory),
                   visitedPackageFolders.insert(packageFolder.pathString).inserted
             else {
                 continue
@@ -237,39 +248,5 @@ struct InstallService: InstallServicing {
         let hasRemoteBinaryTargets = packageInfo.targets.contains { $0.url != nil }
 
         return !missingPackageDependencies.isEmpty || hasRemoteBinaryTargets
-    }
-
-    private func workspaceState(scratchDirectory: AbsolutePath) async throws -> SwiftPackageManagerWorkspaceState? {
-        let workspaceStatePath = scratchDirectory.appending(component: "workspace-state.json")
-        guard try await fileSystem.exists(workspaceStatePath) else {
-            return nil
-        }
-
-        return try JSONDecoder().decode(
-            SwiftPackageManagerWorkspaceState.self,
-            from: try await fileSystem.readFile(at: workspaceStatePath)
-        )
-    }
-
-    private func localPackageFolder(
-        for dependency: SwiftPackageManagerWorkspaceState.Dependency,
-        scratchDirectory: AbsolutePath
-    ) -> AbsolutePath? {
-        guard let path = dependency.packageRef.path ?? dependency.packageRef.location else {
-            return nil
-        }
-        return try? AbsolutePath(
-            validating: sanitizedSwiftPackageManagerPath(path),
-            relativeTo: scratchDirectory
-        )
-    }
-
-    private func isLocalDependencyKind(_ kind: String) -> Bool {
-        ["local", "fileSystem", "localSourceControl"].contains(kind)
-    }
-
-    private func sanitizedSwiftPackageManagerPath(_ path: String) -> String {
-        String(path.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) })
-            .replacingOccurrences(of: "/private/var", with: "/var")
     }
 }

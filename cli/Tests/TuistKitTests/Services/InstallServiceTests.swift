@@ -317,6 +317,62 @@ final class InstallServiceTests: TuistUnitTestCase {
             .called(0)
     }
 
+    func test_run_when_localPackageHasRemoteBinaryTargetWithoutMissingDependencies_resolvesLocalPackage() async throws {
+        // Given
+        let stubbedPath = try temporaryPath()
+        let tuistPackagePath = stubbedPath.appending(components: "Tuist", "Package.swift")
+        let localPackagePath = stubbedPath.appending(component: "LocalOnlyPackage")
+
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(tuistPackagePath)
+        given(swiftPackageManagerController)
+            .resolve(at: .any, arguments: .any, printOutput: .any)
+            .willReturn()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                Tuist.test(project: .generated(.test()))
+            )
+        given(manifestLoader)
+            .loadPackage(at: .value(localPackagePath), disableSandbox: .value(true))
+            .willReturn(
+                packageInfo(
+                    name: "LocalOnlyPackage",
+                    binaryTargetURL: "https://example.com/Binary.xcframework.zip"
+                )
+            )
+
+        pluginService.fetchRemotePluginsStub = { _ in }
+
+        try await fileSystem.makeDirectory(at: tuistPackagePath.parentDirectory)
+        try await fileSystem.touch(tuistPackagePath)
+        try await fileSystem.writeText(
+            "resolved",
+            at: tuistPackagePath.parentDirectory.appending(component: Constants.SwiftPackageManager.packageResolvedName)
+        )
+        try await fileSystem.makeDirectory(at: localPackagePath)
+        try await writeLocalPackageWorkspaceState(
+            scratchDirectory: tuistPackagePath.parentDirectory.appending(component: ".build"),
+            packagePath: localPackagePath
+        )
+        try await writeEmptyWorkspaceState(
+            scratchDirectory: localPackagePath.appending(component: ".build")
+        )
+
+        // When
+        try await subject.run(
+            path: stubbedPath.pathString,
+            update: false,
+            passthroughArguments: []
+        )
+
+        // Then
+        verify(swiftPackageManagerController)
+            .resolve(at: .value(localPackagePath), arguments: .value([]), printOutput: .any)
+            .called(1)
+    }
+
     func test_run_when_installing_dependencies_passing_additional_arguments() async throws {
         // Given
         let stubbedPath = try temporaryPath()
@@ -697,7 +753,8 @@ final class InstallServiceTests: TuistUnitTestCase {
 
     private func packageInfo(
         name: String,
-        dependencies: [PackageDependency] = []
+        dependencies: [PackageDependency] = [],
+        binaryTargetURL: String? = nil
     ) -> PackageInfo {
         PackageInfo(
             name: name,
@@ -706,13 +763,13 @@ final class InstallServiceTests: TuistUnitTestCase {
                 PackageInfo.Target(
                     name: "\(name)Target",
                     path: nil,
-                    url: nil,
+                    url: binaryTargetURL,
                     sources: nil,
                     resources: [],
                     exclude: [],
                     dependencies: [],
                     publicHeadersPath: nil,
-                    type: .regular,
+                    type: binaryTargetURL == nil ? .regular : .binary,
                     settings: [],
                     checksum: nil
                 ),
