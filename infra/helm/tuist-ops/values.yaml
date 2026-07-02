@@ -84,7 +84,7 @@ postgresql:
     # namespace (`platform`) — see infra/cnpg/README.md. Default off: no-op
     # until flipped after validating WAL continuity + a restore drill.
     plugin:
-      enabled: false
+      enabled: true
       name: barman-cloud.cloudnative-pg.io
 
 ingress:
