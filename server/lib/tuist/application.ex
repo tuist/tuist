@@ -292,9 +292,6 @@ defmodule Tuist.Application do
         Supervisor.child_spec(CacheableTask.Buffer, id: CacheableTask.Buffer),
         Supervisor.child_spec(CASOutput.Buffer, id: CASOutput.Buffer),
         Supervisor.child_spec(CommandEvents.ModuleCacheOutput.Buffer, id: CommandEvents.ModuleCacheOutput.Buffer),
-        Supervisor.child_spec(CommandEvents.ModuleCacheTransferDuration.Buffer,
-          id: CommandEvents.ModuleCacheTransferDuration.Buffer
-        ),
         Supervisor.child_spec(XcodeGraph.Buffer, id: XcodeGraph.Buffer),
         Supervisor.child_spec(XcodeProject.Buffer, id: XcodeProject.Buffer),
         Supervisor.child_spec(XcodeTarget.Buffer, id: XcodeTarget.Buffer),

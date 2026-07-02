@@ -70,15 +70,6 @@ public actor RunMetadataStorage {
         moduleCacheTransfers.append(moduleCacheTransfer)
     }
 
-    /// Wall-clock time the run spent transferring module cache artifacts (in seconds). Owned by the
-    /// remote cache storage, which measures the whole concurrent transfer span; the per-operation
-    /// durations in `moduleCacheTransfers` cannot be summed into this because transfers run in
-    /// parallel. Reported as the run's "overall fetch time".
-    public private(set) var moduleCacheTransferDuration: TimeInterval?
-    public func update(moduleCacheTransferDuration: TimeInterval?) {
-        self.moduleCacheTransferDuration = moduleCacheTransferDuration
-    }
-
     /// Target content hash subhashes keyed by hash. Multiple graph mappers (binary cache, selective
     /// testing, cache warm) each contribute their own entries, so updates merge into the existing
     /// dictionary rather than replacing it.

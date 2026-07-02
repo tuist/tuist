@@ -9209,11 +9209,6 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
-                module_cache_transfer_duration_ms:
-                  description: Wall-clock time the command spent transferring module cache artifacts, in milliseconds. Reported as the run's overall module cache fetch time.
-                  type: integer
-                  x-struct:
-                  x-validate:
                 module_cache_transfers:
                   description: Per-artifact module (binary) cache transfer operations performed during the command, used for module cache network analytics.
                   items:

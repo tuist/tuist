@@ -28,7 +28,6 @@ public struct CommandEvent: Codable, Equatable {
     public let generationId: String?
     public let cacheEndpoint: String
     public let moduleCacheTransfers: [ModuleCacheTransfer]
-    public let moduleCacheTransferDurationInMs: Int?
 
     public enum Status: Codable, Equatable {
         case success, failure(String)
@@ -60,7 +59,6 @@ public struct CommandEvent: Codable, Equatable {
         case generationId = "generation_id"
         case cacheEndpoint
         case moduleCacheTransfers
-        case moduleCacheTransferDurationInMs = "module_cache_transfer_duration_ms"
     }
 
     public init(
@@ -88,8 +86,7 @@ public struct CommandEvent: Codable, Equatable {
         testRunId: String?,
         generationId: String?,
         cacheEndpoint: String,
-        moduleCacheTransfers: [ModuleCacheTransfer] = [],
-        moduleCacheTransferDurationInMs: Int? = nil
+        moduleCacheTransfers: [ModuleCacheTransfer] = []
     ) {
         self.runId = runId
         self.name = name
@@ -116,7 +113,6 @@ public struct CommandEvent: Codable, Equatable {
         self.generationId = generationId
         self.cacheEndpoint = cacheEndpoint
         self.moduleCacheTransfers = moduleCacheTransfers
-        self.moduleCacheTransferDurationInMs = moduleCacheTransferDurationInMs
     }
 
     #if MOCKING
@@ -144,8 +140,7 @@ public struct CommandEvent: Codable, Equatable {
             testRunId: String? = nil,
             generationId: String? = nil,
             cacheEndpoint: String = "",
-            moduleCacheTransfers: [ModuleCacheTransfer] = [],
-            moduleCacheTransferDurationInMs: Int? = nil
+            moduleCacheTransfers: [ModuleCacheTransfer] = []
         ) -> CommandEvent {
             CommandEvent(
                 runId: runId,
@@ -172,8 +167,7 @@ public struct CommandEvent: Codable, Equatable {
                 testRunId: testRunId,
                 generationId: generationId,
                 cacheEndpoint: cacheEndpoint,
-                moduleCacheTransfers: moduleCacheTransfers,
-                moduleCacheTransferDurationInMs: moduleCacheTransferDurationInMs
+                moduleCacheTransfers: moduleCacheTransfers
             )
         }
     #endif

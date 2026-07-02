@@ -226,11 +226,6 @@ defmodule TuistWeb.API.AnalyticsController do
                }
              }
            },
-           module_cache_transfer_duration_ms: %Schema{
-             type: :integer,
-             description:
-               "Wall-clock time the command spent transferring module cache artifacts, in milliseconds. Reported as the run's overall module cache fetch time."
-           },
            preview_id: %Schema{
              type: :string,
              description: "The preview identifier."
@@ -535,11 +530,6 @@ defmodule TuistWeb.API.AnalyticsController do
     if module_cache_transfers != [] do
       CommandEvents.create_module_cache_outputs(command_event, module_cache_transfers)
     end
-
-    CommandEvents.create_module_cache_transfer_duration(
-      command_event,
-      Map.get(body_params, :module_cache_transfer_duration_ms)
-    )
 
     if Enum.member?(["test", "share", "bundle"], body_params.name) do
       VCS.enqueue_vcs_pull_request_comment(%{

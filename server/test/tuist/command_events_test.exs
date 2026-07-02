@@ -2158,20 +2158,17 @@ defmodule Tuist.CommandEventsTest do
     end
   end
 
-  describe "create_module_cache_outputs/2 and create_module_cache_transfer_duration/2" do
-    test "persist per-artifact module cache transfers and the overall fetch time" do
+  describe "create_module_cache_outputs/2" do
+    test "persists per-artifact module cache transfers" do
       # Given
       project = ProjectsFixtures.project_fixture()
       command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
 
-      transfers = [
+      # When
+      CommandEvents.create_module_cache_outputs(command_event, [
         %{operation: "download", name: "A", hash: "h1", size: 1000, compressed_size: 500, duration: 100},
         %{operation: "upload", name: "B", hash: "h2", size: 2000, compressed_size: 1000, duration: 200}
-      ]
-
-      # When
-      CommandEvents.create_module_cache_outputs(command_event, transfers)
-      CommandEvents.create_module_cache_transfer_duration(command_event, 8000)
+      ])
 
       # Then
       %{rows: [[transfer_count, download_count, upload_count]]} =
@@ -2187,42 +2184,11 @@ defmodule Tuist.CommandEventsTest do
       assert transfer_count == 2
       assert download_count == 1
       assert upload_count == 1
-
-      %{rows: [[duration_count, total_duration]]} =
-        Tuist.IngestRepo.query!(
-          """
-          SELECT count(), sum(duration_ms)
-          FROM module_cache_transfer_durations
-          WHERE command_event_id = {ce:UUID}
-          """,
-          %{ce: command_event.id}
-        )
-
-      assert duration_count == 1
-      assert total_duration == 8000
-    end
-
-    test "create_module_cache_transfer_duration/2 is a no-op when the duration is nil" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
-
-      # When
-      assert :ok == CommandEvents.create_module_cache_transfer_duration(command_event, nil)
-
-      # Then
-      %{rows: [[count]]} =
-        Tuist.IngestRepo.query!(
-          "SELECT count() FROM module_cache_transfer_durations WHERE command_event_id = {ce:UUID}",
-          %{ce: command_event.id}
-        )
-
-      assert count == 0
     end
   end
 
   describe "module_cache_transfer_summary/1" do
-    test "returns download/upload bytes+counts and the fetch duration for a command event" do
+    test "returns download/upload bytes, counts, and throughput for a command event" do
       # Given
       project = ProjectsFixtures.project_fixture()
       command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
@@ -2233,18 +2199,19 @@ defmodule Tuist.CommandEventsTest do
         %{operation: "upload", name: "C", hash: "h3", size: 2000, compressed_size: 1000, duration: 200}
       ])
 
-      CommandEvents.create_module_cache_transfer_duration(command_event, 45_000)
-
       # When
       summary = CommandEvents.module_cache_transfer_summary(command_event.id)
 
       # Then
-      assert summary.download == %{size: 4000, count: 2}
-      assert summary.upload == %{size: 2000, count: 1}
-      assert summary.fetch_duration_ms == 45_000
+      assert summary.download_bytes == 4000
+      assert summary.download_count == 2
+      assert summary.download_throughput == 10_000.0
+      assert summary.upload_bytes == 2000
+      assert summary.upload_count == 1
+      assert summary.upload_throughput == 10_000.0
     end
 
-    test "returns zeros and a nil fetch duration when the run has no transfers" do
+    test "returns zeros when the run has no transfers" do
       # Given
       project = ProjectsFixtures.project_fixture()
       command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
@@ -2253,9 +2220,12 @@ defmodule Tuist.CommandEventsTest do
       summary = CommandEvents.module_cache_transfer_summary(command_event.id)
 
       # Then
-      assert summary.download == %{size: 0, count: 0}
-      assert summary.upload == %{size: 0, count: 0}
-      assert summary.fetch_duration_ms == nil
+      assert summary.download_bytes == 0
+      assert summary.download_count == 0
+      assert summary.download_throughput == 0
+      assert summary.upload_bytes == 0
+      assert summary.upload_count == 0
+      assert summary.upload_throughput == 0
     end
   end
 end

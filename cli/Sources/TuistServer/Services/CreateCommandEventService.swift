@@ -89,7 +89,6 @@
                             id: commandEvent.generationId,
                             is_ci: commandEvent.isCI,
                             macos_version: commandEvent.macOSVersion,
-                            module_cache_transfer_duration_ms: commandEvent.moduleCacheTransferDurationInMs,
                             module_cache_transfers: commandEvent.moduleCacheTransfers.isEmpty
                                 ? nil : commandEvent.moduleCacheTransfers.map { map(moduleCacheTransfer: $0) },
                             name: commandEvent.name,

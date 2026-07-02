@@ -10,7 +10,6 @@ defmodule Tuist.CommandEvents do
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents.Event
   alias Tuist.CommandEvents.ModuleCacheOutput
-  alias Tuist.CommandEvents.ModuleCacheTransferDuration
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
@@ -279,63 +278,50 @@ defmodule Tuist.CommandEvents do
   end
 
   @doc """
-  Persists the per-command wall-clock module (binary) cache transfer time (the run's overall fetch
-  time). Stored in its own table so it stays symmetric with `module_cache_outputs` and does not
-  require touching the `command_events` materialized views. No-op when the duration is missing.
-  """
-  def create_module_cache_transfer_duration(_command_event, nil), do: :ok
-
-  def create_module_cache_transfer_duration(command_event, duration_ms) do
-    row =
-      command_event.id
-      |> ModuleCacheTransferDuration.changeset(command_event.project_id, duration_ms)
-      |> Ecto.Changeset.apply_changes()
-      |> Map.take([:command_event_id, :project_id, :duration_ms, :inserted_at])
-
-    ModuleCacheTransferDuration.Buffer.insert_all([row])
-  end
-
-  @doc """
   Returns the module (binary) cache network transfer summary for a single command event: the total
-  bytes and artifact counts downloaded from and uploaded to the remote cache, plus the overall
-  wall-clock fetch time (nil when the run didn't record one). Used to surface per-run transfer cost
-  on the run detail page.
+  bytes and artifact counts downloaded from and uploaded to the remote cache, plus the time-weighted
+  average download/upload throughput (bytes per second). Mirrors `Tuist.Builds.cas_output_metrics/1`
+  but keyed by `command_event_id`. Used to surface per-run transfer cost on the run detail page.
   """
   def module_cache_transfer_summary(command_event_id) do
-    %{rows: rows} =
-      ClickHouseRepo.query!(
+    {:ok,
+     %{
+       rows: [
+         [download_count, upload_count, download_bytes, upload_bytes, download_throughput, upload_throughput]
+       ]
+     }} =
+      ClickHouseRepo.query(
         """
-        SELECT toString(operation) AS op, SUM(size) AS total_size, COUNT() AS artifact_count
+        SELECT
+          countIf(operation = 'download') AS download_count,
+          countIf(operation = 'upload') AS upload_count,
+          sumIf(size, operation = 'download') AS download_bytes,
+          sumIf(size, operation = 'upload') AS upload_bytes,
+          if(
+            sumIf(duration, operation = 'download' AND duration > 0) = 0,
+            0,
+            sumIf(size, operation = 'download' AND duration > 0) /
+              sumIf(duration, operation = 'download' AND duration > 0) * 1000
+          ) AS download_throughput,
+          if(
+            sumIf(duration, operation = 'upload' AND duration > 0) = 0,
+            0,
+            sumIf(size, operation = 'upload' AND duration > 0) /
+              sumIf(duration, operation = 'upload' AND duration > 0) * 1000
+          ) AS upload_throughput
         FROM module_cache_outputs
         WHERE command_event_id = {command_event_id:UUID}
-        GROUP BY op
         """,
         %{command_event_id: command_event_id}
       )
 
-    by_operation =
-      Map.new(rows, fn [operation, total_size, artifact_count] ->
-        {operation, %{size: total_size || 0, count: artifact_count || 0}}
-      end)
-
-    fetch_duration_ms =
-      case ClickHouseRepo.query!(
-             """
-             SELECT duration_ms
-             FROM module_cache_transfer_durations
-             WHERE command_event_id = {command_event_id:UUID}
-             LIMIT 1
-             """,
-             %{command_event_id: command_event_id}
-           ) do
-        %{rows: [[duration_ms] | _]} -> duration_ms
-        _ -> nil
-      end
-
     %{
-      download: Map.get(by_operation, "download", %{size: 0, count: 0}),
-      upload: Map.get(by_operation, "upload", %{size: 0, count: 0}),
-      fetch_duration_ms: fetch_duration_ms
+      download_count: download_count,
+      upload_count: upload_count,
+      download_bytes: download_bytes || 0,
+      upload_bytes: upload_bytes || 0,
+      download_throughput: download_throughput || 0,
+      upload_throughput: upload_throughput || 0
     }
   end
 

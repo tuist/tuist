@@ -20934,10 +20934,6 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/macos_version`.
                     public var macos_version: Swift.String
-                    /// Wall-clock time the command spent transferring module cache artifacts, in milliseconds. Reported as the run's overall module cache fetch time.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/module_cache_transfer_duration_ms`.
-                    public var module_cache_transfer_duration_ms: Swift.Int?
                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/module_cache_transfersPayload`.
                     public struct module_cache_transfersPayloadPayload: Codable, Hashable, Sendable {
                         /// Number of bytes transferred over the wire (compressed payload).
@@ -21706,7 +21702,6 @@ public enum Operations {
                     ///   - id: Optional client-provided UUID for the command event. `tuist generate` sets this so a later local Xcode build can reference the generation's graph by command event id; when omitted the server assigns one.
                     ///   - is_ci: Whether the command was run in a CI environment.
                     ///   - macos_version: The version of macOS that ran the command.
-                    ///   - module_cache_transfer_duration_ms: Wall-clock time the command spent transferring module cache artifacts, in milliseconds. Reported as the run's overall module cache fetch time.
                     ///   - module_cache_transfers: Per-artifact module (binary) cache transfer operations performed during the command, used for module cache network analytics.
                     ///   - name: The name of the command.
                     ///   - params: Extra parameters.
@@ -21732,7 +21727,6 @@ public enum Operations {
                         id: Swift.String? = nil,
                         is_ci: Swift.Bool,
                         macos_version: Swift.String,
-                        module_cache_transfer_duration_ms: Swift.Int? = nil,
                         module_cache_transfers: Operations.createCommandEvent.Input.Body.jsonPayload.module_cache_transfersPayload? = nil,
                         name: Swift.String,
                         params: Operations.createCommandEvent.Input.Body.jsonPayload.paramsPayload? = nil,
@@ -21758,7 +21752,6 @@ public enum Operations {
                         self.id = id
                         self.is_ci = is_ci
                         self.macos_version = macos_version
-                        self.module_cache_transfer_duration_ms = module_cache_transfer_duration_ms
                         self.module_cache_transfers = module_cache_transfers
                         self.name = name
                         self.params = params
@@ -21785,7 +21778,6 @@ public enum Operations {
                         case id
                         case is_ci
                         case macos_version
-                        case module_cache_transfer_duration_ms
                         case module_cache_transfers
                         case name
                         case params
