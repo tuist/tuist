@@ -2136,8 +2136,15 @@ extension ProjectDescription.Settings {
 
         var baseSettingsDictionary = ProjectDescription.SettingsDictionary.from(settingsDictionary: settingsDictionary)
 
+        var propagatedBaseSettings = baseSettings.base
+        // The target's own sanitized bundle identifier is authoritative. A package-wide
+        // PRODUCT_BUNDLE_IDENTIFIER template such as com.acme.$(PRODUCT_NAME) is applied at
+        // the project level, where each target's identifier overrides it. Copying it onto the
+        // target would instead override the sanitized identifier, and modules whose names start
+        // with an underscore (e.g. _RopeModule) would produce identifiers Xcode rejects.
+        propagatedBaseSettings.removeValue(forKey: "PRODUCT_BUNDLE_IDENTIFIER")
         baseSettingsDictionary.merge(
-            .from(settingsDictionary: baseSettings.base),
+            .from(settingsDictionary: propagatedBaseSettings),
             uniquingKeysWith: { _, new in new }
         )
 

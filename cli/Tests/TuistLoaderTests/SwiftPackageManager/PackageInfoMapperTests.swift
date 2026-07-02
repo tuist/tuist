@@ -7483,6 +7483,44 @@ struct PackageInfoMapperTests {
 
     @Test(
         .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_regularTarget_doesNotApplyBaseSettingsBundleIdentifierToTarget() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/_RopeModule"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .local,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "_RopeModule", type: .library(.automatic), targets: ["_RopeModule"]),
+                    ],
+                    targets: [
+                        .test(name: "_RopeModule"),
+                    ],
+                    platforms: [.ios]
+                ),
+            ],
+            packageSettings: .test(
+                baseSettings: Settings.default.with(base: [
+                    "PRODUCT_BUNDLE_IDENTIFIER": "com.example.$(PRODUCT_NAME)",
+                    "EXCLUDED_ARCHS[sdk=iphonesimulator*]": "x86_64",
+                ])
+            )
+        )
+
+        let target = try #require(project?.targets.first(where: { $0.name == "_RopeModule" }))
+        #expect(target.bundleId == "RopeModule")
+        #expect(target.settings?.base["PRODUCT_BUNDLE_IDENTIFIER"] == nil)
+        #expect(target.settings?.base["EXCLUDED_ARCHS[sdk=iphonesimulator*]"] == .string("x86_64"))
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
     ) func map_whenRegularTargetDependsOnPrebuiltProduct_keepsSourceDependency() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
 
