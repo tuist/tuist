@@ -17,10 +17,15 @@ It measures three things:
 Endpoints and auth are resolved from `tuist cache config` (the `kura` client feature
 flag selects the Kura endpoint; its absence selects legacy), so nothing is hardcoded.
 
-Run it from a **Tuist Linux runner** via the `Kura Cache Benchmark` workflow
-(`.github/workflows/kura-cache-benchmark.yml`) so the client sits inside our network:
-a laptop over the public internet is latency- and distance-bound and can't measure the
-backends' real throughput. Results are written to the workflow job summary.
+Run it via the `Kura Cache Benchmark` workflow (`.github/workflows/kura-cache-benchmark.yml`),
+which dispatches on `ubuntu-latest`. It hits Kura's **public customer endpoint** — the same
+path an external CLI takes — from a datacenter-grade uplink. (In-cluster `tuist-linux` runners
+can't reach the box's public IP: cluster egress to it is blocked, and in-cluster cache clients
+use the private path instead.) Results are written to the workflow job summary.
+
+Note the CI runner's distance to a region skews absolute latency/throughput; the A/B between
+the two backends from the same runner is the meaningful signal. For absolute numbers, run from
+a host close to the target region.
 
 It writes content-addressed junk blobs into the resolved account's **production** cache
 on both backends (modest volume, reclaimed by normal retention), so it is a manual,

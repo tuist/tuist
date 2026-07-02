@@ -26,14 +26,6 @@ on:
       legacy_url:
         description: "Legacy cache base URL to A/B against (blank to benchmark Kura alone)"
         default: "https://cache-eu-central.tuist.dev"
-  # TEMPORARY: kicks the first run from the feature branch, since workflow_dispatch
-  # only becomes available once this file lands on the default branch. Removed
-  # before merge — workflow_dispatch is the intended trigger.
-  push:
-    branches: [claude/kura-cas-benchmark]
-    paths:
-      - "kura/benchmarks/**"
-      - ".github/workflows/kura-cache-benchmark.yml"
 
 permissions:
   contents: read
