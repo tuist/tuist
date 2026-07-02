@@ -88,7 +88,7 @@ echo
 SUMMARY=$(mktemp)
 emit() { echo "$1"; echo "$1" >> "$SUMMARY"; }
 
-emit "## Kura CAS benchmark (in-network runner)"
+emit "## Kura CAS benchmark (public CI runner)"
 emit ""
 if [ "${#names[@]}" -gt 1 ]; then
   emit "Kura \`$URL_KURA\` vs legacy \`${URLS[legacy]}\`, account \`${ACC}/${PROJ}\`."
