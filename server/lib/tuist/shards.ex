@@ -319,17 +319,19 @@ defmodule Tuist.Shards do
     )
   end
 
-  defp resolve_units(_project, params, "module", _timing_data), do: Map.get(params, :modules, [])
+  defp resolve_units(_project, params, "module", _timing_data), do: params_modules(params)
 
   defp resolve_units(project, params, "suite", _timing_data) do
-    case Map.get(params, :test_suites, []) do
-      suites when suites != [] ->
+    case Map.get(params, :test_suites) do
+      [_ | _] = suites ->
         suites
 
       _ ->
-        latest_branch_suite_units(project, params, Map.get(params, :modules, []))
+        latest_branch_suite_units(project, params, params_modules(params))
     end
   end
+
+  defp params_modules(params), do: Map.get(params, :modules) || []
 
   defp latest_branch_suite_units(_project, _params, []), do: []
 

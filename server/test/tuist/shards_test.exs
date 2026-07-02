@@ -235,6 +235,50 @@ defmodule Tuist.ShardsTest do
       assert MapSet.equal?(planned, MapSet.new(["AppTests/LoginSuite", "AppTests/SignupSuite"]))
     end
 
+    test "derives suite units from history when test_suites is present but nil" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 10_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "LoginSuite", status: "success", duration: 6_000},
+              %{name: "SignupSuite", status: "success", duration: 4_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      # The controller always sets test_suites from the request body, so a client that no longer
+      # enumerates suites yields test_suites: nil (key present, value nil) rather than an omitted key.
+      params = %{
+        reference: "history-derived-nil",
+        modules: ["AppTests"],
+        test_suites: nil,
+        granularity: "suite",
+        shard_total: 2
+      }
+
+      result = Shards.create_shard_plan(project, params)
+      assert result.shard_count == 2
+
+      planned =
+        result.shard_assignments
+        |> Enum.flat_map(fn a -> a["test_targets"] end)
+        |> MapSet.new()
+
+      assert MapSet.equal?(planned, MapSet.new(["AppTests/LoginSuite", "AppTests/SignupSuite"]))
+    end
+
     test "prefers suite inventory from the linked build branch" do
       project = ProjectsFixtures.project_fixture(default_branch: "main")
       older_ran_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -2, :day)
