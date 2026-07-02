@@ -33,6 +33,10 @@ LATENCY_KB=${LATENCY_KB:-256}
 # at a local dev server (TUIST_SERVER_URL=http://localhost:...). Neutralize it so
 # auth + cache config target production, and pass the handle + server explicitly.
 unset TUIST_SERVER_URL TUIST_URL TUIST_CACHE_SERVER_URL TUIST_CONFIG_URL TUIST_CACHE_CONFIG_SERVER_URL 2>/dev/null || true
+# The runner also sets TUIST_FEATURE_FLAG_KURA=1 globally (the repo's own CI runs on
+# Kura), which would route the "legacy" call to Kura too. Clear it so the flag is set
+# per-call below and the two backends actually differ.
+unset TUIST_FEATURE_FLAG_KURA TUIST_FEATURE_FLAG_kura 2>/dev/null || true
 FULL_HANDLE=${FULL_HANDLE:-tuist/tuist}
 SERVER_URL=${BENCH_SERVER_URL:-https://tuist.dev}
 
