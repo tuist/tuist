@@ -582,13 +582,13 @@ struct GenerateAcceptanceTestAppWithSPMCTargetHeaders {
             pathString: fixturePath.appending(components: "CLibPkg", "CLibPkg.xcodeproj").pathString
         )
         let target = try #require(xcodeproj.pbxproj.nativeTargets.first(where: { $0.name == "CLib" }))
-        let headerFiles = try target.headersBuildPhase()?.files ?? []
+        let headerFiles = target.buildPhases.compactMap { $0 as? PBXHeadersBuildPhase }.first?.files ?? []
         let headerNames = Set(headerFiles.compactMap { $0.file?.path })
 
         #expect(headerNames.isSuperset(of: ["CLib.h", "Deep.h", "CLibInternal.h"]))
 
         func attributes(of name: String) -> [String] {
-            headerFiles.first(where: { $0.file?.path == name })?.attributes ?? []
+            headerFiles.first(where: { $0.file?.path == name })?.settings?["ATTRIBUTES"]?.arrayValue ?? []
         }
         // Headers under the public headers directory (recursively) are public; others are project headers.
         #expect(attributes(of: "CLib.h").contains("Public"))
