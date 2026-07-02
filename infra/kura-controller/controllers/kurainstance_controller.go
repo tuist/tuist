@@ -1774,16 +1774,14 @@ func containerPorts(instance *kurav1alpha1.KuraInstance) []corev1.ContainerPort 
 // cohostedGRPC reports whether the instance's image serves REAPI gRPC (h2c)
 // co-hosted with HTTP on KURA_PORT instead of a dedicated KURA_GRPC_PORT
 // listener. See lastDedicatedGRPCListenerVersion for the gating rule.
+var lastDedicatedGRPCListenerSemver, _ = parseSemverTag(lastDedicatedGRPCListenerVersion)
+
 func cohostedGRPC(instance *kurav1alpha1.KuraInstance) bool {
 	version, ok := parseSemverTag(imageTag(instance.Spec.Image))
 	if !ok {
 		return true
 	}
-	last, ok := parseSemverTag(lastDedicatedGRPCListenerVersion)
-	if !ok {
-		return true
-	}
-	return version.newerThan(last)
+	return version.newerThan(lastDedicatedGRPCListenerSemver)
 }
 
 // imageTag extracts the tag from an image reference, tolerating registries
