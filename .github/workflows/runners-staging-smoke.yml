@@ -282,7 +282,7 @@ jobs:
                 echo "=== daemon sample (hot path) ==="
                 echo "keychain/Security frames: $(grep -icE 'SecItem|securityd|keychain|CopyMatching' /tmp/daemon.sample)"
                 echo "network/URLSession frames: $(grep -icE 'URLSession|CFNetwork|nw_|boringssl|__recvfrom|socket' /tmp/daemon.sample)"
-                echo "-- top auth/keychain symbols --"; grep -iE 'SecItem|keychain|authenticationToken|ServerCredentials|CachedValue|Authentication' /tmp/daemon.sample | sed 's/^ *[0-9]* *//' | sort | uniq -c | sort -rn | head -8
+                echo "-- top auth/keychain symbols --"; { grep -iE 'SecItem|keychain|authenticationToken|ServerCredentials|CachedValue|Authentication' /tmp/daemon.sample | sed 's/^ *[0-9]* *//' | sort | uniq -c | sort -rn | head -8; } 2>/dev/null || true
               fi
               hyperfine --warmup 1 --runs "$HYPERFINE_RUNS" --export-json result.json --show-output \
                 --setup "$BUILD_CAS" --prepare "$CLEAN_DD" "$BUILD_CAS" || rc=$? ;;
