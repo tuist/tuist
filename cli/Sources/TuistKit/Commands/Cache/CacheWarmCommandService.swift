@@ -157,6 +157,7 @@ import XcodeGraph
             let cacheableTargetNames = Set(cacheableTargets.map(\.0.target.name))
             guard !cacheableTargets.isEmpty else {
                 Logger.current.info("All cacheable targets are already cached")
+                await logRemoteCacheHitSummary()
                 return
             }
 
@@ -198,6 +199,22 @@ import XcodeGraph
                 "All cacheable targets have been cached successfully as xcframeworks",
                 metadata: .success
             )
+
+            await logRemoteCacheHitSummary()
+        }
+
+        /// Prints how many cacheable targets were served from the remote cache during this run.
+        /// The count is derived from the same cache metadata that gets posted to the server as
+        /// `remote_cache_target_hits`, so it stays consistent with `tuist cache-run show` without
+        /// requiring a server round-trip.
+        private func logRemoteCacheHitSummary() async {
+            let binaryCacheItems = await RunMetadataStorage.current.binaryCacheItems
+            let remoteCacheHits = binaryCacheItems
+                .values
+                .flatMap(\.values)
+                .filter { $0.source == .remote }
+                .count
+            Logger.current.info("Remote cache hits: \(remoteCacheHits)")
         }
 
         // swiftlint:disable:next function_body_length
