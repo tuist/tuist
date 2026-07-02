@@ -27,6 +27,15 @@ defmodule TuistWeb.TestRunLive do
 
   @table_page_size 20
 
+  # A run finishing on the isolated, non-clustered xcresult-processor pushes its
+  # completion through BroadcastTestCreatedWorker, and web-origin runs broadcast
+  # in process, but either can be missed. Poll while the run is in any transient
+  # state so a connected viewer's spinner clears on its own, then do one delayed
+  # refresh after it settles so buffered ClickHouse rows have had time to land.
+  @transient_statuses ~w(processing in_progress)
+  @run_poll_interval to_timeout(second: 5)
+  @settle_delay to_timeout(second: 5)
+
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
     run =
@@ -97,8 +106,9 @@ defmodule TuistWeb.TestRunLive do
         {:ok, %{has_session: (command_event && CommandEvents.has_session?(command_event)) || false}}
       end)
 
-    if connected?(socket) and run.status == "processing" do
+    if connected?(socket) and transient?(run.status) do
       Tuist.PubSub.subscribe("#{project.account.name}/#{project.name}")
+      schedule_run_poll()
     end
 
     {:ok, socket}
@@ -160,6 +170,22 @@ defmodule TuistWeb.TestRunLive do
     else
       {:noreply, socket}
     end
+  end
+
+  def handle_info(:poll_run_state, socket) do
+    socket = reload_run_state(socket)
+
+    if transient?(socket.assigns.run.status) do
+      schedule_run_poll()
+    else
+      schedule_settle_refresh()
+    end
+
+    {:noreply, socket}
+  end
+
+  def handle_info(:settle_run_state, socket) do
+    {:noreply, reload_run_state(socket)}
   end
 
   def handle_event("refresh_test_run", _params, socket) do
@@ -292,6 +318,16 @@ defmodule TuistWeb.TestRunLive do
       {:error, :not_found} ->
         socket
     end
+  end
+
+  defp transient?(status), do: status in @transient_statuses
+
+  defp schedule_run_poll do
+    Process.send_after(self(), :poll_run_state, @run_poll_interval)
+  end
+
+  defp schedule_settle_refresh do
+    Process.send_after(self(), :settle_run_state, @settle_delay)
   end
 
   defp assign_initial_analytics_state(socket) do
