@@ -2610,7 +2610,7 @@ struct PackageInfoMapperTests {
                                     tags: []
                                 ),
                             ],
-                            headers: .spmTarget(headersPath.parentDirectory, publicHeadersRelativePath: "Headers"),
+                            headers: .spmTarget(headersPath.parentDirectory),
                             customSettings: [
                                 "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Custom/Headers"],
                                 "DEFINES_MODULE": "NO",
@@ -2740,7 +2740,7 @@ struct PackageInfoMapperTests {
                         .test(
                             "Dependency1",
                             basePath: basePath,
-                            headers: .spmTarget(dependencyHeadersPath.parentDirectory),
+                            headers: .spmDirectoryTarget(dependencyHeadersPath.parentDirectory),
                             customSettings: [
                                 "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/Dependency1/include"],
                                 "DEFINES_MODULE": "NO",
@@ -8137,18 +8137,32 @@ extension ProjectDescription.Target {
 }
 
 extension ProjectDescription.Headers {
-    /// Mirrors the headers `PackageInfoMapper` produces for a C-family SwiftPM target: public headers
-    /// under the target's public headers directory (recursively) and all other headers as project headers.
+    private static let spmHeadersGlob = "**/*.{h,hh,hpp,h++,hp,hxx,H,ipp,def}"
+
+    /// Mirrors the headers `PackageInfoMapper` produces for a `.custom`/`.header` module-map SwiftPM target:
+    /// every header in the target is surfaced as a project header (the module map, not the `Public` attribute,
+    /// defines the module's interface).
     fileprivate static func spmTarget(
+        _ targetBasePath: AbsolutePath,
+        excluding: [ProjectDescription.Path] = []
+    ) -> ProjectDescription.Headers {
+        .headers(
+            project: .list([.glob(.path("\(targetBasePath.pathString)/\(spmHeadersGlob)"), excluding: excluding)])
+        )
+    }
+
+    /// Mirrors the headers `PackageInfoMapper` produces for a `.directory` module-map SwiftPM target (no
+    /// umbrella header): headers under the public headers directory stay public so they are copied into the
+    /// framework bundle and remain importable as `<Module/Header.h>`; every other header is a project header.
+    fileprivate static func spmDirectoryTarget(
         _ targetBasePath: AbsolutePath,
         publicHeadersRelativePath: String = "include",
         excluding: [ProjectDescription.Path] = []
     ) -> ProjectDescription.Headers {
         let publicHeadersPath = targetBasePath.appending(try! RelativePath(validating: publicHeadersRelativePath))
-        let glob = "**/*.{h,hh,hpp,h++,hp,hxx,H,ipp,def}"
         return .headers(
-            public: .list([.glob(.path("\(publicHeadersPath.pathString)/\(glob)"), excluding: excluding)]),
-            project: .list([.glob(.path("\(targetBasePath.pathString)/\(glob)"), excluding: excluding)]),
+            public: .list([.glob(.path("\(publicHeadersPath.pathString)/\(spmHeadersGlob)"), excluding: excluding)]),
+            project: .list([.glob(.path("\(targetBasePath.pathString)/\(spmHeadersGlob)"), excluding: excluding)]),
             exclusionRule: .projectExcludesPrivateAndPublic
         )
     }
