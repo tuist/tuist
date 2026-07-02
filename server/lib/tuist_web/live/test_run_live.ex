@@ -89,6 +89,7 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Run")} · #{slug} · Tuist")
       |> assign(:test_metrics, test_metrics)
       |> assign(:failures_count, failures_count)
+      |> assign(:run_errors, Tests.list_run_errors(run.id))
       |> assign(:is_sharded, not is_nil(run.shard_plan_id))
       |> assign_initial_analytics_state()
       |> assign_initial_test_cases_state()
