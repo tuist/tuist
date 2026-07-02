@@ -48,8 +48,8 @@ redact() { sed -E 's/("token"[[:space:]]*:[[:space:]]*")[^"]*/\1<redacted>/; s/(
 json_field() { grep -oE "\"$1\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" | head -1 | sed -E "s/.*:[[:space:]]*\"([^\"]*)\"\$/\1/"; }
 unesc() { sed 's#\\/#/#g'; }
 
-cfg_legacy=$(tuist cache config "$FULL_HANDLE" --url "$SERVER_URL" --json 2>&1) || true
-cfg_kura=$(TUIST_FEATURE_FLAG_kura=1 tuist cache config "$FULL_HANDLE" --url "$SERVER_URL" --json 2>&1) || true
+cfg_legacy=$(env -u TUIST_FEATURE_FLAG_KURA -u TUIST_FEATURE_FLAG_kura tuist cache config "$FULL_HANDLE" --url "$SERVER_URL" --json 2>&1) || true
+cfg_kura=$(env -u TUIST_FEATURE_FLAG_KURA TUIST_FEATURE_FLAG_kura=1 tuist cache config "$FULL_HANDLE" --url "$SERVER_URL" --json 2>&1) || true
 
 TOKEN=$(printf '%s' "$cfg_legacy" | json_field token)
 ACC=$(printf '%s' "$cfg_legacy" | json_field account_handle)
@@ -70,7 +70,10 @@ fi
 [ -n "${GITHUB_ACTIONS:-}" ] && echo "::add-mask::$TOKEN"
 
 if [ "$URL_KURA" = "$URL_LEGACY" ]; then
-  echo "kura and legacy resolved to the same URL ($URL_KURA); account may lack a Kura endpoint or the kura_cache flag. Aborting." >&2
+  echo "kura and legacy resolved to the same URL ($URL_KURA). Diagnostics:" >&2
+  echo "env TUIST_FEATURE_FLAG*: $(env | grep -i 'TUIST_FEATURE_FLAG' | sed 's/=.*/=<set>/' | tr '\n' ' ')" >&2
+  echo "--- legacy cfg ---" >&2; printf '%s\n' "$cfg_legacy" | redact >&2
+  echo "--- kura cfg ---"   >&2; printf '%s\n' "$cfg_kura"   | redact >&2
   exit 1
 fi
 
