@@ -107,6 +107,24 @@ func invalidateSharedTuistURLSession() {
     sharedTuistURLSession.invalidate()
 }
 
+private let sharedTuistCASURLSession: URLSession = {
+    let configuration = tuistURLSessionConfigurationResolved(
+        useEnvironmentProxy: HTTPSettings.current.useEnvironmentProxy
+    )
+    // The CAS hot path fires thousands of requests per build. Use a short
+    // inactivity timeout so a hung cache backend surfaces in seconds (the CAS
+    // circuit breaker then skips it for the rest of the build) instead of every
+    // compilation unit stalling on the default 90s. The resource timeout stays
+    // generous so a large but progressing artifact transfer is not cut off.
+    configuration.timeoutIntervalForRequest = 15
+    configuration.timeoutIntervalForResource = 300
+    #if canImport(TuistHAR)
+        return URLSession(configuration: configuration, delegate: URLSessionMetricsDelegate.shared, delegateQueue: nil)
+    #else
+        return URLSession(configuration: configuration)
+    #endif
+}()
+
 extension URLSession {
     public static var tuistShared: URLSession {
         sharedTuistURLSession.resolve(useEnvironmentProxy: HTTPSettings.current.useEnvironmentProxy)
@@ -114,6 +132,12 @@ extension URLSession {
 
     public static func tuistShared(useEnvironmentProxy: Bool) -> URLSession {
         makeTuistURLSession(useEnvironmentProxy: useEnvironmentProxy)
+    }
+
+    /// A shared session tuned for the CAS hot path: a short inactivity timeout so
+    /// a hung backend fails fast rather than stalling every compilation unit.
+    public static var tuistCAS: URLSession {
+        sharedTuistCASURLSession
     }
 }
 

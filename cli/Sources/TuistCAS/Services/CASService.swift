@@ -20,6 +20,7 @@
         private let dataCompressingService: DataCompressingServicing
         private let serverAuthenticationController: ServerAuthenticationControlling
         private let upload: Bool
+        private let circuitBreaker: CASCircuitBreaker
 
         private var accountHandle: String? {
             fullHandle.split(separator: "/").first.map(String.init)
@@ -42,6 +43,7 @@
             dataCompressingService = DataCompressingService()
             self.analyticsDatabase = analyticsDatabase
             serverAuthenticationController = ServerAuthenticationController()
+            circuitBreaker = CASCircuitBreaker()
         }
 
         init(
@@ -54,7 +56,8 @@
             dataCompressingService: DataCompressingServicing,
             analyticsDatabase: CASAnalyticsDatabasing,
             serverAuthenticationController: ServerAuthenticationControlling,
-            upload: Bool = true
+            upload: Bool = true,
+            circuitBreaker: CASCircuitBreaker = CASCircuitBreaker()
         ) {
             self.fullHandle = fullHandle
             self.serverURL = serverURL
@@ -66,6 +69,7 @@
             self.dataCompressingService = dataCompressingService
             self.serverAuthenticationController = serverAuthenticationController
             self.upload = upload
+            self.circuitBreaker = circuitBreaker
         }
 
         public func load(
@@ -87,6 +91,16 @@
 
             Logger.current.debug("CAS.load starting - casID: \(casID)")
 
+            guard await circuitBreaker.shouldAttempt() else {
+                Logger.current.debug("CAS.load skipping remote cache (circuit open) - casID: \(casID)")
+                response.outcome = .error
+                var responseError = CompilationCacheService_Cas_V1_ResponseError()
+                responseError.description_p = "Remote cache unavailable; building locally."
+                response.error = responseError
+                response.contents = .error(responseError)
+                return response
+            }
+
             do {
                 let cacheURL = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
                 let fetchStart = ProcessInfo.processInfo.systemUptime
@@ -98,6 +112,7 @@
                     serverAuthenticationController: serverAuthenticationController
                 )
                 let transferDuration = ProcessInfo.processInfo.systemUptime - fetchStart
+                await circuitBreaker.recordSuccess()
 
                 let decompressedData: Data
                 let codecDuration: TimeInterval
@@ -139,6 +154,11 @@
                         "CAS.load completed successfully in \(String(format: "%.3f", duration))s - loaded \(compressedData.count) compressed bytes, decompressed to \(decompressedData.count) bytes for casID: \(casID)"
                     )
             } catch {
+                if casErrorIsBackendHealthy(error) {
+                    await circuitBreaker.recordSuccess()
+                } else {
+                    await circuitBreaker.recordFailure()
+                }
                 response.outcome = .error
                 var responseError = CompilationCacheService_Cas_V1_ResponseError()
                 responseError.description_p = error.userFriendlyDescription()
@@ -220,6 +240,13 @@
                 return response
             }
 
+            guard await circuitBreaker.shouldAttempt() else {
+                Logger.current.debug("CAS.save skipping upload (circuit open) for fingerprint: \(fingerprint)")
+                response.casID = message
+                response.contents = .casID(message)
+                return response
+            }
+
             do {
                 let cacheURL = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
                 let uploadStart = ProcessInfo.processInfo.systemUptime
@@ -232,6 +259,7 @@
                     serverAuthenticationController: serverAuthenticationController
                 )
                 let transferDuration = ProcessInfo.processInfo.systemUptime - uploadStart
+                await circuitBreaker.recordSuccess()
                 response.casID = message
                 response.contents = .casID(message)
 
@@ -250,6 +278,11 @@
                         "CAS.save completed successfully in \(String(format: "%.3f", duration))s for fingerprint: \(fingerprint)"
                     )
             } catch {
+                if casErrorIsBackendHealthy(error) {
+                    await circuitBreaker.recordSuccess()
+                } else {
+                    await circuitBreaker.recordFailure()
+                }
                 var responseError = CompilationCacheService_Cas_V1_ResponseError()
                 responseError.description_p = error.userFriendlyDescription()
                 response.error = responseError

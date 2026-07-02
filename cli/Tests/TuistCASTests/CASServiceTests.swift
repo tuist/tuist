@@ -433,6 +433,105 @@
                 #expect(Bool(false), "Expected error, but contents is nil")
             }
         }
+
+        @Test
+        func load_opens_circuit_and_skips_remote_after_failures() async throws {
+            // Given
+            let breaker = CASCircuitBreaker(failureThreshold: 1)
+            let subject = CASService(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                cacheURLStore: cacheURLStore,
+                saveCacheCASService: saveCacheCASService,
+                loadCacheCASService: loadCacheCASService,
+                fileSystem: FileSystem(),
+                dataCompressingService: dataCompressingService,
+                analyticsDatabase: analyticsDatabase,
+                serverAuthenticationController: serverAuthenticationController,
+                circuitBreaker: breaker
+            )
+
+            var request = CompilationCacheService_Cas_V1_CASLoadRequest()
+            request.casID.id = "cas-id".data(using: .utf8)!
+            let context = ServerContext.test()
+
+            given(loadCacheCASService)
+                .loadCacheCAS(
+                    casId: .any,
+                    fullHandle: .any,
+                    serverURL: .any,
+                    authenticationURL: .any,
+                    serverAuthenticationController: .any
+                )
+                .willThrow(LoadCacheCASServiceError.unknownError(503))
+
+            // When: the first load hits the remote and trips the breaker;
+            // the second finds the circuit open and skips the remote entirely.
+            _ = try await subject.load(request: request, context: context)
+            let second = try await subject.load(request: request, context: context)
+
+            // Then
+            #expect(await breaker.isOpen)
+            #expect(second.outcome == .error)
+            verify(loadCacheCASService)
+                .loadCacheCAS(
+                    casId: .any,
+                    fullHandle: .any,
+                    serverURL: .any,
+                    authenticationURL: .any,
+                    serverAuthenticationController: .any
+                )
+                .called(1)
+        }
+
+        @Test
+        func load_miss_keeps_circuit_closed() async throws {
+            // Given
+            let breaker = CASCircuitBreaker(failureThreshold: 1)
+            let subject = CASService(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                cacheURLStore: cacheURLStore,
+                saveCacheCASService: saveCacheCASService,
+                loadCacheCASService: loadCacheCASService,
+                fileSystem: FileSystem(),
+                dataCompressingService: dataCompressingService,
+                analyticsDatabase: analyticsDatabase,
+                serverAuthenticationController: serverAuthenticationController,
+                circuitBreaker: breaker
+            )
+
+            var request = CompilationCacheService_Cas_V1_CASLoadRequest()
+            request.casID.id = "cas-id".data(using: .utf8)!
+            let context = ServerContext.test()
+
+            given(loadCacheCASService)
+                .loadCacheCAS(
+                    casId: .any,
+                    fullHandle: .any,
+                    serverURL: .any,
+                    authenticationURL: .any,
+                    serverAuthenticationController: .any
+                )
+                .willThrow(LoadCacheCASServiceError.notFound("miss"))
+
+            // When: a 404 is a healthy backend (a normal miss), so it must not
+            // trip the breaker — the remote keeps being consulted.
+            _ = try await subject.load(request: request, context: context)
+            _ = try await subject.load(request: request, context: context)
+
+            // Then
+            #expect(await breaker.isOpen == false)
+            verify(loadCacheCASService)
+                .loadCacheCAS(
+                    casId: .any,
+                    fullHandle: .any,
+                    serverURL: .any,
+                    authenticationURL: .any,
+                    serverAuthenticationController: .any
+                )
+                .called(2)
+        }
     }
 
     extension ServerContext {
