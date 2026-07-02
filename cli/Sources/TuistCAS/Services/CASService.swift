@@ -20,6 +20,7 @@
         private let dataCompressingService: DataCompressingServicing
         private let serverAuthenticationController: ServerAuthenticationControlling
         private let upload: Bool
+        private let circuitBreaker: CASCircuitBreaker
 
         private var accountHandle: String? {
             fullHandle.split(separator: "/").first.map(String.init)
@@ -42,6 +43,7 @@
             dataCompressingService = DataCompressingService()
             self.analyticsDatabase = analyticsDatabase
             serverAuthenticationController = ServerAuthenticationController()
+            circuitBreaker = CASCircuitBreaker()
         }
 
         init(
@@ -54,7 +56,8 @@
             dataCompressingService: DataCompressingServicing,
             analyticsDatabase: CASAnalyticsDatabasing,
             serverAuthenticationController: ServerAuthenticationControlling,
-            upload: Bool = true
+            upload: Bool = true,
+            circuitBreaker: CASCircuitBreaker = CASCircuitBreaker()
         ) {
             self.fullHandle = fullHandle
             self.serverURL = serverURL
@@ -66,6 +69,7 @@
             self.dataCompressingService = dataCompressingService
             self.serverAuthenticationController = serverAuthenticationController
             self.upload = upload
+            self.circuitBreaker = circuitBreaker
         }
 
         public func load(
@@ -87,6 +91,16 @@
 
             Logger.current.debug("CAS.load starting - casID: \(casID)")
 
+            guard await circuitBreaker.shouldAttempt() else {
+                Logger.current.debug("CAS.load skipping remote cache (circuit open) - casID: \(casID)")
+                response.outcome = .error
+                var responseError = CompilationCacheService_Cas_V1_ResponseError()
+                responseError.description_p = "Remote cache unavailable; building locally."
+                response.error = responseError
+                response.contents = .error(responseError)
+                return response
+            }
+
             do {
                 let cacheURL = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
                 let fetchStart = ProcessInfo.processInfo.systemUptime
@@ -98,6 +112,7 @@
                     serverAuthenticationController: serverAuthenticationController
                 )
                 let transferDuration = ProcessInfo.processInfo.systemUptime - fetchStart
+                await circuitBreaker.recordSuccess()
 
                 let decompressedData: Data
                 let codecDuration: TimeInterval
@@ -139,6 +154,11 @@
                         "CAS.load completed successfully in \(String(format: "%.3f", duration))s - loaded \(compressedData.count) compressed bytes, decompressed to \(decompressedData.count) bytes for casID: \(casID)"
                     )
             } catch {
+                if casErrorIsBackendHealthy(error) {
+                    await circuitBreaker.recordSuccess()
+                } else {
+                    await circuitBreaker.recordFailure()
+                }
                 response.outcome = .error
                 var responseError = CompilationCacheService_Cas_V1_ResponseError()
                 responseError.description_p = error.userFriendlyDescription()
@@ -186,6 +206,33 @@
                 Logger.current.debug("CAS.save starting - data size: \(data.count) bytes")
             }
 
+            // The fingerprint is derived from the raw data, so compute it first
+            // (cheap) and only compress (expensive) once we know an upload will
+            // actually be attempted. When there is nothing to upload to — upload
+            // disabled, or the circuit open because the remote cache is unavailable
+            // — the artifact is already built locally, so paying the zstd
+            // compression per artifact would defeat the fast fallback.
+            let dataWithVersion = data + "cache-v1".data(using: .utf8)!
+            let hash = SHA256.hash(data: dataWithVersion)
+            let fingerprint = hash.compactMap { String(format: "%02X", $0) }.joined()
+
+            var message = CompilationCacheService_Cas_V1_CASDataID()
+            message.id = fingerprint.data(using: .utf8)!
+
+            if !upload {
+                Logger.current.debug("CAS.save skipping upload (upload disabled) for fingerprint: \(fingerprint)")
+                response.casID = message
+                response.contents = .casID(message)
+                return response
+            }
+
+            if await circuitBreaker.isOpen {
+                Logger.current.debug("CAS.save skipping upload (circuit open) for fingerprint: \(fingerprint)")
+                response.casID = message
+                response.contents = .casID(message)
+                return response
+            }
+
             let compressedData: Data
             let codecDuration: TimeInterval
             do {
@@ -201,20 +248,15 @@
                 return response
             }
 
-            let dataWithVersion = data + "cache-v1".data(using: .utf8)!
-            let hash = SHA256.hash(data: dataWithVersion)
-            let fingerprint = hash.compactMap { String(format: "%02X", $0) }.joined()
-
-            var message = CompilationCacheService_Cas_V1_CASDataID()
-            message.id = fingerprint.data(using: .utf8)!
-
             Logger.current
                 .debug(
                     "CAS.save computed fingerprint: \(fingerprint), original size: \(data.count) bytes, compressed size: \(compressedData.count) bytes"
                 )
 
-            if !upload {
-                Logger.current.debug("CAS.save skipping upload (upload disabled) for fingerprint: \(fingerprint)")
+            // Claim the (possibly half-open) probe slot right before the upload, so a
+            // recovering backend is exercised by exactly one artifact.
+            guard await circuitBreaker.shouldAttempt() else {
+                Logger.current.debug("CAS.save skipping upload (circuit open) for fingerprint: \(fingerprint)")
                 response.casID = message
                 response.contents = .casID(message)
                 return response
@@ -232,6 +274,7 @@
                     serverAuthenticationController: serverAuthenticationController
                 )
                 let transferDuration = ProcessInfo.processInfo.systemUptime - uploadStart
+                await circuitBreaker.recordSuccess()
                 response.casID = message
                 response.contents = .casID(message)
 
@@ -250,6 +293,11 @@
                         "CAS.save completed successfully in \(String(format: "%.3f", duration))s for fingerprint: \(fingerprint)"
                     )
             } catch {
+                if casErrorIsBackendHealthy(error) {
+                    await circuitBreaker.recordSuccess()
+                } else {
+                    await circuitBreaker.recordFailure()
+                }
                 var responseError = CompilationCacheService_Cas_V1_ResponseError()
                 responseError.description_p = error.userFriendlyDescription()
                 response.error = responseError
