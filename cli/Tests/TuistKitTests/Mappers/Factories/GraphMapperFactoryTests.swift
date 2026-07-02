@@ -527,6 +527,20 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             XCTAssertEqual(preloadMapperTypes, generationMapperTypes)
         }
 
+        func test_binaryCacheWarmingPreload_doesNotApplyFrameworkSearchPathsBeforeCacheHashesAreComputed() {
+            // Given
+            let targets: Set<TargetQuery> = [.named("MyTarget")]
+
+            // When
+            let got = subject.binaryCacheWarmingPreload(
+                targetsToBinaryCache: targets,
+                config: .test()
+            )
+
+            // Then
+            XCTAssertDoesntContainElementOfType(got, FrameworkSearchPathsGraphMapper.self)
+        }
+
         func test_automation_contains_static_xcframework_module_map_mapper_after_cache_replacement() {
             // Given
             let config = Tuist.test()

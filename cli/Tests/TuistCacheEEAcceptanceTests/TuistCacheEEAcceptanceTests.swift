@@ -370,6 +370,38 @@ struct TuistCacheEEAcceptanceTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_macos_tool_with_cached_nested_header_xcframework")
+    ) func generate_reuses_warmed_framework_wrapping_precompiled_dependencies() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "NestedHeaderXCFramework.xcodeproj")
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            [
+                "Library",
+                "--path", fixtureDirectory.pathString,
+                "--cache-profile", "all-possible",
+            ]
+        )
+
+        try await TuistTest.run(
+            GenerateCommand.self,
+            [
+                "--no-open",
+                "--path", fixtureDirectory.pathString,
+                "--cache-profile", "all-possible",
+            ]
+        )
+
+        TuistTest.expectLogs("Using cache binaries for the following targets: Library", at: .info, <=)
+        try TuistAcceptanceTest.expectXCFrameworkLinked("Library", by: "Tool", xcodeprojPath: xcodeprojPath)
+    }
+
+    @Test(
         .disabled("Requires SPM install"),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),

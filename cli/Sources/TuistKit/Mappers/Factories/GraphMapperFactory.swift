@@ -354,7 +354,6 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                 includedTargets: targetsToBinaryCache
             )
 
-            mappers.append(FrameworkSearchPathsGraphMapper())
             mappers.append(ForeignBuildSideEffectGraphMapper())
 
             mappers.append(
