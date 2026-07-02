@@ -1022,10 +1022,17 @@ public struct PackageInfoMapper: PackageInfoMapping {
         let publicHeadersPath = try await target.publicHeadersPath(packageFolder: packageFolder)
         // Header extensions recognized by SwiftPM's `FileRuleDescription.header`.
         let headersGlob = "**/*.{h,hh,hpp,h++,hp,hxx,H,ipp,def}"
+        // SwiftPM's `exclude` paths are relative to the target's directory; drop headers under them so
+        // the generated target matches SwiftPM's discovery. Mirrors `SourceFilesList.from`.
+        let excluding: [ProjectDescription.Path] = try target.exclude.map {
+            let excludePath = targetPath.appending(try RelativePath(validating: $0))
+            let excludeGlob = excludePath.extension != nil ? excludePath : excludePath.appending(component: "**")
+            return .path(excludeGlob.pathString)
+        }
 
         return .headers(
-            public: .list([.glob(.path("\(publicHeadersPath.pathString)/\(headersGlob)"))]),
-            project: .list([.glob(.path("\(targetPath.pathString)/\(headersGlob)"))]),
+            public: .list([.glob(.path("\(publicHeadersPath.pathString)/\(headersGlob)"), excluding: excluding)]),
+            project: .list([.glob(.path("\(targetPath.pathString)/\(headersGlob)"), excluding: excluding)]),
             exclusionRule: .projectExcludesPrivateAndPublic
         )
     }

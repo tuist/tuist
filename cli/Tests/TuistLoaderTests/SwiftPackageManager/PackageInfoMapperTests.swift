@@ -2084,6 +2084,72 @@ struct PackageInfoMapperTests {
         )
     }
 
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func map_whenHasHeadersWithExclude() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let headersPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1/include"))
+        let moduleMapPath = headersPath.appending(component: "module.modulemap")
+        let headerPath = headersPath.appending(component: "AnHeader.h")
+        try await fileSystem.makeDirectory(at: headersPath)
+        try await fileSystem.writeText("", at: moduleMapPath)
+        try await fileSystem.writeText("", at: headerPath)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1",
+                            exclude: [
+                                "Excluded",
+                            ]
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        #expect(
+            project ==
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target1",
+                            basePath: basePath,
+                            headers: .spmTarget(
+                                headersPath.parentDirectory,
+                                excluding: [
+                                    .path(
+                                        basePath
+                                            .appending(try RelativePath(validating: "Package/Sources/Target1/Excluded/**"))
+                                            .pathString
+                                    ),
+                                ]
+                            ),
+                            customSettings: [
+                                "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/Target1/include"],
+                                "DEFINES_MODULE": "NO",
+                                "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
+                                "OTHER_SWIFT_FLAGS": [
+                                    "$(inherited)",
+                                ],
+                            ],
+                            moduleMap: "$(SRCROOT)/Sources/Target1/include/module.modulemap"
+                        ),
+                    ]
+                )
+        )
+    }
+
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
@@ -8090,13 +8156,14 @@ extension ProjectDescription.Headers {
     /// under the target's public headers directory (recursively) and all other headers as project headers.
     fileprivate static func spmTarget(
         _ targetBasePath: AbsolutePath,
-        publicHeadersRelativePath: String = "include"
+        publicHeadersRelativePath: String = "include",
+        excluding: [ProjectDescription.Path] = []
     ) -> ProjectDescription.Headers {
         let publicHeadersPath = targetBasePath.appending(try! RelativePath(validating: publicHeadersRelativePath))
         let glob = "**/*.{h,hh,hpp,h++,hp,hxx,H,ipp,def}"
         return .headers(
-            public: .list([.glob(.path("\(publicHeadersPath.pathString)/\(glob)"))]),
-            project: .list([.glob(.path("\(targetBasePath.pathString)/\(glob)"))]),
+            public: .list([.glob(.path("\(publicHeadersPath.pathString)/\(glob)"), excluding: excluding)]),
+            project: .list([.glob(.path("\(targetBasePath.pathString)/\(glob)"), excluding: excluding)]),
             exclusionRule: .projectExcludesPrivateAndPublic
         )
     }
