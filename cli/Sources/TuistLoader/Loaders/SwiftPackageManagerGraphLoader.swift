@@ -99,17 +99,19 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         // a `swift package` invocation on the same scratch directory deadlocks.
         let workspaceState = try await swiftPackageManagerLock
             .withLock(scratchDirectory: scratchDirectory) {
-                let workspacePath = scratchDirectory.appending(component: "workspace-state.json")
-                if try await !fileSystem.exists(workspacePath) {
+                guard let workspaceState = try await SwiftPackageManagerWorkspaceState.load(
+                    from: scratchDirectory,
+                    fileSystem: fileSystem
+                ) else {
                     throw SwiftPackageManagerGraphGeneratorError.installRequired
                 }
-                return try JSONDecoder()
-                    .decode(SwiftPackageManagerWorkspaceState.self, from: try await fileSystem.readFile(at: workspacePath))
+                return workspaceState
             }
         return try await loadUnsafe(
             packagePath: packagePath,
             packageSettings: packageSettings,
             disableSandbox: disableSandbox,
+            swiftPackageManagerArguments: swiftPackageManagerArguments,
             scratchDirectory: scratchDirectory,
             workspaceState: workspaceState
         )
@@ -120,11 +122,10 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         packagePath: AbsolutePath,
         packageSettings: TuistCore.PackageSettings,
         disableSandbox: Bool,
+        swiftPackageManagerArguments: [String],
         scratchDirectory: AbsolutePath,
         workspaceState: SwiftPackageManagerWorkspaceState
     ) async throws -> (TuistLoader.DependenciesGraph, [LintingIssue]) {
-        let path = scratchDirectory
-        let checkoutsFolder = path.appending(component: "checkouts")
         let packageInfoCache = await SwifterPMPackageInfoCache.load(
             scratchDirectory: scratchDirectory,
             fileSystem: fileSystem
@@ -138,66 +139,38 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             try await manifestLoader.loadPackage(at: packagePath.parentDirectory, disableSandbox: disableSandbox)
         }
 
-        var packageInfos: [SwiftPackageManagerResolvedPackageInfo] = try await workspaceState.object.dependencies
-            .concurrentMap { dependency in
-                let name = dependency.packageRef.name
-                let packageFolder: AbsolutePath
-                let hash: String?
-                switch dependency.packageRef.kind {
-                case "remote", "remoteSourceControl":
-                    packageFolder = checkoutsFolder.appending(component: sanitizedSwiftPackageManagerPath(dependency.subpath))
-                    hash = dependency.state?.checkoutState?.revision
-                case "local", "fileSystem", "localSourceControl":
-                    // Depending on the swift version, the information is available either in `path` or in `location`
-                    guard let path = dependency.packageRef.path ?? dependency.packageRef.location else {
-                        throw SwiftPackageManagerGraphGeneratorError.missingPathInLocalSwiftPackage(name)
-                    }
-                    // There's a bug in the `relative` implementation that produces the wrong path when using a symbolic link.
-                    // This leads to nonexisting path in the `ModuleMapMapper` that relies on that method.
-                    // To get around this, we're aligning paths from `workspace-state.json` with the /var temporary directory.
-                    // Anchor against `scratchDirectory` so swifterpm's relative-path encoding resolves correctly;
-                    // absolute paths from older swifterpm output pass through unchanged.
-                    packageFolder = try AbsolutePath(
-                        validating: sanitizedSwiftPackageManagerPath(path),
-                        relativeTo: scratchDirectory
-                    )
-                    hash = nil
-                case "registry":
-                    let registryFolder = path.appending(try RelativePath(validating: "registry/downloads"))
-                    packageFolder = registryFolder.appending(
-                        try RelativePath(validating: sanitizedSwiftPackageManagerPath(dependency.subpath))
-                    )
-                    hash = try dependency.state?.version.map { try contentHasher.hash([dependency.packageRef.identity, $0]) }
-                default:
-                    throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
-                }
+        let workspaceStates = try await workspaceStates(
+            rootWorkspaceState: workspaceState,
+            rootScratchDirectory: scratchDirectory,
+            swiftPackageManagerArguments: swiftPackageManagerArguments
+        )
 
-                let packageInfo = if let packageInfoCache,
-                                     let cachedPackageInfo = packageInfoCache.packageInfo(for: packageFolder)
-                {
-                    cachedPackageInfo
-                } else {
-                    try await manifestLoader.loadPackage(at: packageFolder, disableSandbox: disableSandbox)
-                }
-                let targetToArtifactPaths = try workspaceState.object.artifacts
-                    .filter { $0.packageRef.identity == dependency.packageRef.identity }
-                    .reduce(into: [:]) { result, artifact in
-                        result[artifact.targetName] = try AbsolutePath(
-                            validating: sanitizedSwiftPackageManagerPath(artifact.path),
-                            relativeTo: scratchDirectory
-                        )
-                    }
+        var packageInfos: [SwiftPackageManagerResolvedPackageInfo] = []
+        var prebuilts: [SwiftPackageManagerResolvedPrebuilt] = []
 
-                return SwiftPackageManagerResolvedPackageInfo(
-                    id: dependency.packageRef.identity.lowercased(),
-                    name: name,
-                    folder: packageFolder,
-                    targetToArtifactPaths: targetToArtifactPaths,
-                    info: packageInfo,
-                    hash: hash,
-                    kind: dependency.packageRef.kind
+        for workspaceState in workspaceStates {
+            let statePackageInfoCache = if workspaceState.scratchDirectory == scratchDirectory {
+                packageInfoCache
+            } else {
+                await SwifterPMPackageInfoCache.load(
+                    scratchDirectory: workspaceState.scratchDirectory,
+                    fileSystem: fileSystem
                 )
             }
+
+            let statePackageInfos = try await resolvedPackageInfos(
+                from: workspaceState.workspaceState,
+                scratchDirectory: workspaceState.scratchDirectory,
+                packageInfoCache: statePackageInfoCache,
+                disableSandbox: disableSandbox
+            )
+            packageInfos.append(contentsOf: statePackageInfos)
+            prebuilts.append(
+                contentsOf: workspaceState.workspaceState.object.prebuilts.map {
+                    SwiftPackageManagerResolvedPrebuilt(prebuilt: $0, scratchDirectory: workspaceState.scratchDirectory)
+                }
+            )
+        }
 
         // When the same package appears from multiple sources (e.g. local path, registry, or source control),
         // we keep a single entry to avoid duplicates. Selection is based on the following precedence:
@@ -221,7 +194,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         })
         .compactMap { _, groupedPackageInfos in
             if let localPackage = groupedPackageInfos.first(where: {
-                Self.isLocalDependencyKind($0.kind)
+                SwiftPackageManagerWorkspaceState.isLocalDependencyKind($0.kind)
             }) {
                 return localPackage
             } else if let registryPackage = groupedPackageInfos.first(where: { $0.kind == "registry" }) {
@@ -238,8 +211,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         })
         let packagePrebuilts = try mapPackagePrebuilts(
             packageInfos: packageInfos,
-            prebuilts: workspaceState.object.prebuilts,
-            scratchDirectory: scratchDirectory
+            prebuilts: prebuilts
         )
 
         var mutablePackageModuleAliases: [String: [String: String]] = [:]
@@ -267,7 +239,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         }
 
         let externalDependencies = try await packageInfoMapper.resolveExternalDependencies(
-            path: path,
+            path: scratchDirectory,
             packagePath: packagePath.parentDirectory,
             packageInfos: packageInfoDictionary,
             packageToFolder: packageToFolder,
@@ -309,7 +281,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             .reduce(into: [:]) { result, item in
                 let (packageInfo, hash, projectManifest) = item
                 if let projectManifest {
-                    let swiftPackageManagerScratchDirectory: Path? = if Self.isLocalDependencyKind(packageInfo.kind) {
+                    let swiftPackageManagerScratchDirectory: Path? = if SwiftPackageManagerWorkspaceState.isLocalDependencyKind(packageInfo.kind) {
                         nil
                     } else {
                         SwiftPackageManagerPaths
@@ -333,12 +305,136 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         )
     }
 
-    private static func isLocalDependencyKind(_ kind: String) -> Bool {
-        ["local", "fileSystem", "localSourceControl"].contains(kind)
+    private func resolvedPackageInfos(
+        from workspaceState: SwiftPackageManagerWorkspaceState,
+        scratchDirectory: AbsolutePath,
+        packageInfoCache: SwifterPMPackageInfoCache?,
+        disableSandbox: Bool
+    ) async throws -> [SwiftPackageManagerResolvedPackageInfo] {
+        let checkoutsFolder = scratchDirectory.appending(component: "checkouts")
+
+        return try await workspaceState.object.dependencies
+            .concurrentMap { dependency in
+                let name = dependency.packageRef.name
+                let packageFolder: AbsolutePath
+                let hash: String?
+                switch dependency.packageRef.kind {
+                case "remote", "remoteSourceControl":
+                    packageFolder = checkoutsFolder.appending(component: sanitizedSwiftPackageManagerPath(dependency.subpath))
+                    hash = dependency.state?.checkoutState?.revision
+                case "local", "fileSystem", "localSourceControl":
+                    // Depending on the swift version, the information is available either in `path` or in `location`
+                    guard let path = dependency.packageRef.path ?? dependency.packageRef.location else {
+                        throw SwiftPackageManagerGraphGeneratorError.missingPathInLocalSwiftPackage(name)
+                    }
+                    // There's a bug in the `relative` implementation that produces the wrong path when using a symbolic link.
+                    // This leads to nonexisting path in the `ModuleMapMapper` that relies on that method.
+                    // To get around this, we're aligning paths from `workspace-state.json` with the /var temporary directory.
+                    // Anchor against `scratchDirectory` so swifterpm's relative-path encoding resolves correctly;
+                    // absolute paths from older swifterpm output pass through unchanged.
+                    packageFolder = try AbsolutePath(
+                        validating: sanitizedSwiftPackageManagerPath(path),
+                        relativeTo: scratchDirectory
+                    )
+                    hash = nil
+                case "registry":
+                    let registryFolder = scratchDirectory
+                        .appending(try RelativePath(validating: "registry/downloads"))
+                    packageFolder = registryFolder.appending(
+                        try RelativePath(validating: sanitizedSwiftPackageManagerPath(dependency.subpath))
+                    )
+                    hash = try dependency.state?.version.map { try contentHasher.hash([dependency.packageRef.identity, $0]) }
+                default:
+                    throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
+                }
+
+                let packageInfo = if let packageInfoCache,
+                                     let cachedPackageInfo = packageInfoCache.packageInfo(for: packageFolder)
+                {
+                    cachedPackageInfo
+                } else {
+                    try await manifestLoader.loadPackage(at: packageFolder, disableSandbox: disableSandbox)
+                }
+                let targetToArtifactPaths = try workspaceState.object.artifacts
+                    .filter { $0.packageRef.identity == dependency.packageRef.identity }
+                    .reduce(into: [:]) { result, artifact in
+                        result[artifact.targetName] = try AbsolutePath(
+                            validating: sanitizedSwiftPackageManagerPath(artifact.path),
+                            relativeTo: scratchDirectory
+                        )
+                    }
+
+                return SwiftPackageManagerResolvedPackageInfo(
+                    id: dependency.packageRef.identity.lowercased(),
+                    name: name,
+                    folder: packageFolder,
+                    targetToArtifactPaths: targetToArtifactPaths,
+                    info: packageInfo,
+                    hash: hash,
+                    kind: dependency.packageRef.kind
+                )
+            }
+    }
+
+    private func workspaceStates(
+        rootWorkspaceState: SwiftPackageManagerWorkspaceState,
+        rootScratchDirectory: AbsolutePath,
+        swiftPackageManagerArguments: [String]
+    ) async throws -> [SwiftPackageManagerResolvedWorkspaceState] {
+        var workspaceStates: [SwiftPackageManagerResolvedWorkspaceState] = [
+            SwiftPackageManagerResolvedWorkspaceState(
+                workspaceState: rootWorkspaceState,
+                scratchDirectory: rootScratchDirectory
+            ),
+        ]
+        var visitedPackageFolders: Set<String> = []
+        let localPackageArguments = SwiftPackageManagerArguments
+            .removingCustomScratchPathArguments(swiftPackageManagerArguments)
+
+        func visit(
+            workspaceState: SwiftPackageManagerWorkspaceState,
+            scratchDirectory: AbsolutePath
+        ) async throws {
+            for dependency in workspaceState.object.dependencies
+                where SwiftPackageManagerWorkspaceState.isLocalDependencyKind(dependency.packageRef.kind)
+            {
+                guard let packageFolder = dependency.localPackageFolder(relativeTo: scratchDirectory),
+                      visitedPackageFolders.insert(packageFolder.pathString).inserted
+                else {
+                    continue
+                }
+
+                let localScratchDirectory = try await self.swiftPackageManagerScratchDirectory(
+                    packagePath: packageFolder,
+                    arguments: localPackageArguments
+                )
+                guard let localWorkspaceState = try await SwiftPackageManagerWorkspaceState.load(
+                    from: localScratchDirectory,
+                    fileSystem: fileSystem
+                ) else {
+                    continue
+                }
+
+                workspaceStates.append(
+                    SwiftPackageManagerResolvedWorkspaceState(
+                        workspaceState: localWorkspaceState,
+                        scratchDirectory: localScratchDirectory
+                    )
+                )
+                try await visit(
+                    workspaceState: localWorkspaceState,
+                    scratchDirectory: localScratchDirectory
+                )
+            }
+        }
+
+        try await visit(workspaceState: rootWorkspaceState, scratchDirectory: rootScratchDirectory)
+
+        return workspaceStates
     }
 
     private static func packageOrigin(for kind: String) -> PackageType.ExternalOrigin {
-        isLocalDependencyKind(kind) ? .local : .remote
+        SwiftPackageManagerWorkspaceState.isLocalDependencyKind(kind) ? .local : .remote
     }
 
     static func enabledTraits(
@@ -453,13 +549,22 @@ private struct SwiftPackageManagerResolvedPackageInfo {
     let kind: String
 }
 
+private struct SwiftPackageManagerResolvedWorkspaceState {
+    let workspaceState: SwiftPackageManagerWorkspaceState
+    let scratchDirectory: AbsolutePath
+}
+
+private struct SwiftPackageManagerResolvedPrebuilt {
+    let prebuilt: SwiftPackageManagerWorkspaceState.Prebuilt
+    let scratchDirectory: AbsolutePath
+}
+
 private func mapPackagePrebuilts(
     packageInfos: [SwiftPackageManagerResolvedPackageInfo],
-    prebuilts: [SwiftPackageManagerWorkspaceState.Prebuilt],
-    scratchDirectory: AbsolutePath
+    prebuilts: [SwiftPackageManagerResolvedPrebuilt]
 ) throws -> [String: [String: SwiftPackageManagerPrebuilt]] {
     try packageInfos.reduce(into: [:]) { result, packageInfo in
-        let packagePrebuilts = prebuilts.filter { $0.identity.lowercased() == packageInfo.id.lowercased() }
+        let packagePrebuilts = prebuilts.filter { $0.prebuilt.identity.lowercased() == packageInfo.id.lowercased() }
         guard !packagePrebuilts.isEmpty else { return }
 
         let packageKeys = Set([
@@ -470,20 +575,21 @@ private func mapPackagePrebuilts(
             packageInfo.folder.basename.lowercased(),
         ])
 
-        for prebuilt in packagePrebuilts {
+        for resolvedPrebuilt in packagePrebuilts {
+            let prebuilt = resolvedPrebuilt.prebuilt
             let mappedPrebuilt = SwiftPackageManagerPrebuilt(
                 identity: prebuilt.identity,
                 version: prebuilt.version,
                 libraryName: prebuilt.libraryName,
                 path: try AbsolutePath(
                     validating: sanitizedSwiftPackageManagerPath(prebuilt.path),
-                    relativeTo: scratchDirectory
+                    relativeTo: resolvedPrebuilt.scratchDirectory
                 ),
                 checkoutPath: try prebuilt.checkoutPath
                     .map {
                         try AbsolutePath(
                             validating: sanitizedSwiftPackageManagerPath($0),
-                            relativeTo: scratchDirectory
+                            relativeTo: resolvedPrebuilt.scratchDirectory
                         )
                     },
                 products: prebuilt.products,
@@ -652,8 +758,7 @@ private struct SwifterPMPackageInfoCache {
 }
 
 private func sanitizedSwiftPackageManagerPath(_ path: String) -> String {
-    String(path.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) })
-        .replacingOccurrences(of: "/private/var", with: "/var")
+    SwiftPackageManagerWorkspaceState.sanitizedPath(path)
 }
 
 extension ProjectDescription.Platform {

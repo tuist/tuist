@@ -932,6 +932,71 @@ struct SwiftPackageManagerGraphLoaderTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func load_whenLocalPackageHasItsOwnResolvedDependencies_includesThoseDependencies() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        let rootScratchDirectory = temporaryDirectory.appending(component: ".build")
+        let localPackagePath = temporaryDirectory.appending(component: "LocalOnlyPackage")
+        let localScratchDirectory = localPackagePath.appending(component: ".build")
+        let algorithmsPackagePath = localScratchDirectory.appending(components: "checkouts", "swift-algorithms")
+
+        try await writeLocalPackageWorkspaceState(
+            scratchDirectory: rootScratchDirectory,
+            packagePath: localPackagePath,
+            identity: "localonlypackage",
+            name: "LocalOnlyPackage"
+        )
+        try await writeRemoteWorkspaceState(
+            scratchDirectory: localScratchDirectory,
+            identity: "swift-algorithms",
+            name: "swift-algorithms",
+            subpath: "swift-algorithms",
+            revision: "swift-algorithms-revision"
+        )
+
+        given(manifestLoader)
+            .loadPackage(at: .value(localPackagePath), disableSandbox: .value(true))
+            .willReturn(.test(name: "LocalOnlyPackage"))
+        given(manifestLoader)
+            .loadPackage(at: .value(algorithmsPackagePath), disableSandbox: .value(true))
+            .willReturn(.test(name: "swift-algorithms"))
+        given(packageInfoMapper)
+            .resolveExternalDependencies(
+                path: .any,
+                packagePath: .any,
+                packageInfos: .any,
+                packageToFolder: .any,
+                packageToTargetsToArtifactPaths: .any,
+                packageModuleAliases: .any,
+                packageSettings: .any
+            )
+            .willReturn([:])
+
+        _ = try await subject.load(
+            packagePath: temporaryDirectory.appending(component: "Package.swift"),
+            packageSettings: .test(),
+            disableSandbox: true
+        )
+
+        verify(packageInfoMapper)
+            .resolveExternalDependencies(
+                path: .value(rootScratchDirectory),
+                packagePath: .value(temporaryDirectory),
+                packageInfos: .matching {
+                    Set($0.keys) == Set(["LocalOnlyPackage", "swift-algorithms"])
+                },
+                packageToFolder: .matching {
+                    $0["LocalOnlyPackage"] == localPackagePath &&
+                        $0["swift-algorithms"] == algorithmsPackagePath
+                },
+                packageToTargetsToArtifactPaths: .any,
+                packageModuleAliases: .any,
+                packageSettings: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
     func load_when_dependency_via_local_registry_and_scm() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 
@@ -1180,6 +1245,81 @@ struct SwiftPackageManagerGraphLoaderTests {
                       "version" : "5.10.2"
                     },
                     "subpath" : "\(dependencySubpath)"
+                  }
+                ]
+              }
+            }
+            """,
+            at: workspacePath
+        )
+    }
+
+    private func writeLocalPackageWorkspaceState(
+        scratchDirectory: Path.AbsolutePath,
+        packagePath: Path.AbsolutePath,
+        identity: String,
+        name: String
+    ) async throws {
+        let workspacePath = scratchDirectory.appending(component: "workspace-state.json")
+        try await fileSystem.makeDirectory(at: workspacePath.parentDirectory)
+        try await fileSystem.writeText(
+            """
+            {
+              "object" : {
+                "artifacts" : [],
+                "dependencies" : [
+                  {
+                    "basedOn" : null,
+                    "packageRef" : {
+                      "identity" : "\(identity)",
+                      "kind" : "fileSystem",
+                      "location" : "\(packagePath.pathString)",
+                      "name" : "\(name)"
+                    },
+                    "state" : {
+                      "name" : "fileSystem",
+                      "path" : "\(packagePath.pathString)"
+                    },
+                    "subpath" : "\(identity)"
+                  }
+                ]
+              }
+            }
+            """,
+            at: workspacePath
+        )
+    }
+
+    private func writeRemoteWorkspaceState(
+        scratchDirectory: Path.AbsolutePath,
+        identity: String,
+        name: String,
+        subpath: String,
+        revision: String
+    ) async throws {
+        let workspacePath = scratchDirectory.appending(component: "workspace-state.json")
+        try await fileSystem.makeDirectory(at: workspacePath.parentDirectory)
+        try await fileSystem.writeText(
+            """
+            {
+              "object" : {
+                "artifacts" : [],
+                "dependencies" : [
+                  {
+                    "basedOn" : null,
+                    "packageRef" : {
+                      "identity" : "\(identity)",
+                      "kind" : "remoteSourceControl",
+                      "location" : "https://github.com/example/\(identity)",
+                      "name" : "\(name)"
+                    },
+                    "state" : {
+                      "checkoutState" : {
+                        "revision" : "\(revision)"
+                      },
+                      "name" : "sourceControlCheckout"
+                    },
+                    "subpath" : "\(subpath)"
                   }
                 ]
               }

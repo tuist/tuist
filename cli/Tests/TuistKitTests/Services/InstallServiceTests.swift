@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import Path
 import TuistConfig
 import TuistConfigLoader
 import TuistConstants
@@ -8,14 +9,15 @@ import TuistLoader
 import TuistPlugin
 import TuistSupport
 import TuistTesting
+import XcodeGraph
 import XCTest
-
 @testable import TuistKit
 
 final class InstallServiceTests: TuistUnitTestCase {
     private var pluginService: MockPluginService!
     private var configLoader: MockConfigLoading!
     private var swiftPackageManagerController: MockSwiftPackageManagerControlling!
+    private var manifestLoader: MockManifestLoading!
     private var manifestFilesLocator: MockManifestFilesLocating!
 
     private var subject: InstallService!
@@ -26,12 +28,14 @@ final class InstallServiceTests: TuistUnitTestCase {
         pluginService = MockPluginService()
         configLoader = MockConfigLoading()
         swiftPackageManagerController = MockSwiftPackageManagerControlling()
+        manifestLoader = MockManifestLoading()
         manifestFilesLocator = MockManifestFilesLocating()
 
         subject = InstallService(
             pluginService: pluginService,
             configLoader: configLoader,
             swiftPackageManagerController: swiftPackageManagerController,
+            manifestLoader: manifestLoader,
             manifestFilesLocator: manifestFilesLocator
         )
     }
@@ -42,6 +46,7 @@ final class InstallServiceTests: TuistUnitTestCase {
         pluginService = nil
         configLoader = nil
         swiftPackageManagerController = nil
+        manifestLoader = nil
         manifestFilesLocator = nil
 
         super.tearDown()
@@ -176,6 +181,196 @@ final class InstallServiceTests: TuistUnitTestCase {
             .resolve(at: .any, arguments: .any, printOutput: .any)
             .called(1)
         XCTAssertEqual(savedPackageResolvedContents, "resolved")
+    }
+
+    func test_run_when_installingDependenciesWithLocalPackage_resolvesLocalPackageDependencies() async throws {
+        // Given
+        let stubbedPath = try temporaryPath()
+        let tuistPackagePath = stubbedPath.appending(components: "Tuist", "Package.swift")
+        let localPackagePath = stubbedPath.appending(component: "LocalOnlyPackage")
+
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(tuistPackagePath)
+        given(swiftPackageManagerController)
+            .resolve(at: .any, arguments: .any, printOutput: .any)
+            .willReturn()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                Tuist.test(project: .generated(.test()))
+            )
+        given(manifestLoader)
+            .loadPackage(at: .value(localPackagePath), disableSandbox: .value(true))
+            .willReturn(
+                packageInfo(
+                    name: "LocalOnlyPackage",
+                    dependencies: [
+                        PackageDependency(identity: "swift-algorithms", traits: []),
+                    ]
+                )
+            )
+
+        pluginService.fetchRemotePluginsStub = { _ in }
+
+        try await fileSystem.makeDirectory(at: tuistPackagePath.parentDirectory)
+        try await fileSystem.touch(tuistPackagePath)
+        try await fileSystem.writeText(
+            "resolved",
+            at: tuistPackagePath.parentDirectory.appending(component: Constants.SwiftPackageManager.packageResolvedName)
+        )
+        try await fileSystem.makeDirectory(at: localPackagePath)
+        try await fileSystem.writeText(
+            "local-resolved",
+            at: localPackagePath.appending(component: Constants.SwiftPackageManager.packageResolvedName)
+        )
+        try await writeLocalPackageWorkspaceState(
+            scratchDirectory: tuistPackagePath.parentDirectory.appending(component: ".build"),
+            packagePath: localPackagePath
+        )
+        try await writeEmptyWorkspaceState(
+            scratchDirectory: localPackagePath.appending(component: ".build")
+        )
+
+        // When
+        try await subject.run(
+            path: stubbedPath.pathString,
+            update: false,
+            passthroughArguments: []
+        )
+
+        let savedLocalPackageResolvedPath = localPackagePath.appending(components: [
+            ".build",
+            "Derived",
+            Constants.SwiftPackageManager.packageResolvedName,
+        ])
+        let savedLocalPackageResolvedContents = try await fileSystem.readTextFile(at: savedLocalPackageResolvedPath)
+
+        // Then
+        verify(swiftPackageManagerController)
+            .resolve(at: .any, arguments: .any, printOutput: .any)
+            .called(2)
+        verify(swiftPackageManagerController)
+            .resolve(at: .value(localPackagePath), arguments: .value([]), printOutput: .any)
+            .called(1)
+        XCTAssertEqual(savedLocalPackageResolvedContents, "local-resolved")
+    }
+
+    func test_run_when_installingDependenciesWithLocalPackageDependenciesAlreadyResolved_skipsLocalPackageResolution()
+        async throws
+    {
+        // Given
+        let stubbedPath = try temporaryPath()
+        let tuistPackagePath = stubbedPath.appending(components: "Tuist", "Package.swift")
+        let localPackagePath = stubbedPath.appending(component: "LocalOnlyPackage")
+
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(tuistPackagePath)
+        given(swiftPackageManagerController)
+            .resolve(at: .any, arguments: .any, printOutput: .any)
+            .willReturn()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                Tuist.test(project: .generated(.test()))
+            )
+        given(manifestLoader)
+            .loadPackage(at: .value(localPackagePath), disableSandbox: .value(true))
+            .willReturn(
+                packageInfo(
+                    name: "LocalOnlyPackage",
+                    dependencies: [
+                        PackageDependency(identity: "swift-algorithms", traits: []),
+                    ]
+                )
+            )
+
+        pluginService.fetchRemotePluginsStub = { _ in }
+
+        try await fileSystem.makeDirectory(at: tuistPackagePath.parentDirectory)
+        try await fileSystem.touch(tuistPackagePath)
+        try await fileSystem.writeText(
+            "resolved",
+            at: tuistPackagePath.parentDirectory.appending(component: Constants.SwiftPackageManager.packageResolvedName)
+        )
+        try await fileSystem.makeDirectory(at: localPackagePath)
+        try await writeLocalPackageWorkspaceState(
+            scratchDirectory: tuistPackagePath.parentDirectory.appending(component: ".build"),
+            packagePath: localPackagePath,
+            includeAlgorithmsDependency: true
+        )
+
+        // When
+        try await subject.run(
+            path: stubbedPath.pathString,
+            update: false,
+            passthroughArguments: []
+        )
+
+        // Then
+        verify(swiftPackageManagerController)
+            .resolve(at: .any, arguments: .any, printOutput: .any)
+            .called(1)
+        verify(swiftPackageManagerController)
+            .resolve(at: .value(localPackagePath), arguments: .any, printOutput: .any)
+            .called(0)
+    }
+
+    func test_run_when_localPackageHasRemoteBinaryTargetWithoutMissingDependencies_resolvesLocalPackage() async throws {
+        // Given
+        let stubbedPath = try temporaryPath()
+        let tuistPackagePath = stubbedPath.appending(components: "Tuist", "Package.swift")
+        let localPackagePath = stubbedPath.appending(component: "LocalOnlyPackage")
+
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(tuistPackagePath)
+        given(swiftPackageManagerController)
+            .resolve(at: .any, arguments: .any, printOutput: .any)
+            .willReturn()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                Tuist.test(project: .generated(.test()))
+            )
+        given(manifestLoader)
+            .loadPackage(at: .value(localPackagePath), disableSandbox: .value(true))
+            .willReturn(
+                packageInfo(
+                    name: "LocalOnlyPackage",
+                    binaryTargetURL: "https://example.com/Binary.xcframework.zip"
+                )
+            )
+
+        pluginService.fetchRemotePluginsStub = { _ in }
+
+        try await fileSystem.makeDirectory(at: tuistPackagePath.parentDirectory)
+        try await fileSystem.touch(tuistPackagePath)
+        try await fileSystem.writeText(
+            "resolved",
+            at: tuistPackagePath.parentDirectory.appending(component: Constants.SwiftPackageManager.packageResolvedName)
+        )
+        try await fileSystem.makeDirectory(at: localPackagePath)
+        try await writeLocalPackageWorkspaceState(
+            scratchDirectory: tuistPackagePath.parentDirectory.appending(component: ".build"),
+            packagePath: localPackagePath
+        )
+        try await writeEmptyWorkspaceState(
+            scratchDirectory: localPackagePath.appending(component: ".build")
+        )
+
+        // When
+        try await subject.run(
+            path: stubbedPath.pathString,
+            update: false,
+            passthroughArguments: []
+        )
+
+        // Then
+        verify(swiftPackageManagerController)
+            .resolve(at: .value(localPackagePath), arguments: .value([]), printOutput: .any)
+            .called(1)
     }
 
     func test_run_when_installing_dependencies_passing_additional_arguments() async throws {
@@ -478,5 +673,114 @@ final class InstallServiceTests: TuistUnitTestCase {
         verify(swiftPackageManagerController)
             .resolve(at: .any, arguments: .any, printOutput: .any)
             .called(0)
+    }
+
+    private func writeLocalPackageWorkspaceState(
+        scratchDirectory: AbsolutePath,
+        packagePath: AbsolutePath,
+        includeAlgorithmsDependency: Bool = false
+    ) async throws {
+        let workspaceStatePath = scratchDirectory.appending(component: "workspace-state.json")
+        let algorithmsDependency: String
+        if includeAlgorithmsDependency {
+            algorithmsDependency = """
+                              ,
+                              {
+                                "basedOn" : null,
+                                "packageRef" : {
+                                  "identity" : "swift-algorithms",
+                                  "kind" : "remoteSourceControl",
+                                  "location" : "https://github.com/apple/swift-algorithms",
+                                  "name" : "swift-algorithms"
+                                },
+                                "state" : {
+                                  "checkoutState" : {
+                                    "revision" : "abcdef1234567890"
+                                  },
+                                  "name" : "sourceControlCheckout"
+                                },
+                                "subpath" : "swift-algorithms"
+                              }
+            """
+        } else {
+            algorithmsDependency = ""
+        }
+        try await fileSystem.makeDirectory(at: workspaceStatePath.parentDirectory)
+        try await fileSystem.writeText(
+            """
+            {
+              "object" : {
+                "artifacts" : [],
+                "dependencies" : [
+                  {
+                    "basedOn" : null,
+                    "packageRef" : {
+                      "identity" : "localonlypackage",
+                      "kind" : "fileSystem",
+                      "location" : "\(packagePath.pathString)",
+                      "name" : "LocalOnlyPackage"
+                    },
+                    "state" : {
+                      "name" : "fileSystem",
+                      "path" : "\(packagePath.pathString)"
+                    },
+                    "subpath" : "localonlypackage"
+                  }
+            \(algorithmsDependency)
+                ]
+              }
+            }
+            """,
+            at: workspaceStatePath
+        )
+    }
+
+    private func writeEmptyWorkspaceState(scratchDirectory: AbsolutePath) async throws {
+        let workspaceStatePath = scratchDirectory.appending(component: "workspace-state.json")
+        try await fileSystem.makeDirectory(at: workspaceStatePath.parentDirectory)
+        try await fileSystem.writeText(
+            """
+            {
+              "object" : {
+                "artifacts" : [],
+                "dependencies" : []
+              }
+            }
+            """,
+            at: workspaceStatePath
+        )
+    }
+
+    private func packageInfo(
+        name: String,
+        dependencies: [PackageDependency] = [],
+        binaryTargetURL: String? = nil
+    ) -> PackageInfo {
+        PackageInfo(
+            name: name,
+            products: [],
+            targets: [
+                PackageInfo.Target(
+                    name: "\(name)Target",
+                    path: nil,
+                    url: binaryTargetURL,
+                    sources: nil,
+                    resources: [],
+                    exclude: [],
+                    dependencies: [],
+                    publicHeadersPath: nil,
+                    type: binaryTargetURL == nil ? .regular : .binary,
+                    settings: [],
+                    checksum: nil
+                ),
+            ],
+            traits: nil,
+            dependencies: dependencies,
+            platforms: [],
+            cLanguageStandard: nil,
+            cxxLanguageStandard: nil,
+            swiftLanguageVersions: nil,
+            toolsVersion: XcodeGraph.Version(5, 9, 0)
+        )
     }
 }
