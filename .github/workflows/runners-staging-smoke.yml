@@ -41,6 +41,10 @@ on:
         description: "xcode-cache only: extract the logged-in token and re-inject it as TUIST_TOKEN so environmentToken() short-circuits the per-op keychain auth read. Confirms the CAS per-op cost is client-side auth, not the wire."
         required: false
         default: "false"
+      canary_tag:
+        description: "Canary CLI + fixture ref to benchmark (e.g. 4.202.0-canary.27). Empty = the pinned default."
+        required: false
+        default: ""
   # Also fires when this workflow file itself changes on the
   # feat/runners-shape-2 branch. The smoke isn't a default CI
   # hook (would burn a runner slot on every PR), but during the
@@ -136,8 +140,8 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       RUNNER_LABEL: staging-hostkura
       BENCH_PROJECT: tuist
-      TUIST_CANARY_TAG: 4.202.0-canary.14
-      TUIST_FIXTURE_REF: 4.202.0-canary.14
+      TUIST_CANARY_TAG: ${{ inputs.canary_tag != '' && inputs.canary_tag || '4.202.0-canary.14' }}
+      TUIST_FIXTURE_REF: ${{ inputs.canary_tag != '' && inputs.canary_tag || '4.202.0-canary.14' }}
       HYPERFINE_RUNS: ${{ inputs.runs }}
       # When set, build the tuist CLI from this ref (carries the CAS transfer/codec
       # instrumentation) instead of installing the pinned canary.
