@@ -31,12 +31,14 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   every granule in the relevant monthly partitions).
 
   The `rolling` mode reads bucketed `test_case_runs_recent_N_per_case`
-  `AggregatingMergeTree` MVs for common flaky-run windows and falls back to
-  `test_case_runs_recent_per_case` for larger windows. Reliability rolling
-  windows read the success aggregate on `test_case_runs_recent_per_case`.
-  A project's whole rolling-window scan becomes one row per active test case,
-  regardless of run volume — reading raw `test_case_runs` for that pattern is
-  unrunnable on busy projects.
+  `AggregatingMergeTree` MVs for common windows and falls back to
+  `test_case_runs_recent_per_case` for windows above the largest bucket. The
+  buckets carry both a flaky aggregate (`recent_runs`) and a success aggregate
+  (`recent_successful_runs`), so flakiness, flaky-run-count, and reliability
+  monitors all take the same bucketed fast path — reliability just reads the
+  success column. A project's whole rolling-window scan becomes one row per
+  active test case, regardless of run volume — reading raw `test_case_runs`
+  for that pattern is unrunnable on busy projects.
   """
   import Ecto.Query
 
@@ -281,16 +283,19 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
 
   # The rolling fast path reads `test_case_runs_recent_N_per_case`, where N is
   # the smallest bucket in `@recent_runs_bucket_sizes` that can satisfy the
-  # configured window. These tables maintain `groupArraySorted` aggregates of
-  # `(-ran_at_microseconds, is_flaky)` tuples per `(project_id, test_case_id)`.
-  # The full `test_case_runs_recent_per_case` aggregate still keeps 1000
-  # entries for larger user-configured windows, and also carries
-  # `recent_successful_runs` for reliability-rate windows.
+  # configured window. These tables maintain `groupArraySorted` aggregates
+  # per `(project_id, test_case_id)`: `recent_runs` holds
+  # `(-ran_at_microseconds, is_flaky)` tuples for flakiness/count monitors and
+  # `recent_successful_runs` holds `(-ran_at_microseconds, is_success)` tuples
+  # for reliability monitors. The full `test_case_runs_recent_per_case`
+  # aggregate keeps 1000 entries of both for windows above the largest bucket.
   #
   # The MV scan is bounded by `active_test_cases_in_project` rather than
-  # total run volume — usually a few thousand rows. The per-row aggregate is
-  # sorted by `-ran_at_microseconds`, so the merged array is already
-  # latest-first before the final user-configured slice.
+  # total run volume — usually a few thousand rows. The bucket aggregate is
+  # `groupArraySorted` by `-ran_at_microseconds`, so the merged array is
+  # already latest-first before the final user-configured slice (no re-sort);
+  # only the 1000-entry fallback keeps `groupArrayLast` order and has to
+  # `arrayReverseSort` before slicing.
   #
   # ReplacingMergeTree dedup on `test_case_runs` happens after the MV has
   # already absorbed the row, so a re-inserted run (e.g. is_flaky updated
@@ -298,58 +303,12 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   # noise — ≤1% at the default window — well within the natural variance
   # of a flakiness threshold.
   #
-  # `monitor_type`, `comparison`, `table`, and `recent_n_expr` are
+  # `monitor_type`, `comparison`, `table`, `column`, and `recent_n_expr` are
   # interpolated because they are chosen from fixed in-module allowlists, so
   # there is no SQL-injection vector. Numeric inputs (`project_id`, `size`,
   # `threshold`) flow through bound parameters.
-  defp rolling_triggered_test_case_ids(project_id, "reliability_rate", size, threshold, comparison, test_case_ids) do
-    recent_n_expr = """
-    arraySlice(
-      arrayReverseSort(x -> x.1, groupArrayLastMerge(#{@max_rolling_window_size})(recent_successful_runs)),
-      1,
-      {size:UInt32}
-    )
-    """
-
-    rolling_triggered_test_case_ids_from_recent_runs(
-      "test_case_runs_recent_per_case",
-      recent_n_expr,
-      project_id,
-      "reliability_rate",
-      size,
-      threshold,
-      comparison,
-      test_case_ids
-    )
-  end
-
   defp rolling_triggered_test_case_ids(project_id, monitor_type, size, threshold, comparison, test_case_ids) do
-    {table, recent_n_expr} =
-      case Enum.find(@recent_runs_bucket_sizes, &(size <= &1)) do
-        nil ->
-          {
-            "test_case_runs_recent_per_case",
-            """
-            arraySlice(
-              arrayReverseSort(x -> x.1, groupArrayLastMerge(#{@max_rolling_window_size})(recent_runs)),
-              1,
-              {size:UInt32}
-            )
-            """
-          }
-
-        bucket_size ->
-          {
-            "test_case_runs_recent_#{bucket_size}_per_case",
-            """
-            arraySlice(
-              groupArraySortedMerge(#{bucket_size})(recent_runs),
-              1,
-              {size:UInt32}
-            )
-            """
-          }
-      end
+    {table, recent_n_expr} = recent_runs_source(recent_runs_column(monitor_type), size)
 
     rolling_triggered_test_case_ids_from_recent_runs(
       table,
@@ -361,6 +320,41 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
       comparison,
       test_case_ids
     )
+  end
+
+  # Reliability measures successful runs; flakiness and count measure flaky
+  # runs. Both live as parallel `(sort_key, flag)` aggregates on the same
+  # rolling-window tables, so the routing below is identical and only the
+  # aggregate column differs.
+  defp recent_runs_column("reliability_rate"), do: "recent_successful_runs"
+  defp recent_runs_column(_monitor_type), do: "recent_runs"
+
+  defp recent_runs_source(column, size) do
+    case Enum.find(@recent_runs_bucket_sizes, &(size <= &1)) do
+      nil ->
+        {
+          "test_case_runs_recent_per_case",
+          """
+          arraySlice(
+            arrayReverseSort(x -> x.1, groupArrayLastMerge(#{@max_rolling_window_size})(#{column})),
+            1,
+            {size:UInt32}
+          )
+          """
+        }
+
+      bucket_size ->
+        {
+          "test_case_runs_recent_#{bucket_size}_per_case",
+          """
+          arraySlice(
+            groupArraySortedMerge(#{bucket_size})(#{column}),
+            1,
+            {size:UInt32}
+          )
+          """
+        }
+    end
   end
 
   defp rolling_triggered_test_case_ids_from_recent_runs(

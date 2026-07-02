@@ -939,6 +939,21 @@ defmodule Tuist.Environment do
     end
   end
 
+  # Per-query memory ceiling (in bytes) for the read path. ClickHouse enforces
+  # this per query, so a single pathological aggregation fails on its own with
+  # a `(for query)` error the caller can retry, instead of pushing the process
+  # to its `(total)` server ceiling and killing whatever unrelated query
+  # allocates next. The default stays well under the process limit while
+  # leaving ample headroom over normal analytics; override per
+  # environment/instance size via the `clickhouse.max_memory_usage_bytes`
+  # secret.
+  def clickhouse_max_memory_usage_bytes(secrets \\ secrets()) do
+    case get([:clickhouse, :max_memory_usage_bytes], secrets) do
+      value when is_binary(value) -> String.to_integer(value)
+      _ -> 6 * 1024 * 1024 * 1024
+    end
+  end
+
   @doc """
   Returns additional Finch pools from the TUIST_ADDITIONAL_FINCH_POOLS environment variable.
 
