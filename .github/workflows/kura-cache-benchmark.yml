@@ -31,6 +31,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write # tuist auth login uses GitHub OIDC on CI runners
 
 env:
   MISE_VERSION: "2026.5.15"
