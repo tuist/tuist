@@ -157,7 +157,7 @@ import XcodeGraph
             let cacheableTargetNames = Set(cacheableTargets.map(\.0.target.name))
             guard !cacheableTargets.isEmpty else {
                 Logger.current.info("All cacheable targets are already cached")
-                await logRemoteCacheHitSummary()
+                await logCacheWarmSummary()
                 return
             }
 
@@ -200,21 +200,24 @@ import XcodeGraph
                 metadata: .success
             )
 
-            await logRemoteCacheHitSummary()
+            await logCacheWarmSummary()
         }
 
-        /// Prints how many cacheable targets were served from the remote cache during this run.
-        /// The count is derived from the same cache metadata that gets posted to the server as
-        /// `remote_cache_target_hits`, so it stays consistent with `tuist cache-run show` without
+        /// Prints how cacheable targets were resolved during this run: how many were served from the
+        /// remote cache, how many from the local cache, and how many were misses (i.e. built and stored).
+        /// The counts are derived from the same cache metadata that gets posted to the server (e.g.
+        /// `remote_cache_target_hits`), so they stay consistent with `tuist cache-run show` without
         /// requiring a server round-trip.
-        private func logRemoteCacheHitSummary() async {
-            let binaryCacheItems = await RunMetadataStorage.current.binaryCacheItems
-            let remoteCacheHits = binaryCacheItems
+        private func logCacheWarmSummary() async {
+            let cacheItems = await RunMetadataStorage.current.binaryCacheItems
                 .values
                 .flatMap(\.values)
-                .filter { $0.source == .remote }
-                .count
-            Logger.current.info("Remote cache hits: \(remoteCacheHits)")
+            let remoteHits = cacheItems.filter { $0.source == .remote }.count
+            let localHits = cacheItems.filter { $0.source == .local }.count
+            let misses = cacheItems.filter { $0.source == .miss }.count
+            Logger.current.info(
+                "Cache warm summary: \(remoteHits) remote hits, \(localHits) local hits, \(misses) misses"
+            )
         }
 
         // swiftlint:disable:next function_body_length
