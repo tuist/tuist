@@ -212,6 +212,19 @@ jobs:
               # them via generate, then builds the app target.
               tuist install
               tuist cache
+              # BREAKDOWN of the module-cache wall-clock, decomposed into:
+              #   pull   = binary download from the cache (LOCAL disk on host-Kura,
+              #            network on PN/WAN — where the local-serving win lives)
+              #   gen    = graph resolve + Xcode project generation (CPU, cache-cold
+              #            binaries already present so no pull)
+              #   build  = compile the top-level tuist target + link (CPU)
+              now() { python3 -c 'import time;print(time.time())'; }
+              eval "$CLEAN_DD"; tuist clean binaries >/dev/null 2>&1 || true
+              g0=$(now); tuist generate tuist; g1=$(now)          # resolve+PULL+gen
+              g2=$(now); tuist generate tuist; g3=$(now)          # resolve+gen (binaries cached, no pull)
+              du_cache=$(du -sm "$HOME/.cache/tuist" 2>/dev/null | awk '{print $1}')
+              b0=$(now); eval "$BUILD_NO_CACHE"; b1=$(now)        # compile
+              python3 -c "g0,g1,g2,g3,b0,b1,du=$g0,$g1,$g2,$g3,$b0,$b1,${du_cache:-0}; gen1=g1-g0; gen2=g3-g2; pull=max(0.0,gen1-gen2); build=b1-b0; print('== module-cache BREAKDOWN =='); print(f'  generate#1 (resolve+pull+gen)={gen1:.1f}s   generate#2 (resolve+gen, cached)={gen2:.1f}s'); print(f'  -> PULL(download binaries)~{pull:.1f}s   GEN(resolve+project)~{gen2:.1f}s   BUILD(compile)={build:.1f}s'); print(f'  one-shot generate#1+build={gen1+build:.1f}s   binary-cache footprint~{du:.0f}MB')"
               hyperfine --warmup 1 --runs "$HYPERFINE_RUNS" --export-json result.json --show-output \
                 --prepare "$CLEAN_DD"' && tuist clean binaries' \
                 'tuist generate tuist && '"$BUILD_NO_CACHE" || rc=$? ;;
