@@ -1,9 +1,12 @@
 name: Kura Cache Benchmark
 
-# Manually-dispatched CAS A/B benchmark: Kura (bare-metal, local-NVMe) vs the
-# legacy Kamal cache (S3 write-through), run from a Tuist Linux runner so the
-# client sits inside our network (low RTT, fat pipe) — the numbers a laptop over
-# the public internet can't produce. See kura/benchmarks/cas_ab.sh.
+# Manually-dispatched Kura CAS benchmark (with an optional legacy A/B), run from a
+# GitHub-hosted runner. It hits Kura's public customer endpoint — the same path an
+# external CLI takes — from a datacenter-grade uplink, so throughput isn't bounded
+# by a laptop link. Note: in-cluster runners (tuist-linux) can't reach the box's
+# public endpoint (cluster egress to the box's public IP is blocked; in-cluster
+# cache clients use the private path instead), so this runs on ubuntu-latest.
+# See kura/benchmarks/cas_ab.sh.
 
 on:
   workflow_dispatch:
@@ -48,7 +51,7 @@ concurrency:
 jobs:
   benchmark:
     name: CAS A/B (Kura vs legacy)
-    runs-on: tuist-linux
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
