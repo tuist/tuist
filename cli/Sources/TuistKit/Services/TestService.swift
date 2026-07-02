@@ -705,6 +705,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             testTargets: testTargets,
             skipTestTargets: skipTestTargets,
             shardTestIdentifiers: shard.testIdentifiers,
+            shardSkipTestIdentifiers: shard.skipTestIdentifiers,
             testPlanConfiguration: testPlanConfiguration,
             deviceName: deviceName,
             platform: platform,
@@ -908,6 +909,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
         shardTestIdentifiers: [String] = [],
+        shardSkipTestIdentifiers: [String] = [],
         testPlanConfiguration: TestPlanConfiguration?,
         deviceName: String?,
         platform: String?,
@@ -929,6 +931,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
         for shardTestIdentifier in shardTestIdentifiers {
             arguments += ["-only-testing", shardTestIdentifier]
+        }
+        // The catch-all shard carries no `-only-testing` and instead skips every suite assigned to
+        // other shards, so it runs everything not explicitly assigned (newly added or un-enumerated
+        // suites included). Without applying these, `tuist test` sharding runs the wrong set.
+        for shardSkipTestIdentifier in shardSkipTestIdentifiers {
+            arguments += ["-skip-testing", shardSkipTestIdentifier]
         }
         for skipTarget in skipTestTargets {
             arguments += ["-skip-testing", skipTarget.description]
