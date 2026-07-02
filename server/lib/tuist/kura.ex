@@ -147,6 +147,12 @@ defmodule Tuist.Kura do
 
     from(s in Server,
       as: :server,
+      # Skip rows mid warm-handoff: a `:moving_in` target must warm on the
+      # source's image (matching it for mesh replication), not a newer runtime
+      # tag, and a second deployment would leave the original move deployment
+      # open to roll the promoted target back out of order. The promoted `:none`
+      # row picks the runtime bump up normally once the move completes.
+      where: s.move_phase == :none,
       where: s.status in @version_rollout_statuses,
       where: s.current_image_tag != ^image_tag,
       where: not exists(deployment_exists_query)
@@ -860,39 +866,30 @@ defmodule Tuist.Kura do
   end
 
   @doc """
-  Promotes a caught-up `:moving_in` target: demotes its paired source
-  `:none -> :moving_out` and promotes the target `:moving_in -> :none` in one
-  transaction, so the customer host has a single owner throughout. Then
-  re-renders both manifests — the promoted target gains the customer host
-  (Ingress/DNS/Certificate), the source loses it — and the target's still-open
-  deployment activates it through the normal endpoint-gated path on the next
-  tick. Reconciler-only.
+  Promotes a caught-up `:moving_in` target so the account's customer host moves
+  to it: the source drops the host (`:none -> :moving_out`) and the target gains
+  it (`:moving_in -> :none`).
+
+  Both ownership manifests are applied FIRST — rendered at the phases they will
+  hold, so the target gains the customer host (Ingress/DNS/Certificate) and the
+  source loses it — and only once both converge is the Postgres phase swap
+  committed. A failed apply returns an error with the DB untouched, so the
+  reconciler simply retries the promotion next tick (target still `:moving_in`)
+  rather than stranding a promoted target without its host or leaving two
+  instances claiming the host. Idempotent: a crash between apply and swap
+  re-converges next tick (the applied target already serves the host).
+  Reconciler-only.
   """
   def promote_move(%Server{move_phase: :moving_in, region: region_id} = target) do
     with {:ok, region} <- Regions.fetch(region_id),
          {:ok, account} <- Accounts.get_account_by_id(target.account_id),
-         %Server{} = source <- move_source_for(target) do
-      case Repo.transaction(fn ->
-             with {:ok, demoted} <- source |> Server.move_changeset(%{move_phase: :moving_out}) |> Repo.update(),
-                  {:ok, promoted} <- target |> Server.move_changeset(%{move_phase: :none}) |> Repo.update() do
-               {promoted, demoted}
-             else
-               {:error, reason} -> Repo.rollback(reason)
-             end
-           end) do
-        {:ok, {promoted, demoted}} ->
-          # Re-render both: the source drops the customer host (controller deletes
-          # its Ingress/DNS/Certificate) and the promoted target gains it. The
-          # target's open deployment then activates it via the normal path.
-          reapply_manifest(%{promoted | account: account}, region)
-          reapply_manifest(%{demoted | account: account}, region)
-          broadcast_server(promoted, :updated)
-          broadcast_server(demoted, :updated)
-          {:ok, promoted}
-
-        {:error, reason} ->
-          {:error, reason}
-      end
+         %Server{} = source <- move_source_for(target),
+         :ok <- apply_manifest(%{target | move_phase: :none, account: account}, region),
+         :ok <- apply_manifest(%{source | move_phase: :moving_out, account: account}, region),
+         {:ok, {promoted, demoted}} <- swap_move_phases(source, target) do
+      broadcast_server(promoted, :updated)
+      broadcast_server(demoted, :updated)
+      {:ok, promoted}
     else
       nil -> {:error, :move_source_not_found}
       {:error, reason} -> {:error, reason}
@@ -901,6 +898,17 @@ defmodule Tuist.Kura do
 
   def promote_move(%Server{}), do: {:error, :not_moving_in}
 
+  defp swap_move_phases(source, target) do
+    Repo.transaction(fn ->
+      with {:ok, demoted} <- source |> Server.move_changeset(%{move_phase: :moving_out}) |> Repo.update(),
+           {:ok, promoted} <- target |> Server.move_changeset(%{move_phase: :none}) |> Repo.update() do
+        {promoted, demoted}
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
   defp move_source_for(%Server{account_id: account_id, region: region}) do
     Server
     |> where([s], s.account_id == ^account_id and s.region == ^region)
@@ -908,19 +916,10 @@ defmodule Tuist.Kura do
     |> Repo.one()
   end
 
-  defp reapply_manifest(%Server{current_image_tag: image_tag} = server, region) do
+  defp apply_manifest(%Server{current_image_tag: image_tag} = server, region) do
     image_tag = image_tag || latest_deployment_image(server)
 
-    inputs = %{image_tag: image_tag, account: server.account, server: server, region: region}
-
-    case Provisioner.rollout(server, inputs) do
-      :ok ->
-        :ok
-
-      {:error, reason} ->
-        Logger.warning("[Kura] could not re-apply manifest for server #{server.id} during move: #{inspect(reason)}")
-        :ok
-    end
+    Provisioner.rollout(server, %{image_tag: image_tag, account: server.account, server: server, region: region})
   end
 
   defp latest_deployment_image(%Server{id: server_id}) do
