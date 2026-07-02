@@ -26,8 +26,8 @@ defmodule Tuist.Repo.Migrations.AddMovePhaseToKuraServers do
   @destroyed_status 4
 
   def up do
-    # excellent_migrations:safety-assured-for-next-line column_added_with_default
     alter table(:kura_servers) do
+      # excellent_migrations:safety-assured-for-next-line column_added_with_default
       add :move_phase, :integer, null: false, default: 0
       add :target_node, :string
     end
@@ -68,7 +68,10 @@ defmodule Tuist.Repo.Migrations.AddMovePhaseToKuraServers do
     drop constraint(:kura_servers, :kura_servers_move_phase_valid)
 
     alter table(:kura_servers) do
+      # excellent_migrations:safety-assured-for-next-line column_removed
       remove :move_phase
+      # excellent_migrations:safety-assured-for-next-line column_removed
+      remove :target_node
     end
   end
 end
