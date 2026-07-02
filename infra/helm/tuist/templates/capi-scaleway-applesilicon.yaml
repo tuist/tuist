@@ -332,9 +332,11 @@ spec:
             {{- with .Values.macosFleet.vmClusterEgress.kuraServiceCIDR }}
             # Punch the runner-cache carve-out through the VM egress
             # firewall: Tart VMs may reach the cluster's Service CIDR
-            # on the Kura cache ports (4000 HTTP / 50051 gRPC),
-            # mirroring the Linux runner namespace's NetworkPolicy
-            # egress rule. Source of truth for the CIDR:
+            # on the Kura cache ports (4000 = co-hosted HTTP + gRPC,
+            # 50051 = the legacy dedicated-gRPC Service port kept for
+            # dial-address compat), mirroring the Linux runner
+            # namespace's NetworkPolicy egress rule. Source of truth
+            # for the CIDR:
             # infra/k8s/clusters/cluster-<env>.yaml
             # (.spec.clusterNetwork.services).
             - --vm-kura-egress-cidr={{ . }}

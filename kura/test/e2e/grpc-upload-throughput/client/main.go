@@ -39,11 +39,11 @@ import (
 
 // Reference points used only for the informational ceilings printed below —
 // NOT chart values, so they are not read from helm: the baseline path inherits
-// nginx's default 64KB HTTP/2 request-body window, and the direct path (now the
-// co-hosted combined HTTP+gRPC listener) is bounded by the 4MB HTTP/2 stream
-// window kura advertises on that port (COMBINED_HTTP2_STREAM_WINDOW_BYTES in
-// kura/src/app.rs, matching REAPI's window — keep in sync). The patched window
-// IS a chart value and arrives via PATCHED_WINDOW_BYTES.
+// nginx's default 64KB HTTP/2 request-body window, and the direct path (kura's
+// co-hosted HTTP+gRPC listener) is bounded by the 4MB HTTP/2 stream window
+// kura advertises (HTTP2_STREAM_WINDOW_BYTES in kura/src/app.rs — keep in
+// sync). The patched window IS a chart value and arrives via
+// PATCHED_WINDOW_BYTES.
 const (
 	nginxDefaultWindowBytes = 64 * 1024
 	kuraStreamWindowBytes   = 4 * 1024 * 1024

@@ -13,6 +13,8 @@ replicaCount: 3
 
 service:
   type: ClusterIP
+  # One co-hosted HTTP + gRPC (h2c) listener; grpcPort is the
+  # Service-level compat port (see values.yaml).
   httpPort: 4000
   grpcPort: 50051
 

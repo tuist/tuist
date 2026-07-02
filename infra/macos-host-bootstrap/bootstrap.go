@@ -150,8 +150,10 @@ type Config struct {
 	// of the VM egress firewall (installVMEgressFirewall): Tart VMs
 	// may reach this CIDR — the cluster's Service CIDR, where the
 	// per-account runner-cache Kura ClusterIPs live — on TCP 4000
-	// (cache HTTP API) + 50051 (gRPC), mirroring the Linux runner
-	// namespace's NetworkPolicy egress carve-out. Everything else in
+	// (co-hosted HTTP + gRPC cache port) + 50051 (legacy dedicated-
+	// gRPC Service port kept for dial-address compat), mirroring the
+	// Linux runner namespace's NetworkPolicy egress carve-out.
+	// Everything else in
 	// the RFC1918 blocklist stays blocked; per-account isolation is
 	// the Kura app layer's JWT tenant check, exactly as on Linux.
 	// Must parse as an IPv4 CIDR; bootstrap fails closed otherwise.
@@ -1152,7 +1154,8 @@ sudo chmod 0755 /usr/local/bin/tart
 // cfg.VMKuraEgressCIDR is set, VMs may reach that CIDR (the
 // cluster's Service CIDR, advertised to the host over the tailnet
 // by the cluster-side subnet router) on the Kura cache ports
-// 4000/50051, plus — when cfg.VMClusterDNSIP is set — the kube-dns
+// (4000 co-hosted HTTP + gRPC, 50051 legacy dedicated-gRPC compat),
+// plus — when cfg.VMClusterDNSIP is set — the kube-dns
 // ClusterIP on 53 so `*.svc.cluster.local` names resolve inside the
 // VM. pf is first-match-wins across `quick` rules, so the pass
 // lines render BEFORE the block lines. The inputs are validated as
@@ -1210,7 +1213,8 @@ func renderVMEgressFirewallScript(cfg Config) (string, error) {
 		}
 		carveOut = fmt.Sprintf(`
 # Runner-cache carve-out: VMs may dial the cluster's Kura cache
-# Service ClusterIPs (HTTP 4000 + gRPC 50051) — and, when wired,
+# Service ClusterIPs (4000 co-hosted HTTP + gRPC, 50051 legacy
+# dedicated-gRPC compat) — and, when wired,
 # cluster DNS on 53 — through the host's tailnet route. These pass
 # rules are evaluated before the block rules below (first 'quick'
 # match wins). Per-account isolation is Kura's app-layer JWT tenant
