@@ -2569,3 +2569,74 @@ func TestKuraInstancePodTemplateRendersTolerations(t *testing.T) {
 		t.Fatalf("expected the runner-cache toleration on the pod template, got %#v", sts.Spec.Template.Spec.Tolerations)
 	}
 }
+
+func TestCohostedGRPCGatesOnImageTag(t *testing.T) {
+	cases := []struct {
+		image    string
+		cohosted bool
+	}{
+		// Semver tags at or below the last dedicated-listener release keep
+		// the legacy wiring.
+		{"ghcr.io/tuist/kura:0.5.2", false},
+		{"ghcr.io/tuist/kura:" + lastDedicatedGRPCListenerVersion, false},
+		// Any later release co-hosts gRPC on KURA_PORT, whatever the bump.
+		{"ghcr.io/tuist/kura:0.10.16", true},
+		{"ghcr.io/tuist/kura:0.11.0", true},
+		{"ghcr.io/tuist/kura:1.0.0", true},
+		// Per-commit staging builds and digest pins are non-semver and come
+		// from the same tree as this controller, so they are co-hosted.
+		{"ghcr.io/tuist/kura:sha-abc123def456", true},
+		{"ghcr.io/tuist/kura@sha256:deadbeef", true},
+		{"ghcr.io/tuist/kura", true},
+		// Registry ports must not be mistaken for tags.
+		{"localhost:5000/tuist/kura:0.9.0", false},
+	}
+	for _, tc := range cases {
+		instance := &kurav1alpha1.KuraInstance{Spec: kurav1alpha1.KuraInstanceSpec{Image: tc.image}}
+		if got := cohostedGRPC(instance); got != tc.cohosted {
+			t.Errorf("cohostedGRPC(%q) = %v, want %v", tc.image, got, tc.cohosted)
+		}
+	}
+}
+
+func TestPodWiringFollowsTheGRPCListenerModel(t *testing.T) {
+	grpcContainerPort := func(instance *kurav1alpha1.KuraInstance) int32 {
+		for _, port := range containerPorts(instance) {
+			if port.Name == "grpc" {
+				return port.ContainerPort
+			}
+		}
+		t.Fatalf("expected a containerPort named grpc for %q", instance.Spec.Image)
+		return 0
+	}
+	hasGRPCPortEnv := func(instance *kurav1alpha1.KuraInstance) bool {
+		for _, env := range baseEnv(instance, "", "production") {
+			if env.Name == "KURA_GRPC_PORT" {
+				return true
+			}
+		}
+		return false
+	}
+
+	legacy := &kurav1alpha1.KuraInstance{Spec: kurav1alpha1.KuraInstanceSpec{
+		Image: "ghcr.io/tuist/kura:" + lastDedicatedGRPCListenerVersion,
+	}}
+	if got := grpcContainerPort(legacy); got != grpcPort {
+		t.Fatalf("expected legacy image to keep the dedicated gRPC containerPort %d, got %d", grpcPort, got)
+	}
+	if !hasGRPCPortEnv(legacy) {
+		t.Fatal("expected legacy image to receive KURA_GRPC_PORT")
+	}
+
+	// Co-hosted images serve gRPC on KURA_PORT; the port keeps its name so
+	// the Services' `targetPort: grpc` stays resolvable per pod mid-roll.
+	cohosted := &kurav1alpha1.KuraInstance{Spec: kurav1alpha1.KuraInstanceSpec{
+		Image: "ghcr.io/tuist/kura:sha-abc123def456",
+	}}
+	if got := grpcContainerPort(cohosted); got != httpPort {
+		t.Fatalf("expected co-hosted image to point the grpc containerPort at %d, got %d", httpPort, got)
+	}
+	if hasGRPCPortEnv(cohosted) {
+		t.Fatal("expected co-hosted image not to receive KURA_GRPC_PORT")
+	}
+}

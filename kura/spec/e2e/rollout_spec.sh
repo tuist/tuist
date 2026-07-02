@@ -87,7 +87,6 @@ Describe 'warm rollout lifecycle'
         rm -rf /tmp/kura-locktest &&
         mkdir -p /tmp/kura-locktest &&
         KURA_PORT=4010 \
-        KURA_GRPC_PORT=50110 \
         KURA_INTERNAL_PORT=7444 \
         KURA_NODE_URL=http://lock-test.kura.internal:7444 \
         KURA_PEERS=http://lock-test.kura.internal:7444 \

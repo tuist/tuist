@@ -1,10 +1,11 @@
 name: kura-throughput-e2e
 
-# Topology (single injected RTT applied identically to all three paths):
+# Topology (single injected RTT applied identically to all three paths). Every
+# path reaches kura's single co-hosted HTTP + h2c gRPC listener (kura:4000):
 #
-#   client ─► toxiproxy ─► nginx-baseline (default window)        ─► kura
+#   client ─► toxiproxy ─► nginx-baseline (default window)            ─► kura
 #                       ─► nginx-patched  (raised window, from chart) ─► kura
-#                       ─► kura (direct, kura's own stream window)
+#                       ─► kura (direct, nginx-free control)
 #
 # toxiproxy's proxies + latency toxics are created at runtime by the client.
 
@@ -20,9 +21,9 @@ services:
       context: ../../..
       dockerfile: Dockerfile
     environment:
-      # Minimal standalone config: gRPC h2c on 50051, no peers, no auth extension.
+      # Minimal standalone config: the co-hosted HTTP + h2c gRPC listener on
+      # 4000 (every path uploads REAPI through it). No peers, no auth extension.
       KURA_PORT: "4000"
-      KURA_GRPC_PORT: "50051"
       KURA_INTERNAL_PORT: "7443"
       KURA_TENANT_ID: "e2e"
       KURA_REGION: "local"

@@ -30,7 +30,7 @@ Contributions to Kura require signing the Kura Contributor License Agreement (CL
 
 Actively supported:
 
-- `Bazel` and `Buck2`: Bazel Remote Execution API v2 over gRPC on `KURA_GRPC_PORT`
+- `Bazel` and `Buck2`: Bazel Remote Execution API v2 over gRPC on `KURA_PORT`
 - `Xcode Cache`: HTTP CAS artifacts on `POST/GET /api/cache/cas/{id}` and action-cache style entries on `PUT/GET /api/cache/keyvalue`
 - `Gradle`: `PUT/GET /api/cache/gradle/{cache_key}`
 - `Module Cache`: multipart uploads on `POST /api/cache/module/start`, `POST /api/cache/module/part`, `POST /api/cache/module/complete`, and `HEAD/GET /api/cache/module/{id}`
@@ -59,9 +59,9 @@ Useful endpoints:
 - `http://localhost:4103/up`
 - `http://localhost:4103/ready`
 - `http://localhost:4103/status/rollout`
-- `grpc://localhost:5101` for Bazel/Buck2 REAPI against `kura-us`
-- `grpc://localhost:5102` for Bazel/Buck2 REAPI against `kura-eu`
-- `grpc://localhost:5103` for Bazel/Buck2 REAPI against `kura-ap`
+- `grpc://localhost:4101` for Bazel/Buck2 REAPI against `kura-us`
+- `grpc://localhost:4102` for Bazel/Buck2 REAPI against `kura-eu`
+- `grpc://localhost:4103` for Bazel/Buck2 REAPI against `kura-ap`
 - `http://localhost:3000` for Grafana with `admin` / `admin`
 - `http://localhost:9090` for Prometheus
 - `http://localhost:3100` for Loki
@@ -115,7 +115,7 @@ Kura is easier to read by subsystem than by tutorial step. The sections below gr
 
 Kura exposes multiple cache protocols behind one service. Public HTTPS supports HTTP/2 so clients can multiplex concurrent artifact downloads on long-lived connections. The actively supported surfaces are:
 
-- 🛠️ `Bazel` and `Buck2`: REAPI over gRPC on `KURA_GRPC_PORT`
+- 🛠️ `Bazel` and `Buck2`: REAPI over gRPC on `KURA_PORT`
 - 🍎 `Xcode Cache`: `POST/GET /api/cache/cas/{id}?tenant_id=...&namespace_id=...`
 - 🗂️ `KeyValue / action-cache entries`: `PUT /api/cache/keyvalue?tenant_id=...&namespace_id=...`
 - 🐘 `Gradle`: `PUT/GET /api/cache/gradle/{cache_key}?tenant_id=...&namespace_id=...`
@@ -216,11 +216,9 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 
 | Name | Description | Optional | Default |
 | --- | --- | --- | --- |
-| `KURA_PORT` | Public HTTP port. | No | `—` |
-| `KURA_GRPC_PORT` | gRPC port for REAPI. | No | `—` |
+| `KURA_PORT` | Plaintext port for the co-hosted HTTP cache API + h2c REAPI gRPC service (one listener, dispatched by request path). | No | `—` |
+| `KURA_HTTPS_PORT` | TLS port serving the same co-hosted HTTP + gRPC surface (ALPN-negotiated), active when `KURA_PUBLIC_TLS_*` is configured. | Yes | `4443` |
 | `KURA_INTERNAL_PORT` | Internal HTTP or mTLS port used for peer replication and discovery. | No | `—` |
-| `KURA_GRPC_TLS_CERT_PATH` | PEM cert path used to terminate TLS on the public gRPC listener. | Yes | disabled |
-| `KURA_GRPC_TLS_KEY_PATH` | PEM private-key path paired with `KURA_GRPC_TLS_CERT_PATH`. | Yes | disabled |
 | `KURA_TENANT_ID` | Default tenant identifier for the node. | No | `—` |
 | `KURA_REGION` | Region label advertised in metrics and replication state. | No | `—` |
 | `KURA_TMP_DIR` | Temporary directory for staged request bodies and multipart assembly. | No | `—` |
@@ -304,7 +302,6 @@ A minimal direct-binary deployment still looks like:
 
 ```bash
 KURA_PORT=4000 \
-KURA_GRPC_PORT=50051 \
 KURA_INTERNAL_PORT=7443 \
 KURA_TENANT_ID=default \
 KURA_REGION=eu-central \
