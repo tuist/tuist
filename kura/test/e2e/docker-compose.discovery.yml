@@ -18,10 +18,6 @@ services:
     domainname: kura.internal
     environment:
       KURA_PORT: "4000"
-      KURA_GRPC_PORT: "50051"
-      # Combined HTTP + h2c gRPC listener, published below as KURA_US_2_PORT so
-      # the discovery/faults/rollout suites reach kura-us-2 through it.
-      KURA_COMBINED_PORT: "8080"
       KURA_INTERNAL_PORT: "7443"
       KURA_TENANT_ID: default
       KURA_TMP_DIR: /tmp/kura
@@ -51,9 +47,7 @@ services:
       kura.region: us-east
       kura.tenant_id: default
     ports:
-      # Primary client endpoint: the combined HTTP + h2c gRPC listener.
-      - "${KURA_US_2_PORT:-4402}:8080"
-      - "${KURA_US_2_GRPC_PORT:-5402}:50051"
+      - "${KURA_US_2_PORT:-4402}:4000"
     volumes:
       - kura-us-2-data:/var/cache/kura
     networks:

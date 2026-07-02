@@ -1,16 +1,11 @@
 name: kura-throughput-e2e
 
-# Topology (single injected RTT applied identically to all five paths). The
-# combined paths reach kura's co-hosted HTTP + h2c gRPC listener
-# (KURA_COMBINED_PORT=8080); the *-grpc paths reach the dedicated REAPI gRPC
-# port (50051), so the run compares combined-vs-dedicated backends under an
-# identical nginx window and direct:
+# Topology (single injected RTT applied identically to all three paths). Every
+# path reaches kura's single co-hosted HTTP + h2c gRPC listener (kura:4000):
 #
-#   client ─► toxiproxy ─► nginx-baseline     (default window)          ─► kura combined port
-#                       ─► nginx-patched      (raised window, from chart) ─► kura combined port
-#                       ─► kura combined port (direct, kura's own stream window)
-#                       ─► nginx-patched-grpc (raised window, from chart) ─► kura dedicated gRPC port
-#                       ─► kura dedicated gRPC port (direct)
+#   client ─► toxiproxy ─► nginx-baseline (default window)            ─► kura
+#                       ─► nginx-patched  (raised window, from chart) ─► kura
+#                       ─► kura (direct, nginx-free control)
 #
 # toxiproxy's proxies + latency toxics are created at runtime by the client.
 
@@ -26,12 +21,9 @@ services:
       context: ../../..
       dockerfile: Dockerfile
     environment:
-      # Minimal standalone config: HTTP on 4000, dedicated gRPC h2c on 50051,
-      # and the co-hosted HTTP+gRPC combined listener on 8080 (the direct path
-      # measures REAPI throughput through it). No peers, no auth extension.
+      # Minimal standalone config: the co-hosted HTTP + h2c gRPC listener on
+      # 4000 (every path uploads REAPI through it). No peers, no auth extension.
       KURA_PORT: "4000"
-      KURA_GRPC_PORT: "50051"
-      KURA_COMBINED_PORT: "8080"
       KURA_INTERNAL_PORT: "7443"
       KURA_TENANT_ID: "e2e"
       KURA_REGION: "local"
@@ -58,16 +50,6 @@ services:
     volumes:
       - ./generated/patched.conf:/etc/nginx/nginx.conf:ro
 
-  # Same raised (patched) window as nginx-patched, but its rendered conf proxies
-  # to kura's dedicated REAPI gRPC port (50051) instead of the combined port, so
-  # the client can compare combined-vs-dedicated backends behind an identical
-  # nginx window.
-  nginx-patched-grpc:
-    image: nginx:1.27
-    depends_on: [kura]
-    volumes:
-      - ./generated/patched-grpc.conf:/etc/nginx/nginx.conf:ro
-
   toxiproxy:
     image: ghcr.io/shopify/toxiproxy:2.12.0
     # Default entrypoint already runs the server with -host=0.0.0.0 (API :8474).
@@ -75,7 +57,7 @@ services:
   client:
     build: ./client
     image: kura-throughput-client
-    depends_on: [toxiproxy, nginx-baseline, nginx-patched, nginx-patched-grpc, kura]
+    depends_on: [toxiproxy, nginx-baseline, nginx-patched, kura]
     environment:
       TOXIPROXY_API: "http://toxiproxy:8474"
       TOXIPROXY_HOST: "toxiproxy"

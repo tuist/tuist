@@ -1,7 +1,6 @@
 use std::{
     collections::BTreeMap,
     error::Error,
-    future::Future,
     pin::Pin,
     task::{Context, Poll},
     time::{Duration, Instant},
@@ -32,23 +31,18 @@ use futures_util::{StreamExt, future::BoxFuture};
 use http_body_util::{BodyExt, combinators::UnsyncBoxBody};
 use prost::Message;
 use sha2::{Digest as _, Sha256};
-use tokio::net::TcpListener;
-use tokio_stream::wrappers::TcpListenerStream;
 use tokio_util::io::ReaderStream;
 use tonic::{
     Request, Response, Status,
     codegen::{Body as HttpBody, Service, http},
-    transport::{Identity, Server, ServerTlsConfig},
 };
 use tower::Layer;
 
 use crate::{
     artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
-    config::GrpcTlsConfig,
     constants::MAX_MODULE_TOTAL_BYTES,
     extension::{AccessDecision, ExtensionContext, Principal},
     io::is_fd_pool_exhausted_error,
-    peer_tls::install_default_crypto_provider,
     replication::replication_targets,
     state::SharedState,
     utils::{action_cache_key, blob_key, ensure_tmp_dir_capacity, temp_file_path},
@@ -57,28 +51,6 @@ use crate::{
 const DEFAULT_INSTANCE_NAME: &str = "default";
 const REAPI_READ_STREAM_CHUNK_BYTES: usize = 512 * 1024;
 const REAPI_MATERIALIZATION_REJECTED_ACTION: &str = "reapi_materialization_rejected";
-
-// HTTP/2 flow-control windows the REAPI gRPC server advertises. hyper's 1 MiB
-// defaults cap a single upload stream at ~window/RTT, which throttles large
-// Bazel ByteStream writes even after the gateway nginx window is raised in
-// front (the kura hop becomes the next bottleneck). Lift both; the connection
-// window is sized for several concurrent full streams so a fan-out of uploads
-// does not starve on the connection-level window.
-const REAPI_HTTP2_STREAM_WINDOW_BYTES: u32 = 4 * 1024 * 1024;
-const REAPI_HTTP2_CONNECTION_WINDOW_BYTES: u32 = 16 * 1024 * 1024;
-
-// A REAPI connection is recycled after this age: the server sends GOAWAY (stop
-// opening new streams), then lets in-flight RPCs run for the grace period before
-// forcibly closing. GOAWAY does not by itself sever an in-flight upload — the
-// grace does — so the age stays short (connections rebalance onto fresh pods
-// after a rolling deploy) while the grace is sized to outlast the largest
-// legitimate upload. The original 300s grace caused bugs, as it cut large
-// uploads at age+grace=600s, well under the ~680s a 784MB blob needs at WAN RTT.
-// An in-flight upload is still ultimately bounded by age+grace (~20min) — ample
-// for any real upload, not unbounded — and idle streams are reclaimed much
-// sooner by REAPI_WRITE_STALL_TIMEOUT.
-const REAPI_MAX_CONNECTION_AGE: Duration = Duration::from_secs(300);
-const REAPI_MAX_CONNECTION_AGE_GRACE: Duration = Duration::from_secs(900);
 
 // Abort a ByteStream upload only when no chunk arrives within this window. The
 // timer resets on every chunk received, so an actively transferring upload is
@@ -111,9 +83,7 @@ type ReapiServers = (
     ByteStreamServer<ReapiService>,
 );
 
-// The four REAPI gRPC services, configured identically for the dedicated gRPC
-// listener (`serve`) and the co-hosted combined listener (`routes`) so the two
-// never drift in decoding limits or wiring.
+// The four REAPI gRPC services with their shared decoding limits.
 fn reapi_servers(state: SharedState) -> ReapiServers {
     let service = ReapiService { state };
     (
@@ -127,17 +97,15 @@ fn reapi_servers(state: SharedState) -> ReapiServers {
     )
 }
 
-// Build the REAPI services as an `axum`/`tower` router for co-hosting on the
-// combined HTTP+gRPC listener. Unlike [`serve`], this owns no transport or
-// accept loop and applies no gRPC-specific HTTP/2 tuning or connection-age
-// recycling — the combined listener owns the socket and its HTTP/2 settings —
-// but it carries the same [`GrpcRequestAccountingLayer`], so combined-port gRPC
-// traffic still shows up in inflight/latency metrics and counts toward the
-// shutdown drain. tonic's `Routes` is itself an `axum::Router` that mounts each
-// service at `/{service.name}/{*rest}`; those paths never collide with the HTTP
-// cache routes, so the combined router dispatches gRPC and HTTP unambiguously by
-// path. Its `unimplemented` fallback (gRPC status 12) becomes the combined
-// router's fallback for otherwise-unmatched paths.
+// Build the REAPI services as an `axum`/`tower` router, mounted into the
+// combined HTTP+gRPC listener alongside the cache routes. tonic's `Routes` is
+// itself an `axum::Router` that mounts each service at `/{service.name}/{*rest}`;
+// those paths never collide with the HTTP cache routes, so the combined router
+// dispatches gRPC and HTTP unambiguously by path. It carries the
+// [`GrpcRequestAccountingLayer`] so gRPC traffic still shows up in inflight and
+// latency metrics and counts toward the shutdown drain. Its `unimplemented`
+// fallback (gRPC status 12) becomes the combined router's fallback for
+// otherwise-unmatched paths.
 pub fn routes(state: SharedState) -> axum::Router {
     let (capabilities, action_cache, cas, byte_stream) = reapi_servers(state.clone());
     tonic::service::Routes::new(capabilities)
@@ -146,35 +114,6 @@ pub fn routes(state: SharedState) -> axum::Router {
         .add_service(byte_stream)
         .into_axum_router()
         .layer(GrpcRequestAccountingLayer { state })
-}
-
-pub async fn serve<F>(listener: TcpListener, state: SharedState, shutdown: F) -> Result<(), String>
-where
-    F: Future<Output = ()> + Send + 'static,
-{
-    let tls = state.config.grpc_tls.clone();
-    let (capabilities, action_cache, cas, byte_stream) = reapi_servers(state.clone());
-
-    let mut builder = Server::builder()
-        .initial_stream_window_size(REAPI_HTTP2_STREAM_WINDOW_BYTES)
-        .initial_connection_window_size(REAPI_HTTP2_CONNECTION_WINDOW_BYTES)
-        .max_connection_age(REAPI_MAX_CONNECTION_AGE)
-        .max_connection_age_grace(REAPI_MAX_CONNECTION_AGE_GRACE)
-        .layer(GrpcRequestAccountingLayer { state });
-    if let Some(tls) = tls {
-        builder = builder
-            .tls_config(load_grpc_tls_config(&tls).await?)
-            .map_err(|error| format!("gRPC TLS configuration error: {error}"))?;
-    }
-
-    builder
-        .add_service(capabilities)
-        .add_service(action_cache)
-        .add_service(cas)
-        .add_service(byte_stream)
-        .serve_with_incoming_shutdown(TcpListenerStream::new(listener), shutdown)
-        .await
-        .map_err(|error| format!("gRPC server error: {error}"))
 }
 
 #[derive(Clone)]
@@ -244,23 +183,6 @@ where
             }))
         })
     }
-}
-
-async fn load_grpc_tls_config(tls: &GrpcTlsConfig) -> Result<ServerTlsConfig, String> {
-    install_default_crypto_provider();
-    let cert = tokio::fs::read(&tls.cert_path).await.map_err(|error| {
-        format!(
-            "failed to read gRPC TLS cert at {}: {error}",
-            tls.cert_path.display()
-        )
-    })?;
-    let key = tokio::fs::read(&tls.key_path).await.map_err(|error| {
-        format!(
-            "failed to read gRPC TLS key at {}: {error}",
-            tls.key_path.display()
-        )
-    })?;
-    Ok(ServerTlsConfig::new().identity(Identity::from_pem(cert, key)))
 }
 
 impl ReapiService {
@@ -1421,6 +1343,7 @@ mod tests {
     use super::*;
     use std::{convert::Infallible, time::Duration};
 
+    use tokio::net::TcpListener;
     use tonic::body::Body as TonicBody;
 
     use crate::{
@@ -1428,6 +1351,19 @@ mod tests {
         failpoints::{FailpointAction, FailpointName},
         test_support::{test_context, test_context_with_extension},
     };
+
+    // Serves the REAPI routes over a plaintext h2c listener for the tests below,
+    // in place of the former dedicated gRPC server. axum::serve's auto builder
+    // speaks HTTP/2 prior knowledge, which is what the tonic clients connect with.
+    async fn serve_routes(
+        listener: TcpListener,
+        state: SharedState,
+        shutdown: impl std::future::Future<Output = ()> + Send + 'static,
+    ) {
+        let _ = axum::serve(listener, routes(state).into_make_service())
+            .with_graceful_shutdown(shutdown)
+            .await;
+    }
 
     #[tokio::test]
     async fn grpc_request_accounting_layer_keeps_guard_until_response_body_drops() {
@@ -1476,7 +1412,7 @@ mod tests {
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
         let server_state = context.state.clone();
         let server = tokio::spawn(async move {
-            serve(listener, server_state, async move {
+            serve_routes(listener, server_state, async move {
                 let _ = shutdown_rx.await;
             })
             .await
@@ -1580,7 +1516,7 @@ mod tests {
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
         let server_state = context.state.clone();
         let server = tokio::spawn(async move {
-            serve(listener, server_state, async move {
+            serve_routes(listener, server_state, async move {
                 let _ = shutdown_rx.await;
             })
             .await
@@ -1799,7 +1735,7 @@ end
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
         let server_state = context.state.clone();
         let server = tokio::spawn(async move {
-            serve(listener, server_state, async move {
+            serve_routes(listener, server_state, async move {
                 let _ = shutdown_rx.await;
             })
             .await

@@ -38,18 +38,16 @@ use crate::{
 };
 
 const HTTP2_MAX_CONCURRENT_STREAMS: u32 = 128;
-const HTTP2_INITIAL_STREAM_WINDOW_BYTES: u32 = 1024 * 1024;
-const HTTP2_INITIAL_CONNECTION_WINDOW_BYTES: u32 = 16 * 1024 * 1024;
+// The co-hosted listener carries large Bazel REAPI uploads, so it advertises a
+// 4 MiB stream window (a single ByteStream write is otherwise capped at
+// ~window/RTT) over a 16 MiB connection window sized for several concurrent
+// streams.
+const HTTP2_STREAM_WINDOW_BYTES: u32 = 4 * 1024 * 1024;
+const HTTP2_CONNECTION_WINDOW_BYTES: u32 = 16 * 1024 * 1024;
 const HTTP2_MAX_FRAME_SIZE: u32 = 64 * 1024;
 const HTTP2_MAX_SEND_BUFFER_BYTES: usize = 512 * 1024;
 const HTTP2_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(30);
 const HTTP2_KEEP_ALIVE_TIMEOUT: Duration = Duration::from_secs(20);
-
-// The combined HTTP+gRPC listener carries large Bazel REAPI uploads, so it pins
-// the REAPI server's 4 MiB stream window instead of the smaller public-HTTP one,
-// which would cap a single ByteStream write at ~window/RTT. It reuses the shared
-// 16 MiB connection window. Kept in sync with REAPI_HTTP2_STREAM_WINDOW_BYTES.
-const COMBINED_HTTP2_STREAM_WINDOW_BYTES: u32 = 4 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug)]
 struct ShutdownBudget {
@@ -211,16 +209,10 @@ async fn run_with_config(
     }
 
     let address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.port));
-    let grpc_address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.grpc_port));
     let https_address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.https_port));
-    info!("Kura service listening on {address}");
+    info!("Kura HTTP+gRPC service listening on {address}");
     if state.config.public_tls.is_some() {
-        info!("Kura HTTPS service listening on {https_address} (TLS)");
-    }
-    if state.config.grpc_tls.is_some() {
-        info!("Kura REAPI service listening on {grpc_address} (TLS)");
-    } else {
-        info!("Kura REAPI service listening on {grpc_address}");
+        info!("Kura HTTP+gRPC service listening on {https_address} (TLS)");
     }
     let internal_address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.internal_port));
     if state.config.peer_tls.is_some() {
@@ -229,33 +221,8 @@ async fn run_with_config(
         info!("Kura internal HTTP service listening on {internal_address}");
     }
 
-    let grpc_listener = tokio::net::TcpListener::bind(grpc_address)
-        .await
-        .map_err(|error| format!("failed to bind gRPC listener: {error}"))?;
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(None::<ShutdownBudget>);
     let (shutdown_budget_tx, shutdown_budget_rx) = oneshot::channel::<ShutdownBudget>();
-    let grpc_shutdown_rx = shutdown_rx.clone();
-    let grpc_state = state.clone();
-    let grpc_handle = tokio::spawn(
-        async move {
-            let grpc_shutdown = async move {
-                let mut shutdown_rx = grpc_shutdown_rx;
-                if shutdown_rx.borrow().is_some() {
-                    return;
-                }
-                while shutdown_rx.changed().await.is_ok() {
-                    if shutdown_rx.borrow().is_some() {
-                        return;
-                    }
-                }
-            };
-
-            if let Err(error) = reapi::serve(grpc_listener, grpc_state, grpc_shutdown).await {
-                tracing::error!("gRPC server failed: {error}");
-            }
-        }
-        .in_current_span(),
-    );
 
     let internal_handle = if state.config.peer_tls.is_some() {
         let tls_config = state
@@ -327,16 +294,13 @@ async fn run_with_config(
         ))
     };
 
-    let router = http::public_router(state.clone());
+    let router = http::public_router(state.clone()).merge(reapi::routes(state.clone()));
     let public_handle = Handle::new();
     let https_handle = Handle::new();
-    let combined_handle = Handle::new();
     let public_shutdown_handle = public_handle.clone();
     let https_shutdown_handle = https_handle.clone();
-    let combined_shutdown_handle = combined_handle.clone();
     let public_shutdown_state = state.clone();
     let (public_plain_shutdown_tx, public_plain_shutdown_rx) = watch::channel(false);
-    let (combined_plain_shutdown_tx, combined_plain_shutdown_rx) = watch::channel(false);
     tokio::spawn(
         async move {
             shutdown_signal().await;
@@ -345,27 +309,26 @@ async fn run_with_config(
             let _ = public_shutdown_state.enter_draining();
             public_shutdown_state.sync_runtime_metrics().await;
             let _ = public_plain_shutdown_tx.send(true);
-            // The combined listener runs either the accelerated server (watch
-            // channel) or the axum fallback (handle); signal both, whichever is
-            // bound. No-ops when the combined listener is disabled.
-            let _ = combined_plain_shutdown_tx.send(true);
             public_shutdown_handle.graceful_shutdown(Some(budget.remaining()));
             https_shutdown_handle.graceful_shutdown(Some(budget.remaining()));
-            combined_shutdown_handle.graceful_shutdown(Some(budget.remaining()));
         }
         .in_current_span(),
     );
 
+    // The co-hosted HTTP + h2c gRPC surface, also served over TLS when a public
+    // cert is configured, ALPN-negotiated (`h2` for gRPC, `http/1.1` for HTTP).
+    // TLS is incompatible with the sendfile accelerator, so this uses the plain
+    // hyper path with the fixed gRPC-sized HTTP/2 windows.
     let https_handle_task = if let Some(public_tls) = state.config.public_tls.clone() {
         let tls_config = build_public_rustls_config(&public_tls).await?;
-        let https_router = http::public_router(state.clone());
+        let https_router = http::public_router(state.clone()).merge(reapi::routes(state.clone()));
         Some(tokio::spawn(
             async move {
                 let mut server =
                     axum_server::bind_rustls(https_address, tls_config).handle(https_handle);
-                configure_public_http_builder(server.http_builder());
+                configure_http_builder(server.http_builder());
                 if let Err(error) = server.serve(https_router.into_make_service()).await {
-                    tracing::error!("public HTTPS server failed: {error}");
+                    tracing::error!("HTTPS server failed: {error}");
                 }
             }
             .in_current_span(),
@@ -374,80 +337,12 @@ async fn run_with_config(
         None
     };
 
-    // Optional additive listener that co-hosts the HTTP cache API and the h2c
-    // REAPI gRPC service on one port, dispatching by request path. It lets a
-    // single client-facing endpoint (e.g. the runner-cache URL) serve both
-    // protocols, so a client that derives its gRPC target from the cache URL
-    // reaches REAPI instead of the plain-HTTP listener. The dedicated
-    // `port`/`grpc_port` listeners are unaffected and keep serving.
-    //
-    // Three modes, in precedence order:
-    //   * TLS (when `public_tls` is set): terminates TLS with the public cert
-    //     and serves HTTP + gRPC over one TLS port, ALPN-negotiated (`h2` for
-    //     gRPC, `http/1.1` for HTTP). TLS is incompatible with the sendfile
-    //     accelerator, so it uses the plain hyper path like the HTTPS listener.
-    //   * accelerated plaintext: routes through the same accelerated server as
-    //     the public port, so HTTP/1 artifact GETs get the sendfile/splice fast
-    //     path and gRPC (h2c) / other requests fall through to hyper.
-    //   * plain plaintext: the merged router over the axum builder.
-    // All modes use the fixed gRPC-sized HTTP/2 windows so co-hosted REAPI
-    // uploads run at full speed.
-    let combined_handle_task = if let Some(combined_port) = state.config.combined_port {
-        let combined_address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, combined_port));
-        let combined_router =
-            http::public_router(state.clone()).merge(reapi::routes(state.clone()));
-        if let Some(public_tls) = state.config.public_tls.clone() {
-            info!("Kura combined HTTP+gRPC service listening on {combined_address} (TLS)");
-            let tls_config = build_public_rustls_config(&public_tls).await?;
-            Some(tokio::spawn(
-                async move {
-                    let mut server =
-                        axum_server::bind_rustls(combined_address, tls_config).handle(combined_handle);
-                    configure_combined_http_builder(server.http_builder());
-                    if let Err(error) = server.serve(combined_router.into_make_service()).await {
-                        tracing::error!("combined HTTP+gRPC server failed: {error}");
-                    }
-                }
-                .in_current_span(),
-            ))
-        } else if state.config.accelerated_file_serving.enabled {
-            info!("Kura combined HTTP+gRPC service listening on {combined_address}");
-            let combined_state = state.clone();
-            let combined_config = state.config.accelerated_file_serving.clone();
-            Some(tokio::spawn(
-                async move {
-                    if let Err(error) = accelerated_file_serving::serve_public_http(
-                        combined_address,
-                        combined_router,
-                        combined_state,
-                        combined_config,
-                        combined_plain_shutdown_rx,
-                        configure_combined_http_builder,
-                    )
-                    .await
-                    {
-                        tracing::error!("combined HTTP+gRPC server failed: {error}");
-                    }
-                }
-                .in_current_span(),
-            ))
-        } else {
-            info!("Kura combined HTTP+gRPC service listening on {combined_address}");
-            Some(tokio::spawn(
-                async move {
-                    let mut server = axum_server::bind(combined_address).handle(combined_handle);
-                    configure_combined_http_builder(server.http_builder());
-                    if let Err(error) = server.serve(combined_router.into_make_service()).await {
-                        tracing::error!("combined HTTP+gRPC server failed: {error}");
-                    }
-                }
-                .in_current_span(),
-            ))
-        }
-    } else {
-        None
-    };
-
+    // The main plaintext listener co-hosts HTTP and h2c gRPC on one port. It
+    // runs through the accelerated server, so HTTP/1 artifact GETs get the
+    // sendfile/splice fast path while gRPC (h2c) and other non-accelerable
+    // requests fall through to hyper — with the fixed gRPC-sized HTTP/2 windows
+    // so co-hosted REAPI uploads run at full speed. When acceleration is
+    // disabled it serves the merged router over the plain axum builder.
     if state.config.accelerated_file_serving.enabled {
         accelerated_file_serving::serve_public_http(
             address,
@@ -455,13 +350,13 @@ async fn run_with_config(
             state.clone(),
             state.config.accelerated_file_serving.clone(),
             public_plain_shutdown_rx,
-            configure_public_http_builder,
+            configure_http_builder,
         )
         .await
         .map_err(|error| format!("server error: {error}"))?;
     } else {
         let mut public_server = axum_server::bind(address).handle(public_handle);
-        configure_public_http_builder(public_server.http_builder());
+        configure_http_builder(public_server.http_builder());
         public_server
             .serve(router.into_make_service())
             .await
@@ -481,62 +376,39 @@ async fn run_with_config(
             "timed out waiting for inflight requests to drain during shutdown"
         );
     }
-    wait_for_task_shutdown(grpc_handle, "gRPC", shutdown_budget).await;
     if let Some(internal_handle) = internal_handle {
         wait_for_task_shutdown(internal_handle, "internal", shutdown_budget).await;
     }
     if let Some(https_handle_task) = https_handle_task {
-        wait_for_task_shutdown(https_handle_task, "public HTTPS", shutdown_budget).await;
-    }
-    if let Some(combined_handle_task) = combined_handle_task {
-        wait_for_task_shutdown(combined_handle_task, "combined HTTP+gRPC", shutdown_budget).await;
+        wait_for_task_shutdown(https_handle_task, "HTTPS", shutdown_budget).await;
     }
 
     Ok(())
 }
 
-// Shared HTTP/1 + HTTP/2 tuning for the plaintext auto-negotiating listeners.
-// `stream_window` and `adaptive` are the only knobs that differ between them, so
-// they are explicit parameters — `adaptive` in particular, because hyper's
-// `adaptive_window(true)` OVERRIDES the fixed `initial_stream_window_size` and
-// ramps a single stream up from hyper's ~64KB default, which under WAN latency
-// halves single-stream REAPI upload throughput (measured 9.84 vs 20.65 MB/s at
-// 100ms RTT). The combined port must therefore pin a fixed window (adaptive =
-// false); the public port keeps its adaptive one.
-fn configure_http_builder(
-    builder: &mut HttpBuilder<TokioExecutor>,
-    stream_window: u32,
-    adaptive: bool,
-) {
+// HTTP/1 + HTTP/2 tuning for the co-hosted HTTP+gRPC listeners (plaintext and
+// TLS). The window is FIXED, never adaptive: hyper's `adaptive_window(true)`
+// would override `initial_stream_window_size` and ramp a single stream up from
+// hyper's ~64KB default, which under WAN latency halves single-stream REAPI
+// upload throughput (measured 9.84 vs 20.65 MB/s at 100ms RTT). The auto builder
+// serves both HTTP/1.1 and HTTP/2 (incl. h2c prior-knowledge), so one listener
+// handles cache + gRPC.
+fn configure_http_builder(builder: &mut HttpBuilder<TokioExecutor>) {
     builder
         .http1()
         .keep_alive(true)
         .timer(TokioTimer::new())
         .header_read_timeout(Some(Duration::from_secs(30)));
-    let mut http2 = builder.http2();
-    http2
-        .initial_stream_window_size(Some(stream_window))
-        .initial_connection_window_size(Some(HTTP2_INITIAL_CONNECTION_WINDOW_BYTES))
+    builder
+        .http2()
+        .initial_stream_window_size(Some(HTTP2_STREAM_WINDOW_BYTES))
+        .initial_connection_window_size(Some(HTTP2_CONNECTION_WINDOW_BYTES))
         .max_concurrent_streams(Some(HTTP2_MAX_CONCURRENT_STREAMS))
         .max_frame_size(Some(HTTP2_MAX_FRAME_SIZE))
         .max_send_buf_size(HTTP2_MAX_SEND_BUFFER_BYTES)
         .keep_alive_interval(Some(HTTP2_KEEP_ALIVE_INTERVAL))
         .keep_alive_timeout(HTTP2_KEEP_ALIVE_TIMEOUT)
         .timer(TokioTimer::new());
-    if adaptive {
-        http2.adaptive_window(true);
-    }
-}
-
-fn configure_public_http_builder(builder: &mut HttpBuilder<TokioExecutor>) {
-    configure_http_builder(builder, HTTP2_INITIAL_STREAM_WINDOW_BYTES, true);
-}
-
-// The combined listener co-hosts REAPI gRPC, so it pins a fixed window (see
-// `configure_http_builder`) — never adaptive. The auto builder serves HTTP/1.1
-// and HTTP/2 (incl. h2c prior-knowledge), so one listener handles cache + gRPC.
-fn configure_combined_http_builder(builder: &mut HttpBuilder<TokioExecutor>) {
-    configure_http_builder(builder, COMBINED_HTTP2_STREAM_WINDOW_BYTES, false);
 }
 
 async fn shutdown_signal() {
@@ -981,22 +853,12 @@ mod tests {
     use crate::test_support::test_context;
 
     #[test]
-    fn public_http_builder_accepts_http1_and_http2() {
+    fn http_builder_accepts_http1_and_http2() {
         let mut builder = HttpBuilder::new(TokioExecutor::new());
 
-        configure_public_http_builder(&mut builder);
+        configure_http_builder(&mut builder);
 
-        assert!(builder.is_http1_available());
-        assert!(builder.is_http2_available());
-    }
-
-    #[test]
-    fn combined_http_builder_accepts_http1_and_http2() {
-        let mut builder = HttpBuilder::new(TokioExecutor::new());
-
-        configure_combined_http_builder(&mut builder);
-
-        // The combined listener must accept HTTP/1.1 (HTTP cache clients) and
+        // The co-hosted listener must accept HTTP/1.1 (HTTP cache clients) and
         // HTTP/2 (h2c REAPI gRPC) on the same socket.
         assert!(builder.is_http1_available());
         assert!(builder.is_http2_available());
@@ -1023,7 +885,7 @@ mod tests {
         let server = tokio::spawn(async move {
             let mut server =
                 axum_server::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0))).handle(server_handle);
-            configure_combined_http_builder(server.http_builder());
+            configure_http_builder(server.http_builder());
             let _ = server.serve(router.into_make_service()).await;
         });
 
@@ -1108,7 +970,7 @@ mod tests {
             let mut server =
                 axum_server::bind_rustls(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)), tls_config)
                     .handle(server_handle);
-            configure_combined_http_builder(server.http_builder());
+            configure_http_builder(server.http_builder());
             let _ = server.serve(router.into_make_service()).await;
         });
 
