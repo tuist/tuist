@@ -61,6 +61,24 @@ public actor RunMetadataStorage {
         self.selectiveTestingCacheItems = selectiveTestingCacheItems
     }
 
+    /// Per-artifact module (binary) cache transfer operations captured during the run. Populated by
+    /// the remote cache storage for every artifact downloaded from or uploaded to the remote cache,
+    /// and reported so the server can surface module cache network analytics (transfer, latency,
+    /// throughput) alongside the compilation cache.
+    public private(set) var moduleCacheTransfers: [ModuleCacheTransfer] = []
+    public func add(moduleCacheTransfer: ModuleCacheTransfer) {
+        moduleCacheTransfers.append(moduleCacheTransfer)
+    }
+
+    /// Wall-clock time the run spent transferring module cache artifacts (in seconds). Owned by the
+    /// remote cache storage, which measures the whole concurrent transfer span; the per-operation
+    /// durations in `moduleCacheTransfers` cannot be summed into this because transfers run in
+    /// parallel. Reported as the run's "overall fetch time".
+    public private(set) var moduleCacheTransferDuration: TimeInterval?
+    public func update(moduleCacheTransferDuration: TimeInterval?) {
+        self.moduleCacheTransferDuration = moduleCacheTransferDuration
+    }
+
     /// Target content hash subhashes keyed by hash. Multiple graph mappers (binary cache, selective
     /// testing, cache warm) each contribute their own entries, so updates merge into the existing
     /// dictionary rather than replacing it.

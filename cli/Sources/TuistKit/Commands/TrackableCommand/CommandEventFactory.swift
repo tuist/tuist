@@ -62,7 +62,9 @@ public struct CommandEventFactory {
             buildRunId: info.buildRunId,
             testRunId: info.testRunId,
             generationId: info.generationId,
-            cacheEndpoint: info.cacheEndpoint
+            cacheEndpoint: info.cacheEndpoint,
+            moduleCacheTransfers: info.moduleCacheTransfers,
+            moduleCacheTransferDurationInMs: info.moduleCacheTransferDuration.map { Int($0 * 1000) }
         )
     }
 

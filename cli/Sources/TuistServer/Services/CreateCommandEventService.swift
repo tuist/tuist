@@ -89,6 +89,9 @@
                             id: commandEvent.generationId,
                             is_ci: commandEvent.isCI,
                             macos_version: commandEvent.macOSVersion,
+                            module_cache_transfer_duration_ms: commandEvent.moduleCacheTransferDurationInMs,
+                            module_cache_transfers: commandEvent.moduleCacheTransfers.isEmpty
+                                ? nil : commandEvent.moduleCacheTransfers.map { map(moduleCacheTransfer: $0) },
                             name: commandEvent.name,
                             preview_id: commandEvent.previewId,
                             ran_at: commandEvent.ranAt.ISO8601Format(),
@@ -220,6 +223,27 @@
                         }
                     )
                 }
+            )
+        }
+
+        private func map(
+            moduleCacheTransfer: ModuleCacheTransfer
+        ) -> Operations.createCommandEvent.Input.Body.jsonPayload.module_cache_transfersPayloadPayload {
+            let operation: Operations.createCommandEvent.Input.Body.jsonPayload.module_cache_transfersPayloadPayload
+                .operationPayload = switch moduleCacheTransfer.operation
+            {
+            case .download:
+                .download
+            case .upload:
+                .upload
+            }
+            return .init(
+                compressed_size: moduleCacheTransfer.compressedSize,
+                duration: moduleCacheTransfer.durationInMs,
+                hash: moduleCacheTransfer.hash,
+                name: moduleCacheTransfer.name,
+                operation: operation,
+                size: moduleCacheTransfer.size
             )
         }
 

@@ -34,6 +34,8 @@ public struct TrackableCommandInfo {
     let testRunId: String?
     let generationId: String?
     let cacheEndpoint: String
+    let moduleCacheTransfers: [ModuleCacheTransfer]
+    let moduleCacheTransferDuration: TimeInterval?
 }
 
 /// A `TrackableCommand` wraps a `ParsableCommand` and reports its execution to an analytics provider
@@ -175,7 +177,9 @@ public class TrackableCommand {
                 buildRunId: runMetadataStorage.buildRunId,
                 testRunId: runMetadataStorage.testRunId,
                 generationId: runMetadataStorage.generationId,
-                cacheEndpoint: runMetadataStorage.cacheEndpoint
+                cacheEndpoint: runMetadataStorage.cacheEndpoint,
+                moduleCacheTransfers: runMetadataStorage.moduleCacheTransfers,
+                moduleCacheTransferDuration: runMetadataStorage.moduleCacheTransferDuration
             )
             let commandEvent = try await commandEventFactory.make(
                 from: info,
