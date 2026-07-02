@@ -107,7 +107,7 @@ You’ll also need a solution to store files (e.g. framework and library binarie
 To use self-hosted Kura nodes with a self-hosted Tuist server:
 
 1. Deploy Kura nodes following the <.localized_link href="/guides/features/cache/self-hosting">self-hosted cache guide</.localized_link>.
-2. Set `TUIST_KURA_ENDPOINTS` to a comma-separated list of Kura URLs, or configure `server.kuraEndpointUrls` in the Helm chart.
+2. Set `TUIST_CACHE_ENDPOINTS` to a comma-separated list of your Kura node URLs, or configure `server.cacheEndpointUrl` in the Helm chart. On a self-hosted server this is what routes the CLI to your nodes.
 
 ## Configuration {#configuration}
 

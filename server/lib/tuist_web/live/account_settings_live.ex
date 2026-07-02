@@ -10,7 +10,7 @@ defmodule TuistWeb.AccountSettingsLive do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Authorization
-  alias Tuist.Environment
+  alias Tuist.FeatureFlags
   alias Tuist.Kura
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
@@ -321,6 +321,7 @@ defmodule TuistWeb.AccountSettingsLive do
     |> assign(:kura_regions, [])
     |> assign(:available_kura_regions, [])
     |> assign(:latest_kura_version, nil)
+    |> assign(:managed_kura_visible?, false)
     |> assign(:add_kura_server_form, default_kura_server_form([]))
   end
 
@@ -345,11 +346,12 @@ defmodule TuistWeb.AccountSettingsLive do
     |> assign(:kura_regions, regions)
     |> assign(:available_kura_regions, available_regions)
     |> assign(:latest_kura_version, latest)
+    |> assign(:managed_kura_visible?, servers != [] or available_regions != [])
     |> assign(:add_kura_server_form, default_kura_server_form(available_regions))
   end
 
   defp kura_enabled?(account) do
-    Environment.dev?() or FunWithFlags.enabled?(:kura, for: account)
+    FeatureFlags.kura_enabled?(account)
   end
 
   defp available_kura_regions(regions, servers) do
