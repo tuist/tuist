@@ -232,10 +232,25 @@ public class TrackableCommand {
             }
         } catch let error as ClientError {
             Logger.current.warning("Failed to upload run metadata: \(String(describing: error.underlyingError))")
+            await logFallbackTestRunURLIfAvailable(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                runMetadataStorage: runMetadataStorage
+            )
         } catch let error as TrackableCommandUploadError {
             Logger.current.warning("Failed to upload run metadata: \(error.localizedDescription)")
+            await logFallbackTestRunURLIfAvailable(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                runMetadataStorage: runMetadataStorage
+            )
         } catch {
             Logger.current.warning("Failed to upload run metadata: \(String(describing: error))")
+            await logFallbackTestRunURLIfAvailable(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                runMetadataStorage: runMetadataStorage
+            )
         }
     }
 
@@ -272,6 +287,45 @@ public class TrackableCommand {
             throw TrackableCommandUploadError.bestEffortUploadTimedOut
         }
         return serverCommandEvent
+    }
+
+    private func logFallbackTestRunURLIfAvailable(
+        fullHandle: String,
+        serverURL: URL,
+        runMetadataStorage: RunMetadataStorage
+    ) async {
+        guard let testRunId = await runMetadataStorage.testRunId,
+              let testRunURL = testRunURL(
+                  fullHandle: fullHandle,
+                  serverURL: serverURL,
+                  testRunId: testRunId
+              )
+        else { return }
+
+        Logger.current.info("View the analyzed test at \(testRunURL.absoluteString)")
+    }
+
+    private func testRunURL(
+        fullHandle: String,
+        serverURL: URL,
+        testRunId: String
+    ) -> URL? {
+        let parts = fullHandle.split(
+            separator: "/",
+            maxSplits: 1,
+            omittingEmptySubsequences: true
+        )
+        guard parts.count == 2 else { return nil }
+
+        let accountHandle = String(parts[0])
+        let projectHandle = String(parts[1])
+
+        return serverURL
+            .appendingPathComponent(accountHandle)
+            .appendingPathComponent(projectHandle)
+            .appendingPathComponent("tests")
+            .appendingPathComponent("test-runs")
+            .appendingPathComponent(testRunId)
     }
 
     private func analyticsCommandMetadata(
