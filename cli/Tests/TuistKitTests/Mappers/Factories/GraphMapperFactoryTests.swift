@@ -527,7 +527,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             XCTAssertEqual(preloadMapperTypes, generationMapperTypes)
         }
 
-        func test_binaryCacheWarmingPreload_doesNotApplyFrameworkSearchPathsBeforeCacheHashesAreComputed() {
+        func test_binaryCacheWarmingPreload_appliesFrameworkSearchPathsBeforeCacheHashesAreComputed() {
             // Given
             let targets: Set<TargetQuery> = [.named("MyTarget")]
 
@@ -538,7 +538,48 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             )
 
             // Then
-            XCTAssertDoesntContainElementOfType(got, FrameworkSearchPathsGraphMapper.self)
+            XCTAssertContainsElementOfType(got, FrameworkSearchPathsGraphMapper.self)
+        }
+
+        func test_generation_preserves_cache_hashing_graph_before_cache_replacement_without_focused_targets() {
+            // Given
+            let config = Tuist.test()
+
+            // When
+            let got = subject.generation(
+                config: config,
+                cacheProfile: .allPossible,
+                cacheSources: [],
+                configuration: "Debug",
+                cacheStorage: cacheStorage
+            )
+
+            // Then
+            XCTAssertContainsElementOfType(
+                got,
+                CacheHashingGraphMapper.self,
+                before: TargetsToCacheBinariesGraphMapper.self
+            )
+        }
+
+        func test_build_preserves_cache_hashing_graph_before_cache_replacement() {
+            // Given
+            let config = Tuist.test()
+
+            // When
+            let got = subject.build(
+                config: config,
+                ignoreBinaryCache: false,
+                configuration: "Debug",
+                cacheStorage: cacheStorage
+            )
+
+            // Then
+            XCTAssertContainsElementOfType(
+                got,
+                CacheHashingGraphMapper.self,
+                before: TargetsToCacheBinariesGraphMapper.self
+            )
         }
 
         func test_automation_contains_static_xcframework_module_map_mapper_after_cache_replacement() {
