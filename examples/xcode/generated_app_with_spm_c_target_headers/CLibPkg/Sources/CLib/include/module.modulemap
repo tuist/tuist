@@ -1,0 +1,4 @@
+module CLib {
+    header "CLib.h"
+    export *
+}

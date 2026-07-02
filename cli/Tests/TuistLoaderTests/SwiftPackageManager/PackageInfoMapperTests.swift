@@ -2068,6 +2068,7 @@ struct PackageInfoMapperTests {
                         .test(
                             "Target1",
                             basePath: basePath,
+                            headers: .spmTarget(headersPath.parentDirectory),
                             customSettings: [
                                 "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/Target1/include"],
                                 "DEFINES_MODULE": "NO",
@@ -2125,6 +2126,7 @@ struct PackageInfoMapperTests {
                             "target-with-dashes",
                             basePath: basePath,
                             customProductName: "target_with_dashes",
+                            headers: .spmTarget(headersPath.parentDirectory),
                             customSettings: [
                                 "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/target-with-dashes/include"],
                                 "DEFINES_MODULE": "NO",
@@ -2273,6 +2275,7 @@ struct PackageInfoMapperTests {
                         .test(
                             "Target1",
                             basePath: basePath,
+                            headers: .spmTarget(headersPath.parentDirectory),
                             customSettings: [
                                 "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/Target1/include"],
                                 "MODULEMAP_FILE": .string("$(SRCROOT)/Derived/Target1.modulemap"),
@@ -2339,6 +2342,7 @@ struct PackageInfoMapperTests {
                         .test(
                             "Target1",
                             basePath: basePath,
+                            headers: .spmTarget(target1HeadersPath.parentDirectory),
                             dependencies: [.target(name: "Dependency1")],
                             customSettings: [
                                 "HEADER_SEARCH_PATHS": [
@@ -2356,6 +2360,7 @@ struct PackageInfoMapperTests {
                         .test(
                             "Dependency1",
                             basePath: basePath,
+                            headers: .spmTarget(dependency1HeadersPath.parentDirectory),
                             dependencies: [.target(name: "Dependency2")],
                             customSettings: [
                                 "HEADER_SEARCH_PATHS": [
@@ -2373,6 +2378,7 @@ struct PackageInfoMapperTests {
                         .test(
                             "Dependency2",
                             basePath: basePath,
+                            headers: .spmTarget(dependency2HeadersPath.parentDirectory),
                             customSettings: [
                                 "HEADER_SEARCH_PATHS": [
                                     "$(inherited)",
@@ -2471,6 +2477,7 @@ struct PackageInfoMapperTests {
                         .test(
                             "Target1",
                             basePath: basePath,
+                            headers: .spmTarget(target1HeadersPath.parentDirectory),
                             dependencies: [.external(name: "Dependency1", condition: nil)],
                             customSettings: [
                                 "HEADER_SEARCH_PATHS": [
@@ -2553,6 +2560,7 @@ struct PackageInfoMapperTests {
                                     tags: []
                                 ),
                             ],
+                            headers: .spmTarget(headersPath.parentDirectory, publicHeadersRelativePath: "Headers"),
                             customSettings: [
                                 "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Custom/Headers"],
                                 "DEFINES_MODULE": "NO",
@@ -2682,11 +2690,7 @@ struct PackageInfoMapperTests {
                         .test(
                             "Dependency1",
                             basePath: basePath,
-                            headers: .headers(
-                                public: .list(
-                                    [.glob(.path("\(dependencyHeadersPath.pathString)/*.h"))]
-                                )
-                            ),
+                            headers: .spmTarget(dependencyHeadersPath.parentDirectory),
                             customSettings: [
                                 "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/Dependency1/include"],
                                 "DEFINES_MODULE": "NO",
@@ -7263,6 +7267,7 @@ struct PackageInfoMapperTests {
                             "Singular",
                             basePath: basePath,
                             customProductName: "SingularWrapper",
+                            headers: .spmTarget(headersPath.parentDirectory),
                             dependencies: [.xcframework(path: .path(
                                 basePath
                                     .appending(try RelativePath(validating: "Singular.xcframework"))
@@ -8076,6 +8081,23 @@ extension ProjectDescription.Target {
                 with: customSettings,
                 moduleMap: moduleMap
             )
+        )
+    }
+}
+
+extension ProjectDescription.Headers {
+    /// Mirrors the headers `PackageInfoMapper` produces for a C-family SwiftPM target: public headers
+    /// under the target's public headers directory (recursively) and all other headers as project headers.
+    fileprivate static func spmTarget(
+        _ targetBasePath: AbsolutePath,
+        publicHeadersRelativePath: String = "include"
+    ) -> ProjectDescription.Headers {
+        let publicHeadersPath = targetBasePath.appending(try! RelativePath(validating: publicHeadersRelativePath))
+        let glob = "**/*.{h,hh,hpp,h++,hp,hxx,H,ipp,def}"
+        return .headers(
+            public: .list([.glob(.path("\(publicHeadersPath.pathString)/\(glob)"))]),
+            project: .list([.glob(.path("\(targetBasePath.pathString)/\(glob)"))]),
+            exclusionRule: .projectExcludesPrivateAndPublic
         )
     }
 }

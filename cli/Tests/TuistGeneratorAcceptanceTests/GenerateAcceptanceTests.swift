@@ -565,6 +565,38 @@ struct GenerateAcceptanceTestiOSAppWithObjCStaticFrameworkPackage {
     }
 }
 
+struct GenerateAcceptanceTestAppWithSPMCTargetHeaders {
+    // Regression coverage for the request to include SwiftPM target headers in generated projects
+    // (https://community.tuist.dev/t/988): a C-family SwiftPM target's headers must appear in the
+    // generated project, matching how SwiftPM classifies them. Before the fix, a target with a custom
+    // module map produced no headers at all, and nested/non-public headers were dropped, so this
+    // assertion fails without it (red -> green).
+    @Test(.withFixture("generated_app_with_spm_c_target_headers"), .inTemporaryDirectory)
+    func app_with_spm_c_target_headers() async throws {
+        let fixturePath = try fixtureDirectory()
+
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+
+        let xcodeproj = try XcodeProj(
+            pathString: fixturePath.appending(components: "CLibPkg", "CLibPkg.xcodeproj").pathString
+        )
+        let target = try #require(xcodeproj.pbxproj.nativeTargets.first(where: { $0.name == "CLib" }))
+        let headerFiles = try target.headersBuildPhase()?.files ?? []
+        let headerNames = Set(headerFiles.compactMap { $0.file?.path })
+
+        #expect(headerNames.isSuperset(of: ["CLib.h", "Deep.h", "CLibInternal.h"]))
+
+        func attributes(of name: String) -> [String] {
+            headerFiles.first(where: { $0.file?.path == name })?.attributes ?? []
+        }
+        // Headers under the public headers directory (recursively) are public; others are project headers.
+        #expect(attributes(of: "CLib.h").contains("Public"))
+        #expect(attributes(of: "Deep.h").contains("Public"))
+        #expect(!attributes(of: "CLibInternal.h").contains("Public"))
+    }
+}
+
 struct GenerateAcceptanceTestiOSAppWithMultiConfigs {
     @Test(.disabled(), .withFixture("generated_ios_app_with_multi_configs"), .inTemporaryDirectory)
     func ios_app_with_multi_configs() async throws {
