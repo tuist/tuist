@@ -152,7 +152,12 @@ defmodule TuistWeb.API.ShardsController do
              format: :uuid,
              description: "The shard plan id returned by createShardPlan."
            },
-           reference: %Schema{type: :string, description: "The shard plan reference."}
+           reference: %Schema{type: :string, description: "The shard plan reference."},
+           artifact: %Schema{
+             type: :string,
+             description:
+               ~s(The artifact to upload: "shared" for the shared products, or "module:<name>" for a single module's test bundle. Defaults to the legacy single bundle when omitted.)
+           }
          }
        }},
     responses: %{
@@ -175,13 +180,15 @@ defmodule TuistWeb.API.ShardsController do
   )
 
   def start_upload(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
+    artifact = Map.get(body_params, :artifact)
+
     result =
       case upload_identifier(body_params) do
         {:plan_id, plan_id} ->
-          Shards.start_upload_for_plan_id(selected_project, selected_project.account, plan_id)
+          Shards.start_upload_for_plan_id(selected_project, selected_project.account, plan_id, artifact)
 
         {:reference, reference} ->
-          Shards.start_upload(selected_project, selected_project.account, reference)
+          Shards.start_upload(selected_project, selected_project.account, reference, artifact)
 
         {:error, :missing_shard_plan_identifier} ->
           {:error, :missing_shard_plan_identifier}
@@ -263,7 +270,8 @@ defmodule TuistWeb.API.ShardsController do
           modules: result.modules,
           suites: result.suites,
           skip: result.skip,
-          download_url: result.download_url
+          download_url: result.download_url,
+          download_urls: result.download_urls
         })
 
       {:error, :not_found} ->
@@ -308,7 +316,12 @@ defmodule TuistWeb.API.ShardsController do
            },
            reference: %Schema{type: :string, description: "The shard plan reference."},
            upload_id: %Schema{type: :string, description: "The multipart upload ID."},
-           part_number: %Schema{type: :integer, description: "The part number."}
+           part_number: %Schema{type: :integer, description: "The part number."},
+           artifact: %Schema{
+             type: :string,
+             description:
+               ~s{The artifact being uploaded ("shared" or "module:<name>"). Matches the start-upload artifact.}
+           }
          },
          required: [:upload_id, :part_number]
        }},
@@ -337,6 +350,8 @@ defmodule TuistWeb.API.ShardsController do
         } = conn,
         _params
       ) do
+    artifact = Map.get(body_params, :artifact)
+
     result =
       case upload_identifier(body_params) do
         {:plan_id, plan_id} ->
@@ -345,7 +360,8 @@ defmodule TuistWeb.API.ShardsController do
             selected_project.account,
             plan_id,
             upload_id,
-            part_number
+            part_number,
+            artifact
           )
 
         {:reference, reference} ->
@@ -354,7 +370,8 @@ defmodule TuistWeb.API.ShardsController do
             selected_project.account,
             reference,
             upload_id,
-            part_number
+            part_number,
+            artifact
           )
 
         {:error, :missing_shard_plan_identifier} ->
@@ -418,6 +435,11 @@ defmodule TuistWeb.API.ShardsController do
                },
                required: [:part_number, :etag]
              }
+           },
+           artifact: %Schema{
+             type: :string,
+             description:
+               ~s{The artifact being completed ("shared" or "module:<name>"). Matches the start-upload artifact.}
            }
          },
          required: [:upload_id, :parts]
@@ -447,6 +469,8 @@ defmodule TuistWeb.API.ShardsController do
         {part.part_number, part.etag}
       end)
 
+    artifact = Map.get(body_params, :artifact)
+
     result =
       case upload_identifier(body_params) do
         {:plan_id, plan_id} ->
@@ -455,7 +479,8 @@ defmodule TuistWeb.API.ShardsController do
             selected_project.account,
             plan_id,
             upload_id,
-            parts_list
+            parts_list,
+            artifact
           )
 
         {:reference, reference} ->
@@ -464,7 +489,8 @@ defmodule TuistWeb.API.ShardsController do
             selected_project.account,
             reference,
             upload_id,
-            parts_list
+            parts_list,
+            artifact
           )
 
         {:error, :missing_shard_plan_identifier} ->
