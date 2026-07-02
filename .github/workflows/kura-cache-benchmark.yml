@@ -20,6 +20,9 @@ on:
       latency_kb:
         description: "Object size (KB) for the latency sweep"
         default: "256"
+      legacy_url:
+        description: "Legacy cache base URL to A/B against (blank to benchmark Kura alone)"
+        default: "https://cache-eu-central.tuist.dev"
   # TEMPORARY: kicks the first run from the feature branch, since workflow_dispatch
   # only becomes available once this file lands on the default branch. Removed
   # before merge — workflow_dispatch is the intended trigger.
@@ -59,4 +62,5 @@ jobs:
           ITERS: ${{ inputs.iters }}
           PARALLEL: ${{ inputs.parallel }}
           LATENCY_KB: ${{ inputs.latency_kb }}
+          BENCH_LEGACY_URL: ${{ inputs.legacy_url }}
         run: bash kura/benchmarks/cas_ab.sh
