@@ -2,6 +2,10 @@ defmodule TuistWeb.LocaleTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use TuistTestSupport.Cases.LiveCase
 
+  # Normalization filters candidates through Tuist.Locale.supported_locales/0,
+  # which only lists non-en locales when TUIST_DEV_ALL_LOCALES=1.
+  @moduletag :locale
+
   alias Phoenix.LiveView
   alias Tuist.Accounts
   alias TuistTestSupport.Fixtures.AccountsFixtures

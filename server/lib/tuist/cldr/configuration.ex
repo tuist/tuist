@@ -3,7 +3,7 @@ defmodule Tuist.Cldr.Configuration do
 
   defmacro __using__(_opts) do
     locales =
-      if Tuist.Environment.dev_single_locale?() do
+      if Tuist.Environment.single_locale?() do
         ["en"]
       else
         ["ar", "en", "es", "ja", "ka", "ko", "ru", "yue-Hant", "zh-Hans", "zh-Hant"]
