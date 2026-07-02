@@ -4,14 +4,14 @@ defmodule TuistWeb.LocaleTest do
 
   # Normalization filters candidates through Tuist.Locale.supported_locales/0,
   # which only lists non-en locales when TUIST_DEV_ALL_LOCALES=1.
-  @moduletag :locale
-
   alias Phoenix.LiveView
   alias Tuist.Accounts
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Gettext, as: GettextBackend
   alias TuistWeb.Locale
   alias TuistWeb.Plugs.LocalePlug
+
+  @moduletag :locale
 
   describe "normalize_locale/1" do
     test "normalizes language and region locales" do
