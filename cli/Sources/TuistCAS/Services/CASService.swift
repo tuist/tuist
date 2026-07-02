@@ -41,12 +41,7 @@
             fileSystem = FileSystem()
             dataCompressingService = DataCompressingService()
             self.analyticsDatabase = analyticsDatabase
-            // The daemon resolves auth on every artifact request; wrap the controller
-            // so the token is memoized in-process instead of read from the keychain
-            // per op (that per-op keychain read dominated CAS latency on runners).
-            serverAuthenticationController = CachingServerAuthenticationController(
-                wrapping: ServerAuthenticationController()
-            )
+            serverAuthenticationController = ServerAuthenticationController()
         }
 
         init(

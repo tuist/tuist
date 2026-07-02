@@ -259,20 +259,42 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             }
         }
 
-        #if canImport(TuistSupport)
-            return try await authenticationTokenRefreshingIfNeeded(
+        // Memoize the resolved token in the shared value store, bounded by the
+        // token's own expiry, so hot callers — chiefly the CAS daemon, which
+        // resolves auth on every artifact request — don't re-resolve (a keychain
+        // read on macOS, which serializes through securityd) on every call. The
+        // refresh/rotation flow still runs whenever the memoized entry lapses
+        // shortly before the token expires. Keyed distinctly from the refresh
+        // lock so the two do not collide.
+        return try await cachedValueStore.getValue(
+            key: "authentication-token-\(serverURL.absoluteString)"
+        ) { () -> (value: AuthenticationToken, expiresAt: Date?)? in
+            guard let token = try await self.authenticationTokenRefreshingIfNeeded(
                 serverURL: serverURL,
                 forceRefresh: false,
                 inBackground: ServerAuthenticationConfig.current.backgroundRefresh,
                 locking: true
-            )
-        #else
-            return try await authenticationTokenRefreshingIfNeeded(
-                serverURL: serverURL, forceRefresh: false,
-                inBackground: ServerAuthenticationConfig.current.backgroundRefresh,
-                locking: true
-            )
-        #endif
+            ) else {
+                // An absent result is not memoized, so a fresh login is picked up
+                // on the next call.
+                return nil
+            }
+            return (value: token, expiresAt: Self.memoizationExpiry(for: token))
+        }
+    }
+
+    /// In-memory memoization horizon for a resolved token. User/account tokens are
+    /// cached until shortly before their JWT expiry so the refresh path re-runs in
+    /// time; project tokens carry no refreshable expiry so they get a short TTL.
+    private static func memoizationExpiry(for token: AuthenticationToken) -> Date? {
+        switch token {
+        case let .user(accessToken, _):
+            return accessToken.expiryDate.addingTimeInterval(-60)
+        case let .account(accessToken):
+            return accessToken.expiryDate.addingTimeInterval(-60)
+        case .project:
+            return Date().addingTimeInterval(300)
+        }
     }
 
     private func deletingCredentialsOnUnauthorizedError<T>(
