@@ -532,6 +532,54 @@
                 )
                 .called(2)
         }
+
+        @Test
+        func save_skips_compression_and_upload_when_circuit_open() async throws {
+            // Given: an already-open breaker (remote cache unavailable).
+            let breaker = CASCircuitBreaker(failureThreshold: 1)
+            await breaker.recordFailure()
+            #expect(await breaker.isOpen)
+
+            let subject = CASService(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                cacheURLStore: cacheURLStore,
+                saveCacheCASService: saveCacheCASService,
+                loadCacheCASService: loadCacheCASService,
+                fileSystem: FileSystem(),
+                dataCompressingService: dataCompressingService,
+                analyticsDatabase: analyticsDatabase,
+                serverAuthenticationController: serverAuthenticationController,
+                circuitBreaker: breaker
+            )
+
+            var request = CompilationCacheService_Cas_V1_CASSaveRequest()
+            request.data.blob.data = Data("artifact".utf8)
+            let context = ServerContext.test()
+
+            // When
+            let response = try await subject.save(request: request, context: context)
+
+            // Then: the fingerprint is still returned, but neither the expensive
+            // compression nor the upload runs while the circuit is open.
+            switch response.contents {
+            case .casID:
+                break
+            default:
+                #expect(Bool(false), "Expected casID content")
+            }
+            verify(dataCompressingService).compress(.any).called(0)
+            verify(saveCacheCASService)
+                .saveCacheCAS(
+                    .any,
+                    casId: .any,
+                    fullHandle: .any,
+                    serverURL: .any,
+                    authenticationURL: .any,
+                    serverAuthenticationController: .any
+                )
+                .called(0)
+        }
     }
 
     extension ServerContext {

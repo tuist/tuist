@@ -206,6 +206,33 @@
                 Logger.current.debug("CAS.save starting - data size: \(data.count) bytes")
             }
 
+            // The fingerprint is derived from the raw data, so compute it first
+            // (cheap) and only compress (expensive) once we know an upload will
+            // actually be attempted. When there is nothing to upload to — upload
+            // disabled, or the circuit open because the remote cache is unavailable
+            // — the artifact is already built locally, so paying the zstd
+            // compression per artifact would defeat the fast fallback.
+            let dataWithVersion = data + "cache-v1".data(using: .utf8)!
+            let hash = SHA256.hash(data: dataWithVersion)
+            let fingerprint = hash.compactMap { String(format: "%02X", $0) }.joined()
+
+            var message = CompilationCacheService_Cas_V1_CASDataID()
+            message.id = fingerprint.data(using: .utf8)!
+
+            if !upload {
+                Logger.current.debug("CAS.save skipping upload (upload disabled) for fingerprint: \(fingerprint)")
+                response.casID = message
+                response.contents = .casID(message)
+                return response
+            }
+
+            if await circuitBreaker.isOpen {
+                Logger.current.debug("CAS.save skipping upload (circuit open) for fingerprint: \(fingerprint)")
+                response.casID = message
+                response.contents = .casID(message)
+                return response
+            }
+
             let compressedData: Data
             let codecDuration: TimeInterval
             do {
@@ -221,25 +248,13 @@
                 return response
             }
 
-            let dataWithVersion = data + "cache-v1".data(using: .utf8)!
-            let hash = SHA256.hash(data: dataWithVersion)
-            let fingerprint = hash.compactMap { String(format: "%02X", $0) }.joined()
-
-            var message = CompilationCacheService_Cas_V1_CASDataID()
-            message.id = fingerprint.data(using: .utf8)!
-
             Logger.current
                 .debug(
                     "CAS.save computed fingerprint: \(fingerprint), original size: \(data.count) bytes, compressed size: \(compressedData.count) bytes"
                 )
 
-            if !upload {
-                Logger.current.debug("CAS.save skipping upload (upload disabled) for fingerprint: \(fingerprint)")
-                response.casID = message
-                response.contents = .casID(message)
-                return response
-            }
-
+            // Claim the (possibly half-open) probe slot right before the upload, so a
+            // recovering backend is exercised by exactly one artifact.
             guard await circuitBreaker.shouldAttempt() else {
                 Logger.current.debug("CAS.save skipping upload (circuit open) for fingerprint: \(fingerprint)")
                 response.casID = message
