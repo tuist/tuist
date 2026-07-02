@@ -75,6 +75,31 @@ net.bridge.bridge-nf-call-ip6tables = 1
 net.ipv4.ip_forward                 = 1
 `
 
+	// kernelHardeningSysctlContent turns a silent kernel lockup into an
+	// auto-rebooting panic instead of an indefinite freeze. A frozen bare-metal
+	// box otherwise sits Node NotReady forever (the default kernel.panic=0 never
+	// reboots), which strands its observability node-exporter DaemonSet pod below
+	// full availability, times out the observability chart's `helm --wait`, and
+	// wedges every deploy. The soft/hard lockup detectors panic on a stuck CPU;
+	// panic_on_oops promotes an oops to a panic; kernel.panic=10 reboots 10s after
+	// any panic. Applied to /etc/sysctl.d/99-tuist-hardening.conf.
+	kernelHardeningSysctlContent = `kernel.softlockup_panic = 1
+kernel.hardlockup_panic = 1
+kernel.panic_on_oops = 1
+kernel.panic = 10
+`
+
+	// watchdogDropInContent arms systemd's hardware watchdog: systemd pings
+	// /dev/watchdog every RuntimeWatchdogSec, so if PID 1 itself wedges (a total
+	// freeze that starves even the kernel lockup detectors the panic sysctls rely
+	// on) the hardware watchdog fires and resets the box. This is the backstop the
+	// panic sysctls can't provide. Boxes with no watchdog device just log and
+	// ignore it. Written to /etc/systemd/system.conf.d/10-tuist-watchdog.conf.
+	watchdogDropInContent = `[Manager]
+RuntimeWatchdogSec=30s
+RebootWatchdogSec=5min
+`
+
 	// dockerHubMirrorHostsContent is the containerd registry-host config that
 	// routes docker.io pulls through mirror.gcr.io, sidestepping Docker Hub's
 	// anonymous pull rate limit. Written to
@@ -167,6 +192,14 @@ func bootstrapBody(k8sMinor, sudo, sudoE string, writeFile func(producer, path s
 		fmt.Sprintf(`echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/%s/deb/ /"`, k8sMinor),
 		"/etc/apt/sources.list.d/kubernetes.list",
 	)
+	hardeningSysctl := writeFile(
+		"printf '%s' "+shellSingleQuote(kernelHardeningSysctlContent),
+		"/etc/sysctl.d/99-tuist-hardening.conf",
+	)
+	watchdogDropIn := writeFile(
+		"printf '%s' "+shellSingleQuote(watchdogDropInContent),
+		"/etc/systemd/system.conf.d/10-tuist-watchdog.conf",
+	)
 	return fmt.Sprintf(`%[7]s%[2]sswapoff -a
 %[2]ssed -ri '/\sswap\s/s/^/#/' /etc/fstab
 %[2]smodprobe overlay
@@ -177,6 +210,17 @@ func bootstrapBody(k8sMinor, sudo, sudoE string, writeFile func(producer, path s
 # recreates its own drop-ins after the node rejoins.
 %[2]srm -f /etc/sysctl.d/*cilium* /etc/sysctl.d/*-cilium.conf
 %[2]ssysctl --system
+# Bare-metal lockup hardening: turn a silent kernel freeze into an auto-reboot so
+# a hung box self-heals instead of sitting Node NotReady forever, which drops the
+# observability node-exporter DaemonSet below full availability and wedges every
+# deploy. The panic sysctls reboot on a detected lockup/oops; the systemd hardware
+# watchdog resets the box if PID 1 itself wedges. Both are applied tolerantly (a
+# missing knob or absent watchdog device must never abort the self-join).
+%[2]smkdir -p /etc/sysctl.d /etc/systemd/system.conf.d
+%[8]s
+%[2]ssysctl -p /etc/sysctl.d/99-tuist-hardening.conf 2>/dev/null || true
+%[9]s
+%[2]ssystemctl daemon-reexec || true
 export DEBIAN_FRONTEND=noninteractive
 %[3]sapt-get update
 %[3]sapt-get install -y apt-transport-https ca-certificates curl gpg containerd
@@ -210,7 +254,7 @@ curl -fsSL https://pkgs.k8s.io/core:/stable:/%[1]s/deb/Release.key | %[2]sgpg --
 %[2]sapt-mark hold kubelet
 %[2]ssystemctl daemon-reload
 %[2]ssystemctl enable --now kubelet`,
-		k8sMinor, sudo, sudoE, containerdConfig, aptSource, mirrorHosts, vlanSetup)
+		k8sMinor, sudo, sudoE, containerdConfig, aptSource, mirrorHosts, vlanSetup, hardeningSysctl, watchdogDropIn)
 }
 
 // vlanBringUp renders the PN-VLAN setup prepended to the bootstrap body when a
