@@ -402,18 +402,26 @@ jobs:
               # checkpoint) then never touches the xcodebuild-contended sparse disk.
               # If transfer_ms collapses vs the ~153ms baseline, pool-blocking
               # disk-stalled analytics writes are the daemon's per-op bottleneck.
+              # The daemon is a launchd agent that does NOT inherit the caller's
+              # env (SetupCacheCommandService forwards an allowlist only), so
+              # XDG_STATE_HOME can't reach it. Instead, symlink the DEFAULT state
+              # dir onto the RAM disk — the daemon resolves the same path and
+              # transparently lands on RAM. The shared cas_analytics harvest below
+              # also resolves through the symlink unchanged.
               RAMDEV=$(hdiutil attach -nomount ram://1048576)
               RAMDEV=$(echo "$RAMDEV" | tr -d '[:space:]')
               diskutil erasevolume APFS ramstate "$RAMDEV" >/dev/null
-              export XDG_STATE_HOME=/Volumes/ramstate/state
-              mkdir -p "$XDG_STATE_HOME"
-              echo "state dir on RAM disk: $XDG_STATE_HOME (dev $RAMDEV)"
+              mkdir -p /Volumes/ramstate/tuist-state "$HOME/.local/state"
+              rm -rf "$HOME/.local/state/tuist"
+              ln -sfn /Volumes/ramstate/tuist-state "$HOME/.local/state/tuist"
+              touch "$HOME/.local/state/tuist/.rw-check"
+              echo "state dir symlinked to RAM disk: $(readlink "$HOME/.local/state/tuist") (dev $RAMDEV)"
               tuist setup cache
               tuist install
               tuist generate --no-binary-cache
               CAS_SOCK=""
               for _ in $(seq 1 20); do
-                CAS_SOCK=$(ls -t "$XDG_STATE_HOME/tuist/"*.sock 2>/dev/null | head -1)
+                CAS_SOCK=$(ls -t "$HOME/.local/state/tuist/"*.sock 2>/dev/null | head -1 || true)
                 [ -n "$CAS_SOCK" ] && break
                 sleep 1
               done
@@ -422,10 +430,7 @@ jobs:
               CAS="COMPILATION_CACHE_ENABLE_CACHING=YES COMPILATION_CACHE_ENABLE_PLUGIN=YES COMPILATION_CACHE_REMOTE_SERVICE_PATH=${CAS_SOCK}"
               BUILD_CAS="$BUILD_BASE $CAS"
               hyperfine --warmup 1 --runs "$HYPERFINE_RUNS" --export-json result.json \
-                --setup "$BUILD_CAS" --prepare "$CLEAN_DD" "$BUILD_CAS" || rc=$?
-              # surface the ramdisk analytics db for the shared harvest below
-              mkdir -p "$HOME/.local/state/tuist"
-              cp "$XDG_STATE_HOME/tuist/cas_analytics.db" "$HOME/.local/state/tuist/cas_analytics.db" 2>/dev/null || true ;;
+                --setup "$BUILD_CAS" --prepare "$CLEAN_DD" "$BUILD_CAS" || rc=$? ;;
             module-cache)
               # Binary (module) cache: each run clears local binaries, re-pulls
               # them via generate, then builds the app target.
