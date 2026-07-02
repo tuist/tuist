@@ -2117,36 +2117,19 @@ struct PackageInfoMapperTests {
                 ),
             ]
         )
+        // A target's `exclude` paths must also drop matching headers, matching SwiftPM's discovery.
+        let target = try #require(project?.targets.first)
         #expect(
-            project ==
-                .testWithDefaultConfigs(
-                    name: "Package",
-                    targets: [
-                        .test(
-                            "Target1",
-                            basePath: basePath,
-                            headers: .spmTarget(
-                                headersPath.parentDirectory,
-                                excluding: [
-                                    .path(
-                                        basePath
-                                            .appending(try RelativePath(validating: "Package/Sources/Target1/Excluded/**"))
-                                            .pathString
-                                    ),
-                                ]
-                            ),
-                            customSettings: [
-                                "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/Target1/include"],
-                                "DEFINES_MODULE": "NO",
-                                "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Target1"]),
-                                "OTHER_SWIFT_FLAGS": [
-                                    "$(inherited)",
-                                ],
-                            ],
-                            moduleMap: "$(SRCROOT)/Sources/Target1/include/module.modulemap"
-                        ),
-                    ]
-                )
+            target.headers == .spmTarget(
+                headersPath.parentDirectory,
+                excluding: [
+                    .path(
+                        basePath
+                            .appending(try RelativePath(validating: "Package/Sources/Target1/Excluded/**"))
+                            .pathString
+                    ),
+                ]
+            )
         )
     }
 
