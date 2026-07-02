@@ -131,6 +131,49 @@ final class SchemeLinterTests: TuistUnitTestCase {
         )
     }
 
+    func test_lint_referenceRemoteTargetTestAction_whenItIsAlsoACodeCoverageTarget() async throws {
+        // Given
+        let externalTargetReference = TargetReference(
+            projectPath: try AbsolutePath(validating: "/Project/../Framework"),
+            name: "Framework"
+        )
+        let settings = Settings(configurations: [
+            .release("Beta"): .test(),
+        ])
+
+        let project = Project.test(
+            settings: settings,
+            schemes: [
+                .init(
+                    name: "SchemeWithTargetThatDoesNotExist",
+                    shared: true,
+                    testAction: .init(
+                        targets: [.init(target: externalTargetReference)],
+                        arguments: nil,
+                        configurationName: "Beta",
+                        attachDebugger: true,
+                        coverage: true,
+                        codeCoverageTargets: [externalTargetReference],
+                        expandVariableFromTarget: nil,
+                        preActions: [],
+                        postActions: [],
+                        diagnosticsOptions: SchemeDiagnosticsOptions()
+                    )
+                ),
+            ]
+        )
+
+        // When
+        let got = try await subject.lint(project: project)
+
+        // Then
+        XCTAssertEqual(got.first?.severity, .error)
+        XCTAssertEqual(
+            got.first?.reason,
+            "The target 'Framework' specified in scheme 'SchemeWithTargetThatDoesNotExist' is not defined in the project named 'Project'. Consider using a workspace scheme instead to reference a target in another project."
+        )
+    }
+
     func test_lint_referenceRemoteTargetExecutionAction() async throws {
         // Given
         let project = Project.test(schemes: [
@@ -221,6 +264,10 @@ final class SchemeLinterTests: TuistUnitTestCase {
         let externalProjectPath = try AbsolutePath(validating: "/Project/../SPMPackage")
         let project = Project.test(
             path: projectPath,
+            settings: Settings(configurations: [
+                BuildConfiguration.debug: Configuration(settings: .init(), xcconfig: nil),
+            ]),
+            targets: [Target.test(name: "LocalTarget")],
             schemes: [
                 .init(
                     name: "Scheme",
@@ -256,6 +303,10 @@ final class SchemeLinterTests: TuistUnitTestCase {
         let projectPath = try AbsolutePath(validating: "/Project")
         let project = Project.test(
             path: projectPath,
+            settings: Settings(configurations: [
+                BuildConfiguration.debug: Configuration(settings: .init(), xcconfig: nil),
+            ]),
+            targets: [Target.test(name: "LocalTarget")],
             schemes: [
                 .init(
                     name: "Scheme",

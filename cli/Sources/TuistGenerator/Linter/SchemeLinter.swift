@@ -166,10 +166,9 @@ struct SchemeLinter: SchemeLinting {
     private func projectSchemeCantReferenceRemoteTargets(scheme: Scheme, project: Project) -> [LintingIssue] {
         var issues: [LintingIssue] = []
 
-        let codeCoverageTargets = Set(scheme.testAction?.codeCoverageTargets ?? [])
-        let buildDependencies = scheme.targetDependencies().filter { !codeCoverageTargets.contains($0) }
-
-        for targetDependency in buildDependencies where targetDependency.projectPath != project.path {
+        for targetDependency in nonCodeCoverageTargetDependencies(scheme: scheme)
+            where targetDependency.projectPath != project.path
+        {
             issues.append(.init(
                 reason: "The target '\(targetDependency.name)' specified in scheme '\(scheme.name)' is not defined in the project named '\(project.name)'. Consider using a workspace scheme instead to reference a target in another project.",
                 severity: .error
@@ -177,5 +176,23 @@ struct SchemeLinter: SchemeLinting {
         }
 
         return issues
+    }
+
+    private func nonCodeCoverageTargetDependencies(scheme: Scheme) -> [TargetReference] {
+        let targetSources: [[TargetReference]?] = [
+            scheme.buildAction?.targets,
+            scheme.buildAction?.preActions.compactMap(\.target),
+            scheme.buildAction?.postActions.compactMap(\.target),
+            scheme.testAction?.targets.map(\.target),
+            scheme.testAction?.preActions.compactMap(\.target),
+            scheme.testAction?.postActions.compactMap(\.target),
+            scheme.runAction?.executable.map { [$0] },
+            scheme.archiveAction?.preActions.compactMap(\.target),
+            scheme.archiveAction?.postActions.compactMap(\.target),
+            scheme.profileAction?.executable.map { [$0] },
+        ]
+
+        let targets = targetSources.compactMap { $0 }.flatMap { $0 }.uniqued()
+        return targets.sorted { $0.name < $1.name }
     }
 }
