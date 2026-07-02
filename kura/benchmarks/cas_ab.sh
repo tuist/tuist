@@ -29,8 +29,9 @@ PARALLEL=${PARALLEL:-16}
 LATENCY_KB=${LATENCY_KB:-256}
 
 # --- resolve endpoints + auth from the CLI (never print the token) ---------------
-cfg_legacy=$(tuist cache config 2>/dev/null)
-cfg_kura=$(TUIST_FEATURE_FLAG_kura=1 tuist cache config 2>/dev/null)
+redact() { sed -E 's/(Token:)[[:space:]]*[A-Za-z0-9._-]+/\1 <redacted>/'; }
+cfg_legacy=$(tuist cache config 2>&1) || true
+cfg_kura=$(TUIST_FEATURE_FLAG_kura=1 tuist cache config 2>&1) || true
 field() { awk -v k="$1:" '$1==k{print $2; exit}'; }
 
 TOKEN=$(printf '%s\n' "$cfg_legacy" | field Token)
@@ -40,8 +41,13 @@ URL_LEGACY=$(printf '%s\n' "$cfg_legacy" | field URL)
 URL_KURA=$(printf '%s\n' "$cfg_kura" | field URL)
 
 if [ -z "$TOKEN" ] || [ -z "$URL_LEGACY" ] || [ -z "$URL_KURA" ]; then
-  echo "failed to resolve cache config (token/urls). Is the runner authenticated to Tuist?" >&2
-  printf 'legacy_url=%q kura_url=%q token_len=%s\n' "$URL_LEGACY" "$URL_KURA" "${#TOKEN}" >&2
+  echo "failed to resolve cache config (token/urls). Raw output (token redacted):" >&2
+  echo "--- tuist --version / pwd ---" >&2
+  tuist --version 2>&1 | head -1 >&2; pwd >&2; ls -1 Tuist.swift Tuist/ 2>&1 | head >&2
+  echo "--- legacy: tuist cache config ---" >&2
+  printf '%s\n' "$cfg_legacy" | redact >&2
+  echo "--- kura: TUIST_FEATURE_FLAG_kura=1 tuist cache config ---" >&2
+  printf '%s\n' "$cfg_kura" | redact >&2
   exit 1
 fi
 # Mask the token in CI logs.
