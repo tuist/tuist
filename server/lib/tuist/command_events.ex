@@ -9,6 +9,7 @@ defmodule Tuist.CommandEvents do
   alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents.Event
+  alias Tuist.CommandEvents.ModuleCacheOutput
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
@@ -245,6 +246,83 @@ defmodule Tuist.CommandEvents do
     )
 
     command_event
+  end
+
+  @doc """
+  Persists per-artifact module (binary) cache transfer operations for a command event.
+
+  Mirrors `Tuist.Builds.create_cas_outputs/2` but keys the rows by `command_event_id`,
+  since module cache artifacts are fetched during `tuist generate`, before any build run
+  exists. Writes are buffered and flushed asynchronously to ClickHouse.
+  """
+  def create_module_cache_outputs(command_event, transfers) do
+    rows =
+      transfers
+      |> Enum.map(&ModuleCacheOutput.changeset(command_event.id, command_event.project_id, &1))
+      |> Enum.map(&Ecto.Changeset.apply_changes/1)
+      |> Enum.map(fn struct ->
+        %{
+          command_event_id: struct.command_event_id,
+          project_id: struct.project_id,
+          operation: struct.operation,
+          name: struct.name,
+          hash: struct.hash,
+          size: struct.size,
+          compressed_size: struct.compressed_size,
+          duration: struct.duration,
+          inserted_at: struct.inserted_at
+        }
+      end)
+
+    ModuleCacheOutput.Buffer.insert_all(rows)
+  end
+
+  @doc """
+  Returns the module (binary) cache network transfer summary for a single command event: the total
+  bytes and artifact counts downloaded from and uploaded to the remote cache, plus the time-weighted
+  average download/upload throughput (bytes per second). Mirrors `Tuist.Builds.cas_output_metrics/1`
+  but keyed by `command_event_id`. Used to surface per-run transfer cost on the run detail page.
+  """
+  def module_cache_transfer_summary(command_event_id) do
+    {:ok,
+     %{
+       rows: [
+         [download_count, upload_count, download_bytes, upload_bytes, download_throughput, upload_throughput]
+       ]
+     }} =
+      ClickHouseRepo.query(
+        """
+        SELECT
+          countIf(operation = 'download') AS download_count,
+          countIf(operation = 'upload') AS upload_count,
+          sumIf(size, operation = 'download') AS download_bytes,
+          sumIf(size, operation = 'upload') AS upload_bytes,
+          if(
+            sumIf(duration, operation = 'download' AND duration > 0) = 0,
+            0,
+            sumIf(size, operation = 'download' AND duration > 0) /
+              sumIf(duration, operation = 'download' AND duration > 0) * 1000
+          ) AS download_throughput,
+          if(
+            sumIf(duration, operation = 'upload' AND duration > 0) = 0,
+            0,
+            sumIf(size, operation = 'upload' AND duration > 0) /
+              sumIf(duration, operation = 'upload' AND duration > 0) * 1000
+          ) AS upload_throughput
+        FROM module_cache_outputs
+        WHERE command_event_id = {command_event_id:UUID}
+        """,
+        %{command_event_id: command_event_id}
+      )
+
+    %{
+      download_count: download_count,
+      upload_count: upload_count,
+      download_bytes: download_bytes || 0,
+      upload_bytes: upload_bytes || 0,
+      download_throughput: download_throughput || 0,
+      upload_throughput: upload_throughput || 0
+    }
   end
 
   defp truncate_error_message(error_message) do

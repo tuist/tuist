@@ -27,6 +27,7 @@ public struct CommandEvent: Codable, Equatable {
     public var testRunId: String?
     public let generationId: String?
     public let cacheEndpoint: String
+    public let moduleCacheTransfers: [ModuleCacheTransfer]
 
     public enum Status: Codable, Equatable {
         case success, failure(String)
@@ -57,6 +58,7 @@ public struct CommandEvent: Codable, Equatable {
         case testRunId
         case generationId = "generation_id"
         case cacheEndpoint
+        case moduleCacheTransfers
     }
 
     public init(
@@ -83,7 +85,8 @@ public struct CommandEvent: Codable, Equatable {
         buildRunId: String?,
         testRunId: String?,
         generationId: String?,
-        cacheEndpoint: String
+        cacheEndpoint: String,
+        moduleCacheTransfers: [ModuleCacheTransfer] = []
     ) {
         self.runId = runId
         self.name = name
@@ -109,6 +112,7 @@ public struct CommandEvent: Codable, Equatable {
         self.testRunId = testRunId
         self.generationId = generationId
         self.cacheEndpoint = cacheEndpoint
+        self.moduleCacheTransfers = moduleCacheTransfers
     }
 
     #if MOCKING
@@ -135,7 +139,8 @@ public struct CommandEvent: Codable, Equatable {
             buildRunId: String? = nil,
             testRunId: String? = nil,
             generationId: String? = nil,
-            cacheEndpoint: String = ""
+            cacheEndpoint: String = "",
+            moduleCacheTransfers: [ModuleCacheTransfer] = []
         ) -> CommandEvent {
             CommandEvent(
                 runId: runId,
@@ -161,7 +166,8 @@ public struct CommandEvent: Codable, Equatable {
                 buildRunId: buildRunId,
                 testRunId: testRunId,
                 generationId: generationId,
-                cacheEndpoint: cacheEndpoint
+                cacheEndpoint: cacheEndpoint,
+                moduleCacheTransfers: moduleCacheTransfers
             )
         }
     #endif

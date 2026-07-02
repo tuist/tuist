@@ -2157,4 +2157,75 @@ defmodule Tuist.CommandEventsTest do
       assert got == 50.0
     end
   end
+
+  describe "create_module_cache_outputs/2" do
+    test "persists per-artifact module cache transfers" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      # When
+      CommandEvents.create_module_cache_outputs(command_event, [
+        %{operation: "download", name: "A", hash: "h1", size: 1000, compressed_size: 500, duration: 100},
+        %{operation: "upload", name: "B", hash: "h2", size: 2000, compressed_size: 1000, duration: 200}
+      ])
+
+      # Then
+      %{rows: [[transfer_count, download_count, upload_count]]} =
+        Tuist.IngestRepo.query!(
+          """
+          SELECT count(), countIf(operation = 'download'), countIf(operation = 'upload')
+          FROM module_cache_outputs
+          WHERE command_event_id = {ce:UUID}
+          """,
+          %{ce: command_event.id}
+        )
+
+      assert transfer_count == 2
+      assert download_count == 1
+      assert upload_count == 1
+    end
+  end
+
+  describe "module_cache_transfer_summary/1" do
+    test "returns download/upload bytes, counts, and throughput for a command event" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      CommandEvents.create_module_cache_outputs(command_event, [
+        %{operation: "download", name: "A", hash: "h1", size: 1000, compressed_size: 500, duration: 100},
+        %{operation: "download", name: "B", hash: "h2", size: 3000, compressed_size: 1500, duration: 300},
+        %{operation: "upload", name: "C", hash: "h3", size: 2000, compressed_size: 1000, duration: 200}
+      ])
+
+      # When
+      summary = CommandEvents.module_cache_transfer_summary(command_event.id)
+
+      # Then
+      assert summary.download_bytes == 4000
+      assert summary.download_count == 2
+      assert summary.download_throughput == 10_000.0
+      assert summary.upload_bytes == 2000
+      assert summary.upload_count == 1
+      assert summary.upload_throughput == 10_000.0
+    end
+
+    test "returns zeros when the run has no transfers" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      # When
+      summary = CommandEvents.module_cache_transfer_summary(command_event.id)
+
+      # Then
+      assert summary.download_bytes == 0
+      assert summary.download_count == 0
+      assert summary.download_throughput == 0
+      assert summary.upload_bytes == 0
+      assert summary.upload_count == 0
+      assert summary.upload_throughput == 0
+    end
+  end
 end
