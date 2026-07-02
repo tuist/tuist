@@ -16,7 +16,7 @@ defmodule TuistWeb.RunsController do
 
     with :error <- command_event_bundle_url(run_id, user),
          :error <- test_run_bundle_url(run_id, user) do
-      conn |> put_status(:not_found) |> text("Result bundle not found") |> halt()
+      {:error, :not_found}
     else
       {:ok, url} -> conn |> redirect(external: url) |> halt()
     end
