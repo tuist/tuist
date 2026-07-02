@@ -5,6 +5,7 @@ use std::{
     time::Duration,
 };
 
+use axum::response::IntoResponse;
 use axum_server::Handle;
 use hyper_util::{
     rt::{TokioExecutor, TokioTimer},
@@ -30,7 +31,7 @@ use crate::{
     reapi,
     replication::{spawn_membership_task, spawn_outbox_task},
     runtime::{DataDirLock, RuntimeState},
-    state::{AppState, ReadinessState},
+    state::{AppState, ReadinessState, SharedState},
     store::Store,
     telemetry::{init_tracing, log_context_span},
     usage::Usage,
@@ -294,7 +295,7 @@ async fn run_with_config(
         ))
     };
 
-    let router = http::public_router(state.clone()).merge(reapi::routes(state.clone()));
+    let router = cohosted_router(state.clone());
     let public_handle = Handle::new();
     let https_handle = Handle::new();
     let public_shutdown_handle = public_handle.clone();
@@ -321,7 +322,7 @@ async fn run_with_config(
     // hyper path with the fixed gRPC-sized HTTP/2 windows.
     let https_handle_task = if let Some(public_tls) = state.config.public_tls.clone() {
         let tls_config = build_public_rustls_config(&public_tls).await?;
-        let https_router = http::public_router(state.clone()).merge(reapi::routes(state.clone()));
+        let https_router = cohosted_router(state.clone());
         Some(tokio::spawn(
             async move {
                 let mut server =
@@ -384,6 +385,31 @@ async fn run_with_config(
     }
 
     Ok(())
+}
+
+// The co-hosted HTTP + gRPC router served on the plaintext and TLS listeners.
+// tonic's `Routes` router carries a fallback that answers ANY unmatched path
+// with HTTP 200 + `grpc-status: Unimplemented`, which `merge` adopts and which
+// would leak onto the plain-HTTP surface (e.g. `/_internal/status` probing must
+// 404). Override it with a protocol-aware fallback: gRPC requests keep the
+// Unimplemented status their clients expect, everything else gets a plain 404.
+fn cohosted_router(state: SharedState) -> axum::Router {
+    http::public_router(state.clone())
+        .merge(reapi::routes(state))
+        .fallback(cohosted_fallback)
+}
+
+async fn cohosted_fallback(request: axum::extract::Request) -> axum::response::Response {
+    let is_grpc = request
+        .headers()
+        .get(axum::http::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.starts_with("application/grpc"));
+    if is_grpc {
+        tonic::Status::unimplemented("").into_http()
+    } else {
+        axum::http::StatusCode::NOT_FOUND.into_response()
+    }
 }
 
 // HTTP/1 + HTTP/2 tuning for the co-hosted HTTP+gRPC listeners (plaintext and
@@ -878,8 +904,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let state = context.state.clone();
 
-        let router =
-            crate::http::public_router(state.clone()).merge(crate::reapi::routes(state.clone()));
+        let router = cohosted_router(state.clone());
         let handle = Handle::new();
         let server_handle = handle.clone();
         let server = tokio::spawn(async move {
@@ -901,6 +926,37 @@ mod tests {
             .await
             .expect("combined port should answer the HTTP /up probe");
         assert_eq!(http.status(), reqwest::StatusCode::OK);
+
+        // Unmatched plain-HTTP paths must 404, not fall into tonic's
+        // grpc-Unimplemented fallback (internal routes only exist on the
+        // internal listener).
+        let internal = reqwest::Client::new()
+            .get(format!("http://{addr}/_internal/status"))
+            .send()
+            .await
+            .expect("combined port should answer unmatched HTTP paths");
+        assert_eq!(internal.status(), reqwest::StatusCode::NOT_FOUND);
+
+        // gRPC requests to unknown services keep the tonic semantics:
+        // HTTP 200 with grpc-status Unimplemented.
+        let unknown_grpc = reqwest::Client::builder()
+            .http2_prior_knowledge()
+            .build()
+            .expect("build h2c client")
+            .post(format!("http://{addr}/unknown.Service/Method"))
+            .header("content-type", "application/grpc")
+            .send()
+            .await
+            .expect("combined port should answer unknown gRPC services");
+        assert_eq!(unknown_grpc.status(), reqwest::StatusCode::OK);
+        assert_eq!(
+            unknown_grpc
+                .headers()
+                .get("grpc-status")
+                .and_then(|value| value.to_str().ok()),
+            Some("12"),
+            "unknown gRPC service should map to grpc-status Unimplemented"
+        );
 
         // REAPI gRPC (h2c) answers on the same port.
         let mut grpc_client = None;
@@ -957,13 +1013,15 @@ mod tests {
         let key_path = dir.path().join("tls.key");
         std::fs::write(&cert_path, &cert_pem).expect("write cert");
         std::fs::write(&key_path, &key_pem).expect("write key");
-        let public_tls = crate::config::PublicTlsConfig { cert_path, key_path };
+        let public_tls = crate::config::PublicTlsConfig {
+            cert_path,
+            key_path,
+        };
         let tls_config = crate::peer_tls::build_public_rustls_config(&public_tls)
             .await
             .expect("build public rustls config");
 
-        let router =
-            crate::http::public_router(state.clone()).merge(crate::reapi::routes(state.clone()));
+        let router = cohosted_router(state.clone());
         let handle = Handle::new();
         let server_handle = handle.clone();
         let server = tokio::spawn(async move {
