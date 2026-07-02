@@ -35,20 +35,36 @@ public struct CASAnalyticsDatabase: CASAnalyticsDatabasing {
     public static let databaseName = "cas_analytics.db"
 
     private let db: Connection
+    private let writer: BufferedWriter
 
     public init() throws {
         db = try Connection(
             Environment.current.stateDirectory.appending(component: Self.databaseName).pathString
         )
         db.busyTimeout = 5
-        // This database is disposable per-build analytics, and `storeCASOutput` runs
-        // once per CAS operation on the shared cooperative pool. With synchronous=NORMAL
-        // every insert fsynced; under a build's disk contention those fsyncs starved the
-        // daemon's load/decompress tasks (per-op latency blew up). synchronous=OFF drops
-        // the fsync (durability isn't needed here); wal_autocheckpoint=1 stays so the main
-        // db remains current for the build-report upload, which copies the .db, not the WAL.
+        // This database is disposable per-build analytics. Writes are buffered
+        // in memory and persisted in batched transactions from a dedicated GCD
+        // queue (see BufferedWriter): the store methods run once per CAS
+        // operation in the daemon, and any synchronous SQLite work there blocks
+        // a Swift-concurrency cooperative-pool thread. Under a build's disk
+        // contention those blocked threads starved the daemon's fetch
+        // continuations, inflating every cache operation (~150ms/op measured
+        // on runner VMs). synchronous=OFF drops the per-commit fsync
+        // (durability isn't needed here). The main db file stays current for
+        // the build-report upload via a passive WAL checkpoint after each
+        // batch flush plus a truncating checkpoint on the uploader side before
+        // it copies the file.
         try db.execute("PRAGMA synchronous = OFF")
-        try db.execute("PRAGMA wal_autocheckpoint = 1")
+        writer = BufferedWriter(db: db)
+    }
+
+    /// Folds the WAL into the main database file so a plain file copy of
+    /// `cas_analytics.db` observes every row flushed so far. Used by the
+    /// build-report upload, which copies the `.db` file, not the WAL.
+    public static func checkpoint(at path: AbsolutePath) throws {
+        let db = try Connection(path.pathString)
+        db.busyTimeout = 5
+        try db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
     }
 
     public func migrate() throws {
@@ -91,19 +107,19 @@ public struct CASAnalyticsDatabase: CASAnalyticsDatabasing {
         transferDuration: TimeInterval,
         codecDuration: TimeInterval
     ) throws {
-        try db.run(CASOutputsSchema.table.insert(
-            or: .replace,
-            CASOutputsSchema.key <- key,
-            CASOutputsSchema.size <- size,
-            CASOutputsSchema.duration <- duration,
-            CASOutputsSchema.compressedSize <- compressedSize,
-            CASOutputsSchema.createdAt <- Date(),
-            CASOutputsSchema.transferDuration <- transferDuration,
-            CASOutputsSchema.codecDuration <- codecDuration
+        writer.enqueue(.casOutput(
+            key: key,
+            size: size,
+            duration: duration,
+            compressedSize: compressedSize,
+            transferDuration: transferDuration,
+            codecDuration: codecDuration,
+            createdAt: Date()
         ))
     }
 
     public func casOutput(for key: String) throws -> CASOutputMetadata? {
+        writer.flushSync()
         guard let row = try db.pluck(
             CASOutputsSchema.table.filter(CASOutputsSchema.key == key)
         ) else { return nil }
@@ -119,16 +135,12 @@ public struct CASAnalyticsDatabase: CASAnalyticsDatabasing {
     // MARK: - Nodes
 
     public func storeNode(key: String, checksum: String) throws {
-        try db.run(NodesSchema.table.insert(
-            or: .replace,
-            NodesSchema.key <- key,
-            NodesSchema.checksum <- checksum,
-            NodesSchema.createdAt <- Date()
-        ))
+        writer.enqueue(.node(key: key, checksum: checksum, createdAt: Date()))
     }
 
     public func node(for key: String) throws -> String? {
-        try db.pluck(
+        writer.flushSync()
+        return try db.pluck(
             NodesSchema.table
                 .select(NodesSchema.checksum)
                 .filter(NodesSchema.key == key)
@@ -138,16 +150,16 @@ public struct CASAnalyticsDatabase: CASAnalyticsDatabasing {
     // MARK: - KeyValue Metadata
 
     public func storeKeyValueMetadata(key: String, operationType: String, duration: TimeInterval) throws {
-        try db.run(KeyValueMetadataSchema.table.insert(
-            or: .replace,
-            KeyValueMetadataSchema.key <- key,
-            KeyValueMetadataSchema.operationType <- operationType,
-            KeyValueMetadataSchema.duration <- duration,
-            KeyValueMetadataSchema.createdAt <- Date()
+        writer.enqueue(.keyValueMetadata(
+            key: key,
+            operationType: operationType,
+            duration: duration,
+            createdAt: Date()
         ))
     }
 
     public func keyValueMetadata(for key: String, operationType: String) throws -> KeyValueMetadata? {
+        writer.flushSync()
         guard let row = try db.pluck(
             KeyValueMetadataSchema.table
                 .filter(KeyValueMetadataSchema.key == key && KeyValueMetadataSchema.operationType == operationType)
@@ -158,8 +170,128 @@ public struct CASAnalyticsDatabase: CASAnalyticsDatabasing {
     // MARK: - Maintenance
 
     public func removeOldEntries(olderThan date: Date) throws {
+        writer.flushSync()
         try db.run(CASOutputsSchema.table.filter(CASOutputsSchema.createdAt < date).delete())
         try db.run(NodesSchema.table.filter(NodesSchema.createdAt < date).delete())
         try db.run(KeyValueMetadataSchema.table.filter(KeyValueMetadataSchema.createdAt < date).delete())
+    }
+}
+
+// MARK: - BufferedWriter
+
+/// Buffers analytics rows in memory and persists them in batched transactions
+/// from a dedicated GCD queue, so the store methods never do SQLite work on
+/// the caller's thread (and never block a cooperative-pool thread). A periodic
+/// flush bounds how stale the on-disk database can get, and a passive WAL
+/// checkpoint after each flush keeps the main db file current for the
+/// build-report upload's plain file copy.
+private final class BufferedWriter: @unchecked Sendable {
+    enum Row {
+        case casOutput(
+            key: String,
+            size: Int,
+            duration: TimeInterval,
+            compressedSize: Int,
+            transferDuration: TimeInterval,
+            codecDuration: TimeInterval,
+            createdAt: Date
+        )
+        case node(key: String, checksum: String, createdAt: Date)
+        case keyValueMetadata(key: String, operationType: String, duration: TimeInterval, createdAt: Date)
+    }
+
+    private static let flushThreshold = 128
+    private static let flushInterval: TimeInterval = 1
+
+    private let db: Connection
+    private let queue = DispatchQueue(label: "dev.tuist.cas-analytics-flush", qos: .utility)
+    private let lock = NSLock()
+    private var pending: [Row] = []
+    private let timer: DispatchSourceTimer
+
+    init(db: Connection) {
+        self.db = db
+        timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(deadline: .now() + Self.flushInterval, repeating: Self.flushInterval)
+        timer.setEventHandler { [weak self] in
+            self?.flushOnQueue()
+        }
+        timer.activate()
+    }
+
+    deinit {
+        timer.cancel()
+        flushOnQueue()
+    }
+
+    func enqueue(_ row: Row) {
+        var drained: [Row] = []
+        lock.lock()
+        pending.append(row)
+        if pending.count >= Self.flushThreshold {
+            drained = pending
+            pending = []
+        }
+        lock.unlock()
+        if !drained.isEmpty {
+            queue.async { [weak self] in
+                self?.write(drained)
+            }
+        }
+    }
+
+    /// Drains and persists synchronously. Used before reads (read-after-write
+    /// consistency for consumers and tests) and on deinit.
+    func flushSync() {
+        queue.sync {
+            self.flushOnQueue()
+        }
+    }
+
+    private func flushOnQueue() {
+        lock.lock()
+        let drained = pending
+        pending = []
+        lock.unlock()
+        write(drained)
+    }
+
+    private func write(_ rows: [Row]) {
+        guard !rows.isEmpty else { return }
+        // Disposable analytics: a failed batch is dropped rather than allowed
+        // to disturb the daemon's request handling.
+        try? db.transaction {
+            for row in rows {
+                switch row {
+                case let .casOutput(key, size, duration, compressedSize, transferDuration, codecDuration, createdAt):
+                    try db.run(CASOutputsSchema.table.insert(
+                        or: .replace,
+                        CASOutputsSchema.key <- key,
+                        CASOutputsSchema.size <- size,
+                        CASOutputsSchema.duration <- duration,
+                        CASOutputsSchema.compressedSize <- compressedSize,
+                        CASOutputsSchema.createdAt <- createdAt,
+                        CASOutputsSchema.transferDuration <- transferDuration,
+                        CASOutputsSchema.codecDuration <- codecDuration
+                    ))
+                case let .node(key, checksum, createdAt):
+                    try db.run(NodesSchema.table.insert(
+                        or: .replace,
+                        NodesSchema.key <- key,
+                        NodesSchema.checksum <- checksum,
+                        NodesSchema.createdAt <- createdAt
+                    ))
+                case let .keyValueMetadata(key, operationType, duration, createdAt):
+                    try db.run(KeyValueMetadataSchema.table.insert(
+                        or: .replace,
+                        KeyValueMetadataSchema.key <- key,
+                        KeyValueMetadataSchema.operationType <- operationType,
+                        KeyValueMetadataSchema.duration <- duration,
+                        KeyValueMetadataSchema.createdAt <- createdAt
+                    ))
+                }
+            }
+        }
+        try? db.execute("PRAGMA wal_checkpoint(PASSIVE)")
     }
 }
