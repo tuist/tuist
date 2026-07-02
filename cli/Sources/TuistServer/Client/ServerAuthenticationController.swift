@@ -269,7 +269,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         return try await cachedValueStore.getValue(
             key: "authentication-token-\(serverURL.absoluteString)"
         ) { () -> (value: AuthenticationToken, expiresAt: Date?)? in
-            guard let token = try await self.authenticationTokenRefreshingIfNeeded(
+            guard let token = try await authenticationTokenRefreshingIfNeeded(
                 serverURL: serverURL,
                 forceRefresh: false,
                 inBackground: ServerAuthenticationConfig.current.backgroundRefresh,

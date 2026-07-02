@@ -43,10 +43,13 @@ struct ServerAuthenticationControllerTests {
         ]
         let authenticationToken: AuthenticationToken? = nil
         let cachedValueStore = try #require(CachedValueStore.mocked)
-        given(cachedValueStore).getValue(key: .value("authentication-token-\(serverURL.absoluteString)"), computeIfNeeded: .matching { closure in
-            Task { try await closure() }
-            return true
-        }).willReturn(authenticationToken)
+        given(cachedValueStore).getValue(
+            key: .value("authentication-token-\(serverURL.absoluteString)"),
+            computeIfNeeded: .matching { closure in
+                Task { try await closure() }
+                return true
+            }
+        ).willReturn(authenticationToken)
 
         // When
         let got = try await subject.authenticationToken(serverURL: serverURL)
