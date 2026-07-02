@@ -2,20 +2,40 @@ import Command
 import FileSystem
 import Foundation
 import Path
+import Synchronization
 
 public enum XCResultParserError: LocalizedError, Equatable {
     case failedToParseOutput(AbsolutePath)
-    case timedOut(AbsolutePath, seconds: Int)
+    case timedOut(AbsolutePath, seconds: Int, stage: String? = nil)
     case decodingFailed(step: String, path: AbsolutePath, detail: String)
 
     public var errorDescription: String? {
         switch self {
         case let .failedToParseOutput(path):
             return "Failed to parse xcresult output at \(path.pathString)"
-        case let .timedOut(path, seconds):
-            return "xcresult parsing timed out after \(seconds)s at \(path.pathString)"
+        case let .timedOut(_, seconds, stage):
+            if let stage, !stage.isEmpty {
+                return "xcresult parsing timed out after \(seconds)s while \(stage)"
+            }
+            return "xcresult parsing timed out after \(seconds)s"
         case let .decodingFailed(step, path, detail):
             return "Failed to decode xcresult \(step) at \(path.pathString): \(detail)"
+        }
+    }
+}
+
+public final class XCResultParserProgress: Sendable {
+    private let stage = Mutex<String?>(nil)
+
+    public init() {}
+
+    public var currentStage: String? {
+        stage.withLock { $0 }
+    }
+
+    public func setStage(_ newStage: String) {
+        stage.withLock { stage in
+            stage = newStage
         }
     }
 }
@@ -87,14 +107,16 @@ public struct XCResultParser: Sendable {
     public func parse(
         path: AbsolutePath,
         rootDirectory: AbsolutePath?,
-        attachmentsDirectory: AbsolutePath? = nil
+        attachmentsDirectory: AbsolutePath? = nil,
+        progress: XCResultParserProgress? = nil
     ) async throws -> TestSummary? {
-        let testOutput = try await loadTestOutput(path: path)
+        let testOutput = try await loadTestOutput(path: path, progress: progress)
         return try await parseTestOutput(
             testOutput,
             rootDirectory: rootDirectory,
             attachmentsDirectory: attachmentsDirectory,
-            xcresultPath: path
+            xcresultPath: path,
+            progress: progress
         )
     }
 
@@ -109,7 +131,11 @@ public struct XCResultParser: Sendable {
         return TestResultStatuses(testCases: results)
     }
 
-    private func loadTestOutput(path: AbsolutePath) async throws -> XCResultTestOutput {
+    private func loadTestOutput(
+        path: AbsolutePath,
+        progress: XCResultParserProgress? = nil
+    ) async throws -> XCResultTestOutput {
+        progress?.setStage("loading test results")
         try await fileSystem
             .runInTemporaryDirectory(prefix: "xcresult-test-results") { temporaryDirectory in
                 let tempFile = temporaryDirectory.appending(component: "test-results.json")
@@ -126,6 +152,7 @@ public struct XCResultParser: Sendable {
                 guard let jsonData = jsonString.data(using: .utf8) else {
                     throw XCResultParserError.failedToParseOutput(path)
                 }
+                progress?.setStage("decoding test results")
                 do {
                     return try JSONDecoder().decode(XCResultTestOutput.self, from: jsonData)
                 } catch {
@@ -204,9 +231,10 @@ public struct XCResultParser: Sendable {
         _ output: XCResultTestOutput,
         rootDirectory: AbsolutePath?,
         attachmentsDirectory: AbsolutePath?,
-        xcresultPath: AbsolutePath
+        xcresultPath: AbsolutePath,
+        progress: XCResultParserProgress? = nil
     ) async throws -> TestSummary {
-        let actionLog = try await actionLog(from: xcresultPath)
+        let actionLog = try await actionLog(from: xcresultPath, progress: progress)
         let failuresFromActionLog = actionLog.extractTestFailures(rootDirectory: rootDirectory)
             .reduce(into: [String: [TestFailure]]()) { result, entry in
                 let key = normalizeTestIdentifier(entry.key)
@@ -238,7 +266,8 @@ public struct XCResultParser: Sendable {
 
         let extractedAttachments = await attachmentsByTestIdentifiers(
             from: xcresultPath,
-            attachmentsDirectory: attachmentsDirectory
+            attachmentsDirectory: attachmentsDirectory,
+            progress: progress
         )
 
         allTestCases = allTestCases.map { testCase in
@@ -594,7 +623,11 @@ public struct XCResultParser: Sendable {
         return (updatedTestCases, suiteDurations, modules, overall)
     }
 
-    private func actionLog(from xcresultPath: AbsolutePath) async throws -> ActionLogSection {
+    private func actionLog(
+        from xcresultPath: AbsolutePath,
+        progress: XCResultParserProgress? = nil
+    ) async throws -> ActionLogSection {
+        progress?.setStage("loading action log")
         try await fileSystem.runInTemporaryDirectory(prefix: "xcresult-action-log") { temporaryDirectory in
             let tempFile = temporaryDirectory.appending(component: "action-log.json")
 
@@ -612,6 +645,7 @@ public struct XCResultParser: Sendable {
             // locations, so treat its absence as empty rather than failing the
             // whole parse with an opaque decode error.
             guard !logData.isEmpty else { return .empty }
+            progress?.setStage("decoding action log")
             do {
                 return try JSONDecoder().decode(ActionLogSection.self, from: logData)
             } catch {
@@ -682,11 +716,13 @@ public struct XCResultParser: Sendable {
 
     private func attachmentsByTestIdentifiers(
         from xcresultPath: AbsolutePath,
-        attachmentsDirectory: AbsolutePath?
+        attachmentsDirectory: AbsolutePath?,
+        progress: XCResultParserProgress? = nil
     ) async -> (crashReports: [String: CrashReport], attachments: [String: [TestAttachment]]) {
         do {
             let temporaryDirectory = try await attachmentsExportDirectory(in: attachmentsDirectory)
 
+            progress?.setStage("exporting attachments")
             _ = try await commandRunner.run(
                 arguments: [
                     "/bin/sh", "-c",
@@ -699,14 +735,17 @@ public struct XCResultParser: Sendable {
                 return ([:], [:])
             }
 
+            progress?.setStage("decoding attachment manifest")
             let manifestData = try await fileSystem.readFile(at: manifestPath)
             let manifestEntries = try JSONDecoder().decode([AttachmentManifest].self, from: manifestData)
 
             var crashReportsByTestIdentifier: [String: CrashReport] = [:]
             var attachmentsByTestIdentifier: [String: [TestAttachment]] = [:]
 
+            progress?.setStage("converting PNG attachments")
             await convertCgBIPNGs(in: temporaryDirectory, manifestEntries: manifestEntries)
 
+            progress?.setStage("processing attachments")
             for entry in manifestEntries {
                 guard let testIdentifier = entry.testIdentifier else { continue }
                 let normalizedIdentifier = normalizeTestIdentifier(testIdentifier)
