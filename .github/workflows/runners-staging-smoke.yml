@@ -33,6 +33,10 @@ on:
         description: "hyperfine timed runs for the benchmark"
         required: false
         default: "3"
+      tuist_ref:
+        description: "Build the tuist CLI from this git ref instead of the pinned canary (for the CAS transfer/codec instrumentation on branch builds). Empty = use canary."
+        required: false
+        default: ""
   # Also fires when this workflow file itself changes on the
   # feat/runners-shape-2 branch. The smoke isn't a default CI
   # hook (would burn a runner slot on every PR), but during the
@@ -117,7 +121,9 @@ jobs:
   bench:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.strategy != '' }}
     runs-on: tuist-staging-macos
-    timeout-minutes: 90
+    # Higher ceiling: a from-source release build of the tuist CLI (tuist_ref)
+    # can take ~30-40 min before the benchmark itself runs.
+    timeout-minutes: 150
     # id-token for the secretless OIDC `tuist auth login` against staging.
     permissions:
       contents: read
@@ -129,6 +135,9 @@ jobs:
       TUIST_CANARY_TAG: 4.202.0-canary.14
       TUIST_FIXTURE_REF: 4.202.0-canary.14
       HYPERFINE_RUNS: ${{ inputs.runs }}
+      # When set, build the tuist CLI from this ref (carries the CAS transfer/codec
+      # instrumentation) instead of installing the pinned canary.
+      TUIST_SRC_REF: ${{ inputs.tuist_ref }}
       # Auth control-plane against staging; the CAS data-plane stays on the
       # dispatch-set TUIST_CACHE_ENDPOINT (the host Kura).
       TUIST_URL: https://staging.tuist.dev
@@ -142,15 +151,25 @@ jobs:
             echo "GET ${TUIST_CACHE_ENDPOINT%/}/up -> HTTP ${code}"
           fi
 
-      - name: Install Tuist canary + hyperfine via mise
+      - name: Install Tuist (canary or built from source) + hyperfine via mise
         run: |
           set -euo pipefail
-          mise use --global "tuist@${TUIST_CANARY_TAG}"
           mise use --global "hyperfine@1.19.0"
           # We don't use jdx/mise-action, so wire the shims onto PATH for the
           # subsequent build step (GITHUB_PATH affects later steps).
           echo "$HOME/.local/share/mise/shims" >> "$GITHUB_PATH"
-          mise exec -- tuist version
+          if [ -n "${TUIST_SRC_REF:-}" ]; then
+            echo "== building tuist from source ref=$TUIST_SRC_REF (release) for CAS transfer/codec instrumentation =="
+            git clone --depth 1 --branch "$TUIST_SRC_REF" https://github.com/tuist/tuist.git tuist-src
+            ( cd tuist-src && swift build --product tuist -c release --replace-scm-with-registry )
+            BIN="$PWD/tuist-src/.build/release"
+            # Prepend the built binary so `tuist` resolves to it ahead of any mise shim.
+            echo "$BIN" >> "$GITHUB_PATH"
+            "$BIN/tuist" version
+          else
+            mise use --global "tuist@${TUIST_CANARY_TAG}"
+            mise exec -- tuist version
+          fi
           mise exec -- hyperfine --version
 
       - name: Check out the tuist modular fixture (public; fullHandle stays tuist/tuist)
@@ -246,7 +265,12 @@ jobs:
           CAS_DB="$HOME/.local/state/tuist/cas_analytics.db"
           if [ -f "$CAS_DB" ]; then
             sqlite3 "$CAS_DB" "PRAGMA wal_checkpoint(TRUNCATE);" >/dev/null 2>&1 || true
-            sqlite3 "$CAS_DB" "SELECT count(*) AS ops, round(avg(duration),1) AS avg_ms, round(sum(duration)/1000.0,1) AS total_s, round(avg(size)) AS avg_bytes FROM cas_outputs;" 2>&1 || true
+            # Split the per-op duration into transfer (wire) vs codec (de/compress) vs
+            # remainder (daemon per-request processing: gRPC hop, marshalling, scheduling).
+            # transfer_duration/codec_duration exist only on branch builds carrying the
+            # instrumentation; fall back to the plain query on the canary.
+            sqlite3 -header -column "$CAS_DB" "SELECT count(*) AS ops, round(avg(duration),1) AS total_ms, round(avg(transfer_duration),1) AS transfer_ms, round(avg(codec_duration),1) AS codec_ms, round(avg(duration-transfer_duration-codec_duration),1) AS remainder_ms, round(avg(size)) AS avg_bytes, round(avg(compressed_size)) AS avg_comp FROM cas_outputs;" 2>/dev/null \
+              || sqlite3 "$CAS_DB" "SELECT count(*) AS ops, round(avg(duration),1) AS avg_ms, round(sum(duration)/1000.0,1) AS total_s, round(avg(size)) AS avg_bytes FROM cas_outputs;" 2>&1 || true
           else
             echo "  no cas_analytics.db — the CAS daemon never talked to a remote (endpoint/auth issue)"
           fi
