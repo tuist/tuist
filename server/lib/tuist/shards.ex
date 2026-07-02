@@ -43,7 +43,12 @@ defmodule Tuist.Shards do
         max_duration: Map.get(params, :shard_max_duration)
       )
 
-    assignment_shards = BinPacker.pack(units_with_durations, shard_count)
+    assignment_shards =
+      if granularity == "suite" do
+        BinPacker.pack(units_with_durations, shard_count, &suite_module/1)
+      else
+        BinPacker.pack(units_with_durations, shard_count)
+      end
 
     now = NaiveDateTime.utc_now()
 
@@ -85,22 +90,22 @@ defmodule Tuist.Shards do
     end
   end
 
-  def start_upload(%Project{} = project, %Account{} = account, reference) do
+  def start_upload(%Project{} = project, %Account{} = account, reference, artifact \\ nil) do
     case get_plan(project.id, reference) do
       nil ->
         {:error, :not_found}
 
       plan ->
-        start_upload_for_plan(project, account, plan)
+        start_upload_for_plan(project, account, plan, artifact)
     end
   end
 
-  def start_upload_for_plan(%Project{} = project, %Account{} = account, %ShardPlan{} = plan) do
-    start_upload_for_plan_id(project, account, plan.id)
+  def start_upload_for_plan(%Project{} = project, %Account{} = account, %ShardPlan{} = plan, artifact \\ nil) do
+    start_upload_for_plan_id(project, account, plan.id, artifact)
   end
 
-  def start_upload_for_plan_id(%Project{} = project, %Account{} = account, plan_id) do
-    upload_id = Storage.multipart_start(bundle_object_key(account, project, plan_id), account)
+  def start_upload_for_plan_id(%Project{} = project, %Account{} = account, plan_id, artifact \\ nil) do
+    upload_id = Storage.multipart_start(artifact_object_key(account, project, plan_id, artifact), account)
     {:ok, upload_id}
   end
 
@@ -115,8 +120,7 @@ defmodule Tuist.Shards do
             {:error, :invalid_shard_index}
 
           %{modules: modules, suites: suites, skip: skip} ->
-            download_url =
-              Storage.generate_download_url(bundle_object_key(account, project, plan.id), account)
+            {download_url, download_urls} = shard_download_urls(account, project, plan.id, modules)
 
             {:ok,
              %{
@@ -124,41 +128,55 @@ defmodule Tuist.Shards do
                modules: modules,
                suites: suites,
                skip: skip,
-               download_url: download_url
+               download_url: download_url,
+               download_urls: download_urls
              }}
         end
     end
   end
 
-  def complete_upload(%Project{} = project, %Account{} = account, reference, upload_id, parts) do
+  def complete_upload(%Project{} = project, %Account{} = account, reference, upload_id, parts, artifact \\ nil) do
     case get_plan(project.id, reference) do
       nil ->
         {:error, :not_found}
 
       plan ->
-        complete_upload_for_plan(project, account, plan.id, upload_id, parts)
+        complete_upload_for_plan(project, account, plan.id, upload_id, parts, artifact)
     end
   end
 
-  def complete_upload_for_plan(%Project{} = project, %Account{} = account, plan_id, upload_id, parts) do
-    Storage.multipart_complete_upload(bundle_object_key(account, project, plan_id), upload_id, parts, account)
+  def complete_upload_for_plan(%Project{} = project, %Account{} = account, plan_id, upload_id, parts, artifact \\ nil) do
+    Storage.multipart_complete_upload(
+      artifact_object_key(account, project, plan_id, artifact),
+      upload_id,
+      parts,
+      account
+    )
+
     :ok
   end
 
-  def generate_upload_url(%Project{} = project, %Account{} = account, reference, upload_id, part_number) do
+  def generate_upload_url(%Project{} = project, %Account{} = account, reference, upload_id, part_number, artifact \\ nil) do
     case get_plan(project.id, reference) do
       nil ->
         {:error, :not_found}
 
       plan ->
-        generate_upload_url_for_plan(project, account, plan.id, upload_id, part_number)
+        generate_upload_url_for_plan(project, account, plan.id, upload_id, part_number, artifact)
     end
   end
 
-  def generate_upload_url_for_plan(%Project{} = project, %Account{} = account, plan_id, upload_id, part_number) do
+  def generate_upload_url_for_plan(
+        %Project{} = project,
+        %Account{} = account,
+        plan_id,
+        upload_id,
+        part_number,
+        artifact \\ nil
+      ) do
     url =
       Storage.multipart_generate_url(
-        bundle_object_key(account, project, plan_id),
+        artifact_object_key(account, project, plan_id, artifact),
         upload_id,
         part_number,
         account
@@ -167,8 +185,40 @@ defmodule Tuist.Shards do
     {:ok, url}
   end
 
+  # Each shard downloads only the products it needs: a single `shared` artifact (frameworks,
+  # dylibs, the xctestrun, etc.) plus one per-module artifact for each module assigned to the
+  # shard. Falls back to the legacy single per-plan bundle when split artifacts weren't uploaded.
+  defp shard_download_urls(account, project, plan_id, modules) do
+    shared_key = artifact_object_key(account, project, plan_id, "shared")
+
+    if Storage.object_exists?(shared_key, account) do
+      shared_url = Storage.generate_download_url(shared_key, account)
+
+      module_urls =
+        Enum.map(modules, fn module ->
+          Storage.generate_download_url(artifact_object_key(account, project, plan_id, "module:" <> module), account)
+        end)
+
+      {nil, [shared_url | module_urls]}
+    else
+      bundle_url = Storage.generate_download_url(bundle_object_key(account, project, plan_id), account)
+      {bundle_url, [bundle_url]}
+    end
+  end
+
   def bundle_object_key(account, project, plan_id) do
     "#{account.id}/#{project.id}/shards/#{plan_id}/bundle.zip"
+  end
+
+  def artifact_object_key(account, project, plan_id, artifact) do
+    base = "#{account.id}/#{project.id}/shards/#{plan_id}"
+
+    case artifact do
+      nil -> "#{base}/bundle.zip"
+      "shared" -> "#{base}/shared.aar"
+      "module:" <> module_name -> "#{base}/modules/#{module_name}.aar"
+      _ -> "#{base}/bundle.zip"
+    end
   end
 
   defp insert_shard_targets(plan, project_id, shards, "module", now) do
@@ -269,17 +319,19 @@ defmodule Tuist.Shards do
     )
   end
 
-  defp resolve_units(_project, params, "module", _timing_data), do: Map.get(params, :modules, [])
+  defp resolve_units(_project, params, "module", _timing_data), do: params_modules(params)
 
   defp resolve_units(project, params, "suite", _timing_data) do
-    case Map.get(params, :test_suites, []) do
-      suites when suites != [] ->
+    case Map.get(params, :test_suites) do
+      [_ | _] = suites ->
         suites
 
       _ ->
-        latest_branch_suite_units(project, params, Map.get(params, :modules, []))
+        latest_branch_suite_units(project, params, params_modules(params))
     end
   end
+
+  defp params_modules(params), do: Map.get(params, :modules) || []
 
   defp latest_branch_suite_units(_project, _params, []), do: []
 
@@ -364,6 +416,15 @@ defmodule Tuist.Shards do
   defp blank?(nil), do: true
   defp blank?(""), do: true
   defp blank?(_), do: false
+
+  # Suite units are named "Module/Suite"; the module prefix is what determines
+  # which per-module test bundle a shard needs to download.
+  defp suite_module(name) do
+    case String.split(name, "/", parts: 2) do
+      [module | _] -> module
+      _ -> name
+    end
+  end
 
   defp fetch_timing_data(project, "module") do
     cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)

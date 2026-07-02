@@ -1868,8 +1868,17 @@ components:
       description: A shard with its assigned modules, suites, and download URLs.
       properties:
         download_url:
-          description: Presigned URL to download the shared test products bundle.
+          description: Presigned URL to download the legacy single test products bundle. Present only for plans uploaded as one bundle; omitted when per-shard artifacts are used.
           type: string
+          x-struct:
+          x-validate:
+        download_urls:
+          description: 'Presigned URLs to download the products this shard needs: the shared artifact plus one per assigned module (or the single legacy bundle).'
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
           x-struct:
           x-validate:
         modules:
@@ -1913,7 +1922,7 @@ components:
         - shard_plan_id
         - modules
         - suites
-        - download_url
+        - download_urls
       title: Shard
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Shards.Shard
@@ -2760,6 +2769,11 @@ components:
       x-validate:
     CompleteShardUploadParams:
       properties:
+        artifact:
+          description: The artifact being completed ("shared" or "module:<name>"). Matches the start-upload artifact.
+          type: string
+          x-struct:
+          x-validate:
         parts:
           description: The uploaded parts with their ETags.
           items:
@@ -4657,6 +4671,11 @@ components:
       x-validate:
     GenerateShardUploadURLParams:
       properties:
+        artifact:
+          description: The artifact being uploaded ("shared" or "module:<name>"). Matches the start-upload artifact.
+          type: string
+          x-struct:
+          x-validate:
         part_number:
           description: The part number.
           type: integer
@@ -4947,6 +4966,11 @@ components:
       x-validate:
     StartShardUploadParams:
       properties:
+        artifact:
+          description: "The artifact to upload: \"shared\" for the shared products, or \"module:<name>\" for a single module's test bundle. Defaults to the legacy single bundle when omitted."
+          type: string
+          x-struct:
+          x-validate:
         reference:
           description: The shard plan reference.
           type: string
@@ -8652,14 +8676,6 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -8674,6 +8690,14 @@ paths:
           required: false
           schema:
             type: integer
+            x-struct:
+            x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
             x-struct:
             x-validate:
         - description: The handle of the project.
@@ -14181,6 +14205,11 @@ paths:
           application/json:
             schema:
               properties:
+                artifact:
+                  description: "The artifact to upload: \"shared\" for the shared products, or \"module:<name>\" for a single module's test bundle. Defaults to the legacy single bundle when omitted."
+                  type: string
+                  x-struct:
+                  x-validate:
                 reference:
                   description: The shard plan reference.
                   type: string
@@ -15935,6 +15964,11 @@ paths:
           application/json:
             schema:
               properties:
+                artifact:
+                  description: The artifact being uploaded ("shared" or "module:<name>"). Matches the start-upload artifact.
+                  type: string
+                  x-struct:
+                  x-validate:
                 part_number:
                   description: The part number.
                   type: integer
@@ -17471,6 +17505,11 @@ paths:
           application/json:
             schema:
               properties:
+                artifact:
+                  description: The artifact being completed ("shared" or "module:<name>"). Matches the start-upload artifact.
+                  type: string
+                  x-struct:
+                  x-validate:
                 parts:
                   description: The uploaded parts with their ETags.
                   items:
