@@ -57,4 +57,28 @@ struct CASAnalyticsDatabaseTests {
         let checksum = try database.node(for: "old-node")
         #expect(checksum == nil)
     }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func buffered_writes_survive_threshold_flushes_and_reads() async throws {
+        let database = try CASAnalyticsDatabase()
+        try database.migrate()
+
+        // Crosses the buffered writer's flush threshold several times: rows
+        // must land through both async batch flushes and the read-triggered
+        // synchronous flush.
+        for index in 0 ..< 300 {
+            try database.storeCASOutput(
+                key: "key-\(index)",
+                size: index,
+                duration: 1.0,
+                compressedSize: index / 2,
+                transferDuration: 0.5,
+                codecDuration: 0.1
+            )
+        }
+
+        #expect(try database.casOutput(for: "key-0")?.size == 0)
+        #expect(try database.casOutput(for: "key-150")?.size == 150)
+        #expect(try database.casOutput(for: "key-299")?.size == 299)
+    }
 }
