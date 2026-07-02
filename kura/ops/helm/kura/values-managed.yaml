@@ -13,10 +13,8 @@ replicaCount: 3
 
 service:
   type: ClusterIP
-  # One co-hosted HTTP + gRPC (h2c) listener; grpcPort is the
-  # Service-level compat port (see values.yaml).
+  # One co-hosted HTTP + gRPC (h2c) listener.
   httpPort: 4000
-  grpcPort: 50051
 
 # Public reachability for the Tuist CLI. The CLI talks plain HTTP cache
 # protocol; gRPC (REAPI) is not exposed publicly here. Per-instance host

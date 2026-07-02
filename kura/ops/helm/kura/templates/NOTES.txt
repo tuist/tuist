@@ -1,10 +1,7 @@
 1. Kura has been deployed as a StatefulSet named {{ include "kura.fullname" . }}.
 
-2. HTTP endpoint:
+2. Cache endpoint (HTTP cache API and REAPI gRPC co-hosted on one port):
    kubectl port-forward svc/{{ include "kura.fullname" . }} 4000:{{ .Values.service.httpPort }}
-
-3. gRPC endpoint (REAPI, co-hosted with HTTP on the same container port):
-   kubectl port-forward svc/{{ include "kura.fullname" . }} 50051:{{ .Values.service.grpcPort }}
 
 4. The cluster uses the headless service {{ include "kura.headlessServiceName" . }} for stable pod DNS and peer discovery.
 

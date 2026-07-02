@@ -115,9 +115,6 @@ services:
       KURA_OTEL_DEPLOYMENT_ENVIRONMENT: local
     ports:
       - "${KURA_HTTP_PORT:-4000}:4000"
-      # Legacy gRPC dial-address compat: gRPC co-hosts on container port
-      # 4000, this keeps clients configured against host port 50051 working.
-      - "${KURA_GRPC_PORT:-50051}:4000"
     volumes:
       - kura-data:/var/cache/kura
     healthcheck:

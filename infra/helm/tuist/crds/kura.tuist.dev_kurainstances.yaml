@@ -174,9 +174,6 @@ spec:
                 nodePortHTTP:
                   type: integer
                   format: int32
-                nodePortGRPC:
-                  type: integer
-                  format: int32
                 lastReconciledAt:
                   type: string
                   format: date-time
