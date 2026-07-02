@@ -27,12 +27,14 @@ defmodule TuistWeb.TestRunLive do
 
   @table_page_size 20
 
-  # The completion event that flips a run out of "processing" is broadcast
-  # from the xcresult-processor, which runs as an isolated, non-clustered
-  # BEAM node and can't reach the web tier's PubSub. Poll as a fallback so a
-  # connected viewer's spinner clears on its own even when that broadcast is
-  # never delivered.
-  @processing_poll_interval to_timeout(second: 5)
+  # A run finishing on the isolated, non-clustered xcresult-processor pushes its
+  # completion through BroadcastTestCreatedWorker, and web-origin runs broadcast
+  # in process, but either can be missed. Poll while the run is in any transient
+  # state so a connected viewer's spinner clears on its own, then do one delayed
+  # refresh after it settles so buffered ClickHouse rows have had time to land.
+  @transient_statuses ~w(processing in_progress)
+  @run_poll_interval to_timeout(second: 5)
+  @settle_delay to_timeout(second: 5)
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
@@ -96,9 +98,9 @@ defmodule TuistWeb.TestRunLive do
         {:ok, %{has_session: (command_event && CommandEvents.has_session?(command_event)) || false}}
       end)
 
-    if connected?(socket) and run.status == "processing" do
+    if connected?(socket) and transient?(run.status) do
       Tuist.PubSub.subscribe("#{project.account.name}/#{project.name}")
-      schedule_processing_poll()
+      schedule_run_poll()
     end
 
     {:ok, socket}
@@ -150,18 +152,20 @@ defmodule TuistWeb.TestRunLive do
     end
   end
 
-  def handle_info(:poll_processing_status, %{assigns: %{run: run}} = socket) do
-    if run.status == "processing" do
-      socket = reload_run_state(socket)
+  def handle_info(:poll_run_state, socket) do
+    socket = reload_run_state(socket)
 
-      if socket.assigns.run.status == "processing" do
-        schedule_processing_poll()
-      end
-
-      {:noreply, socket}
+    if transient?(socket.assigns.run.status) do
+      schedule_run_poll()
     else
-      {:noreply, socket}
+      schedule_settle_refresh()
     end
+
+    {:noreply, socket}
+  end
+
+  def handle_info(:settle_run_state, socket) do
+    {:noreply, reload_run_state(socket)}
   end
 
   def handle_event("refresh_test_run", _params, socket) do
@@ -296,8 +300,14 @@ defmodule TuistWeb.TestRunLive do
     end
   end
 
-  defp schedule_processing_poll do
-    Process.send_after(self(), :poll_processing_status, @processing_poll_interval)
+  defp transient?(status), do: status in @transient_statuses
+
+  defp schedule_run_poll do
+    Process.send_after(self(), :poll_run_state, @run_poll_interval)
+  end
+
+  defp schedule_settle_refresh do
+    Process.send_after(self(), :settle_run_state, @settle_delay)
   end
 
   defp assign_initial_analytics_state(socket) do

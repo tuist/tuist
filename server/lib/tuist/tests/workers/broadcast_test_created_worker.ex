@@ -1,18 +1,16 @@
 defmodule Tuist.Tests.Workers.BroadcastTestCreatedWorker do
   @moduledoc """
-  Relays the `:test_created` PubSub notification so it runs on a web node.
+  Broadcasts `:test_created` for a finished test run from inside the web cluster.
 
-  `Tuist.Tests.create_test/1` broadcasts `:test_created` to refresh any open
-  test dashboards. When it runs on the xcresult-processor, though, that
-  broadcast is emitted on an isolated, non-clustered BEAM node whose
-  `Phoenix.PubSub` (PG2 adapter) never reaches the web tier — so a run that
-  finished processing stays stuck on the "processing" spinner until the page is
-  refreshed.
-
-  Enqueuing this job decouples the broadcast from the node that created the run:
-  it lands on the `:default` queue, which only web pods consume (the processor
-  fleets run a single dedicated queue each), so the broadcast always fires on a
+  Most runs finish parsing on the xcresult-processor, an isolated,
+  non-clustered BEAM node whose in-process `Phoenix.PubSub` (PG2 adapter)
+  broadcast never reaches the web tier. `ProcessXcresultWorker` enqueues this
+  job on the `:default` queue, which only web pods consume (the processor
+  fleets each run a single dedicated queue), so the broadcast always fires on a
   clustered web node and reaches every subscribed LiveView.
+
+  Runs submitted inline on a web node already broadcast in process from
+  `Tuist.Tests.create_test/1`; this job is the processor's equivalent.
   """
   use Oban.Worker, queue: :default, max_attempts: 3
 

@@ -510,8 +510,8 @@ defmodule TuistWeb.TestRunLiveTest do
     end
   end
 
-  describe "processing poll fallback" do
-    test "clears the processing state once the run finishes, even without a broadcast", %{
+  describe "transient-state polling" do
+    test "clears the processing spinner once the run finishes, even without a broadcast", %{
       conn: conn,
       organization: organization,
       project: project
@@ -531,12 +531,36 @@ defmodule TuistWeb.TestRunLiveTest do
       {:ok, _completed} =
         RunsFixtures.test_fixture(id: test_run.id, project_id: project.id, status: "success")
 
-      send(lv.pid, :poll_processing_status)
+      send(lv.pid, :poll_run_state)
 
       # Then - the spinner clears on its own and results render
       html = render(lv)
       refute html =~ ~s(data-part="processing-state")
       assert html =~ "test-cases-card"
+    end
+
+    test "polls an in_progress (sharded) run and clears the in-progress badge on completion", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given - a run still in progress (e.g. waiting on other shards)
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(project_id: project.id, status: "in_progress")
+
+      {:ok, lv, html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+      assert html =~ ~s(data-part="badge-processing")
+
+      # When - the run reaches a terminal status and the poll fires
+      {:ok, _completed} =
+        RunsFixtures.test_fixture(id: test_run.id, project_id: project.id, status: "success")
+
+      send(lv.pid, :poll_run_state)
+
+      # Then - the in-progress badge clears without a broadcast
+      refute render(lv) =~ ~s(data-part="badge-processing")
     end
   end
 end
