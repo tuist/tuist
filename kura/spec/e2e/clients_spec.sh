@@ -17,11 +17,11 @@ Describe 'actively supported protocol interoperability'
     resolve_http_node KURA_US kura-us
     resolve_http_node KURA_EU kura-eu
     resolve_http_node KURA_AP kura-ap
-    # Bazel/Buck REAPI runs over the combined HTTP + h2c gRPC listener (8080),
-    # the same port the cache clients above use — not the dedicated gRPC port.
-    KURA_US_GRPC_PORT="$(resolve_host_port kura-us 8080)"
-    KURA_EU_GRPC_PORT="$(resolve_host_port kura-eu 8080)"
-    KURA_AP_GRPC_PORT="$(resolve_host_port kura-ap 8080)"
+    # Bazel/Buck REAPI runs over the single co-hosted HTTP + h2c gRPC listener
+    # (4000), the same port the cache clients above use.
+    KURA_US_GRPC_PORT="$(resolve_host_port kura-us 4000)"
+    KURA_EU_GRPC_PORT="$(resolve_host_port kura-eu 4000)"
+    KURA_AP_GRPC_PORT="$(resolve_host_port kura-ap 4000)"
 
     wait_for_http "${KURA_US_URL}/up"
     wait_for_http "${KURA_EU_URL}/up"

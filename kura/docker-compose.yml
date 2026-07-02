@@ -7,13 +7,9 @@ services:
     hostname: kura-us
     domainname: kura.internal
     environment: &kura_env
+      # The single co-hosted HTTP + h2c gRPC listener; both cache and REAPI
+      # traffic ride this one port (published below as KURA_*_PORT).
       KURA_PORT: "4000"
-      KURA_GRPC_PORT: "50051"
-      # Co-hosted HTTP + h2c gRPC listener. The e2e suite reaches kura through
-      # this single port (published below as KURA_*_PORT) so both cache and
-      # REAPI traffic exercise the combined endpoint. The dedicated 4000/50051
-      # listeners keep running for the accelerated-serving suite and health.
-      KURA_COMBINED_PORT: "8080"
       KURA_INTERNAL_PORT: "7443"
       KURA_TENANT_ID: default
       KURA_TMP_DIR: /var/cache/kura/tmp
@@ -45,9 +41,7 @@ services:
       kura.region: us-east
       kura.tenant_id: default
     ports:
-      # Primary client endpoint: the combined HTTP + h2c gRPC listener.
-      - "${KURA_US_PORT:-4101}:8080"
-      - "${KURA_US_GRPC_PORT:-5101}:50051"
+      - "${KURA_US_PORT:-4101}:4000"
     volumes:
       - kura-us-data:/var/cache/kura
     networks:
@@ -81,9 +75,7 @@ services:
       kura.region: eu-west
       kura.tenant_id: default
     ports:
-      # Primary client endpoint: the combined HTTP + h2c gRPC listener.
-      - "${KURA_EU_PORT:-4102}:8080"
-      - "${KURA_EU_GRPC_PORT:-5102}:50051"
+      - "${KURA_EU_PORT:-4102}:4000"
     volumes:
       - kura-eu-data:/var/cache/kura
     networks:
@@ -117,9 +109,7 @@ services:
       kura.region: ap-south
       kura.tenant_id: default
     ports:
-      # Primary client endpoint: the combined HTTP + h2c gRPC listener.
-      - "${KURA_AP_PORT:-4103}:8080"
-      - "${KURA_AP_GRPC_PORT:-5103}:50051"
+      - "${KURA_AP_PORT:-4103}:4000"
     volumes:
       - kura-ap-data:/var/cache/kura
     networks:
