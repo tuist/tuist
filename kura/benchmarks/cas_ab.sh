@@ -29,24 +29,36 @@ PARALLEL=${PARALLEL:-16}
 LATENCY_KB=${LATENCY_KB:-256}
 
 # --- resolve endpoints + auth from the CLI (never print the token) ---------------
-redact() { sed -E 's/(Token:)[[:space:]]*[A-Za-z0-9._-]+/\1 <redacted>/'; }
-cfg_legacy=$(tuist cache config 2>&1) || true
-cfg_kura=$(TUIST_FEATURE_FLAG_kura=1 tuist cache config 2>&1) || true
-field() { awk -v k="$1:" '$1==k{print $2; exit}'; }
+# The tuist-linux runner ships the repo's mise dev environment, which points the CLI
+# at a local dev server (TUIST_SERVER_URL=http://localhost:...). Neutralize it so
+# auth + cache config target production, and pass the handle + server explicitly.
+unset TUIST_SERVER_URL TUIST_URL TUIST_CACHE_SERVER_URL TUIST_CONFIG_URL TUIST_CACHE_CONFIG_SERVER_URL 2>/dev/null || true
+FULL_HANDLE=${FULL_HANDLE:-tuist/tuist}
+SERVER_URL=${BENCH_SERVER_URL:-https://tuist.dev}
 
-TOKEN=$(printf '%s\n' "$cfg_legacy" | field Token)
-ACC=$(printf '%s\n' "$cfg_legacy" | field Account)
-PROJ=$(printf '%s\n' "$cfg_legacy" | field Project)
-URL_LEGACY=$(printf '%s\n' "$cfg_legacy" | field URL)
-URL_KURA=$(printf '%s\n' "$cfg_kura" | field URL)
+# On CI this authenticates via GitHub OIDC (needs id-token: write). No-op if already
+# authenticated locally.
+tuist auth login >/dev/null 2>&1 || true
+
+redact() { sed -E 's/("token"[[:space:]]*:[[:space:]]*")[^"]*/\1<redacted>/; s/(Token:)[[:space:]]*[A-Za-z0-9._-]+/\1 <redacted>/'; }
+json_field() { grep -oE "\"$1\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" | head -1 | sed -E "s/.*:[[:space:]]*\"([^\"]*)\"\$/\1/"; }
+unesc() { sed 's#\\/#/#g'; }
+
+cfg_legacy=$(tuist cache config "$FULL_HANDLE" --url "$SERVER_URL" --json 2>&1) || true
+cfg_kura=$(TUIST_FEATURE_FLAG_kura=1 tuist cache config "$FULL_HANDLE" --url "$SERVER_URL" --json 2>&1) || true
+
+TOKEN=$(printf '%s' "$cfg_legacy" | json_field token)
+ACC=$(printf '%s' "$cfg_legacy" | json_field account_handle)
+PROJ=$(printf '%s' "$cfg_legacy" | json_field project_handle)
+URL_LEGACY=$(printf '%s' "$cfg_legacy" | json_field url | unesc)
+URL_KURA=$(printf '%s' "$cfg_kura" | json_field url | unesc)
 
 if [ -z "$TOKEN" ] || [ -z "$URL_LEGACY" ] || [ -z "$URL_KURA" ]; then
   echo "failed to resolve cache config (token/urls). Raw output (token redacted):" >&2
-  echo "--- tuist --version / pwd ---" >&2
-  tuist --version 2>&1 | head -1 >&2; pwd >&2; ls -1 Tuist.swift Tuist/ 2>&1 | head >&2
-  echo "--- legacy: tuist cache config ---" >&2
+  { tuist --help >/dev/null 2>&1 && echo "tuist present"; } >&2; pwd >&2
+  echo "--- legacy: tuist cache config $FULL_HANDLE --url $SERVER_URL --json ---" >&2
   printf '%s\n' "$cfg_legacy" | redact >&2
-  echo "--- kura: TUIST_FEATURE_FLAG_kura=1 tuist cache config ---" >&2
+  echo "--- kura: TUIST_FEATURE_FLAG_kura=1 tuist cache config ... ---" >&2
   printf '%s\n' "$cfg_kura" | redact >&2
   exit 1
 fi

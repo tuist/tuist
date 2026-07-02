@@ -53,8 +53,6 @@ jobs:
         with:
           version: ${{ env.MISE_VERSION }}
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
-      - name: Authenticate with Tuist
-        run: tuist auth login
       - name: Run CAS A/B benchmark
         env:
           SIZES_MB: ${{ inputs.sizes_mb }}
