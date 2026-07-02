@@ -26,7 +26,7 @@ on:
   workflow_dispatch:
     inputs:
       strategy:
-        description: "Cache benchmark to run on the host-Kura runner after the smoke (empty = smoke only). xcode-cache | module-cache | combined | no-cache"
+        description: "Cache benchmark to run on the host-Kura runner after the smoke (empty = smoke only). xcode-cache | xcode-cache-probe | module-cache | combined | no-cache"
         required: false
         default: ""
       runs:
@@ -286,6 +286,114 @@ jobs:
               fi
               hyperfine --warmup 1 --runs "$HYPERFINE_RUNS" --export-json result.json --show-output \
                 --setup "$BUILD_CAS" --prepare "$CLEAN_DD" "$BUILD_CAS" || rc=$? ;;
+            xcode-cache-probe)
+              # In-VM decomposition: WHILE the real cached build saturates the VM,
+              # measure the same host-Kura CAS fetch two ways side by side:
+              #   - URLSession probe (8-way concurrent, daemon-shaped async client)
+              #   - curl loop (blocking client, one wake-up hop)
+              # plus a CPU-pressure sampler (runnable threads + live compiler procs).
+              # If URLSession inflates to ~daemon's 153ms while curl stays ~1-5ms,
+              # the daemon's per-op cost is async-client scheduling starvation and a
+              # blocking CAS client is the fix; if both inflate, the VM itself is
+              # the bottleneck. Idle baselines are taken before the build starts.
+              tuist setup cache
+              tuist install
+              tuist generate --no-binary-cache
+              CAS_SOCK=""
+              for _ in $(seq 1 20); do
+                CAS_SOCK=$(ls -t "$HOME/.local/state/tuist/"*.sock 2>/dev/null | head -1)
+                [ -n "$CAS_SOCK" ] && break
+                sleep 1
+              done
+              [ -n "$CAS_SOCK" ] || { echo "::error::no CAS daemon socket after tuist setup cache"; exit 1; }
+              CAS="COMPILATION_CACHE_ENABLE_CACHING=YES COMPILATION_CACHE_ENABLE_PLUGIN=YES COMPILATION_CACHE_REMOTE_SERVICE_PATH=${CAS_SOCK}"
+              BUILD_CAS="$BUILD_BASE $CAS"
+              EP="${TUIST_CACHE_ENDPOINT:?xcode-cache-probe needs the host-Kura endpoint}"
+              EP="${EP%/}"
+              PROBE_ID="probe$(python3 -c 'import uuid;print(uuid.uuid4().hex[:12])')"
+              PROBE_URL="$EP/api/cache/cas/$PROBE_ID?account_handle=tuist&project_handle=tuist&hash=$PROBE_ID"
+              head -c 30209 /dev/urandom > /tmp/probe_blob.bin
+              seed=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PROBE_URL" -H 'Content-Type: application/octet-stream' --data-binary @/tmp/probe_blob.bin || echo 000)
+              get=$(curl -s -o /dev/null -w '%{http_code}' "$PROBE_URL" || echo 000)
+              echo "probe artifact (30KB, avg compressed CAS payload): seed=$seed get=$get"
+              cat > /tmp/us_probe.swift <<'SWIFTEOF'
+              import Foundation
+              let args = CommandLine.arguments
+              let url = URL(string: args[1])!
+              let conc = Int(args[2]) ?? 8
+              let interval = Double(args[3]) ?? 2.0
+              let maxBatches = Int(args[4]) ?? 1_000_000
+              // exact tuist URLSession shape (URLSession+Tuist.swift)
+              let cfg = URLSessionConfiguration.ephemeral
+              cfg.timeoutIntervalForRequest = 120
+              cfg.timeoutIntervalForResource = 90
+              cfg.httpMaximumConnectionsPerHost = 20
+              let session = URLSession(configuration: cfg)
+              for _ in 0 ..< maxBatches {
+                  var ls: [Double] = []
+                  await withTaskGroup(of: Double.self) { g in
+                      for _ in 0 ..< conc {
+                          g.addTask {
+                              let t0 = ProcessInfo.processInfo.systemUptime
+                              do {
+                                  let (d, r) = try await session.data(for: URLRequest(url: url))
+                                  guard (r as? HTTPURLResponse)?.statusCode == 200, !d.isEmpty else { return -1.0 }
+                                  return (ProcessInfo.processInfo.systemUptime - t0) * 1000
+                              } catch { return -1.0 }
+                          }
+                      }
+                      for await v in g where v >= 0 { ls.append(v) }
+                  }
+                  ls.sort()
+                  if !ls.isEmpty {
+                      let mean = ls.reduce(0, +) / Double(ls.count)
+                      print(String(format: "%.3f n=%d mean=%.1f p50=%.1f max=%.1f", Date().timeIntervalSince1970, ls.count, mean, ls[ls.count / 2], ls[ls.count - 1]))
+                      fflush(stdout)
+                  }
+                  try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+              }
+          SWIFTEOF
+              xcrun swiftc -O /tmp/us_probe.swift -o /tmp/us_probe 2>/tmp/us_probe_compile.log || { echo "::warning::URLSession probe compile failed (curl probe still runs)"; tail -5 /tmp/us_probe_compile.log || true; }
+              echo "== IDLE baselines (VM quiet, before the build) =="
+              if [ -x /tmp/us_probe ]; then /tmp/us_probe "$PROBE_URL" 8 0.2 10 > /tmp/us_idle.log 2>&1 || true; fi
+              for _ in $(seq 1 15); do curl -s -o /dev/null -w '%{time_total}\n' "$PROBE_URL" 2>/dev/null || true; done > /tmp/curl_idle.log
+              if [ -x /tmp/us_probe ]; then /tmp/us_probe "$PROBE_URL" 8 2 100000 > /tmp/us_build.log 2>&1 & USPID=$!; fi
+              ( while :; do curl -s -o /dev/null -w '%{time_total}\n' "$PROBE_URL" >> /tmp/curl_build.log 2>/dev/null || true; sleep 1; done ) & CURLPID=$!
+              ( while :; do echo "$(date +%s) runnable=$(ps -A -o state= 2>/dev/null | grep -c '^R' || true) compilers=$(pgrep -f 'swift-frontend|clang|swift-driver' 2>/dev/null | wc -l | tr -d ' ')" >> /tmp/cpu_build.log; sleep 2; done ) & CPUPID=$!
+              # no --show-output: keeps the log small enough that the summaries
+              # below survive `gh run view --log` truncation
+              hyperfine --warmup 1 --runs "$HYPERFINE_RUNS" --export-json result.json \
+                --setup "$BUILD_CAS" --prepare "$CLEAN_DD" "$BUILD_CAS" || rc=$?
+              for p in ${USPID:-} ${CURLPID:-} ${CPUPID:-}; do kill "$p" 2>/dev/null || true; done
+              echo "== IN-VM PROBE DECOMPOSITION (idle vs during the real cached build) =="
+              python3 - <<'PYEOF' || true
+          import re
+          def usstats(path, label):
+              try: lines = open(path).read().splitlines()
+              except Exception: print(f"  {label}: (no data)"); return
+              means = [float(m.group(1)) for l in lines if (m := re.search(r'mean=([0-9.]+)', l))]
+              maxs = [float(m.group(1)) for l in lines if (m := re.search(r'max=([0-9.]+)', l))]
+              if not means: print(f"  {label}: (no batches)"); return
+              means.sort()
+              print(f"  {label}: batches={len(means)}  batch-mean p50={means[len(means)//2]:.1f}ms  p90={means[int(len(means)*0.9)]:.1f}ms  worst-op={max(maxs):.1f}ms")
+          def curlstats(path, label):
+              try: ts = sorted(float(l) * 1000 for l in open(path) if l.strip())
+              except Exception: print(f"  {label}: (no data)"); return
+              if not ts: print(f"  {label}: (no data)"); return
+              print(f"  {label}: n={len(ts)}  mean={sum(ts)/len(ts):.1f}ms  p50={ts[len(ts)//2]:.1f}  p90={ts[int(len(ts)*0.9)]:.1f}  max={ts[-1]:.1f}")
+          usstats('/tmp/us_idle.log',  'URLSession idle  ')
+          usstats('/tmp/us_build.log', 'URLSession BUILD ')
+          curlstats('/tmp/curl_idle.log',  'curl (blocking) idle  ')
+          curlstats('/tmp/curl_build.log', 'curl (blocking) BUILD ')
+          try:
+              rs, cs = [], []
+              for l in open('/tmp/cpu_build.log'):
+                  if (m := re.search(r'runnable=(\d+)', l)): rs.append(int(m.group(1)))
+                  if (m := re.search(r'compilers=(\d+)', l)): cs.append(int(m.group(1)))
+              if rs: print(f"  CPU during build: runnable-threads mean={sum(rs)/len(rs):.0f} max={max(rs)}  compiler-procs mean={sum(cs)/len(cs):.0f} max={max(cs)}  samples={len(rs)}")
+          except Exception as e: print(f"  cpu sampler: (no data: {e})")
+          PYEOF
+              echo "vCPUs in VM: $(sysctl -n hw.ncpu 2>/dev/null || echo '?')  physical mem: $(sysctl -n hw.memsize 2>/dev/null || echo '?')" ;;
             module-cache)
               # Binary (module) cache: each run clears local binaries, re-pulls
               # them via generate, then builds the app target.
