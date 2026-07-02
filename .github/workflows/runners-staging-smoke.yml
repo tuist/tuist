@@ -37,6 +37,10 @@ on:
         description: "Build the tuist CLI from this git ref instead of the pinned canary (for the CAS transfer/codec instrumentation on branch builds). Empty = use canary."
         required: false
         default: ""
+      env_token:
+        description: "xcode-cache only: extract the logged-in token and re-inject it as TUIST_TOKEN so environmentToken() short-circuits the per-op keychain auth read. Confirms the CAS per-op cost is client-side auth, not the wire."
+        required: false
+        default: "false"
   # Also fires when this workflow file itself changes on the
   # feat/runners-shape-2 branch. The smoke isn't a default CI
   # hook (would burn a runner slot on every PR), but during the
@@ -207,6 +211,22 @@ jobs:
           echo "== strategy=$STRATEGY runs=$HYPERFINE_RUNS =="
           case "$STRATEGY" in
             xcode-cache)
+              # Confirmation lever: re-inject the logged-in token as TUIST_TOKEN so
+              # the CAS daemon's environmentToken() short-circuits the per-op keychain
+              # read (the suspected ~340ms/op client-side cost). Must be exported
+              # BEFORE `tuist setup cache` so the spawned daemon inherits it.
+              if [ "${ENV_TOKEN:-false}" = "true" ]; then
+                TOK=$(security find-internet-password -a "${TUIST_URL}_access_token" -w 2>/dev/null || true)
+                if [ -z "${TOK:-}" ]; then
+                  TOK=$(python3 -c 'import json,os;p=os.path.expanduser("~/.config/tuist/credentials/staging.tuist.dev.json");print(json.load(open(p))["accessToken"]) if os.path.exists(p) else ""' 2>/dev/null || true)
+                fi
+                if [ -n "${TOK:-}" ]; then
+                  export TUIST_TOKEN="$TOK"
+                  echo "TUIST_TOKEN injected (len=${#TOK}) -> environmentToken() short-circuits per-op keychain auth"
+                else
+                  echo "::warning::env_token requested but token extraction FAILED (keychain ACL?); running WITHOUT it"
+                fi
+              fi
               # Xcode CAS warmed on the host Kura; every clean rebuild resolves
               # its compilations as remote CAS hits against the host Kura.
               tuist setup cache
@@ -224,6 +244,21 @@ jobs:
               [ -n "$CAS_SOCK" ] || { echo "::error::no CAS daemon socket after tuist setup cache"; exit 1; }
               CAS="COMPILATION_CACHE_ENABLE_CACHING=YES COMPILATION_CACHE_ENABLE_PLUGIN=YES COMPILATION_CACHE_REMOTE_SERVICE_PATH=${CAS_SOCK}"
               BUILD_CAS="$BUILD_BASE $CAS"
+              # Direct evidence of where the CAS daemon spends per-op time: sample it
+              # mid-build. If stacks are dominated by SecItem/keychain, the ~340ms/op
+              # is client-side auth; if by network, it's the wire.
+              DPID=$(pgrep -f "cache-start" 2>/dev/null | head -1); [ -z "${DPID:-}" ] && DPID=$(pgrep -x tuist 2>/dev/null | head -1)
+              echo "daemon pid for sampling: ${DPID:-none}"
+              eval "$CLEAN_DD"
+              if [ -n "${DPID:-}" ]; then ( sleep 35; sample "$DPID" 12 -file /tmp/daemon.sample >/dev/null 2>&1 ) & fi
+              eval "$BUILD_CAS" >/dev/null 2>&1 || true
+              wait 2>/dev/null || true
+              if [ -f /tmp/daemon.sample ]; then
+                echo "=== daemon sample (hot path) ==="
+                echo "keychain/Security frames: $(grep -icE 'SecItem|securityd|keychain|CopyMatching' /tmp/daemon.sample)"
+                echo "network/URLSession frames: $(grep -icE 'URLSession|CFNetwork|nw_|boringssl|__recvfrom|socket' /tmp/daemon.sample)"
+                echo "-- top auth/keychain symbols --"; grep -iE 'SecItem|keychain|authenticationToken|ServerCredentials|CachedValue|Authentication' /tmp/daemon.sample | sed 's/^ *[0-9]* *//' | sort | uniq -c | sort -rn | head -8
+              fi
               hyperfine --warmup 1 --runs "$HYPERFINE_RUNS" --export-json result.json --show-output \
                 --setup "$BUILD_CAS" --prepare "$CLEAN_DD" "$BUILD_CAS" || rc=$? ;;
             module-cache)
