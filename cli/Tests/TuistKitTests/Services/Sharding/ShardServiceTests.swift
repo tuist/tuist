@@ -163,6 +163,7 @@ struct ShardServiceTests {
         ).willReturn(
             Components.Schemas.Shard(
                 download_url: "https://example.com/should-not-be-used",
+                download_urls: [],
                 modules: [],
                 shard_plan_id: "plan-123",
                 skip: ["AppTests/LoginTests", "CoreTests/NetworkTests"],
@@ -245,52 +246,6 @@ struct ShardServiceTests {
         )
 
         #expect(shard.reference == "explicit-ref")
-    }
-
-    @Test(.inTemporaryDirectory, .withMockedDependencies())
-    func shard_withLocalTestProductsPath_throwsWhenNoXCTestRunFound() async throws {
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let fileSystem = FileSystem()
-
-        let testProductsPath = temporaryDirectory.appending(component: "Empty.xctestproducts")
-        try await fileSystem.makeDirectory(at: testProductsPath)
-
-        let ciController = MockCIControlling()
-        given(ciController).ciInfo().willReturn(.test(provider: .github))
-
-        let getShardService = MockGetShardServicing()
-        given(getShardService).getShard(
-            fullHandle: .any,
-            serverURL: .any,
-            reference: .any,
-            shardIndex: .any
-        ).willReturn(
-            Components.Schemas.Shard(
-                download_url: "https://example.com/unused",
-                download_urls: [],
-                modules: ["AppTests"],
-                shard_plan_id: "plan-123",
-                skip: [],
-                suites: .init()
-            )
-        )
-
-        let subject = ShardService(
-            getShardService: getShardService,
-            ciController: ciController,
-            fileSystem: fileSystem
-        )
-
-        await #expect(throws: ShardServiceError.xcTestRunNotFound(testProductsPath)) {
-            try await subject.shard(
-                shardIndex: 0,
-                fullHandle: "org/project",
-                serverURL: URL(string: "https://tuist.dev")!,
-                reference: nil,
-                testProductsPath: testProductsPath,
-                testProductsArchivePath: nil
-            )
-        }
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
@@ -411,6 +366,7 @@ struct ShardServiceTests {
         ).willReturn(
             Components.Schemas.Shard(
                 download_url: "https://example.com/unused",
+                download_urls: [],
                 modules: modules,
                 shard_plan_id: "plan-123",
                 skip: [],

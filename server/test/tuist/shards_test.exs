@@ -105,6 +105,7 @@ defmodule Tuist.ShardsTest do
         shard_max: 2
       }
 
+      stub(Tuist.Storage, :object_exists?, fn _key, _account -> false end)
       stub(Tuist.Storage, :generate_download_url, fn _key, _account -> "https://download.example.com" end)
 
       result = Shards.create_shard_plan(project, params)
@@ -786,6 +787,8 @@ defmodule Tuist.ShardsTest do
         module_name: "AppTests",
         test_suite_name: "SignupTests"
       )
+
+      stub(Tuist.Storage, :object_exists?, fn _key, _account -> false end)
 
       stub(Tuist.Storage, :generate_download_url, fn _key, _account ->
         "https://download.example.com"
