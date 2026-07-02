@@ -38,6 +38,31 @@ defmodule TuistWeb.API.ShardsControllerTest do
       assert is_list(response["shards"])
     end
 
+    test "creates suite-granularity shard plan when the client does not enumerate suites", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards",
+          %{
+            reference: "github-123-suite",
+            modules: ["AppTests", "CoreTests"],
+            granularity: "suite",
+            shard_max: 2
+          }
+        )
+
+      response = json_response(conn, :ok)
+      assert response["reference"] == "github-123-suite"
+      assert is_integer(response["shard_count"])
+      assert is_list(response["shards"])
+    end
+
     test "returns upload start URL", %{conn: conn, user: user, project: project} do
       conn =
         conn
