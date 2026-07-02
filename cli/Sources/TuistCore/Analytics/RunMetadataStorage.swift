@@ -65,9 +65,9 @@ public actor RunMetadataStorage {
     /// the remote cache storage for every artifact downloaded from or uploaded to the remote cache,
     /// and reported so the server can surface module cache network analytics (transfer, latency,
     /// throughput) alongside the compilation cache.
-    public private(set) var moduleCacheTransfers: [ModuleCacheTransfer] = []
-    public func add(moduleCacheTransfer: ModuleCacheTransfer) {
-        moduleCacheTransfers.append(moduleCacheTransfer)
+    public private(set) var moduleCacheOutputs: [ModuleCacheOutput] = []
+    public func add(moduleCacheOutput: ModuleCacheOutput) {
+        moduleCacheOutputs.append(moduleCacheOutput)
     }
 
     /// Target content hash subhashes keyed by hash. Multiple graph mappers (binary cache, selective

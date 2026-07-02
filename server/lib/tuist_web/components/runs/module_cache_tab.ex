@@ -20,7 +20,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
   attr :available_filters, :list, required: true
   attr :binary_cache_active_filters, :list, required: true
 
-  attr :module_cache_transfer_summary, :map,
+  attr :module_cache_metrics, :map,
     default: nil,
     doc: "Per-run module cache network transfer summary (download/upload bytes + throughput), or nil."
 
@@ -72,35 +72,29 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
             id="widget-optimization-summary-cache-hit-rate"
           />
           <.widget
-            :if={@module_cache_transfer_summary && @module_cache_transfer_summary.download_bytes > 0}
+            :if={@module_cache_metrics && @module_cache_metrics.download_bytes > 0}
             title={dgettext("dashboard_builds", "Downloaded")}
             description={
               dgettext(
                 "dashboard_builds",
                 "Total size of modules downloaded from the remote cache during this run (%{count} artifacts).",
-                count: @module_cache_transfer_summary.download_count
+                count: @module_cache_metrics.download_count
               )
             }
-            value={
-              Tuist.Utilities.ByteFormatter.format_bytes(
-                @module_cache_transfer_summary.download_bytes
-              )
-            }
+            value={Tuist.Utilities.ByteFormatter.format_bytes(@module_cache_metrics.download_bytes)}
             id="widget-optimization-summary-module-cache-downloaded"
           />
           <.widget
-            :if={@module_cache_transfer_summary && @module_cache_transfer_summary.upload_bytes > 0}
+            :if={@module_cache_metrics && @module_cache_metrics.upload_bytes > 0}
             title={dgettext("dashboard_builds", "Uploaded")}
             description={
               dgettext(
                 "dashboard_builds",
                 "Total size of modules uploaded to the remote cache during this run (%{count} artifacts).",
-                count: @module_cache_transfer_summary.upload_count
+                count: @module_cache_metrics.upload_count
               )
             }
-            value={
-              Tuist.Utilities.ByteFormatter.format_bytes(@module_cache_transfer_summary.upload_bytes)
-            }
+            value={Tuist.Utilities.ByteFormatter.format_bytes(@module_cache_metrics.upload_bytes)}
             id="widget-optimization-summary-module-cache-uploaded"
           />
         </.card_section>
@@ -157,14 +151,14 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
           </.card_section>
           <div
             :if={
-              @module_cache_transfer_summary &&
-                (@module_cache_transfer_summary.download_throughput > 0 or
-                   @module_cache_transfer_summary.upload_throughput > 0)
+              @module_cache_metrics &&
+                (@module_cache_metrics.download_throughput > 0 or
+                   @module_cache_metrics.upload_throughput > 0)
             }
             data-part="throughput-widgets"
           >
             <.widget
-              :if={@module_cache_transfer_summary.download_throughput > 0}
+              :if={@module_cache_metrics.download_throughput > 0}
               title={dgettext("dashboard_builds", "Download throughput")}
               description={
                 dgettext(
@@ -174,13 +168,13 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
               }
               value={
                 Tuist.Utilities.ThroughputFormatter.format_throughput(
-                  @module_cache_transfer_summary.download_throughput
+                  @module_cache_metrics.download_throughput
                 )
               }
               id="widget-module-cache-download-throughput"
             />
             <.widget
-              :if={@module_cache_transfer_summary.upload_throughput > 0}
+              :if={@module_cache_metrics.upload_throughput > 0}
               title={dgettext("dashboard_builds", "Upload throughput")}
               description={
                 dgettext(
@@ -190,7 +184,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
               }
               value={
                 Tuist.Utilities.ThroughputFormatter.format_throughput(
-                  @module_cache_transfer_summary.upload_throughput
+                  @module_cache_metrics.upload_throughput
                 )
               }
               id="widget-module-cache-upload-throughput"

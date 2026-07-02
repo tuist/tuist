@@ -63,7 +63,7 @@ public struct CommandEventFactory {
             testRunId: info.testRunId,
             generationId: info.generationId,
             cacheEndpoint: info.cacheEndpoint,
-            moduleCacheTransfers: info.moduleCacheTransfers
+            moduleCacheOutputs: info.moduleCacheOutputs
         )
     }
 

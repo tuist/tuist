@@ -20934,40 +20934,40 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/macos_version`.
                     public var macos_version: Swift.String
-                    /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/module_cache_transfersPayload`.
-                    public struct module_cache_transfersPayloadPayload: Codable, Hashable, Sendable {
+                    /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/module_cache_outputsPayload`.
+                    public struct module_cache_outputsPayloadPayload: Codable, Hashable, Sendable {
                         /// Number of bytes transferred over the wire (compressed payload).
                         ///
-                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/module_cache_transfersPayload/compressed_size`.
+                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/module_cache_outputsPayload/compressed_size`.
                         public var compressed_size: Swift.Int
                         /// Duration of this single transfer operation, in milliseconds.
                         ///
-                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/module_cache_transfersPayload/duration`.
+                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/module_cache_outputsPayload/duration`.
                         public var duration: Swift.Int
                         /// Content hash of the cached artifact.
                         ///
-                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/module_cache_transfersPayload/hash`.
+                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/module_cache_outputsPayload/hash`.
                         public var hash: Swift.String
                         /// Name of the target the artifact belongs to.
                         ///
-                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/module_cache_transfersPayload/name`.
+                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/module_cache_outputsPayload/name`.
                         public var name: Swift.String
                         /// Whether the artifact was downloaded from or uploaded to the remote module cache.
                         ///
-                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/module_cache_transfersPayload/operation`.
+                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/module_cache_outputsPayload/operation`.
                         @frozen public enum operationPayload: String, Codable, Hashable, Sendable, CaseIterable {
                             case download = "download"
                             case upload = "upload"
                         }
                         /// Whether the artifact was downloaded from or uploaded to the remote module cache.
                         ///
-                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/module_cache_transfersPayload/operation`.
-                        public var operation: Operations.createCommandEvent.Input.Body.jsonPayload.module_cache_transfersPayloadPayload.operationPayload
+                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/module_cache_outputsPayload/operation`.
+                        public var operation: Operations.createCommandEvent.Input.Body.jsonPayload.module_cache_outputsPayloadPayload.operationPayload
                         /// Size of the artifact on disk, in bytes.
                         ///
-                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/module_cache_transfersPayload/size`.
+                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/module_cache_outputsPayload/size`.
                         public var size: Swift.Int
-                        /// Creates a new `module_cache_transfersPayloadPayload`.
+                        /// Creates a new `module_cache_outputsPayloadPayload`.
                         ///
                         /// - Parameters:
                         ///   - compressed_size: Number of bytes transferred over the wire (compressed payload).
@@ -20981,7 +20981,7 @@ public enum Operations {
                             duration: Swift.Int,
                             hash: Swift.String,
                             name: Swift.String,
-                            operation: Operations.createCommandEvent.Input.Body.jsonPayload.module_cache_transfersPayloadPayload.operationPayload,
+                            operation: Operations.createCommandEvent.Input.Body.jsonPayload.module_cache_outputsPayloadPayload.operationPayload,
                             size: Swift.Int
                         ) {
                             self.compressed_size = compressed_size
@@ -21002,12 +21002,12 @@ public enum Operations {
                     }
                     /// Per-artifact module (binary) cache transfer operations performed during the command, used for module cache network analytics.
                     ///
-                    /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/module_cache_transfers`.
-                    public typealias module_cache_transfersPayload = [Operations.createCommandEvent.Input.Body.jsonPayload.module_cache_transfersPayloadPayload]
+                    /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/module_cache_outputs`.
+                    public typealias module_cache_outputsPayload = [Operations.createCommandEvent.Input.Body.jsonPayload.module_cache_outputsPayloadPayload]
                     /// Per-artifact module (binary) cache transfer operations performed during the command, used for module cache network analytics.
                     ///
-                    /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/module_cache_transfers`.
-                    public var module_cache_transfers: Operations.createCommandEvent.Input.Body.jsonPayload.module_cache_transfersPayload?
+                    /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/module_cache_outputs`.
+                    public var module_cache_outputs: Operations.createCommandEvent.Input.Body.jsonPayload.module_cache_outputsPayload?
                     /// The name of the command.
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/name`.
@@ -21702,7 +21702,7 @@ public enum Operations {
                     ///   - id: Optional client-provided UUID for the command event. `tuist generate` sets this so a later local Xcode build can reference the generation's graph by command event id; when omitted the server assigns one.
                     ///   - is_ci: Whether the command was run in a CI environment.
                     ///   - macos_version: The version of macOS that ran the command.
-                    ///   - module_cache_transfers: Per-artifact module (binary) cache transfer operations performed during the command, used for module cache network analytics.
+                    ///   - module_cache_outputs: Per-artifact module (binary) cache transfer operations performed during the command, used for module cache network analytics.
                     ///   - name: The name of the command.
                     ///   - params: Extra parameters.
                     ///   - preview_id: The preview identifier.
@@ -21727,7 +21727,7 @@ public enum Operations {
                         id: Swift.String? = nil,
                         is_ci: Swift.Bool,
                         macos_version: Swift.String,
-                        module_cache_transfers: Operations.createCommandEvent.Input.Body.jsonPayload.module_cache_transfersPayload? = nil,
+                        module_cache_outputs: Operations.createCommandEvent.Input.Body.jsonPayload.module_cache_outputsPayload? = nil,
                         name: Swift.String,
                         params: Operations.createCommandEvent.Input.Body.jsonPayload.paramsPayload? = nil,
                         preview_id: Swift.String? = nil,
@@ -21752,7 +21752,7 @@ public enum Operations {
                         self.id = id
                         self.is_ci = is_ci
                         self.macos_version = macos_version
-                        self.module_cache_transfers = module_cache_transfers
+                        self.module_cache_outputs = module_cache_outputs
                         self.name = name
                         self.params = params
                         self.preview_id = preview_id
@@ -21778,7 +21778,7 @@ public enum Operations {
                         case id
                         case is_ci
                         case macos_version
-                        case module_cache_transfers
+                        case module_cache_outputs
                         case name
                         case params
                         case preview_id

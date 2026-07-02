@@ -1,4 +1,4 @@
-defmodule Tuist.IngestRepo.Migrations.CreateModuleCacheOutputs do
+defmodule Tuist.IngestRepo.Migrations.CreateModuleCacheOutputsTable do
   use Ecto.Migration
 
   def change do

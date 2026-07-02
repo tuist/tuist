@@ -283,7 +283,7 @@ defmodule Tuist.CommandEvents do
   average download/upload throughput (bytes per second). Mirrors `Tuist.Builds.cas_output_metrics/1`
   but keyed by `command_event_id`. Used to surface per-run transfer cost on the run detail page.
   """
-  def module_cache_transfer_summary(command_event_id) do
+  def module_cache_output_metrics(command_event_id) do
     {:ok,
      %{
        rows: [

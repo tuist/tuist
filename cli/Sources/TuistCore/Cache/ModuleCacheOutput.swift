@@ -6,7 +6,7 @@ import Foundation
 /// (transfer volume, latency, throughput) reuse the same generic surface as the
 /// compilation cache. Emitted by the remote cache storage for every artifact
 /// downloaded from or uploaded to the remote module cache.
-public struct ModuleCacheTransfer: Codable, Hashable, Sendable {
+public struct ModuleCacheOutput: Codable, Hashable, Sendable {
     public enum Operation: String, Codable, Hashable, Sendable {
         case download, upload
     }

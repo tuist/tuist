@@ -9209,7 +9209,7 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
-                module_cache_transfers:
+                module_cache_outputs:
                   description: Per-artifact module (binary) cache transfer operations performed during the command, used for module cache network analytics.
                   items:
                     properties:

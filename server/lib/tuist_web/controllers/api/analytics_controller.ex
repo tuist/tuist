@@ -190,7 +190,7 @@ defmodule TuistWeb.API.AnalyticsController do
              type: :string,
              description: "The cache endpoint URL used for this command (regional module cache)."
            },
-           module_cache_transfers: %Schema{
+           module_cache_outputs: %Schema{
              type: :array,
              description:
                "Per-artifact module (binary) cache transfer operations performed during the command, used for module cache network analytics.",
@@ -525,10 +525,10 @@ defmodule TuistWeb.API.AnalyticsController do
       Xcode.create_xcode_graph(%{command_event: command_event, xcode_graph: xcode_graph})
     end
 
-    module_cache_transfers = Map.get(body_params, :module_cache_transfers, [])
+    module_cache_outputs = Map.get(body_params, :module_cache_outputs, [])
 
-    if module_cache_transfers != [] do
-      CommandEvents.create_module_cache_outputs(command_event, module_cache_transfers)
+    if module_cache_outputs != [] do
+      CommandEvents.create_module_cache_outputs(command_event, module_cache_outputs)
     end
 
     if Enum.member?(["test", "share", "bundle"], body_params.name) do

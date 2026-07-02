@@ -2187,7 +2187,7 @@ defmodule Tuist.CommandEventsTest do
     end
   end
 
-  describe "module_cache_transfer_summary/1" do
+  describe "module_cache_output_metrics/1" do
     test "returns download/upload bytes, counts, and throughput for a command event" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -2200,7 +2200,7 @@ defmodule Tuist.CommandEventsTest do
       ])
 
       # When
-      summary = CommandEvents.module_cache_transfer_summary(command_event.id)
+      summary = CommandEvents.module_cache_output_metrics(command_event.id)
 
       # Then
       assert summary.download_bytes == 4000
@@ -2217,7 +2217,7 @@ defmodule Tuist.CommandEventsTest do
       command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
 
       # When
-      summary = CommandEvents.module_cache_transfer_summary(command_event.id)
+      summary = CommandEvents.module_cache_output_metrics(command_event.id)
 
       # Then
       assert summary.download_bytes == 0
