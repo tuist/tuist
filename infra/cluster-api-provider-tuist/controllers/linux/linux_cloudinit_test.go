@@ -100,6 +100,36 @@ func TestRenderLinuxCloudInit_DockerHubMirror(t *testing.T) {
 	}
 }
 
+func TestRenderLinux_LockupHardening(t *testing.T) {
+	// Both render forms must harden bare-metal boxes so a silent kernel lockup
+	// auto-reboots instead of stranding the node NotReady forever (which drops the
+	// observability node-exporter DaemonSet below full availability and wedges every
+	// deploy). Assert the panic sysctls and the systemd hardware watchdog land in
+	// the cloud-init (Instance) and SSH (Elastic Metal) forms alike, since both
+	// share bootstrapBody.
+	cloudInit := renderLinuxCloudInit("node-a", "apiVersion: v1\nkind: Config\n", "v1.34", nil)
+	script := renderLinuxBootstrapScript(linuxCloudInitOptions{
+		NodeName:       "node-a",
+		KubeconfigYAML: "apiVersion: v1\nkind: Config\n",
+		K8sMinor:       "v1.34",
+		BootstrapUser:  "ubuntu",
+	})
+	for _, out := range []string{cloudInit, script} {
+		for _, want := range []string{
+			"/etc/sysctl.d/99-tuist-hardening.conf",
+			"kernel.softlockup_panic = 1",
+			"kernel.panic = 10",
+			"/etc/systemd/system.conf.d/10-tuist-watchdog.conf",
+			"RuntimeWatchdogSec=30s",
+			"systemctl daemon-reexec",
+		} {
+			if !strings.Contains(out, want) {
+				t.Fatalf("expected lockup hardening to contain %q, got:\n%s", want, out)
+			}
+		}
+	}
+}
+
 func TestRenderLinuxCloudInit_ClusterDNS(t *testing.T) {
 	with := renderLinuxCloudInitWithOptions(linuxCloudInitOptions{
 		NodeName:       "node-a",
