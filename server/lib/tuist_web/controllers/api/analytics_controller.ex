@@ -190,6 +190,47 @@ defmodule TuistWeb.API.AnalyticsController do
              type: :string,
              description: "The cache endpoint URL used for this command (regional module cache)."
            },
+           module_cache_transfers: %Schema{
+             type: :array,
+             description:
+               "Per-artifact module (binary) cache transfer operations performed during the command, used for module cache network analytics.",
+             items: %Schema{
+               type: :object,
+               required: [:operation, :name, :hash, :size, :compressed_size, :duration],
+               properties: %{
+                 operation: %Schema{
+                   type: :string,
+                   enum: ["download", "upload"],
+                   description: "Whether the artifact was downloaded from or uploaded to the remote module cache."
+                 },
+                 name: %Schema{
+                   type: :string,
+                   description: "Name of the target the artifact belongs to."
+                 },
+                 hash: %Schema{
+                   type: :string,
+                   description: "Content hash of the cached artifact."
+                 },
+                 size: %Schema{
+                   type: :integer,
+                   description: "Size of the artifact on disk, in bytes."
+                 },
+                 compressed_size: %Schema{
+                   type: :integer,
+                   description: "Number of bytes transferred over the wire (compressed payload)."
+                 },
+                 duration: %Schema{
+                   type: :integer,
+                   description: "Duration of this single transfer operation, in milliseconds."
+                 }
+               }
+             }
+           },
+           module_cache_transfer_duration_ms: %Schema{
+             type: :integer,
+             description:
+               "Wall-clock time the command spent transferring module cache artifacts, in milliseconds. Reported as the run's overall module cache fetch time."
+           },
            preview_id: %Schema{
              type: :string,
              description: "The preview identifier."
@@ -488,6 +529,17 @@ defmodule TuistWeb.API.AnalyticsController do
     if not is_nil(xcode_graph) do
       Xcode.create_xcode_graph(%{command_event: command_event, xcode_graph: xcode_graph})
     end
+
+    module_cache_transfers = Map.get(body_params, :module_cache_transfers, [])
+
+    if module_cache_transfers != [] do
+      CommandEvents.create_module_cache_outputs(command_event, module_cache_transfers)
+    end
+
+    CommandEvents.create_module_cache_transfer_duration(
+      command_event,
+      Map.get(body_params, :module_cache_transfer_duration_ms)
+    )
 
     if Enum.member?(["test", "share", "bundle"], body_params.name) do
       VCS.enqueue_vcs_pull_request_comment(%{

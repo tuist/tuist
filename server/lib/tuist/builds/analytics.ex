@@ -1301,7 +1301,94 @@ defmodule Tuist.Builds.Analytics do
   end
 
   def cas_analytics(project_id, opts \\ []) do
-    action_metrics = cas_action_metrics_by_action(project_id, opts)
+    transfer_analytics("cas_outputs", project_id, opts)
+  end
+
+  @doc """
+  Gets module (binary) cache network analytics: transfer volume, latency, and throughput, each split
+  by download/upload. Mirrors `cas_analytics/2` but reads `module_cache_outputs`, so the module cache
+  reuses the same generic transfer surface as the compilation cache.
+  """
+  def module_cache_analytics(project_id, opts \\ []) do
+    transfer_analytics("module_cache_outputs", project_id, opts)
+  end
+
+  @doc """
+  Gets the module (binary) cache overall fetch-time analytics: the average wall-clock time a command
+  spent transferring module cache artifacts, bucketed over the period, with a trend versus the
+  previous period. This is the run-level span the per-operation `module_cache_outputs` durations
+  cannot be summed into, since transfers run concurrently.
+  """
+  def module_cache_transfer_duration_analytics(project_id, opts \\ []) do
+    {start_datetime, end_datetime, days_delta, date_period, interval_str} =
+      cas_analytics_period(opts)
+
+    previous_start_datetime = DateTime.add(start_datetime, -days_delta, :day)
+
+    %{rows: rows} =
+      ClickHouseRepo.query!(
+        """
+        SELECT
+          if(d.inserted_at >= {start_dt:DateTime}, 'current', 'previous') AS period_kind,
+          if(
+            d.inserted_at >= {start_dt:DateTime},
+            toStartOfInterval(toDateTime(d.inserted_at), INTERVAL #{interval_str}, 'UTC'),
+            toDateTime(0)
+          ) AS period,
+          SUM(d.duration_ms) AS total_duration_ms,
+          COUNT() AS event_count
+        FROM module_cache_transfer_durations AS d
+        WHERE d.project_id = {project_id:Int64}
+          AND d.inserted_at >= {previous_start_dt:DateTime}
+          AND d.inserted_at <= {end_dt:DateTime}
+        GROUP BY period_kind, period
+        ORDER BY period_kind, period
+        """,
+        %{
+          project_id: project_id,
+          previous_start_dt: previous_start_datetime,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        }
+      )
+
+    current_rows = Enum.filter(rows, fn [period_kind | _] -> period_kind == "current" end)
+    previous_rows = Enum.filter(rows, fn [period_kind | _] -> period_kind == "previous" end)
+
+    parsed_rows =
+      Enum.map(current_rows, fn [_period_kind, date, total_duration_ms, event_count] ->
+        %{date: date, duration: total_duration_ms || 0, count: event_count || 0}
+      end)
+
+    duration_series = fill_cas_series(parsed_rows, :duration, start_datetime, end_datetime, date_period)
+    count_series = fill_cas_series(parsed_rows, :count, start_datetime, end_datetime, date_period)
+
+    avg_values =
+      duration_series
+      |> Enum.zip(count_series)
+      |> Enum.map(fn {dur, count} -> safe_div(dur, count) end)
+
+    {current_total, current_count} = duration_rows_totals(current_rows)
+    {previous_total, previous_count} = duration_rows_totals(previous_rows)
+    current_avg = safe_div(current_total, current_count)
+    previous_avg = safe_div(previous_total, previous_count)
+
+    %{
+      dates: cas_series_dates(start_datetime, end_datetime, date_period),
+      values: avg_values,
+      total: current_avg,
+      trend: trend(previous_value: previous_avg, current_value: current_avg)
+    }
+  end
+
+  defp duration_rows_totals(rows) do
+    Enum.reduce(rows, {0, 0}, fn [_period_kind, _period, total_duration_ms, event_count], {sum, count} ->
+      {sum + (total_duration_ms || 0), count + (event_count || 0)}
+    end)
+  end
+
+  defp transfer_analytics(table, project_id, opts) do
+    action_metrics = transfer_metrics_by_action(table, project_id, opts)
     downloads = Map.fetch!(action_metrics, "download")
     uploads = Map.fetch!(action_metrics, "upload")
 
@@ -1323,19 +1410,23 @@ defmodule Tuist.Builds.Analytics do
   end
 
   defp cas_action_metrics(project_id, action, opts) do
-    project_id
-    |> cas_action_metrics_by_action(opts)
+    "cas_outputs"
+    |> transfer_metrics_by_action(project_id, opts)
     |> Map.fetch!(action)
   end
 
-  defp cas_action_metrics_by_action(project_id, opts) do
+  # Aggregates transfer (download/upload) metrics per action for a cache-transfer table sharing the
+  # `cas_outputs` column shape (operation, project_id, size, duration, inserted_at). Both the
+  # compilation cache (`cas_outputs`) and the module cache (`module_cache_outputs`) reuse this so the
+  # transfer/latency/throughput surface stays generic across cache layers.
+  defp transfer_metrics_by_action(table, project_id, opts) do
     {start_datetime, end_datetime, days_delta, date_period, interval_str} =
       cas_analytics_period(opts)
 
     previous_start_datetime = DateTime.add(start_datetime, -days_delta, :day)
 
     rows =
-      cas_action_metrics_rows(project_id, previous_start_datetime, start_datetime, end_datetime, interval_str)
+      transfer_metrics_rows(table, project_id, previous_start_datetime, start_datetime, end_datetime, interval_str)
 
     rows_by_action = Enum.group_by(rows, fn [action | _] -> action end)
 
@@ -1409,7 +1500,7 @@ defmodule Tuist.Builds.Analytics do
     end)
   end
 
-  defp cas_action_metrics_rows(project_id, previous_start_datetime, start_datetime, end_datetime, interval_str) do
+  defp transfer_metrics_rows(table, project_id, previous_start_datetime, start_datetime, end_datetime, interval_str) do
     %{rows: rows} =
       ClickHouseRepo.query!(
         """
@@ -1424,7 +1515,7 @@ defmodule Tuist.Builds.Analytics do
           SUM(co.size) as total_size,
           SUM(co.duration) as total_duration_ms,
           COUNT() as event_count
-        FROM cas_outputs AS co
+        FROM #{table} AS co
         WHERE co.project_id = {project_id:Int64}
           AND co.operation IN ('download', 'upload')
           AND co.inserted_at >= {previous_start_dt:DateTime}

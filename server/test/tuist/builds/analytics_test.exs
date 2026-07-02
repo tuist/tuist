@@ -2911,4 +2911,116 @@ defmodule Tuist.Builds.AnalyticsTest do
       assert Enum.map(got.dates, &Date.to_iso8601/1) == ["2024-04-01", "2024-05-01", "2024-06-01"]
     end
   end
+
+  describe "module_cache_analytics/2" do
+    test "returns module cache transfer, latency, and throughput split by download and upload" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-06-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      command_event_one = UUIDv7.generate()
+      command_event_two = UUIDv7.generate()
+      command_event_three = UUIDv7.generate()
+
+      IngestRepo.query!(
+        """
+        INSERT INTO module_cache_outputs
+          (command_event_id, project_id, operation, name, hash, size, compressed_size, duration, inserted_at)
+        VALUES
+          ({c1:UUID}, {pid:Int64}, 'download', 'A', 'h1', 1000, 500,  100, toDateTime('2024-06-15 12:00:00')),
+          ({c2:UUID}, {pid:Int64}, 'download', 'B', 'h2', 3000, 1500, 300, toDateTime('2024-06-16 12:00:00')),
+          ({c3:UUID}, {pid:Int64}, 'upload',   'C', 'h3', 2000, 1000, 200, toDateTime('2024-06-17 12:00:00'))
+        """,
+        %{pid: project.id, c1: command_event_one, c2: command_event_two, c3: command_event_three}
+      )
+
+      # When
+      got =
+        Analytics.module_cache_analytics(project.id,
+          start_datetime: ~U[2024-06-01 00:00:00Z],
+          end_datetime: ~U[2024-06-30 00:00:00Z]
+        )
+
+      # Then
+      assert got.transfer.total == 6000
+      assert got.transfer.downloads.total == 4000
+      assert got.transfer.uploads.total == 2000
+      assert got.latency.total == 200.0
+      assert got.latency.downloads.total == 200.0
+      assert got.latency.uploads.total == 200.0
+      assert got.throughput.total == 10_000.0
+    end
+
+    test "only aggregates rows for the given project" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-06-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+
+      IngestRepo.query!(
+        """
+        INSERT INTO module_cache_outputs
+          (command_event_id, project_id, operation, name, hash, size, compressed_size, duration, inserted_at)
+        VALUES
+          ({c1:UUID}, {other_pid:Int64}, 'download', 'A', 'h1', 9999, 9999, 999, toDateTime('2024-06-15 12:00:00'))
+        """,
+        %{other_pid: other_project.id, c1: UUIDv7.generate()}
+      )
+
+      # When
+      got =
+        Analytics.module_cache_analytics(project.id,
+          start_datetime: ~U[2024-06-01 00:00:00Z],
+          end_datetime: ~U[2024-06-30 00:00:00Z]
+        )
+
+      # Then
+      assert got.transfer.total == 0
+    end
+  end
+
+  describe "module_cache_transfer_duration_analytics/2" do
+    test "returns the average overall module cache fetch time for the period" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-06-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      IngestRepo.query!(
+        """
+        INSERT INTO module_cache_transfer_durations
+          (command_event_id, project_id, duration_ms, inserted_at)
+        VALUES
+          ({c1:UUID}, {pid:Int64}, 5000, toDateTime('2024-06-15 12:00:00')),
+          ({c2:UUID}, {pid:Int64}, 7000, toDateTime('2024-06-16 12:00:00'))
+        """,
+        %{pid: project.id, c1: UUIDv7.generate(), c2: UUIDv7.generate()}
+      )
+
+      # When
+      got =
+        Analytics.module_cache_transfer_duration_analytics(project.id,
+          start_datetime: ~U[2024-06-01 00:00:00Z],
+          end_datetime: ~U[2024-06-30 00:00:00Z]
+        )
+
+      # Then
+      assert got.total == 6000.0
+    end
+
+    test "returns a zero total when there are no transfers" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-06-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      got =
+        Analytics.module_cache_transfer_duration_analytics(project.id,
+          start_datetime: ~U[2024-06-01 00:00:00Z],
+          end_datetime: ~U[2024-06-30 00:00:00Z]
+        )
+
+      # Then
+      assert got.total == 0
+    end
+  end
 end

@@ -227,6 +227,99 @@
         selected={@analytics_selected_widget == "cache_misses"}
         empty={@misses_analytics.ok? && @misses_analytics.result.total_count == 0}
       />
+      <.widget
+        loading={!@transfer_analytics.ok?}
+        title={dgettext("dashboard_cache", "Transfer")}
+        legend_color="secondary"
+        description={
+          if @transfer_analytics.ok? do
+            dgettext(
+              "dashboard_cache",
+              "Total size of module cache artifacts transferred to and from remote storage during the given period. Downloaded %{downloaded}, uploaded %{uploaded}.",
+              downloaded: ByteFormatter.format_bytes(@transfer_analytics.result.downloads.total),
+              uploaded: ByteFormatter.format_bytes(@transfer_analytics.result.uploads.total)
+            )
+          end
+        }
+        value={
+          if @transfer_analytics.ok?,
+            do: ByteFormatter.format_bytes(@transfer_analytics.result.total)
+        }
+        id="widget-module-cache-transfer"
+        trend_value={if @transfer_analytics.ok?, do: @transfer_analytics.result.trend}
+        trend_type={:neutral}
+        trend_label={@analytics_trend_label}
+        empty={@transfer_analytics.ok? && @transfer_analytics.result.total == 0}
+      />
+      <.widget
+        loading={!@latency_analytics.ok?}
+        title={dgettext("dashboard_cache", "Latency")}
+        legend_color="p90"
+        description={
+          dgettext(
+            "dashboard_cache",
+            "Average time to transfer a single module cache artifact to or from remote storage during the given period."
+          )
+        }
+        value={
+          if @latency_analytics.ok?,
+            do:
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @latency_analytics.result.total
+              )
+        }
+        id="widget-module-cache-latency"
+        trend_value={if @latency_analytics.ok?, do: @latency_analytics.result.trend}
+        trend_type={:inverse}
+        trend_label={@analytics_trend_label}
+        empty={@latency_analytics.ok? && @latency_analytics.result.total == 0}
+      />
+      <.widget
+        loading={!@throughput_analytics.ok?}
+        title={dgettext("dashboard_cache", "Throughput")}
+        legend_color="flaky"
+        description={
+          dgettext(
+            "dashboard_cache",
+            "Average module cache transfer throughput to and from remote storage during the given period."
+          )
+        }
+        value={
+          if @throughput_analytics.ok?,
+            do:
+              Tuist.Utilities.ThroughputFormatter.format_throughput(
+                @throughput_analytics.result.total
+              )
+        }
+        id="widget-module-cache-throughput"
+        trend_value={if @throughput_analytics.ok?, do: @throughput_analytics.result.trend}
+        trend_type={:regular}
+        trend_label={@analytics_trend_label}
+        empty={@throughput_analytics.ok? && @throughput_analytics.result.total == 0}
+      />
+      <.widget
+        loading={!@fetch_duration_analytics.ok?}
+        title={dgettext("dashboard_cache", "Fetch time")}
+        legend_color="p50"
+        description={
+          dgettext(
+            "dashboard_cache",
+            "Average overall wall-clock time a command spent fetching module cache artifacts from remote storage during the given period."
+          )
+        }
+        value={
+          if @fetch_duration_analytics.ok?,
+            do:
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @fetch_duration_analytics.result.total
+              )
+        }
+        id="widget-module-cache-fetch-time"
+        trend_value={if @fetch_duration_analytics.ok?, do: @fetch_duration_analytics.result.trend}
+        trend_type={:inverse}
+        trend_label={@analytics_trend_label}
+        empty={@fetch_duration_analytics.ok? && @fetch_duration_analytics.result.total == 0}
+      />
     </div>
     <.card_section :if={
       (@analytics_selected_widget == "cache_hit_rate" and

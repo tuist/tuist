@@ -2157,4 +2157,67 @@ defmodule Tuist.CommandEventsTest do
       assert got == 50.0
     end
   end
+
+  describe "create_module_cache_outputs/2 and create_module_cache_transfer_duration/2" do
+    test "persist per-artifact module cache transfers and the overall fetch time" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      transfers = [
+        %{operation: "download", name: "A", hash: "h1", size: 1000, compressed_size: 500, duration: 100},
+        %{operation: "upload", name: "B", hash: "h2", size: 2000, compressed_size: 1000, duration: 200}
+      ]
+
+      # When
+      CommandEvents.create_module_cache_outputs(command_event, transfers)
+      CommandEvents.create_module_cache_transfer_duration(command_event, 8000)
+
+      # Then
+      %{rows: [[transfer_count, download_count, upload_count]]} =
+        Tuist.IngestRepo.query!(
+          """
+          SELECT count(), countIf(operation = 'download'), countIf(operation = 'upload')
+          FROM module_cache_outputs
+          WHERE command_event_id = {ce:UUID}
+          """,
+          %{ce: command_event.id}
+        )
+
+      assert transfer_count == 2
+      assert download_count == 1
+      assert upload_count == 1
+
+      %{rows: [[duration_count, total_duration]]} =
+        Tuist.IngestRepo.query!(
+          """
+          SELECT count(), sum(duration_ms)
+          FROM module_cache_transfer_durations
+          WHERE command_event_id = {ce:UUID}
+          """,
+          %{ce: command_event.id}
+        )
+
+      assert duration_count == 1
+      assert total_duration == 8000
+    end
+
+    test "create_module_cache_transfer_duration/2 is a no-op when the duration is nil" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      # When
+      assert :ok == CommandEvents.create_module_cache_transfer_duration(command_event, nil)
+
+      # Then
+      %{rows: [[count]]} =
+        Tuist.IngestRepo.query!(
+          "SELECT count() FROM module_cache_transfer_durations WHERE command_event_id = {ce:UUID}",
+          %{ce: command_event.id}
+        )
+
+      assert count == 0
+    end
+  end
 end

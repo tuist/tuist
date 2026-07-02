@@ -15,6 +15,7 @@ defmodule TuistWeb.ModuleCacheLive do
   alias Tuist.Builds.Analytics
   alias Tuist.CommandEvents
   alias Tuist.CommandEvents.Event
+  alias Tuist.Utilities.ByteFormatter
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
@@ -185,6 +186,20 @@ defmodule TuistWeb.ModuleCacheLive do
       {:ok, %{hit_rate_p50: Analytics.module_cache_hit_rate_percentile(project.id, 0.5, opts)}}
     end)
     |> assign_cache_hit_rate_chart(cache_hit_rate_chart_type, opts)
+    |> assign_async(
+      [:transfer_analytics, :latency_analytics, :throughput_analytics, :fetch_duration_analytics],
+      fn ->
+        network = Analytics.module_cache_analytics(project.id, opts)
+
+        {:ok,
+         %{
+           transfer_analytics: network.transfer,
+           latency_analytics: network.latency,
+           throughput_analytics: network.throughput,
+           fetch_duration_analytics: Analytics.module_cache_transfer_duration_analytics(project.id, opts)
+         }}
+      end
+    )
   end
 
   defp assign_cache_hit_rate_chart(socket, "scatter", opts) do

@@ -9,6 +9,8 @@ defmodule Tuist.CommandEvents do
   alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents.Event
+  alias Tuist.CommandEvents.ModuleCacheOutput
+  alias Tuist.CommandEvents.ModuleCacheTransferDuration
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
@@ -245,6 +247,52 @@ defmodule Tuist.CommandEvents do
     )
 
     command_event
+  end
+
+  @doc """
+  Persists per-artifact module (binary) cache transfer operations for a command event.
+
+  Mirrors `Tuist.Builds.create_cas_outputs/2` but keys the rows by `command_event_id`,
+  since module cache artifacts are fetched during `tuist generate`, before any build run
+  exists. Writes are buffered and flushed asynchronously to ClickHouse.
+  """
+  def create_module_cache_outputs(command_event, transfers) do
+    rows =
+      transfers
+      |> Enum.map(&ModuleCacheOutput.changeset(command_event.id, command_event.project_id, &1))
+      |> Enum.map(&Ecto.Changeset.apply_changes/1)
+      |> Enum.map(fn struct ->
+        %{
+          command_event_id: struct.command_event_id,
+          project_id: struct.project_id,
+          operation: struct.operation,
+          name: struct.name,
+          hash: struct.hash,
+          size: struct.size,
+          compressed_size: struct.compressed_size,
+          duration: struct.duration,
+          inserted_at: struct.inserted_at
+        }
+      end)
+
+    ModuleCacheOutput.Buffer.insert_all(rows)
+  end
+
+  @doc """
+  Persists the per-command wall-clock module (binary) cache transfer time (the run's overall fetch
+  time). Stored in its own table so it stays symmetric with `module_cache_outputs` and does not
+  require touching the `command_events` materialized views. No-op when the duration is missing.
+  """
+  def create_module_cache_transfer_duration(_command_event, nil), do: :ok
+
+  def create_module_cache_transfer_duration(command_event, duration_ms) do
+    row =
+      command_event.id
+      |> ModuleCacheTransferDuration.changeset(command_event.project_id, duration_ms)
+      |> Ecto.Changeset.apply_changes()
+      |> Map.take([:command_event_id, :project_id, :duration_ms, :inserted_at])
+
+    ModuleCacheTransferDuration.Buffer.insert_all([row])
   end
 
   defp truncate_error_message(error_message) do
