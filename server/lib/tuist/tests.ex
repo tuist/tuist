@@ -1585,21 +1585,27 @@ defmodule Tuist.Tests do
     |> Enum.flat_map(&fetch_validated_test_case_ids_chunk(project_id, &1, default_branch))
   end
 
+  # Reads `test_case_runs_validated_on_branch`, a ReplacingMergeTree fed by the
+  # `test_case_runs_validated_on_branch_mv` materialized view holding one marker
+  # row per `(project_id, git_branch, test_case_id)` that has ever had a
+  # successful, non-flaky run. Each test case collapses to a single row, so
+  # validating a large triggered set is a bounded primary-key point lookup
+  # instead of scanning every matching run of the raw `test_case_runs` table
+  # (which, on busy projects, read millions of rows per evaluation).
+  #
   # Binds the ids as a single `Array(UUID)` parameter via a fragment instead of
-  # `tcr.test_case_id in ^ids_chunk`. `in` expands to one bound parameter per
-  # id, which overflows ClickHouse's request limits when the triggered set is
-  # large. Chunks are disjoint, so the per-chunk `distinct` already yields a
-  # distinct union.
+  # `v.test_case_id in ^ids_chunk`. `in` expands to one bound parameter per id,
+  # which overflows ClickHouse's request limits when the triggered set is large.
+  # `distinct` collapses any not-yet-merged duplicate marker rows; the schema is
+  # borrowed from `TestCaseRun` purely to type the shared columns.
   defp fetch_validated_test_case_ids_chunk(project_id, ids_chunk, default_branch) do
     ClickHouseRepo.all(
-      from(tcr in TestCaseRun,
-        where: tcr.project_id == ^project_id,
-        where: fragment("? IN (?)", tcr.test_case_id, type(^ids_chunk, {:array, Ecto.UUID})),
-        where: tcr.git_branch == ^default_branch,
-        where: fragment("? = 'success'", tcr.status),
-        where: tcr.is_flaky == false,
+      from(v in {"test_case_runs_validated_on_branch", TestCaseRun},
+        where: v.project_id == ^project_id,
+        where: v.git_branch == ^default_branch,
+        where: fragment("? IN (?)", v.test_case_id, type(^ids_chunk, {:array, Ecto.UUID})),
         distinct: true,
-        select: tcr.test_case_id
+        select: v.test_case_id
       ),
       multipart: true
     )
