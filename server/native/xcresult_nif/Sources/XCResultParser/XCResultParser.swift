@@ -295,7 +295,7 @@ public struct XCResultParser: Sendable {
     /// create unbounded per-pid rows, or fire `test_case.created` webhooks) and
     /// collect them as target-keyed errors. The pid varies per run, so we dedup
     /// by (target, message) to land one per target like Xcode.
-    private static let xctestRunnerErrorRegex = /xctest \(\d+\) encountered an error/
+    nonisolated(unsafe) private static let xctestRunnerErrorRegex = /xctest \(\d+\) encountered an error/
 
     private func isRunnerError(_ name: String?) -> Bool {
         guard let name else { return false }
