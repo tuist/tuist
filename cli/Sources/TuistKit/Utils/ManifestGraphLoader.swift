@@ -214,15 +214,15 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
             projects: updatedModels.projects
         )
 
-        if await RunMetadataStorage.current.graph == nil {
-            await RunMetadataStorage.current.update(graph: graph)
-        }
-
         // Apply graph mappers
         let (mappedGraph, graphMapperSideEffects, environment) = try await graphMapper.map(
             graph: graph,
             environment: MapperEnvironment()
         )
+
+        if await RunMetadataStorage.current.graph == nil {
+            await RunMetadataStorage.current.update(graph: mappedGraph)
+        }
 
         return (
             mappedGraph,
