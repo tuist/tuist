@@ -26,7 +26,7 @@ on:
   workflow_dispatch:
     inputs:
       strategy:
-        description: "Cache benchmark to run on the host-Kura runner after the smoke (empty = smoke only). xcode-cache | xcode-cache-probe | module-cache | combined | no-cache"
+        description: "Cache benchmark to run on the host-Kura runner after the smoke (empty = smoke only). xcode-cache | xcode-cache-probe | xcode-cache-ramstate | module-cache | combined | no-cache"
         required: false
         default: ""
       runs:
@@ -394,6 +394,38 @@ jobs:
           except Exception as e: print(f"  cpu sampler: (no data: {e})")
           PYEOF
               echo "vCPUs in VM: $(sysctl -n hw.ncpu 2>/dev/null || echo '?')  physical mem: $(sysctl -n hw.memsize 2>/dev/null || echo '?')" ;;
+            xcode-cache-ramstate)
+              # A/B for the analytics-write hypothesis, ZERO code changes: identical
+              # to xcode-cache, but the daemon's state dir (cas_analytics.db + socket)
+              # lives on a RAM disk. The per-op analytics insert (SQLite.swift
+              # queue.sync on the cooperative pool + wal_autocheckpoint=1 per-insert
+              # checkpoint) then never touches the xcodebuild-contended sparse disk.
+              # If transfer_ms collapses vs the ~153ms baseline, pool-blocking
+              # disk-stalled analytics writes are the daemon's per-op bottleneck.
+              RAMDEV=$(hdiutil attach -nomount ram://1048576)
+              RAMDEV=$(echo "$RAMDEV" | tr -d '[:space:]')
+              diskutil erasevolume APFS ramstate "$RAMDEV" >/dev/null
+              export XDG_STATE_HOME=/Volumes/ramstate/state
+              mkdir -p "$XDG_STATE_HOME"
+              echo "state dir on RAM disk: $XDG_STATE_HOME (dev $RAMDEV)"
+              tuist setup cache
+              tuist install
+              tuist generate --no-binary-cache
+              CAS_SOCK=""
+              for _ in $(seq 1 20); do
+                CAS_SOCK=$(ls -t "$XDG_STATE_HOME/tuist/"*.sock 2>/dev/null | head -1)
+                [ -n "$CAS_SOCK" ] && break
+                sleep 1
+              done
+              echo "CAS daemon socket: ${CAS_SOCK:-<none found>}"
+              [ -n "$CAS_SOCK" ] || { echo "::error::no CAS daemon socket on the RAM state dir"; exit 1; }
+              CAS="COMPILATION_CACHE_ENABLE_CACHING=YES COMPILATION_CACHE_ENABLE_PLUGIN=YES COMPILATION_CACHE_REMOTE_SERVICE_PATH=${CAS_SOCK}"
+              BUILD_CAS="$BUILD_BASE $CAS"
+              hyperfine --warmup 1 --runs "$HYPERFINE_RUNS" --export-json result.json \
+                --setup "$BUILD_CAS" --prepare "$CLEAN_DD" "$BUILD_CAS" || rc=$?
+              # surface the ramdisk analytics db for the shared harvest below
+              mkdir -p "$HOME/.local/state/tuist"
+              cp "$XDG_STATE_HOME/tuist/cas_analytics.db" "$HOME/.local/state/tuist/cas_analytics.db" 2>/dev/null || true ;;
             module-cache)
               # Binary (module) cache: each run clears local binaries, re-pulls
               # them via generate, then builds the app target.
