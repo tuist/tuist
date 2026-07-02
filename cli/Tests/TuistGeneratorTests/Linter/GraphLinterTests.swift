@@ -368,6 +368,32 @@ struct GraphLinterTests {
         #expect(result.isEmpty == true)
     }
 
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func lint_appClip_canDependOnBundle() async throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let appClip = Target.empty(name: "app_clip", product: .appClip)
+        let bundle = Target.empty(name: "bundle", product: .bundle)
+        let project = Project.empty(path: path)
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: appClip.name, path: path): Set([.target(name: bundle.name, path: path)]),
+            .target(name: bundle.name, path: path): Set([]),
+        ]
+
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
+
+        // Then
+        #expect(result.isEmpty == true)
+    }
+
     @Test(.inTemporaryDirectory, .withMockedXcodeController) func lint_frameworkDependsOnBundle() async throws {
         // Given
         let path: AbsolutePath = "/project"
