@@ -67,14 +67,23 @@ fi
 
 Q="account_handle=${ACC}&project_handle=${PROJ}"
 AUTH=(-H "Authorization: Bearer $TOKEN")
+CT=(--connect-timeout 10 --max-time 180)   # no request may hang the whole job
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 
 med()  { sort -n | awk '{a[NR]=$1} END{if(NR==0){print 0;exit} print (NR%2)?a[(NR+1)/2]:(a[NR/2]+a[NR/2+1])/2}'; }
 pctl() { sort -n | awk -v p="$1" '{a[NR]=$1} END{if(NR==0){print 0;exit} i=int(p/100*NR); if(i<1)i=1; print a[i]}'; }
-cas_put() { curl -sS -o /dev/null "${AUTH[@]}" -H "Content-Type: application/octet-stream" -X POST --data-binary @"$2" -w '%{http_code} %{speed_upload}' "$1/api/cache/cas/$3?$Q"; }
-cas_get() { curl -sS -o /dev/null "${AUTH[@]}" -w '%{http_code} %{speed_download}' "$1/api/cache/cas/$2?$Q"; }
+cas_put() { curl -sS "${CT[@]}" -o /dev/null "${AUTH[@]}" -H "Content-Type: application/octet-stream" -X POST --data-binary @"$2" -w '%{http_code} %{speed_upload}' "$1/api/cache/cas/$3?$Q"; }
+cas_get() { curl -sS "${CT[@]}" -o /dev/null "${AUTH[@]}" -w '%{http_code} %{speed_download}' "$1/api/cache/cas/$2?$Q"; }
 
-for n in "${names[@]}"; do curl -s -o /dev/null "${URLS[$n]}/up" || true; done
+# Reachability probe: fail fast + loud if the runner can't reach a backend, rather
+# than hanging until the job timeout.
+echo "== reachability =="
+for n in "${names[@]}"; do
+  probe=$(curl -sS --connect-timeout 10 --max-time 20 -o /dev/null -w '%{http_code} %{time_total}s' "${URLS[$n]}/up" 2>&1) \
+    && echo "  $n ${URLS[$n]}/up -> $probe" \
+    || { echo "  $n ${URLS[$n]}/up -> UNREACHABLE ($probe)"; [ "$n" = kura ] && { echo "Kura endpoint unreachable from this runner; aborting." >&2; exit 1; }; }
+done
+echo
 
 SUMMARY=$(mktemp)
 emit() { echo "$1"; echo "$1" >> "$SUMMARY"; }
@@ -100,11 +109,11 @@ for name in "${names[@]}"; do
   id="lat-$name-$RANDOM-$(date +%s%N)"
   cas_put "$base" "$TMP/small" "$id" >/dev/null
   args=(); for _ in $(seq 1 60); do args+=(-o /dev/null "$base/api/cache/cas/$id?$Q"); done
-  curl -sS "${AUTH[@]}" -w '%{time_starttransfer}\n' "${args[@]}" > "$TMP/warm_$name" 2>/dev/null
+  curl -sS --connect-timeout 10 --max-time 120 "${AUTH[@]}" -w '%{time_starttransfer}\n' "${args[@]}" > "$TMP/warm_$name" 2>/dev/null
   w=$(tail -n +2 "$TMP/warm_$name")
   wp50=$(printf '%s\n' "$w" | med); wp90=$(printf '%s\n' "$w" | pctl 90); wp99=$(printf '%s\n' "$w" | pctl 99)
   : > "$TMP/cold_$name"
-  for _ in $(seq 1 20); do curl -sS -o /dev/null "${AUTH[@]}" -w '%{time_starttransfer}\n' "$base/api/cache/cas/$id?$Q" >> "$TMP/cold_$name"; done
+  for _ in $(seq 1 20); do curl -sS --connect-timeout 10 --max-time 20 -o /dev/null "${AUTH[@]}" -w '%{time_starttransfer}\n' "$base/api/cache/cas/$id?$Q" >> "$TMP/cold_$name"; done
   cp50=$(med < "$TMP/cold_$name"); cp90=$(pctl 90 < "$TMP/cold_$name"); cp99=$(pctl 99 < "$TMP/cold_$name")
   emit "$(awk -v b="$name" -v a="$wp50" -v c="$wp90" -v d="$wp99" 'BEGIN{printf "| %s | warm | %.0f | %.0f | %.0f |", b, a*1000, c*1000, d*1000}')"
   emit "$(awk -v b="$name" -v a="$cp50" -v c="$cp90" -v d="$cp99" 'BEGIN{printf "| %s | cold | %.0f | %.0f | %.0f |", b, a*1000, c*1000, d*1000}')"
