@@ -44,16 +44,9 @@ spec:
           image: "{{ .Values.image.repository }}:{{ default .Chart.AppVersion .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
+            # Kura co-hosts the HTTP cache API and REAPI gRPC (h2c) on this
+            # single listener (KURA_PORT).
             - name: http
-              containerPort: {{ .Values.service.httpPort }}
-              protocol: TCP
-            # Kura co-hosts gRPC (h2c) with HTTP on KURA_PORT, so the named
-            # `grpc` port points at the same containerPort as `http`. Keeping
-            # the name preserves the Services' `targetPort: grpc` routing:
-            # during a rolling upgrade from a pre-cohosted release, old pods
-            # resolve `grpc` to their dedicated listener and new pods to the
-            # co-hosted one, so gRPC clients stay routed either way.
-            - name: grpc
               containerPort: {{ .Values.service.httpPort }}
               protocol: TCP
             - name: peer

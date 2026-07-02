@@ -18,8 +18,8 @@ serviceAccount:
 # scrapers. The managed clusters' k8s-monitoring release discovers
 # targets via these prometheus.io/* keys (annotationAutodiscovery), and
 # the embedded Prometheus self-hosters opt into reads the same keys.
-# port-name pins discovery to the single `http` container port (the pod
-# also declares grpc and peer) so /metrics is scraped once per pod.
+# port-name pins discovery to the `http` container port (the pod also
+# declares peer) so /metrics is scraped once per pod.
 # Inert when no scraper is present.
 podAnnotations:
   prometheus.io/scrape: "true"
@@ -36,13 +36,9 @@ service:
   loadBalancerIP: ""
   externalTrafficPolicy: ""
   # Kura serves the HTTP cache API and REAPI gRPC (h2c) on one co-hosted
-  # listener (KURA_PORT = httpPort). grpcPort only sets the Service-level
-  # port so existing :50051 clients keep working; it routes to the same
-  # co-hosted container port via the named `grpc` targetPort. This chart
-  # requires a Kura image with the co-hosted listener (releases after
-  # kura@0.10.15).
+  # listener (KURA_PORT = httpPort). This chart requires a Kura image with
+  # the co-hosted listener (releases after kura@0.10.15).
   httpPort: 4000
-  grpcPort: 50051
 
 peerTls:
   enabled: false

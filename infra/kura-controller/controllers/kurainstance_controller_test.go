@@ -76,16 +76,13 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if service.Spec.ExternalTrafficPolicy != "" {
 		t.Fatalf("expected no external traffic policy on ClusterIP backend, got %q", service.Spec.ExternalTrafficPolicy)
 	}
-	if got := len(service.Spec.Ports); got != 3 {
-		t.Fatalf("expected backend service to expose http, grpc, and peer ports, got %d", got)
+	if got := len(service.Spec.Ports); got != 2 {
+		t.Fatalf("expected backend service to expose the co-hosted cache and peer ports, got %d", got)
 	}
 	if got := service.Spec.Ports[0].TargetPort.StrVal; got != "http" {
-		t.Fatalf("expected public ingress backend service to target the plain http port, got %q", got)
+		t.Fatalf("expected public ingress backend service to target the co-hosted cache port, got %q", got)
 	}
-	if got := service.Spec.Ports[1].TargetPort.StrVal; got != "grpc" {
-		t.Fatalf("expected backend service to expose grpc, got %q", got)
-	}
-	if got := service.Spec.Ports[2].TargetPort.StrVal; got != "peer" {
+	if got := service.Spec.Ports[1].TargetPort.StrVal; got != "peer" {
 		t.Fatalf("expected backend service to expose peer, got %q", got)
 	}
 	if len(service.Annotations) != 0 {
@@ -350,14 +347,11 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if len(policy.Spec.Ingress[2].From) != 1 || policy.Spec.Ingress[2].From[0].NamespaceSelector == nil {
 		t.Fatalf("expected regional Kura ingress NetworkPolicy rule to allow cluster namespaces, got %v", policy.Spec.Ingress[2].From)
 	}
-	if len(ingressPorts) != 2 {
-		t.Fatalf("expected regional Kura ingress NetworkPolicy rule to expose HTTP and gRPC, got %d ports", len(ingressPorts))
+	if len(ingressPorts) != 1 {
+		t.Fatalf("expected regional Kura ingress NetworkPolicy rule to expose only the co-hosted cache port, got %d ports", len(ingressPorts))
 	}
 	if got := ingressPorts[0].Port.StrVal; got != "http" {
 		t.Fatalf("expected regional Kura ingress NetworkPolicy rule to expose http, got %q", got)
-	}
-	if got := ingressPorts[1].Port.StrVal; got != "grpc" {
-		t.Fatalf("expected regional Kura ingress NetworkPolicy rule to expose grpc, got %q", got)
 	}
 }
 
@@ -1120,8 +1114,8 @@ func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 			t.Fatalf("expected gRPC ingress paths to be ImplementationSpecific, got %v", p.PathType)
 		}
 		backend := p.Backend.Service
-		if backend == nil || backend.Name != instance.Name || backend.Port.Name != "grpc" {
-			t.Fatalf("expected gRPC ingress path to route to %s:grpc, got %#v", instance.Name, backend)
+		if backend == nil || backend.Name != instance.Name || backend.Port.Name != "http" {
+			t.Fatalf("expected gRPC ingress path to route to the co-hosted cache port %s:http, got %#v", instance.Name, backend)
 		}
 	}
 	wantPaths := []string{`/build\.bazel\.remote\.execution\.v2\.`, `/google\.bytestream\.`}
@@ -2263,8 +2257,8 @@ func TestKuraInstanceReconcileExposesNodePortDataPlane(t *testing.T) {
 	if service.Spec.ExternalTrafficPolicy != corev1.ServiceExternalTrafficPolicyLocal {
 		t.Fatalf("expected externalTrafficPolicy Local, got %q", service.Spec.ExternalTrafficPolicy)
 	}
-	if len(service.Spec.Ports) != 2 {
-		t.Fatalf("expected http+grpc only on the external service, got %v", service.Spec.Ports)
+	if len(service.Spec.Ports) != 1 {
+		t.Fatalf("expected only the co-hosted cache port on the external service, got %v", service.Spec.Ports)
 	}
 	if got := service.Spec.Selector[podNameLabel]; got != instance.Name+"-0" {
 		t.Fatalf("expected external service pinned to primary pod, got %q", got)
@@ -2273,11 +2267,8 @@ func TestKuraInstanceReconcileExposesNodePortDataPlane(t *testing.T) {
 	// The fake client never allocates NodePorts; simulate the API
 	// server so the second reconcile must preserve them.
 	for i := range service.Spec.Ports {
-		switch service.Spec.Ports[i].Name {
-		case "http":
+		if service.Spec.Ports[i].Name == "http" {
 			service.Spec.Ports[i].NodePort = 30080
-		case "grpc":
-			service.Spec.Ports[i].NodePort = 30051
 		}
 	}
 	if err := reconciler.Update(ctx, service); err != nil {
@@ -2294,8 +2285,8 @@ func TestKuraInstanceReconcileExposesNodePortDataPlane(t *testing.T) {
 	for _, port := range service.Spec.Ports {
 		allocated[port.Name] = port.NodePort
 	}
-	if allocated["http"] != 30080 || allocated["grpc"] != 30051 {
-		t.Fatalf("expected allocated NodePorts preserved across reconciles, got %v", allocated)
+	if allocated["http"] != 30080 {
+		t.Fatalf("expected allocated NodePort preserved across reconciles, got %v", allocated)
 	}
 
 	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, instance); err != nil {
@@ -2304,8 +2295,8 @@ func TestKuraInstanceReconcileExposesNodePortDataPlane(t *testing.T) {
 	if instance.Status.NodeAddress != "172.16.0.2" {
 		t.Fatalf("expected status.nodeAddress from the node's pn-ipv4 label, got %q", instance.Status.NodeAddress)
 	}
-	if instance.Status.NodePortHTTP != 30080 || instance.Status.NodePortGRPC != 30051 {
-		t.Fatalf("expected status NodePorts 30080/30051, got %d/%d", instance.Status.NodePortHTTP, instance.Status.NodePortGRPC)
+	if instance.Status.NodePortHTTP != 30080 {
+		t.Fatalf("expected status NodePort 30080, got %d", instance.Status.NodePortHTTP)
 	}
 
 	policy := &networkingv1.NetworkPolicy{}
@@ -2392,76 +2383,5 @@ func TestKuraInstancePodTemplateRendersTolerations(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("expected the runner-cache toleration on the pod template, got %#v", sts.Spec.Template.Spec.Tolerations)
-	}
-}
-
-func TestCohostedGRPCGatesOnImageTag(t *testing.T) {
-	cases := []struct {
-		image    string
-		cohosted bool
-	}{
-		// Semver tags at or below the last dedicated-listener release keep
-		// the legacy wiring.
-		{"ghcr.io/tuist/kura:0.5.2", false},
-		{"ghcr.io/tuist/kura:" + lastDedicatedGRPCListenerVersion, false},
-		// Any later release co-hosts gRPC on KURA_PORT, whatever the bump.
-		{"ghcr.io/tuist/kura:0.10.16", true},
-		{"ghcr.io/tuist/kura:0.11.0", true},
-		{"ghcr.io/tuist/kura:1.0.0", true},
-		// Per-commit staging builds and digest pins are non-semver and come
-		// from the same tree as this controller, so they are co-hosted.
-		{"ghcr.io/tuist/kura:sha-abc123def456", true},
-		{"ghcr.io/tuist/kura@sha256:deadbeef", true},
-		{"ghcr.io/tuist/kura", true},
-		// Registry ports must not be mistaken for tags.
-		{"localhost:5000/tuist/kura:0.9.0", false},
-	}
-	for _, tc := range cases {
-		instance := &kurav1alpha1.KuraInstance{Spec: kurav1alpha1.KuraInstanceSpec{Image: tc.image}}
-		if got := cohostedGRPC(instance); got != tc.cohosted {
-			t.Errorf("cohostedGRPC(%q) = %v, want %v", tc.image, got, tc.cohosted)
-		}
-	}
-}
-
-func TestPodWiringFollowsTheGRPCListenerModel(t *testing.T) {
-	grpcContainerPort := func(instance *kurav1alpha1.KuraInstance) int32 {
-		for _, port := range containerPorts(instance) {
-			if port.Name == "grpc" {
-				return port.ContainerPort
-			}
-		}
-		t.Fatalf("expected a containerPort named grpc for %q", instance.Spec.Image)
-		return 0
-	}
-	hasGRPCPortEnv := func(instance *kurav1alpha1.KuraInstance) bool {
-		for _, env := range baseEnv(instance, "", "production") {
-			if env.Name == "KURA_GRPC_PORT" {
-				return true
-			}
-		}
-		return false
-	}
-
-	legacy := &kurav1alpha1.KuraInstance{Spec: kurav1alpha1.KuraInstanceSpec{
-		Image: "ghcr.io/tuist/kura:" + lastDedicatedGRPCListenerVersion,
-	}}
-	if got := grpcContainerPort(legacy); got != grpcPort {
-		t.Fatalf("expected legacy image to keep the dedicated gRPC containerPort %d, got %d", grpcPort, got)
-	}
-	if !hasGRPCPortEnv(legacy) {
-		t.Fatal("expected legacy image to receive KURA_GRPC_PORT")
-	}
-
-	// Co-hosted images serve gRPC on KURA_PORT; the port keeps its name so
-	// the Services' `targetPort: grpc` stays resolvable per pod mid-roll.
-	cohosted := &kurav1alpha1.KuraInstance{Spec: kurav1alpha1.KuraInstanceSpec{
-		Image: "ghcr.io/tuist/kura:sha-abc123def456",
-	}}
-	if got := grpcContainerPort(cohosted); got != httpPort {
-		t.Fatalf("expected co-hosted image to point the grpc containerPort at %d, got %d", httpPort, got)
-	}
-	if hasGRPCPortEnv(cohosted) {
-		t.Fatal("expected co-hosted image not to receive KURA_GRPC_PORT")
 	}
 }

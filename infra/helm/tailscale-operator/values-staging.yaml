@@ -22,7 +22,7 @@ connector:
   # a ClusterIP in this range) through this Connector. Auto-approved
   # via the `autoApprovers.routes` entry in infra/tailscale/acls.json;
   # the macmini->cluster grants there scope what can actually be
-  # dialed (Kura 4000/50051 + cluster DNS 53).
+  # dialed (the co-hosted Kura cache port 4000 + cluster DNS 53).
   #
   # Staging is deliberately the ONLY env advertising this prefix --
   # all envs share the 10.128.0.0/12 Service CIDR and the tailnet is

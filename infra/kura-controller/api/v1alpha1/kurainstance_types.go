@@ -52,18 +52,19 @@ type KuraInstanceSpec struct {
 	// at `<instance>.<namespace>.svc.cluster.local`.
 	Private bool `json:"private,omitempty"`
 
-	// ExposeNodePort additionally publishes http/grpc through a
-	// NodePort Service (`<instance>-external`) pinned to the primary
-	// pod with externalTrafficPolicy: Local. This is the data plane
-	// for runner fleets that share an L2/L3 network with the
-	// instance's node pool but are NOT on the cluster's pod network —
-	// the macOS Tart VMs reach the pool over a cloud Private Network,
-	// where ClusterIP DNS doesn't resolve and isn't routed. Traffic
-	// must enter on the node hosting the pod; status.NodeAddress +
-	// status.NodePortHTTP are what dispatch hands those clients.
+	// ExposeNodePort additionally publishes the co-hosted cache port
+	// (HTTP + gRPC) through a NodePort Service (`<instance>-external`)
+	// pinned to the primary pod with externalTrafficPolicy: Local.
+	// This is the data plane for runner fleets that share an L2/L3
+	// network with the instance's node pool but are NOT on the
+	// cluster's pod network — the macOS Tart VMs reach the pool over
+	// a cloud Private Network, where ClusterIP DNS doesn't resolve
+	// and isn't routed. Traffic must enter on the node hosting the
+	// pod; status.NodeAddress + status.NodePortHTTP are what dispatch
+	// hands those clients.
 	ExposeNodePort bool `json:"exposeNodePort,omitempty"`
 
-	// ClientCIDRs are source ranges allowed to reach http/grpc in
+	// ClientCIDRs are source ranges allowed to reach the cache port in
 	// addition to in-cluster namespaces. NodePort clients arrive with
 	// their original source IP (externalTrafficPolicy: Local), which
 	// no namespaceSelector matches — without an ipBlock rule the
@@ -157,7 +158,6 @@ type KuraInstanceStatus struct {
 	// ports and the primary pod is placed on a labeled node.
 	NodeAddress  string `json:"nodeAddress,omitempty"`
 	NodePortHTTP int32  `json:"nodePortHTTP,omitempty"`
-	NodePortGRPC int32  `json:"nodePortGRPC,omitempty"`
 }
 
 // +kubebuilder:object:root=true

@@ -364,8 +364,7 @@ We provide a comprehensive Docker Compose configuration that includes all requir
 
 **Service Endpoints:**
 - Tuist Server: http://localhost:8080
-- Kura HTTP: http://localhost:4000
-- Kura gRPC: grpc://localhost:50051
+- Kura cache (HTTP + REAPI gRPC on one port): http://localhost:4000
 - MinIO Console: http://localhost:9003 (credentials: `tuist` / `tuist_dev_password`)
 - MinIO API: http://localhost:9002
 - pgweb (PostgreSQL UI): http://localhost:8081
