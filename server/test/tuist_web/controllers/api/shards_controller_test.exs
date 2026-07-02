@@ -5,6 +5,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
+  alias TuistWeb.Headers
 
   setup do
     user = AccountsFixtures.user_fixture(preload: [:account])
@@ -33,7 +34,27 @@ defmodule TuistWeb.API.ShardsControllerTest do
       response = json_response(conn, :ok)
       assert response["reference"] == "github-123-1"
       assert response["shard_count"] == 2
+      assert response["upload_url"] =~ "/api/projects/#{project.account.name}/#{project.name}/tests/shards/upload/start"
       assert is_list(response["shards"])
+    end
+
+    test "returns upload start URL", %{conn: conn, user: user, project: project} do
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards",
+          %{
+            reference: "github-123-upload",
+            modules: ["AppTests", "CoreTests"],
+            shard_max: 2
+          }
+        )
+
+      response = json_response(conn, :ok)
+      assert response["reference"] == "github-123-upload"
+      assert response["upload_url"] =~ "/api/projects/#{project.account.name}/#{project.name}/tests/shards/upload/start"
     end
 
     test "returns forbidden when user doesn't have access", %{conn: conn} do
@@ -187,14 +208,71 @@ defmodule TuistWeb.API.ShardsControllerTest do
     end
   end
 
+  describe "POST /api/projects/:account/:project/tests/shards/upload/start" do
+    test "starts upload for a shard plan id", %{conn: conn, user: user, project: project} do
+      plan_id = Ecto.UUID.generate()
+
+      stub(Tuist.Shards, :start_upload_for_plan_id, fn _project, _account, ^plan_id ->
+        {:ok, "upload-id-123"}
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/upload/start",
+          %{shard_plan_id: plan_id}
+        )
+
+      response = json_response(conn, :ok)
+      assert response["data"]["upload_id"] == "upload-id-123"
+    end
+
+    test "keeps reference-based upload start for older clients", %{conn: conn, user: user, project: project} do
+      stub(Tuist.Shards, :start_upload, fn _project, _account, "session-1" ->
+        {:ok, "upload-id-123"}
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/upload/start",
+          %{reference: "session-1"}
+        )
+
+      response = json_response(conn, :ok)
+      assert response["data"]["upload_id"] == "upload-id-123"
+    end
+
+    test "returns bad request when shard plan identifier is missing", %{conn: conn, user: user, project: project} do
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/upload/start",
+          %{}
+        )
+
+      response = json_response(conn, :bad_request)
+      assert response["message"] =~ "shard_plan_id or reference"
+    end
+  end
+
   describe "GET /api/projects/:account/:project/tests/shards/:reference/:shard_index" do
     test "returns shard for valid params", %{conn: conn, user: user, project: project} do
-      stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index ->
+      stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index, opts ->
+        refute Keyword.fetch!(opts, :suite_catch_all?)
+
         {:ok,
          %{
            shard_plan_id: Ecto.UUID.generate(),
            modules: ["AppTests"],
            suites: %{},
+           skip: [],
            download_url: "https://download.example.com"
          }}
       end)
@@ -207,11 +285,63 @@ defmodule TuistWeb.API.ShardsControllerTest do
       response = json_response(conn, :ok)
       assert response["modules"] == ["AppTests"]
       assert response["suites"] == %{}
+      assert response["skip"] == []
       assert response["download_url"] == "https://download.example.com"
     end
 
+    test "does not pass suite catch-all support for older CLI versions", %{conn: conn, user: user, project: project} do
+      stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index, opts ->
+        refute Keyword.fetch!(opts, :suite_catch_all?)
+
+        {:ok,
+         %{
+           shard_plan_id: Ecto.UUID.generate(),
+           modules: ["AppTests"],
+           suites: %{},
+           skip: [],
+           download_url: "https://download.example.com"
+         }}
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> Headers.put_cli_version("4.202.0-canary.20")
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/session-1/1")
+
+      response = json_response(conn, :ok)
+      assert response["modules"] == ["AppTests"]
+      assert response["skip"] == []
+    end
+
+    test "passes suite catch-all support for supported CLI versions", %{conn: conn, user: user, project: project} do
+      stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index, opts ->
+        assert Keyword.fetch!(opts, :suite_catch_all?)
+
+        {:ok,
+         %{
+           shard_plan_id: Ecto.UUID.generate(),
+           modules: [],
+           suites: %{},
+           skip: ["AppTests/LoginTests"],
+           download_url: "https://download.example.com"
+         }}
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> Headers.put_cli_version("4.202.0-canary.21")
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/session-1/1")
+
+      response = json_response(conn, :ok)
+      assert response["modules"] == []
+      assert response["suites"] == %{}
+      assert response["skip"] == ["AppTests/LoginTests"]
+    end
+
     test "returns not found for nonexistent plan", %{conn: conn, user: user, project: project} do
-      stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index ->
+      stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index, _opts ->
         {:error, :not_found}
       end)
 
@@ -225,7 +355,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
     end
 
     test "returns not found for out-of-range shard index", %{conn: conn, user: user, project: project} do
-      stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index ->
+      stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index, _opts ->
         {:error, :invalid_shard_index}
       end)
 
@@ -257,6 +387,40 @@ defmodule TuistWeb.API.ShardsControllerTest do
       response = json_response(conn, :ok)
       assert response["data"]["url"] == "https://upload.example.com/part"
     end
+
+    test "returns signed upload URL for a shard plan id", %{conn: conn, user: user, project: project} do
+      plan_id = Ecto.UUID.generate()
+
+      stub(Tuist.Shards, :generate_upload_url_for_plan, fn _project, _account, ^plan_id, _upload_id, _part ->
+        {:ok, "https://upload.example.com/part"}
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/upload/generate-url",
+          %{shard_plan_id: plan_id, upload_id: "upload-id", part_number: 1}
+        )
+
+      response = json_response(conn, :ok)
+      assert response["data"]["url"] == "https://upload.example.com/part"
+    end
+
+    test "returns bad request when shard plan identifier is missing", %{conn: conn, user: user, project: project} do
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/upload/generate-url",
+          %{upload_id: "upload-id", part_number: 1}
+        )
+
+      response = json_response(conn, :bad_request)
+      assert response["message"] =~ "shard_plan_id or reference"
+    end
   end
 
   describe "POST /api/projects/:account/:project/tests/shards/upload/complete" do
@@ -276,6 +440,40 @@ defmodule TuistWeb.API.ShardsControllerTest do
 
       response = json_response(conn, :ok)
       assert response["status"] == "success"
+    end
+
+    test "completes upload successfully for a shard plan id", %{conn: conn, user: user, project: project} do
+      plan_id = Ecto.UUID.generate()
+
+      stub(Tuist.Shards, :complete_upload_for_plan, fn _project, _account, ^plan_id, _upload_id, _parts ->
+        :ok
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/upload/complete",
+          %{shard_plan_id: plan_id, upload_id: "upload-id", parts: [%{part_number: 1, etag: "etag1"}]}
+        )
+
+      response = json_response(conn, :ok)
+      assert response["status"] == "success"
+    end
+
+    test "returns bad request when shard plan identifier is missing", %{conn: conn, user: user, project: project} do
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/upload/complete",
+          %{upload_id: "upload-id", parts: [%{part_number: 1, etag: "etag1"}]}
+        )
+
+      response = json_response(conn, :bad_request)
+      assert response["message"] =~ "shard_plan_id or reference"
     end
   end
 end

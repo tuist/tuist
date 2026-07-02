@@ -113,7 +113,8 @@ defmodule TuistWeb.RunnersControllerTest do
            account: account,
            runner_name: "pod-1",
            workflow_job_id: 4242,
-           fleet_on_cluster_network: false
+           fleet_on_cluster_network: false,
+           fleet_platform: :linux
          }}
       end)
 
@@ -126,6 +127,76 @@ defmodule TuistWeb.RunnersControllerTest do
       assert body["encoded_jit_config"] == "JITCONFIG"
       assert body["owner"] == account.name
       assert body["workflow_job_id"] == 4242
+      refute Map.has_key?(body, "cache_endpoint_url")
+    end
+
+    test "routes cache_endpoint_url by fleet platform and cluster-network reachability", %{conn: conn} do
+      account = account_fixture()
+
+      # The endpoint lookup goes through `Regions.available/0`, which
+      # in test sees only the local controller region — surface both
+      # private regions the way a managed runtime would.
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["scw-fr-par-runners", "hetzner-staging-runners"]
+      end)
+
+      # Active runner-cache nodes in both private regions: the
+      # macOS-serving Scaleway one and the linux+macos staging one.
+      scw_url = "http://kura-#{account.name}-scw-fr-par.kura.svc.cluster.local:4000"
+      staging_url = "http://kura-#{account.name}-staging.kura.svc.cluster.local:4000"
+
+      for {region, url} <- [{"scw-fr-par-runners", scw_url}, {"hetzner-staging-runners", staging_url}] do
+        Tuist.Repo.insert!(%Tuist.Kura.Server{
+          account_id: account.id,
+          region: region,
+          status: :active,
+          url: url,
+          # Fresh readiness heartbeat so the node-port server is served
+          # rather than failed over to the public cache (see
+          # Kura.runner_cache_endpoint_url/2).
+          last_ready_at: DateTime.truncate(DateTime.utc_now(), :second),
+          provisioner_node_ref: "kura-#{account.name}-#{region}"
+        })
+      end
+
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
+
+      dispatch = fn fleet_on_cluster_network, fleet_platform ->
+        stub(Runners, :dispatch_for_sa, fn "tuist-runners", "pod-1" ->
+          {:ok,
+           %{
+             jit: "JITCONFIG",
+             account: account,
+             runner_name: "pod-1",
+             workflow_job_id: 4242,
+             fleet_on_cluster_network: fleet_on_cluster_network,
+             fleet_platform: fleet_platform
+           }}
+        end)
+
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post("/api/internal/runners/dispatch")
+        |> json_response(200)
+      end
+
+      # Locality: each platform only ever sees a region that serves
+      # it. The Linux fleet must never receive the Scaleway URL —
+      # that node is co-located with the macOS fleet on the other
+      # side of a WAN.
+      assert dispatch.(true, :linux)["cache_endpoint_url"] == staging_url
+      assert dispatch.(true, :macos)["cache_endpoint_url"] == scw_url
+
+      # Reachability: a fleet off the cluster network gets no URL at
+      # all — clients treat TUIST_CACHE_ENDPOINT as a hard override,
+      # so an unreachable URL would break caching outright.
+      refute Map.has_key?(dispatch.(false, :macos), "cache_endpoint_url")
+      refute Map.has_key?(dispatch.(true, nil), "cache_endpoint_url")
     end
 
     test "includes cache_endpoint_url only for cluster-networked fleets with an active node",
@@ -136,11 +207,17 @@ defmodule TuistWeb.RunnersControllerTest do
         {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
       end)
 
-      stub(Tuist.Kura, :runner_cache_endpoint_url, fn _account ->
+      stub(Tuist.Kura, :runner_cache_endpoint_url, fn _account, :linux ->
         "http://kura-acme.kura.svc.cluster.local:4000"
       end)
 
-      base = %{jit: "JITCONFIG", account: account, runner_name: "pod-1", workflow_job_id: 4242}
+      base = %{
+        jit: "JITCONFIG",
+        account: account,
+        runner_name: "pod-1",
+        workflow_job_id: 4242,
+        fleet_platform: :linux
+      }
 
       # Cluster-networked fleet (Linux): the in-cluster URL is handed out.
       stub(Runners, :dispatch_for_sa, fn _, _ ->

@@ -15,6 +15,12 @@ kuraController:
 server:
   replicaCount: 1
 
+  # Staging runs no PostHog analytics (no POSTHOG item in its vault), so opt out
+  # of syncing it — otherwise the all-or-nothing ESO config sync would fail.
+  config:
+    posthog:
+      enabled: false
+
   # Non-secret runtime config. Traces go to the in-cluster Alloy receiver
   # (deployed by infra/helm/k8s-monitoring) via OTLP gRPC; Alloy forwards
   # them to Grafana Cloud Tempo. Logs follow a different path — the server
@@ -22,9 +28,9 @@ server:
   # so TUIST_LOKI_URL stays unset (the in-app LokiLoggerHandler only
   # attaches when TUIST_LOKI_INPROC=1).
   extraEnv:
-    # Selects which priv/secrets/<env>.yml.enc file the app decrypts at
-    # boot. Image is env-agnostic (built with MIX_ENV=prod); this flag
-    # plus the MASTER_KEY ESO secret pick the runtime deployment target.
+    # Selects the runtime deployment target (Tuist.Environment.env()). The
+    # image is env-agnostic (built with MIX_ENV=prod); this flag picks which
+    # env's config the release runs as.
     - name: TUIST_DEPLOY_ENV
       value: stag
     - name: TUIST_DATABASE_POOL_SIZE
@@ -32,11 +38,38 @@ server:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      # `hetzner-staging-runners` is the private (runner-cache) region:
-      # customers can't select it, the RunnerCache reconciler provisions
-      # nodes there for accounts with runner profiles, and runner
-      # dispatch routes their build-cache traffic to it in-cluster.
-      value: eu-central,hetzner-staging-runners
+      # `eu-central` is the public region, now on the Dedibox bare-metal
+      # `kura-dedibox` pool (the eu-central cutover). `scw-fr-par-runners` is the
+      # macOS-serving private runner-cache region: a Scaleway fr-par Linux node
+      # pool next to the Mac mini fleet, on its own `kura-scw-fr-par` pool, so
+      # the Macs' cache traffic never crosses the WAN. The former Linux
+      # runner-cache region `hetzner-staging-runners` is dropped: it lived on the
+      # Hetzner ccx13 `kura` pool that the cutover deletes, and no customers use
+      # the staging Linux runner cache. `ca-east` (Canada East / OVHcloud BHS) is
+      # the OVH bare-metal validation region — a geographic id; OVH is an
+      # implementation detail behind it (ovhFleet below, replicas 1).
+      value: eu-central,scw-fr-par-runners,ca-east
+    # Runner platforms whose fleets can reach their region's private
+    # cache endpoint — the dispatch gate for handing out
+    # `cache_endpoint_url` (Catalog.fleet_on_cluster_network?/1).
+    # Unset, this defaults to `linux` (kata Pods on the CNI reaching
+    # `*.svc.cluster.local`). For `macos` the endpoint is the
+    # node-port form (`http://<node PN address>:<NodePort>` on the
+    # scw-fr-par-runners region), so flip it on ONLY when the
+    # Private Network path exists end-to-end — clients treat
+    # TUIST_CACHE_ENDPOINT as a hard override, and an unreachable URL
+    # breaks macOS caching outright. Checklist (in order):
+    #   1. The PN + kura-scw-fr-par node pool exist and the minis are
+    #      attached (macosFleet.vmCachePrivateNetwork values below;
+    #      the CAPI operator attaches minis and resolves VLANs).
+    #   2. Mac mini hosts bootstrapped/drift-rolled so the VLAN
+    #      interface + pf pass + VM NAT are live, then from a runner
+    #      VM: `curl http://<node PN address>:<account NodePort>/up`.
+    # Verified end-to-end on 2026-06-12 (smoke run 27416065883):
+    # dispatch-sourced endpoint http://172.16.0.2:32675 from a Tart
+    # runner VM, cold 5.34x / warm 2.46x vs the public baseline.
+    - name: TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS
+      value: linux,macos
     # Operator project-access grants — server half only. The public key
     # is non-secret; its matching private key signs grants minted at
     # ops.tuist.dev. This is a throwaway pair for the staging server-half
@@ -56,6 +89,21 @@ server:
       value: tuist-server-staging
 
   appUrl: https://staging.tuist.dev
+
+  # Stripe price IDs (identifiers, not secrets — the API keys live in the
+  # STRIPE 1Password item). Staging's own (test-mode) IDs; the chart
+  # JSON-encodes this into TUIST_STRIPE_PRICES.
+  stripe:
+    prices:
+      air:
+        usage: ["price_1S7xNpLlKoN51eczL4aWRqIs"]
+        flat_monthly: ["price_1S7xNpLlKoN51eczL4aWRqIs"]
+      pro:
+        usage: ["price_1S7xoRLlKoN51eczGiWEndD1"]
+        flat_monthly: ["price_1S7xoRLlKoN51eczbV7sWKIk"]
+      enterprise:
+        flat_monthly: ["price_1S7xz0LlKoN51eczmTQ1yhhk"]
+        flat_yearly: []
 
   # ingress-nginx fronts the server on port 443 with a Cloudflare Origin CA
   # cert (synced into the tuist-tls-cloudflare-origin Secret out-of-band;
@@ -220,7 +268,7 @@ processor:
       maxUnavailable: 1
   extraEnv:
     # Must match the server's TUIST_DEPLOY_ENV above so the processor pod
-    # decrypts the same priv/secrets/<env>.yml.enc file the web tier does.
+    # runs as the same env (Tuist.Environment.env()) as the web tier.
     - name: TUIST_DEPLOY_ENV
       value: stag
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
@@ -265,8 +313,107 @@ xcresultProcessor:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
 
+# Declarative Scaleway Elastic Metal kura runner-cache node. The provider
+# orders the bare-metal server, attaches it to the runner-cache PN, mints a
+# kubelet identity, and renders a self-join cloud-init that registers the Node
+# with the runner-cache taint. This cluster's control plane is externally
+# managed, so there's no CAPI kubeadm join; the reconciler bootstraps the node
+# itself.
+kuraFleet:
+  enabled: true
+  replicas: 1
+  machine:
+    # EM-B220E-NVME (~EUR120/mo) is the cheapest in-stock Elastic Metal box
+    # that still mirrors the production NVMe + 10G PN path, so staging
+    # validates the same local-NVMe + bare-metal-PN data plane prod runs on.
+    offerType: EM-B220E-NVME
+
+# Dedibox fleet (EU customer-facing Kura cache, validation node). The reconciler
+# adopts a pre-ordered Dedibox carrying the tuist-staging tag (the env boundary,
+# since all Dedibox share the org's default project) and self-joins it. The tag
+# is the env pool marker, not a workload one — the node is dedicated to Kura by
+# its taint + pool label, not by this name. Prereqs met: the DEDIBOX_SCW_API
+# 1Password item exists, and Start-9-M sd-188785 (DC5) is delivered and tagged.
+dediboxFleet:
+  enabled: true
+  machine:
+    # Exact tag match (not a prefix), so this is the shared pool tag every
+    # staging Dedibox carries; per-box identity is the server id, not the tag.
+    # Dedibox tags are console-only (the API tag-set 500s on these legacy boxes),
+    # so this stays kura-scoped to match what's set on sd-188785 — the generic
+    # tuist-staging rename waits on either a console retag or a working tag API.
+    adoptTag: tuist-kura-staging
+    # Start-9-M (AMD Ryzen 5 PRO 3600, 32 GB, 2x1 TB NVMe) — modern enough for
+    # Ubuntu 24.04 with SSH keys, unlike the Atom SKUs. Only sold in DC5/AMS1.
+    offer: Start-9-M
+    datacenter: DC5
+    os: ubuntu_24.04
+    # Node egress budget (Mbps): ~1 Gbit/s box, advertised as
+    # tuist.dev/egress-mbps so eu-central's 250-Mbps-floor pods bin-pack.
+    egressBudgetMbps: 1000
+  scaleway:
+    externalSecrets:
+      # 1Password item with the default-project Dedibox IAM key (secret-key +
+      # project-id), readable by the staging ClusterSecretStore.
+      item: DEDIBOX_SCW_API
+  # Own the fleet SSH key from 1Password (the live key was extracted into this
+  # item); ESO adopts the existing in-cluster Secret in place, so no box churn.
+  sshExternalSecret:
+    enabled: true
+    item: DEDIBOX_FLEET_SSH
+
+# OVH fleet (OVHcloud bare-metal validation node). The reconciler adopts a
+# pre-ordered OVH box whose displayName starts with adoptDisplayNamePrefix,
+# drives its OS install, and self-joins it. Box prep is just: order a SYS-1 in
+# BHS and set its displayName to the prefix below. Prereq: the OVH_API 1Password
+# item exists (ovh-us entity for the BHS box, token scoped to GET
+# /dedicated/server/* + POST /dedicated/server/*/reinstall (the prep + release
+# reinstall — the legacy /install/start is gone on US) + GET /services/* to read
+# the adoption displayName). Box prep done: the
+# BHS box is ordered with its displayName set to the prefix below, and the
+# OVH_API secret syncs. (A missing box doesn't hang deploys — helm doesn't wait
+# on the fleet MD and the install is async; the region just can't schedule until
+# a box joins.)
+ovhFleet:
+  # Backs the `ca-east` region (Canada East / OVHcloud BHS). The operator
+  # pre-orders + installs the box and names it with the adoptDisplayNamePrefix;
+  # the OVH_API token carries GET /dedicated/server/* + GET /services/* + POST
+  # /dedicated/server/*/reinstall (the release path reinstalls a released box).
+  # replicas: 1 so the reconciler claims the box and self-joins it. The eu-central
+  # Dedibox path is the validated twin.
+  enabled: true
+  replicas: 1
+  # OVHcloud US entity (api.us.ovhcloud.com). The box sits physically in Canada
+  # (ca-east-bhs / BHS6) but on an OVHcloud US account, so the API endpoint is
+  # ovh-us — a token minted on any other entity (ovh-ca, ovh-eu) is rejected as
+  # "invalid". The OVH_API token must be created on us.ovhcloud.com to match.
+  endpoint: ovh-us
+  nodePool: kura-ca-east
+  machine:
+    # Adopt by offer + datacenter, scoped to the displayName prefix (the per-env
+    # boundary — one OVH account holds every env's boxes). Prefix match (case-
+    # sensitive). The pre-ordered BHS box is named `tuist-kura-ovh-staging`, the
+    # kura-scoped per-env marker (mirrors the Dedibox fleet's `tuist-kura-staging`
+    # tag); canary/prod boxes use `tuist-kura-ovh-<env>`. The operator orders a
+    # SYS-1 in BHS, names it accordingly, and scales the fleet; the controller
+    # claims a free match, installs the OS, and joins it.
+    adoptDisplayNamePrefix: tuist-kura-ovh-staging
+    offer: sys-1
+    datacenter: bhs
+    os: ubuntu_24.04
+    # Node egress budget (Mbps): SYS-1 ~1 Gbit/s, advertised as
+    # tuist.dev/egress-mbps so ca-east's 250-Mbps-floor pods bin-pack.
+    egressBudgetMbps: 1000
+  externalSecrets:
+    item: OVH_API
+  # Own the fleet SSH key from 1Password (the live key was extracted into this
+  # item); ESO adopts the existing in-cluster Secret in place, so no box churn.
+  sshExternalSecret:
+    enabled: true
+    item: OVH_FLEET_SSH
+
 # Mac mini fleet. The chart renders one ScalewayAppleSiliconMachine
-# CR per replica; the cluster-api-provider-scaleway-applesilicon
+# CR per replica; the cluster-api-provider-tuist
 # operator orders each Mac mini, then SSH-bootstraps it with
 # tart-kubelet. The Mac mini joins the cluster as a real Node.
 macosFleet:
@@ -286,6 +433,26 @@ macosFleet:
   tailscale:
     enabled: true
     tags: ["tag:tuist-macmini-staging"]
+    # Install the Service-CIDR route the staging Connector advertises
+    # (infra/helm/tailscale-operator/values-staging.yaml), so Tart
+    # runner VMs reach the in-cluster Kura runner-cache nodes. Staging
+    # is the single advertiser of 10.128.0.0/12 on the shared tailnet
+    # — keep it that way until per-env CIDRs (or 4via6) land.
+    acceptRoutes: true
+  # Firewall half of the runner-cache path: allow VM egress to the
+  # staging Service CIDR on the Kura ports + kube-dns on 53. CIDR per
+  # infra/k8s/clusters/cluster-staging.yaml; DNS IP is kube-dns's
+  # ClusterIP (verify: `kubectl -n kube-system get svc kube-dns`).
+  vmClusterEgress:
+    kuraServiceCIDR: "10.128.0.0/12"
+    clusterDNSIP: "10.128.0.10"
+  # Staging PN tuist-runner-cache (172.16.0.0/22) in the staging
+  # Scaleway project: minis + the kura-scw-fr-par node are attached;
+  # dispatch hands VMs http://<node PN address>:<account NodePort>.
+  # Resolved by name (same PN the kura fleet attaches to).
+  vmCachePrivateNetwork:
+    name: tuist-runner-cache
+    cidr: 172.16.0.0/22
   machine:
     # Staging tracks the chart default (M2-L on Scaleway: M2 Pro
     # 10-core / 16 GB). Drop to M2-M if staging capacity gets tight
@@ -372,6 +539,13 @@ runnersFleet:
   # don't double-book the cluster.
   xcodeOverrides:
     "26.5":
+      # Pinned to the feat/kura-macos-runner-cache branch bake whose
+      # dispatch-poll exports TUIST_CACHE_ENDPOINT from the claim
+      # response and installs the in-VM /etc/resolver cluster-DNS
+      # entry — the in-VM halves of the runner-cache path. Drop this
+      # pin (back to the semver-derived tag) once a runner-image
+      # release containing those changes is cut.
+      imageTag: macos-26-5-8ab1924e
       autoscaling:
         enabled: true
         minWarmPoolFloor: 1
@@ -382,6 +556,11 @@ runnersFleet:
         minWarmPoolFloor: 0
         maxReplicas: 1
     "26.3":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 1
+    "26.0.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
@@ -417,6 +596,12 @@ runnersController:
   features:
     dindImage: true
     registryMirror: true
+  # Stage kube-dns's ClusterIP into macOS pool Pods so the Tart VM
+  # writes /etc/resolver/cluster.local and the dispatch-provided
+  # in-cluster cache_endpoint_url resolves. Same IP as
+  # macosFleet.vmClusterEgress.clusterDNSIP above.
+  clusterDNS:
+    ip: "10.128.0.10"
 
 # Linux runner fleet on Hetzner Robot bare-metal hosts.
 #

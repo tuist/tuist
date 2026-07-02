@@ -2,7 +2,10 @@ use std::{
     collections::{BTreeMap, HashMap},
     path::{Path, PathBuf},
     pin::Pin,
-    sync::{Arc, Mutex as StdMutex},
+    sync::{
+        Arc, Mutex as StdMutex,
+        atomic::{AtomicU64, Ordering},
+    },
     task::{Context, Poll},
     time::{Duration, Instant},
 };
@@ -56,6 +59,7 @@ use crate::{
 };
 
 const MULTIPART_LOCK_STRIPES: usize = 64;
+const ARTIFACT_WRITE_LOCK_STRIPES: usize = 64;
 pub const EXISTENCE_CACHE_CAPACITY: usize = 65_536;
 const EXISTENCE_CACHE_TTL: Duration = Duration::from_secs(30);
 
@@ -72,11 +76,32 @@ pub struct Store {
     rocksdb_block_cache: Cache,
     rocksdb_write_buffer_manager: WriteBufferManager,
     segment_write_lock: Mutex<()>,
+    // Counts segment fsyncs so tests can assert durability is batched across
+    // concurrent writers rather than one fsync per write under the global lock.
+    segment_fsync_count: Arc<AtomicU64>,
+    // Group-commit durability. Writers reserve a monotonic `pending_seq` while
+    // holding `segment_write_lock` (so their bytes are appended in order), then
+    // a single fsync — serialized by `fsync_lock` — advances `durable_seq` to
+    // cover every writer that appended before it. A writer whose seq is already
+    // <= `durable_seq` skips the fsync entirely.
+    pending_seq: AtomicU64,
+    durable_seq: AtomicU64,
+    fsync_lock: Mutex<()>,
     segment_refresh_lock: Mutex<()>,
+    segment_state_lock: Mutex<()>,
+    // Wrapped in `Arc` so readers clone the snapshot under a brief lock and then
+    // use it without holding the mutex (unlike the sibling caches below, which
+    // are read and mutated in place under their lock).
+    segment_state_cache: StdMutex<Arc<SegmentStateSnapshot>>,
     segment_handles: Mutex<SegmentHandleCache>,
     manifest_cache: StdMutex<ManifestCache>,
     existence_cache: StdMutex<ExistenceCache>,
     multipart_locks: [Mutex<()>; MULTIPART_LOCK_STRIPES],
+    // Serializes writers for the same artifact so concurrent applies of one key
+    // (e.g. a fresh node bootstrapping the same artifact from several peers at
+    // once) can't each append their own copy to a segment and orphan all but the
+    // last. Striped by artifact id so different keys still write concurrently.
+    artifact_write_locks: [Mutex<()>; ARTIFACT_WRITE_LOCK_STRIPES],
     failpoints: Arc<FailpointSet>,
 }
 
@@ -84,6 +109,7 @@ pub struct StoreSnapshot {
     pub outbox_messages: usize,
     pub multipart_uploads: usize,
     pub segment_counts: Vec<(&'static str, usize)>,
+    pub segment_fsync_count: u64,
     pub rocksdb_block_cache_usage_bytes: u64,
     pub rocksdb_block_cache_pinned_usage_bytes: u64,
     pub rocksdb_block_cache_capacity_bytes: u64,
@@ -341,7 +367,7 @@ impl Store {
             "resolved CAS segment ring limits"
         );
 
-        Ok(Self {
+        let store = Self {
             db,
             io,
             memory,
@@ -354,7 +380,13 @@ impl Store {
             rocksdb_block_cache,
             rocksdb_write_buffer_manager,
             segment_write_lock: Mutex::new(()),
+            segment_fsync_count: Arc::new(AtomicU64::new(0)),
+            pending_seq: AtomicU64::new(0),
+            durable_seq: AtomicU64::new(0),
+            fsync_lock: Mutex::new(()),
             segment_refresh_lock: Mutex::new(()),
+            segment_state_lock: Mutex::new(()),
+            segment_state_cache: StdMutex::new(Arc::new(SegmentStateSnapshot::default())),
             segment_handles: Mutex::new(SegmentHandleCache::new(config.segment_handle_cache_size)),
             manifest_cache: StdMutex::new(ManifestCache::new(config.manifest_cache_max_bytes)),
             existence_cache: StdMutex::new(ExistenceCache::new(
@@ -362,8 +394,14 @@ impl Store {
                 EXISTENCE_CACHE_TTL,
             )),
             multipart_locks: std::array::from_fn(|_| Mutex::new(())),
+            artifact_write_locks: std::array::from_fn(|_| Mutex::new(())),
             failpoints: Arc::new(FailpointSet::default()),
-        })
+        };
+        // `load_segment_state_from_db` needs `&self`, so the store must be fully
+        // constructed (with a placeholder snapshot) before it can be seeded.
+        let segment_state = store.load_segment_state_from_db()?;
+        store.replace_segment_state_snapshot(segment_state);
+        Ok(store)
     }
 
     fn multipart_lock_for(&self, upload_id: &str) -> &Mutex<()> {
@@ -371,6 +409,13 @@ impl Store {
         std::hash::Hash::hash(upload_id, &mut hasher);
         let index = (std::hash::Hasher::finish(&hasher) as usize) % MULTIPART_LOCK_STRIPES;
         &self.multipart_locks[index]
+    }
+
+    fn artifact_write_lock_for(&self, artifact_id: &str) -> &Mutex<()> {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        std::hash::Hash::hash(artifact_id, &mut hasher);
+        let index = (std::hash::Hasher::finish(&hasher) as usize) % ARTIFACT_WRITE_LOCK_STRIPES;
+        &self.artifact_write_locks[index]
     }
 
     pub async fn artifact_exists(
@@ -521,6 +566,14 @@ impl Store {
     ) -> Result<PersistArtifactOutcome, String> {
         let artifact_id =
             artifact_storage_id(spec.producer, &self.tenant_id, spec.namespace_id, spec.key);
+        // Hold the per-artifact write lock across the read-check, segment append,
+        // and metadata commit. Without it, concurrent applies of the same key
+        // each observe "absent" below, each append a full copy to a segment, and
+        // only the last manifest write wins — leaving the rest as orphaned bytes
+        // that accumulate to N x on disk (the bootstrap-from-many-peers ENOSPC).
+        // Whoever wins the lock commits the manifest; the rest re-read it here and
+        // short-circuit to IgnoredStale without appending.
+        let _write_guard = self.artifact_write_lock_for(&artifact_id).lock().await;
         let size = self.io.metadata_len(source_path).await?;
 
         let existing = self.manifest_from_db(&artifact_id)?;
@@ -674,21 +727,27 @@ impl Store {
                 .segment_offset
                 .ok_or_else(|| "segment-backed manifest is missing segment offset".to_string())?;
             let handle = self.segment_handle(segment_id).await?;
-            let Some(bytes) = map_file_region(handle.as_std(), offset, manifest.size, permit)?
+            let Some(serve) = map_file_region(handle.as_std(), offset, manifest.size, permit)?
             else {
                 return Ok(None);
             };
+            if serve.partial_page_exempted {
+                self.io.metrics().record_mmap_partial_page_exemption();
+            }
             self.note_artifact_exists(&manifest.artifact_id);
-            return Ok(Some(bytes));
+            return Ok(Some(serve.bytes));
         }
 
         if let Some(blob_path) = &manifest.blob_path {
             let handle = self.blob_handle(blob_path).await?;
-            let Some(bytes) = map_file_region(handle.as_std(), 0, manifest.size, permit)? else {
+            let Some(serve) = map_file_region(handle.as_std(), 0, manifest.size, permit)? else {
                 return Ok(None);
             };
+            if serve.partial_page_exempted {
+                self.io.metrics().record_mmap_partial_page_exemption();
+            }
             self.note_artifact_exists(&manifest.artifact_id);
-            return Ok(Some(bytes));
+            return Ok(Some(serve.bytes));
         }
 
         Ok(None)
@@ -791,6 +850,25 @@ impl Store {
                 .segment_offset
                 .ok_or_else(|| "segment-backed manifest is missing segment offset".to_string())?;
             let handle = self.segment_handle(segment_id).await?;
+            // Guard the append-only / never-truncated invariant the serving path
+            // relies on (see `try_mmap_artifact_bytes`). A truncated segment would
+            // otherwise yield a short read that streams a body shorter than the
+            // declared Content-Length — peers see an undecodable response and
+            // bootstrap silently wedges. Surface a truncated artifact as missing
+            // so the serve 404s it; the bootstrap client then skips it
+            // (IgnoredStale) and the lost entry re-populates on cache miss.
+            let needed = offset.saturating_add(read_offset).saturating_add(limit);
+            let have = handle
+                .as_std()
+                .metadata()
+                .map_err(|error| format!("failed to stat segment {segment_id}: {error}"))?
+                .len();
+            if have < needed {
+                return Err(format!(
+                    "segment {segment_id} truncated: holds {have} bytes but artifact {} needs {needed}",
+                    manifest.artifact_id
+                ));
+            }
             self.note_artifact_exists(&manifest.artifact_id);
             return Ok(ArtifactReader::FileRange(SegmentReader::new(
                 handle,
@@ -801,6 +879,18 @@ impl Store {
 
         if let Some(blob_path) = &manifest.blob_path {
             let handle = self.blob_handle(blob_path).await?;
+            let needed = read_offset.saturating_add(limit);
+            let have = handle
+                .as_std()
+                .metadata()
+                .map_err(|error| format!("failed to stat blob {blob_path}: {error}"))?
+                .len();
+            if have < needed {
+                return Err(format!(
+                    "blob {blob_path} truncated: holds {have} bytes but artifact {} needs {needed}",
+                    manifest.artifact_id
+                ));
+            }
             self.note_artifact_exists(&manifest.artifact_id);
             return Ok(ArtifactReader::FileRange(SegmentReader::new(
                 handle,
@@ -1004,65 +1094,122 @@ impl Store {
     where
         R: AsyncRead + Unpin,
     {
-        let _guard = self.segment_write_lock.lock().await;
-        let (segment, evicted_segments) = self.active_segment(size).await?;
-        let segment_path = self.segment_path(&segment.segment_id);
-        let segment_dir = segment_path
-            .parent()
-            .ok_or_else(|| "missing segment parent directory".to_string())?;
-        self.io.create_dir_all(segment_dir).await?;
+        // Append the bytes under the write lock (which also fsyncs the outgoing
+        // segment on rotation), then reserve a durability sequence. The fsync
+        // itself happens after the lock so concurrent writers coalesce into a
+        // single group-commit fsync rather than serializing one fsync each.
+        let (location, evicted_segments, durability_seq) = {
+            let _guard = self.segment_write_lock.lock().await;
+            let (segment, evicted_segments) = self.active_segment(size).await?;
+            let segment_path = self.segment_path(&segment.segment_id);
+            let segment_dir = segment_path
+                .parent()
+                .ok_or_else(|| "missing segment parent directory".to_string())?;
+            self.io.create_dir_all(segment_dir).await?;
 
-        let segment_already_exists = self.io.path_exists(&segment_path).await?;
-        let offset = if segment_already_exists {
-            self.io.metadata_len(&segment_path).await?
-        } else {
-            0
-        };
+            let segment_already_exists = self.io.path_exists(&segment_path).await?;
+            let offset = if segment_already_exists {
+                self.io.metadata_len(&segment_path).await?
+            } else {
+                0
+            };
 
-        let mut destination = self.io.open_append_file(&segment_path).await?;
-        let copied = tokio::io::copy(source, &mut destination)
-            .await
-            .map_err(|error| {
+            let mut destination = self.io.open_append_file(&segment_path).await?;
+            let copied = tokio::io::copy(source, &mut destination)
+                .await
+                .map_err(|error| {
+                    format!(
+                        "failed to append into segment {}: {error}",
+                        segment_path.display()
+                    )
+                })?;
+            if copied != size {
+                return Err(format!(
+                    "appended {copied} bytes into segment {}, expected {size}",
+                    segment_path.display()
+                ));
+            }
+            destination.flush().await.map_err(|error| {
                 format!(
-                    "failed to append into segment {}: {error}",
+                    "failed to flush segment {}: {error}",
                     segment_path.display()
                 )
             })?;
-        if copied != size {
-            return Err(format!(
-                "appended {copied} bytes into segment {}, expected {size}",
-                segment_path.display()
-            ));
-        }
-        destination.flush().await.map_err(|error| {
-            format!(
-                "failed to flush segment {}: {error}",
-                segment_path.display()
-            )
-        })?;
-        destination.sync_data().await.map_err(|error| {
-            format!("failed to sync segment {}: {error}", segment_path.display())
-        })?;
-        drop(destination);
-        if !segment_already_exists {
-            self.io.sync_directory(segment_dir).await?;
-        }
+            drop(destination);
+            if !segment_already_exists {
+                self.io.sync_directory(segment_dir).await?;
+            }
 
-        Ok((
-            SegmentLocation {
-                segment_id: segment.segment_id,
-                offset,
-            },
-            evicted_segments,
-        ))
+            let durability_seq = self.pending_seq.fetch_add(1, Ordering::AcqRel) + 1;
+            (
+                SegmentLocation {
+                    segment_id: segment.segment_id,
+                    offset,
+                },
+                evicted_segments,
+                durability_seq,
+            )
+        };
+
+        self.ensure_segment_durable(durability_seq).await?;
+
+        Ok((location, evicted_segments))
+    }
+
+    /// Group-commit fsync: makes every append with sequence `<= seq` durable.
+    ///
+    /// Writers reserve `pending_seq` in append order while holding the write
+    /// lock, then call this. The first writer to win `fsync_lock` performs one
+    /// fsync of the active segment and advances `durable_seq` to the latest
+    /// reserved sequence. That is correct because a segment is fsynced when it
+    /// rotates out (see `active_segment`), so only the active segment can hold
+    /// un-synced bytes — and if the active segment rotated between a writer's
+    /// append and this fsync, that writer's bytes were already made durable by
+    /// the rotation. Writers already covered by a prior fsync return without
+    /// syncing.
+    async fn ensure_segment_durable(&self, seq: u64) -> Result<(), String> {
+        if self.durable_seq.load(Ordering::Acquire) >= seq {
+            return Ok(());
+        }
+        let _commit = self.fsync_lock.lock().await;
+        if self.durable_seq.load(Ordering::Acquire) >= seq {
+            return Ok(());
+        }
+        self.hit_failpoint(FailpointName::BeforeSegmentFsync)
+            .await?;
+        // Capture after winning the commit lock so the fsync covers writers that
+        // appended while we queued.
+        let target = self.pending_seq.load(Ordering::Acquire);
+        self.fsync_active_segment().await?;
+        self.durable_seq.store(target, Ordering::Release);
+        Ok(())
+    }
+
+    /// Fsyncs the current active segment file. A fresh handle is fine: `sync_data`
+    /// flushes the inode's dirty pages regardless of which descriptor wrote them.
+    async fn fsync_active_segment(&self) -> Result<(), String> {
+        let snapshot = self.segment_state_snapshot();
+        let Some(active) = snapshot.state.active() else {
+            return Ok(());
+        };
+        let path = self.segment_path(&active.segment_id);
+        if !self.io.path_exists(&path).await? {
+            return Ok(());
+        }
+        let file = self.io.open_append_file(&path).await?;
+        self.segment_fsync_count.fetch_add(1, Ordering::Relaxed);
+        file.sync_data()
+            .await
+            .map_err(|error| format!("failed to sync segment {}: {error}", path.display()))?;
+        Ok(())
     }
 
     async fn active_segment(
         &self,
         incoming_size: u64,
     ) -> Result<(SegmentReference, Vec<SegmentReference>), String> {
-        let mut state = self.load_segment_state()?;
-        let needs_new_segment = match state.active() {
+        let snapshot = self.segment_state_snapshot();
+        let needs_new_segment = match snapshot.state.active() {
             Some(segment) => {
                 let path = self.segment_path(&segment.segment_id);
                 let current_size = if self.io.path_exists(&path).await? {
@@ -1085,18 +1232,41 @@ impl Store {
                     {available} bytes available, {required_bytes} required"
                 ));
             }
+            // Group commit no longer fsyncs each write, so the outgoing active
+            // segment may hold un-synced appends; make them durable before it
+            // stops being the fsync target.
+            if let Some(active) = snapshot.state.active() {
+                let path = self.segment_path(&active.segment_id);
+                if self.io.path_exists(&path).await? {
+                    let file = self.io.open_append_file(&path).await?;
+                    self.segment_fsync_count.fetch_add(1, Ordering::Relaxed);
+                    file.sync_data().await.map_err(|error| {
+                        format!(
+                            "failed to sync rotating segment {}: {error}",
+                            path.display()
+                        )
+                    })?;
+                }
+            }
             let segment = SegmentReference::new(Uuid::now_v7().to_string(), now_ms());
-            let evicted_segments = state.push_new(
-                segment.clone(),
-                self.segment_ring_limits.desired_old_segments,
-                self.segment_ring_limits.desired_current_segments,
-                self.segment_ring_limits.desired_new_segments,
-            );
-            self.save_segment_state(&state)?;
+            // The rotate decision above used a snapshot taken before the
+            // state lock; that stays valid because evictions, the only other
+            // mutator, never remove the active segment.
+            let evicted_segments = self
+                .mutate_segment_state(|state| {
+                    state.push_new(
+                        segment.clone(),
+                        self.segment_ring_limits.desired_old_segments,
+                        self.segment_ring_limits.desired_current_segments,
+                        self.segment_ring_limits.desired_new_segments,
+                    )
+                })
+                .await?;
             Ok((segment, evicted_segments))
         } else {
             Ok((
-                state
+                snapshot
+                    .state
                     .active()
                     .cloned()
                     .expect("current segment should exist when not rotating"),
@@ -1105,7 +1275,11 @@ impl Store {
         }
     }
 
-    fn load_segment_state(&self) -> Result<SegmentState, String> {
+    /// Reads the segment ring state from the metadata store. Only seeds the
+    /// in-memory snapshot at startup; runtime readers go through
+    /// [`Self::segment_state_snapshot`], which stays current because every
+    /// mutation funnels through [`Self::save_segment_state`].
+    fn load_segment_state_from_db(&self) -> Result<SegmentState, String> {
         let key = b"shared";
         let Some(bytes) = self
             .db
@@ -1119,16 +1293,61 @@ impl Store {
             .map_err(|error| format!("failed to decode segment state: {error}"))
     }
 
+    fn segment_state_snapshot(&self) -> Arc<SegmentStateSnapshot> {
+        self.segment_state_cache
+            .lock()
+            .expect("segment state cache lock poisoned")
+            .clone()
+    }
+
+    fn replace_segment_state_snapshot(&self, state: SegmentState) {
+        let snapshot = Arc::new(SegmentStateSnapshot::new(state));
+        *self
+            .segment_state_cache
+            .lock()
+            .expect("segment state cache lock poisoned") = snapshot;
+    }
+
+    /// Applies a mutation to the segment ring state and persists the result.
+    /// Every read-modify-write of the state must go through here: the
+    /// [`Self::segment_state_lock`] serializes mutators (rotation and
+    /// eviction) so none of them can overwrite another's update with a stale
+    /// copy. The mutation runs on a fresh copy of the latest state, and
+    /// nothing is persisted when the state is left unchanged.
+    async fn mutate_segment_state<T>(
+        &self,
+        mutate: impl FnOnce(&mut SegmentState) -> T,
+    ) -> Result<T, String> {
+        let _guard = self.segment_state_lock.lock().await;
+        let snapshot = self.segment_state_snapshot();
+        let mut state = snapshot.state.clone();
+        let result = mutate(&mut state);
+        if state != snapshot.state {
+            self.save_segment_state(&state)?;
+        }
+        Ok(result)
+    }
+
+    /// Persists `state` to RocksDB and then atomically replaces the in-memory
+    /// snapshot. Every segment-ring mutation must funnel through here; a direct
+    /// `put_cf` to `ROCKSDB_CF_SEGMENT_STATE` that bypasses this function would
+    /// leave [`Self::segment_state_snapshot`] stale until the next restart.
     fn save_segment_state(&self, state: &SegmentState) -> Result<(), String> {
         let bytes = serde_json::to_vec(state)
             .map_err(|error| format!("failed to encode segment state: {error}"))?;
         self.db
             .put_cf(self.cf(ROCKSDB_CF_SEGMENT_STATE), b"shared", bytes)
-            .map_err(|error| format!("failed to persist segment state: {error}"))
+            .map_err(|error| format!("failed to persist segment state: {error}"))?;
+        self.replace_segment_state_snapshot(state.clone());
+        Ok(())
     }
 
     fn segment_generation(&self, segment_id: &str) -> Result<Option<SegmentGeneration>, String> {
-        Ok(self.load_segment_state()?.generation_of(segment_id))
+        Ok(self
+            .segment_state_snapshot()
+            .generations
+            .get(segment_id)
+            .copied())
     }
 
     async fn evict_segments(&self, evicted_segments: Vec<SegmentReference>) -> Result<(), String> {
@@ -1188,10 +1407,8 @@ impl Store {
         self.io
             .remove_file_if_exists(&self.segment_path(segment_id))
             .await;
-        let mut state = self.load_segment_state()?;
-        if state.remove_segment(segment_id) {
-            self.save_segment_state(&state)?;
-        }
+        self.mutate_segment_state(|state| state.remove_segment(segment_id))
+            .await?;
         for (producer, artifacts) in removed_artifacts {
             self.io
                 .metrics()
@@ -1223,7 +1440,7 @@ impl Store {
             }
         };
 
-        let state = self.load_segment_state()?;
+        let snapshot = self.segment_state_snapshot();
         let mut swept = 0;
         loop {
             let entry = entries.next_entry().await.map_err(|error| {
@@ -1242,7 +1459,7 @@ impl Store {
             else {
                 continue;
             };
-            if state.generation_of(segment_id).is_some() {
+            if snapshot.generations.contains_key(segment_id) {
                 continue;
             }
             tracing::warn!(segment_id, "removing orphaned segment");
@@ -1985,16 +2202,17 @@ impl Store {
     pub fn snapshot(&self) -> Result<StoreSnapshot, String> {
         let outbox_messages = self.outbox_message_count()?;
         let multipart_uploads = self.count_cf_entries(ROCKSDB_CF_MULTIPART_UPLOADS)?;
-        let state = self.load_segment_state()?;
+        let segment_state = self.segment_state_snapshot();
         let segment_counts = vec![
-            ("old", state.old.len()),
-            ("current", state.current.len()),
-            ("new", state.new.len()),
+            ("old", segment_state.state.old.len()),
+            ("current", segment_state.state.current.len()),
+            ("new", segment_state.state.new.len()),
         ];
         Ok(StoreSnapshot {
             outbox_messages,
             multipart_uploads,
             segment_counts,
+            segment_fsync_count: self.segment_fsync_count.load(Ordering::Relaxed),
             rocksdb_block_cache_usage_bytes: self.rocksdb_block_cache.get_usage() as u64,
             rocksdb_block_cache_pinned_usage_bytes: self.rocksdb_block_cache.get_pinned_usage()
                 as u64,
@@ -2786,6 +3004,34 @@ fn rocksdb_column_family_options(
     options
 }
 
+/// Parsed segment ring state plus a by-id generation index, kept in memory so
+/// the serving path never re-reads and re-parses the persisted state. The
+/// process is the only writer of the metadata store (enforced by the data-dir
+/// writer lock), so the snapshot can only go stale if a mutation bypasses
+/// [`Store::save_segment_state`].
+#[derive(Default)]
+struct SegmentStateSnapshot {
+    state: SegmentState,
+    generations: HashMap<String, SegmentGeneration>,
+}
+
+impl SegmentStateSnapshot {
+    fn new(state: SegmentState) -> Self {
+        let mut generations =
+            HashMap::with_capacity(state.old.len() + state.current.len() + state.new.len());
+        for segment in &state.old {
+            generations.insert(segment.segment_id.clone(), SegmentGeneration::Old);
+        }
+        for segment in &state.current {
+            generations.insert(segment.segment_id.clone(), SegmentGeneration::Current);
+        }
+        for segment in &state.new {
+            generations.insert(segment.segment_id.clone(), SegmentGeneration::New);
+        }
+        Self { state, generations }
+    }
+}
+
 struct SegmentLocation {
     segment_id: String,
     offset: u64,
@@ -3122,6 +3368,64 @@ mod tests {
             .read_artifact_bytes(manifest)
             .await
             .expect("artifact bytes should read")
+    }
+
+    #[tokio::test]
+    async fn concurrent_replicated_applies_of_same_key_write_once() {
+        // Several peers replicating the same artifact concurrently (same key,
+        // same version) must not each append their own copy to a segment. The
+        // per-key apply lock serializes them: the first writer commits the
+        // manifest and the rest re-read it and short-circuit to IgnoredStale. A
+        // sleep failpoint between the durable append and the metadata commit
+        // forces the writers to overlap, so without the lock every copy would be
+        // appended (writer_count x on disk). This guards the store invariant
+        // directly, independent of the bootstrap-level fetch gate.
+        let (_temp_dir, config, store) = temp_store();
+        store.failpoints().set_always(
+            FailpointName::AfterArtifactBytesDurableBeforeMetadata,
+            FailpointAction::Sleep(std::time::Duration::from_millis(150)),
+        );
+
+        let writer_count = 4_usize;
+        let artifact_len = 128 * 1024_usize;
+        let bytes = vec![9_u8; artifact_len];
+        let version_ms = 100_u64;
+
+        let mut sources = Vec::new();
+        for index in 0..writer_count {
+            let path = config.tmp_dir.join("uploads").join(format!("src-{index}"));
+            std::fs::write(&path, &bytes).expect("source should write");
+            sources.push(path);
+        }
+
+        let applies = sources.iter().map(|source_path| {
+            store.apply_replicated_artifact_from_path(
+                ArtifactProducer::Gradle,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                source_path,
+                version_ms,
+            )
+        });
+        let outcomes = futures_util::future::join_all(applies).await;
+
+        let applied = outcomes
+            .into_iter()
+            .map(|outcome| outcome.expect("apply should succeed"))
+            .filter(|outcome| outcome.applied())
+            .count();
+        assert_eq!(
+            applied, 1,
+            "exactly one concurrent same-key apply should write; the rest are stale"
+        );
+
+        let segments_bytes = crate::utils::directory_size_bytes(&config.data_dir.join("segments"));
+        assert!(
+            segments_bytes <= (artifact_len as u64) * 2,
+            "segment store held {segments_bytes} bytes, expected ~{artifact_len} (one copy); \
+             concurrent same-key applies amplified on-disk data"
+        );
     }
 
     #[tokio::test]
@@ -4197,6 +4501,104 @@ mod tests {
         }
     }
 
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn concurrent_artifact_writes_batch_segment_fsyncs() {
+        let (_temp_dir, config, store) = temp_store();
+        let store = Arc::new(store);
+
+        // Slow every segment fsync so all writers reach the durability barrier
+        // within one window. With one fsync per write under the global segment
+        // write lock these serialize (one fsync each); group commit must
+        // coalesce them into far fewer.
+        store.failpoints().set_always(
+            FailpointName::BeforeSegmentFsync,
+            FailpointAction::Sleep(std::time::Duration::from_millis(50)),
+        );
+
+        let writers = 16u64;
+        let mut handles = Vec::new();
+        for i in 0..writers {
+            let store = store.clone();
+            let path = config.tmp_dir.join(format!("artifact-{i}"));
+            std::fs::write(&path, format!("artifact-body-{i}")).expect("write artifact body");
+            handles.push(tokio::spawn(async move {
+                store
+                    .persist_artifact_from_path_and_enqueue(
+                        ArtifactProducer::Xcode,
+                        "ns",
+                        &format!("key-{i}"),
+                        "application/octet-stream",
+                        &path,
+                        &[],
+                    )
+                    .await
+                    .expect("artifact should persist");
+            }));
+        }
+        for handle in handles {
+            handle.await.expect("writer task should complete");
+        }
+
+        let fsyncs = store
+            .segment_fsync_count
+            .load(std::sync::atomic::Ordering::Relaxed);
+        assert!(
+            fsyncs <= 4,
+            "expected concurrent writes to batch segment fsyncs (<=4) but observed {fsyncs} \
+             for {writers} writers — every write is fsyncing under the global segment write lock"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn concurrent_replicated_artifact_applies_batch_segment_fsyncs() {
+        let (_temp_dir, _config, store) = temp_store();
+        let store = Arc::new(store);
+
+        // A fresh node bootstrapping an account applies inbound artifacts
+        // concurrently (BOOTSTRAP_ARTIFACT_FETCH_CONCURRENCY at a time). Inbound
+        // applies share the foreground write's segment-append + durability path
+        // (`persist_artifact_from_path_with_version`), so group commit must
+        // coalesce their fsyncs too — otherwise the parallel bootstrap fetch just
+        // re-serializes one fsync per inbound write and gains nothing. Slow every
+        // fsync so all appliers reach the durability barrier within one window.
+        store.failpoints().set_always(
+            FailpointName::BeforeSegmentFsync,
+            FailpointAction::Sleep(std::time::Duration::from_millis(50)),
+        );
+
+        let appliers = 16u64;
+        let mut handles = Vec::new();
+        for i in 0..appliers {
+            let store = store.clone();
+            handles.push(tokio::spawn(async move {
+                store
+                    .apply_replicated_artifact_from_bytes(
+                        ArtifactProducer::Xcode,
+                        "ns",
+                        &format!("key-{i}"),
+                        "application/octet-stream",
+                        format!("artifact-body-{i}").as_bytes(),
+                        1_000 + i,
+                    )
+                    .await
+                    .expect("replicated artifact should apply");
+            }));
+        }
+        for handle in handles {
+            handle.await.expect("applier task should complete");
+        }
+
+        let fsyncs = store
+            .segment_fsync_count
+            .load(std::sync::atomic::Ordering::Relaxed);
+        assert!(
+            fsyncs <= 4,
+            "expected concurrent replicated applies to batch segment fsyncs (<=4) but observed \
+             {fsyncs} for {appliers} appliers — inbound bootstrap writes are fsyncing per write \
+             under the global segment write lock"
+        );
+    }
+
     #[tokio::test]
     async fn local_namespace_delete_enqueues_replication_targets_in_same_store_operation() {
         let (_temp_dir, _config, store) = temp_store();
@@ -4582,7 +4984,9 @@ mod tests {
 
         // Simulate the crash window: rotation saved the ring state without
         // the evicted segment, but the process died before the unlink.
-        let mut state = store.load_segment_state().expect("state should load");
+        let mut state = store
+            .load_segment_state_from_db()
+            .expect("state should load");
         assert!(state.remove_segment(&segment_id));
         store.save_segment_state(&state).expect("state should save");
 
@@ -4599,5 +5003,180 @@ mod tests {
                 .expect("manifest lookup should succeed")
                 .is_none()
         );
+    }
+
+    #[tokio::test]
+    async fn segment_generation_tracks_saved_state() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        store
+            .save_segment_state(&SegmentState {
+                old: vec![SegmentReference::new("aged".into(), 1)],
+                current: vec![SegmentReference::new("settled".into(), 2)],
+                new: vec![SegmentReference::new("fresh".into(), 3)],
+            })
+            .expect("state should save");
+
+        assert_eq!(
+            store.segment_generation("aged").expect("lookup"),
+            Some(SegmentGeneration::Old)
+        );
+        assert_eq!(
+            store.segment_generation("settled").expect("lookup"),
+            Some(SegmentGeneration::Current)
+        );
+        assert_eq!(
+            store.segment_generation("fresh").expect("lookup"),
+            Some(SegmentGeneration::New)
+        );
+        assert_eq!(store.segment_generation("missing").expect("lookup"), None);
+    }
+
+    #[tokio::test]
+    async fn evicting_a_segment_updates_the_cached_generation() {
+        let (_temp_dir, _config, store) = temp_store();
+        let manifest = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("artifact should persist");
+        let segment_id = manifest
+            .segment_id
+            .clone()
+            .expect("artifact should be segment-backed");
+        assert_eq!(
+            store.segment_generation(&segment_id).expect("lookup"),
+            Some(SegmentGeneration::New)
+        );
+
+        store
+            .evict_segment(&segment_id)
+            .await
+            .expect("eviction should succeed");
+
+        assert_eq!(store.segment_generation(&segment_id).expect("lookup"), None);
+    }
+
+    #[tokio::test]
+    async fn segment_state_snapshot_survives_reopen() {
+        let (_temp_dir, config, store) = temp_store();
+        let manifest = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("artifact should persist");
+        let segment_id = manifest
+            .segment_id
+            .clone()
+            .expect("artifact should be segment-backed");
+        drop(store);
+
+        let io = IoController::new(
+            Metrics::new(config.region.clone(), config.tenant_id.clone()),
+            config.file_descriptor_pool_size,
+            std::time::Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
+            vec![config.tmp_dir.clone(), config.data_dir.clone()],
+        )
+        .expect("io controller should build");
+        let memory = MemoryController::new(
+            io.metrics(),
+            config.memory_soft_limit_bytes,
+            config.memory_hard_limit_bytes,
+        );
+        let reopened = Store::open(&config, io, memory).expect("store should reopen");
+
+        assert_eq!(
+            reopened.segment_generation(&segment_id).expect("lookup"),
+            Some(SegmentGeneration::New)
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn concurrent_state_mutations_do_not_lose_updates() {
+        let (_temp_dir, _config, store) = temp_store();
+        let store = Arc::new(store);
+
+        let mut tasks = Vec::new();
+        for index in 0..16u64 {
+            let store = store.clone();
+            tasks.push(tokio::spawn(async move {
+                store
+                    .mutate_segment_state(|state| {
+                        state.push_new(
+                            SegmentReference::new(format!("segment-{index}"), index),
+                            16,
+                            16,
+                            16,
+                        )
+                    })
+                    .await
+                    .expect("mutation should succeed");
+            }));
+        }
+        for task in tasks {
+            task.await.expect("mutation task should finish");
+        }
+
+        for index in 0..16u64 {
+            assert!(
+                store
+                    .segment_generation(&format!("segment-{index}"))
+                    .expect("lookup")
+                    .is_some(),
+                "segment-{index} should survive concurrent mutations"
+            );
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn concurrent_evictions_do_not_lose_state_updates() {
+        let (_temp_dir, _config, store) = temp_store();
+        let store = Arc::new(store);
+        let segments: Vec<SegmentReference> = (0..16)
+            .map(|index| SegmentReference::new(format!("segment-{index}"), index as u64))
+            .collect();
+        store
+            .save_segment_state(&SegmentState {
+                old: segments.clone(),
+                current: Vec::new(),
+                new: Vec::new(),
+            })
+            .expect("state should save");
+
+        let mut tasks = Vec::new();
+        for segment in &segments {
+            let store = store.clone();
+            let segment_id = segment.segment_id.clone();
+            tasks.push(tokio::spawn(async move {
+                store
+                    .evict_segment(&segment_id)
+                    .await
+                    .expect("eviction should succeed");
+            }));
+        }
+        for task in tasks {
+            task.await.expect("eviction task should finish");
+        }
+
+        for segment in &segments {
+            assert_eq!(
+                store
+                    .segment_generation(&segment.segment_id)
+                    .expect("lookup"),
+                None,
+                "{} should be gone after concurrent evictions",
+                segment.segment_id
+            );
+        }
     }
 }

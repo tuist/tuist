@@ -23,10 +23,6 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorkerWorkerTest do
       {:ok, :updated}
     end)
 
-    expect(Tuist.Billing, :update_namespace_usage_meter, fn ^customer_id, ^idempotency_key ->
-      {:ok, :updated}
-    end)
-
     # When/Then
     SyncCustomerStripeMetersWorker.perform(%Oban.Job{
       id: 123,
@@ -46,11 +42,6 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorkerWorkerTest do
 
     expect(Tuist.Billing, :update_remote_cache_hit_meter, fn ^customer_id, ^idempotency_key ->
       {:ok, :updated}
-    end)
-
-    # Ensure namespace usage meter is not called either
-    stub(Tuist.Billing, :update_namespace_usage_meter, fn ^customer_id, ^idempotency_key ->
-      flunk("update_namespace_usage_meter should not be called when qa billing is disabled")
     end)
 
     # When/Then (no expectation set on update_llm_token_meters, so it must not be called)

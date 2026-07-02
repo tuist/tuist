@@ -1,0 +1,192 @@
+{{- if and .Values.capi.enabled .Values.kuraFleet.enabled }}
+{{- /*
+local-path-provisioner for the kura runner-cache Elastic Metal pool. Elastic
+Metal can't attach scw-bssd block volumes, so per-account cache PVCs live on the
+node's local NVMe: each becomes a hostPath-backed PV under
+/opt/local-path-provisioner. The StorageClass name `scw-local-nvme` is
+load-bearing — the `scw-fr-par-runners` kura region spec provisions PVCs with
+exactly this class (server/lib/tuist/kura/regions.ex, storage_class).
+
+This used to be a manual per-cluster bootstrap (infra/k8s/mgmt/bootstrap/), which
+meant a cluster could enable the kura fleet but silently lack the StorageClass
+its cache PVCs need (the pod hangs Pending). It now ships with the chart, gated
+on the same kuraFleet.enabled flag as the fleet itself, so the two can't drift.
+
+The provisioner controller is deliberately NOT pinned to the EM pool (unlike the
+old bootstrap manifest): it only watches PVCs and launches a short-lived helper
+Pod on the *target* node to set up/tear down each PV directory, so it can run on
+any node. Pinning it to the cache pool would make the release `--wait` block on
+it whenever the EM node isn't up yet. The helper Pod (configured below) still
+tolerates the runner-cache taint so it lands on the cache node.
+*/ -}}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: local-path-storage
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: local-path-provisioner-service-account
+  namespace: local-path-storage
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: local-path-provisioner-role
+rules:
+  - apiGroups: [""]
+    resources: [nodes, persistentvolumeclaims, configmaps, pods, pods/log]
+    verbs: [get, list, watch]
+  # The provisioner creates a short-lived helper Pod on the target node to
+  # set up/tear down the hostPath directory backing each PV; without
+  # create/delete on pods every provision fails with a 403 and PVCs hang
+  # Pending (the helper Pod can't be launched).
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [create, delete]
+  - apiGroups: [""]
+    resources: [persistentvolumes]
+    verbs: [get, list, watch, create, patch, update, delete]
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create, patch]
+  - apiGroups: [storage.k8s.io]
+    resources: [storageclasses]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: local-path-provisioner-bind
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: local-path-provisioner-role
+subjects:
+  - kind: ServiceAccount
+    name: local-path-provisioner-service-account
+    namespace: local-path-storage
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: local-path-provisioner
+  namespace: local-path-storage
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: local-path-provisioner
+  template:
+    metadata:
+      labels:
+        app: local-path-provisioner
+    spec:
+      serviceAccountName: local-path-provisioner-service-account
+      # Tolerate both cache taints so the controller is free to land on a cache
+      # node if the scheduler picks it, but it is not pinned there — it runs its
+      # helper Pods on the target node regardless of where it sits. runner-cache
+      # is the Elastic Metal runner-cache pool; kura-cache is the public-region
+      # pools (Dedibox eu-central, OVH) that also provision scw-local-nvme PVCs.
+      tolerations:
+        - key: tuist.dev/runner-cache
+          operator: Exists
+          effect: NoSchedule
+        - key: tuist.dev/kura-cache
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: local-path-provisioner
+          image: rancher/local-path-provisioner:v0.0.31
+          imagePullPolicy: IfNotPresent
+          command:
+            - local-path-provisioner
+            - --debug
+            - start
+            - --config
+            - /etc/config/config.json
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/config/
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+      volumes:
+        - name: config-volume
+          configMap:
+            name: local-path-config
+---
+# WaitForFirstConsumer so a PV is carved on the node the cache pod lands on
+# (the kura pod's nodeSelector + toleration already pin it to this pool).
+# reclaimPolicy: Delete — cache volumes are disposable; the kura RunnerCache
+# reconciler tears instances down when accounts lose runner profiles, and a
+# retained orphan dir wastes NVMe until hand-deleted.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: scw-local-nvme
+provisioner: rancher.io/local-path
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+# local-path PVs are a directory on one node; they grow with the underlying
+# filesystem, not an expandable block device.
+allowVolumeExpansion: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: local-path-config
+  namespace: local-path-storage
+data:
+  # Single path on the Elastic Metal NVMe root filesystem. The provisioner
+  # creates one sub-directory per PV here. nodePathMap with a single
+  # DEFAULT_PATH_FOR_NON_LISTED_NODES entry applies to every node the
+  # provisioner runs on (gated to this pool by the helper Pod's placement).
+  config.json: |-
+    {
+      "nodePathMap": [
+        {
+          "node": "DEFAULT_PATH_FOR_NON_LISTED_NODES",
+          "paths": ["/opt/local-path-provisioner"]
+        }
+      ]
+    }
+  setup: |-
+    #!/bin/sh
+    set -eu
+    mkdir -m 0777 -p "$VOL_DIR"
+  teardown: |-
+    #!/bin/sh
+    set -eu
+    rm -rf "$VOL_DIR"
+  helperPod.yaml: |-
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: helper-pod
+    spec:
+      # The helper Pod runs on the target cache node to create/remove the PV
+      # directory, so it has to tolerate whatever taint that node carries:
+      # runner-cache (Elastic Metal) or kura-cache (the public Dedibox/OVH cache
+      # pools, which also provision scw-local-nvme PVCs).
+      tolerations:
+        - key: tuist.dev/runner-cache
+          operator: Exists
+          effect: NoSchedule
+        - key: tuist.dev/kura-cache
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: helper-pod
+          image: busybox
+          imagePullPolicy: IfNotPresent
+{{- end }}

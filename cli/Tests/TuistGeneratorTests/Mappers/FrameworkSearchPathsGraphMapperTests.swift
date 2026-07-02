@@ -20,7 +20,7 @@ final class FrameworkSearchPathsGraphMapperTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_map_consolidatesIntoResponseFile_whenManyPrecompiledFrameworks() throws {
+    func test_map_consolidatesIntoResponseFile_whenManyPrecompiledFrameworks() async throws {
         // Given
         let projectPath = try temporaryPath()
         let app = Target.test(name: "App", product: .app)
@@ -43,19 +43,20 @@ final class FrameworkSearchPathsGraphMapperTests: TuistUnitTestCase {
         let graph = Graph.test(projects: [projectPath: project], dependencies: dependencies)
 
         // When
-        let (mappedGraph, sideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+        let (mappedGraph, sideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         let settings = try XCTUnwrap(mappedGraph.projects[projectPath]?.targets["App"]?.settings)
         XCTAssertTrue(
-            arrayValue(settings.base["OTHER_CFLAGS"]).contains("@$(SRCROOT)/Derived/FrameworkSearchPaths/App.resp")
+            arrayValue(settings.base["OTHER_CFLAGS"]).contains("\"@$(SRCROOT)/Derived/FrameworkSearchPaths/App.resp\"")
         )
         XCTAssertTrue(
-            arrayValue(settings.base["OTHER_LDFLAGS"]).contains("@$(SRCROOT)/Derived/FrameworkSearchPaths/App.resp")
+            arrayValue(settings.base["OTHER_LDFLAGS"]).contains("\"@$(SRCROOT)/Derived/FrameworkSearchPaths/App.resp\"")
         )
         let otherSwiftFlags = arrayValue(settings.base["OTHER_SWIFT_FLAGS"])
         XCTAssertTrue(otherSwiftFlags.contains("-F"))
-        XCTAssertTrue(otherSwiftFlags.contains("$(SRCROOT)/Frameworks/hash0"))
+        XCTAssertTrue(otherSwiftFlags.contains("$(SRCROOT)/Derived/FrameworkSearchPaths/Swift/App"))
+        XCTAssertFalse(otherSwiftFlags.contains("$(SRCROOT)/Frameworks/hash0"))
         // The precompiled paths live in the response file, not in FRAMEWORK_SEARCH_PATHS.
         XCTAssertFalse(arrayValue(settings.base["FRAMEWORK_SEARCH_PATHS"]).contains { $0.contains("/Frameworks/") })
 
@@ -67,9 +68,169 @@ final class FrameworkSearchPathsGraphMapperTests: TuistUnitTestCase {
         }.first)
         let contents = try XCTUnwrap(String(data: try XCTUnwrap(responseFile.contents), encoding: .utf8))
         XCTAssertTrue(contents.contains("-F\(projectPath.appending(components: "Frameworks", "hash0").pathString)"))
+
+        let swiftSearchPathCleanupDescriptor = try XCTUnwrap(
+            generatedFilesCleanupDescriptor(
+                in: sideEffects,
+                include: ["Swift/*/*.framework", "Swift/*/*.xcframework"]
+            )
+        )
+        let swiftSearchPathDirectory = projectPath.appending(components: "Derived", "FrameworkSearchPaths")
+        XCTAssertTrue(swiftSearchPathCleanupDescriptor.directories.contains(swiftSearchPathDirectory))
+        XCTAssertTrue(
+            swiftSearchPathCleanupDescriptor.activeFilesByDirectory[swiftSearchPathDirectory]?.contains(
+                projectPath.appending(components: "Derived", "FrameworkSearchPaths", "Swift", "App", "Module0.xcframework")
+            ) ?? false
+        )
+
+        XCTAssertTrue(
+            symbolicLinkDescriptors(in: sideEffects).contains(
+                SymbolicLinkDescriptor(
+                    path: projectPath.appending(
+                        components: "Derived",
+                        "FrameworkSearchPaths",
+                        "Swift",
+                        "App",
+                        "Module0.xcframework"
+                    ),
+                    destination: projectPath.appending(components: "Frameworks", "hash0", "Module0.xcframework")
+                )
+            )
+        )
     }
 
-    func test_map_keepsFrameworkSearchPaths_whenFewPrecompiledFrameworks() throws {
+    func test_map_quotesResponseFileReference_whenTargetNameContainsWhitespace() async throws {
+        // Given
+        let projectPath = try temporaryPath()
+        let app = Target.test(name: "Etsy Enterprise", product: .app)
+        let project = Project.test(path: projectPath, sourceRootPath: projectPath, targets: [app])
+        var xcframeworks: [GraphDependency] = []
+        for i in 0 ..< 25 {
+            xcframeworks.append(
+                .testXCFramework(
+                    path: projectPath.appending(components: "Frameworks", "hash\(i)", "Module\(i).xcframework"),
+                    linking: .dynamic
+                )
+            )
+        }
+        var dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: "Etsy Enterprise", path: projectPath): Set(xcframeworks),
+        ]
+        for xcframework in xcframeworks {
+            dependencies[xcframework] = Set()
+        }
+        let graph = Graph.test(projects: [projectPath: project], dependencies: dependencies)
+
+        // When
+        let (mappedGraph, sideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let settings = try XCTUnwrap(mappedGraph.projects[projectPath]?.targets["Etsy Enterprise"]?.settings)
+        XCTAssertTrue(
+            arrayValue(settings.base["OTHER_CFLAGS"])
+                .contains("\"@$(SRCROOT)/Derived/FrameworkSearchPaths/Etsy Enterprise.resp\"")
+        )
+        XCTAssertTrue(
+            arrayValue(settings.base["OTHER_LDFLAGS"])
+                .contains("\"@$(SRCROOT)/Derived/FrameworkSearchPaths/Etsy Enterprise.resp\"")
+        )
+        XCTAssertTrue(sideEffects.contains { sideEffect in
+            guard case let .file(file) = sideEffect else { return false }
+            return file.path.pathString.hasSuffix("Derived/FrameworkSearchPaths/Etsy Enterprise.resp")
+        })
+    }
+
+    func test_map_deletesStaleFrameworkSearchPathResponseFiles() async throws {
+        // Given
+        let projectPath = try temporaryPath()
+        let responseFileDirectory = projectPath.appending(components: "Derived", "FrameworkSearchPaths")
+        let activeResponseFilePath = responseFileDirectory.appending(component: "App.resp")
+        let staleResponseFilePath = responseFileDirectory.appending(component: "DeletedTarget.resp")
+
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(path: projectPath, sourceRootPath: projectPath, targets: [app])
+        var xcframeworks: [GraphDependency] = []
+        for i in 0 ..< 25 {
+            xcframeworks.append(
+                .testXCFramework(
+                    path: projectPath.appending(components: "Frameworks", "hash\(i)", "Module\(i).xcframework"),
+                    linking: .dynamic
+                )
+            )
+        }
+        var dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: "App", path: projectPath): Set(xcframeworks),
+        ]
+        for xcframework in xcframeworks {
+            dependencies[xcframework] = Set()
+        }
+        let graph = Graph.test(projects: [projectPath: project], dependencies: dependencies)
+
+        // When
+        let (_, sideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let cleanupDescriptor = try XCTUnwrap(generatedFilesCleanupDescriptor(in: sideEffects))
+        XCTAssertEqual(cleanupDescriptor.include, ["*.resp"])
+        XCTAssertTrue(cleanupDescriptor.directories.contains(responseFileDirectory))
+        XCTAssertEqual(cleanupDescriptor.activeFilesByDirectory[responseFileDirectory], Set([activeResponseFilePath]))
+        XCTAssertFalse(cleanupDescriptor.activeFilesByDirectory[responseFileDirectory]?.contains(staleResponseFilePath) ?? false)
+        XCTAssertTrue(
+            sideEffects.contains { sideEffect in
+                guard case let .file(fileDescriptor) = sideEffect else { return false }
+                return fileDescriptor.path == activeResponseFilePath && fileDescriptor.state == .present
+            }
+        )
+    }
+
+    func test_map_keepsConflictingFrameworkNamesInline_whenConsolidatingSwiftSearchPaths() async throws {
+        // Given
+        let projectPath = try temporaryPath()
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(path: projectPath, sourceRootPath: projectPath, targets: [app])
+        var xcframeworks: [GraphDependency] = [
+            .testXCFramework(
+                path: projectPath.appending(components: "Frameworks", "hash0", "Shared.xcframework"),
+                linking: .dynamic
+            ),
+            .testXCFramework(
+                path: projectPath.appending(components: "Frameworks", "hash1", "Shared.xcframework"),
+                linking: .dynamic
+            ),
+        ]
+        for i in 2 ..< 25 {
+            xcframeworks.append(
+                .testXCFramework(
+                    path: projectPath.appending(components: "Frameworks", "hash\(i)", "Module\(i).xcframework"),
+                    linking: .dynamic
+                )
+            )
+        }
+        var dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: "App", path: projectPath): Set(xcframeworks),
+        ]
+        for xcframework in xcframeworks {
+            dependencies[xcframework] = Set()
+        }
+        let graph = Graph.test(projects: [projectPath: project], dependencies: dependencies)
+
+        // When
+        let (mappedGraph, sideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let settings = try XCTUnwrap(mappedGraph.projects[projectPath]?.targets["App"]?.settings)
+        let otherSwiftFlags = arrayValue(settings.base["OTHER_SWIFT_FLAGS"])
+        XCTAssertTrue(otherSwiftFlags.contains("$(SRCROOT)/Derived/FrameworkSearchPaths/Swift/App"))
+        XCTAssertTrue(otherSwiftFlags.contains("$(SRCROOT)/Frameworks/hash0"))
+        XCTAssertTrue(otherSwiftFlags.contains("$(SRCROOT)/Frameworks/hash1"))
+        XCTAssertFalse(otherSwiftFlags.contains("$(SRCROOT)/Frameworks/hash2"))
+
+        let symbolicLinks = symbolicLinkDescriptors(in: sideEffects)
+        XCTAssertFalse(symbolicLinks.contains { $0.destination.basename == "Shared.xcframework" })
+        XCTAssertTrue(symbolicLinks.contains { $0.destination.basename == "Module2.xcframework" })
+    }
+
+    func test_map_keepsFrameworkSearchPaths_whenFewPrecompiledFrameworks() async throws {
         // Given
         let projectPath = try temporaryPath()
         let app = Target.test(name: "App", product: .app)
@@ -87,13 +248,20 @@ final class FrameworkSearchPathsGraphMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let (mappedGraph, sideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+        let (mappedGraph, sideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         let settings = try XCTUnwrap(mappedGraph.projects[projectPath]?.targets["App"]?.settings)
         XCTAssertTrue(arrayValue(settings.base["FRAMEWORK_SEARCH_PATHS"]).contains("$(SRCROOT)/Frameworks/hash0"))
         XCTAssertNil(settings.base["OTHER_CFLAGS"])
-        XCTAssertTrue(sideEffects.isEmpty)
+        XCTAssertTrue(fileDescriptors(in: sideEffects).isEmpty)
+        let cleanupDescriptor = try XCTUnwrap(generatedFilesCleanupDescriptor(in: sideEffects))
+        XCTAssertEqual(cleanupDescriptor.include, ["*.resp"])
+        XCTAssertTrue(
+            cleanupDescriptor.directories.contains(
+                projectPath.appending(components: "Derived", "FrameworkSearchPaths")
+            )
+        )
     }
 
     private func arrayValue(_ value: SettingValue?) -> [String] {
@@ -102,5 +270,29 @@ final class FrameworkSearchPathsGraphMapperTests: TuistUnitTestCase {
         case let .string(value): return [value]
         case nil: return []
         }
+    }
+
+    private func fileDescriptors(in sideEffects: [SideEffectDescriptor]) -> [FileDescriptor] {
+        sideEffects.compactMap { sideEffect in
+            guard case let .file(descriptor) = sideEffect else { return nil }
+            return descriptor
+        }
+    }
+
+    private func symbolicLinkDescriptors(in sideEffects: [SideEffectDescriptor]) -> [SymbolicLinkDescriptor] {
+        sideEffects.compactMap { sideEffect in
+            guard case let .symbolicLink(descriptor) = sideEffect else { return nil }
+            return descriptor
+        }
+    }
+
+    private func generatedFilesCleanupDescriptor(
+        in sideEffects: [SideEffectDescriptor],
+        include: [String] = ["*.resp"]
+    ) -> GeneratedFilesCleanupDescriptor? {
+        sideEffects.compactMap { sideEffect in
+            guard case let .generatedFilesCleanup(descriptor) = sideEffect else { return nil }
+            return descriptor.include == include ? descriptor : nil
+        }.first
     }
 }

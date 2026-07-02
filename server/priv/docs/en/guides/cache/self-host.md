@@ -2,244 +2,253 @@
 {
   "title": "Self-hosting",
   "titleTemplate": ":title | Cache | Guides | Tuist",
-  "description": "Learn how to self-host the Tuist cache service."
+  "description": "Learn how to self-host Tuist cache nodes and replicate with the Tuist-hosted mesh."
 }
 ---
 
 # Self-host Cache {#self-host-cache}
 
-The Tuist cache service can be self-hosted to provide a private binary cache for your team. This is most useful for organizations with large artifacts and frequent builds, where placing the cache closer to your CI infrastructure reduces latency and improves cache efficiency. By minimizing the distance between your build agents and the cache, you ensure that network overhead doesn't negate the speed benefits of caching.
+Tuist's cache runs as a **mesh of nodes** that replicate artifacts to each other. You can run your own cache nodes on your infrastructure so the cache sits next to your developers and CI, cutting the network distance that would otherwise eat into the speed caching is meant to provide.
+
+A self-hosted node is a single container (`ghcr.io/tuist/kura`) that stores artifacts on local disk and talks to the rest of the mesh over a mutually-authenticated peer connection. Tuist acts as the **control plane**: it authenticates traffic, tells the Tuist CLI which cache endpoint to use, and meters usage. It never reaches into your nodes.
 
 > [!NOTE]
 > Self-hosting cache nodes requires an **Enterprise plan**.
 >
-> You can connect self-hosted cache nodes to either the hosted Tuist server (`https://tuist.dev`) or a self-hosted Tuist server. Self-hosting the Tuist server itself requires a separate server license. See the <.localized_link href="/guides/server/self-host/server">server self-hosting guide</.localized_link>.
+> Nodes connect to either the hosted Tuist server (`https://tuist.dev`) or a self-hosted Tuist server. Self-hosting the Tuist server itself requires a separate server license. See the <.localized_link href="/guides/server/self-host/server">server self-hosting guide</.localized_link>.
 
+## Two topologies {#topologies}
+
+There are two ways to run self-hosted nodes, and which one you get depends entirely on whether your account also runs a **Tuist-managed** cache region.
+
+### Bridged: Tuist-hosted mesh + your nodes {#topology-bridged}
+
+Your account runs at least one Tuist-managed cache region, and your self-hosted nodes **join that mesh**. Writes against your nodes propagate continuously into the managed mesh, and a node warms from the managed mesh's existing cache when it joins. This puts a low-latency cache next to your runners (which do most of the writing) while their writes feed the shared cache. Note that new artifacts written elsewhere in the managed mesh **after** a node has joined are not yet continuously propagated back to it; that is a planned enhancement.
+
+This is the right choice when you want the speed of an on-prem cache without giving up the shared, always-on managed cache.
+
+### Standalone: your nodes only {#topology-standalone}
+
+Your account runs **no** managed cache region. Your nodes form their own isolated mesh on your infrastructure. Tuist still knows your nodes exist (so the CLI routes cache traffic to them and usage is metered), but **no data is exchanged with any Tuist-managed mesh**, because there isn't one. Peer membership and replication happen entirely within your own nodes.
+
+```mermaid
+graph LR
+  subgraph Bridged
+    direction LR
+    M[Tuist-managed mesh] <-->|replicate| N1[Your node]
+  end
+  subgraph Standalone
+    direction LR
+    N2[Your node] <-->|replicate| N3[Your node]
+  end
+```
+
+The key difference in configuration is that the **bridged** topology uses **enrollment**, where the node generates its keypair on boot and Tuist issues its mesh certificate, while the **standalone** topology has no Tuist-issued mesh certificate, so you provide your own peer TLS.
 
 ## Prerequisites {#prerequisites}
 
-- Docker and Docker Compose
-- S3-compatible storage bucket
-- A running Tuist server instance (hosted or self-hosted)
+- Docker and Docker Compose (or any container runtime)
+- A running Tuist server (hosted or self-hosted)
+- Disk for the cache. A bridged node pulls the account's **entire** mesh on first join, so size the data volume accordingly.
 
-## Deployment {#deployment}
+## Create a control-plane client {#control-plane-client}
 
-The cache service is distributed as a Docker image at [ghcr.io/tuist/cache](https://ghcr.io/tuist/cache). We provide reference configuration files in the [cache directory](https://github.com/tuist/tuist/tree/main/cache).
+A node uses an account-scoped control-plane client to authenticate cache requests (token introspection), report to the dashboard, and deliver usage. It is **not** how clients are routed to your nodes (see [How clients reach your nodes](#routing)), so a single node on a trusted network can run without one.
 
-> [!TIP]
-> We provide a Docker Compose setup because it's a convenient baseline for evaluation and small deployments. You can use it as a reference and adapt it to your preferred deployment model (Kubernetes, raw Docker, etc.).
+1. Open your account's **Cache** page. On a self-hosted Tuist server it is available by default (the deployment's license is the entitlement). On the hosted `tuist.dev` server the page requires the `kura` feature flag; generating a self-hosted-node credential there additionally requires an Enterprise plan.
+2. Choose **Generate credential**.
+3. Copy the `client_id` and the one-time `secret`.
 
+The server derives the account from this credential, so the node never asserts its own tenant. Rotate or revoke it from the same page.
 
-### Configuration files {#config-files}
+## How clients reach your nodes {#routing}
+
+How the Tuist CLI is pointed at your nodes depends on which server your nodes report to:
+
+- **Hosted Tuist server (`tuist.dev`).** The server routes clients to your nodes automatically from their registration heartbeats. Set `KURA_REGISTRATION_URL` and `KURA_ADVERTISED_HTTP_URL` on each node (below), and the advertised URL is handed to the CLI once the node is ready.
+- **Self-hosted Tuist server.** You tell the server which cache endpoints to advertise by setting `TUIST_CACHE_ENDPOINTS` (Helm `server.cacheEndpointUrl`) to your node's client-facing URL, comma-separated for multiple nodes. Registration heartbeats still populate the **Cache** page, but they do not drive routing on a self-hosted server.
+
+## Bridged setup {#bridged-setup}
+
+The node enrolls on boot: it generates a keypair locally (the private key never leaves your infrastructure), sends a certificate signing request, and receives its signed certificate, the account CA, and the managed mesh's gateway address. **You do not provide any TLS material**. Enrollment writes it into the mounted volume.
+
+```yaml
+# docker-compose.yml
+services:
+  kura:
+    image: ghcr.io/tuist/kura:<version>
+    restart: unless-stopped
+    ports:
+      - "4000:4000"   # HTTP cache: your developers and CI point here
+      - "7443:7443"   # mesh peer port
+    environment:
+      # Enroll and join the managed mesh
+      KURA_ENROLL_ON_BOOT: "1"
+      KURA_CONTROL_PLANE_URL: "https://tuist.dev"
+      KURA_CONTROL_PLANE_CLIENT_ID: "<client_id>"
+      KURA_CONTROL_PLANE_CLIENT_SECRET: "<secret>"
+      KURA_TENANT_ID: "<account-handle>"
+
+      # Register so the node shows in the dashboard and the CLI routes to it
+      KURA_REGISTRATION_URL: "https://tuist.dev/_internal/kura/mesh/registrations"
+      KURA_ADVERTISED_HTTP_URL: "https://kura.acme.internal"   # where your CLI/CI reach the cache
+      KURA_NODE_URL: "https://kura.acme.internal:7443"         # this node's peer identity on your network
+      KURA_REGION: "office"
+
+      # Ports and storage. Enrollment writes the TLS files into KURA_INTERNAL_TLS_* on first boot.
+      KURA_PORT: "4000"
+      KURA_GRPC_PORT: "50051"
+      KURA_INTERNAL_PORT: "7443"
+      KURA_INTERNAL_TLS_CA_CERT_PATH: "/tls/ca.pem"
+      KURA_INTERNAL_TLS_CERT_PATH: "/tls/tls.crt"
+      KURA_INTERNAL_TLS_KEY_PATH: "/tls/tls.key"
+      KURA_DATA_DIR: "/var/cache/kura"
+      KURA_TMP_DIR: "/var/cache/kura/tmp"
+      KURA_OTEL_SERVICE_NAME: "kura-acme"
+      KURA_OTEL_DEPLOYMENT_ENVIRONMENT: "onprem"
+
+      # Authenticate the HTTP cache API. The Tuist hook ships in the image at
+      # this path; it introspects each token against the control plane using the
+      # control-plane client above, so only valid Tuist tokens for this account
+      # can read or write. No JWT verifier secret is involved.
+      KURA_EXTENSION_ENABLED: "1"
+      KURA_EXTENSION_SCRIPT_PATH: "/etc/kura/extensions/tuist.lua"
+      KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL: "https://tuist.dev"
+    volumes:
+      - kura-tls:/tls            # empty; enrollment populates it
+      - kura-data:/var/cache/kura
+volumes:
+  kura-tls: {}
+  kura-data: {}
+```
+
+What you provide: the control-plane client, the two addresses (`KURA_NODE_URL`, `KURA_ADVERTISED_HTTP_URL`) on your network, and two empty writable volumes. Everything else (the keypair, the certificate, the account CA, and the managed mesh's address) is provisioned automatically on boot.
+
+## Standalone setup {#standalone-setup}
+
+With no managed region there is no Tuist-issued mesh CA, so enrollment does not apply (the enroll endpoint returns `503 ca_unavailable`). You bring your own peer TLS and your own peer list.
+
+```yaml
+# docker-compose.yml
+services:
+  kura:
+    image: ghcr.io/tuist/kura:<version>
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+      - "7443:7443"
+    environment:
+      # Report to Tuist: dashboard visibility, usage, and token introspection (cache auth).
+      # On a self-hosted server these do not drive routing (see the Routing section), so the
+      # control-plane client and KURA_REGISTRATION_URL/KURA_ADVERTISED_HTTP_URL are optional
+      # there. KURA_TENANT_ID is always required.
+      KURA_TENANT_ID: "<account-handle>"
+      KURA_CONTROL_PLANE_URL: "https://tuist.dev"
+      KURA_REGISTRATION_URL: "https://tuist.dev/_internal/kura/mesh/registrations"
+      KURA_CONTROL_PLANE_CLIENT_ID: "<client_id>"
+      KURA_CONTROL_PLANE_CLIENT_SECRET: "<secret>"
+      KURA_ADVERTISED_HTTP_URL: "https://kura.acme.internal"
+
+      # Your own mesh (only needed if you run more than one node)
+      KURA_NODE_URL: "https://kura-1.acme.internal:7443"
+      KURA_PEERS: "https://kura-2.acme.internal:7443,https://kura-3.acme.internal:7443"
+
+      # Peer mTLS secures node-to-node traffic, so it only applies with more than one node.
+      # A single node has no peers: omit these three and switch KURA_NODE_URL to
+      # http:// (keep the same host and port; the peer URL must use http, not
+      # https, when peer TLS is off).
+      KURA_INTERNAL_TLS_CA_CERT_PATH: "/tls/ca.pem"
+      KURA_INTERNAL_TLS_CERT_PATH: "/tls/tls.crt"
+      KURA_INTERNAL_TLS_KEY_PATH: "/tls/tls.key"
+
+      KURA_REGION: "office"
+      KURA_PORT: "4000"
+      KURA_GRPC_PORT: "50051"
+      KURA_INTERNAL_PORT: "7443"
+      KURA_DATA_DIR: "/var/cache/kura"
+      KURA_TMP_DIR: "/var/cache/kura/tmp"
+      KURA_OTEL_SERVICE_NAME: "kura-acme"
+      KURA_OTEL_DEPLOYMENT_ENVIRONMENT: "onprem"
+
+      # Authenticate the HTTP cache API with the bundled Tuist hook (introspects
+      # tokens against the control plane using the control-plane client above).
+      KURA_EXTENSION_ENABLED: "1"
+      KURA_EXTENSION_SCRIPT_PATH: "/etc/kura/extensions/tuist.lua"
+      KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL: "https://tuist.dev"
+    volumes:
+      - ./tls:/tls:ro           # YOU populate this with your CA + leaf
+      - kura-data:/var/cache/kura
+volumes:
+  kura-data: {}
+```
+
+What you provide that the bridged path does not: for a multi-node mesh, your **own peer TLS** mounted at `/tls` (a CA plus a leaf certificate and key per node, sharing a CA so the nodes trust each other) and `KURA_PEERS` describing your topology. A single standalone node needs neither: with no peers, nothing travels over the peer plane, so omit `KURA_INTERNAL_TLS_*` and `KURA_PEERS`, and use the `http://` scheme for `KURA_NODE_URL` (peer TLS off requires `http` rather than `https`; the host and `KURA_INTERNAL_PORT` stay the same).
+
+## What each topology requires {#requirements-summary}
+
+| You provide | Bridged | Standalone |
+|---|---|---|
+| Control-plane client (`client_id` / `secret`) | Yes | For cache auth, dashboard, and usage; optional for a trusted single node |
+| `KURA_NODE_URL` | Yes | Yes |
+| `KURA_ADVERTISED_HTTP_URL` | Yes | For dashboard registration; routing is separate (see below) |
+| Routing to the CLI | Automatic (registration) | Automatic against the hosted server; on a self-hosted server, `TUIST_CACHE_ENDPOINTS` |
+| Data + temp volume | Yes | Yes |
+| `KURA_ENROLL_ON_BOOT` | Yes | No (would return `ca_unavailable`) |
+| Peer TLS (`/tls` CA + leaf) | No, enrollment writes it | Only for a multi-node mesh |
+| `KURA_PEERS` (peer list) | No, enrollment seeds the gateway | Yes, if more than one node |
+
+## Required configuration {#required-config}
+
+These variables configure every node, regardless of topology (peer TLS is the exception noted below):
+
+| Variable | Description |
+|---|---|
+| `KURA_TENANT_ID` | Your account handle. |
+| `KURA_NODE_URL` | This node's peer URL on your network. |
+| `KURA_REGION` | A free-form region label (e.g. `office`, `ci`). |
+| `KURA_PORT` / `KURA_GRPC_PORT` / `KURA_INTERNAL_PORT` | HTTP cache, gRPC, and mesh peer ports (`4000` / `50051` / `7443`). |
+| `KURA_DATA_DIR` / `KURA_TMP_DIR` | On-disk artifact storage and scratch directory. |
+| `KURA_INTERNAL_TLS_CA_CERT_PATH` / `KURA_INTERNAL_TLS_CERT_PATH` / `KURA_INTERNAL_TLS_KEY_PATH` | Peer TLS files. Written by enrollment (bridged) or provided by you (multi-node standalone). Not needed for a single node; omit them and use an `http://` `KURA_NODE_URL`. |
+| `KURA_OTEL_SERVICE_NAME` / `KURA_OTEL_DEPLOYMENT_ENVIRONMENT` | Service name and environment label for telemetry. |
+
+Bridged nodes additionally set `KURA_ENROLL_ON_BOOT`, `KURA_CONTROL_PLANE_URL`, and the control-plane client credentials. `KURA_REGISTRATION_URL` and `KURA_ADVERTISED_HTTP_URL` register a node so it appears on the **Cache** page; against the hosted server they also route the CLI to it, while a self-hosted server routes via `TUIST_CACHE_ENDPOINTS` (see [How clients reach your nodes](#routing)).
+
+## Authentication of cache requests {#cache-auth}
+
+By default a node serves its HTTP cache API to anything that can reach it on your network. To require that callers present a valid Tuist token, so that only authenticated members of your organization can read and write, a node runs an **extension** that introspects every token against the Tuist control plane.
+
+The extension hook ships in the image at `/etc/kura/extensions/tuist.lua`, so you enable it with three variables (already shown in the compose files above):
+
+| Variable | Value |
+|---|---|
+| `KURA_EXTENSION_ENABLED` | `1` |
+| `KURA_EXTENSION_SCRIPT_PATH` | `/etc/kura/extensions/tuist.lua` |
+| `KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL` | Your Tuist server URL (the introspection target) |
+
+The hook reuses the control-plane client you already set (`KURA_CONTROL_PLANE_CLIENT_ID` / `KURA_CONTROL_PLANE_CLIENT_SECRET`) as the introspection client, so no extra credential is needed. It runs **introspection-only**: it never needs the symmetric Guardian JWT verifier secret (which could mint tokens for any tenant and is never shared), so every request is authorized against the control plane. Authenticate and authorize both **fail closed** by default, so a node that cannot reach the control plane denies rather than serves. The same hook backs Tuist-managed nodes; the only difference is that managed nodes additionally configure the local JWT fast path, which self-hosted nodes deliberately omit.
+
+## Networking {#networking}
+
+A node makes **outbound** connections to:
+
+- your Tuist server (`KURA_CONTROL_PLANE_URL`) for enrollment, registration heartbeats, usage, and introspection, and
+- in the bridged topology, the managed mesh's peer gateway, for replication.
+
+Your developers and CI reach the node's `KURA_ADVERTISED_HTTP_URL` (and, for a multi-node mesh, the nodes reach each other on the peer port). These addresses only need to be reachable **within your network**. They do not need to be exposed to the public internet.
+
+## How it behaves {#behavior}
+
+- **Bridged.** On boot the node enrolls, pulls the managed mesh's full cache, and transitions to a serving member of the ring. The initial pull happens once and can take a while over a WAN, sized to your cache. From then on, writes on the node propagate continuously to the managed mesh. New artifacts written elsewhere in the managed mesh after the node joins are not yet continuously propagated to it (a planned enhancement), so treat the join-time pull as a snapshot rather than a live mirror.
+- **Standalone.** The node(s) run as an isolated mesh on your infrastructure. Replication, if any, happens only among your own nodes. Tuist's only role is the control plane: dashboard visibility, CLI endpoint routing, usage metering, and token introspection. It never provisions, upgrades, peers with, or reaches into your nodes.
+
+## Verify {#verify}
 
 ```bash
-curl -O https://raw.githubusercontent.com/tuist/tuist/main/cache/docker-compose.yml
-mkdir -p docker
-curl -o docker/nginx.conf https://raw.githubusercontent.com/tuist/tuist/main/cache/docker/nginx.conf
+curl http://localhost:4000/ready   # 200 once the node has joined and is serving
+curl http://localhost:4000/up      # liveness + mesh membership
 ```
 
-### Environment variables {#environment-variables}
-
-Create a `.env` file with your configuration.
-
-> [!TIP]
-> The service is built with Elixir/Phoenix, so some variables use the `PHX_` prefix. You can treat these as standard service configuration.
-
-
-```env
-# Secret key used to sign and encrypt data. Minimum 64 characters.
-# Generate with: openssl rand -base64 64
-SECRET_KEY_BASE=YOUR_SECRET_KEY_BASE
-
-# Public hostname or IP address where your cache service will be reachable.
-PUBLIC_HOST=cache.example.com
-
-# URL of the Tuist server used for authentication (REQUIRED).
-# - Hosted: https://tuist.dev
-# - Self-hosted: https://your-tuist-server.example.com
-SERVER_URL=https://tuist.dev
-# Optional: PEM-encoded CA certificate for internal or self-signed Tuist server endpoints.
-# Also accepted as TUIST_SERVER_CA_CERT_PEM.
-# SERVER_CA_CERT_PEM=-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----
-
-# S3 Storage configuration
-S3_BUCKET=your-cache-bucket
-S3_HOST=s3.us-east-1.amazonaws.com
-S3_REGION=us-east-1
-# Optional: PEM-encoded CA certificate for internal or self-signed S3 endpoints.
-# Also accepted as TUIST_S3_CA_CERT_PEM for parity with the server release.
-# S3_CA_CERT_PEM=-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----
-
-# Optional: dedicated Xcode cache bucket.
-# Useful when you want separate retention policies, storage classes,
-# or cost tracking for Xcode cache vs. module/Gradle cache artifacts.
-# S3_XCODE_CACHE_BUCKET=your-xcode-cache-bucket
-
-# S3 authentication (Option 1: static credentials)
-S3_ACCESS_KEY_ID=your-access-key
-S3_SECRET_ACCESS_KEY=your-secret-key
-
-# S3 authentication (Option 2: IAM role / IRSA)
-# Omit S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY, and set
-# AWS_WEB_IDENTITY_TOKEN_FILE and AWS_ROLE_ARN instead.
-# These are typically injected automatically by EKS or similar platforms.
-
-# CAS storage (required for non-compose deployments)
-STORAGE_DIR=/storage
-
-# Optional dedicated KV SQLite database path.
-# Defaults to /data/key_value.sqlite.
-KEY_VALUE_DATABASE_PATH=/data/key_value.sqlite
-```
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `SECRET_KEY_BASE` | Yes | | Secret key used to sign and encrypt data (minimum 64 characters). |
-| `PUBLIC_HOST` | Yes | | Public hostname or IP address of your cache service. Used to generate absolute URLs. |
-| `SERVER_URL` | No | `https://tuist.dev` | URL of your Tuist server for authentication. |
-| `SERVER_CA_CERT_PEM` | No | System CA bundle | PEM-encoded CA certificate for verifying HTTPS connections to `SERVER_URL`. Useful for internal Certificate Authorities or self-signed Tuist server endpoints. Also accepted as `TUIST_SERVER_CA_CERT_PEM`. |
-| `STORAGE_DIR` | Yes | | Directory where CAS artifacts are stored on disk. The provided Docker Compose setup uses `/storage`. |
-| `KEY_VALUE_DATABASE_PATH` | No | `/data/key_value.sqlite` | Path to the dedicated SQLite database used by the key-value store. |
-| `POOL_SIZE` | No | `2` | Connection pool size for the primary metadata SQLite database. |
-| `KEY_VALUE_POOL_SIZE` | No | `POOL_SIZE` | Connection pool size for the dedicated key-value SQLite database. |
-| `S3_BUCKET` | Yes | | S3 bucket for module and Gradle cache artifacts. Also used for Xcode cache artifacts when `S3_XCODE_CACHE_BUCKET` is unset. |
-| `S3_XCODE_CACHE_BUCKET` | No | `S3_BUCKET` | Optional dedicated bucket for Xcode cache artifacts. When set, Xcode cache reads and writes use this bucket directly. Useful when you want separate retention policies, storage classes, or cost tracking for Xcode cache artifacts. |
-| `S3_HOST` | Yes | | S3 endpoint hostname (e.g. `s3.us-east-1.amazonaws.com`). |
-| `S3_REGION` | Yes | | S3 region. Also accepted as `AWS_REGION`. |
-| `S3_ACCESS_KEY_ID` | Conditional | | S3 access key. Required when using static credentials. Also accepted as `AWS_ACCESS_KEY_ID`. See [S3 authentication](#s3-authentication). |
-| `S3_SECRET_ACCESS_KEY` | Conditional | | S3 secret key. Required when using static credentials. Also accepted as `AWS_SECRET_ACCESS_KEY`. See [S3 authentication](#s3-authentication). |
-| `S3_ENDPOINT` | No | | Full S3 endpoint URL. When set, overrides `S3_HOST` with the parsed host and scheme. Useful for S3-compatible providers. |
-| `S3_CA_CERT_PEM` | No | System CA bundle | PEM-encoded CA certificate for verifying S3 HTTPS connections. Useful for internal Certificate Authorities or self-signed S3 endpoints. Also accepted as `TUIST_S3_CA_CERT_PEM`. |
-| `AWS_WEB_IDENTITY_TOKEN_FILE` | No | | Path to a web identity token file for IAM role authentication. See [S3 authentication](#s3-authentication). |
-| `AWS_ROLE_ARN` | No | | IAM role ARN to assume when using web identity token authentication. |
-| `DISK_HIGH_WATERMARK_PERCENT` | No | `85` | Disk usage percentage that triggers LRU eviction. |
-| `DISK_TARGET_PERCENT` | No | `70` | Target disk usage after eviction. |
-| `KEY_VALUE_MAX_DB_SIZE_BYTES` | No | `26843545600` | Maximum size of the dedicated key-value SQLite database before size-based KV eviction starts. |
-| `KEY_VALUE_EVICTION_MIN_RETENTION_DAYS` | No | `1` | Minimum age a key-value entry must reach before size-based KV eviction can remove it. |
-| `KEY_VALUE_EVICTION_MAX_DURATION_MS` | No | `300000` | Maximum runtime for a single KV eviction pass. |
-| `KEY_VALUE_EVICTION_HYSTERESIS_RELEASE_BYTES` | No | `24696061952` | Target size after KV eviction finishes, providing hysteresis so the worker does not thrash near the limit. |
-| `KEY_VALUE_READ_BUSY_TIMEOUT_MS` | No | `2000` | SQLite busy-timeout (in milliseconds) for KV read-through requests. If the database is locked longer than this, the read is treated as a cache miss and the value is fetched from S3. |
-| `KEY_VALUE_MAINTENANCE_BUSY_TIMEOUT_MS` | No | `50` | SQLite busy-timeout (in milliseconds) for background maintenance operations (PRAGMA queries, incremental vacuum). A low value prevents maintenance from blocking read traffic. |
-| `PHX_SOCKET_PATH` | No | `/run/cache/cache.sock` | Path where the service creates its Unix socket (when enabled). |
-| `PHX_SOCKET_LINK` | No | `/run/cache/current.sock` | Symlink path that Nginx uses to connect to the service. |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | No | | gRPC endpoint of an OpenTelemetry Collector for distributed tracing. |
-| `LOKI_URL` | No | | Base URL of a Loki-compatible endpoint for log forwarding. |
-| `DEPLOY_ENV` | No | `production` | Environment label used in traces and log labels (e.g. `production`, `staging`). |
-
-### S3 authentication {#s3-authentication}
-
-The cache service supports multiple methods for authenticating with S3. The method is determined automatically based on which environment variables are set.
-
-#### Static credentials {#static-credentials}
-
-Set `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY` (or `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`). This is the simplest method and works with any S3-compatible provider.
-
-```env
-S3_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
-S3_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
-```
-
-#### IAM role with web identity (IRSA) {#iam-role-irsa}
-
-If you run the cache service on **Kubernetes with EKS**, you can authenticate using [IAM Roles for Service Accounts (IRSA)](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html) or [EKS Pod Identity](https://docs.aws.amazon.com/eks/latest/userguide/pod-identities.html). Omit `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY`, and ensure the following environment variables are available to the container:
-
-- `AWS_WEB_IDENTITY_TOKEN_FILE` — path to the projected service account token (injected by EKS)
-- `AWS_ROLE_ARN` — the IAM role to assume
-
-EKS injects these variables automatically when a service account is annotated with the IAM role.
-
-#### EC2 instance profile {#instance-profile}
-
-When neither static credentials nor a web identity token file are present, the service falls back to the default AWS credential chain. This means it can authenticate using an **EC2 instance profile** or **ECS task role** without any additional configuration — just ensure the instance or task has an IAM role with S3 access.
-
-### Start the service {#start-service}
-
-```bash
-docker compose up -d
-```
-
-### Verify the deployment {#verify}
-
-```bash
-curl http://localhost/up
-```
-
-## Configure the cache endpoint {#configure-endpoint}
-
-After deploying the cache service, register it with your Tuist server:
-
-- **Hosted Tuist server** (`https://tuist.dev`):
-  1. Navigate to your organization's **Settings** page.
-  2. Find the **Custom cache endpoints** section.
-  3. Add your cache service URL (for example, `https://cache.example.com`).
-
-- **Self-hosted Tuist server**:
-  1. Set `TUIST_CACHE_ENDPOINTS` to a comma-separated list of cache node URLs (for example, `https://cache-1.example.com,https://cache-2.example.com`).
-  2. Restart the Tuist server to apply the configuration.
-
-<!-- TODO: Add screenshot of organization settings page showing Custom cache endpoints section -->
-
-```mermaid
-graph TD
-  A[Deploy cache service] --> B[Register cache endpoint]
-  B --> C[Tuist CLI uses your endpoint]
-```
-
-Once configured, the Tuist CLI will use your self-hosted cache.
-
-## Volumes {#volumes}
-
-The Docker Compose configuration uses three volumes:
-
-| Volume | Purpose |
-|--------|---------|
-| `storage` | Binary artifact storage |
-| `sqlite_data` | SQLite metadata storage. By default this holds both `/data/repo.sqlite` (artifact metadata, orphan cleanup state, Oban) and `/data/key_value.sqlite` (KV metadata). |
-| `cache_socket` | Unix socket for Nginx-service communication |
-
-## Background maintenance {#background-maintenance}
-
-The cache service runs several background maintenance loops that keep disk and database usage within bounds. You can tune their behavior through the environment variables listed in the [configuration table](#environment-variables) above.
-
-- **CAS disk eviction** — When disk usage exceeds `DISK_HIGH_WATERMARK_PERCENT` (default 85%), the service removes the least-recently-used local artifacts until usage drops to `DISK_TARGET_PERCENT` (default 70%). Evicted artifacts remain in S3.
-- **KV eviction** — Entries not accessed within 30 days are always removed regardless of database size. Additionally, when the KV database exceeds `KEY_VALUE_MAX_DB_SIZE_BYTES` (default 25 GiB), the service removes entries older than `KEY_VALUE_EVICTION_MIN_RETENTION_DAYS` until the database shrinks to `KEY_VALUE_EVICTION_HYSTERESIS_RELEASE_BYTES`. Each pass is capped at `KEY_VALUE_EVICTION_MAX_DURATION_MS`.
-- **Orphan cleanup** — Scans the disk storage tree for files without a matching `cache_artifacts` row and removes them. This depends on the primary metadata database, not the KV database.
-
-For a detailed explanation of how each process works internally, see the <.localized_link href="/guides/cache/architecture">architecture guide</.localized_link>.
-
-## Health checks {#health-checks}
-
-- `GET /up` — Returns 200 when healthy, 503 otherwise
-- `GET /metrics` — Prometheus metrics
-
-## Monitoring {#monitoring}
-
-### Prometheus metrics {#prometheus-metrics}
-
-The cache service exposes Prometheus-compatible metrics at `/metrics`.
-
-Database pool metrics exposed by the cache service include:
-
-- `cache_repo_pool_checkout_queue_length`
-- `cache_repo_pool_ready_conn_count`
-- `cache_repo_pool_size`
-- `cache_repo_pool_db_connection_connected_total`
-- `cache_repo_pool_db_connection_disconnected_total`
-
-The pool `last_value` metrics are labeled with:
-
-- `repo` — `cache` or `key_value`
-- `database` — `sqlite`
-
-If you use Grafana, a reference dashboard is published at [`infra/grafana-dashboards/cache-service.json`](https://raw.githubusercontent.com/tuist/tuist/refs/heads/main/infra/grafana-dashboards/cache-service.json). The file is wrapped in the Grafana `dashboard.grafana.app/v1` resource format so it can be provisioned via Git Sync; to import it manually, download it and extract the `.spec` field (for example, `jq '.spec' cache-service.json > dashboard.json`) before using Grafana's **Import** UI.
-
-### Distributed tracing {#distributed-tracing}
-
-Set `OTEL_EXPORTER_OTLP_ENDPOINT` to enable OpenTelemetry traces. The cache service instruments Bandit (HTTP server), Phoenix (request lifecycle), Ecto (database queries), Finch (outgoing HTTP), and Broadway (message processing). Traces are exported via gRPC to the configured collector.
-
-### Log forwarding {#log-forwarding}
-
-Set `LOKI_URL` to forward application logs to a Loki-compatible endpoint. Logs are pushed via the Loki HTTP API with `app=tuist-cache`, `env`, and `level` labels.
+A bridged node reports `state: joining` while it pulls the mesh and `state: serving` once it has caught up. Your node also appears on the account's **Cache** page once registration heartbeats start.
 
 ## Upgrading {#upgrading}
 
@@ -248,28 +257,4 @@ docker compose pull
 docker compose up -d
 ```
 
-The service runs database migrations automatically on startup. After upgrading, expect a brief warm-up period while the KV cache repopulates from new traffic.
-
-## Troubleshooting {#troubleshooting}
-
-### Cache not being used {#troubleshooting-caching}
-
-If you expect caching but are seeing consistent cache misses (for example, the CLI is repeatedly uploading the same artifacts, or downloads never happen), follow these steps:
-
-1. Verify the custom cache endpoint is correctly configured in your organization settings.
-2. Ensure your Tuist CLI is authenticated by running `tuist auth login`.
-3. Check the cache service logs for any errors: `docker compose logs cache`.
-
-### Do I need the repo.sqlite file? {#troubleshooting-repo-sqlite}
-
-`repo.sqlite` is the primary metadata database. It stores artifact metadata, orphan cleanup state, and background job data. It is required for normal operation.
-
-If you upgraded from an older version that also stored KV metadata in `repo.sqlite`, KV data has moved to the dedicated `key_value.sqlite` file. The legacy KV tables (`key_value_entries`, `key_value_entry_hashes`) in `repo.sqlite` are no longer used and can be removed during a maintenance window to reclaim space.
-
-### Socket path mismatch {#troubleshooting-socket}
-
-If you see connection refused errors:
-
-- Ensure `PHX_SOCKET_LINK` points to the socket path configured in nginx.conf (default: `/run/cache/current.sock`)
-- Verify `PHX_SOCKET_PATH` and `PHX_SOCKET_LINK` are both set correctly in docker-compose.yml
-- Verify the `cache_socket` volume is mounted in both containers
+Nodes are designed to run side by side across one version skew, so a rolling upgrade across multiple nodes is safe.

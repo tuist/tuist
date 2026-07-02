@@ -62,6 +62,13 @@ jobs:
     name: Check for releasable changes
     runs-on: tuist-linux
     timeout-minutes: 5
+    # release:check only needs the git-cliff + jq installed below, but `mise run`
+    # otherwise auto-installs the whole merged mise.toml toolset — including
+    # github/npm-backend tools that hit the rate-limited GitHub API for SLSA
+    # verification (--locked only redirects the binary download, not the
+    # provenance fetch). Block the task-run auto-install.
+    env:
+      MISE_TASK_RUN_AUTO_INSTALL: "0"
     outputs:
       cli-should-release: ${{ steps.check.outputs.cli-should-release }}
       cli-next-version: ${{ steps.check.outputs.cli-next-version }}
@@ -102,6 +109,13 @@ jobs:
       stable-egress-controller-next-version-number: ${{ steps.check.outputs.stable-egress-controller-next-version-number }}
       should-release-any: ${{ steps.check.outputs.should-release-any }}
       deployable-changed: ${{ steps.deployable.outputs.deployable-changed }}
+      # Single source of truth for hotfix routing. "(hotfix)" in the commit
+      # subject ships straight to production via the production-hotfix leg and
+      # skips the canary cascade. The deploy-tail jobs (canary, production,
+      # production-hotfix) all gate on this one output, so the marker format
+      # lives in exactly one place instead of three inline contains() checks
+      # with inverted logic.
+      is-hotfix: ${{ contains(github.event.head_commit.message, '(hotfix)') }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -109,7 +123,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "git-cliff jq"
+          install_args: "--locked git-cliff jq"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - id: check
@@ -125,7 +139,11 @@ jobs:
       - id: deployable
         # A change to any of these paths deploys the server; the build gate
         # of the production cascade ORs this with the fleet/runtime
-        # image-release flags.
+        # image-release flags. infra/helm/platform/ is included so platform
+        # chart changes (CNPG operator, cert-manager, ingress-nginx, ESO,
+        # metrics-server) deploy on merge via platform-install — without it a
+        # platform-only change skips build and the whole cascade, merging green
+        # but never reaching the cluster.
         env:
           BEFORE: ${{ github.event.before }}
         run: |
@@ -137,7 +155,7 @@ jobs:
             exit 0
           fi
           if git diff --name-only "$base" "${{ github.sha }}" \
-            | grep -qE '^(server/|tuist_common/|noora/|infra/kura-controller/|infra/helm/tuist/|infra/helm/k8s-monitoring/|\.github/workflows/(server-deployment|server-production-deployment)\.yml)'; then
+            | grep -qE '^(server/|tuist_common/|noora/|infra/kura-controller/|infra/helm/tuist/|infra/helm/platform/|infra/helm/k8s-monitoring/|\.github/workflows/(server-deployment|server-production-deployment)\.yml)'; then
             echo "deployable-changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "deployable-changed=false" >> "$GITHUB_OUTPUT"
@@ -166,7 +184,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "git-cliff"
+          install_args: "--locked git-cliff"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
@@ -306,13 +324,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise-install
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "git-cliff rust"
+          install: "git-cliff rust"
           cache: "false"
-          working_directory: kura
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+          working-directory: kura
+          github-token: ${{ env.MISE_GITHUB_TOKEN }}
 
       - name: Get release notes
         id: release-notes
@@ -355,24 +373,33 @@ jobs:
     if: needs.check-releases.outputs.kura-should-release == 'true'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
+    # id-token: OIDC for `tuist bazel setup`. Job permissions replace (not merge) the workflow's,
+    # so contents:read must be restated for checkout.
+    permissions:
+      contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
+        # All targets build with Bazel and reuse the Tuist remote cache. macOS x86_64 is the only
+        # non-native target: it cross-compiles from the arm64 runner via --config=macos-x86_64-cross
+        # (apple_support supplies the cross cc toolchain for the -sys crates). The rest are native.
         include:
-          - runner: ubuntu-latest
+          - runner: tuist-linux
             target: x86_64-unknown-linux-gnu
           - runner: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
           - runner: tuist-macos
-            target: x86_64-apple-darwin
-          - runner: tuist-macos
             target: aarch64-apple-darwin
+          - runner: tuist-macos
+            target: x86_64-apple-darwin
+            compile-args: "--config=macos-x86_64-cross"
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "rust"
+          install_args: "rust bazel tuist"
           cache: "false"
           working_directory: kura
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -383,6 +410,22 @@ jobs:
           name: kura-release-metadata
           path: kura
 
+      # macOS gets clang/cmake from Xcode; this apt path is Linux-only.
+      - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
+      # Best-effort: continue-on-error + `.bazelrc` try-imports `.bazelrc.tuist`, so a failed setup
+      # falls back to a cold local build instead of blocking the release.
+      - name: Set up the Tuist remote cache
+        working-directory: kura
+        run: |
+          tuist auth login
+          tuist bazel setup
+        continue-on-error: true
+      - name: Warn when the Tuist remote cache is unavailable
+        if: hashFiles('kura/.bazelrc.tuist') == ''
+        run: echo "::warning::Tuist remote cache unavailable (.bazelrc.tuist not written); building cold against the local cache."
+
       - name: Build Kura binary
         working-directory: kura
         run: |
@@ -392,10 +435,16 @@ jobs:
 
           mkdir -p "$ARTIFACT_DIR"
 
-          env -u RUSTUP_TOOLCHAIN rustup target add "$TARGET"
-          env -u RUSTUP_TOOLCHAIN cargo build --release --locked --target "$TARGET"
+          # --binary-only builds just //:kura (opt via kura/.bazelrc); //... would pull in the test
+          # target, which can't cross-compile. compile-args adds the cross --config on the macOS
+          # x86_64 leg and is empty for the native legs.
+          mise run --skip-tools compile -- --binary-only ${{ matrix.compile-args }}
 
-          tar -C "target/$TARGET/release" -czf "$ARTIFACT_DIR/$ARTIFACT_NAME" kura
+          STAGE_DIR="$(mktemp -d)"
+          cp bazel-bin/kura "$STAGE_DIR/kura"
+          chmod +x "$STAGE_DIR/kura"
+
+          tar -C "$STAGE_DIR" -czf "$ARTIFACT_DIR/$ARTIFACT_NAME" kura
           shasum -a 256 "$ARTIFACT_DIR/$ARTIFACT_NAME" | awk '{print $1 "  " FILENAME}' FILENAME="$ARTIFACT_NAME" > "$ARTIFACT_DIR/sha256.txt"
           shasum -a 512 "$ARTIFACT_DIR/$ARTIFACT_NAME" | awk '{print $1 "  " FILENAME}' FILENAME="$ARTIFACT_NAME" > "$ARTIFACT_DIR/sha512.txt"
 
@@ -479,13 +528,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise-install
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "erlang elixir node aube git-cliff"
+          install: "erlang elixir node aube git-cliff"
           cache: "false"
-          working_directory: noora
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+          working-directory: noora
+          github-token: ${{ env.MISE_GITHUB_TOKEN }}
 
       - name: Get release notes
         id: release-notes
@@ -554,7 +603,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "git-cliff"
+          install_args: "--locked git-cliff"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
@@ -627,7 +676,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "git-cliff"
+          install_args: "--locked git-cliff"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
@@ -637,24 +686,24 @@ jobs:
           LATEST_VERSION=$(git tag -l | grep -E "^capi-scaleway@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
 
           INCLUDE_PATHS=(
-            --include-path "infra/cluster-api-provider-scaleway-applesilicon/**/*"
+            --include-path "infra/cluster-api-provider-tuist/**/*"
             --include-path "infra/macos-host-bootstrap/**/*"
             --include-path "infra/tart-kubelet/**/*"
           )
 
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
           if [ -n "$LATEST_VERSION" ]; then
-            git cliff "${INCLUDE_PATHS[@]}" --config infra/cluster-api-provider-scaleway-applesilicon/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+            git cliff "${INCLUDE_PATHS[@]}" --config infra/cluster-api-provider-tuist/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
           else
-            git cliff "${INCLUDE_PATHS[@]}" --config infra/cluster-api-provider-scaleway-applesilicon/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+            git cliff "${INCLUDE_PATHS[@]}" --config infra/cluster-api-provider-tuist/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
           fi
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Update CHANGELOG.md
-        working-directory: infra/cluster-api-provider-scaleway-applesilicon
+        working-directory: infra/cluster-api-provider-tuist
         run: |
           INCLUDE_PATHS=(
-            --include-path "infra/cluster-api-provider-scaleway-applesilicon/**/*"
+            --include-path "infra/cluster-api-provider-tuist/**/*"
             --include-path "infra/macos-host-bootstrap/**/*"
             --include-path "infra/tart-kubelet/**/*"
           )
@@ -675,7 +724,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: infra/cluster-api-provider-scaleway-applesilicon/Dockerfile
+          file: infra/cluster-api-provider-tuist/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
@@ -690,7 +739,7 @@ jobs:
           # by tag-infra-releases), so there is no chart pin to bump.
           name: capi-scaleway-artifacts
           path: |
-            infra/cluster-api-provider-scaleway-applesilicon/CHANGELOG.md
+            infra/cluster-api-provider-tuist/CHANGELOG.md
           retention-days: 1
 
   release-runners-controller:
@@ -710,7 +759,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "git-cliff"
+          install_args: "--locked git-cliff"
           cache: "true"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
@@ -789,7 +838,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "git-cliff"
+          install_args: "--locked git-cliff"
           cache: "true"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
@@ -870,11 +919,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise-install
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "git-cliff erlang elixir"
-          working_directory: server
+          install: "git-cliff erlang elixir"
+          working-directory: server
 
       - name: Get release notes
         id: release-notes
@@ -976,12 +1025,34 @@ jobs:
           TART_REGISTRY_HOSTNAME: ghcr.io
           TART_REGISTRY_USERNAME: tuist-bot
           TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        # Direct tart push with a 3x retry — identical shape to
+        # macos-xcode-image.yml, which publishes the same-size image via
+        # the same path and is the only large tart push that pushes
+        # reliably. Earlier attempts here layered on TART_NO_AUTO_PRUNE
+        # and a clone-the-base "restore nvram.bin" step; both failed to
+        # fix the intermittent `Error: The file "nvram.bin" doesn't exist`
+        # and the disk-heavy restore made it worse (the whole VM bundle
+        # vanished mid-push). Blob uploads are content-addressed, so a
+        # re-push only re-uploads layers that didn't land last time.
         run: |
           set -euo pipefail
           VERSION="${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}"
-          tart push tuist-xcresult-processor "ghcr.io/tuist/tuist-xcresult-processor:${VERSION}"
-          tart push tuist-xcresult-processor "ghcr.io/tuist/tuist-xcresult-processor:latest"
-          echo "Pushed ghcr.io/tuist/tuist-xcresult-processor:${VERSION}"
+          for dest_tag in "${VERSION}" "latest"; do
+            DST="ghcr.io/tuist/tuist-xcresult-processor:${dest_tag}"
+            for attempt in 1 2 3; do
+              echo "tart push -> ${dest_tag} attempt ${attempt} at $(date -u +%H:%M:%SZ)" >&2
+              if tart push tuist-xcresult-processor "$DST"; then
+                echo "Pushed ${DST} on attempt ${attempt}"
+                break
+              fi
+              if [ "$attempt" = 3 ]; then
+                echo "tart push failed three times for ${dest_tag}" >&2
+                exit 1
+              fi
+              echo "tart push attempt ${attempt} failed; sleeping 60s before retry" >&2
+              sleep 60
+            done
+          done
 
       - name: Upload xcresult-processor-image artifacts
         uses: actions/upload-artifact@v4
@@ -1164,7 +1235,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "git-cliff"
+          install_args: "--locked git-cliff"
 
       - name: Render active profile image refs
         # The active Xcode list is the single source of truth in
@@ -1240,7 +1311,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "git-cliff"
+          install_args: "--locked git-cliff"
           cache: "true"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
@@ -1348,7 +1419,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "git-cliff"
+          install_args: "--locked git-cliff"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
@@ -1432,7 +1503,7 @@ jobs:
 
       - name: Download CAPI operator artifacts
         # `path:` matches the upload's LCA so CHANGELOG.md lands back at
-        # `infra/cluster-api-provider-scaleway-applesilicon/CHANGELOG.md`
+        # `infra/cluster-api-provider-tuist/CHANGELOG.md`
         # for the later `git add` to find. upload-artifact@v4 strips the
         # LCA from each entry's archive path, so a workspace-root
         # download would put it at `<workspace>/CHANGELOG.md`.
@@ -1440,7 +1511,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: capi-scaleway-artifacts
-          path: infra/cluster-api-provider-scaleway-applesilicon
+          path: infra/cluster-api-provider-tuist
 
       - name: Download runners-controller artifacts
         # The upload contains only files rooted at
@@ -1842,17 +1913,24 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
-
+  # --------------------------------------------------------------------------
   # Canary leg - deploys the pre-built image. Skipped on a hotfix: the
   # fast-path ships straight to production without waiting on the canary
   # cascade.
   canary:
-    needs: build
+    needs: [check-releases, build]
     # `build` runs under `if: always()` so it survives the many skipped sibling
     # release jobs. A plain-`if` dependent of an `always()`-guarded job gets
     # caught by skip-propagation and is itself skipped even when `build`
     # succeeded, so the whole deploy tail must re-assert success explicitly.
-    if: ${{ always() && needs.build.result == 'success' && !contains(github.event.head_commit.message, '(hotfix)') }}
+    if: ${{ always() && needs.build.result == 'success' && needs.check-releases.outputs.is-hotfix != 'true' }}
+    # server-deployment.yml's build-kura-runtime job requests id-token: write;
+    # a reusable workflow's permissions are validated against the caller at
+    # startup, so this leg must grant the callee's full permission union.
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     uses: ./.github/workflows/server-deployment.yml
     with:
       environment: canary
@@ -1895,17 +1973,22 @@ jobs:
         run: tuist test TuistCacheEEAcceptanceTests --no-selective-testing -- -retry-tests-on-failure -test-iterations 2
 
   # --------------------------------------------------------------------------
-  # Backward-compatibility acceptance - runs the OLDEST CLI version we still
-  # support against the freshly-deployed canary. The acceptance-tests job above
-  # always uses the CLI built from HEAD, so it can never catch a server change
-  # that breaks an older but still-supported CLI. This job pins that floor and
-  # gates production alongside acceptance-tests.
+  # Backward-compatibility acceptance - runs an OLD CLI against the freshly-
+  # deployed canary to catch server changes that break still-supported CLIs.
+  # The acceptance-tests job above always uses the CLI built from HEAD, so it
+  # can never catch this; this job gates production alongside it.
   #
-  # The oldest supported release (3-month window) has a single source of truth:
-  # Tuist.CLIVersions.minimum_supported_version/0 in server/lib/tuist/cli_versions.ex.
-  # This job derives MIN_SUPPORTED_TUIST_VERSION from it, the deprecation warning
-  # enforces it, and the docs Compatibility page renders it. Bump it there as the
-  # window slides.
+  # The support window's source of truth is
+  # Tuist.CLIVersions.minimum_supported_version/0 in server/lib/tuist/cli_versions.ex
+  # (it drives the deprecation warning and the docs Compatibility page). This job
+  # would normally test that exact floor, but it builds on a macOS runner with
+  # Xcode 26, and CLIs older than 4.154.2 cannot `tuist cache` under Xcode 26
+  # (XCLogParser/build-log handling, fixed in CLI 4.154.2) - a client-side Xcode
+  # gap, not a server-contract break. Since this gate guards the server contract,
+  # it tests the oldest supported CLI that can actually build on this runner:
+  # max(minimum_supported_version, the Xcode-26 build floor below). Keeping the
+  # declared minimum lower (e.g. for a customer pinned to an older release) does
+  # not weaken the contract check.
   # --------------------------------------------------------------------------
   backward-compatibility-acceptance:
     name: Backward-Compatibility Acceptance
@@ -1920,6 +2003,16 @@ jobs:
     env:
       MISE_TASK_RUN_AUTO_INSTALL: 0
       TUIST_URL: https://canary.tuist.dev
+      # Pin the cache to canary's PUBLIC endpoint instead of resolving it via
+      # /api/cache/endpoints. This job runs on the scw-fr-par macOS runner fleet,
+      # and the server routes that fleet to the regional Kura cache - an in-cluster
+      # Private Network NodePort (e.g. http://172.16.0.2:3xxxx) meant for the
+      # dispatched-runner cache data plane, which a plain `tuist cache` here can't
+      # reach (every download/upload times out). A real external customer resolves
+      # the public endpoint; pinning makes this gate use it too. Verified on the
+      # runner: with the pin the store+fetch round-trip succeeds; without it the
+      # CLI picks the PN NodePort and stalls.
+      TUIST_CACHE_ENDPOINT: https://cache-eu-central-canary.tuist.dev
       # Public canary test account, same as the HEAD acceptance scheme (Project.swift).
       TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
       TUIST_AUTH_PASSWORD: tuistrocks
@@ -1928,28 +2021,32 @@ jobs:
         with:
           ref: ${{ github.sha }}
           submodules: false
-      - name: Resolve oldest supported CLI version
-        # Single source of truth: Tuist.CLIVersions.minimum_supported_version/0,
-        # which also drives the deprecation warning and the docs Compatibility page.
+      - name: Resolve backward-compatibility CLI version
+        # Test the oldest supported CLI that can build on this runner's Xcode:
+        # max(minimum_supported_version, the Xcode-26 build floor). See the
+        # comment block above the job for why the floor exists.
         run: |
           file=server/lib/tuist/cli_versions.ex
-          version="$(grep -E '@minimum_supported_version' "$file" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
-          if [ -z "$version" ]; then
+          min_version="$(grep -E '@minimum_supported_version' "$file" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+          if [ -z "$min_version" ]; then
             echo "Could not resolve @minimum_supported_version from $file" >&2
             exit 1
           fi
-          echo "MIN_SUPPORTED_TUIST_VERSION=$version" >> "$GITHUB_ENV"
-          echo "Oldest supported CLI version: $version"
+          # Oldest CLI that can `tuist cache` under the runner's Xcode 26 (CLI 4.154.2).
+          xcode_build_floor=4.154.2
+          version="$(printf '%s\n%s\n' "$min_version" "$xcode_build_floor" | sort -V | tail -n1)"
+          echo "BACKWARD_COMPAT_TUIST_VERSION=$version" >> "$GITHUB_ENV"
+          echo "Minimum supported CLI: ${min_version}; testing backward-compat with: ${version}"
       - uses: jdx/mise-action@v4.0.1
         with:
           github_token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
-          install_args: "bats"
-      - name: Install oldest supported tuist
-        run: mise install "tuist@${MIN_SUPPORTED_TUIST_VERSION}"
-      - name: Resolve oldest supported tuist binary
+          install_args: "--locked bats"
+      - name: Install backward-compatibility tuist
+        run: mise install "tuist@${BACKWARD_COMPAT_TUIST_VERSION}"
+      - name: Resolve backward-compatibility tuist binary
         id: oldtuist
         run: |
-          install_dir="$(mise where "tuist@${MIN_SUPPORTED_TUIST_VERSION}")"
+          install_dir="$(mise where "tuist@${BACKWARD_COMPAT_TUIST_VERSION}")"
           bin="$(find "$install_dir" -type f -name tuist | head -n1)"
           if [ -z "$bin" ]; then
             echo "Could not locate the tuist binary under $install_dir" >&2
@@ -1970,14 +2067,19 @@ jobs:
     # `canary` is listed explicitly (not just relied on transitively through the
     # acceptance jobs) so the "canary must be green before prod" invariant is
     # encoded in this job's own gate, not in the acceptance jobs' needs.
-    needs: [build, canary, acceptance-tests, backward-compatibility-acceptance]
+    needs: [check-releases, build, canary, acceptance-tests, backward-compatibility-acceptance]
     if: >-
       always() &&
       needs.build.result == 'success' &&
       needs.canary.result == 'success' &&
       needs.acceptance-tests.result == 'success' &&
       needs.backward-compatibility-acceptance.result == 'success' &&
-      !contains(github.event.head_commit.message, '(hotfix)')
+      needs.check-releases.outputs.is-hotfix != 'true'
+    # See `canary` above: grant the callee's full permission union.
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     uses: ./.github/workflows/server-deployment.yml
     with:
       environment: production
@@ -1992,8 +2094,13 @@ jobs:
   # `always() && needs.build.result == 'success'` guard mirrors `canary`
   # (see its comment) so this leg is not skip-propagated away.
   production-hotfix:
-    needs: build
-    if: ${{ always() && needs.build.result == 'success' && contains(github.event.head_commit.message, '(hotfix)') }}
+    needs: [check-releases, build]
+    if: ${{ always() && needs.build.result == 'success' && needs.check-releases.outputs.is-hotfix == 'true' }}
+    # See `canary` above: grant the callee's full permission union.
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     uses: ./.github/workflows/server-deployment.yml
     with:
       environment: production

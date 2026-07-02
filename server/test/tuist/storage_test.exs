@@ -3,6 +3,7 @@ defmodule Tuist.StorageTest do
   use Mimic
 
   alias ExAws.Operation.S3
+  alias ExAws.S3.Download
   alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.Storage
@@ -144,12 +145,12 @@ defmodule Tuist.StorageTest do
         operation
       end)
 
-      expect(ExAws, :request!, fn ^operation, opts ->
+      expect(ExAws, :request, fn ^operation, opts ->
         # Verify fast_api_req_opts are included
         assert Map.get(opts, :receive_timeout) == 5_000
         assert Map.get(opts, :pool_timeout) == 1_000
         assert Map.get(opts, :test) == :config
-        :ok
+        {:ok, %{}}
       end)
 
       # When
@@ -162,6 +163,60 @@ defmodule Tuist.StorageTest do
                        %{object_key: ^object_key, upload_id: ^upload_id}}
 
       assert is_number(duration)
+    end
+
+    test "returns a tagged error when the multipart upload no longer exists" do
+      # Given
+      bucket_name = UUIDv7.generate()
+      upload_id = UUIDv7.generate()
+      object_key = UUIDv7.generate()
+      parts = [{1, "etag-1"}]
+      config = %{test: :config}
+      operation = %S3{body: UUIDv7.generate()}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      expect(ExAws.S3, :complete_multipart_upload, fn ^bucket_name, ^object_key, ^upload_id, ^parts ->
+        operation
+      end)
+
+      expect(ExAws, :request, fn ^operation, _opts ->
+        {:error,
+         {:http_error, 404,
+          %{
+            body: "<Error><Code>NoSuchUpload</Code><Message>The specified upload does not exist.</Message></Error>"
+          }}}
+      end)
+
+      # When/Then
+      assert Storage.multipart_complete_upload(object_key, upload_id, parts, :test) ==
+               {:error, :multipart_upload_not_found}
+    end
+
+    test "returns the original error when a 404 response is not a missing multipart upload" do
+      # Given
+      bucket_name = UUIDv7.generate()
+      upload_id = UUIDv7.generate()
+      object_key = UUIDv7.generate()
+      parts = [{1, "etag-1"}]
+      config = %{test: :config}
+      operation = %S3{body: UUIDv7.generate()}
+      error = {:http_error, 404, %{body: "<Error><Code>NoSuchKey</Code></Error>"}}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      expect(ExAws.S3, :complete_multipart_upload, fn ^bucket_name, ^object_key, ^upload_id, ^parts ->
+        operation
+      end)
+
+      expect(ExAws, :request, fn ^operation, _opts ->
+        {:error, error}
+      end)
+
+      # When/Then
+      assert Storage.multipart_complete_upload(object_key, upload_id, parts, :test) == {:error, error}
     end
   end
 
@@ -270,6 +325,55 @@ defmodule Tuist.StorageTest do
       # Then
       assert got == stream
       assert_received {^event_name, ^event_ref, %{}, %{object_key: ^object_key}}
+    end
+  end
+
+  describe "download_to_file/3" do
+    test "returns the downloaded file when the request succeeds" do
+      # Given
+      object_key = UUIDv7.generate()
+      file_path = Path.join(System.tmp_dir!(), "#{UUIDv7.generate()}.zip")
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      operation = %Download{bucket: bucket_name, path: object_key, dest: file_path}
+
+      expect(ExAws.S3, :download_file, fn ^bucket_name, ^object_key, ^file_path -> operation end)
+      expect(ExAws, :request, fn ^operation, _opts -> {:ok, :done} end)
+
+      # When / Then
+      assert {:ok, :done} = Storage.download_to_file(object_key, file_path, :test)
+    end
+
+    test "returns an error tuple instead of exiting when an S3 chunk download times out" do
+      # Given
+      object_key = UUIDv7.generate()
+      file_path = Path.join(System.tmp_dir!(), "#{UUIDv7.generate()}.zip")
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      operation = %Download{bucket: bucket_name, path: object_key, dest: file_path}
+
+      expect(ExAws.S3, :download_file, fn ^bucket_name, ^object_key, ^file_path -> operation end)
+
+      # ExAws downloads each chunk in a Task.async_stream whose per-chunk timeout
+      # exits rather than raising, so a stalled chunk would otherwise escape as an
+      # uncaught exit and crash the calling job (observed as an Oban.CrashError).
+      expect(ExAws, :request, fn ^operation, _opts ->
+        exit({:timeout, {Task.Supervised, :stream, [60_000]}})
+      end)
+
+      # When
+      result = Storage.download_to_file(object_key, file_path, :test)
+
+      # Then
+      assert {:error, {:timeout, {Task.Supervised, :stream, [60_000]}}} = result
     end
   end
 
@@ -541,6 +645,36 @@ defmodule Tuist.StorageTest do
 
       # When/Then
       assert Storage.delete_object(object_key, :test) == :ok
+    end
+
+    test "passes custom timeout options to the bulk deletion API" do
+      # Given
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      stub(Environment, :s3_bucket_name, fn -> bucket_name end)
+      stub(ExAws.Config, :new, fn :s3 -> config end)
+
+      delete_operation = %S3{body: UUIDv7.generate()}
+
+      expect(ExAws.S3, :delete_multiple_objects, fn ^bucket_name, [^object_key] ->
+        delete_operation
+      end)
+
+      expect(ExAws, :request, fn ^delete_operation, opts ->
+        assert Map.get(opts, :receive_timeout) == 60_000
+        assert Map.get(opts, :pool_timeout) == 2_000
+        assert Map.get(opts, :test) == :config
+        {:ok, %{status_code: 204}}
+      end)
+
+      # When/Then
+      assert Storage.delete_objects([object_key], :test,
+               receive_timeout: 60_000,
+               pool_timeout: 2_000,
+               task_timeout: 65_000
+             ) == :ok
     end
 
     test "returns an error on unexpected S3 responses" do

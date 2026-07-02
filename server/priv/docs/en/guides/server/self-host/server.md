@@ -107,7 +107,7 @@ You’ll also need a solution to store files (e.g. framework and library binarie
 To use self-hosted Kura nodes with a self-hosted Tuist server:
 
 1. Deploy Kura nodes following the <.localized_link href="/guides/features/cache/self-hosting">self-hosted cache guide</.localized_link>.
-2. Set `TUIST_KURA_ENDPOINTS` to a comma-separated list of Kura URLs, or configure `server.kuraEndpointUrls` in the Helm chart.
+2. Set `TUIST_CACHE_ENDPOINTS` to a comma-separated list of your Kura node URLs, or configure `server.cacheEndpointUrl` in the Helm chart. On a self-hosted server this is what routes the CLI to your nodes.
 
 ## Configuration {#configuration}
 
@@ -163,6 +163,9 @@ The following environment variables are used to configure the database connectio
 | Environment variable | Description | Required | Default | Example |
 | --- | --- | --- | --- | --- |
 | `DATABASE_URL` | The URL to access the Postgres database. Note that the URL should contain the authentication information | Yes | | `postgres://username:password@cloud.us-east-2.aws.test.com/production` |
+| `TUIST_DATABASE_SCHEMA` | PostgreSQL schema used by Tuist's application tables. Set this when your database policy disallows using the `public` schema. The schema name must be an unquoted PostgreSQL identifier. | No | `public` | `tuist` |
+| `TUIST_MIGRATION_DATABASE_URL` | Optional Postgres URL used only by `Tuist.Release.migrate`. Set this to an owner role URL when `DATABASE_URL` points at a narrower runtime role. | No | `DATABASE_URL` | `postgres://owner:password@cloud.us-east-2.aws.test.com/production` |
+| `TUIST_DATABASE_RUNTIME_ROLE` | Runtime Postgres role that migrations should grant application-table privileges to after they finish. Use this with `TUIST_MIGRATION_DATABASE_URL` when the web server should not connect as the schema owner. | No | | `tuist_web` |
 | `TUIST_CLICKHOUSE_URL` | The URL to access the ClickHouse database. Note that the URL should contain the authentication information | No | | `http://username:password@cloud.us-east-2.aws.test.com/production` |
 | `TUIST_USE_SSL_FOR_DATABASE` | When true, it uses [SSL](https://en.wikipedia.org/wiki/Transport_Layer_Security) to connect to the database | No | `1` | `1` |
 | `TUIST_DATABASE_POOL_SIZE` | The number of connections to keep open in the connection pool | No | `10` | `10` |
@@ -171,6 +174,17 @@ The following environment variables are used to configure the database connectio
 | `TUIST_CLICKHOUSE_FLUSH_INTERVAL_MS` | Time interval in milliseconds between ClickHouse buffer flushes | No | `5000` | `5000` |
 | `TUIST_CLICKHOUSE_MAX_BUFFER_SIZE` | Maximum ClickHouse buffer size in bytes before forcing a flush | No | `1000000` | `1000000` |
 | `TUIST_CLICKHOUSE_BUFFER_POOL_SIZE` | Number of ClickHouse buffer processes to run | No | `5` | `5` |
+
+When `TUIST_DATABASE_SCHEMA` is not `public`, release migrations create the schema if it does not already exist before running the Ecto migration chain. If the migration role cannot create schemas, pre-create the schema and make the migration role its owner.
+
+Tuist points the connection at the custom schema by setting the session `search_path`. Some pooled or proxied Postgres setups (for example PgBouncer, or managed databases that restrict startup parameters) do not apply this and the session falls back to `public`, which surfaces during migrations as `permission denied for schema public`. When connecting through such a setup, pin the schema on the role itself so every session starts in it regardless of the proxy:
+
+```sql
+CREATE SCHEMA IF NOT EXISTS tuist AUTHORIZATION <migration_role>;
+ALTER ROLE <migration_role> IN DATABASE <database> SET search_path = tuist;
+-- If the web server connects as a separate runtime role (TUIST_DATABASE_RUNTIME_ROLE):
+ALTER ROLE <runtime_role> IN DATABASE <database> SET search_path = tuist;
+```
 
 ### Authentication environment configuration {#authentication-environment-configuration}
 
@@ -417,6 +431,28 @@ postgresql:
     username: tuist
     password: your-password
 ```
+
+If you manage the PostgreSQL credentials outside Helm, point the chart at an
+existing Kubernetes Secret instead:
+
+```yaml
+# values.yaml
+postgresql:
+  mode: external
+  external:
+    port: 5432
+    database: tuist
+    existingSecret: tuist-postgresql
+    existingSecretKeys:
+      host: host
+      username: username
+      password: password
+```
+
+The chart reads the host, username, and password from the Secret and composes
+`DATABASE_URL` through Kubernetes env-var substitution, so the password is not
+rendered into the Helm manifest. The Secret's password value should be URL-safe
+because it is interpolated into a database URL.
 
 The same pattern applies to `clickhouse` and `objectStorage`. See the `external` block under each section in the chart's `values.yaml` for the full set of configurable fields.
 

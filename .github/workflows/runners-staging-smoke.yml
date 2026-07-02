@@ -15,6 +15,9 @@ name: Runners Staging Smoke Test
 #   5. The job runs on the runner VM.
 #   6. After completion the Pod terminates and the reconciler's
 #      next 60 s tick creates a replacement.
+#   7. When the account runs a private runner-cache Kura node, the
+#      VM reaches it over the Scaleway PN (TUIST_CACHE_ENDPOINT),
+#      proving the macOS runner-cache data plane end-to-end.
 #
 # Triggered manually only — we don't want every push to staging
 # burning runner cycles.
@@ -36,8 +39,9 @@ on:
       - .github/workflows/runners-staging-smoke.yml
 
 # Smoke job runs shell inside the Tart VM and curls public
-# github.com — it never reads or mutates repo state, so the
-# GITHUB_TOKEN needs zero scopes.
+# github.com plus the account's private runner-cache over the PN —
+# it never reads or mutates repo state, so the GITHUB_TOKEN needs
+# zero scopes.
 permissions: {}
 
 jobs:
@@ -78,3 +82,21 @@ jobs:
           # Mac mini's security group at the IaaS layer, not
           # somewhere we can curl from the workflow.
           curl -fsSL -o /dev/null -w "github.com → HTTP %{http_code}\n" https://github.com
+
+      - name: Kura runner-cache reachable over the PN
+        run: |
+          set -uo pipefail
+          endpoint="${TUIST_CACHE_ENDPOINT:-}"
+          if [ -z "${endpoint}" ]; then
+            echo "TUIST_CACHE_ENDPOINT unset — dispatch handed this fleet no private runner-cache URL; skipping the PN cache probe."
+            exit 0
+          fi
+          echo "TUIST_CACHE_ENDPOINT=${endpoint}"
+          # macOS runners reach the cache over the Scaleway PN in
+          # node-port form (http://<node PN IP>:<NodePort>). A 200 on
+          # /up proves the VM routes onto the PN and the cache serves.
+          code=$(curl -sS -m 10 -o /tmp/up -w '%{http_code}' "${endpoint%/}/up")
+          echo "GET ${endpoint%/}/up → HTTP ${code}"
+          cat /tmp/up 2>/dev/null || true; echo
+          [ "${code}" = "200" ] || { echo "::error::cache /up over the PN returned ${code}"; exit 1; }
+          echo "Runner reached the Kura runner-cache over the PN."

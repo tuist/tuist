@@ -23,7 +23,7 @@ defmodule TuistWeb.UserLoginLive do
       |> assign(:apple_configured?, Environment.apple_oauth_configured?())
       |> assign(:sso_configured?, Accounts.sso_configured?())
       |> assign(:tuist_hosted?, Environment.tuist_hosted?())
-      |> assign(:dev?, Environment.dev?())
+      |> assign(:test_user_login_enabled?, Environment.test_user_login_enabled?())
 
     {
       :ok,
@@ -181,7 +181,7 @@ defmodule TuistWeb.UserLoginLive do
             />
           </.form>
           <form
-            :if={@dev?}
+            :if={@test_user_login_enabled?}
             action={~p"/users/log_in"}
             method="post"
             style="display: contents;"

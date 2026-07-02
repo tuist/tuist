@@ -265,16 +265,8 @@ RUN ldconfig
 # Tuist.Processor.XCActivityLogNIF.load_nif expects them.
 COPY --from=nif-bridge-builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/tuist ./
 
-COPY server/priv/secrets/can.yml.enc /app/priv/secrets/can.yml.enc
-COPY server/priv/secrets/stag.yml.enc /app/priv/secrets/stag.yml.enc
-COPY server/priv/secrets/prod.yml.enc /app/priv/secrets/prod.yml.enc
-
-# For non-hosted builds (previews/self-hosted): remove encrypted secrets
-RUN if [ "$TUIST_HOSTED" = "0" ]; then \
-  rm -rf /app/priv/secrets/can.yml.enc; \
-  rm -rf /app/priv/secrets/stag.yml.enc; \
-  rm -rf /app/priv/secrets/prod.yml.enc; \
-  fi
+# Runtime secrets are read from the environment (1Password via ESO in managed
+# envs), not from a baked-in encrypted blob — there's nothing to copy here.
 
 # Optionally embed ClickHouse for environments without a separate ClickHouse service
 # (e.g. preview environments). Set EMBED_CLICKHOUSE=true to enable.
@@ -293,9 +285,6 @@ COPY server/clickhouse-preview-config.xml /tmp/clickhouse-preview-config.xml
 RUN if [ "$EMBED_CLICKHOUSE" = "true" ]; then \
   cp /tmp/clickhouse-preview-config.xml /etc/clickhouse-server/config.d/preview.xml; \
   fi && rm -f /tmp/clickhouse-preview-config.xml
-
-ENV SECRETS_DIRECTORY=/app/priv/secrets/
-COPY server/priv/repo/structure.sql /app/priv/repo/structure.sql
 
 # ========================================
 # Stage: Default runtime

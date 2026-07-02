@@ -1,0 +1,124 @@
+"""Kura — distributed cache mesh (Rust).
+
+Bazel foundation: workspace skeleton, the host Rust + C/C++ toolchains, and the
+third-party crate graph — enough to build the lib, binary, and tests. Each
+release arch is built natively on a runner of that arch (no cross-compilation).
+The runtime OCI image (rules_oci/rules_pkg/rules_distroless + the geoip/apt
+layers) is added in a later change; it is intentionally not part of this
+foundation.
+"""
+
+module(
+    name = "kura",
+)
+
+bazel_dep(name = "rules_cc", version = "0.2.19")
+
+# Referenced by //bazel/third_party/lua:lua's per-OS select(); @platforms is only visible from the
+# root module when the root declares it, even though deps pull it in transitively.
+bazel_dep(name = "platforms", version = "1.1.0")
+
+# Crate graph + Rust toolchains via rules_rs: it resolves the third-party crates directly from
+# Cargo.toml/Cargo.lock for the platform_triples below, regenerating on each build with no committed
+# crate lockfile, so the same checked-in tree builds identically on every host.
+bazel_dep(name = "rules_rs", version = "0.0.93")
+
+# rocksdb (librocksdb-sys) compiles its C++ with the LZ4 compression backend on (the only one its
+# resolved feature set enables here). lz4 comes from the BCR @lz4 module: it's linked into lz4-sys
+# (replacing lz4-sys's own build script) and its headers are fed to rocksdb's build script (see the
+# librocksdb-sys annotation below for why rules_rs can't propagate them automatically).
+bazel_dep(name = "lz4", version = "1.10.0.bcr.1")
+
+# Pin the Rust toolchain to match rust-toolchain.toml / mise.toml (1.94.1, edition 2024). Each arch
+# is built natively on a runner of that arch; the C/C++ for the -sys crates (rocksdb, aws-lc,
+# jemalloc, lua) comes from the autodetected host cc toolchain (no cross C/C++ toolchain).
+toolchains = use_extension("@rules_rs//rs/toolchains:module_extension.bzl", "toolchains")
+toolchains.toolchain(
+    edition = "2024",
+    version = "1.94.1",
+)
+use_repo(toolchains, "default_rust_toolchains")
+
+register_toolchains("@default_rust_toolchains//:all")
+
+# Make @rules_rust visible here so the clippy aspect label
+# (@rules_rust//rust:defs.bzl%rust_clippy_aspect) resolves on the `mise run clippy` command line.
+# rules_rs already provisions this repo; re-importing its extension only adds it to our repo mapping,
+# it does not create a second copy.
+rules_rust = use_extension("@rules_rs//rs:rules_rust.bzl", "rules_rust")
+use_repo(rules_rust, "rules_rust")
+
+crate = use_extension("@rules_rs//rs:extensions.bzl", "crate")
+
+# mlua's `vendored` feature compiles Lua from sources shipped in the `lua-src` crate, whose build
+# script reads env!("CARGO_MANIFEST_DIR") — a compile-time path that does not survive Bazel
+# sandboxing. Instead we expose lua-src's C sources/headers as filegroups, compile Lua ourselves as
+# a cc_library (//bazel/third_party/lua), and link it into mlua-sys (whose own build script we turn
+# off). `extra_aliased_targets` re-exposes the filegroups on the @crates hub as
+# `@crates//:lua_{c_srcs,hdrs}-<version>` (annotation labels can't name the crate package directly).
+# On a lua-src bump, update the version in those hub labels and the lua-5.4.* globs.
+crate.annotation(
+    crate = "lua-src",
+    additive_build_file_content = """
+filegroup(
+    name = "lua_c_srcs",
+    srcs = glob(["lua-5.4.*/*.c"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "lua_hdrs",
+    srcs = glob(["lua-5.4.*/*.h"]),
+    visibility = ["//visibility:public"],
+)
+""",
+    extra_aliased_targets = {
+        "lua_c_srcs": "lua_c_srcs",
+        "lua_hdrs": "lua_hdrs",
+    },
+)
+crate.annotation(
+    crate = "mlua-sys",
+    gen_build_script = "off",
+    deps = ["@@//bazel/third_party/lua:lua"],
+)
+
+# lz4-sys: link the BCR @lz4 cc_library instead of compiling lz4 from the crate's own build script
+# (rules_rs's well-known -sys pattern). This satisfies lz4-sys's own Rust linking, but it does NOT
+# feed lz4's headers to librocksdb-sys's build script (see below).
+crate.annotation(
+    crate = "lz4-sys",
+    gen_build_script = "off",
+    deps = [
+        "@lz4//:lz4",
+        "@lz4//:lz4_hc",
+        "@lz4//:lz4_frame",
+    ],
+)
+
+# librocksdb-sys's build script compiles rocksdb's C++ with the LZ4 backend (#include <lz4.h>) and
+# reads the include dir from $DEP_LZ4_INCLUDE. rules_rs mis-propagates that path across crates,
+# leaving an unresolved `${out_dir}` token (hermeticbuild/rules_rs#163), so we set it ourselves:
+# lz4-sys's build script is off (above) and DEP_LZ4_INCLUDE points at a directory of lz4 headers
+# materialized from the BCR @lz4 cc_library — cc-rs's config.include() wants a directory, which
+# $(execpath //bazel/third_party/lz4:lz4_include) yields. Only LZ4 is enabled; if a rocksdb feature
+# later turns on zlib/bzip2, repeat this for DEP_Z_INCLUDE / DEP_BZIP2_INCLUDE.
+crate.annotation(
+    crate = "librocksdb-sys",
+    build_script_data = ["@@//bazel/third_party/lz4:lz4_include"],
+    build_script_env = {
+        "DEP_LZ4_INCLUDE": "$(execpath @@//bazel/third_party/lz4:lz4_include)",
+    },
+)
+crate.from_cargo(
+    name = "crates",
+    cargo_lock = "//:Cargo.lock",
+    cargo_toml = "//:Cargo.toml",
+    platform_triples = [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-apple-darwin",
+        "x86_64-unknown-linux-gnu",
+    ],
+)
+use_repo(crate, "crates")

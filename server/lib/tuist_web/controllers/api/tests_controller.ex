@@ -521,7 +521,7 @@ defmodule TuistWeb.API.TestsController do
     run_params =
       body_params
       |> Map.put(:project, selected_project)
-      |> Map.put(:account, Authentication.authenticated_subject_account(conn))
+      |> Map.put(:ran_by_account, Authentication.authenticated_subject_account(conn))
 
     case get_or_create_test(run_params) do
       {:ok, test_run} ->
@@ -738,7 +738,7 @@ defmodule TuistWeb.API.TestsController do
           model_identifier: Map.get(params, :model_identifier),
           scheme: Map.get(params, :scheme),
           project_id: params.project.id,
-          account_id: params.account.id,
+          account_id: params.ran_by_account.id,
           status: Map.get(params, :status),
           git_branch: Map.get(params, :git_branch),
           git_commit_sha: Map.get(params, :git_commit_sha),

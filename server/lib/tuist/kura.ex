@@ -43,6 +43,14 @@ defmodule Tuist.Kura do
   @provisioner_node_ref_format ~r/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/
   @provisioner_node_ref_max_length 53
 
+  # A version change is a deliberate fix delivery, so it must reach
+  # degraded servers, not only healthy ones. A `:failed` or `:replicating`
+  # server stuck on a broken image cannot self-heal on that image; excluding
+  # it from version rollouts strands the very servers the new image is meant
+  # to rescue and forces manual intervention. Only terminal servers
+  # (`:destroying`/`:destroyed`) are skipped.
+  @version_rollout_statuses [:provisioning, :replicating, :active, :failed]
+
   @doc "Reconciles desired Kura server rows with the observed Kubernetes state."
   def reconcile_orphaned_deployments, do: Reconciler.reconcile()
 
@@ -139,7 +147,7 @@ defmodule Tuist.Kura do
 
     from(s in Server,
       as: :server,
-      where: s.status == :active,
+      where: s.status in @version_rollout_statuses,
       where: s.current_image_tag != ^image_tag,
       where: not exists(deployment_exists_query)
     )
@@ -338,16 +346,95 @@ defmodule Tuist.Kura do
   # mirror it into `account_cache_endpoints`: that table is what the
   # CLI resolves, and a developer machine can't reach the in-cluster
   # endpoint. Runner builds get the URL through
-  # `runner_cache_endpoint_url/1` instead.
+  # `runner_cache_endpoint_url/2` instead.
   defp activate_private_server(%Server{} = server, image_tag) do
     with {:ok, account} <- Accounts.get_account_by_id(server.account_id),
-         url when is_binary(url) <- Provisioner.public_url(account, server),
+         {:ok, url} <- private_server_url(account, server),
          {:ok, server} <- activate_private_server_transaction(server, url, image_tag) do
       broadcast_server(server, :updated)
       {:ok, server}
     else
       {:error, reason} -> {:error, reason}
       reason -> {:error, reason}
+    end
+  end
+
+  # The URL dispatch hands runner builds. Cluster-DNS regions use the
+  # stable in-cluster Service form; node-port regions use the
+  # node-published endpoint observed from the KuraInstance status,
+  # which is only available once the controller has placed the primary
+  # pod and allocated ports — activation waits for it like it waits
+  # for a public endpoint to come up.
+  defp private_server_url(account, %Server{region: region_id} = server) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      if Regions.node_port_data_plane?(region) do
+        Provisioner.external_endpoint(server)
+      else
+        case Provisioner.public_url(account, server) do
+          url when is_binary(url) -> {:ok, url}
+          {:error, reason} -> {:error, reason}
+          other -> {:error, other}
+        end
+      end
+    end
+  end
+
+  @doc """
+  Refreshes the dispatch URL of an active node-port private server from
+  the observed cluster state and heartbeats its readiness clock. Unlike
+  the cluster-DNS data plane, whose URL is stable for the server's
+  lifetime, the node-published endpoint moves whenever the primary pod
+  lands on a different node (reschedule, node loss) or the Service
+  re-allocates ports. The reconciler calls this every tick for converged
+  servers.
+
+  The endpoint is observable only when the controller has a ready primary
+  pod to publish, so an observable endpoint doubles as the readiness
+  signal: each observation stamps `last_ready_at`, which
+  `runner_cache_endpoint_url/2` consults. While the endpoint is
+  unobservable the last known URL is kept — a transient gap must not flap
+  dispatch — but the heartbeat stops, so a sustained `/ready`-503 lets
+  the clock go stale and dispatch fails over to the public cache.
+  """
+  def refresh_private_server_url(%Server{status: :active, region: region_id} = server) do
+    with {:ok, region} <- Regions.fetch(region_id),
+         true <- Regions.node_port_data_plane?(region) do
+      case Provisioner.external_endpoint(server) do
+        {:ok, url} ->
+          mark_node_port_ready(server, url)
+
+        {:error, :node_port_endpoint_not_ready} ->
+          :ok
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+    else
+      false -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def refresh_private_server_url(%Server{}), do: :ok
+
+  # Endpoint observable: heartbeat the readiness clock. Rewrite the url +
+  # broadcast only when it actually moved, so a steady-state node isn't
+  # re-pushed to every open settings LiveView every tick.
+  defp mark_node_port_ready(%Server{url: url} = server, url) do
+    case server |> Server.observation_changeset(%{last_ready_at: now_truncated()}) |> Repo.update() do
+      {:ok, _server} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp mark_node_port_ready(%Server{} = server, url) do
+    case server |> Server.observation_changeset(%{url: url, last_ready_at: now_truncated()}) |> Repo.update() do
+      {:ok, server} ->
+        broadcast_server(server, :updated)
+        :ok
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -371,7 +458,8 @@ defmodule Tuist.Kura do
               url: url,
               current_image_tag: image_tag,
               observed_image_tag: image_tag,
-              last_observed_at: now_truncated()
+              last_observed_at: now_truncated(),
+              last_ready_at: now_truncated()
             })
             |> Repo.update()
 
@@ -380,9 +468,18 @@ defmodule Tuist.Kura do
     end)
   end
 
+  # Staleness window for a private node-port server's readiness heartbeat
+  # (`last_ready_at`). Larger than the reconciler's 30s tick so one slow
+  # tick can't flap dispatch; small enough that a `/ready`-503 node
+  # degrades to the public cache within a couple of minutes instead of
+  # timing out builds.
+  @runner_cache_ready_staleness_seconds 120
+
   @doc """
-  In-cluster Kura URL a runner-as-a-service build should use, or `nil`
-  when the account has no active private (runner-cache) Kura node.
+  In-cluster Kura URL a runner-as-a-service build on a fleet of the
+  given platform should use, or `nil` when the account has no active
+  private (runner-cache) Kura node in a region that serves that
+  platform.
 
   Builds executing on a runner pool resolve their cache through this so
   traffic stays inside the cluster, next to the runners, instead of
@@ -392,18 +489,35 @@ defmodule Tuist.Kura do
   private `Server` row directly — `account_cache_endpoints` is
   CLI-facing and a developer machine can't reach the in-cluster
   endpoint.
+
+  The platform filter is the locality half of the handoff (which
+  region's node may serve which fleet — `Regions.runner_platforms`);
+  whether the fleet can reach in-cluster URLs at all is the caller's
+  gate (`Catalog.fleet_on_cluster_network?/1`).
   """
-  def runner_cache_endpoint_url(%Account{id: account_id}) do
+  def runner_cache_endpoint_url(%Account{id: account_id}, platform) when platform in [:linux, :macos] do
     # `available/0`, not `all/0`: if a private region is dropped from
     # `TUIST_KURA_AVAILABLE_REGIONS` the controller stops reconciling
     # it, and gating here too means dispatch stops handing out the now
     # un-reconciled region's stale `url` — config drift self-heals
     # instead of routing jobs to an endpoint that no longer exists.
-    private_region_ids = Enum.map(Enum.filter(Regions.available(), &Regions.private?/1), & &1.id)
+    private_region_ids =
+      Regions.available()
+      |> Enum.filter(&(Regions.private?(&1) and Regions.serves_runner_platform?(&1, platform)))
+      |> Enum.map(& &1.id)
 
     if private_region_ids == [] do
       nil
     else
+      # A node-port server only serves while its readiness heartbeat is
+      # fresh: a `/ready`-503 node lets `last_ready_at` go stale and we
+      # fail over to the public cache instead of routing builds at a dead
+      # endpoint. Cluster-DNS private servers carry no heartbeat (their
+      # in-cluster Service drops a not-ready pod from its endpoints), so
+      # they serve whenever active.
+      node_port_region_ids = node_port_region_ids(private_region_ids)
+      ready_cutoff = DateTime.add(now_truncated(), -@runner_cache_ready_staleness_seconds, :second)
+
       # "At most one active private node per account" is a reconciler
       # invariant, not a DB constraint, so a race could leave two rows.
       # Fetch up to two: a duplicate is logged loudly (it's a real
@@ -414,24 +528,43 @@ defmodule Tuist.Kura do
       |> where([s], s.account_id == ^account_id and s.status == :active and s.region in ^private_region_ids)
       |> order_by([s], asc: s.region)
       |> limit(2)
-      |> select([s], s.url)
+      |> select([s], %{url: s.url, region: s.region, last_ready_at: s.last_ready_at})
       |> Repo.all()
-      |> case do
-        [] ->
-          nil
-
-        [url] ->
-          url
-
-        [url | _] = urls ->
-          Logger.error("kura: account has multiple active private cache nodes; routing to the first",
-            account_id: account_id,
-            urls: urls
-          )
-
-          url
-      end
+      |> Enum.filter(&private_cache_serving?(&1, node_port_region_ids, ready_cutoff))
+      |> Enum.map(& &1.url)
+      |> route_private_cache_url(account_id)
     end
+  end
+
+  def runner_cache_endpoint_url(%Account{}, _platform), do: nil
+
+  defp node_port_region_ids(private_region_ids) do
+    Enum.filter(private_region_ids, fn id ->
+      case Regions.fetch(id) do
+        {:ok, region} -> Regions.node_port_data_plane?(region)
+        _ -> false
+      end
+    end)
+  end
+
+  defp private_cache_serving?(%{region: region, last_ready_at: last_ready_at}, node_port_region_ids, ready_cutoff) do
+    if region in node_port_region_ids do
+      not is_nil(last_ready_at) and DateTime.compare(last_ready_at, ready_cutoff) != :lt
+    else
+      true
+    end
+  end
+
+  defp route_private_cache_url([], _account_id), do: nil
+  defp route_private_cache_url([url], _account_id), do: url
+
+  defp route_private_cache_url([url | _] = urls, account_id) do
+    Logger.error("kura: account has multiple active private cache nodes; routing to the first",
+      account_id: account_id,
+      urls: urls
+    )
+
+    url
   end
 
   defp ensure_public_endpoint_ready(url) when is_binary(url) do

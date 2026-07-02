@@ -567,10 +567,7 @@
             @test_case_runs_sort_by == "duration" &&
               column_sort_patch(assigns, "duration")
           }
-          icon={
-            @test_case_runs_sort_by == "duration" &&
-              sort_icon(@test_case_runs_sort_order)
-          }
+          sort_order={@test_case_runs_sort_by == "duration" && @test_case_runs_sort_order}
         >
           <.text_cell
             label={
@@ -588,10 +585,7 @@
             @test_case_runs_sort_by == "ran_at" &&
               column_sort_patch(assigns, "ran_at")
           }
-          icon={
-            @test_case_runs_sort_by == "ran_at" &&
-              sort_icon(@test_case_runs_sort_order)
-          }
+          sort_order={@test_case_runs_sort_by == "ran_at" && @test_case_runs_sort_order}
         >
           <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(test_case_run.ran_at)} />
         </:col>

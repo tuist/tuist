@@ -212,11 +212,60 @@ defmodule Tuist.EnvironmentTest do
     end
   end
 
+  describe "database_schema/1" do
+    test "defaults to public when unset or empty" do
+      assert Environment.database_schema(nil) == "public"
+      assert Environment.database_schema("") == "public"
+    end
+
+    test "accepts unquoted PostgreSQL identifiers" do
+      assert Environment.database_schema("tuist") == "tuist"
+      assert Environment.database_schema("_tuist1") == "_tuist1"
+    end
+
+    test "raises on invalid schema identifiers" do
+      assert_raise RuntimeError,
+                   ~r/TUIST_DATABASE_SCHEMA must be a valid unquoted PostgreSQL identifier/,
+                   fn ->
+                     Environment.database_schema("tuist-prod")
+                   end
+
+      assert_raise RuntimeError,
+                   ~r/TUIST_DATABASE_SCHEMA must be a valid unquoted PostgreSQL identifier/,
+                   fn ->
+                     Environment.database_schema("1tuist")
+                   end
+    end
+  end
+
+  describe "quote_postgres_identifier/1" do
+    test "quotes identifiers used in SQL and startup parameters" do
+      assert Environment.quote_postgres_identifier("tuist") == ~s("tuist")
+      assert Environment.quote_postgres_identifier("Tuist") == ~s("Tuist")
+    end
+  end
+
   describe "modes/0" do
     test "every value round-trips through mode/1 so the list stays in sync with the parser" do
       for mode <- Environment.modes() do
         assert Environment.mode(Atom.to_string(mode)) == mode
       end
+    end
+  end
+
+  describe "database_config_from_url/1" do
+    test "preserves literal plus signs in credentials" do
+      config = Environment.database_config_from_url("ecto://user:abc+def@example.com/tuist")
+
+      assert config[:username] == "user"
+      assert config[:password] == "abc+def"
+    end
+
+    test "decodes percent-encoded plus signs in credentials" do
+      config = Environment.database_config_from_url("ecto://user:abc%2Bdef@example.com/tuist")
+
+      assert config[:username] == "user"
+      assert config[:password] == "abc+def"
     end
   end
 
@@ -287,6 +336,23 @@ defmodule Tuist.EnvironmentTest do
   end
 
   describe "kura_endpoints/1" do
+    test "returns trimmed Kura endpoints from the environment value" do
+      assert Environment.kura_endpoints(%{}, " https://kura-1.example.com,https://kura-2.example.com , ") == [
+               "https://kura-1.example.com",
+               "https://kura-2.example.com"
+             ]
+    end
+
+    test "falls back to secrets when the environment value is blank" do
+      secrets = %{
+        "kura" => %{
+          "endpoints" => "https://kura-from-secrets.example.com"
+        }
+      }
+
+      assert Environment.kura_endpoints(secrets, "") == ["https://kura-from-secrets.example.com"]
+    end
+
     test "returns trimmed Kura endpoints from secrets" do
       secrets = %{
         "kura" => %{

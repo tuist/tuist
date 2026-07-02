@@ -18,6 +18,8 @@ pub const CAS_CAPACITY_DEFAULT_DISK_PERCENT: u64 = 50;
 pub const CAS_CAPACITY_MAX_DISK_PERCENT: u64 = 80;
 pub const MAX_DESIRED_SEGMENTS: usize = 16_384;
 pub const REPLICATION_RETRY_SECS: u64 = 2;
+pub const REPLICATION_BACKOFF_BASE_SECS: u64 = 2;
+pub const REPLICATION_BACKOFF_MAX_SECS: u64 = 60;
 pub const ROCKSDB_BYTES_PER_SYNC: u64 = 1024 * 1024;
 pub const ROCKSDB_WAL_BYTES_PER_SYNC: u64 = 1024 * 1024;
 
@@ -41,6 +43,13 @@ pub const DEFAULT_USAGE_OUTBOX_MAX_DEPTH: usize = 100_000;
 pub const MAX_BOOTSTRAP_PAGE_BYTES: u64 = 32 * 1024 * 1024;
 pub const MAX_INLINE_REPLICATION_BODY_BYTES: u64 = 4 * 1024 * 1024;
 pub const DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS: usize = 8;
+// Stripes for the per-artifact bootstrap fetch gate that single-flights the
+// body download across peers. Sized well above the peak concurrent fetches
+// (bootstrap_max_concurrent_peers x per-peer fetch concurrency) so distinct
+// keys rarely share a stripe; false sharing only over-serializes briefly and is
+// correctness-neutral because the gate is paired with an exact per-artifact
+// presence recheck.
+pub const BOOTSTRAP_FETCH_LOCK_STRIPES: usize = 1024;
 
 pub const ROCKSDB_CF_MANIFESTS: &str = "manifests";
 pub const ROCKSDB_CF_KEY_VALUE: &str = "key_value";

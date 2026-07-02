@@ -10,6 +10,7 @@ defmodule Tuist.CommandEvents.Event do
       :id,
       :project_id,
       :name,
+      :command_arguments,
       :git_commit_sha,
       :git_ref,
       :git_branch,
@@ -18,7 +19,8 @@ defmodule Tuist.CommandEvents.Event do
       :user_id,
       :hit_rate,
       :cacheable_targets_count,
-      :cache_endpoint
+      :cache_endpoint,
+      :ran_at
     ],
     sortable: [:created_at, :ran_at, :duration, :hit_rate]
   }

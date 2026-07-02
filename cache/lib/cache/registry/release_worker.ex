@@ -8,6 +8,7 @@ defmodule Cache.Registry.ReleaseWorker do
   alias Cache.Config
   alias Cache.Registry.KeyNormalizer
   alias Cache.Registry.Lock
+  alias Cache.Registry.ManifestVariants
   alias Cache.Registry.Metadata
   alias Cache.S3
 
@@ -15,7 +16,6 @@ defmodule Cache.Registry.ReleaseWorker do
 
   @github_opts [finch: Cache.Finch, retry: false]
 
-  @alternate_manifest_regex ~r/\APackage@swift-(\d+)(?:\.(\d+))?(?:\.(\d+))?\.swift\z/
   @lock_ttl_seconds 1_800
   @metadata_lock_ttl_seconds 300
   @skippable_submodule_failure_markers [
@@ -660,6 +660,7 @@ defmodule Cache.Registry.ReleaseWorker do
         end
       end)
       |> Enum.reject(&is_nil/1)
+      |> ManifestVariants.deduplicate_by_tools_version()
 
     {:ok, manifests}
   end
@@ -807,29 +808,15 @@ defmodule Cache.Registry.ReleaseWorker do
 
   defp manifest_path?("Package.swift"), do: true
 
-  defp manifest_path?(path) when is_binary(path), do: Regex.match?(@alternate_manifest_regex, Path.basename(path))
+  defp manifest_path?(path) when is_binary(path), do: ManifestVariants.alternate_manifest?(Path.basename(path))
 
   defp manifest_path?(_), do: false
 
   defp manifest_swift_version("Package.swift"), do: nil
 
-  defp manifest_swift_version(filename) do
-    case Regex.run(@alternate_manifest_regex, filename) do
-      [_, major] -> major
-      [_, major, minor] -> "#{major}.#{minor}"
-      [_, major, minor, patch] -> "#{major}.#{minor}.#{patch}"
-      _ -> nil
-    end
-  end
+  defp manifest_swift_version(filename), do: ManifestVariants.filename_swift_version(filename)
 
-  defp swift_tools_version(content) do
-    case Regex.run(~r/^\/\/ swift-tools-version:\s?(\d+)(?:\.(\d+))?(?:\.(\d+))?/, content) do
-      [_, major] -> major
-      [_, major, minor] -> "#{major}.#{minor}"
-      [_, major, minor, patch] -> "#{major}.#{minor}.#{patch}"
-      _ -> nil
-    end
-  end
+  defp swift_tools_version(content), do: ManifestVariants.swift_tools_version(content)
 
   defp checksum_for_file(path) do
     hash =

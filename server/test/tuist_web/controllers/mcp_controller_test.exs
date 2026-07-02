@@ -137,6 +137,45 @@ defmodule TuistWeb.MCPControllerTest do
       refute content_type =~ "text/event-stream"
     end
 
+    test "returns request responses inline when the session has a stale event stream registration", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      stub(RateLimit.MCP, :hit, fn _conn -> {:allow, 1} end)
+
+      init_conn =
+        conn
+        |> authenticated_mcp_conn(user.token)
+        |> post_mcp(%{
+          "jsonrpc" => "2.0",
+          "id" => 1,
+          "method" => "initialize",
+          "params" => @initialize_params
+        })
+
+      [session_id] = get_resp_header(init_conn, "mcp-session-id")
+
+      stale_pid = spawn(fn -> :ok end)
+      ref = Process.monitor(stale_pid)
+      assert_receive {:DOWN, ^ref, :process, ^stale_pid, _reason}
+      EMCP.SessionStore.ETS.register(session_id, stale_pid)
+
+      conn =
+        build_conn()
+        |> authenticated_mcp_conn(user.token)
+        |> put_req_header("mcp-session-id", session_id)
+        |> post_mcp(%{
+          "jsonrpc" => "2.0",
+          "id" => 2,
+          "method" => "tools/list",
+          "params" => %{}
+        })
+
+      response = json_response(conn, 200)
+
+      assert response["jsonrpc"] == "2.0"
+      assert response["id"] == 2
+      assert is_list(response["result"]["tools"])
+    end
+
     test "assigns a session ID on first request", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
       stub(RateLimit.MCP, :hit, fn _conn -> {:allow, 1} end)

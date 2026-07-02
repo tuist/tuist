@@ -5,7 +5,9 @@ defmodule TuistWeb.Endpoint do
   # The session will be stored in the cookie and signed,
   # this means its contents can be read but not tampered with.
   # Set :encryption_salt if you would also like to encrypt it.
+  alias TuistWeb.CodeReloader
   alias TuistWeb.Plugs.GitHubWebhookLoggingPlug
+  alias TuistWeb.Plugs.MarketingStaticAssetObservabilityPlug
   alias TuistWeb.Plugs.WebhookPlug
   alias TuistWeb.Webhooks.BillingController
   alias TuistWeb.Webhooks.GitHubController
@@ -29,6 +31,8 @@ defmodule TuistWeb.Endpoint do
   #
   # You should set gzip to true if you are running phx.digest
   # when deploying your static files in production.
+  plug MarketingStaticAssetObservabilityPlug
+
   plug Plug.Static,
     at: "/docs/images",
     from: {:tuist, "priv/docs/images"},
@@ -46,7 +50,7 @@ defmodule TuistWeb.Endpoint do
   if code_reloading? do
     socket "/phoenix/live_reload/socket", Phoenix.LiveReloader.Socket
     plug Phoenix.LiveReloader
-    plug Phoenix.CodeReloader
+    plug Phoenix.CodeReloader, reloader: &CodeReloader.reload/2
     plug Phoenix.Ecto.CheckRepoStatus, otp_app: :tuist
   end
 

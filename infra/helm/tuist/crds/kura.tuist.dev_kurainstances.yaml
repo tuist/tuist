@@ -27,7 +27,7 @@ spec:
           jsonPath: .spec.publicHost
         - name: gRPC
           type: string
-          jsonPath: .spec.grpcPublicHost
+          jsonPath: .status.grpcPublicURL
         - name: Ready
           type: integer
           jsonPath: .status.readyReplicas
@@ -79,6 +79,8 @@ spec:
                 publicHost:
                   type: string
                   maxLength: 253
+                # Deprecated: ignored. gRPC co-hosts on publicHost.
+                # Retained for backward compatibility. See tuist/tuist#11390.
                 grpcPublicHost:
                   type: string
                   maxLength: 253
@@ -90,7 +92,63 @@ spec:
                 # (runner-cache nodes).
                 private:
                   type: boolean
+                # NodePort data plane for runner fleets that share a
+                # network with the node pool but not the pod network
+                # (macOS Tart VMs over a cloud Private Network). See
+                # KuraInstanceSpec in the controller API.
+                exposeNodePort:
+                  type: boolean
+                clientCIDRs:
+                  type: array
+                  items:
+                    type: string
+                podAnnotations:
+                  type: object
+                  additionalProperties:
+                    type: string
+                # Per-tenant egress floor (Mbps). When set, the pod requests
+                # it as the tuist.dev/egress-mbps extended resource so the
+                # scheduler bin-packs instances against the box's egress budget.
+                egressGuaranteedMbps:
+                  type: integer
+                  format: int32
                 peerTLSSecretName:
+                  type: string
+                # Enables controller-managed per-account peer mesh: a
+                # per-account CA signs each instance leaf so an account's
+                # pods replicate to each other and no other account can.
+                mesh:
+                  type: boolean
+                # Public hostname for the account peer plane. When set (mesh
+                # mode) the controller provisions a LoadBalancer for the peer
+                # port and adds the host to each instance's peer-cert SAN, so a
+                # self-hosted node can dial the managed mesh over the internet.
+                meshPublicPeerHost:
+                  type: string
+                # Self-hosted node peer URLs injected into managed pods'
+                # KURA_PEERS so the managed mesh dials them (managed->self-hosted
+                # replication leg).
+                meshExternalPeers:
+                  type: array
+                  items:
+                    type: string
+                # Provider-specific annotations for the public peer LoadBalancer
+                # (e.g. hcloud location + node-selector restricting LB targets to
+                # the account's node pool).
+                meshPublicPeerLoadBalancerAnnotations:
+                  type: object
+                  additionalProperties:
+                    type: string
+                # Host-network public peer plane (bare-metal regions, no LB): the
+                # per-instance peer Service becomes ClusterIP behind a regional
+                # SNI demux on :7443, and DNS is published via a DNSEndpoint to
+                # meshPeerFailoverIp.
+                meshPeerHostNetwork:
+                  type: boolean
+                # The region's stable public peer IP the host-network peer
+                # DNSEndpoint targets (kept routed to a healthy box by the CAPI
+                # provider). Only used when meshPeerHostNetwork is true.
+                meshPeerFailoverIp:
                   type: string
                 storageClassName:
                   type: string
@@ -100,6 +158,11 @@ spec:
                   type: object
                   additionalProperties:
                     type: string
+                tolerations:
+                  type: array
+                  items:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
                 extraEnv:
                   type: array
                   items:
@@ -123,6 +186,14 @@ spec:
                   format: int32
                 message:
                   type: string
+                nodeAddress:
+                  type: string
+                nodePortHTTP:
+                  type: integer
+                  format: int32
+                nodePortGRPC:
+                  type: integer
+                  format: int32
                 lastReconciledAt:
                   type: string
                   format: date-time

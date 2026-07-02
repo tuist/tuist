@@ -17,6 +17,10 @@ public struct Shard {
     /// xcodebuild `-only-testing` identifiers selecting this shard's work. Suite granularity yields
     /// `Module/Suite` entries; module granularity yields bare `Module` entries.
     public let testIdentifiers: [String]
+    /// xcodebuild `-skip-testing` identifiers. Non-empty only on the catch-all shard, which carries no
+    /// `-only-testing` and instead skips every suite assigned to other shards — so it runs everything
+    /// NOT explicitly assigned (newly added or un-enumerated suites included) rather than dropping it.
+    public let skipTestIdentifiers: [String]
     public let modules: [String]
     public let selectiveTestingGraph: SelectiveTestingGraph?
 }
@@ -91,12 +95,11 @@ public struct ShardService: ShardServicing {
         )
 
         let suites = shard.suites.additionalProperties
-        if suites.isEmpty {
-            Logger.current.notice("Shard \(shardIndex): \(shard.modules.joined(separator: ", "))", metadata: .section)
-        } else {
-            let names = suites.values.flatMap { $0 }.sorted()
-            Logger.current.notice("Shard \(shardIndex): \(names.joined(separator: ", "))", metadata: .section)
-        }
+        let skipTestIdentifiers = shard.skip ?? []
+        Logger.current.notice(
+            "Shard \(shardIndex): \(noticeIdentifiers(modules: shard.modules, suites: suites, skipTestIdentifiers: skipTestIdentifiers).joined(separator: ", "))",
+            metadata: .section
+        )
 
         let resolvedTestProductsPath: AbsolutePath
 
@@ -130,7 +133,9 @@ public struct ShardService: ShardServicing {
             testIdentifiers = shard.modules.sorted()
         } else {
             testIdentifiers = suites
-                .flatMap { module, suiteNames in suiteNames.map { "\(module)/\($0)" } }
+                .flatMap { module, suiteNames in
+                    suiteNames.map { "\(module)/\($0)" }
+                }
                 .sorted()
         }
 
@@ -148,6 +153,7 @@ public struct ShardService: ShardServicing {
             shardPlanId: shard.shard_plan_id,
             testProductsPath: resolvedTestProductsPath,
             testIdentifiers: testIdentifiers,
+            skipTestIdentifiers: skipTestIdentifiers,
             modules: shard.modules,
             selectiveTestingGraph: selectiveTestingGraph
         )
@@ -162,5 +168,23 @@ public struct ShardService: ShardServicing {
             .appending(component: "\(extractedPath.basename).xctestproducts")
         try await fileSystem.move(from: extractedPath, to: normalizedPath)
         return normalizedPath
+    }
+
+    private func noticeIdentifiers(
+        modules: [String],
+        suites: [String: [String]],
+        skipTestIdentifiers: [String]
+    ) -> [String] {
+        if !suites.isEmpty {
+            return suites
+                .flatMap { module, suiteNames in
+                    suiteNames.map { "\(module)/\($0)" }
+                }
+                .sorted()
+        } else if !modules.isEmpty {
+            return modules.sorted()
+        } else {
+            return skipTestIdentifiers.sorted()
+        }
     }
 }

@@ -1,0 +1,67 @@
+# Overlay for Slack-requested preview environments.
+#
+# Layer this after values-preview.yaml. It keeps the preview-class dependency
+# shape (embedded Postgres, ClickHouse, and MinIO) and provisions a Kura
+# runtime per preview. The server routes accounts to it via the same
+# `kura_servers` rows production uses; no shared-mesh override and no
+# preview-only authorization relaxation (the Lua hook enforces tenant
+# matching strictly here too).
+#
+# Testers wanting to exercise the server↔Kura path in a fresh preview need
+# to seed a `kura_servers` row for their account that points at
+# https://kura-<slug>.preview.tuist.dev — see
+# infra/k8s/onboarding.md §8 for the one-time setup.
+#
+# The Kura controller is *not* installed by the per-preview release: it lives
+# in the cluster-wide `kura` namespace and is installed once per cluster by
+# `mise -C infra run k8s:install-kura-platform` (see
+# .github/workflows/preview-deploy.yml). That keeps a single
+# controller managing every preview's KuraInstance — no per-release
+# ownership of cluster-scoped resources, no Helm collisions when two
+# previews coexist, and uninstalling one preview never touches another's
+# controller.
+#
+# The kura-shared-secrets Secret is materialised in the `kura` namespace
+# by the platform install and copied into the preview namespace by the
+# deploy workflow before `helm upgrade`. server.kuraIntrospection.use-
+# SharedSecret routes the helper to that copy.
+#
+# Required deploy-time image pin:
+#   --set kuraRuntime.image.tag=<release>
+global:
+  commonLabels:
+    tuist.dev/environment: preview
+    tuist.dev/preview-source: slack
+
+server:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 1Gi
+    limits:
+      memory: 4Gi
+  extraEnv:
+    - name: TUIST_DATABASE_POOL_SIZE
+      value: "10"
+    - name: TUIST_TEST_USER_LOGIN_ENABLED
+      value: "1"
+  kuraIntrospection:
+    # Routes the server's KURA_CONTROL_PLANE_CLIENT_ID/SECRET env vars to
+    # the kura-shared-secrets Secret in this release's namespace. The
+    # workflow copies that Secret from the cluster-wide `kura` namespace
+    # (where the platform install materialises it) into the per-preview
+    # namespace before `helm upgrade`. The per-preview release does not
+    # install the kuraController, so the chart's default helper path
+    # (which requires kuraController.enabled) would otherwise miss the env.
+    useSharedSecret: true
+
+# kuraController stays disabled in the per-preview release. The
+# cluster-wide controller is installed by
+# `mise -C infra run k8s:install-kura-platform` (called from the deploy
+# workflow). Avoids two ondemand previews fighting for ownership of the
+# kura namespace's shared resources.
+
+kuraRuntime:
+  image:
+    repository: ghcr.io/tuist/kura
+    tag: ""

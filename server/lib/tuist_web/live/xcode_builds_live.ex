@@ -92,7 +92,7 @@ defmodule TuistWeb.XcodeBuildsLive do
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
-    analytics_environment = params["analytics-environment"] || "any"
+    analytics_environment = analytics_environment_param(params["analytics-environment"])
     analytics_build_scheme = params["analytics-build-scheme"] || "any"
     analytics_build_configuration = params["analytics-build-configuration"] || "any"
     analytics_build_category = params["analytics-build-category"] || "any"
@@ -255,6 +255,10 @@ defmodule TuistWeb.XcodeBuildsLive do
     end
   end
 
+  defp analytics_environment_param(environment) when environment in ["ci", "local"], do: environment
+
+  defp analytics_environment_param(_environment), do: "any"
+
   defp assign_configuration_insights_options(socket, params) do
     configuration_insights_type = params["configuration-insights-type"] || "xcode-version"
 
@@ -384,6 +388,7 @@ defmodule TuistWeb.XcodeBuildsLive do
   def environment_label("ci"), do: dgettext("dashboard_builds", "CI")
   def environment_label(true), do: dgettext("dashboard_builds", "CI")
   def environment_label(false), do: dgettext("dashboard_builds", "Local")
+  def environment_label(_), do: dgettext("dashboard_builds", "Any")
 
   def configuration_insights_label("xcode-version"), do: dgettext("dashboard_builds", "Xcode version")
   def configuration_insights_label("macos-version"), do: dgettext("dashboard_builds", "macOS version")

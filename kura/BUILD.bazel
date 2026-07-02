@@ -1,0 +1,58 @@
+load("@crates//:defs.bzl", "aliases", "all_crate_deps")
+load("@rules_rs//rs:rust_binary.bzl", "rust_binary")
+load("@rules_rs//rs:rust_library.bzl", "rust_library")
+load("@rules_rs//rs:rust_test.bzl", "rust_test")
+
+# CI-only gate: deny warnings on the first-party crates (the bazel equivalent of cargo's
+# RUSTFLAGS="-D warnings"). Off by default so local `bazel build` / `mise run compile`
+# stay warning-tolerant, like `cargo build` locally; CI flips it on with
+# `--define=kura_deny_warnings=true`. It is referenced only by the targets below, so the
+# third-party crate graph never receives -Dwarnings (cargo caps lints on deps).
+config_setting(
+    name = "deny_warnings",
+    define_values = {"kura_deny_warnings": "true"},
+)
+
+_DENY_WARNINGS = select({
+    ":deny_warnings": ["-Dwarnings"],
+    "//conditions:default": [],
+})
+
+# The kura crate is a lib + bin: main.rs calls `kura::run()`, so the library must compile under the
+# crate name `kura`. test_support.rs is `#[cfg(test)]`, so it is inert in this non-test build.
+# (rules_rs folds proc-macro deps into all_crate_deps, so there is no separate proc_macro_deps.)
+rust_library(
+    name = "kura_lib",
+    srcs = glob(["src/**/*.rs"], exclude = ["src/main.rs"]),
+    aliases = aliases(),
+    crate_name = "kura",
+    edition = "2024",
+    rustc_flags = _DENY_WARNINGS,
+    visibility = ["//visibility:public"],
+    deps = all_crate_deps(normal = True),
+)
+
+rust_binary(
+    name = "kura",
+    srcs = ["src/main.rs"],
+    aliases = aliases(),
+    edition = "2024",
+    rustc_flags = _DENY_WARNINGS,
+    visibility = ["//visibility:public"],
+    deps = all_crate_deps(normal = True) + [":kura_lib"],
+)
+
+# Recompiles kura_lib with --test so the crate's #[cfg(test)] unit tests (and the test_support
+# module) run under `bazel test`.
+rust_test(
+    name = "kura_lib_test",
+    aliases = aliases(),
+    # A #[cfg(test)] block include_str!s this file relative to src/extension/; it lives outside the
+    # srcs glob, so the test compile needs it as a sandbox input.
+    compile_data = ["ops/helm/kura/hooks/tuist.lua"],
+    crate = ":kura_lib",
+    edition = "2024",
+    rustc_flags = _DENY_WARNINGS,
+    size = "small",
+    deps = all_crate_deps(normal_dev = True),
+)

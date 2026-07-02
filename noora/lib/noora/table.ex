@@ -34,13 +34,19 @@ defmodule Noora.Table do
   Tables can have expandable rows that reveal additional content when clicked. Use the `row_expandable` attribute to determine which rows can be expanded,
   and the `expanded_content` slot to define what content to show.
 
+  Expansion is handled entirely client-side: clicking a row toggles it without a server
+  round trip, so the reveal animation starts instantly. The expanded content is always
+  rendered (collapsed to zero height), and `expanded_rows` only sets which rows start out
+  expanded. No `handle_event` is needed. Note that a LiveView re-render of the table (for
+  example sorting or searching) resets rows to that initial state.
+
   ```
   <.table
     id="expandable-table"
     rows={@tasks}
     row_key={fn task -> task.key end}
     row_expandable={fn task -> not Enum.empty?(task.details) end}
-    expanded_rows={MapSet.to_list(@expanded_task_keys)}
+    expanded_rows={[]}
   >
     <:col :let={task} label="Task">
       <.text_cell label={task.description} />
@@ -57,23 +63,6 @@ defmodule Noora.Table do
     </:expanded_content>
   </.table>
   ```
-
-  In your LiveView, handle the expand/collapse interaction:
-
-  ```
-  def handle_event("toggle-expand", %{"row-key" => row_key}, socket) do
-    expanded_keys = socket.assigns.expanded_task_keys
-
-    updated_keys =
-      if MapSet.member?(expanded_keys, row_key) do
-        MapSet.delete(expanded_keys, row_key)
-      else
-        MapSet.put(expanded_keys, row_key)
-      end
-
-    {:noreply, assign(socket, expanded_task_keys: updated_keys)}
-  end
-  ```
   """
 
   use Phoenix.Component
@@ -84,6 +73,8 @@ defmodule Noora.Table do
   import Noora.Tag
   import Noora.Time
   import Noora.Utils
+
+  alias Phoenix.LiveView.JS
 
   attr(:id, :string, required: true, doc: "A uniqie identifier for the table")
 
@@ -115,12 +106,22 @@ defmodule Noora.Table do
     doc: "A list of row keys/IDs that are currently expanded."
   )
 
+  attr(:expand_label, :string,
+    default: "Toggle row details",
+    doc: "Accessible label for the disclosure button that expands/collapses a row."
+  )
+
   slot(:empty_state, required: false)
 
   slot :col, required: true do
     attr(:label, :string, required: false, doc: "The label of the column")
     attr(:icon, :string, doc: "An icon to render next to the label")
     attr(:patch, :string, doc: "A patch to apply to the column")
+
+    attr(:sort_order, :any,
+      doc:
+        ~s(When set to "asc" or "desc", renders a sort-direction arrow that morphs between the two directions as the value changes. Mirror your sort-state gating, e.g. `sort_order={@sort_by == "duration" && @sort_order}`.)
+    )
   end
 
   slot(:expanded_content, required: false, doc: "Content to display when a row is expanded")
@@ -145,84 +146,178 @@ defmodule Noora.Table do
       end
 
     ~H"""
-    <div id={@id} class="noora-table">
-      <table>
-        <thead>
-          <tr>
-            <th :for={col <- @col}>
-              <%= if col[:patch] do %>
-                <.link patch={col[:patch]} data-part="sort-link">
+    <div id={@id} class="noora-table" phx-hook="NooraTable">
+      <div data-part="scroll-container">
+        <table>
+          <thead>
+            <tr>
+              <th :for={{col, col_index} <- Enum.with_index(@col)}>
+                <%= if col[:patch] do %>
+                  <.link patch={col[:patch]} data-part="sort-link">
+                    <span>{col[:label]}</span>
+                    <span :if={col[:icon]} data-part="icon"><.icon name={col[:icon]} /></span>
+                    <.sort_indicator
+                      :if={col[:sort_order]}
+                      id={"#{@id}-sort-#{col_index}"}
+                      order={col[:sort_order]}
+                    />
+                  </.link>
+                <% else %>
                   <span>{col[:label]}</span>
                   <span :if={col[:icon]} data-part="icon"><.icon name={col[:icon]} /></span>
-                </.link>
-              <% else %>
-                <span>{col[:label]}</span>
-                <span :if={col[:icon]} data-part="icon"><.icon name={col[:icon]} /></span>
-              <% end %>
-            </th>
-          </tr>
-        </thead>
-        <tbody
-          id={"#{@id}-body"}
-          phx-update={match?(%Phoenix.LiveView.LiveStream{}, @rows) && "stream"}
-        >
-          <%= for row <- @rows do %>
-            <% row_key = @row_key && @row_key.(row) %>
-            <% is_expandable = @row_expandable && @row_expandable.(row) %>
-            <% is_expanded = row_key in @expanded_rows %>
-
-            <tr
-              id={row_key}
-              {if is_expandable,
-               do: %{
-                 "phx-click" => "toggle-expand",
-                 "phx-value-row-key" => row_key
-               },
-               else: if(@row_click, do: @row_click.(row) || %{}, else: %{})}
-              data-expandable={is_expandable}
-              data-expanded={is_expanded}
-            >
-              <td
-                :for={{col, index} <- Enum.with_index(@col)}
-                data-selectable={
-                  !is_expandable &&
-                    (not is_nil(@row_navigate) or
-                       (not is_nil(@row_click) && not is_nil(@row_click.(row))))
-                }
-              >
-                <%= if is_expandable && index == 0 do %>
-                  <div data-part="expand-cell">
-                    <.chevron_down :if={is_expanded} />
-                    <.chevron_right :if={!is_expanded} />
-                    {render_slot(col, row)}
-                  </div>
-                <% else %>
-                  <%= if @row_navigate do %>
-                    <.link navigate={@row_navigate.(row)} data-part="link">
-                      {render_slot(col, row)}
-                    </.link>
-                  <% else %>
-                    {render_slot(col, row)}
-                  <% end %>
+                  <.sort_indicator
+                    :if={col[:sort_order]}
+                    id={"#{@id}-sort-#{col_index}"}
+                    order={col[:sort_order]}
+                  />
                 <% end %>
+              </th>
+            </tr>
+          </thead>
+          <tbody
+            id={"#{@id}-body"}
+            phx-update={match?(%Phoenix.LiveView.LiveStream{}, @rows) && "stream"}
+          >
+            <%= for row <- @rows do %>
+              <% row_key = @row_key && @row_key.(row) %>
+              <% is_expandable = @row_expandable && @row_expandable.(row) %>
+              <% is_expanded = row_key in @expanded_rows %>
+
+              <%!-- Expansion is presentational, toggled client-side via the disclosure button
+              in the first cell — not a click handler on the row. A passive row keeps text
+              selectable (so cache keys can be copied without collapsing), lets controls inside
+              the row work without double-firing, and routes keyboard users through a real
+              focusable button. The button flips `data-state` on this row; the expanded sibling
+              row, the row background, and the chevron all derive from that attribute. --%>
+              <tr
+                id={row_key}
+                {if is_expandable,
+               do: %{},
+               else: if(@row_click, do: @row_click.(row) || %{}, else: %{})}
+                data-expandable={is_expandable}
+                data-state={is_expandable && if(is_expanded, do: "expanded", else: "collapsed")}
+              >
+                <td
+                  :for={{col, index} <- Enum.with_index(@col)}
+                  data-selectable={
+                    !is_expandable &&
+                      (not is_nil(@row_navigate) or
+                         (not is_nil(@row_click) && not is_nil(@row_click.(row))))
+                  }
+                >
+                  <%= cond do %>
+                    <% is_expandable && index == 0 -> %>
+                      <div data-part="expand-cell">
+                        <button
+                          type="button"
+                          data-part="expand-toggle"
+                          aria-expanded={to_string(is_expanded)}
+                          aria-controls={"#{row_key}-expanded"}
+                          aria-label={@expand_label}
+                          phx-click={
+                            JS.toggle_attribute({"data-state", "expanded", "collapsed"},
+                              to: "##{row_key}"
+                            )
+                            |> JS.toggle_attribute({"aria-expanded", "true", "false"})
+                          }
+                        >
+                          <.icon
+                            id={"#{row_key}-expand-chevron"}
+                            name="chevron_right"
+                            active_name="chevron_down"
+                            transition="crossfade_rotate"
+                            watch="tr[data-expandable]"
+                            active_state="expanded"
+                          />
+                        </button>
+                        {render_slot(col, row)}
+                      </div>
+                    <% @row_navigate && !is_expandable && index == 0 -> %>
+                      <%!-- Whole-row navigation, built from real anchors so browsers keep their
+                      native link affordances (hover URL preview, Safari/Firefox link previews,
+                      Cmd/middle-click to open in a new tab) with no JS. The first cell carries the
+                      one focusable, announced link wrapping its content, stretched over its own
+                      cell by a `::after` overlay (see table.css); every other cell gets a decorative
+                      empty overlay anchor below. The row reads as one link — one tab stop, announced
+                      once. --%>
+                      <.link navigate={@row_navigate.(row)} data-part="row-link">
+                        {render_slot(col, row)}
+                      </.link>
+                    <% @row_navigate && !is_expandable -> %>
+                      <%!-- Decorative per-cell overlay: an empty real anchor stretched over the
+                      cell (`<td>` IS a valid containing block in every engine — only `<tr>` is not,
+                      which is why a single row-spanning overlay can't work in WebKit). It widens the
+                      pointer/hover hit area to the whole row while staying out of the focus order and
+                      a11y tree, so only the first cell's link is announced. --%>
+                      {render_slot(col, row)}
+                      <.link
+                        navigate={@row_navigate.(row)}
+                        data-part="row-link-overlay"
+                        tabindex="-1"
+                        aria-hidden="true"
+                      >
+                      </.link>
+                    <% true -> %>
+                      {render_slot(col, row)}
+                  <% end %>
+                </td>
+              </tr>
+
+              <%!-- Always rendered (collapsed to zero height) rather than inserted/removed on
+              toggle: the reveal is a plain CSS transition keyed off the preceding row's
+              `data-state`, so there's no mount cost before the animation can start and no
+              removal timer racing the collapse. --%>
+              <tr
+                :if={is_expandable && @expanded_content != []}
+                data-part="expanded-row"
+                id={"#{row_key}-expanded"}
+              >
+                <td colspan={length(@col)} data-part="expanded-content">
+                  <div data-part="expand-wrapper">
+                    <div data-part="expand-wrapper-content">
+                      {render_slot(@expanded_content, row)}
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            <% end %>
+
+            <tr :if={has_slot_content?(@empty_state, assigns) && Enum.empty?(@rows)}>
+              <td colspan={length(@col)}>
+                {render_slot(@empty_state)}
               </td>
             </tr>
-
-            <tr :if={is_expandable && is_expanded} data-part="expanded-row" id={"#{row_key}-expanded"}>
-              <td colspan={length(@col)} data-part="expanded-content">
-                {render_slot(@expanded_content, row)}
-              </td>
-            </tr>
-          <% end %>
-
-          <tr :if={has_slot_content?(@empty_state, assigns) && Enum.empty?(@rows)}>
-            <td colspan={length(@col)}>
-              {render_slot(@empty_state)}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </div>
+      <div data-part="scrollbar" aria-hidden="true">
+        <div data-part="scrollbar-content"></div>
+      </div>
+      <div data-part="overlay-scrollbar" aria-hidden="true">
+        <div data-part="overlay-thumb"></div>
+      </div>
     </div>
+    """
+  end
+
+  attr(:id, :string, required: true, doc: "A unique identifier for the morphing icon")
+  attr(:order, :string, required: true, doc: ~s(The current sort order: "asc" or "desc"))
+
+  # A sort-direction arrow that morphs between descending (down) and ascending (up) as `order`
+  # changes. The `order` is mirrored onto the wrapping `data-part="icon"` element as `data-state`,
+  # which the icon's morph hook watches.
+  defp sort_indicator(assigns) do
+    ~H"""
+    <span data-part="icon" data-state={@order}>
+      <.icon
+        id={@id}
+        name="square_rounded_arrow_down"
+        active_name="square_rounded_arrow_up"
+        transition="morph"
+        watch="[data-part='icon']"
+        active_state="asc"
+      />
+    </span>
     """
   end
 
@@ -266,6 +361,13 @@ defmodule Noora.Table do
 
   attr(:description, :string, default: nil, doc: "The description of the cell")
   attr(:secondary_description, :string, default: nil, doc: "The secondary description of the cell")
+
+  attr(:truncate, :boolean,
+    default: true,
+    doc:
+      "Cap the cell to a single line per row and clip overflow with an ellipsis, instead of letting free-form content (e.g. a command with many target arguments) widen the column unbounded. On by default; pass `truncate={false}` to opt out."
+  )
+
   attr(:rest, :global)
 
   slot(:image,
@@ -275,7 +377,7 @@ defmodule Noora.Table do
 
   def text_and_description_cell(assigns) do
     ~H"""
-    <div data-part="cell" data-type="text_and_description" {@rest}>
+    <div data-part="cell" data-type="text_and_description" data-truncate={@truncate} {@rest}>
       <div :if={@icon || has_slot_content?(@image, assigns)} data-part="icon">
         <.icon :if={@icon && !has_slot_content?(@image, assigns)} name={@icon} />
         <%= if has_slot_content?(@image, assigns) do %>

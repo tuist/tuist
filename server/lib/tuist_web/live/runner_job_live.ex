@@ -3,10 +3,13 @@ defmodule TuistWeb.RunnerJobLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.Components.RunnerJobMetricsCharts
+
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.JobLogs
+  alias Tuist.Runners.JobMetrics
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.JobSteps
   alias Tuist.Runners.LogFormatter
@@ -49,6 +52,7 @@ defmodule TuistWeb.RunnerJobLive do
 
         log_lines = JobLogs.recent(job.workflow_job_id, @page_size)
         oldest_line = oldest_line_number(log_lines)
+        machine_metrics = JobMetrics.list_for_job(job.workflow_job_id)
 
         # Subscribe only on the connected mount so the disconnected
         # first render doesn't open a stray subscription that gets
@@ -60,6 +64,7 @@ defmodule TuistWeb.RunnerJobLive do
          |> assign(:head_title, head_title)
          |> assign(:job, job)
          |> assign(:steps, JobSteps.list_for_job(job.workflow_job_id))
+         |> assign(:machine_metrics, machine_metrics)
          |> assign(:expanded_steps, MapSet.new())
          |> assign(:step_logs, %{})
          |> assign(:search, "")
@@ -237,6 +242,39 @@ defmodule TuistWeb.RunnerJobLive do
   end
 
   def step_duration_ms(_), do: nil
+
+  @doc """
+  Unix-epoch milliseconds for a step boundary, or `nil` when the
+  timestamp is missing. The Overview's `RunnerMetricsHighlight` hook
+  reads these off the step rows to shade the matching window on the
+  metrics charts when a step is hovered.
+  """
+  def step_epoch_ms(%DateTime{} = ts), do: DateTime.to_unix(ts, :millisecond)
+  def step_epoch_ms(_), do: nil
+
+  @doc """
+  The job's step window as `%{min: start_ms, max: end_ms}` — the first
+  step's start to the last step's end. The metric charts anchor their
+  time axis to this so the step-hover bands line up with where the steps
+  ran, rather than auto-scaling to the metric-sample extent (which
+  starts before the first step during Pod boot and can end before the
+  job does when the sampler run is truncated). Returns `nil` when no
+  step carries timestamps.
+  """
+  def step_window(steps) do
+    starts = steps |> Enum.map(&step_epoch_ms(&1.started_at)) |> Enum.reject(&is_nil/1)
+    ends = steps |> Enum.map(&step_epoch_ms(&1.completed_at)) |> Enum.reject(&is_nil/1)
+
+    if starts != [] and ends != [] do
+      %{min: Enum.min(starts), max: Enum.max(ends)}
+    end
+  end
+
+  @doc """
+  Whether the job has any machine-metrics samples to chart. Drives
+  the Metrics tab's empty state and gates the Overview chart row.
+  """
+  def has_machine_metrics?(metrics), do: metrics != []
 
   # FetchLogsWorker finished ingesting the job's captured log. Reload
   # the tail and reset the stream so the empty state ("No logs have

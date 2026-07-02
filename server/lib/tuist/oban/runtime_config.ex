@@ -27,14 +27,18 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
     {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
     {"30 2 * * *", Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker},
+    {"0 4 * * *", Tuist.Storage.Workers.DeleteExpiredLegacyBuildArtifactsWorker},
     {"0 3 * * *", Tuist.Storage.Workers.DeleteExpiredXcodeCacheArtifactsWorker},
     {"15 3 * * *", Tuist.Storage.Workers.DeleteExpiredXcodeModuleCacheArtifactsWorker},
     {"30 3 * * *", Tuist.Storage.Workers.DeleteExpiredGradleCacheArtifactsWorker},
+    {"45 3 * * *", Tuist.Storage.Workers.DeleteExpiredCasCacheArtifactsWorker},
     {"* * * * *", Tuist.Kura.Reconciler},
+    {"*/5 * * * *", Tuist.Kura.Workers.ExpiredRegistrationsWorker},
     {"* * * * *", Tuist.Runners.Workers.StaleClaimsWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedRunnersWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedStampedPodsWorker},
-    {"*/5 * * * *", Tuist.Runners.Workers.WebhookRedeliveryWorker}
+    {"*/5 * * * *", Tuist.Runners.Workers.WebhookRedeliveryWorker},
+    {"*/5 * * * *", Tuist.Runners.Workers.StaleQueuedJobsWorker}
   ]
 
   @prod_like_envs [:prod, :stag, :can]

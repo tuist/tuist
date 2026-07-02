@@ -125,6 +125,52 @@ defmodule Tuist.OAuth.IntrospectionTest do
     end
   end
 
+  describe "token_response/2 (tenant-scoped)" do
+    test "returns inactive for unknown tokens" do
+      account = AccountsFixtures.organization_fixture().account
+      assert Introspection.token_response("unknown-token", account) == %{active: false}
+    end
+
+    test "constrains grants to the given account and drops other tenants" do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(name: "scoped-org", creator: user)
+      Accounts.add_user_to_organization(user, organization, role: :admin)
+      project = ProjectsFixtures.project_fixture(account: organization.account)
+
+      assert %{
+               active: true,
+               principal_kind: "user",
+               cache_grants: %{
+                 "account" => %{"read" => account_reads, "write" => account_writes},
+                 "project" => %{"read" => project_reads, "write" => project_writes}
+               }
+             } = Introspection.token_response(user.token, organization.account)
+
+      assert account_reads == [organization.account.name]
+      assert account_writes == [organization.account.name]
+      assert project_reads == ["#{organization.account.name}/#{project.name}"]
+      assert project_writes == ["#{organization.account.name}/#{project.name}"]
+    end
+
+    test "returns inactive when the token has no grant for the account" do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      unrelated = AccountsFixtures.organization_fixture(name: "unrelated-org")
+
+      assert Introspection.token_response(user.token, unrelated.account) == %{active: false}
+    end
+
+    test "scopes project tokens to their own account" do
+      project = ProjectsFixtures.project_fixture()
+      token = Projects.create_project_token(project)
+      other = AccountsFixtures.organization_fixture(name: "other-tenant-org")
+
+      assert %{active: true, principal_kind: "project"} =
+               Introspection.token_response(token, project.account)
+
+      assert Introspection.token_response(token, other.account) == %{active: false}
+    end
+  end
+
   defp configured_issuer do
     :tuist
     |> Application.fetch_env!(Tuist.Guardian)

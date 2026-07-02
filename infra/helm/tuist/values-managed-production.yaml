@@ -11,6 +11,34 @@ server:
 
   appUrl: https://tuist.dev
 
+  # Stripe price IDs (identifiers, not secrets — the API keys live in the
+  # STRIPE 1Password item). Live-mode prices, so they're set per env: staging
+  # and canary use their own (test-mode) IDs in their overlays. The chart
+  # JSON-encodes this into TUIST_STRIPE_PRICES.
+  stripe:
+    prices:
+      air:
+        usage: ["price_1PIYcvLWue9IBlPS8el65GXj"]
+        flat_monthly: ["price_1PIYcvLWue9IBlPSGvUJIZ5Y"]
+      pro:
+        usage: ["price_1R7fOMLWue9IBlPSrEgHqsMg"]
+        flat_monthly: ["price_1QMtyXLWue9IBlPSlgeHHDvg"]
+      enterprise:
+        flat_monthly:
+          - price_1OWxeCLWue9IBlPSc6OnjqE4
+          - price_1QPK3YLWue9IBlPS3gmVGJin
+          - price_1RRZ6fLWue9IBlPS51mM1R3s
+          - price_1RRZ68LWue9IBlPSj4xaA8cJ
+          - price_1RRZ3wLWue9IBlPSoL1bMoIY
+        flat_yearly:
+          - price_1PXgu8LWue9IBlPSnE5Kd3S9
+          - price_1RRZ8hLWue9IBlPSDxv2a78d
+          - price_1RRZ8FLWue9IBlPSIP2xXtD2
+          - price_1RRZ7jLWue9IBlPSoPgEg4Ui
+      open_source:
+        usage: ["price_1QAYGqLWue9IBlPSQ6vapx9F"]
+        flat_monthly: ["price_1QAYJZLWue9IBlPSJzMjk1BZ"]
+
   # HA scale-out needs distributed Erlang so PubSub + the in-memory rate
   # limiter work across pods. Emits a headless Service that libcluster's
   # Kubernetes.DNS strategy uses to discover peers; the chart wires
@@ -20,9 +48,9 @@ server:
     applicationName: tuist
 
   extraEnv:
-    # Selects which priv/secrets/<env>.yml.enc file the app decrypts at
-    # boot. Image is env-agnostic (built with MIX_ENV=prod); this flag
-    # plus the MASTER_KEY ESO secret pick the runtime deployment target.
+    # Selects the runtime deployment target (Tuist.Environment.env()). The
+    # image is env-agnostic (built with MIX_ENV=prod); this flag picks which
+    # env's config the release runs as.
     - name: TUIST_DEPLOY_ENV
       value: prod
     - name: TUIST_DATABASE_POOL_SIZE
@@ -32,8 +60,19 @@ server:
     # Exposes the managed Kura regions in account settings. Regions now
     # reconcile inside this workload cluster; per-region Kura node pools
     # decide placement.
+    # scw-fr-par-runners is the macOS-serving private (runner-cache)
+    # region: this cluster's Elastic Metal node (kuraFleet) hosts the
+    # per-account cache pods and dispatch routes the Mac fleet's build
+    # cache to it over the Private Network.
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      value: eu-central,us-east,us-west
+      value: eu-central,us-east,us-west,scw-fr-par-runners
+    # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
+    # resolves to the node-port form (http://<node PN address>:<NodePort>
+    # on scw-fr-par-runners), reached over the PN the minis attach to
+    # (macosFleet.vmCachePrivateNetwork below). linux is the default and
+    # stays inert here (prod advertises no Linux private cache region).
+    - name: TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS
+      value: linux,macos
     # Operator project-access grants. The public key verifies grants
     # signed by ops (private half: TUIST_OPS_BOT 1P `project_access_signing_key`,
     # which MUST be stored before this deploys). The reason-form URL turns
@@ -47,6 +86,28 @@ server:
         -----END PUBLIC KEY-----
     - name: TUIST_OPS_REASON_FORM_URL
       value: https://ops.tuist.dev/grants/new
+    # Atlas runs in its own Kubernetes cluster, so Tuist verifies Atlas
+    # projected ServiceAccount tokens offline against this pinned public JWKS
+    # instead of using Tuist's in-cluster TokenReview API.
+    - name: TUIST_ATLAS_NAMESPACE
+      value: atlas-production
+    - name: TUIST_ATLAS_SERVICE_ACCOUNT_NAME
+      value: atlas
+    - name: TUIST_ATLAS_TOKEN_ISSUER
+      value: https://kubernetes.default.svc.cluster.local
+    - name: TUIST_ATLAS_TOKEN_AUDIENCE
+      value: tuist-server
+    - name: TUIST_ATLAS_TOKEN_MAX_TTL_SECONDS
+      value: "3600"
+    # The internal Atlas SQL runner drops to the least-privilege tuist_ops_ro role
+    # via `SET LOCAL ROLE`, so writes are blocked by role privileges, not only by
+    # the read-only transaction. The web -> tuist_ops_ro membership that permits
+    # the switch is reconciled by CNPG (`managed.roles[tuist_web].inRoles`).
+    - name: TUIST_ATLAS_DB_READONLY_ROLE
+      value: tuist_ops_ro
+    - name: TUIST_ATLAS_TOKEN_JWKS
+      value: >-
+        {"keys":[{"use":"sig","kty":"RSA","kid":"RlVpaMmFrqqIHY46_HT42inm4mfvqBKfwLVJiPCcl7g","alg":"RS256","n":"urnlzTgGSYHPHyc-sjXI7lzdx3ChfMpqUMpwuj1vgBMywpvdjFEKZ-5xWBBfS_GIna4q--YBau4zo21xFw0Jd-Ye8l4daXozFTwB1oOv-xOoIL7YITR8dtXsXzqeGIKx1rt90jE2vgvYQDBnkIf9ohgDIApbLICYGSAko5MfdypYhiO52KOxum8nB5dwIaKhr2-DiLQtFQbl__c6Uk2dFpW0_5u4d-uO6yspp5iVo54sc7XIlFNxPBlx2uVQZe8tvTH9Ipc_sovDjMfoKH7g0fG14q6xQU5CkQD1pNS__6J3xFvFYQEp3wXu4i_Rin65EI9GvNKtbZkH-sQ5e8jzLw","e":"AQAB"}]}
 
   autoscaling:
     enabled: true
@@ -235,7 +296,7 @@ registryCache:
 processor:
   extraEnv:
     # Must match the server's TUIST_DEPLOY_ENV above so the processor pod
-    # decrypts the same priv/secrets/<env>.yml.enc file the web tier does.
+    # runs as the same env (Tuist.Environment.env()) as the web tier.
     - name: TUIST_DEPLOY_ENV
       value: prod
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
@@ -285,8 +346,9 @@ processor:
     whenUnsatisfiable: DoNotSchedule
   affinity: {}
 
-# Same priv/secrets selection as the build processor; the Tart image
-# embeds the encrypted bundle and decrypts it via MASTER_KEY.
+# Runs as the same env as the build processor; the Tart VM reads its secrets
+# from the environment (config Secret via envFrom + object-storage ESO), same
+# as the Linux pods.
 xcresultProcessor:
   # replicaCount stays at the chart default (2). The topology spread
   # in xcresult-processor-deployment.yaml forces the two replicas onto
@@ -313,6 +375,109 @@ xcresultProcessor:
       value: prod
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+
+# Declarative Scaleway Elastic Metal kura runner-cache node, co-located with the
+# Mac fleet in fr-par. The provider orders the bare-metal server, attaches it to
+# the runner-cache PN, mints a kubelet identity, and renders a self-join
+# cloud-init that registers the Node with the runner-cache taint. The control
+# plane is externally managed, so there's no CAPI kubeadm join; the reconciler
+# bootstraps the node itself.
+kuraFleet:
+  enabled: true
+  replicas: 1
+  machine:
+    # EM-I220E-NVME (128GB RAM / 1.92TB NVMe / 25G PN) is the best RAM+NVMe
+    # value for the cache pods: RAM (warm-set size = hit rate) and NVMe
+    # capacity are the per-account density limiters here, not PN bandwidth or
+    # CPU, so we pay for memory + disk rather than a bigger NIC.
+    offerType: EM-I220E-NVME
+
+# Dedibox fleet (EU customer-facing Kura cache, the eu-central cutover). The
+# reconciler adopts a pre-ordered Dedibox carrying the tuist-kura-production tag
+# (the env boundary, since all Dedibox share the org's default project) and
+# self-joins it as the kura-dedibox pool that backs eu-central. PREREQ before
+# merge: the DEDIBOX_SCW_API 1Password item exists in the production vault, and a
+# box is delivered + tagged tuist-kura-production; an enabled fleet with no
+# adoptable box hangs helm --wait. NOTE: eu-central is a shared public region
+# (many accounts, each with its own storageSize cache), so size the box for the
+# account count; Start-9-M is the staging-validated shape, but a larger Dedibox
+# offer may be needed for production.
+dediboxFleet:
+  enabled: true
+  machine:
+    adoptTag: tuist-kura-production
+    offer: Pro-9-XS
+    datacenter: DC5
+    os: ubuntu_24.04
+    # Node egress budget (Mbps): the box's ~1 Gbit/s NIC, advertised as
+    # tuist.dev/egress-mbps node capacity so the scheduler bin-packs eu-central's
+    # 250-Mbps-floor cache pods against it.
+    egressBudgetMbps: 1000
+  scaleway:
+    externalSecrets:
+      item: DEDIBOX_SCW_API
+  # Own the fleet SSH key from 1Password (generated fresh into this item).
+  sshExternalSecret:
+    enabled: true
+    item: DEDIBOX_FLEET_SSH
+
+# Shared OVH config holder. The singular ovhFleet stays disabled in production
+# (it is the ca-east validation fleet); production's OVH regions are the us-east /
+# us-west map fleets below. The shared OVH IAM ExternalSecret + reconciler read
+# the API item + endpoint from here (one OVH account serves every OVH fleet).
+ovhFleet:
+  enabled: false
+  endpoint: ovh-us
+  externalSecrets:
+    item: OVH_API
+
+# US East (Vint Hill VA) and US West (Hillsboro OR) Kura cache regions on OVH
+# bare metal, replacing the former Hetzner ccx13 pools. Each adopts a pre-ordered,
+# operator-installed box by its displayName prefix (the env+region boundary, since
+# one OVH account holds every env's boxes), scoped further by datacenter + offer.
+#
+# replicas is the number of boxes (one per region today). It is independent of an
+# account's pod count: every account's KuraInstance keeps its pods (primary + warm
+# standby, for gapless deploys) co-located on one box via controller pod affinity.
+# Add boxes to grow region capacity (more accounts, distributed across boxes by the
+# egress bin-packing), not to split a single account. PREREQ: the production vault
+# holds OVH_API + OVH_FLEET_SSH and the box is prepped (mise run baremetal:prep-ovh)
+# so the fleet self-joins it as kura-us-east / kura-us-west. Bring the OVH nodes up
+# and serving before retiring the Hetzner us-east/us-west pools (already dropped
+# from cluster-production.yaml).
+ovhFleets:
+  us-east:
+    enabled: true
+    replicas: 1
+    endpoint: ovh-us
+    nodePool: kura-us-east
+    machine:
+      adoptDisplayNamePrefix: tuist-kura-ovh-production-us-east
+      offer: advance-1
+      datacenter: vin
+      os: ubuntu_24.04
+      # Node egress budget (Mbps): Advance-1 ~3 Gbit/s, advertised as
+      # tuist.dev/egress-mbps so the scheduler bin-packs the 750-Mbps-floor pods.
+      egressBudgetMbps: 3000
+    sshExternalSecret:
+      enabled: true
+      item: OVH_FLEET_SSH
+  us-west:
+    enabled: true
+    replicas: 1
+    endpoint: ovh-us
+    nodePool: kura-us-west
+    machine:
+      adoptDisplayNamePrefix: tuist-kura-ovh-production-us-west
+      offer: advance-1
+      datacenter: hil
+      os: ubuntu_24.04
+      # Node egress budget (Mbps): Advance-1 ~3 Gbit/s, advertised as
+      # tuist.dev/egress-mbps so the scheduler bin-packs the 750-Mbps-floor pods.
+      egressBudgetMbps: 3000
+    sshExternalSecret:
+      enabled: true
+      item: OVH_FLEET_SSH
 
 # Mac mini fleet — declarative via CAPI. Production keeps 2 hosts so
 # a single-host Scaleway BMC reboot or macOS upgrade doesn't take all
@@ -344,6 +509,19 @@ macosFleet:
     hostMemoryMB: 14336
   controlPlane:
     host: api.tuist.dev
+  # Runner-cache data plane: attach the minis to the same Private
+  # Network as the kura node (kuraFleet.machine.privateNetworkName), so
+  # the CAPI operator resolves each host's VLAN and bootstrap
+  # materializes the VLAN interface + VM egress pass + NAT. Dispatch
+  # hands the Mac fleet the node-port endpoint because
+  # TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS includes `macos` above.
+  # Clients treat the cache endpoint as a hard override, so until a mini
+  # is attached/bootstrapped runner_cache_endpoint_url/2 returns nil (no
+  # active KuraInstance) and the build falls back to the public cache, so
+  # the cutover degrades rather than breaks while it converges.
+  vmCachePrivateNetwork:
+    name: tuist-runner-cache
+    cidr: 172.16.0.0/22
 
 # Customer-runner Mac mini fleet. Sized to 9 hosts = 9 concurrent
 # customer runs. Apple's SLA permits up to two VMs per host; v1
@@ -396,6 +574,11 @@ runnersFleet:
         minWarmPoolFloor: 0
         maxReplicas: 9
     "26.3":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 9
+    "26.0.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0

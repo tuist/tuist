@@ -74,6 +74,66 @@ struct ModuleCacheRemoteStorageTests {
         )
     }
 
+    @Test(.inTemporaryDirectory) func fetch_when_macro_product_name_differs_from_target_name() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let macroPath = temporaryDirectory.appending(component: "MacroProduct.macro")
+        try await fileSystem.touch(macroPath)
+        let zipPath = try await FileArchiver(paths: [macroPath]).zip(name: "test")
+        let zipData = try Data(contentsOf: zipPath.url)
+
+        given(downloadModuleCacheService)
+            .downloadModuleCacheArtifact(
+                accountHandle: .value("tuist"),
+                projectHandle: .value("tuist"),
+                hash: .value("hash"),
+                name: .value("MacroTarget.zip"),
+                cacheCategory: .value("builds"),
+                serverURL: .value(Constants.URLs.production),
+                authenticationURL: .value(Constants.URLs.production),
+                serverAuthenticationController: .any
+            )
+            .willReturn(zipData)
+
+        let got = try await subject.fetch(
+            Set([.init(name: "MacroTarget", hash: "hash")]),
+            cacheCategory: .binaries
+        )
+
+        let path = try #require(
+            got[.test(name: "MacroTarget", hash: "hash", source: .remote, cacheCategory: .binaries)]
+        )
+        #expect(path.basename == "MacroProduct.macro")
+        #expect(try artifactSigner.isValid(path) == true)
+    }
+
+    @Test(.inTemporaryDirectory) func fetch_when_downloaded_archive_does_not_contain_artifact_returns_empty() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let frameworkPath = temporaryDirectory.appending(component: "Other.framework")
+        try await fileSystem.makeDirectory(at: frameworkPath)
+        let zipPath = try await FileArchiver(paths: [frameworkPath]).zip(name: "test")
+        let zipData = try Data(contentsOf: zipPath.url)
+
+        given(downloadModuleCacheService)
+            .downloadModuleCacheArtifact(
+                accountHandle: .value("tuist"),
+                projectHandle: .value("tuist"),
+                hash: .value("hash"),
+                name: .value("Target.zip"),
+                cacheCategory: .value("builds"),
+                serverURL: .value(Constants.URLs.production),
+                authenticationURL: .value(Constants.URLs.production),
+                serverAuthenticationController: .any
+            )
+            .willReturn(zipData)
+
+        let got = try await subject.fetch(
+            Set([.init(name: "Target", hash: "hash")]),
+            cacheCategory: .binaries
+        )
+
+        #expect(got.isEmpty == true)
+    }
+
     // MARK: - Authentication Failure Tests (401/403)
 
     @Test(.inTemporaryDirectory, .withMockedLogger(), .withScopedAlertController())

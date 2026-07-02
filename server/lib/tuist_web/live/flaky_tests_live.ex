@@ -287,9 +287,6 @@ defmodule TuistWeb.FlakyTestsLive do
   defp environment_label("local"), do: dgettext("dashboard_tests", "Local")
   defp environment_label("ci"), do: dgettext("dashboard_tests", "CI")
 
-  defp sort_icon("asc"), do: "square_rounded_arrow_up"
-  defp sort_icon("desc"), do: "square_rounded_arrow_down"
-
   defp toggle_sort_order("asc"), do: "desc"
   defp toggle_sort_order("desc"), do: "asc"
 

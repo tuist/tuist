@@ -42,9 +42,10 @@ public func parseXCResult(
         semaphore.signal()
     }
 
-    let timeout = semaphore.wait(timeout: .now() + .seconds(600))
+    let timeoutSeconds = 600
+    let timeout = semaphore.wait(timeout: .now() + .seconds(timeoutSeconds))
     if timeout == .timedOut {
-        result = .failure(XCResultParserError.failedToParseOutput(try! AbsolutePath(validating: path)))
+        result = .failure(XCResultParserError.timedOut(try! AbsolutePath(validating: path), seconds: timeoutSeconds))
     }
 
     switch result {

@@ -61,11 +61,11 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "git-cliff jq"
+          install_args: "--locked git-cliff jq"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - id: check
-        run: mise run release:check
+        run: mise run --skip-tools release:check
 
   release-app:
     name: Release App
@@ -95,7 +95,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "tuist git-cliff 1password-cli"
+          install_args: "--locked tuist git-cliff 1password-cli jq"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
@@ -139,7 +139,7 @@ jobs:
         run: git cliff --include-path "app/**/*" --include-path "mise/tasks/app/**/*" --config cliff.toml --repository "../" --tag "${{ needs.check-releases.outputs.app-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Bundle macOS app
-        run: mise run --no-deps app:bundle
+        run: mise run --no-deps --skip-tools app:bundle
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
@@ -184,7 +184,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "tuist 1password-cli"
+          install_args: "--locked tuist 1password-cli"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
@@ -203,7 +203,7 @@ jobs:
       - name: Generate TuistApp
         run: tuist generate TuistApp --no-binary-cache
       - name: Upload iOS App to App Store Connect
-        run: mise run --no-deps app:upload-ios
+        run: mise run --no-deps --skip-tools app:upload-ios
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
@@ -223,7 +223,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "java gradle 1password-cli"
+          install_args: "--locked java gradle 1password-cli"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
@@ -269,7 +269,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "git-cliff"
+          install_args: "--locked git-cliff"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Download App artifacts
@@ -315,4 +315,4 @@ jobs:
       - name: Trigger Homebrew Cask Update
         run: |
           SHA256=$(cat app/build/artifacts/SHASUMS256.txt | grep Tuist.dmg | awk '{print $1}')
-          mise run --no-deps app:release:homebrew-cask --version "${{ needs.check-releases.outputs.app-next-version-number }}" --github-token "${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}" --sha256 "$SHA256"
+          mise run --no-deps --skip-tools app:release:homebrew-cask --version "${{ needs.check-releases.outputs.app-next-version-number }}" --github-token "${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}" --sha256 "$SHA256"

@@ -50,6 +50,8 @@ Mimic.copy(Tuist.Accounts.UserNotifier)
 Mimic.copy(Tuist.AppBuilds)
 Mimic.copy(Tuist.Authentication)
 Mimic.copy(Tuist.Authorization)
+Mimic.copy(Tuist.Atlas)
+Mimic.copy(Tuist.AtlasWorkloadIdentity)
 Mimic.copy(Tuist.Bundles)
 Mimic.copy(Tuist.Base64)
 Mimic.copy(Tuist.Billing)
@@ -87,13 +89,12 @@ Mimic.copy(Tuist.Shards)
 Mimic.copy(Tuist.Shards.Analytics)
 Mimic.copy(Tuist.Storage)
 Mimic.copy(Tuist.Storage.CacheArtifactRetention)
+Mimic.copy(Tuist.Storage.LegacyBuildArtifactRetention)
 Mimic.copy(Tuist.Time)
 Mimic.copy(Tuist.Cache)
 Mimic.copy(Tuist.Cache.Analytics)
 Mimic.copy(Tuist.CacheEndpoints)
 Mimic.copy(Tuist.CommandEvents)
-Mimic.copy(Tuist.Namespace)
-Mimic.copy(Tuist.Namespace.JWTToken)
 Mimic.copy(Tuist.VCS)
 Mimic.copy(Tuist.Xcode)
 Mimic.copy(Tuist.Zip)
@@ -101,8 +102,10 @@ Mimic.copy(Tuist.ClickHouseRepo)
 Mimic.copy(Tuist.IngestRepo)
 Mimic.copy(Tuist.Kubernetes.Client)
 Mimic.copy(Tuist.Kura)
+Mimic.copy(Tuist.Kura.Mesh)
 Mimic.copy(Tuist.Kura.Provisioner)
 Mimic.copy(Tuist.Kura.Reconciler)
+Mimic.copy(Tuist.Kura.Registrations)
 Mimic.copy(Tuist.Loops)
 Mimic.copy(Tuist.Automations)
 Mimic.copy(Tuist.Automations.ActionExecutor)
@@ -117,6 +120,7 @@ Mimic.copy(Tuist.Automations.Monitors.FlakyTestsMonitor)
 Mimic.copy(TuistWeb.Authentication)
 Mimic.copy(TuistWeb.RateLimit.Auth)
 Mimic.copy(TuistWeb.RateLimit.AgentAuth)
+Mimic.copy(TuistWeb.RateLimit.Atlas)
 Mimic.copy(TuistWeb.RateLimit.InMemory)
 Mimic.copy(TuistWeb.RateLimit.MCP)
 Mimic.copy(TuistWeb.RateLimit.Metrics)
@@ -134,11 +138,48 @@ Mimic.copy(Tuist.Runners)
 Mimic.copy(Tuist.Runners.Claims)
 Mimic.copy(Tuist.Runners.Dispatch)
 Mimic.copy(Tuist.Runners.Jobs)
+Mimic.copy(Tuist.Runners.JobMetrics)
 Mimic.copy(Tuist.Runners.JobSteps)
 Mimic.copy(Tuist.Runners.RunnerSessions)
 Mimic.copy(Tuist.Kubernetes.Client)
 Mimic.copy(Tuist.Tasks)
 
-ExUnit.start(exclude: [:skip])
+defmodule TuistTestSupport.LoggerFilters do
+  @moduledoc false
+
+  def filter_db_connection_sandbox_teardown(%{level: :error} = log_event, _extra) do
+    message = log_event_message(log_event)
+
+    if String.contains?(message, "disconnected: ** (DBConnection.ConnectionError)") and
+         String.contains?(message, " exited") and
+         (String.contains?(message, "client #PID<") or String.contains?(message, "owner #PID<")) do
+      :stop
+    else
+      :ignore
+    end
+  end
+
+  def filter_db_connection_sandbox_teardown(_log_event, _extra), do: :ignore
+
+  defp log_event_message(%{msg: {:string, message}}), do: IO.iodata_to_binary(message)
+
+  defp log_event_message(%{msg: {:report, report}}), do: inspect(report)
+
+  defp log_event_message(%{msg: {:format, format, args}}) do
+    format
+    |> :io_lib.format(args)
+    |> IO.iodata_to_binary()
+  end
+
+  defp log_event_message(%{msg: message}) when is_binary(message), do: message
+  defp log_event_message(log_event), do: inspect(log_event)
+end
+
+:logger.add_primary_filter(
+  :db_connection_sandbox_teardown,
+  {&TuistTestSupport.LoggerFilters.filter_db_connection_sandbox_teardown/2, []}
+)
+
+ExUnit.start(capture_log: true, exclude: [:skip])
 Sandbox.mode(Tuist.Repo, :manual)
 Sandbox.mode(Tuist.IngestRepo, :manual)

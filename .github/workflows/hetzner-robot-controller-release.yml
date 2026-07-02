@@ -51,11 +51,11 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "git-cliff jq"
+          install_args: "--locked git-cliff jq"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - id: check
-        run: mise run release:check hetzner-robot-controller
+        run: mise run --skip-tools release:check hetzner-robot-controller
 
   release:
     name: Release hetzner-robot-controller
@@ -72,7 +72,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "git-cliff"
+          install_args: "--locked git-cliff"
           cache: "true"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
 

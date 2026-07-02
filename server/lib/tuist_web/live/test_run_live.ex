@@ -50,6 +50,14 @@ defmodule TuistWeb.TestRunLive do
 
     run = Map.put(run, :project, project)
 
+    # A run that was processed across multiple retries (e.g. before a fix) can
+    # carry duplicate identical destination rows, since create_run_destinations
+    # inserts a fresh row per attempt. Collapse them to distinct devices.
+    run = %{
+      run
+      | run_destinations: Enum.uniq_by(run.run_destinations, &{&1.name, &1.platform, &1.os_version})
+    }
+
     [command_event, test_metrics, failures_count] =
       Tuist.Tasks.parallel_tasks([
         fn ->
@@ -83,7 +91,7 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:has_binary_cache_data, command_event && Xcode.has_binary_cache_data?(command_event))
       |> assign_shard_rows(run)
       |> assign_async(:has_result_bundle, fn ->
-        {:ok, %{has_result_bundle: (command_event && CommandEvents.has_result_bundle?(command_event)) || false}}
+        {:ok, %{has_result_bundle: resolve_result_bundle_run_id(command_event, run, project)}}
       end)
       |> assign_async(:has_session, fn ->
         {:ok, %{has_session: (command_event && CommandEvents.has_session?(command_event)) || false}}
@@ -94,6 +102,18 @@ defmodule TuistWeb.TestRunLive do
     end
 
     {:ok, socket}
+  end
+
+  # The `Download result` button and its route are keyed on the id under which
+  # the bundle was stored: the command_event id for CLI `tuist test` runs, and
+  # the test run id for remote `tuist inspect test` runs (no command_event).
+  # Returns that id, or nil when there is no downloadable bundle.
+  defp resolve_result_bundle_run_id(command_event, run, project) do
+    cond do
+      command_event && CommandEvents.has_result_bundle?(command_event) -> command_event.id
+      CommandEvents.has_result_bundle?(run.id, project) -> run.id
+      true -> nil
+    end
   end
 
   def handle_params(_params, uri, socket) do
@@ -201,21 +221,6 @@ defmodule TuistWeb.TestRunLive do
     {:noreply, socket}
   end
 
-  def handle_event(
-        "toggle-expand",
-        %{"row-key" => target_name},
-        %{assigns: %{expanded_target_names: expanded_target_names}} = socket
-      ) do
-    updated_expanded_names =
-      if MapSet.member?(expanded_target_names, target_name) do
-        MapSet.delete(expanded_target_names, target_name)
-      else
-        MapSet.put(expanded_target_names, target_name)
-      end
-
-    {:noreply, assign(socket, :expanded_target_names, updated_expanded_names)}
-  end
-
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
     updated_params =
       filter_id
@@ -246,14 +251,6 @@ defmodule TuistWeb.TestRunLive do
      )
      |> push_event("close-dropdown", %{id: "all", all: true})
      |> push_event("close-popover", %{id: "all", all: true})}
-  end
-
-  def sort_icon("desc") do
-    "square_rounded_arrow_down"
-  end
-
-  def sort_icon("asc") do
-    "square_rounded_arrow_up"
   end
 
   defp selected_tab(params) do

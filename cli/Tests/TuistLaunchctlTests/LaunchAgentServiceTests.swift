@@ -53,6 +53,12 @@ struct LaunchAgentServiceTests {
         #expect(plistContent.contains(stateDirectory.appending(component: "tuist.test.stdout.log").pathString))
         #expect(plistContent.contains("<key>StandardErrorPath</key>"))
         #expect(plistContent.contains(stateDirectory.appending(component: "tuist.test.stderr.log").pathString))
+        // KeepAlive must only respawn the daemon on an unsuccessful (crash) exit. A clean
+        // exit — e.g. when cache-start detects it is not authenticated — must NOT trigger a
+        // respawn, otherwise launchd restarts it every ~10 seconds in an endless loop.
+        #expect(plistContent.contains("<key>KeepAlive</key>"))
+        #expect(plistContent.contains("<key>SuccessfulExit</key>"))
+        #expect(!plistContent.contains("<key>KeepAlive</key>\n            <true/>"))
 
         verify(launchctlController)
             .bootstrap(plistPath: .value(expectedPlistPath))

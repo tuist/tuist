@@ -5,6 +5,8 @@ import Path
 public struct XCFrameworkInfoPlist: Codable, Hashable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case libraries = "AvailableLibraries"
+        case bundlePackageType = "CFBundlePackageType"
+        case formatVersion = "XCFrameworkFormatVersion"
     }
 
     /// It represents a library inside an .xcframework
@@ -25,6 +27,7 @@ public struct XCFrameworkInfoPlist: Codable, Hashable, Equatable, Sendable {
         private enum CodingKeys: String, CodingKey {
             case identifier = "LibraryIdentifier"
             case path = "LibraryPath"
+            case binaryPath = "BinaryPath"
             case headersPath = "HeadersPath"
             case platform = "SupportedPlatform"
             case platformVariant = "SupportedPlatformVariant"
@@ -61,6 +64,7 @@ public struct XCFrameworkInfoPlist: Codable, Hashable, Equatable, Sendable {
             var container = encoder.container(keyedBy: CodingKeys.self)
             try container.encode(identifier, forKey: .identifier)
             try container.encode(path, forKey: .path)
+            try container.encode(binaryPath, forKey: .binaryPath)
             try container.encodeIfPresent(headersPath, forKey: .headersPath)
             try container.encode(mergeable, forKey: .mergeable)
             try container.encode(architectures, forKey: .architectures)
@@ -84,6 +88,16 @@ public struct XCFrameworkInfoPlist: Codable, Hashable, Equatable, Sendable {
             self.platform = platform
             self.platformVariant = platformVariant
             self.architectures = architectures
+        }
+
+        private var binaryPath: RelativePath {
+            get throws {
+                if path.extension == "framework" {
+                    try RelativePath(validating: "\(path.pathString)/\(path.basenameWithoutExt)")
+                } else {
+                    path
+                }
+            }
         }
 
         public init(from decoder: Decoder) throws {
@@ -126,6 +140,18 @@ public struct XCFrameworkInfoPlist: Codable, Hashable, Equatable, Sendable {
 
     public init(libraries: [Library]) {
         self.libraries = libraries
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        libraries = try container.decode([Library].self, forKey: .libraries)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(libraries, forKey: .libraries)
+        try container.encode("XFWK", forKey: .bundlePackageType)
+        try container.encode("1.0", forKey: .formatVersion)
     }
 
     #if DEBUG

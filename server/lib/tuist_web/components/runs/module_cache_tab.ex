@@ -160,10 +160,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
                 |> Query.put("binary-cache-sort-order", sort_order_patch_value("name", @binary_cache_sort_by, @binary_cache_sort_order))
                 |> Query.drop("binary-cache-page")}"
               }
-              icon={
-                @binary_cache_sort_by == "name" &&
-                  sort_icon(@binary_cache_sort_order)
-              }
+              sort_order={@binary_cache_sort_by == "name" && @binary_cache_sort_order}
             >
               <.text_and_description_cell label={binary_cache_module.name} />
             </:col>
@@ -248,6 +245,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
         </span>
         <span data-part="subhash-value">
           {@target.destinations
+          |> Enum.sort()
           |> Enum.map(&Xcode.humanize_xcode_target_destination/1)
           |> Enum.join(", ")}
         </span>
@@ -347,9 +345,6 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
     </div>
     """
   end
-
-  defp sort_icon("desc"), do: "square_rounded_arrow_down"
-  defp sort_icon("asc"), do: "square_rounded_arrow_up"
 
   defp sort_order_patch_value(category, current_category, current_order) do
     if category == current_category do
@@ -509,7 +504,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
       project_settings_hash: target.project_settings_hash,
       target_settings_hash: target.target_settings_hash,
       buildable_folders_hash: target.buildable_folders_hash,
-      destinations: target.destinations,
+      destinations: Enum.sort(target.destinations || []),
       additional_strings: target.additional_strings
     }
     |> Enum.reject(fn {_k, v} -> empty_value?(v) end)

@@ -21,6 +21,7 @@ alias Tuist.Projects
 alias Tuist.Projects.Project
 alias Tuist.Repo
 alias Tuist.Runners.Job
+alias Tuist.Runners.JobMetrics
 alias Tuist.Runners.Jobs
 alias Tuist.Runners.JobSteps
 alias Tuist.Runners.Profile
@@ -444,6 +445,43 @@ IO.puts("Generating #{seed_config.build_runs} build runs in parallel...")
 org_account_id = organization.account.id
 user_account_id = user.account.id
 project_id = tuist_project.id
+
+# Self-hosted cache nodes for the Cache page. Each node self-registers its own
+# client-facing URL via heartbeats; that URL is the endpoint the CLI reaches.
+seed_self_hosted_cache = fn account ->
+  Enum.each(
+    [
+      %{
+        node_id: "node-fra-1",
+        region: "office",
+        advertised_http_url: "https://node-fra-1.cache.acme.internal",
+        ready: true,
+        version: "0.11.0",
+        traffic_state: "active"
+      },
+      %{
+        node_id: "node-fra-2",
+        region: "office",
+        advertised_http_url: "https://node-fra-2.cache.acme.internal",
+        ready: true,
+        version: "0.11.0",
+        traffic_state: "active"
+      },
+      %{
+        node_id: "node-ams-1",
+        region: "eu-west",
+        advertised_http_url: "https://node-ams-1.cache.acme.internal",
+        ready: false,
+        version: "0.10.4",
+        traffic_state: "joining"
+      }
+    ],
+    fn attrs -> {:ok, _} = Tuist.Kura.Registrations.register_heartbeat(account, attrs) end
+  )
+end
+
+seed_self_hosted_cache.(Repo.preload(user, :account).account)
+seed_self_hosted_cache.(organization.account)
 
 build_generator = fn _i ->
   status = Enum.random(["success", "success", "success", "failure", "failure", "processing", "failed_processing"])
@@ -2269,6 +2307,54 @@ base_date = DateTime.utc_now()
 cmd_project_id = tuist_project.id
 cmd_user_id = user.id
 
+command_arguments_by_name = %{
+  "generate" => [
+    "generate",
+    "generate App",
+    "generate App Widgets",
+    "generate --configuration Debug",
+    "generate --configuration DebugStaging",
+    "generate --configuration Release --no-open",
+    "generate --configuration Debug --cache-profile development --no-open",
+    "generate tag:feature-auth --configuration DebugStaging",
+    "generate --path Examples/App --configuration Release",
+    "generate FrameworkKit --cache-profile only-external",
+    "generate --cache-profile none --no-open",
+    "generate App AppTests --configuration Debug"
+  ],
+  "cache" => [
+    "cache",
+    "cache App",
+    "cache warm",
+    "cache warm App",
+    "cache warm App FrameworkKit --configuration Debug",
+    "cache warm --configuration DebugStaging",
+    "cache warm --configuration Release --cache-profile only-external",
+    "cache warm tag:feature-auth --configuration Debug",
+    "cache warm --path Examples/App --configuration Release",
+    "cache warm AppTests --generate-only",
+    "cache warm Core Networking --cache-profile development",
+    "cache warm --print-hashes"
+  ],
+  "test" => [
+    "test App",
+    "test AppTests",
+    "test --scheme App",
+    "test --scheme App --configuration Debug",
+    "test --scheme App --test-plan Regression",
+    "test --scheme App --skip-ui-tests",
+    "test --scheme FrameworkKit --configuration DebugStaging",
+    "test --path Examples/App",
+    "test tag:unit",
+    "test tag:feature-auth --configuration Debug"
+  ]
+}
+
+command_arguments_for_name = fn name, index ->
+  arguments = Map.fetch!(command_arguments_by_name, name)
+  Enum.at(arguments, rem(index, length(arguments)))
+end
+
 event_counter = :counters.new(1, [:atomics])
 generate_cache_event_counter = :counters.new(1, [:atomics])
 
@@ -2285,7 +2371,7 @@ all_generate_cache_events = :ets.new(:generate_cache_events, [:bag, :public])
 |> Stream.chunk_every(cmd_chunk_size)
 |> Enum.each(fn chunk_indices ->
   events =
-    Enum.map(chunk_indices, fn _i ->
+    Enum.map(chunk_indices, fn i ->
       name = Enum.random(["test", "cache", "generate"])
       status = Enum.random([0, 1])
       is_ci = Enum.random([true, false])
@@ -2322,7 +2408,7 @@ all_generate_cache_events = :ets.new(:generate_cache_events, [:bag, :public])
         swift_version: "5.2",
         macos_version: "10.15",
         subcommand: "",
-        command_arguments: "",
+        command_arguments: command_arguments_for_name.(name, i),
         is_ci: is_ci,
         user_id: if(is_ci, do: nil, else: cmd_user_id),
         client_id: "client-id",
@@ -3393,6 +3479,57 @@ build_runner_job_steps = fn workflow_job_id, account_id, started_at, completed_a
   end)
 end
 
+# Builds a runner's machine-metrics trace across the job's runtime,
+# sampled every few seconds. Values oscillate so the charts read like
+# a real build (CPU spikes during compile, memory ramps and plateaus,
+# storage creeps up) and so the step-hover highlight has something
+# worth correlating against. macOS has no iowait accounting, so that
+# series stays flat at 0 for macOS fleets.
+build_runner_job_metrics = fn workflow_job_id, account_id, fleet, started_at, completed_at ->
+  memory_total = 16 * 1000 * 1000 * 1000
+  disk_total = 64 * 1000 * 1000 * 1000
+  linux? = String.starts_with?(fleet, "linux")
+  total_seconds = max(DateTime.diff(completed_at, started_at, :second), 1)
+  sample_interval = 5
+
+  # Deterministic per-sample jitter (no `:rand`, so seeds stay reproducible)
+  # in [-amp, amp]. Real telemetry is spiky between samples; the sine bases
+  # alone are too smooth to show that, which hides the chart's sharp lines.
+  hash01 = fn n ->
+    v = :math.sin(n * 12.9898 + 78.233) * 43_758.5453
+    v - Float.floor(v)
+  end
+
+  noise = fn seed, amp -> (hash01.(seed) - 0.5) * 2 * amp end
+
+  Enum.map(0..div(total_seconds, sample_interval), fn step ->
+    offset = step * sample_interval
+    # Two out-of-phase waves give the busy/idle alternation, plus per-sample
+    # noise so the charts read like real (spiky) telemetry.
+    fast = :math.sin(offset / 18)
+    slow = :math.sin(offset / 55)
+
+    cpu = 55 + 38 * fast + noise.(step, 11)
+    iowait = if linux?, do: max(0.0, 6 + 5 * slow + noise.(step + 500, 3)), else: 0.0
+    mem_fraction = 0.30 + 0.45 * (0.5 + 0.5 * slow) + noise.(step + 1000, 0.025)
+    net_in = trunc(max(0.0, 4 + 3 * (0.5 + 0.5 * fast) + noise.(step + 1500, 1.2)) * 1024 * 1024)
+    net_out = trunc(max(0.0, 1 + 2 * (0.5 + 0.5 * slow) + noise.(step + 2000, 0.8)) * 1024 * 1024)
+    disk_fraction = 0.58 + 0.04 * (offset / total_seconds)
+
+    %{
+      timestamp: DateTime.to_unix(DateTime.add(started_at, offset, :second)) * 1.0,
+      cpu_usage_percent: Float.round(max(2.0, min(100.0, cpu)), 1),
+      cpu_iowait_percent: Float.round(iowait, 1),
+      memory_used_bytes: trunc(memory_total * mem_fraction),
+      memory_total_bytes: memory_total,
+      network_bytes_in: net_in,
+      network_bytes_out: net_out,
+      disk_used_bytes: trunc(disk_total * disk_fraction),
+      disk_total_bytes: disk_total
+    }
+  end)
+end
+
 # Completed jobs — history (most recent first by `enqueued_at`)
 completed_jobs = [
   %{
@@ -3582,6 +3719,13 @@ completed_jobs
         completed_at,
         job.conclusion
       )
+    )
+
+  :ok =
+    JobMetrics.record(
+      workflow_job_id,
+      runner_jobs_account_id,
+      build_runner_job_metrics.(workflow_job_id, runner_jobs_account_id, fleet, started_at, completed_at)
     )
 
   # In production `Tuist.Runners.serve_claim/5` opens a billing

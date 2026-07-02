@@ -410,6 +410,16 @@ defmodule TuistWeb.AppLayoutComponents do
         selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/webhooks")}
       />
       <.sidebar_item
+        :if={
+          FeatureFlags.kura_enabled?(@selected_account) and
+            Authorization.authorize(:account_update, @current_user, @selected_account) == :ok
+        }
+        label={dgettext("dashboard", "Cache")}
+        icon="database"
+        navigate={~p"/#{@selected_account.name}/cache"}
+        selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/cache")}
+      />
+      <.sidebar_item
         :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
         label={dgettext("dashboard", "Billing")}
         icon="credit_card"
@@ -576,11 +586,16 @@ defmodule TuistWeb.AppLayoutComponents do
         >
           <:icon><.git_branch /></:icon>
         </.badge>
-        <.link href={Tuist.Environment.get_url(:documentation)} target="_blank">
-          <.button variant="secondary" icon_only>
-            <.book />
-          </.button>
-        </.link>
+        <.button
+          variant="secondary"
+          icon_only
+          href={Tuist.Environment.get_url(:documentation)}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={dgettext("dashboard", "Documentation")}
+        >
+          <.book />
+        </.button>
         <%= if not is_nil(@current_user) do %>
           <.account_dropdown
             id="account-dropdown"

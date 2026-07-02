@@ -2,18 +2,31 @@ package controllers
 
 import (
 	"context"
+	"io"
 	"sync"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/tuist/tuist/infra/runners-controller/internal/sessions"
+)
+
+const (
+	// deathLogTailLines / deathLogLimitBytes bound how much of an
+	// abnormally-ended runner's log we re-emit. The runner container is
+	// otherwise quiet (job output goes to GitHub server-side), so its
+	// stdout is just the periodic RUNNER_VITALS samples plus the _diag
+	// tail — a couple hundred lines covers the run-up to a death without
+	// flooding the controller's own log stream.
+	deathLogTailLines  = 200
+	deathLogLimitBytes = 64 * 1024
 )
 
 // PodLifecycleReconciler watches runner Pods and reports
@@ -42,6 +55,17 @@ type PodLifecycleReconciler struct {
 	// reaching for in-cluster machinery.
 	SessionsClient *sessions.Client
 
+	// Logs reads runner container logs via the `pods/log` subresource
+	// (which the controller-runtime client.Client can't serve). When a
+	// runner Pod ends abnormally, its final RUNNER_VITALS/_diag trail
+	// lives only in the kubelet's container log, which is GC'd the
+	// moment the reap deletes the Pod — and alloy doesn't reliably win
+	// that race on a churning node, so mid-job deaths leave nothing in
+	// Loki. This re-emits that tail to the controller's own (durable,
+	// long-lived) stdout before the reap. nil disables capture; the
+	// billing path still runs.
+	Logs kubernetes.Interface
+
 	// Now defaults to time.Now; overridable for deterministic
 	// fallback-timestamp tests when the Pod carries no
 	// finishedAt / deletionTimestamp.
@@ -55,9 +79,16 @@ type PodLifecycleReconciler struct {
 	// we'll re-emit on the next reconcile; the server's
 	// idempotency + under-bill bias makes that safe.
 	reported sync.Map
+
+	// captured tracks pod_names whose death log we've already
+	// re-emitted, so repeated reconciles for the same terminal Pod
+	// don't duplicate the trail. Same churn-bounded lifetime as
+	// `reported`.
+	captured sync.Map
 }
 
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=pods/log,verbs=get
 
 func (r *PodLifecycleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithValues("pod", req.NamespacedName)
@@ -82,6 +113,12 @@ func (r *PodLifecycleReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if !isEnding(pod) {
 		return ctrl.Result{}, nil
 	}
+
+	// Forensics backstop, independent of and ahead of the billing
+	// dedup below: re-emit an abnormally-ended runner's final log to
+	// the controller's own durable stdout before the reap deletes the
+	// Pod. Best-effort — never fails or requeues the reconcile.
+	r.captureDeathLog(ctx, pod)
 
 	key := req.NamespacedName.String()
 	if _, already := r.reported.Load(key); already {
@@ -159,6 +196,92 @@ func (r *PodLifecycleReconciler) now() time.Time {
 		return r.Now()
 	}
 	return time.Now()
+}
+
+// captureDeathLog re-emits an abnormally-ended runner's container log
+// to the controller's own stdout, so the final RUNNER_VITALS/_diag
+// trail survives the reap that deletes the Pod (and the kubelet log
+// with it). Best-effort: a disabled capturer, a healthy exit, an
+// already-captured Pod, or an unreadable log all return without
+// touching the billing path or requeueing.
+func (r *PodLifecycleReconciler) captureDeathLog(ctx context.Context, pod *corev1.Pod) {
+	if r.Logs == nil || !abnormalEnd(pod) {
+		return
+	}
+	key := pod.Namespace + "/" + pod.Name
+	if _, seen := r.captured.Load(key); seen {
+		return
+	}
+
+	logger := log.FromContext(ctx)
+	tail, err := r.fetchRunnerLog(ctx, pod.Namespace, pod.Name)
+	if err != nil {
+		// Leave unmarked so a later event (e.g. the deletion) retries
+		// while the kubelet log still exists. A persistent failure just
+		// means the trail was already gone — nothing we can recover.
+		logger.V(1).Info("capture runner death log failed", "pod", pod.Name, "err", err)
+		return
+	}
+
+	// Mark captured even when empty so an irrecoverable (never-written
+	// or already-reaped) log isn't re-fetched on every reconcile.
+	r.captured.Store(key, struct{}{})
+	if tail == "" {
+		return
+	}
+	logger.Info("runner death log captured",
+		"pod", pod.Name,
+		"pool", pod.Labels["tuist.dev/runner-pool"],
+		"endedAt", r.endedAt(pod),
+		"deathLog", tail,
+	)
+}
+
+// fetchRunnerLog returns the tail of the `runner` container's log,
+// bounded by line count and bytes so a runaway log can't flood the
+// controller's stream.
+func (r *PodLifecycleReconciler) fetchRunnerLog(ctx context.Context, namespace, name string) (string, error) {
+	tail := int64(deathLogTailLines)
+	limit := int64(deathLogLimitBytes)
+	req := r.Logs.CoreV1().Pods(namespace).GetLogs(name, &corev1.PodLogOptions{
+		Container:  "runner",
+		TailLines:  &tail,
+		LimitBytes: &limit,
+	})
+	stream, err := req.Stream(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer stream.Close()
+	body, err := io.ReadAll(stream)
+	if err != nil {
+		return "", err
+	}
+	return string(body), nil
+}
+
+// abnormalEnd reports whether the runner container ended in a way
+// worth preserving its log for. A clean ephemeral run exits 0 (job
+// done, or no JIT claimed) and is skipped — note a workflow that fails
+// its own tests still exits the runner 0, so this targets runner
+// *infrastructure* deaths, not job outcomes. A non-zero/secondary-
+// killed exit, or a Pod reaped while the runner never recorded a clean
+// exit (the "lost communication" / torn-down-microVM shape), is
+// abnormal.
+func abnormalEnd(pod *corev1.Pod) bool {
+	if rs := runnerContainerStatus(pod); rs != nil && rs.State.Terminated != nil {
+		return rs.State.Terminated.ExitCode != 0
+	}
+	return pod.Status.Phase == corev1.PodFailed || !pod.DeletionTimestamp.IsZero()
+}
+
+func runnerContainerStatus(pod *corev1.Pod) *corev1.ContainerStatus {
+	for i := range pod.Status.ContainerStatuses {
+		if pod.Status.ContainerStatuses[i].Name == "runner" {
+			return &pod.Status.ContainerStatuses[i]
+		}
+	}
+	return nil
 }
 
 func (r *PodLifecycleReconciler) SetupWithManager(mgr ctrl.Manager) error {

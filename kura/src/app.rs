@@ -65,6 +65,8 @@ impl ShutdownBudget {
 pub async fn run() -> Result<(), String> {
     let nofile_raise_error = raise_nofile_soft_to_hard().err();
 
+    let enrollment = crate::enrollment::enroll_on_boot().await?;
+
     let config = Config::from_env().map_err(|error| format!("invalid configuration: {error}"))?;
     let geoip = GeoIp::open();
     let node_location = resolve_node_location(
@@ -79,7 +81,7 @@ pub async fn run() -> Result<(), String> {
         warn!("failed to raise RLIMIT_NOFILE soft limit: {error}");
     }
     let log_context = log_context_span(&config, &node_location);
-    let result = run_with_config(config, geoip, node_location)
+    let result = run_with_config(config, geoip, node_location, enrollment)
         .instrument(log_context)
         .await;
 
@@ -91,6 +93,7 @@ async fn run_with_config(
     config: Config,
     geoip: Option<GeoIp>,
     node_location: crate::node_location::NodeLocation,
+    enrollment: Option<crate::enrollment::EnrollmentOutcome>,
 ) -> Result<(), String> {
     config
         .ensure_directories()
@@ -129,6 +132,10 @@ async fn run_with_config(
     }
     let peer_client_factory = crate::peer_tls::PeerClientFactory::from_config(&config).await?;
     let client = peer_client_factory.build()?;
+    let internal_tls = match &config.peer_tls {
+        Some(peer_tls) => Some(build_internal_rustls_config(peer_tls).await?),
+        None => None,
+    };
     let runtime = RuntimeState::new();
     let replication_bandwidth_limiter = BandwidthLimiter::new(
         config.replication_bandwidth_limit_bytes_per_second,
@@ -139,6 +146,7 @@ async fn run_with_config(
     let notify = Notify::new();
 
     let bootstrap_semaphore = Arc::new(Semaphore::new(config.bootstrap_max_concurrent_peers));
+    let bootstrap_staging_budget = crate::utils::TmpBudget::new(config.tmp_dir_max_bytes);
     let state = Arc::new(AppState {
         config,
         _data_dir_lock: data_dir_lock,
@@ -151,12 +159,19 @@ async fn run_with_config(
         analytics,
         usage,
         geoip,
-        client,
+        client: arc_swap::ArcSwap::from_pointee(client),
         peer_client_factory,
+        internal_tls,
+        dynamic_peers: arc_swap::ArcSwap::from_pointee(Vec::new()),
         replication_bandwidth_limiter,
         notify,
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
         bootstrap_semaphore,
+        bootstrap_staging_budget,
+        bootstrap_fetch_locks: (0..crate::constants::BOOTSTRAP_FETCH_LOCK_STRIPES)
+            .map(|_| tokio::sync::Mutex::new(()))
+            .collect(),
+        replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
     });
     state.sync_runtime_metrics().await;
     let drain_completion_timeout = Duration::from_millis(state.config.drain_completion_timeout_ms);
@@ -164,12 +179,30 @@ async fn run_with_config(
     spawn_membership_task(state.clone());
     spawn_outbox_task(state.clone());
     Usage::spawn_tasks(state.clone());
+
+    if let Some(registration) =
+        crate::registration::RegistrationConfig::from_env(&state.config.node_url)
+    {
+        crate::registration::spawn(state.clone(), registration);
+    }
+
     spawn_snapshot_task(state.clone());
     spawn_runtime_metrics_task(state.clone());
     spawn_drain_signal_task(state.clone());
     spawn_multipart_janitor_task(state.clone());
     spawn_tmp_dir_metrics_task(state.clone());
     spawn_geoip_refresh_task(state.clone());
+
+    // When the node enrolled on boot, keep its peer certificate fresh in-process
+    // so a short leaf does not require a restart.
+    if let Some(enrollment) = enrollment
+        && state.config.peer_tls.is_some()
+    {
+        state
+            .dynamic_peers
+            .store(std::sync::Arc::new(enrollment.peers.clone()));
+        spawn_cert_renewal_task(state.clone(), enrollment.renew_after_seconds);
+    }
 
     let address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.port));
     let grpc_address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.grpc_port));
@@ -218,8 +251,11 @@ async fn run_with_config(
         .in_current_span(),
     );
 
-    let internal_handle = if let Some(peer_tls) = state.config.peer_tls.clone() {
-        let tls_config = build_internal_rustls_config(&peer_tls).await?;
+    let internal_handle = if state.config.peer_tls.is_some() {
+        let tls_config = state
+            .internal_tls
+            .clone()
+            .expect("internal_tls is present whenever peer_tls is configured");
         let internal_router = http::internal_router(state.clone());
         let mut internal_shutdown_rx = shutdown_rx.clone();
         let handle = Handle::new();
@@ -424,6 +460,9 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                         state
                             .metrics
                             .update_multipart_uploads(snapshot.multipart_uploads);
+                        state
+                            .metrics
+                            .update_segment_fsyncs(snapshot.segment_fsync_count);
                         for (generation, count) in snapshot.segment_counts {
                             state
                                 .metrics
@@ -611,6 +650,62 @@ fn spawn_geoip_refresh_task(state: Arc<AppState>) {
         }
         .in_current_span(),
     );
+}
+
+// Re-enrolls before the peer certificate's leaf expires and hot-reloads the new
+// material into both the inbound mTLS server and the outbound peer client, so a
+// short leaf never requires a restart.
+fn spawn_cert_renewal_task(state: Arc<AppState>, initial_renew_after_seconds: u64) {
+    tokio::spawn(
+        async move {
+            let mut renew_after = initial_renew_after_seconds.max(60);
+            loop {
+                tokio::time::sleep(Duration::from_secs(renew_after)).await;
+                match crate::enrollment::renew().await {
+                    Ok(outcome) => match apply_renewed_certs(&state, &outcome).await {
+                        Ok(()) => {
+                            info!("renewed peer certificate");
+                            renew_after = outcome.renew_after_seconds.max(60);
+                        }
+                        Err(error) => {
+                            warn!("cert renewal: failed to apply new certificate: {error}");
+                            renew_after = 60;
+                        }
+                    },
+                    Err(error) => {
+                        warn!("cert renewal failed: {error}; retrying in 60s");
+                        renew_after = 60;
+                    }
+                }
+            }
+        }
+        .in_current_span(),
+    );
+}
+
+async fn apply_renewed_certs(
+    state: &Arc<AppState>,
+    outcome: &crate::enrollment::EnrollmentOutcome,
+) -> Result<(), String> {
+    // Outbound: reload the peer identity and rebuild the cached client so new
+    // dials use the renewed certificate.
+    state
+        .peer_client_factory
+        .reload_from_config(&state.config)
+        .await?;
+    let new_client = state.peer_client_factory.build()?;
+    state.client.store(Arc::new(new_client));
+
+    // Inbound: rebuild the internal mTLS server config (preserving the client
+    // verifier) and hot-swap the leaf.
+    if let (Some(peer_tls), Some(rustls)) = (&state.config.peer_tls, &state.internal_tls) {
+        let server_config = crate::peer_tls::build_internal_server_config(peer_tls).await?;
+        rustls.reload_from_config(server_config);
+    }
+
+    // Pick up any newly-learned peers for discovery.
+    state.dynamic_peers.store(Arc::new(outcome.peers.clone()));
+    Ok(())
 }
 
 #[cfg(unix)]

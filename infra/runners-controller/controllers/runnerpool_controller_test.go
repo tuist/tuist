@@ -100,6 +100,29 @@ func TestIsStaleImage_EmptyContainers(t *testing.T) {
 	}
 }
 
+func TestPodPhaseReplicaCounts(t *testing.T) {
+	pending := newRunnerPod("p-pending", "img", corev1.PodPending, "p")
+	running := newRunnerPod("p-running", "img", corev1.PodRunning, "p")
+	unknown := newRunnerPod("p-unknown", "img", corev1.PodUnknown, "p")
+
+	counts := podPhaseReplicaCounts{}
+	counts.add(pending)
+	counts.add(running)
+	counts.add(unknown)
+
+	if counts.pending != 1 || counts.running != 1 || counts.unknown != 1 {
+		t.Fatalf("counts after add = %+v, want pending=1 running=1 unknown=1", counts)
+	}
+
+	counts.remove(pending)
+	counts.remove(pending)
+	counts.remove(running)
+
+	if counts.pending != 0 || counts.running != 0 || counts.unknown != 1 {
+		t.Fatalf("counts after remove = %+v, want pending=0 running=0 unknown=1", counts)
+	}
+}
+
 func TestIsIdle(t *testing.T) {
 	withPoller := func(name string, state corev1.ContainerState) *corev1.Pod {
 		p := newRunnerPod(name, "img", corev1.PodPending, "p")
@@ -244,6 +267,63 @@ func TestReconcile_DeletesStalePendingPodAndCreatesReplacement(t *testing.T) {
 	err = c.Get(context.Background(), nn("tuist-runners", "p-runner-stale"), sa)
 	if err == nil {
 		t.Fatalf("expected stale SA p-runner-stale to be deleted, still present")
+	}
+}
+
+// TestReconcile_ThrottlesStalePendingReapToRollCap guards the roll
+// concurrency cap on the stale-Pending reap path. Before, every stale
+// Pending Pod was reaped in a single reconcile, so a digest roll made
+// the whole fleet `tart pull` the new image at once. Now the reap shares
+// the roll budget: with 5 replicas and a 40% cap (floor = 2), only 2
+// stale Pods retire per reconcile and the rest keep serving the old
+// image until the budget frees.
+func TestReconcile_ThrottlesStalePendingReapToRollCap(t *testing.T) {
+	scheme := mustScheme(t)
+	const (
+		oldImage = "ghcr.io/tuist/tuist-runner@sha256:old"
+		newImage = "ghcr.io/tuist/tuist-runner@sha256:new"
+	)
+	pool := newPool("p", newImage, 5)
+	pool.Spec.Rollout = &tuistv1.RunnerPoolRollout{MaxConcurrentPercent: 40}
+	p0 := newRunnerPod("p-runner-s0", oldImage, corev1.PodPending, "p")
+	p1 := newRunnerPod("p-runner-s1", oldImage, corev1.PodPending, "p")
+	p2 := newRunnerPod("p-runner-s2", oldImage, corev1.PodPending, "p")
+	p3 := newRunnerPod("p-runner-s3", oldImage, corev1.PodPending, "p")
+	p4 := newRunnerPod("p-runner-s4", oldImage, corev1.PodPending, "p")
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, p0, p1, p2, p3, p4).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	pods := &corev1.PodList{}
+	if err := c.List(context.Background(), pods); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	oldCount, newCount := 0, 0
+	for i := range pods.Items {
+		if pods.Items[i].Spec.Containers[0].Image == oldImage {
+			oldCount++
+		} else {
+			newCount++
+		}
+	}
+	// cap = floor(40% * 5) = 2: exactly 2 stale Pods retired + replaced
+	// this tick; the other 3 keep serving the old image.
+	if oldCount != 3 {
+		t.Fatalf("expected 3 stale pods remaining (cap=2 reaped), got %d", oldCount)
+	}
+	if newCount != 2 {
+		t.Fatalf("expected 2 current-image replacements, got %d", newCount)
+	}
+	if len(pods.Items) != 5 {
+		t.Fatalf("expected pool to stay at 5 pods, got %d", len(pods.Items))
 	}
 }
 

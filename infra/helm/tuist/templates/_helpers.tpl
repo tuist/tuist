@@ -212,11 +212,9 @@ ecto://{{ .Values.postgresql.embedded.username }}:{{ .Values.postgresql.embedded
 {{- end -}}
 
 {{/*
-CNPG generates one Secret per role: `<cluster-name>-app` (the owner role
-from `bootstrap.initdb.owner`) and one per managed role under the name
-declared in `managed.roles[].passwordSecret.name`. The owner Secret
-carries `username`, `password`, `uri`, `jdbc-uri`, `host`, `port`,
-`dbname`. We mount `uri` straight into DATABASE_URL.
+CNPG generates `<cluster-name>-app` for the owner / migration role from
+`bootstrap.initdb.owner`. Managed runtime roles use the password Secret
+names declared in `managed.roles[].passwordSecret.name`.
 */}}
 {{- define "tuist.cnpgClusterName" -}}
 {{- include "tuist.componentName" (dict "root" . "component" "pg") -}}
@@ -224,6 +222,10 @@ carries `username`, `password`, `uri`, `jdbc-uri`, `host`, `port`,
 
 {{- define "tuist.cnpgAppSecretName" -}}
 {{- printf "%s-app" (include "tuist.cnpgClusterName" .) -}}
+{{- end -}}
+
+{{- define "tuist.cnpgWebRoleSecretName" -}}
+{{- include "tuist.componentName" (dict "root" . "component" "pg-tuist-web") -}}
 {{- end -}}
 
 {{- define "tuist.cnpgServiceRW" -}}
@@ -239,11 +241,49 @@ carries `username`, `password`, `uri`, `jdbc-uri`, `host`, `port`,
 {{- printf "%s-pooler-rw" (include "tuist.cnpgClusterName" .) -}}
 {{- end -}}
 
+{{- define "tuist.externalPostgresqlHostEnv" -}}
+TUIST_POSTGRESQL_HOST
+{{- end -}}
+
+{{- define "tuist.externalPostgresqlUsernameEnv" -}}
+TUIST_POSTGRESQL_USERNAME
+{{- end -}}
+
+{{- define "tuist.externalPostgresqlPasswordEnv" -}}
+TUIST_POSTGRESQL_PASSWORD
+{{- end -}}
+
+{{- define "tuist.externalPostgresqlSecretEnv" -}}
+{{- if and (eq .Values.postgresql.mode "external") .Values.postgresql.external.existingSecret -}}
+{{- $secretName := .Values.postgresql.external.existingSecret -}}
+{{- $keys := .Values.postgresql.external.existingSecretKeys | default dict -}}
+- name: {{ include "tuist.externalPostgresqlHostEnv" . }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secretName | quote }}
+      key: {{ required "postgresql.external.existingSecretKeys.host is required when postgresql.external.existingSecret is set" $keys.host | quote }}
+- name: {{ include "tuist.externalPostgresqlUsernameEnv" . }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secretName | quote }}
+      key: {{ required "postgresql.external.existingSecretKeys.username is required when postgresql.external.existingSecret is set" $keys.username | quote }}
+- name: {{ include "tuist.externalPostgresqlPasswordEnv" . }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secretName | quote }}
+      key: {{ required "postgresql.external.existingSecretKeys.password is required when postgresql.external.existingSecret is set" $keys.password | quote }}
+{{- end -}}
+{{- end -}}
+
 {{- define "tuist.databaseUrl" -}}
 {{- if eq .Values.postgresql.mode "embedded" -}}
 ecto://{{ .Values.postgresql.embedded.username }}:{{ .Values.postgresql.embedded.password }}@{{ include "tuist.componentName" (dict "root" . "component" "postgresql") }}:5432/{{ .Values.postgresql.embedded.database }}
 {{- else if eq .Values.postgresql.mode "external" -}}
+{{- if .Values.postgresql.external.existingSecret -}}
+ecto://$({{ include "tuist.externalPostgresqlUsernameEnv" . }}):$({{ include "tuist.externalPostgresqlPasswordEnv" . }})@$({{ include "tuist.externalPostgresqlHostEnv" . }}):{{ .Values.postgresql.external.port }}/{{ .Values.postgresql.external.database }}
+{{- else -}}
 ecto://{{ .Values.postgresql.external.username }}:{{ .Values.postgresql.external.password }}@{{ .Values.postgresql.external.host }}:{{ .Values.postgresql.external.port }}/{{ .Values.postgresql.external.database }}
+{{- end -}}
 {{- else if eq .Values.postgresql.mode "cnpg" -}}
 {{- fail "tuist.databaseUrl is not literal under postgresql.mode=cnpg — wire DATABASE_URL from the CNPG-generated Secret via envFrom or secretKeyRef instead." -}}
 {{- end -}}
@@ -254,8 +294,12 @@ ecto://{{ .Values.postgresql.external.username }}:{{ .Values.postgresql.external
 {{ include "tuist.componentName" (dict "root" . "component" "postgresql") }}
 {{- else if eq .Values.postgresql.mode "cnpg" -}}
 {{ include "tuist.cnpgServiceRW" . }}
+{{- else if eq .Values.postgresql.mode "external" -}}
+{{- if .Values.postgresql.external.existingSecret -}}
+$({{ include "tuist.externalPostgresqlHostEnv" . }})
 {{- else -}}
 {{- .Values.postgresql.external.host -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 
@@ -284,8 +328,12 @@ ecto://{{ .Values.postgresql.external.username }}:{{ .Values.postgresql.external
 {{- .Values.postgresql.embedded.username -}}
 {{- else if eq .Values.postgresql.mode "cnpg" -}}
 {{- .Values.postgresql.cnpg.owner -}}
+{{- else if eq .Values.postgresql.mode "external" -}}
+{{- if .Values.postgresql.external.existingSecret -}}
+$({{ include "tuist.externalPostgresqlUsernameEnv" . }})
 {{- else -}}
 {{- .Values.postgresql.external.username -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 
@@ -300,6 +348,8 @@ http://{{ include "tuist.componentName" (dict "root" . "component" "clickhouse")
 {{- define "tuist.clickhouseReadyUrl" -}}
 {{- if eq .Values.clickhouse.mode "embedded" -}}
 http://{{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }}:8123/ping
+{{- else if .Values.clickhouse.external.pingUrl -}}
+{{- .Values.clickhouse.external.pingUrl -}}
 {{- else -}}
 {{- .Values.clickhouse.external.url -}}
 {{- end -}}
@@ -320,16 +370,29 @@ http://{{ include "tuist.componentName" (dict "root" . "component" "otel-collect
 {{- end -}}
 
 {{/*
-Kura OAuth introspection client env vars. The values are synced from
-1Password into the server-external-secrets Secret when
-server.externalSecrets.kuraIntrospection.item is set, or from the
-kura-shared-secrets Secret when
-kuraController.sharedSecrets.kuraIntrospection.enabled is true.
+Kura OAuth introspection client env vars. The values are sourced from
+one of:
+
+  1. The kura-shared-secrets Secret in this release's namespace when this
+     release installs the kuraController (managed envs: one release runs
+     both server and controller in their respective namespaces, the
+     chart mirrors the Secret into the server namespace).
+
+  2. The kura-shared-secrets Secret in this release's namespace when
+     server.kuraIntrospection.useSharedSecret is true (preview envs:
+     the kuraController is installed once at platform level into the
+     `kura` namespace, and the deploy workflow copies the Secret into
+     this release's namespace before installing the chart).
+
+  3. The server-external-secrets ESO Secret when
+     server.externalSecrets.kuraIntrospection.item is set.
+
 */}}
 {{- define "tuist.kuraIntrospectionEnv" -}}
 {{- $esoSecret := include "tuist.componentName" (dict "root" . "component" "server-external-secrets") -}}
 {{- $kuraSharedSecret := "kura-shared-secrets" -}}
-{{- if and .Values.kuraController.enabled .Values.kuraController.sharedSecrets.enabled .Values.kuraController.sharedSecrets.kuraIntrospection.enabled }}
+{{- $useShared := or (and .Values.kuraController.enabled .Values.kuraController.sharedSecrets.enabled .Values.kuraController.sharedSecrets.kuraIntrospection.enabled) .Values.server.kuraIntrospection.useSharedSecret -}}
+{{- if $useShared }}
 - name: KURA_CONTROL_PLANE_CLIENT_ID
   valueFrom:
     secretKeyRef:
@@ -357,8 +420,8 @@ kuraController.sharedSecrets.kuraIntrospection.enabled is true.
 {{/*
 License env vars. Resolves to (in order):
   1. ESO-managed Secret (server.externalSecrets.license.item set) — preview /
-     managed envs that sync the license from 1Password. Mirrors the MASTER_KEY
-     flow in templates/external-secrets.yaml.
+     managed envs that sync the license from 1Password via
+     templates/external-secrets.yaml.
   2. Chart-managed app-secrets Secret — when server.license.key is inlined.
 */}}
 {{- define "tuist.licenseEnv" -}}
@@ -431,5 +494,73 @@ License env vars. Resolves to (in order):
     secretKeyRef:
       name: {{ $secret | quote }}
       key: token-update-packages
+{{- end }}
+{{- end -}}
+
+{{- define "tuist.googleEnv" -}}
+{{- if and .Values.server.enabled .Values.server.google.managedSecrets }}
+{{- $secret := include "tuist.componentName" (dict "root" . "component" "google-external-secrets") -}}
+- name: TUIST_GOOGLE_OAUTH_CLIENT_ID
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret | quote }}
+      key: oauth-client-id
+- name: TUIST_GOOGLE_OAUTH_CLIENT_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret | quote }}
+      key: oauth-client-secret
+{{- end }}
+{{- end -}}
+
+{{/*
+envFrom entry for the consolidated server-config ExternalSecret. Every key in
+that Secret is already a TUIST_* env var name, so a single secretRef wires the
+whole runtime-secret set into the Server / Migration / Processor containers —
+the replacement for decrypting priv/secrets/<env>.yml.enc. Emits nothing when
+server.config.managedSecrets is off (self-hosted installs supply config their
+own way).
+*/}}
+{{- define "tuist.serverConfigEnvFrom" -}}
+{{- if and .Values.server.enabled .Values.server.config.managedSecrets }}
+- secretRef:
+    name: {{ include "tuist.componentName" (dict "root" . "component" "server-config-external-secrets") }}
+{{- end }}
+{{- end -}}
+
+{{/*
+Stripe price IDs. These are not secrets (just identifiers for the products in
+Stripe), so they live in chart values as a readable plan -> category -> [ids]
+map instead of the secret store. `Tuist.Environment.stripe_prices/1` reads
+TUIST_STRIPE_PRICES as a JSON string, so the chart just JSON-encodes the map.
+Emits nothing when server.stripe.prices is empty (self-hosted installs without
+Stripe).
+*/}}
+{{- define "tuist.stripePricesEnv" -}}
+{{- with .Values.server.stripe.prices }}
+- name: TUIST_STRIPE_PRICES
+  value: {{ toJson . | quote }}
+{{- end }}
+{{- end -}}
+
+{{/*
+Mailing identity env vars. The Mailgun sending domain + from/reply-to addresses
+are sender identity, not secrets, so they come from chart values (shared in
+values-managed-common.yaml). The Mailgun API key itself stays in the secret
+store. Each var is emitted only when set, so an unset value leaves the accessor
+nil (mail simply degrades) rather than overriding with "".
+*/}}
+{{- define "tuist.mailingEnv" -}}
+{{- with .Values.server.mailing.domain }}
+- name: TUIST_MAILING_DOMAIN
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.server.mailing.fromAddress }}
+- name: TUIST_MAILING_FROM_ADDRESS
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.server.mailing.replyToAddress }}
+- name: TUIST_MAILING_REPLY_TO_ADDRESS
+  value: {{ . | quote }}
 {{- end }}
 {{- end -}}

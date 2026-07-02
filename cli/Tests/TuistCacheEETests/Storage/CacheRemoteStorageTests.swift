@@ -118,6 +118,35 @@ struct CacheRemoteStorageTests {
         #expect(try artifactSigner.isValid(path) == true)
     }
 
+    @Test(.inTemporaryDirectory) func fetch_when_macro_product_name_differs_from_target_name() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let macroPath = temporaryDirectory.appending(component: "MacroProduct.macro")
+        try await fileSystem.touch(macroPath)
+        let zipPath = try await FileArchiver(paths: [macroPath]).zip(name: "test")
+
+        let serverCacheArtifact = ServerCacheArtifact.test()
+
+        given(getCacheService).getCache(
+            serverURL: .value(Constants.URLs.production),
+            projectId: .value(fullHandle),
+            hash: .value("hash"),
+            name: .value("MacroTarget"),
+            cacheCategory: .value(.binaries)
+        ).willReturn(serverCacheArtifact)
+        given(downloader).download(item: .any, url: .value(serverCacheArtifact.url)).willReturn(zipPath)
+
+        let got = try await subject.fetch(
+            Set([.init(name: "MacroTarget", hash: "hash")]),
+            cacheCategory: .binaries
+        )
+
+        let path = try #require(
+            got[.test(name: "MacroTarget", hash: "hash", source: .remote, cacheCategory: .binaries)]
+        )
+        #expect(path.basename == "MacroProduct.macro")
+        #expect(try artifactSigner.isValid(path) == true)
+    }
+
     @Test(.inTemporaryDirectory) func fetch_when_framework_artifact_exists() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
@@ -693,6 +722,66 @@ struct CacheRemoteStorageTests {
         #expect(result.count == 1)
         #expect(result.first?.name == "target")
         #expect(result.first?.hash == "hash")
+    }
+
+    @Test(.inTemporaryDirectory, .withScopedAlertController())
+    func store_when_multipart_upload_complete_cache_service_throws_conflict() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let macroPath = temporaryDirectory.appending(component: "macro.macro")
+        try await fileSystem.touch(macroPath)
+        given(multipartUploadStartCacheService).uploadCache(
+            serverURL: .value(Constants.URLs.production),
+            projectId: .value(fullHandle),
+            hash: .value("hash"),
+            name: .value("target"),
+            cacheCategory: .value(.binaries)
+        ).willReturn("upload-id")
+        given(multipartUploadGenerateURLCacheService)
+            .uploadCache(
+                serverURL: .value(Constants.URLs.production),
+                projectId: .value(fullHandle),
+                hash: .value("hash"),
+                name: .value("target"),
+                cacheCategory: .value(.binaries),
+                uploadId: .value("upload-id"),
+                partNumber: .value(1),
+                contentLength: .value(20)
+            )
+            .willReturn("https://tuist.dev/upload")
+        given(multipartUploadArtifactService)
+            .multipartUploadArtifact(
+                artifactPath: .any,
+                generateUploadURL: .any,
+                updateProgress: .any
+            )
+            .willReturn([(etag: "etag", partNumber: 1)])
+        given(multipartUploadCompleteCacheService).uploadCache(
+            serverURL: .value(Constants.URLs.production),
+            projectId: .value(fullHandle),
+            hash: .value("hash"),
+            name: .value("target"),
+            cacheCategory: .value(.binaries),
+            uploadId: .value("upload-id"),
+            parts: .matching { values in
+                values.contains(where: { $0.etag == "etag" && $0.partNumber == 1 })
+            }
+        ).willThrow(
+            MultipartUploadCompleteCacheServiceError.conflict(
+                "The multipart upload is no longer active. Start a new upload and retry."
+            )
+        )
+
+        // When
+        let result = try await subject.store(
+            [.init(name: "target", hash: "hash"): [macroPath]], cacheCategory: .binaries
+        )
+
+        // Then
+        #expect(result.isEmpty)
+        #expect(AlertController.current.warnings()
+            .contains { $0.message.plain().contains("Failed to upload target with hash hash due to unexpected error:") }
+        )
     }
 
     @Test(.inTemporaryDirectory, .withScopedAlertController())

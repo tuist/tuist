@@ -156,6 +156,20 @@ defmodule Tuist.Docs.CLI.RendererTest do
 
       assert generate_page.title_template == ":title · CLI · Tuist"
     end
+
+    test "wraps generated tables in a scroll container" do
+      pages = Renderer.build_pages(@spec_fixture)
+      cache_page = Enum.find(pages, &(&1.slug == "/en/cli/cache"))
+
+      assert cache_page.body =~ ~s(<div id="docs-markdown-table-0" class="noora-table" phx-hook="NooraTable">)
+      assert cache_page.body =~ ~s(<div data-part="scroll-container"><table>)
+
+      assert cache_page.body =~
+               ~s(<div data-part="scrollbar" aria-hidden="true"><div data-part="scrollbar-content"></div></div>)
+
+      assert cache_page.body =~
+               ~s(<div data-part="overlay-scrollbar" aria-hidden="true"><div data-part="overlay-thumb"></div></div>)
+    end
   end
 
   describe "build_sidebar/1" do

@@ -17,6 +17,9 @@ on:
       - main
     paths:
       - cli/**
+      # swifterpm/Sources/swifterpm is compiled into the CLI binary (SwifterPMCore
+      # -> TuistSupport), so its changes must cut a canary just like cli/** does.
+      - swifterpm/**
       - mise/tasks/cli/**
       - mise/tasks/release/components.json
       - .github/workflows/cli-release.yml
@@ -68,7 +71,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "git-cliff jq"
+          install_args: "--locked git-cliff jq"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - id: resolve
@@ -82,7 +85,7 @@ jobs:
             exit 0
           fi
           echo "should_publish=true" >> "$GITHUB_OUTPUT"
-          mise run --no-deps cli:release:channel-version -- canary
+          mise run --no-deps --skip-tools cli:release:channel-version -- canary
 
   build-publish:
     name: Build and publish canary

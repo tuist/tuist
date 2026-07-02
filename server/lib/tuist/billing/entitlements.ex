@@ -29,6 +29,15 @@ defmodule Tuist.Billing.Entitlements do
   # GitHub Enterprise Server connection — Enterprise only.
   defp plan_allows?(_plan, :github_enterprise_server), do: false
 
+  # Self-hosting cache nodes (running your own Kura nodes) — Enterprise only.
+  defp plan_allows?(_plan, :self_hosted_cache), do: false
+
+  # Guaranteed egress floor on the shared bare-metal cache boxes — Enterprise
+  # only. The default pattern is bursty, so non-enterprise tenants run best-effort
+  # under the Cilium burst ceiling and pack densely; enterprise tenants reserve a
+  # scheduler-bin-packed slice of the box's egress budget.
+  defp plan_allows?(_plan, :guaranteed_egress_floor), do: false
+
   defp plan_allows?(_plan, _feature), do: false
 
   defp current_plan(%Account{} = account) do
