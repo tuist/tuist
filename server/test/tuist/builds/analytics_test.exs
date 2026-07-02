@@ -8,6 +8,7 @@ defmodule Tuist.Builds.AnalyticsTest do
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
+  alias TuistTestSupport.Fixtures.XcodeFixtures
 
   describe "build_duration_analytics_by_category/3" do
     test "returns duration analytics grouped by xcode_version" do
@@ -1852,6 +1853,258 @@ defmodule Tuist.Builds.AnalyticsTest do
       assert day1.cacheable_tasks == 1
       assert day1.cacheable_task_local_hits == 1
       assert day1.cacheable_task_remote_hits == 0
+    end
+  end
+
+  describe "module_invalidations/1" do
+    setup do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+      %{project: project}
+    end
+
+    test "classifies invalidations as self-change vs dependency-induced", %{project: project} do
+      build = fn name, created_at, hit, sources, deps ->
+        event =
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            git_branch: "main",
+            created_at: created_at
+          )
+
+        XcodeFixtures.xcode_target_fixture(
+          command_event_id: event.id,
+          name: name,
+          product: "framework",
+          binary_cache_hash: "h-#{name}-#{sources}-#{deps}",
+          binary_cache_hit: hit,
+          sources_hash: sources,
+          dependencies_hash: deps
+        )
+      end
+
+      # Core: own content keeps changing -> self-changes
+      build.("Core", ~N[2024-04-01 10:00:00], :miss, "s1", "d1")
+      build.("Core", ~N[2024-04-02 10:00:00], :remote, "s1", "d1")
+      build.("Core", ~N[2024-04-03 10:00:00], :miss, "s2", "d1")
+      build.("Core", ~N[2024-04-04 10:00:00], :miss, "s3", "d1")
+
+      # Networking: only dependencies change -> dependency-induced
+      build.("Networking", ~N[2024-04-01 11:00:00], :miss, "n1", "nd1")
+      build.("Networking", ~N[2024-04-02 11:00:00], :miss, "n1", "nd2")
+      build.("Networking", ~N[2024-04-03 11:00:00], :miss, "n1", "nd3")
+
+      # Stable: always a hit -> excluded (no invalidations)
+      build.("Stable", ~N[2024-04-01 12:00:00], :remote, "st1", "sd1")
+      build.("Stable", ~N[2024-04-02 12:00:00], :remote, "st1", "sd1")
+
+      got =
+        Analytics.module_invalidations(
+          project_id: project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      assert [core, networking] = got
+
+      assert core.name == "Core"
+      assert core.appearances == 4
+      assert core.invalidations == 3
+      assert core.self_changes == 2
+      assert core.dependency_induced == 0
+      assert core.unclassified == 1
+      assert_in_delta core.invalidation_rate, 75.0, 0.1
+      # No dependency edges in this graph -> blast radius is unknown.
+      assert core.blast_radius == nil
+
+      assert networking.name == "Networking"
+      assert networking.appearances == 3
+      assert networking.invalidations == 3
+      assert networking.self_changes == 0
+      assert networking.dependency_induced == 2
+      assert networking.unclassified == 1
+      assert_in_delta networking.invalidation_rate, 100.0, 0.1
+    end
+
+    test "compares builds within the same branch only", %{project: project} do
+      build = fn created_at, branch, hit, sources, deps ->
+        event =
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            git_branch: branch,
+            created_at: created_at
+          )
+
+        XcodeFixtures.xcode_target_fixture(
+          command_event_id: event.id,
+          name: "Core",
+          product: "framework",
+          binary_cache_hash: "h-#{branch}-#{sources}-#{deps}",
+          binary_cache_hit: hit,
+          sources_hash: sources,
+          dependencies_hash: deps
+        )
+      end
+
+      build.(~N[2024-04-01 10:00:00], "main", :miss, "s1", "d1")
+      build.(~N[2024-04-01 10:30:00], "feature", :miss, "fX", "d1")
+      build.(~N[2024-04-02 10:00:00], "main", :miss, "s1", "d2")
+
+      got =
+        Analytics.module_invalidations(
+          project_id: project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      assert [core] = got
+      # main's third build has the same own content as main's first build but a changed
+      # dependency hash -> dependency-induced. It must NOT be compared against the
+      # interleaved feature-branch build (which would look like a self-change).
+      assert core.dependency_induced == 1
+      assert core.self_changes == 0
+      assert core.unclassified == 2
+    end
+
+    test "filters by branch", %{project: project} do
+      build = fn created_at, branch ->
+        event =
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            git_branch: branch,
+            created_at: created_at
+          )
+
+        XcodeFixtures.xcode_target_fixture(
+          command_event_id: event.id,
+          name: "Core",
+          product: "framework",
+          binary_cache_hash: "h-#{branch}-#{created_at}",
+          binary_cache_hit: :miss,
+          sources_hash: "s-#{created_at}"
+        )
+      end
+
+      build.(~N[2024-04-01 10:00:00], "main")
+      build.(~N[2024-04-02 10:00:00], "main")
+      build.(~N[2024-04-01 11:00:00], "feature")
+
+      got =
+        Analytics.module_invalidations(
+          project_id: project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z],
+          git_branch: "main"
+        )
+
+      assert [core] = got
+      assert core.appearances == 2
+    end
+
+    test "computes downstream blast radius from the latest graph edges", %{project: project} do
+      event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          git_branch: "main",
+          created_at: ~N[2024-04-10 10:00:00]
+        )
+
+      # App -> Feature -> Core (each depends on the next).
+      XcodeFixtures.xcode_target_fixture(
+        command_event_id: event.id,
+        name: "Core",
+        binary_cache_hash: "h-core",
+        binary_cache_hit: :miss,
+        sources_hash: "c1",
+        dependencies: []
+      )
+
+      XcodeFixtures.xcode_target_fixture(
+        command_event_id: event.id,
+        name: "Feature",
+        binary_cache_hash: "h-feature",
+        binary_cache_hit: :miss,
+        sources_hash: "f1",
+        dependencies: ["Core"]
+      )
+
+      XcodeFixtures.xcode_target_fixture(
+        command_event_id: event.id,
+        name: "App",
+        binary_cache_hash: "h-app",
+        binary_cache_hit: :miss,
+        sources_hash: "a1",
+        dependencies: ["Feature"]
+      )
+
+      got =
+        Analytics.module_invalidations(
+          project_id: project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      by_name = Map.new(got, &{&1.name, &1})
+
+      assert by_name["Core"].blast_radius == 2
+      assert by_name["Feature"].blast_radius == 1
+      assert by_name["App"].blast_radius == 0
+    end
+
+    test "module_transitive_dependents returns the full downstream set" do
+      edges = %{
+        "Core" => [],
+        "Networking" => ["Core"],
+        "Analytics" => ["Core", "Networking"],
+        "Features" => ["Networking", "Analytics"]
+      }
+
+      assert Enum.sort(Analytics.module_transitive_dependents(edges, "Core")) ==
+               ["Analytics", "Features", "Networking"]
+
+      assert Analytics.module_transitive_dependents(edges, "Networking") |> Enum.sort() ==
+               ["Analytics", "Features"]
+
+      assert Analytics.module_transitive_dependents(edges, "Features") == []
+    end
+
+    test "module_invalidation_timeseries returns daily invalidations and reuses", %{project: project} do
+      build = fn created_at, hit ->
+        event =
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            git_branch: "main",
+            created_at: created_at
+          )
+
+        XcodeFixtures.xcode_target_fixture(
+          command_event_id: event.id,
+          name: "Core",
+          binary_cache_hash: "h-#{created_at}",
+          binary_cache_hit: hit,
+          sources_hash: "s1"
+        )
+      end
+
+      build.(~N[2024-04-10 10:00:00], :miss)
+      build.(~N[2024-04-10 12:00:00], :remote)
+      build.(~N[2024-04-11 10:00:00], :miss)
+
+      got =
+        Analytics.module_invalidation_timeseries(
+          project_id: project.id,
+          name: "Core",
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      assert length(got.dates) == 30
+      assert Enum.sum(got.invalidations) == 2
+      assert Enum.sum(got.reuses) == 1
+
+      index = Enum.find_index(got.dates, &(&1 == "2024-04-10"))
+      assert Enum.at(got.invalidations, index) == 1
+      assert Enum.at(got.reuses, index) == 1
     end
   end
 

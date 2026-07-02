@@ -134,17 +134,47 @@ defmodule TuistTestSupport.Fixtures.XcodeFixtures do
 
       id = Keyword.get(opts, :id, UUIDv7.generate())
 
-      xcode_target_data = %{
-        id: id,
-        name: name,
-        xcode_project_id: xcode_project_id,
-        command_event_id: command_event_id,
-        binary_cache_hash: binary_cache_hash,
-        binary_cache_hit: binary_cache_hit,
-        selective_testing_hash: selective_testing_hash,
-        selective_testing_hit: selective_testing_hit,
-        inserted_at: NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
-      }
+      inserted_at =
+        opts
+        |> Keyword.get(:inserted_at, NaiveDateTime.utc_now())
+        |> NaiveDateTime.truncate(:second)
+
+      subhashes =
+        Map.new(
+          [
+            :sources_hash,
+            :resources_hash,
+            :copy_files_hash,
+            :core_data_models_hash,
+            :target_scripts_hash,
+            :environment_hash,
+            :headers_hash,
+            :deployment_target_hash,
+            :info_plist_hash,
+            :entitlements_hash,
+            :dependencies_hash,
+            :project_settings_hash,
+            :target_settings_hash,
+            :buildable_folders_hash,
+            :external_hash
+          ],
+          fn key -> {key, Keyword.get(opts, key, "")} end
+        )
+
+      xcode_target_data =
+        Map.merge(subhashes, %{
+          id: id,
+          name: name,
+          xcode_project_id: xcode_project_id,
+          command_event_id: command_event_id,
+          binary_cache_hash: binary_cache_hash,
+          binary_cache_hit: binary_cache_hit,
+          selective_testing_hash: selective_testing_hash,
+          selective_testing_hit: selective_testing_hit,
+          product: Keyword.get(opts, :product, ""),
+          dependencies: Keyword.get(opts, :dependencies, []),
+          inserted_at: inserted_at
+        })
 
       IngestRepo.insert_all(XcodeTarget, [xcode_target_data])
 

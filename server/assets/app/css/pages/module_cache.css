@@ -67,4 +67,113 @@
       }
     }
   }
+
+  & > [data-part="module-invalidation"] {
+    & > [data-part="widgets"] {
+      display: flex;
+      flex-direction: row;
+      gap: var(--noora-spacing-4);
+
+      & > * {
+        flex: 1;
+      }
+
+      @media (max-width: 768px) {
+        & {
+          flex-direction: column;
+        }
+      }
+    }
+
+    [data-part="module-invalidation-note"] {
+      padding: var(--noora-spacing-4) var(--noora-spacing-5) 0;
+      color: var(--noora-surface-label-secondary);
+      font-size: 12px;
+    }
+  }
+}
+
+#module-invalidations {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+  padding: var(--noora-spacing-7) var(--noora-spacing-5);
+
+  & > [data-part="filters"] {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+  }
+}
+
+#module-cache-module {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+  padding: var(--noora-spacing-7) var(--noora-spacing-5);
+
+  & > [data-part="header"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-3);
+
+    & > [data-part="title"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+
+      & > [data-part="name"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-semibold) var(--noora-font-title-medium);
+      }
+    }
+  }
+
+  & > [data-part="filters"] {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="widgets"] {
+    display: flex;
+    flex-direction: row;
+    gap: var(--noora-spacing-4);
+
+    & > * {
+      flex: 1;
+    }
+
+    @media (max-width: 768px) {
+      & {
+        flex-direction: column;
+      }
+    }
+  }
+
+  & .noora-chart {
+    padding: var(--noora-spacing-3);
+    height: 220px;
+  }
+
+  & [data-part="reasons-grid"] {
+    display: flex;
+    flex-direction: row;
+    gap: var(--noora-spacing-4);
+
+    @media (max-width: 768px) {
+      & {
+        flex-direction: column;
+      }
+    }
+
+    & > * {
+      flex: 1;
+    }
+  }
 }
