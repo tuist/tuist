@@ -248,6 +248,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcileGRPCIngress(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
+	if err := r.reconcilePublicDNSEndpoint(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
 	if err := r.reconcilePublicCertificate(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -465,7 +468,7 @@ func (r *KuraInstanceReconciler) reconcilePeerDNSEndpoint(ctx context.Context, i
 	// IP. On bare-metal regions the node InternalIP is the box's public IP.
 	target := instance.Spec.MeshPeerFailoverIP
 	if target == "" {
-		ip, err := r.instancePeerNodeIP(ctx, instance)
+		ip, err := r.instanceNodeIP(ctx, instance)
 		if err != nil {
 			return err
 		}
@@ -504,11 +507,75 @@ func (r *KuraInstanceReconciler) reconcilePeerDNSEndpoint(ctx context.Context, i
 	return err
 }
 
-// instancePeerNodeIP returns the InternalIP of a node running one of the
-// instance's pods (the account's co-located box), or "" when none is scheduled
-// yet. On bare-metal regions the node InternalIP is the box's public IP, which
-// is what a self-hosted node must resolve the peer host to.
-func (r *KuraInstanceReconciler) instancePeerNodeIP(ctx context.Context, instance *kurav1alpha1.KuraInstance) (string, error) {
+// reconcilePublicDNSEndpoint publishes the account's customer host on
+// host-network (bare-metal) regions, where the gateway is a DaemonSet across
+// every box: a per-account DNSEndpoint pointing PublicHost at the box the
+// account's pods run on, so each account resolves to its own box and the gateway
+// there routes locally (no cross-box hop). It is the authoritative source once
+// the gateway stops feeding external-dns the ambiguous all-nodes address; on a
+// single box the target equals that address, so the two coexist harmlessly until
+// then. LB regions publish DNS off the gateway Service/Ingress and never touch
+// this. The short TTL keeps client re-resolution quick when the account moves
+// boxes (the warm-handoff cutover flips this record's target).
+func (r *KuraInstanceReconciler) reconcilePublicDNSEndpoint(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	// Only host-network regions get a per-account public DNSEndpoint. Never
+	// touching the DNSEndpoint API elsewhere keeps the common reconcile path
+	// (LB regions, Private instances) free of it.
+	if !instance.Spec.PublicHostNetwork {
+		return nil
+	}
+
+	endpoint := &unstructured.Unstructured{}
+	endpoint.SetGroupVersionKind(dnsEndpointGVK)
+	endpoint.SetNamespace(instance.Namespace)
+	endpoint.SetName(instance.Name + "-public-dns")
+
+	// The box the account's pods run on. The account is pinned to one box per
+	// region (co-location), so the box IP is the per-account customer target. On
+	// bare-metal regions the node InternalIP is the box's public IP.
+	target, err := r.instanceNodeIP(ctx, instance)
+	if err != nil {
+		return err
+	}
+
+	// No public host (Private, or none set), or no box yet (no pod scheduled):
+	// tear down any DNSEndpoint created earlier so external-dns stops publishing
+	// a dead record, mirroring reconcilePublicIngress.
+	if instance.Spec.Private || instance.Spec.PublicHost == "" || target == "" {
+		if err := r.Delete(ctx, endpoint); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+		return nil
+	}
+
+	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, endpoint, func() error {
+		endpoint.SetLabels(map[string]string{
+			"app.kubernetes.io/name":       "kura",
+			"app.kubernetes.io/instance":   instance.Name,
+			"app.kubernetes.io/managed-by": "kura-controller",
+			"tuist.dev/account":            instance.Spec.AccountHandle,
+		})
+		if err := unstructured.SetNestedSlice(endpoint.Object, []interface{}{
+			map[string]interface{}{
+				"dnsName":    instance.Spec.PublicHost,
+				"recordType": "A",
+				"recordTTL":  int64(60),
+				"targets":    []interface{}{target},
+			},
+		}, "spec", "endpoints"); err != nil {
+			return err
+		}
+		return controllerutil.SetControllerReference(instance, endpoint, r.Scheme)
+	})
+	return err
+}
+
+// instanceNodeIP returns the InternalIP of a node running one of the instance's
+// pods (the account's co-located box), or "" when none is scheduled yet. On
+// bare-metal regions the node InternalIP is the box's public IP, which is what
+// both the peer host (self-hosted dial-in) and the customer host (per-account
+// public DNSEndpoint) must resolve to.
+func (r *KuraInstanceReconciler) instanceNodeIP(ctx context.Context, instance *kurav1alpha1.KuraInstance) (string, error) {
 	var pods corev1.PodList
 	if err := r.List(ctx, &pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
 		return "", err
