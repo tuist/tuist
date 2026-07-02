@@ -846,6 +846,147 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
     end
   end
 
+  describe "rolling window de-duplicates re-inserted runs" do
+    # `test_case_runs` is a ReplacingMergeTree and flaky detection re-inserts a
+    # run when it sets `is_flaky` after ingestion. The recent-runs MVs record
+    # every physical insert, so one logical run can appear several times in the
+    # rolling aggregate. Because the duplicates land only on flaky/failed runs
+    # (successes are never re-marked), they inflate flakiness and deflate
+    # reliability for the exact runs the thresholds care about. The monitor must
+    # count each run once.
+    test "flakiness_rate does not double-count a re-inserted flaky run" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+      RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "occasionally_flaky")
+
+      insert_run_with_reinserted_flaky_tail(project.id, test_case_id)
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          trigger_config: %{
+            "threshold" => 25,
+            "window_type" => "rolling",
+            "rolling_window_size" => 5,
+            "comparison" => "gte"
+          }
+        )
+
+      # Last 5 distinct runs hold 1 flaky run → 20%, below the 25% threshold.
+      # Counting the re-inserted run three times reports 3/5 = 60% and wrongly
+      # mutes a healthy test.
+      refute test_case_id in FlakyTestsMonitor.evaluate(alert).triggered
+    end
+
+    test "flakiness_rate still counts a re-inserted flaky run once (keeps the flaky mark)" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+      RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "occasionally_flaky")
+
+      insert_run_with_reinserted_flaky_tail(project.id, test_case_id)
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          trigger_config: %{
+            "threshold" => 15,
+            "window_type" => "rolling",
+            "rolling_window_size" => 5,
+            "comparison" => "gte"
+          }
+        )
+
+      # De-duplicating must not drop the flaky mark: the run is still flaky
+      # (the re-marks set is_flaky=true), so 1/5 = 20% clears the 15% threshold.
+      assert test_case_id in FlakyTestsMonitor.evaluate(alert).triggered
+    end
+
+    test "reliability_rate does not double-count a re-inserted failing run" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+      RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "mostly_reliable")
+
+      base = NaiveDateTime.utc_now()
+
+      for i <- 1..9 do
+        ran_at = NaiveDateTime.add(base, -i, :minute)
+
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_id,
+          status: "success",
+          ran_at: ran_at,
+          inserted_at: ran_at
+        )
+      end
+
+      failing_run_id = UUIDv7.generate()
+
+      for _ <- 1..3 do
+        RunsFixtures.test_case_run_fixture(
+          id: failing_run_id,
+          project_id: project.id,
+          test_case_id: test_case_id,
+          status: "failure",
+          ran_at: base,
+          inserted_at: base
+        )
+      end
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "reliability_rate",
+          trigger_config: %{
+            "threshold" => 85,
+            "window_type" => "rolling",
+            "rolling_window_size" => 10,
+            "comparison" => "lt"
+          }
+        )
+
+      # Last 10 distinct runs hold 1 failure → 90% reliable, above the 85%
+      # threshold. Counting the re-inserted failure three times reports
+      # 7/10 = 70% and wrongly skips a healthy test.
+      refute test_case_id in FlakyTestsMonitor.evaluate_by_reliability_rate(alert).triggered
+    end
+  end
+
+  # One flaky run (most recent), re-inserted the way flaky detection does: the
+  # original ingestion writes is_flaky=false, then later re-marks re-insert the
+  # SAME run (same id + ran_at) with is_flaky=true. Preceded by four older
+  # stable runs.
+  defp insert_run_with_reinserted_flaky_tail(project_id, test_case_id) do
+    base = NaiveDateTime.utc_now()
+
+    for i <- 1..4 do
+      ran_at = NaiveDateTime.add(base, -i, :minute)
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project_id,
+        test_case_id: test_case_id,
+        is_flaky: false,
+        ran_at: ran_at,
+        inserted_at: ran_at
+      )
+    end
+
+    flaky_run_id = UUIDv7.generate()
+
+    for is_flaky <- [false, true, true] do
+      RunsFixtures.test_case_run_fixture(
+        id: flaky_run_id,
+        project_id: project_id,
+        test_case_id: test_case_id,
+        is_flaky: is_flaky,
+        ran_at: base,
+        inserted_at: base
+      )
+    end
+  end
+
   defp insert_test_case_runs(rows) do
     IngestRepo.insert_all(TestCaseRun, rows)
   end
