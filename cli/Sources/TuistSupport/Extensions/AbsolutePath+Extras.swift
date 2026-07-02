@@ -85,6 +85,7 @@ extension AbsolutePath {
             "mlmodelc",
             "xcmappingmodel",
             "icon",
+            "nib",
         ]
         .contains(self.extension ?? "")
     }

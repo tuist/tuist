@@ -1976,6 +1976,7 @@ struct PackageInfoMapperTests {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let defaultResourcePaths = try [
+            "nib",
             "storyboard",
             "strings",
             "xcassets",
@@ -7883,6 +7884,7 @@ private func defaultSpmResources(_ target: String, customPath: String? = nil) ->
     }
     return [
         "\(fullPath)/**/*.xib",
+        "\(fullPath)/**/*.nib",
         "\(fullPath)/**/*.storyboard",
         "\(fullPath)/**/*.xcdatamodeld",
         "\(fullPath)/**/*.xcmappingmodel",
@@ -8085,7 +8087,7 @@ extension [ProjectDescription.ResourceFileElement] {
         path: AbsolutePath,
         excluding: [Path] = []
     ) -> Self {
-        ["xib", "storyboard", "xcdatamodeld", "xcmappingmodel", "xcassets", "lproj"]
+        ["xib", "nib", "storyboard", "xcdatamodeld", "xcmappingmodel", "xcassets", "lproj"]
             .map { file -> ProjectDescription.ResourceFileElement in
                 ResourceFileElement.glob(
                     pattern: .path("\(path.appending(component: "**").pathString)/*.\(file)"),
