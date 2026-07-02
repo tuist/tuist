@@ -121,6 +121,27 @@ jobs:
           [ "${code}" = "200" ] || { echo "::error::cache /up over the PN returned ${code}"; exit 1; }
           echo "Runner reached the Kura runner-cache over the PN."
 
+      - name: vmnet bulk throughput probe (host->VM over the bridge)
+        run: |
+          set -uo pipefail
+          HOST=192.168.64.1
+          # Downloads a large payload from a zero-copy sendfile server on the host
+          # (host-side loopback baseline was ~80 Gbps, so the server is not the
+          # bottleneck). Isolates the raw vmnet bridge capacity from kura serving.
+          gbps() { python3 -c "import sys; s=float(sys.argv[1]); print(f'{s/1e6:.0f} MB/s = {s*8/1e9:.2f} Gbps')" "$1" 2>/dev/null || echo "$1 B/s"; }
+          echo "== single-stream download over vmnet =="
+          for i in 1 2 3; do
+            S=$(curl -s -o /dev/null -w '%{speed_download}' "http://$HOST:5201/" 2>/dev/null || echo 0)
+            echo "  run $i: $(gbps "$S")"
+          done
+          echo "== 4 parallel streams (aggregate: tells per-flow vs aggregate cap) =="
+          tmp=$(mktemp -d)
+          for n in 1 2 3 4; do ( curl -s -o /dev/null -w '%{speed_download}' "http://$HOST:5201/" > "$tmp/$n" 2>/dev/null ) & done
+          wait
+          AGG=$(cat "$tmp"/* | paste -sd+ - | bc 2>/dev/null || python3 -c "import glob;print(sum(float(open(f).read() or 0) for f in glob.glob('$tmp/*')))")
+          echo "  aggregate of 4: $(gbps "$AGG")"
+          rm -rf "$tmp"
+
   # Optional cached-build benchmark on the host-Kura runner. Runs the
   # runners-benchmark scenarios against the account the staging host Kura
   # serves (tuist/tuist → account 2), so the CAS/module cache routes to the
