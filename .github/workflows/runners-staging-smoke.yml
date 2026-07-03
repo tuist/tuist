@@ -143,6 +143,9 @@ jobs:
           bench(["/usr/bin/python3", "-c", "pass"], 40, "spawn python3 (dyld-heavy)")
           bench(["/usr/bin/xcrun", "--find", "swift-frontend"], 40, "spawn xcrun --find       ")
           PYEOF
+          echo "VM uptime: $(uptime)"
+          echo "Spotlight: $(mdutil -a -s 2>/dev/null | tr '\n' ' ' | head -c 160)"
+          echo "mds/XProtect CPU: $(ps -Ao %cpu,comm | grep -iE 'mds|XProtect|mobileassetd|syspolicyd' | sort -rn | head -4 | tr '\n' ' | ')"
 
       - name: vmnet bulk throughput probe (host->VM over the bridge)
         run: |
@@ -257,8 +260,28 @@ jobs:
           CLEAN_DD='rm -rf "$HOME/Library/Developer/Xcode/DerivedData"'
           rc=0
           echo "== strategy=$STRATEGY runs=$HYPERFINE_RUNS =="
+          cat > /tmp/spawnbench.py <<'SPAWNEOF'
+          import subprocess, sys, time
+          label = sys.argv[1] if len(sys.argv) > 1 else "?"
+          def bench(cmd, n, name):
+              ts = []
+              for _ in range(n):
+                  t0 = time.time()
+                  subprocess.run(cmd, capture_output=True)
+                  ts.append((time.time() - t0) * 1000)
+              ts.sort()
+              print(f"  [{label}] {name}: p50={ts[n//2]:.2f}ms  p90={ts[int(n*0.9)]:.2f}  max={ts[-1]:.2f}", flush=True)
+          bench(["/usr/bin/true"], 200, "true   ")
+          bench(["/bin/ls", "/"], 100, "ls     ")
+          bench(["/usr/bin/python3", "-c", "pass"], 40, "python3")
+          SPAWNEOF
+          spawnprobe() {
+            echo "== spawn probe [$1]  (uptime: $(uptime | sed 's/.*up/up/;s/,.*//')) =="
+            python3 /tmp/spawnbench.py "$1" || true
+          }
           case "$STRATEGY" in
             xcode-cache)
+              spawnprobe "bench-start"
               # Confirmation lever: re-inject the logged-in token as TUIST_TOKEN so
               # the CAS daemon's environmentToken() short-circuits the per-op keychain
               # read (the suspected ~340ms/op client-side cost). Must be exported
@@ -308,7 +331,8 @@ jobs:
                 echo "-- top auth/keychain symbols --"; { grep -iE 'SecItem|keychain|authenticationToken|ServerCredentials|CachedValue|Authentication' /tmp/daemon.sample | sed 's/^ *[0-9]* *//' | sort | uniq -c | sort -rn | head -8; } 2>/dev/null || true
               fi
               hyperfine --warmup 1 --runs "$HYPERFINE_RUNS" --export-json result.json --show-output \
-                --setup "$BUILD_CAS" --prepare "$CLEAN_DD" "$BUILD_CAS" || rc=$? ;;
+                --setup "$BUILD_CAS" --prepare "$CLEAN_DD" "$BUILD_CAS" || rc=$?
+              spawnprobe "bench-end" ;;
             xcode-cache-probe)
               # In-VM decomposition: WHILE the real cached build saturates the VM,
               # measure the same host-Kura CAS fetch two ways side by side:
