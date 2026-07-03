@@ -1047,18 +1047,28 @@ public struct PackageInfoMapper: PackageInfoMapping {
                 project: .list([.glob(.path("\(targetPath.pathString)/\(headersGlob)"), excluding: excluding)])
             )
         case let .directory(_, publicHeadersPath):
-            let publicHeaders = try await frameworkPublicHeaders(
+            let frameworkHeaders = try await frameworkPublicHeaders(
                 publicHeadersPath: publicHeadersPath,
                 targetPath: targetPath,
                 excluding: target.exclude,
                 moduleName: moduleName
             )
             return .headers(
-                public: publicHeaders,
-                project: .list([.glob(.path("\(targetPath.pathString)/\(headersGlob)"), excluding: excluding)]),
+                public: frameworkHeaders.public,
+                project: .list([
+                    .glob(
+                        .path("\(targetPath.pathString)/\(headersGlob)"),
+                        excluding: excluding + frameworkHeaders.shadowedPublicHeaderExclusions
+                    ),
+                ]),
                 exclusionRule: .projectExcludesPrivateAndPublic
             )
         }
+    }
+
+    private struct FrameworkPublicHeaders {
+        let `public`: ProjectDescription.FileList?
+        let shadowedPublicHeaderExclusions: [ProjectDescription.Path]
     }
 
     private func frameworkPublicHeaders(
@@ -1066,7 +1076,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
         targetPath: AbsolutePath,
         excluding: [String],
         moduleName: String?
-    ) async throws -> ProjectDescription.FileList? {
+    ) async throws -> FrameworkPublicHeaders {
         let headerExtensions = "h,hh,hpp,h++,hp,hxx,H,ipp,def"
         let excludedPaths = try excluding.map {
             targetPath.appending(try RelativePath(validating: $0))
@@ -1092,9 +1102,16 @@ public struct PackageInfoMapper: PackageInfoMapping {
             moduleName: moduleName
         )
 
-        guard !frameworkHeaders.isEmpty else { return nil }
+        let frameworkHeaderSet = Set(frameworkHeaders)
+        let shadowedPublicHeaderExclusions = headers
+            .filter { !frameworkHeaderSet.contains($0) }
+            .sorted()
+            .map { ProjectDescription.Path.path($0.pathString) }
 
-        return .list(frameworkHeaders.map { .glob(.path($0.pathString)) })
+        return FrameworkPublicHeaders(
+            public: frameworkHeaders.isEmpty ? nil : .list(frameworkHeaders.map { .glob(.path($0.pathString)) }),
+            shadowedPublicHeaderExclusions: shadowedPublicHeaderExclusions
+        )
     }
 
     private func uniqueFrameworkPublicHeaders(
