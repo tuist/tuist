@@ -537,7 +537,7 @@
         func save_skips_compression_and_upload_when_circuit_open() async throws {
             // Given: an already-open breaker (remote cache unavailable).
             let breaker = CASCircuitBreaker(failureThreshold: 1)
-            await breaker.recordFailure()
+            await breaker.recordFailure(try #require(await breaker.attempt()))
             #expect(await breaker.isOpen)
 
             let subject = CASService(

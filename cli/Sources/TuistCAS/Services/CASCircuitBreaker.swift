@@ -4,6 +4,14 @@
     import TuistCache
     import TuistLogging
 
+    /// A token for one remote attempt, tied to the breaker generation that was
+    /// current when the attempt began. Results from a superseded generation (a
+    /// request that was already in flight when the breaker opened) are ignored, so a
+    /// late straggler cannot flip the breaker state.
+    public struct CASAttempt: Sendable {
+        fileprivate let generation: Int
+    }
+
     /// A per-process circuit breaker for the remote CAS backend.
     ///
     /// A build issues thousands of CAS load/save calls, many concurrently. When
@@ -19,6 +27,12 @@
     /// miss (the compiler builds locally) and a short-circuited save skips the
     /// upload (the artifact is already built locally). The breaker only decides
     /// *when to stop asking* a backend that is already answering with failures.
+    ///
+    /// Every attempt is scoped to a generation. Opening the breaker bumps the
+    /// generation, so results from requests that were already in flight at that
+    /// moment are discarded rather than allowed to close it — otherwise, with many
+    /// concurrent requests, one late hit could re-enable the remote before the
+    /// cooldown and defeat the "trip once, short-circuit the rest" guarantee.
     public actor CASCircuitBreaker {
         private enum State {
             case closed
@@ -32,6 +46,7 @@
         private var state: State = .closed
         private var consecutiveFailures = 0
         private var probeInFlight = false
+        private var generation = 0
 
         /// - Parameters:
         ///   - failureThreshold: consecutive failures before the breaker opens.
@@ -49,32 +64,35 @@
             self.now = now
         }
 
-        /// Whether a remote attempt should be made now. When the breaker is open
-        /// and the cooldown has not elapsed it returns `false` so the caller skips
-        /// the remote and falls back locally. When the cooldown elapses it allows a
-        /// single probe (half-open) and blocks other callers until that probe
-        /// resolves, so a recovering backend is not stampeded.
-        public func shouldAttempt() -> Bool {
+        /// Begins a remote attempt, returning a token when one is allowed and `nil`
+        /// when the breaker is open (the caller then skips the remote and falls back
+        /// locally). When the cooldown elapses it allows a single probe (half-open)
+        /// and blocks other callers until that probe resolves, so a recovering
+        /// backend is not stampeded. Callers must feed the token back into exactly
+        /// one of `recordSuccess`, `recordFailure`, or `release`.
+        public func attempt() -> CASAttempt? {
             switch state {
             case .closed:
-                return true
+                return CASAttempt(generation: generation)
             case .halfOpen:
-                if probeInFlight { return false }
+                if probeInFlight { return nil }
                 probeInFlight = true
-                return true
+                return CASAttempt(generation: generation)
             case let .open(until):
                 if now() >= until {
                     state = .halfOpen
                     probeInFlight = true
-                    return true
+                    return CASAttempt(generation: generation)
                 }
-                return false
+                return nil
             }
         }
 
-        /// Records a reachable backend (a hit or a miss both count): resets the
-        /// failure run and closes the breaker.
-        public func recordSuccess() {
+        /// Records a reachable backend for this attempt (a hit or a miss both
+        /// count): resets the failure run and closes the breaker. A stale result
+        /// (from a superseded generation) is ignored.
+        public func recordSuccess(_ attempt: CASAttempt) {
+            guard attempt.generation == generation else { return }
             let wasClosed = isClosed
             consecutiveFailures = 0
             probeInFlight = false
@@ -84,10 +102,12 @@
             }
         }
 
-        /// Records an unavailable backend (5xx / timeout / connection / auth error).
-        /// Trips the breaker once `failureThreshold` consecutive failures accumulate,
-        /// or immediately re-opens if a half-open probe failed.
-        public func recordFailure() {
+        /// Records an unavailable backend for this attempt (5xx / timeout /
+        /// connection / auth error). Trips the breaker once `failureThreshold`
+        /// consecutive failures accumulate, or immediately re-opens if a half-open
+        /// probe failed. A stale result (from a superseded generation) is ignored.
+        public func recordFailure(_ attempt: CASAttempt) {
+            guard attempt.generation == generation else { return }
             probeInFlight = false
             consecutiveFailures += 1
             switch state {
@@ -102,8 +122,17 @@
             }
         }
 
+        /// Releases an attempt that was abandoned before reaching the backend (e.g.
+        /// a local error), freeing a half-open probe slot without recording a
+        /// backend-health outcome.
+        public func release(_ attempt: CASAttempt) {
+            guard attempt.generation == generation else { return }
+            probeInFlight = false
+        }
+
         /// Whether the breaker is currently blocking remote attempts. Exposed for
-        /// tests and diagnostics.
+        /// tests and diagnostics; gating goes through `attempt()`, which also
+        /// advances an elapsed cooldown.
         public var isOpen: Bool {
             if case .open = state { return true }
             return false
@@ -116,6 +145,7 @@
 
         private func open() {
             let alreadyOpen = !isClosed
+            generation += 1
             state = .open(until: now().addingTimeInterval(cooldown))
             if !alreadyOpen {
                 Logger.current.warning(

@@ -91,7 +91,7 @@
 
             Logger.current.debug("CAS.load starting - casID: \(casID)")
 
-            guard await circuitBreaker.shouldAttempt() else {
+            guard let attempt = await circuitBreaker.attempt() else {
                 Logger.current.debug("CAS.load skipping remote cache (circuit open) - casID: \(casID)")
                 response.outcome = .error
                 var responseError = CompilationCacheService_Cas_V1_ResponseError()
@@ -112,7 +112,7 @@
                     serverAuthenticationController: serverAuthenticationController
                 )
                 let transferDuration = ProcessInfo.processInfo.systemUptime - fetchStart
-                await circuitBreaker.recordSuccess()
+                await circuitBreaker.recordSuccess(attempt)
 
                 let decompressedData: Data
                 let codecDuration: TimeInterval
@@ -155,9 +155,9 @@
                     )
             } catch {
                 if casErrorIsBackendHealthy(error) {
-                    await circuitBreaker.recordSuccess()
+                    await circuitBreaker.recordSuccess(attempt)
                 } else {
-                    await circuitBreaker.recordFailure()
+                    await circuitBreaker.recordFailure(attempt)
                 }
                 response.outcome = .error
                 var responseError = CompilationCacheService_Cas_V1_ResponseError()
@@ -226,7 +226,12 @@
                 return response
             }
 
-            if await circuitBreaker.isOpen {
+            // Claim an attempt before compressing: when the circuit is open (remote
+            // cache unavailable) the artifact is already built locally, so skip both
+            // the expensive compression and the upload. `attempt()` also advances an
+            // elapsed cooldown, so a save-only workload re-probes and recovers rather
+            // than skipping uploads forever, and in half-open it gates to one probe.
+            guard let attempt = await circuitBreaker.attempt() else {
                 Logger.current.debug("CAS.save skipping upload (circuit open) for fingerprint: \(fingerprint)")
                 response.casID = message
                 response.contents = .casID(message)
@@ -240,6 +245,8 @@
                 compressedData = try await dataCompressingService.compress(data)
                 codecDuration = ProcessInfo.processInfo.systemUptime - compressStart
             } catch {
+                // Never reached the backend: release the (possibly half-open) probe.
+                await circuitBreaker.release(attempt)
                 Logger.current.error("CAS.save failed to compress data: \(error)")
                 var responseError = CompilationCacheService_Cas_V1_ResponseError()
                 responseError.description_p = "Failed to compress data: \(error.localizedDescription)"
@@ -253,15 +260,6 @@
                     "CAS.save computed fingerprint: \(fingerprint), original size: \(data.count) bytes, compressed size: \(compressedData.count) bytes"
                 )
 
-            // Claim the (possibly half-open) probe slot right before the upload, so a
-            // recovering backend is exercised by exactly one artifact.
-            guard await circuitBreaker.shouldAttempt() else {
-                Logger.current.debug("CAS.save skipping upload (circuit open) for fingerprint: \(fingerprint)")
-                response.casID = message
-                response.contents = .casID(message)
-                return response
-            }
-
             do {
                 let cacheURL = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
                 let uploadStart = ProcessInfo.processInfo.systemUptime
@@ -274,7 +272,7 @@
                     serverAuthenticationController: serverAuthenticationController
                 )
                 let transferDuration = ProcessInfo.processInfo.systemUptime - uploadStart
-                await circuitBreaker.recordSuccess()
+                await circuitBreaker.recordSuccess(attempt)
                 response.casID = message
                 response.contents = .casID(message)
 
@@ -294,9 +292,9 @@
                     )
             } catch {
                 if casErrorIsBackendHealthy(error) {
-                    await circuitBreaker.recordSuccess()
+                    await circuitBreaker.recordSuccess(attempt)
                 } else {
-                    await circuitBreaker.recordFailure()
+                    await circuitBreaker.recordFailure(attempt)
                 }
                 var responseError = CompilationCacheService_Cas_V1_ResponseError()
                 responseError.description_p = error.userFriendlyDescription()
