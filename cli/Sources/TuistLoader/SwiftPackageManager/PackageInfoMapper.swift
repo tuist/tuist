@@ -753,9 +753,11 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
         let targetPath = try await target.basePath(packageFolder: packageFolder)
 
+        let moduleMapModuleName: String?
         let moduleMap: ModuleMap?
         switch target.type {
         case .system:
+            moduleMapModuleName = nil
             // System library targets assume the module map is located at the source directory root
             // https://github.com/apple/swift-package-manager/blob/main/Sources/PackageLoading/ModuleMapGenerator.swift
             let packagePath = try await target.basePath(packageFolder: path)
@@ -771,9 +773,10 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
             moduleMap = ModuleMap.custom(moduleMapPath, umbrellaHeaderPath: nil)
         case .regular, .test:
-            let moduleName = PackageInfoMapper.effectiveModuleName(
+            let resolvedModuleName = PackageInfoMapper.effectiveModuleName(
                 targetName: target.name, products: products, targetsByName: targetsByName
             )
+            moduleMapModuleName = resolvedModuleName
             let swiftPackageManagerScratchDirectory: AbsolutePath? = if packageType.isRemoteExternal {
                 SwiftPackageManagerPaths.scratchDirectory(containingCheckout: path)
             } else {
@@ -781,11 +784,12 @@ public struct PackageInfoMapper: PackageInfoMapping {
             }
             moduleMap = try await moduleMapGenerator.generate(
                 packageDirectory: path,
-                moduleName: moduleName,
+                moduleName: resolvedModuleName,
                 publicHeadersPath: target.publicHeadersPath(packageFolder: path),
                 swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory
             )
         default:
+            moduleMapModuleName = nil
             moduleMap = nil
         }
 
@@ -830,8 +834,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
             headers = try await discoveredHeaders(
                 for: target,
                 moduleMap: moduleMap,
-                targetPath: targetPath,
-                packageFolder: path
+                moduleName: moduleMapModuleName,
+                targetPath: targetPath
             )
         }
 
@@ -1020,8 +1024,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
     private func discoveredHeaders(
         for target: PackageInfo.Target,
         moduleMap: ModuleMap?,
-        targetPath: AbsolutePath,
-        packageFolder: AbsolutePath
+        moduleName: String?,
+        targetPath: AbsolutePath
     ) async throws -> ProjectDescription.Headers? {
         guard let moduleMap else { return nil }
 
@@ -1042,14 +1046,87 @@ public struct PackageInfoMapper: PackageInfoMapping {
             return .headers(
                 project: .list([.glob(.path("\(targetPath.pathString)/\(headersGlob)"), excluding: excluding)])
             )
-        case .directory:
-            let publicHeadersPath = try await target.publicHeadersPath(packageFolder: packageFolder)
+        case let .directory(_, publicHeadersPath):
+            let publicHeaders = try await frameworkPublicHeaders(
+                publicHeadersPath: publicHeadersPath,
+                targetPath: targetPath,
+                excluding: target.exclude,
+                moduleName: moduleName
+            )
             return .headers(
-                public: .list([.glob(.path("\(publicHeadersPath.pathString)/\(headersGlob)"), excluding: excluding)]),
+                public: publicHeaders,
                 project: .list([.glob(.path("\(targetPath.pathString)/\(headersGlob)"), excluding: excluding)]),
                 exclusionRule: .projectExcludesPrivateAndPublic
             )
         }
+    }
+
+    private func frameworkPublicHeaders(
+        publicHeadersPath: AbsolutePath,
+        targetPath: AbsolutePath,
+        excluding: [String],
+        moduleName: String?
+    ) async throws -> ProjectDescription.FileList? {
+        let headerExtensions = "h,hh,hpp,h++,hp,hxx,H,ipp,def"
+        let excludedPaths = try excluding.map {
+            targetPath.appending(try RelativePath(validating: $0))
+        }
+
+        let headers = try await fileSystem
+            .glob(directory: publicHeadersPath, include: ["**/*.{\(headerExtensions)}", "*.{\(headerExtensions)}"])
+            .collect()
+            .uniqued()
+            .filter { header in
+                excludedPaths.allSatisfy { excludedPath in
+                    if excludedPath.extension == nil {
+                        !header.isDescendantOfOrEqual(to: excludedPath)
+                    } else {
+                        header != excludedPath
+                    }
+                }
+            }
+
+        let frameworkHeaders = uniqueFrameworkPublicHeaders(
+            headers,
+            publicHeadersPath: publicHeadersPath,
+            moduleName: moduleName
+        )
+
+        guard !frameworkHeaders.isEmpty else { return nil }
+
+        return .list(frameworkHeaders.map { .glob(.path($0.pathString)) })
+    }
+
+    private func uniqueFrameworkPublicHeaders(
+        _ headers: [AbsolutePath],
+        publicHeadersPath: AbsolutePath,
+        moduleName: String?
+    ) -> [AbsolutePath] {
+        let moduleDirectory = moduleName.map { publicHeadersPath.appending(component: $0.sanitizedModuleName) }
+
+        return Dictionary(grouping: headers, by: \.basename)
+            .values
+            .compactMap { headers in
+                headers.sorted { lhs, rhs in
+                    if let moduleDirectory {
+                        let lhsIsModuleNested = lhs.isDescendant(of: moduleDirectory)
+                        let rhsIsModuleNested = rhs.isDescendant(of: moduleDirectory)
+                        if lhsIsModuleNested != rhsIsModuleNested {
+                            return lhsIsModuleNested
+                        }
+                    }
+
+                    let lhsDepth = lhs.relative(to: publicHeadersPath).components.count
+                    let rhsDepth = rhs.relative(to: publicHeadersPath).components.count
+                    if lhsDepth != rhsDepth {
+                        return lhsDepth > rhsDepth
+                    }
+
+                    return lhs.pathString < rhs.pathString
+                }
+                .first
+            }
+            .sorted()
     }
 
     private func prebuiltDependency(
