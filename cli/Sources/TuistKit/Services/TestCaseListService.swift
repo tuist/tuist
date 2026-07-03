@@ -11,7 +11,7 @@ protocol TestCaseListServicing {
     /// Throws on network, decoding, or `TestIdentifier` construction
     /// errors — call sites decide how to react (warn the user and fall
     /// back to running all tests, or surface the error directly).
-    func listTestCases(
+    func listAllTestCases(
         fullHandle: String,
         serverURL: URL,
         state: Operations.listTestCases.Input.Query.statePayload
@@ -27,7 +27,7 @@ struct TestCaseListService: TestCaseListServicing {
         self.listTestCasesService = listTestCasesService
     }
 
-    func listTestCases(
+    func listAllTestCases(
         fullHandle: String,
         serverURL: URL,
         state: Operations.listTestCases.Input.Query.statePayload

@@ -20,7 +20,7 @@ struct TestCaseListServiceTests {
     }
 
     @Test(.withMockedDependencies())
-    func listTestCases_propagatesFetchErrors() async throws {
+    func listAllTestCases_propagatesFetchErrors() async throws {
         let underlying = NSError(domain: "test", code: 500)
         given(listTestCasesService)
             .listTestCases(
@@ -30,14 +30,14 @@ struct TestCaseListServiceTests {
             .willThrow(underlying)
 
         await #expect(throws: NSError.self) {
-            _ = try await subject.listTestCases(
+            _ = try await subject.listAllTestCases(
                 fullHandle: fullHandle, serverURL: serverURL, state: .muted
             )
         }
     }
 
     @Test(.withMockedDependencies())
-    func listTestCases_passesStateFilterThrough_andMapsToIdentifiers() async throws {
+    func listAllTestCases_passesStateFilterThrough_andMapsToIdentifiers() async throws {
         let mutedResponse = Operations.listTestCases.Output.Ok.Body.jsonPayload(
             pagination_metadata: .init(
                 current_page: 1, has_next_page: false, has_previous_page: false,
@@ -67,7 +67,7 @@ struct TestCaseListServiceTests {
             )
             .willReturn(mutedResponse)
 
-        let result = try await subject.listTestCases(
+        let result = try await subject.listAllTestCases(
             fullHandle: fullHandle, serverURL: serverURL, state: .muted
         )
 
@@ -78,7 +78,7 @@ struct TestCaseListServiceTests {
     }
 
     @Test(.withMockedDependencies())
-    func listTestCases_paginatesThroughAllPages() async throws {
+    func listAllTestCases_paginatesThroughAllPages() async throws {
         let page1Response = Operations.listTestCases.Output.Ok.Body.jsonPayload(
             pagination_metadata: .init(
                 current_page: 1, has_next_page: true, has_previous_page: false,
@@ -141,7 +141,7 @@ struct TestCaseListServiceTests {
             )
             .willReturn(page2Response)
 
-        let result = try await subject.listTestCases(
+        let result = try await subject.listAllTestCases(
             fullHandle: fullHandle, serverURL: serverURL, state: .skipped
         )
 

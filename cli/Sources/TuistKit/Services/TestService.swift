@@ -611,10 +611,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return ([], [])
         }
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-        async let mutedTask = testCaseListService.listTestCases(
+        async let mutedTask = testCaseListService.listAllTestCases(
             fullHandle: fullHandle, serverURL: serverURL, state: .muted
         )
-        async let skippedTask = testCaseListService.listTestCases(
+        async let skippedTask = testCaseListService.listAllTestCases(
             fullHandle: fullHandle, serverURL: serverURL, state: .skipped
         )
         let muted: [TestIdentifier]
