@@ -28,7 +28,8 @@ defmodule TuistWeb.API.Schemas.PaginationMetadata do
       },
       total_count: %Schema{
         type: :integer,
-        description: "Total number of items."
+        nullable: true,
+        description: "Total number of items. Always `nil` when using cursor-based pagination."
       },
       total_pages: %Schema{
         type: :integer,
@@ -47,6 +48,6 @@ defmodule TuistWeb.API.Schemas.PaginationMetadata do
           "Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination."
       }
     },
-    required: [:has_next_page, :has_previous_page, :page_size, :total_count]
+    required: [:has_next_page, :has_previous_page, :page_size]
   })
 end

@@ -61,12 +61,12 @@ defmodule TuistWeb.API.GenerationsController do
       ],
       page: [
         in: :query,
+        deprecated: true,
         type: %Schema{
           title: "GenerationsIndexPage",
           description:
-            "The page number to return. Page-based pagination reads every preceding row, so it degrades on deep pages; prefer the cursor parameters (`after`/`before`) for iterating large result sets.",
+            "Deprecated and ignored. Offset pagination has been removed in favor of cursor pagination; use `after`/`before`. This parameter is still accepted so older clients degrade gracefully instead of erroring.",
           type: :integer,
-          default: 1,
           minimum: 1
         }
       ],
@@ -75,7 +75,7 @@ defmodule TuistWeb.API.GenerationsController do
         type: %Schema{
           title: "GenerationsIndexAfter",
           description:
-            "Cursor for forward pagination. Pass the `end_cursor` from a previous response to fetch the next page. Takes precedence over `page`.",
+            "Cursor for forward pagination. Pass the `end_cursor` from a previous response to fetch the next (older) page. Omit both `after` and `before` to fetch the first page.",
           type: :string
         }
       ],
@@ -84,7 +84,7 @@ defmodule TuistWeb.API.GenerationsController do
         type: %Schema{
           title: "GenerationsIndexBefore",
           description:
-            "Cursor for backward pagination. Pass the `start_cursor` from a previous response to fetch the previous page. Takes precedence over `page`.",
+            "Cursor for backward pagination. Pass the `start_cursor` from a previous response to fetch the previous (newer) page.",
           type: :string
         }
       ]
@@ -155,21 +155,22 @@ defmodule TuistWeb.API.GenerationsController do
     }
   )
 
-  def index(
-        %{assigns: %{selected_project: selected_project}, params: %{page_size: page_size, page: page} = params} = conn,
-        _params
-      ) do
+  def index(%{assigns: %{selected_project: selected_project}, params: %{page_size: page_size} = params} = conn, _params) do
     filters =
       [
         %{field: :project_id, op: :==, value: selected_project.id},
         %{field: :name, op: :==, value: "generate"}
       ] ++ filters_from_params(params)
 
+    # Cursor (keyset) pagination only. Offset pagination let a client scan
+    # millions of rows by requesting a high page number; a cursor seek reads
+    # one page regardless of how far it has walked. Omitting both cursors
+    # returns the first page (`first`), which also seeds forward iteration.
     pagination =
-      cond do
-        not is_nil(Map.get(params, :before)) -> %{last: page_size, before: params.before}
-        not is_nil(Map.get(params, :after)) -> %{first: page_size, after: params.after}
-        true -> %{page: page, page_size: page_size}
+      if is_nil(Map.get(params, :before)) do
+        %{first: page_size, after: Map.get(params, :after)}
+      else
+        %{last: page_size, before: params.before}
       end
 
     {command_events, meta} =
@@ -181,9 +182,6 @@ defmodule TuistWeb.API.GenerationsController do
         })
       )
 
-    # Emit cursors on every response — including the default page-based one — so
-    # a client can seed forward iteration (`after`) from any page instead of
-    # deep-offset paging, which rescans every preceding row.
     {start_cursor, end_cursor} = Flop.Cursor.get_cursors(command_events, [:ran_at])
 
     json(conn, %{

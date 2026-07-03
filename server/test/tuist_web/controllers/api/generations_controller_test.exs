@@ -63,10 +63,17 @@ defmodule TuistWeb.API.GenerationsControllerTest do
 
       assert %{
                "generations" => [],
-               "pagination_metadata" => %{
-                 "total_count" => 0
-               }
+               "pagination_metadata" => metadata
              } = json_response(conn, 200)
+
+      # Cursor-only pagination: no offset metadata, and no rows to derive cursors from.
+      assert metadata["total_count"] == nil
+      assert metadata["current_page"] == nil
+      assert metadata["total_pages"] == nil
+      assert metadata["start_cursor"] == nil
+      assert metadata["end_cursor"] == nil
+      assert metadata["has_next_page"] == false
+      assert metadata["has_previous_page"] == false
     end
 
     test "filters by git_branch", %{conn: conn, user: user, project: project} do
@@ -109,7 +116,15 @@ defmodule TuistWeb.API.GenerationsControllerTest do
 
       first_page_ids = Enum.map(first_page, & &1["id"])
       assert first_page_ids == Enum.take(expected_ids, 2)
+
+      # The default (cursorless) request returns the first page with a usable
+      # end_cursor and none of the offset metadata.
       assert is_binary(first_metadata["end_cursor"])
+      assert first_metadata["total_count"] == nil
+      assert first_metadata["current_page"] == nil
+      assert first_metadata["total_pages"] == nil
+      assert first_metadata["has_next_page"] == true
+      assert first_metadata["has_previous_page"] == false
 
       end_cursor = first_metadata["end_cursor"]
 
@@ -174,46 +189,28 @@ defmodule TuistWeb.API.GenerationsControllerTest do
       assert third_metadata["current_page"] == nil
     end
 
-    test "page-based pagination keeps page metadata and now also emits cursors", %{
-      conn: conn,
-      user: user,
-      project: project
-    } do
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        name: "generate",
-        user_id: user.id
-      )
+    test "ignores a legacy offset page param and returns the first page", %{conn: conn, user: user, project: project} do
+      expected_ids = create_ordered_generations(user, project)
 
+      # A stale client still sending ?page=N must degrade gracefully: the unknown
+      # offset param is ignored and the first (cursor) page is returned with 200,
+      # not a 400.
       conn =
         conn
         |> Authentication.put_current_user(user)
-        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/generations?page=1&page_size=20")
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/generations?page=99&page_size=2")
 
       assert %{
-               "generations" => [_generation],
+               "generations" => generations,
                "pagination_metadata" => metadata
              } = json_response(conn, 200)
 
-      assert metadata["current_page"] == 1
-      assert metadata["total_count"] == 1
-      assert is_binary(metadata["start_cursor"])
+      assert Enum.map(generations, & &1["id"]) == Enum.take(expected_ids, 2)
+      assert metadata["current_page"] == nil
+      assert metadata["total_count"] == nil
+      assert metadata["total_pages"] == nil
       assert is_binary(metadata["end_cursor"])
-    end
-
-    test "returns nil cursors when the page is empty", %{conn: conn, user: user, project: project} do
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
-        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/generations")
-
-      assert %{
-               "generations" => [],
-               "pagination_metadata" => metadata
-             } = json_response(conn, 200)
-
-      assert metadata["start_cursor"] == nil
-      assert metadata["end_cursor"] == nil
+      assert metadata["has_previous_page"] == false
     end
   end
 
