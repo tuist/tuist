@@ -172,6 +172,7 @@ struct CacheRemoteStorageTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let frameworkPath = temporaryDirectory.appending(component: "target.framework")
         try await fileSystem.makeDirectory(at: frameworkPath)
+        try await fileSystem.touch(frameworkPath.appending(component: "target"))
         let zipPath = try await makeArchive(paths: [frameworkPath], name: "test")
 
         let serverCacheArtifact = ServerCacheArtifact.test()
@@ -277,9 +278,11 @@ struct CacheRemoteStorageTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let frameworkOnePath = temporaryDirectory.appending(components: "frameworkOne.framework")
         try await fileSystem.makeDirectory(at: frameworkOnePath)
+        try await fileSystem.touch(frameworkOnePath.appending(component: "frameworkOne"))
         let zipPathOne = try await makeArchive(paths: [frameworkOnePath], name: "test-one")
         let frameworkTwoPath = temporaryDirectory.appending(component: "frameworkTwo.framework")
         try await fileSystem.makeDirectory(at: frameworkTwoPath)
+        try await fileSystem.touch(frameworkTwoPath.appending(component: "frameworkTwo"))
         let zipPathTwo = try await makeArchive(paths: [frameworkTwoPath], name: "test-two")
 
         let serverCacheArtifactOne = ServerCacheArtifact.test(
@@ -342,6 +345,7 @@ struct CacheRemoteStorageTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let bundlePath = temporaryDirectory.appending(component: "target.bundle")
         try await fileSystem.makeDirectory(at: bundlePath)
+        try await fileSystem.touch(bundlePath.appending(component: "Info.plist"))
         let zipPath = try await makeArchive(paths: [bundlePath], name: "test")
 
         let serverCacheArtifact = ServerCacheArtifact.test()
@@ -375,6 +379,7 @@ struct CacheRemoteStorageTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcframeworkPath = temporaryDirectory.appending(component: "target.xcframework")
         try await fileSystem.makeDirectory(at: xcframeworkPath)
+        try await fileSystem.touch(xcframeworkPath.appending(component: "Info.plist"))
         let zipPath = try await makeArchive(paths: [xcframeworkPath], name: "test")
 
         let serverCacheArtifact = ServerCacheArtifact.test()
