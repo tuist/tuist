@@ -1,0 +1,124 @@
+name: Namespace Mac Address Probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/tuist-cache-mac-address-verification
+
+jobs:
+  probe:
+    name: Probe Namespace macOS address ${{ matrix.index }}
+    runs-on: namespace-profile-default-macos
+    strategy:
+      fail-fast: false
+      matrix:
+        index: [1, 2, 3, 4, 5, 6]
+    steps:
+      - name: Print network identity
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "RUNNER_NAME=${RUNNER_NAME:-}"
+          echo "GITHUB_RUN_ID=${GITHUB_RUN_ID:-}"
+          echo "GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-}"
+          echo "PROBE_INDEX=${{ matrix.index }}"
+          echo
+
+          echo "networksetup hardware ports"
+          networksetup -listallhardwareports || true
+          echo
+
+          echo "ifconfig en0"
+          ifconfig en0 || true
+          echo
+
+          echo "ifconfig en1"
+          ifconfig en1 || true
+          echo
+
+          cat > "$RUNNER_TEMP/tuist_media_access_control_address_probe.swift" <<'SWIFT'
+          import Foundation
+          import IOKit
+
+          struct Candidate {
+              let label: String
+              let name: String
+              let builtIn: Bool
+          }
+
+          func addressData(forName name: String, builtIn: Bool) -> Data? {
+              var iterator = io_iterator_t()
+              defer {
+                  if iterator != IO_OBJECT_NULL {
+                      IOObjectRelease(iterator)
+                  }
+              }
+
+              guard let matchingDictionary = IOBSDNameMatching(kIOMainPortDefault, 0, name),
+                    IOServiceGetMatchingServices(
+                        kIOMainPortDefault,
+                        matchingDictionary as CFDictionary,
+                        &iterator
+                    ) == KERN_SUCCESS,
+                    iterator != IO_OBJECT_NULL
+              else {
+                  return nil
+              }
+
+              var candidate = IOIteratorNext(iterator)
+              while candidate != IO_OBJECT_NULL {
+                  if let value = IORegistryEntryCreateCFProperty(
+                      candidate,
+                      "IOBuiltin" as CFString,
+                      kCFAllocatorDefault,
+                      0
+                  ) {
+                      let isBuiltIn = CFBooleanGetValue(value.takeRetainedValue() as! CFBoolean)
+                      if isBuiltIn == builtIn {
+                          let property = IORegistryEntrySearchCFProperty(
+                              candidate,
+                              kIOServicePlane,
+                              "IOMACAddress" as CFString,
+                              kCFAllocatorDefault,
+                              IOOptionBits(kIORegistryIterateRecursively | kIORegistryIterateParents)
+                          ) as? Data
+                          IOObjectRelease(candidate)
+                          return property
+                      }
+                  }
+
+                  IOObjectRelease(candidate)
+                  candidate = IOIteratorNext(iterator)
+              }
+
+              return nil
+          }
+
+          func stringRepresentation(_ data: Data) -> String {
+              data.map { String(format: "%02X", $0) }.joined(separator: ":")
+          }
+
+          let candidates = [
+              Candidate(label: "built-in en0", name: "en0", builtIn: true),
+              Candidate(label: "built-in en1", name: "en1", builtIn: true),
+              Candidate(label: "non-built-in en0", name: "en0", builtIn: false),
+          ]
+
+          for candidate in candidates {
+              if let data = addressData(forName: candidate.name, builtIn: candidate.builtIn) {
+                  print("TUIST_CANDIDATE_\(candidate.label)=\(stringRepresentation(data))")
+              } else {
+                  print("TUIST_CANDIDATE_\(candidate.label)=nil")
+              }
+          }
+
+          if let data = candidates.lazy.compactMap({ addressData(forName: $0.name, builtIn: $0.builtIn) }).first {
+              print("TUIST_SELECTED_MEDIA_ACCESS_CONTROL_ADDRESS=\(stringRepresentation(data))")
+          } else {
+              print("TUIST_SELECTED_MEDIA_ACCESS_CONTROL_ADDRESS=nil")
+          }
+          SWIFT
+
+          swift "$RUNNER_TEMP/tuist_media_access_control_address_probe.swift"
