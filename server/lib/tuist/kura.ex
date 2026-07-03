@@ -147,6 +147,12 @@ defmodule Tuist.Kura do
 
     from(s in Server,
       as: :server,
+      # Skip rows mid warm-handoff: a `:moving_in` target must warm on the
+      # source's image (matching it for mesh replication), not a newer runtime
+      # tag, and a second deployment would leave the original move deployment
+      # open to roll the promoted target back out of order. The promoted `:none`
+      # row picks the runtime bump up normally once the move completes.
+      where: s.move_phase == :none,
       where: s.status in @version_rollout_statuses,
       where: s.current_image_tag != ^image_tag,
       where: not exists(deployment_exists_query)
@@ -283,15 +289,21 @@ defmodule Tuist.Kura do
   defp deployment_cluster_id(%Regions{id: id}), do: id
 
   @doc """
-  Returns the non-destroyed servers for an account, each with its
-  deployment history preloaded newest-first so the /ops UI can link
+  Returns the non-destroyed steady-state servers for an account, one per region,
+  each with its deployment history preloaded newest-first so the UI can link
   straight to the latest deployment attempt.
+
+  Only `move_phase == :none` rows are returned: a warm handoff's transient
+  `:moving_in`/`:moving_out` instances are internal rebalancing, not something
+  the account owns or acts on, so they never surface in the dashboard. Through a
+  move the account keeps seeing exactly the one steady-state server for the
+  region (the source until the target is promoted).
   """
   def list_servers_for_account(account_id) do
     deployments_query = from(d in Deployment, order_by: [desc: d.inserted_at, desc: d.id])
 
     Server
-    |> where([s], s.account_id == ^account_id and s.status != :destroyed)
+    |> where([s], s.account_id == ^account_id and s.status != :destroyed and s.move_phase == :none)
     |> order_by([s], asc: s.region)
     |> preload(deployments: ^deployments_query)
     |> Repo.all()
@@ -779,6 +791,152 @@ defmodule Tuist.Kura do
 
   def retry_server(%Server{}, _image_tag), do: {:error, :not_retryable}
 
+  @doc """
+  Starts a warm-handoff move of a steady-state server onto `target_node`, a box
+  in the server's region.
+
+  Provisions a second `:moving_in` instance pinned to the target box; it warms
+  from the source over the account peer plane (same-account mesh discovery)
+  while the source keeps serving. The reconciler promotes the target once it has
+  caught up (`Tuist.Kura.Reconciler`): source `:none -> :moving_out`, target
+  `:moving_in -> :none`, so the account's customer host flips to the target box
+  with no cold-cache dip. The source then drains and is destroyed.
+
+  Only steady-state (`:none`, `:active`) servers in a host-network (multi-box
+  bare-metal) region can move; there is no move in a single-endpoint cloud
+  region. Returns `{:ok, moving_in_server}` or `{:error, reason}`.
+  """
+  def move_server(%Server{status: :active, move_phase: :none, region: region_id} = source, target_node)
+      when is_binary(target_node) and target_node != "" do
+    with {:ok, region} <- Regions.fetch(region_id),
+         :ok <- ensure_movable_region(region),
+         {:ok, account} <- Accounts.get_account_by_id(source.account_id),
+         :ok <- ensure_no_move_in_progress(source),
+         {:ok, ref} <- move_target_ref(account, region, source),
+         :ok <- validate_provisioner_node_ref(account, ref) do
+      insert_move_target(source, region, ref, target_node)
+    end
+  end
+
+  def move_server(%Server{}, _target_node), do: {:error, :not_movable}
+
+  # Moves only apply to multi-box bare-metal (host-network) regions; a cloud LB
+  # region is a single logical endpoint with nothing to move between.
+  defp ensure_movable_region(%Regions{provisioner_config: %{gateway: :host_network}}), do: :ok
+  defp ensure_movable_region(%Regions{}), do: {:error, :region_not_movable}
+
+  defp ensure_no_move_in_progress(%Server{account_id: account_id, region: region}) do
+    in_progress? =
+      Server
+      |> where([s], s.account_id == ^account_id and s.region == ^region)
+      |> where([s], s.move_phase != :none and s.status != :destroyed)
+      |> Repo.exists?()
+
+    if in_progress?, do: {:error, :move_in_progress}, else: :ok
+  end
+
+  # The target instance name ping-pongs between the region's deterministic base
+  # name and a `-m` suffix, so the customer host's backing instance alternates
+  # across successive moves without the name growing unbounded.
+  defp move_target_ref(account, region, %Server{provisioner_node_ref: current}) do
+    case region.provisioner.provision(account, region, %Server{}) do
+      {:ok, base} -> {:ok, if(current == base, do: base <> "-m", else: base)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp insert_move_target(%Server{} = source, region, ref, target_node) do
+    attrs = %{
+      account_id: source.account_id,
+      region: source.region,
+      provisioner_node_ref: ref,
+      move_phase: :moving_in,
+      target_node: target_node
+    }
+
+    case Repo.transaction(fn ->
+           with {:ok, target} <- attrs |> Server.create_changeset() |> Repo.insert(),
+                {:ok, _deployment} <- insert_initial_deployment(target, region, source.current_image_tag) do
+             Repo.preload(target, :deployments)
+           else
+             {:error, reason} -> Repo.rollback(reason)
+           end
+         end) do
+      {:ok, target} ->
+        broadcast_server(target, :created)
+        {:ok, target}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Promotes a caught-up `:moving_in` target so the account's customer host moves
+  to it: the source drops the host (`:none -> :moving_out`) and the target gains
+  it (`:moving_in -> :none`).
+
+  Both ownership manifests are applied FIRST — rendered at the phases they will
+  hold, so the target gains the customer host (Ingress/DNS/Certificate) and the
+  source loses it — and only once both converge is the Postgres phase swap
+  committed. A failed apply returns an error with the DB untouched, so the
+  reconciler simply retries the promotion next tick (target still `:moving_in`)
+  rather than stranding a promoted target without its host or leaving two
+  instances claiming the host. Idempotent: a crash between apply and swap
+  re-converges next tick (the applied target already serves the host).
+  Reconciler-only.
+  """
+  def promote_move(%Server{move_phase: :moving_in, region: region_id} = target) do
+    with {:ok, region} <- Regions.fetch(region_id),
+         {:ok, account} <- Accounts.get_account_by_id(target.account_id),
+         %Server{} = source <- move_source_for(target),
+         :ok <- apply_manifest(%{target | move_phase: :none, account: account}, region),
+         :ok <- apply_manifest(%{source | move_phase: :moving_out, account: account}, region),
+         {:ok, {promoted, demoted}} <- swap_move_phases(source, target) do
+      broadcast_server(promoted, :updated)
+      broadcast_server(demoted, :updated)
+      {:ok, promoted}
+    else
+      nil -> {:error, :move_source_not_found}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def promote_move(%Server{}), do: {:error, :not_moving_in}
+
+  defp swap_move_phases(source, target) do
+    Repo.transaction(fn ->
+      with {:ok, demoted} <- source |> Server.move_changeset(%{move_phase: :moving_out}) |> Repo.update(),
+           {:ok, promoted} <- target |> Server.move_changeset(%{move_phase: :none}) |> Repo.update() do
+        {promoted, demoted}
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
+  defp move_source_for(%Server{account_id: account_id, region: region}) do
+    Server
+    |> where([s], s.account_id == ^account_id and s.region == ^region)
+    |> where([s], s.move_phase == :none and s.status != :destroyed)
+    |> Repo.one()
+  end
+
+  defp apply_manifest(%Server{current_image_tag: image_tag} = server, region) do
+    image_tag = image_tag || latest_deployment_image(server)
+
+    Provisioner.rollout(server, %{image_tag: image_tag, account: server.account, server: server, region: region})
+  end
+
+  defp latest_deployment_image(%Server{id: server_id}) do
+    Deployment
+    |> where([d], d.kura_server_id == ^server_id)
+    |> order_by([d], desc: d.inserted_at, desc: d.id)
+    |> limit(1)
+    |> select([d], d.image_tag)
+    |> Repo.one()
+  end
+
   @doc "Marks a server as `:destroyed` after the reconciler observes teardown."
   def mark_destroyed(%Server{} = server) do
     {:ok, server} =
@@ -821,14 +979,27 @@ defmodule Tuist.Kura do
 
   defp remove_cache_endpoint(%Server{url: nil}), do: :ok
 
-  defp remove_cache_endpoint(%Server{account_id: account_id, url: url}) do
-    Repo.delete_all(
-      from(e in AccountCacheEndpoint,
-        where: e.account_id == ^account_id and e.technology == :kura and e.url == ^url
-      )
-    )
+  defp remove_cache_endpoint(%Server{id: id, account_id: account_id, url: url}) do
+    # During a warm handoff the draining source and the promoted target share the
+    # same deterministic customer URL. Only drop the derived endpoint when no
+    # other live server still serves it, so tearing down the source never
+    # unpublishes the URL the target now owns.
+    shared? =
+      Server
+      |> where([s], s.account_id == ^account_id and s.url == ^url and s.id != ^id and s.status != :destroyed)
+      |> Repo.exists?()
 
-    :ok
+    if shared? do
+      :ok
+    else
+      Repo.delete_all(
+        from(e in AccountCacheEndpoint,
+          where: e.account_id == ^account_id and e.technology == :kura and e.url == ^url
+        )
+      )
+
+      :ok
+    end
   end
 
   defp lock_server(id, account_id) do
