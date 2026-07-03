@@ -5,7 +5,11 @@
     <TuistWeb.Marketing.MarketingComponents.header_background />
 
     <header data-part="header">
-      <img src={~p"/marketing/images/newsletter/envelope.webp"} data-part="image" />
+      <img
+        src={~p"/marketing/images/newsletter/envelope.webp"}
+        data-part="image"
+        decoding="async"
+      />
       <h1 data-part="title">{dgettext("marketing", "Successfully Subscribed!")}</h1>
       <p data-part="description">
         {dgettext(

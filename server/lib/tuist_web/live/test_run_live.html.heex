@@ -158,8 +158,18 @@
 
   <div :if={@run.status == "processing"} data-part="processing-state">
     <div data-part="image">
-      <img src="/images/processing_build_light.png" data-theme="light" />
-      <img src="/images/processing_build_dark.png" data-theme="dark" />
+      <img
+        src={~p"/images/processing_build_light.png"}
+        data-theme="light"
+        loading="lazy"
+        decoding="async"
+      />
+      <img
+        src={~p"/images/processing_build_dark.png"}
+        data-theme="dark"
+        loading="lazy"
+        decoding="async"
+      />
     </div>
     <div data-part="labels">
       <span data-part="title">
@@ -448,8 +458,18 @@
       <.card_section :if={length(@shard_rows) > 0} data-part="shard-balance-section">
         <div :if={@run.status == "in_progress"} data-part="shards-in-progress-section">
           <div data-part="image">
-            <img src="/images/shards_in_progress_light.png" data-theme="light" />
-            <img src="/images/shards_in_progress_dark.png" data-theme="dark" />
+            <img
+              src={~p"/images/shards_in_progress_light.png"}
+              data-theme="light"
+              loading="lazy"
+              decoding="async"
+            />
+            <img
+              src={~p"/images/shards_in_progress_dark.png"}
+              data-theme="dark"
+              loading="lazy"
+              decoding="async"
+            />
           </div>
           <span data-part="title">
             {dgettext("dashboard_tests", "The shards are in progress...")}

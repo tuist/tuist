@@ -136,8 +136,18 @@
     </div>
     <div :if={@run.status == "processing"} data-part="processing-state">
       <div data-part="image">
-        <img src="/images/processing_build_light.png" data-theme="light" />
-        <img src="/images/processing_build_dark.png" data-theme="dark" />
+        <img
+          src={~p"/images/processing_build_light.png"}
+          data-theme="light"
+          loading="lazy"
+          decoding="async"
+        />
+        <img
+          src={~p"/images/processing_build_dark.png"}
+          data-theme="dark"
+          loading="lazy"
+          decoding="async"
+        />
       </div>
       <div data-part="labels">
         <span data-part="title">
@@ -765,8 +775,18 @@
               <.empty_tab_state_background />
             </div>
             <div data-part="image">
-              <img src="/images/empty_warnings_light.png" data-theme="light" />
-              <img src="/images/empty_warnings_dark.png" data-theme="dark" />
+              <img
+                src={~p"/images/empty_warnings_light.png"}
+                data-theme="light"
+                loading="lazy"
+                decoding="async"
+              />
+              <img
+                src={~p"/images/empty_warnings_dark.png"}
+                data-theme="dark"
+                loading="lazy"
+                decoding="async"
+              />
             </div>
             <span data-part="title">{dgettext("dashboard_builds", "No warnings detected")}</span>
             <span data-part="subtitle">
@@ -808,8 +828,18 @@
               <.empty_tab_state_background />
             </div>
             <div data-part="image">
-              <img src="/images/empty_errors_light.png" data-theme="light" />
-              <img src="/images/empty_errors_dark.png" data-theme="dark" />
+              <img
+                src={~p"/images/empty_errors_light.png"}
+                data-theme="light"
+                loading="lazy"
+                decoding="async"
+              />
+              <img
+                src={~p"/images/empty_errors_dark.png"}
+                data-theme="dark"
+                loading="lazy"
+                decoding="async"
+              />
             </div>
             <span data-part="title">{dgettext("dashboard_builds", "No errors detected")}</span>
             <span data-part="subtitle">
