@@ -554,10 +554,14 @@
         description={
           dgettext(
             "dashboard_cache",
-            "Invalidations across the listed modules caused only by a dependency changing — not the module's own code. This is the share that better module boundaries can remove."
+            "Share of invalidations caused only by a dependency changing rather than the module's own code (dependency-induced ÷ self + dependency-induced). This is the fraction better module boundaries can remove."
           )
         }
-        value={format_number(@module_invalidations_summary.result.total_dependency_induced)}
+        value={
+          dgettext("dashboard_cache", "%{share}%",
+            share: @module_invalidations_summary.result.dependency_induced_share
+          )
+        }
       />
       <.widget
         :if={@module_invalidations_summary.result.widest_blast_radius}

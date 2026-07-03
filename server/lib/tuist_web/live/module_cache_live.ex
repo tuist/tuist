@@ -320,12 +320,17 @@ defmodule TuistWeb.ModuleCacheLive do
 
   defp summarize_invalidations(modules) do
     with_blast_radius = Enum.filter(modules, & &1.blast_radius)
+    total_self_changes = Enum.sum(Enum.map(modules, & &1.self_changes))
+    total_dependency_induced = Enum.sum(Enum.map(modules, & &1.dependency_induced))
+    classified = total_self_changes + total_dependency_induced
 
     %{
       most_invalidated: Enum.max_by(modules, & &1.invalidations),
       widest_blast_radius: with_blast_radius != [] && Enum.max_by(with_blast_radius, & &1.blast_radius),
-      total_self_changes: Enum.sum(Enum.map(modules, & &1.self_changes)),
-      total_dependency_induced: Enum.sum(Enum.map(modules, & &1.dependency_induced))
+      total_self_changes: total_self_changes,
+      total_dependency_induced: total_dependency_induced,
+      dependency_induced_share:
+        if(classified > 0, do: Float.round(total_dependency_induced / classified * 100, 1), else: 0.0)
     }
   end
 
