@@ -431,6 +431,54 @@ jobs:
               BUILD_CAS="$BUILD_BASE $CAS"
               hyperfine --warmup 1 --runs "$HYPERFINE_RUNS" --export-json result.json \
                 --setup "$BUILD_CAS" --prepare "$CLEAN_DD" "$BUILD_CAS" || rc=$? ;;
+            xcode-cache-ramdd)
+              # Splits the warm-build residual between VM disk sync latency and
+              # everything else: identical cached build, but DerivedData lives on
+              # a 6GiB RAM disk so llbuild's per-task database commits and the
+              # output materialization skip the Tart sparse-image disk. An
+              # F_FULLFSYNC probe on the normal disk (idle vs during the build)
+              # measures sync latency directly (#11556 measured a single fsynced
+              # insert at 573ms on this disk, so slow syncs are a proven mode).
+              tuist setup cache
+              tuist install
+              tuist generate --no-binary-cache
+              CAS_SOCK=""
+              for _ in $(seq 1 20); do
+                CAS_SOCK=$(ls -t "$HOME/.local/state/tuist/"*.sock 2>/dev/null | head -1 || true)
+                [ -n "$CAS_SOCK" ] && break
+                sleep 1
+              done
+              [ -n "$CAS_SOCK" ] || { echo "::error::no CAS daemon socket after tuist setup cache"; exit 1; }
+              CAS="COMPILATION_CACHE_ENABLE_CACHING=YES COMPILATION_CACHE_ENABLE_PLUGIN=YES COMPILATION_CACHE_REMOTE_SERVICE_PATH=${CAS_SOCK}"
+              RAMDEV=$(hdiutil attach -nomount ram://12582912)
+              RAMDEV=$(echo "$RAMDEV" | tr -d '[:space:]')
+              diskutil erasevolume APFS ramdd "$RAMDEV" >/dev/null
+              RAMDD=/Volumes/ramdd/DerivedData
+              BUILD_CAS_RAM="$BUILD_BASE $CAS -derivedDataPath $RAMDD"
+              CLEAN_RAM="rm -rf $RAMDD"
+              df -h /Volumes/ramdd | tail -1
+              cat > /tmp/fsync_probe.py <<'PYEOF'
+          import fcntl, os, sys, time
+          n = int(sys.argv[1]); interval = float(sys.argv[2])
+          fd = os.open("/tmp/fsync_probe.bin", os.O_CREAT | os.O_RDWR)
+          buf = os.urandom(4096)
+          for _ in range(n):
+              t0 = time.time()
+              os.pwrite(fd, buf, 0)
+              fcntl.fcntl(fd, fcntl.F_FULLFSYNC)
+              print(f"{(time.time() - t0) * 1000:.2f}", flush=True)
+              time.sleep(interval)
+          PYEOF
+              echo "== F_FULLFSYNC on the normal VM disk, idle baseline =="
+              python3 /tmp/fsync_probe.py 20 0.1 > /tmp/fsync_idle.log 2>&1 || true
+              python3 -c "ts=sorted(float(l) for l in open('/tmp/fsync_idle.log') if l.strip()); print(f'  idle: n={len(ts)}  p50={ts[len(ts)//2]:.1f}ms  p90={ts[int(len(ts)*0.9)]:.1f}  max={ts[-1]:.1f}')" || true
+              python3 /tmp/fsync_probe.py 100000 0.5 > /tmp/fsync_build.log 2>&1 & FSPID=$!
+              hyperfine --warmup 1 --runs "$HYPERFINE_RUNS" --export-json result.json \
+                --setup "$BUILD_CAS_RAM" --prepare "$CLEAN_RAM" "$BUILD_CAS_RAM" || rc=$?
+              kill "${FSPID:-}" 2>/dev/null || true
+              echo "== F_FULLFSYNC during the cached builds =="
+              python3 -c "ts=sorted(float(l) for l in open('/tmp/fsync_build.log') if l.strip()); print(f'  build: n={len(ts)}  p50={ts[len(ts)//2]:.1f}ms  p90={ts[int(len(ts)*0.9)]:.1f}  p99={ts[int(len(ts)*0.99)]:.1f}  max={ts[-1]:.1f}')" || true
+              du -sh "$RAMDD" 2>/dev/null || true ;;
             module-cache)
               # Binary (module) cache: each run clears local binaries, re-pulls
               # them via generate, then builds the app target.
