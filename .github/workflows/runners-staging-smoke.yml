@@ -231,7 +231,7 @@ jobs:
           fi
           mise exec -- hyperfine --version
 
-      - name: Check out the fixture (tuist: public repo; mastodon: private benchmark repo)
+      - name: Check out the fixture (tuist from the public repo, mastodon from the private benchmark repo)
         env:
           FIXTURE: ${{ inputs.fixture || 'tuist' }}
           FIXTURE_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
