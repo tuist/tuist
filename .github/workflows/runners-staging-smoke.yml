@@ -121,6 +121,29 @@ jobs:
           [ "${code}" = "200" ] || { echo "::error::cache /up over the PN returned ${code}"; exit 1; }
           echo "Runner reached the Kura runner-cache over the PN."
 
+      - name: process-spawn latency probe (VM vs bare host comparison)
+        run: |
+          set -uo pipefail
+          # Same benchmark as run on the bare M2 Pro host (true 1.46ms /
+          # ls 1.60ms / python3 16.0ms): if guest spawns are several times
+          # slower, the Virtualization.framework stack is the per-task
+          # multiplier behind the warm replay's ~600ms/task overhead.
+          python3 - <<'PYEOF'
+          import subprocess, time
+          def bench(cmd, n, label):
+              ts = []
+              for _ in range(n):
+                  t0 = time.time()
+                  subprocess.run(cmd, capture_output=True)
+                  ts.append((time.time() - t0) * 1000)
+              ts.sort()
+              print(f"{label}: n={n}  p50={ts[n//2]:.2f}ms  p90={ts[int(n*0.9)]:.2f}  max={ts[-1]:.2f}", flush=True)
+          bench(["/usr/bin/true"], 200, "spawn /usr/bin/true      ")
+          bench(["/bin/ls", "/"], 100, "spawn /bin/ls            ")
+          bench(["/usr/bin/python3", "-c", "pass"], 40, "spawn python3 (dyld-heavy)")
+          bench(["/usr/bin/xcrun", "--find", "swift-frontend"], 40, "spawn xcrun --find       ")
+          PYEOF
+
       - name: vmnet bulk throughput probe (host->VM over the bridge)
         run: |
           set -uo pipefail
