@@ -216,6 +216,11 @@ jobs:
     runs-on: tuist-linux-large
     timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    # Local `mix test` compiles only the "en" locale for fast cold builds
+    # (Tuist.Environment.single_locale?/0). CI opts into the full ex_cldr/Gettext
+    # locale set so the `:locale`-tagged i18n tests run and are covered here.
+    env:
+      TUIST_DEV_ALL_LOCALES: "1"
     services:
       postgres:
         image: public.ecr.aws/docker/library/postgres:16

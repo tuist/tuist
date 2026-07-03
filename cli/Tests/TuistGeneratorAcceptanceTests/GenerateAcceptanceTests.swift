@@ -568,9 +568,14 @@ struct GenerateAcceptanceTestiOSAppWithObjCStaticFrameworkPackage {
 struct GenerateAcceptanceTestAppWithSPMCTargetHeaders {
     /// Regression coverage for the request to include SwiftPM target headers in generated projects
     /// (https://community.tuist.dev/t/988): a C-family SwiftPM target's headers must appear in the
-    /// generated project, matching how SwiftPM classifies them. Before the fix, a target with a custom
-    /// module map produced no headers at all, and nested/non-public headers were dropped, so this
-    /// assertion fails without it (red -> green).
+    /// generated project. Before the fix, a target with a custom module map produced no headers at all,
+    /// and nested/non-public headers were dropped, so this assertion fails without it (red -> green).
+    ///
+    /// The headers are surfaced as project headers rather than public ones on purpose: these targets
+    /// generate as frameworks, and copying a public header into the framework bundle re-homes the
+    /// declarations of sibling C modules that `#include <Module/Header.h>`, breaking consumers under the
+    /// `MemberImportVisibility` upcoming feature (for example swift-nio-ssl, which the Tuist project itself
+    /// depends on). See `discoveredHeaders` for the full reasoning.
     @Test(.withFixture("generated_app_with_spm_c_target_headers"), .inTemporaryDirectory)
     func app_with_spm_c_target_headers() async throws {
         let fixturePath = try fixtureDirectory()
@@ -590,9 +595,10 @@ struct GenerateAcceptanceTestAppWithSPMCTargetHeaders {
         func attributes(of name: String) -> [String] {
             headerFiles.first(where: { $0.file?.path == name })?.settings?["ATTRIBUTES"]?.arrayValue ?? []
         }
-        // Headers under the public headers directory (recursively) are public; others are project headers.
-        #expect(attributes(of: "CLib.h").contains("Public"))
-        #expect(attributes(of: "Deep.h").contains("Public"))
+        // Headers are surfaced as project headers, so none are tagged `Public` (which would copy them into
+        // the framework bundle and break sibling C shim modules).
+        #expect(!attributes(of: "CLib.h").contains("Public"))
+        #expect(!attributes(of: "Deep.h").contains("Public"))
         #expect(!attributes(of: "CLibInternal.h").contains("Public"))
     }
 }

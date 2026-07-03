@@ -62,6 +62,7 @@ mise run dev
 - `mix test test/path/to/specific_test.exs`
 - `mix test test/path/to/test_file.exs:line_number_of_test`
 - `mix test --only tag_name`
+- The `:test` env compiles only the `"en"` locale by default so a cold `_build/test` (e.g. a fresh worktree) doesn't generate ex_cldr code for all ten locales. Tests that assert other locales' formatting/normalization are tagged `:locale` and excluded by default. Run `TUIST_DEV_ALL_LOCALES=1 mix test` to compile the full locale set and include them (this is what CI does).
 
 **Code Quality**
 - `mix credo`

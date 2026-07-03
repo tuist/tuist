@@ -204,7 +204,7 @@
     />
     <.tab_menu_horizontal_item
       :if={@failures_count > 0}
-      label={dgettext("dashboard_tests", "Failures")}
+      label={dgettext("dashboard_tests", "Test Failures")}
       selected={@selected_tab == "failures"}
       patch={"?#{Query.put(@uri.query, "tab", "failures")}"}
       replace={true}
@@ -507,15 +507,43 @@
     </.card>
 
     <.card
+      :if={@run_errors != []}
+      title={dgettext("dashboard_tests", "Errors")}
+      icon="alert_triangle"
+      data-part="run-errors"
+    >
+      <.card_section data-part="run-errors-section">
+        <div data-part="errors-list">
+          <div :for={error <- @run_errors} data-part="error" class="test-error-card">
+            <div data-part="header">
+              <div data-part="icon">
+                <.alert_triangle />
+              </div>
+              <div data-part="title-and-subtitle">
+                <h3 data-part="title">
+                  {if(error.module_name != "",
+                    do: error.module_name,
+                    else: dgettext("dashboard_tests", "Run error")
+                  )}
+                </h3>
+              </div>
+            </div>
+            <span data-part="message">{error.message}</span>
+          </div>
+        </div>
+      </.card_section>
+    </.card>
+
+    <.card
       :if={@failures_count > 0}
-      title={dgettext("dashboard_tests", "Failures")}
+      title={dgettext("dashboard_tests", "Test Failures")}
       icon="alert_circle"
       data-part="failures-overview-card"
     >
       <.card_section data-part="failures-overview-card-section">
         <div data-part="header">
           <span data-part="title">
-            {dgettext("dashboard_tests", "Failures")}
+            {dgettext("dashboard_tests", "Test Failures")}
           </span>
           <span data-part="dot">
             {dgettext("dashboard_tests", "•")}
@@ -1699,14 +1727,14 @@
 
   <.card
     :if={@selected_tab == "failures"}
-    title={dgettext("dashboard_tests", "Failures")}
+    title={dgettext("dashboard_tests", "Test Failures")}
     icon="alert_circle"
     data-part="failures-card"
   >
     <.card_section data-part="failures-card-section">
       <div data-part="header">
         <span data-part="title">
-          {dgettext("dashboard_tests", "Failures")}
+          {dgettext("dashboard_tests", "Test Failures")}
         </span>
         <span data-part="dot">
           {dgettext("dashboard_tests", "•")}

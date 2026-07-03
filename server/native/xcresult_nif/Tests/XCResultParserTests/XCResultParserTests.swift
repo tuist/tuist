@@ -219,4 +219,87 @@ struct XCResultParserTests {
             #expect(try await !fileSystem.exists(projectRoot.appending(component: "xcresult-attachments")))
         }
     }
+
+    @Test
+    func parse_liftsXctestRunnerErrorsOutOfTestCasesIntoErrors() async throws {
+        // xctest emits a synthetic "xctest (<pid>) encountered an error" case
+        // when a whole target fails to load/launch. These must not become test
+        // cases (they'd inflate counts, create unbounded per-pid rows, and fire
+        // webhooks). They're lifted into `errors`, keyed by target and deduped,
+        // the run is marked failed, and real test cases are untouched.
+        let json = """
+        {
+          "testNodes": [
+            {
+              "nodeType": "Test Plan",
+              "name": "AppTests",
+              "children": [
+                {
+                  "nodeType": "Unit test bundle",
+                  "name": "AboutUserTests",
+                  "children": [
+                    {
+                      "nodeType": "Test Case",
+                      "name": "xctest (67445) encountered an error",
+                      "nodeIdentifier": "xctest (67445) encountered an error",
+                      "result": "Failed",
+                      "children": [
+                        {
+                          "nodeType": "Failure Message",
+                          "name": "Failed to create a bundle instance representing '.../AboutUserTests.xctest'. Check that the bundle exists on disk."
+                        }
+                      ]
+                    },
+                    {
+                      "nodeType": "Test Case",
+                      "name": "xctest (99999) encountered an error",
+                      "nodeIdentifier": "xctest (99999) encountered an error",
+                      "result": "Failed",
+                      "children": [
+                        {
+                          "nodeType": "Failure Message",
+                          "name": "Failed to create a bundle instance representing '.../AboutUserTests.xctest'. Check that the bundle exists on disk."
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "nodeType": "Unit test bundle",
+                  "name": "CalculatorTests",
+                  "children": [
+                    {
+                      "nodeType": "Test Case",
+                      "name": "testRealExample()",
+                      "nodeIdentifier": "CalculatorTests/testRealExample()",
+                      "result": "Passed"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+        """
+        let parser = XCResultParser(
+            commandRunner: RoutingXCResultToolStub(testResultsJSON: json, actionLogJSON: "")
+        )
+
+        let summary = try #require(
+            try await parser.parse(path: try AbsolutePath(validating: "/tmp/app.xcresult"), rootDirectory: nil)
+        )
+
+        // The two per-pid runner errors dedup to one, keyed by target.
+        #expect(summary.errors.count == 1)
+        #expect(summary.errors.first?.target == "AboutUserTests")
+        #expect(summary.errors.first?.message.contains("Failed to create a bundle instance") == true)
+
+        // They are not test cases; only the real test survives.
+        let names = summary.testCases.map(\.name)
+        #expect(names == ["testRealExample()"])
+        #expect(!names.contains { $0.contains("encountered an error") })
+
+        // Errors mark the run failed even though no real test failed.
+        #expect(summary.status == .failed)
+    }
 }

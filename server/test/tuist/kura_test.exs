@@ -335,6 +335,65 @@ defmodule Tuist.KuraTest do
     end
   end
 
+  describe "move_server/2" do
+    setup do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, source} =
+        %{account_id: account.id, region: "eu-central", provisioner_node_ref: "kura-move-source"}
+        |> Server.create_changeset()
+        |> Repo.insert()
+
+      {:ok, source} =
+        source
+        |> Server.status_changeset(%{
+          status: :active,
+          url: "https://acme-eu-central-1.kura.tuist.dev",
+          current_image_tag: "0.5.2"
+        })
+        |> Repo.update()
+
+      %{account: account, source: source}
+    end
+
+    test "provisions a moving_in target pinned to the destination box", %{source: source} do
+      assert {:ok, target} = Kura.move_server(source, "box-2")
+
+      assert target.move_phase == :moving_in
+      assert target.target_node == "box-2"
+      assert target.provisioner_node_ref != source.provisioner_node_ref
+      assert [%Deployment{image_tag: "0.5.2", kura_server_id: target_id}] = target.deployments
+      assert target_id == target.id
+
+      # The source stays the steady-state owner until the target is promoted.
+      assert Repo.get!(Server, source.id).move_phase == :none
+    end
+
+    test "rejects moving a server in a single-endpoint (cloud) region", %{account: account} do
+      {:ok, cloud} =
+        %{account_id: account.id, region: "local-controller", provisioner_node_ref: "kura-cloud-source"}
+        |> Server.create_changeset()
+        |> Repo.insert()
+
+      {:ok, cloud} =
+        cloud
+        |> Server.status_changeset(%{status: :active, url: "https://x", current_image_tag: "0.5.2"})
+        |> Repo.update()
+
+      assert {:error, :region_not_movable} = Kura.move_server(cloud, "box-2")
+    end
+
+    test "rejects a second concurrent move", %{source: source} do
+      assert {:ok, _} = Kura.move_server(source, "box-2")
+      assert {:error, :move_in_progress} = Kura.move_server(source, "box-3")
+    end
+
+    test "rejects moving a server that is not a steady-state active server", %{source: source} do
+      assert {:error, :not_movable} = Kura.move_server(%{source | status: :provisioning}, "box-2")
+    end
+  end
+
   describe "list_servers_for_account/1" do
     test "returns non-destroyed servers" do
       user = AccountsFixtures.user_fixture()
@@ -362,6 +421,27 @@ defmodule Tuist.KuraTest do
       ids = account.id |> Kura.list_servers_for_account() |> Enum.map(& &1.id)
       assert kept.id in ids
       refute gone.id in ids
+    end
+
+    test "hides transient warm-handoff move rows (customer sees one server per region)" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, source} =
+        %{account_id: account.id, region: "eu-central", provisioner_node_ref: "kura-move-source"}
+        |> Server.create_changeset()
+        |> Repo.insert()
+
+      {:ok, source} =
+        source
+        |> Server.status_changeset(%{status: :active, url: "https://x", current_image_tag: "0.5.2"})
+        |> Repo.update()
+
+      {:ok, moving_in} = Kura.move_server(source, "box-2")
+
+      ids = account.id |> Kura.list_servers_for_account() |> Enum.map(& &1.id)
+      assert source.id in ids
+      refute moving_in.id in ids
     end
   end
 
