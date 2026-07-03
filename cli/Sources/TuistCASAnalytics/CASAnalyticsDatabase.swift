@@ -2,6 +2,7 @@ import CASAnalyticsDatabase // re-exports SQLite
 import Foundation
 import Mockable
 import Path
+import Synchronization
 import TuistEnvironment
 
 public enum KeyValueOperationType: String, Codable {
@@ -18,44 +19,38 @@ public protocol CASAnalyticsDatabasing: Sendable {
         compressedSize: Int,
         transferDuration: TimeInterval,
         codecDuration: TimeInterval
-    ) throws
-    func casOutput(for key: String) throws -> CASOutputMetadata?
+    )
+    func casOutput(for key: String) async throws -> CASOutputMetadata?
 
-    func storeNode(key: String, checksum: String) throws
-    func node(for key: String) throws -> String?
+    func storeNode(key: String, checksum: String)
+    func node(for key: String) async throws -> String?
 
-    func storeKeyValueMetadata(key: String, operationType: String, duration: TimeInterval) throws
-    func keyValueMetadata(for key: String, operationType: String) throws -> KeyValueMetadata?
+    func storeKeyValueMetadata(key: String, operationType: String, duration: TimeInterval)
+    func keyValueMetadata(for key: String, operationType: String) async throws -> KeyValueMetadata?
 
-    func migrate() throws
-    func removeOldEntries(olderThan: Date) throws
+    func migrate() async throws
+    func removeOldEntries(olderThan: Date) async throws
 }
 
+/// Thin facade over an actor that owns the SQLite connection.
+///
+/// The store methods are synchronous fire-and-forget appends: rows buffer in
+/// the actor and are persisted in batched transactions. The actor runs on its
+/// own dispatch-queue executor, so SQLite work never occupies a
+/// Swift-concurrency cooperative-pool thread: the stores run once per CAS
+/// operation in the daemon, and any synchronous SQLite work there used to
+/// block a pool thread. Under a build's disk contention those blocked threads
+/// starved the daemon's fetch continuations, inflating every cache operation
+/// (~150ms/op measured on runner VMs).
 public struct CASAnalyticsDatabase: CASAnalyticsDatabasing {
     public static let databaseName = "cas_analytics.db"
 
-    private let db: Connection
-    private let writer: BufferedWriter
+    private let writer: Writer
 
     public init() throws {
-        db = try Connection(
-            Environment.current.stateDirectory.appending(component: Self.databaseName).pathString
+        writer = try Writer(
+            path: Environment.current.stateDirectory.appending(component: Self.databaseName).pathString
         )
-        db.busyTimeout = 5
-        // This database is disposable per-build analytics. Writes are buffered
-        // in memory and persisted in batched transactions from a dedicated GCD
-        // queue (see BufferedWriter): the store methods run once per CAS
-        // operation in the daemon, and any synchronous SQLite work there blocks
-        // a Swift-concurrency cooperative-pool thread. Under a build's disk
-        // contention those blocked threads starved the daemon's fetch
-        // continuations, inflating every cache operation (~150ms/op measured
-        // on runner VMs). synchronous=OFF drops the per-commit fsync
-        // (durability isn't needed here). The main db file stays current for
-        // the build-report upload via a passive WAL checkpoint after each
-        // batch flush plus a truncating checkpoint on the uploader side before
-        // it copies the file.
-        try db.execute("PRAGMA synchronous = OFF")
-        writer = BufferedWriter(db: db)
     }
 
     /// Folds the WAL into the main database file so a plain file copy of
@@ -67,34 +62,8 @@ public struct CASAnalyticsDatabase: CASAnalyticsDatabasing {
         try db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
     }
 
-    public func migrate() throws {
-        try db.execute("PRAGMA journal_mode = WAL")
-        try db.run(CASOutputsSchema.table.create(ifNotExists: true) { t in
-            t.column(CASOutputsSchema.key, primaryKey: true)
-            t.column(CASOutputsSchema.size)
-            t.column(CASOutputsSchema.duration)
-            t.column(CASOutputsSchema.compressedSize)
-            t.column(CASOutputsSchema.createdAt, defaultValue: Date())
-            t.column(CASOutputsSchema.transferDuration, defaultValue: 0)
-            t.column(CASOutputsSchema.codecDuration, defaultValue: 0)
-        })
-        for column in [CASOutputsSchema.transferDuration, CASOutputsSchema.codecDuration] {
-            try? db.run(CASOutputsSchema.table.addColumn(column, defaultValue: 0))
-        }
-
-        try db.run(NodesSchema.table.create(ifNotExists: true) { t in
-            t.column(NodesSchema.key, primaryKey: true)
-            t.column(NodesSchema.checksum)
-            t.column(NodesSchema.createdAt, defaultValue: Date())
-        })
-
-        try db.run(KeyValueMetadataSchema.table.create(ifNotExists: true) { t in
-            t.column(KeyValueMetadataSchema.key)
-            t.column(KeyValueMetadataSchema.operationType)
-            t.column(KeyValueMetadataSchema.duration)
-            t.column(KeyValueMetadataSchema.createdAt, defaultValue: Date())
-            t.primaryKey(KeyValueMetadataSchema.key, KeyValueMetadataSchema.operationType)
-        })
+    public func migrate() async throws {
+        try await writer.migrate()
     }
 
     // MARK: - CAS Outputs
@@ -106,7 +75,7 @@ public struct CASAnalyticsDatabase: CASAnalyticsDatabasing {
         compressedSize: Int,
         transferDuration: TimeInterval,
         codecDuration: TimeInterval
-    ) throws {
+    ) {
         writer.enqueue(.casOutput(
             key: key,
             size: size,
@@ -118,38 +87,23 @@ public struct CASAnalyticsDatabase: CASAnalyticsDatabasing {
         ))
     }
 
-    public func casOutput(for key: String) throws -> CASOutputMetadata? {
-        writer.flushSync()
-        guard let row = try db.pluck(
-            CASOutputsSchema.table.filter(CASOutputsSchema.key == key)
-        ) else { return nil }
-        return CASOutputMetadata(
-            size: row[CASOutputsSchema.size],
-            duration: row[CASOutputsSchema.duration],
-            compressedSize: row[CASOutputsSchema.compressedSize],
-            transferDuration: row[CASOutputsSchema.transferDuration],
-            codecDuration: row[CASOutputsSchema.codecDuration]
-        )
+    public func casOutput(for key: String) async throws -> CASOutputMetadata? {
+        try await writer.casOutput(for: key)
     }
 
     // MARK: - Nodes
 
-    public func storeNode(key: String, checksum: String) throws {
+    public func storeNode(key: String, checksum: String) {
         writer.enqueue(.node(key: key, checksum: checksum, createdAt: Date()))
     }
 
-    public func node(for key: String) throws -> String? {
-        writer.flushSync()
-        return try db.pluck(
-            NodesSchema.table
-                .select(NodesSchema.checksum)
-                .filter(NodesSchema.key == key)
-        )?[NodesSchema.checksum]
+    public func node(for key: String) async throws -> String? {
+        try await writer.node(for: key)
     }
 
     // MARK: - KeyValue Metadata
 
-    public func storeKeyValueMetadata(key: String, operationType: String, duration: TimeInterval) throws {
+    public func storeKeyValueMetadata(key: String, operationType: String, duration: TimeInterval) {
         writer.enqueue(.keyValueMetadata(
             key: key,
             operationType: operationType,
@@ -158,35 +112,30 @@ public struct CASAnalyticsDatabase: CASAnalyticsDatabasing {
         ))
     }
 
-    public func keyValueMetadata(for key: String, operationType: String) throws -> KeyValueMetadata? {
-        writer.flushSync()
-        guard let row = try db.pluck(
-            KeyValueMetadataSchema.table
-                .filter(KeyValueMetadataSchema.key == key && KeyValueMetadataSchema.operationType == operationType)
-        ) else { return nil }
-        return KeyValueMetadata(duration: row[KeyValueMetadataSchema.duration])
+    public func keyValueMetadata(for key: String, operationType: String) async throws -> KeyValueMetadata? {
+        try await writer.keyValueMetadata(for: key, operationType: operationType)
     }
 
     // MARK: - Maintenance
 
-    public func removeOldEntries(olderThan date: Date) throws {
-        writer.flushSync()
-        try db.run(CASOutputsSchema.table.filter(CASOutputsSchema.createdAt < date).delete())
-        try db.run(NodesSchema.table.filter(NodesSchema.createdAt < date).delete())
-        try db.run(KeyValueMetadataSchema.table.filter(KeyValueMetadataSchema.createdAt < date).delete())
+    public func removeOldEntries(olderThan date: Date) async throws {
+        try await writer.removeOldEntries(olderThan: date)
     }
 }
 
-// MARK: - BufferedWriter
+// MARK: - Writer
 
-/// Buffers analytics rows in memory and persists them in batched transactions
-/// from a dedicated GCD queue, so the store methods never do SQLite work on
-/// the caller's thread (and never block a cooperative-pool thread). A periodic
-/// flush bounds how stale the on-disk database can get, and a passive WAL
-/// checkpoint after each flush keeps the main db file current for the
-/// build-report upload's plain file copy.
-private final class BufferedWriter: @unchecked Sendable {
-    enum Row {
+/// Owns the SQLite connection and buffers analytics rows, persisting them in
+/// batched transactions. The actor's jobs run on a dedicated dispatch-queue
+/// executor, so a stalled write (contended disk) never occupies a
+/// cooperative-pool thread; `enqueue` is nonisolated fire-and-forget so the
+/// recording side never waits either. A periodic flush bounds how stale the
+/// on-disk database can get, and a passive WAL checkpoint after each flush
+/// keeps the main db file current for the build-report upload's plain file
+/// copy. Reads flush first, preserving read-after-write for consumers and
+/// tests.
+private actor Writer {
+    enum Row: Sendable {
         case casOutput(
             key: String,
             size: Int,
@@ -200,66 +149,78 @@ private final class BufferedWriter: @unchecked Sendable {
         case keyValueMetadata(key: String, operationType: String, duration: TimeInterval, createdAt: Date)
     }
 
+    private struct Buffer {
+        var rows: [Row] = []
+        var flusherStarted = false
+    }
+
     private static let flushThreshold = 128
-    private static let flushInterval: TimeInterval = 1
+    private static let flushInterval: Duration = .seconds(1)
 
     private let db: Connection
-    private let queue = DispatchQueue(label: "dev.tuist.cas-analytics-flush", qos: .utility)
-    private let lock = NSLock()
-    private var pending: [Row] = []
-    private let timer: DispatchSourceTimer
+    private let executorQueue: DispatchSerialQueue
+    /// The enqueue buffer lives outside actor isolation so recording stays a
+    /// synchronous, guaranteed-visible append: a read that follows a store
+    /// always drains the row (the actor mailbox offers no such ordering for
+    /// a task-per-enqueue design).
+    private nonisolated let buffer = Mutex(Buffer())
+    private var periodicFlusher: Task<Void, Never>?
 
-    init(db: Connection) {
-        self.db = db
-        timer = DispatchSource.makeTimerSource(queue: queue)
-        timer.schedule(deadline: .now() + Self.flushInterval, repeating: Self.flushInterval)
-        timer.setEventHandler { [weak self] in
-            self?.flushOnQueue()
-        }
-        timer.activate()
+    nonisolated var unownedExecutor: UnownedSerialExecutor {
+        executorQueue.asUnownedSerialExecutor()
+    }
+
+    init(path: String) throws {
+        executorQueue = DispatchSerialQueue(label: "dev.tuist.cas-analytics", qos: .utility)
+        db = try Connection(path)
+        db.busyTimeout = 5
+        // Disposable per-build analytics: synchronous=OFF drops the per-commit
+        // fsync. Durability is bounded by the batched flushes instead.
+        try db.execute("PRAGMA synchronous = OFF")
     }
 
     deinit {
-        timer.cancel()
-        flushOnQueue()
+        periodicFlusher?.cancel()
     }
 
-    func enqueue(_ row: Row) {
-        var drained: [Row] = []
-        lock.lock()
-        pending.append(row)
-        if pending.count >= Self.flushThreshold {
-            drained = pending
-            pending = []
+    nonisolated func enqueue(_ row: Row) {
+        // The recording side never waits, even while a flush is stalled on a
+        // contended disk: the append is a mutex-guarded array push, and flush
+        // work is scheduled at most once per threshold crossing.
+        let (startFlusher, crossedThreshold) = buffer.withLock { buffer in
+            buffer.rows.append(row)
+            let startFlusher = !buffer.flusherStarted
+            buffer.flusherStarted = true
+            return (startFlusher, buffer.rows.count == Self.flushThreshold)
         }
-        lock.unlock()
-        if !drained.isEmpty {
-            queue.async { [weak self] in
-                self?.write(drained)
+        if startFlusher {
+            Task { await self.startPeriodicFlusher() }
+        }
+        if crossedThreshold {
+            Task { await self.flush() }
+        }
+    }
+
+    private func startPeriodicFlusher() {
+        guard periodicFlusher == nil else { return }
+        periodicFlusher = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: Self.flushInterval)
+                await self?.flush()
             }
         }
     }
 
-    /// Drains and persists synchronously. Used before reads (read-after-write
-    /// consistency for consumers and tests) and on deinit.
-    func flushSync() {
-        queue.sync {
-            self.flushOnQueue()
+    private func flush() {
+        let rows = buffer.withLock { buffer in
+            let rows = buffer.rows
+            buffer.rows = []
+            return rows
         }
-    }
-
-    private func flushOnQueue() {
-        lock.lock()
-        let drained = pending
-        pending = []
-        lock.unlock()
-        write(drained)
-    }
-
-    private func write(_ rows: [Row]) {
         guard !rows.isEmpty else { return }
-        // Disposable analytics: a failed batch is dropped rather than allowed
-        // to disturb the daemon's request handling.
+        // Runs on the actor's dispatch-queue executor, not the cooperative
+        // pool. Disposable analytics: a failed batch is dropped rather than
+        // allowed to disturb the daemon's request handling.
         try? db.transaction {
             for row in rows {
                 switch row {
@@ -293,5 +254,74 @@ private final class BufferedWriter: @unchecked Sendable {
             }
         }
         try? db.execute("PRAGMA wal_checkpoint(PASSIVE)")
+    }
+
+    func migrate() throws {
+        try db.execute("PRAGMA journal_mode = WAL")
+        try db.run(CASOutputsSchema.table.create(ifNotExists: true) { t in
+            t.column(CASOutputsSchema.key, primaryKey: true)
+            t.column(CASOutputsSchema.size)
+            t.column(CASOutputsSchema.duration)
+            t.column(CASOutputsSchema.compressedSize)
+            t.column(CASOutputsSchema.createdAt, defaultValue: Date())
+            t.column(CASOutputsSchema.transferDuration, defaultValue: 0)
+            t.column(CASOutputsSchema.codecDuration, defaultValue: 0)
+        })
+        for column in [CASOutputsSchema.transferDuration, CASOutputsSchema.codecDuration] {
+            try? db.run(CASOutputsSchema.table.addColumn(column, defaultValue: 0))
+        }
+
+        try db.run(NodesSchema.table.create(ifNotExists: true) { t in
+            t.column(NodesSchema.key, primaryKey: true)
+            t.column(NodesSchema.checksum)
+            t.column(NodesSchema.createdAt, defaultValue: Date())
+        })
+
+        try db.run(KeyValueMetadataSchema.table.create(ifNotExists: true) { t in
+            t.column(KeyValueMetadataSchema.key)
+            t.column(KeyValueMetadataSchema.operationType)
+            t.column(KeyValueMetadataSchema.duration)
+            t.column(KeyValueMetadataSchema.createdAt, defaultValue: Date())
+            t.primaryKey(KeyValueMetadataSchema.key, KeyValueMetadataSchema.operationType)
+        })
+    }
+
+    func casOutput(for key: String) throws -> CASOutputMetadata? {
+        flush()
+        guard let row = try db.pluck(
+            CASOutputsSchema.table.filter(CASOutputsSchema.key == key)
+        ) else { return nil }
+        return CASOutputMetadata(
+            size: row[CASOutputsSchema.size],
+            duration: row[CASOutputsSchema.duration],
+            compressedSize: row[CASOutputsSchema.compressedSize],
+            transferDuration: row[CASOutputsSchema.transferDuration],
+            codecDuration: row[CASOutputsSchema.codecDuration]
+        )
+    }
+
+    func node(for key: String) throws -> String? {
+        flush()
+        return try db.pluck(
+            NodesSchema.table
+                .select(NodesSchema.checksum)
+                .filter(NodesSchema.key == key)
+        )?[NodesSchema.checksum]
+    }
+
+    func keyValueMetadata(for key: String, operationType: String) throws -> KeyValueMetadata? {
+        flush()
+        guard let row = try db.pluck(
+            KeyValueMetadataSchema.table
+                .filter(KeyValueMetadataSchema.key == key && KeyValueMetadataSchema.operationType == operationType)
+        ) else { return nil }
+        return KeyValueMetadata(duration: row[KeyValueMetadataSchema.duration])
+    }
+
+    func removeOldEntries(olderThan date: Date) throws {
+        flush()
+        try db.run(CASOutputsSchema.table.filter(CASOutputsSchema.createdAt < date).delete())
+        try db.run(NodesSchema.table.filter(NodesSchema.createdAt < date).delete())
+        try db.run(KeyValueMetadataSchema.table.filter(KeyValueMetadataSchema.createdAt < date).delete())
     }
 }

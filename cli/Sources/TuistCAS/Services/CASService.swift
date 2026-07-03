@@ -298,22 +298,16 @@
             for casID: String
         ) {
             // The database buffers rows in memory and persists them off the
-            // cooperative pool, so this is a cheap synchronous append — no
+            // cooperative pool, so this is a cheap fire-and-forget append — no
             // detached Task per operation.
-            do {
-                try analyticsDatabase.storeCASOutput(
-                    key: casID,
-                    size: size,
-                    duration: duration,
-                    compressedSize: compressedSize,
-                    transferDuration: transferDuration,
-                    codecDuration: codecDuration
-                )
-            } catch {
-                Logger.current.error(
-                    "Failed to store CAS metadata for casID: \(casID): \(error)"
-                )
-            }
+            analyticsDatabase.storeCASOutput(
+                key: casID,
+                size: size,
+                duration: duration,
+                compressedSize: compressedSize,
+                transferDuration: transferDuration,
+                codecDuration: codecDuration
+            )
         }
     }
 
