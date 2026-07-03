@@ -2827,6 +2827,10 @@ struct PackageInfoMapperTests {
                                 publicHeaderRelativePaths: [
                                     "spm_headers/nanopb/pb.h",
                                     "spm_headers/nanopb/pb_common.h",
+                                ],
+                                projectExcluding: [
+                                    .path(publicHeadersPath.appending(component: "pb.h").pathString),
+                                    .path(publicHeadersPath.appending(component: "pb_common.h").pathString),
                                 ]
                             ),
                             customSettings: [
@@ -8245,14 +8249,20 @@ extension ProjectDescription.Headers {
     fileprivate static func spmDirectoryTarget(
         _ targetBasePath: AbsolutePath,
         publicHeaderRelativePaths: [String],
-        excluding: [ProjectDescription.Path] = []
+        excluding: [ProjectDescription.Path] = [],
+        projectExcluding: [ProjectDescription.Path] = []
     ) -> ProjectDescription.Headers {
         let publicHeaders = publicHeaderRelativePaths.map {
             targetBasePath.appending(try! RelativePath(validating: $0))
         }
         return .headers(
             public: .list(publicHeaders.map { .glob(.path($0.pathString), excluding: excluding) }),
-            project: .list([.glob(.path("\(targetBasePath.pathString)/\(spmHeadersGlob)"), excluding: excluding)]),
+            project: .list([
+                .glob(
+                    .path("\(targetBasePath.pathString)/\(spmHeadersGlob)"),
+                    excluding: excluding + projectExcluding
+                ),
+            ]),
             exclusionRule: .projectExcludesPrivateAndPublic
         )
     }

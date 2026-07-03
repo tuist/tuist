@@ -13,5 +13,6 @@ let package = Package(
     name: "Deps",
     dependencies: [
         .package(path: "../Nanopb"),
+        .package(path: "../Transport"),
     ]
 )
