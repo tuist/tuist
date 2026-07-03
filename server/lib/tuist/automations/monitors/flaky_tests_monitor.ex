@@ -297,22 +297,25 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   # only the 1000-entry fallback keeps `groupArrayLast` order and has to
   # `arrayReverseSort` before slicing.
   #
-  # ReplacingMergeTree dedup on `test_case_runs` happens after the MV has
-  # already absorbed the row, so a re-inserted run (e.g. is_flaky updated
-  # later) appears twice in the bounded recent-runs array. That's bounded
-  # noise — ≤1% at the default window — well within the natural variance
-  # of a flakiness threshold.
+  # `test_case_runs` is a ReplacingMergeTree and flaky detection re-inserts a
+  # run to set `is_flaky` after ingestion, so the MV can absorb the same
+  # logical run several times. Those duplicates concentrate on flaky/failed
+  # runs — a passing run is never re-marked — so counting raw array entries
+  # inflates flakiness and deflates reliability for exactly the runs a
+  # threshold reacts to. `rolling_triggered_test_case_ids_from_recent_runs`
+  # collapses the array to one row per run (keyed on `ran_at`) before
+  # computing a rate.
   #
-  # `monitor_type`, `comparison`, `table`, `column`, and `recent_n_expr` are
-  # interpolated because they are chosen from fixed in-module allowlists, so
-  # there is no SQL-injection vector. Numeric inputs (`project_id`, `size`,
-  # `threshold`) flow through bound parameters.
+  # `monitor_type`, `comparison`, `table`, `recent_runs_expr`, and
+  # `run_key_expr` are interpolated because they are chosen from fixed
+  # in-module allowlists (or are validated integers via `size`), so there is
+  # no SQL-injection vector. `project_id` and `threshold` flow through bound
+  # parameters.
   defp rolling_triggered_test_case_ids(project_id, monitor_type, size, threshold, comparison, test_case_ids) do
-    {table, recent_n_expr} = recent_runs_source(recent_runs_column(monitor_type), size)
+    source = recent_runs_source(recent_runs_column(monitor_type), size)
 
     rolling_triggered_test_case_ids_from_recent_runs(
-      table,
-      recent_n_expr,
+      source,
       project_id,
       monitor_type,
       size,
@@ -329,37 +332,39 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   defp recent_runs_column("reliability_rate"), do: "recent_successful_runs"
   defp recent_runs_column(_monitor_type), do: "recent_runs"
 
+  # Returns `{table, recent_runs_expr, run_key_expr}`. `recent_runs_expr`
+  # merges the full per-test-case aggregate; the dedup and latest-`size` slice
+  # happen downstream. `run_key_expr` maps a tuple's sort key back to a
+  # "larger = more recent" number so both encodings order the same way: the
+  # 1000-entry fallback stores `ran_at` directly, while the buckets store
+  # `-ran_at_microseconds`.
+  #
+  # The bucket is chosen strictly larger than the window (`size < bucket`) so
+  # de-dup has headroom: a bucket only holds `bucket` physical rows, and
+  # re-inserted runs consume slots, so a window equal to the bucket could
+  # yield fewer than `size` distinct runs after de-dup. Reading the next tier
+  # up keeps enough physical rows to recover `size` distinct runs. Windows
+  # above the largest bucket fall through to the 1000-entry aggregate.
   defp recent_runs_source(column, size) do
-    case Enum.find(@recent_runs_bucket_sizes, &(size <= &1)) do
+    case Enum.find(@recent_runs_bucket_sizes, &(size < &1)) do
       nil ->
         {
           "test_case_runs_recent_per_case",
-          """
-          arraySlice(
-            arrayReverseSort(x -> x.1, groupArrayLastMerge(#{@max_rolling_window_size})(#{column})),
-            1,
-            {size:UInt32}
-          )
-          """
+          "groupArrayLastMerge(#{@max_rolling_window_size})(#{column})",
+          "toUnixTimestamp64Micro(tupleElement(entry, 1))"
         }
 
       bucket_size ->
         {
           "test_case_runs_recent_#{bucket_size}_per_case",
-          """
-          arraySlice(
-            groupArraySortedMerge(#{bucket_size})(#{column}),
-            1,
-            {size:UInt32}
-          )
-          """
+          "groupArraySortedMerge(#{bucket_size})(#{column})",
+          "-tupleElement(entry, 1)"
         }
     end
   end
 
   defp rolling_triggered_test_case_ids_from_recent_runs(
-         table,
-         recent_n_expr,
+         {table, recent_runs_expr, run_key_expr},
          project_id,
          monitor_type,
          size,
@@ -373,22 +378,38 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
         _test_case_ids -> "AND test_case_id IN {test_case_ids:Array(UUID)}"
       end
 
+    # Expand the recent-runs array and collapse it to one row per run (keyed on
+    # `run_key`, the run's `ran_at`), keeping `max(flag)` so a run that was ever
+    # re-marked flaky / ever succeeded is represented once with the right flag.
+    # Then keep the latest `size` distinct runs and compute the rate over those,
+    # so a re-inserted run can no longer be counted more than once.
     sql = """
     SELECT test_case_id
     FROM (
-      SELECT
-        test_case_id,
-        #{recent_n_expr} AS recent_n
-      FROM #{table}
-      WHERE project_id = {project_id:Int64}
-        #{test_case_filter}
-      GROUP BY test_case_id
+      SELECT test_case_id, run_key, max(flag) AS flag
+      FROM (
+        SELECT
+          test_case_id,
+          #{run_key_expr} AS run_key,
+          tupleElement(entry, 2) AS flag
+        FROM (
+          SELECT test_case_id, #{recent_runs_expr} AS recent_runs
+          FROM #{table}
+          WHERE project_id = {project_id:Int64}
+            #{test_case_filter}
+          GROUP BY test_case_id
+        )
+        ARRAY JOIN recent_runs AS entry
+      )
+      GROUP BY test_case_id, run_key
+      ORDER BY run_key DESC
+      LIMIT #{size} BY test_case_id
     )
-    WHERE length(recent_n) > 0
-      AND #{rolling_having_expr(monitor_type)} #{rolling_comparison_op(comparison)} {threshold:Float64}
+    GROUP BY test_case_id
+    HAVING #{rolling_having_expr(monitor_type)} #{rolling_comparison_op(comparison)} {threshold:Float64}
     """
 
-    params = maybe_put_test_case_ids(%{project_id: project_id, size: size, threshold: threshold * 1.0}, test_case_ids)
+    params = maybe_put_test_case_ids(%{project_id: project_id, threshold: threshold * 1.0}, test_case_ids)
 
     # Raise on ClickHouse errors instead of swallowing them. If the MV is
     # missing or the query fails transiently, returning `[]` would tell the
@@ -403,11 +424,11 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     Enum.map(rows, fn [binary] -> Ecto.UUID.load!(binary) end)
   end
 
-  defp rolling_having_expr("flakiness_rate"), do: "arraySum(x -> toFloat64(x.2), recent_n) * 100.0 / length(recent_n)"
+  defp rolling_having_expr("flakiness_rate"), do: "sum(flag) * 100.0 / count()"
 
-  defp rolling_having_expr("flaky_run_count"), do: "arraySum(x -> toFloat64(x.2), recent_n)"
+  defp rolling_having_expr("flaky_run_count"), do: "sum(flag)"
 
-  defp rolling_having_expr("reliability_rate"), do: "arraySum(x -> toFloat64(x.2), recent_n) * 100.0 / length(recent_n)"
+  defp rolling_having_expr("reliability_rate"), do: "sum(flag) * 100.0 / count()"
 
   defp rolling_comparison_op("gte"), do: ">="
   defp rolling_comparison_op("gt"), do: ">"
