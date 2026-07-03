@@ -89,8 +89,7 @@
                             id: commandEvent.generationId,
                             is_ci: commandEvent.isCI,
                             macos_version: commandEvent.macOSVersion,
-                            module_cache_outputs: commandEvent.moduleCacheOutputs.isEmpty
-                                ? nil : commandEvent.moduleCacheOutputs.map { map(moduleCacheOutput: $0) },
+                            module_cache_outputs: commandEvent.moduleCacheOutputs.map { map(moduleCacheOutput: $0) },
                             name: commandEvent.name,
                             preview_id: commandEvent.previewId,
                             ran_at: commandEvent.ranAt.ISO8601Format(),
