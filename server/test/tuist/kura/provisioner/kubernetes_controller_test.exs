@@ -178,7 +178,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           eu_region(%{mesh: true}),
           %Server{},
           "return true",
-          nil,
           ["https://kura.acme.example:7443"]
         )
 
@@ -303,7 +302,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           eu_region(%{mesh: true}),
           %Server{},
           "return true",
-          nil,
           []
         )
 
@@ -371,126 +369,25 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert spec["grpcPublicHost"] == "bumble-eu-central-1.kura.tuist.dev"
     end
 
-    test "uses an opaque dedicated gateway class when the account is assigned to dedicated Kura ingress" do
+    test "uses the shared regional ingress class and adds no dedicated-gateway annotation" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
       stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
         "00000000-0000-0000-0000-000000000001"
       end)
 
-      region =
-        us_east_region(%{
-          dedicated_gateway_account_handles: ["tuist"]
-        })
-
       manifest =
         KubernetesController.manifest(
           "kura-tuist-us-east-1",
           "0.5.2",
           %{name: "tuist"},
-          region,
-          %Server{},
-          "return true"
-        )
-
-      gateway_name = manifest["metadata"]["annotations"]["tuist.dev/kura-gateway"]
-
-      assert String.starts_with?(gateway_name, "kgw-")
-      refute String.contains?(gateway_name, "tuist")
-      assert manifest["spec"]["ingressClassName"] == "kura-us-east-#{gateway_name}"
-
-      gateway_manifest =
-        KubernetesController.gateway_manifest(
-          %{name: gateway_name, ingress_class_name: manifest["spec"]["ingressClassName"]},
-          %{name: "tuist"},
-          region
-        )
-
-      assert gateway_manifest["kind"] == "KuraGateway"
-      assert gateway_manifest["metadata"]["name"] == gateway_name
-      assert gateway_manifest["spec"]["region"] == "us-east"
-      assert gateway_manifest["spec"]["ingressClassName"] == "kura-us-east-#{gateway_name}"
-      assert gateway_manifest["spec"]["nodeSelector"] == %{"node.cluster.x-k8s.io/pool" => "kura-us-east"}
-
-      annotations = gateway_manifest["spec"]["loadBalancerAnnotations"]
-      assert annotations["load-balancer.hetzner.cloud/location"] == "ash"
-      assert annotations["load-balancer.hetzner.cloud/uses-proxyprotocol"] == "true"
-      assert String.starts_with?(annotations["load-balancer.hetzner.cloud/name"], "tuist-kgw-")
-      refute String.contains?(annotations["load-balancer.hetzner.cloud/name"], "tuist-us")
-
-      refute Map.has_key?(gateway_manifest["spec"], "hostNetwork")
-    end
-
-    test "uses the shared regional ingress class (no dedicated gateway) for a dedicated account on a host-network region" do
-      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
-
-      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
-        "00000000-0000-0000-0000-000000000001"
-      end)
-
-      # tuist is a dedicated-gateway account, but on a host-network (bare-metal)
-      # region a second per-account host-network gateway can't bind the box's
-      # :443, so the account falls back to the shared regional gateway.
-      region =
-        us_east_region(%{
-          gateway: :host_network,
-          dedicated_gateway_account_handles: ["tuist"]
-        })
-
-      manifest =
-        KubernetesController.manifest(
-          "kura-tuist-us-east-1",
-          "0.5.2",
-          %{name: "tuist"},
-          region,
+          us_east_region(%{gateway: :host_network}),
           %Server{},
           "return true"
         )
 
       assert manifest["spec"]["ingressClassName"] == "kura-us-east"
       refute Map.has_key?(manifest["metadata"]["annotations"], "tuist.dev/kura-gateway")
-    end
-
-    test "renders a host-network gateway without Hetzner LoadBalancer annotations on bare-metal regions" do
-      region =
-        us_east_region(%{
-          gateway: :host_network,
-          dedicated_gateway_account_handles: ["tuist"]
-        })
-
-      gateway_manifest =
-        KubernetesController.gateway_manifest(
-          %{name: "kgw-test-us-east", ingress_class_name: "kura-us-east-kgw-test-us-east"},
-          %{name: "tuist"},
-          region
-        )
-
-      assert gateway_manifest["spec"]["hostNetwork"] == true
-      refute Map.has_key?(gateway_manifest["spec"], "loadBalancerAnnotations")
-    end
-
-    test "propagates the region tolerations onto the gateway so it schedules on tainted bare-metal nodes" do
-      tolerations = [%{"key" => "tuist.dev/kura-cache", "operator" => "Exists", "effect" => "NoSchedule"}]
-
-      gateway_manifest =
-        KubernetesController.gateway_manifest(
-          %{name: "kgw-test-us-east", ingress_class_name: "kura-us-east-kgw-test-us-east"},
-          %{name: "tuist"},
-          us_east_region(%{gateway: :host_network, tolerations: tolerations})
-        )
-
-      assert gateway_manifest["spec"]["tolerations"] == tolerations
-    end
-
-    test "omits gateway tolerations when the region declares none" do
-      gateway_manifest =
-        KubernetesController.gateway_manifest(
-          %{name: "kgw-test-us-east", ingress_class_name: "kura-us-east-kgw-test-us-east"},
-          %{name: "tuist"},
-          us_east_region(%{gateway: :host_network})
-        )
-
-      refute Map.has_key?(gateway_manifest["spec"], "tolerations")
     end
 
     test "uses the region-configured Tuist server URL for managed eu-central Kura instances" do
@@ -613,7 +510,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           region,
           %Server{},
           "return true",
-          nil,
           peers
         )
 
@@ -683,17 +579,12 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
                })
     end
 
-    test "applies a dedicated KuraGateway before the KuraInstance when the account is assigned to dedicated ingress" do
+    test "applies only the KuraInstance, with no dedicated gateway" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
-
-      region =
-        us_east_region(%{
-          dedicated_gateway_account_handles: ["tuist"]
-        })
 
       test_process = self()
 
-      expect(Client, :apply, 2, fn manifest, [] ->
+      expect(Client, :apply, fn manifest, [] ->
         send(test_process, {:applied, manifest})
         {:ok, manifest}
       end)
@@ -703,53 +594,23 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
                  image_tag: "0.5.2",
                  account: %{name: "tuist"},
                  server: %Server{},
-                 region: region,
+                 region: us_east_region(%{gateway: :host_network}),
                  hook_script: "return true"
                })
 
-      assert_receive {:applied, %{"kind" => "KuraGateway"} = gateway_manifest}
       assert_receive {:applied, %{"kind" => "KuraInstance"} = instance_manifest}
-
-      assert instance_manifest["metadata"]["annotations"]["tuist.dev/kura-gateway"] ==
-               gateway_manifest["metadata"]["name"]
-
-      assert instance_manifest["spec"]["ingressClassName"] ==
-               gateway_manifest["spec"]["ingressClassName"]
+      refute Map.has_key?(instance_manifest["metadata"]["annotations"], "tuist.dev/kura-gateway")
+      refute_receive {:applied, %{"kind" => "KuraGateway"}}
     end
   end
 
   describe "destroy/2" do
     test "deletes the KuraInstance and treats already-missing resources as gone" do
-      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-eu-central-1", [] ->
-        {:error, :not_found}
-      end)
-
       expect(Client, :delete_kura_instance, fn "kura", "kura-tuist-eu-central-1", [] ->
         {:error, :not_found}
       end)
 
       assert :ok = KubernetesController.destroy("kura-tuist-eu-central-1", eu_region())
-    end
-
-    test "deletes an assigned dedicated KuraGateway before deleting the KuraInstance" do
-      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-us-east-1", [] ->
-        {:ok,
-         %{
-           "metadata" => %{
-             "annotations" => %{"tuist.dev/kura-gateway" => "kgw-abc123-us-east"}
-           }
-         }}
-      end)
-
-      expect(Client, :delete_kura_gateway, fn "kura", "kgw-abc123-us-east", [] ->
-        :ok
-      end)
-
-      expect(Client, :delete_kura_instance, fn "kura", "kura-tuist-us-east-1", [] ->
-        :ok
-      end)
-
-      assert :ok = KubernetesController.destroy("kura-tuist-us-east-1", us_east_region())
     end
   end
 
