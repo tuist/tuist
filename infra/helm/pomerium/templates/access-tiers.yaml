@@ -110,7 +110,7 @@ rules:
 # `tuist-view-infra-read`. The upstream `edit` ClusterRole covers core/apps
 # resources but not custom resources, so a JIT-elevated `tuist-<env>-write`
 # identity can mutate Pods/StatefulSets/PVCs yet not the server-managed Kura
-# CRs (KuraInstance/KuraGateway). Those are reconciled from the control plane,
+# CRs (KuraInstance). Those are reconciled from the control plane,
 # so operators normally leave them alone — but a region cutover or cleanup
 # sometimes needs to recreate them so they re-render (e.g. onto a new node
 # pool). This aggregates into `edit` so an active write elevation can do that

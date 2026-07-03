@@ -62,10 +62,10 @@ metadata:
     app.kubernetes.io/component: kura-controller
 rules:
   - apiGroups: ["kura.tuist.dev"]
-    resources: [kurainstances, kuragateways]
+    resources: [kurainstances]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: ["kura.tuist.dev"]
-    resources: [kurainstances/status, kurainstances/finalizers, kuragateways/status, kuragateways/finalizers]
+    resources: [kurainstances/status, kurainstances/finalizers]
     verbs: [get, update, patch]
   - apiGroups: ["apps"]
     resources: [statefulsets, deployments, daemonsets]
@@ -187,7 +187,7 @@ metadata:
     app.kubernetes.io/component: server
 rules:
   - apiGroups: ["kura.tuist.dev"]
-    resources: [kurainstances, kuragateways]
+    resources: [kurainstances]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: [""]
     resources: [pods]

@@ -42,9 +42,6 @@ ingress-nginx config. The production `values-tuist.yaml` overlay also enables
 three Kura-specific ingress-nginx aliases (`kura-eu-central`, `kura-us-east`,
 `kura-us-west`) so cache artifact traffic has dedicated regional gateways
 instead of sharing the main Tuist web ingress dataplane.
-Customer-dedicated Kura gateways are intentionally not chart aliases here:
-the Tuist server emits opaque `KuraGateway` resources and the Kura controller
-reconciles the dedicated ingress-nginx + LoadBalancer lifecycle.
 
 `k8s:install-platform` also loads `values-<cluster-name>.yaml` when present.
 Use that cluster overlay for static environment configuration such as stable
@@ -190,6 +187,6 @@ kubectl -n tuist exec deploy/tuist-tuist-server -- curl -fsS https://api.ipify.o
 ## Notes
 
 - The main ingress-nginx LoadBalancer is annotated for Hetzner Cloud (Nuremberg region) by default. Managed Tuist cluster overlays pin it explicitly to `fsn1`, matching the general worker pools; regional Kura LoadBalancers are pinned separately.
-- Production Kura ingress controllers are shared per region by default. Their LoadBalancers are placed in `fsn1`, `ash`, and `hil` and their pods are pinned to the matching Kura node pools. Customer-dedicated gateways are server-driven `KuraGateway` resources with opaque names, not customer-specific Helm values.
+- Production Kura ingress controllers are shared per region. Their LoadBalancers are placed in `fsn1`, `ash`, and `hil` and their pods are pinned to the matching Kura node pools.
 - external-dns is scoped by `txtOwnerId: tuist-platform` — one cluster, one TXT prefix. Run it with `policy: sync` only if you're happy with it deleting DNS records that aren't tracked by any Ingress.
 - cert-manager CRDs are installed by the subchart (`installCRDs: true`). If another tool manages them, turn that off.
