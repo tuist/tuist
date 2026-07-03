@@ -952,6 +952,54 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       # 7/10 = 70% and wrongly skips a healthy test.
       refute test_case_id in FlakyTestsMonitor.evaluate_by_reliability_rate(alert).triggered
     end
+
+    test "reads a bucket larger than the window so duplication cannot shrink it below the window" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+      RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "boundary")
+
+      base = NaiveDateTime.utc_now()
+
+      stable_rows =
+        for i <- 1..100 do
+          ran_at = NaiveDateTime.add(base, -i, :second)
+          test_case_run_attrs(project.id, test_case_id, is_flaky: false, ran_at: ran_at, inserted_at: ran_at)
+        end
+
+      # One flaky run re-marked far more times than production ever would, so
+      # the effect is observable at the size-100 bucket boundary. A size-100
+      # source would be filled entirely by these copies and evict every stable
+      # run; reading the next bucket up keeps them, so de-dup still recovers the
+      # 100 distinct runs.
+      flaky_run_id = UUIDv7.generate()
+
+      flaky_rows =
+        for _ <- 1..101 do
+          %{
+            test_case_run_attrs(project.id, test_case_id, is_flaky: true, ran_at: base, inserted_at: base)
+            | id: flaky_run_id
+          }
+        end
+
+      insert_test_case_runs(stable_rows ++ flaky_rows)
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          trigger_config: %{
+            "threshold" => 50,
+            "window_type" => "rolling",
+            "rolling_window_size" => 100,
+            "comparison" => "gte"
+          }
+        )
+
+      # True flakiness is 1/101 ≈ 1%. Only if the window collapsed onto the
+      # duplicate copies of the single flaky run (a source no larger than the
+      # window) would it read as 100% and fire.
+      refute test_case_id in FlakyTestsMonitor.evaluate(alert).triggered
+    end
   end
 
   # One flaky run (most recent), re-inserted the way flaky detection does: the

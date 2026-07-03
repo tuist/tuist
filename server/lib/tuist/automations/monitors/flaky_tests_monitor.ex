@@ -340,8 +340,15 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   # "larger = more recent" number so both encodings order the same way: the
   # 1000-entry fallback stores `ran_at` directly, while the buckets store
   # `-ran_at_microseconds`.
+  #
+  # The bucket is chosen strictly larger than the window (`size < bucket`) so
+  # de-dup has headroom: a bucket only holds `bucket` physical rows, and
+  # re-inserted runs consume slots, so a window equal to the bucket could
+  # yield fewer than `size` distinct runs after de-dup. Reading the next tier
+  # up keeps enough physical rows to recover `size` distinct runs. Windows
+  # above the largest bucket fall through to the 1000-entry aggregate.
   defp recent_runs_source(column, size) do
-    case Enum.find(@recent_runs_bucket_sizes, &(size <= &1)) do
+    case Enum.find(@recent_runs_bucket_sizes, &(size < &1)) do
       nil ->
         {
           "test_case_runs_recent_per_case",
