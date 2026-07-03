@@ -6,7 +6,7 @@ use std::{
 };
 
 use axum::response::IntoResponse;
-use axum_server::{Handle, accept::NoDelayAcceptor, tls_rustls::RustlsAcceptor};
+use axum_server::Handle;
 use hyper_util::{
     rt::{TokioExecutor, TokioTimer},
     server::conn::auto::Builder as HttpBuilder,
@@ -296,12 +296,8 @@ async fn run_with_config(
     };
 
     let router = cohosted_router(state.clone());
-    let public_handle = Handle::new();
-    let https_handle = Handle::new();
-    let public_shutdown_handle = public_handle.clone();
-    let https_shutdown_handle = https_handle.clone();
     let public_shutdown_state = state.clone();
-    let (public_plain_shutdown_tx, public_plain_shutdown_rx) = watch::channel(false);
+    let (public_shutdown_tx, public_shutdown_rx) = watch::channel(false);
     tokio::spawn(
         async move {
             shutdown_signal().await;
@@ -309,31 +305,34 @@ async fn run_with_config(
             let _ = shutdown_budget_tx.send(budget);
             let _ = public_shutdown_state.enter_draining();
             public_shutdown_state.sync_runtime_metrics().await;
-            let _ = public_plain_shutdown_tx.send(true);
-            public_shutdown_handle.graceful_shutdown(Some(budget.remaining()));
-            https_shutdown_handle.graceful_shutdown(Some(budget.remaining()));
+            let _ = public_shutdown_tx.send(true);
         }
         .in_current_span(),
     );
 
     // The co-hosted HTTP + h2c gRPC surface, also served over TLS when a public
     // cert is configured, ALPN-negotiated (`h2` for gRPC, `http/1.1` for HTTP).
-    // TLS is incompatible with the sendfile accelerator, so this uses the plain
-    // hyper path with the fixed gRPC-sized HTTP/2 windows.
-    let https_handle_task = if let Some(public_tls) = state.config.public_tls.clone() {
-        let tls_config = build_public_rustls_config(&public_tls).await?;
+    // Both listeners share the per-connection hyper serving path (TCP_NODELAY,
+    // connection aging, drain GOAWAY); TLS is incompatible with the sendfile
+    // accelerator, so its connections take the hyper path directly.
+    let https_task = if let Some(public_tls) = state.config.public_tls.clone() {
+        let tls_config = build_public_rustls_config(&public_tls).await?.get_inner();
         let https_router = cohosted_router(state.clone());
+        let https_listener = tokio::net::TcpListener::bind(https_address)
+            .await
+            .map_err(|error| format!("failed to bind public HTTPS listener: {error}"))?;
+        let https_shutdown_rx = public_shutdown_rx.clone();
         Some(tokio::spawn(
             async move {
-                // NoDelayAcceptor restores the TCP_NODELAY the dedicated tonic
-                // listener set by default; without it Nagle + delayed ACK
-                // stalls small unary REAPI calls.
-                let acceptor = RustlsAcceptor::new(tls_config).acceptor(NoDelayAcceptor);
-                let mut server = axum_server::bind(https_address)
-                    .acceptor(acceptor)
-                    .handle(https_handle);
-                configure_http_builder(server.http_builder());
-                if let Err(error) = server.serve(https_router.into_make_service()).await {
+                if let Err(error) = accelerated_file_serving::serve_public_tls(
+                    https_listener,
+                    https_router,
+                    tls_config,
+                    https_shutdown_rx,
+                    configure_http_builder,
+                )
+                .await
+                {
                     tracing::error!("HTTPS server failed: {error}");
                 }
             }
@@ -348,28 +347,20 @@ async fn run_with_config(
     // sendfile/splice fast path while gRPC (h2c) and other non-accelerable
     // requests fall through to hyper — with the fixed gRPC-sized HTTP/2 windows
     // so co-hosted REAPI uploads run at full speed. When acceleration is
-    // disabled it serves the merged router over the plain axum builder.
-    if state.config.accelerated_file_serving.enabled {
-        accelerated_file_serving::serve_public_http(
-            address,
-            router,
-            state.clone(),
-            state.config.accelerated_file_serving.clone(),
-            public_plain_shutdown_rx,
-            configure_http_builder,
-        )
+    // disabled every connection takes the hyper path of the same loop.
+    let public_listener = tokio::net::TcpListener::bind(address)
         .await
-        .map_err(|error| format!("server error: {error}"))?;
-    } else {
-        let mut public_server = axum_server::bind(address)
-            .acceptor(NoDelayAcceptor)
-            .handle(public_handle);
-        configure_http_builder(public_server.http_builder());
-        public_server
-            .serve(router.into_make_service())
-            .await
-            .map_err(|error| format!("server error: {error}"))?;
-    }
+        .map_err(|error| format!("failed to bind public HTTP listener: {error}"))?;
+    accelerated_file_serving::serve_public_http(
+        public_listener,
+        router,
+        state.clone(),
+        state.config.accelerated_file_serving.clone(),
+        public_shutdown_rx,
+        configure_http_builder,
+    )
+    .await
+    .map_err(|error| format!("server error: {error}"))?;
     let shutdown_budget = shutdown_budget_rx.await.unwrap_or_else(|_| {
         warn!("shutdown budget channel closed before graceful shutdown completed");
         ShutdownBudget::new(drain_completion_timeout)
@@ -387,8 +378,8 @@ async fn run_with_config(
     if let Some(internal_handle) = internal_handle {
         wait_for_task_shutdown(internal_handle, "internal", shutdown_budget).await;
     }
-    if let Some(https_handle_task) = https_handle_task {
-        wait_for_task_shutdown(https_handle_task, "HTTPS", shutdown_budget).await;
+    if let Some(https_task) = https_task {
+        wait_for_task_shutdown(https_task, "HTTPS", shutdown_budget).await;
     }
 
     Ok(())
@@ -911,20 +902,21 @@ mod tests {
         let context = test_context(|_| {}).await;
         let state = context.state.clone();
 
-        let router = cohosted_router(state.clone());
-        let handle = Handle::new();
-        let server_handle = handle.clone();
-        let server = tokio::spawn(async move {
-            let mut server =
-                axum_server::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0))).handle(server_handle);
-            configure_http_builder(server.http_builder());
-            let _ = server.serve(router.into_make_service()).await;
-        });
-
-        let addr = timeout(Duration::from_secs(5), handle.listening())
+        // The production serving path: the accelerated per-connection loop
+        // (nodelay, aging, drain), with non-accelerable requests on hyper.
+        let listener = tokio::net::TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)))
             .await
-            .expect("co-hosted listener should bind within timeout")
-            .expect("co-hosted listener should report its bound address");
+            .expect("bind co-hosted test listener");
+        let addr = listener.local_addr().expect("co-hosted listener address");
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
+        let server = tokio::spawn(accelerated_file_serving::serve_public_http(
+            listener,
+            cohosted_router(state.clone()),
+            state.clone(),
+            state.config.accelerated_file_serving.clone(),
+            shutdown_rx,
+            configure_http_builder,
+        ));
 
         // HTTP cache surface answers on the co-hosted port.
         let http = reqwest::Client::new()
@@ -994,7 +986,7 @@ mod tests {
             "REAPI GetCapabilities over the co-hosted port should return cache capabilities"
         );
 
-        handle.shutdown();
+        shutdown_tx.send(true).expect("signal shutdown");
         let _ = server.await;
     }
 
@@ -1026,23 +1018,25 @@ mod tests {
         };
         let tls_config = crate::peer_tls::build_public_rustls_config(&public_tls)
             .await
-            .expect("build public rustls config");
+            .expect("build public rustls config")
+            .get_inner();
 
-        let router = cohosted_router(state.clone());
-        let handle = Handle::new();
-        let server_handle = handle.clone();
-        let server = tokio::spawn(async move {
-            let mut server =
-                axum_server::bind_rustls(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)), tls_config)
-                    .handle(server_handle);
-            configure_http_builder(server.http_builder());
-            let _ = server.serve(router.into_make_service()).await;
-        });
-
-        let addr = timeout(Duration::from_secs(5), handle.listening())
+        // The production TLS serving path: rustls handshake in front of the
+        // same per-connection hyper loop.
+        let listener = tokio::net::TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)))
             .await
-            .expect("co-hosted TLS listener should bind within timeout")
-            .expect("co-hosted TLS listener should report its bound address");
+            .expect("bind co-hosted TLS test listener");
+        let addr = listener
+            .local_addr()
+            .expect("co-hosted TLS listener address");
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
+        let server = tokio::spawn(accelerated_file_serving::serve_public_tls(
+            listener,
+            cohosted_router(state.clone()),
+            tls_config,
+            shutdown_rx,
+            configure_http_builder,
+        ));
 
         // HTTPS cache surface answers on the co-hosted port.
         let http = reqwest::Client::builder()
@@ -1091,7 +1085,7 @@ mod tests {
             "REAPI GetCapabilities over the co-hosted TLS port should return cache capabilities"
         );
 
-        handle.shutdown();
+        shutdown_tx.send(true).expect("signal shutdown");
         let _ = server.await;
     }
 

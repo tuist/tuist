@@ -1,7 +1,6 @@
 use std::{
     collections::BTreeMap,
     io::Write,
-    net::SocketAddr,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -17,10 +16,11 @@ use hyper_util::{
     server::conn::auto::Builder as HttpBuilder,
 };
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
     net::{TcpListener, TcpStream},
     sync::{Semaphore, watch},
 };
+use tokio_rustls::TlsAcceptor;
 use tower::ServiceExt;
 use tracing::{Instrument, info};
 
@@ -50,6 +50,7 @@ const CONNECTION_MAX_AGE: Duration = Duration::from_secs(300);
 const CONNECTION_MAX_AGE_GRACE: Duration = Duration::from_secs(900);
 const IO_TIMEOUT: Duration = Duration::from_secs(120);
 const KEEP_ALIVE_IDLE_TIMEOUT: Duration = Duration::from_secs(60);
+const TLS_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 const NX_NAMESPACE_ID: &str = "nx";
 const METRO_NAMESPACE_ID: &str = "metro";
 const TENANT_SCOPE_NAMESPACE_ID: &str = "";
@@ -62,23 +63,27 @@ const TENANT_SCOPE_NAMESPACE_ID: &str = "";
 type Http2BuilderConfig = fn(&mut HttpBuilder<TokioExecutor>);
 
 pub async fn serve_public_http(
-    address: SocketAddr,
+    listener: TcpListener,
     router: Router,
     state: SharedState,
     config: AcceleratedFileServingConfig,
     mut shutdown_rx: watch::Receiver<bool>,
     configure_http2: Http2BuilderConfig,
 ) -> Result<(), String> {
-    let listener = TcpListener::bind(address)
-        .await
-        .map_err(|error| format!("failed to bind public HTTP listener: {error}"))?;
     let semaphore = Arc::new(Semaphore::new(config.max_concurrent));
-    info!(
-        mode = config.mode.as_str(),
-        max_concurrent = config.max_concurrent,
-        chunk_bytes = config.chunk_bytes,
-        "Kura public HTTP listener using accelerated artifact serving on {address}"
-    );
+    let address = listener
+        .local_addr()
+        .map_err(|error| format!("failed to read public HTTP listener address: {error}"))?;
+    if config.enabled {
+        info!(
+            mode = config.mode.as_str(),
+            max_concurrent = config.max_concurrent,
+            chunk_bytes = config.chunk_bytes,
+            "Kura public HTTP listener using accelerated artifact serving on {address}"
+        );
+    } else {
+        info!("Kura public HTTP listener on {address} (accelerated artifact serving disabled)");
+    }
 
     loop {
         tokio::select! {
@@ -130,6 +135,11 @@ async fn serve_connection(
     accepted_at: tokio::time::Instant,
     mut shutdown: watch::Receiver<bool>,
 ) -> std::io::Result<()> {
+    // With acceleration disabled every connection goes straight to the hyper
+    // path, keeping the same nodelay/aging/drain semantics without peeking.
+    if !config.enabled {
+        return serve_hyper(stream, router, configure_http2, accepted_at, shutdown).await;
+    }
     loop {
         // Bound the wait for the next request so idle keep-alive connections do
         // not pin a task and file descriptor forever, and close idle fast-path
@@ -239,13 +249,16 @@ fn request_wants_keep_alive(parsed: &ParsedRequest) -> bool {
     true
 }
 
-async fn serve_hyper(
-    stream: TcpStream,
+async fn serve_hyper<I>(
+    stream: I,
     router: Router,
     configure_http2: Http2BuilderConfig,
     accepted_at: tokio::time::Instant,
     mut shutdown: watch::Receiver<bool>,
-) -> std::io::Result<()> {
+) -> std::io::Result<()>
+where
+    I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
     let mut builder = HttpBuilder::new(TokioExecutor::new());
     configure_http2(&mut builder);
     let service = service_fn(move |request: Request<Incoming>| {
@@ -277,6 +290,77 @@ async fn serve_hyper(
         // Grace expired with streams still open; dropping the connection
         // severs it.
         Err(_) => Ok(()),
+    }
+}
+
+// The TLS twin of `serve_public_http`: same accept loop, same per-connection
+// hyper serving (nodelay, connection aging, drain GOAWAY), with a rustls
+// handshake in between. TLS is incompatible with the sendfile accelerator, so
+// every connection takes the hyper path directly.
+pub async fn serve_public_tls(
+    listener: TcpListener,
+    router: Router,
+    tls_config: Arc<rustls::ServerConfig>,
+    mut shutdown_rx: watch::Receiver<bool>,
+    configure_http2: Http2BuilderConfig,
+) -> Result<(), String> {
+    let acceptor = TlsAcceptor::from(tls_config);
+    let address = listener
+        .local_addr()
+        .map_err(|error| format!("failed to read public HTTPS listener address: {error}"))?;
+    info!("Kura public HTTPS listener on {address}");
+
+    loop {
+        tokio::select! {
+            result = listener.accept() => {
+                let (stream, _) = match result {
+                    Ok(stream) => stream,
+                    Err(error) => {
+                        tracing::warn!("public HTTPS accept failed: {error}");
+                        continue;
+                    }
+                };
+                if let Err(error) = stream.set_nodelay(true) {
+                    tracing::debug!("failed to set TCP_NODELAY: {error}");
+                }
+                let accepted_at = tokio::time::Instant::now();
+                let acceptor = acceptor.clone();
+                let router = router.clone();
+                let shutdown = shutdown_rx.clone();
+                tokio::spawn(
+                    async move {
+                        let stream = match tokio::time::timeout(
+                            TLS_HANDSHAKE_TIMEOUT,
+                            acceptor.accept(stream),
+                        )
+                        .await
+                        {
+                            Ok(Ok(stream)) => stream,
+                            Ok(Err(error)) => {
+                                tracing::debug!("public TLS handshake failed: {error}");
+                                return;
+                            }
+                            Err(_) => {
+                                tracing::debug!("public TLS handshake timed out");
+                                return;
+                            }
+                        };
+                        if let Err(error) =
+                            serve_hyper(stream, router, configure_http2, accepted_at, shutdown)
+                                .await
+                        {
+                            tracing::debug!("public HTTPS connection failed: {error}");
+                        }
+                    }
+                    .in_current_span(),
+                );
+            }
+            changed = shutdown_rx.changed() => {
+                if changed.is_err() || *shutdown_rx.borrow() {
+                    return Ok(());
+                }
+            }
+        }
     }
 }
 
