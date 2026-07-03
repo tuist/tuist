@@ -5,7 +5,7 @@
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
-  -webkit-appearance: button;
+  --webkit-appearance: button;
   border: 0;
   border-radius: var(--noora-radius-3);
   padding: 0;
@@ -19,6 +19,7 @@
 .noora-button {
   cursor: pointer;
   outline: unset;
+  transition: transform 150ms var(--ease-out-cubic);
   /* Reserve space for box-shadow to ensure consistent height across variants */
   box-shadow:
     0px 0px 0px 0px transparent,
@@ -28,6 +29,10 @@
 
   &[disabled] {
     cursor: not-allowed;
+  }
+
+  &:not(:disabled):active {
+    transform: scale(0.97);
   }
 
   & > span {
@@ -240,6 +245,7 @@
   background: unset;
   padding: var(--noora-spacing-3);
   color: var(--noora-button-neutral-label);
+  transition: transform 150ms var(--ease-out-cubic);
 
   &:not(:disabled):hover {
     background: var(--noora-button-neutral-background-hover);
@@ -247,6 +253,7 @@
 
   &:not(:disabled):active {
     background: var(--noora-button-neutral-background-active);
+    transform: scale(0.97);
   }
 
   &[disabled] {
@@ -272,6 +279,17 @@
     & > svg {
       width: var(--noora-icon-size-small);
       height: var(--noora-icon-size-small);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .noora-button,
+  .noora-neutral-button {
+    transition: none;
+
+    &:not(:disabled):active {
+      transform: none;
     }
   }
 }
