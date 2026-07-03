@@ -610,7 +610,9 @@ struct GenerateAcceptanceTestAppWithSPMCTargetDuplicatePublicHeaders {
     ///
     /// Before the fix, both the wrapper and nested headers were marked Public, so Xcode failed with
     /// "Multiple commands produce ... nanopb.framework/Headers/pb.h". After the fix, Tuist keeps only one
-    /// public header per framework destination while preserving the rest as project headers.
+    /// public header per framework destination. A sibling C target then includes `<nanopb/pb.h>` to ensure
+    /// the remaining project headers do not shadow the real framework public header and recurse through the
+    /// top-level wrapper.
     @Test(.withFixture("generated_app_with_spm_c_target_duplicate_public_headers"), .inTemporaryDirectory)
     func app_with_spm_c_target_duplicate_public_headers() async throws {
         let fixturePath = try fixtureDirectory()
@@ -630,8 +632,13 @@ struct GenerateAcceptanceTestAppWithSPMCTargetDuplicatePublicHeaders {
             .filter { ($0.settings?["ATTRIBUTES"]?.arrayValue ?? []).contains("Public") }
             .compactMap { $0.file?.path }
             .sorted()
+        let nonPublicHeaderNames = headerFiles
+            .filter { !($0.settings?["ATTRIBUTES"]?.arrayValue ?? []).contains("Public") }
+            .compactMap { $0.file?.path }
+            .sorted()
 
         #expect(publicHeaderNames == ["pb.h", "pb_common.h"])
+        #expect(nonPublicHeaderNames == ["pb.h", "pb_common.h"])
 
         try await CommandRunner().runAndWait(arguments: [
             "/usr/bin/xcodebuild",
