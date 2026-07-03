@@ -67,6 +67,7 @@ defmodule Tuist.Shards do
       project_id: project.id,
       shard_count: shard_count,
       granularity: granularity,
+      module_names: module_inventory(params, units, granularity),
       build_run_id: Map.get(params, :build_run_id),
       gradle_build_id: Map.get(params, :gradle_build_id),
       inserted_at: now
@@ -119,8 +120,12 @@ defmodule Tuist.Shards do
           nil ->
             {:error, :invalid_shard_index}
 
-          %{modules: modules, suites: suites, skip: skip} ->
-            {download_url, download_urls} = shard_download_urls(account, project, plan.id, modules)
+          %{modules: modules, suites: suites, skip: skip} = shard_data ->
+            # The catch-all shard selects nothing via `-only-testing` (`modules` is empty) but must
+            # still run every un-skipped target, so it downloads the plan's whole module inventory
+            # rather than only its selection modules.
+            download_modules = Map.get(shard_data, :download_modules, modules)
+            {download_url, download_urls} = shard_download_urls(account, project, plan.id, download_modules)
 
             {:ok,
              %{
@@ -294,17 +299,28 @@ defmodule Tuist.Shards do
           |> Enum.filter(&(&1.shard_index < shard_index))
           |> Enum.map(&"#{&1.module_name}/#{&1.test_suite_name}")
 
-        %{modules: [], suites: %{}, skip: skip}
+        %{modules: [], suites: %{}, skip: skip, download_modules: catch_all_download_modules(plan)}
 
       results == [] ->
         if shard_index == plan.shard_count - 1 do
-          %{modules: [], suites: %{}, skip: []}
+          %{modules: [], suites: %{}, skip: [], download_modules: catch_all_download_modules(plan)}
         end
 
       true ->
         suites = Enum.group_by(results, fn {mod, _} -> mod end, fn {_, suite} -> suite end)
         modules = Map.keys(suites)
         %{modules: modules, suites: suites, skip: []}
+    end
+  end
+
+  # The catch-all shard has to load the entire `.xctestrun`, which references every built test
+  # target, so it needs each target's per-module product even for suites it skips. Prefer the full
+  # module inventory captured at plan creation; fall back to the modules that have planned suites for
+  # plans created before that inventory was recorded.
+  defp catch_all_download_modules(plan) do
+    case plan.module_names do
+      [_ | _] = module_names -> module_names
+      _ -> plan.test_suites |> Enum.map(& &1.module_name) |> Enum.uniq()
     end
   end
 
@@ -332,6 +348,20 @@ defmodule Tuist.Shards do
   end
 
   defp params_modules(params), do: Map.get(params, :modules) || []
+
+  # The full set of test-target modules the plan covers, used to give the catch-all shard every
+  # per-module product it needs to download. The client sends the deterministic `.xctestrun` module
+  # universe; when it doesn't (e.g. a client-enumerated suite plan), derive it from the units so the
+  # inventory still covers every module that has planned work.
+  defp module_inventory(params, units, granularity) do
+    case params_modules(params) do
+      [_ | _] = modules -> Enum.uniq(modules)
+      _ -> units |> Enum.map(&unit_module(&1, granularity)) |> Enum.uniq()
+    end
+  end
+
+  defp unit_module(unit, "suite"), do: suite_module(unit)
+  defp unit_module(unit, _granularity), do: unit
 
   defp latest_branch_suite_units(_project, _params, []), do: []
 

@@ -13,6 +13,7 @@ defmodule Tuist.Shards.ShardPlan do
     field :project_id, Ch, type: "Int64"
     field :shard_count, Ch, type: "Int32"
     field :granularity, Ch, type: "LowCardinality(String)", default: "module"
+    field :module_names, Ch, type: "Array(String)", default: []
     field :build_run_id, Ch, type: "Nullable(UUID)"
     field :gradle_build_id, Ch, type: "Nullable(UUID)"
     field :inserted_at, Ch, type: "DateTime64(6)"
@@ -32,6 +33,7 @@ defmodule Tuist.Shards.ShardPlan do
       :project_id,
       :shard_count,
       :granularity,
+      :module_names,
       :build_run_id,
       :gradle_build_id,
       :inserted_at
