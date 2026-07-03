@@ -338,6 +338,11 @@ jobs:
               tuist setup cache
               tuist install
               tuist generate --no-binary-cache
+              # Stopgap for the ModuleMapMapper cp bug: with compilation caching
+              # on, CAS-materialized outputs are read-only and the generated
+              # "Copy Module Map" phase's plain cp fails with Permission denied.
+              # cp -f removes the unwritable destination first.
+              find . -name project.pbxproj -exec sed -i '' "s/cp '/cp -f '/g" {} + 2>/dev/null || true
               # The CAS daemon socket name derives from the connected project, so
               # discover it rather than hard-code it (tuist/tuist != tuist/mastodon).
               CAS_SOCK=""
