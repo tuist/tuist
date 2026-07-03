@@ -359,7 +359,7 @@ jobs:
               for _ in $(seq 1 15); do curl -s -o /dev/null -w '%{time_total}\n' "$PROBE_URL" 2>/dev/null || true; done > /tmp/curl_idle.log
               if [ -x /tmp/us_probe ]; then /tmp/us_probe "$PROBE_URL" 8 2 100000 > /tmp/us_build.log 2>&1 & USPID=$!; fi
               ( while :; do curl -s -o /dev/null -w '%{time_total}\n' "$PROBE_URL" >> /tmp/curl_build.log 2>/dev/null || true; sleep 1; done ) & CURLPID=$!
-              ( while :; do echo "$(date +%s) runnable=$(ps -A -o state= 2>/dev/null | grep -c '^R' || true) compilers=$(pgrep -f 'swift-frontend|clang|swift-driver' 2>/dev/null | wc -l | tr -d ' ')" >> /tmp/cpu_build.log; sleep 2; done ) & CPUPID=$!
+              ( while :; do echo "$(date +%s) runnable=$(ps -A -o state= 2>/dev/null | grep -c '^R' || true) compilers=$(pgrep -f 'swift-frontend|clang|swift-driver' 2>/dev/null | wc -l | tr -d ' ') memfree=$(memory_pressure -Q 2>/dev/null | grep -oE '[0-9]+%' | tr -d '%' | head -1) pageouts=$(vm_stat 2>/dev/null | awk '/Pageouts/{gsub("\\.","",$2); print $2}') comppages=$(vm_stat 2>/dev/null | awk '/occupied by compressor/{gsub("\\.","",$5); print $5}') swapused=$(sysctl -n vm.swapusage 2>/dev/null | awk '{print $6}')" >> /tmp/cpu_build.log; sleep 2; done ) & CPUPID=$!
               # no --show-output: keeps the log small enough that the summaries
               # below survive `gh run view --log` truncation
               hyperfine --warmup 1 --runs "$HYPERFINE_RUNS" --export-json result.json \
@@ -392,6 +392,18 @@ jobs:
                   if (m := re.search(r'compilers=(\d+)', l)): cs.append(int(m.group(1)))
               if rs: print(f"  CPU during build: runnable-threads mean={sum(rs)/len(rs):.0f} max={max(rs)}  compiler-procs mean={sum(cs)/len(cs):.0f} max={max(cs)}  samples={len(rs)}")
           except Exception as e: print(f"  cpu sampler: (no data: {e})")
+          try:
+              free, po, cp, sw = [], [], [], []
+              for l in open('/tmp/cpu_build.log'):
+                  if (m := re.search(r'memfree=(\d+)', l)): free.append(int(m.group(1)))
+                  if (m := re.search(r'pageouts=(\d+)', l)): po.append(int(m.group(1)))
+                  if (m := re.search(r'comppages=(\d+)', l)): cp.append(int(m.group(1)))
+                  if (m := re.search(r'swapused=([0-9.]+[MG])', l)): sw.append(m.group(1))
+              if free:
+                  po_delta = (po[-1] - po[0]) if len(po) > 1 else 0
+                  cp_mb = [p * 16384 / 1e6 for p in cp]
+                  print(f"  MEMORY during build: free% min={min(free)} mean={sum(free)/len(free):.0f}  pageouts delta={po_delta}  compressor MB min={min(cp_mb):.0f} max={max(cp_mb):.0f}  swap last={sw[-1] if sw else '?'}")
+          except Exception as e: print(f"  memory sampler: (no data: {e})")
           PYEOF
               echo "vCPUs in VM: $(sysctl -n hw.ncpu 2>/dev/null || echo '?')  physical mem: $(sysctl -n hw.memsize 2>/dev/null || echo '?')" ;;
             xcode-cache-ramstate)
