@@ -97,10 +97,13 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                                 name: "Copy Module Map",
                                 order: .post,
                                 script: .embedded(
+                                    // -f: with Xcode compilation caching enabled, the destination can
+                                    // pre-exist as a read-only CAS-materialized file that plain cp
+                                    // refuses to overwrite (Permission denied).
                                     """
                                     set -eu
                                     mkdir -p "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules"
-                                    cp '\(escapedModuleMapPath)' "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules/module.modulemap"
+                                    cp -f '\(escapedModuleMapPath)' "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules/module.modulemap"
                                     """
                                 ),
                                 inputPaths: [moduleMapPath.pathString],
