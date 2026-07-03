@@ -20,8 +20,6 @@
     java = "21"
     gradle = "8.12"
     caddy = "2.11.2"
-    "github:tuist/blick" = "0.8.0"
-    "npm:opencode-ai" = "1.14.39"
     kubectl = "1.36.1"
     helm = "4.2.0"
     # pomerium-cli is the kubeconfig exec credential plugin that does
