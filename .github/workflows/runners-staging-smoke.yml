@@ -476,6 +476,11 @@ jobs:
             # instrumentation; fall back to the plain query on the canary.
             sqlite3 -header -column "$CAS_DB" "SELECT count(*) AS ops, round(avg(duration),1) AS total_ms, round(avg(transfer_duration),1) AS transfer_ms, round(avg(codec_duration),1) AS codec_ms, round(avg(duration-transfer_duration-codec_duration),1) AS remainder_ms, round(avg(size)) AS avg_bytes, round(avg(compressed_size)) AS avg_comp FROM cas_outputs;" 2>/dev/null \
               || sqlite3 "$CAS_DB" "SELECT count(*) AS ops, round(avg(duration),1) AS avg_ms, round(sum(duration)/1000.0,1) AS total_s, round(avg(size)) AS avg_bytes FROM cas_outputs;" 2>&1 || true
+            # Keyvalue lookups (cache-hit checks) sit SERIALLY at each task's start,
+            # unlike the parallel CAS fetches: their latency x task count bounds how
+            # much of the build's wall time the daemon path can still influence.
+            echo "-- keyvalue ops (read = per-task cache lookup, serial on the task critical path) --"
+            sqlite3 -header -column "$CAS_DB" "SELECT operation_type AS op, count(*) AS ops, round(avg(duration),1) AS avg_ms, round(max(duration),1) AS max_ms, round(sum(duration)/1000.0,1) AS total_s FROM keyvalue_metadata GROUP BY operation_type;" 2>&1 || true
           else
             echo "  no cas_analytics.db — the CAS daemon never talked to a remote (endpoint/auth issue)"
           fi
