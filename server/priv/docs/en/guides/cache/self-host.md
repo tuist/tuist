@@ -95,9 +95,10 @@ services:
       KURA_NODE_URL: "https://kura.acme.internal:7443"         # this node's peer identity on your network
       KURA_REGION: "office"
 
-      # Ports and storage. Enrollment writes the TLS files into KURA_INTERNAL_TLS_* on first boot.
+      # Ports and storage. KURA_PORT serves both the HTTP cache API and REAPI
+      # gRPC (h2c) on one listener. Enrollment writes the TLS files into
+      # KURA_INTERNAL_TLS_* on first boot.
       KURA_PORT: "4000"
-      KURA_GRPC_PORT: "50051"
       KURA_INTERNAL_PORT: "7443"
       KURA_INTERNAL_TLS_CA_CERT_PATH: "/tls/ca.pem"
       KURA_INTERNAL_TLS_CERT_PATH: "/tls/tls.crt"
@@ -142,7 +143,6 @@ services:
       KURA_NODE_URL: "http://kura-1.acme.internal:7443"
       KURA_REGION: "office"
       KURA_PORT: "4000"
-      KURA_GRPC_PORT: "50051"
       KURA_INTERNAL_PORT: "7443"
       KURA_DATA_DIR: "/var/cache/kura"
       KURA_TMP_DIR: "/var/cache/kura/tmp"
@@ -209,7 +209,7 @@ These variables configure every node, regardless of topology (peer TLS is the ex
 | `KURA_TENANT_ID` | Your account handle. |
 | `KURA_NODE_URL` | This node's peer URL on your network. |
 | `KURA_REGION` | A free-form region label (e.g. `office`, `ci`). |
-| `KURA_PORT` / `KURA_GRPC_PORT` / `KURA_INTERNAL_PORT` | HTTP cache, gRPC, and mesh peer ports (`4000` / `50051` / `7443`). |
+| `KURA_PORT` / `KURA_INTERNAL_PORT` | Cache port (HTTP cache API and REAPI gRPC co-hosted on one listener) and mesh peer port (`4000` / `7443`). |
 | `KURA_DATA_DIR` / `KURA_TMP_DIR` | On-disk artifact storage and scratch directory. |
 | `KURA_INTERNAL_TLS_CA_CERT_PATH` / `KURA_INTERNAL_TLS_CERT_PATH` / `KURA_INTERNAL_TLS_KEY_PATH` | Peer TLS files. Written by enrollment (bridged) or provided by you (multi-node standalone). Not needed for a single node; omit them and use an `http://` `KURA_NODE_URL`. |
 | `KURA_OTEL_SERVICE_NAME` / `KURA_OTEL_DEPLOYMENT_ENVIRONMENT` | Service name and environment label for telemetry. |

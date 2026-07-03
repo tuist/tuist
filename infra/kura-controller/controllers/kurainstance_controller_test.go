@@ -76,16 +76,13 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if service.Spec.ExternalTrafficPolicy != "" {
 		t.Fatalf("expected no external traffic policy on ClusterIP backend, got %q", service.Spec.ExternalTrafficPolicy)
 	}
-	if got := len(service.Spec.Ports); got != 3 {
-		t.Fatalf("expected backend service to expose http, grpc, and peer ports, got %d", got)
+	if got := len(service.Spec.Ports); got != 2 {
+		t.Fatalf("expected backend service to expose the co-hosted cache and peer ports, got %d", got)
 	}
 	if got := service.Spec.Ports[0].TargetPort.StrVal; got != "http" {
-		t.Fatalf("expected public ingress backend service to target the plain http port, got %q", got)
+		t.Fatalf("expected public ingress backend service to target the co-hosted cache port, got %q", got)
 	}
-	if got := service.Spec.Ports[1].TargetPort.StrVal; got != "grpc" {
-		t.Fatalf("expected backend service to expose grpc, got %q", got)
-	}
-	if got := service.Spec.Ports[2].TargetPort.StrVal; got != "peer" {
+	if got := service.Spec.Ports[1].TargetPort.StrVal; got != "peer" {
 		t.Fatalf("expected backend service to expose peer, got %q", got)
 	}
 	if len(service.Annotations) != 0 {
@@ -350,14 +347,11 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if len(policy.Spec.Ingress[2].From) != 1 || policy.Spec.Ingress[2].From[0].NamespaceSelector == nil {
 		t.Fatalf("expected regional Kura ingress NetworkPolicy rule to allow cluster namespaces, got %v", policy.Spec.Ingress[2].From)
 	}
-	if len(ingressPorts) != 2 {
-		t.Fatalf("expected regional Kura ingress NetworkPolicy rule to expose HTTP and gRPC, got %d ports", len(ingressPorts))
+	if len(ingressPorts) != 1 {
+		t.Fatalf("expected regional Kura ingress NetworkPolicy rule to expose only the co-hosted cache port, got %d ports", len(ingressPorts))
 	}
 	if got := ingressPorts[0].Port.StrVal; got != "http" {
 		t.Fatalf("expected regional Kura ingress NetworkPolicy rule to expose http, got %q", got)
-	}
-	if got := ingressPorts[1].Port.StrVal; got != "grpc" {
-		t.Fatalf("expected regional Kura ingress NetworkPolicy rule to expose grpc, got %q", got)
 	}
 }
 
@@ -1120,8 +1114,8 @@ func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 			t.Fatalf("expected gRPC ingress paths to be ImplementationSpecific, got %v", p.PathType)
 		}
 		backend := p.Backend.Service
-		if backend == nil || backend.Name != instance.Name || backend.Port.Name != "grpc" {
-			t.Fatalf("expected gRPC ingress path to route to %s:grpc, got %#v", instance.Name, backend)
+		if backend == nil || backend.Name != instance.Name || backend.Port.Name != "http" {
+			t.Fatalf("expected gRPC ingress path to route to the co-hosted cache port %s:http, got %#v", instance.Name, backend)
 		}
 	}
 	wantPaths := []string{`/build\.bazel\.remote\.execution\.v2\.`, `/google\.bytestream\.`}
@@ -2263,8 +2257,8 @@ func TestKuraInstanceReconcileExposesNodePortDataPlane(t *testing.T) {
 	if service.Spec.ExternalTrafficPolicy != corev1.ServiceExternalTrafficPolicyLocal {
 		t.Fatalf("expected externalTrafficPolicy Local, got %q", service.Spec.ExternalTrafficPolicy)
 	}
-	if len(service.Spec.Ports) != 2 {
-		t.Fatalf("expected http+grpc only on the external service, got %v", service.Spec.Ports)
+	if len(service.Spec.Ports) != 1 {
+		t.Fatalf("expected only the co-hosted cache port on the external service, got %v", service.Spec.Ports)
 	}
 	if got := service.Spec.Selector[podNameLabel]; got != instance.Name+"-0" {
 		t.Fatalf("expected external service pinned to primary pod, got %q", got)
@@ -2273,11 +2267,8 @@ func TestKuraInstanceReconcileExposesNodePortDataPlane(t *testing.T) {
 	// The fake client never allocates NodePorts; simulate the API
 	// server so the second reconcile must preserve them.
 	for i := range service.Spec.Ports {
-		switch service.Spec.Ports[i].Name {
-		case "http":
+		if service.Spec.Ports[i].Name == "http" {
 			service.Spec.Ports[i].NodePort = 30080
-		case "grpc":
-			service.Spec.Ports[i].NodePort = 30051
 		}
 	}
 	if err := reconciler.Update(ctx, service); err != nil {
@@ -2294,8 +2285,8 @@ func TestKuraInstanceReconcileExposesNodePortDataPlane(t *testing.T) {
 	for _, port := range service.Spec.Ports {
 		allocated[port.Name] = port.NodePort
 	}
-	if allocated["http"] != 30080 || allocated["grpc"] != 30051 {
-		t.Fatalf("expected allocated NodePorts preserved across reconciles, got %v", allocated)
+	if allocated["http"] != 30080 {
+		t.Fatalf("expected allocated NodePort preserved across reconciles, got %v", allocated)
 	}
 
 	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, instance); err != nil {
@@ -2304,8 +2295,8 @@ func TestKuraInstanceReconcileExposesNodePortDataPlane(t *testing.T) {
 	if instance.Status.NodeAddress != "172.16.0.2" {
 		t.Fatalf("expected status.nodeAddress from the node's pn-ipv4 label, got %q", instance.Status.NodeAddress)
 	}
-	if instance.Status.NodePortHTTP != 30080 || instance.Status.NodePortGRPC != 30051 {
-		t.Fatalf("expected status NodePorts 30080/30051, got %d/%d", instance.Status.NodePortHTTP, instance.Status.NodePortGRPC)
+	if instance.Status.NodePortCache != 30080 {
+		t.Fatalf("expected status NodePort 30080, got %d", instance.Status.NodePortCache)
 	}
 
 	policy := &networkingv1.NetworkPolicy{}
@@ -2393,4 +2384,19 @@ func TestKuraInstancePodTemplateRendersTolerations(t *testing.T) {
 	if !found {
 		t.Fatalf("expected the runner-cache toleration on the pod template, got %#v", sts.Spec.Template.Spec.Tolerations)
 	}
+}
+
+func TestBaseEnvKeepsTransitionalGRPCPortForPreCohostedImages(t *testing.T) {
+	instance := &kurav1alpha1.KuraInstance{Spec: kurav1alpha1.KuraInstanceSpec{
+		Image: "ghcr.io/tuist/kura:0.10.15",
+	}}
+	for _, env := range baseEnv(instance, "", "production") {
+		if env.Name == "KURA_GRPC_PORT" {
+			if env.Value != "50051" {
+				t.Fatalf("expected the transitional KURA_GRPC_PORT to keep the old default 50051, got %q", env.Value)
+			}
+			return
+		}
+	}
+	t.Fatal("expected KURA_GRPC_PORT in the pod env: pre-cohosted images hard-require it and would crash-loop without it")
 }

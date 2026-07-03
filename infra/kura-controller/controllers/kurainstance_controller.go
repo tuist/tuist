@@ -47,8 +47,9 @@ import (
 const (
 	KuraInstanceFinalizer = "kurainstances.kura.tuist.dev/finalizer"
 
+	// httpPort is the single cache port: Kura co-hosts the HTTP cache API
+	// and REAPI gRPC (h2c) on one listener (KURA_PORT).
 	httpPort int32 = 4000
-	grpcPort int32 = 50051
 	peerPort int32 = 7443
 
 	// drainCompletionTimeoutMs and preStopDelaySeconds together set how
@@ -286,8 +287,7 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	instance.Status.ReadyReplicas = rollout.readyReplicas
 	instance.Status.Message = rollout.message
 	instance.Status.NodeAddress = external.nodeAddress
-	instance.Status.NodePortHTTP = external.nodePortHTTP
-	instance.Status.NodePortGRPC = external.nodePortGRPC
+	instance.Status.NodePortCache = external.nodePortCache
 	instance.Status.LastReconciledAt = &now
 
 	if err := r.Status().Update(ctx, instance); err != nil {
@@ -618,9 +618,10 @@ func (r *KuraInstanceReconciler) reconcileService(ctx context.Context, instance 
 	return err
 }
 
-// reconcileExternalService publishes http/grpc on a NodePort Service
-// for clients that share a network with the node pool but not the pod
-// network (see KuraInstanceSpec.ExposeNodePort). externalTrafficPolicy
+// reconcileExternalService publishes the co-hosted cache port on a
+// NodePort Service for clients that share a network with the node pool
+// but not the pod network (see KuraInstanceSpec.ExposeNodePort).
+// externalTrafficPolicy
 // Local both preserves the client source IP (so ClientCIDRs NetworkPolicy
 // rules can match it) and refuses traffic on nodes not hosting the
 // primary pod — dispatch always pairs the port with status.NodeAddress.
@@ -655,9 +656,8 @@ func (r *KuraInstanceReconciler) reconcileExternalService(ctx context.Context, i
 }
 
 type externalEndpoint struct {
-	nodeAddress  string
-	nodePortHTTP int32
-	nodePortGRPC int32
+	nodeAddress   string
+	nodePortCache int32
 }
 
 // externalEndpoint resolves what NodePort clients dial: the allocated
@@ -677,11 +677,8 @@ func (r *KuraInstanceReconciler) externalEndpoint(ctx context.Context, instance 
 	switch err := r.Get(ctx, types.NamespacedName{Name: externalServiceName(instance), Namespace: instance.Namespace}, service); {
 	case err == nil:
 		for _, port := range service.Spec.Ports {
-			switch port.Name {
-			case "http":
-				endpoint.nodePortHTTP = port.NodePort
-			case "grpc":
-				endpoint.nodePortGRPC = port.NodePort
+			if port.Name == "http" {
+				endpoint.nodePortCache = port.NodePort
 			}
 		}
 	case apierrors.IsNotFound(err):
@@ -825,12 +822,15 @@ func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, insta
 		ingress.Annotations = grpcIngressAnnotations()
 		ingress.Spec.IngressClassName = ptr(ingressClassName(instance))
 		ingress.Spec.TLS = nil
+		// The backend is the same co-hosted cache port that serves HTTP;
+		// this Ingress only exists so ingress-nginx renders these paths
+		// with grpc_pass (backend-protocol: GRPC) instead of proxy_pass.
 		paths := make([]networkingv1.HTTPIngressPath, 0, len(grpcREAPIPathPrefixes))
 		for _, prefix := range grpcREAPIPathPrefixes {
 			paths = append(paths, networkingv1.HTTPIngressPath{
 				Path:     prefix,
 				PathType: ptr(networkingv1.PathTypeImplementationSpecific),
-				Backend:  ingressBackend(instance.Name, "grpc"),
+				Backend:  ingressBackend(instance.Name, "http"),
 			})
 		}
 		ingress.Spec.Rules = []networkingv1.IngressRule{{
@@ -1796,15 +1796,14 @@ func (r *KuraInstanceReconciler) reconcileNetworkPolicy(ctx context.Context, ins
 			},
 			{
 				// Tuist server pod-list calls and internal health
-				// checks. Limit plain HTTP and plaintext gRPC to
-				// in-cluster peers; the JWT layer in the runtime is
-				// the auth boundary.
+				// checks. Limit the plaintext cache port (co-hosted
+				// HTTP + gRPC) to in-cluster peers; the JWT layer in
+				// the runtime is the auth boundary.
 				From: []networkingv1.NetworkPolicyPeer{
 					{NamespaceSelector: &metav1.LabelSelector{}},
 				},
 				Ports: []networkingv1.NetworkPolicyPort{
 					{Port: ptr(intstr.FromString("http")), Protocol: ptr(corev1.ProtocolTCP)},
-					{Port: ptr(intstr.FromString("grpc")), Protocol: ptr(corev1.ProtocolTCP)},
 				},
 			},
 		}
@@ -1820,7 +1819,6 @@ func (r *KuraInstanceReconciler) reconcileNetworkPolicy(ctx context.Context, ins
 				From: peers,
 				Ports: []networkingv1.NetworkPolicyPort{
 					{Port: ptr(intstr.FromString("http")), Protocol: ptr(corev1.ProtocolTCP)},
-					{Port: ptr(intstr.FromString("grpc")), Protocol: ptr(corev1.ProtocolTCP)},
 				},
 			})
 		}
@@ -1914,7 +1912,16 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 		{Name: "POD_NAME", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"}}},
 		{Name: "POD_NAMESPACE", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"}}},
 		{Name: "KURA_PORT", Value: fmt.Sprintf("%d", httpPort)},
-		{Name: "KURA_GRPC_PORT", Value: fmt.Sprintf("%d", grpcPort)},
+		// Transitional no-op for pre-cohosted images only: images at or
+		// below the last dedicated-listener release hard-require
+		// KURA_GRPC_PORT (required_value) and exit(1) without it, and the
+		// controller rewrites every pod template on its reconcile loop —
+		// without this a still-pinned instance would crash-loop, taking
+		// the HTTP cache down with it. Co-hosted images ignore unknown
+		// env. The value is the old default; old images validate it
+		// differs from KURA_INTERNAL_PORT/KURA_HTTPS_PORT. Remove once
+		// the fleet is fully past the co-hosted floor (tracked in #11654).
+		{Name: "KURA_GRPC_PORT", Value: "50051"},
 		{Name: "KURA_TENANT_ID", Value: instance.Spec.TenantID},
 		{Name: "KURA_REGION", Value: instance.Spec.Region},
 		{Name: "KURA_TMP_DIR", Value: "/var/cache/kura/tmp"},
@@ -1971,13 +1978,12 @@ func hasEnvVar(env []corev1.EnvVar, name string) bool {
 	return false
 }
 
-// containerPorts exposes only the plain HTTP, gRPC, and internal mTLS
-// peer ports. Customer-facing TLS terminates at the regional Kura ingress, not
-// inside each Kura runtime pod.
+// containerPorts exposes only the plain co-hosted cache port (HTTP + h2c
+// gRPC) and the internal mTLS peer port. Customer-facing TLS terminates at
+// the regional Kura ingress, not inside each Kura runtime pod.
 func containerPorts(instance *kurav1alpha1.KuraInstance) []corev1.ContainerPort {
 	return []corev1.ContainerPort{
 		{Name: "http", ContainerPort: httpPort},
-		{Name: "grpc", ContainerPort: grpcPort},
 		{Name: "peer", ContainerPort: peerPort},
 	}
 }
@@ -2047,7 +2053,6 @@ func httpProbe(path string, initialDelay, period int32) *corev1.Probe {
 func ports() []corev1.ServicePort {
 	return []corev1.ServicePort{
 		{Name: "http", Port: httpPort, TargetPort: intstr.FromString("http")},
-		{Name: "grpc", Port: grpcPort, TargetPort: intstr.FromString("grpc")},
 		{Name: "peer", Port: peerPort, TargetPort: intstr.FromString("peer")},
 	}
 }
@@ -2057,7 +2062,6 @@ func ports() []corev1.ServicePort {
 func externalPorts() []corev1.ServicePort {
 	return []corev1.ServicePort{
 		{Name: "http", Port: httpPort, TargetPort: intstr.FromString("http")},
-		{Name: "grpc", Port: grpcPort, TargetPort: intstr.FromString("grpc")},
 	}
 }
 

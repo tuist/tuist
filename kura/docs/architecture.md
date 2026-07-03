@@ -21,9 +21,9 @@ Build caches are read-heavy and latency-sensitive. A central cache hundreds of m
    ┌──────────────────────────────────────────┐
    │             Kura node (region X)         │
    │                                          │
-   │   public HTTP   gRPC (REAPI)             │
-   │       │            │                     │
-   │       ▼            ▼                     │
+   │   co-hosted HTTP + gRPC (REAPI)          │
+   │            │                             │
+   │            ▼                             │
    │   ┌──────────────────────────┐           │
    │   │ request handlers         │           │
    │   └────────┬─────────┬───────┘           │
@@ -143,9 +143,11 @@ A node moves through three explicit traffic states (`src/runtime.rs`):
 
 - **`joining`** — public reads/writes are accepted but `/ready` returns `503` until bootstrap completes for every known peer. This keeps load balancers from routing traffic to a half-warm pod.
 - **`serving`** — `/ready` returns `200`. Public APIs handle traffic normally.
-- **`draining`** — public HTTP rejects new requests and closes HTTP/1.1 connections; gRPC stops accepting new RPCs and ages out long-lived connections. Inflight work continues until a shared **drain deadline** (`KURA_DRAIN_COMPLETION_TIMEOUT_MS`) elapses.
+- **`draining`** — public HTTP rejects new requests and stops reusing HTTP/1.1 connections; established HTTP/2 connections (gRPC included) receive a GOAWAY so channels finish in-flight streams and reconnect elsewhere. Inflight work continues until a shared **drain deadline** (`KURA_DRAIN_COMPLETION_TIMEOUT_MS`) elapses.
 
-The REAPI gRPC server (`src/reapi/mod.rs`) advertises raised HTTP/2 flow-control windows — a 4 MiB stream window and a 16 MiB connection window — so a single large `ByteStream.Write` is not throttled to roughly `window / RTT` under WAN latency (without them the kura hop becomes the next bottleneck after the gateway nginx window). It recycles connections with `max_connection_age` (300s, at which it sends `GOAWAY`) plus a `max_connection_age_grace` (900s) that lets an in-flight upload finish before the connection is force-closed: the same `GOAWAY` is how draining sheds long-lived connections, and the grace is what bounds an upload's lifetime. A per-upload stall timeout (60s, keyed on byte progress so trickled keepalive frames cannot hold a stalled stream open) reclaims a vanished or stalled writer — and its partial temp file — much sooner, without cutting an upload that keeps making progress. Note the grace can exceed the pod's `terminationGracePeriodSeconds` (derived from `KURA_DRAIN_COMPLETION_TIMEOUT_MS`), so an upload still in flight when a rolling deploy terminates the pod is bounded by the drain deadline, not by the 900s grace.
+Independent of draining, the co-hosted listener's hyper path recycles every connection after `CONNECTION_MAX_AGE` (300s): the server sends GOAWAY and allows in-flight streams `CONNECTION_MAX_AGE_GRACE` (900s) to finish before severing. Without recycling, a long-lived Bazel channel would pin to a demoted-but-alive NodePort primary indefinitely after failover. Both public listeners — plaintext and TLS, with acceleration on or off — share this per-connection serving path, so recycling and drain GOAWAY apply uniformly; the internal mTLS peer listener is a separate plane with its own lifecycle.
+
+The REAPI gRPC services (`src/reapi/mod.rs`) are mounted into the co-hosted listener rather than a dedicated gRPC server (`reapi::routes` returns an `axum::Router` that `run_with_config` merges with the HTTP router). The listener advertises raised HTTP/2 flow-control windows — a 4 MiB stream window and a 16 MiB connection window — so a single large `ByteStream.Write` is not throttled to roughly `window / RTT` under WAN latency (without them the kura hop becomes the next bottleneck after the gateway nginx window). The window is FIXED, never adaptive: hyper's adaptive flow control would override the fixed size and ramp a single stream up from ~64 KiB, halving single-stream upload throughput under WAN latency. A per-upload stall timeout (60s, keyed on byte progress so trickled keepalive frames cannot hold a stalled stream open) reclaims a vanished or stalled writer — and its partial temp file — without cutting an upload that keeps making progress.
 
 `/up` is a liveness signal that does not depend on any of this — it stays healthy as long as the process is alive.
 
@@ -188,7 +190,8 @@ Helm and the local docker-compose stack ship a complete Grafana/Prometheus/Loki/
 
 All configuration is environment-driven (`src/config.rs`). The full table lives in [`README.md`](../README.md#-runtime-model-and-limits). Highlights:
 
-- Required identity and addressing: `KURA_TENANT_ID`, `KURA_REGION`, `KURA_NODE_URL`, `KURA_PORT`, `KURA_GRPC_PORT`, `KURA_INTERNAL_PORT`, `KURA_DATA_DIR`, `KURA_TMP_DIR`.
+- Required identity and addressing: `KURA_TENANT_ID`, `KURA_REGION`, `KURA_NODE_URL`, `KURA_PORT`, `KURA_INTERNAL_PORT`, `KURA_DATA_DIR`, `KURA_TMP_DIR`.
+- Co-hosted HTTP + gRPC surface: HTTP cache and the h2c REAPI gRPC service share one listener, dispatched by request path (gRPC service paths route to REAPI via `reapi::routes`, everything else to the HTTP router), so a single client-facing URL speaks both protocols. It serves plaintext on `KURA_PORT` and — when `public_tls` (`KURA_PUBLIC_TLS_*`) is configured — TLS on `KURA_HTTPS_PORT`, ALPN-negotiated (`h2` for gRPC, `http/1.1` for HTTP). The plaintext listener runs through the accelerated server, so HTTP/1 artifact GETs get the sendfile/splice fast path while gRPC (h2c) and other non-accelerable requests fall through to hyper; the TLS listener uses the plain hyper path (TLS is incompatible with sendfile). Both use the fixed REAPI-sized HTTP/2 windows so co-hosted uploads are not throttled.
 - Peer plane: `KURA_PEERS`, `KURA_DISCOVERY_DNS_NAME`, optional `KURA_INTERNAL_TLS_*` for peer mTLS.
 - Resource budgets: file-descriptor pool, memory soft/hard limits, tmp staging, manifest cache, RocksDB write buffer pool, all with defaults derived from Kura's bounded runtime model.
 - Peer sync bandwidth: `KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND` sets the aggregate peer artifact body traffic ceiling per node when set above `0`; Kura adapts the effective rate downward under public HTTP or gRPC load, and `KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS` controls the latency target for additional backoff.

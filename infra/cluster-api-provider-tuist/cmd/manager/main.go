@@ -171,8 +171,9 @@ func main() {
 	flag.StringVar(&vmKuraEgressCIDR, "vm-kura-egress-cidr",
 		envOrDefault("CAPI_VM_KURA_EGRESS_CIDR", ""),
 		"IPv4 CIDR (the cluster's Service CIDR, e.g. 10.128.0.0/12) the VM "+
-			"egress firewall lets Tart VMs reach on the Kura cache ports "+
-			"4000/50051. Empty keeps the firewall a pure RFC1918 blocklist. "+
+			"egress firewall lets Tart VMs reach on the Kura cache port "+
+			"4000 (co-hosted HTTP + gRPC). Empty keeps the firewall a pure "+
+			"RFC1918 blocklist. "+
 			"Pairs with --tailscale-accept-routes; flows from the chart's "+
 			"macosFleet.vmClusterEgress.kuraServiceCIDR.")
 	flag.StringVar(&vmClusterDNSIP, "vm-cluster-dns-ip",

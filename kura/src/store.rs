@@ -3283,7 +3283,6 @@ mod tests {
         let temp_dir = tempfile::tempdir().expect("failed to create temp dir");
         let mut config = Config {
             port: 0,
-            grpc_port: 0,
             internal_port: 7443,
             tenant_id: "test-tenant".into(),
             region: "local".into(),
@@ -3297,7 +3296,6 @@ mod tests {
             discovery_dns_name: None,
             global_discovery_dns_name: None,
             peer_tls: None,
-            grpc_tls: None,
             public_tls: None,
             https_port: 0,
             accelerated_file_serving: AcceleratedFileServingConfig {
