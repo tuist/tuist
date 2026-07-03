@@ -67,7 +67,6 @@ defmodule Tuist.Shards do
       project_id: project.id,
       shard_count: shard_count,
       granularity: granularity,
-      module_names: module_inventory(params, units, granularity),
       build_run_id: Map.get(params, :build_run_id),
       gradle_build_id: Map.get(params, :gradle_build_id),
       inserted_at: now
@@ -75,7 +74,14 @@ defmodule Tuist.Shards do
 
     {:ok, plan} = %ShardPlan{} |> ShardPlan.create_changeset(attrs) |> IngestRepo.insert()
 
-    insert_shard_targets(plan, project.id, assignment_shards, granularity, now)
+    insert_shard_targets(
+      plan,
+      project.id,
+      assignment_shards,
+      granularity,
+      now,
+      module_inventory(params, units, granularity)
+    )
 
     %{
       plan: plan,
@@ -226,7 +232,7 @@ defmodule Tuist.Shards do
     end
   end
 
-  defp insert_shard_targets(plan, project_id, shards, "module", now) do
+  defp insert_shard_targets(plan, project_id, shards, "module", now, _module_inventory) do
     rows =
       Enum.flat_map(shards, fn {index, shard_units, _total} ->
         Enum.map(shard_units, fn {name, duration} ->
@@ -244,8 +250,8 @@ defmodule Tuist.Shards do
     if rows != [], do: IngestRepo.insert_all(ShardPlanModule, rows)
   end
 
-  defp insert_shard_targets(plan, project_id, shards, "suite", now) do
-    rows =
+  defp insert_shard_targets(plan, project_id, shards, "suite", now, module_inventory) do
+    suite_rows =
       Enum.flat_map(shards, fn {index, shard_units, _total} ->
         Enum.map(shard_units, fn {name, duration} ->
           {module_name, test_suite_name} =
@@ -266,7 +272,39 @@ defmodule Tuist.Shards do
         end)
       end)
 
-    if rows != [], do: IngestRepo.insert_all(ShardPlanTestSuite, rows)
+    if suite_rows != [], do: IngestRepo.insert_all(ShardPlanTestSuite, suite_rows)
+
+    # Record the products each shard must download. Regular shards need only their assigned suites'
+    # modules; the catch-all shard runs everything not skipped, so it downloads the full built-module
+    # inventory (which includes targets that have no suite history and therefore no planned suites).
+    insert_suite_download_modules(plan, project_id, shards, module_inventory, now)
+  end
+
+  defp insert_suite_download_modules(plan, project_id, shards, module_inventory, now) do
+    catch_all_index = plan.shard_count - 1
+
+    rows =
+      Enum.flat_map(shards, fn {index, shard_units, _total} ->
+        modules =
+          if index == catch_all_index do
+            module_inventory
+          else
+            shard_units |> Enum.map(fn {name, _duration} -> suite_module(name) end) |> Enum.uniq()
+          end
+
+        Enum.map(modules, fn module_name ->
+          %{
+            shard_plan_id: plan.id,
+            project_id: project_id,
+            shard_index: index,
+            module_name: module_name,
+            estimated_duration_ms: 0,
+            inserted_at: now
+          }
+        end)
+      end)
+
+    if rows != [], do: IngestRepo.insert_all(ShardPlanModule, rows)
   end
 
   defp fetch_shard_data(%ShardPlan{granularity: "module"} = plan, shard_index, _opts) do
@@ -281,13 +319,22 @@ defmodule Tuist.Shards do
   end
 
   defp fetch_shard_data(%ShardPlan{granularity: "suite"} = plan, shard_index, opts) do
-    plan = ClickHouseRepo.preload(plan, :test_suites)
+    plan = ClickHouseRepo.preload(plan, [:test_suites, :modules])
     suite_catch_all? = Keyword.get(opts, :suite_catch_all?, false)
 
     results =
       plan.test_suites
       |> Enum.filter(&(&1.shard_index == shard_index))
       |> Enum.map(&{&1.module_name, &1.test_suite_name})
+
+    # Each suite shard records the modules it must download (regular shards get their assigned
+    # suites' modules; the catch-all gets the full built-module inventory, since it runs every
+    # un-skipped target and the shared `.xctestrun` references them all).
+    download_modules =
+      plan.modules
+      |> Enum.filter(&(&1.shard_index == shard_index))
+      |> Enum.map(& &1.module_name)
+      |> Enum.uniq()
 
     cond do
       shard_index < 0 or shard_index >= plan.shard_count ->
@@ -299,30 +346,36 @@ defmodule Tuist.Shards do
           |> Enum.filter(&(&1.shard_index < shard_index))
           |> Enum.map(&"#{&1.module_name}/#{&1.test_suite_name}")
 
-        %{modules: [], suites: %{}, skip: skip, download_modules: catch_all_download_modules(plan)}
+        %{
+          modules: [],
+          suites: %{},
+          skip: skip,
+          download_modules: download_modules_or(download_modules, all_suite_modules(plan))
+        }
 
       results == [] ->
         if shard_index == plan.shard_count - 1 do
-          %{modules: [], suites: %{}, skip: [], download_modules: catch_all_download_modules(plan)}
+          %{
+            modules: [],
+            suites: %{},
+            skip: [],
+            download_modules: download_modules_or(download_modules, all_suite_modules(plan))
+          }
         end
 
       true ->
         suites = Enum.group_by(results, fn {mod, _} -> mod end, fn {_, suite} -> suite end)
         modules = Map.keys(suites)
-        %{modules: modules, suites: suites, skip: []}
+        %{modules: modules, suites: suites, skip: [], download_modules: download_modules_or(download_modules, modules)}
     end
   end
 
-  # The catch-all shard has to load the entire `.xctestrun`, which references every built test
-  # target, so it needs each target's per-module product even for suites it skips. Prefer the full
-  # module inventory captured at plan creation; fall back to the modules that have planned suites for
-  # plans created before that inventory was recorded.
-  defp catch_all_download_modules(plan) do
-    case plan.module_names do
-      [_ | _] = module_names -> module_names
-      _ -> plan.test_suites |> Enum.map(& &1.module_name) |> Enum.uniq()
-    end
-  end
+  # Plans created before per-shard download modules were recorded have no `shard_plan_modules` rows
+  # for suite shards; fall back so a plan read across a deploy still downloads what it needs.
+  defp download_modules_or([], fallback), do: fallback
+  defp download_modules_or(download_modules, _fallback), do: download_modules
+
+  defp all_suite_modules(plan), do: plan.test_suites |> Enum.map(& &1.module_name) |> Enum.uniq()
 
   defp get_plan(project_id, reference) do
     ClickHouseRepo.one(

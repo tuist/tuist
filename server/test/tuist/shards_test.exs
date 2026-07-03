@@ -188,6 +188,11 @@ defmodule Tuist.ShardsTest do
       assert Enum.any?(shard.download_urls, &String.ends_with?(&1, "/shared.aar"))
       assert Enum.any?(shard.download_urls, &String.ends_with?(&1, "/modules/AppTests.aar"))
       assert Enum.any?(shard.download_urls, &String.ends_with?(&1, "/modules/NewTests.aar"))
+
+      # A regular shard downloads only its own suites' modules, not the un-enumerated ones.
+      assert {:ok, regular} = Shards.get_shard(project, account, "catch-all-download-1", 0)
+      assert Enum.any?(regular.download_urls, &String.ends_with?(&1, "/modules/AppTests.aar"))
+      refute Enum.any?(regular.download_urls, &String.ends_with?(&1, "/modules/NewTests.aar"))
     end
 
     test "does not append a catch-all shard for module granularity" do
