@@ -129,7 +129,7 @@ What you provide: the control-plane client, the two addresses (`KURA_NODE_URL`, 
 With no managed region there is no Tuist-issued mesh CA, so enrollment does not apply (the enroll endpoint returns `503 ca_unavailable`). You bring your own peer TLS and your own peer list.
 
 ```yaml
-# docker-compose.yml
+# docker-compose.yml for a trusted single node with no Tuist server integration
 services:
   kura:
     image: ghcr.io/tuist/kura:<version>
@@ -138,29 +138,8 @@ services:
       - "4000:4000"
       - "7443:7443"
     environment:
-      # Report to Tuist: dashboard visibility, usage, and token introspection (cache auth).
-      # On a self-hosted server these do not drive routing (see the Routing section), so the
-      # control-plane client and KURA_REGISTRATION_URL/KURA_ADVERTISED_HTTP_URL are optional
-      # there. KURA_TENANT_ID is always required.
       KURA_TENANT_ID: "<account-handle>"
-      KURA_CONTROL_PLANE_URL: "https://tuist.dev"
-      KURA_REGISTRATION_URL: "https://tuist.dev/_internal/kura/mesh/registrations"
-      KURA_CONTROL_PLANE_CLIENT_ID: "<client_id>"
-      KURA_CONTROL_PLANE_CLIENT_SECRET: "<secret>"
-      KURA_ADVERTISED_HTTP_URL: "https://kura.acme.internal"
-
-      # Your own mesh (only needed if you run more than one node)
-      KURA_NODE_URL: "https://kura-1.acme.internal:7443"
-      KURA_PEERS: "https://kura-2.acme.internal:7443,https://kura-3.acme.internal:7443"
-
-      # Peer mTLS secures node-to-node traffic, so it only applies with more than one node.
-      # A single node has no peers: omit these three and switch KURA_NODE_URL to
-      # http:// (keep the same host and port; the peer URL must use http, not
-      # https, when peer TLS is off).
-      KURA_INTERNAL_TLS_CA_CERT_PATH: "/tls/ca.pem"
-      KURA_INTERNAL_TLS_CERT_PATH: "/tls/tls.crt"
-      KURA_INTERNAL_TLS_KEY_PATH: "/tls/tls.key"
-
+      KURA_NODE_URL: "http://kura-1.acme.internal:7443"
       KURA_REGION: "office"
       KURA_PORT: "4000"
       KURA_GRPC_PORT: "50051"
@@ -169,20 +148,44 @@ services:
       KURA_TMP_DIR: "/var/cache/kura/tmp"
       KURA_OTEL_SERVICE_NAME: "kura-acme"
       KURA_OTEL_DEPLOYMENT_ENVIRONMENT: "onprem"
-
-      # Authenticate the HTTP cache API with the bundled Tuist hook (introspects
-      # tokens against the control plane using the control-plane client above).
-      KURA_EXTENSION_ENABLED: "1"
-      KURA_EXTENSION_SCRIPT_PATH: "/etc/kura/extensions/tuist.lua"
-      KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL: "https://tuist.dev"
     volumes:
-      - ./tls:/tls:ro           # YOU populate this with your CA + leaf
       - kura-data:/var/cache/kura
 volumes:
   kura-data: {}
 ```
 
-What you provide that the bridged path does not: for a multi-node mesh, your **own peer TLS** mounted at `/tls` (a CA plus a leaf certificate and key per node, sharing a CA so the nodes trust each other) and `KURA_PEERS` describing your topology. A single standalone node needs neither: with no peers, nothing travels over the peer plane, so omit `KURA_INTERNAL_TLS_*` and `KURA_PEERS`, and use the `http://` scheme for `KURA_NODE_URL` (peer TLS off requires `http` rather than `https`; the host and `KURA_INTERNAL_PORT` stay the same).
+That is the smallest trusted setup: no Tuist server calls, no token introspection, no peer TLS, and no peer list. With peer TLS disabled, `KURA_NODE_URL` must use the `http://` scheme even when the node is reachable through a private network name.
+
+To connect the node to a self-hosted Tuist server for token authentication, usage, and dashboard registration, keep the single-node `http://` `KURA_NODE_URL` above and add the control-plane plus extension settings. Use your self-hosted server URL, not `https://tuist.dev`:
+
+```yaml
+environment:
+  KURA_CONTROL_PLANE_URL: "https://tuist.acme.internal"
+  KURA_CONTROL_PLANE_CLIENT_ID: "<client_id>"
+  KURA_CONTROL_PLANE_CLIENT_SECRET: "<secret>"
+  KURA_REGISTRATION_URL: "https://tuist.acme.internal/_internal/kura/mesh/registrations"
+  KURA_ADVERTISED_HTTP_URL: "https://kura.acme.internal"
+  KURA_EXTENSION_ENABLED: "1"
+  KURA_EXTENSION_SCRIPT_PATH: "/etc/kura/extensions/tuist.lua"
+  KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL: "https://tuist.acme.internal"
+volumes:
+  - ./tuist.lua:/etc/kura/extensions/tuist.lua:ro
+```
+
+The `tuist.lua` mount is only needed when your Kura image does not already bundle the hook at that path. On a self-hosted Tuist server, set `TUIST_CACHE_ENDPOINTS` (or Helm `server.cacheEndpointUrl`) to `KURA_ADVERTISED_HTTP_URL` so the CLI is routed to the node; registration keeps the Cache page informed but does not drive routing there.
+
+To run more than one standalone node, add your **own peer TLS** mounted at `/tls` (a CA plus a leaf certificate and key per node, sharing a CA so the nodes trust each other), switch `KURA_NODE_URL` to `https://...:<KURA_INTERNAL_PORT>`, and add `KURA_PEERS`:
+
+```yaml
+environment:
+  KURA_NODE_URL: "https://kura-1.acme.internal:7443"
+  KURA_PEERS: "https://kura-2.acme.internal:7443,https://kura-3.acme.internal:7443"
+  KURA_INTERNAL_TLS_CA_CERT_PATH: "/tls/ca.pem"
+  KURA_INTERNAL_TLS_CERT_PATH: "/tls/tls.crt"
+  KURA_INTERNAL_TLS_KEY_PATH: "/tls/tls.key"
+volumes:
+  - ./tls:/tls:ro
+```
 
 ## What each topology requires {#requirements-summary}
 
@@ -215,9 +218,9 @@ Bridged nodes additionally set `KURA_ENROLL_ON_BOOT`, `KURA_CONTROL_PLANE_URL`, 
 
 ## Authentication of cache requests {#cache-auth}
 
-By default a node serves its HTTP cache API to anything that can reach it on your network. To require that callers present a valid Tuist token, so that only authenticated members of your organization can read and write, a node runs an **extension** that introspects every token against the Tuist control plane.
+By default a node serves its HTTP cache API to anything that can reach it on your network. To require that callers present a valid Tuist token, so that only authenticated members of your organization can read and write, a node runs an **extension** that introspects every token against the Tuist control plane. Leave the extension variables unset for no-server validation or a trusted internal node.
 
-The extension hook ships in the image at `/etc/kura/extensions/tuist.lua`, so you enable it with three variables (already shown in the compose files above):
+Images built from this repository bundle the Tuist hook at `/etc/kura/extensions/tuist.lua`. If your image does not contain that file yet, mount the hook yourself and point `KURA_EXTENSION_SCRIPT_PATH` at the mounted file. Then enable it with these variables:
 
 | Variable | Value |
 |---|---|
@@ -229,9 +232,9 @@ The hook reuses the control-plane client you already set (`KURA_CONTROL_PLANE_CL
 
 ## Networking {#networking}
 
-A node makes **outbound** connections to:
+A node makes **outbound** connections depending on which optional integrations you enable:
 
-- your Tuist server (`KURA_CONTROL_PLANE_URL`) for enrollment, registration heartbeats, usage, and introspection, and
+- your Tuist server (`KURA_CONTROL_PLANE_URL`) for enrollment, registration heartbeats, usage, and introspection, when those features are configured, and
 - in the bridged topology, the managed mesh's peer gateway, for replication.
 
 Your developers and CI reach the node's `KURA_ADVERTISED_HTTP_URL` (and, for a multi-node mesh, the nodes reach each other on the peer port). These addresses only need to be reachable **within your network**. They do not need to be exposed to the public internet.
@@ -239,7 +242,7 @@ Your developers and CI reach the node's `KURA_ADVERTISED_HTTP_URL` (and, for a m
 ## How it behaves {#behavior}
 
 - **Bridged.** On boot the node enrolls, pulls the managed mesh's full cache, and transitions to a serving member of the ring. The initial pull happens once and can take a while over a WAN, sized to your cache. From then on, writes on the node propagate continuously to the managed mesh. New artifacts written elsewhere in the managed mesh after the node joins are not yet continuously propagated to it (a planned enhancement), so treat the join-time pull as a snapshot rather than a live mirror.
-- **Standalone.** The node(s) run as an isolated mesh on your infrastructure. Replication, if any, happens only among your own nodes. Tuist's only role is the control plane: dashboard visibility, CLI endpoint routing, usage metering, and token introspection. It never provisions, upgrades, peers with, or reaches into your nodes.
+- **Standalone.** The node(s) run as an isolated mesh on your infrastructure. Replication, if any, happens only among your own nodes. When configured, Tuist's role is limited to the control plane: dashboard visibility, CLI endpoint routing, usage metering, and token introspection. It never provisions, upgrades, peers with, or reaches into your nodes.
 
 ## Verify {#verify}
 
