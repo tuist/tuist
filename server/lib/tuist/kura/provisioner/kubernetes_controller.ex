@@ -1,17 +1,16 @@
 defmodule Tuist.Kura.Provisioner.KubernetesController do
   @moduledoc """
-  Submits desired Kura endpoint state as `KuraInstance` and optional
-  `KuraGateway` custom resources.
+  Submits desired Kura endpoint state as `KuraInstance` custom resources.
 
-  The Go controller in `infra/kura-controller` owns the actual
-  StatefulSet, Kura ingress, dedicated gateway, and internal peer Service
-  reconciliation. This provisioner is only the bridge from Tuist's account
-  model to the CRDs.
+  The Go controller in `infra/kura-controller` owns the actual StatefulSet,
+  Kura ingress, and internal peer Service reconciliation; the customer plane is
+  fronted by a shared regional ingress (host-network on bare metal, LB-fronted on
+  cloud), not a per-account gateway. This provisioner is only the bridge from
+  Tuist's account model to the CRDs.
   """
 
   @behaviour Tuist.Kura.Provisioner
 
-  alias Tuist.Accounts.Account
   alias Tuist.Billing.Entitlements
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client
@@ -22,8 +21,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   @namespace "kura"
   @manifest_revision "2026-07-02-per-account-public-dns-v1"
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
-  @gateway_annotation "tuist.dev/kura-gateway"
-  @gateway_controller_image "registry.k8s.io/ingress-nginx/controller:v1.11.3"
   @impl true
   def provision(%{name: handle}, %Regions{} = region, %Server{}) do
     {:ok, instance_name(handle, region)}
@@ -35,15 +32,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         %{image_tag: image_tag, account: account, server: %Server{} = server, region: %Regions{} = region} = inputs
       ) do
     with {:ok, hook_script} <- hook_script(inputs) do
-      gateway = gateway_assignment(account, region)
-
       external_peers = self_hosted_peers(account, region)
 
       case apply_manifests(
-             [
-               gateway_manifest(gateway, account, region),
-               manifest(name, image_tag, account, region, server, hook_script, gateway, external_peers)
-             ],
+             [manifest(name, image_tag, account, region, server, hook_script, external_peers)],
              region
            ) do
         :ok -> :ok
@@ -54,13 +46,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   @impl true
   def destroy(name, %Regions{} = region) do
-    with {:ok, gateway_name} <- gateway_name_for_instance(name, region),
-         :ok <- delete_gateway_if_present(gateway_name, region) do
-      case client_delete_kura_instance(@namespace, name, region) do
-        :ok -> :ok
-        {:error, :not_found} -> :ok
-        {:error, reason} -> {:error, reason}
-      end
+    case client_delete_kura_instance(@namespace, name, region) do
+      :ok -> :ok
+      {:error, :not_found} -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -195,24 +184,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @doc false
-  def manifest(name, image_tag, account, %Regions{} = region, %Server{} = server, hook_script) do
-    manifest(name, image_tag, account, region, server, hook_script, gateway_assignment(account, region))
-  end
-
-  @doc false
-  def manifest(
-        name,
-        image_tag,
-        account,
-        %Regions{} = region,
-        %Server{} = server,
-        hook_script,
-        gateway,
-        external_peers \\ []
-      ) do
+  def manifest(name, image_tag, account, %Regions{} = region, %Server{} = server, hook_script, external_peers \\ []) do
     account_handle = dns_handle(account.name)
     revision = @manifest_revision <> peers_revision_suffix(external_peers)
-    annotations = maybe_put_gateway_annotation(%{@manifest_revision_annotation => revision}, gateway)
+    annotations = %{@manifest_revision_annotation => revision}
 
     %{
       "apiVersion" => "kura.tuist.dev/v1alpha1",
@@ -243,7 +218,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           # publicHost, so host ownership stays with exactly one instance.
           "publicHost" => if(owns_customer_host?(server), do: public_host(account_handle, region)),
           "grpcPublicHost" => if(owns_customer_host?(server), do: grpc_public_host(account_handle, region)),
-          "ingressClassName" => ingress_class_name(region, gateway),
+          "ingressClassName" => ingress_class_name(region),
           "publicHostNetwork" => public_host_network?(region),
           "peerTLSSecretName" => peer_tls_secret_name(region),
           "mesh" => mesh_enabled?(region),
@@ -266,38 +241,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "extraEnv" => extension_env(region)
         }
         |> Enum.reject(fn {_key, value} -> value in [nil, "", false] end)
-        |> Map.new()
-    }
-  end
-
-  @doc false
-  def gateway_manifest(nil, _account, _region), do: nil
-
-  def gateway_manifest(%{name: gateway_name, ingress_class_name: ingress_class_name}, _account, %Regions{} = region) do
-    %{
-      "apiVersion" => "kura.tuist.dev/v1alpha1",
-      "kind" => "KuraGateway",
-      "metadata" => %{
-        "name" => gateway_name,
-        "namespace" => @namespace,
-        "labels" => %{
-          "app.kubernetes.io/name" => "kura-gateway",
-          "app.kubernetes.io/instance" => gateway_name,
-          "tuist.dev/region" => region.id
-        }
-      },
-      "spec" =>
-        %{
-          "region" => region.id,
-          "ingressClassName" => ingress_class_name,
-          "controllerImage" => gateway_controller_image(region),
-          "replicas" => gateway_replicas(region),
-          "nodeSelector" => node_selector(region),
-          "tolerations" => tolerations(region),
-          "loadBalancerAnnotations" => gateway_load_balancer_annotations(gateway_name, region)
-        }
-        |> maybe_put_host_network(region)
-        |> Enum.reject(fn {_key, value} -> value in [nil, ""] or value == %{} end)
         |> Map.new()
     }
   end
@@ -325,18 +268,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp grpc_public_host(_handle, _region), do: nil
 
-  defp ingress_class_name(_region, %{ingress_class_name: ingress_class_name})
+  defp ingress_class_name(%Regions{provisioner_config: %{ingress_class_name: ingress_class_name}})
        when is_binary(ingress_class_name) and ingress_class_name != "", do: ingress_class_name
 
-  defp ingress_class_name(%Regions{provisioner_config: %{ingress_class_name: ingress_class_name}}, nil)
-       when is_binary(ingress_class_name) and ingress_class_name != "", do: ingress_class_name
-
-  defp ingress_class_name(_region, _gateway), do: nil
-
-  defp maybe_put_gateway_annotation(annotations, nil), do: annotations
-
-  defp maybe_put_gateway_annotation(annotations, %{name: gateway_name}),
-    do: Map.put(annotations, @gateway_annotation, gateway_name)
+  defp ingress_class_name(_region), do: nil
 
   defp peer_tls_secret_name(%Regions{provisioner_config: %{peer_tls_secret_name: secret_name}})
        when is_binary(secret_name) and secret_name != "", do: secret_name
@@ -537,109 +472,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp egress_guaranteed_mbps(_account, _region), do: nil
 
-  # Private (runner-cache) regions never get a gateway: their whole
-  # invariant is "no public endpoint, no LoadBalancer" — a dedicated
-  # gateway for a hosted-enterprise account would silently recreate
-  # the public surface the region exists to avoid.
-  #
-  # Host-network (bare-metal) regions also never get a per-account gateway.
-  # The region's ingress runs as a single host-network gateway bound to the
-  # box's :80/:443; a second per-account host-network gateway can't bind the
-  # same ports on the same box, so it would sit unschedulable and its account
-  # would never serve. On bare metal every account uses the shared regional
-  # ingress class instead; account isolation there is a dedicated box, not a
-  # dedicated gateway. Dedicated gateways stay available on LoadBalancer
-  # regions, where each gets its own LB.
-  defp gateway_assignment(account, %Regions{} = region) do
-    if not Regions.private?(region) and not gateway_host_network?(region) and
-         dedicated_gateway?(account, region) do
-      gateway_name = gateway_name(account, region)
-
-      %{
-        name: gateway_name,
-        ingress_class_name: dedicated_gateway_ingress_class_name(gateway_name, region)
-      }
-    end
-  end
-
-  defp dedicated_gateway?(%{name: name} = account, %Regions{provisioner_config: config}) do
-    handle = dns_handle(name)
-
-    handle in dedicated_gateway_account_handles(config) or
-      hosted_enterprise_account?(account)
-  end
-
-  defp dedicated_gateway?(_account, _region), do: false
-
-  defp hosted_enterprise_account?(%Account{} = account) do
-    Environment.tuist_hosted?() and Entitlements.allows?(account, :dedicated_kura_gateway)
-  end
-
-  defp hosted_enterprise_account?(_account), do: false
-
-  defp gateway_name(account, %Regions{} = region) do
-    "kgw-#{gateway_account_hash(account)}-#{region.id}"
-  end
-
-  defp gateway_account_hash(%{id: id}) when is_integer(id) do
-    opaque_hash("account:#{id}")
-  end
-
-  defp gateway_account_hash(%{name: name}) when is_binary(name) do
-    opaque_hash("account:#{dns_handle(name)}")
-  end
-
-  defp opaque_hash(value) do
-    :sha256
-    |> :crypto.hash(value)
-    |> Base.encode16(case: :lower)
-    |> binary_part(0, 12)
-  end
-
-  defp dedicated_gateway_account_handles(%{dedicated_gateway_account_handles: handles}) when is_list(handles) do
-    Enum.map(handles, &dns_handle/1)
-  end
-
-  defp dedicated_gateway_account_handles(_config), do: []
-
-  defp dedicated_gateway_ingress_class_name(gateway_name, %Regions{} = region) do
-    "kura-#{region.id}-#{gateway_name}"
-  end
-
-  defp gateway_controller_image(%Regions{provisioner_config: %{gateway_controller_image: image}})
-       when is_binary(image) and image != "", do: image
-
-  defp gateway_controller_image(_region), do: @gateway_controller_image
-
-  defp gateway_replicas(%Regions{provisioner_config: %{gateway_replicas: replicas}}), do: replicas
-  defp gateway_replicas(_region), do: 2
-
-  defp maybe_put_host_network(spec, region) do
-    if gateway_host_network?(region), do: Map.put(spec, "hostNetwork", true), else: spec
-  end
-
+  # Whether the region's shared gateway runs host-network (directly on the
+  # bare-metal box NIC) rather than as an LB-fronted controller. Drives the
+  # customer- and peer-plane host-network signals on the KuraInstance.
   defp gateway_host_network?(%Regions{provisioner_config: %{gateway: :host_network}}), do: true
   defp gateway_host_network?(_region), do: false
-
-  defp gateway_load_balancer_annotations(_gateway_name, %Regions{provisioner_config: %{gateway: :host_network}}), do: %{}
-
-  defp gateway_load_balancer_annotations(gateway_name, %Regions{provisioner_config: config}) do
-    annotations = %{
-      "load-balancer.hetzner.cloud/name" => "tuist-#{gateway_name}-ingress",
-      "load-balancer.hetzner.cloud/uses-proxyprotocol" => "true"
-    }
-
-    annotations =
-      case Map.get(config, :hetzner_location) do
-        location when is_binary(location) and location != "" ->
-          Map.put(annotations, "load-balancer.hetzner.cloud/location", location)
-
-        _ ->
-          annotations
-      end
-
-    Map.merge(annotations, Map.get(config, :gateway_load_balancer_annotations, %{}))
-  end
 
   defp apply_manifests(manifests, region) do
     manifests
@@ -650,33 +487,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         {:error, reason} -> {:halt, {:error, reason}}
       end
     end)
-  end
-
-  defp gateway_name_for_instance(name, region) do
-    case client_get_kura_instance(@namespace, name, region) do
-      {:ok, %{"metadata" => %{"annotations" => %{@gateway_annotation => gateway_name}}}}
-      when is_binary(gateway_name) and gateway_name != "" ->
-        {:ok, gateway_name}
-
-      {:ok, _} ->
-        {:ok, nil}
-
-      {:error, :not_found} ->
-        {:ok, nil}
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
-  defp delete_gateway_if_present(nil, _region), do: :ok
-
-  defp delete_gateway_if_present(gateway_name, region) do
-    case client_delete_kura_gateway(@namespace, gateway_name, region) do
-      :ok -> :ok
-      {:error, :not_found} -> :ok
-      {:error, reason} -> {:error, reason}
-    end
   end
 
   defp interpolate_host(template, handle, %{cluster_id: cluster_id}) do
@@ -735,10 +545,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp client_delete_kura_instance(namespace, name, region) do
     Client.delete_kura_instance(namespace, name, kubernetes_client_opts(region))
-  end
-
-  defp client_delete_kura_gateway(namespace, name, region) do
-    Client.delete_kura_gateway(namespace, name, kubernetes_client_opts(region))
   end
 
   defp kubernetes_client_opts(%Regions{provisioner_config: %{kubernetes_client: opts}}), do: opts

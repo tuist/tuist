@@ -255,15 +255,6 @@ defmodule Tuist.Environment do
     |> Enum.reject(&(&1 == ""))
   end
 
-  def kura_dedicated_gateway_account_handles do
-    "TUIST_KURA_DEDICATED_GATEWAY_ACCOUNTS"
-    |> System.get_env("")
-    |> String.split(",", trim: true)
-    |> Enum.map(&String.trim/1)
-    |> Enum.map(&String.downcase/1)
-    |> Enum.reject(&(&1 == ""))
-  end
-
   def kura_runtime_image_tag(secrets \\ secrets()) do
     System.get_env("TUIST_KURA_RUNTIME_IMAGE_TAG") || get([:kura, :runtime_image_tag], secrets)
   end

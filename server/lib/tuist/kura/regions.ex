@@ -388,7 +388,6 @@ defmodule Tuist.Kura.Regions do
         tolerations: [
           %{"key" => "tuist.dev/kura-cache", "operator" => "Exists", "effect" => "NoSchedule"}
         ],
-        dedicated_gateway_account_handles: Tuist.Environment.kura_dedicated_gateway_account_handles(),
         # Per-pod egress governance on the shared bare-metal boxes: every
         # tenant gets the Cilium burst ceiling (a pod annotation); enterprise
         # tenants additionally reserve egress_guaranteed_mbps as a bin-packed
