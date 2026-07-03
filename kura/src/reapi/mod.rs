@@ -1352,9 +1352,9 @@ mod tests {
         test_support::{test_context, test_context_with_extension},
     };
 
-    // Serves the REAPI routes over a plaintext h2c listener for the tests below,
-    // in place of the former dedicated gRPC server. axum::serve's auto builder
-    // speaks HTTP/2 prior knowledge, which is what the tonic clients connect with.
+    // Serves the REAPI routes over a plaintext h2c listener for the tests
+    // below. axum::serve's auto builder speaks HTTP/2 prior knowledge, which
+    // is what the tonic clients connect with.
     async fn serve_routes(
         listener: TcpListener,
         state: SharedState,

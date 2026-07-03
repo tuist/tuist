@@ -40,12 +40,11 @@ const MAX_HEADER_BYTES: usize = 16 * 1024;
 const HEADER_TIMEOUT: Duration = Duration::from_secs(30);
 // A connection on the hyper fallback path is recycled after this age: the
 // server sends GOAWAY (stop opening new streams) and gives in-flight streams
-// the grace period to finish before the connection is severed. Mirrors the
-// dedicated tonic gRPC server this listener replaced — without recycling,
-// long-lived Bazel/Buck2 channels pin to a demoted-but-alive NodePort primary
-// indefinitely after failover. The grace is generous because a single
-// ByteStream write of a large blob legitimately runs for minutes; idle
-// streams are reclaimed much sooner by REAPI_WRITE_STALL_TIMEOUT. Drain
+// the grace period to finish before the connection is severed. Without
+// recycling, long-lived Bazel/Buck2 channels pin to a demoted-but-alive
+// NodePort primary indefinitely after failover. The grace is generous because
+// a single ByteStream write of a large blob legitimately runs for minutes;
+// idle streams are reclaimed much sooner by REAPI_WRITE_STALL_TIMEOUT. Drain
 // (shutdown) triggers the same graceful path immediately.
 const CONNECTION_MAX_AGE: Duration = Duration::from_secs(300);
 const CONNECTION_MAX_AGE_GRACE: Duration = Duration::from_secs(900);
@@ -93,7 +92,6 @@ pub async fn serve_public_http(
                 };
                 // Unary REAPI calls (FindMissingBlobs, GetActionResult) are
                 // small and latency-bound; Nagle + delayed ACK stalls them.
-                // The dedicated tonic listener set this by default.
                 if let Err(error) = stream.set_nodelay(true) {
                     tracing::debug!("failed to set TCP_NODELAY: {error}");
                 }
