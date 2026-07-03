@@ -38,6 +38,17 @@ use crate::{
 
 const MAX_HEADER_BYTES: usize = 16 * 1024;
 const HEADER_TIMEOUT: Duration = Duration::from_secs(30);
+// A connection on the hyper fallback path is recycled after this age: the
+// server sends GOAWAY (stop opening new streams) and gives in-flight streams
+// the grace period to finish before the connection is severed. Mirrors the
+// dedicated tonic gRPC server this listener replaced — without recycling,
+// long-lived Bazel/Buck2 channels pin to a demoted-but-alive NodePort primary
+// indefinitely after failover. The grace is generous because a single
+// ByteStream write of a large blob legitimately runs for minutes; idle
+// streams are reclaimed much sooner by REAPI_WRITE_STALL_TIMEOUT. Drain
+// (shutdown) triggers the same graceful path immediately.
+const CONNECTION_MAX_AGE: Duration = Duration::from_secs(300);
+const CONNECTION_MAX_AGE_GRACE: Duration = Duration::from_secs(900);
 const IO_TIMEOUT: Duration = Duration::from_secs(120);
 const KEEP_ALIVE_IDLE_TIMEOUT: Duration = Duration::from_secs(60);
 const NX_NAMESPACE_ID: &str = "nx";
@@ -46,7 +57,7 @@ const TENANT_SCOPE_NAMESPACE_ID: &str = "";
 
 // Applies each listener's HTTP/1 + HTTP/2 settings to the fallback hyper
 // builder that serves everything the sendfile fast path does not. Passed in per
-// listener so the combined HTTP+gRPC port can advertise the fixed gRPC-sized
+// listener so the co-hosted HTTP+gRPC port can advertise the fixed gRPC-sized
 // HTTP/2 windows (so co-hosted REAPI uploads are not throttled) while the plain
 // public port keeps its own tuning.
 type Http2BuilderConfig = fn(&mut HttpBuilder<TokioExecutor>);
@@ -80,13 +91,21 @@ pub async fn serve_public_http(
                         continue;
                     }
                 };
+                // Unary REAPI calls (FindMissingBlobs, GetActionResult) are
+                // small and latency-bound; Nagle + delayed ACK stalls them.
+                // The dedicated tonic listener set this by default.
+                if let Err(error) = stream.set_nodelay(true) {
+                    tracing::debug!("failed to set TCP_NODELAY: {error}");
+                }
+                let accepted_at = tokio::time::Instant::now();
                 let router = router.clone();
                 let state = state.clone();
                 let config = config.clone();
                 let semaphore = semaphore.clone();
+                let shutdown = shutdown_rx.clone();
                 tokio::spawn(
                     async move {
-                        if let Err(error) = serve_connection(stream, router, state, config, semaphore, configure_http2).await {
+                        if let Err(error) = serve_connection(stream, router, state, config, semaphore, configure_http2, accepted_at, shutdown).await {
                             tracing::debug!("public HTTP connection failed: {error}");
                         }
                     }
@@ -102,6 +121,7 @@ pub async fn serve_public_http(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn serve_connection(
     mut stream: TcpStream,
     router: Router,
@@ -109,17 +129,22 @@ async fn serve_connection(
     config: AcceleratedFileServingConfig,
     semaphore: Arc<Semaphore>,
     configure_http2: Http2BuilderConfig,
+    accepted_at: tokio::time::Instant,
+    mut shutdown: watch::Receiver<bool>,
 ) -> std::io::Result<()> {
     loop {
         // Bound the wait for the next request so idle keep-alive connections do
-        // not pin a task and file descriptor forever.
-        let classified =
-            match tokio::time::timeout(KEEP_ALIVE_IDLE_TIMEOUT, classify_route(&stream, &state))
-                .await
-            {
-                Ok(classified) => classified,
-                Err(_) => return Ok(()),
-            };
+        // not pin a task and file descriptor forever, and close idle fast-path
+        // connections promptly when the node drains.
+        let classified = tokio::select! {
+            classified = tokio::time::timeout(KEEP_ALIVE_IDLE_TIMEOUT, classify_route(&stream, &state)) => {
+                match classified {
+                    Ok(classified) => classified,
+                    Err(_) => return Ok(()),
+                }
+            }
+            _ = shutdown.changed() => return Ok(()),
+        };
 
         // Match the route from a non-destructive peek before doing any access or
         // store work. Anything that is not an accelerable artifact GET, including
@@ -129,12 +154,12 @@ async fn serve_connection(
         // re-evaluating access twice. The peek does not consume bytes, so Hyper
         // re-reads the request from the start.
         let Some((parsed, artifact)) = classified else {
-            return serve_hyper(stream, router, configure_http2).await;
+            return serve_hyper(stream, router, configure_http2, accepted_at, shutdown).await;
         };
         let keep_alive = request_wants_keep_alive(&parsed);
         let request_started_at = Instant::now();
         let Ok(permit) = semaphore.clone().try_acquire_owned() else {
-            return serve_hyper(stream, router, configure_http2).await;
+            return serve_hyper(stream, router, configure_http2, accepted_at, shutdown).await;
         };
         match open_and_authorize(&state, parsed, artifact).await {
             ClassifiedRequest::Accelerate(candidate) => {
@@ -150,11 +175,13 @@ async fn serve_connection(
                 .await;
                 drop(permit);
                 match reuse? {
-                    Some(reused) => {
+                    // Stop reusing the connection once the node is draining;
+                    // the response just written completes the in-flight work.
+                    Some(reused) if !*shutdown.borrow() => {
                         stream = reused;
                         continue;
                     }
-                    None => return Ok(()),
+                    _ => return Ok(()),
                 }
             }
             ClassifiedRequest::Deny(denial) => {
@@ -181,7 +208,7 @@ async fn serve_connection(
             }
             ClassifiedRequest::Fallback => {
                 drop(permit);
-                return serve_hyper(stream, router, configure_http2).await;
+                return serve_hyper(stream, router, configure_http2, accepted_at, shutdown).await;
             }
         }
     }
@@ -218,6 +245,8 @@ async fn serve_hyper(
     stream: TcpStream,
     router: Router,
     configure_http2: Http2BuilderConfig,
+    accepted_at: tokio::time::Instant,
+    mut shutdown: watch::Receiver<bool>,
 ) -> std::io::Result<()> {
     let mut builder = HttpBuilder::new(TokioExecutor::new());
     configure_http2(&mut builder);
@@ -230,10 +259,27 @@ async fn serve_hyper(
                 .map_err(std::io::Error::other)
         }
     });
-    builder
-        .serve_connection(TokioIo::new(stream), service)
-        .await
-        .map_err(std::io::Error::other)
+    let connection = builder.serve_connection(TokioIo::new(stream), service);
+    let mut connection = std::pin::pin!(connection);
+
+    // Serve until the connection ends on its own, ages out, or the node
+    // starts draining — the latter two recycle it gracefully: GOAWAY for
+    // HTTP/2 (gRPC channels finish in-flight streams and reconnect
+    // elsewhere), keep-alive off for HTTP/1.
+    if !*shutdown.borrow() {
+        tokio::select! {
+            result = connection.as_mut() => return result.map_err(std::io::Error::other),
+            _ = tokio::time::sleep_until(accepted_at + CONNECTION_MAX_AGE) => {}
+            _ = shutdown.changed() => {}
+        }
+    }
+    connection.as_mut().graceful_shutdown();
+    match tokio::time::timeout(CONNECTION_MAX_AGE_GRACE, connection).await {
+        Ok(result) => result.map_err(std::io::Error::other),
+        // Grace expired with streams still open; dropping the connection
+        // severs it.
+        Err(_) => Ok(()),
+    }
 }
 
 enum ClassifiedRequest {
@@ -1075,5 +1121,77 @@ mod tests {
         assert_eq!(parsed.version, 1);
         assert_eq!(parsed.header_len, 68);
         assert_eq!(parsed.headers.get("host"), Some(&"localhost".to_owned()));
+    }
+
+    #[tokio::test]
+    async fn serve_hyper_recycles_connections_gracefully_on_drain() {
+        use std::time::Duration;
+
+        use axum::{
+            Router,
+            body::Body,
+            http::{Request, StatusCode},
+            routing::get,
+        };
+        use hyper_util::rt::{TokioExecutor, TokioIo};
+        use tokio::sync::watch;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
+        let router = Router::new().route("/ping", get(|| async { "pong" }));
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            super::serve_hyper(
+                stream,
+                router,
+                |_| {},
+                tokio::time::Instant::now(),
+                shutdown_rx,
+            )
+            .await
+        });
+
+        // A raw HTTP/2 prior-knowledge client, the transport shape gRPC
+        // channels use on the co-hosted plaintext port.
+        let stream = tokio::net::TcpStream::connect(addr).await.unwrap();
+        let (mut send_request, connection) =
+            hyper::client::conn::http2::handshake(TokioExecutor::new(), TokioIo::new(stream))
+                .await
+                .expect("h2c handshake");
+        let client_connection = tokio::spawn(connection);
+
+        let response = send_request
+            .send_request(
+                Request::builder()
+                    .uri(format!("http://{addr}/ping"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .expect("request before drain succeeds");
+        assert_eq!(response.status(), StatusCode::OK);
+
+        shutdown_tx.send(true).unwrap();
+
+        // Drain must recycle the connection gracefully: the server sends
+        // GOAWAY and both ends resolve cleanly well within the grace period,
+        // instead of the client hanging until the connection is severed.
+        let server_result = tokio::time::timeout(Duration::from_secs(5), server)
+            .await
+            .expect("server connection should close after drain GOAWAY")
+            .unwrap();
+        assert!(
+            server_result.is_ok(),
+            "server side should close cleanly: {server_result:?}"
+        );
+        let client_result = tokio::time::timeout(Duration::from_secs(5), client_connection)
+            .await
+            .expect("client connection should observe the GOAWAY close")
+            .unwrap();
+        assert!(
+            client_result.is_ok(),
+            "client should see a clean GOAWAY close: {client_result:?}"
+        );
     }
 }

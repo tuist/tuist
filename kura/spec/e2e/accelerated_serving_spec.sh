@@ -12,7 +12,7 @@ Describe 'accelerated artifact serving'
     setup_suite_tmpdir
 
     suite_env COMPOSE_PROJECT_NAME kura-accelerated
-    ephemeral_ports KURA_US_PORT KURA_US_GRPC_PORT
+    ephemeral_ports KURA_US_PORT
 
     dc down -v --remove-orphans >/dev/null 2>&1 || true
     compose_up kura-us || return 1

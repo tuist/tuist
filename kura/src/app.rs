@@ -6,7 +6,7 @@ use std::{
 };
 
 use axum::response::IntoResponse;
-use axum_server::Handle;
+use axum_server::{Handle, accept::NoDelayAcceptor, tls_rustls::RustlsAcceptor};
 use hyper_util::{
     rt::{TokioExecutor, TokioTimer},
     server::conn::auto::Builder as HttpBuilder,
@@ -325,8 +325,13 @@ async fn run_with_config(
         let https_router = cohosted_router(state.clone());
         Some(tokio::spawn(
             async move {
-                let mut server =
-                    axum_server::bind_rustls(https_address, tls_config).handle(https_handle);
+                // NoDelayAcceptor restores the TCP_NODELAY the dedicated tonic
+                // listener set by default; without it Nagle + delayed ACK
+                // stalls small unary REAPI calls.
+                let acceptor = RustlsAcceptor::new(tls_config).acceptor(NoDelayAcceptor);
+                let mut server = axum_server::bind(https_address)
+                    .acceptor(acceptor)
+                    .handle(https_handle);
                 configure_http_builder(server.http_builder());
                 if let Err(error) = server.serve(https_router.into_make_service()).await {
                     tracing::error!("HTTPS server failed: {error}");
@@ -356,7 +361,9 @@ async fn run_with_config(
         .await
         .map_err(|error| format!("server error: {error}"))?;
     } else {
-        let mut public_server = axum_server::bind(address).handle(public_handle);
+        let mut public_server = axum_server::bind(address)
+            .acceptor(NoDelayAcceptor)
+            .handle(public_handle);
         configure_http_builder(public_server.http_builder());
         public_server
             .serve(router.into_make_service())
@@ -892,11 +899,11 @@ mod tests {
 
     // End-to-end proof that the co-hosted listener dispatches by path: an HTTP
     // cache probe and a REAPI gRPC call both succeed against the same port. This
-    // is the behavior the combined port exists to provide — a client that
+    // is the behavior the co-hosted port exists to provide — a client that
     // derives its gRPC target from the single cache URL reaches REAPI, not the
     // plain-HTTP listener.
     #[tokio::test]
-    async fn combined_listener_serves_http_and_grpc() {
+    async fn cohosted_listener_serves_http_and_grpc() {
         use bazel_remote_apis::build::bazel::remote::execution::v2::{
             GetCapabilitiesRequest, capabilities_client::CapabilitiesClient,
         };
@@ -916,15 +923,15 @@ mod tests {
 
         let addr = timeout(Duration::from_secs(5), handle.listening())
             .await
-            .expect("combined listener should bind within timeout")
-            .expect("combined listener should report its bound address");
+            .expect("co-hosted listener should bind within timeout")
+            .expect("co-hosted listener should report its bound address");
 
-        // HTTP cache surface answers on the combined port.
+        // HTTP cache surface answers on the co-hosted port.
         let http = reqwest::Client::new()
             .get(format!("http://{addr}/up"))
             .send()
             .await
-            .expect("combined port should answer the HTTP /up probe");
+            .expect("co-hosted port should answer the HTTP /up probe");
         assert_eq!(http.status(), reqwest::StatusCode::OK);
 
         // Unmatched plain-HTTP paths must 404, not fall into tonic's
@@ -934,7 +941,7 @@ mod tests {
             .get(format!("http://{addr}/_internal/status"))
             .send()
             .await
-            .expect("combined port should answer unmatched HTTP paths");
+            .expect("co-hosted port should answer unmatched HTTP paths");
         assert_eq!(internal.status(), reqwest::StatusCode::NOT_FOUND);
 
         // gRPC requests to unknown services keep the tonic semantics:
@@ -947,7 +954,7 @@ mod tests {
             .header("content-type", "application/grpc")
             .send()
             .await
-            .expect("combined port should answer unknown gRPC services");
+            .expect("co-hosted port should answer unknown gRPC services");
         assert_eq!(unknown_grpc.status(), reqwest::StatusCode::OK);
         assert_eq!(
             unknown_grpc
@@ -974,17 +981,17 @@ mod tests {
             }
         }
         let mut grpc_client =
-            grpc_client.expect("combined port should accept gRPC (h2c) connections");
+            grpc_client.expect("co-hosted port should accept gRPC (h2c) connections");
         let capabilities = grpc_client
             .get_capabilities(GetCapabilitiesRequest {
                 instance_name: String::new(),
             })
             .await
-            .expect("combined port should answer REAPI GetCapabilities")
+            .expect("co-hosted port should answer REAPI GetCapabilities")
             .into_inner();
         assert!(
             capabilities.cache_capabilities.is_some(),
-            "REAPI GetCapabilities over the combined port should return cache capabilities"
+            "REAPI GetCapabilities over the co-hosted port should return cache capabilities"
         );
 
         handle.shutdown();
@@ -994,7 +1001,7 @@ mod tests {
     // Same as above but over TLS (reusing the public cert): both HTTPS and REAPI
     // gRPC ride one TLS port, ALPN-negotiated (http/1.1 for HTTP, h2 for gRPC).
     #[tokio::test]
-    async fn combined_listener_serves_http_and_grpc_over_tls() {
+    async fn cohosted_listener_serves_http_and_grpc_over_tls() {
         use bazel_remote_apis::build::bazel::remote::execution::v2::{
             GetCapabilitiesRequest, capabilities_client::CapabilitiesClient,
         };
@@ -1034,10 +1041,10 @@ mod tests {
 
         let addr = timeout(Duration::from_secs(5), handle.listening())
             .await
-            .expect("combined TLS listener should bind within timeout")
-            .expect("combined TLS listener should report its bound address");
+            .expect("co-hosted TLS listener should bind within timeout")
+            .expect("co-hosted TLS listener should report its bound address");
 
-        // HTTPS cache surface answers on the combined port.
+        // HTTPS cache surface answers on the co-hosted port.
         let http = reqwest::Client::builder()
             .add_root_certificate(
                 reqwest::Certificate::from_pem(cert_pem.as_bytes()).expect("trust test cert"),
@@ -1048,7 +1055,7 @@ mod tests {
             .get(format!("https://localhost:{}/up", addr.port()))
             .send()
             .await
-            .expect("combined TLS port should answer HTTPS /up");
+            .expect("co-hosted TLS port should answer HTTPS /up");
         assert_eq!(http.status(), reqwest::StatusCode::OK);
 
         // REAPI gRPC answers over TLS (ALPN h2) on the same port. Dial the IP and
@@ -1071,17 +1078,17 @@ mod tests {
             }
         }
         let mut grpc_client =
-            grpc_client.expect("combined TLS port should accept gRPC (h2 over TLS) connections");
+            grpc_client.expect("co-hosted TLS port should accept gRPC (h2 over TLS) connections");
         let capabilities = grpc_client
             .get_capabilities(GetCapabilitiesRequest {
                 instance_name: String::new(),
             })
             .await
-            .expect("combined TLS port should answer REAPI GetCapabilities")
+            .expect("co-hosted TLS port should answer REAPI GetCapabilities")
             .into_inner();
         assert!(
             capabilities.cache_capabilities.is_some(),
-            "REAPI GetCapabilities over the combined TLS port should return cache capabilities"
+            "REAPI GetCapabilities over the co-hosted TLS port should return cache capabilities"
         );
 
         handle.shutdown();

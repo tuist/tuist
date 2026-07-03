@@ -2385,3 +2385,18 @@ func TestKuraInstancePodTemplateRendersTolerations(t *testing.T) {
 		t.Fatalf("expected the runner-cache toleration on the pod template, got %#v", sts.Spec.Template.Spec.Tolerations)
 	}
 }
+
+func TestBaseEnvKeepsTransitionalGRPCPortForPreCohostedImages(t *testing.T) {
+	instance := &kurav1alpha1.KuraInstance{Spec: kurav1alpha1.KuraInstanceSpec{
+		Image: "ghcr.io/tuist/kura:0.10.15",
+	}}
+	for _, env := range baseEnv(instance, "", "production") {
+		if env.Name == "KURA_GRPC_PORT" {
+			if env.Value != "50051" {
+				t.Fatalf("expected the transitional KURA_GRPC_PORT to keep the old default 50051, got %q", env.Value)
+			}
+			return
+		}
+	}
+	t.Fatal("expected KURA_GRPC_PORT in the pod env: pre-cohosted images hard-require it and would crash-loop without it")
+}

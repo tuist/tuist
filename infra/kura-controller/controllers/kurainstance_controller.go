@@ -1912,6 +1912,16 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 		{Name: "POD_NAME", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"}}},
 		{Name: "POD_NAMESPACE", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"}}},
 		{Name: "KURA_PORT", Value: fmt.Sprintf("%d", httpPort)},
+		// Transitional no-op for pre-cohosted images only: images at or
+		// below the last dedicated-listener release hard-require
+		// KURA_GRPC_PORT (required_value) and exit(1) without it, and the
+		// controller rewrites every pod template on its reconcile loop —
+		// without this a still-pinned instance would crash-loop, taking
+		// the HTTP cache down with it. Co-hosted images ignore unknown
+		// env. The value is the old default; old images validate it
+		// differs from KURA_INTERNAL_PORT/KURA_HTTPS_PORT. Remove once
+		// the fleet is fully past the co-hosted floor.
+		{Name: "KURA_GRPC_PORT", Value: "50051"},
 		{Name: "KURA_TENANT_ID", Value: instance.Spec.TenantID},
 		{Name: "KURA_REGION", Value: instance.Spec.Region},
 		{Name: "KURA_TMP_DIR", Value: "/var/cache/kura/tmp"},

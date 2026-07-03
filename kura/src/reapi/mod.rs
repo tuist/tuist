@@ -98,13 +98,13 @@ fn reapi_servers(state: SharedState) -> ReapiServers {
 }
 
 // Build the REAPI services as an `axum`/`tower` router, mounted into the
-// combined HTTP+gRPC listener alongside the cache routes. tonic's `Routes` is
+// co-hosted HTTP+gRPC listener alongside the cache routes. tonic's `Routes` is
 // itself an `axum::Router` that mounts each service at `/{service.name}/{*rest}`;
-// those paths never collide with the HTTP cache routes, so the combined router
+// those paths never collide with the HTTP cache routes, so the co-hosted router
 // dispatches gRPC and HTTP unambiguously by path. It carries the
 // [`GrpcRequestAccountingLayer`] so gRPC traffic still shows up in inflight and
 // latency metrics and counts toward the shutdown drain. Its `unimplemented`
-// fallback (gRPC status 12) becomes the combined router's fallback for
+// fallback (gRPC status 12) becomes the co-hosted router's fallback for
 // otherwise-unmatched paths.
 pub fn routes(state: SharedState) -> axum::Router {
     let (capabilities, action_cache, cas, byte_stream) = reapi_servers(state.clone());
@@ -139,7 +139,7 @@ struct GrpcRequestAccountingService<S> {
 }
 
 // Generic over the request body so the same accounting wraps both the dedicated
-// gRPC transport (`TonicBody`) and the combined listener's axum router
+// gRPC transport (`TonicBody`) and the co-hosted listener's axum router
 // (`axum::body::Body`).
 impl<S, ReqBody, ResBody> Service<http::Request<ReqBody>> for GrpcRequestAccountingService<S>
 where

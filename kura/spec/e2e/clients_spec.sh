@@ -8,8 +8,7 @@ Describe 'actively supported protocol interoperability'
     setup_suite_tmpdir
 
     suite_env COMPOSE_PROJECT_NAME kura-clients
-    ephemeral_ports KURA_US_PORT KURA_EU_PORT KURA_AP_PORT \
-      KURA_US_GRPC_PORT KURA_EU_GRPC_PORT KURA_AP_GRPC_PORT
+    ephemeral_ports KURA_US_PORT KURA_EU_PORT KURA_AP_PORT
 
     dc down -v --remove-orphans >/dev/null 2>&1 || true
     compose_up kura-us kura-eu kura-ap || return 1
@@ -19,9 +18,9 @@ Describe 'actively supported protocol interoperability'
     resolve_http_node KURA_AP kura-ap
     # Bazel/Buck REAPI runs over the single co-hosted HTTP + h2c gRPC listener
     # (4000), the same port the cache clients above use.
-    KURA_US_GRPC_PORT="$(resolve_host_port kura-us 4000)"
-    KURA_EU_GRPC_PORT="$(resolve_host_port kura-eu 4000)"
-    KURA_AP_GRPC_PORT="$(resolve_host_port kura-ap 4000)"
+    KURA_US_CACHE_PORT="$(resolve_host_port kura-us 4000)"
+    KURA_EU_CACHE_PORT="$(resolve_host_port kura-eu 4000)"
+    KURA_AP_CACHE_PORT="$(resolve_host_port kura-ap 4000)"
 
     wait_for_http "${KURA_US_URL}/up"
     wait_for_http "${KURA_EU_URL}/up"
@@ -52,7 +51,7 @@ Describe 'actively supported protocol interoperability'
     work1="$(mktemp -d "${SUITE_TMP_DIR}/bazel-1.XXXXXX")"
 
     create_bazel_workspace "$work1" "$marker"
-    capture_into first_build bazel_build "$work1" "$KURA_US_GRPC_PORT" "$instance_name" || return 1
+    capture_into first_build bazel_build "$work1" "$KURA_US_CACHE_PORT" "$instance_name" || return 1
     first_artifact="$(cat "$work1/bazel-bin/hello.txt")"
     The variable first_build should not include 'remote cache hit'
     The variable first_artifact should include "${marker}"
@@ -62,7 +61,7 @@ Describe 'actively supported protocol interoperability'
     for attempt in $(seq 1 10); do
       work2="$(mktemp -d "${SUITE_TMP_DIR}/bazel-2.${attempt}.XXXXXX")"
       create_bazel_workspace "$work2" "$marker"
-      capture_into second_build bazel_build "$work2" "$KURA_EU_GRPC_PORT" "$instance_name" || return 1
+      capture_into second_build bazel_build "$work2" "$KURA_EU_CACHE_PORT" "$instance_name" || return 1
       second_artifact="$(cat "$work2/bazel-bin/hello.txt")"
       if [[ "${second_build}" == *'remote cache hit'* ]]; then
         break
@@ -80,7 +79,7 @@ Describe 'actively supported protocol interoperability'
     work1="$(mktemp -d "${SUITE_TMP_DIR}/buck-1.XXXXXX")"
     work2="$(mktemp -d "${SUITE_TMP_DIR}/buck-2.XXXXXX")"
 
-    create_buck_workspace "$work1" "$KURA_US_GRPC_PORT" "$marker" "$instance_name"
+    create_buck_workspace "$work1" "$KURA_US_CACHE_PORT" "$marker" "$instance_name"
     capture_into first_build buck_build "$work1" "buck-${marker}-us" || return 1
     first_output_path="$(printf '%s\n' "$first_build" | awk '/^root\/\/:hello_world / { print $2 }' | tail -n1)"
     The value "${first_output_path}" should be present
@@ -88,7 +87,7 @@ Describe 'actively supported protocol interoperability'
     The variable first_build should include 'Cache hits: 0%'
     The variable first_output_body should include "${marker}"
 
-    create_buck_workspace "$work2" "$KURA_EU_GRPC_PORT" "$marker" "$instance_name"
+    create_buck_workspace "$work2" "$KURA_EU_CACHE_PORT" "$marker" "$instance_name"
     capture_into second_build buck_build "$work2" "buck-${marker}-eu" || return 1
     second_output_path="$(printf '%s\n' "$second_build" | awk '/^root\/\/:hello_world / { print $2 }' | tail -n1)"
     The value "${second_output_path}" should be present

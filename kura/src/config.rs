@@ -122,7 +122,7 @@ pub struct Config {
     pub global_discovery_dns_name: Option<String>,
     pub peer_tls: Option<PeerTlsConfig>,
     pub public_tls: Option<PublicTlsConfig>,
-    /// TLS port for the combined HTTP+gRPC surface, active when `public_tls` is set.
+    /// TLS port for the co-hosted HTTP+gRPC surface, active when `public_tls` is set.
     pub https_port: u16,
     pub accelerated_file_serving: AcceleratedFileServingConfig,
     pub file_descriptor_pool_size: usize,
@@ -1164,7 +1164,7 @@ impl Config {
             if internal_port == port {
                 invalid.push(format!("{KURA_INTERNAL_PORT} must differ from {KURA_PORT}"));
             }
-            // https_port carries the combined surface over TLS, so it must not
+            // https_port carries the co-hosted surface over TLS, so it must not
             // collide with the plaintext port or the internal port.
             if public_tls.is_some() {
                 if https_port == port {

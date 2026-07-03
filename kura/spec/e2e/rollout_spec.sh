@@ -11,7 +11,7 @@ Describe 'warm rollout lifecycle'
     setup_suite_tmpdir
 
     suite_env COMPOSE_PROJECT_NAME kura-rollout
-    ephemeral_ports KURA_US_PORT KURA_US_GRPC_PORT TEMPO_PORT OTLP_PORT
+    ephemeral_ports KURA_US_PORT TEMPO_PORT OTLP_PORT
 
     dc down -v --remove-orphans >/dev/null 2>&1 || true
     dc build kura-us >/dev/null 2>&1
