@@ -137,6 +137,64 @@ defmodule Tuist.ShardsTest do
       assert regular.suites == %{"AppTests" => ["LoginSuite"]}
     end
 
+    test "catch-all shard downloads products for every module, including un-enumerated ones" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+
+      # Only "AppTests" has suite history. "NewTests" is built and uploaded but has no recorded
+      # suites, so it never appears in the plan's per-suite assignments — yet the catch-all still has
+      # to run it (that's its whole purpose), so it must download its products.
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 10_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "LoginSuite", status: "success", duration: 6_000},
+              %{name: "SignupSuite", status: "success", duration: 4_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "catch-all-download-1",
+        modules: ["AppTests", "NewTests"],
+        granularity: "suite",
+        shard_total: 2
+      }
+
+      # Split artifacts were uploaded (a shared bundle plus one per module). Echo the object key back
+      # as the URL so we can assert which module products the shard is told to download.
+      stub(Tuist.Storage, :object_exists?, fn _key, _account -> true end)
+      stub(Tuist.Storage, :generate_download_url, fn key, _account -> key end)
+
+      result = Shards.create_shard_plan(project, params)
+      catch_all_index = result.shard_count - 1
+
+      assert {:ok, shard} =
+               Shards.get_shard(project, account, "catch-all-download-1", catch_all_index, suite_catch_all?: true)
+
+      # The catch-all carries no -only-testing, but must still fetch every module's products so the
+      # whole .xctestrun can load — including "NewTests", which has no planned suites.
+      assert shard.modules == []
+      assert Enum.any?(shard.download_urls, &String.ends_with?(&1, "/shared.aar"))
+      assert Enum.any?(shard.download_urls, &String.ends_with?(&1, "/modules/AppTests.aar"))
+      assert Enum.any?(shard.download_urls, &String.ends_with?(&1, "/modules/NewTests.aar"))
+
+      # A regular shard downloads only its own suites' modules, not the un-enumerated ones.
+      assert {:ok, regular} = Shards.get_shard(project, account, "catch-all-download-1", 0)
+      assert Enum.any?(regular.download_urls, &String.ends_with?(&1, "/modules/AppTests.aar"))
+      refute Enum.any?(regular.download_urls, &String.ends_with?(&1, "/modules/NewTests.aar"))
+    end
+
     test "does not append a catch-all shard for module granularity" do
       project = ProjectsFixtures.project_fixture()
 
