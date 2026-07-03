@@ -37,12 +37,9 @@ defmodule TuistWeb.Components.ModuleInvalidationsTable do
         <.why_split module={module} />
       </:col>
       <:col :let={module} label={dgettext("dashboard_cache", "Blast radius")}>
-        <.text_and_description_cell
-          :if={module.blast_radius}
-          label={blast_radius_label(module.blast_radius)}
-          description={dgettext("dashboard_cache", "invalidated downstream")}
-        />
-        <.text_cell :if={is_nil(module.blast_radius)} sublabel="—" />
+        <.text_cell label={
+          if(is_nil(module.blast_radius), do: "—", else: Integer.to_string(module.blast_radius))
+        } />
       </:col>
     </.table>
     """
@@ -83,7 +80,4 @@ defmodule TuistWeb.Components.ModuleInvalidationsTable do
 
   def segment_width(_count, total) when total in [0, nil], do: "0%"
   def segment_width(count, total), do: "#{Float.round(count / total * 100, 1)}%"
-
-  def blast_radius_label(1), do: dgettext("dashboard_cache", "1 module")
-  def blast_radius_label(count), do: dgettext("dashboard_cache", "%{count} modules", count: count)
 end
