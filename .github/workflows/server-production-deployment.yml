@@ -587,8 +587,17 @@ jobs:
 
   release-helm:
     name: Release Helm Chart
-    needs: check-releases
-    if: needs.check-releases.outputs.helm-should-release == 'true'
+    # release-kura-docker is in needs because the kura chart's appVersion is
+    # stamped with the kura runtime version below: when this run also cuts a
+    # kura release, the chart must not be pushed before (or without) the
+    # docker tag it pins. The always() + result guard keeps helm-only runs
+    # working (release-kura-docker skipped) while a FAILED kura image build
+    # still blocks the chart from pinning a tag that never got published.
+    needs: [check-releases, release-kura-docker]
+    if: >-
+      always() &&
+      needs.check-releases.outputs.helm-should-release == 'true' &&
+      (needs.release-kura-docker.result == 'success' || needs.release-kura-docker.result == 'skipped')
     runs-on: tuist-linux
     timeout-minutes: 30
     env:
@@ -626,7 +635,14 @@ jobs:
           sed -i 's/^version: .*/version: ${{ needs.check-releases.outputs.helm-next-version-number }}/' infra/helm/tuist/Chart.yaml
           sed -i 's/^appVersion: .*/appVersion: "${{ needs.check-releases.outputs.helm-next-version-number }}"/' infra/helm/tuist/Chart.yaml
           sed -i 's/^version: .*/version: ${{ needs.check-releases.outputs.helm-next-version-number }}/' kura/ops/helm/kura/Chart.yaml
-          sed -i 's/^appVersion: .*/appVersion: "${{ needs.check-releases.outputs.helm-next-version-number }}"/' kura/ops/helm/kura/Chart.yaml
+          # The kura chart's appVersion is the runtime image tag the chart
+          # defaults to (statefulset falls back to .Chart.AppVersion), so it
+          # is stamped with the KURA version, not the chart version: the
+          # release cut in this run, or the newest existing one otherwise
+          # (kura-next-version-number is the latest version when kura is not
+          # releasing). The repo tree keeps appVersion "latest" so in-tree
+          # installs track the newest release.
+          sed -i 's/^appVersion: .*/appVersion: "${{ needs.check-releases.outputs.kura-next-version-number }}"/' kura/ops/helm/kura/Chart.yaml
 
       - name: Update CHANGELOG.md
         working-directory: infra/helm
