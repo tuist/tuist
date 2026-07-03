@@ -20,6 +20,7 @@ defmodule TuistWeb.ModuleInvalidationsLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_cache", "Module invalidations")} · #{slug} · Tuist")
+      |> assign(:search, "")
       |> assign(OpenGraph.og_image_assigns("module-cache"))
 
     {:ok, socket}
@@ -67,7 +68,18 @@ defmodule TuistWeb.ModuleInvalidationsLive do
     {:noreply, push_patch(socket, to: "/#{account.name}/#{project.name}/module-cache/modules?#{query_params}")}
   end
 
+  def handle_event("search", %{"q" => query}, socket) do
+    {:noreply, assign(socket, :search, query)}
+  end
+
   def handle_info(_event, socket), do: {:noreply, socket}
+
+  def filter_modules(modules, search) when search in [nil, ""], do: modules
+
+  def filter_modules(modules, search) do
+    query = String.downcase(search)
+    Enum.filter(modules, &String.contains?(String.downcase(&1.name), query))
+  end
 
   defp assign_modules(%{assigns: %{selected_project: project}} = socket, params) do
     analytics_environment = params["analytics-environment"] || "any"
