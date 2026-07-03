@@ -286,46 +286,43 @@ defmodule Tuist.CommandEvents do
   to surface per-run transfer cost on the run detail page.
   """
   def module_cache_output_metrics(command_event_id) do
-    {:ok,
-     %{
-       rows: [
-         [download_count, upload_count, download_bytes, upload_bytes, download_throughput, upload_throughput]
-       ]
-     }} =
-      ClickHouseRepo.query(
-        """
-        SELECT
-          countIf(operation = 'download') AS download_count,
-          countIf(operation = 'upload') AS upload_count,
-          sumIf(compressed_size, operation = 'download') AS download_bytes,
-          sumIf(compressed_size, operation = 'upload') AS upload_bytes,
-          if(
-            sumIf(duration, operation = 'download' AND duration > 0) = 0,
-            0,
-            sumIf(compressed_size, operation = 'download' AND duration > 0) /
-              sumIf(duration, operation = 'download' AND duration > 0) * 1000
-          ) AS download_throughput,
-          if(
-            sumIf(duration, operation = 'upload' AND duration > 0) = 0,
-            0,
-            sumIf(compressed_size, operation = 'upload' AND duration > 0) /
-              sumIf(duration, operation = 'upload' AND duration > 0) * 1000
-          ) AS upload_throughput
-        FROM module_cache_outputs
-        WHERE command_event_id = {command_event_id:UUID}
-        """,
-        %{command_event_id: command_event_id}
+    # ClickHouse aggregates the conditional sums (`countIf`/`sumIf`) via fragments; the throughput
+    # division is derived in Elixir. Byte totals cover all rows; throughput only weights rows with a
+    # recorded duration.
+    metrics =
+      ClickHouseRepo.one(
+        from(o in ModuleCacheOutput,
+          where: o.command_event_id == ^command_event_id,
+          select: %{
+            download_count: fragment("countIf(? = 'download')", o.operation),
+            upload_count: fragment("countIf(? = 'upload')", o.operation),
+            download_bytes: fragment("sumIf(?, ? = 'download')", o.compressed_size, o.operation),
+            upload_bytes: fragment("sumIf(?, ? = 'upload')", o.compressed_size, o.operation),
+            download_transferred_bytes:
+              fragment("sumIf(?, ? = 'download' AND ? > 0)", o.compressed_size, o.operation, o.duration),
+            download_transferred_ms: fragment("sumIf(?, ? = 'download' AND ? > 0)", o.duration, o.operation, o.duration),
+            upload_transferred_bytes:
+              fragment("sumIf(?, ? = 'upload' AND ? > 0)", o.compressed_size, o.operation, o.duration),
+            upload_transferred_ms: fragment("sumIf(?, ? = 'upload' AND ? > 0)", o.duration, o.operation, o.duration)
+          }
+        )
       )
 
     %{
-      download_count: download_count,
-      upload_count: upload_count,
-      download_bytes: download_bytes || 0,
-      upload_bytes: upload_bytes || 0,
-      download_throughput: download_throughput || 0,
-      upload_throughput: upload_throughput || 0
+      download_count: metrics.download_count || 0,
+      upload_count: metrics.upload_count || 0,
+      download_bytes: metrics.download_bytes || 0,
+      upload_bytes: metrics.upload_bytes || 0,
+      download_throughput:
+        throughput_bytes_per_second(metrics.download_transferred_bytes, metrics.download_transferred_ms),
+      upload_throughput: throughput_bytes_per_second(metrics.upload_transferred_bytes, metrics.upload_transferred_ms)
     }
   end
+
+  # Time-weighted average throughput in bytes per second, 0 when nothing with a duration transferred.
+  defp throughput_bytes_per_second(_bytes, ms) when ms in [nil, 0], do: 0
+  defp throughput_bytes_per_second(nil, _ms), do: 0
+  defp throughput_bytes_per_second(bytes, ms), do: bytes / ms * 1000
 
   defp truncate_error_message(error_message) do
     if not is_nil(error_message) and String.length(error_message) > 255 do
