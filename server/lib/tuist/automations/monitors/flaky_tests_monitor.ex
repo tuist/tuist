@@ -312,12 +312,10 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   # no SQL-injection vector. `project_id` and `threshold` flow through bound
   # parameters.
   defp rolling_triggered_test_case_ids(project_id, monitor_type, size, threshold, comparison, test_case_ids) do
-    {table, recent_runs_expr, run_key_expr} = recent_runs_source(recent_runs_column(monitor_type), size)
+    source = recent_runs_source(recent_runs_column(monitor_type), size)
 
     rolling_triggered_test_case_ids_from_recent_runs(
-      table,
-      recent_runs_expr,
-      run_key_expr,
+      source,
       project_id,
       monitor_type,
       size,
@@ -366,9 +364,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   end
 
   defp rolling_triggered_test_case_ids_from_recent_runs(
-         table,
-         recent_runs_expr,
-         run_key_expr,
+         {table, recent_runs_expr, run_key_expr},
          project_id,
          monitor_type,
          size,
