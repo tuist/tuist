@@ -2740,7 +2740,10 @@ struct PackageInfoMapperTests {
                         .test(
                             "Dependency1",
                             basePath: basePath,
-                            headers: .spmDirectoryTarget(dependencyHeadersPath.parentDirectory),
+                            headers: .spmDirectoryTarget(
+                                dependencyHeadersPath.parentDirectory,
+                                publicHeaderRelativePaths: ["include/Header.h"]
+                            ),
                             customSettings: [
                                 "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/Dependency1/include"],
                                 "DEFINES_MODULE": "NO",
@@ -2750,6 +2753,91 @@ struct PackageInfoMapperTests {
                                 ],
                             ],
                             moduleMap: "$(SRCROOT)/Derived/Dependency1.modulemap"
+                        ),
+                    ]
+                )
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenDirectoryPublicHeadersHaveDuplicateBasenames_prefersModuleNestedHeaders() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let packagePath = basePath.appending(component: "Package")
+        let publicHeadersPath = packagePath.appending(component: "spm_headers")
+        let nestedPublicHeadersPath = publicHeadersPath.appending(component: "nanopb")
+
+        try await fileSystem.makeDirectory(at: nestedPublicHeadersPath)
+        try await fileSystem.writeText("", at: packagePath.appending(component: "pb.h"))
+        try await fileSystem.writeText("", at: packagePath.appending(component: "pb_common.h"))
+        try await fileSystem.writeText("", at: packagePath.appending(component: "pb_common.c"))
+        try await fileSystem.writeText(#"#include "nanopb/pb.h""#, at: publicHeadersPath.appending(component: "pb.h"))
+        try await fileSystem.writeText(
+            #"#include "nanopb/pb_common.h""#,
+            at: publicHeadersPath.appending(component: "pb_common.h")
+        )
+        try await fileSystem.writeText("", at: nestedPublicHeadersPath.appending(component: "pb.h"))
+        try await fileSystem.writeText("", at: nestedPublicHeadersPath.appending(component: "pb_common.h"))
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "nanopb", type: .library(.automatic), targets: ["nanopb"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "nanopb",
+                            path: ".",
+                            sources: [
+                                "pb.h",
+                                "pb_common.h",
+                                "pb_common.c",
+                            ],
+                            publicHeadersPath: "spm_headers"
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+
+        #expect(
+            project ==
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "nanopb",
+                            basePath: basePath,
+                            customSources: .custom(.sourceFilesList(globs: [
+                                packagePath.appending(component: "pb.h").pathString,
+                                packagePath.appending(component: "pb_common.h").pathString,
+                                packagePath.appending(component: "pb_common.c").pathString,
+                            ])),
+                            headers: .spmDirectoryTarget(
+                                packagePath,
+                                publicHeaderRelativePaths: [
+                                    "spm_headers/nanopb/pb.h",
+                                    "spm_headers/nanopb/pb_common.h",
+                                ]
+                            ),
+                            customSettings: [
+                                "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/spm_headers"],
+                                "DEFINES_MODULE": "NO",
+                                "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=nanopb"]),
+                                "OTHER_SWIFT_FLAGS": [
+                                    "$(inherited)",
+                                ],
+                            ],
+                            moduleMap: "$(SRCROOT)/Derived/nanopb.modulemap"
                         ),
                     ]
                 )
@@ -8152,16 +8240,18 @@ extension ProjectDescription.Headers {
     }
 
     /// Mirrors the headers `PackageInfoMapper` produces for a `.directory` module-map SwiftPM target (no
-    /// umbrella header): headers under the public headers directory stay public so they are copied into the
-    /// framework bundle and remain importable as `<Module/Header.h>`; every other header is a project header.
+    /// umbrella header): public headers are explicit so Xcode gets at most one public build file per framework
+    /// header basename; every other header remains a project header.
     fileprivate static func spmDirectoryTarget(
         _ targetBasePath: AbsolutePath,
-        publicHeadersRelativePath: String = "include",
+        publicHeaderRelativePaths: [String],
         excluding: [ProjectDescription.Path] = []
     ) -> ProjectDescription.Headers {
-        let publicHeadersPath = targetBasePath.appending(try! RelativePath(validating: publicHeadersRelativePath))
+        let publicHeaders = publicHeaderRelativePaths.map {
+            targetBasePath.appending(try! RelativePath(validating: $0))
+        }
         return .headers(
-            public: .list([.glob(.path("\(publicHeadersPath.pathString)/\(spmHeadersGlob)"), excluding: excluding)]),
+            public: .list(publicHeaders.map { .glob(.path($0.pathString), excluding: excluding) }),
             project: .list([.glob(.path("\(targetBasePath.pathString)/\(spmHeadersGlob)"), excluding: excluding)]),
             exclusionRule: .projectExcludesPrivateAndPublic
         )
