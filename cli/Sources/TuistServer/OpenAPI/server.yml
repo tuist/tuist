@@ -9209,6 +9209,56 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                module_cache_outputs:
+                  description: Per-artifact module (binary) cache transfer operations performed during the command, used for module cache network analytics.
+                  items:
+                    properties:
+                      compressed_size:
+                        description: Number of bytes transferred over the wire (compressed payload).
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      duration:
+                        description: Duration of this single transfer operation, in milliseconds.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      hash:
+                        description: Content hash of the cached artifact.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      name:
+                        description: Name of the target the artifact belongs to.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      operation:
+                        description: Whether the artifact was downloaded from or uploaded to the remote module cache.
+                        enum:
+                          - download
+                          - upload
+                        type: string
+                        x-struct:
+                        x-validate:
+                      size:
+                        description: Size of the artifact on disk, in bytes.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                    required:
+                      - operation
+                      - name
+                      - hash
+                      - size
+                      - compressed_size
+                      - duration
+                    type: object
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
                 name:
                   description: The name of the command.
                   type: string

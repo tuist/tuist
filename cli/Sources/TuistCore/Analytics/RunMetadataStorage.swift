@@ -61,6 +61,15 @@ public actor RunMetadataStorage {
         self.selectiveTestingCacheItems = selectiveTestingCacheItems
     }
 
+    /// Per-artifact module (binary) cache transfer operations captured during the run. Populated by
+    /// the remote cache storage for every artifact downloaded from or uploaded to the remote cache,
+    /// and reported so the server can surface module cache network analytics (transfer, latency,
+    /// throughput) alongside the compilation cache.
+    public private(set) var moduleCacheOutputs: [ModuleCacheOutput] = []
+    public func add(moduleCacheOutput: ModuleCacheOutput) {
+        moduleCacheOutputs.append(moduleCacheOutput)
+    }
+
     /// Target content hash subhashes keyed by hash. Multiple graph mappers (binary cache, selective
     /// testing, cache warm) each contribute their own entries, so updates merge into the existing
     /// dictionary rather than replacing it.

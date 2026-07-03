@@ -80,6 +80,7 @@ The following data is stored in ClickHouse for analytics purposes:
 - **Build targets** (`build_targets` table): Target/module build performance
 - **Cacheable tasks** (`cacheable_tasks` table): Xcode cache task analytics with hit/miss status
 - **CAS outputs** (`cas_outputs` table): Content-addressable storage upload/download records, including the denormalized project id used for project-scoped analytics
+- **Module cache outputs** (`module_cache_outputs` table): Per-artifact module (binary) cache download/upload records for a command run, used for module cache network analytics. Columns: `command_event_id`, `project_id`, `operation` (download/upload), `name` (target name), `hash` (content hash), `size` (on-disk bytes), `compressed_size` (bytes transferred over the wire), `duration` (ms), and `inserted_at`. Keyed by `command_event_id` because module cache artifacts are fetched during `tuist generate`, before any build run exists.
 - **Shard plans** (`shard_plans` table): Test sharding plan data including reference, shard count, and granularity
 - **Shard plan modules** (`shard_plan_modules` table): Per-shard module assignments with estimated durations
 - **Shard plan test suites** (`shard_plan_test_suites` table): Per-shard test suite assignments with estimated durations
