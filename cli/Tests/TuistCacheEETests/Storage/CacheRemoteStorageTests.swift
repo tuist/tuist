@@ -7,6 +7,7 @@ import OpenAPIRuntime
 import Path
 import Testing
 import TuistAlert
+import TuistAppleArchiver
 import TuistConstants
 import TuistCore
 import TuistLoggerTesting
@@ -66,7 +67,7 @@ struct CacheRemoteStorageTests {
         subject = CacheRemoteStorage(
             fullHandle: fullHandle,
             url: Constants.URLs.production,
-            fileArchiverFactory: FileArchivingFactory(),
+            appleArchiver: AppleArchiver(),
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             cacheExistsService: cacheExistsService,
             getCacheService: getCacheService,
@@ -85,12 +86,31 @@ struct CacheRemoteStorageTests {
         )
     }
 
+    /// Builds an AppleArchive (LZFSE) fixture of the given paths, matching the archive format the
+    /// storage now downloads and decompresses. Replaces the previous store-method zip fixtures.
+    private func makeArchive(paths: [AbsolutePath], name: String) async throws -> AbsolutePath {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let stagingDirectory = temporaryDirectory.appending(component: "\(name)-staging")
+        try await fileSystem.makeDirectory(at: stagingDirectory)
+        for path in paths {
+            try await fileSystem.copy(path, to: stagingDirectory.appending(component: path.basename))
+        }
+        let archivePath = temporaryDirectory.appending(component: "\(name).aar")
+        try await AppleArchiver().compress(
+            directory: stagingDirectory,
+            to: archivePath,
+            excludePatterns: [],
+            preservesBaseDirectory: false
+        )
+        return archivePath
+    }
+
     @Test(.inTemporaryDirectory) func fetch_when_macro_artifact_exists() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let macroPath = temporaryDirectory.appending(component: "target.macro")
         try await fileSystem.touch(macroPath)
-        let zipPath = try await FileArchiver(paths: [macroPath]).zip(name: "test")
+        let zipPath = try await makeArchive(paths: [macroPath], name: "test")
 
         let serverCacheArtifact = ServerCacheArtifact.test()
 
@@ -122,7 +142,7 @@ struct CacheRemoteStorageTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let macroPath = temporaryDirectory.appending(component: "MacroProduct.macro")
         try await fileSystem.touch(macroPath)
-        let zipPath = try await FileArchiver(paths: [macroPath]).zip(name: "test")
+        let zipPath = try await makeArchive(paths: [macroPath], name: "test")
 
         let serverCacheArtifact = ServerCacheArtifact.test()
 
@@ -152,7 +172,7 @@ struct CacheRemoteStorageTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let frameworkPath = temporaryDirectory.appending(component: "target.framework")
         try await fileSystem.makeDirectory(at: frameworkPath)
-        let zipPath = try await FileArchiver(paths: [frameworkPath]).zip(name: "test")
+        let zipPath = try await makeArchive(paths: [frameworkPath], name: "test")
 
         let serverCacheArtifact = ServerCacheArtifact.test()
 
@@ -257,10 +277,10 @@ struct CacheRemoteStorageTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let frameworkOnePath = temporaryDirectory.appending(components: "frameworkOne.framework")
         try await fileSystem.makeDirectory(at: frameworkOnePath)
-        let zipPathOne = try await FileArchiver(paths: [frameworkOnePath]).zip(name: "test-one")
+        let zipPathOne = try await makeArchive(paths: [frameworkOnePath], name: "test-one")
         let frameworkTwoPath = temporaryDirectory.appending(component: "frameworkTwo.framework")
         try await fileSystem.makeDirectory(at: frameworkTwoPath)
-        let zipPathTwo = try await FileArchiver(paths: [frameworkTwoPath]).zip(name: "test-two")
+        let zipPathTwo = try await makeArchive(paths: [frameworkTwoPath], name: "test-two")
 
         let serverCacheArtifactOne = ServerCacheArtifact.test(
             url: URL(string: "https://tuist.dev/storage/framework-one")!
@@ -322,7 +342,7 @@ struct CacheRemoteStorageTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let bundlePath = temporaryDirectory.appending(component: "target.bundle")
         try await fileSystem.makeDirectory(at: bundlePath)
-        let zipPath = try await FileArchiver(paths: [bundlePath]).zip(name: "test")
+        let zipPath = try await makeArchive(paths: [bundlePath], name: "test")
 
         let serverCacheArtifact = ServerCacheArtifact.test()
 
@@ -355,7 +375,7 @@ struct CacheRemoteStorageTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcframeworkPath = temporaryDirectory.appending(component: "target.xcframework")
         try await fileSystem.makeDirectory(at: xcframeworkPath)
-        let zipPath = try await FileArchiver(paths: [xcframeworkPath]).zip(name: "test")
+        let zipPath = try await makeArchive(paths: [xcframeworkPath], name: "test")
 
         let serverCacheArtifact = ServerCacheArtifact.test()
 
@@ -389,7 +409,11 @@ struct CacheRemoteStorageTests {
         .withScopedAlertController()
     ) func fetch_when_artifact_invalid_exists() async throws {
         // Given
-        let zipPath = try await FileArchiver(paths: []).zip(name: "test") // Invalid
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let unrelatedFile = temporaryDirectory.appending(component: "unrelated.txt")
+        try await fileSystem.touch(unrelatedFile)
+        // Invalid: the archive exists but does not contain the expected `target` artifact.
+        let zipPath = try await makeArchive(paths: [unrelatedFile], name: "test")
 
         let serverCacheArtifact = ServerCacheArtifact.test()
 
