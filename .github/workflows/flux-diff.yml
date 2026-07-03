@@ -52,15 +52,32 @@ jobs:
       - uses: fluxcd/flux2/action@v2.4.0
       - uses: 1password/install-cli-action@v2
       - name: Load flux-diff kubeconfig from 1Password
+        id: kubeconfig
+        # Tolerate the mgmt-side not being bootstrapped yet: if the flux-diff
+        # credential (Environment secret + `kubeconfig: tuist-mgmt-flux-diff`
+        # in 1Password) is not configured, skip with a neutral result instead
+        # of failing every workloads PR. Real diffs resume once the credential
+        # exists (see infra/k8s/mgmt/flux-diff-rbac.yaml + infra/flux/mgmt/README.md).
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
+          if [ -z "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]; then
+            echo "flux-diff credential not configured yet; skipping the diff."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           mkdir -p "$(dirname "$KUBECONFIG")"
-          op document get "kubeconfig: tuist-mgmt-flux-diff" \
-            --vault tuist-k8s-mgmt --output "$KUBECONFIG"
-          chmod 600 "$KUBECONFIG"
+          if op document get "kubeconfig: tuist-mgmt-flux-diff" \
+               --vault tuist-k8s-mgmt --output "$KUBECONFIG" 2>/dev/null; then
+            chmod 600 "$KUBECONFIG"
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "flux-diff kubeconfig not found in 1Password; skipping the diff."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Diff changed workload Cluster CRs
         id: diff
+        if: steps.kubeconfig.outputs.configured == 'true'
         run: |
           set -uo pipefail
           base="${{ github.event.pull_request.base.sha }}"
@@ -95,6 +112,7 @@ jobs:
             echo 'FLUXEOF'
           } >> "$GITHUB_OUTPUT"
       - name: Upsert PR comment
+        if: steps.kubeconfig.outputs.configured == 'true'
         uses: actions/github-script@v7
         with:
           script: |
