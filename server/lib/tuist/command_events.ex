@@ -278,10 +278,12 @@ defmodule Tuist.CommandEvents do
   end
 
   @doc """
-  Returns the module (binary) cache network transfer summary for a single command event: the total
-  bytes and artifact counts downloaded from and uploaded to the remote cache, plus the time-weighted
-  average download/upload throughput (bytes per second). Mirrors `Tuist.Builds.cas_output_metrics/1`
-  but keyed by `command_event_id`. Used to surface per-run transfer cost on the run detail page.
+  Returns the module (binary) cache network transfer summary for a single command event: the artifact
+  counts, the bytes transferred over the wire, and the time-weighted average download/upload throughput
+  (bytes per second) downloaded from and uploaded to the remote cache. Byte totals and throughput use
+  `compressed_size` (the on-the-wire payload) rather than `size` (the on-disk artifact), since this is
+  network analytics. Mirrors `Tuist.Builds.cas_output_metrics/1` but keyed by `command_event_id`. Used
+  to surface per-run transfer cost on the run detail page.
   """
   def module_cache_output_metrics(command_event_id) do
     {:ok,
@@ -295,18 +297,18 @@ defmodule Tuist.CommandEvents do
         SELECT
           countIf(operation = 'download') AS download_count,
           countIf(operation = 'upload') AS upload_count,
-          sumIf(size, operation = 'download') AS download_bytes,
-          sumIf(size, operation = 'upload') AS upload_bytes,
+          sumIf(compressed_size, operation = 'download') AS download_bytes,
+          sumIf(compressed_size, operation = 'upload') AS upload_bytes,
           if(
             sumIf(duration, operation = 'download' AND duration > 0) = 0,
             0,
-            sumIf(size, operation = 'download' AND duration > 0) /
+            sumIf(compressed_size, operation = 'download' AND duration > 0) /
               sumIf(duration, operation = 'download' AND duration > 0) * 1000
           ) AS download_throughput,
           if(
             sumIf(duration, operation = 'upload' AND duration > 0) = 0,
             0,
-            sumIf(size, operation = 'upload' AND duration > 0) /
+            sumIf(compressed_size, operation = 'upload' AND duration > 0) /
               sumIf(duration, operation = 'upload' AND duration > 0) * 1000
           ) AS upload_throughput
         FROM module_cache_outputs

@@ -86,6 +86,7 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:selected_project, project)
       |> assign(:run, run)
       |> assign(:command_event, command_event)
+      |> assign(:module_cache_metrics, command_event && CommandEvents.module_cache_output_metrics(command_event.id))
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Run")} · #{slug} · Tuist")
       |> assign(:test_metrics, test_metrics)
       |> assign(:failures_count, failures_count)

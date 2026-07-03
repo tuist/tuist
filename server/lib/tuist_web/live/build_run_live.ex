@@ -112,9 +112,14 @@ defmodule TuistWeb.BuildRunLive do
     binary_cache_command_event = binary_cache_command_event(run, command_event)
     has_binary_cache_data = binary_cache_command_event != nil
 
+    module_cache_metrics =
+      if binary_cache_command_event,
+        do: CommandEvents.module_cache_output_metrics(binary_cache_command_event.id)
+
     socket
     |> assign(:command_event, command_event)
     |> assign(:binary_cache_command_event, binary_cache_command_event)
+    |> assign(:module_cache_metrics, module_cache_metrics)
     |> assign(:has_binary_cache_data, has_binary_cache_data)
     |> assign(:test_run, test_run)
     |> assign(:cas_metrics, cas_metrics)

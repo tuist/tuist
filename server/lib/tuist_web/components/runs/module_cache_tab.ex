@@ -1,6 +1,6 @@
 defmodule TuistWeb.Runs.ModuleCacheTab do
   @moduledoc """
-  Shared component for the Module Cache tab used in both RunDetailLive and TestRunLive.
+  Shared component for the Module Cache tab used in RunDetailLive, BuildRunLive, and TestRunLive.
   """
   use TuistWeb, :html
   use Noora
@@ -77,7 +77,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
             description={
               dgettext(
                 "dashboard_builds",
-                "Total size of modules downloaded from the remote cache during this run (%{count} artifacts).",
+                "Total data downloaded from the remote cache during this run (%{count} artifacts).",
                 count: @module_cache_metrics.download_count
               )
             }
@@ -90,7 +90,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
             description={
               dgettext(
                 "dashboard_builds",
-                "Total size of modules uploaded to the remote cache during this run (%{count} artifacts).",
+                "Total data uploaded to the remote cache during this run (%{count} artifacts).",
                 count: @module_cache_metrics.upload_count
               )
             }

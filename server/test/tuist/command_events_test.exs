@@ -2202,13 +2202,14 @@ defmodule Tuist.CommandEventsTest do
       # When
       summary = CommandEvents.module_cache_output_metrics(command_event.id)
 
-      # Then
-      assert summary.download_bytes == 4000
+      # Then - byte totals and throughput use compressed_size (the on-the-wire payload):
+      # downloads 500 + 1500 = 2000 over 400ms -> 5000 B/s; upload 1000 over 200ms -> 5000 B/s
+      assert summary.download_bytes == 2000
       assert summary.download_count == 2
-      assert summary.download_throughput == 10_000.0
-      assert summary.upload_bytes == 2000
+      assert summary.download_throughput == 5_000.0
+      assert summary.upload_bytes == 1000
       assert summary.upload_count == 1
-      assert summary.upload_throughput == 10_000.0
+      assert summary.upload_throughput == 5_000.0
     end
 
     test "returns zeros when the run has no transfers" do
