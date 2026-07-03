@@ -8,15 +8,7 @@ struct ResolveTests {
         try await withTemporaryDirectory { root in
             let dependency = root.appendingPathComponent("Dependency")
             try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
-            try await SystemProcess.run("git", ["init"], workingDirectory: dependency)
-            try await SystemProcess.run(
-                "git", ["config", "user.name", "SwifterPM Tests"], workingDirectory: dependency)
-            try await SystemProcess.run(
-                "git", ["config", "user.email", "tests@example.com"], workingDirectory: dependency)
-            try await SystemProcess.run(
-                "git", ["add", "Package.swift", "Sources"], workingDirectory: dependency)
-            try await SystemProcess.run("git", ["commit", "-m", "Initial"], workingDirectory: dependency)
-            try await SystemProcess.run("git", ["tag", "1.0.0"], workingDirectory: dependency)
+            try await initGitDependency(at: dependency, tags: ["1.0.0"])
 
             let package = root.appendingPathComponent("App")
             try await writeAppPackageManifest(
@@ -102,6 +94,77 @@ struct ResolveTests {
         }
     }
 
+    @Test
+    func forceResolvedVersionsRejectsAnOutOfDateLockfileViaSwiftPM() async throws {
+        // The readOnly path restores the pins verbatim; out-of-date detection is
+        // delegated to `swift package resolve --force-resolved-versions` rather
+        // than reimplementing SwiftPM's resolver precomputation. Bumping the
+        // manifest past the committed pin must surface SwiftPM's out-of-date
+        // error, while an in-sync lockfile must pass.
+        try await withTemporaryDirectory { root in
+            let dependency = root.appendingPathComponent("Dependency")
+            try await writeLibraryPackageManifest(at: dependency, name: "Dependency")
+            try await initGitDependency(at: dependency, tags: ["1.0.0", "2.0.0"])
+
+            let package = root.appendingPathComponent("App")
+            try await writeAppPackageManifest(
+                at: package, dependencyURL: dependency.path, exactVersion: "1.0.0"
+            )
+
+            let cache = try await Cache(root: root.appendingPathComponent("cache"))
+            let scratch = root.appendingPathComponent("scratch")
+            _ = try await PackageResolver.resolve(
+                packageDir: package,
+                scratchDir: scratch,
+                cache: cache,
+                registryConfig: RegistryConfig(),
+                disableSandbox: true,
+                writeResolvedFile: true
+            )
+
+            // In sync: the pinned 1.0.0 satisfies the manifest, so the check passes.
+            try await PackageResolver.assertResolvedFileUpToDate(
+                packageDir: package,
+                scratchDir: scratch,
+                cacheDir: cache.root,
+                registryConfigurationPath: nil,
+                defaultRegistryURL: nil,
+                disableSandbox: true,
+                scmToRegistryTransformation: .disabled
+            )
+
+            // Bump the manifest past the lockfile: SwiftPM rejects the stale pin.
+            try await writeAppPackageManifest(
+                at: package, dependencyURL: dependency.path, exactVersion: "2.0.0"
+            )
+            await #expect(throws: ToolError.self) {
+                try await PackageResolver.assertResolvedFileUpToDate(
+                    packageDir: package,
+                    scratchDir: scratch,
+                    cacheDir: cache.root,
+                    registryConfigurationPath: nil,
+                    defaultRegistryURL: nil,
+                    disableSandbox: true,
+                    scmToRegistryTransformation: .disabled
+                )
+            }
+        }
+    }
+
+    private func initGitDependency(at dependency: URL, tags: [String]) async throws {
+        try await SystemProcess.run("git", ["init"], workingDirectory: dependency)
+        try await SystemProcess.run(
+            "git", ["config", "user.name", "SwifterPM Tests"], workingDirectory: dependency)
+        try await SystemProcess.run(
+            "git", ["config", "user.email", "tests@example.com"], workingDirectory: dependency)
+        try await SystemProcess.run(
+            "git", ["add", "Package.swift", "Sources"], workingDirectory: dependency)
+        try await SystemProcess.run("git", ["commit", "-m", "Initial"], workingDirectory: dependency)
+        for tag in tags {
+            try await SystemProcess.run("git", ["tag", tag], workingDirectory: dependency)
+        }
+    }
+
     private func writeLibraryPackageManifest(at packageDir: URL, name: String) async throws {
         try await fileSystem.makeDirectory(
             at: packageDir.appendingPathComponent("Sources/\(name)").absolutePath,
@@ -130,7 +193,11 @@ struct ResolveTests {
         )
     }
 
-    private func writeAppPackageManifest(at packageDir: URL, dependencyURL: String) async throws {
+    private func writeAppPackageManifest(
+        at packageDir: URL,
+        dependencyURL: String,
+        exactVersion: String = "1.0.0"
+    ) async throws {
         try await fileSystem.makeDirectory(
             at: packageDir.appendingPathComponent("Sources/App").absolutePath,
             options: [.createTargetParentDirectories]
@@ -146,7 +213,7 @@ struct ResolveTests {
                     .library(name: "App", targets: ["App"]),
                 ],
                 dependencies: [
-                    .package(url: "\(dependencyURL)", exact: "1.0.0"),
+                    .package(url: "\(dependencyURL)", exact: "\(exactVersion)"),
                 ],
                 targets: [
                     .target(name: "App", dependencies: [

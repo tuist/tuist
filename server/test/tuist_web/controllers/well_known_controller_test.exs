@@ -3,7 +3,6 @@ defmodule TuistWeb.WellKnownControllerTest do
   use Mimic
 
   alias Tuist.Environment
-  alias Tuist.Namespace.JWTToken
   alias TuistWeb.AgentSkillsDiscovery
 
   describe "GET /.well-known/api-catalog" do
@@ -147,40 +146,6 @@ defmodule TuistWeb.WellKnownControllerTest do
       conn = get(conn, "/.well-known/openai-apps-challenge")
 
       assert response(conn, 404) == ""
-    end
-  end
-
-  describe "GET /.well-known/openid_configuration" do
-    test "returns the OpenID configuration", %{conn: conn} do
-      issuer = "https://test.example.com"
-
-      expect(JWTToken, :issuer, fn -> issuer end)
-      conn = get(conn, "/.well-known/openid-configuration")
-
-      response = json_response(conn, 200)
-
-      assert response["issuer"] == issuer
-    end
-  end
-
-  describe "GET /.well-known/jwks.json" do
-    test "returns the JWKS", %{conn: conn} do
-      expect(JWTToken, :public_jwk, fn ->
-        %{
-          "kty" => "RSA",
-          "use" => "sig",
-          "alg" => "RS256",
-          "kid" => "namespace-jwt-key-1",
-          "n" => "mock_n_value",
-          "e" => "AQAB"
-        }
-      end)
-
-      conn = get(conn, "/.well-known/jwks.json")
-
-      response = json_response(conn, 200)
-
-      assert length(response["keys"]) == 1
     end
   end
 

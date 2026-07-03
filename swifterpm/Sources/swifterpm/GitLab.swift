@@ -1,6 +1,6 @@
 import Foundation
 
-struct GitLabRepo: Sendable {
+struct GitLabRepo {
     let scheme: String
     let host: String
     let pathWithNamespace: String
@@ -88,13 +88,14 @@ extension String {
 private enum GitLabURLCoding {
     static func encodePathComponent(_ value: String) -> String {
         let allowed = CharacterSet(
-            charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
+            charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
+        )
         return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
     }
 }
 
 enum GitLabAuth {
-    enum Token: Sendable {
+    enum Token {
         case privateToken(String)
         case jobToken(String)
         case bearer(String)
@@ -108,6 +109,25 @@ enum GitLabAuth {
             case let .bearer(token):
                 return ["Authorization": "Bearer \(token)"]
             }
+        }
+
+        /// The `PRIVATE-TOKEN`/`JOB-TOKEN` headers authenticate GitLab's REST API but not its
+        /// git smart-HTTP endpoint, which only understands standard HTTP authentication. Map
+        /// each token kind to the credential form git transport accepts: a personal access
+        /// token authenticates as `oauth2:<token>` and a CI job token as `gitlab-ci-token:<token>`.
+        var gitHTTPAuthorization: String {
+            switch self {
+            case let .privateToken(token):
+                return "Basic \(Self.basicCredential(user: "oauth2", token: token))"
+            case let .jobToken(token):
+                return "Basic \(Self.basicCredential(user: "gitlab-ci-token", token: token))"
+            case let .bearer(token):
+                return "Bearer \(token)"
+            }
+        }
+
+        private static func basicCredential(user: String, token: String) -> String {
+            Data("\(user):\(token)".utf8).base64EncodedString()
         }
     }
 
@@ -195,7 +215,8 @@ enum GitLabAPI {
             for tag in tags {
                 if let version = RemoteMetadata.parseSwiftTagVersion(tag.name) {
                     versions.append(
-                        RemoteVersion(version: version.description, revision: tag.commit.id))
+                        RemoteVersion(version: version.description, revision: tag.commit.id)
+                    )
                 }
             }
             page += 1
@@ -232,7 +253,8 @@ extension URL {
         -> URL
     {
         URL(
-            string: ([absoluteString, "projects", projectPath] + components).joined(separator: "/"))!
+            string: ([absoluteString, "projects", projectPath] + components).joined(separator: "/")
+        )!
     }
 
     fileprivate func appending(queryItems: [URLQueryItem]) -> URL {

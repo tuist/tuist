@@ -86,6 +86,13 @@ spec:
                   maxLength: 253
                 ingressClassName:
                   type: string
+                # Host-network customer gateway (bare-metal regions, no LB):
+                # publish the account's publicHost via a per-account DNSEndpoint
+                # targeting the box its pods run on, so each account resolves to
+                # its own box across a multi-box region. Customer-plane analog of
+                # meshPeerHostNetwork.
+                publicHostNetwork:
+                  type: boolean
                 # Private marks an instance with no public endpoint:
                 # the controller skips the Ingress/external-dns surface
                 # and the in-cluster Service is the only access path
@@ -106,6 +113,12 @@ spec:
                   type: object
                   additionalProperties:
                     type: string
+                # Per-tenant egress floor (Mbps). When set, the pod requests
+                # it as the tuist.dev/egress-mbps extended resource so the
+                # scheduler bin-packs instances against the box's egress budget.
+                egressGuaranteedMbps:
+                  type: integer
+                  format: int32
                 peerTLSSecretName:
                   type: string
                 # Enables controller-managed per-account peer mesh: a
@@ -133,6 +146,17 @@ spec:
                   type: object
                   additionalProperties:
                     type: string
+                # Host-network public peer plane (bare-metal regions, no LB): the
+                # per-instance peer Service becomes ClusterIP behind a regional
+                # SNI demux on :7443, and DNS is published via a DNSEndpoint to
+                # meshPeerFailoverIp.
+                meshPeerHostNetwork:
+                  type: boolean
+                # The region's stable public peer IP the host-network peer
+                # DNSEndpoint targets (kept routed to a healthy box by the CAPI
+                # provider). Only used when meshPeerHostNetwork is true.
+                meshPeerFailoverIp:
+                  type: string
                 storageClassName:
                   type: string
                 storageSize:

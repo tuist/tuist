@@ -7,6 +7,7 @@ import OpenAPIRuntime
 import Path
 import Testing
 import TuistAlert
+import TuistAppleArchiver
 import TuistCache
 import TuistConstants
 import TuistCore
@@ -60,7 +61,7 @@ struct ModuleCacheRemoteStorageTests {
             cacheURL: Constants.URLs.production,
             serverURL: Constants.URLs.production,
             serverAuthenticationController: serverAuthenticationController,
-            fileArchiverFactory: FileArchivingFactory(),
+            appleArchiver: AppleArchiver(),
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             multipartUploadService: multipartUploadService,
             downloadModuleCacheService: downloadModuleCacheService,
@@ -72,6 +73,85 @@ struct ModuleCacheRemoteStorageTests {
             concurrencyLimit: 15,
             cacheActionItemConcurrencyLimit: 15
         )
+    }
+
+    /// Builds an AppleArchive (LZFSE) fixture of the given paths, matching the archive format the
+    /// storage now downloads and decompresses. Replaces the previous store-method zip fixtures.
+    private func makeArchive(paths: [AbsolutePath], name: String) async throws -> AbsolutePath {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let stagingDirectory = temporaryDirectory.appending(component: "\(name)-staging")
+        try await fileSystem.makeDirectory(at: stagingDirectory)
+        for path in paths {
+            try await fileSystem.copy(path, to: stagingDirectory.appending(component: path.basename))
+        }
+        let archivePath = temporaryDirectory.appending(component: "\(name).aar")
+        try await AppleArchiver().compress(
+            directory: stagingDirectory,
+            to: archivePath,
+            excludePatterns: [],
+            preservesBaseDirectory: false
+        )
+        return archivePath
+    }
+
+    @Test(.inTemporaryDirectory) func fetch_when_macro_product_name_differs_from_target_name() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let macroPath = temporaryDirectory.appending(component: "MacroProduct.macro")
+        try await fileSystem.touch(macroPath)
+        let zipPath = try await makeArchive(paths: [macroPath], name: "test")
+        let zipData = try Data(contentsOf: zipPath.url)
+
+        given(downloadModuleCacheService)
+            .downloadModuleCacheArtifact(
+                accountHandle: .value("tuist"),
+                projectHandle: .value("tuist"),
+                hash: .value("hash"),
+                name: .value("MacroTarget.zip"),
+                cacheCategory: .value("builds"),
+                serverURL: .value(Constants.URLs.production),
+                authenticationURL: .value(Constants.URLs.production),
+                serverAuthenticationController: .any
+            )
+            .willReturn(zipData)
+
+        let got = try await subject.fetch(
+            Set([.init(name: "MacroTarget", hash: "hash")]),
+            cacheCategory: .binaries
+        )
+
+        let path = try #require(
+            got[.test(name: "MacroTarget", hash: "hash", source: .remote, cacheCategory: .binaries)]
+        )
+        #expect(path.basename == "MacroProduct.macro")
+        #expect(try artifactSigner.isValid(path) == true)
+    }
+
+    @Test(.inTemporaryDirectory) func fetch_when_downloaded_archive_does_not_contain_artifact_returns_empty() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let frameworkPath = temporaryDirectory.appending(component: "Other.framework")
+        try await fileSystem.makeDirectory(at: frameworkPath)
+        let zipPath = try await makeArchive(paths: [frameworkPath], name: "test")
+        let zipData = try Data(contentsOf: zipPath.url)
+
+        given(downloadModuleCacheService)
+            .downloadModuleCacheArtifact(
+                accountHandle: .value("tuist"),
+                projectHandle: .value("tuist"),
+                hash: .value("hash"),
+                name: .value("Target.zip"),
+                cacheCategory: .value("builds"),
+                serverURL: .value(Constants.URLs.production),
+                authenticationURL: .value(Constants.URLs.production),
+                serverAuthenticationController: .any
+            )
+            .willReturn(zipData)
+
+        let got = try await subject.fetch(
+            Set([.init(name: "Target", hash: "hash")]),
+            cacheCategory: .binaries
+        )
+
+        #expect(got.isEmpty == true)
     }
 
     // MARK: - Authentication Failure Tests (401/403)

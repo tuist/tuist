@@ -253,6 +253,24 @@ defmodule TuistWeb.RunnerJobLive do
   def step_epoch_ms(_), do: nil
 
   @doc """
+  The job's step window as `%{min: start_ms, max: end_ms}` — the first
+  step's start to the last step's end. The metric charts anchor their
+  time axis to this so the step-hover bands line up with where the steps
+  ran, rather than auto-scaling to the metric-sample extent (which
+  starts before the first step during Pod boot and can end before the
+  job does when the sampler run is truncated). Returns `nil` when no
+  step carries timestamps.
+  """
+  def step_window(steps) do
+    starts = steps |> Enum.map(&step_epoch_ms(&1.started_at)) |> Enum.reject(&is_nil/1)
+    ends = steps |> Enum.map(&step_epoch_ms(&1.completed_at)) |> Enum.reject(&is_nil/1)
+
+    if starts != [] and ends != [] do
+      %{min: Enum.min(starts), max: Enum.max(ends)}
+    end
+  end
+
+  @doc """
   Whether the job has any machine-metrics samples to chart. Drives
   the Metrics tab's empty state and gates the Overview chart row.
   """

@@ -88,6 +88,17 @@ struct DerivedDataLocatorTests {
         #expect(result.basename.hasPrefix("App-"))
     }
 
+    @Test(.withMockedEnvironment())
+    func locate_replaces_spaces_in_hash_based_path_prefix() async throws {
+        let projectPath = try AbsolutePath(
+            validating: "/Users/developer/Projects/Example App/Example App.xcodeproj"
+        )
+
+        let result = try await subject.locate(for: projectPath)
+
+        #expect(result.basename == "Example_App-haqlyztoonwvfngqefjfdacmpopg")
+    }
+
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func locate_uses_workspace_name_without_hash_for_relative_location() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)

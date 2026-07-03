@@ -163,6 +163,7 @@
       <.runner_job_metrics_overview
         :if={TuistWeb.RunnerJobLive.has_machine_metrics?(@machine_metrics)}
         metrics={@machine_metrics}
+        window={TuistWeb.RunnerJobLive.step_window(@steps)}
       />
     </.card>
 
@@ -346,6 +347,7 @@
     <.runner_job_metrics_charts
       :if={TuistWeb.RunnerJobLive.has_machine_metrics?(@machine_metrics)}
       metrics={@machine_metrics}
+      window={TuistWeb.RunnerJobLive.step_window(@steps)}
     />
     <.card
       :if={not TuistWeb.RunnerJobLive.has_machine_metrics?(@machine_metrics)}

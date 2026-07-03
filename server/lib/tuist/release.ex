@@ -9,6 +9,8 @@ defmodule Tuist.Release do
   require Logger
 
   @app :tuist
+  @processor_write_tables ~w(oban_jobs oban_peers)
+  @processor_read_tables ~w(accounts projects automation_alerts webhook_endpoints)
 
   def migrate do
     load_app()
@@ -23,6 +25,7 @@ defmodule Tuist.Release do
           ensure_database_schema(repo)
           Ecto.Migrator.run(repo, :up, all: true)
           grant_runtime_role(repo)
+          grant_processor_role(repo)
         end)
     end
   end
@@ -155,6 +158,74 @@ defmodule Tuist.Release do
       ],
       &SQL.query!(repo, &1, [])
     )
+  end
+
+  # The processor role (the macOS xcresult processor and the in-cluster
+  # build processor connect as it) runs the Oban ingestion path, which
+  # touches a small, explicitly enumerated set of tables. Applying its
+  # per-table grants here — as the schema owner, on every migrate — keeps
+  # them in lockstep with schema changes instead of drifting behind the
+  # manual `infra/cnpg/tuist-processor-grants.sql` runbook. That drift is
+  # exactly what let new tables reach the ingestion path ungranted — first
+  # `webhook_endpoints` (test_case.created dispatch), then `automation_alerts`
+  # (flaky-alert enqueue) one table further down — each raising `42501`
+  # mid-run and discarding the job into partial data. Gated on
+  # TUIST_DATABASE_PROCESSOR_ROLE, which the chart
+  # sets only for managed CNPG migration Jobs, so self-hosted and non-CNPG
+  # deployments leave the role untouched.
+  defp grant_processor_role(repo) when repo == Tuist.Repo do
+    case Environment.database_processor_role() do
+      role when is_binary(role) and role != "" ->
+        do_grant_processor_role(repo, role)
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp grant_processor_role(_repo), do: :ok
+
+  defp do_grant_processor_role(repo, role) do
+    Environment.validate_postgres_identifier!(role, "TUIST_DATABASE_PROCESSOR_ROLE")
+
+    role = Environment.quote_postgres_identifier(role)
+    database = repo.config() |> Keyword.fetch!(:database) |> Environment.quote_postgres_identifier()
+    quoted_schema = Environment.quote_postgres_identifier(Environment.database_schema())
+
+    {:ok, :ok} =
+      repo.transaction(fn ->
+        Enum.each(
+          processor_role_grant_statements(role, database, quoted_schema),
+          &SQL.query!(repo, &1, [])
+        )
+
+        :ok
+      end)
+  end
+
+  @doc false
+  def processor_role_grant_statements(role, database, quoted_schema) do
+    write_tables = qualify_tables(quoted_schema, @processor_write_tables)
+    read_tables = qualify_tables(quoted_schema, @processor_read_tables)
+
+    # Deny by default: strip every table privilege first, then re-grant only
+    # the enumerated surface. A table dropped from the list, or granted out of
+    # band, cannot linger. `REVOKE … ON ALL TABLES` only warns (never errors)
+    # on tables this role can't revoke, and every GRANT targets a table this
+    # migration role owns, so none can hit the permission-denied abort a
+    # blanket `GRANT … ON ALL` would.
+    [
+      "REVOKE ALL ON ALL TABLES IN SCHEMA #{quoted_schema} FROM #{role}",
+      "GRANT CONNECT ON DATABASE #{database} TO #{role}",
+      "GRANT USAGE ON SCHEMA #{quoted_schema} TO #{role}",
+      "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE #{write_tables} TO #{role}",
+      "GRANT USAGE, SELECT ON SEQUENCE #{quoted_schema}.oban_jobs_id_seq TO #{role}",
+      "GRANT SELECT ON TABLE #{read_tables} TO #{role}"
+    ]
+  end
+
+  defp qualify_tables(quoted_schema, tables) do
+    Enum.map_join(tables, ", ", &"#{quoted_schema}.#{&1}")
   end
 
   # `GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA <schema>` requires the

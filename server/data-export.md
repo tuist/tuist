@@ -22,7 +22,7 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - Agent registration audit records (`agent_registrations`, `agent_registration_events`, and `agent_auth_jtis` tables): registration type/status, requested credential type, verified email address, claim attempt id, claim and OTP expiry timestamps, claim request / completion IP metadata, claimed user relationship, linked account-token id or JWT id, ID-JAG issuer/subject/audience/client metadata, replay-protection `jti` records, append-only state-change events (`created`, `claim_resent`, `otp_failed`, `claimed`, `expired`, `revoked`), event IP metadata, event metadata, and timestamps. The claim token hash, claim-view token hash, OTP hash, issued API key value, and signed JWT value are excluded from exports as authentication secrets.
 - Custom cache endpoint configurations (`account_cache_endpoints` table): account-specific custom cache endpoints, active regional Kura endpoint mirrors, and the internal peer (mTLS) addresses of enrolled self-hosted Kura nodes (rows with `technology = :kura_self_hosted_peer`, written at enrollment from each node's `KURA_NODE_URL`). These peer addresses are customer infrastructure hostnames used only for mesh peering and are never returned to the CLI as cache endpoints. Legacy account-level Kura global endpoint rows matching `https://<lowercase-account-handle>.kura.tuist.dev` are no longer stored separately; they are removed by the Kura global-endpoint cleanup migration.
 - Organization SSO configuration metadata, including the configured SSO provider, provider URL, and full OAuth2 endpoint URLs
-- Kura server records (`kura_servers` table): per-account Kura server configuration including region, image tag, public URL, status, and the observed-state projection (`observed_image_tag`, `last_observed_at`, `last_ready_at`) recording which image the backing cluster reports running, when it was last observed, and when its private endpoint was last observed ready
+- Kura server records (`kura_servers` table): per-account Kura server configuration including region, image tag, public URL, status, the warm-handoff move state (`move_phase`, `target_node`) recording whether the server is a steady-state instance or a transient move source/target and which box a move target is pinned to, and the observed-state projection (`observed_image_tag`, `last_observed_at`, `last_ready_at`) recording which image the backing cluster reports running, when it was last observed, and when its private endpoint was last observed ready
 - Kura deployment history (`kura_deployments` table): rollout attempts for the account's Kura servers including image tag, status, error messages, and start/finish timestamps
 - Self-hosted Kura credentials (`kura_self_hosted_clients` table): tenant-scoped credentials a customer uses to run self-hosted Kura nodes, including the public `client_id`, friendly name, last-used timestamp, and `secret_last_four` (the trailing four characters of the secret, kept as a masked-preview hint). The `encrypted_secret_hash` (Bcrypt hash of the client secret) is excluded from exports as an authentication secret, and the plaintext secret is never stored.
 - Registered Kura endpoints (`kura_registered_endpoints` table): client-facing cache endpoints reported by a customer's self-hosted Kura nodes via registration heartbeats, including the node id, region label, advertised HTTP URL, readiness, runtime version, traffic state, last-heartbeat timestamp, and lease expiry. These rows are lease-based operational state, refreshed on each heartbeat and removed when a node stops heartbeating.
@@ -81,11 +81,13 @@ The following data is stored in ClickHouse for analytics purposes:
 - **Cacheable tasks** (`cacheable_tasks` table): Xcode cache task analytics with hit/miss status
 - **Xcode targets** (`xcode_targets` table): Per-target binary-cache and selective-testing analytics — target name, product, bundle id, hit/miss status, per-component content subhashes, and the target's direct dependency names (`dependencies`, the module-graph edges used to compute a module's downstream invalidation blast radius)
 - **CAS outputs** (`cas_outputs` table): Content-addressable storage upload/download records, including the denormalized project id used for project-scoped analytics
+- **Module cache outputs** (`module_cache_outputs` table): Per-artifact module (binary) cache download/upload records for a command run, used for module cache network analytics. Columns: `command_event_id`, `project_id`, `operation` (download/upload), `name` (target name), `hash` (content hash), `size` (on-disk bytes), `compressed_size` (bytes transferred over the wire), `duration` (ms), and `inserted_at`. Keyed by `command_event_id` because module cache artifacts are fetched during `tuist generate`, before any build run exists.
 - **Shard plans** (`shard_plans` table): Test sharding plan data including reference, shard count, and granularity
 - **Shard plan modules** (`shard_plan_modules` table): Per-shard module assignments with estimated durations
 - **Shard plan test suites** (`shard_plan_test_suites` table): Per-shard test suite assignments with estimated durations
 - **Shard runs** (`shard_runs` table): Per-shard execution results with status and duration
 - **Test runs** (`test_runs` table): Includes `shard_plan_id` linking test results to their shard plan
+- **Test run errors** (`test_run_errors` table): Run/target-level errors where the test runner itself errored (e.g. a target whose `.xctest` bundle could not be loaded), modelled separately from test failures. Columns: `id`, `test_run_id`, `project_id`, `module_name` (the test target, empty for run-level), `message`, and `inserted_at`.
 - **Bundles** (`bundles` table): App bundle metadata (name, app bundle id, version, install/download size, supported platforms, type, git ref/branch/commit).
 - **Bundle artifacts** (`artifacts` table): App bundle artifact tree (paths, sizes, SHA hashes, parent/child hierarchy) per uploaded bundle.
 - **Active test cases daily stats** (`test_case_runs_active_daily_stats` materialized view): Exact daily presence rows per (`project_id`, `date`, `is_ci`, `test_case_id`) derived from `test_case_runs`. Powers the Test Cases analytics chart; contains no data not already covered by the source `test_case_runs` table.
@@ -121,7 +123,11 @@ All uploaded files associated with the account are included:
 
 ## Data Retention
 
-Stored artifact blobs are subject to plan-based retention. Once an artifact is
+The customer-facing summary of these windows lives in the public data retention
+guide at `server/priv/docs/en/guides/server/data-retention.md`.
+
+Stored artifact blobs are subject to plan-based retention, capped at 30 days.
+Once an artifact is
 older than its retention window, its binary is removed from object storage by a
 daily cleanup process; the associated metadata rows (build runs, test runs,
 command events, preview records, shard plans) are kept so analytics and
@@ -129,19 +135,21 @@ dashboards remain intact. Retention windows, in days, by plan:
 
 | Artifact | Air / Open Source | Pro | Enterprise |
 | --- | --- | --- | --- |
-| Cache artifacts (Xcode compilation, legacy CAS, module, Gradle) | 14 | 30 | 90 |
-| App preview builds and icons | 60 | 90 | 180 |
-| Build archives | 30 | 90 | 180 |
-| Run artifacts | 30 | 90 | 180 |
-| Test run attachments | 30 | 90 | 180 |
+| Cache artifacts (Xcode compilation, legacy CAS, module, Gradle) | 14 | 30 | 30 |
+| App preview builds and icons | 30 | 30 | 30 |
+| Build archives | 30 | 30 | 30 |
+| Run artifacts | 30 | 30 | 30 |
+| Test run attachments | 30 | 30 | 30 |
 | Shard bundles | 7 | 14 | 30 |
 
 Retention status is computed when cleanup runs. Cache artifacts use the object
-storage `last_modified` timestamp, while previews, build archives, test
+storage `last_modified` timestamp, while previews, current build archives, test
 attachments, and shard bundles use their database `inserted_at` timestamp. Run
-artifacts use the command event `ran_at` timestamp. The active account
-plan determines the applicable window, with Air used when an account has no
-active subscription.
+artifacts use the command event `ran_at` timestamp. Legacy build artifacts use
+the object storage `last_modified` timestamp; legacy build artifacts whose
+account prefix no longer resolves to a live account use the Air build archive
+window. The active account plan determines the applicable window, with Air used
+when an account has no active subscription.
 
 Tuist stores per-account cleanup progress for database-backed artifact families so
 daily retention jobs can resume after previously-purged metadata rows without

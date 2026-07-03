@@ -120,6 +120,7 @@ permissions:
   packages: write
 
 env:
+  MISE_VERSION: "2026.5.15"
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist
   KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
@@ -134,8 +135,8 @@ env:
   MISE_GITHUB_ATTESTATIONS: 0
   # Skip mise's SLSA provenance verification for github-backend tools
   # only. The platform-install job runs `mise -C infra run`, which
-  # resolves the repo toolset including `github:tuist/blick` +
-  # `github:endevco/aube`; mise's SLSA check builds a malformed release
+  # resolves the repo toolset including `github:endevco/aube`;
+  # mise's SLSA check builds a malformed release
   # URL for github-backend tools (releases/tags/<owner>/<repo>@<ver>
   # instead of /<ver>) and 404s on cache-cold runners. GitHub artifact
   # attestations still verify. Aqua-backend SLSA stays ON: mise.lock
@@ -223,40 +224,97 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
-      # The kura runtime image (the Rust mesh node, not the controller) is
-      # otherwise only published by release.yml on push-to-main. Building the
-      # per-commit `sha-<SHA>` image here lets staging run an in-flight kura
-      # change before it's released.
-      #
-      # Guarded to exactly the case the deploy job will consume this image, so
-      # nothing builds an image that won't be deployed:
-      #   - environment == 'staging': only staging pins kuraRuntime.image.tag to
-      #     this sha; canary/production resolve the released `kura@` tag and
-      #     never reference it (the production cascade also skips this whole job
-      #     via image_tag, so the env guard only bites a manual prod/canary run).
-      #   - kura_runtime_image_tag == '': when the caller pins an explicit kura
-      #     tag, the deploy uses that instead, so building the sha image is waste.
-      # Keep these two conditions in lockstep with the deploy precedence below.
-      # kura/Dockerfile builds from source (context = kura/); the staging node
-      # pool is amd64 (Hetzner ccx), so the runner-native build suffices.
+  build-kura-runtime:
+    # The kura runtime image (the Rust mesh node, not the controller) is
+    # otherwise only published by release.yml on push-to-main. Building the
+    # per-commit `sha-<SHA>` image here lets staging run an in-flight kura
+    # change before it's released.
+    #
+    # The binary is compiled with Bazel (`mise run compile`; opt via
+    # kura/.bazelrc), reusing the Tuist remote cache like the rest of Kura CI
+    # (kura.yml), then baked into Dockerfile.release — the same prebuilt-binary
+    # assembly the release pipeline uses. This replaces the previous in-Docker
+    # `cargo build --release` (kura/Dockerfile), which cold-compiled the `-sys`
+    # crates (rocksdb, aws-lc) on every deploy with no remote-cache reuse. It
+    # runs on `tuist-linux` (not the `build` job's runner) for the persistent
+    # local Bazel cache + the OIDC token `tuist bazel setup` needs.
+    #
+    # Guarded to exactly the case the deploy job will consume this image, so
+    # nothing builds an image that won't be deployed:
+    #   - environment == 'staging': only staging pins kuraRuntime.image.tag to
+    #     this sha; canary/production resolve the released `kura@` tag and
+    #     never reference it (the production cascade also skips it via image_tag).
+    #   - image_tag == '': a staging re-roll of a prebuilt server image skips
+    #     the build, so the deploy falls through to the released kura@ tag — no
+    #     point building a sha image it won't pin.
+    #   - kura_runtime_image_tag == '': when the caller pins an explicit kura
+    #     tag, the deploy uses that instead, so building the sha image is waste.
+    # Keep these conditions in lockstep with the deploy precedence below.
+    name: Build + push Kura runtime (amd64)
+    if: inputs.environment == 'staging' && inputs.image_tag == '' && inputs.kura_runtime_image_tag == ''
+    # tuist-linux is amd64; the staging node pool is amd64 (Hetzner ccx), so the
+    # runner-native amd64-only build suffices (the release pipeline is multi-arch).
+    runs-on: tuist-linux
+    # Cold builds compile the -sys crates (rocksdb, aws-lc) from source, so allow
+    # extra wall-clock when the remote cache misses.
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    defaults:
+      run:
+        working-directory: kura
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "rust bazel tuist"
+          working_directory: kura
+      - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
+      # Remote cache is best-effort: auth/setup is continue-on-error and `.bazelrc`
+      # try-imports `.bazelrc.tuist`, so if it fails the build runs cold locally
+      # rather than blocking the deploy.
+      - name: Set up the Tuist remote cache
+        run: |
+          tuist auth login
+          tuist bazel setup
+        continue-on-error: true
+      - name: Warn when the Tuist remote cache is unavailable
+        if: ${{ hashFiles('kura/.bazelrc.tuist') == '' }}
+        run: echo "::warning::Tuist remote cache unavailable (.bazelrc.tuist not written); building cold against the local cache."
+      - name: Build the Kura binary with Bazel
+        run: |
+          mise run --skip-tools compile
+          mkdir -p bin/amd64
+          cp bazel-bin/kura bin/amd64/kura
+          chmod +x bin/amd64/kura
+      - id: tag
+        run: echo "image_tag=sha-${DEPLOY_SHA:0:12}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v6
         name: Build and push Kura runtime image
-        if: inputs.environment == 'staging' && inputs.kura_runtime_image_tag == ''
         with:
+          # context/file are repo-root-relative regardless of the job's
+          # working-directory default. Dockerfile.release bakes the prebuilt
+          # bin/${TARGETARCH}/kura staged above and performs no compilation.
           context: ./kura
-          file: ./kura/Dockerfile
+          file: ./kura/Dockerfile.release
+          platforms: linux/amd64
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.KURA_RUNTIME_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
-          # Self-warming registry layer cache across staging deploys: each
-          # deploy exports its layers, and the next one reuses them. Because the
-          # image layers are a pure function of kura/ (the build context), a
-          # staging deploy whose kura/ is unchanged from the last one is a full
-          # layer-cache hit — the expensive Rust + librocksdb-sys compile is
-          # pulled, not re-run. Only a deploy that actually changes kura/ pays a
-          # cold build (then re-warms the cache for the deploys after it).
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.KURA_RUNTIME_IMAGE_NAME }}-buildcache:staging
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.KURA_RUNTIME_IMAGE_NAME }}-buildcache:staging,mode=max
+          cache-from: type=gha,scope=kura-runtime
+          cache-to: type=gha,mode=max,scope=kura-runtime
   observability-install:
     # Installs / upgrades the grafana/k8s-monitoring wrapper chart ahead of
     # the server rollout so the Alloy OTLP receiver is ready before the
@@ -469,8 +527,12 @@ jobs:
 
   deploy:
     name: Deploy to ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
-    needs: [build, observability-install, tailscale-operator-install, platform-install]
+    needs: [build, build-kura-runtime, observability-install, tailscale-operator-install, platform-install]
     # `build` may be skipped when image_tag is passed in - keep running.
+    # `build-kura-runtime` is skipped on canary/production and on staging
+    # re-rolls of a prebuilt image; when it does run (staging fresh build) the
+    # deploy pins kuraRuntime.image.tag to the sha image it pushes, so it must
+    # finish cleanly first. Treat success-or-skipped as OK.
     # `platform-install` brings up CRDs (cert-manager, ESO,
     # cloudnative-pg) the Tuist chart consumes; if it fails the chart
     # deploy would silently no-op on those resources, so block.
@@ -482,7 +544,7 @@ jobs:
     # external-dns / ESO / metrics-server / cloudnative-pg so app-impacting
     # platform settings (including CNPG CRDs the Tuist chart consumes for
     # the in-cluster Postgres rollout) land before the app chart upgrade.
-    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && needs.observability-install.result == 'success' && needs.tailscale-operator-install.result == 'success' && needs.platform-install.result == 'success'
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-kura-runtime.result == 'success' || needs.build-kura-runtime.result == 'skipped') && needs.observability-install.result == 'success' && needs.tailscale-operator-install.result == 'success' && needs.platform-install.result == 'success'
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -712,10 +774,11 @@ jobs:
           # Kura runtime image tag precedence:
           #   1. explicit kura_runtime_image_tag input (manual re-roll) wins.
           #   2. staging tracks the per-commit sha-<SHA> image — but only when
-          #      THIS run actually built it (image_tag empty ⇒ the build job
-          #      ran). A staging re-roll of a prebuilt server image_tag skips
-          #      the build job, so the kura sha image may not exist; fall
-          #      through to (3) rather than pin a tag that ImagePullBackOffs.
+          #      THIS run actually built it (image_tag empty ⇒ the
+          #      build-kura-runtime job ran). A staging re-roll of a prebuilt
+          #      server image_tag skips that job, so the kura sha image may not
+          #      exist; fall through to (3) rather than pin a tag that
+          #      ImagePullBackOffs.
           #   3. canary/production — and staging re-rolls of a prebuilt image —
           #      pin the released kura@ tag resolved from git, so they never
           #      run an unreleased (or never-built) binary.

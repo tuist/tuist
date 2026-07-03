@@ -1976,6 +1976,7 @@ struct PackageInfoMapperTests {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let defaultResourcePaths = try [
+            "nib",
             "storyboard",
             "strings",
             "xcassets",
@@ -2068,6 +2069,7 @@ struct PackageInfoMapperTests {
                         .test(
                             "Target1",
                             basePath: basePath,
+                            headers: .spmTarget(headersPath.parentDirectory),
                             customSettings: [
                                 "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/Target1/include"],
                                 "DEFINES_MODULE": "NO",
@@ -2080,6 +2082,55 @@ struct PackageInfoMapperTests {
                         ),
                     ]
                 )
+        )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func map_whenHasHeadersWithExclude() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let headersPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1/include"))
+        let moduleMapPath = headersPath.appending(component: "module.modulemap")
+        let headerPath = headersPath.appending(component: "AnHeader.h")
+        try await fileSystem.makeDirectory(at: headersPath)
+        try await fileSystem.writeText("", at: moduleMapPath)
+        try await fileSystem.writeText("", at: headerPath)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1",
+                            exclude: [
+                                "Excluded",
+                            ]
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        // A target's `exclude` paths must also drop matching headers, matching SwiftPM's discovery.
+        let target = try #require(project?.targets.first)
+        #expect(
+            target.headers == .spmTarget(
+                headersPath.parentDirectory,
+                excluding: [
+                    .path(
+                        basePath
+                            .appending(try RelativePath(validating: "Package/Sources/Target1/Excluded/**"))
+                            .pathString
+                    ),
+                ]
+            )
         )
     }
 
@@ -2125,6 +2176,7 @@ struct PackageInfoMapperTests {
                             "target-with-dashes",
                             basePath: basePath,
                             customProductName: "target_with_dashes",
+                            headers: .spmTarget(headersPath.parentDirectory),
                             customSettings: [
                                 "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/target-with-dashes/include"],
                                 "DEFINES_MODULE": "NO",
@@ -2273,6 +2325,7 @@ struct PackageInfoMapperTests {
                         .test(
                             "Target1",
                             basePath: basePath,
+                            headers: .spmTarget(headersPath.parentDirectory),
                             customSettings: [
                                 "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/Target1/include"],
                                 "MODULEMAP_FILE": .string("$(SRCROOT)/Derived/Target1.modulemap"),
@@ -2339,6 +2392,7 @@ struct PackageInfoMapperTests {
                         .test(
                             "Target1",
                             basePath: basePath,
+                            headers: .spmTarget(target1HeadersPath.parentDirectory),
                             dependencies: [.target(name: "Dependency1")],
                             customSettings: [
                                 "HEADER_SEARCH_PATHS": [
@@ -2356,6 +2410,7 @@ struct PackageInfoMapperTests {
                         .test(
                             "Dependency1",
                             basePath: basePath,
+                            headers: .spmTarget(dependency1HeadersPath.parentDirectory),
                             dependencies: [.target(name: "Dependency2")],
                             customSettings: [
                                 "HEADER_SEARCH_PATHS": [
@@ -2373,6 +2428,7 @@ struct PackageInfoMapperTests {
                         .test(
                             "Dependency2",
                             basePath: basePath,
+                            headers: .spmTarget(dependency2HeadersPath.parentDirectory),
                             customSettings: [
                                 "HEADER_SEARCH_PATHS": [
                                     "$(inherited)",
@@ -2471,6 +2527,7 @@ struct PackageInfoMapperTests {
                         .test(
                             "Target1",
                             basePath: basePath,
+                            headers: .spmTarget(target1HeadersPath.parentDirectory),
                             dependencies: [.external(name: "Dependency1", condition: nil)],
                             customSettings: [
                                 "HEADER_SEARCH_PATHS": [
@@ -2553,6 +2610,7 @@ struct PackageInfoMapperTests {
                                     tags: []
                                 ),
                             ],
+                            headers: .spmTarget(headersPath.parentDirectory),
                             customSettings: [
                                 "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Custom/Headers"],
                                 "DEFINES_MODULE": "NO",
@@ -2682,10 +2740,9 @@ struct PackageInfoMapperTests {
                         .test(
                             "Dependency1",
                             basePath: basePath,
-                            headers: .headers(
-                                public: .list(
-                                    [.glob(.path("\(dependencyHeadersPath.pathString)/*.h"))]
-                                )
+                            headers: .spmDirectoryTarget(
+                                dependencyHeadersPath.parentDirectory,
+                                publicHeaderRelativePaths: ["include/Header.h"]
                             ),
                             customSettings: [
                                 "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/Dependency1/include"],
@@ -2696,6 +2753,95 @@ struct PackageInfoMapperTests {
                                 ],
                             ],
                             moduleMap: "$(SRCROOT)/Derived/Dependency1.modulemap"
+                        ),
+                    ]
+                )
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenDirectoryPublicHeadersHaveDuplicateBasenames_prefersModuleNestedHeaders() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let packagePath = basePath.appending(component: "Package")
+        let publicHeadersPath = packagePath.appending(component: "spm_headers")
+        let nestedPublicHeadersPath = publicHeadersPath.appending(component: "nanopb")
+
+        try await fileSystem.makeDirectory(at: nestedPublicHeadersPath)
+        try await fileSystem.writeText("", at: packagePath.appending(component: "pb.h"))
+        try await fileSystem.writeText("", at: packagePath.appending(component: "pb_common.h"))
+        try await fileSystem.writeText("", at: packagePath.appending(component: "pb_common.c"))
+        try await fileSystem.writeText(#"#include "nanopb/pb.h""#, at: publicHeadersPath.appending(component: "pb.h"))
+        try await fileSystem.writeText(
+            #"#include "nanopb/pb_common.h""#,
+            at: publicHeadersPath.appending(component: "pb_common.h")
+        )
+        try await fileSystem.writeText("", at: nestedPublicHeadersPath.appending(component: "pb.h"))
+        try await fileSystem.writeText("", at: nestedPublicHeadersPath.appending(component: "pb_common.h"))
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "nanopb", type: .library(.automatic), targets: ["nanopb"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "nanopb",
+                            path: ".",
+                            sources: [
+                                "pb.h",
+                                "pb_common.h",
+                                "pb_common.c",
+                            ],
+                            publicHeadersPath: "spm_headers"
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+
+        #expect(
+            project ==
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "nanopb",
+                            basePath: basePath,
+                            customSources: .custom(.sourceFilesList(globs: [
+                                packagePath.appending(component: "pb.h").pathString,
+                                packagePath.appending(component: "pb_common.h").pathString,
+                                packagePath.appending(component: "pb_common.c").pathString,
+                            ])),
+                            headers: .spmDirectoryTarget(
+                                packagePath,
+                                publicHeaderRelativePaths: [
+                                    "spm_headers/nanopb/pb.h",
+                                    "spm_headers/nanopb/pb_common.h",
+                                ],
+                                projectExcluding: [
+                                    .path(publicHeadersPath.appending(component: "pb.h").pathString),
+                                    .path(publicHeadersPath.appending(component: "pb_common.h").pathString),
+                                ]
+                            ),
+                            customSettings: [
+                                "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/spm_headers"],
+                                "DEFINES_MODULE": "NO",
+                                "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=nanopb"]),
+                                "OTHER_SWIFT_FLAGS": [
+                                    "$(inherited)",
+                                ],
+                            ],
+                            moduleMap: "$(SRCROOT)/Derived/nanopb.modulemap"
                         ),
                     ]
                 )
@@ -3565,6 +3711,7 @@ struct PackageInfoMapperTests {
                             destinations: .iOS,
                             deploymentTargets: .iOS("12.0"),
                             customSettings: [
+                                "EXCLUDED_ARCHS[sdk=iphonesimulator*]": .string("x86_64"),
                                 "OTHER_LDFLAGS": ["$(inherited)", "key1", "key2", "key3"],
                                 "OTHER_SWIFT_FLAGS": [
                                     "$(inherited)",
@@ -7262,6 +7409,7 @@ struct PackageInfoMapperTests {
                             "Singular",
                             basePath: basePath,
                             customProductName: "SingularWrapper",
+                            headers: .spmTarget(headersPath.parentDirectory),
                             dependencies: [.xcframework(path: .path(
                                 basePath
                                     .appending(try RelativePath(validating: "Singular.xcframework"))
@@ -7438,6 +7586,84 @@ struct PackageInfoMapperTests {
             ])
         )
         #expect(target.settings?.base["OTHER_LDFLAGS"] == .array(["$(inherited)", "-lSwiftSyntax"]))
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_macroTarget_appliesBaseSettingsBaseToMacroTarget() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/Library"))
+        )
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/MyMacro"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .local,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Library", type: .library(.automatic), targets: ["Library"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Library",
+                            dependencies: [.target(name: "MyMacro", condition: nil)]
+                        ),
+                        .test(name: "MyMacro", type: .macro),
+                    ],
+                    platforms: [.init(platformName: "macos", version: "11.0", options: [])]
+                ),
+            ],
+            packageSettings: .test(
+                baseSettings: Settings.default.with(base: ["MACOSX_DEPLOYMENT_TARGET": "15.0"])
+            )
+        )
+
+        let macroTarget = try #require(project?.targets.first(where: { $0.name == "MyMacro" }))
+        #expect(macroTarget.settings?.base["MACOSX_DEPLOYMENT_TARGET"] == .string("15.0"))
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_regularTarget_doesNotApplyBaseSettingsBundleIdentifierToTarget() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/_RopeModule"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .local,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "_RopeModule", type: .library(.automatic), targets: ["_RopeModule"]),
+                    ],
+                    targets: [
+                        .test(name: "_RopeModule"),
+                    ],
+                    platforms: [.ios]
+                ),
+            ],
+            packageSettings: .test(
+                baseSettings: Settings.default.with(base: [
+                    "PRODUCT_BUNDLE_IDENTIFIER": "com.example.$(PRODUCT_NAME)",
+                    "EXCLUDED_ARCHS[sdk=iphonesimulator*]": "x86_64",
+                ])
+            )
+        )
+
+        let target = try #require(project?.targets.first(where: { $0.name == "_RopeModule" }))
+        #expect(target.bundleId == "RopeModule")
+        #expect(target.settings?.base["PRODUCT_BUNDLE_IDENTIFIER"] == nil)
+        #expect(target.settings?.base["EXCLUDED_ARCHS[sdk=iphonesimulator*]"] == .string("x86_64"))
     }
 
     @Test(
@@ -7804,6 +8030,7 @@ private func defaultSpmResources(_ target: String, customPath: String? = nil) ->
     }
     return [
         "\(fullPath)/**/*.xib",
+        "\(fullPath)/**/*.nib",
         "\(fullPath)/**/*.storyboard",
         "\(fullPath)/**/*.xcdatamodeld",
         "\(fullPath)/**/*.xcmappingmodel",
@@ -8001,12 +8228,52 @@ extension ProjectDescription.Target {
     }
 }
 
+extension ProjectDescription.Headers {
+    private static let spmHeadersGlob = "**/*.{h,hh,hpp,h++,hp,hxx,H,ipp,def}"
+
+    /// Mirrors the headers `PackageInfoMapper` produces for a `.custom`/`.header` module-map SwiftPM target:
+    /// every header in the target is surfaced as a project header (the module map, not the `Public` attribute,
+    /// defines the module's interface).
+    fileprivate static func spmTarget(
+        _ targetBasePath: AbsolutePath,
+        excluding: [ProjectDescription.Path] = []
+    ) -> ProjectDescription.Headers {
+        .headers(
+            project: .list([.glob(.path("\(targetBasePath.pathString)/\(spmHeadersGlob)"), excluding: excluding)])
+        )
+    }
+
+    /// Mirrors the headers `PackageInfoMapper` produces for a `.directory` module-map SwiftPM target (no
+    /// umbrella header): public headers are explicit so Xcode gets at most one public build file per framework
+    /// header basename; every other header remains a project header.
+    fileprivate static func spmDirectoryTarget(
+        _ targetBasePath: AbsolutePath,
+        publicHeaderRelativePaths: [String],
+        excluding: [ProjectDescription.Path] = [],
+        projectExcluding: [ProjectDescription.Path] = []
+    ) -> ProjectDescription.Headers {
+        let publicHeaders = publicHeaderRelativePaths.map {
+            targetBasePath.appending(try! RelativePath(validating: $0))
+        }
+        return .headers(
+            public: .list(publicHeaders.map { .glob(.path($0.pathString), excluding: excluding) }),
+            project: .list([
+                .glob(
+                    .path("\(targetBasePath.pathString)/\(spmHeadersGlob)"),
+                    excluding: excluding + projectExcluding
+                ),
+            ]),
+            exclusionRule: .projectExcludesPrivateAndPublic
+        )
+    }
+}
+
 extension [ProjectDescription.ResourceFileElement] {
     static func defaultResources(
         path: AbsolutePath,
         excluding: [Path] = []
     ) -> Self {
-        ["xib", "storyboard", "xcdatamodeld", "xcmappingmodel", "xcassets", "lproj"]
+        ["xib", "nib", "storyboard", "xcdatamodeld", "xcmappingmodel", "xcassets", "lproj"]
             .map { file -> ProjectDescription.ResourceFileElement in
                 ResourceFileElement.glob(
                     pattern: .path("\(path.appending(component: "**").pathString)/*.\(file)"),

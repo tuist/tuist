@@ -32,10 +32,16 @@ enum CacheVersion: String, Equatable, Hashable {
     /// Reverted static framework resource embedding (resources go back into separate .bundle targets).
     /// Existing caches from the embedding approach must be invalidated.
     case version5 = "5"
+
+    /// Cache artifacts switched from uncompressed zip (store) to AppleArchive/LZFSE, which is a
+    /// different, Apple-only archive format that older CLIs cannot read. Bumping the version moves
+    /// the new artifacts into a namespace those clients never resolve, so they fall back to a cache
+    /// miss instead of downloading an archive they can't decompress.
+    case version6 = "6"
 }
 
 struct CacheVersionFetcher: CacheVersionFetching {
     func version() -> CacheVersion {
-        .version5
+        .version6
     }
 }

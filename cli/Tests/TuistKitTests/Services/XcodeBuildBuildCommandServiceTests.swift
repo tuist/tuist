@@ -279,7 +279,6 @@ struct XcodeBuildBuildCommandServiceTests {
         given(shardPlanService)
             .plan(
                 xctestproductsPath: .any,
-                destination: .any,
                 reference: .any,
                 shardGranularity: .any,
                 shardMin: .any,
@@ -317,7 +316,6 @@ struct XcodeBuildBuildCommandServiceTests {
         verify(shardPlanService)
             .plan(
                 xctestproductsPath: .value(testProductsPath),
-                destination: .value("platform=iOS Simulator,name=iPhone 16"),
                 reference: .any,
                 shardGranularity: .any,
                 shardMin: .any,

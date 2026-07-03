@@ -45,6 +45,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -804,6 +805,13 @@ type HostKeyState struct {
 	captured string // SHA256 of the key the host actually presented
 }
 
+// ErrHostKeyMismatch is returned by the host-key callback when the host
+// presents a key that differs from the operator's pinned fingerprint. Callers
+// that adopt boxes from a reinstall-on-release pool match against it (errors.Is)
+// to re-TOFU during bootstrap: a freshly-claimed box can be reimaged after its
+// key was pinned, legitimately rotating the host key.
+var ErrHostKeyMismatch = errors.New("host key fingerprint mismatch")
+
 func NewHostKeyState(known string) *HostKeyState {
 	return &HostKeyState{expected: known}
 }
@@ -839,7 +847,7 @@ func (h *HostKeyState) Callback() ssh.HostKeyCallback {
 		// host-fingerprint from a prior reconcile), refuse anything
 		// else regardless of TOFU state.
 		if h.expected != "" && got != h.expected {
-			return fmt.Errorf("host key fingerprint mismatch: expected %s, got %s", h.expected, got)
+			return fmt.Errorf("%w: expected %s, got %s", ErrHostKeyMismatch, h.expected, got)
 		}
 		h.captured = got
 		return nil
@@ -1355,7 +1363,7 @@ sudo tee /usr/local/bin/tuist-pf-vmnat >/dev/null <<'VMNAT'
 #!/bin/sh
 # Loads the VM->cache NAT rules into the com.apple/tuist.vmnat pf
 # sub-anchor (see installVMEgressFirewall in macos-host-bootstrap).
-# Two legs, each skipped when unconfigured or its route is absent:
+# Three legs, each skipped when unconfigured or its route is absent:
 #   - tailnet: VM -> cluster Service CIDR via the tailscale utun.
 #     MSS-clamped: the utun MTU (1280) is smaller than the VM's
 #     vmnet MTU (1500) and pf-NAT'd flows don't reliably deliver
@@ -1365,10 +1373,20 @@ sudo tee /usr/local/bin/tuist-pf-vmnat >/dev/null <<'VMNAT'
 #   - Private Network: VM -> PN subnet via the macOS VLAN
 #     interface (installVMCachePNInterface). No clamp: the VLAN
 #     runs at the same 1500 MTU as vmnet.
-# vmnet's built-in NAT only translates toward the default-route
-# interface, so both legs need explicit pf NAT. Idempotent and
-# cheap; re-run on an interval so a tailscaled restart (utun
-# renumber) or VLAN recreation re-converges within a minute.
+#   - General internet: VM -> public internet via the default-route
+#     NIC. vmnet/InternetSharing is *supposed* to own this leg, but on
+#     2026-06-26 its en0 NAT silently stopped translating after heavy
+#     VM churn — VMs egressed with their 192.168.64.x source, the
+#     upstream gateway dropped it, in-VM tailscaled never reached the
+#     control plane (SYN_SENT forever), and the release never booted
+#     while the pod still showed Ready. We now assert this leg here
+#     too, in this proven-enforced anchor, so it survives a churn that
+#     clobbers InternetSharing's separate anchor.
+# vmnet's built-in NAT only reliably translates toward the
+# default-route interface when freshly set up, so all three legs get
+# explicit pf NAT here. Idempotent and cheap; re-run on an interval so
+# a tailscaled restart (utun renumber), VLAN recreation, or a
+# clobbered default-route NAT re-converges within a minute.
 CIDR="%s"
 PNCIDR="%s"
 RULES=""
@@ -1408,10 +1426,29 @@ if [ -n "$PNCIDR" ]; then
     RULES="${RULES}nat on $PNIF from 192.168.64.0/22 to $PNCIDR -> ($PNIF)${NL}"
   fi
 fi
+# General internet leg (see header): NAT VM egress on the default
+# route so a VM that lost vmnet's en0 translation still reaches the
+# control plane. "to any" on the default NIC only catches
+# internet-bound egress — tailnet/PN traffic leaves via utun/vlan and
+# is translated by the interface-scoped legs above (pf nat is
+# first-match and interface-scoped, so this never shadows them).
+DEFIF=$(route -n get default 2>/dev/null | awk '/interface/{print $2}')
+if [ -n "$DEFIF" ]; then
+  RULES="${RULES}nat on $DEFIF from 192.168.64.0/22 to any -> ($DEFIF)${NL}"
+fi
 [ -z "$RULES" ] && exit 0
 # pf requires normalization (scrub) before translation (nat) within
 # a ruleset load; the legs above append in that order.
-printf '%%s' "$RULES" | cmp -s - /usr/local/etc/tuist-vmnat.loaded 2>/dev/null && exit 0
+#
+# Short-circuit only when the desired ruleset is unchanged AND the
+# anchor still holds rules. Comparing against the snapshot alone would
+# never re-converge after an external flush (precisely the failure
+# this leg hardens against) — the snapshot would still match while the
+# live anchor sat empty.
+if printf '%%s' "$RULES" | cmp -s - /usr/local/etc/tuist-vmnat.loaded 2>/dev/null \
+   && pfctl -a "com.apple/tuist.vmnat" -s nat 2>/dev/null | grep -q nat; then
+  exit 0
+fi
 printf '%%s' "$RULES" | pfctl -a "com.apple/tuist.vmnat" -f -
 mkdir -p /usr/local/etc
 printf '%%s' "$RULES" > /usr/local/etc/tuist-vmnat.loaded

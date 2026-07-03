@@ -20,7 +20,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Kura.Server
 
   @namespace "kura"
-  @manifest_revision "2026-06-19-single-host-grpc-and-two-way-public-peer-lb-v1"
+  @manifest_revision "2026-07-02-per-account-public-dns-v1"
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
   @gateway_annotation "tuist.dev/kura-gateway"
   @gateway_controller_image "registry.k8s.io/ingress-nginx/controller:v1.11.3"
@@ -140,6 +140,15 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @impl true
+  def caught_up?(name, %Regions{} = region) do
+    case client_get_kura_instance(@namespace, name, region) do
+      {:ok, %{"status" => %{"phase" => "Ready"}}} -> {:ok, true}
+      {:ok, _} -> {:ok, false}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @impl true
   def current_manifest_revision(name, %Regions{} = region) do
     case client_get_kura_instance(@namespace, name, region) do
       {:ok, %{"metadata" => %{"annotations" => %{@manifest_revision_annotation => revision}}}} -> {:ok, revision}
@@ -191,7 +200,16 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @doc false
-  def manifest(name, image_tag, account, %Regions{} = region, %Server{}, hook_script, gateway, external_peers \\ []) do
+  def manifest(
+        name,
+        image_tag,
+        account,
+        %Regions{} = region,
+        %Server{} = server,
+        hook_script,
+        gateway,
+        external_peers \\ []
+      ) do
     account_handle = dns_handle(account.name)
     revision = @manifest_revision <> peers_revision_suffix(external_peers)
     annotations = maybe_put_gateway_annotation(%{@manifest_revision_annotation => revision}, gateway)
@@ -216,22 +234,33 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "tenantID" => account_handle,
           "region" => region.id,
           "image" => "ghcr.io/tuist/kura:#{image_tag}",
-          "publicHost" => public_host(account_handle, region),
-          "grpcPublicHost" => grpc_public_host(account_handle, region),
+          # Only the steady-state (`:none`) server owns the account's customer
+          # host. A `:moving_in` target warms with the customer plane withheld
+          # (peer plane only, so it bootstraps from the source without two
+          # instances claiming the same host), and a `:moving_out` source has
+          # already handed the host to the promoted target. The kura-controller
+          # leaves the public Ingress/DNS/Certificate unreconciled for an empty
+          # publicHost, so host ownership stays with exactly one instance.
+          "publicHost" => if(owns_customer_host?(server), do: public_host(account_handle, region)),
+          "grpcPublicHost" => if(owns_customer_host?(server), do: grpc_public_host(account_handle, region)),
           "ingressClassName" => ingress_class_name(region, gateway),
+          "publicHostNetwork" => public_host_network?(region),
           "peerTLSSecretName" => peer_tls_secret_name(region),
           "mesh" => mesh_enabled?(region),
           "meshPublicPeerHost" => mesh_public_peer_host(account_handle, region),
           "meshExternalPeers" => mesh_external_peers(region, external_peers),
           "meshPublicPeerLoadBalancerAnnotations" => mesh_public_peer_lb_annotations(region),
+          "meshPeerHostNetwork" => mesh_peer_host_network?(region),
+          "meshPeerFailoverIp" => mesh_peer_failover_ip(region),
           "private" => Regions.private?(region),
           "exposeNodePort" => Regions.node_port_data_plane?(region),
           "clientCIDRs" => client_cidrs(region),
           "podAnnotations" => pod_annotations(region),
+          "egressGuaranteedMbps" => egress_guaranteed_mbps(account, region),
           "storageClassName" => storage_class(region),
           "storageSize" => storage_size(region),
           "replicas" => replicas(region),
-          "nodeSelector" => node_selector(region),
+          "nodeSelector" => instance_node_selector(region, server),
           "tolerations" => tolerations(region),
           "extensionScript" => hook_script,
           "extraEnv" => extension_env(region)
@@ -264,8 +293,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "controllerImage" => gateway_controller_image(region),
           "replicas" => gateway_replicas(region),
           "nodeSelector" => node_selector(region),
+          "tolerations" => tolerations(region),
           "loadBalancerAnnotations" => gateway_load_balancer_annotations(gateway_name, region)
         }
+        |> maybe_put_host_network(region)
         |> Enum.reject(fn {_key, value} -> value in [nil, ""] or value == %{} end)
         |> Map.new()
     }
@@ -276,6 +307,17 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   defp public_host(_handle, _region), do: nil
+
+  # The customer gateway is host-network exactly when the regional gateway is:
+  # on bare metal there is no cloud LB, so the customer plane is served by the
+  # host-network gateway DaemonSet on the box NIC. Tells the controller to
+  # publish the account's public host via a per-account DNSEndpoint targeting the
+  # box its pods run on, so each account resolves to its own box across a
+  # multi-box region. Skipped on private (runner-cache) regions, which have no
+  # public host to advertise.
+  defp public_host_network?(region) do
+    gateway_host_network?(region) and not Regions.private?(region)
+  end
 
   defp grpc_public_host(handle, %Regions{provisioner_config: %{grpc_public_host_template: template} = config}) do
     interpolate_host(template, dns_handle(handle), config)
@@ -353,6 +395,21 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   defp mesh_public_peer_lb_annotations(_region), do: nil
+
+  # The peer plane is host-network exactly when the regional gateway is: on
+  # bare metal there is no cloud LB, so the public peer endpoint is served by a
+  # host-network SNI-passthrough demux on the box NIC instead of a per-instance
+  # LoadBalancer. Tells the controller to make the per-instance peer Service
+  # ClusterIP and publish DNS via a DNSEndpoint to the region's failover IP.
+  defp mesh_peer_host_network?(region) do
+    mesh_enabled?(region) and gateway_host_network?(region)
+  end
+
+  # The region's public peer failover IP that the host-network peer DNSEndpoint
+  # targets. nil (dropped) on the Hetzner LB regions or when none is configured.
+  defp mesh_peer_failover_ip(region) do
+    if mesh_peer_host_network?(region), do: Map.get(region.provisioner_config, :failover_ip)
+  end
 
   defp node_selector_annotation(region) do
     case node_selector(region) do
@@ -433,6 +490,26 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp node_selector(_), do: nil
 
+  # Only the steady-state (`:none`) server publishes the account's customer host.
+  # See the `publicHost` gating in `manifest/8`.
+  defp owns_customer_host?(%Server{move_phase: :moving_in}), do: false
+  defp owns_customer_host?(%Server{move_phase: :moving_out}), do: false
+  defp owns_customer_host?(%Server{}), do: true
+
+  # A `:moving_in` target is pinned to the destination box (its `target_node`)
+  # so the warm handoff lands the account on the intended box, layered on top of
+  # the region's pool `node_selector`. Every other row is placed by the
+  # scheduler's egress/cpu bin-packing across the region's boxes.
+  defp instance_node_selector(region, %Server{move_phase: :moving_in, target_node: node})
+       when is_binary(node) and node != "" do
+    region
+    |> node_selector()
+    |> Kernel.||(%{})
+    |> Map.put("kubernetes.io/hostname", node)
+  end
+
+  defp instance_node_selector(region, %Server{}), do: node_selector(region)
+
   defp tolerations(%Regions{provisioner_config: %{tolerations: [_ | _] = tolerations}}), do: tolerations
 
   defp tolerations(_), do: nil
@@ -447,12 +524,35 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp pod_annotations(_), do: nil
 
+  # Guaranteed egress floor: the region's per-tenant Mbps reserved as the
+  # tuist.dev/egress-mbps extended resource so the scheduler bin-packs the pod
+  # against the node's advertised budget. Enterprise-only — the default pattern
+  # is bursty, so non-enterprise tenants run best-effort under the Cilium burst
+  # ceiling alone and pack densely. nil (dropped) when the region has no floor or
+  # the account isn't entitled.
+  defp egress_guaranteed_mbps(account, %Regions{provisioner_config: %{egress_guaranteed_mbps: mbps}})
+       when is_integer(mbps) and mbps > 0 do
+    if Entitlements.allows?(account, :guaranteed_egress_floor), do: mbps
+  end
+
+  defp egress_guaranteed_mbps(_account, _region), do: nil
+
   # Private (runner-cache) regions never get a gateway: their whole
   # invariant is "no public endpoint, no LoadBalancer" — a dedicated
   # gateway for a hosted-enterprise account would silently recreate
   # the public surface the region exists to avoid.
+  #
+  # Host-network (bare-metal) regions also never get a per-account gateway.
+  # The region's ingress runs as a single host-network gateway bound to the
+  # box's :80/:443; a second per-account host-network gateway can't bind the
+  # same ports on the same box, so it would sit unschedulable and its account
+  # would never serve. On bare metal every account uses the shared regional
+  # ingress class instead; account isolation there is a dedicated box, not a
+  # dedicated gateway. Dedicated gateways stay available on LoadBalancer
+  # regions, where each gets its own LB.
   defp gateway_assignment(account, %Regions{} = region) do
-    if not Regions.private?(region) and dedicated_gateway?(account, region) do
+    if not Regions.private?(region) and not gateway_host_network?(region) and
+         dedicated_gateway?(account, region) do
       gateway_name = gateway_name(account, region)
 
       %{
@@ -513,6 +613,15 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp gateway_replicas(%Regions{provisioner_config: %{gateway_replicas: replicas}}), do: replicas
   defp gateway_replicas(_region), do: 2
+
+  defp maybe_put_host_network(spec, region) do
+    if gateway_host_network?(region), do: Map.put(spec, "hostNetwork", true), else: spec
+  end
+
+  defp gateway_host_network?(%Regions{provisioner_config: %{gateway: :host_network}}), do: true
+  defp gateway_host_network?(_region), do: false
+
+  defp gateway_load_balancer_annotations(_gateway_name, %Regions{provisioner_config: %{gateway: :host_network}}), do: %{}
 
   defp gateway_load_balancer_annotations(gateway_name, %Regions{provisioner_config: config}) do
     annotations = %{

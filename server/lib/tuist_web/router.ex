@@ -451,11 +451,9 @@ defmodule TuistWeb.Router do
   scope "/.well-known", TuistWeb do
     pipe_through [:open_api, :non_authenticated_api]
 
-    get "/openid-configuration", WellKnownController, :openid_configuration
     get "/oauth-authorization-server", WellKnownController, :oauth_authorization_server
     get "/oauth-protected-resource", WellKnownController, :oauth_protected_resource
     get "/oauth-protected-resource/*resource_path", WellKnownController, :oauth_protected_resource
-    get "/jwks.json", WellKnownController, :jwks
     get "/mcp/server-card.json", WellKnownController, :mcp_server_card
     get "/apple-app-site-association", WellKnownController, :apple_app_site_association
     get "/assetlinks.json", WellKnownController, :assetlinks
@@ -749,6 +747,10 @@ defmodule TuistWeb.Router do
     pipe_through [:atlas_internal_api]
 
     get "/atlas/accounts/:account_handle/usage", AtlasUsageController, :usage
+
+    post "/atlas/db/query", AtlasDatabaseController, :query
+    get "/atlas/db/tables", AtlasDatabaseController, :tables
+    get "/atlas/db/tables/:schema/:name", AtlasDatabaseController, :describe
   end
 
   scope "/_internal", TuistWeb.Internal do

@@ -10,6 +10,7 @@
 {{- if or .Values.postgresql.cnpg.enabled (eq .Values.postgresql.mode "cnpg") }}
 {{- $clusterName := include "tuist.componentName" (dict "root" . "component" "pg") -}}
 {{- $backupSecretName := include "tuist.componentName" (dict "root" . "component" "pg-backup-credentials") -}}
+{{- $objectStoreName := include "tuist.componentName" (dict "root" . "component" "pg-backup-store") -}}
 {{- $webRoleSecretName := include "tuist.cnpgWebRoleSecretName" . -}}
 {{- $processorRoleSecretName := include "tuist.componentName" (dict "root" . "component" "pg-tuist-processor") -}}
 {{- $opsRoSecretName := include "tuist.componentName" (dict "root" . "component" "pg-tuist-ops-ro") -}}
@@ -144,14 +145,28 @@ spec:
 
   # Managed roles. CNPG creates the role on bootstrap and rotates the
   # password whenever the referenced Secret changes — there is no
-  # `CREATE ROLE` SQL to run by hand. Web runtime grants are applied by
-  # Tuist.Release.migrate after each migration; processor/Ops grants that
-  # need superuser/catalog roles stay in the infra/cnpg SQL runbook.
+  # `CREATE ROLE` SQL to run by hand. Web and processor per-table grants
+  # are both applied by Tuist.Release.migrate after each migration (as the
+  # schema owner, gated on TUIST_DATABASE_{RUNTIME,PROCESSOR}_ROLE). The
+  # infra/cnpg SQL runbook is now only a bootstrap/restore fallback for the
+  # window before the first migrate, plus the Ops role's CONNECT + REVOKE
+  # defense-in-depth.
   managed:
     roles:
       - name: {{ .Values.postgresql.cnpg.roles.web.name | quote }}
         ensure: present
         login: true
+        # `inherit: false` so membership in tuist_ops_ro (below) lets the web
+        # role `SET ROLE tuist_ops_ro` for the internal Atlas query runner
+        # WITHOUT passively inheriting pg_read_all_data — keeping the web role's
+        # own footprint at its direct grants. NOINHERIT is safe here: the web
+        # role's application privileges are granted directly, not via any role
+        # membership. CNPG reconciles this membership, so no manual GRANT is
+        # needed (replaces the GRANT line that used to live in
+        # infra/cnpg/tuist-ops-ro-grants.sql).
+        inherit: false
+        inRoles:
+          - {{ .Values.postgresql.cnpg.roles.opsRo.name | quote }}
         comment: "Tuist web runtime role"
         passwordSecret:
           name: {{ $webRoleSecretName }}
@@ -170,6 +185,20 @@ spec:
         passwordSecret:
           name: {{ $opsRoSecretName }}
 
+  {{- if .Values.postgresql.cnpg.backup.plugin.enabled }}
+  # Barman Cloud Plugin (CNPG-I) path. WAL archiving + base backups run via
+  # the plugin sidecar against the ObjectStore CR below. `serverName` is
+  # pinned to the cluster name — the same value the in-tree barmanObjectStore
+  # defaulted to — so the plugin continues the EXISTING archive prefix
+  # (no new base backup, no orphaned PITR history). This is the single most
+  # important continuity invariant; verify it before trusting the cutover.
+  plugins:
+    - name: {{ .Values.postgresql.cnpg.backup.plugin.name | quote }}
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: {{ $objectStoreName | quote }}
+        serverName: {{ $clusterName | quote }}
+  {{- else }}
   backup:
     retentionPolicy: {{ .Values.postgresql.cnpg.backup.retention | quote }}
     barmanObjectStore:
@@ -189,6 +218,40 @@ spec:
         compression: gzip
         immediateCheckpoint: false
         jobs: 2
+  {{- end }}
+{{- if .Values.postgresql.cnpg.backup.plugin.enabled }}
+---
+# Barman Cloud Plugin object-store config. Mirrors the in-tree
+# barmanObjectStore stanza exactly (same bucket, credentials, wal/data,
+# retention) so the plugin reads and writes the existing archive. Referenced
+# by the Cluster's plugins[].parameters.barmanObjectName above. Note:
+# retention moves from the Cluster (.spec.backup.retentionPolicy) to here.
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: {{ $objectStoreName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  retentionPolicy: {{ .Values.postgresql.cnpg.backup.retention | quote }}
+  configuration:
+    destinationPath: {{ .Values.postgresql.cnpg.backup.destinationPath | quote }}
+    endpointURL: {{ .Values.postgresql.cnpg.backup.endpointURL | quote }}
+    s3Credentials:
+      accessKeyId:
+        name: {{ $backupSecretName }}
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: {{ $backupSecretName }}
+        key: ACCESS_SECRET_KEY
+    wal:
+      compression: gzip
+      maxParallel: 4
+    data:
+      compression: gzip
+      jobs: 2
+{{- end }}
 ---
 # Daily base backup at 03:00 UTC. The continuous WAL stream archived by
 # the Cluster above keeps PITR alive between base backups; the
@@ -203,6 +266,11 @@ metadata:
 spec:
   schedule: {{ .Values.postgresql.cnpg.backup.schedule | quote }}
   backupOwnerReference: self
+  {{- if .Values.postgresql.cnpg.backup.plugin.enabled }}
+  method: plugin
+  pluginConfiguration:
+    name: {{ .Values.postgresql.cnpg.backup.plugin.name | quote }}
+  {{- end }}
   cluster:
     name: {{ $clusterName }}
   immediate: true

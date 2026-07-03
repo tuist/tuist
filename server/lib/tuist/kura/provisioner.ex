@@ -104,6 +104,15 @@ defmodule Tuist.Kura.Provisioner do
   @doc "Returns the provisioner's default resource description for one Kura server."
   @callback resources_for(Server.t()) :: map()
 
+  @doc """
+  Whether the server's backing workload has caught up from its mesh peers and
+  passed the bootstrap readiness gate (its pod is Ready). Used to gate the warm
+  handoff: a `:moving_in` target has no public endpoint to probe, so its
+  readiness is the peer-plane bootstrap gate, not a public `/up` check.
+  """
+  @callback caught_up?(ref :: String.t(), Regions.t()) ::
+              {:ok, boolean()} | {:error, term()}
+
   ## Convenience dispatchers
 
   @doc "Calls `rollout/2` on the region's provisioner."
@@ -159,6 +168,13 @@ defmodule Tuist.Kura.Provisioner do
   def manifest_revision(%Server{region: region_id} = server) do
     with {:ok, region} <- Regions.fetch(region_id) do
       {:ok, region.provisioner.manifest_revision(server.account, region)}
+    end
+  end
+
+  @doc "Calls `caught_up?/2` on the region's provisioner."
+  def caught_up?(%Server{provisioner_node_ref: ref, region: region_id}) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provisioner.caught_up?(ref, region)
     end
   end
 end

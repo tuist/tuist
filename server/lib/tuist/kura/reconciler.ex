@@ -76,8 +76,48 @@ defmodule Tuist.Kura.Reconciler do
     with {:ok, scheduled} <- Kura.schedule_runtime_image_deployments() do
       log_scheduled_deployments(scheduled)
       reconcile_destroying_servers()
+      reconcile_moving_out_servers()
       handled = reconcile_deployments()
       reconcile_observed_servers(handled)
+    end
+  end
+
+  # Drain window a promoted move's source keeps serving before teardown, so
+  # persistent gRPC channels / in-flight builds finish. The target is caught up
+  # (same cache), so this is a safety margin, not a correctness requirement;
+  # fail-open (miss -> origin) covers any straggler beyond it.
+  @move_drain_seconds 120
+
+  # Tears down the source of a completed move once it has drained. `move_server`
+  # promoted the target and re-rendered the source without the customer host, so
+  # the box no longer receives new traffic; after the drain window the source's
+  # StatefulSet/PVC/CR are destroyed, leaving the account solely on the target.
+  # Move rows are excluded from the observation projection, so a moving-out row's
+  # updated_at stays at its promotion time and clocks the drain.
+  defp reconcile_moving_out_servers do
+    cutoff = DateTime.add(DateTime.utc_now(), -@move_drain_seconds, :second)
+
+    Server
+    |> where([s], s.move_phase == :moving_out and s.status not in [:destroying, :destroyed])
+    |> where([s], s.updated_at <= ^cutoff)
+    |> order_by([s], asc: s.updated_at, asc: s.id)
+    |> limit(^@reconcile_batch_size)
+    |> Repo.all()
+    |> Enum.each(&drain_moving_out_server/1)
+
+    :ok
+  end
+
+  defp drain_moving_out_server(%Server{} = server) do
+    case Kura.destroy_server(server) do
+      {:ok, _} ->
+        Logger.info("[Kura.Reconciler] drained and destroyed move source #{server.id}")
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("[Kura.Reconciler] could not destroy drained move source #{server.id}: #{inspect(reason)}")
+
+        :ok
     end
   end
 
@@ -148,6 +188,30 @@ defmodule Tuist.Kura.Reconciler do
     cancel(deployment, "server #{server.id} is #{server.status}; skipping rollout")
   end
 
+  # A `:moving_in` target warms with no public endpoint, so its readiness is the
+  # peer-plane bootstrap gate (the pod's /ready probe surfaced as caught_up?),
+  # not a public /up probe. Once it is up on the desired image and caught up, it
+  # is promoted (source -> :moving_out, target -> :none). Its deployment stays
+  # open across the promotion so the now-`:none` row activates through the normal
+  # endpoint-gated path on the next tick.
+  defp reconcile_deployment(%Deployment{kura_server: %Server{move_phase: :moving_in} = server} = deployment) do
+    with {:ok, deployment} <- ensure_running(deployment) do
+      case Provisioner.current_image_tag(server) do
+        {:ok, image_tag} when image_tag == deployment.image_tag ->
+          promote_when_caught_up(server, image_tag)
+
+        {:ok, _other_image_tag} ->
+          apply_deployment(deployment, server)
+
+        {:error, :not_found} ->
+          apply_deployment(deployment, server)
+
+        {:error, reason} ->
+          fail(deployment, server, reason)
+      end
+    end
+  end
+
   defp reconcile_deployment(%Deployment{kura_server: %Server{} = server} = deployment) do
     case Provisioner.current_image_tag(server) do
       {:ok, image_tag} when image_tag == deployment.image_tag ->
@@ -187,7 +251,12 @@ defmodule Tuist.Kura.Reconciler do
             "[Kura.Reconciler] waiting on public endpoint for server #{server.id} (#{host}): #{inspect(reason)}"
           )
 
-          :ok
+          # The workload is up on the desired image but the endpoint is not
+          # serving yet: the pod is typically still replicating from mesh peers
+          # behind the /ready bootstrap gate, so it offers no healthy upstream to
+          # the gateway. Surface :replicating so the dashboard shows progress
+          # instead of a stuck "Deploying" for the whole bootstrap.
+          record(server, :replicating, deployment.image_tag, now())
 
         {:error, :node_port_endpoint_not_ready} ->
           # The controller has not yet observed the full node-port
@@ -224,6 +293,32 @@ defmodule Tuist.Kura.Reconciler do
     end
   end
 
+  defp promote_when_caught_up(%Server{} = server, image_tag) do
+    case Provisioner.caught_up?(server) do
+      {:ok, true} ->
+        case Kura.promote_move(server) do
+          {:ok, _promoted} ->
+            Logger.info("[Kura.Reconciler] promoted move target #{server.id} (caught up)")
+            :ok
+
+          {:error, reason} ->
+            Logger.warning("[Kura.Reconciler] could not promote move target #{server.id}: #{inspect(reason)}")
+
+            :ok
+        end
+
+      {:ok, false} ->
+        # Up on the desired image but still replicating from the source behind
+        # the bootstrap gate. Surface :replicating so the move shows progress.
+        record(server, :replicating, image_tag, now())
+
+      {:error, reason} ->
+        Logger.warning("[Kura.Reconciler] could not observe readiness of move target #{server.id}: #{inspect(reason)}")
+
+        :ok
+    end
+  end
+
   defp ensure_running(%Deployment{status: :running} = deployment), do: {:ok, deployment}
   defp ensure_running(%Deployment{} = deployment), do: Kura.mark_running(deployment)
 
@@ -238,6 +333,11 @@ defmodule Tuist.Kura.Reconciler do
     servers =
       Server
       |> where([s], s.status in ^@present_intent_statuses)
+      # Move rows are driven by the move paths (moving_in via the deployment
+      # intercept, moving_out via the drain), never the public-endpoint
+      # projection: a moving_in has no public host to probe, and a moving_out's
+      # updated_at must stay at its promotion time to clock the drain window.
+      |> where([s], s.move_phase == :none)
       |> order_by([s], asc: s.updated_at, asc: s.id)
       |> limit(^@reconcile_batch_size)
       |> preload(:account)

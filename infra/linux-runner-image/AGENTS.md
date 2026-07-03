@@ -42,6 +42,17 @@ macOS image). Same single-shot lifecycle, much simpler substrate.
   (guest OOM vs CPU/memory starvation), which is otherwise invisible
   from outside the guest. Interval via
   `TUIST_RUNNER_VITALS_INTERVAL` (default 3s).
+- `/usr/local/bin/metrics-sampler.sh` — machine-metrics sampler for
+  the job detail page's Metrics tab. Unlike `vitals.sh` (which logs to
+  stdout from the runner container), this POSTs structured
+  CPU/memory/network/disk samples to the server, so it runs in the
+  dedicated `metrics` native-sidecar container that holds the dispatch
+  SA token (the runner container never sees it). It waits for the
+  poller to stage the JIT (a claimed job) before sampling — so
+  warm-standby Pods don't post — then samples VM-wide `/proc` plus the
+  JIT volume's backing filesystem every `TUIST_RUNNER_METRICS_INTERVAL`
+  (default 15s) and POSTs to `…/pods/<pod>/metrics`. Best-effort;
+  never affects the job.
 - `docker-ce-cli`, `docker-buildx-plugin`, `docker-compose-plugin`
   from the official Docker apt repo — client side only. The
   daemon runs in the `dind` native sidecar (`docker:dind`)

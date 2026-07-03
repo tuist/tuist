@@ -319,6 +319,88 @@ struct TuistCacheEEAcceptanceTests {
         )
     }
 
+    /// Regression test for static Objective-C xcframeworks whose public headers live in a
+    /// `Headers/<Module>/` subdirectory and re-import each other with the `<Module/...>` prefix,
+    /// consumed through the binary cache. `NestedObjC`/`NestedObjCKit` are static `.a` xcframeworks
+    /// of that shape, and `NestedObjCKit` imports `NestedObjC`, so building one drives the other's
+    /// module. Caching `Library` turns it into a dynamic xcframework that links them behind it, so
+    /// building `Tool` drives `StaticXCFrameworkModuleMapGraphMapper`. Earlier this produced
+    /// `'NestedObjC/TrackingState.h' file not found` (missing `Headers` root) and, after that was
+    /// "fixed" by also adding the xcframework's own `Headers` root next to the derived module map,
+    /// `import of shadowed module 'Anchor'` (the module reachable through two module maps). The
+    /// mapper now consumes such nested xcframeworks through their own module map with the `Headers`
+    /// root on the search path, so the module is defined exactly once and the prefixed imports resolve.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_macos_tool_with_cached_nested_header_xcframework")
+    ) func generated_macos_tool_with_cached_nested_header_xcframework() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "NestedHeaderXCFramework.xcodeproj")
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["Library", "--path", fixtureDirectory.pathString]
+        )
+
+        try await TuistTest.run(
+            GenerateCommand.self,
+            ["--no-open", "--path", fixtureDirectory.pathString, "Tool"]
+        )
+
+        try TuistAcceptanceTest.expectXCFrameworkLinked("Library", by: "Tool", xcodeprojPath: xcodeprojPath)
+
+        try await TuistTest.run(
+            XcodeBuildBuildCommand.self,
+            [
+                "-project",
+                xcodeprojPath.pathString,
+                "-scheme",
+                "Tool",
+                "-derivedDataPath",
+                temporaryDirectory.pathString,
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO",
+            ]
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_macos_tool_with_cached_nested_header_xcframework")
+    ) func generate_reuses_warmed_framework_wrapping_precompiled_dependencies() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "NestedHeaderXCFramework.xcodeproj")
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            [
+                "Library",
+                "--path", fixtureDirectory.pathString,
+                "--cache-profile", "all-possible",
+            ]
+        )
+
+        try await TuistTest.run(
+            GenerateCommand.self,
+            [
+                "--no-open",
+                "--path", fixtureDirectory.pathString,
+                "--cache-profile", "all-possible",
+            ]
+        )
+
+        TuistTest.expectLogs("Using cache binaries for the following targets: Library", at: .info, <=)
+        try TuistAcceptanceTest.expectXCFrameworkLinked("Library", by: "Tool", xcodeprojPath: xcodeprojPath)
+    }
+
     @Test(
         .disabled("Requires SPM install"),
         .inTemporaryDirectory,

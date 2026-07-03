@@ -7,6 +7,9 @@ defmodule TuistWeb.API.ShardsController do
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Shards.Shard
   alias TuistWeb.API.Schemas.Shards.ShardPlan
+  alias TuistWeb.Headers
+
+  @suite_catch_all_minimum_cli_version Version.parse!("4.202.0-canary.21")
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
@@ -58,7 +61,10 @@ defmodule TuistWeb.API.ShardsController do
            },
            shard_min: %Schema{type: :integer, description: "Minimum number of shards."},
            shard_max: %Schema{type: :integer, description: "Maximum number of shards."},
-           shard_total: %Schema{type: :integer, description: "Exact number of shards."},
+           shard_total: %Schema{
+             type: :integer,
+             description: "Exact number of shards. With suite granularity, the final shard is the catch-all."
+           },
            shard_max_duration: %Schema{
              type: :integer,
              description: "Target maximum duration per shard in milliseconds."
@@ -146,7 +152,12 @@ defmodule TuistWeb.API.ShardsController do
              format: :uuid,
              description: "The shard plan id returned by createShardPlan."
            },
-           reference: %Schema{type: :string, description: "The shard plan reference."}
+           reference: %Schema{type: :string, description: "The shard plan reference."},
+           artifact: %Schema{
+             type: :string,
+             description:
+               ~s(The artifact to upload: "shared" for the shared products, or "module:<name>" for a single module's test bundle. Defaults to the legacy single bundle when omitted.)
+           }
          }
        }},
     responses: %{
@@ -169,13 +180,15 @@ defmodule TuistWeb.API.ShardsController do
   )
 
   def start_upload(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
+    artifact = Map.get(body_params, :artifact)
+
     result =
       case upload_identifier(body_params) do
         {:plan_id, plan_id} ->
-          Shards.start_upload_for_plan_id(selected_project, selected_project.account, plan_id)
+          Shards.start_upload_for_plan_id(selected_project, selected_project.account, plan_id, artifact)
 
         {:reference, reference} ->
-          Shards.start_upload(selected_project, selected_project.account, reference)
+          Shards.start_upload(selected_project, selected_project.account, reference, artifact)
 
         {:error, :missing_shard_plan_identifier} ->
           {:error, :missing_shard_plan_identifier}
@@ -248,14 +261,17 @@ defmodule TuistWeb.API.ShardsController do
            selected_project,
            selected_project.account,
            reference,
-           shard_index
+           shard_index,
+           suite_catch_all?: suite_catch_all_supported?(conn)
          ) do
       {:ok, result} ->
         json(conn, %{
           shard_plan_id: result.shard_plan_id,
           modules: result.modules,
           suites: result.suites,
-          download_url: result.download_url
+          skip: result.skip,
+          download_url: result.download_url,
+          download_urls: result.download_urls
         })
 
       {:error, :not_found} ->
@@ -300,7 +316,12 @@ defmodule TuistWeb.API.ShardsController do
            },
            reference: %Schema{type: :string, description: "The shard plan reference."},
            upload_id: %Schema{type: :string, description: "The multipart upload ID."},
-           part_number: %Schema{type: :integer, description: "The part number."}
+           part_number: %Schema{type: :integer, description: "The part number."},
+           artifact: %Schema{
+             type: :string,
+             description:
+               ~s{The artifact being uploaded ("shared" or "module:<name>"). Matches the start-upload artifact.}
+           }
          },
          required: [:upload_id, :part_number]
        }},
@@ -329,6 +350,8 @@ defmodule TuistWeb.API.ShardsController do
         } = conn,
         _params
       ) do
+    artifact = Map.get(body_params, :artifact)
+
     result =
       case upload_identifier(body_params) do
         {:plan_id, plan_id} ->
@@ -337,7 +360,8 @@ defmodule TuistWeb.API.ShardsController do
             selected_project.account,
             plan_id,
             upload_id,
-            part_number
+            part_number,
+            artifact
           )
 
         {:reference, reference} ->
@@ -346,7 +370,8 @@ defmodule TuistWeb.API.ShardsController do
             selected_project.account,
             reference,
             upload_id,
-            part_number
+            part_number,
+            artifact
           )
 
         {:error, :missing_shard_plan_identifier} ->
@@ -410,6 +435,11 @@ defmodule TuistWeb.API.ShardsController do
                },
                required: [:part_number, :etag]
              }
+           },
+           artifact: %Schema{
+             type: :string,
+             description:
+               ~s{The artifact being completed ("shared" or "module:<name>"). Matches the start-upload artifact.}
            }
          },
          required: [:upload_id, :parts]
@@ -439,6 +469,8 @@ defmodule TuistWeb.API.ShardsController do
         {part.part_number, part.etag}
       end)
 
+    artifact = Map.get(body_params, :artifact)
+
     result =
       case upload_identifier(body_params) do
         {:plan_id, plan_id} ->
@@ -447,7 +479,8 @@ defmodule TuistWeb.API.ShardsController do
             selected_project.account,
             plan_id,
             upload_id,
-            parts_list
+            parts_list,
+            artifact
           )
 
         {:reference, reference} ->
@@ -456,7 +489,8 @@ defmodule TuistWeb.API.ShardsController do
             selected_project.account,
             reference,
             upload_id,
-            parts_list
+            parts_list,
+            artifact
           )
 
         {:error, :missing_shard_plan_identifier} ->
@@ -487,6 +521,13 @@ defmodule TuistWeb.API.ShardsController do
       is_binary(shard_plan_id) and shard_plan_id != "" -> {:plan_id, shard_plan_id}
       is_binary(reference) and reference != "" -> {:reference, reference}
       true -> {:error, :missing_shard_plan_identifier}
+    end
+  end
+
+  defp suite_catch_all_supported?(conn) do
+    case Headers.get_cli_version(conn) do
+      nil -> false
+      cli_version -> Version.compare(cli_version, @suite_catch_all_minimum_cli_version) != :lt
     end
   end
 end

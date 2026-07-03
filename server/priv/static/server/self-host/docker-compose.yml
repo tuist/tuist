@@ -28,7 +28,7 @@ services:
       - "${PGWEB_PORT:-8081}:8081"
 
   clickhouse-keeper:
-    image: clickhouse/clickhouse-server:25.8
+    image: clickhouse/clickhouse-server:26.5-alpine
     restart: unless-stopped
     command: ["clickhouse-keeper", "--config-file=/etc/clickhouse-keeper/keeper_config.xml"]
     volumes:
@@ -41,7 +41,7 @@ services:
       retries: 20
 
   clickhouse:
-    image: clickhouse/clickhouse-server:25.8
+    image: clickhouse/clickhouse-server:26.5-alpine
     restart: unless-stopped
     depends_on:
       clickhouse-keeper:

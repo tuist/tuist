@@ -1,15 +1,16 @@
-import * as echarts from "echarts";
-
 // Shades the hovered step's time window across every metric chart in
 // the runner-job Overview, correlating a CI step with the part of the
 // resource graphs it produced.
 //
 // The charts are owned by the NooraChart hook (one ECharts instance
-// each); we reach them via `echarts.getInstanceByDom` and add a
-// `markArea` band addressed by the step's `[start, end]` epoch-ms
-// window — which lands precisely because the charts use a time
-// x-axis. If the instance can't be resolved (e.g. a charts-less
-// render) the highlight is simply skipped.
+// each), which exposes its instance on the chart element as
+// `__nooraChart`. We use that object directly rather than
+// `echarts.getInstanceByDom`, because Noora bundles its own ECharts
+// copy — a lookup from a different copy's module-local registry would
+// never resolve the instance. We add a `markArea` band addressed by the
+// step's `[start, end]` epoch-ms window, which lands precisely because
+// the charts use a time x-axis. If a chart isn't ready the highlight is
+// simply skipped.
 // The band colour comes from Noora's overlay token so it tracks the
 // theme (incl. light/dark) instead of being hardcoded. Reading the
 // custom property directly yields the unresolved `light-dark(var(…))`
@@ -57,7 +58,7 @@ export default {
 
   charts() {
     return Array.from(this.el.querySelectorAll("[data-metrics-charts] [data-part='chart']"))
-      .map((dom) => echarts.getInstanceByDom(dom))
+      .map((dom) => dom.__nooraChart)
       .filter(Boolean);
   },
 

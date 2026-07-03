@@ -94,29 +94,22 @@ independent workqueues:
   replicas; the `hetzner-robot-controller` reflects the new server
   into a `HetznerBareMetalHost` CR automatically.
 
-## Machine-metrics sampler (`internal/podmetrics`)
+## Machine-metrics sampling (in-VM, not in the controller)
 
-A leader-only `manager.Runnable` (not a reconciler — added via
-`mgr.Add`) on a `--metrics-sample-interval` cadence (default 15s; 0
-disables, also wired only when `--sessions-url` is set). Each pass it
-lists every running runner Pod, groups them by node, and reads each
-node's kubelet `/stats/summary` once through the apiserver node proxy
-(the `nodes/proxy` ClusterRole verb). It reports only the *busy* Pods
-(those carrying the `tuist.dev/runner-pool-owner` label) but advances
-the network baseline of idle ones too, so a Pod's first sample after it
-is claimed differences against a recent baseline and the job's opening
-network spike (checkout, dependency download) isn't lost. The kubelet
-Summary lists every namespace's Pods on the node, so lookups match both
-namespace and name. Per busy Pod it emits a sample —
-CPU as a percentage of node-allocatable cores, memory working-set,
-ephemeral-storage used/total, and network rx/tx differenced into
-per-interval throughput — and POSTs it to the server's
-`/api/internal/runners/pods/:pod_name/metrics`, keyed by Pod name. The
-server resolves the Pod's live claim to the job and stores the samples;
-an unclaimed Pod is a server-side no-op. Shares the `--sessions-url`
-base and the SA-token auth with `pods/stopped`, and powers the
-runner-job Metrics tab in the dashboard. The collector never learns job
-ids — that mapping stays server-side in `runner_claims`.
+Runner-job machine metrics (CPU/memory/network/disk for the Metrics
+tab) are sampled **inside the runner VM**, not by this controller. An
+earlier design had the controller scrape each node's kubelet
+`/stats/summary` through the apiserver node proxy, but that source is
+unavailable in this cluster — the macOS Tart fleet's custom kubelet
+doesn't serve the cAdvisor Summary API, and the Linux kata nodes reject
+the proxied request — so it produced nothing. Sampling now lives in the
+runner images (`infra/linux-runner-image`, `infra/runner-image`): a
+loop reads the VM's own `/proc`+cgroup (Linux) or `vm_stat`/`netstat`
+(macOS) and POSTs to `POST /api/internal/runners/pods/:pod_name/metrics`
+with the runner's own per-pod SA token (audience
+`tuist-runners-dispatch`). On Linux the token is isolated from the
+customer container, so the sampler runs as a dedicated native sidecar
+that mounts the token and shares the pod's cgroup/network namespace.
 
 ## Linux runner substrate: Hetzner Robot bare-metal hosts (caph)
 

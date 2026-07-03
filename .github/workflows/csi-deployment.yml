@@ -1,0 +1,113 @@
+name: CSI Node Driver Deployment
+
+# Reconcile the node CSI drivers on every managed workload cluster to
+# match the bare-metal kura topology, on push to main.
+#
+# Like HCCM (see hccm-deployment.yml), the CSI drivers live in
+# kube-system and were previously only installed during fresh-cluster
+# onboarding via `mise run k8s:bootstrap-workload`. That meant edits to
+# infra/k8s/mgmt/bootstrap/hcloud-csi-values.yaml had no effect on
+# existing clusters until someone re-ran bootstrap by hand.
+#
+# That drift caused a real incident: #11346 moved the kura cache pools
+# (kura-scw-fr-par, kura-ca-east, kura-dedibox) off Scaleway Instances
+# onto in-house bare-metal CAPI nodes and added those pools to the
+# hcloud-csi-node affinity denylist — but the running clusters kept the
+# old affinity (which only skipped `runners-linux`). hcloud-csi-node's
+# broad `operator: Exists` tolerations then landed it on the OVH /
+# Elastic Metal fleet nodes, where Hetzner Cloud Volumes can't attach
+# and the driver CrashLoopBackOff'd for days across canary + production.
+#
+# This workflow closes that gap for the node CSI drivers:
+#   1. Re-applies hcloud-csi with the pool-exclusion affinity, so its
+#      DaemonSet drops off the bare-metal fleet nodes.
+#   2. Uninstalls scaleway-csi. Every managed env's kura fleet now runs
+#      on Elastic Metal (values-managed-*.yaml: kuraFleet.machine.
+#      offerType EM-*), which can't attach scw-bssd; the server
+#      provisions cache PVCs from local NVMe (`scw-local-nvme`,
+#      server/lib/tuist/kura/regions.ex) instead. The scaleway block
+#      CSI has nothing to attach there and only crash-loops, so it is
+#      dead weight on managed clusters. Idempotent: a no-op once removed.
+#      (scaleway-csi-values.yaml is kept as reference for any cluster
+#      whose kura fleet still uses `machine.kind: instance`; none of the
+#      managed envs do, which is why editing it is not a trigger here.)
+#
+# Idempotent. The matrix runs all environments in parallel: the node CSI
+# drivers are workload-level components, blast radius is per-cluster, and
+# the change is a thin chart upgrade + uninstall — no need for a
+# canary→production cascade like the application server has.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - infra/k8s/mgmt/bootstrap/hcloud-csi-values.yaml
+      - .github/workflows/csi-deployment.yml
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    name: CSI (${{ matrix.environment }})
+    strategy:
+      fail-fast: false
+      matrix:
+        environment:
+          - canary
+          - staging
+          - production
+    runs-on: tuist-linux
+    environment:
+      name: server-k8s-${{ matrix.environment }}
+    # Hold the same lane as server-deployment.yml's deploy + observability
+    # jobs (and hccm-deployment.yml) so CSI upgrades and server rollouts
+    # can't race for the kube apiserver on the same cluster.
+    concurrency:
+      group: server-deploy-${{ matrix.environment }}
+      cancel-in-progress: false
+    timeout-minutes: 10
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "--locked helm kubectl"
+          cache: "false"
+      - uses: 1password/install-cli-action@v2
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-${{ matrix.environment }}" \
+            --vault "tuist-k8s-${{ matrix.environment }}" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Verify cluster reachability
+        # Same pre-flight as server-deployment.yml — fail fast if the
+        # 1P-stored kubeconfig points at a phantom apiserver instead
+        # of letting helm hang for the full --timeout.
+        run: |
+          set -euo pipefail
+          API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
+          echo "Reaching apiserver at $API"
+          kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: helm upgrade --install hcloud-csi
+        # --wait rolls the DaemonSet: pods on nodes the updated affinity
+        # no longer matches (the bare-metal kura fleet) are removed rather
+        # than made ready, so the rollout doesn't block on them.
+        run: |
+          helm repo add hcloud https://charts.hetzner.cloud >/dev/null
+          helm repo update hcloud >/dev/null
+          helm upgrade --install hcloud-csi hcloud/hcloud-csi \
+            --namespace kube-system \
+            -f infra/k8s/mgmt/bootstrap/hcloud-csi-values.yaml \
+            --wait --timeout 5m
+      - name: helm uninstall scaleway-csi (obsolete on Elastic Metal)
+        # Managed kura fleets moved to Elastic Metal, which can't attach
+        # scw-bssd; the server provisions scw-local-nvme instead. Remove
+        # the crash-looping scaleway-csi if present. Idempotent.
+        run: |
+          helm uninstall scaleway-csi --namespace kube-system --ignore-not-found --wait --timeout 3m

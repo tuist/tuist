@@ -2,7 +2,10 @@ use std::{
     collections::{BTreeMap, HashMap},
     path::{Path, PathBuf},
     pin::Pin,
-    sync::{Arc, Mutex as StdMutex},
+    sync::{
+        Arc, Mutex as StdMutex,
+        atomic::{AtomicU64, Ordering},
+    },
     task::{Context, Poll},
     time::{Duration, Instant},
 };
@@ -56,6 +59,7 @@ use crate::{
 };
 
 const MULTIPART_LOCK_STRIPES: usize = 64;
+const ARTIFACT_WRITE_LOCK_STRIPES: usize = 64;
 pub const EXISTENCE_CACHE_CAPACITY: usize = 65_536;
 const EXISTENCE_CACHE_TTL: Duration = Duration::from_secs(30);
 
@@ -72,6 +76,17 @@ pub struct Store {
     rocksdb_block_cache: Cache,
     rocksdb_write_buffer_manager: WriteBufferManager,
     segment_write_lock: Mutex<()>,
+    // Counts segment fsyncs so tests can assert durability is batched across
+    // concurrent writers rather than one fsync per write under the global lock.
+    segment_fsync_count: Arc<AtomicU64>,
+    // Group-commit durability. Writers reserve a monotonic `pending_seq` while
+    // holding `segment_write_lock` (so their bytes are appended in order), then
+    // a single fsync — serialized by `fsync_lock` — advances `durable_seq` to
+    // cover every writer that appended before it. A writer whose seq is already
+    // <= `durable_seq` skips the fsync entirely.
+    pending_seq: AtomicU64,
+    durable_seq: AtomicU64,
+    fsync_lock: Mutex<()>,
     segment_refresh_lock: Mutex<()>,
     segment_state_lock: Mutex<()>,
     // Wrapped in `Arc` so readers clone the snapshot under a brief lock and then
@@ -82,6 +97,11 @@ pub struct Store {
     manifest_cache: StdMutex<ManifestCache>,
     existence_cache: StdMutex<ExistenceCache>,
     multipart_locks: [Mutex<()>; MULTIPART_LOCK_STRIPES],
+    // Serializes writers for the same artifact so concurrent applies of one key
+    // (e.g. a fresh node bootstrapping the same artifact from several peers at
+    // once) can't each append their own copy to a segment and orphan all but the
+    // last. Striped by artifact id so different keys still write concurrently.
+    artifact_write_locks: [Mutex<()>; ARTIFACT_WRITE_LOCK_STRIPES],
     failpoints: Arc<FailpointSet>,
 }
 
@@ -89,6 +109,7 @@ pub struct StoreSnapshot {
     pub outbox_messages: usize,
     pub multipart_uploads: usize,
     pub segment_counts: Vec<(&'static str, usize)>,
+    pub segment_fsync_count: u64,
     pub rocksdb_block_cache_usage_bytes: u64,
     pub rocksdb_block_cache_pinned_usage_bytes: u64,
     pub rocksdb_block_cache_capacity_bytes: u64,
@@ -359,6 +380,10 @@ impl Store {
             rocksdb_block_cache,
             rocksdb_write_buffer_manager,
             segment_write_lock: Mutex::new(()),
+            segment_fsync_count: Arc::new(AtomicU64::new(0)),
+            pending_seq: AtomicU64::new(0),
+            durable_seq: AtomicU64::new(0),
+            fsync_lock: Mutex::new(()),
             segment_refresh_lock: Mutex::new(()),
             segment_state_lock: Mutex::new(()),
             segment_state_cache: StdMutex::new(Arc::new(SegmentStateSnapshot::default())),
@@ -369,6 +394,7 @@ impl Store {
                 EXISTENCE_CACHE_TTL,
             )),
             multipart_locks: std::array::from_fn(|_| Mutex::new(())),
+            artifact_write_locks: std::array::from_fn(|_| Mutex::new(())),
             failpoints: Arc::new(FailpointSet::default()),
         };
         // `load_segment_state_from_db` needs `&self`, so the store must be fully
@@ -383,6 +409,13 @@ impl Store {
         std::hash::Hash::hash(upload_id, &mut hasher);
         let index = (std::hash::Hasher::finish(&hasher) as usize) % MULTIPART_LOCK_STRIPES;
         &self.multipart_locks[index]
+    }
+
+    fn artifact_write_lock_for(&self, artifact_id: &str) -> &Mutex<()> {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        std::hash::Hash::hash(artifact_id, &mut hasher);
+        let index = (std::hash::Hasher::finish(&hasher) as usize) % ARTIFACT_WRITE_LOCK_STRIPES;
+        &self.artifact_write_locks[index]
     }
 
     pub async fn artifact_exists(
@@ -533,6 +566,14 @@ impl Store {
     ) -> Result<PersistArtifactOutcome, String> {
         let artifact_id =
             artifact_storage_id(spec.producer, &self.tenant_id, spec.namespace_id, spec.key);
+        // Hold the per-artifact write lock across the read-check, segment append,
+        // and metadata commit. Without it, concurrent applies of the same key
+        // each observe "absent" below, each append a full copy to a segment, and
+        // only the last manifest write wins — leaving the rest as orphaned bytes
+        // that accumulate to N x on disk (the bootstrap-from-many-peers ENOSPC).
+        // Whoever wins the lock commits the manifest; the rest re-read it here and
+        // short-circuit to IgnoredStale without appending.
+        let _write_guard = self.artifact_write_lock_for(&artifact_id).lock().await;
         let size = self.io.metadata_len(source_path).await?;
 
         let existing = self.manifest_from_db(&artifact_id)?;
@@ -1053,57 +1094,114 @@ impl Store {
     where
         R: AsyncRead + Unpin,
     {
-        let _guard = self.segment_write_lock.lock().await;
-        let (segment, evicted_segments) = self.active_segment(size).await?;
-        let segment_path = self.segment_path(&segment.segment_id);
-        let segment_dir = segment_path
-            .parent()
-            .ok_or_else(|| "missing segment parent directory".to_string())?;
-        self.io.create_dir_all(segment_dir).await?;
+        // Append the bytes under the write lock (which also fsyncs the outgoing
+        // segment on rotation), then reserve a durability sequence. The fsync
+        // itself happens after the lock so concurrent writers coalesce into a
+        // single group-commit fsync rather than serializing one fsync each.
+        let (location, evicted_segments, durability_seq) = {
+            let _guard = self.segment_write_lock.lock().await;
+            let (segment, evicted_segments) = self.active_segment(size).await?;
+            let segment_path = self.segment_path(&segment.segment_id);
+            let segment_dir = segment_path
+                .parent()
+                .ok_or_else(|| "missing segment parent directory".to_string())?;
+            self.io.create_dir_all(segment_dir).await?;
 
-        let segment_already_exists = self.io.path_exists(&segment_path).await?;
-        let offset = if segment_already_exists {
-            self.io.metadata_len(&segment_path).await?
-        } else {
-            0
-        };
+            let segment_already_exists = self.io.path_exists(&segment_path).await?;
+            let offset = if segment_already_exists {
+                self.io.metadata_len(&segment_path).await?
+            } else {
+                0
+            };
 
-        let mut destination = self.io.open_append_file(&segment_path).await?;
-        let copied = tokio::io::copy(source, &mut destination)
-            .await
-            .map_err(|error| {
+            let mut destination = self.io.open_append_file(&segment_path).await?;
+            let copied = tokio::io::copy(source, &mut destination)
+                .await
+                .map_err(|error| {
+                    format!(
+                        "failed to append into segment {}: {error}",
+                        segment_path.display()
+                    )
+                })?;
+            if copied != size {
+                return Err(format!(
+                    "appended {copied} bytes into segment {}, expected {size}",
+                    segment_path.display()
+                ));
+            }
+            destination.flush().await.map_err(|error| {
                 format!(
-                    "failed to append into segment {}: {error}",
+                    "failed to flush segment {}: {error}",
                     segment_path.display()
                 )
             })?;
-        if copied != size {
-            return Err(format!(
-                "appended {copied} bytes into segment {}, expected {size}",
-                segment_path.display()
-            ));
-        }
-        destination.flush().await.map_err(|error| {
-            format!(
-                "failed to flush segment {}: {error}",
-                segment_path.display()
-            )
-        })?;
-        destination.sync_data().await.map_err(|error| {
-            format!("failed to sync segment {}: {error}", segment_path.display())
-        })?;
-        drop(destination);
-        if !segment_already_exists {
-            self.io.sync_directory(segment_dir).await?;
-        }
+            drop(destination);
+            if !segment_already_exists {
+                self.io.sync_directory(segment_dir).await?;
+            }
 
-        Ok((
-            SegmentLocation {
-                segment_id: segment.segment_id,
-                offset,
-            },
-            evicted_segments,
-        ))
+            let durability_seq = self.pending_seq.fetch_add(1, Ordering::AcqRel) + 1;
+            (
+                SegmentLocation {
+                    segment_id: segment.segment_id,
+                    offset,
+                },
+                evicted_segments,
+                durability_seq,
+            )
+        };
+
+        self.ensure_segment_durable(durability_seq).await?;
+
+        Ok((location, evicted_segments))
+    }
+
+    /// Group-commit fsync: makes every append with sequence `<= seq` durable.
+    ///
+    /// Writers reserve `pending_seq` in append order while holding the write
+    /// lock, then call this. The first writer to win `fsync_lock` performs one
+    /// fsync of the active segment and advances `durable_seq` to the latest
+    /// reserved sequence. That is correct because a segment is fsynced when it
+    /// rotates out (see `active_segment`), so only the active segment can hold
+    /// un-synced bytes — and if the active segment rotated between a writer's
+    /// append and this fsync, that writer's bytes were already made durable by
+    /// the rotation. Writers already covered by a prior fsync return without
+    /// syncing.
+    async fn ensure_segment_durable(&self, seq: u64) -> Result<(), String> {
+        if self.durable_seq.load(Ordering::Acquire) >= seq {
+            return Ok(());
+        }
+        let _commit = self.fsync_lock.lock().await;
+        if self.durable_seq.load(Ordering::Acquire) >= seq {
+            return Ok(());
+        }
+        self.hit_failpoint(FailpointName::BeforeSegmentFsync)
+            .await?;
+        // Capture after winning the commit lock so the fsync covers writers that
+        // appended while we queued.
+        let target = self.pending_seq.load(Ordering::Acquire);
+        self.fsync_active_segment().await?;
+        self.durable_seq.store(target, Ordering::Release);
+        Ok(())
+    }
+
+    /// Fsyncs the current active segment file. A fresh handle is fine: `sync_data`
+    /// flushes the inode's dirty pages regardless of which descriptor wrote them.
+    async fn fsync_active_segment(&self) -> Result<(), String> {
+        let snapshot = self.segment_state_snapshot();
+        let Some(active) = snapshot.state.active() else {
+            return Ok(());
+        };
+        let path = self.segment_path(&active.segment_id);
+        if !self.io.path_exists(&path).await? {
+            return Ok(());
+        }
+        let file = self.io.open_append_file(&path).await?;
+        self.segment_fsync_count.fetch_add(1, Ordering::Relaxed);
+        file.sync_data()
+            .await
+            .map_err(|error| format!("failed to sync segment {}: {error}", path.display()))?;
+        Ok(())
     }
 
     async fn active_segment(
@@ -1133,6 +1231,22 @@ impl Store {
                     "{DISK_FULL_MARKER}: insufficient free space for segment rotation: \
                     {available} bytes available, {required_bytes} required"
                 ));
+            }
+            // Group commit no longer fsyncs each write, so the outgoing active
+            // segment may hold un-synced appends; make them durable before it
+            // stops being the fsync target.
+            if let Some(active) = snapshot.state.active() {
+                let path = self.segment_path(&active.segment_id);
+                if self.io.path_exists(&path).await? {
+                    let file = self.io.open_append_file(&path).await?;
+                    self.segment_fsync_count.fetch_add(1, Ordering::Relaxed);
+                    file.sync_data().await.map_err(|error| {
+                        format!(
+                            "failed to sync rotating segment {}: {error}",
+                            path.display()
+                        )
+                    })?;
+                }
             }
             let segment = SegmentReference::new(Uuid::now_v7().to_string(), now_ms());
             // The rotate decision above used a snapshot taken before the
@@ -2098,6 +2212,7 @@ impl Store {
             outbox_messages,
             multipart_uploads,
             segment_counts,
+            segment_fsync_count: self.segment_fsync_count.load(Ordering::Relaxed),
             rocksdb_block_cache_usage_bytes: self.rocksdb_block_cache.get_usage() as u64,
             rocksdb_block_cache_pinned_usage_bytes: self.rocksdb_block_cache.get_pinned_usage()
                 as u64,
@@ -3256,6 +3371,64 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn concurrent_replicated_applies_of_same_key_write_once() {
+        // Several peers replicating the same artifact concurrently (same key,
+        // same version) must not each append their own copy to a segment. The
+        // per-key apply lock serializes them: the first writer commits the
+        // manifest and the rest re-read it and short-circuit to IgnoredStale. A
+        // sleep failpoint between the durable append and the metadata commit
+        // forces the writers to overlap, so without the lock every copy would be
+        // appended (writer_count x on disk). This guards the store invariant
+        // directly, independent of the bootstrap-level fetch gate.
+        let (_temp_dir, config, store) = temp_store();
+        store.failpoints().set_always(
+            FailpointName::AfterArtifactBytesDurableBeforeMetadata,
+            FailpointAction::Sleep(std::time::Duration::from_millis(150)),
+        );
+
+        let writer_count = 4_usize;
+        let artifact_len = 128 * 1024_usize;
+        let bytes = vec![9_u8; artifact_len];
+        let version_ms = 100_u64;
+
+        let mut sources = Vec::new();
+        for index in 0..writer_count {
+            let path = config.tmp_dir.join("uploads").join(format!("src-{index}"));
+            std::fs::write(&path, &bytes).expect("source should write");
+            sources.push(path);
+        }
+
+        let applies = sources.iter().map(|source_path| {
+            store.apply_replicated_artifact_from_path(
+                ArtifactProducer::Gradle,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                source_path,
+                version_ms,
+            )
+        });
+        let outcomes = futures_util::future::join_all(applies).await;
+
+        let applied = outcomes
+            .into_iter()
+            .map(|outcome| outcome.expect("apply should succeed"))
+            .filter(|outcome| outcome.applied())
+            .count();
+        assert_eq!(
+            applied, 1,
+            "exactly one concurrent same-key apply should write; the rest are stale"
+        );
+
+        let segments_bytes = crate::utils::directory_size_bytes(&config.data_dir.join("segments"));
+        assert!(
+            segments_bytes <= (artifact_len as u64) * 2,
+            "segment store held {segments_bytes} bytes, expected ~{artifact_len} (one copy); \
+             concurrent same-key applies amplified on-disk data"
+        );
+    }
+
+    #[tokio::test]
     async fn persist_and_fetch_segment_backed_artifact_round_trip() {
         let (_temp_dir, _config, store) = temp_store();
 
@@ -4326,6 +4499,104 @@ mod tests {
                 }
             );
         }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn concurrent_artifact_writes_batch_segment_fsyncs() {
+        let (_temp_dir, config, store) = temp_store();
+        let store = Arc::new(store);
+
+        // Slow every segment fsync so all writers reach the durability barrier
+        // within one window. With one fsync per write under the global segment
+        // write lock these serialize (one fsync each); group commit must
+        // coalesce them into far fewer.
+        store.failpoints().set_always(
+            FailpointName::BeforeSegmentFsync,
+            FailpointAction::Sleep(std::time::Duration::from_millis(50)),
+        );
+
+        let writers = 16u64;
+        let mut handles = Vec::new();
+        for i in 0..writers {
+            let store = store.clone();
+            let path = config.tmp_dir.join(format!("artifact-{i}"));
+            std::fs::write(&path, format!("artifact-body-{i}")).expect("write artifact body");
+            handles.push(tokio::spawn(async move {
+                store
+                    .persist_artifact_from_path_and_enqueue(
+                        ArtifactProducer::Xcode,
+                        "ns",
+                        &format!("key-{i}"),
+                        "application/octet-stream",
+                        &path,
+                        &[],
+                    )
+                    .await
+                    .expect("artifact should persist");
+            }));
+        }
+        for handle in handles {
+            handle.await.expect("writer task should complete");
+        }
+
+        let fsyncs = store
+            .segment_fsync_count
+            .load(std::sync::atomic::Ordering::Relaxed);
+        assert!(
+            fsyncs <= 4,
+            "expected concurrent writes to batch segment fsyncs (<=4) but observed {fsyncs} \
+             for {writers} writers — every write is fsyncing under the global segment write lock"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn concurrent_replicated_artifact_applies_batch_segment_fsyncs() {
+        let (_temp_dir, _config, store) = temp_store();
+        let store = Arc::new(store);
+
+        // A fresh node bootstrapping an account applies inbound artifacts
+        // concurrently (BOOTSTRAP_ARTIFACT_FETCH_CONCURRENCY at a time). Inbound
+        // applies share the foreground write's segment-append + durability path
+        // (`persist_artifact_from_path_with_version`), so group commit must
+        // coalesce their fsyncs too — otherwise the parallel bootstrap fetch just
+        // re-serializes one fsync per inbound write and gains nothing. Slow every
+        // fsync so all appliers reach the durability barrier within one window.
+        store.failpoints().set_always(
+            FailpointName::BeforeSegmentFsync,
+            FailpointAction::Sleep(std::time::Duration::from_millis(50)),
+        );
+
+        let appliers = 16u64;
+        let mut handles = Vec::new();
+        for i in 0..appliers {
+            let store = store.clone();
+            handles.push(tokio::spawn(async move {
+                store
+                    .apply_replicated_artifact_from_bytes(
+                        ArtifactProducer::Xcode,
+                        "ns",
+                        &format!("key-{i}"),
+                        "application/octet-stream",
+                        format!("artifact-body-{i}").as_bytes(),
+                        1_000 + i,
+                    )
+                    .await
+                    .expect("replicated artifact should apply");
+            }));
+        }
+        for handle in handles {
+            handle.await.expect("applier task should complete");
+        }
+
+        let fsyncs = store
+            .segment_fsync_count
+            .load(std::sync::atomic::Ordering::Relaxed);
+        assert!(
+            fsyncs <= 4,
+            "expected concurrent replicated applies to batch segment fsyncs (<=4) but observed \
+             {fsyncs} for {appliers} appliers — inbound bootstrap writes are fsyncing per write \
+             under the global segment write lock"
+        );
     }
 
     #[tokio::test]

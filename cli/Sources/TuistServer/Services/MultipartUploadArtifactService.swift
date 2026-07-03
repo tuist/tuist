@@ -66,6 +66,13 @@ public protocol MultipartUploadArtifactServicing {
 }
 
 public struct MultipartUploadArtifactService: MultipartUploadArtifactServicing {
+    /// Maximum number of parts uploaded concurrently — and therefore buffered in memory — during a
+    /// single artifact upload. Peak memory is bounded by `maxConcurrentParts * partSize` regardless
+    /// of the artifact's total size. Without this cap the read loop races ahead of the uploads and
+    /// holds every part in memory at once, so memory grows with the artifact and OOMs on multi-GB
+    /// uploads (e.g. a large shard test-products bundle).
+    private static let maxConcurrentParts = 10
+
     private let urlSession: URLSession?
     private let fileSystem: FileSysteming
     private let retryProvider: RetryProviding
@@ -103,30 +110,40 @@ public struct MultipartUploadArtifactService: MultipartUploadArtifactServicing {
         let partNumber = ThreadSafe(1)
 
         try await withThrowingTaskGroup(of: Void.self) { group in
+            var partsInFlight = 0
             while inputStream.hasBytesAvailable {
                 let bytesRead = inputStream.read(&buffer, maxLength: partSize)
+                guard bytesRead > 0 else { break }
 
-                if bytesRead > 0 {
-                    let partData = Data(bytes: buffer, count: bytesRead)
-                    let currentPartNumber = partNumber.value
-                    partNumber.mutate { $0 += 1 }
-                    group.addTask {
-                        try await retryProvider.runWithRetries {
-                            let uploadURLString = try await generateUploadURL(MultipartUploadArtifactPart(
-                                number: currentPartNumber,
-                                contentLength: bytesRead
-                            ))
-                            guard let url = URL(string: uploadURLString) else {
-                                throw MultipartUploadArtifactServiceError.invalidMultipartUploadURL(uploadURLString)
-                            }
+                // Backpressure: wait for a part to finish before reading the next once the cap is
+                // reached, so at most `maxConcurrentParts` part buffers are resident at any time.
+                // Each part copies its slice into its own `Data`; without this the loop reads the
+                // whole artifact into memory ahead of the uploads.
+                if partsInFlight >= Self.maxConcurrentParts {
+                    try await group.next()
+                    partsInFlight -= 1
+                }
 
-                            let request = uploadRequest(url: url, fileSize: UInt64(bytesRead), data: partData)
-                            let etag = try await upload(for: request)
-                            uploadedParts.mutate { $0.append((etag: etag, partNumber: currentPartNumber)) }
-                            updateProgress(Double(uploadedParts.value.count) / Double(numberOfParts))
+                let partData = Data(bytes: buffer, count: bytesRead)
+                let currentPartNumber = partNumber.value
+                partNumber.mutate { $0 += 1 }
+                group.addTask {
+                    try await retryProvider.runWithRetries {
+                        let uploadURLString = try await generateUploadURL(MultipartUploadArtifactPart(
+                            number: currentPartNumber,
+                            contentLength: bytesRead
+                        ))
+                        guard let url = URL(string: uploadURLString) else {
+                            throw MultipartUploadArtifactServiceError.invalidMultipartUploadURL(uploadURLString)
                         }
+
+                        let request = uploadRequest(url: url, fileSize: UInt64(bytesRead), data: partData)
+                        let etag = try await upload(for: request)
+                        uploadedParts.mutate { $0.append((etag: etag, partNumber: currentPartNumber)) }
+                        updateProgress(Double(uploadedParts.value.count) / Double(numberOfParts))
                     }
                 }
+                partsInFlight += 1
             }
             try await group.waitForAll()
         }

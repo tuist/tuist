@@ -27,6 +27,15 @@ defmodule TuistWeb.TestRunLive do
 
   @table_page_size 20
 
+  # A run finishing on the isolated, non-clustered xcresult-processor pushes its
+  # completion through BroadcastTestCreatedWorker, and web-origin runs broadcast
+  # in process, but either can be missed. Poll while the run is in any transient
+  # state so a connected viewer's spinner clears on its own, then do one delayed
+  # refresh after it settles so buffered ClickHouse rows have had time to land.
+  @transient_statuses ~w(processing in_progress)
+  @run_poll_interval to_timeout(second: 5)
+  @settle_delay to_timeout(second: 5)
+
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
     run =
@@ -50,6 +59,14 @@ defmodule TuistWeb.TestRunLive do
 
     run = Map.put(run, :project, project)
 
+    # A run that was processed across multiple retries (e.g. before a fix) can
+    # carry duplicate identical destination rows, since create_run_destinations
+    # inserts a fresh row per attempt. Collapse them to distinct devices.
+    run = %{
+      run
+      | run_destinations: Enum.uniq_by(run.run_destinations, &{&1.name, &1.platform, &1.os_version})
+    }
+
     [command_event, test_metrics, failures_count] =
       Tuist.Tasks.parallel_tasks([
         fn ->
@@ -69,9 +86,11 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:selected_project, project)
       |> assign(:run, run)
       |> assign(:command_event, command_event)
+      |> assign(:module_cache_metrics, command_event && CommandEvents.module_cache_output_metrics(command_event.id))
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Run")} · #{slug} · Tuist")
       |> assign(:test_metrics, test_metrics)
       |> assign(:failures_count, failures_count)
+      |> assign(:run_errors, Tests.list_run_errors(run.id))
       |> assign(:is_sharded, not is_nil(run.shard_plan_id))
       |> assign_initial_analytics_state()
       |> assign_initial_test_cases_state()
@@ -83,17 +102,30 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:has_binary_cache_data, command_event && Xcode.has_binary_cache_data?(command_event))
       |> assign_shard_rows(run)
       |> assign_async(:has_result_bundle, fn ->
-        {:ok, %{has_result_bundle: (command_event && CommandEvents.has_result_bundle?(command_event)) || false}}
+        {:ok, %{has_result_bundle: resolve_result_bundle_run_id(command_event, run, project)}}
       end)
       |> assign_async(:has_session, fn ->
         {:ok, %{has_session: (command_event && CommandEvents.has_session?(command_event)) || false}}
       end)
 
-    if connected?(socket) and run.status == "processing" do
+    if connected?(socket) and transient?(run.status) do
       Tuist.PubSub.subscribe("#{project.account.name}/#{project.name}")
+      schedule_run_poll()
     end
 
     {:ok, socket}
+  end
+
+  # The `Download result` button and its route are keyed on the id under which
+  # the bundle was stored: the command_event id for CLI `tuist test` runs, and
+  # the test run id for remote `tuist inspect test` runs (no command_event).
+  # Returns that id, or nil when there is no downloadable bundle.
+  defp resolve_result_bundle_run_id(command_event, run, project) do
+    cond do
+      command_event && CommandEvents.has_result_bundle?(command_event) -> command_event.id
+      CommandEvents.has_result_bundle?(run.id, project) -> run.id
+      true -> nil
+    end
   end
 
   def handle_params(_params, uri, socket) do
@@ -140,6 +172,22 @@ defmodule TuistWeb.TestRunLive do
     else
       {:noreply, socket}
     end
+  end
+
+  def handle_info(:poll_run_state, socket) do
+    socket = reload_run_state(socket)
+
+    if transient?(socket.assigns.run.status) do
+      schedule_run_poll()
+    else
+      schedule_settle_refresh()
+    end
+
+    {:noreply, socket}
+  end
+
+  def handle_info(:settle_run_state, socket) do
+    {:noreply, reload_run_state(socket)}
   end
 
   def handle_event("refresh_test_run", _params, socket) do
@@ -272,6 +320,16 @@ defmodule TuistWeb.TestRunLive do
       {:error, :not_found} ->
         socket
     end
+  end
+
+  defp transient?(status), do: status in @transient_statuses
+
+  defp schedule_run_poll do
+    Process.send_after(self(), :poll_run_state, @run_poll_interval)
+  end
+
+  defp schedule_settle_refresh do
+    Process.send_after(self(), :settle_run_state, @settle_delay)
   end
 
   defp assign_initial_analytics_state(socket) do

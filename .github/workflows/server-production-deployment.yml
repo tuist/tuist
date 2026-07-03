@@ -139,7 +139,11 @@ jobs:
       - id: deployable
         # A change to any of these paths deploys the server; the build gate
         # of the production cascade ORs this with the fleet/runtime
-        # image-release flags.
+        # image-release flags. infra/helm/platform/ is included so platform
+        # chart changes (CNPG operator, cert-manager, ingress-nginx, ESO,
+        # metrics-server) deploy on merge via platform-install — without it a
+        # platform-only change skips build and the whole cascade, merging green
+        # but never reaching the cluster.
         env:
           BEFORE: ${{ github.event.before }}
         run: |
@@ -151,7 +155,7 @@ jobs:
             exit 0
           fi
           if git diff --name-only "$base" "${{ github.sha }}" \
-            | grep -qE '^(server/|tuist_common/|noora/|infra/kura-controller/|infra/helm/tuist/|infra/helm/k8s-monitoring/|\.github/workflows/(server-deployment|server-production-deployment)\.yml)'; then
+            | grep -qE '^(server/|tuist_common/|noora/|infra/kura-controller/|infra/helm/tuist/|infra/helm/platform/|infra/helm/k8s-monitoring/|\.github/workflows/(server-deployment|server-production-deployment)\.yml)'; then
             echo "deployable-changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "deployable-changed=false" >> "$GITHUB_OUTPUT"
@@ -369,24 +373,33 @@ jobs:
     if: needs.check-releases.outputs.kura-should-release == 'true'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
+    # id-token: OIDC for `tuist bazel setup`. Job permissions replace (not merge) the workflow's,
+    # so contents:read must be restated for checkout.
+    permissions:
+      contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
+        # All targets build with Bazel and reuse the Tuist remote cache. macOS x86_64 is the only
+        # non-native target: it cross-compiles from the arm64 runner via --config=macos-x86_64-cross
+        # (apple_support supplies the cross cc toolchain for the -sys crates). The rest are native.
         include:
-          - runner: ubuntu-latest
+          - runner: tuist-linux
             target: x86_64-unknown-linux-gnu
           - runner: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
           - runner: tuist-macos
-            target: x86_64-apple-darwin
-          - runner: tuist-macos
             target: aarch64-apple-darwin
+          - runner: tuist-macos
+            target: x86_64-apple-darwin
+            compile-args: "--config=macos-x86_64-cross"
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "rust"
+          install_args: "rust bazel tuist"
           cache: "false"
           working_directory: kura
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -397,6 +410,22 @@ jobs:
           name: kura-release-metadata
           path: kura
 
+      # macOS gets clang/cmake from Xcode; this apt path is Linux-only.
+      - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
+      # Best-effort: continue-on-error + `.bazelrc` try-imports `.bazelrc.tuist`, so a failed setup
+      # falls back to a cold local build instead of blocking the release.
+      - name: Set up the Tuist remote cache
+        working-directory: kura
+        run: |
+          tuist auth login
+          tuist bazel setup
+        continue-on-error: true
+      - name: Warn when the Tuist remote cache is unavailable
+        if: hashFiles('kura/.bazelrc.tuist') == ''
+        run: echo "::warning::Tuist remote cache unavailable (.bazelrc.tuist not written); building cold against the local cache."
+
       - name: Build Kura binary
         working-directory: kura
         run: |
@@ -406,10 +435,16 @@ jobs:
 
           mkdir -p "$ARTIFACT_DIR"
 
-          env -u RUSTUP_TOOLCHAIN rustup target add "$TARGET"
-          env -u RUSTUP_TOOLCHAIN cargo build --release --locked --target "$TARGET"
+          # --binary-only builds just //:kura (opt via kura/.bazelrc); //... would pull in the test
+          # target, which can't cross-compile. compile-args adds the cross --config on the macOS
+          # x86_64 leg and is empty for the native legs.
+          mise run --skip-tools compile -- --binary-only ${{ matrix.compile-args }}
 
-          tar -C "target/$TARGET/release" -czf "$ARTIFACT_DIR/$ARTIFACT_NAME" kura
+          STAGE_DIR="$(mktemp -d)"
+          cp bazel-bin/kura "$STAGE_DIR/kura"
+          chmod +x "$STAGE_DIR/kura"
+
+          tar -C "$STAGE_DIR" -czf "$ARTIFACT_DIR/$ARTIFACT_NAME" kura
           shasum -a 256 "$ARTIFACT_DIR/$ARTIFACT_NAME" | awk '{print $1 "  " FILENAME}' FILENAME="$ARTIFACT_NAME" > "$ARTIFACT_DIR/sha256.txt"
           shasum -a 512 "$ARTIFACT_DIR/$ARTIFACT_NAME" | awk '{print $1 "  " FILENAME}' FILENAME="$ARTIFACT_NAME" > "$ARTIFACT_DIR/sha512.txt"
 
@@ -651,24 +686,24 @@ jobs:
           LATEST_VERSION=$(git tag -l | grep -E "^capi-scaleway@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
 
           INCLUDE_PATHS=(
-            --include-path "infra/cluster-api-provider-scaleway-applesilicon/**/*"
+            --include-path "infra/cluster-api-provider-tuist/**/*"
             --include-path "infra/macos-host-bootstrap/**/*"
             --include-path "infra/tart-kubelet/**/*"
           )
 
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
           if [ -n "$LATEST_VERSION" ]; then
-            git cliff "${INCLUDE_PATHS[@]}" --config infra/cluster-api-provider-scaleway-applesilicon/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+            git cliff "${INCLUDE_PATHS[@]}" --config infra/cluster-api-provider-tuist/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
           else
-            git cliff "${INCLUDE_PATHS[@]}" --config infra/cluster-api-provider-scaleway-applesilicon/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+            git cliff "${INCLUDE_PATHS[@]}" --config infra/cluster-api-provider-tuist/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
           fi
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Update CHANGELOG.md
-        working-directory: infra/cluster-api-provider-scaleway-applesilicon
+        working-directory: infra/cluster-api-provider-tuist
         run: |
           INCLUDE_PATHS=(
-            --include-path "infra/cluster-api-provider-scaleway-applesilicon/**/*"
+            --include-path "infra/cluster-api-provider-tuist/**/*"
             --include-path "infra/macos-host-bootstrap/**/*"
             --include-path "infra/tart-kubelet/**/*"
           )
@@ -689,7 +724,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: infra/cluster-api-provider-scaleway-applesilicon/Dockerfile
+          file: infra/cluster-api-provider-tuist/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
@@ -704,7 +739,7 @@ jobs:
           # by tag-infra-releases), so there is no chart pin to bump.
           name: capi-scaleway-artifacts
           path: |
-            infra/cluster-api-provider-scaleway-applesilicon/CHANGELOG.md
+            infra/cluster-api-provider-tuist/CHANGELOG.md
           retention-days: 1
 
   release-runners-controller:
@@ -1468,7 +1503,7 @@ jobs:
 
       - name: Download CAPI operator artifacts
         # `path:` matches the upload's LCA so CHANGELOG.md lands back at
-        # `infra/cluster-api-provider-scaleway-applesilicon/CHANGELOG.md`
+        # `infra/cluster-api-provider-tuist/CHANGELOG.md`
         # for the later `git add` to find. upload-artifact@v4 strips the
         # LCA from each entry's archive path, so a workspace-root
         # download would put it at `<workspace>/CHANGELOG.md`.
@@ -1476,7 +1511,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: capi-scaleway-artifacts
-          path: infra/cluster-api-provider-scaleway-applesilicon
+          path: infra/cluster-api-provider-tuist
 
       - name: Download runners-controller artifacts
         # The upload contains only files rooted at
@@ -1889,6 +1924,13 @@ jobs:
     # caught by skip-propagation and is itself skipped even when `build`
     # succeeded, so the whole deploy tail must re-assert success explicitly.
     if: ${{ always() && needs.build.result == 'success' && needs.check-releases.outputs.is-hotfix != 'true' }}
+    # server-deployment.yml's build-kura-runtime job requests id-token: write;
+    # a reusable workflow's permissions are validated against the caller at
+    # startup, so this leg must grant the callee's full permission union.
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     uses: ./.github/workflows/server-deployment.yml
     with:
       environment: canary
@@ -2033,6 +2075,11 @@ jobs:
       needs.acceptance-tests.result == 'success' &&
       needs.backward-compatibility-acceptance.result == 'success' &&
       needs.check-releases.outputs.is-hotfix != 'true'
+    # See `canary` above: grant the callee's full permission union.
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     uses: ./.github/workflows/server-deployment.yml
     with:
       environment: production
@@ -2049,6 +2096,11 @@ jobs:
   production-hotfix:
     needs: [check-releases, build]
     if: ${{ always() && needs.build.result == 'success' && needs.check-releases.outputs.is-hotfix == 'true' }}
+    # See `canary` above: grant the callee's full permission union.
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     uses: ./.github/workflows/server-deployment.yml
     with:
       environment: production

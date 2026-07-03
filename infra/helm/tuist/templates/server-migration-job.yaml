@@ -7,9 +7,9 @@
 # never happen to an SA that long-running pods hold projected tokens
 # for. Migrations only talk to the databases; this SA carries no RBAC.
 #
-# Hook ordering (ASCENDING weight): -12 this SA, -10 ExternalSecret
-# (MASTER_KEY via ESO), -5 app-secrets when managedSecrets=false,
-# -1 the migrate Job.
+# Hook ordering (ASCENDING weight): -12 this SA, -10 ExternalSecrets
+# (license/Kura + the config Secret via ESO), -5 app-secrets when
+# managedSecrets=false, -1 the migrate Job.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -24,7 +24,6 @@ metadata:
 ---
 {{- end }}
 {{- $secretName := include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
-{{- $masterKeySecretName := ternary (include "tuist.componentName" (dict "root" . "component" "server-external-secrets")) $secretName .Values.server.managedSecrets }}
 {{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" . -}}
 {{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" . -}}
 apiVersion: batch/v1
@@ -123,6 +122,8 @@ spec:
             {{- if .Values.server.managedSecrets }}
             - name: TUIST_DATABASE_RUNTIME_ROLE
               value: {{ .Values.postgresql.cnpg.roles.web.name | quote }}
+            - name: TUIST_DATABASE_PROCESSOR_ROLE
+              value: {{ .Values.postgresql.cnpg.roles.processor.name | quote }}
             {{- end }}
             - name: TUIST_USE_SSL_FOR_DATABASE
               value: "0"
@@ -152,20 +153,21 @@ spec:
             - name: TUIST_SELF_HOSTING_DEVELOPMENT_MODE
               value: {{ .Values.server.license.selfHostingDevelopmentMode | ternary "1" "0" | quote }}
             {{- include "tuist.licenseEnv" . | nindent 12 }}
-            {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
-            - name: MASTER_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $masterKeySecretName }}
-                  key: server-master-key
-            {{- end }}
-            {{- if not .Values.server.managedSecrets }}
+            # S3 boot config must be set unconditionally: runtime.exs configures
+            # ex_aws for every non-test env at boot (URI.parse on the endpoint), so
+            # the migrate Job crashes if TUIST_S3_ENDPOINT is unset. For managed
+            # deployments these used to be supplied by the encrypted blob; with the
+            # blob gone they must come from the chart like the server Deployment does.
             - name: TUIST_S3_BUCKET_NAME
-              value: {{ .Values.server.s3.bucketName | quote }}
+              value: {{ include "tuist.objectStorageBucketDefault" . | quote }}
             - name: TUIST_S3_ENDPOINT
               value: {{ include "tuist.objectStorageEndpoint" . | quote }}
             - name: TUIST_S3_REGION
-              value: {{ .Values.server.s3.region | quote }}
+              value: {{ include "tuist.objectStorageRegion" . | quote }}
+            - name: TUIST_S3_VIRTUAL_HOST
+              value: {{ .Values.server.s3.virtualHost | ternary "1" "0" | quote }}
+            - name: TUIST_S3_BUCKET_AS_HOST
+              value: {{ .Values.server.s3.bucketAsHost | ternary "1" "0" | quote }}
             {{- if $objectStorageAccessKey }}
             - name: TUIST_S3_ACCESS_KEY_ID
               valueFrom:
@@ -180,17 +182,18 @@ spec:
                   name: {{ $secretName }}
                   key: object-storage-secret-key
             {{- end }}
-            - name: TUIST_S3_VIRTUAL_HOST
-              value: {{ .Values.server.s3.virtualHost | ternary "1" "0" | quote }}
-            - name: TUIST_S3_BUCKET_AS_HOST
-              value: {{ .Values.server.s3.bucketAsHost | ternary "1" "0" | quote }}
-            {{- end }}
             {{- with .Values.server.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-          {{- with .Values.server.extraEnvFrom }}
+          {{- $serverConfigEnvFrom := include "tuist.serverConfigEnvFrom" . | trim }}
+          {{- if or $serverConfigEnvFrom .Values.server.extraEnvFrom }}
           envFrom:
+            {{- with $serverConfigEnvFrom }}
+            {{- . | nindent 12 }}
+            {{- end }}
+            {{- with .Values.server.extraEnvFrom }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- end }}
           resources:
             {{- toYaml .Values.server.migrationJob.resources | nindent 12 }}

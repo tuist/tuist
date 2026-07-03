@@ -51,6 +51,11 @@ WORKDIR /app
 COPY bin/${TARGETARCH}/kura /usr/local/bin/kura
 COPY --from=geoip /opt/geoip/dbip-city-lite.mmdb /opt/geoip/dbip-city-lite.mmdb
 
+# Keep release images aligned with the source-build Dockerfile: self-hosted
+# Tuist cache nodes can enable token introspection by pointing the extension
+# engine at this bundled hook.
+COPY ops/helm/kura/hooks/tuist.lua /etc/kura/extensions/tuist.lua
+
 EXPOSE 4000
 
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/kura"]

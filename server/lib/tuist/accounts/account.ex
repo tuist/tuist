@@ -48,7 +48,6 @@ defmodule Tuist.Accounts.Account do
     field :customer_id, :string
     field :current_month_remote_cache_hits_count, :integer
     field :current_month_remote_cache_hits_count_updated_at, :naive_datetime
-    field :namespace_tenant_id, :string
     field :region, Ecto.Enum, values: [all: 0, europe: 1, usa: 2], default: :all
 
     field :s3_bucket_name, :string
@@ -124,10 +123,9 @@ defmodule Tuist.Accounts.Account do
 
   def update_changeset(account, attrs) do
     account
-    |> cast(attrs, [:name, :namespace_tenant_id, :region, :billing_email, :custom_cache_endpoints_enabled])
+    |> cast(attrs, [:name, :region, :billing_email, :custom_cache_endpoints_enabled])
     |> validate_handle()
     |> validate_inclusion(:region, [:all, :europe, :usa])
-    |> unique_constraint(:namespace_tenant_id)
   end
 
   @s3_fields [:s3_bucket_name, :s3_access_key_id, :s3_secret_access_key, :s3_region, :s3_endpoint]

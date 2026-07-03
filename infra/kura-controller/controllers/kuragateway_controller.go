@@ -143,10 +143,19 @@ func (r *KuraGatewayReconciler) deleteRenamedIngressClass(ctx context.Context, g
 // infra/helm/platform/values.yaml must stay equal; TestGatewayNginxConfigMatchesChart
 // asserts that (required keys present and matching, any other shared key
 // matching where a region sets it) so the two render paths cannot drift.
-func gatewayNginxConfigData() map[string]string {
+//
+// hostNetwork gateways (bare-metal regions) sit directly on the box NIC with no
+// LoadBalancer to prepend a PROXY header, so proxy-protocol must be off there or
+// it mangles every connection — the same override the platform chart applies to
+// its host-network regional gateways. The LB-fronted path keeps it on.
+func gatewayNginxConfigData(hostNetwork bool) map[string]string {
+	useProxyProtocol := "true"
+	if hostNetwork {
+		useProxyProtocol = "false"
+	}
 	return map[string]string{
 		"use-forwarded-headers":       "true",
-		"use-proxy-protocol":          "true",
+		"use-proxy-protocol":          useProxyProtocol,
 		"compute-full-forwarded-for":  "true",
 		"upstream-keepalive-timeout":  "10",
 		"allow-snippet-annotations":   "false",
@@ -179,7 +188,7 @@ func (r *KuraGatewayReconciler) reconcileGatewayConfigMap(ctx context.Context, g
 			return err
 		}
 		configMap.Labels = gatewayLabels(gateway)
-		configMap.Data = gatewayNginxConfigData()
+		configMap.Data = gatewayNginxConfigData(gateway.Spec.HostNetwork)
 		return nil
 	})
 	return err
@@ -192,9 +201,15 @@ func (r *KuraGatewayReconciler) reconcileGatewayService(ctx context.Context, gat
 			return err
 		}
 		service.Labels = gatewayLabels(gateway)
-		service.Annotations = gateway.Spec.ServiceAnnotations()
-		service.Spec.Type = corev1.ServiceTypeLoadBalancer
-		service.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyLocal
+		if gateway.Spec.HostNetwork {
+			service.Annotations = nil
+			service.Spec.Type = corev1.ServiceTypeClusterIP
+			service.Spec.ExternalTrafficPolicy = ""
+		} else {
+			service.Annotations = gateway.Spec.ServiceAnnotations()
+			service.Spec.Type = corev1.ServiceTypeLoadBalancer
+			service.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyLocal
+		}
 		service.Spec.Selector = gatewaySelectorLabels(gateway)
 		service.Spec.Ports = []corev1.ServicePort{
 			{Name: "http", Port: 80, TargetPort: intstr.FromString("http"), Protocol: corev1.ProtocolTCP},
@@ -239,26 +254,45 @@ func (r *KuraGatewayReconciler) reconcileGatewayDeployment(ctx context.Context, 
 	return err
 }
 
+// gatewayControllerArgs builds the ingress-nginx controller flags. A
+// LoadBalancer-fronted gateway publishes its Service's external IP into Ingress
+// status via --publish-service. A host-network gateway has no LoadBalancer, so it
+// must report the node's own InternalIP (the box's public IP) instead —
+// otherwise external-dns would resolve the per-account host to the unreachable
+// ClusterIP. Mirrors the platform chart's reportNodeInternalIp for its
+// host-network regional gateways.
+func gatewayControllerArgs(gateway *kurav1alpha1.KuraGateway) []string {
+	args := []string{
+		"/nginx-ingress-controller",
+		"--election-id=" + gateway.Name + "-leader",
+		"--controller-class=" + gatewayControllerClassName(gateway),
+		"--ingress-class=" + gatewayIngressClassName(gateway),
+		"--configmap=$(POD_NAMESPACE)/" + gatewayWorkloadName(gateway),
+		"--watch-namespace=$(POD_NAMESPACE)",
+	}
+	if gateway.Spec.HostNetwork {
+		args = append(args, "--report-node-internal-ip-address=true")
+	} else {
+		args = append(args, "--publish-service=$(POD_NAMESPACE)/"+gatewayWorkloadName(gateway))
+	}
+	return args
+}
+
 func gatewayPodTemplate(gateway *kurav1alpha1.KuraGateway, serviceAccountName string) corev1.PodTemplateSpec {
 	return corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{Labels: gatewaySelectorLabels(gateway)},
 		Spec: corev1.PodSpec{
+			HostNetwork:        gateway.Spec.HostNetwork,
+			DNSPolicy:          gatewayDNSPolicy(gateway),
 			ServiceAccountName: serviceAccountName,
 			NodeSelector:       gateway.Spec.PodNodeSelector(),
+			Tolerations:        gateway.Spec.Tolerations,
 			Containers: []corev1.Container{{
 				Name:            "controller",
 				Image:           gatewayControllerImage(gateway),
 				ImagePullPolicy: corev1.PullIfNotPresent,
-				Args: []string{
-					"/nginx-ingress-controller",
-					"--publish-service=$(POD_NAMESPACE)/" + gatewayWorkloadName(gateway),
-					"--election-id=" + gateway.Name + "-leader",
-					"--controller-class=" + gatewayControllerClassName(gateway),
-					"--ingress-class=" + gatewayIngressClassName(gateway),
-					"--configmap=$(POD_NAMESPACE)/" + gatewayWorkloadName(gateway),
-					"--watch-namespace=$(POD_NAMESPACE)",
-				},
-				Env: gateway.Spec.Environment(),
+				Args:            gatewayControllerArgs(gateway),
+				Env:             gateway.Spec.Environment(),
 				Ports: []corev1.ContainerPort{
 					{Name: "http", ContainerPort: 80, Protocol: corev1.ProtocolTCP},
 					{Name: "https", ContainerPort: 443, Protocol: corev1.ProtocolTCP},
@@ -278,6 +312,13 @@ func gatewayPodTemplate(gateway *kurav1alpha1.KuraGateway, serviceAccountName st
 			}},
 		},
 	}
+}
+
+func gatewayDNSPolicy(gateway *kurav1alpha1.KuraGateway) corev1.DNSPolicy {
+	if gateway.Spec.HostNetwork {
+		return corev1.DNSClusterFirstWithHostNet
+	}
+	return corev1.DNSClusterFirst
 }
 
 func gatewayHealthProbe() *corev1.Probe {
@@ -307,12 +348,31 @@ func (r *KuraGatewayReconciler) gatewayStatus(ctx context.Context, gateway *kura
 		}
 		return gatewayStatusState{}, err
 	}
+	ready := deployment.Status.ReadyReplicas
+	replicas := gatewayReplicas(gateway)
+
+	// Host-network gateways bind the node's public IP directly and have no
+	// cloud LoadBalancer to wait on, so readiness gates on replicas alone.
+	if gateway.Spec.HostNetwork {
+		if ready >= replicas {
+			return gatewayStatusState{
+				phase:         "Ready",
+				readyReplicas: ready,
+				loadBalancer:  "host-network",
+				message:       fmt.Sprintf("%d/%d gateway replicas ready (hostNetwork)", ready, replicas),
+			}, nil
+		}
+		return gatewayStatusState{
+			phase:         "Pending",
+			readyReplicas: ready,
+			message:       fmt.Sprintf("%d/%d gateway replicas ready (hostNetwork)", ready, replicas),
+		}, nil
+	}
+
 	loadBalancer, err := r.gatewayLoadBalancer(ctx, gateway)
 	if err != nil {
 		return gatewayStatusState{}, err
 	}
-	ready := deployment.Status.ReadyReplicas
-	replicas := gatewayReplicas(gateway)
 	if ready >= replicas && loadBalancer != "" {
 		return gatewayStatusState{
 			phase:         "Ready",

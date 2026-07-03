@@ -136,6 +136,28 @@ while true; do
         export TUIST_CACHE_ENDPOINT="${cache_endpoint}"
       fi
       echo "$(date -u +%FT%TZ) dispatch-poll: dispatched, starting runner"
+      # Force an NTP step before the job runs. A golden-base VM can be
+      # handed a job within seconds of boot — before macOS `timed` has
+      # synced the guest clock, which can start minutes behind. The
+      # GitHub runner stamps step times and metrics-poll stamps samples
+      # off this clock, so an unsynced VM lands the two on different
+      # timelines (the step timeline only drifts into alignment once
+      # `timed` catches up mid-job). `sntp -sS` steps a large offset via
+      # clock_settime (and slews a sub-50ms one); the network is already
+      # up here since dispatch just succeeded. Best-effort: on failure
+      # `timed` still converges, just later.
+      if sudo /usr/bin/sntp -sS -t 5 time.apple.com >/dev/null 2>&1; then
+        echo "$(date -u +%FT%TZ) dispatch-poll: clock stepped to NTP before runner start"
+      else
+        echo "$(date -u +%FT%TZ) dispatch-poll: WARNING NTP step failed; relying on timed"
+      fi
+      # Fork the machine-metrics sampler so it runs for the job's
+      # duration and POSTs CPU/memory/network/disk to the server. It
+      # dies with the VM when the EXIT trap halts us after the runner
+      # exits. Best-effort — never blocks the job from starting.
+      if [ -x /opt/tuist/metrics-poll.sh ]; then
+        /opt/tuist/metrics-poll.sh &
+      fi
       cd /Users/runner/actions-runner
       # `--jitconfig` implies ephemeral: the runner accepts one job
       # and exits. `--disableupdate` pins the runner to whatever
@@ -154,7 +176,15 @@ while true; do
       # `Tuist.Runners.Workers.FetchLogsWorker`); the runner VM
       # writes nothing to the ingest path.
       ./run.sh --jitconfig "${jit}" --disableupdate
-      exit $?
+      rc=$?
+      # Final metrics sample before the EXIT trap halts the VM. The
+      # looping sampler is killed mid-sleep by the shutdown, so the last
+      # interval — including "Complete job" — otherwise has no data point
+      # and the chart stops short of the job's end. One synchronous
+      # sample now, while the network is still up, closes that gap.
+      # Best-effort; never affects the runner's exit code.
+      [ -x /opt/tuist/metrics-poll.sh ] && /opt/tuist/metrics-poll.sh --once || true
+      exit "${rc}"
       ;;
     204)
       # Server has nothing for us yet. Keep polling — the VM is

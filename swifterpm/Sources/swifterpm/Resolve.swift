@@ -213,6 +213,9 @@ enum PackageResolver {
                     "Package.resolved is required when forcing resolved versions, but no file exists at \(resolvedFileURL.path)"
                 )
             }
+            // The pins are trusted as-is here; whether they're still in sync with
+            // the manifest is verified by `assertResolvedFileUpToDate`, which the
+            // resolution flow runs once the checkouts are materialized.
             return try await ResolvedFile.read(packageDir: packageDir)
         }
         // `--skip-update` is an explicit "trust the on-disk pins" signal:
@@ -255,6 +258,44 @@ enum PackageResolver {
             writeResolvedFile: writeResolvedFile,
             progress: progress
         )
+    }
+
+    /// Reject an out-of-date `Package.resolved` under `--force-resolved-versions`
+    /// the same way SwiftPM does, by delegating to SwiftPM itself rather than
+    /// reimplementing its resolver precomputation.
+    ///
+    /// The `readOnly` path restores the pins verbatim, so a manifest that has
+    /// drifted from its lockfile (an `exact:` bumped without re-resolving, a new
+    /// dependency added, a version requirement changed to a branch, …) would
+    /// otherwise be built against the stale pins and exit successfully — whereas
+    /// `swift package resolve --force-resolved-versions` fails closed with an
+    /// "out-of-date resolved file" error. We run exactly that command once the
+    /// checkouts are materialized: SwiftPM reuses the restored workspace state,
+    /// so the check is a fast precomputation (no fetch) and inherits SwiftPM's
+    /// full out-of-date semantics — direct, transitive, added/removed packages,
+    /// and version/branch/revision requirement changes alike. The command's
+    /// output is captured (not forwarded) so that, on the non-zero exit, the
+    /// SwiftPM out-of-date diagnostic on stderr becomes the `ToolError` message
+    /// instead of a bare exit code.
+    static func assertResolvedFileUpToDate(
+        packageDir: URL,
+        scratchDir: URL?,
+        cacheDir: URL,
+        registryConfigurationPath: URL?,
+        defaultRegistryURL: String?,
+        disableSandbox: Bool,
+        scmToRegistryTransformation: SCMToRegistryTransformation
+    ) async throws {
+        let arguments = swiftPackageResolveArguments(
+            packageDir: packageDir,
+            scratchDir: scratchDir,
+            cacheDir: cacheDir,
+            registryConfigurationPath: registryConfigurationPath,
+            defaultRegistryURL: defaultRegistryURL,
+            disableSandbox: disableSandbox,
+            scmToRegistryTransformation: scmToRegistryTransformation
+        ) + ["--force-resolved-versions"]
+        try await SystemProcess.run("swift", arguments, workingDirectory: packageDir)
     }
 
     private static func normalizeLoadedResolvedFile(

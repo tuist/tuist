@@ -1,7 +1,11 @@
 defmodule TuistWeb.CldrHelpersTest do
   use ExUnit.Case, async: true
 
+  # Formats numbers/money/percentages in non-en locales, whose ex_cldr data is
+  # only compiled when TUIST_DEV_ALL_LOCALES=1.
   import TuistWeb.CldrHelpers
+
+  @moduletag :locale
 
   test "formats numbers using the current locale" do
     Gettext.put_locale(TuistWeb.Gettext, "es")

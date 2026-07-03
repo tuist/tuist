@@ -14,6 +14,17 @@ type KuraGatewaySpec struct {
 	Replicas                *int32            `json:"replicas,omitempty"`
 	NodeSelector            map[string]string `json:"nodeSelector,omitempty"`
 	LoadBalancerAnnotations map[string]string `json:"loadBalancerAnnotations,omitempty"`
+	// HostNetwork runs the gateway nginx on the node's host network and
+	// exposes it via a ClusterIP Service instead of a cloud LoadBalancer.
+	// Bare-metal nodes (Dedibox) have no Hetzner LB, so the gateway binds
+	// the node's public IP directly.
+	HostNetwork bool `json:"hostNetwork,omitempty"`
+	// Tolerations let the gateway nginx schedule onto tainted nodes. Bare-metal
+	// cache nodes carry tuist.dev/kura-cache=true:NoSchedule to keep general
+	// workloads off the box; the host-network gateway has to run there (it binds
+	// the node's public IP), so it needs the matching toleration or it never
+	// schedules and the region has no ingress.
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 }
 
 type KuraGatewayStatus struct {

@@ -5,6 +5,7 @@ import Mockable
 import Path
 import Testing
 import TuistAppleArchiver
+import TuistAutomation
 import TuistServer
 @testable import TuistKit
 
@@ -75,7 +76,6 @@ struct ShardPlanServiceTests {
 
         _ = try await subject.plan(
             xctestproductsPath: testProductsPath,
-            destination: nil,
             reference: "ref",
             shardGranularity: .module,
             shardMin: nil,
@@ -157,7 +157,9 @@ struct ShardPlanServiceTests {
             .startUpload(
                 fullHandle: .any,
                 serverURL: .any,
-                shardPlanId: .value("plan-id")
+                shardPlanId: .value("plan-id"),
+                reference: .any,
+                artifact: .any
             )
             .willReturn("upload-id")
 
@@ -182,7 +184,8 @@ struct ShardPlanServiceTests {
                 shardPlanId: .value("plan-id"),
                 reference: .any,
                 uploadId: .value("upload-id"),
-                partNumber: .value(1)
+                partNumber: .value(1),
+                artifact: .any
             )
             .willReturn("https://tuist.dev/upload")
 
@@ -196,7 +199,8 @@ struct ShardPlanServiceTests {
                 uploadId: .value("upload-id"),
                 parts: .matching { parts in
                     parts.count == 1 && parts[0].partNumber == 1 && parts[0].etag == "etag"
-                }
+                },
+                artifact: .any
             )
             .willReturn()
 
@@ -217,7 +221,6 @@ struct ShardPlanServiceTests {
 
         _ = try await subject.plan(
             xctestproductsPath: testProductsPath,
-            destination: nil,
             reference: "ref",
             shardGranularity: .module,
             shardMin: nil,
@@ -239,6 +242,49 @@ struct ShardPlanServiceTests {
             )
         )
         #expect(uploadURL == "https://tuist.dev/upload")
+    }
+
+    private func mockCreateShardPlanService(
+        capturingTestSuites capture: @escaping ([String]?) -> Void
+    ) -> MockCreateShardPlanServicing {
+        let createShardPlanService = MockCreateShardPlanServicing()
+        given(createShardPlanService)
+            .createShardPlan(
+                fullHandle: .any,
+                serverURL: .any,
+                reference: .any,
+                modules: .any,
+                testSuites: .matching { capture($0); return true },
+                shardMin: .any,
+                shardMax: .any,
+                shardTotal: .any,
+                shardMaxDuration: .any,
+                shardGranularity: .any,
+                buildRunId: .any
+            )
+            .willReturn(
+                Components.Schemas.ShardPlan(
+                    id: "plan-id",
+                    reference: "ref",
+                    shard_count: 1,
+                    shards: [],
+                    upload_url: "https://tuist.dev/api/projects/tuist/tuist/tests/shards/upload/start"
+                )
+            )
+        return createShardPlanService
+    }
+
+    private func writeXCTestProducts(modules: [String], at testProductsPath: AbsolutePath, fileSystem: FileSystem) async throws {
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        try await fileSystem.writeAsPlist(
+            XCTestRunFixture(
+                testConfigurations: [
+                    .init(testTargets: modules.map { TestTargetFixture(blueprintName: $0) }),
+                ]
+            ),
+            at: testProductsPath.appending(component: "MyApp.xctestrun"),
+            encoder: plistEncoder()
+        )
     }
 }
 

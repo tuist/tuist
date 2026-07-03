@@ -89,13 +89,12 @@ Mimic.copy(Tuist.Shards)
 Mimic.copy(Tuist.Shards.Analytics)
 Mimic.copy(Tuist.Storage)
 Mimic.copy(Tuist.Storage.CacheArtifactRetention)
+Mimic.copy(Tuist.Storage.LegacyBuildArtifactRetention)
 Mimic.copy(Tuist.Time)
 Mimic.copy(Tuist.Cache)
 Mimic.copy(Tuist.Cache.Analytics)
 Mimic.copy(Tuist.CacheEndpoints)
 Mimic.copy(Tuist.CommandEvents)
-Mimic.copy(Tuist.Namespace)
-Mimic.copy(Tuist.Namespace.JWTToken)
 Mimic.copy(Tuist.VCS)
 Mimic.copy(Tuist.Xcode)
 Mimic.copy(Tuist.Zip)
@@ -181,6 +180,13 @@ end
   {&TuistTestSupport.LoggerFilters.filter_db_connection_sandbox_teardown/2, []}
 )
 
-ExUnit.start(capture_log: true, exclude: [:skip])
+# The :test env compiles only the "en" locale by default (see
+# Tuist.Environment.single_locale?/0) to keep cold compiles fast. Tests tagged
+# `:locale` assert behaviour of the other locales' ex_cldr/Gettext data, which
+# isn't compiled in that mode, so exclude them unless TUIST_DEV_ALL_LOCALES=1
+# built the full locale set.
+locale_exclude = if Tuist.Environment.dev_all_locales?(), do: [], else: [:locale]
+
+ExUnit.start(capture_log: true, exclude: [:skip] ++ locale_exclude)
 Sandbox.mode(Tuist.Repo, :manual)
 Sandbox.mode(Tuist.IngestRepo, :manual)
