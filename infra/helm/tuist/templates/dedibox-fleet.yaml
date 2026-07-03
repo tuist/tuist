@@ -98,8 +98,14 @@ node-exporter DaemonSet below full availability, and wedges every deploy.
 
 unhealthyRange "[0-1]" remediates a single dead box but never reinstalls a whole
 region at once: a cluster-wide blip that NotReadies every replica is left for an
-operator rather than mass-reinstalled. nodeStartupTimeout is generous because a
-bare-metal reinstall + boot is slow.
+operator rather than mass-reinstalled. nodeStartupTimeout must clear the FULL
+bare-metal OS reinstall + boot — a Scaleway Dedibox install runs 45-60 min before
+sshd comes up. Set it below that and the health check culls the box mid-install,
+the provider wipes and reinstalls it, and the ~50 min clock restarts from zero:
+an endless reinstall loop that never lets the box join and wedges helm --wait on
+the MachineDeployment (the node never reaches Ready, so this only gates the
+initial startup window — a box that dies after joining is still remediated by the
+unhealthyConditions below).
 */ -}}
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineHealthCheck
@@ -112,7 +118,7 @@ metadata:
     tuist.dev/fleet: {{ $fleetName }}
 spec:
   clusterName: {{ $clusterName }}
-  nodeStartupTimeout: 30m
+  nodeStartupTimeout: 90m
   unhealthyRange: "[0-1]"
   selector:
     matchLabels:
