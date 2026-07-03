@@ -23,6 +23,47 @@ public struct TargetScript: Equatable, Codable, Sendable {
         case embedded(String)
     }
 
+    /// A script input or output file-list path.
+    public struct FileListPath: Equatable, Codable, Sendable, ExpressibleByStringLiteral {
+        /// Path passed to Xcode for the file list.
+        public let path: String
+
+        /// Absolute path Tuist should touch during generation if this is a generated file list.
+        public let generatedPlaceholderPath: AbsolutePath?
+
+        public init(
+            path: String,
+            generatedPlaceholderPath: AbsolutePath? = nil
+        ) {
+            self.path = path
+            self.generatedPlaceholderPath = generatedPlaceholderPath
+        }
+
+        public init(stringLiteral value: String) {
+            path = value
+            generatedPlaceholderPath = nil
+        }
+
+        public init(from decoder: Decoder) throws {
+            if let path = try? decoder.singleValueContainer().decode(String.self) {
+                self.path = path
+                generatedPlaceholderPath = nil
+            } else {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                path = try container.decode(String.self, forKey: .path)
+                generatedPlaceholderPath = try container.decodeIfPresent(
+                    AbsolutePath.self,
+                    forKey: .generatedPlaceholderPath
+                )
+            }
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case path
+            case generatedPlaceholderPath
+        }
+    }
+
     /// Name of the build phase when the project gets generated
     public let name: String
 
@@ -74,13 +115,13 @@ public struct TargetScript: Equatable, Codable, Sendable {
     public let inputPaths: [String]
 
     /// List of input filelist paths
-    public let inputFileListPaths: [String]
+    public let inputFileListPaths: [FileListPath]
 
     /// List of output file paths
     public let outputPaths: [String]
 
     /// List of output filelist paths
-    public let outputFileListPaths: [String]
+    public let outputFileListPaths: [FileListPath]
 
     /// Show environment variables in the logs
     public var showEnvVarsInLog: Bool
@@ -117,9 +158,9 @@ public struct TargetScript: Equatable, Codable, Sendable {
         order: Order,
         script: Script = .embedded(""),
         inputPaths: [String] = [],
-        inputFileListPaths: [String] = [],
+        inputFileListPaths: [FileListPath] = [],
         outputPaths: [String] = [],
-        outputFileListPaths: [String] = [],
+        outputFileListPaths: [FileListPath] = [],
         showEnvVarsInLog: Bool = true,
         basedOnDependencyAnalysis: Bool? = nil,
         runForInstallBuildsOnly: Bool = false,
@@ -138,6 +179,38 @@ public struct TargetScript: Equatable, Codable, Sendable {
         self.runForInstallBuildsOnly = runForInstallBuildsOnly
         self.shellPath = shellPath
         self.dependencyFile = dependencyFile
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        name = try container.decode(String.self, forKey: .name)
+        script = try container.decode(Script.self, forKey: .script)
+        order = try container.decode(Order.self, forKey: .order)
+        inputPaths = try container.decode([String].self, forKey: .inputPaths)
+        inputFileListPaths = try container.decode([FileListPath].self, forKey: .inputFileListPaths)
+        outputPaths = try container.decode([String].self, forKey: .outputPaths)
+        outputFileListPaths = try container.decode([FileListPath].self, forKey: .outputFileListPaths)
+        showEnvVarsInLog = try container.decode(Bool.self, forKey: .showEnvVarsInLog)
+        basedOnDependencyAnalysis = try container.decodeIfPresent(Bool.self, forKey: .basedOnDependencyAnalysis)
+        runForInstallBuildsOnly = try container.decode(Bool.self, forKey: .runForInstallBuildsOnly)
+        shellPath = try container.decode(String.self, forKey: .shellPath)
+        dependencyFile = try container.decodeIfPresent(AbsolutePath.self, forKey: .dependencyFile)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case name
+        case script
+        case order
+        case inputPaths
+        case inputFileListPaths
+        case outputPaths
+        case outputFileListPaths
+        case showEnvVarsInLog
+        case basedOnDependencyAnalysis
+        case runForInstallBuildsOnly
+        case shellPath
+        case dependencyFile
     }
 }
 

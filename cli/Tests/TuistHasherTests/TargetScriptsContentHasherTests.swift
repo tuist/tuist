@@ -6,7 +6,6 @@ import TuistSupport
 import TuistTesting
 import XcodeGraph
 import XCTest
-
 @testable import TuistHasher
 
 final class TargetScriptsContentHasherTests: TuistUnitTestCase {
@@ -55,9 +54,9 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
             order: order,
             script: .tool(path: tool, args: arguments),
             inputPaths: inputPaths,
-            inputFileListPaths: inputFileListPaths,
+            inputFileListPaths: inputFileListPaths.map { TargetScript.FileListPath(path: $0) },
             outputPaths: outputPaths,
-            outputFileListPaths: outputFileListPaths,
+            outputFileListPaths: outputFileListPaths.map { TargetScript.FileListPath(path: $0) },
             dependencyFile: dependencyFile
         )
     }

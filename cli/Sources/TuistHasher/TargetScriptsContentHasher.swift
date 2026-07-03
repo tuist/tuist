@@ -33,8 +33,11 @@ public struct TargetScriptsContentHasher: TargetScriptsContentHashing {
             var pathsToHash: [AbsolutePath] = []
             script.path.map { pathsToHash.append($0) }
 
-            var dynamicPaths = resolvePathStrings(script.inputPaths + script.inputFileListPaths, sourceRootPath: sourceRootPath)
-                .sorted()
+            var dynamicPaths = resolvePathStrings(
+                script.inputPaths + script.inputFileListPaths.map(\.path),
+                sourceRootPath: sourceRootPath
+            )
+            .sorted()
             if let dependencyFile = script.dependencyFile {
                 dynamicPaths += [dependencyFile]
             }
@@ -57,8 +60,11 @@ public struct TargetScriptsContentHasher: TargetScriptsContentHashing {
                 }
             }.sorted())
             stringsToHash.append(
-                contentsOf: resolvePathStrings(script.outputPaths + script.outputFileListPaths, sourceRootPath: sourceRootPath)
-                    .map { $0.relative(to: sourceRootPath).pathString }
+                contentsOf: resolvePathStrings(
+                    script.outputPaths + script.outputFileListPaths.map(\.path),
+                    sourceRootPath: sourceRootPath
+                )
+                .map { $0.relative(to: sourceRootPath).pathString }
             )
 
             if let embeddedScript = script.embeddedScript {

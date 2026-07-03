@@ -225,8 +225,8 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
                     .map {
                         (try? AbsolutePath(validating: $0))?.relative(to: sourceRootPath).pathString ?? $0
                     },
-                inputFileListPaths: script.inputFileListPaths,
-                outputFileListPaths: script.outputFileListPaths,
+                inputFileListPaths: script.inputFileListPaths.map(\.path),
+                outputFileListPaths: script.outputFileListPaths.map(\.path),
                 shellPath: script.shellPath,
                 shellScript: try await script.shellScript(sourceRootPath: sourceRootPath),
                 runOnlyForDeploymentPostprocessing: script.runForInstallBuildsOnly,

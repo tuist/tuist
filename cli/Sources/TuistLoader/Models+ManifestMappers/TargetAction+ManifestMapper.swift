@@ -25,7 +25,7 @@ extension XcodeGraph.TargetScript {
             generatorPaths: generatorPaths,
             fileSystem: fileSystem
         )
-        let inputFileListPaths = try await pathStrings(
+        let inputFileListPaths = try await fileListPaths(
             for: manifest.inputFileListPaths,
             generatorPaths: generatorPaths,
             fileSystem: fileSystem
@@ -35,7 +35,7 @@ extension XcodeGraph.TargetScript {
             generatorPaths: generatorPaths,
             fileSystem: fileSystem
         )
-        let outputFileListPaths = try await pathStrings(
+        let outputFileListPaths = try await fileListPaths(
             for: manifest.outputFileListPaths,
             generatorPaths: generatorPaths,
             fileSystem: fileSystem
@@ -130,7 +130,7 @@ extension XcodeGraph.TargetScript {
         generatorPaths: GeneratorPaths,
         fileSystem: FileSysteming
     ) async throws -> [String] {
-        // For relativeToManifest paths that are not glob patterns, keep them as strings
+        // For manifest-relative paths that are not glob patterns, keep them as strings
         if path.type == .relativeToManifest, !fileSystem.isGlobPattern(path) {
             return [path.pathString]
         }
@@ -152,12 +152,41 @@ extension XcodeGraph.TargetScript {
         let base = try AbsolutePath(validating: absolutePath.dirname)
         let globResults = try await fileSystem.glob(directory: base, include: [absolutePath.basename]).collect()
 
-        // For relativeToManifest paths, convert back to relative paths
+        // For manifest-relative paths, convert back to relative paths
         if path.type == .relativeToManifest {
             return globResults.map { $0.relative(to: generatorPaths.manifestDirectory).pathString }
         } else {
             return globResults.map(\.pathString)
         }
+    }
+
+    private static func fileListPaths(
+        for paths: [ProjectDescription.TargetScript.FileListPath],
+        generatorPaths: GeneratorPaths,
+        fileSystem: FileSysteming
+    ) async throws -> [XcodeGraph.TargetScript.FileListPath] {
+        try await paths.concurrentMap { fileListPath -> [XcodeGraph.TargetScript.FileListPath] in
+            let paths = try await resolvePathStrings(
+                path: fileListPath.path,
+                generatorPaths: generatorPaths,
+                fileSystem: fileSystem
+            )
+
+            let generatedPlaceholderPath: AbsolutePath?
+            switch fileListPath {
+            case let .generated(path):
+                generatedPlaceholderPath = try generatorPaths.resolve(path: path)
+            case .path:
+                generatedPlaceholderPath = nil
+            }
+
+            return paths.map {
+                XcodeGraph.TargetScript.FileListPath(
+                    path: $0,
+                    generatedPlaceholderPath: generatedPlaceholderPath
+                )
+            }
+        }.reduce([], +)
     }
 }
 

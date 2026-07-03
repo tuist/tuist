@@ -5,7 +5,6 @@ import TuistCore
 import TuistSupport
 import XcodeGraph
 import XCTest
-
 @testable import TuistLoader
 @testable import TuistTesting
 
@@ -94,7 +93,7 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(model.script, .tool(path: "my_tool", args: ["arg1", "arg2"]))
         XCTAssertEqual(model.order, .pre)
         XCTAssertEqual(
-            model.inputFileListPaths,
+            model.inputFileListPaths.map(\.path),
             ["$(SRCROOT)/foo/bar/**/*.swift"]
         )
         XCTAssertEqual(
@@ -102,7 +101,7 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
             ["$(SRCROOT)/foo/bar/**/*.swift"]
         )
         XCTAssertEqual(
-            model.outputFileListPaths,
+            model.outputFileListPaths.map(\.path),
             ["$(SRCROOT)/foo/bar/**/*.swift"]
         )
     }
@@ -142,7 +141,7 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(model.script, .tool(path: "my_tool", args: ["arg1", "arg2"]))
         XCTAssertEqual(model.order, .pre)
         XCTAssertEqual(
-            model.inputFileListPaths,
+            model.inputFileListPaths.map(\.path),
             ["foo/bar/inputPathList1.swift"]
         )
         XCTAssertEqual(
@@ -150,7 +149,7 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
             ["foo/bar/outputPath1.swift"]
         )
         XCTAssertEqual(
-            model.outputFileListPaths,
+            model.outputFileListPaths.map(\.path),
             ["foo/bar/outputPathList1.swift"]
         )
     }
@@ -212,7 +211,7 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(model.script, .tool(path: "my_tool", args: ["arg1", "arg2"]))
         XCTAssertEqual(model.order, .pre)
         XCTAssertEqual(
-            model.inputFileListPaths,
+            model.inputFileListPaths.map(\.path),
             ["$(SRCROOT)/foo/bar/**/*.swift"]
         )
         XCTAssertEqual(
@@ -220,7 +219,7 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
             ["$(SRCROOT)/foo/bar/**/*.swift"]
         )
         XCTAssertEqual(
-            model.outputFileListPaths,
+            model.outputFileListPaths.map(\.path),
             ["$(SRCROOT)/foo/bar/**/*.swift"]
         )
     }
@@ -262,16 +261,62 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
 
         // Then
         // relativeToManifest paths should be kept as strings
-        XCTAssertTrue(model.inputFileListPaths.contains("relative/to/manifest.txt"))
+        XCTAssertTrue(model.inputFileListPaths.map(\.path).contains("relative/to/manifest.txt"))
         XCTAssertTrue(model.outputPaths.contains("output/manifest.txt"))
-        XCTAssertTrue(model.outputFileListPaths.contains("output_list/manifest.txt"))
+        XCTAssertTrue(model.outputFileListPaths.map(\.path).contains("output_list/manifest.txt"))
 
         // relativeToRoot and relativeToCurrentFile should be resolved to absolute paths
         let expectedRootPath = temporaryPath.appending(try RelativePath(validating: "relative/to/root.txt")).pathString
         let expectedOutputRootPath = temporaryPath.appending(try RelativePath(validating: "output/root.txt")).pathString
 
-        XCTAssertTrue(model.inputFileListPaths.contains(expectedRootPath))
+        XCTAssertTrue(model.inputFileListPaths.map(\.path).contains(expectedRootPath))
         XCTAssertTrue(model.outputPaths.contains(expectedOutputRootPath))
+    }
+
+    func test_generated_file_list_paths_are_resolved_like_manifest_paths() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+
+        let manifest = ProjectDescription.TargetScript.test(
+            name: "GenerateSourceryInputs",
+            tool: "my_tool",
+            order: .pre,
+            inputFileListPaths: [
+                .generated("SourceryInputs.xcfilelist"),
+            ],
+            outputFileListPaths: [
+                .generated("Generated/SourceryOutputs.xcfilelist"),
+            ]
+        )
+
+        // When
+        let model = try await XcodeGraph.TargetScript.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
+
+        // Then
+        XCTAssertEqual(
+            model.inputFileListPaths.map(\.path),
+            ["SourceryInputs.xcfilelist"]
+        )
+        XCTAssertEqual(
+            model.outputFileListPaths.map(\.path),
+            ["Generated/SourceryOutputs.xcfilelist"]
+        )
+        XCTAssertEqual(
+            (model.inputFileListPaths + model.outputFileListPaths).compactMap(\.generatedPlaceholderPath),
+            [
+                temporaryPath.appending(component: "SourceryInputs.xcfilelist"),
+                temporaryPath.appending(components: "Generated", "SourceryOutputs.xcfilelist"),
+            ]
+        )
     }
 
     func test_inputPaths_with_build_variables_are_kept_as_strings() async throws {
