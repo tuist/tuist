@@ -1453,7 +1453,7 @@ defmodule Tuist.Tests do
     {test_case_data, historical_flaky_runs} =
       check_cross_run_flakiness(test, test_case_data)
 
-    mark_test_case_runs_as_flaky(test.project_id, historical_flaky_runs)
+    mark_test_case_runs_as_flaky(test.project_id, test.git_commit_sha, historical_flaky_runs)
 
     test_case_data = check_new_test_cases(test, test_case_data)
 
@@ -2581,16 +2581,20 @@ defmodule Tuist.Tests do
     }
   end
 
-  defp mark_test_case_runs_as_flaky(_project_id, []), do: :ok
+  defp mark_test_case_runs_as_flaky(_project_id, _git_commit_sha, []), do: :ok
 
-  defp mark_test_case_runs_as_flaky(project_id, runs) when is_list(runs) do
+  defp mark_test_case_runs_as_flaky(project_id, git_commit_sha, runs) when is_list(runs) do
     ids = runs |> Enum.map(& &1.id) |> Enum.uniq()
     test_case_ids = runs |> Enum.map(& &1.test_case_id) |> Enum.uniq()
 
     # `test_case_runs` is `ORDER BY (project_id, test_case_id, ran_at, id)` —
     # filtering by `project_id` and `test_case_id` (both already known per
-    # `historical_flaky_runs`) lets the primary key prune granules instead
-    # of falling back to the bloom filter on `id` alone, which scales poorly.
+    # `historical_flaky_runs`) lets the primary key prune granules. That still
+    # scans the whole `ran_at` span for a high-volume test case, so we also
+    # constrain `git_commit_sha`: every historical flaky run comes from
+    # `get_existing_ci_runs_for_commit/4` for this exact commit, and the table
+    # carries a `GRANULARITY 1` bloom filter on `git_commit_sha` that prunes
+    # the range down to the handful of granules holding that commit's runs.
     # The table is also a ReplacingMergeTree, so a re-inserted run can return
     # multiple versions per id until the background merge collapses them; we
     # dedupe in Elixir so the result set stays small. `FINAL` would force a
@@ -2599,6 +2603,7 @@ defmodule Tuist.Tests do
       from(tcr in TestCaseRun,
         where: tcr.project_id == ^project_id,
         where: tcr.test_case_id in ^test_case_ids,
+        where: tcr.git_commit_sha == ^git_commit_sha,
         where: tcr.id in ^ids,
         order_by: [desc: tcr.inserted_at]
       )
