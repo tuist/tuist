@@ -2295,8 +2295,8 @@ func TestKuraInstanceReconcileExposesNodePortDataPlane(t *testing.T) {
 	if instance.Status.NodeAddress != "172.16.0.2" {
 		t.Fatalf("expected status.nodeAddress from the node's pn-ipv4 label, got %q", instance.Status.NodeAddress)
 	}
-	if instance.Status.NodePortHTTP != 30080 {
-		t.Fatalf("expected status NodePort 30080, got %d", instance.Status.NodePortHTTP)
+	if instance.Status.NodePortCache != 30080 {
+		t.Fatalf("expected status NodePort 30080, got %d", instance.Status.NodePortCache)
 	}
 
 	policy := &networkingv1.NetworkPolicy{}

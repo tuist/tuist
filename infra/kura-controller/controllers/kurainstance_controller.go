@@ -287,7 +287,7 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	instance.Status.ReadyReplicas = rollout.readyReplicas
 	instance.Status.Message = rollout.message
 	instance.Status.NodeAddress = external.nodeAddress
-	instance.Status.NodePortHTTP = external.nodePortHTTP
+	instance.Status.NodePortCache = external.nodePortCache
 	instance.Status.LastReconciledAt = &now
 
 	if err := r.Status().Update(ctx, instance); err != nil {
@@ -656,8 +656,8 @@ func (r *KuraInstanceReconciler) reconcileExternalService(ctx context.Context, i
 }
 
 type externalEndpoint struct {
-	nodeAddress  string
-	nodePortHTTP int32
+	nodeAddress   string
+	nodePortCache int32
 }
 
 // externalEndpoint resolves what NodePort clients dial: the allocated
@@ -678,7 +678,7 @@ func (r *KuraInstanceReconciler) externalEndpoint(ctx context.Context, instance 
 	case err == nil:
 		for _, port := range service.Spec.Ports {
 			if port.Name == "http" {
-				endpoint.nodePortHTTP = port.NodePort
+				endpoint.nodePortCache = port.NodePort
 			}
 		}
 	case apierrors.IsNotFound(err):
@@ -1920,7 +1920,7 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 		// the HTTP cache down with it. Co-hosted images ignore unknown
 		// env. The value is the old default; old images validate it
 		// differs from KURA_INTERNAL_PORT/KURA_HTTPS_PORT. Remove once
-		// the fleet is fully past the co-hosted floor.
+		// the fleet is fully past the co-hosted floor (tracked in #11654).
 		{Name: "KURA_GRPC_PORT", Value: "50051"},
 		{Name: "KURA_TENANT_ID", Value: instance.Spec.TenantID},
 		{Name: "KURA_REGION", Value: instance.Spec.Region},

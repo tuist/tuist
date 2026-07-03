@@ -820,6 +820,15 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   describe "external_endpoint/2" do
     test "builds the node-published URL from the observed status" do
       expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", [] ->
+        {:ok, %{"status" => %{"nodeAddress" => "172.16.0.2", "nodePortCache" => 30_080}}}
+      end)
+
+      assert KubernetesController.external_endpoint("kura-tuist-scw-fr-par", scaleway_region()) ==
+               {:ok, "http://172.16.0.2:30080"}
+    end
+
+    test "falls back to the pre-rename nodePortHTTP field while old controllers run" do
+      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", [] ->
         {:ok, %{"status" => %{"nodeAddress" => "172.16.0.2", "nodePortHTTP" => 30_080}}}
       end)
 
@@ -829,7 +838,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
     test "is not ready until the controller observed the full chain" do
       expect(Client, :get_kura_instance, fn "kura", "kura-tuist-scw-fr-par", [] ->
-        {:ok, %{"status" => %{"nodePortHTTP" => 30_080}}}
+        {:ok, %{"status" => %{"nodePortCache" => 30_080}}}
       end)
 
       assert KubernetesController.external_endpoint("kura-tuist-scw-fr-par", scaleway_region()) ==

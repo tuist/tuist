@@ -195,7 +195,7 @@ spec:
                   type: string
                 nodeAddress:
                   type: string
-                nodePortHTTP:
+                nodePortCache:
                   type: integer
                   format: int32
                 lastReconciledAt:

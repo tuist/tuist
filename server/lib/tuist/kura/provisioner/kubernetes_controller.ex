@@ -116,9 +116,17 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   @impl true
   def external_endpoint(name, %Regions{} = region) do
     case client_get_kura_instance(@namespace, name, region) do
-      {:ok, %{"status" => %{"nodeAddress" => address, "nodePortHTTP" => port}}}
-      when is_binary(address) and address != "" and is_integer(port) and port > 0 ->
-        {:ok, "http://#{address}:#{port}"}
+      {:ok, %{"status" => %{"nodeAddress" => address} = status}} when is_binary(address) and address != "" ->
+        # nodePortHTTP is the pre-rename name of nodePortCache, read as a
+        # fallback while controllers that publish it can still be running;
+        # drop it once the fleet publishes nodePortCache everywhere (tracked in #11654).
+        port = status["nodePortCache"] || status["nodePortHTTP"]
+
+        if is_integer(port) and port > 0 do
+          {:ok, "http://#{address}:#{port}"}
+        else
+          {:error, :node_port_endpoint_not_ready}
+        end
 
       {:ok, _} ->
         {:error, :node_port_endpoint_not_ready}

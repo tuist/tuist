@@ -60,7 +60,7 @@ type KuraInstanceSpec struct {
 	// cluster's pod network — the macOS Tart VMs reach the pool over
 	// a cloud Private Network, where ClusterIP DNS doesn't resolve
 	// and isn't routed. Traffic must enter on the node hosting the
-	// pod; status.NodeAddress + status.NodePortHTTP are what dispatch
+	// pod; status.NodeAddress + status.NodePortCache are what dispatch
 	// hands those clients.
 	ExposeNodePort bool `json:"exposeNodePort,omitempty"`
 
@@ -156,8 +156,8 @@ type KuraInstanceStatus struct {
 	// its Private-Network address, not a public one — and moves when
 	// the pod reschedules. Empty until the Service has allocated
 	// ports and the primary pod is placed on a labeled node.
-	NodeAddress  string `json:"nodeAddress,omitempty"`
-	NodePortHTTP int32  `json:"nodePortHTTP,omitempty"`
+	NodeAddress   string `json:"nodeAddress,omitempty"`
+	NodePortCache int32  `json:"nodePortCache,omitempty"`
 }
 
 // +kubebuilder:object:root=true
