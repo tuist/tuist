@@ -94,25 +94,41 @@ kubectl get clusters -n org-tuist
 
 The `org-tuist` namespace is where every Cluster CR + the `hetzner` Secret live.
 
+> **The mgmt kubeconfig is emergency-only** (spec/72 Decision 6). The workload
+> `Cluster` CRs reconcile from git via **Flux** (`infra/flux/mgmt/`), so
+> routine changes are a reviewed PR — no `kubectl apply`. Use this kubeconfig
+> directly only for: the one-time Flux/ESO bootstrap, recovering a wedged Flux,
+> and the manifests still outside Flux (ClusterClass/bare-metal templates,
+> preview, mgmt-side workloads). Read access (`kubectl get`) for diagnosis is
+> always fine.
+
 ## 2. Author the Cluster CR
 
-Each workload cluster is a `Cluster` CR in topology mode referencing the `tuist-hcloud` ClusterClass. Existing per-env files:
+Each workload cluster is a `Cluster` CR in topology mode referencing the `tuist-hcloud` ClusterClass. The Flux-reconciled clusters live one-per-subdir under `clusters/workloads/`:
 
-- [`clusters/cluster-staging.yaml`](clusters/cluster-staging.yaml)
-- [`clusters/cluster-canary.yaml`](clusters/cluster-canary.yaml)
-- [`clusters/cluster-production.yaml`](clusters/cluster-production.yaml)
-- [`clusters/cluster-preview.yaml`](clusters/cluster-preview.yaml)
+- [`clusters/workloads/staging/cluster.yaml`](clusters/workloads/staging/cluster.yaml)
+- [`clusters/workloads/canary/cluster.yaml`](clusters/workloads/canary/cluster.yaml)
+- [`clusters/workloads/production/cluster.yaml`](clusters/workloads/production/cluster.yaml)
+- tenants: [`clusters/workloads/{hive,once,atlas}/cluster.yaml`](clusters/workloads/)
+- [`clusters/cluster-preview.yaml`](clusters/cluster-preview.yaml) — preview stays outside Flux (`mgmt-cluster-apply.yml`).
 
-For a new cluster, copy the closest existing file and adjust `metadata.name`, replica counts, machine types, and any per-pool labels/taints. Variables exposed by the ClusterClass are documented in [`clusters/README.md`](clusters/README.md). Run `mise run k8s:lint-version-drift` to confirm `topology.version` matches the ClusterClass's `KUBERNETES_VERSION` before applying.
+For a new Flux-reconciled cluster, add `clusters/workloads/<cluster>/cluster.yaml` + a `kustomization.yaml` (copy the closest existing subdir) and a matching `infra/flux/mgmt/cluster-<cluster>.yaml` Flux `Kustomization`. Adjust `metadata.name`, replica counts, machine types, and per-pool labels/taints. 3-CP clusters get the absolute-`1` control-plane MHC override; single-CP clusters stay on the ClusterClass 33% default. Variables are documented in [`clusters/README.md`](clusters/README.md). Run `mise run k8s:lint-version-drift` to confirm `topology.version` matches the ClusterClass's `KUBERNETES_VERSION`.
 
-## 3. Apply the Cluster CR
+## 3. Reconcile the Cluster CR
 
-The `mgmt-cluster-apply.yml` workflow auto-applies anything under `infra/k8s/clusters/**` on push to `main`. For an out-of-band apply (e.g. before a PR is merged):
+Merging the PR is the apply: **Flux** reconciles the `workloads/` Cluster CRs from `main` on its interval, and the `flux-diff` PR job posts the server-side dry-run for review beforehand. Watch it land:
 
 ```bash
-kubectl apply -f infra/k8s/clusters/cluster-<env>.yaml
+# Read-only; the Pomerium/mgmt read path is always allowed.
+flux -n flux-system get kustomization cluster-<cluster>
 kubectl -n org-tuist get cluster <name> -w
-# Ready=True once control plane is up. ~3–5 min cold start.
+# Available=True once control plane is up. ~3–5 min cold start.
+```
+
+Only under break-glass (a wedged Flux, or a cluster still outside Flux like preview) apply directly:
+
+```bash
+kubectl apply -k infra/k8s/clusters/workloads/<cluster>   # or -f cluster-preview.yaml
 ```
 
 ## 4. Bootstrap the workload cluster

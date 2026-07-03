@@ -1,0 +1,125 @@
+name: Flux Diff
+
+# Posts a server-side dry-run (`flux diff`) of the Flux-reconciled workload
+# Cluster CRs on PRs that touch them, so reviewers see the live-vs-desired,
+# machine-level delta before merging (spec/72 Pillar 1 gating). This job can
+# only PREVIEW — applying stays Flux's alone. See infra/k8s/mgmt/flux-diff-rbac.yaml.
+#
+# A `flux diff` is a server-side-apply DRY RUN, which RBAC authorizes as a
+# write, so the job holds apply-capable (dry-run only) mgmt access via the
+# dedicated least-privilege `flux-diff` ServiceAccount. It is therefore
+# contained the same way mgmt-cluster-apply.yml is:
+#   - runs ONLY on branches in the main repository, never on fork PRs (the
+#     token must never reach a fork) — enforced by the job `if` below;
+#   - the flux-diff kubeconfig is an Environment secret (fork PRs cannot
+#     read Environment secrets without approval, a second gate);
+#   - GitHub-hosted runner, because the mgmt apiserver is on :6443 and the
+#     self-hosted runners are behind a NetworkPolicy allowing only 80/443.
+
+on:
+  pull_request:
+    paths:
+      - "infra/k8s/clusters/workloads/**"
+      - "infra/flux/mgmt/cluster-*.yaml"
+
+concurrency:
+  group: flux-diff-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  diff:
+    name: flux diff
+    # Same-repo branches only; never fork PRs.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    environment:
+      name: flux-diff
+    timeout-minutes: 15
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "--locked kubectl"
+          cache: "false"
+      - uses: fluxcd/flux2/action@v2.4.0
+      - uses: 1password/install-cli-action@v2
+      - name: Load flux-diff kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-mgmt-flux-diff" \
+            --vault tuist-k8s-mgmt --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Diff changed workload Cluster CRs
+        id: diff
+        run: |
+          set -uo pipefail
+          base="${{ github.event.pull_request.base.sha }}"
+          # Cluster subdirs with changes in this PR.
+          changed=$(git diff --name-only "$base"...HEAD -- infra/k8s/clusters/workloads \
+            | sed -n 's#^infra/k8s/clusters/workloads/\([^/]*\)/.*#\1#p' | sort -u)
+          out="$(mktemp)"
+          if [ -z "$changed" ]; then
+            echo "_No workload Cluster manifests changed._" > "$out"
+          else
+            for c in $changed; do
+              dir="infra/k8s/clusters/workloads/$c"
+              [ -d "$dir" ] || continue
+              echo "### \`$c\`" >> "$out"
+              echo '```diff' >> "$out"
+              # Server-side dry-run apply of this cluster's Kustomization
+              # build against live. Non-zero exit just means "there is a
+              # diff" (or the Kustomization is new), so don't fail the step.
+              flux diff kustomization "cluster-$c" --path="./$dir" >> "$out" 2>&1 || true
+              echo '```' >> "$out"
+              echo >> "$out"
+            done
+          fi
+          {
+            echo 'body<<FLUXEOF'
+            echo '<!-- flux-diff -->'
+            echo '## Flux diff — workload Cluster CRs'
+            echo
+            cat "$out"
+            echo
+            echo '> Server-side dry-run via the least-privilege `flux-diff` ServiceAccount. Preview only; Flux applies on merge.'
+            echo 'FLUXEOF'
+          } >> "$GITHUB_OUTPUT"
+      - name: Upsert PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = process.env.DIFF_BODY;
+            const marker = '<!-- flux-diff -->';
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+        env:
+          DIFF_BODY: ${{ steps.diff.outputs.body }}

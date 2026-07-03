@@ -1,0 +1,109 @@
+# Least-privilege identity for the `flux diff` PR job (spec/72 Decision 3).
+#
+# `flux diff kustomization --server-side` runs a server-side-apply DRY RUN
+# of the workload Cluster CRs against the live mgmt API. A dry-run apply is
+# still authorized by RBAC as create/update/patch (there is no "dry-run"
+# verb), so this SA is NOT read-only — but it can only PREVIEW. Applying
+# stays Flux's alone.
+#
+# Scope discipline:
+#   - WRITE (create/update/patch, exercised only as dry-run) is granted on
+#     `clusters` alone — the only kind present in
+#     infra/k8s/clusters/workloads/, so the only kind the diff ever applies.
+#   - READ (get/list) covers the related CAPI kinds the diff/CAPI defaulting
+#     may consult, plus `clusterclasses` (never writable here). Everything is
+#     namespaced to org-tuist; nothing cluster-wide except read-only CRD
+#     discovery.
+#
+# The SA token is rendered into a kubeconfig and stored in the tuist-k8s-mgmt
+# 1Password vault (same pattern as `ci-service-account.yaml`); the flux-diff
+# GitHub Actions job pulls it, exactly like mgmt-cluster-apply.yml pulls the
+# mgmt kubeconfig. Never exposed to fork PRs. Owned + rotated by the mgmt
+# owner (Decision 8).
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: flux-diff
+  namespace: org-tuist
+  labels:
+    app.kubernetes.io/name: flux-diff
+    app.kubernetes.io/managed-by: tuist-bootstrap
+---
+# Long-lived token (SA controller no longer auto-creates one in k8s >=1.24).
+# Rendered into the kubeconfig stored in 1Password.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: flux-diff-token
+  namespace: org-tuist
+  annotations:
+    kubernetes.io/service-account.name: flux-diff
+type: kubernetes.io/service-account-token
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: flux-diff
+  namespace: org-tuist
+rules:
+  # The only kind the diff applies (dry-run): the workload Cluster CRs.
+  - apiGroups: ["cluster.x-k8s.io"]
+    resources: ["clusters"]
+    verbs: ["get", "list", "create", "update", "patch"]
+  # Read-only context for a faithful diff. Never writable by this SA.
+  - apiGroups: ["cluster.x-k8s.io"]
+    resources:
+      ["clusterclasses", "machinedeployments", "machinesets", "machines"]
+    verbs: ["get", "list"]
+  - apiGroups: ["controlplane.cluster.x-k8s.io"]
+    resources: ["kubeadmcontrolplanes"]
+    verbs: ["get", "list"]
+  - apiGroups: ["bootstrap.cluster.x-k8s.io"]
+    resources: ["kubeadmconfigtemplates"]
+    verbs: ["get", "list"]
+  # caph infrastructure CRDs are v1beta1 (not v1beta2).
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources:
+      - "hcloudmachinetemplates"
+      - "hetznerclustertemplates"
+      - "hetznerbaremetalmachinetemplates"
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: flux-diff
+  namespace: org-tuist
+roleRef:
+  kind: Role
+  name: flux-diff
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+  - kind: ServiceAccount
+    name: flux-diff
+    namespace: org-tuist
+---
+# The only unavoidable cluster-scoped grant: read CRD definitions so the
+# dry-run apply can resolve the Cluster's schema. get/list only.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: flux-diff-crd-read
+rules:
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: flux-diff-crd-read
+roleRef:
+  kind: ClusterRole
+  name: flux-diff-crd-read
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+  - kind: ServiceAccount
+    name: flux-diff
+    namespace: org-tuist

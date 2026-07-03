@@ -36,20 +36,27 @@ Single-replica deploy of the `tuist-ops` app into the production cluster (same c
 
 ### `k8s/` — CAPI cluster manifests
 Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph stack we operate on Hetzner:
-- `clusters/clusterclass-tuist.yaml` — the `tuist-hcloud` ClusterClass (HA control plane, worker-pool variables, network config, kubeadm + kubelet config).
-- `clusters/cluster-{staging,canary,production,preview}.yaml` — per-env Cluster CRs in topology mode.
-- Production Kura regions are node pools in `clusters/cluster-production.yaml`, not separate workload clusters.
+- `clusters/clusterclass-tuist.yaml` — the `tuist-hcloud` ClusterClass (HA control plane, worker-pool variables, network config, kubeadm + kubelet config). Applied by `mgmt-cluster-apply.yml` (immutable templates stay out of Flux — see below).
+- `clusters/workloads/<cluster>/{cluster.yaml,kustomization.yaml}` — the per-cluster `Cluster` CRs **reconciled by Flux** (`infra/flux/mgmt/`): `staging` / `canary` / `production` plus the `hive` / `once` / `atlas` tenants (migrated in from `tuist/{hive,once,atlas}`, all reuse `org-tuist` + the `hetzner` Secret). One subdir per cluster so each has its own Flux `Kustomization` + health gate.
+- `clusters/cluster-preview.yaml` — the preview Cluster CR, still on `mgmt-cluster-apply.yml` (its replicas are mutated out-of-band by the preview workflows, so Flux would fight them). 3-CP clusters (staging/canary/production) carry a per-topology control-plane `MachineHealthCheck` override (absolute `1`); single-CP clusters (preview + tenants) stay on the ClusterClass 33% ratio and page via Pillar 2. See [hive/specs/72](https://hive.tuist.dev/specs/72).
+- Production Kura regions are node pools in `clusters/workloads/production/cluster.yaml` (US East/West moved to OVH fleets in the tuist chart), not separate workload clusters.
 - The preview cluster also hosts Slack-requested preview environments:
   app workloads and preview Kura runtime pods both land on the tainted
   preview worker pool (`role=preview`, with the preview toleration on the
   KuraInstance). The Kura controller itself runs once cluster-wide in the
   `kura` namespace; each preview's `KuraInstance` is created there.
-- `clusters/README.md` — ClusterClass authoring + caph-upstream porting notes.
+- `clusters/README.md` — reconciliation ownership (Flux vs `mgmt-cluster-apply.yml`), ClusterClass authoring + caph-upstream porting notes.
 - `mgmt/cluster-autoscaler.yaml`, `mgmt/etcd-snapshot.yaml`, `mgmt/tailscale.yaml` — mgmt-cluster workloads (Cluster API node autoscaling for managed Kura/app clusters, hourly etcd snapshot to Tigris, tailnet-only operator access).
+- `mgmt/external-secrets.yaml` + `mgmt/flux-git-externalsecret.yaml` — ESO on the mgmt cluster (Flux bootstrap prerequisite): the `onepassword` `ClusterSecretStore` for the `tuist-k8s-mgmt` vault, and Flux's git (GitHub App) credential synced from it.
+- `mgmt/flux-diff-rbac.yaml` — least-privilege `flux-diff` SA/Role for the `flux diff` PR job (`.github/workflows/flux-diff.yml`); dry-run write on `clusters` only.
+- `mgmt/reconciliation-checks.yaml` — CronJob (+ scrape-target Pushgateway) that reports orphan Hetzner servers and stale (removed-from-git) Clusters as metrics; alerts via Pillar 2.
 - `mgmt/bootstrap/` — Helm values for the per-workload bootstrap (Cilium, HCCM, hcloud-csi, ESO `ClusterSecretStore`).
 - `mgmt/ci-service-account.yaml` — SA + RBAC for the GitHub Actions deployer (applied per workload).
 - `mgmt/preview-mgmt-rbac.yaml` — narrow SA + Role on the mgmt cluster used by the preview-deploy / preview-sweep workflows to scale the preview MachineDeployment.
 - `onboarding.md` — end-to-end runbook for standing up a new workload cluster.
+
+### `flux/` — GitOps reconciliation on the mgmt cluster
+Flux (`infra/flux/mgmt/`) is **Pillar 1** of [hive/specs/72](https://hive.tuist.dev/specs/72): it continuously reconciles the workload `Cluster` CRs under `k8s/clusters/workloads/` onto the mgmt cluster, so drift is corrected on an interval instead of only on merge and routine changes need no break-glass. Health alerting is the independent **Pillar 2** (`helm/k8s-monitoring/values-mgmt.yaml` + `alerts/`), Grafana Cloud, evaluated outside the single-node cluster with a heartbeat. Per-cluster `Kustomization`s never prune `Cluster` objects and use `force: false`; the immutable ClusterClass/bare-metal templates and preview stay on `mgmt-cluster-apply.yml`. See `infra/flux/mgmt/README.md` for bootstrap, the never-prune destroy flow, and the break-glass recovery path.
 
 ### `kura-controller/` — Kura endpoint controller
 Go controller for `KuraInstance` and `KuraGateway` CRs (`kura.tuist.dev/v1alpha1`). It reconciles account-region Kura endpoint intent into Kubernetes workload resources and, when server policy requests it, dedicated ingress-nginx/LB gateway infrastructure on the Hetzner-backed cluster. Keep it separate from CAPI infrastructure providers; it manages product workload lifecycle, not cluster node lifecycle.

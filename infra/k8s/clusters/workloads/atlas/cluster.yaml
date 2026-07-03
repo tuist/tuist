@@ -1,0 +1,72 @@
+# Atlas production workload Cluster, topology mode against `tuist-hcloud`.
+#
+# Reconciled by the self-hosted CAPI + caph management cluster maintained
+# in tuist/tuist (`infra/k8s/clusters/clusterclass-tuist.yaml`). Atlas is a
+# non-critical internal service, so the base cluster is collapsed to the
+# minimum that stays operational within the CAPI model: 1× cpx22 control
+# plane + 1× cpx32 worker in fsn1. The single cpx32 worker (8 GiB) holds
+# the whole base workload — one Atlas pod, the CloudNativePG primary, the
+# vector search DB, and the platform charts (cert-manager / ingress-nginx
+# / external-dns / ESO / CNPG). Scale the general pool up if resource
+# pressure appears.
+#
+# Atlas reuses tuist's `org-tuist` namespace and the `hetzner` Secret
+# living in it — the ClusterClass hardcodes `hetznerSecretRef.name:
+# hetzner`, so atlas's VMs land in tuist's Hetzner Cloud project. Full
+# blast-radius isolation would require a dedicated org namespace
+# (and a per-namespace `hetzner` Secret); we accepted this constraint
+# when atlas first onboarded and kept it through the move off Syself.
+#
+# Migrated into tuist/tuist from tuist/atlas (`infra/k8s/cluster-production.yaml`)
+# for Flux reconciliation. Keep byte-identical to the live Cluster so the
+# first reconcile is a no-op; the tuist/atlas copy is retired to a pointer.
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: Cluster
+metadata:
+  name: atlas-production
+  namespace: org-tuist
+spec:
+  clusterNetwork:
+    services:
+      cidrBlocks:
+        - 10.128.0.0/12
+    pods:
+      cidrBlocks:
+        - 192.168.0.0/16
+    serviceDomain: cluster.local
+  topology:
+    classRef:
+      name: tuist-hcloud
+    version: v1.34.6
+    controlPlane:
+      # Atlas is a non-critical internal service; a single-node control
+      # plane is enough. A control-plane outage only pauses scheduling —
+      # it does not take the running app down.
+      #
+      # Single-CP: control-plane MachineHealthCheck stays on the shared
+      # ClusterClass 33% ratio, which does NOT self-remediate a 1-of-1
+      # unhealthy node. A degraded control plane pages via Grafana Cloud
+      # (Pillar 2) and is rebuilt under break-glass.
+      replicas: 1
+    variables:
+      - name: region
+        value: fsn1
+      - name: hcloudControlPlaneMachineType
+        value: cpx22
+      - name: hcloudWorkerMachineType
+        value: cpx32
+      - name: hcloudSSHKeyName
+        value:
+          - name: tuist-ops
+    workers:
+      machineDeployments:
+        - class: hcloud-worker
+          name: md-0
+          # One worker holds the whole base workload (app + Postgres +
+          # vector search DB + ingress + operators). Scale up only if
+          # resource pressure appears.
+          replicas: 1
+          failureDomain: fsn1
+          metadata:
+            labels:
+              node.cluster.x-k8s.io/pool: general

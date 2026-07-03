@@ -1,0 +1,55 @@
+# Once production workload Cluster, topology mode against `tuist-hcloud`.
+#
+# Reconciled by the self-hosted CAPI + caph management cluster maintained
+# in tuist/tuist. Once currently serves only the static Phoenix marketing
+# site, so the cluster is collapsed to the minimum that stays operational:
+# a single control-plane node and a single worker. HA is intentionally
+# given up here to keep the Hetzner bill down until the registry backend
+# lands and warrants a larger shape again.
+#
+# Migrated into tuist/tuist from tuist/once (`infra/k8s/cluster-production.yaml`)
+# for Flux reconciliation. Keep byte-identical to the live Cluster so the
+# first reconcile is a no-op; the tuist/once copy is retired to a pointer.
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: Cluster
+metadata:
+  name: once-production
+  namespace: org-tuist
+spec:
+  clusterNetwork:
+    services:
+      cidrBlocks:
+        - 10.128.0.0/12
+    pods:
+      cidrBlocks:
+        - 192.168.0.0/16
+    serviceDomain: cluster.local
+  topology:
+    classRef:
+      name: tuist-hcloud
+    version: v1.34.6
+    controlPlane:
+      # Single-CP: control-plane MachineHealthCheck stays on the shared
+      # ClusterClass 33% ratio, which does NOT self-remediate a 1-of-1
+      # unhealthy node. A degraded control plane pages via Grafana Cloud
+      # (Pillar 2) and is rebuilt under break-glass.
+      replicas: 1
+    variables:
+      - name: region
+        value: fsn1
+      - name: hcloudControlPlaneMachineType
+        value: cpx22
+      - name: hcloudWorkerMachineType
+        value: cpx22
+      - name: hcloudSSHKeyName
+        value:
+          - name: tuist-ops
+    workers:
+      machineDeployments:
+        - class: hcloud-worker
+          name: md-0
+          replicas: 1
+          failureDomain: fsn1
+          metadata:
+            labels:
+              node.cluster.x-k8s.io/pool: general
