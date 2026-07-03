@@ -22,10 +22,6 @@
 {{- end }}
 {{- end }}
 {{- $serverRoleName := printf "%s-server" $name }}
-{{- $gatewayIngressServiceAccountName := printf "%s-gateway-ingress-nginx" $name }}
-{{- $gatewayIngressRoleName := printf "%s-gateway-ingress-nginx" $name }}
-{{- $gatewayIngressClusterRoleName := printf "%s-gateway-ingress-nginx" $name }}
-{{- $gatewayClassClusterRoleName := printf "%s-gateway-classes" $name }}
 {{- $imageTag := .Values.kuraController.image.tag }}
 {{- $tlsClusterIssuer := .Values.kuraController.tlsClusterIssuer | default .Values.kuraController.grpcClusterIssuer }}
 {{- if not $imageTag }}
@@ -98,18 +94,6 @@ rules:
     resources: [events]
     verbs: [create, patch]
 ---
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: {{ $gatewayClassClusterRoleName }}
-  labels:
-    {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: kura-controller
-rules:
-  - apiGroups: ["networking.k8s.io"]
-    resources: [ingressclasses]
-    verbs: [get, list, watch, create, update, patch, delete]
----
 # Nodes are cluster-scoped, so this can't live in the namespaced
 # controller Role: the controller resolves the primary pod's node
 # `tuist.dev/pn-ipv4` label into KuraInstance.status.nodeAddress for
@@ -138,22 +122,6 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: {{ $name }}-node-reads
-subjects:
-  - kind: ServiceAccount
-    name: {{ $name }}
-    namespace: {{ $namespace }}
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: {{ $gatewayClassClusterRoleName }}
-  labels:
-    {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: kura-controller
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: {{ $gatewayClassClusterRoleName }}
 subjects:
   - kind: ServiceAccount
     name: {{ $name }}
@@ -216,91 +184,6 @@ subjects:
     namespace: {{ .Release.Namespace }}
 {{- end }}
 ---
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: {{ $gatewayIngressServiceAccountName }}
-  namespace: {{ $namespace }}
-  labels:
-    {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: kura-gateway-ingress-nginx
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: {{ $gatewayIngressRoleName }}
-  namespace: {{ $namespace }}
-  labels:
-    {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: kura-gateway-ingress-nginx
-rules:
-  - apiGroups: [""]
-    resources: [configmaps, endpoints, pods, secrets, services]
-    verbs: [get, list, watch]
-  - apiGroups: ["discovery.k8s.io"]
-    resources: [endpointslices]
-    verbs: [get, list, watch]
-  - apiGroups: ["networking.k8s.io"]
-    resources: [ingresses]
-    verbs: [get, list, watch]
-  - apiGroups: ["networking.k8s.io"]
-    resources: [ingresses/status]
-    verbs: [update]
-  - apiGroups: ["coordination.k8s.io"]
-    resources: [leases]
-    verbs: [get, list, watch, create, update, patch, delete]
-  - apiGroups: [""]
-    resources: [events]
-    verbs: [create, patch]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: {{ $gatewayIngressRoleName }}
-  namespace: {{ $namespace }}
-  labels:
-    {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: kura-gateway-ingress-nginx
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: {{ $gatewayIngressRoleName }}
-subjects:
-  - kind: ServiceAccount
-    name: {{ $gatewayIngressServiceAccountName }}
-    namespace: {{ $namespace }}
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: {{ $gatewayIngressClusterRoleName }}
-  labels:
-    {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: kura-gateway-ingress-nginx
-rules:
-  - apiGroups: [""]
-    resources: [nodes, namespaces]
-    verbs: [get, list, watch]
-  - apiGroups: ["networking.k8s.io"]
-    resources: [ingressclasses]
-    verbs: [get, list, watch]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: {{ $gatewayIngressClusterRoleName }}
-  labels:
-    {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: kura-gateway-ingress-nginx
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: {{ $gatewayIngressClusterRoleName }}
-subjects:
-  - kind: ServiceAccount
-    name: {{ $gatewayIngressServiceAccountName }}
-    namespace: {{ $namespace }}
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -345,7 +228,6 @@ spec:
             - --otlp-traces-endpoint={{ .Values.kuraController.telemetry.otlpTracesEndpoint }}
             {{- end }}
             - --deployment-environment={{ .Values.kuraController.telemetry.deploymentEnvironment | default "production" }}
-            - --gateway-service-account-name={{ $gatewayIngressServiceAccountName }}
           ports:
             - name: metrics
               containerPort: 8080
