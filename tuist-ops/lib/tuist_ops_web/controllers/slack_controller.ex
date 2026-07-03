@@ -158,8 +158,9 @@ defmodule TuistOpsWeb.SlackController do
             SlackClient.ephemeral(
               channel_id,
               actor_slack_id,
-              ":no_entry: A second human has to click Approve for this env. " <>
-                "(Production writes always require a second approver, even for engineers.)"
+              ":no_entry: Your Tailscale role can't self-approve elevations — " <>
+                "self-approval is limited to engineering roles (Owner, Admin, or Member). " <>
+                "Ask an Owner, Admin, or Member to click Approve."
             )
 
             send_resp(conn, 200, "")
@@ -177,8 +178,9 @@ defmodule TuistOpsWeb.SlackController do
             SlackClient.ephemeral(
               channel_id,
               actor_slack_id,
-              ":no_entry: Your Tailscale role doesn't allow approving this env. " <>
-                "Production approvals require an Owner or Admin role; engineers can only approve staging and canary."
+              ":no_entry: Your Tailscale role can't approve elevations. " <>
+                "Only engineering roles (Owner, Admin, or Member) can approve; " <>
+                "Auditor/Billing-admin and off-tailnet identities can't."
             )
 
             send_resp(conn, 200, "")
