@@ -603,6 +603,51 @@ struct GenerateAcceptanceTestAppWithSPMCTargetHeaders {
     }
 }
 
+struct GenerateAcceptanceTestAppWithSPMCTargetDuplicatePublicHeaders {
+    /// Regression coverage for SwiftPM C targets whose public headers contain duplicate basenames once
+    /// flattened into an Xcode framework's `Headers` directory. The local package mirrors nanopb's layout:
+    /// top-level wrapper public headers include nested module headers with the same filenames.
+    ///
+    /// Before the fix, both the wrapper and nested headers were marked Public, so Xcode failed with
+    /// "Multiple commands produce ... nanopb.framework/Headers/pb.h". After the fix, Tuist keeps only one
+    /// public header per framework destination while preserving the rest as project headers.
+    @Test(.withFixture("generated_app_with_spm_c_target_duplicate_public_headers"), .inTemporaryDirectory)
+    func app_with_spm_c_target_duplicate_public_headers() async throws {
+        let fixturePath = try fixtureDirectory()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+
+        let packageXcodeprojPath = try await TuistAcceptanceTest.xcodeprojPath(
+            in: fixturePath.appending(component: "Nanopb")
+        )
+        let xcodeproj = try XcodeProj(pathString: packageXcodeprojPath.pathString)
+        let target = try #require(xcodeproj.pbxproj.nativeTargets.first(where: { $0.name == "nanopb" }))
+        let headerFiles = target.buildPhases.compactMap { $0 as? PBXHeadersBuildPhase }.first?.files ?? []
+        let publicHeaderNames = headerFiles
+            .filter { ($0.settings?["ATTRIBUTES"]?.arrayValue ?? []).contains("Public") }
+            .compactMap { $0.file?.path }
+            .sorted()
+
+        #expect(publicHeaderNames == ["pb.h", "pb_common.h"])
+
+        try await CommandRunner().runAndWait(arguments: [
+            "/usr/bin/xcodebuild",
+            "build",
+            "-workspace",
+            fixturePath.appending(component: "App.xcworkspace").pathString,
+            "-scheme",
+            "App",
+            "-destination",
+            "platform=macOS",
+            "-derivedDataPath",
+            derivedDataPath.pathString,
+        ])
+    }
+}
+
 struct GenerateAcceptanceTestiOSAppWithMultiConfigs {
     @Test(.disabled(), .withFixture("generated_ios_app_with_multi_configs"), .inTemporaryDirectory)
     func ios_app_with_multi_configs() async throws {
