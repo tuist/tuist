@@ -429,7 +429,7 @@ macosFleet:
   # to enable EM replicate/push.
   tartKubelet:
     runnerCacheRoot: /var/lib/tuist-runner-cache
-    hostKuraVersion: "0.10.15"
+    hostKuraVersion: "0.11.0"
     emPeerURLTemplate: ""
   # Share the pre-ordered pool with runnersFleet (same prefix
   # below). Both MachineDeployments draw from one Scaleway-side
