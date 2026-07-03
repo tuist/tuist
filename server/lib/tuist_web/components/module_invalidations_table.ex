@@ -37,9 +37,7 @@ defmodule TuistWeb.Components.ModuleInvalidationsTable do
         <.why_split module={module} />
       </:col>
       <:col :let={module} label={dgettext("dashboard_cache", "Blast radius")}>
-        <.text_cell label={
-          if(is_nil(module.blast_radius), do: "—", else: Integer.to_string(module.blast_radius))
-        } />
+        <.text_cell label={Integer.to_string(module.blast_radius || 0)} />
       </:col>
     </.table>
     """
