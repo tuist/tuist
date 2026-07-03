@@ -377,6 +377,11 @@ func main() {
 		HostCPU:               tartKubeletHostCPU,
 		HostMemoryMB:          tartKubeletHostMemory,
 		MaxPods:               tartKubeletMaxPods,
+		// RunnerCacheRoot + HostKuraVersion feed the rendered host-kura
+		// install script; omitting them made a hostKuraVersion bump
+		// hash-invisible, so the drift loop never re-installed kura.
+		RunnerCacheRoot: tartKubeletRunnerCacheRoot,
+		HostKuraVersion: tartKubeletHostKuraVersion,
 	})
 	setupLog.Info("computed host config hash", "hash", hostConfigHash)
 
