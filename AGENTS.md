@@ -80,11 +80,10 @@ Avoid minimal PR descriptions that only restate the code diff. The goal is that 
 
 ## Review Guidance
 
-When reviewing changes, keep the relevant Blick review skills in mind:
+When reviewing changes, keep the relevant Blick review skills in mind based on the languages modified:
 
 - [Tuist Elixir review](.blick/skills/tuist-elixir-review/SKILL.md) for Elixir, Phoenix, Noora, and shared service changes.
-- [Tuist Swift review](.blick/skills/tuist-swift-review/SKILL.md) for Swift command-line changes.
-- [SwifterPM Swift review](swifterpm/.blick/skills/swifterpm-swift-review/SKILL.md) for SwifterPM changes.
+- [Tuist Swift review](.blick/skills/tuist-swift-review/SKILL.md) for Swift changes, including Tuist command-line and SwifterPM changes.
 
 These files are review context for Claude, Codex, and other local coding agents. Only report findings whose cited line appears in the diff.
 
