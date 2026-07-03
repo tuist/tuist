@@ -85,11 +85,6 @@
       }
     }
 
-    [data-part="module-invalidation-note"] {
-      padding: var(--noora-spacing-4) var(--noora-spacing-5) 0;
-      color: var(--noora-surface-label-secondary);
-      font-size: 12px;
-    }
   }
 }
 

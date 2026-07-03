@@ -598,12 +598,6 @@
           end
         }
       />
-      <p data-part="module-invalidation-note">
-        {dgettext(
-          "dashboard_cache",
-          "Blast radius is how many modules each one invalidates downstream when it changes — the core modularization signal. It is computed from dependency-graph edges sent by recent Tuist CLI versions; runs from older CLIs show —."
-        )}
-      </p>
     </.card_section>
     <div
       :if={@module_invalidations.ok? && Enum.empty?(@module_invalidations.result)}
