@@ -319,7 +319,7 @@ The env vars above only configure Tuist's github.com App. To integrate Tuist wit
 We provide a comprehensive Docker Compose configuration that includes all required dependencies for testing Tuist server on your local machine before deploying to your infrastructure:
 
 - PostgreSQL 15
-- ClickHouse 25 for analytics
+- ClickHouse 26.5 for analytics
 - ClickHouse Keeper for coordination
 - MinIO for S3-compatible storage
 - Kura for local self-hosted cache testing
@@ -355,6 +355,10 @@ We provide a comprehensive Docker Compose configuration that includes all requir
    ```
 
    On Apple Silicon, Docker Desktop automatically pulls the `linux/arm64` variants of the Tuist and dependency images. To force amd64 emulation for debugging, run Compose with `DOCKER_DEFAULT_PLATFORM=linux/amd64`.
+
+   The bundled compose file uses named Docker volumes for persistent data. If you replace them with host bind mounts,
+   create the host directories first and make them writable by the container users, especially the ClickHouse and
+   ClickHouse Keeper data directories.
 
 4. Access the server at http://localhost:8080
 
