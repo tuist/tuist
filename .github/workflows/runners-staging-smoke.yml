@@ -234,7 +234,7 @@ jobs:
       - name: Check out the fixture (tuist from the public repo, mastodon from the private benchmark repo)
         env:
           FIXTURE: ${{ inputs.fixture || 'tuist' }}
-          FIXTURE_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+          FIXTURE_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN || secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
         run: |
           set -euo pipefail
           if [ "$FIXTURE" = "mastodon" ]; then
