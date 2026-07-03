@@ -239,13 +239,19 @@ jobs:
           set -euo pipefail
           if [ "$FIXTURE" = "mastodon" ]; then
             # The Tuist-ified Mastodon iOS app lives in the private benchmark
-            # repo; TUIST_CLI_GITHUB_TOKEN reads private org repos (it checks
-            # out TuistCacheEE in CI). The fixture's fullHandle points at the
-            # production tuist/mastodon project, which does not exist on
-            # staging: rewrite it to tuist/tuist so OIDC auth and the
-            # host-Kura account routing match the tuist-fixture path.
-            git clone --depth 1 "https://x-access-token:${FIXTURE_TOKEN}@github.com/tuist/runners-benchmark.git" rb
-            mv rb/mastodon-tuist-ios fixture
+            # repo, which no workflow-accessible token can read (the repo
+            # token is repo-scoped and the org tokens 403 or fail auth). For
+            # bench runs the fixture tarball is staged on the Mac HOST and
+            # served on the vmnet bridge IP only (never the public
+            # interface), so the job fetches it with no credentials at all.
+            # The fixture's fullHandle points at the production
+            # tuist/mastodon project, which does not exist on staging:
+            # rewrite it to tuist/tuist so OIDC auth and host-Kura account
+            # routing match the tuist-fixture path.
+            curl -fsS -m 60 -o fixtures.tar.gz http://192.168.64.1:5201/mastodon-tuist-ios.tar.gz \
+              || { echo "::error::fixture tarball not staged on this host's bridge server (192.168.64.1:5201)"; exit 1; }
+            tar -xzf fixtures.tar.gz
+            mv mastodon-tuist-ios fixture
             sed -i '' 's#fullHandle: "tuist/mastodon"#fullHandle: "tuist/tuist"#' fixture/Tuist.swift
             grep fullHandle fixture/Tuist.swift
           else
