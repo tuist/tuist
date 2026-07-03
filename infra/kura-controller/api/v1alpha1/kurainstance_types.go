@@ -16,8 +16,20 @@ type KuraInstanceSpec struct {
 	// reconcileGRPCIngress), and PublicHost alone enables the gRPC Ingress.
 	// Retained for backward compatibility.
 	// See https://github.com/tuist/tuist/issues/11390.
-	GRPCPublicHost    string            `json:"grpcPublicHost,omitempty"`
-	IngressClassName  string            `json:"ingressClassName,omitempty"`
+	GRPCPublicHost   string `json:"grpcPublicHost,omitempty"`
+	IngressClassName string `json:"ingressClassName,omitempty"`
+
+	// PublicHostNetwork marks a region whose customer gateway is a host-network
+	// DaemonSet (bare-metal regions, which have no cloud LoadBalancer) rather
+	// than an LB-fronted controller. When true the controller publishes the
+	// account's PublicHost with a per-account DNSEndpoint targeting the box the
+	// account's pods run on, so each account resolves to its own box across a
+	// multi-box region (and the gateway stops feeding external-dns the ambiguous
+	// all-nodes address). On an LB region (false) DNS is sourced from the gateway
+	// Service/Ingress as before. This is the customer-plane analog of
+	// MeshPeerHostNetwork.
+	PublicHostNetwork bool `json:"publicHostNetwork,omitempty"`
+
 	PeerTLSSecretName string            `json:"peerTLSSecretName,omitempty"`
 	StorageClassName  string            `json:"storageClassName,omitempty"`
 	StorageSize       string            `json:"storageSize,omitempty"`
