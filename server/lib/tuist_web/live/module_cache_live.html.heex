@@ -509,7 +509,7 @@
     </.empty_card_section>
   </.card>
   <.card
-    title={dgettext("dashboard_cache", "Module invalidation")}
+    title={dgettext("dashboard_cache", "Modules")}
     icon="git_branch"
     data-part="module-invalidation"
   >
@@ -587,7 +587,7 @@
     >
       <.module_invalidations_table
         id="module-invalidations-table"
-        rows={@module_invalidations.result}
+        rows={Enum.take(@module_invalidations.result, 5)}
         row_navigate={
           fn module ->
             ~p"/#{@selected_project.account.name}/#{@selected_project.name}/module-cache/modules/#{module.name}"
