@@ -211,6 +211,11 @@ postgresql:
         memory: "8Gi"
     backup:
       destinationPath: s3://tuist-can-pg-backups/
+      # Canary is validated on the Barman Cloud Plugin (recovered 2026-07-04):
+      # kept enabled while staging/prod revert to in-tree, pending a fixed
+      # cutover procedure. See infra/cnpg/README.md.
+      plugin:
+        enabled: true
 
 processor:
   replicaCount: 1
