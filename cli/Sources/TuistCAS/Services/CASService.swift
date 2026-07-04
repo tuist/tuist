@@ -20,6 +20,7 @@
         private let dataCompressingService: DataCompressingServicing
         private let serverAuthenticationController: ServerAuthenticationControlling
         private let upload: Bool
+        private let prefetcher: CASPrefetcher?
 
         private var accountHandle: String? {
             fullHandle.split(separator: "/").first.map(String.init)
@@ -30,7 +31,8 @@
             serverURL: URL,
             cacheURLStore: CacheURLStoring,
             upload: Bool = true,
-            analyticsDatabase: CASAnalyticsDatabasing
+            analyticsDatabase: CASAnalyticsDatabasing,
+            prefetcher: CASPrefetcher? = nil
         ) {
             self.fullHandle = fullHandle
             self.serverURL = serverURL
@@ -42,6 +44,7 @@
             dataCompressingService = DataCompressingService()
             self.analyticsDatabase = analyticsDatabase
             serverAuthenticationController = ServerAuthenticationController()
+            self.prefetcher = prefetcher
         }
 
         init(
@@ -54,7 +57,8 @@
             dataCompressingService: DataCompressingServicing,
             analyticsDatabase: CASAnalyticsDatabasing,
             serverAuthenticationController: ServerAuthenticationControlling,
-            upload: Bool = true
+            upload: Bool = true,
+            prefetcher: CASPrefetcher? = nil
         ) {
             self.fullHandle = fullHandle
             self.serverURL = serverURL
@@ -66,6 +70,7 @@
             self.dataCompressingService = dataCompressingService
             self.serverAuthenticationController = serverAuthenticationController
             self.upload = upload
+            self.prefetcher = prefetcher
         }
 
         public func load(
@@ -88,15 +93,20 @@
             Logger.current.debug("CAS.load starting - casID: \(casID)")
 
             do {
-                let cacheURL = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
                 let fetchStart = ProcessInfo.processInfo.systemUptime
-                let compressedData = try await loadCacheCASService.loadCacheCAS(
-                    casId: casID,
-                    fullHandle: fullHandle,
-                    serverURL: cacheURL,
-                    authenticationURL: serverURL,
-                    serverAuthenticationController: serverAuthenticationController
-                )
+                let compressedData: Data
+                if let prefetched = await prefetcher?.take(casID: casID) {
+                    compressedData = prefetched
+                } else {
+                    let cacheURL = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
+                    compressedData = try await loadCacheCASService.loadCacheCAS(
+                        casId: casID,
+                        fullHandle: fullHandle,
+                        serverURL: cacheURL,
+                        authenticationURL: serverURL,
+                        serverAuthenticationController: serverAuthenticationController
+                    )
+                }
                 let transferDuration = ProcessInfo.processInfo.systemUptime - fetchStart
 
                 let decompressedData: Data

@@ -19,6 +19,7 @@
         private let analyticsDatabase: CASAnalyticsDatabasing
         private let serverAuthenticationController: ServerAuthenticationControlling
         private let upload: Bool
+        private let prefetcher: CASPrefetcher?
 
         private var accountHandle: String? {
             fullHandle.split(separator: "/").first.map(String.init)
@@ -33,7 +34,8 @@
             getCacheValueService: GetCacheValueServicing = GetCacheValueService(),
             fileSystem: FileSystem = FileSystem(),
             analyticsDatabase: CASAnalyticsDatabasing,
-            serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController()
+            serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
+            prefetcher: CASPrefetcher? = nil
         ) {
             self.fullHandle = fullHandle
             self.serverURL = serverURL
@@ -44,6 +46,7 @@
             self.fileSystem = fileSystem
             self.analyticsDatabase = analyticsDatabase
             self.serverAuthenticationController = serverAuthenticationController
+            self.prefetcher = prefetcher
         }
 
         public func putValue(
@@ -244,6 +247,13 @@
                             try analyticsDatabase.storeNode(key: nodeID, checksum: hexString.uppercased())
                         } catch {
                             Logger.current.error("Failed to store node mapping: \(error)")
+                        }
+
+                        // The compiler is about to load each referenced
+                        // artifact one by one; start downloading them now so
+                        // those loads become memory hits.
+                        if let prefetcher {
+                            await prefetcher.stage(casID: hexString)
                         }
                     }
 

@@ -3,6 +3,7 @@ import Foundation
 import GRPCCore
 import GRPCNIOTransportHTTP2
 import Path
+import TuistCache
 import TuistCAS
 import TuistCASAnalytics
 import TuistCore
@@ -69,6 +70,26 @@ struct CacheStartCommandService {
             let accountHandle = fullHandle.split(separator: "/").first.map(String.init)
             _ = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
 
+            // A key-value response names every artifact the compiler is about
+            // to load one by one; prefetching them concurrently as soon as the
+            // key resolves takes those loads off the build's critical path.
+            let prefetchLoadService = LoadCacheCASService()
+            let prefetchAuthenticationController = serverAuthenticationController
+            let prefetchCacheURLStore = cacheURLStore
+            let prefetcher = CASPrefetcher { casID in
+                let cacheURL = try await prefetchCacheURLStore.getCacheURL(
+                    for: serverURL,
+                    accountHandle: accountHandle
+                )
+                return try await prefetchLoadService.loadCacheCAS(
+                    casId: casID,
+                    fullHandle: fullHandle,
+                    serverURL: cacheURL,
+                    authenticationURL: serverURL,
+                    serverAuthenticationController: prefetchAuthenticationController
+                )
+            }
+
             let server = GRPCServer(
                 transport: .http2NIOPosix(
                     address: .unixDomainSocket(path: socketPath.pathString),
@@ -80,14 +101,16 @@ struct CacheStartCommandService {
                         serverURL: serverURL,
                         cacheURLStore: cacheURLStore,
                         upload: upload,
-                        analyticsDatabase: analyticsDatabase
+                        analyticsDatabase: analyticsDatabase,
+                        prefetcher: prefetcher
                     ),
                     CASService(
                         fullHandle: fullHandle,
                         serverURL: serverURL,
                         cacheURLStore: cacheURLStore,
                         upload: upload,
-                        analyticsDatabase: analyticsDatabase
+                        analyticsDatabase: analyticsDatabase,
+                        prefetcher: prefetcher
                     ),
                 ]
             )
