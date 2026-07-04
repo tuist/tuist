@@ -226,10 +226,27 @@ Deployment (release-prefixed as a subchart), a Service, and self-signed mTLS
 Certificates.
 
 **Cutover (per env):** with the plugin installed, flip
-`…backup.plugin.enabled` to `true` and deploy. This is an atomic change to the
-`Cluster` (drops `.spec.backup.barmanObjectStore`, adds `.spec.plugins`), so it
-triggers a rolling update + switchover — merge it in a low-traffic window like
-an operator bump.
+`…backup.plugin.enabled` to `true` **and set `…cnpg.primaryUpdateMethod:
+restart`** for the roll, then deploy. This is an atomic `Cluster` change (drops
+`.spec.backup.barmanObjectStore`, adds `.spec.plugins`) that recreates every
+instance to inject the plugin sidecar.
+
+**Do NOT cut over with the default `switchover` method.** The old primary has no
+sidecar yet, so it can't archive via the plugin, and CNPG's graceful switchover
+hangs indefinitely waiting for it to archive its final WAL — the operator wedges
+with no primary (this happened on canary 2026-07-04). `restart` recreates the
+primary *in place* instead, avoiding the handoff. Validated on staging, at the
+cost of a bounded **~3 min of write-downtime** while the primary pod recreates —
+so merge in a low-traffic window. Revert `primaryUpdateMethod` to the default
+(`switchover`) once the env is on the plugin, so future operator bumps keep the
+seconds-long switchover blip.
+
+**If the roll sticks anyway** (no primary, operator looping "switchover in
+progress"), recover with break-glass: force-remove the old primary and restart
+the operator — `kubectl delete pod <old-primary> --grace-period=0 --force` then
+`kubectl -n platform rollout restart deploy/platform-cloudnative-pg`. CNPG then
+promotes the caught-up sync standby, lossless (RPO 0 with quorum sync). Proven
+recovery.
 
 **Continuity invariant (verify before trusting it):** the plugin must keep
 writing to the SAME archive. `serverName` is pinned to the cluster name (the
