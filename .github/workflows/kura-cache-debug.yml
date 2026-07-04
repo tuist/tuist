@@ -155,3 +155,99 @@ jobs:
           else
             echo ".bazelrc.tuist was not written"
           fi
+
+  # Same diagnostics from the macOS fleet: dispatch stages the Scaleway PN
+  # NodePort URL (http://<node PN address>:30815) for macOS, so this job shows
+  # what the CLI does with it after the single-listener cutover.
+  bazel-cache-debug-macos:
+    name: Bazel Remote Cache Debug (macOS)
+    runs-on: tuist-macos
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "tuist"
+          working_directory: kura
+
+      - name: Inspect runner cache environment
+        run: |
+          if [ -n "${TUIST_CACHE_ENDPOINT:-}" ]; then
+            echo "TUIST_CACHE_ENDPOINT=${TUIST_CACHE_ENDPOINT}"
+          else
+            echo "TUIST_CACHE_ENDPOINT is UNSET (dispatch did not stage a runner-local cache endpoint)"
+          fi
+          echo "--- TUIST_* variable names visible to job steps ---"
+          env | grep -oE '^TUIST_[A-Z0-9_]+' | sort
+
+      - name: Probe candidate cache endpoints (unauthenticated)
+        run: |
+          probe() {
+            desc="$1"; url="$2"
+            echo "=== ${desc}: ${url} ==="
+            host=$(echo "$url" | sed -E 's#^[a-z]+://##; s#[:/].*$##')
+            dig +short +time=3 +tries=1 "$host" 2>/dev/null || echo "DNS: no resolution for ${host}"
+            curl -sS -o /dev/null -w 'HTTP/1.1 GET / -> %{http_code} (%{time_total}s)\n' \
+              --connect-timeout 5 --max-time 8 "$url/" || echo "HTTP/1.1 GET failed"
+            curl -sS -o /dev/null -w 'h2c GetCapabilities -> %{http_code} (%{time_total}s)\n' \
+              --connect-timeout 5 --max-time 8 \
+              --http2-prior-knowledge -X POST \
+              -H 'content-type: application/grpc' \
+              "$url/build.bazel.remote.execution.v2.Capabilities/GetCapabilities" \
+              || echo "h2c GetCapabilities failed"
+            echo
+          }
+
+          if [ -n "${TUIST_CACHE_ENDPOINT:-}" ]; then
+            probe "dispatch-staged endpoint" "${TUIST_CACHE_ENDPOINT%/}"
+          fi
+          # The PN NodePort the macOS fleet is expected to use (also probed
+          # explicitly in case the staged value differs).
+          probe "Scaleway PN NodePort" "http://172.16.0.2:30815"
+          # The public ingress the CLI falls back to without an override.
+          probe "public ingress" "https://tuist-eu-central-1.kura.tuist.dev"
+
+      - name: Authenticate and run tuist bazel setup
+        run: |
+          tuist auth login
+          tuist bazel setup
+
+      - name: Dump Tuist session logs (sanitized)
+        if: always()
+        run: |
+          sessions_dir="$HOME/.local/state/tuist/sessions"
+          if [ ! -d "$sessions_dir" ]; then
+            echo "No session logs at $sessions_dir"
+            exit 0
+          fi
+          sanitize() {
+            sed -E \
+              -e 's/[Bb]earer[[:space:]]+[A-Za-z0-9._~+/=-]+/Bearer [REDACTED]/g' \
+              -e 's/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/[REDACTED_JWT]/g' \
+              -e 's/tuist_[A-Za-z0-9_-]{16,}/[REDACTED_TOKEN]/g' \
+              -e 's/[A-Fa-f0-9]{48,}/[REDACTED_HEX]/g'
+          }
+          for session in $(ls -t "$sessions_dir" | head -2); do
+            log="$sessions_dir/$session/logs.txt"
+            echo "::group::session $session"
+            if [ -f "$log" ]; then
+              sanitize <"$log"
+            else
+              echo "(no logs.txt)"
+            fi
+            echo "::endgroup::"
+          done
+
+      - name: Show generated .bazelrc.tuist (if any)
+        if: always()
+        run: |
+          if [ -f .bazelrc.tuist ]; then
+            cat .bazelrc.tuist
+          else
+            echo ".bazelrc.tuist was not written"
+          fi
