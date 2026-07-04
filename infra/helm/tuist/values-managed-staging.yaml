@@ -207,6 +207,11 @@ postgresql:
   mode: cnpg
   cnpg:
     instances: 2
+    # TEST (staging only): recreate the primary in place instead of switching
+    # over for the in-tree -> Barman Cloud Plugin cutover roll. Switchover
+    # deadlocked on canary — the old primary can't archive via the plugin
+    # before it gets its own sidecar, so CNPG's graceful switchover hangs.
+    primaryUpdateMethod: restart
     # PostgreSQL config sized against the 4 GiB memory limit below. CNPG
     # otherwise leaves Postgres on its 128 MiB shared_buffers default;
     # mirror the production tuning shape so canary catches any regression
