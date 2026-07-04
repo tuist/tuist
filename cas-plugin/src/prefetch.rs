@@ -130,4 +130,37 @@ impl Prefetcher {
             let _ = worker.join();
         }
     }
+
+    /// Drains for at most `timeout`, then stops workers and returns whatever
+    /// is still queued so the caller can persist it. Keeps process exit off
+    /// the build's critical path: a compiler frontend spends at most the
+    /// timeout here instead of flushing its whole upload backlog.
+    pub fn drain_stop_timeout(&self, timeout: std::time::Duration) -> Vec<Vec<u8>> {
+        self.draining.store(true, Ordering::Release);
+        self.cvar.notify_all();
+        let deadline = std::time::Instant::now() + timeout;
+        {
+            let mut queue = self.queue.lock().unwrap();
+            loop {
+                if queue.is_empty() && self.inflight.load(Ordering::Acquire) == 0 {
+                    break;
+                }
+                let now = std::time::Instant::now();
+                if now >= deadline {
+                    break;
+                }
+                let (q, _timed_out) = self.cvar.wait_timeout(queue, deadline - now).unwrap();
+                queue = q;
+            }
+        }
+        // Stop workers regardless; each finishes its current item, so join is
+        // bounded by one in-flight operation.
+        self.shutdown.store(true, Ordering::Release);
+        self.cvar.notify_all();
+        let workers = std::mem::take(&mut *self.workers.lock().unwrap());
+        for worker in workers {
+            let _ = worker.join();
+        }
+        self.queue.lock().unwrap().drain(..).collect()
+    }
 }

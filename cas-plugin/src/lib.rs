@@ -14,7 +14,7 @@ mod upstream;
 
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use prefetch::Prefetcher;
 use remote::{OpStats, Remote, RemoteConfig};
@@ -87,10 +87,37 @@ struct OptionsState {
     options: Vec<(CString, CString)>,
 }
 
+// Uploader queue items carry a one-byte tag so entries and node walks share
+// one pool (and therefore one bounded drain and one spool format).
+const UPLOAD_TAG_NODE: u8 = 1;
+const UPLOAD_TAG_ENTRY: u8 = 2;
+
+fn tagged_node(digest: &[u8]) -> Vec<u8> {
+    let mut item = Vec::with_capacity(1 + digest.len());
+    item.push(UPLOAD_TAG_NODE);
+    item.extend_from_slice(digest);
+    item
+}
+
+fn tagged_entry(key: &[u8], value_digest: &[u8]) -> Vec<u8> {
+    let mut item = Vec::with_capacity(3 + key.len() + value_digest.len());
+    item.push(UPLOAD_TAG_ENTRY);
+    item.extend_from_slice(&(key.len() as u16).to_be_bytes());
+    item.extend_from_slice(key);
+    item.extend_from_slice(value_digest);
+    item
+}
+
 struct CasState {
     up: &'static Upstream,
     cas: llcas_cas_t,
     remote: Option<Arc<Remote>>,
+    // Diagnostic experiment switch: with TUIST_CAS_READONLY set, nothing is
+    // published (no entry or node uploads); the read path is unchanged.
+    readonly: bool,
+    created_at: std::time::Instant,
+    cas_dir: Option<std::path::PathBuf>,
+    sweeper: Mutex<Option<std::thread::JoinHandle<()>>>,
     prefetcher: Prefetcher,
     // Uploads value-object graphs on actioncache_put. Deliberately NOT hooked
     // on store_object: the compiler stores input ingests and scan trees every
@@ -113,6 +140,22 @@ struct CasState {
     stats_mat_store: OpStats,
     stats_mat_store_bytes: AtomicU64,
     stats_local_put_ms: AtomicU64,
+    stats_upload_walk_loads: AtomicU64,
+    stats_prefetch_walk_loads: AtomicU64,
+}
+
+/// Process CPU (user+system) in milliseconds, for attributing wall-time gaps
+/// to actual compute per process class.
+fn process_cpu_ms() -> u64 {
+    unsafe {
+        let mut usage: libc::rusage = std::mem::zeroed();
+        if libc::getrusage(libc::RUSAGE_SELF, &mut usage) != 0 {
+            return 0;
+        }
+        let user = usage.ru_utime.tv_sec as u64 * 1000 + usage.ru_utime.tv_usec as u64 / 1000;
+        let system = usage.ru_stime.tv_sec as u64 * 1000 + usage.ru_stime.tv_usec as u64 / 1000;
+        user + system
+    }
 }
 
 unsafe fn cas_state<'a>(cas: llcas_cas_t) -> &'a CasState {
@@ -302,10 +345,19 @@ pub unsafe extern "C" fn llcas_cas_create(
 
     let remote = RemoteConfig::from_env().map(Remote::new);
     let has_remote = remote.is_some();
+    let cas_dir = state
+        .ondisk_path
+        .as_ref()
+        .and_then(|p| p.to_str().ok())
+        .map(std::path::PathBuf::from);
     let state_ptr = Box::into_raw(Box::new(CasState {
         up,
         cas: upstream_cas,
         remote,
+        readonly: std::env::var("TUIST_CAS_READONLY").is_ok(),
+        created_at: std::time::Instant::now(),
+        cas_dir,
+        sweeper: Mutex::new(None),
         prefetcher: Prefetcher::new(),
         uploader: Prefetcher::new(),
         stats_remote_entry_hits: AtomicU64::new(0),
@@ -317,17 +369,86 @@ pub unsafe extern "C" fn llcas_cas_create(
         stats_mat_store: OpStats::default(),
         stats_mat_store_bytes: AtomicU64::new(0),
         stats_local_put_ms: AtomicU64::new(0),
+        stats_upload_walk_loads: AtomicU64::new(0),
+        stats_prefetch_walk_loads: AtomicU64::new(0),
     }));
     if has_remote {
         let cas_addr = state_ptr as usize;
         (*state_ptr).prefetcher.configure(Prefetcher::worker_count(), move |digest| {
             prefetch_process(cas_addr, digest);
         });
-        (*state_ptr).uploader.configure(Prefetcher::worker_count(), move |digest| {
-            upload_process(cas_addr, digest);
+        (*state_ptr).uploader.configure(Prefetcher::worker_count(), move |item| {
+            upload_process(cas_addr, item);
         });
+        if (*state_ptr).cas_dir.is_some() {
+            *(*state_ptr).sweeper.lock().unwrap() =
+                Some(std::thread::spawn(move || sweep_spool(cas_addr)));
+        }
     }
     state_ptr as llcas_cas_t
+}
+
+fn spool_dir(state: &CasState) -> Option<std::path::PathBuf> {
+    state.cas_dir.as_ref().map(|dir| dir.join("tuist-spool"))
+}
+
+/// Requeues upload work left behind by earlier processes' bounded drains.
+/// Every plugin instance with a remote sweeps once at creation; files are
+/// claimed by rename so concurrent sweepers do not duplicate work.
+fn sweep_spool(cas_addr: usize) {
+    let state = unsafe { cas_state(cas_addr as llcas_cas_t) };
+    let Some(dir) = spool_dir(state) else { return };
+    let Ok(entries) = std::fs::read_dir(&dir) else { return };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else { continue };
+        if name.contains(".claim-") {
+            continue;
+        }
+        let claimed = dir.join(format!("{name}.claim-{}", std::process::id()));
+        if std::fs::rename(&path, &claimed).is_err() {
+            continue;
+        }
+        if let Ok(bytes) = std::fs::read(&claimed) {
+            let mut offset = 0usize;
+            while bytes.len() >= offset + 4 {
+                let len = u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap()) as usize;
+                offset += 4;
+                if bytes.len() < offset + len {
+                    break;
+                }
+                state.uploader.enqueue(bytes[offset..offset + len].to_vec());
+                offset += len;
+            }
+        }
+        let _ = std::fs::remove_file(&claimed);
+    }
+}
+
+fn write_spool(state: &CasState, leftovers: &[Vec<u8>]) -> usize {
+    if leftovers.is_empty() {
+        return 0;
+    }
+    let Some(dir) = spool_dir(state) else { return 0 };
+    if std::fs::create_dir_all(&dir).is_err() {
+        return 0;
+    }
+    static SPOOL_SEQ: AtomicU64 = AtomicU64::new(0);
+    let name = format!(
+        "{}-{}",
+        std::process::id(),
+        SPOOL_SEQ.fetch_add(1, Ordering::Relaxed)
+    );
+    let mut body = Vec::new();
+    for item in leftovers {
+        body.extend_from_slice(&(item.len() as u32).to_le_bytes());
+        body.extend_from_slice(item);
+    }
+    match std::fs::write(dir.join(name), body) {
+        Ok(()) => leftovers.len(),
+        Err(_) => 0,
+    }
 }
 
 #[no_mangle]
@@ -340,16 +461,30 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
         // Workers reference this state; join them before freeing anything.
         // Prefetches are droppable; queued uploads must flush.
         let state = &*state_ptr;
+        // The sweeper enqueues into the uploader; join it before draining.
+        if let Some(sweeper) = state.sweeper.lock().unwrap().take() {
+            let _ = sweeper.join();
+        }
         state.prefetcher.stop();
-        // Time spent blocking process exit on upload flushing: this lands on
-        // the build's critical path when the process is a compiler frontend.
+        // Bounded drain keeps process exit off the build's critical path;
+        // whatever is still queued is spooled for later processes to upload.
+        let drain_budget = std::env::var("TUIST_CAS_DRAIN_MS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(50);
         let drain_started = std::time::Instant::now();
-        state.uploader.drain_stop();
+        let leftovers = state
+            .uploader
+            .drain_stop_timeout(std::time::Duration::from_millis(drain_budget));
+        let spooled = write_spool(state, &leftovers);
         if let Some(remote) = &state.remote {
-            remote.drain();
             let drain_ms = drain_started.elapsed().as_millis();
             log_line(&format!(
-                "dispose: drain={drain_ms}ms remote entry hits={} node hits={} misses={} prefetched={} demand_wait={}ms | gets {} | posts {}",
+                "dispose: drain={drain_ms}ms spooled={spooled} cpu={}ms life={}ms walks up={} pf={} remote entry hits={} node hits={} misses={} prefetched={} demand_wait={}ms | gets {} | posts {}",
+                process_cpu_ms(),
+                state.created_at.elapsed().as_millis(),
+                state.stats_upload_walk_loads.load(Ordering::Relaxed),
+                state.stats_prefetch_walk_loads.load(Ordering::Relaxed),
                 state.stats_remote_entry_hits.load(Ordering::Relaxed),
                 state.stats_remote_node_hits.load(Ordering::Relaxed),
                 state.stats_remote_misses.load(Ordering::Relaxed),
@@ -365,7 +500,9 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
             || state.stats_mat_store.count.load(Ordering::Relaxed) > 0
         {
             log_line(&format!(
-                "ingest: client_store {} bytes={} | mat_store {} bytes={} | local_put={}ms",
+                "ingest: cpu={}ms life={}ms client_store {} bytes={} | mat_store {} bytes={} | local_put={}ms",
+                process_cpu_ms(),
+                state.created_at.elapsed().as_millis(),
                 state.stats_client_store.summary(),
                 state.stats_client_store_bytes.load(Ordering::Relaxed),
                 state.stats_mat_store.summary(),
@@ -632,6 +769,7 @@ unsafe fn materialize_node(state: &CasState, digest: &[u8]) -> Result<Option<Vec
 fn prefetch_process(cas_addr: usize, digest: Vec<u8>) {
     unsafe {
         let state = cas_state(cas_addr as llcas_cas_t);
+        state.stats_prefetch_walk_loads.fetch_add(1, Ordering::Relaxed);
         let digest_t = llcas_digest_t { data: digest.as_ptr(), size: digest.len() };
         let mut id = llcas_objectid_t { opaque: 0 };
         let mut id_error: *mut c_char = std::ptr::null_mut();
@@ -670,6 +808,62 @@ fn prefetch_process(cas_addr: usize, digest: Vec<u8>) {
     }
 }
 
+/// Materializes a node and, when it has children, fetches the missing ones in
+/// one bounded parallel wave before returning. A read-through consumer needs
+/// the whole value graph immediately, so waiting on a parallel wave costs
+/// max-of-children latency where demand-driven loading would pay the sum;
+/// grandchildren go to the background prefetcher.
+unsafe fn materialize_tree(state: &CasState, digest: &[u8]) -> Result<bool, String> {
+    let children = match materialize_node(state, digest)? {
+        Some(children) => children,
+        None => return Ok(false),
+    };
+    let missing: Vec<Vec<u8>> = children
+        .into_iter()
+        .filter(|child| {
+            let digest_t = llcas_digest_t { data: child.as_ptr(), size: child.len() };
+            let mut id = llcas_objectid_t { opaque: 0 };
+            let mut error: *mut c_char = std::ptr::null_mut();
+            if (state.up.llcas_cas_get_objectid)(state.cas, digest_t, &mut id, &mut error) {
+                if !error.is_null() {
+                    (state.up.llcas_string_dispose)(error);
+                }
+                return false;
+            }
+            let mut check_error: *mut c_char = std::ptr::null_mut();
+            let result = (state.up.llcas_cas_contains_object)(state.cas, id, false, &mut check_error);
+            if !check_error.is_null() {
+                (state.up.llcas_string_dispose)(check_error);
+            }
+            result != LLCAS_LOOKUP_RESULT_SUCCESS
+        })
+        .collect();
+    if missing.is_empty() {
+        return Ok(true);
+    }
+    let state_addr = state as *const CasState as usize;
+    let workers = missing.len().min(16);
+    let queue = Mutex::new(missing.into_iter());
+    std::thread::scope(|scope| {
+        for _ in 0..workers {
+            scope.spawn(|| {
+                let state = &*(state_addr as *const CasState);
+                loop {
+                    let Some(child) = queue.lock().unwrap().next() else { break };
+                    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        if let Ok(Some(grandchildren)) = materialize_node(state, &child) {
+                            for grandchild in grandchildren {
+                                state.prefetcher.enqueue(grandchild);
+                            }
+                        }
+                    }));
+                }
+            });
+        }
+    });
+    Ok(true)
+}
+
 unsafe fn load_object_impl(
     state: &CasState,
     id: llcas_objectid_t,
@@ -688,17 +882,14 @@ unsafe fn load_object_impl(
 
     let started = std::time::Instant::now();
     let digest = digest_bytes(state, id);
-    let outcome = match materialize_node(state, &digest) {
-        Ok(Some(child_digests)) => {
-            for child in child_digests {
-                state.prefetcher.enqueue(child);
-            }
+    let outcome = match materialize_tree(state, &digest) {
+        Ok(true) => {
             let mut retry_error: *mut c_char = std::ptr::null_mut();
             let result = (state.up.llcas_cas_load_object)(state.cas, id, loaded, &mut retry_error);
             adopt_error(state.up, retry_error, error);
             result
         }
-        Ok(None) => LLCAS_LOOKUP_RESULT_NOTFOUND,
+        Ok(false) => LLCAS_LOOKUP_RESULT_NOTFOUND,
         Err(message) => {
             set_error(error, &message);
             LLCAS_LOOKUP_RESULT_ERROR
@@ -745,23 +936,20 @@ pub unsafe extern "C" fn llcas_cas_load_object_async(
     }
 
     let _ = ours_cancel_token(cancel_tok);
-    let cas_addr = cas as usize;
-    let ctx_addr = ctx_cb as usize;
-    std::thread::spawn(move || {
-        let state = cas_state(cas_addr as llcas_cas_t);
-        let mut loaded = llcas_loaded_object_t { opaque: 0 };
-        let mut error: *mut c_char = std::ptr::null_mut();
-        // The callback must fire exactly once even if the impl panics, or the
-        // build system waits forever.
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            load_object_impl(state, id, &mut loaded, &mut error)
-        }))
-        .unwrap_or_else(|_| {
-            set_error(&mut error, "tuist-cas-plugin: panic during load");
-            LLCAS_LOOKUP_RESULT_ERROR
-        });
-        callback(ctx_addr as *mut c_void, result, loaded, error);
+    // Answered on the caller's thread: the demand fetch is a few ms against a
+    // near cache, and a thread hop only adds scheduling latency to a build
+    // pipeline that measures as mostly serial. The callback must fire exactly
+    // once even if the impl panics, or the build system waits forever.
+    let mut loaded = llcas_loaded_object_t { opaque: 0 };
+    let mut error: *mut c_char = std::ptr::null_mut();
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        load_object_impl(state, id, &mut loaded, &mut error)
+    }))
+    .unwrap_or_else(|_| {
+        set_error(&mut error, "tuist-cas-plugin: panic during load");
+        LLCAS_LOOKUP_RESULT_ERROR
     });
+    callback(ctx_cb, result, loaded, error);
 }
 
 #[no_mangle]
@@ -845,15 +1033,13 @@ unsafe fn actioncache_get_impl(
     };
     state.stats_remote_entry_hits.fetch_add(1, Ordering::Relaxed);
 
-    // Materialize the value object, then let the prefetcher walk the ref
-    // graph in the background so frontend demand loads land locally.
-    match materialize_node(state, &value_digest) {
-        Ok(Some(child_digests)) => {
-            for child in child_digests {
-                state.prefetcher.enqueue(child);
-            }
-        }
-        Ok(None) => return LLCAS_LOOKUP_RESULT_NOTFOUND,
+    // Materialize the value object and its children in one parallel wave:
+    // the caller is about to demand every output in the graph, and pulling
+    // them one demand-load at a time is what stretched frontend lifetimes
+    // ~10x over the floor. Deeper levels go to the background prefetcher.
+    match materialize_tree(state, &value_digest) {
+        Ok(true) => {}
+        Ok(false) => return LLCAS_LOOKUP_RESULT_NOTFOUND,
         Err(message) => {
             set_error(error, &message);
             return LLCAS_LOOKUP_RESULT_ERROR;
@@ -928,40 +1114,53 @@ pub unsafe extern "C" fn llcas_actioncache_get_for_digest_async(
     }
 
     let _ = ours_cancel_token(cancel_tok);
-    let cas_addr = cas as usize;
-    let ctx_addr = ctx_cb as usize;
-    std::thread::spawn(move || {
-        let state = cas_state(cas_addr as llcas_cas_t);
-        let mut value = llcas_objectid_t { opaque: 0 };
-        let mut error: *mut c_char = std::ptr::null_mut();
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            actioncache_get_impl(state, &key_bytes, globally, &mut value, &mut error)
-        }))
-        .unwrap_or_else(|_| {
-            set_error(&mut error, "tuist-cas-plugin: panic during cache query");
-            LLCAS_LOOKUP_RESULT_ERROR
-        });
-        callback(ctx_addr as *mut c_void, result, value, error);
+    // Answered on the caller's thread; see llcas_cas_load_object_async.
+    let mut value = llcas_objectid_t { opaque: 0 };
+    let mut error: *mut c_char = std::ptr::null_mut();
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        actioncache_get_impl(state, &key_bytes, globally, &mut value, &mut error)
+    }))
+    .unwrap_or_else(|_| {
+        set_error(&mut error, "tuist-cas-plugin: panic during cache query");
+        LLCAS_LOOKUP_RESULT_ERROR
     });
+    callback(ctx_cb, result, value, error);
 }
 
 unsafe fn actioncache_put_remote(state: &CasState, key: &[u8], value: llcas_objectid_t) {
-    if let Some(remote) = &state.remote {
+    if state.remote.is_some() && !state.readonly {
         let value_digest = digest_bytes(state, value);
         // Upload the value's object graph, then publish the entry. Ordering
         // is per-process best effort: a reader seeing the entry before the
         // graph lands degrades to a cache miss.
-        state.uploader.enqueue(value_digest.clone());
-        remote.enqueue_entry(key, &value_digest);
+        state.uploader.enqueue(tagged_node(&value_digest));
+        state.uploader.enqueue(tagged_entry(key, &value_digest));
     }
 }
 
-/// Uploader worker: pushes one locally stored node to the remote and queues
-/// its children, walking the value graph produced by an actioncache_put.
-fn upload_process(cas_addr: usize, digest: Vec<u8>) {
+/// Uploader worker: dispatches one tagged item. Node items push a locally
+/// stored node to the remote and queue its children, walking the value graph
+/// produced by an actioncache_put; entry items publish key -> value digest.
+fn upload_process(cas_addr: usize, item: Vec<u8>) {
     unsafe {
         let state = cas_state(cas_addr as llcas_cas_t);
         let Some(remote) = &state.remote else { return };
+        let Some((&tag, payload)) = item.split_first() else { return };
+        if tag == UPLOAD_TAG_ENTRY {
+            if payload.len() < 2 {
+                return;
+            }
+            let key_len = u16::from_be_bytes([payload[0], payload[1]]) as usize;
+            if payload.len() < 2 + key_len {
+                return;
+            }
+            let key = &payload[2..2 + key_len];
+            let value_digest = &payload[2 + key_len..];
+            remote.upload_entry(key, value_digest);
+            return;
+        }
+        let digest = payload;
+        state.stats_upload_walk_loads.fetch_add(1, Ordering::Relaxed);
         let digest_t = llcas_digest_t { data: digest.as_ptr(), size: digest.len() };
         let mut id = llcas_objectid_t { opaque: 0 };
         let mut id_error: *mut c_char = std::ptr::null_mut();
@@ -981,7 +1180,7 @@ fn upload_process(cas_addr: usize, digest: Vec<u8>) {
             return;
         }
         let data = (state.up.llcas_loaded_object_get_data)(state.cas, loaded);
-        let payload = std::slice::from_raw_parts(data.data as *const u8, data.size);
+        let node_data = std::slice::from_raw_parts(data.data as *const u8, data.size);
         let refs = (state.up.llcas_loaded_object_get_refs)(state.cas, loaded);
         let count = (state.up.llcas_object_refs_get_count)(state.cas, refs);
         let mut ref_digests = Vec::with_capacity(count);
@@ -989,9 +1188,9 @@ fn upload_process(cas_addr: usize, digest: Vec<u8>) {
             let child = (state.up.llcas_object_refs_get_id)(state.cas, refs, index);
             ref_digests.push(digest_bytes(state, child));
         }
-        remote.upload_node(&digest, &ref_digests, payload);
+        remote.upload_node(digest, &ref_digests, node_data);
         for child in ref_digests {
-            state.uploader.enqueue(child);
+            state.uploader.enqueue(tagged_node(&child));
         }
     }
 }

@@ -8,7 +8,6 @@
 
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -67,18 +66,9 @@ pub struct Node {
     pub data: Vec<u8>,
 }
 
-enum Job {
-    UploadEntry { id: String, value_digest: Vec<u8> },
-}
-
 pub struct Remote {
     config: RemoteConfig,
     agent: ureq::Agent,
-    tx: Mutex<Option<mpsc::Sender<Job>>>,
-    // Held until the first entry upload; workers spawn lazily so processes
-    // that never publish entries skip the pool entirely.
-    pending_rx: Mutex<Option<mpsc::Receiver<Job>>>,
-    workers: Mutex<Vec<std::thread::JoinHandle<()>>>,
     uploaded: Mutex<HashSet<String>>,
     pub get_stats: OpStats,
     pub post_stats: OpStats,
@@ -99,38 +89,13 @@ impl Remote {
             .timeout(Duration::from_secs(120))
             .max_idle_connections_per_host(64)
             .build();
-        let (tx, rx) = mpsc::channel::<Job>();
         Arc::new(Self {
             config,
             agent,
-            tx: Mutex::new(Some(tx)),
-            pending_rx: Mutex::new(Some(rx)),
-            workers: Mutex::new(Vec::new()),
             uploaded: Mutex::new(HashSet::new()),
             get_stats: OpStats::default(),
             post_stats: OpStats::default(),
         })
-    }
-
-    fn ensure_workers(&self) {
-        let Some(rx) = self.pending_rx.lock().unwrap().take() else { return };
-        let rx = Arc::new(Mutex::new(rx));
-        let mut workers = self.workers.lock().unwrap();
-        // Entry bodies are digest-sized; a few workers suffice. drain() joins
-        // these before the owning CasState is freed.
-        for _ in 0..self.config.pool.clamp(1, 4) {
-            let rx = Arc::clone(&rx);
-            let this: &'static Remote = unsafe { &*(self as *const Remote) };
-            workers.push(std::thread::spawn(move || loop {
-                let job = { rx.lock().unwrap().recv() };
-                match job {
-                    Ok(Job::UploadEntry { id, value_digest }) => {
-                        let _ = this.put_artifact(&id, &value_digest);
-                    }
-                    Err(_) => break,
-                }
-            }));
-        }
     }
 
     fn url(&self, id: &str) -> String {
@@ -222,30 +187,14 @@ impl Remote {
                 return true;
             }
         }
-        let frame = zstd::stream::encode_all(&encode_frame(refs, data)[..], 3).unwrap_or_default();
+        let frame = zstd::stream::encode_all(&encode_frame(refs, data)[..], 1).unwrap_or_default();
         self.put_artifact(&id, &frame).is_ok()
     }
 
-    pub fn enqueue_entry(&self, key_digest: &[u8], value_digest: &[u8]) {
+    /// Uploads one action-cache entry synchronously (dedup by artifact id).
+    pub fn upload_entry(&self, key_digest: &[u8], value_digest: &[u8]) -> bool {
         let id = format!("tcp0-v-{}", hex(key_digest));
-        self.ensure_workers();
-        if let Some(tx) = self.tx.lock().unwrap().as_ref() {
-            let _ = tx.send(Job::UploadEntry {
-                id,
-                value_digest: value_digest.to_vec(),
-            });
-        }
-    }
-
-    /// Blocks until all queued uploads are flushed. Called from cas_dispose so
-    /// short-lived compiler processes do not drop pending writes.
-    pub fn drain(&self) {
-        let tx = self.tx.lock().unwrap().take();
-        drop(tx);
-        let workers = std::mem::take(&mut *self.workers.lock().unwrap());
-        for worker in workers {
-            let _ = worker.join();
-        }
+        self.put_artifact(&id, value_digest).is_ok()
     }
 }
 
