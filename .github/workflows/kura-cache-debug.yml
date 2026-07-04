@@ -15,6 +15,13 @@ name: Kura Cache Debug
 
 on:
   workflow_dispatch: {}
+  # Push trigger for iteration: GitHub doesn't index a branch-only workflow
+  # for workflow_dispatch right away, so run on pushes to the debug branch.
+  push:
+    branches:
+      - tuist-runners-grpc
+    paths:
+      - .github/workflows/kura-cache-debug.yml
 
 permissions:
   contents: read
