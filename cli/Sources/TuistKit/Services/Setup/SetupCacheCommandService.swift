@@ -106,6 +106,19 @@ struct SetupCacheCommandService {
             environmentVariables["TUIST_CACHE_ENDPOINT"] = cacheEndpoint
         }
 
+        // Forward the HTTP transport tuning knobs for the same reason: the
+        // daemon owns the CAS hot path, so tuning set in the caller's shell
+        // must reach it or it silently applies only to the CLI process.
+        for key in [
+            "TUIST_HTTP_TIMEOUT_INTERVAL_FOR_REQUEST",
+            "TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE",
+            "TUIST_HTTP_MAXIMUM_CONNECTIONS_PER_HOST",
+        ] {
+            if let value = Environment.current.variables[key] {
+                environmentVariables[key] = value
+            }
+        }
+
         let label = Environment.current.cacheLaunchAgentLabel(for: fullHandle)
 
         try await launchAgentService.setupLaunchAgent(
