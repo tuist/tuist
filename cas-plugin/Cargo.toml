@@ -1,0 +1,17 @@
+[package]
+name = "tuist-cas-plugin"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "tuist_cas_plugin"
+crate-type = ["cdylib"]
+
+[dependencies]
+libloading = "0.8"
+zstd = "0.13"
+ureq = "2"
+
+[profile.release]
+opt-level = 2
+lto = "thin"
