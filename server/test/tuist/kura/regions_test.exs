@@ -286,8 +286,17 @@ defmodule Tuist.Kura.RegionsTest do
       refute Regions.node_port_data_plane?(nil)
     end
 
-    test "public regions and nil serve no runner platform" do
-      refute Regions.serves_runner_platform?(Regions.get("eu-central"), :linux)
+    test "eu-central serves linux fleets as the public in-cluster fallback" do
+      eu_central = Regions.get("eu-central")
+
+      assert eu_central.runner_platforms == [:linux]
+      assert Regions.serves_runner_platform?(eu_central, :linux)
+      refute Regions.serves_runner_platform?(eu_central, :macos)
+    end
+
+    test "undeclared public regions and nil serve no runner platform" do
+      refute Regions.serves_runner_platform?(Regions.get("us-east"), :linux)
+      refute Regions.serves_runner_platform?(Regions.get("us-west"), :linux)
       refute Regions.serves_runner_platform?(Regions.get("local-controller"), :macos)
       refute Regions.serves_runner_platform?(nil, :linux)
     end

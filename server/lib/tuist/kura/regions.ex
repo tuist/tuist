@@ -51,6 +51,13 @@ defmodule Tuist.Kura.Regions do
   # controller's peerPort). Self-hosted nodes dial the public peer host here.
   @peer_port 7443
   @managed_region_storage_class "hcloud-volumes"
+  # In-cluster Service DNS form of a region's per-account instance. Port
+  # 4000 co-hosts the HTTP cache API and REAPI gRPC (h2c) on one Kura
+  # listener. Private regions dispatch it to runner fleets directly;
+  # public regions expose it only through the runner-cache dispatch
+  # fallback (`Tuist.Kura.runner_cache_endpoint_url/2`) — it is never
+  # CLI-facing (developer machines can't resolve cluster DNS).
+  @in_cluster_url_template "http://{instance}.kura.svc.cluster.local:4000"
   # The guaranteed egress floor an enterprise tenant reserves on a shared
   # bare-metal box, requested as the tuist.dev/egress-mbps extended resource the
   # scheduler bin-packs against the node's budget. Uniform across regions — a
@@ -124,6 +131,17 @@ defmodule Tuist.Kura.Regions do
       gateway: :host_network,
       replicas: 2,
       storage_size: "50Gi",
+      # Runner-cache dispatch fallback: when an account has no private
+      # runner-cache node serving a platform, dispatch may hand fleets of
+      # these platforms this region's per-account instance over in-cluster
+      # Service DNS. Linux runner pools are kata Pods on the cluster CNI in
+      # every environment that exposes this region, so the URL resolves and
+      # routes for them; the public ingress does NOT (its host is a cluster
+      # node IP, which the runner pods' egress `ipBlock` rules never match
+      # under Cilium). macOS is deliberately absent: the Tart VMs sit on the
+      # Scaleway Private Network, not the cluster network, and are served by
+      # `scw-fr-par-runners` instead.
+      runner_platforms: [:linux],
       # Egress governance on the shared box (~1 Gbit/s NIC): the enterprise
       # per-tenant floor (uniform across regions) is bin-packed as the
       # tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst ceiling.
@@ -312,13 +330,17 @@ defmodule Tuist.Kura.Regions do
   end
 
   @doc """
-  True iff this region's runner-cache nodes serve runner fleets of the
-  given platform (`:linux` | `:macos`). Always `false` for public
-  regions — they have no `runner_platforms` and are CLI-facing, not
-  runner-facing. This is the dispatch-side locality gate: a runner only
-  ever receives a `cache_endpoint_url` from a region that declared its
-  platform, so a region pinned next to one fleet can't leak its
-  in-cluster URL to a fleet on the wrong side of a WAN.
+  True iff this region's nodes serve runner fleets of the given platform
+  (`:linux` | `:macos`). This is the dispatch-side locality gate: a
+  runner only ever receives a `cache_endpoint_url` from a region that
+  declared its platform, so a region's in-cluster URL can't leak to a
+  fleet whose runtime cannot reach it.
+
+  Private (runner-cache) regions always declare their platforms. Public
+  regions default to none — they are CLI-facing — but may declare
+  platforms to opt their per-account instances into the runner-cache
+  dispatch fallback (`Tuist.Kura.runner_cache_endpoint_url/2`), for
+  fleets that can reach the in-cluster Service DNS form directly.
   """
   def serves_runner_platform?(%__MODULE__{runner_platforms: platforms}, platform) when is_list(platforms) do
     platform in platforms
@@ -361,11 +383,16 @@ defmodule Tuist.Kura.Regions do
     %__MODULE__{
       id: spec.id,
       display_name: spec.display_name,
+      # Most public regions serve no runner fleet (nil). A public region
+      # may declare platforms to opt its per-account instances into the
+      # runner-cache dispatch fallback (see the eu-central spec).
+      runner_platforms: Map.get(spec, :runner_platforms),
       provisioner: KubernetesController,
       provisioner_config: %{
         cluster_id: spec.cluster_id,
         hetzner_location: Map.get(spec, :hetzner_location),
         public_host_template: String.replace(@managed_region_public_host_template, "{env_suffix}", host_suffix),
+        private_url_template: @in_cluster_url_template,
         grpc_public_host_template: String.replace(@managed_region_grpc_public_host_template, "{env_suffix}", host_suffix),
         peer_public_host_template: String.replace(@managed_region_peer_public_host_template, "{env_suffix}", host_suffix),
         ingress_class_name: spec.ingress_class_name,
@@ -441,7 +468,7 @@ defmodule Tuist.Kura.Regions do
         # interpolates to `instance_name(handle, region)`. Node-port
         # regions don't use it for dispatch but keep it as the
         # in-cluster debugging path.
-        private_url_template: "http://{instance}.kura.svc.cluster.local:4000",
+        private_url_template: @in_cluster_url_template,
         data_plane: Map.get(spec, :data_plane, :cluster_dns),
         client_cidrs: Map.get(spec, :client_cidrs, []),
         pod_annotations: Map.get(spec, :pod_annotations, %{}),

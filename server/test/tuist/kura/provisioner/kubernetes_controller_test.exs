@@ -862,6 +862,24 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     end
   end
 
+  describe "internal_url/3" do
+    test "returns the in-cluster Service DNS URL built from private_url_template" do
+      assert KubernetesController.internal_url("TUIST", scaleway_region(), "any-ref") ==
+               "http://kura-tuist-scw-fr-par.kura.svc.cluster.local:4000"
+    end
+
+    test "renders the public regions' template for the runner-cache fallback" do
+      assert KubernetesController.internal_url("Tuist", Regions.get("eu-central"), nil) ==
+               "http://kura-tuist-eu-central-1.kura.svc.cluster.local:4000"
+    end
+
+    test "is nil for regions without an in-cluster template" do
+      region = %Regions{id: "local-controller", provisioner_config: %{cluster_id: "local-controller"}}
+
+      assert KubernetesController.internal_url("tuist", region, nil) == nil
+    end
+  end
+
   defp scaleway_region do
     %Regions{
       id: "scw-fr-par-runners",

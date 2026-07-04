@@ -73,6 +73,16 @@ defmodule Tuist.Kura.Provisioner do
               String.t() | nil
 
   @doc """
+  In-cluster URL of the server, or `nil` if the region has no
+  cluster-internal form. Only reachable from workloads on the cluster
+  network (runner fleets); never handed to the CLI. Runner dispatch uses
+  it for private regions' cluster-DNS data plane and as the public-region
+  fallback (`Tuist.Kura.runner_cache_endpoint_url/2`).
+  """
+  @callback internal_url(account_handle :: String.t(), Regions.t(), ref :: String.t() | nil) ::
+              String.t() | nil
+
+  @doc """
   Best-effort drift check: what version is actually running on the
   node right now? Returns `{:ok, nil}` when the resource exists but
   isn't reporting a version yet. Used for reconciliation jobs and the
@@ -140,6 +150,13 @@ defmodule Tuist.Kura.Provisioner do
   def grpc_public_url(%Account{name: handle}, %Server{provisioner_node_ref: ref, region: region_id}) do
     with {:ok, region} <- Regions.fetch(region_id) do
       region.provisioner.grpc_public_url(handle, region, ref)
+    end
+  end
+
+  @doc "Calls `internal_url/3` on the region's provisioner."
+  def internal_url(%Account{name: handle}, %Server{provisioner_node_ref: ref, region: region_id}) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provisioner.internal_url(handle, region, ref)
     end
   end
 

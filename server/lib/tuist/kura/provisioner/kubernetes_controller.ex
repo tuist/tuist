@@ -96,6 +96,14 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @impl true
+  def internal_url(handle, %Regions{provisioner_config: config} = region, _ref) do
+    case config[:private_url_template] do
+      template when is_binary(template) -> interpolate_private_url(template, handle, region)
+      _ -> nil
+    end
+  end
+
+  @impl true
   def current_image_tag(name, %Regions{} = region) do
     case client_get_kura_instance(@namespace, name, region) do
       {:ok, %{"status" => %{"observedImage" => image}}} -> {:ok, image_tag_from_image(image)}

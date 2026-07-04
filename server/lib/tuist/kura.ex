@@ -489,25 +489,43 @@ defmodule Tuist.Kura do
 
   @doc """
   In-cluster Kura URL a runner-as-a-service build on a fleet of the
-  given platform should use, or `nil` when the account has no active
-  private (runner-cache) Kura node in a region that serves that
-  platform.
+  given platform should use, or `nil` when nothing serves that platform.
+
+  Two tiers, best first:
+
+    1. The account's active private (runner-cache) Kura node in a
+       region that serves the platform — provisioned next to the fleet,
+       so the cache hot path never leaves the fleet's own network.
+    2. The account's active regular Kura node in a public region that
+       declares the platform (`Regions.runner_platforms` on a public
+       region, e.g. eu-central for `:linux`), addressed by its
+       in-cluster Service DNS form. Runner pods cannot use the public
+       ingress at all — its host resolves to a cluster node IP, which
+       Cilium classifies as `remote-node` and the runner egress
+       policy's `ipBlock` rules never match — so without this fallback
+       an account with no private node gets no cache rather than a
+       slower one.
 
   Builds executing on a runner pool resolve their cache through this so
-  traffic stays inside the cluster, next to the runners, instead of
-  crossing the public ingress dataplane. Auth is unchanged: the same
-  Guardian JWT is verified by the same `tuist.lua` hook on the private
-  node, which carries the same `tenantID`. This reads the active
-  private `Server` row directly — `account_cache_endpoints` is
-  CLI-facing and a developer machine can't reach the in-cluster
-  endpoint.
+  traffic stays inside the cluster instead of crossing the public
+  ingress dataplane. Auth is unchanged in both tiers: the same Guardian
+  JWT is verified by the same `tuist.lua` hook on the node, which
+  carries the same `tenantID`. This reads active `Server` rows directly
+  — `account_cache_endpoints` is CLI-facing and a developer machine
+  can't reach the in-cluster endpoint.
 
   The platform filter is the locality half of the handoff (which
   region's node may serve which fleet — `Regions.runner_platforms`);
   whether the fleet can reach in-cluster URLs at all is the caller's
   gate (`Catalog.fleet_on_cluster_network?/1`).
   """
-  def runner_cache_endpoint_url(%Account{id: account_id}, platform) when platform in [:linux, :macos] do
+  def runner_cache_endpoint_url(%Account{} = account, platform) when platform in [:linux, :macos] do
+    private_runner_cache_url(account, platform) || public_in_cluster_runner_cache_url(account, platform)
+  end
+
+  def runner_cache_endpoint_url(%Account{}, _platform), do: nil
+
+  defp private_runner_cache_url(%Account{id: account_id}, platform) do
     # `available/0`, not `all/0`: if a private region is dropped from
     # `TUIST_KURA_AVAILABLE_REGIONS` the controller stops reconciling
     # it, and gating here too means dispatch stops handing out the now
@@ -548,7 +566,41 @@ defmodule Tuist.Kura do
     end
   end
 
-  def runner_cache_endpoint_url(%Account{}, _platform), do: nil
+  # The public-region fallback (tier 2 above). No readiness heartbeat is
+  # consulted: like cluster-DNS private servers, the in-cluster Service
+  # drops a not-ready pod from its endpoints, so an active row is a
+  # serving row.
+  defp public_in_cluster_runner_cache_url(%Account{id: account_id} = account, platform) do
+    case public_runner_cache_region_ids(platform) do
+      [] -> nil
+      region_ids -> account_id |> active_server_in_regions(region_ids) |> in_cluster_url(account)
+    end
+  end
+
+  defp public_runner_cache_region_ids(platform) do
+    Regions.available()
+    |> Enum.filter(&(not Regions.private?(&1) and Regions.serves_runner_platform?(&1, platform)))
+    |> Enum.map(& &1.id)
+  end
+
+  defp active_server_in_regions(account_id, region_ids) do
+    Server
+    |> where([s], s.account_id == ^account_id and s.status == :active and s.region in ^region_ids)
+    |> order_by(asc: :region)
+    |> limit(1)
+    |> Repo.one()
+  end
+
+  defp in_cluster_url(nil, _account), do: nil
+
+  # The `Server.url` column holds the public URL for these rows, so the
+  # in-cluster form is rendered fresh from the region's template.
+  defp in_cluster_url(%Server{} = server, account) do
+    case Provisioner.internal_url(account, server) do
+      url when is_binary(url) and url != "" -> url
+      _ -> nil
+    end
+  end
 
   defp node_port_region_ids(private_region_ids) do
     Enum.filter(private_region_ids, fn id ->

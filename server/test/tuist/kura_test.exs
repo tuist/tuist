@@ -803,6 +803,100 @@ defmodule Tuist.KuraTest do
     end
   end
 
+  describe "runner_cache_endpoint_url/2 public in-cluster fallback" do
+    setup do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["eu-central", "scw-fr-par-runners"]
+      end)
+
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      %{account: account}
+    end
+
+    test "hands linux fleets the public region's in-cluster Service DNS URL when no private region serves them",
+         %{account: account} do
+      {:ok, server} =
+        Kura.create_server(%{account_id: account.id, region: "eu-central", image_tag: "0.5.2"})
+
+      Server |> Repo.get!(server.id) |> Ecto.Changeset.change(status: :active) |> Repo.update!()
+
+      handle = String.downcase(account.name)
+
+      assert Kura.runner_cache_endpoint_url(account, :linux) ==
+               "http://kura-#{handle}-eu-central-1.kura.svc.cluster.local:4000"
+    end
+
+    test "never hands macOS fleets a public region's URL — no public region declares :macos",
+         %{account: account} do
+      {:ok, server} =
+        Kura.create_server(%{account_id: account.id, region: "eu-central", image_tag: "0.5.2"})
+
+      Server |> Repo.get!(server.id) |> Ecto.Changeset.change(status: :active) |> Repo.update!()
+
+      assert Kura.runner_cache_endpoint_url(account, :macos) == nil
+    end
+
+    test "macOS stays on default resolution when its private node's heartbeat is stale, despite an active public server",
+         %{account: account} do
+      {:ok, private} =
+        Kura.create_server(%{account_id: account.id, region: "scw-fr-par-runners", image_tag: "0.5.2"})
+
+      expect(Provisioner, :external_endpoint, fn %Server{} -> {:ok, "http://172.16.0.2:30815"} end)
+      {:ok, active_private} = Kura.activate_server(private, "0.5.2")
+
+      stale = ~U[2020-01-01 00:00:00Z]
+      Server |> Repo.get!(active_private.id) |> Ecto.Changeset.change(last_ready_at: stale) |> Repo.update!()
+
+      {:ok, public} =
+        Kura.create_server(%{account_id: account.id, region: "eu-central", image_tag: "0.5.2"})
+
+      Server |> Repo.get!(public.id) |> Ecto.Changeset.change(status: :active) |> Repo.update!()
+
+      # The Tart VMs can't resolve cluster Service DNS, so a stale private
+      # node must fail macOS over to the public cache (nil), never to the
+      # in-cluster fallback URL.
+      assert Kura.runner_cache_endpoint_url(account, :macos) == nil
+    end
+
+    test "prefers a serving private runner-cache node over the public fallback", %{account: account} do
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["eu-central", "hetzner-staging-runners"]
+      end)
+
+      {:ok, public} =
+        Kura.create_server(%{account_id: account.id, region: "eu-central", image_tag: "0.5.2"})
+
+      Server |> Repo.get!(public.id) |> Ecto.Changeset.change(status: :active) |> Repo.update!()
+
+      {:ok, private} =
+        Kura.create_server(%{account_id: account.id, region: "hetzner-staging-runners", image_tag: "0.5.2"})
+
+      stub(Provisioner, :public_url, fn _account, %Server{} ->
+        "http://kura-private.kura.svc.cluster.local"
+      end)
+
+      {:ok, active_private} = Kura.activate_server(private, "0.5.2")
+
+      assert Kura.runner_cache_endpoint_url(account, :linux) == active_private.url
+    end
+
+    test "requires an active public server", %{account: account} do
+      {:ok, _server} =
+        Kura.create_server(%{account_id: account.id, region: "eu-central", image_tag: "0.5.2"})
+
+      assert Kura.runner_cache_endpoint_url(account, :linux) == nil
+    end
+
+    test "is nil for accounts without any server", %{account: account} do
+      assert Kura.runner_cache_endpoint_url(account, :linux) == nil
+    end
+  end
+
   describe "destroy_server/1" do
     test "marks destroying and removes the cache endpoint" do
       user = AccountsFixtures.user_fixture()

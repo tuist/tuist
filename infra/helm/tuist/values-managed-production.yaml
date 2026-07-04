@@ -69,8 +69,12 @@ server:
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
     # resolves to the node-port form (http://<node PN address>:<NodePort>
     # on scw-fr-par-runners), reached over the PN the minis attach to
-    # (macosFleet.vmCachePrivateNetwork below). linux is the default and
-    # stays inert here (prod advertises no Linux private cache region).
+    # (macosFleet.vmCachePrivateNetwork below). linux resolves through the
+    # public-region fallback: prod advertises no Linux private cache
+    # region, so dispatch hands the account's eu-central instance over
+    # in-cluster Service DNS (the public Kura ingress is unreachable from
+    # runner pods — its host is a cluster node IP, which the runner
+    # egress policy's ipBlock rules never match under Cilium).
     - name: TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS
       value: linux,macos
     # Operator project-access grants. The public key verifies grants

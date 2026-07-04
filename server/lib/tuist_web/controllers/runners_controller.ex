@@ -133,13 +133,15 @@ defmodule TuistWeb.RunnersController do
     conn |> put_status(:bad_request) |> json(%{error: "missing fleet query param"})
   end
 
-  # Hands the polling Pod its JIT config plus, when the account runs a
-  # private runner-cache Kura node, the in-cluster URL the job should
-  # use. The runner image exports it as `TUIST_CACHE_ENDPOINT` so cache
-  # traffic stays on the cluster's internal network next to the runner
-  # instead of going through the public Kura ingress. Absent
-  # (non-runner-cache accounts), the Pod falls back to normal
-  # server-side cache resolution.
+  # Hands the polling Pod its JIT config plus, when the account has a
+  # Kura node serving the fleet's platform (a private runner-cache node
+  # first, else a public region's per-account instance over in-cluster
+  # Service DNS — see `Tuist.Kura.runner_cache_endpoint_url/2`), the
+  # in-cluster URL the job should use. The runner image exports it as
+  # `TUIST_CACHE_ENDPOINT` so cache traffic stays on the cluster's
+  # internal network instead of going through the public Kura ingress.
+  # Absent (no serving node), the Pod falls back to normal server-side
+  # cache resolution.
   #
   # Only fleets on the cluster pod network get the URL: it's a
   # `*.svc.cluster.local` address, and clients treat
