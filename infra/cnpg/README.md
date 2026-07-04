@@ -111,48 +111,20 @@ Continuous WAL archiving + daily 03:00 UTC base backups, both targeting the per-
 
 The Tigris key used for backups is **separate** from the workload's `S3_CREDENTIALS` — a dedicated `S3_BACKUP_CREDENTIALS` item per env, scoped to the env's backup bucket only. Rotate it independently from the workload key.
 
-Restore-validation drill (run quarterly, or before any operation that depends on
-backups being usable). Build a one-shot recovery `Cluster` that replays from the
-archive, run validation queries against it, then delete it (and its PVCs). The
-recovery-source shape depends on which backup mode the cluster is in.
+Restore-validation drill (run quarterly, or before any operation that depends on backups being usable):
 
-**Plugin path** (`…backup.plugin.enabled: true`) — recover through
-`externalClusters[].plugin`, reusing the `ObjectStore` CR the chart already
-renders in the namespace. `serverName` is the original cluster name (the archive
-prefix), `barmanObjectName` is the rendered store (`tuist-tuist-pg-backup-store`
-for the main cluster, `tuist-ops-pg-backup-store` for tuist-ops):
+```bash
+ENV=staging
+NAMESPACE=tuist-$ENV
+CLUSTER=tuist-tuist-pg
 
-```yaml
-apiVersion: postgresql.cnpg.io/v1
-kind: Cluster
-metadata:
-  name: tuist-tuist-pg-restore-check
-  namespace: tuist-staging
-spec:
-  instances: 1
-  storage:
-    size: 100Gi            # >= the source cluster's storage
-  bootstrap:
-    recovery:
-      source: source
-  externalClusters:
-    - name: source
-      plugin:
-        name: barman-cloud.cloudnative-pg.io
-        parameters:
-          barmanObjectName: tuist-tuist-pg-backup-store
-          serverName: tuist-tuist-pg
+# Create a one-shot cluster restored to the latest available recovery
+# point. CNPG provisions a new primary, replays from the WAL archive,
+# and reports the recovery target it landed on.
+kubectl cnpg backup-status -n "$NAMESPACE" "$CLUSTER"
+# Then build a restore manifest using `kubectl cnpg restore` (see the
+# CNPG docs); destroy it once the validation queries finish.
 ```
-
-**In-tree path** (`…backup.plugin.enabled: false`, the pre-cutover default) —
-same `bootstrap.recovery` + `externalClusters`, but the entry uses
-`barmanObjectStore:` (the `destinationPath` + `endpointURL` + `s3Credentials`)
-instead of `plugin:`.
-
-Apply the manifest, wait for `phase: Cluster in healthy state`, run the
-validation queries, then `kubectl delete cluster` it. Note: with the plugin,
-backup state shows in the `ObjectStore`/`Cluster` status rather than the in-tree
-`kubectl cnpg backup-status` view.
 
 ## Operator version & upgrade path
 
@@ -221,9 +193,8 @@ in the `platform` namespace alongside the operator, which is where the plugin
 must run. It's idle until a `Cluster` opts in, so installing it changes no
 backups. Bump it like any other platform dependency: edit the pin and redeploy.
 It needs cert-manager (already a platform dependency) and adds the
-`objectstores.barmancloud.cnpg.io` CRD, the `platform-plugin-barman-cloud`
-Deployment (release-prefixed as a subchart), a Service, and self-signed mTLS
-Certificates.
+`objectstores.barmancloud.cnpg.io` CRD, the `barman-cloud` Deployment, a
+Service, and self-signed mTLS Certificates.
 
 **Cutover (per env):** with the plugin installed, flip
 `…backup.plugin.enabled` to `true` and deploy. This is an atomic change to the
