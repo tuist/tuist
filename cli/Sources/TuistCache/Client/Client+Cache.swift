@@ -17,7 +17,9 @@ extension Client {
     ) -> Client {
         .init(
             serverURL: cacheURL,
-            transport: TuistURLSessionTransport(),
+            // CAS traffic is content-addressed and therefore idempotent, so
+            // transient connection drops are safe to replay.
+            transport: RetryingClientTransport(wrapping: TuistURLSessionTransport()),
             middlewares: HARRecordingMiddlewareFactory.middlewares() + [
                 RequestIdMiddleware(),
                 CacheClientAuthenticationMiddleware(

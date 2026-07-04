@@ -37,7 +37,12 @@ public func tuistURLSessionConfiguration(useEnvironmentProxy: Bool? = nil) -> UR
 private func tuistURLSessionConfigurationResolved(useEnvironmentProxy: Bool) -> URLSessionConfiguration {
     let configuration: URLSessionConfiguration = .ephemeral
     configuration.timeoutIntervalForRequest = Double(environmentInt("TUIST_HTTP_TIMEOUT_INTERVAL_FOR_REQUEST", default: 120))
-    configuration.timeoutIntervalForResource = Double(environmentInt("TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE", default: 90))
+    // The resource timeout caps the WHOLE transfer, connection-pool queueing
+    // included, so it must comfortably exceed the request (idle) timeout: large
+    // cache artifacts queued behind httpMaximumConnectionsPerHost were killed
+    // mid-upload at the previous 90s cap and surfaced as "The network
+    // connection was lost". Stalls are still bounded by the request timeout.
+    configuration.timeoutIntervalForResource = Double(environmentInt("TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE", default: 3600))
     configuration.httpMaximumConnectionsPerHost = environmentInt("TUIST_HTTP_MAXIMUM_CONNECTIONS_PER_HOST", default: 20)
     #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
         configuration.allowsCellularAccess = true
