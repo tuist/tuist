@@ -90,10 +90,24 @@ struct CacheStartCommandService {
                 )
             }
 
+            // Xcode's CAS plugin client sends HTTP/2 keepalive pings far more
+            // frequently than gRPC servers permit by default (gRFC A8 allows
+            // one ping per 5 minutes and none without active calls), so the
+            // default ping policing repeatedly kills the plugin's connection
+            // with GOAWAY "too_many_pings". Every queued CAS operation then
+            // stalls until the plugin reconnects, which surfaces as a build
+            // that sits idle in bursts. Accept the plugin's ping cadence.
+            var transportConfig = HTTP2ServerTransport.Posix.Config.defaults
+            transportConfig.connection.keepalive.clientBehavior = .init(
+                minPingIntervalWithoutCalls: .seconds(10),
+                allowWithoutCalls: true
+            )
+
             let server = GRPCServer(
                 transport: .http2NIOPosix(
                     address: .unixDomainSocket(path: socketPath.pathString),
-                    transportSecurity: .plaintext
+                    transportSecurity: .plaintext,
+                    config: transportConfig
                 ),
                 services: [
                     KeyValueService(
