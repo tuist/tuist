@@ -96,6 +96,18 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @impl true
+  # The instance's Service is named after `provisioner_node_ref`
+  # (`rollout/2` sets `metadata.name = ref`), which diverges from
+  # `instance_name/2` after a warm-handoff move (`-m` suffix) — so the
+  # ref, not the handle, is the source of truth for the in-cluster name.
+  def internal_url(_handle, %Regions{provisioner_config: config}, ref) when is_binary(ref) do
+    case config[:private_url_template] do
+      template when is_binary(template) -> String.replace(template, "{instance}", ref)
+      _ -> nil
+    end
+  end
+
+  @impl true
   def current_image_tag(name, %Regions{} = region) do
     case client_get_kura_instance(@namespace, name, region) do
       {:ok, %{"status" => %{"observedImage" => image}}} -> {:ok, image_tag_from_image(image)}

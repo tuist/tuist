@@ -117,8 +117,9 @@ server:
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
     # resolves to the node-port form (http://<node PN address>:<NodePort>
     # on scw-fr-par-runners), reached over the PN the minis attach to
-    # (macosFleet.vmCachePrivateNetwork below). linux is the default and
-    # stays inert here (canary advertises no Linux private cache region).
+    # (macosFleet.vmCachePrivateNetwork below). linux resolves through
+    # the public-region fallback — no Linux private cache region here
+    # (see values-managed-production.yaml).
     - name: TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS
       value: linux,macos
 
