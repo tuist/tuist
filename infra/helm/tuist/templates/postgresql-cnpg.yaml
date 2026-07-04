@@ -42,7 +42,7 @@ spec:
   instances: {{ .Values.postgresql.cnpg.instances }}
   imageName: {{ .Values.postgresql.cnpg.image.repository }}:{{ .Values.postgresql.cnpg.image.tag }}
   primaryUpdateStrategy: unsupervised
-  primaryUpdateMethod: switchover
+  primaryUpdateMethod: {{ .Values.postgresql.cnpg.primaryUpdateMethod | default "switchover" }}
 
   # Synchronous replication: the primary holds a COMMIT's ack until a
   # standby has the WAL durably (`ANY 1` quorum), so an acknowledged
