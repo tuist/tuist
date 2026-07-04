@@ -11,6 +11,7 @@ crate-type = ["cdylib"]
 libloading = "0.8"
 zstd = "0.13"
 ureq = "2"
+percent-encoding = "2"
 
 [profile.release]
 opt-level = 2

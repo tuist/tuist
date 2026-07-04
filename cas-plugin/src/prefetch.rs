@@ -7,6 +7,8 @@ use std::collections::{HashSet, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Condvar, Mutex};
 
+type ProcessFn = std::sync::Arc<dyn Fn(Vec<u8>) + Send + Sync>;
+
 pub struct Prefetcher {
     queue: Mutex<VecDeque<Vec<u8>>>,
     cvar: Condvar,
@@ -15,6 +17,10 @@ pub struct Prefetcher {
     inflight: AtomicU64,
     seen: Mutex<HashSet<Vec<u8>>>,
     workers: Mutex<Vec<std::thread::JoinHandle<()>>>,
+    // Workers spawn on first enqueue: most compiler processes never touch the
+    // remote, and eagerly spinning up pools in ~1000 short-lived frontends
+    // per build is measurable overhead.
+    starter: Mutex<Option<(usize, ProcessFn)>>,
     pub fetched: AtomicU64,
 }
 
@@ -28,6 +34,7 @@ impl Prefetcher {
             inflight: AtomicU64::new(0),
             seen: Mutex::new(HashSet::new()),
             workers: Mutex::new(Vec::new()),
+            starter: Mutex::new(None),
             fetched: AtomicU64::new(0),
         }
     }
@@ -39,17 +46,23 @@ impl Prefetcher {
             .unwrap_or(24)
     }
 
-    /// Spawns workers that call `process` with each queued digest. `process`
-    /// runs on plain threads; the caller guarantees the backing state outlives
-    /// the workers by joining them via `stop` before teardown.
-    pub fn start<F>(&self, count: usize, process: F)
+    /// Registers the worker configuration; workers spawn lazily on the first
+    /// enqueue. `process` runs on plain threads; the caller guarantees the
+    /// backing state outlives the workers by joining them via `stop` or
+    /// `drain_stop` before teardown.
+    pub fn configure<F>(&self, count: usize, process: F)
     where
-        F: Fn(Vec<u8>) + Send + Sync + 'static + Clone,
+        F: Fn(Vec<u8>) + Send + Sync + 'static,
     {
+        *self.starter.lock().unwrap() = Some((count, std::sync::Arc::new(process)));
+    }
+
+    fn ensure_started(&self) {
+        let Some((count, process)) = self.starter.lock().unwrap().take() else { return };
         let mut workers = self.workers.lock().unwrap();
         for _ in 0..count.max(1) {
             let this: &'static Prefetcher = unsafe { &*(self as *const Prefetcher) };
-            let process = process.clone();
+            let process = std::sync::Arc::clone(&process);
             workers.push(std::thread::spawn(move || loop {
                 let digest = {
                     let mut queue = this.queue.lock().unwrap();
@@ -91,6 +104,7 @@ impl Prefetcher {
         if !self.seen.lock().unwrap().insert(digest.clone()) {
             return;
         }
+        self.ensure_started();
         self.queue.lock().unwrap().push_back(digest);
         self.cvar.notify_one();
     }

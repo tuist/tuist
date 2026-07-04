@@ -99,10 +99,28 @@ struct CasState {
     stats_remote_entry_hits: AtomicU64,
     stats_remote_node_hits: AtomicU64,
     stats_remote_misses: AtomicU64,
+    // Time spent resolving demand-driven remote work (entry read-through and
+    // object-load materialization). This bounds how far warm-remote can sit
+    // above the local-replay floor due to fetching, as opposed to overheads.
+    stats_demand_wait_ms: AtomicU64,
 }
 
 unsafe fn cas_state<'a>(cas: llcas_cas_t) -> &'a CasState {
     &*(cas as *const CasState)
+}
+
+/// Records elapsed demand wait on drop so every early return is counted.
+struct DemandWaitGuard<'a> {
+    state: &'a CasState,
+    started: std::time::Instant,
+}
+
+impl Drop for DemandWaitGuard<'_> {
+    fn drop(&mut self) {
+        self.state
+            .stats_demand_wait_ms
+            .fetch_add(self.started.elapsed().as_millis() as u64, Ordering::Relaxed);
+    }
 }
 
 enum CancelToken {
@@ -283,13 +301,14 @@ pub unsafe extern "C" fn llcas_cas_create(
         stats_remote_entry_hits: AtomicU64::new(0),
         stats_remote_node_hits: AtomicU64::new(0),
         stats_remote_misses: AtomicU64::new(0),
+        stats_demand_wait_ms: AtomicU64::new(0),
     }));
     if has_remote {
         let cas_addr = state_ptr as usize;
-        (*state_ptr).prefetcher.start(Prefetcher::worker_count(), move |digest| {
+        (*state_ptr).prefetcher.configure(Prefetcher::worker_count(), move |digest| {
             prefetch_process(cas_addr, digest);
         });
-        (*state_ptr).uploader.start(Prefetcher::worker_count(), move |digest| {
+        (*state_ptr).uploader.configure(Prefetcher::worker_count(), move |digest| {
             upload_process(cas_addr, digest);
         });
     }
@@ -311,11 +330,12 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
         if let Some(remote) = &state.remote {
             remote.drain();
             log_line(&format!(
-                "dispose: remote entry hits={} node hits={} misses={} prefetched={} | gets {} | posts {}",
+                "dispose: remote entry hits={} node hits={} misses={} prefetched={} demand_wait={}ms | gets {} | posts {}",
                 state.stats_remote_entry_hits.load(Ordering::Relaxed),
                 state.stats_remote_node_hits.load(Ordering::Relaxed),
                 state.stats_remote_misses.load(Ordering::Relaxed),
                 state.prefetcher.fetched.load(Ordering::Relaxed),
+                state.stats_demand_wait_ms.load(Ordering::Relaxed),
                 remote.get_stats.summary(),
                 remote.post_stats.summary(),
             ));
@@ -629,8 +649,9 @@ unsafe fn load_object_impl(
         (state.up.llcas_string_dispose)(upstream_error);
     }
 
+    let started = std::time::Instant::now();
     let digest = digest_bytes(state, id);
-    match materialize_node(state, &digest) {
+    let outcome = match materialize_node(state, &digest) {
         Ok(Some(child_digests)) => {
             for child in child_digests {
                 state.prefetcher.enqueue(child);
@@ -645,7 +666,11 @@ unsafe fn load_object_impl(
             set_error(error, &message);
             LLCAS_LOOKUP_RESULT_ERROR
         }
-    }
+    };
+    state
+        .stats_demand_wait_ms
+        .fetch_add(started.elapsed().as_millis() as u64, Ordering::Relaxed);
+    outcome
 }
 
 #[no_mangle]
@@ -772,6 +797,7 @@ unsafe fn actioncache_get_impl(
         (state.up.llcas_string_dispose)(upstream_error);
     }
 
+    let _demand_guard = DemandWaitGuard { state, started: std::time::Instant::now() };
     let remote = state.remote.as_ref().unwrap();
     let Some(value_digest) = remote.get_entry(key) else {
         state.stats_remote_misses.fetch_add(1, Ordering::Relaxed);

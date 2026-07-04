@@ -75,6 +75,9 @@ pub struct Remote {
     config: RemoteConfig,
     agent: ureq::Agent,
     tx: Mutex<Option<mpsc::Sender<Job>>>,
+    // Held until the first entry upload; workers spawn lazily so processes
+    // that never publish entries skip the pool entirely.
+    pending_rx: Mutex<Option<mpsc::Receiver<Job>>>,
     workers: Mutex<Vec<std::thread::JoinHandle<()>>>,
     uploaded: Mutex<HashSet<String>>,
     pub get_stats: OpStats,
@@ -97,20 +100,27 @@ impl Remote {
             .max_idle_connections_per_host(64)
             .build();
         let (tx, rx) = mpsc::channel::<Job>();
-        let rx = Arc::new(Mutex::new(rx));
-        let remote = Arc::new(Self {
+        Arc::new(Self {
             config,
             agent,
             tx: Mutex::new(Some(tx)),
+            pending_rx: Mutex::new(Some(rx)),
             workers: Mutex::new(Vec::new()),
             uploaded: Mutex::new(HashSet::new()),
             get_stats: OpStats::default(),
             post_stats: OpStats::default(),
-        });
-        let mut workers = remote.workers.lock().unwrap();
-        for _ in 0..remote.config.pool.max(1) {
+        })
+    }
+
+    fn ensure_workers(&self) {
+        let Some(rx) = self.pending_rx.lock().unwrap().take() else { return };
+        let rx = Arc::new(Mutex::new(rx));
+        let mut workers = self.workers.lock().unwrap();
+        // Entry bodies are digest-sized; a few workers suffice. drain() joins
+        // these before the owning CasState is freed.
+        for _ in 0..self.config.pool.clamp(1, 4) {
             let rx = Arc::clone(&rx);
-            let this = Arc::clone(&remote);
+            let this: &'static Remote = unsafe { &*(self as *const Remote) };
             workers.push(std::thread::spawn(move || loop {
                 let job = { rx.lock().unwrap().recv() };
                 match job {
@@ -121,8 +131,6 @@ impl Remote {
                 }
             }));
         }
-        drop(workers);
-        remote
     }
 
     fn url(&self, id: &str) -> String {
@@ -220,6 +228,7 @@ impl Remote {
 
     pub fn enqueue_entry(&self, key_digest: &[u8], value_digest: &[u8]) {
         let id = format!("tcp0-v-{}", hex(key_digest));
+        self.ensure_workers();
         if let Some(tx) = self.tx.lock().unwrap().as_ref() {
             let _ = tx.send(Job::UploadEntry {
                 id,

@@ -447,6 +447,7 @@ name = "tuist-cas-plugin"
 version = "0.1.0"
 dependencies = [
  "libloading",
+ "percent-encoding",
  "ureq",
  "zstd",
 ]
