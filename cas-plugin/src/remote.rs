@@ -20,7 +20,7 @@ pub struct OpStats {
 }
 
 impl OpStats {
-    fn record(&self, elapsed: Duration) {
+    pub fn record(&self, elapsed: Duration) {
         let ms = elapsed.as_millis() as u64;
         self.count.fetch_add(1, Ordering::Relaxed);
         self.total_ms.fetch_add(ms, Ordering::Relaxed);

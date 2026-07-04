@@ -17,7 +17,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 
 use prefetch::Prefetcher;
-use remote::{Remote, RemoteConfig};
+use remote::{OpStats, Remote, RemoteConfig};
 use types::*;
 use upstream::Upstream;
 
@@ -103,6 +103,16 @@ struct CasState {
     // object-load materialization). This bounds how far warm-remote can sit
     // above the local-replay floor due to fetching, as opposed to overheads.
     stats_demand_wait_ms: AtomicU64,
+    // Local CAS ingestion, split by writer: the client's own store_object
+    // calls (input ingests, scan trees, computed outputs) vs stores performed
+    // by this plugin while materializing fetched nodes. Comparing these
+    // between a warm-remote build and a kept-CAS floor build attributes the
+    // gap between them.
+    stats_client_store: OpStats,
+    stats_client_store_bytes: AtomicU64,
+    stats_mat_store: OpStats,
+    stats_mat_store_bytes: AtomicU64,
+    stats_local_put_ms: AtomicU64,
 }
 
 unsafe fn cas_state<'a>(cas: llcas_cas_t) -> &'a CasState {
@@ -302,6 +312,11 @@ pub unsafe extern "C" fn llcas_cas_create(
         stats_remote_node_hits: AtomicU64::new(0),
         stats_remote_misses: AtomicU64::new(0),
         stats_demand_wait_ms: AtomicU64::new(0),
+        stats_client_store: OpStats::default(),
+        stats_client_store_bytes: AtomicU64::new(0),
+        stats_mat_store: OpStats::default(),
+        stats_mat_store_bytes: AtomicU64::new(0),
+        stats_local_put_ms: AtomicU64::new(0),
     }));
     if has_remote {
         let cas_addr = state_ptr as usize;
@@ -326,11 +341,15 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
         // Prefetches are droppable; queued uploads must flush.
         let state = &*state_ptr;
         state.prefetcher.stop();
+        // Time spent blocking process exit on upload flushing: this lands on
+        // the build's critical path when the process is a compiler frontend.
+        let drain_started = std::time::Instant::now();
         state.uploader.drain_stop();
         if let Some(remote) = &state.remote {
             remote.drain();
+            let drain_ms = drain_started.elapsed().as_millis();
             log_line(&format!(
-                "dispose: remote entry hits={} node hits={} misses={} prefetched={} demand_wait={}ms | gets {} | posts {}",
+                "dispose: drain={drain_ms}ms remote entry hits={} node hits={} misses={} prefetched={} demand_wait={}ms | gets {} | posts {}",
                 state.stats_remote_entry_hits.load(Ordering::Relaxed),
                 state.stats_remote_node_hits.load(Ordering::Relaxed),
                 state.stats_remote_misses.load(Ordering::Relaxed),
@@ -338,6 +357,20 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
                 state.stats_demand_wait_ms.load(Ordering::Relaxed),
                 remote.get_stats.summary(),
                 remote.post_stats.summary(),
+            ));
+        }
+        // Ingestion counters are logged with or without a remote so a floor
+        // build produces the same accounting as a warm-remote build.
+        if state.stats_client_store.count.load(Ordering::Relaxed) > 0
+            || state.stats_mat_store.count.load(Ordering::Relaxed) > 0
+        {
+            log_line(&format!(
+                "ingest: client_store {} bytes={} | mat_store {} bytes={} | local_put={}ms",
+                state.stats_client_store.summary(),
+                state.stats_client_store_bytes.load(Ordering::Relaxed),
+                state.stats_mat_store.summary(),
+                state.stats_mat_store_bytes.load(Ordering::Relaxed),
+                state.stats_local_put_ms.load(Ordering::Relaxed),
             ));
         }
         (state.up.llcas_cas_dispose)(state.cas);
@@ -570,14 +603,18 @@ unsafe fn materialize_node(state: &CasState, digest: &[u8]) -> Result<Option<Vec
     let data = llcas_data_t { data: node.data.as_ptr() as *const c_void, size: node.data.len() };
     let mut stored_id = llcas_objectid_t { opaque: 0 };
     let mut error: *mut c_char = std::ptr::null_mut();
-    if (state.up.llcas_cas_store_object)(
+    let store_started = std::time::Instant::now();
+    let store_failed = (state.up.llcas_cas_store_object)(
         state.cas,
         data,
         ref_ids.as_ptr(),
         ref_ids.len(),
         &mut stored_id,
         &mut error,
-    ) {
+    );
+    state.stats_mat_store.record(store_started.elapsed());
+    state.stats_mat_store_bytes.fetch_add(node.data.len() as u64, Ordering::Relaxed);
+    if store_failed {
         let message = adopt_upstream_string(state.up, error);
         let text = if message.is_null() { "store_object failed".into() } else {
             let s = CStr::from_ptr(message).to_string_lossy().into_owned();
@@ -737,9 +774,12 @@ pub unsafe extern "C" fn llcas_cas_store_object(
     error: *mut *mut c_char,
 ) -> bool {
     let state = cas_state(cas);
+    let started = std::time::Instant::now();
     let mut upstream_error: *mut c_char = std::ptr::null_mut();
     let failed = (state.up.llcas_cas_store_object)(state.cas, data, refs, refs_count, p_id, &mut upstream_error);
     adopt_error(state.up, upstream_error, error);
+    state.stats_client_store.record(started.elapsed());
+    state.stats_client_store_bytes.fetch_add(data.size as u64, Ordering::Relaxed);
     failed
 }
 
@@ -829,7 +869,13 @@ unsafe fn actioncache_get_impl(
     }
 
     let mut put_error: *mut c_char = std::ptr::null_mut();
-    if (state.up.llcas_actioncache_put_for_digest)(state.cas, key_digest, value_id, false, &mut put_error) {
+    let put_started = std::time::Instant::now();
+    let put_failed =
+        (state.up.llcas_actioncache_put_for_digest)(state.cas, key_digest, value_id, false, &mut put_error);
+    state
+        .stats_local_put_ms
+        .fetch_add(put_started.elapsed().as_millis() as u64, Ordering::Relaxed);
+    if put_failed {
         adopt_error(state.up, put_error, error);
         return LLCAS_LOOKUP_RESULT_ERROR;
     }
