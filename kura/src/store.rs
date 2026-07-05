@@ -95,7 +95,7 @@ pub struct Store {
     segment_state_cache: StdMutex<Arc<SegmentStateSnapshot>>,
     segment_handles: Mutex<SegmentHandleCache>,
     manifest_cache: StdMutex<ManifestCache>,
-    existence_cache: StdMutex<ExistenceCache>,
+    existence_cache: ShardedExistenceCache,
     multipart_locks: [Mutex<()>; MULTIPART_LOCK_STRIPES],
     // Serializes writers for the same artifact so concurrent applies of one key
     // (e.g. a fresh node bootstrapping the same artifact from several peers at
@@ -389,10 +389,10 @@ impl Store {
             segment_state_cache: StdMutex::new(Arc::new(SegmentStateSnapshot::default())),
             segment_handles: Mutex::new(SegmentHandleCache::new(config.segment_handle_cache_size)),
             manifest_cache: StdMutex::new(ManifestCache::new(config.manifest_cache_max_bytes)),
-            existence_cache: StdMutex::new(ExistenceCache::new(
+            existence_cache: ShardedExistenceCache::new(
                 EXISTENCE_CACHE_CAPACITY,
                 EXISTENCE_CACHE_TTL,
-            )),
+            ),
             multipart_locks: std::array::from_fn(|_| Mutex::new(())),
             artifact_write_locks: std::array::from_fn(|_| Mutex::new(())),
             failpoints: Arc::new(FailpointSet::default()),
@@ -2502,11 +2502,7 @@ impl Store {
     }
 
     pub fn trim_existence_cache_to(&self, target_entries: usize) -> usize {
-        let mut cache = self
-            .existence_cache
-            .lock()
-            .expect("existence cache lock poisoned");
-        cache.trim_to(target_entries)
+        self.existence_cache.trim_to(target_entries)
     }
 
     fn manifest_from_db(&self, artifact_id: &str) -> Result<Option<ArtifactManifest>, String> {
@@ -2580,11 +2576,7 @@ impl Store {
         self.record_manifest_cache_state(&cache);
         drop(cache);
 
-        let mut existence_cache = self
-            .existence_cache
-            .lock()
-            .expect("existence cache lock poisoned");
-        existence_cache.remove_many(artifact_ids);
+        self.existence_cache.remove_many(artifact_ids);
     }
 
     fn record_manifest_cache_state(&self, cache: &ManifestCache) {
@@ -2595,19 +2587,11 @@ impl Store {
     }
 
     fn existence_cache_contains(&self, artifact_id: &str) -> bool {
-        let mut cache = self
-            .existence_cache
-            .lock()
-            .expect("existence cache lock poisoned");
-        cache.contains(artifact_id)
+        self.existence_cache.contains(artifact_id)
     }
 
     fn note_artifact_exists(&self, artifact_id: &str) {
-        let mut cache = self
-            .existence_cache
-            .lock()
-            .expect("existence cache lock poisoned");
-        cache.insert(artifact_id.to_owned());
+        self.existence_cache.insert(artifact_id);
     }
 }
 
@@ -2630,6 +2614,70 @@ struct ManifestCache {
     total_bytes: usize,
     next_access_order: u64,
     max_bytes: usize,
+}
+
+/// The existence cache is touched on every artifact read and existence
+/// check; a single lock around it convoys under concurrent serving
+/// (profiled: read-heavy REAPI batches capped near 1k blobs/s with readers
+/// queued on this mutex). Sharding bounds contention; LRU order and TTL are
+/// preserved per shard.
+struct ShardedExistenceCache {
+    shards: [StdMutex<ExistenceCache>; EXISTENCE_CACHE_SHARDS],
+}
+
+const EXISTENCE_CACHE_SHARDS: usize = 32;
+
+impl ShardedExistenceCache {
+    fn new(capacity: usize, ttl: Duration) -> Self {
+        let per_shard = (capacity / EXISTENCE_CACHE_SHARDS).max(1);
+        Self {
+            shards: std::array::from_fn(|_| StdMutex::new(ExistenceCache::new(per_shard, ttl))),
+        }
+    }
+
+    fn shard(&self, artifact_id: &str) -> &StdMutex<ExistenceCache> {
+        let mut hash = 0xcbf29ce484222325u64;
+        for byte in artifact_id.as_bytes() {
+            hash ^= u64::from(*byte);
+            hash = hash.wrapping_mul(0x100000001b3);
+        }
+        &self.shards[(hash % EXISTENCE_CACHE_SHARDS as u64) as usize]
+    }
+
+    fn contains(&self, artifact_id: &str) -> bool {
+        self.shard(artifact_id)
+            .lock()
+            .expect("existence cache lock poisoned")
+            .contains(artifact_id)
+    }
+
+    fn insert(&self, artifact_id: &str) {
+        self.shard(artifact_id)
+            .lock()
+            .expect("existence cache lock poisoned")
+            .insert(artifact_id.to_owned());
+    }
+
+    fn remove_many(&self, artifact_ids: &[String]) {
+        for artifact_id in artifact_ids {
+            self.shard(artifact_id)
+                .lock()
+                .expect("existence cache lock poisoned")
+                .remove_many(std::slice::from_ref(artifact_id));
+        }
+    }
+
+    fn trim_to(&self, target_entries: usize) -> usize {
+        let per_shard = target_entries / EXISTENCE_CACHE_SHARDS;
+        let mut evicted = 0;
+        for shard in &self.shards {
+            evicted += shard
+                .lock()
+                .expect("existence cache lock poisoned")
+                .trim_to(per_shard);
+        }
+        evicted
+    }
 }
 
 struct ExistenceCache {
