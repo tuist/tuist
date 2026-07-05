@@ -425,13 +425,21 @@ pub unsafe extern "C" fn llcas_cas_create(
         (*state_ptr).uploader.configure(Prefetcher::worker_count(), move |item| {
             upload_process(cas_addr, item);
         });
-        if (*state_ptr).cas_dir.is_some() {
+        // Spawn a sweeper only when there is something to sweep: most
+        // processes find an empty spool, and a per-process thread plus its
+        // dispose-join costs real wall time multiplied by thousands of
+        // short-lived compiler processes.
+        let has_spool_entries = spool_dir(&*state_ptr)
+            .and_then(|dir| std::fs::read_dir(dir).ok())
+            .map(|mut entries| entries.next().is_some())
+            .unwrap_or(false);
+        if has_spool_entries {
             *(*state_ptr).sweeper.lock().unwrap() = Some(std::thread::spawn(move || {
                 // Only processes that live a while sweep: a short-lived
                 // frontend claiming records it cannot finish just bounces
                 // them back to the spool.
-                for _ in 0..15 {
-                    std::thread::sleep(std::time::Duration::from_millis(50));
+                for _ in 0..75 {
+                    std::thread::sleep(std::time::Duration::from_millis(10));
                     let state = cas_state(cas_addr as llcas_cas_t);
                     if state.uploader.is_shutdown() {
                         return;
@@ -514,10 +522,11 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
         // Workers reference this state; join them before freeing anything.
         // Prefetches are droppable; queued uploads must flush.
         let state = &*state_ptr;
-        // The sweeper enqueues into the uploader; join it before draining.
-        if let Some(sweeper) = state.sweeper.lock().unwrap().take() {
-            let _ = sweeper.join();
-        }
+        // Drain FIRST: it sets the uploader's shutdown flag, which is what
+        // tells a still-waiting sweeper to abort. Joining the sweeper before
+        // the flag is set would serialize its startup delay onto every
+        // process exit. Post-shutdown sweeper enqueues are dropped harmlessly
+        // (the records persist for a later sweep).
         // Bounded drain keeps process exit off the build's critical path;
         // whatever is still queued is spooled for later processes to upload.
         let drain_budget = std::env::var("TUIST_CAS_DRAIN_MS")
@@ -531,6 +540,9 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
             .uploader
             .drain_stop_timeout(std::time::Duration::from_millis(drain_budget));
         let spooled = leftovers.len();
+        if let Some(sweeper) = state.sweeper.lock().unwrap().take() {
+            let _ = sweeper.join();
+        }
         if let Some(remote) = &state.remote {
             let drain_ms = drain_started.elapsed().as_millis();
             log_line(&format!(
