@@ -87,25 +87,70 @@ struct OptionsState {
     options: Vec<(CString, CString)>,
 }
 
-// Uploader queue items carry a one-byte tag so entries and node walks share
-// one pool (and therefore one bounded drain and one spool format).
-const UPLOAD_TAG_NODE: u8 = 1;
-const UPLOAD_TAG_ENTRY: u8 = 2;
-
-fn tagged_node(digest: &[u8]) -> Vec<u8> {
-    let mut item = Vec::with_capacity(1 + digest.len());
-    item.push(UPLOAD_TAG_NODE);
-    item.extend_from_slice(digest);
-    item
+// Uploader items are "publish records": key digest, value digest, and the
+// path of the write-ahead spool file backing them. Publication is durable
+// against process death: most compiler processes exit WITHOUT calling
+// llcas_cas_dispose (measured: 874 of 877 putters in one build), so anything
+// held only in memory is lost. The record file is written before the enqueue
+// and deleted only after the value graph and the entry have been uploaded;
+// leftover records are swept by later plugin instances.
+struct PublishRecord {
+    key: Vec<u8>,
+    value_digest: Vec<u8>,
+    spool_path: Option<std::path::PathBuf>,
 }
 
-fn tagged_entry(key: &[u8], value_digest: &[u8]) -> Vec<u8> {
-    let mut item = Vec::with_capacity(3 + key.len() + value_digest.len());
-    item.push(UPLOAD_TAG_ENTRY);
-    item.extend_from_slice(&(key.len() as u16).to_be_bytes());
-    item.extend_from_slice(key);
-    item.extend_from_slice(value_digest);
-    item
+impl PublishRecord {
+    fn encode_body(&self) -> Vec<u8> {
+        let mut body = Vec::with_capacity(2 + self.key.len() + self.value_digest.len());
+        body.extend_from_slice(&(self.key.len() as u16).to_be_bytes());
+        body.extend_from_slice(&self.key);
+        body.extend_from_slice(&self.value_digest);
+        body
+    }
+
+    fn decode_body(body: &[u8], spool_path: Option<std::path::PathBuf>) -> Option<Self> {
+        if body.len() < 2 {
+            return None;
+        }
+        let key_len = u16::from_be_bytes([body[0], body[1]]) as usize;
+        if body.len() < 2 + key_len {
+            return None;
+        }
+        Some(Self {
+            key: body[2..2 + key_len].to_vec(),
+            value_digest: body[2 + key_len..].to_vec(),
+            spool_path,
+        })
+    }
+
+    fn encode_item(&self) -> Vec<u8> {
+        let body = self.encode_body();
+        let mut item = Vec::with_capacity(2 + body.len() + 128);
+        item.extend_from_slice(&(body.len() as u16).to_be_bytes());
+        item.extend_from_slice(&body);
+        if let Some(path) = &self.spool_path {
+            item.extend_from_slice(path.to_string_lossy().as_bytes());
+        }
+        item
+    }
+
+    fn decode_item(item: &[u8]) -> Option<Self> {
+        if item.len() < 2 {
+            return None;
+        }
+        let body_len = u16::from_be_bytes([item[0], item[1]]) as usize;
+        if item.len() < 2 + body_len {
+            return None;
+        }
+        let path_bytes = &item[2 + body_len..];
+        let spool_path = if path_bytes.is_empty() {
+            None
+        } else {
+            Some(std::path::PathBuf::from(String::from_utf8_lossy(path_bytes).into_owned()))
+        };
+        Self::decode_body(&item[2..2 + body_len], spool_path)
+    }
 }
 
 struct CasState {
@@ -123,6 +168,10 @@ struct CasState {
     // on store_object: the compiler stores input ingests and scan trees every
     // build (warm included), and mirroring those re-uploads the world.
     uploader: Prefetcher,
+    // The client puts the same (key, value) many times per build; only the
+    // first becomes a publication. Publish items carry unique spool paths, so
+    // the queue's content dedup cannot do this.
+    published: Mutex<std::collections::HashSet<(Vec<u8>, Vec<u8>)>>,
     stats_remote_entry_hits: AtomicU64,
     stats_remote_node_hits: AtomicU64,
     stats_remote_misses: AtomicU64,
@@ -178,6 +227,9 @@ impl Drop for DemandWaitGuard<'_> {
 
 enum CancelToken {
     Ours(#[allow(dead_code)] Arc<AtomicBool>),
+    // Constructed only when an upstream async path hands us its token; the
+    // current sync-answering paths use Ours, but dispose/cancel must handle it.
+    #[allow(dead_code)]
     Upstream(&'static Upstream, llcas_cancellable_t),
 }
 
@@ -238,16 +290,6 @@ fn ours_cancel_token(slot: *mut llcas_cancellable_t) -> Arc<AtomicBool> {
         }
     }
     flag
-}
-
-unsafe fn wrap_upstream_cancel_token(
-    up: &'static Upstream,
-    slot: *mut llcas_cancellable_t,
-    inner_slot: llcas_cancellable_t,
-) {
-    if !slot.is_null() {
-        *slot = Box::into_raw(Box::new(CancelToken::Upstream(up, inner_slot))) as llcas_cancellable_t;
-    }
 }
 
 // --- Options -------------------------------------------------------------------
@@ -360,6 +402,7 @@ pub unsafe extern "C" fn llcas_cas_create(
         sweeper: Mutex::new(None),
         prefetcher: Prefetcher::new(),
         uploader: Prefetcher::new(),
+        published: Mutex::new(std::collections::HashSet::new()),
         stats_remote_entry_hits: AtomicU64::new(0),
         stats_remote_node_hits: AtomicU64::new(0),
         stats_remote_misses: AtomicU64::new(0),
@@ -392,9 +435,11 @@ fn spool_dir(state: &CasState) -> Option<std::path::PathBuf> {
     state.cas_dir.as_ref().map(|dir| dir.join("tuist-spool"))
 }
 
-/// Requeues upload work left behind by earlier processes' bounded drains.
-/// Every plugin instance with a remote sweeps once at creation; files are
-/// claimed by rename so concurrent sweepers do not duplicate work.
+/// Requeues publications left behind by processes that died before their
+/// uploader finished (most compiler processes exit without disposing the
+/// CAS). Every plugin instance with a remote sweeps once at creation; files
+/// are claimed by rename so concurrent sweepers do not duplicate work, and
+/// claims from dead pids are re-claimable.
 fn sweep_spool(cas_addr: usize) {
     let state = unsafe { cas_state(cas_addr as llcas_cas_t) };
     let Some(dir) = spool_dir(state) else { return };
@@ -403,52 +448,47 @@ fn sweep_spool(cas_addr: usize) {
         let path = entry.path();
         let name = entry.file_name();
         let Some(name) = name.to_str() else { continue };
-        if name.contains(".claim-") {
-            continue;
-        }
-        let claimed = dir.join(format!("{name}.claim-{}", std::process::id()));
+        let base = if let Some((base, claim_pid)) = name.split_once(".claim-") {
+            // A claim from a live process is in flight; a dead claimant's
+            // record is fair game again.
+            let alive = claim_pid
+                .parse::<i32>()
+                .map(|pid| unsafe { libc::kill(pid, 0) } == 0)
+                .unwrap_or(false);
+            if alive {
+                continue;
+            }
+            base.to_string()
+        } else {
+            name.to_string()
+        };
+        let claimed = dir.join(format!("{base}.claim-{}", std::process::id()));
         if std::fs::rename(&path, &claimed).is_err() {
             continue;
         }
         if let Ok(bytes) = std::fs::read(&claimed) {
-            let mut offset = 0usize;
-            while bytes.len() >= offset + 4 {
-                let len = u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap()) as usize;
-                offset += 4;
-                if bytes.len() < offset + len {
-                    break;
-                }
-                state.uploader.enqueue(bytes[offset..offset + len].to_vec());
-                offset += len;
+            if let Some(record) = PublishRecord::decode_body(&bytes, Some(claimed.clone())) {
+                state.uploader.enqueue(record.encode_item());
+            } else {
+                let _ = std::fs::remove_file(&claimed);
             }
         }
-        let _ = std::fs::remove_file(&claimed);
     }
 }
 
-fn write_spool(state: &CasState, leftovers: &[Vec<u8>]) -> usize {
-    if leftovers.is_empty() {
-        return 0;
-    }
-    let Some(dir) = spool_dir(state) else { return 0 };
-    if std::fs::create_dir_all(&dir).is_err() {
-        return 0;
-    }
+/// Writes the publication's write-ahead record. Returns the path the worker
+/// deletes after a successful publish.
+fn write_publish_record(state: &CasState, record: &PublishRecord) -> Option<std::path::PathBuf> {
+    let dir = spool_dir(state)?;
+    std::fs::create_dir_all(&dir).ok()?;
     static SPOOL_SEQ: AtomicU64 = AtomicU64::new(0);
-    let name = format!(
+    let path = dir.join(format!(
         "{}-{}",
         std::process::id(),
         SPOOL_SEQ.fetch_add(1, Ordering::Relaxed)
-    );
-    let mut body = Vec::new();
-    for item in leftovers {
-        body.extend_from_slice(&(item.len() as u32).to_le_bytes());
-        body.extend_from_slice(item);
-    }
-    match std::fs::write(dir.join(name), body) {
-        Ok(()) => leftovers.len(),
-        Err(_) => 0,
-    }
+    ));
+    std::fs::write(&path, record.encode_body()).ok()?;
+    Some(path)
 }
 
 #[no_mangle]
@@ -473,10 +513,12 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
             .and_then(|v| v.parse().ok())
             .unwrap_or(50);
         let drain_started = std::time::Instant::now();
+        // Leftovers are simply dropped: each publication's write-ahead record
+        // survives on disk and a later sweep completes it.
         let leftovers = state
             .uploader
             .drain_stop_timeout(std::time::Duration::from_millis(drain_budget));
-        let spooled = write_spool(state, &leftovers);
+        let spooled = leftovers.len();
         if let Some(remote) = &state.remote {
             let drain_ms = drain_started.elapsed().as_millis();
             log_line(&format!(
@@ -515,7 +557,24 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
     drop(Box::from_raw(state_ptr));
 }
 
-fn log_line(message: &str) {
+/// Diagnostic: records which executable missed which key remotely, so miss
+/// populations can be attributed to task classes and compared across builds.
+fn log_miss(key: &[u8]) {
+    static EXE: OnceLock<String> = OnceLock::new();
+    let exe = EXE.get_or_init(|| {
+        std::env::current_exe()
+            .ok()
+            .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
+            .unwrap_or_else(|| "unknown".into())
+    });
+    let mut hex = String::with_capacity(key.len() * 2);
+    for byte in key {
+        hex.push_str(&format!("{byte:02x}"));
+    }
+    log_line(&format!("miss exe={exe} key={hex}"));
+}
+
+pub(crate) fn log_line(message: &str) {
     if let Ok(path) = std::env::var("TUIST_CAS_LOG") {
         use std::io::Write;
         if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
@@ -1029,6 +1088,7 @@ unsafe fn actioncache_get_impl(
     let remote = state.remote.as_ref().unwrap();
     let Some(value_digest) = remote.get_entry(key) else {
         state.stats_remote_misses.fetch_add(1, Ordering::Relaxed);
+        log_miss(key);
         return LLCAS_LOOKUP_RESULT_NOTFOUND;
     };
     state.stats_remote_entry_hits.fetch_add(1, Ordering::Relaxed);
@@ -1129,68 +1189,108 @@ pub unsafe extern "C" fn llcas_actioncache_get_for_digest_async(
 
 unsafe fn actioncache_put_remote(state: &CasState, key: &[u8], value: llcas_objectid_t) {
     if state.remote.is_some() && !state.readonly {
+        if std::env::var("TUIST_CAS_LOG_PUTS").is_ok() {
+            let mut hex = String::with_capacity(key.len() * 2);
+            for byte in key {
+                hex.push_str(&format!("{byte:02x}"));
+            }
+            log_line(&format!("put key={hex}"));
+        }
         let value_digest = digest_bytes(state, value);
-        // Upload the value's object graph, then publish the entry. Ordering
-        // is per-process best effort: a reader seeing the entry before the
-        // graph lands degrades to a cache miss.
-        state.uploader.enqueue(tagged_node(&value_digest));
-        state.uploader.enqueue(tagged_entry(key, &value_digest));
+        if !state
+            .published
+            .lock()
+            .unwrap()
+            .insert((key.to_vec(), value_digest.clone()))
+        {
+            return;
+        }
+        let mut record = PublishRecord {
+            key: key.to_vec(),
+            value_digest,
+            spool_path: None,
+        };
+        record.spool_path = write_publish_record(state, &record);
+        state.uploader.enqueue(record.encode_item());
     }
 }
 
-/// Uploader worker: dispatches one tagged item. Node items push a locally
-/// stored node to the remote and queue its children, walking the value graph
-/// produced by an actioncache_put; entry items publish key -> value digest.
+/// Uploader worker: completes one publication. Fast-skips when the entry is
+/// already remote, otherwise uploads the value graph breadth-first, posts the
+/// entry LAST (a reader never sees an entry whose graph is incomplete), and
+/// deletes the write-ahead record. On transport failure the record survives
+/// for a later sweep.
 fn upload_process(cas_addr: usize, item: Vec<u8>) {
     unsafe {
         let state = cas_state(cas_addr as llcas_cas_t);
         let Some(remote) = &state.remote else { return };
-        let Some((&tag, payload)) = item.split_first() else { return };
-        if tag == UPLOAD_TAG_ENTRY {
-            if payload.len() < 2 {
-                return;
+        let Some(record) = PublishRecord::decode_item(&item) else { return };
+
+        let mut fail_reason = "";
+        let published = if remote.get_entry(&record.key).as_deref() == Some(&record.value_digest[..]) {
+            true
+        } else {
+            let mut visited = std::collections::HashSet::new();
+            let mut pending = std::collections::VecDeque::from([record.value_digest.clone()]);
+            let mut complete = true;
+            while let Some(digest) = pending.pop_front() {
+                if !visited.insert(digest.clone()) {
+                    continue;
+                }
+                state.stats_upload_walk_loads.fetch_add(1, Ordering::Relaxed);
+                let digest_t = llcas_digest_t { data: digest.as_ptr(), size: digest.len() };
+                let mut id = llcas_objectid_t { opaque: 0 };
+                let mut id_error: *mut c_char = std::ptr::null_mut();
+                if (state.up.llcas_cas_get_objectid)(state.cas, digest_t, &mut id, &mut id_error) {
+                    if !id_error.is_null() {
+                        (state.up.llcas_string_dispose)(id_error);
+                    }
+                    fail_reason = "objectid";
+                    complete = false;
+                    break;
+                }
+                let mut loaded = llcas_loaded_object_t { opaque: 0 };
+                let mut load_error: *mut c_char = std::ptr::null_mut();
+                let result = (state.up.llcas_cas_load_object)(state.cas, id, &mut loaded, &mut load_error);
+                if !load_error.is_null() {
+                    (state.up.llcas_string_dispose)(load_error);
+                }
+                if result != LLCAS_LOOKUP_RESULT_SUCCESS {
+                    fail_reason = "local load";
+                    complete = false;
+                    break;
+                }
+                let data = (state.up.llcas_loaded_object_get_data)(state.cas, loaded);
+                let node_data = std::slice::from_raw_parts(data.data as *const u8, data.size);
+                let refs = (state.up.llcas_loaded_object_get_refs)(state.cas, loaded);
+                let count = (state.up.llcas_object_refs_get_count)(state.cas, refs);
+                let mut ref_digests = Vec::with_capacity(count);
+                for index in 0..count {
+                    let child = (state.up.llcas_object_refs_get_id)(state.cas, refs, index);
+                    ref_digests.push(digest_bytes(state, child));
+                }
+                if !remote.upload_node(&digest, &ref_digests, node_data) {
+                    fail_reason = "node post";
+                    complete = false;
+                    break;
+                }
+                pending.extend(ref_digests);
             }
-            let key_len = u16::from_be_bytes([payload[0], payload[1]]) as usize;
-            if payload.len() < 2 + key_len {
-                return;
+            complete && {
+                let ok = remote.upload_entry(&record.key, &record.value_digest);
+                if !ok {
+                    fail_reason = "entry post";
+                }
+                ok
             }
-            let key = &payload[2..2 + key_len];
-            let value_digest = &payload[2 + key_len..];
-            remote.upload_entry(key, value_digest);
-            return;
-        }
-        let digest = payload;
-        state.stats_upload_walk_loads.fetch_add(1, Ordering::Relaxed);
-        let digest_t = llcas_digest_t { data: digest.as_ptr(), size: digest.len() };
-        let mut id = llcas_objectid_t { opaque: 0 };
-        let mut id_error: *mut c_char = std::ptr::null_mut();
-        if (state.up.llcas_cas_get_objectid)(state.cas, digest_t, &mut id, &mut id_error) {
-            if !id_error.is_null() {
-                (state.up.llcas_string_dispose)(id_error);
+        };
+
+        if published {
+            if let Some(path) = &record.spool_path {
+                let _ = std::fs::remove_file(path);
             }
-            return;
-        }
-        let mut loaded = llcas_loaded_object_t { opaque: 0 };
-        let mut load_error: *mut c_char = std::ptr::null_mut();
-        let result = (state.up.llcas_cas_load_object)(state.cas, id, &mut loaded, &mut load_error);
-        if !load_error.is_null() {
-            (state.up.llcas_string_dispose)(load_error);
-        }
-        if result != LLCAS_LOOKUP_RESULT_SUCCESS {
-            return;
-        }
-        let data = (state.up.llcas_loaded_object_get_data)(state.cas, loaded);
-        let node_data = std::slice::from_raw_parts(data.data as *const u8, data.size);
-        let refs = (state.up.llcas_loaded_object_get_refs)(state.cas, loaded);
-        let count = (state.up.llcas_object_refs_get_count)(state.cas, refs);
-        let mut ref_digests = Vec::with_capacity(count);
-        for index in 0..count {
-            let child = (state.up.llcas_object_refs_get_id)(state.cas, refs, index);
-            ref_digests.push(digest_bytes(state, child));
-        }
-        remote.upload_node(digest, &ref_digests, node_data);
-        for child in ref_digests {
-            state.uploader.enqueue(tagged_node(&child));
+        } else {
+            log_line(&format!("publish failed ({fail_reason}); record kept for sweep"));
         }
     }
 }

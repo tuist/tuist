@@ -10,6 +10,9 @@ macro_rules! upstream_table {
         required: { $( $name:ident : fn( $($arg:ty),* ) -> $ret:ty ),+ $(,)? }
         optional: { $( $opt_name:ident : fn( $($opt_arg:ty),* ) -> $opt_ret:ty ),+ $(,)? }
     ) => {
+        // Some table entries exist for ABI completeness rather than current
+        // call sites (e.g. upstream async variants, answered synchronously).
+        #[allow(dead_code)]
         pub struct Upstream {
             _lib: libloading::Library,
             $( pub $name: unsafe extern "C" fn($($arg),*) -> $ret, )+

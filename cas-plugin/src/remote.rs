@@ -42,7 +42,6 @@ pub struct RemoteConfig {
     pub account: String,
     pub project: String,
     pub token: Option<String>,
-    pub pool: usize,
 }
 
 impl RemoteConfig {
@@ -53,10 +52,6 @@ impl RemoteConfig {
             account: std::env::var("TUIST_CAS_ACCOUNT").unwrap_or_else(|_| "tuist".into()),
             project: std::env::var("TUIST_CAS_PROJECT").unwrap_or_else(|_| "tuist".into()),
             token: std::env::var("TUIST_CAS_TOKEN").ok(),
-            pool: std::env::var("TUIST_CAS_POOL")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(16),
         })
     }
 }
@@ -87,7 +82,7 @@ impl Remote {
         let agent = ureq::AgentBuilder::new()
             .timeout_connect(Duration::from_secs(5))
             .timeout(Duration::from_secs(120))
-            .max_idle_connections_per_host(64)
+            .max_idle_connections_per_host(4)
             .build();
         Arc::new(Self {
             config,
@@ -105,57 +100,129 @@ impl Remote {
         )
     }
 
-    // ureq can panic while returning a connection to its pool ("returning
-    // stream to pool: ... Invalid argument"). A panic here would either wedge
-    // a worker's bookkeeping or unwind across the plugin's extern "C"
-    // boundary into the compiler, so both HTTP entry points contain panics
-    // and report them as request failures.
+    // Both HTTP entry points retry transport-class failures: ureq reuses
+    // keep-alive connections that the server may have closed, a request on a
+    // stale connection fails (reset/EOF/EINVAL-in-header), and ureq does not
+    // retry request bodies itself. A retry consumes the dead pooled
+    // connection and reconnects. Requests are content-addressed and
+    // idempotent, so retrying is always safe. catch_unwind contains ureq's
+    // pool-return panic, which must not cross the plugin's extern "C"
+    // boundary or skip worker bookkeeping.
+    const ATTEMPTS: usize = 3;
+
     fn get_artifact(&self, id: &str) -> Option<Vec<u8>> {
         let started = Instant::now();
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let mut request = self.agent.get(&self.url(id));
-            if let Some(token) = &self.config.token {
-                request = request.set("Authorization", &format!("Bearer {token}"));
-            }
-            match request.call() {
-                Ok(response) => {
-                    let mut body = Vec::new();
-                    use std::io::Read;
-                    match response.into_reader().take(1 << 30).read_to_end(&mut body) {
-                        Ok(_) => Some(body),
-                        Err(_) => None,
-                    }
+        let mut result = None;
+        for attempt_index in 0..Self::ATTEMPTS {
+            // The pool may hold several stale connections from an idle burst;
+            // the final attempt bypasses it with a fresh connection.
+            let fresh_agent;
+            let agent = if attempt_index + 1 == Self::ATTEMPTS {
+                fresh_agent = ureq::AgentBuilder::new()
+                    .timeout_connect(std::time::Duration::from_secs(5))
+                    .timeout(std::time::Duration::from_secs(120))
+                    .build();
+                &fresh_agent
+            } else {
+                &self.agent
+            };
+            let attempt = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let mut request = agent.get(&self.url(id));
+                if let Some(token) = &self.config.token {
+                    request = request.set("Authorization", &format!("Bearer {token}"));
                 }
-                Err(_) => None,
+                match request.call() {
+                    Ok(response) => {
+                        let mut body = Vec::new();
+                        use std::io::Read;
+                        match response.into_reader().take(1 << 30).read_to_end(&mut body) {
+                            Ok(_) => Ok(Some(body)),
+                            // A truncated body is a stale/broken connection.
+                            Err(_) => Err(()),
+                        }
+                    }
+                    // A definitive status (404 miss etc.) is not retryable.
+                    Err(ureq::Error::Status(_, _)) => Ok(None),
+                    Err(ureq::Error::Transport(_)) => Err(()),
+                }
+            }))
+            .unwrap_or(Err(()));
+            match attempt {
+                Ok(value) => {
+                    result = value;
+                    break;
+                }
+                Err(()) => continue,
             }
-        }))
-        .unwrap_or(None);
+        }
         self.get_stats.record(started.elapsed());
         result
     }
 
     fn put_artifact(&self, id: &str, body: &[u8]) -> Result<(), String> {
-        {
-            let mut uploaded = self.uploaded.lock().unwrap();
-            if !uploaded.insert(id.to_string()) {
-                return Ok(());
-            }
+        if self.uploaded.lock().unwrap().contains(id) {
+            return Ok(());
         }
         let started = Instant::now();
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let mut request = self.agent.post(&self.url(id));
-            if let Some(token) = &self.config.token {
-                request = request.set("Authorization", &format!("Bearer {token}"));
+        let mut last_error = String::new();
+        let mut outcome = Err(());
+        for attempt_index in 0..Self::ATTEMPTS {
+            let fresh_agent;
+            let agent = if attempt_index + 1 == Self::ATTEMPTS {
+                fresh_agent = ureq::AgentBuilder::new()
+                    .timeout_connect(std::time::Duration::from_secs(5))
+                    .timeout(std::time::Duration::from_secs(120))
+                    .build();
+                &fresh_agent
+            } else {
+                &self.agent
+            };
+            let attempt = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let mut request = agent.post(&self.url(id));
+                if let Some(token) = &self.config.token {
+                    request = request.set("Authorization", &format!("Bearer {token}"));
+                }
+                match request
+                    .set("Content-Type", "application/octet-stream")
+                    .send_bytes(body)
+                {
+                    Ok(_) => Ok(()),
+                    Err(ureq::Error::Status(code, _)) if code < 500 => {
+                        Err((false, format!("status {code}")))
+                    }
+                    Err(error) => Err((true, error.to_string())),
+                }
+            }))
+            .unwrap_or(Err((true, "panic during upload".into())));
+            match attempt {
+                Ok(()) => {
+                    outcome = Ok(());
+                    break;
+                }
+                Err((retryable, error)) => {
+                    last_error = error;
+                    if !retryable {
+                        break;
+                    }
+                }
             }
-            request
-                .set("Content-Type", "application/octet-stream")
-                .send_bytes(body)
-                .map(|_| ())
-                .map_err(|e| e.to_string())
-        }))
-        .unwrap_or_else(|_| Err("panic during upload".into()));
+        }
         self.post_stats.record(started.elapsed());
-        result
+        match outcome {
+            Ok(()) => {
+                // Marked only on success so a failure stays retryable for
+                // later publications in this process.
+                self.uploaded.lock().unwrap().insert(id.to_string());
+                Ok(())
+            }
+            Err(()) => {
+                crate::log_line(&format!(
+                    "post failed id={} error={last_error}",
+                    &id[..24.min(id.len())]
+                ));
+                Err(last_error)
+            }
+        }
     }
 
     /// Fetches an action-cache entry: key digest -> value object digest.

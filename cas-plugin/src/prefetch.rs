@@ -120,17 +120,6 @@ impl Prefetcher {
         }
     }
 
-    /// Flushes the queue (including work enqueued by in-flight items), then
-    /// stops. Used by the uploader, where pending work must not be dropped.
-    pub fn drain_stop(&self) {
-        self.draining.store(true, Ordering::Release);
-        self.cvar.notify_all();
-        let workers = std::mem::take(&mut *self.workers.lock().unwrap());
-        for worker in workers {
-            let _ = worker.join();
-        }
-    }
-
     /// Drains for at most `timeout`, then stops workers and returns whatever
     /// is still queued so the caller can persist it. Keeps process exit off
     /// the build's critical path: a compiler frontend spends at most the
