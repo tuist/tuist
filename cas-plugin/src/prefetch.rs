@@ -1,7 +1,5 @@
-//! Background ref-graph prefetcher. After an action-cache entry hit, the
-//! value object's whole ref graph will be demanded by compiler frontends;
-//! walking it eagerly off the critical path turns those demand loads into
-//! local hits.
+//! Lazy worker pool with write-ahead-friendly drain semantics; used by the
+//! uploader to run publications off the build's critical path.
 
 use std::collections::{HashSet, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -21,7 +19,6 @@ pub struct Prefetcher {
     // remote, and eagerly spinning up pools in ~1000 short-lived frontends
     // per build is measurable overhead.
     starter: Mutex<Option<(usize, ProcessFn)>>,
-    pub fetched: AtomicU64,
 }
 
 impl Prefetcher {
@@ -35,7 +32,6 @@ impl Prefetcher {
             seen: Mutex::new(HashSet::new()),
             workers: Mutex::new(Vec::new()),
             starter: Mutex::new(None),
-            fetched: AtomicU64::new(0),
         }
     }
 
@@ -97,6 +93,10 @@ impl Prefetcher {
         }
     }
 
+    pub fn is_shutdown(&self) -> bool {
+        self.shutdown.load(Ordering::Acquire) || self.draining.load(Ordering::Acquire)
+    }
+
     pub fn enqueue(&self, digest: Vec<u8>) {
         if digest.is_empty() || self.shutdown.load(Ordering::Acquire) {
             return;
@@ -107,17 +107,6 @@ impl Prefetcher {
         self.ensure_started();
         self.queue.lock().unwrap().push_back(digest);
         self.cvar.notify_one();
-    }
-
-    /// Stops workers and joins them. Pending queue entries are dropped: by
-    /// dispose time the build session is over and nothing will demand them.
-    pub fn stop(&self) {
-        self.shutdown.store(true, Ordering::Release);
-        self.cvar.notify_all();
-        let workers = std::mem::take(&mut *self.workers.lock().unwrap());
-        for worker in workers {
-            let _ = worker.join();
-        }
     }
 
     /// Drains for at most `timeout`, then stops workers and returns whatever

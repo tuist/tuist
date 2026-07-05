@@ -1,6 +1,6 @@
 //! Tuist CAS plugin: an LLVM CAS plugin (llcas ABI v0.1) that wraps Xcode's
 //! libToolchainCASPlugin for local storage and hashing, and adds kura-backed
-//! remoteness as read-through on miss + write-through on store.
+//! remoteness over the Bazel Remote Execution API (see reapi.rs).
 //!
 //! The build system runs in its fast "plugin-local" mode (no
 //! COMPILATION_CACHE_REMOTE_SERVICE_PATH); this plugin owns all remote
@@ -8,7 +8,7 @@
 //! which is never set on this path.
 
 mod prefetch;
-mod remote;
+mod reapi;
 mod types;
 mod upstream;
 
@@ -17,7 +17,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use prefetch::Prefetcher;
-use remote::{OpStats, Remote, RemoteConfig};
+use reapi::{ManifestEntry, OpStats, Remote, RemoteConfig};
 use types::*;
 use upstream::Upstream;
 
@@ -163,7 +163,6 @@ struct CasState {
     created_at: std::time::Instant,
     cas_dir: Option<std::path::PathBuf>,
     sweeper: Mutex<Option<std::thread::JoinHandle<()>>>,
-    prefetcher: Prefetcher,
     // Uploads value-object graphs on actioncache_put. Deliberately NOT hooked
     // on store_object: the compiler stores input ingests and scan trees every
     // build (warm included), and mirroring those re-uploads the world.
@@ -172,6 +171,11 @@ struct CasState {
     // first becomes a publication. Publish items carry unique spool paths, so
     // the queue's content dedup cannot do this.
     published: Mutex<std::collections::HashSet<(Vec<u8>, Vec<u8>)>>,
+    // Value graphs share children heavily across keys; without these caches a
+    // warm build re-fetches (read side) and re-compresses/re-hashes (publish
+    // side) the same nodes once per referencing key.
+    known_local: Mutex<std::collections::HashSet<Vec<u8>>>,
+    publish_cache: Mutex<std::collections::HashMap<Vec<u8>, (reapi::Digest, Vec<Vec<u8>>)>>,
     stats_remote_entry_hits: AtomicU64,
     stats_remote_node_hits: AtomicU64,
     stats_remote_misses: AtomicU64,
@@ -190,7 +194,7 @@ struct CasState {
     stats_mat_store_bytes: AtomicU64,
     stats_local_put_ms: AtomicU64,
     stats_upload_walk_loads: AtomicU64,
-    stats_prefetch_walk_loads: AtomicU64,
+    stats_manifest_entries: AtomicU64,
 }
 
 /// Process CPU (user+system) in milliseconds, for attributing wall-time gaps
@@ -400,9 +404,10 @@ pub unsafe extern "C" fn llcas_cas_create(
         created_at: std::time::Instant::now(),
         cas_dir,
         sweeper: Mutex::new(None),
-        prefetcher: Prefetcher::new(),
         uploader: Prefetcher::new(),
         published: Mutex::new(std::collections::HashSet::new()),
+        known_local: Mutex::new(std::collections::HashSet::new()),
+        publish_cache: Mutex::new(std::collections::HashMap::new()),
         stats_remote_entry_hits: AtomicU64::new(0),
         stats_remote_node_hits: AtomicU64::new(0),
         stats_remote_misses: AtomicU64::new(0),
@@ -413,19 +418,27 @@ pub unsafe extern "C" fn llcas_cas_create(
         stats_mat_store_bytes: AtomicU64::new(0),
         stats_local_put_ms: AtomicU64::new(0),
         stats_upload_walk_loads: AtomicU64::new(0),
-        stats_prefetch_walk_loads: AtomicU64::new(0),
+        stats_manifest_entries: AtomicU64::new(0),
     }));
     if has_remote {
         let cas_addr = state_ptr as usize;
-        (*state_ptr).prefetcher.configure(Prefetcher::worker_count(), move |digest| {
-            prefetch_process(cas_addr, digest);
-        });
         (*state_ptr).uploader.configure(Prefetcher::worker_count(), move |item| {
             upload_process(cas_addr, item);
         });
         if (*state_ptr).cas_dir.is_some() {
-            *(*state_ptr).sweeper.lock().unwrap() =
-                Some(std::thread::spawn(move || sweep_spool(cas_addr)));
+            *(*state_ptr).sweeper.lock().unwrap() = Some(std::thread::spawn(move || {
+                // Only processes that live a while sweep: a short-lived
+                // frontend claiming records it cannot finish just bounces
+                // them back to the spool.
+                for _ in 0..15 {
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                    let state = cas_state(cas_addr as llcas_cas_t);
+                    if state.uploader.is_shutdown() {
+                        return;
+                    }
+                }
+                sweep_spool(cas_addr);
+            }));
         }
     }
     state_ptr as llcas_cas_t
@@ -505,7 +518,6 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
         if let Some(sweeper) = state.sweeper.lock().unwrap().take() {
             let _ = sweeper.join();
         }
-        state.prefetcher.stop();
         // Bounded drain keeps process exit off the build's critical path;
         // whatever is still queued is spooled for later processes to upload.
         let drain_budget = std::env::var("TUIST_CAS_DRAIN_MS")
@@ -522,15 +534,14 @@ pub unsafe extern "C" fn llcas_cas_dispose(cas: llcas_cas_t) {
         if let Some(remote) = &state.remote {
             let drain_ms = drain_started.elapsed().as_millis();
             log_line(&format!(
-                "dispose: drain={drain_ms}ms spooled={spooled} cpu={}ms life={}ms walks up={} pf={} remote entry hits={} node hits={} misses={} prefetched={} demand_wait={}ms | gets {} | posts {}",
+                "dispose: drain={drain_ms}ms spooled={spooled} cpu={}ms life={}ms walks up={} remote entry hits={} manifest entries={} blobs fetched={} misses={} demand_wait={}ms | gets {} | posts {}",
                 process_cpu_ms(),
                 state.created_at.elapsed().as_millis(),
                 state.stats_upload_walk_loads.load(Ordering::Relaxed),
-                state.stats_prefetch_walk_loads.load(Ordering::Relaxed),
                 state.stats_remote_entry_hits.load(Ordering::Relaxed),
+                state.stats_manifest_entries.load(Ordering::Relaxed),
                 state.stats_remote_node_hits.load(Ordering::Relaxed),
                 state.stats_remote_misses.load(Ordering::Relaxed),
-                state.prefetcher.fetched.load(Ordering::Relaxed),
                 state.stats_demand_wait_ms.load(Ordering::Relaxed),
                 remote.get_stats.summary(),
                 remote.post_stats.summary(),
@@ -768,159 +779,44 @@ unsafe fn digest_bytes(state: &CasState, id: llcas_objectid_t) -> Vec<u8> {
     std::slice::from_raw_parts(digest.data, digest.size).to_vec()
 }
 
-/// Fetches a node from the remote and stores it into the upstream local CAS.
-/// Returns the node's ref digests on success, or None when the node is not
-/// available remotely, so callers can hand the children to the prefetcher.
-unsafe fn materialize_node(state: &CasState, digest: &[u8]) -> Result<Option<Vec<Vec<u8>>>, String> {
-    let Some(remote) = &state.remote else { return Ok(None) };
-    let Some(node) = remote.get_node(digest) else {
-        state.stats_remote_misses.fetch_add(1, Ordering::Relaxed);
-        return Ok(None);
-    };
-    state.stats_remote_node_hits.fetch_add(1, Ordering::Relaxed);
-
+/// Stores one fetched node into the upstream local CAS.
+unsafe fn store_node(state: &CasState, node: &reapi::Node) -> bool {
     let mut ref_ids = Vec::with_capacity(node.refs.len());
     for reference in &node.refs {
         let digest = llcas_digest_t { data: reference.as_ptr(), size: reference.len() };
         let mut id = llcas_objectid_t { opaque: 0 };
-        let mut error: *mut c_char = std::ptr::null_mut();
-        if (state.up.llcas_cas_get_objectid)(state.cas, digest, &mut id, &mut error) {
-            let message = adopt_upstream_string(state.up, error);
-            let text = if message.is_null() { "get_objectid failed".into() } else {
-                let s = CStr::from_ptr(message).to_string_lossy().into_owned();
-                llcas_string_dispose(message);
-                s
-            };
-            return Err(text);
+        let mut id_error: *mut c_char = std::ptr::null_mut();
+        if (state.up.llcas_cas_get_objectid)(state.cas, digest, &mut id, &mut id_error) {
+            if !id_error.is_null() {
+                (state.up.llcas_string_dispose)(id_error);
+            }
+            return false;
         }
         ref_ids.push(id);
     }
-
     let data = llcas_data_t { data: node.data.as_ptr() as *const c_void, size: node.data.len() };
-    let mut stored_id = llcas_objectid_t { opaque: 0 };
-    let mut error: *mut c_char = std::ptr::null_mut();
-    let store_started = std::time::Instant::now();
-    let store_failed = (state.up.llcas_cas_store_object)(
+    let mut stored = llcas_objectid_t { opaque: 0 };
+    let mut store_error: *mut c_char = std::ptr::null_mut();
+    let started = std::time::Instant::now();
+    let failed = (state.up.llcas_cas_store_object)(
         state.cas,
         data,
         ref_ids.as_ptr(),
         ref_ids.len(),
-        &mut stored_id,
-        &mut error,
+        &mut stored,
+        &mut store_error,
     );
-    state.stats_mat_store.record(store_started.elapsed());
-    state.stats_mat_store_bytes.fetch_add(node.data.len() as u64, Ordering::Relaxed);
-    if store_failed {
-        let message = adopt_upstream_string(state.up, error);
-        let text = if message.is_null() { "store_object failed".into() } else {
-            let s = CStr::from_ptr(message).to_string_lossy().into_owned();
-            llcas_string_dispose(message);
-            s
-        };
-        return Err(text);
+    state.stats_mat_store.record(started.elapsed());
+    state
+        .stats_mat_store_bytes
+        .fetch_add(node.data.len() as u64, Ordering::Relaxed);
+    if failed {
+        if !store_error.is_null() {
+            (state.up.llcas_string_dispose)(store_error);
+        }
+        return false;
     }
-    Ok(Some(node.refs))
-}
-
-/// Prefetch worker: materializes one node if missing locally, then walks its
-/// refs. Locally present nodes are still traversed because shallow
-/// materialization leaves dangling children behind.
-fn prefetch_process(cas_addr: usize, digest: Vec<u8>) {
-    unsafe {
-        let state = cas_state(cas_addr as llcas_cas_t);
-        state.stats_prefetch_walk_loads.fetch_add(1, Ordering::Relaxed);
-        let digest_t = llcas_digest_t { data: digest.as_ptr(), size: digest.len() };
-        let mut id = llcas_objectid_t { opaque: 0 };
-        let mut id_error: *mut c_char = std::ptr::null_mut();
-        if (state.up.llcas_cas_get_objectid)(state.cas, digest_t, &mut id, &mut id_error) {
-            if !id_error.is_null() {
-                (state.up.llcas_string_dispose)(id_error);
-            }
-            return;
-        }
-
-        let mut loaded = llcas_loaded_object_t { opaque: 0 };
-        let mut load_error: *mut c_char = std::ptr::null_mut();
-        let result = (state.up.llcas_cas_load_object)(state.cas, id, &mut loaded, &mut load_error);
-        if !load_error.is_null() {
-            (state.up.llcas_string_dispose)(load_error);
-        }
-        match result {
-            LLCAS_LOOKUP_RESULT_SUCCESS => {
-                let refs = (state.up.llcas_loaded_object_get_refs)(state.cas, loaded);
-                let count = (state.up.llcas_object_refs_get_count)(state.cas, refs);
-                for index in 0..count {
-                    let child = (state.up.llcas_object_refs_get_id)(state.cas, refs, index);
-                    state.prefetcher.enqueue(digest_bytes(state, child));
-                }
-            }
-            LLCAS_LOOKUP_RESULT_NOTFOUND => {
-                if let Ok(Some(child_digests)) = materialize_node(state, &digest) {
-                    state.prefetcher.fetched.fetch_add(1, Ordering::Relaxed);
-                    for child in child_digests {
-                        state.prefetcher.enqueue(child);
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-}
-
-/// Materializes a node and, when it has children, fetches the missing ones in
-/// one bounded parallel wave before returning. A read-through consumer needs
-/// the whole value graph immediately, so waiting on a parallel wave costs
-/// max-of-children latency where demand-driven loading would pay the sum;
-/// grandchildren go to the background prefetcher.
-unsafe fn materialize_tree(state: &CasState, digest: &[u8]) -> Result<bool, String> {
-    let children = match materialize_node(state, digest)? {
-        Some(children) => children,
-        None => return Ok(false),
-    };
-    let missing: Vec<Vec<u8>> = children
-        .into_iter()
-        .filter(|child| {
-            let digest_t = llcas_digest_t { data: child.as_ptr(), size: child.len() };
-            let mut id = llcas_objectid_t { opaque: 0 };
-            let mut error: *mut c_char = std::ptr::null_mut();
-            if (state.up.llcas_cas_get_objectid)(state.cas, digest_t, &mut id, &mut error) {
-                if !error.is_null() {
-                    (state.up.llcas_string_dispose)(error);
-                }
-                return false;
-            }
-            let mut check_error: *mut c_char = std::ptr::null_mut();
-            let result = (state.up.llcas_cas_contains_object)(state.cas, id, false, &mut check_error);
-            if !check_error.is_null() {
-                (state.up.llcas_string_dispose)(check_error);
-            }
-            result != LLCAS_LOOKUP_RESULT_SUCCESS
-        })
-        .collect();
-    if missing.is_empty() {
-        return Ok(true);
-    }
-    let state_addr = state as *const CasState as usize;
-    let workers = missing.len().min(16);
-    let queue = Mutex::new(missing.into_iter());
-    std::thread::scope(|scope| {
-        for _ in 0..workers {
-            scope.spawn(|| {
-                let state = &*(state_addr as *const CasState);
-                loop {
-                    let Some(child) = queue.lock().unwrap().next() else { break };
-                    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                        if let Ok(Some(grandchildren)) = materialize_node(state, &child) {
-                            for grandchild in grandchildren {
-                                state.prefetcher.enqueue(grandchild);
-                            }
-                        }
-                    }));
-                }
-            });
-        }
-    });
-    Ok(true)
+    true
 }
 
 unsafe fn load_object_impl(
@@ -929,35 +825,13 @@ unsafe fn load_object_impl(
     loaded: *mut llcas_loaded_object_t,
     error: *mut *mut c_char,
 ) -> llcas_lookup_result_t {
+    // Local-only: the manifest-driven action-cache read-through materializes
+    // the entire value graph before answering, so demand loads always find
+    // their bytes locally.
     let mut upstream_error: *mut c_char = std::ptr::null_mut();
     let result = (state.up.llcas_cas_load_object)(state.cas, id, loaded, &mut upstream_error);
-    if result != LLCAS_LOOKUP_RESULT_NOTFOUND || state.remote.is_none() {
-        adopt_error(state.up, upstream_error, error);
-        return result;
-    }
-    if !upstream_error.is_null() {
-        (state.up.llcas_string_dispose)(upstream_error);
-    }
-
-    let started = std::time::Instant::now();
-    let digest = digest_bytes(state, id);
-    let outcome = match materialize_tree(state, &digest) {
-        Ok(true) => {
-            let mut retry_error: *mut c_char = std::ptr::null_mut();
-            let result = (state.up.llcas_cas_load_object)(state.cas, id, loaded, &mut retry_error);
-            adopt_error(state.up, retry_error, error);
-            result
-        }
-        Ok(false) => LLCAS_LOOKUP_RESULT_NOTFOUND,
-        Err(message) => {
-            set_error(error, &message);
-            LLCAS_LOOKUP_RESULT_ERROR
-        }
-    };
-    state
-        .stats_demand_wait_ms
-        .fetch_add(started.elapsed().as_millis() as u64, Ordering::Relaxed);
-    outcome
+    adopt_error(state.up, upstream_error, error);
+    result
 }
 
 #[no_mangle]
@@ -1086,25 +960,99 @@ unsafe fn actioncache_get_impl(
 
     let _demand_guard = DemandWaitGuard { state, started: std::time::Instant::now() };
     let remote = state.remote.as_ref().unwrap();
-    let Some(value_digest) = remote.get_entry(key) else {
-        state.stats_remote_misses.fetch_add(1, Ordering::Relaxed);
-        log_miss(key);
-        return LLCAS_LOOKUP_RESULT_NOTFOUND;
+    let manifest = match remote.get_action(key) {
+        Ok(Some(manifest)) if !manifest.is_empty() => manifest,
+        Ok(_) => {
+            state.stats_remote_misses.fetch_add(1, Ordering::Relaxed);
+            log_miss(key);
+            return LLCAS_LOOKUP_RESULT_NOTFOUND;
+        }
+        Err(message) => {
+            state.stats_remote_misses.fetch_add(1, Ordering::Relaxed);
+            log_line(&format!("get_action failed: {message}"));
+            return LLCAS_LOOKUP_RESULT_NOTFOUND;
+        }
     };
     state.stats_remote_entry_hits.fetch_add(1, Ordering::Relaxed);
+    state
+        .stats_manifest_entries
+        .fetch_add(manifest.len() as u64, Ordering::Relaxed);
 
-    // Materialize the value object and its children in one parallel wave:
-    // the caller is about to demand every output in the graph, and pulling
-    // them one demand-load at a time is what stretched frontend lifetimes
-    // ~10x over the floor. Deeper levels go to the background prefetcher.
-    match materialize_tree(state, &value_digest) {
-        Ok(true) => {}
-        Ok(false) => return LLCAS_LOOKUP_RESULT_NOTFOUND,
-        Err(message) => {
-            set_error(error, &message);
-            return LLCAS_LOOKUP_RESULT_ERROR;
+    // The manifest names every blob in the value graph up front; fetch only
+    // what the local CAS lacks, in one batched round trip.
+    let missing: Vec<&ManifestEntry> = manifest
+        .iter()
+        .filter(|entry| {
+            if state
+                .known_local
+                .lock()
+                .unwrap()
+                .contains(&entry.llcas_digest)
+            {
+                return false;
+            }
+            let digest_t =
+                llcas_digest_t { data: entry.llcas_digest.as_ptr(), size: entry.llcas_digest.len() };
+            let mut id = llcas_objectid_t { opaque: 0 };
+            let mut id_error: *mut c_char = std::ptr::null_mut();
+            if (state.up.llcas_cas_get_objectid)(state.cas, digest_t, &mut id, &mut id_error) {
+                if !id_error.is_null() {
+                    (state.up.llcas_string_dispose)(id_error);
+                }
+                return true;
+            }
+            // Authoritative presence check: an actual load, the same call the
+            // consumer will make.
+            let mut loaded = llcas_loaded_object_t { opaque: 0 };
+            let mut check_error: *mut c_char = std::ptr::null_mut();
+            let present = (state.up.llcas_cas_load_object)(state.cas, id, &mut loaded, &mut check_error);
+            if !check_error.is_null() {
+                (state.up.llcas_string_dispose)(check_error);
+            }
+            if present == LLCAS_LOOKUP_RESULT_SUCCESS {
+                state
+                    .known_local
+                    .lock()
+                    .unwrap()
+                    .insert(entry.llcas_digest.clone());
+                return false;
+            }
+            true
+        })
+        .collect();
+    if !missing.is_empty() {
+        let digests: Vec<_> = missing.iter().map(|entry| entry.blob.clone()).collect();
+        let contents = match remote.batch_read(&digests) {
+            Ok(contents) => contents,
+            Err(message) => {
+                log_line(&format!("batch_read failed: {message}"));
+                return LLCAS_LOOKUP_RESULT_NOTFOUND;
+            }
+        };
+        for entry in &missing {
+            // An unreadable or absent blob means the published graph is
+            // incomplete; degrade to a miss and let the client recompute.
+            let Some(blob) = contents.get(&entry.blob.hash) else {
+                return LLCAS_LOOKUP_RESULT_NOTFOUND;
+            };
+            let Some(frame) = reapi::decompress_frame(blob) else {
+                return LLCAS_LOOKUP_RESULT_NOTFOUND;
+            };
+            let Some(node) = reapi::decode_frame(&frame) else {
+                return LLCAS_LOOKUP_RESULT_NOTFOUND;
+            };
+            if !store_node(state, &node) {
+                return LLCAS_LOOKUP_RESULT_NOTFOUND;
+            }
+            state
+                .known_local
+                .lock()
+                .unwrap()
+                .insert(entry.llcas_digest.clone());
+            state.stats_remote_node_hits.fetch_add(1, Ordering::Relaxed);
         }
     }
+    let value_digest = manifest[0].llcas_digest.clone();
 
     let value_digest_t = llcas_digest_t { data: value_digest.as_ptr(), size: value_digest.len() };
     let mut value_id = llcas_objectid_t { opaque: 0 };
@@ -1215,82 +1163,130 @@ unsafe fn actioncache_put_remote(state: &CasState, key: &[u8], value: llcas_obje
     }
 }
 
-/// Uploader worker: completes one publication. Fast-skips when the entry is
-/// already remote, otherwise uploads the value graph breadth-first, posts the
-/// entry LAST (a reader never sees an entry whose graph is incomplete), and
-/// deletes the write-ahead record. On transport failure the record survives
-/// for a later sweep.
+/// Loads a node from the local CAS and encodes its transport blob. Returns
+/// the compressed frame and the node's child digests.
+unsafe fn encode_node_blob(
+    state: &CasState,
+    digest: &[u8],
+) -> Result<(Vec<u8>, Vec<Vec<u8>>), String> {
+    state.stats_upload_walk_loads.fetch_add(1, Ordering::Relaxed);
+    let digest_t = llcas_digest_t { data: digest.as_ptr(), size: digest.len() };
+    let mut id = llcas_objectid_t { opaque: 0 };
+    let mut id_error: *mut c_char = std::ptr::null_mut();
+    if (state.up.llcas_cas_get_objectid)(state.cas, digest_t, &mut id, &mut id_error) {
+        if !id_error.is_null() {
+            (state.up.llcas_string_dispose)(id_error);
+        }
+        return Err("objectid".into());
+    }
+    let mut loaded = llcas_loaded_object_t { opaque: 0 };
+    let mut load_error: *mut c_char = std::ptr::null_mut();
+    let result = (state.up.llcas_cas_load_object)(state.cas, id, &mut loaded, &mut load_error);
+    if !load_error.is_null() {
+        (state.up.llcas_string_dispose)(load_error);
+    }
+    if result != LLCAS_LOOKUP_RESULT_SUCCESS {
+        return Err("local load".into());
+    }
+    let data = (state.up.llcas_loaded_object_get_data)(state.cas, loaded);
+    let node_data = std::slice::from_raw_parts(data.data as *const u8, data.size);
+    let refs = (state.up.llcas_loaded_object_get_refs)(state.cas, loaded);
+    let count = (state.up.llcas_object_refs_get_count)(state.cas, refs);
+    let mut ref_digests = Vec::with_capacity(count);
+    for index in 0..count {
+        let child = (state.up.llcas_object_refs_get_id)(state.cas, refs, index);
+        ref_digests.push(digest_bytes(state, child));
+    }
+    let blob = reapi::compress_frame(&reapi::encode_frame(&ref_digests, node_data));
+    Ok((blob, ref_digests))
+}
+
+/// Uploader worker: completes one publication over REAPI. Fast-skips when
+/// this exact result is already published; otherwise walks the closure from
+/// the local CAS, uploads only the blobs the server reports missing, and
+/// publishes the ActionResult manifest LAST, so a reader can never observe
+/// an entry whose graph is incomplete. On failure the write-ahead record
+/// survives for a later sweep.
 fn upload_process(cas_addr: usize, item: Vec<u8>) {
     unsafe {
         let state = cas_state(cas_addr as llcas_cas_t);
         let Some(remote) = &state.remote else { return };
         let Some(record) = PublishRecord::decode_item(&item) else { return };
 
-        let mut fail_reason = "";
-        let published = if remote.get_entry(&record.key).as_deref() == Some(&record.value_digest[..]) {
-            true
-        } else {
+        let outcome = (|| -> Result<(), String> {
+            if let Ok(Some(manifest)) = remote.get_action(&record.key) {
+                if manifest.first().map(|entry| entry.llcas_digest.as_slice())
+                    == Some(record.value_digest.as_slice())
+                {
+                    return Ok(());
+                }
+            }
+
+            // Walk the closure from the shared local CAS, root first. Shared
+            // subtrees appear in many closures; the publish cache makes each
+            // unique node's load + compress + hash happen once per process.
+            let mut entries: Vec<ManifestEntry> = Vec::new();
+            let mut blobs: Vec<Option<Vec<u8>>> = Vec::new();
             let mut visited = std::collections::HashSet::new();
             let mut pending = std::collections::VecDeque::from([record.value_digest.clone()]);
-            let mut complete = true;
             while let Some(digest) = pending.pop_front() {
                 if !visited.insert(digest.clone()) {
                     continue;
                 }
-                state.stats_upload_walk_loads.fetch_add(1, Ordering::Relaxed);
-                let digest_t = llcas_digest_t { data: digest.as_ptr(), size: digest.len() };
-                let mut id = llcas_objectid_t { opaque: 0 };
-                let mut id_error: *mut c_char = std::ptr::null_mut();
-                if (state.up.llcas_cas_get_objectid)(state.cas, digest_t, &mut id, &mut id_error) {
-                    if !id_error.is_null() {
-                        (state.up.llcas_string_dispose)(id_error);
-                    }
-                    fail_reason = "objectid";
-                    complete = false;
-                    break;
+                if let Some((blob_digest, children)) =
+                    state.publish_cache.lock().unwrap().get(&digest).cloned()
+                {
+                    entries.push(ManifestEntry { llcas_digest: digest, blob: blob_digest });
+                    blobs.push(None);
+                    pending.extend(children);
+                    continue;
                 }
-                let mut loaded = llcas_loaded_object_t { opaque: 0 };
-                let mut load_error: *mut c_char = std::ptr::null_mut();
-                let result = (state.up.llcas_cas_load_object)(state.cas, id, &mut loaded, &mut load_error);
-                if !load_error.is_null() {
-                    (state.up.llcas_string_dispose)(load_error);
-                }
-                if result != LLCAS_LOOKUP_RESULT_SUCCESS {
-                    fail_reason = "local load";
-                    complete = false;
-                    break;
-                }
-                let data = (state.up.llcas_loaded_object_get_data)(state.cas, loaded);
-                let node_data = std::slice::from_raw_parts(data.data as *const u8, data.size);
-                let refs = (state.up.llcas_loaded_object_get_refs)(state.cas, loaded);
-                let count = (state.up.llcas_object_refs_get_count)(state.cas, refs);
-                let mut ref_digests = Vec::with_capacity(count);
-                for index in 0..count {
-                    let child = (state.up.llcas_object_refs_get_id)(state.cas, refs, index);
-                    ref_digests.push(digest_bytes(state, child));
-                }
-                if !remote.upload_node(&digest, &ref_digests, node_data) {
-                    fail_reason = "node post";
-                    complete = false;
-                    break;
-                }
-                pending.extend(ref_digests);
+                let (blob, children) = encode_node_blob(state, &digest)?;
+                let blob_digest = reapi::blob_digest(&blob);
+                state
+                    .publish_cache
+                    .lock()
+                    .unwrap()
+                    .insert(digest.clone(), (blob_digest.clone(), children.clone()));
+                entries.push(ManifestEntry { llcas_digest: digest, blob: blob_digest });
+                blobs.push(Some(blob));
+                pending.extend(children);
             }
-            complete && {
-                let ok = remote.upload_entry(&record.key, &record.value_digest);
-                if !ok {
-                    fail_reason = "entry post";
-                }
-                ok
-            }
-        };
 
-        if published {
-            if let Some(path) = &record.spool_path {
-                let _ = std::fs::remove_file(path);
+            // Server-side dedup: upload only what the server lacks. Bytes
+            // dropped by the cache are re-encoded only if actually needed.
+            let missing =
+                remote.find_missing(entries.iter().map(|entry| entry.blob.clone()).collect())?;
+            let missing_set: std::collections::HashSet<(String, i64)> = missing
+                .into_iter()
+                .map(|digest| (digest.hash, digest.size_bytes))
+                .collect();
+            let mut uploads: Vec<(reapi::Digest, Vec<u8>)> = Vec::new();
+            for (entry, blob) in entries.iter().zip(blobs) {
+                if !missing_set.contains(&(entry.blob.hash.clone(), entry.blob.size_bytes)) {
+                    continue;
+                }
+                let bytes = match blob {
+                    Some(bytes) => bytes,
+                    None => encode_node_blob(state, &entry.llcas_digest)?.0,
+                };
+                uploads.push((entry.blob.clone(), bytes));
             }
-        } else {
-            log_line(&format!("publish failed ({fail_reason}); record kept for sweep"));
+            if !uploads.is_empty() {
+                remote.batch_update(uploads)?;
+            }
+            remote.update_action(&record.key, &entries)
+        })();
+
+        match outcome {
+            Ok(()) => {
+                if let Some(path) = &record.spool_path {
+                    let _ = std::fs::remove_file(path);
+                }
+            }
+            Err(reason) => {
+                log_line(&format!("publish failed ({reason}); record kept for sweep"));
+            }
         }
     }
 }

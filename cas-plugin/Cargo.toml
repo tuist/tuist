@@ -10,9 +10,12 @@ crate-type = ["cdylib"]
 [dependencies]
 libloading = "0.8"
 zstd = "0.13"
-ureq = "2"
 libc = "0.2"
-percent-encoding = "2"
+bazel-remote-apis = "0.27.0"
+tonic = "0.14.2"
+prost = "0.14.1"
+sha2 = "0.10"
+tokio = { version = "1.48", features = ["rt-multi-thread", "time"] }
 
 [profile.release]
 opt-level = 2
