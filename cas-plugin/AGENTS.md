@@ -36,3 +36,14 @@ xcodebuild ... \
 ```
 
 Requires `SWIFT_ENABLE_EXPLICIT_MODULES` and works with Xcode 26.x. Not yet wired into the CLI; see the introducing PR for the productization follow-ups (dylib distribution, CLI env wiring, auth token minting).
+
+## Kura placement (on-host vs PN node)
+
+The broker can point at kura wherever it runs; two placements were measured on the CLI fixture (8-core runner VM, all kura perf fixes):
+
+- **On-host** — one kura per runner Mac (served to the VM over the loopback/bridge). Warm build **113.6s** (median of 5). This placement is **not bandwidth-constrained**: the bridge measured 2.34 GB/s and loopback is effectively unbounded, so a very cache-heavy build or many concurrent frontends never contend on a shared NIC.
+- **PN node off-host** — a shared kura on a nearby Private Network fleet node (0.89ms). Warm build **118s** (median of 3) — only ~5s slower, since sub-ms LAN is the same latency regime as the bridge. Simpler operationally (one kura per region instead of per-Mac), at the cost of a shared node NIC that could bottleneck under enough concurrent runners.
+
+Build time only diverges at true WAN latency (66ms → warm ~0.76x of no-cache but ~65s over the local floor, since the ~2.5GB namespace fetch costs real round-trips).
+
+**Current decision: rely on the PN kura node** — it is not meaningfully slower and avoids running kura on every Mac. On-host remains the documented fallback for when guaranteed non-bandwidth-constrained per-runner cache is needed.
