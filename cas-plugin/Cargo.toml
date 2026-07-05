@@ -11,6 +11,10 @@ crate-type = ["cdylib", "rlib"]
 name = "tuist-cas-broker"
 path = "src/bin/tuist-cas-broker.rs"
 
+[[bin]]
+name = "bench-read"
+path = "src/bin/bench-read.rs"
+
 [dependencies]
 libloading = "0.8"
 zstd = "0.13"

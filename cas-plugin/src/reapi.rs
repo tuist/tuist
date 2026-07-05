@@ -168,7 +168,14 @@ impl Remote {
                     // that plagued the HTTP/1.1 transport.
                     .http2_keep_alive_interval(Duration::from_secs(20))
                     .keep_alive_while_idle(true)
-                    .keep_alive_timeout(Duration::from_secs(10));
+                    .keep_alive_timeout(Duration::from_secs(10))
+                    // Bulk-transfer windows: with default ~64KB stream
+                    // windows, a 500KB batch response costs ~8 window-update
+                    // round trips, which dominates on links with real RTT
+                    // (measured ~31ms per 30-blob resolve over the VM bridge
+                    // vs ~1ms server-side).
+                    .initial_stream_window_size(Some(16 * 1024 * 1024))
+                    .initial_connection_window_size(Some(64 * 1024 * 1024));
                 runtime()
                     .block_on(endpoint.connect())
                     .map_err(|e| format!("grpc connect: {e}"))
@@ -225,49 +232,58 @@ impl Remote {
         result
     }
 
-    /// Reads blobs in size-bounded batches. Returns content per digest hash.
+    /// Reads blobs in size-bounded batches. Chunks are fetched concurrently
+    /// over the multiplexed channel: bulk resolves can carry gigabytes, and
+    /// a sequential chunk loop turns them into round-trip ladders.
     pub fn batch_read(
         &self,
         blobs: &[reapi::Digest],
     ) -> Result<std::collections::HashMap<String, Vec<u8>>, String> {
         let started = Instant::now();
         let result = (|| {
-            let mut client = self.cas_client()?;
-            let mut contents = std::collections::HashMap::new();
-            for chunk in chunk_digests(blobs) {
-                let request = reapi::BatchReadBlobsRequest {
-                    instance_name: self.config.instance.clone(),
-                    digests: chunk.to_vec(),
-                    ..Default::default()
-                };
-                let mut last_error = String::new();
-                let mut done = false;
-                for attempt in 0..ATTEMPTS {
-                    match runtime().block_on(client.batch_read_blobs(request.clone())) {
-                        Ok(response) => {
-                            for entry in response.into_inner().responses {
-                                let ok = entry
-                                    .status
-                                    .as_ref()
-                                    .map(|s| s.code == 0)
-                                    .unwrap_or(false);
-                                if ok {
-                                    if let Some(digest) = entry.digest {
-                                        contents.insert(digest.hash, entry.data.to_vec());
-                                    }
+            let client = self.cas_client()?;
+            let instance = self.config.instance.clone();
+            let chunks = chunk_digests(blobs);
+            let outcomes = runtime().block_on(async {
+                let mut join_set = tokio::task::JoinSet::new();
+                for chunk in &chunks {
+                    let mut client = client.clone();
+                    let request = reapi::BatchReadBlobsRequest {
+                        instance_name: instance.clone(),
+                        digests: chunk.to_vec(),
+                        ..Default::default()
+                    };
+                    join_set.spawn(async move {
+                        let mut last_error = String::new();
+                        for attempt in 0..ATTEMPTS {
+                            match client.batch_read_blobs(request.clone()).await {
+                                Ok(response) => return Ok(response.into_inner().responses),
+                                Err(status) if retryable(&status) && attempt + 1 < ATTEMPTS => {
+                                    last_error = status.to_string();
                                 }
+                                Err(status) => return Err(format!("batch_read: {status}")),
                             }
-                            done = true;
-                            break;
                         }
-                        Err(status) if retryable(&status) && attempt + 1 < ATTEMPTS => {
-                            last_error = status.to_string();
-                        }
-                        Err(status) => return Err(format!("batch_read: {status}")),
+                        Err(format!("batch_read: {last_error}"))
+                    });
+                }
+                let mut all = Vec::new();
+                while let Some(joined) = join_set.join_next().await {
+                    match joined {
+                        Ok(Ok(responses)) => all.extend(responses),
+                        Ok(Err(message)) => return Err(message),
+                        Err(join_error) => return Err(format!("batch_read join: {join_error}")),
                     }
                 }
-                if !done {
-                    return Err(format!("batch_read: {last_error}"));
+                Ok(all)
+            })?;
+            let mut contents = std::collections::HashMap::new();
+            for entry in outcomes {
+                let ok = entry.status.as_ref().map(|s| s.code == 0).unwrap_or(false);
+                if ok {
+                    if let Some(digest) = entry.digest {
+                        contents.insert(digest.hash, entry.data.to_vec());
+                    }
                 }
             }
             Ok(contents)
