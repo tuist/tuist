@@ -5,7 +5,11 @@ edition = "2021"
 
 [lib]
 name = "tuist_cas_plugin"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "tuist-cas-broker"
+path = "src/bin/tuist-cas-broker.rs"
 
 [dependencies]
 libloading = "0.8"

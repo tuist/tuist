@@ -7,15 +7,18 @@
 //! traffic. Interception is deliberately not keyed on the `globally` flag,
 //! which is never set on this path.
 
-mod prefetch;
-mod reapi;
-mod types;
-mod upstream;
+pub mod broker;
+pub mod broker_proto;
+pub mod prefetch;
+pub mod reapi;
+pub mod types;
+pub mod upstream;
 
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
+use broker_proto::{BrokerClient, Resolution};
 use prefetch::Prefetcher;
 use reapi::{ManifestEntry, OpStats, Remote, RemoteConfig};
 use types::*;
@@ -94,10 +97,10 @@ struct OptionsState {
 // held only in memory is lost. The record file is written before the enqueue
 // and deleted only after the value graph and the entry have been uploaded;
 // leftover records are swept by later plugin instances.
-struct PublishRecord {
-    key: Vec<u8>,
-    value_digest: Vec<u8>,
-    spool_path: Option<std::path::PathBuf>,
+pub struct PublishRecord {
+    pub key: Vec<u8>,
+    pub value_digest: Vec<u8>,
+    pub spool_path: Option<std::path::PathBuf>,
 }
 
 impl PublishRecord {
@@ -109,7 +112,7 @@ impl PublishRecord {
         body
     }
 
-    fn decode_body(body: &[u8], spool_path: Option<std::path::PathBuf>) -> Option<Self> {
+    pub fn decode_body(body: &[u8], spool_path: Option<std::path::PathBuf>) -> Option<Self> {
         if body.len() < 2 {
             return None;
         }
@@ -157,6 +160,9 @@ struct CasState {
     up: &'static Upstream,
     cas: llcas_cas_t,
     remote: Option<Arc<Remote>>,
+    // Broker mode: all remote work is delegated to the per-machine broker
+    // over a unix socket; this process runs no gRPC client at all.
+    broker: Option<BrokerClient>,
     // Diagnostic experiment switch: with TUIST_CAS_READONLY set, nothing is
     // published (no entry or node uploads); the read path is unchanged.
     readonly: bool,
@@ -389,7 +395,10 @@ pub unsafe extern "C" fn llcas_cas_create(
         return std::ptr::null_mut();
     }
 
-    let remote = RemoteConfig::from_env().map(Remote::new);
+    let broker = std::env::var("TUIST_CAS_BROKER_SOCKET")
+        .ok()
+        .map(|socket_path| BrokerClient { socket_path });
+    let remote = if broker.is_some() { None } else { RemoteConfig::from_env().map(Remote::new) };
     let has_remote = remote.is_some();
     let cas_dir = state
         .ondisk_path
@@ -400,6 +409,7 @@ pub unsafe extern "C" fn llcas_cas_create(
         up,
         cas: upstream_cas,
         remote,
+        broker,
         readonly: std::env::var("TUIST_CAS_READONLY").is_ok(),
         created_at: std::time::Instant::now(),
         cas_dir,
@@ -597,7 +607,7 @@ fn log_miss(key: &[u8]) {
     log_line(&format!("miss exe={exe} key={hex}"));
 }
 
-pub(crate) fn log_line(message: &str) {
+pub fn log_line(message: &str) {
     if let Ok(path) = std::env::var("TUIST_CAS_LOG") {
         use std::io::Write;
         if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
@@ -962,7 +972,9 @@ unsafe fn actioncache_get_impl(
     let mut upstream_error: *mut c_char = std::ptr::null_mut();
     let result =
         (state.up.llcas_actioncache_get_for_digest)(state.cas, key_digest, p_value, globally, &mut upstream_error);
-    if result != LLCAS_LOOKUP_RESULT_NOTFOUND || state.remote.is_none() {
+    if result != LLCAS_LOOKUP_RESULT_NOTFOUND
+        || (state.remote.is_none() && state.broker.is_none())
+    {
         adopt_error(state.up, upstream_error, error);
         return result;
     }
@@ -971,6 +983,44 @@ unsafe fn actioncache_get_impl(
     }
 
     let _demand_guard = DemandWaitGuard { state, started: std::time::Instant::now() };
+    if let Some(client) = &state.broker {
+        let cas_path = state
+            .cas_dir
+            .as_ref()
+            .map(|dir| dir.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        match client.resolve(&cas_path, key) {
+            Ok(Resolution::Hit(value_digest)) => {
+                state.stats_remote_entry_hits.fetch_add(1, Ordering::Relaxed);
+                let value_digest_t =
+                    llcas_digest_t { data: value_digest.as_ptr(), size: value_digest.len() };
+                let mut value_id = llcas_objectid_t { opaque: 0 };
+                let mut id_error: *mut c_char = std::ptr::null_mut();
+                if (state.up.llcas_cas_get_objectid)(state.cas, value_digest_t, &mut value_id, &mut id_error) {
+                    adopt_error(state.up, id_error, error);
+                    return LLCAS_LOOKUP_RESULT_ERROR;
+                }
+                let mut put_error: *mut c_char = std::ptr::null_mut();
+                if (state.up.llcas_actioncache_put_for_digest)(state.cas, key_digest, value_id, false, &mut put_error) {
+                    adopt_error(state.up, put_error, error);
+                    return LLCAS_LOOKUP_RESULT_ERROR;
+                }
+                if !p_value.is_null() {
+                    *p_value = value_id;
+                }
+                return LLCAS_LOOKUP_RESULT_SUCCESS;
+            }
+            Ok(Resolution::Miss) => {
+                state.stats_remote_misses.fetch_add(1, Ordering::Relaxed);
+                return LLCAS_LOOKUP_RESULT_NOTFOUND;
+            }
+            Err(message) => {
+                state.stats_remote_misses.fetch_add(1, Ordering::Relaxed);
+                log_line(&format!("broker resolve error: {message}"));
+                return LLCAS_LOOKUP_RESULT_NOTFOUND;
+            }
+        }
+    }
     let remote = state.remote.as_ref().unwrap();
     let manifest = match remote.get_action(key) {
         Ok(Some(manifest)) if !manifest.is_empty() => manifest,
@@ -1123,7 +1173,9 @@ pub unsafe extern "C" fn llcas_actioncache_get_for_digest_async(
     let mut probe_error: *mut c_char = std::ptr::null_mut();
     let result =
         (state.up.llcas_actioncache_get_for_digest)(state.cas, key_digest, &mut value, globally, &mut probe_error);
-    if result != LLCAS_LOOKUP_RESULT_NOTFOUND || state.remote.is_none() {
+    if result != LLCAS_LOOKUP_RESULT_NOTFOUND
+        || (state.remote.is_none() && state.broker.is_none())
+    {
         let _ = ours_cancel_token(cancel_tok);
         let error = adopt_upstream_string(state.up, probe_error);
         callback(ctx_cb, result, value, error);
@@ -1148,6 +1200,30 @@ pub unsafe extern "C" fn llcas_actioncache_get_for_digest_async(
 }
 
 unsafe fn actioncache_put_remote(state: &CasState, key: &[u8], value: llcas_objectid_t) {
+    if state.broker.is_some() && !state.readonly {
+        let value_digest = digest_bytes(state, value);
+        if !state
+            .published
+            .lock()
+            .unwrap()
+            .insert((key.to_vec(), value_digest.clone()))
+        {
+            return;
+        }
+        let record = PublishRecord { key: key.to_vec(), value_digest, spool_path: None };
+        if let Some(path) = write_publish_record(state, &record) {
+            let cas_path = state
+                .cas_dir
+                .as_ref()
+                .map(|dir| dir.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            if let Some(client) = &state.broker {
+                // Failure is fine: the record survives for the broker sweep.
+                let _ = client.publish(&cas_path, &path.to_string_lossy());
+            }
+        }
+        return;
+    }
     if state.remote.is_some() && !state.readonly {
         if std::env::var("TUIST_CAS_LOG_PUTS").is_ok() {
             let mut hex = String::with_capacity(key.len() * 2);
