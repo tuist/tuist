@@ -11,7 +11,8 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex;
+use std::sync::{Condvar, Mutex};
+use std::time::Instant;
 
 use crate::broker_proto::{
     read_request, write_response, Request, OP_PUBLISH, OP_RESOLVE, STATUS_ERROR, STATUS_HIT,
@@ -32,13 +33,31 @@ pub struct PathState {
     // for definitive misses. A publish updates its entry, so a miss cached
     // during planning turns into a hit once the local build publishes it.
     resolved: Mutex<HashMap<Vec<u8>, Option<Vec<u8>>>>,
-    known_local: Mutex<HashSet<Vec<u8>>>,
+    // Single-flight: concurrent resolves of the same key (the build system
+    // plans while the compiler asks) wait for the first instead of
+    // duplicating manifest + fetch work.
+    inflight: Mutex<HashSet<Vec<u8>>>,
+    inflight_cvar: Condvar,
+    // Sharded: this set is checked once per manifest entry (~1.9M times per
+    // warm build) from every connection thread.
+    known_local: [Mutex<HashSet<Vec<u8>>>; 32],
     publish_cache: Mutex<HashMap<Vec<u8>, (reapi::Digest, Vec<Vec<u8>>)>>,
     pub stats_resolves: AtomicU64,
     pub stats_remote_hits: AtomicU64,
     pub stats_misses: AtomicU64,
     pub stats_blobs_fetched: AtomicU64,
     pub stats_published: AtomicU64,
+    pub ms_action: AtomicU64,
+    pub ms_filter: AtomicU64,
+    pub ms_fetch: AtomicU64,
+    pub ms_decode: AtomicU64,
+    pub ms_store: AtomicU64,
+}
+
+impl PathState {
+    fn shard(&self, digest: &[u8]) -> &Mutex<HashSet<Vec<u8>>> {
+        &self.known_local[digest.first().copied().unwrap_or(0) as usize % 32]
+    }
 }
 
 // The broker is single-process and owns these raw handles for its lifetime;
@@ -81,13 +100,20 @@ impl Broker {
             up,
             cas,
             resolved: Mutex::new(HashMap::new()),
-            known_local: Mutex::new(HashSet::new()),
+            inflight: Mutex::new(HashSet::new()),
+            inflight_cvar: Condvar::new(),
+            known_local: std::array::from_fn(|_| Mutex::new(HashSet::new())),
             publish_cache: Mutex::new(HashMap::new()),
             stats_resolves: AtomicU64::new(0),
             stats_remote_hits: AtomicU64::new(0),
             stats_misses: AtomicU64::new(0),
             stats_blobs_fetched: AtomicU64::new(0),
             stats_published: AtomicU64::new(0),
+            ms_action: AtomicU64::new(0),
+            ms_filter: AtomicU64::new(0),
+            ms_fetch: AtomicU64::new(0),
+            ms_decode: AtomicU64::new(0),
+            ms_store: AtomicU64::new(0),
         }));
         self.paths
             .lock()
@@ -100,9 +126,35 @@ impl Broker {
     /// (manifest + batched fetch of globally-missing blobs + local store).
     fn resolve(&self, state: &'static PathState, key: &[u8]) -> Result<Option<Vec<u8>>, String> {
         state.stats_resolves.fetch_add(1, Ordering::Relaxed);
-        if let Some(resolution) = state.resolved.lock().unwrap().get(key) {
-            return Ok(resolution.clone());
+        // Single-flight: wait out a concurrent resolve of the same key.
+        {
+            let mut inflight = state.inflight.lock().unwrap();
+            loop {
+                if let Some(resolution) = state.resolved.lock().unwrap().get(key) {
+                    return Ok(resolution.clone());
+                }
+                if !inflight.contains(key) {
+                    inflight.insert(key.to_vec());
+                    break;
+                }
+                inflight = state.inflight_cvar.wait(inflight).unwrap();
+            }
         }
+        let outcome = self.resolve_uncached(state, key);
+        {
+            let mut inflight = state.inflight.lock().unwrap();
+            inflight.remove(key);
+            state.inflight_cvar.notify_all();
+        }
+        outcome
+    }
+
+    fn resolve_uncached(
+        &self,
+        state: &'static PathState,
+        key: &[u8],
+    ) -> Result<Option<Vec<u8>>, String> {
+        let phase = Instant::now();
         let manifest = match self.remote.get_action(key)? {
             Some(manifest) if !manifest.is_empty() => manifest,
             _ => {
@@ -112,81 +164,56 @@ impl Broker {
             }
         };
         state.stats_remote_hits.fetch_add(1, Ordering::Relaxed);
+        state
+            .ms_action
+            .fetch_add(phase.elapsed().as_millis() as u64, Ordering::Relaxed);
 
+        let phase = Instant::now();
         let missing: Vec<&ManifestEntry> = manifest
             .iter()
             .filter(|entry| !self.is_local(state, &entry.llcas_digest))
             .collect();
+        state
+            .ms_filter
+            .fetch_add(phase.elapsed().as_millis() as u64, Ordering::Relaxed);
         if !missing.is_empty() {
-            // Fan the fetch out: split into size-balanced groups and run
-            // fetch + decode + store per group on scoped threads, so network
-            // transfer, decompression, and local-CAS ingestion overlap. This
-            // is where warm-build wall time lives: a clean DerivedData pulls
-            // the whole namespace (~150k blobs) through this path.
-            const GROUPS: usize = 6;
-            let mut groups: Vec<Vec<&ManifestEntry>> = (0..GROUPS).map(|_| Vec::new()).collect();
-            let mut group_sizes = [0i64; GROUPS];
+            // One batch per resolve: the server parallelizes blob reads
+            // internally, so client-side fragmentation only multiplies
+            // per-RPC overhead (measured: 6-way splitting of ~23-blob sets
+            // pinned per-resolve latency at per-RPC cost times groups).
+            let phase = Instant::now();
+            let digests: Vec<_> = missing.iter().map(|entry| entry.blob.clone()).collect();
+            let contents = self.remote.batch_read(&digests)?;
+            state
+                .ms_fetch
+                .fetch_add(phase.elapsed().as_millis() as u64, Ordering::Relaxed);
             for entry in &missing {
-                let smallest = (0..GROUPS)
-                    .min_by_key(|index| group_sizes[*index])
-                    .unwrap_or(0);
-                group_sizes[smallest] += entry.blob.size_bytes;
-                groups[smallest].push(entry);
-            }
-            let incomplete = std::sync::atomic::AtomicBool::new(false);
-            let failure: Mutex<Option<String>> = Mutex::new(None);
-            std::thread::scope(|scope| {
-                for group in &groups {
-                    if group.is_empty() {
-                        continue;
-                    }
-                    let group = group.clone();
-                    let incomplete = &incomplete;
-                    let failure = &failure;
-                    scope.spawn(move || {
-                        let digests: Vec<_> =
-                            group.iter().map(|entry| entry.blob.clone()).collect();
-                        let contents = match self.remote.batch_read(&digests) {
-                            Ok(contents) => contents,
-                            Err(message) => {
-                                *failure.lock().unwrap() = Some(message);
-                                return;
-                            }
-                        };
-                        for entry in group {
-                            let Some(blob) = contents.get(&entry.blob.hash) else {
-                                incomplete.store(true, Ordering::Relaxed);
-                                return;
-                            };
-                            let Some(frame) = reapi::decompress_frame(blob) else {
-                                incomplete.store(true, Ordering::Relaxed);
-                                return;
-                            };
-                            let Some(node) = reapi::decode_frame(&frame) else {
-                                incomplete.store(true, Ordering::Relaxed);
-                                return;
-                            };
-                            if unsafe { store_node(state, &node) }.is_err() {
-                                *failure.lock().unwrap() = Some("store".into());
-                                return;
-                            }
-                            state
-                                .known_local
-                                .lock()
-                                .unwrap()
-                                .insert(entry.llcas_digest.clone());
-                            state.stats_blobs_fetched.fetch_add(1, Ordering::Relaxed);
-                        }
-                    });
-                }
-            });
-            if let Some(message) = failure.lock().unwrap().take() {
-                return Err(message);
-            }
-            if incomplete.load(Ordering::Relaxed) {
-                // Incomplete graph on the server: degrade to a miss (do not
-                // negative-cache; the writer may still be uploading).
-                return Ok(None);
+                let Some(blob) = contents.get(&entry.blob.hash) else {
+                    // Incomplete graph on the server: degrade to a miss (do
+                    // not negative-cache; the writer may still be uploading).
+                    return Ok(None);
+                };
+                let phase = Instant::now();
+                let Some(frame) = reapi::decompress_frame(blob) else {
+                    return Ok(None);
+                };
+                let Some(node) = reapi::decode_frame(&frame) else {
+                    return Ok(None);
+                };
+                state
+                    .ms_decode
+                    .fetch_add(phase.elapsed().as_millis() as u64, Ordering::Relaxed);
+                let phase = Instant::now();
+                unsafe { store_node(state, &node)? };
+                state
+                    .ms_store
+                    .fetch_add(phase.elapsed().as_millis() as u64, Ordering::Relaxed);
+                state
+                    .shard(&entry.llcas_digest)
+                    .lock()
+                    .unwrap()
+                    .insert(entry.llcas_digest.clone());
+                state.stats_blobs_fetched.fetch_add(1, Ordering::Relaxed);
             }
         }
         let value = manifest[0].llcas_digest.clone();
@@ -199,7 +226,7 @@ impl Broker {
     }
 
     fn is_local(&self, state: &PathState, digest: &[u8]) -> bool {
-        if state.known_local.lock().unwrap().contains(digest) {
+        if state.shard(digest).lock().unwrap().contains(digest) {
             return true;
         }
         unsafe {
@@ -219,7 +246,7 @@ impl Broker {
                 (state.up.llcas_string_dispose)(load_error);
             }
             if result == LLCAS_LOOKUP_RESULT_SUCCESS {
-                state.known_local.lock().unwrap().insert(digest.to_vec());
+                state.shard(digest).lock().unwrap().insert(digest.to_vec());
                 true
             } else {
                 false
@@ -361,13 +388,18 @@ impl Broker {
         let mut parts = Vec::new();
         for (path, state) in paths.iter() {
             parts.push(format!(
-                "{}: resolves={} remote_hits={} misses={} blobs={} published={}",
+                "{}: resolves={} remote_hits={} misses={} blobs={} published={} | ms action={} filter={} fetch={} decode={} store={}",
                 path,
                 state.stats_resolves.load(Ordering::Relaxed),
                 state.stats_remote_hits.load(Ordering::Relaxed),
                 state.stats_misses.load(Ordering::Relaxed),
                 state.stats_blobs_fetched.load(Ordering::Relaxed),
                 state.stats_published.load(Ordering::Relaxed),
+                state.ms_action.load(Ordering::Relaxed),
+                state.ms_filter.load(Ordering::Relaxed),
+                state.ms_fetch.load(Ordering::Relaxed),
+                state.ms_decode.load(Ordering::Relaxed),
+                state.ms_store.load(Ordering::Relaxed),
             ));
         }
         parts.join(" | ")

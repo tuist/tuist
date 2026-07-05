@@ -123,7 +123,7 @@ fn runtime() -> &'static tokio::runtime::Runtime {
     static RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
     RUNTIME.get_or_init(|| {
         tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(2)
+            .worker_threads(8)
             .enable_all()
             .build()
             .expect("tokio runtime")
