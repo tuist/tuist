@@ -8,8 +8,12 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net"
+	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -61,11 +65,18 @@ type Reconciler struct {
 	NodeIP string
 
 	// ScrapeAllowedCIDRs restricts which client addresses the
-	// per-Pod metrics forwarder accepts. NodeIP can in practice be
-	// a public IP on Scaleway, so the bind address alone isn't a
-	// security boundary; this allowlist is. Empty defers to
-	// DefaultScrapeAllowedCIDRs at forwarder construction.
+	// per-Pod host-side forwarders (metrics and operator VNC relays) accept.
+	// NodeIP can in practice be a public IP on Scaleway, so the bind
+	// address alone isn't a security boundary; this allowlist is.
+	// Empty defers to DefaultScrapeAllowedCIDRs at forwarder construction.
 	ScrapeAllowedCIDRs []*net.IPNet
+
+	// VNCControlDir is a host-local operator control directory for
+	// Phase 1 interactive access. Creating `requests/<namespace>_<pod>`
+	// opens a relay for that runner Pod; removing it closes the relay.
+	// tart-kubelet writes sensitive connection metadata under `state/`
+	// with 0600 permissions. Empty disables operator VNC relay control.
+	VNCControlDir string
 
 	Tart     *tart.Client
 	Resolver *envresolver.Resolver
@@ -418,7 +429,10 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	}
 	r.Store.Put(pod.Namespace, pod.Name, entry)
 
-	handle, err := r.Tart.Run(ctx, vmName, []string{"env:" + envDir + ":ro"})
+	handle, err := r.Tart.RunWithOptions(ctx, vmName, tart.RunOptions{
+		SharedDirs: []string{"env:" + envDir + ":ro"},
+		VNC:        vncCapableRunnerPod(pod),
+	})
 	if err != nil {
 		// Roll back the Store entry — the VM either never started
 		// (cmd.Start error) or `tart run` exited immediately, so
@@ -650,6 +664,156 @@ func metricsPortFromPod(pod *corev1.Pod) (int, bool) {
 	return port, true
 }
 
+// syncVNCForwarder opens or closes the Phase 1 operator VNC relay for a
+// running macOS runner Pod. The switch is host-local:
+//   - requests/<namespace>_<pod> present: open the relay.
+//   - request absent: close the relay and remove state.
+//
+// The Pod, guest, and workflow cannot activate this path.
+func (r *Reconciler) syncVNCForwarder(ctx context.Context, pod *corev1.Pod, entry *Entry) error {
+	if !vncCapableRunnerPod(pod) || r.VNCControlDir == "" {
+		r.stopVNCForwarder(pod.Namespace, pod.Name, entry)
+		return nil
+	}
+
+	requested, err := r.vncRelayRequested(pod)
+	if err != nil {
+		return err
+	}
+	if !requested {
+		r.stopVNCForwarder(pod.Namespace, pod.Name, entry)
+		return nil
+	}
+	return r.startVNCForwarder(ctx, pod, entry)
+}
+
+func (r *Reconciler) startVNCForwarder(ctx context.Context, pod *corev1.Pod, entry *Entry) error {
+	if r.NodeIP == "" {
+		return fmt.Errorf("node IP is empty")
+	}
+	if entry.Run == nil {
+		return fmt.Errorf("VNC metadata unavailable for recovered VM %s", entry.VMName)
+	}
+
+	vncCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	vncInfo, err := entry.Run.WaitVNCInfo(vncCtx)
+	if err != nil {
+		return fmt.Errorf("wait for Tart VNC endpoint: %w", err)
+	}
+
+	if entry.VNCForwarder == nil {
+		target := net.JoinHostPort(vncInfo.Host, strconv.Itoa(vncInfo.Port))
+		resolve := func() (string, error) { return target, nil }
+		listenAddr := net.JoinHostPort(r.NodeIP, "0")
+		allowed := r.ScrapeAllowedCIDRs
+		if len(allowed) == 0 {
+			allowed = DefaultScrapeAllowedCIDRs()
+		}
+		fw, err := NewTCPForwarder(listenAddr, resolve, TCPForwarderOptions{AllowedCIDRs: allowed})
+		if err != nil {
+			return fmt.Errorf("start VNC forwarder for %s/%s on %s: %w", pod.Namespace, pod.Name, listenAddr, err)
+		}
+		entry.VNCForwarder = fw
+	}
+
+	return r.writeVNCState(pod, entry, vncInfo)
+}
+
+func (r *Reconciler) stopVNCForwarder(namespace, name string, entry *Entry) {
+	if entry.VNCForwarder != nil {
+		entry.VNCForwarder.Stop()
+		entry.VNCForwarder = nil
+	}
+	if r.VNCControlDir != "" {
+		_ = os.Remove(r.vncStatePath(namespace, name))
+	}
+}
+
+func (r *Reconciler) vncRelayRequested(pod *corev1.Pod) (bool, error) {
+	_, err := os.Stat(r.vncRequestPath(pod.Namespace, pod.Name))
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, fmt.Errorf("stat VNC request file: %w", err)
+}
+
+type vncRelayState struct {
+	Pod       string `json:"pod"`
+	VMName    string `json:"vm_name"`
+	RelayURL  string `json:"relay_url"`
+	RelayHost string `json:"relay_host"`
+	RelayPort int    `json:"relay_port"`
+	UpdatedAt string `json:"updated_at"`
+}
+
+func (r *Reconciler) writeVNCState(pod *corev1.Pod, entry *Entry, vncInfo tart.VNCInfo) error {
+	tcpAddr, ok := entry.VNCForwarder.Addr().(*net.TCPAddr)
+	if !ok {
+		return fmt.Errorf("VNC forwarder has non-TCP address %s", entry.VNCForwarder.Addr())
+	}
+
+	stateDir := filepath.Join(r.VNCControlDir, "state")
+	if err := os.MkdirAll(stateDir, 0o700); err != nil {
+		return fmt.Errorf("mkdir VNC state dir: %w", err)
+	}
+
+	state := vncRelayState{
+		Pod:       pod.Namespace + "/" + pod.Name,
+		VMName:    entry.VMName,
+		RelayURL:  vncURL(r.NodeIP, tcpAddr.Port, vncInfo.Password),
+		RelayHost: r.NodeIP,
+		RelayPort: tcpAddr.Port,
+		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
+	}
+	body, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return err
+	}
+	body = append(body, '\n')
+
+	path := r.vncStatePath(pod.Namespace, pod.Name)
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, body, 0o600); err != nil {
+		return fmt.Errorf("write VNC state file: %w", err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("rename VNC state file: %w", err)
+	}
+	return nil
+}
+
+func (r *Reconciler) vncRequestPath(namespace, name string) string {
+	return filepath.Join(r.VNCControlDir, "requests", vncControlKey(namespace, name))
+}
+
+func (r *Reconciler) vncStatePath(namespace, name string) string {
+	if r.VNCControlDir == "" {
+		return ""
+	}
+	return filepath.Join(r.VNCControlDir, "state", vncControlKey(namespace, name)+".json")
+}
+
+func vncControlKey(namespace, name string) string {
+	return namespace + "_" + name
+}
+
+func vncCapableRunnerPod(pod *corev1.Pod) bool {
+	return pod.Labels["tuist.dev/runner"] == "true"
+}
+
+func vncURL(host string, port int, password string) string {
+	return (&url.URL{
+		Scheme: "vnc",
+		User:   url.UserPassword("", password),
+		Host:   net.JoinHostPort(host, strconv.Itoa(port)),
+	}).String()
+}
+
 // contextWithTimeout is split out so the production resolver can use
 // context.Background as the parent (the resolver is invoked from a
 // scraper-driven goroutine and must outlive the reconcile that
@@ -688,6 +852,7 @@ func (r *Reconciler) deleteByKey(ctx context.Context, namespace, name string) er
 		entry.MetricsForwarder.Stop()
 		entry.MetricsForwarder = nil
 	}
+	r.stopVNCForwarder(namespace, name, entry)
 
 	_ = r.Tart.Stop(ctx, entry.VMName, 30*time.Second)
 	if err := r.Tart.Delete(ctx, entry.VMName); err != nil {
@@ -793,6 +958,10 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 			} else {
 				status.PodIP = r.NodeIP
 			}
+		}
+		if err := r.syncVNCForwarder(ctx, pod, entry); err != nil {
+			log.FromContext(ctx).Error(err, "sync VNC forwarder",
+				"pod", pod.Namespace+"/"+pod.Name)
 		}
 		status.Conditions = []corev1.PodCondition{
 			{Type: corev1.PodReady, Status: corev1.ConditionTrue},
@@ -951,6 +1120,11 @@ func VMNameForPod(pod *corev1.Pod) string {
 // `prometheus.io/scrape` annotation. nil for Pods without the
 // annotation and for entries materialised by recoverState — the
 // next reconcile-and-restart cycle will set one up.
+//
+// VNCForwarder is the host-side TCP relay (node_ip:ephemeral_port →
+// Tart's host-local VNC endpoint) for operator-requested VNC sessions.
+// The request and sensitive state live under Reconciler.VNCControlDir,
+// not in Pod annotations.
 type Entry struct {
 	VMName  string
 	StartTS metav1.Time
@@ -963,6 +1137,7 @@ type Entry struct {
 	// long-lived VMs that get reconciled hundreds of times.
 	BootObserved     bool
 	MetricsForwarder *Forwarder
+	VNCForwarder     *TCPForwarder
 }
 
 // Store is a tiny thread-safe map. Backed by in-memory state — on

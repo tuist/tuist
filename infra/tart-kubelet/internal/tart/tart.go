@@ -7,15 +7,21 @@
 package tart
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -162,8 +168,12 @@ type RunHandle struct {
 	// Surfaced in error messages so operators can `tail` it.
 	LogPath string
 
-	done    chan struct{}
-	exitErr error
+	done         chan struct{}
+	exitErr      error
+	vncReady     chan struct{}
+	vncReadyOnce sync.Once
+	vncMu        sync.RWMutex
+	vncInfo      *VNCInfo
 }
 
 // Done returns a channel that is closed once the process exits.
@@ -184,6 +194,73 @@ func (h *RunHandle) Exited() (err error, ok bool) {
 	default:
 		return nil, false
 	}
+}
+
+// VNCInfo is Tart's generated host-local VNC endpoint. The password is
+// sensitive host/control-plane data; do not publish it to Pod annotations,
+// guest env, or normal logs.
+type VNCInfo struct {
+	Host     string
+	Port     int
+	Password string
+}
+
+// URL returns a VNC URL containing Tart's generated password.
+func (i VNCInfo) URL() string {
+	return vncURL(i.Host, i.Port, i.Password)
+}
+
+// RedactedURL returns a VNC URL safe for logs.
+func (i VNCInfo) RedactedURL() string {
+	return vncURL(i.Host, i.Port, "REDACTED")
+}
+
+// VNCInfo returns the parsed VNC endpoint when Tart has printed it.
+func (h *RunHandle) VNCInfo() (VNCInfo, bool) {
+	h.vncMu.RLock()
+	defer h.vncMu.RUnlock()
+	if h.vncInfo == nil {
+		return VNCInfo{}, false
+	}
+	return *h.vncInfo, true
+}
+
+// WaitVNCInfo blocks until Tart prints the generated VNC endpoint, the run
+// process exits, or ctx is cancelled.
+func (h *RunHandle) WaitVNCInfo(ctx context.Context) (VNCInfo, error) {
+	select {
+	case <-h.vncReady:
+		if info, ok := h.VNCInfo(); ok {
+			return info, nil
+		}
+		return VNCInfo{}, fmt.Errorf("tart run exited before VNC endpoint was observed")
+	case <-ctx.Done():
+		return VNCInfo{}, ctx.Err()
+	}
+}
+
+func (h *RunHandle) setVNCInfo(info VNCInfo) {
+	h.vncMu.Lock()
+	if h.vncInfo == nil {
+		h.vncInfo = &info
+	}
+	h.vncMu.Unlock()
+	h.vncReadyOnce.Do(func() { close(h.vncReady) })
+}
+
+func (h *RunHandle) closeVNCInfo() {
+	h.vncReadyOnce.Do(func() { close(h.vncReady) })
+}
+
+// RunOptions controls how Tart boots a VM.
+type RunOptions struct {
+	// SharedDirs are Tart --dir mounts, for example env:/path:ro.
+	SharedDirs []string
+
+	// VNC enables Tart's host-owned experimental VNC server while keeping
+	// the VM headless. Tart prints a one-time password; Run captures it
+	// into RunHandle and redacts it from the VM log.
+	VNC bool
 }
 
 // Run launches a VM in the background and returns a handle as soon
@@ -216,6 +293,11 @@ func (h *RunHandle) Exited() (err error, ok bool) {
 //     TTY to detach from, and launchd-spawned processes don't have
 //     one. With Setsid we don't need it.
 func (c *Client) Run(ctx context.Context, name string, sharedDirs []string) (*RunHandle, error) {
+	return c.RunWithOptions(ctx, name, RunOptions{SharedDirs: sharedDirs})
+}
+
+// RunWithOptions is Run with explicit boot options.
+func (c *Client) RunWithOptions(ctx context.Context, name string, opts RunOptions) (*RunHandle, error) {
 	if err := os.MkdirAll(c.LogDir, 0o755); err != nil {
 		return nil, fmt.Errorf("mkdir log dir: %w", err)
 	}
@@ -239,8 +321,12 @@ func (c *Client) Run(ctx context.Context, name string, sharedDirs []string) (*Ru
 	// runner Mac mini measured ~1.8x faster warm reads with caching=cached
 	// (7.7 vs 4.2 GB/s) and no durability tradeoff — these VMs are ephemeral
 	// (cloned per Pod, discarded on exit), so host caching is pure upside.
-	args := []string{"run", name, "--no-graphics", "--root-disk-opts", "caching=cached"}
-	for _, dir := range sharedDirs {
+	args := []string{"run", name, "--no-graphics"}
+	if opts.VNC {
+		args = append(args, "--vnc-experimental")
+	}
+	args = append(args, "--root-disk-opts", "caching=cached")
+	for _, dir := range opts.SharedDirs {
 		args = append(args, "--dir", dir)
 	}
 
@@ -255,29 +341,46 @@ func (c *Client) Run(ctx context.Context, name string, sharedDirs []string) (*Ru
 	// SIGKILL the VM. Setsid + cmd.Start (no Wait) leaves tart
 	// running independently.
 	cmd := exec.Command(c.Binary, args...)
-	cmd.Stdout = logFile
-	cmd.Stderr = logFile
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		_ = logFile.Close()
+		return nil, fmt.Errorf("open tart stdout pipe: %w", err)
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		_ = logFile.Close()
+		return nil, fmt.Errorf("open tart stderr pipe: %w", err)
+	}
+
+	handle := &RunHandle{
+		Name:     name,
+		LogPath:  logPath,
+		done:     make(chan struct{}),
+		vncReady: make(chan struct{}),
+	}
+
 	if err := cmd.Start(); err != nil {
 		_ = logFile.Close()
 		return nil, fmt.Errorf("start tart run: %w", err)
 	}
-	// Close our own fd; the child holds its own dup. The launcher
-	// goroutine reaps the process via cmd.Wait so it doesn't go
-	// zombie if it exits before we Stop it.
-	_ = logFile.Close()
 
-	handle := &RunHandle{
-		Name:    name,
-		LogPath: logPath,
-		done:    make(chan struct{}),
-	}
+	var outputWG sync.WaitGroup
+	var logMu sync.Mutex
+	outputWG.Add(2)
+	go copyTartOutput(stdout, logFile, &logMu, handle, &outputWG)
+	go copyTartOutput(stderr, logFile, &logMu, handle, &outputWG)
+
 	// Single launcher goroutine owns cmd.Wait for the lifetime of
 	// the process. Writing exitErr before close(done) gives readers
 	// of Exited() a happens-before relationship on the field — no
 	// extra mutex needed.
 	go func() {
 		handle.exitErr = cmd.Wait()
+		outputWG.Wait()
+		_ = logFile.Close()
+		handle.closeVNCInfo()
 		close(handle.done)
 	}()
 
@@ -299,6 +402,62 @@ func (c *Client) Run(ctx context.Context, name string, sharedDirs []string) (*Ru
 	case <-time.After(5 * time.Second):
 		return handle, nil
 	}
+}
+
+var vncURLPattern = regexp.MustCompile(`vnc://\S+`)
+
+func copyTartOutput(r io.Reader, logFile *os.File, logMu *sync.Mutex, handle *RunHandle, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		line := scanner.Text()
+		redacted := vncURLPattern.ReplaceAllStringFunc(line, func(raw string) string {
+			suffix := ""
+			trimmed := strings.TrimRight(raw, ".,)")
+			suffix = strings.TrimPrefix(raw, trimmed)
+			info, err := parseTartVNCURL(trimmed)
+			if err != nil {
+				return raw
+			}
+			handle.setVNCInfo(info)
+			return info.RedactedURL() + suffix
+		})
+		logMu.Lock()
+		_, _ = fmt.Fprintln(logFile, redacted)
+		logMu.Unlock()
+	}
+}
+
+func parseTartVNCURL(raw string) (VNCInfo, error) {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return VNCInfo{}, err
+	}
+	if u.Scheme != "vnc" {
+		return VNCInfo{}, fmt.Errorf("not a VNC URL: %s", raw)
+	}
+	host := u.Hostname()
+	if host == "" {
+		return VNCInfo{}, fmt.Errorf("VNC URL missing host: %s", raw)
+	}
+	port, err := strconv.Atoi(u.Port())
+	if err != nil || port <= 0 || port > 65535 {
+		return VNCInfo{}, fmt.Errorf("VNC URL missing valid port: %s", raw)
+	}
+	password, ok := u.User.Password()
+	if !ok || password == "" {
+		return VNCInfo{}, fmt.Errorf("VNC URL missing generated password: %s", raw)
+	}
+	return VNCInfo{Host: host, Port: port, Password: password}, nil
+}
+
+func vncURL(host string, port int, password string) string {
+	return (&url.URL{
+		Scheme: "vnc",
+		User:   url.UserPassword("", password),
+		Host:   net.JoinHostPort(host, strconv.Itoa(port)),
+	}).String()
 }
 
 // Stop gracefully halts a VM.

@@ -2,7 +2,13 @@ package podagent
 
 import (
 	"context"
+	"encoding/json"
+	"net"
+	"os"
+	"path/filepath"
 	"testing"
+
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -138,6 +144,98 @@ func TestRunningContainerStatusesReportsReady(t *testing.T) {
 	}
 	if cs.ContainerID != "tart://vm-abc" {
 		t.Fatalf("expected ContainerID to carry the VM name, got %q", cs.ContainerID)
+	}
+}
+
+func TestVNCRelayRequestedUsesHostControlFile(t *testing.T) {
+	dir := t.TempDir()
+	r := &Reconciler{VNCControlDir: dir}
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "tuist-runners", Name: "runner-abc"}}
+
+	requested, err := r.vncRelayRequested(pod)
+	if err != nil {
+		t.Fatalf("vncRelayRequested without file: %v", err)
+	}
+	if requested {
+		t.Fatal("relay requested without host control file")
+	}
+
+	if err := os.MkdirAll(filepath.Join(dir, "requests"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(r.vncRequestPath(pod.Namespace, pod.Name), []byte{}, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	requested, err = r.vncRelayRequested(pod)
+	if err != nil {
+		t.Fatalf("vncRelayRequested with file: %v", err)
+	}
+	if !requested {
+		t.Fatal("relay not requested despite host control file")
+	}
+}
+
+func TestVNCCapableRunnerPodRequiresRunnerLabel(t *testing.T) {
+	if vncCapableRunnerPod(&corev1.Pod{}) {
+		t.Fatal("pod without runner label should not launch Tart VNC")
+	}
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"tuist.dev/runner": "true"}}}
+	if !vncCapableRunnerPod(pod) {
+		t.Fatal("runner pod should launch Tart VNC")
+	}
+}
+
+func TestVNCURLIncludesPassword(t *testing.T) {
+	if got, want := vncURL("100.64.1.2", 49152, "secret-pass"), "vnc://:secret-pass@100.64.1.2:49152"; got != want {
+		t.Fatalf("vncURL IPv4 = %q, want %q", got, want)
+	}
+	if got, want := vncURL("fd7a:115c:a1e0::1", 49152, "secret-pass"), "vnc://:secret-pass@[fd7a:115c:a1e0::1]:49152"; got != want {
+		t.Fatalf("vncURL IPv6 = %q, want %q", got, want)
+	}
+}
+
+func TestWriteVNCStateUsesHostControlStateAndRemovesItOnStop(t *testing.T) {
+	dir := t.TempDir()
+	r := &Reconciler{NodeIP: "127.0.0.1", VNCControlDir: dir}
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "tuist-runners", Name: "runner-abc"}}
+
+	fw, err := NewTCPForwarder("127.0.0.1:0", func() (string, error) {
+		return "127.0.0.1:5901", nil
+	}, TCPForwarderOptions{})
+	if err != nil {
+		t.Fatalf("NewTCPForwarder: %v", err)
+	}
+	entry := &Entry{VMName: "vm-runner-abc", VNCForwarder: fw}
+
+	if err := r.writeVNCState(pod, entry, tart.VNCInfo{Host: "127.0.0.1", Port: 5901, Password: "secret-pass"}); err != nil {
+		t.Fatalf("writeVNCState: %v", err)
+	}
+
+	statePath := r.vncStatePath(pod.Namespace, pod.Name)
+	info, err := os.Stat(statePath)
+	if err != nil {
+		t.Fatalf("stat VNC state: %v", err)
+	}
+	if got, want := info.Mode().Perm(), os.FileMode(0o600); got != want {
+		t.Fatalf("state mode = %v, want %v", got, want)
+	}
+
+	var state vncRelayState
+	body, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatalf("read VNC state: %v", err)
+	}
+	if err := json.Unmarshal(body, &state); err != nil {
+		t.Fatalf("unmarshal VNC state: %v", err)
+	}
+	tcpAddr := fw.Addr().(*net.TCPAddr)
+	if got, want := state.RelayURL, vncURL("127.0.0.1", tcpAddr.Port, "secret-pass"); got != want {
+		t.Fatalf("relay_url = %q, want %q", got, want)
+	}
+
+	r.stopVNCForwarder(pod.Namespace, pod.Name, entry)
+	if _, err := os.Stat(statePath); !os.IsNotExist(err) {
+		t.Fatalf("state file still exists after stop: %v", err)
 	}
 }
 

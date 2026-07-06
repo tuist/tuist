@@ -54,6 +54,9 @@ Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph sta
 ### `kura-controller/` — Kura endpoint controller
 Go controller for `KuraInstance` and `KuraGateway` CRs (`kura.tuist.dev/v1alpha1`). It reconciles account-region Kura endpoint intent into Kubernetes workload resources and, when server policy requests it, dedicated ingress-nginx/LB gateway infrastructure on the Hetzner-backed cluster. Keep it separate from CAPI infrastructure providers; it manages product workload lifecycle, not cluster node lifecycle.
 
+### `tart-kubelet/` — Mac mini VM kubelet
+Go kubelet-shaped agent that registers a Mac mini as a Kubernetes Node and maps Pods to Tart VMs. Phase 1 interactive runner VNC is operator-only here: runner VMs start with Tart's host-owned experimental VNC enabled, generated VNC credentials stay in host-control state, and a relay opens only while a host-local `vnc-control-dir/requests/<namespace>_<pod>` file exists.
+
 ### `registry-router/` — Cloudflare Worker for `registry.tuist.dev`
 Geo-routes cache registry requests to the nearest healthy cache origin based on the requester's continent. Unrelated to the Kubernetes migration.
 

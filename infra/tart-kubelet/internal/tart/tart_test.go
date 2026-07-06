@@ -244,6 +244,72 @@ func TestRunInvokesEnsureGUISessionBeforeStartingTart(t *testing.T) {
 	}
 }
 
+func TestRunWithOptionsAddsVNCFlag(t *testing.T) {
+	dir := t.TempDir()
+	argsPath := filepath.Join(dir, "args")
+	binPath := filepath.Join(dir, "fake-tart")
+	if err := os.WriteFile(binPath, []byte("#!/bin/sh\nprintf '%s\\n' \"$@\" > '"+argsPath+"'\nprintf 'VNC server is running at vnc://:alpha-bravo@127.0.0.1:5901\\n'\nsleep 6\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	c := &Client{
+		Binary:      binPath,
+		UserDataDir: filepath.Join(dir, "userdata"),
+		LogDir:      filepath.Join(dir, "logs"),
+	}
+	handle, err := c.RunWithOptions(context.Background(), "test-vm", RunOptions{
+		SharedDirs: []string{"env:/tmp/env:ro"},
+		VNC:        true,
+	})
+	if err != nil {
+		t.Fatalf("RunWithOptions failed: %v", err)
+	}
+	if handle == nil {
+		t.Fatal("expected non-nil handle")
+	}
+	t.Cleanup(func() { <-handle.Done() })
+
+	vncCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	info, err := handle.WaitVNCInfo(vncCtx)
+	if err != nil {
+		t.Fatalf("WaitVNCInfo: %v", err)
+	}
+	if info.Host != "127.0.0.1" || info.Port != 5901 || info.Password != "alpha-bravo" {
+		t.Fatalf("VNC info = %+v, want host=127.0.0.1 port=5901 password=alpha-bravo", info)
+	}
+
+	body, err := os.ReadFile(argsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(body)
+	for _, want := range []string{"run\n", "test-vm\n", "--no-graphics\n", "--vnc-experimental\n", "--root-disk-opts\n", "caching=cached\n", "--dir\n", "env:/tmp/env:ro\n"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("args missing %q in:\n%s", want, got)
+		}
+	}
+
+	<-handle.Done()
+	logBody, err := os.ReadFile(handle.LogPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(logBody), "alpha-bravo") {
+		t.Fatalf("VM log leaked generated VNC password:\n%s", string(logBody))
+	}
+	if !strings.Contains(string(logBody), "vnc://:REDACTED@127.0.0.1:5901") {
+		t.Fatalf("VM log missing redacted VNC URL:\n%s", string(logBody))
+	}
+}
+
+func TestParseTartVNCURLRequiresGeneratedPassword(t *testing.T) {
+	_, err := parseTartVNCURL("vnc://127.0.0.1:5901")
+	if err == nil {
+		t.Fatal("parseTartVNCURL accepted a URL without Tart's generated password")
+	}
+}
+
 // TestRunSurfacesEnsureGUISessionFailure locks in that a preflight
 // failure short-circuits Run before `tart run` is started. Without
 // this, the kubelet would launch the VM into a wall and surface a
