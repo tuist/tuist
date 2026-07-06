@@ -2717,10 +2717,10 @@
           "current": {
             "selected": true,
             "text": [
-              "All"
+              "tuist"
             ],
             "value": [
-              "$__all"
+              "tuist"
             ]
           },
           "datasource": "$datasource",
