@@ -175,38 +175,6 @@ public struct TargetScript: Equatable, Codable, Sendable {
         self.shellPath = shellPath
         self.dependencyFile = dependencyFile
     }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-
-        name = try container.decode(String.self, forKey: .name)
-        script = try container.decode(Script.self, forKey: .script)
-        order = try container.decode(Order.self, forKey: .order)
-        inputPaths = try container.decode([String].self, forKey: .inputPaths)
-        inputFileListPaths = try container.decode([FileListPath].self, forKey: .inputFileListPaths)
-        outputPaths = try container.decode([String].self, forKey: .outputPaths)
-        outputFileListPaths = try container.decode([FileListPath].self, forKey: .outputFileListPaths)
-        showEnvVarsInLog = try container.decode(Bool.self, forKey: .showEnvVarsInLog)
-        basedOnDependencyAnalysis = try container.decodeIfPresent(Bool.self, forKey: .basedOnDependencyAnalysis)
-        runForInstallBuildsOnly = try container.decode(Bool.self, forKey: .runForInstallBuildsOnly)
-        shellPath = try container.decode(String.self, forKey: .shellPath)
-        dependencyFile = try container.decodeIfPresent(AbsolutePath.self, forKey: .dependencyFile)
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case name
-        case script
-        case order
-        case inputPaths
-        case inputFileListPaths
-        case outputPaths
-        case outputFileListPaths
-        case showEnvVarsInLog
-        case basedOnDependencyAnalysis
-        case runForInstallBuildsOnly
-        case shellPath
-        case dependencyFile
-    }
 }
 
 extension [TargetScript] {
