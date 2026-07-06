@@ -519,8 +519,7 @@
     gap: var(--noora-spacing-6);
   }
 
-  & [data-part="interactive-summary"],
-  & [data-part="interactive-shell"] {
+  & [data-part="interactive-summary"] {
     display: flex;
     flex-direction: row;
     justify-content: space-between;
@@ -627,10 +626,6 @@
     font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
   }
 
-  & [data-part="interactive-shell"] {
-    border-top: 1px solid var(--noora-surface-border-primary);
-    padding-top: var(--noora-spacing-6);
-  }
 }
 
 .tuist-runner-metrics {

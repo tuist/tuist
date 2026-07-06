@@ -88,10 +88,13 @@ defmodule TuistWeb.RunnerJobLive do
     params = Query.query_params(uri)
     selected_tab = selected_tab(params["tab"] || "overview", socket.assigns.interactive)
 
-    {:noreply,
-     socket
-     |> assign(:selected_tab, selected_tab)
-     |> assign(:uri, URI.new!("?" <> URI.encode_query(params)))}
+    socket =
+      socket
+      |> assign(:selected_tab, selected_tab)
+      |> assign(:uri, URI.new!("?" <> URI.encode_query(params)))
+      |> maybe_auto_request_vnc_session()
+
+    {:noreply, socket}
   end
 
   defp parse_id(value) when is_binary(value) do
@@ -376,27 +379,7 @@ defmodule TuistWeb.RunnerJobLive do
   end
 
   def handle_event("request_vnc_session", _params, socket) do
-    %{current_user: current_user, selected_account: selected_account, job: job, interactive: interactive} = socket.assigns
-
-    cond do
-      not interactive.enabled? or not interactive.can_manage? ->
-        {:noreply, put_flash(socket, :error, dgettext("dashboard_runners", "Interactive access is not available."))}
-
-      not interactive.vnc_requestable? ->
-        {:noreply, put_flash(socket, :error, interactive_vnc_unavailable_reason(interactive))}
-
-      true ->
-        case InteractiveSessions.request_vnc(job, selected_account, current_user) do
-          {:ok, _session} ->
-            {:noreply,
-             socket
-             |> put_flash(:info, dgettext("dashboard_runners", "VNC session requested."))
-             |> refresh_interactive_state()}
-
-          {:error, reason} ->
-            {:noreply, put_flash(socket, :error, interactive_session_error(reason))}
-        end
-    end
+    {:noreply, request_vnc_session(socket)}
   end
 
   def handle_event("close_vnc_session", _params, socket) do
@@ -443,6 +426,43 @@ defmodule TuistWeb.RunnerJobLive do
      |> assign(:oldest_line, new_oldest)
      |> assign(:has_older, JobLogs.has_older?(job.workflow_job_id, new_oldest))}
   end
+
+  defp request_vnc_session(socket, opts \\ []) do
+    notify? = Keyword.get(opts, :notify?, true)
+    %{current_user: current_user, selected_account: selected_account, job: job, interactive: interactive} = socket.assigns
+
+    cond do
+      interactive.vnc_session ->
+        socket
+
+      not interactive.enabled? or not interactive.can_manage? ->
+        maybe_put_flash(socket, notify?, :error, dgettext("dashboard_runners", "Interactive access is not available."))
+
+      not interactive.vnc_requestable? ->
+        maybe_put_flash(socket, notify?, :error, interactive_vnc_unavailable_reason(interactive))
+
+      true ->
+        case InteractiveSessions.request_vnc(job, selected_account, current_user) do
+          {:ok, _session} ->
+            socket
+            |> maybe_put_flash(notify?, :info, dgettext("dashboard_runners", "VNC session requested."))
+            |> refresh_interactive_state()
+
+          {:error, reason} ->
+            maybe_put_flash(socket, notify?, :error, interactive_session_error(reason))
+        end
+    end
+  end
+
+  defp maybe_auto_request_vnc_session(%{assigns: %{selected_tab: "interactive"}} = socket) do
+    if connected?(socket), do: request_vnc_session(socket, notify?: false), else: socket
+  end
+
+  defp maybe_auto_request_vnc_session(socket), do: socket
+
+  defp maybe_put_flash(socket, false, _kind, _message), do: socket
+  defp maybe_put_flash(socket, true, kind, nil), do: put_flash(socket, kind, interactive_session_error(nil))
+  defp maybe_put_flash(socket, true, kind, message), do: put_flash(socket, kind, message)
 
   def step_expanded?(expanded_steps, %{number: number}), do: MapSet.member?(expanded_steps, number)
   def step_expanded?(_expanded_steps, _step), do: false

@@ -412,7 +412,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     refute has_element?(lv2, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Overview")
   end
 
-  test "requests and closes a VNC session from the Interactive tab", %{conn: conn, account: account} do
+  test "automatically requests and closes a VNC session from the Interactive tab", %{conn: conn, account: account} do
     :ok =
       Jobs.enqueue(%{
         workflow_job_id: 31_750,
@@ -436,11 +436,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/317500/jobs/31750?tab=interactive")
 
     assert html =~ "Interactive access"
-    assert has_element?(lv, ~s{#request-vnc-session-button})
-
-    html_after_request = lv |> element(~s{#request-vnc-session-button}) |> render_click()
-
-    assert html_after_request =~ "VNC session requested"
+    assert html =~ "VNC session requested"
+    refute html =~ "Terminal sessions are not available in this rollout."
+    refute has_element?(lv, ~s{#request-vnc-session-button})
 
     session = Repo.get_by!(InteractiveSession, workflow_job_id: 31_750, kind: :vnc)
     assert session.state == :requested
