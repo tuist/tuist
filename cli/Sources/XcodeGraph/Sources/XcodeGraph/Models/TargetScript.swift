@@ -24,43 +24,75 @@ public struct TargetScript: Equatable, Codable, Sendable {
     }
 
     /// A script input or output file-list path.
-    public struct FileListPath: Equatable, Codable, Sendable, ExpressibleByStringLiteral {
-        /// Path passed to Xcode for the file list.
-        public let path: String
+    public enum FileListPath: Equatable, Codable, Sendable, ExpressibleByStringLiteral {
+        /// File list path passed through as-is.
+        case path(String)
 
-        /// Absolute path Tuist should touch during generation if this is a generated file list.
-        public let generatedPlaceholderPath: AbsolutePath?
+        /// File list Tuist creates as an empty placeholder during generation.
+        case generated(AbsolutePath)
 
-        public init(
-            path: String,
-            generatedPlaceholderPath: AbsolutePath? = nil
-        ) {
-            self.path = path
-            self.generatedPlaceholderPath = generatedPlaceholderPath
+        /// Path used for hashing and import/export boundaries.
+        public var path: String {
+            switch self {
+            case let .path(path):
+                return path
+            case let .generated(path):
+                return path.pathString
+            }
+        }
+
+        public init(path: String) {
+            self = .path(path)
         }
 
         public init(stringLiteral value: String) {
-            path = value
-            generatedPlaceholderPath = nil
+            self = .path(value)
+        }
+
+        public func xcodePath(sourceRootPath: AbsolutePath) -> String {
+            switch self {
+            case let .path(path):
+                return path
+            case let .generated(path):
+                return path.relative(to: sourceRootPath).pathString
+            }
         }
 
         public init(from decoder: Decoder) throws {
             if let path = try? decoder.singleValueContainer().decode(String.self) {
-                self.path = path
-                generatedPlaceholderPath = nil
+                self = .path(path)
+                return
+            }
+
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            if let generatedPath = try container.decodeIfPresent(AbsolutePath.self, forKey: .generated) {
+                self = .generated(generatedPath)
+            } else if let path = try? container.decode(String.self, forKey: .path) {
+                self = .path(path)
             } else {
-                let container = try decoder.container(keyedBy: CodingKeys.self)
-                path = try container.decode(String.self, forKey: .path)
-                generatedPlaceholderPath = try container.decodeIfPresent(
-                    AbsolutePath.self,
-                    forKey: .generatedPlaceholderPath
+                throw DecodingError.dataCorrupted(
+                    .init(
+                        codingPath: decoder.codingPath,
+                        debugDescription: "Expected a file list path string or generated path."
+                    )
                 )
+            }
+        }
+
+        public func encode(to encoder: Encoder) throws {
+            switch self {
+            case let .path(path):
+                var container = encoder.singleValueContainer()
+                try container.encode(path)
+            case let .generated(path):
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(path, forKey: .generated)
             }
         }
 
         private enum CodingKeys: String, CodingKey {
             case path
-            case generatedPlaceholderPath
+            case generated
         }
     }
 

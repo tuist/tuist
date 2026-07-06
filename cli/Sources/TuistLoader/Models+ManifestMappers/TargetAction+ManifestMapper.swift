@@ -166,25 +166,17 @@ extension XcodeGraph.TargetScript {
         fileSystem: FileSysteming
     ) async throws -> [XcodeGraph.TargetScript.FileListPath] {
         try await paths.concurrentMap { fileListPath -> [XcodeGraph.TargetScript.FileListPath] in
-            let paths = try await resolvePathStrings(
-                path: fileListPath.path,
-                generatorPaths: generatorPaths,
-                fileSystem: fileSystem
-            )
-
-            let generatedPlaceholderPath: AbsolutePath?
             switch fileListPath {
             case let .generated(path):
-                generatedPlaceholderPath = try generatorPaths.resolve(path: path)
-            case .path:
-                generatedPlaceholderPath = nil
-            }
+                return [.generated(try generatorPaths.resolve(path: path))]
 
-            return paths.map {
-                XcodeGraph.TargetScript.FileListPath(
-                    path: $0,
-                    generatedPlaceholderPath: generatedPlaceholderPath
+            case .path:
+                return try await resolvePathStrings(
+                    path: fileListPath.path,
+                    generatorPaths: generatorPaths,
+                    fileSystem: fileSystem
                 )
+                .map(XcodeGraph.TargetScript.FileListPath.path)
             }
         }.reduce([], +)
     }

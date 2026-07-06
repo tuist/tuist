@@ -17,10 +17,7 @@ final class TargetScriptTests: XCTestCase {
             order: .pre,
             script: .embedded(script),
             inputFileListPaths: [
-                .init(
-                    path: "Generated/File.xcfilelist",
-                    generatedPlaceholderPath: try AbsolutePath(validating: "/Generated/File.xcfilelist")
-                ),
+                .generated(try AbsolutePath(validating: "/Generated/File.xcfilelist")),
             ]
         )
 

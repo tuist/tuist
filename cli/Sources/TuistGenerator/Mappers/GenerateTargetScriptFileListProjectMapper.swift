@@ -13,7 +13,12 @@ public struct GenerateTargetScriptFileListProjectMapper: ProjectMapping {
         let fileListPaths = project.targets.values
             .flatMap(\.scripts)
             .flatMap { $0.inputFileListPaths + $0.outputFileListPaths }
-            .compactMap(\.generatedPlaceholderPath)
+            .compactMap { fileListPath in
+                if case let .generated(path) = fileListPath {
+                    return path
+                }
+                return nil
+            }
             .reduce(into: [AbsolutePath]()) { paths, path in
                 if !paths.contains(path) {
                     paths.append(path)

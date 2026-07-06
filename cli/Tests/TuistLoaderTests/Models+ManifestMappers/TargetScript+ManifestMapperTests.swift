@@ -302,20 +302,17 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
+        let inputFileListPath = temporaryPath.appending(component: "SourceryInputs.xcfilelist")
+        let outputFileListPath = temporaryPath.appending(components: "Generated", "SourceryOutputs.xcfilelist")
+        XCTAssertEqual(model.inputFileListPaths, [.generated(inputFileListPath)])
+        XCTAssertEqual(model.outputFileListPaths, [.generated(outputFileListPath)])
         XCTAssertEqual(
-            model.inputFileListPaths.map(\.path),
+            model.inputFileListPaths.map { $0.xcodePath(sourceRootPath: temporaryPath) },
             ["SourceryInputs.xcfilelist"]
         )
         XCTAssertEqual(
-            model.outputFileListPaths.map(\.path),
+            model.outputFileListPaths.map { $0.xcodePath(sourceRootPath: temporaryPath) },
             ["Generated/SourceryOutputs.xcfilelist"]
-        )
-        XCTAssertEqual(
-            (model.inputFileListPaths + model.outputFileListPaths).compactMap(\.generatedPlaceholderPath),
-            [
-                temporaryPath.appending(component: "SourceryInputs.xcfilelist"),
-                temporaryPath.appending(components: "Generated", "SourceryOutputs.xcfilelist"),
-            ]
         )
     }
 

@@ -15,17 +15,17 @@ final class GenerateTargetScriptFileListProjectMapperTests: TuistUnitTestCase {
             name: "Script A",
             order: .pre,
             inputFileListPaths: [
-                .init(path: "SourceryInputs.xcfilelist", generatedPlaceholderPath: fileListPath),
+                .generated(fileListPath),
             ],
             outputFileListPaths: [
-                .init(path: "Generated/Outputs.xcfilelist", generatedPlaceholderPath: nestedFileListPath),
+                .generated(nestedFileListPath),
             ]
         )
         let scriptB = TargetScript(
             name: "Script B",
             order: .post,
             inputFileListPaths: [
-                .init(path: "SourceryInputs.xcfilelist", generatedPlaceholderPath: fileListPath),
+                .generated(fileListPath),
             ]
         )
         let target = Target.test(name: "A", scripts: [scriptA, scriptB])
