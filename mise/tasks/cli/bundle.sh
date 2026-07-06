@@ -105,9 +105,11 @@ bundle_swift_runtime_libraries() {
 # self-contained (Rust deps statically linked), so no rpath wiring is needed.
 build_cas_plugin() {
     CAS_TARGET_DIR=$TMP_DIR/cas-plugin-target
-    rustup target add aarch64-apple-darwin x86_64-apple-darwin
     (
+        # Run rust from the crate dir so mise resolves the toolchain version
+        # from cas-plugin/mise.toml (the single source of truth).
         cd "$TUIST_DIR/cas-plugin" || exit 1
+        rustup target add aarch64-apple-darwin x86_64-apple-darwin
         cargo build --release --lib --bin tuist-cas-broker --target aarch64-apple-darwin --target-dir "$CAS_TARGET_DIR"
         cargo build --release --lib --bin tuist-cas-broker --target x86_64-apple-darwin --target-dir "$CAS_TARGET_DIR"
     )

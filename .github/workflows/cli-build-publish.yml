@@ -69,7 +69,17 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "--locked tuist git-cliff 1password-cli jq rust@1.94.1"
+          install_args: "--locked tuist git-cliff 1password-cli jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      # Install the Rust toolchain the cas-plugin bundle needs, resolving its
+      # version from cas-plugin/mise.toml rather than pinning it here (single
+      # source of truth, matching how kura pins its toolchain).
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: rust
+          working_directory: cas-plugin
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
