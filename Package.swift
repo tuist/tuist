@@ -149,10 +149,6 @@ var tuistHTTPDependencies: [Target.Dependency] = [
 var tuistCASDependencies: [Target.Dependency] = [
     "TuistServer",
     "TuistHTTP",
-    .product(name: "GRPCCore", package: "grpc.grpc-swift-2"),
-    .product(name: "GRPCProtobuf", package: "grpc.grpc-swift-protobuf"),
-    .product(name: "SwiftProtobuf", package: "apple.swift-protobuf"),
-    .product(name: "libzstd", package: "facebook.zstd"),
     mockableDependency,
     pathDependency,
 ]
@@ -806,7 +802,7 @@ var targets: [Target] = [
         name: "TuistCAS",
         dependencies: tuistCASDependencies,
         path: "cli/Sources/TuistCAS",
-        exclude: ["cas.proto", "keyvalue.proto", "grpc-swift-proto-generator-config.json", "AGENTS.md"],
+        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]

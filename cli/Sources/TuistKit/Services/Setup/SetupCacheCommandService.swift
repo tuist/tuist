@@ -62,8 +62,8 @@ struct SetupCacheCommandService {
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         // Fail fast when the user is not authenticated. Otherwise we would install a
-        // LaunchAgent whose `cache-start` daemon immediately exits (cleanly) for lack of
-        // credentials, leaving setup looking successful while no cache daemon is running.
+        // LaunchAgent whose `cache-broker` immediately exits (cleanly) for lack of
+        // credentials, leaving setup looking successful while no broker is running.
         guard try await serverAuthenticationController.authenticationToken(serverURL: serverURL) != nil else {
             throw SetupCacheCommandServiceError.notAuthenticated
         }
