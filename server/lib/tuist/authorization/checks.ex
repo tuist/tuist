@@ -80,11 +80,14 @@ defmodule Tuist.Authorization.Checks do
     false
   end
 
-  def authenticated_as_raw_account(%Account{}, _) do
+  # Internal token signing/refresh paths can use a bare Account as the
+  # trusted subject. Account tokens use AuthenticatedAccount and must pass
+  # scopes_permit instead.
+  def authenticated_as_internal_account(%Account{}, _) do
     true
   end
 
-  def authenticated_as_raw_account(_, _) do
+  def authenticated_as_internal_account(_, _) do
     false
   end
 

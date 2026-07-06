@@ -118,7 +118,7 @@ defmodule Tuist.Authorization do
       allow([:authenticated_as_account, :cache_write_policy_permits_subject, scopes_permit: "project:cache:write"])
 
       desc("Allows an account to create entries in its project caches.")
-      allow([:authenticated_as_raw_account, :accounts_match])
+      allow([:authenticated_as_internal_account, :accounts_match])
     end
 
     action :read do
@@ -143,7 +143,7 @@ defmodule Tuist.Authorization do
       allow([:authenticated_as_account, scopes_permit: "project:cache:write"])
 
       desc("Allows an account to read its project caches.")
-      allow([:authenticated_as_raw_account, :accounts_match])
+      allow([:authenticated_as_internal_account, :accounts_match])
     end
 
     action :update do
@@ -160,7 +160,7 @@ defmodule Tuist.Authorization do
       allow([:authenticated_as_account, :cache_write_policy_permits_subject, scopes_permit: "project:cache:write"])
 
       desc("Allows an account to update its project caches.")
-      allow([:authenticated_as_raw_account, :accounts_match])
+      allow([:authenticated_as_internal_account, :accounts_match])
     end
   end
 
@@ -176,7 +176,7 @@ defmodule Tuist.Authorization do
       allow([:authenticated_as_account, :cache_write_policy_permits_subject, scopes_permit: "account:cache:write"])
 
       desc("Allows an account to create entries in its own account cache.")
-      allow([:authenticated_as_raw_account, :accounts_match])
+      allow([:authenticated_as_internal_account, :accounts_match])
     end
 
     action :read do
@@ -191,7 +191,7 @@ defmodule Tuist.Authorization do
       allow([:authenticated_as_account, scopes_permit: "account:cache:write"])
 
       desc("Allows an account to read its own account cache.")
-      allow([:authenticated_as_raw_account, :accounts_match])
+      allow([:authenticated_as_internal_account, :accounts_match])
     end
   end
 
