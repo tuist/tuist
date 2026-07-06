@@ -63,6 +63,12 @@
       selected={@selected_tab == "metrics"}
       patch={"?#{Query.put(@uri.query, "tab", "metrics")}"}
     />
+    <.tab_menu_horizontal_item
+      :if={TuistWeb.RunnerJobLive.interactive_tab_visible?(@interactive)}
+      label={dgettext("dashboard_runners", "Interactive")}
+      selected={@selected_tab == "interactive"}
+      patch={"?#{Query.put(@uri.query, "tab", "interactive")}"}
+    />
   </.tab_menu_horizontal>
 
   <div
@@ -360,6 +366,101 @@
           "dashboard_runners",
           "Machine metrics will appear here once the job has run on a Tuist runner."
         )}
+      </.card_section>
+    </.card>
+  </div>
+
+  <div :if={@selected_tab == "interactive"} data-part="tab-panel">
+    <% vnc_status =
+      TuistWeb.RunnerJobLive.interactive_status_badge_props(@interactive.vnc_session) %>
+    <% unavailable_reason =
+      TuistWeb.RunnerJobLive.interactive_vnc_unavailable_reason(@interactive) %>
+    <.card
+      title={dgettext("dashboard_runners", "Interactive access")}
+      icon="screen_share"
+      data-part="interactive-card"
+    >
+      <:actions>
+        <.button
+          :if={is_nil(@interactive.vnc_session)}
+          id="request-vnc-session-button"
+          phx-click="request_vnc_session"
+          variant="primary"
+          size="medium"
+          label={dgettext("dashboard_runners", "Start VNC")}
+          disabled={!@interactive.vnc_requestable?}
+        >
+          <:icon_left><.player_play /></:icon_left>
+        </.button>
+        <.button
+          :if={@interactive.vnc_session}
+          id="close-vnc-session-button"
+          phx-click="close_vnc_session"
+          variant="destructive"
+          size="medium"
+          label={dgettext("dashboard_runners", "Close VNC")}
+        >
+          <:icon_left><.circle_x /></:icon_left>
+        </.button>
+      </:actions>
+      <.card_section data-part="interactive-section">
+        <div data-part="interactive-summary">
+          <div data-part="interactive-kind">
+            <div data-part="interactive-kind-icon"><.device_laptop /></div>
+            <div data-part="interactive-kind-copy">
+              <div data-part="title">{dgettext("dashboard_runners", "macOS desktop")}</div>
+              <div data-part="description">
+                {dgettext("dashboard_runners", "VNC session for the live runner desktop.")}
+              </div>
+            </div>
+          </div>
+          <.badge
+            label={vnc_status.label}
+            color={vnc_status.color}
+            style="light-fill"
+            size="large"
+          />
+        </div>
+
+        <div :if={unavailable_reason} data-part="interactive-notice">
+          {unavailable_reason}
+        </div>
+
+        <div
+          data-part="interactive-viewport"
+          data-state={if(@interactive.vnc_session, do: "requested", else: "idle")}
+        >
+          <div data-part="interactive-viewport-frame">
+            <div data-part="interactive-viewport-icon"><.device_laptop /></div>
+            <div data-part="interactive-viewport-title">
+              {if(@interactive.vnc_session,
+                do: dgettext("dashboard_runners", "VNC session requested"),
+                else: dgettext("dashboard_runners", "VNC session idle")
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div data-part="interactive-shell">
+          <div data-part="interactive-kind">
+            <div data-part="interactive-kind-icon"><.terminal_square_icon /></div>
+            <div data-part="interactive-kind-copy">
+              <div data-part="title">{dgettext("dashboard_runners", "Shell")}</div>
+              <div data-part="description">
+                {dgettext(
+                  "dashboard_runners",
+                  "Terminal sessions are not available in this rollout."
+                )}
+              </div>
+            </div>
+          </div>
+          <.badge
+            label={dgettext("dashboard_runners", "Unavailable")}
+            color="neutral"
+            style="light-fill"
+            size="large"
+          />
+        </div>
       </.card_section>
     </.card>
   </div>

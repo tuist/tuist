@@ -5,7 +5,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Repo
   alias Tuist.Runners.Catalog
+  alias Tuist.Runners.InteractiveSession
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.JobMetrics
   alias Tuist.Runners.Jobs
@@ -408,6 +410,68 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, lv2, _html} = live(conn, ~p"/#{account.name}/runners/runs/317010/jobs/31701?tab=logs")
     assert has_element?(lv2, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Logs")
     refute has_element?(lv2, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Overview")
+  end
+
+  test "requests and closes a VNC session from the Interactive tab", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_750,
+        account_id: account.id,
+        fleet_name: Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}),
+        repository: "tuist/tuist",
+        workflow_run_id: 317_500,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "UI Tests",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} =
+      Jobs.pick_queued(Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}), [])
+
+    :ok = Jobs.record_claimed(candidate, "macos-pod-vnc", DateTime.utc_now())
+    :ok = Jobs.record_running(31_750, "tuist-runner-vnc")
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/317500/jobs/31750?tab=interactive")
+
+    assert html =~ "Interactive access"
+    assert has_element?(lv, ~s{#request-vnc-session-button})
+
+    html_after_request = lv |> element(~s{#request-vnc-session-button}) |> render_click()
+
+    assert html_after_request =~ "VNC session requested"
+
+    session = Repo.get_by!(InteractiveSession, workflow_job_id: 31_750, kind: :vnc)
+    assert session.state == :requested
+    assert session.pod_name == "macos-pod-vnc"
+    assert session.requested_by_user_id
+
+    html_after_close = lv |> element(~s{#close-vnc-session-button}) |> render_click()
+
+    assert html_after_close =~ "VNC session idle"
+    assert Repo.reload!(session).state == :closed
+  end
+
+  test "does not show the Interactive tab for queued macOS jobs", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_751,
+        account_id: account.id,
+        fleet_name: Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}),
+        repository: "tuist/tuist",
+        workflow_run_id: 317_510,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Queued UI Tests",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/317510/jobs/31751?tab=interactive")
+
+    refute has_element?(lv, ~s{.noora-tab-menu-horizontal-item}, "Interactive")
+    assert has_element?(lv, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Overview")
   end
 
   test "renders the machine metrics charts on the Metrics tab", %{conn: conn, account: account} do

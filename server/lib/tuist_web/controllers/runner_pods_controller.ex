@@ -12,6 +12,7 @@ defmodule TuistWeb.RunnerPodsController do
 
   use TuistWeb, :controller
 
+  alias Tuist.Runners.InteractiveSessions
   alias Tuist.Runners.RunnerSessions
   alias TuistWeb.RunnerControllerAuth
 
@@ -40,7 +41,8 @@ defmodule TuistWeb.RunnerPodsController do
     with :ok <- RunnerControllerAuth.authenticate(conn),
          {:ok, pod_name} <- parse_pod_name(params),
          {:ok, ended_at} <- parse_timestamp(params, "ended_at"),
-         {:ok, _} <- RunnerSessions.close_by_pod_name(pod_name, ended_at) do
+         {:ok, _} <- RunnerSessions.close_by_pod_name(pod_name, ended_at),
+         {:ok, _} <- InteractiveSessions.close_by_pod_name(pod_name, ended_at) do
       send_resp(conn, :no_content, "")
     else
       {:error, :missing_bearer} ->

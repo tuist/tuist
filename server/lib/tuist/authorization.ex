@@ -344,6 +344,30 @@ defmodule Tuist.Authorization do
     end
   end
 
+  object :runner_interactive_session do
+    action :create do
+      desc("Allows users of an account to request interactive runner access.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of an account to request interactive runner access.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows users with ops write access to request interactive runner access.")
+      allow([:authenticated_as_user, :ops_write_access])
+    end
+
+    action :delete do
+      desc("Allows users of an account to close interactive runner access.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of an account to close interactive runner access.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows users with ops write access to close interactive runner access.")
+      allow([:authenticated_as_user, :ops_write_access])
+    end
+  end
+
   object :organization do
     action :read do
       desc("Allows users of an account to read organization info.")

@@ -8,6 +8,7 @@ defmodule TuistWeb.RunnerJobLive do
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Catalog
+  alias Tuist.Runners.InteractiveSessions
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.JobMetrics
   alias Tuist.Runners.Jobs
@@ -63,6 +64,7 @@ defmodule TuistWeb.RunnerJobLive do
          socket
          |> assign(:head_title, head_title)
          |> assign(:job, job)
+         |> assign(:interactive, interactive_state(selected_account, current_user, job))
          |> assign(:steps, JobSteps.list_for_job(job.workflow_job_id))
          |> assign(:machine_metrics, machine_metrics)
          |> assign(:expanded_steps, MapSet.new())
@@ -84,10 +86,11 @@ defmodule TuistWeb.RunnerJobLive do
   @impl true
   def handle_params(_params, uri, socket) do
     params = Query.query_params(uri)
+    selected_tab = selected_tab(params["tab"] || "overview", socket.assigns.interactive)
 
     {:noreply,
      socket
-     |> assign(:selected_tab, params["tab"] || "overview")
+     |> assign(:selected_tab, selected_tab)
      |> assign(:uri, URI.new!("?" <> URI.encode_query(params)))}
   end
 
@@ -276,6 +279,42 @@ defmodule TuistWeb.RunnerJobLive do
   """
   def has_machine_metrics?(metrics), do: metrics != []
 
+  def interactive_tab_visible?(%{enabled?: true, can_manage?: true, macos?: true, running?: true, pod_available?: true}),
+    do: true
+
+  def interactive_tab_visible?(_), do: false
+
+  def interactive_status_badge_props(nil), do: %{label: dgettext("dashboard_runners", "Not requested"), color: "neutral"}
+
+  def interactive_status_badge_props(%{state: :requested}),
+    do: %{label: dgettext("dashboard_runners", "Requested"), color: "information"}
+
+  def interactive_status_badge_props(%{state: :ready}),
+    do: %{label: dgettext("dashboard_runners", "Ready"), color: "success"}
+
+  def interactive_status_badge_props(%{state: :active}),
+    do: %{label: dgettext("dashboard_runners", "Connected"), color: "success"}
+
+  def interactive_status_badge_props(%{state: :closed}),
+    do: %{label: dgettext("dashboard_runners", "Closed"), color: "neutral"}
+
+  def interactive_vnc_unavailable_reason(%{enabled?: false}),
+    do: dgettext("dashboard_runners", "Interactive access is not enabled for this account.")
+
+  def interactive_vnc_unavailable_reason(%{can_manage?: false}),
+    do: dgettext("dashboard_runners", "You are not authorized to request interactive access.")
+
+  def interactive_vnc_unavailable_reason(%{macos?: false}),
+    do: dgettext("dashboard_runners", "VNC is available for macOS runner jobs.")
+
+  def interactive_vnc_unavailable_reason(%{running?: false}),
+    do: dgettext("dashboard_runners", "VNC can be requested while the macOS runner job is claimed or running.")
+
+  def interactive_vnc_unavailable_reason(%{pod_available?: false}),
+    do: dgettext("dashboard_runners", "The runner pod is not available for this job.")
+
+  def interactive_vnc_unavailable_reason(_), do: nil
+
   # FetchLogsWorker finished ingesting the job's captured log. Reload
   # the tail and reset the stream so the empty state ("No logs have
   # been captured for this job yet.") flips to the loaded view without
@@ -334,6 +373,54 @@ defmodule TuistWeb.RunnerJobLive do
 
   def handle_event("toggle_timestamps", _params, socket) do
     {:noreply, assign(socket, :show_timestamps, not socket.assigns.show_timestamps)}
+  end
+
+  def handle_event("request_vnc_session", _params, socket) do
+    %{current_user: current_user, selected_account: selected_account, job: job, interactive: interactive} = socket.assigns
+
+    cond do
+      not interactive.enabled? or not interactive.can_manage? ->
+        {:noreply, put_flash(socket, :error, dgettext("dashboard_runners", "Interactive access is not available."))}
+
+      not interactive.vnc_requestable? ->
+        {:noreply, put_flash(socket, :error, interactive_vnc_unavailable_reason(interactive))}
+
+      true ->
+        case InteractiveSessions.request_vnc(job, selected_account, current_user) do
+          {:ok, _session} ->
+            {:noreply,
+             socket
+             |> put_flash(:info, dgettext("dashboard_runners", "VNC session requested."))
+             |> refresh_interactive_state()}
+
+          {:error, reason} ->
+            {:noreply, put_flash(socket, :error, interactive_session_error(reason))}
+        end
+    end
+  end
+
+  def handle_event("close_vnc_session", _params, socket) do
+    %{interactive: interactive} = socket.assigns
+
+    cond do
+      not interactive.enabled? or not interactive.can_manage? ->
+        {:noreply, put_flash(socket, :error, dgettext("dashboard_runners", "Interactive access is not available."))}
+
+      is_nil(interactive.vnc_session) ->
+        {:noreply, socket}
+
+      true ->
+        case InteractiveSessions.close(interactive.vnc_session, "user") do
+          {:ok, _session} ->
+            {:noreply,
+             socket
+             |> put_flash(:info, dgettext("dashboard_runners", "VNC session closed."))
+             |> refresh_interactive_state()}
+
+          {:error, _changeset} ->
+            {:noreply, put_flash(socket, :error, dgettext("dashboard_runners", "The VNC session could not be closed."))}
+        end
+    end
   end
 
   def handle_event("load_older", _params, %{assigns: %{oldest_line: nil}} = socket), do: {:noreply, socket}
@@ -468,4 +555,47 @@ defmodule TuistWeb.RunnerJobLive do
 
   defp oldest_line_number([]), do: nil
   defp oldest_line_number([first | _]), do: first.line_number
+
+  defp selected_tab("interactive", interactive) do
+    if interactive_tab_visible?(interactive), do: "interactive", else: "overview"
+  end
+
+  defp selected_tab("logs", _interactive), do: "logs"
+  defp selected_tab("metrics", _interactive), do: "metrics"
+  defp selected_tab(_, _interactive), do: "overview"
+
+  defp refresh_interactive_state(socket) do
+    %{selected_account: selected_account, current_user: current_user, job: job} = socket.assigns
+    assign(socket, :interactive, interactive_state(selected_account, current_user, job))
+  end
+
+  defp interactive_state(selected_account, current_user, job) do
+    macos? = Catalog.fleet_platform(job.fleet_name) == :macos
+    running? = job.status in ["claimed", "running"]
+    pod_available? = is_binary(job.pod_name) and job.pod_name != ""
+    enabled? = FeatureFlags.runners_interactive_enabled?(selected_account)
+    can_manage? = Authorization.authorize(:runner_interactive_session_create, current_user, selected_account) == :ok
+    vnc_session = InteractiveSessions.current_for_job(selected_account.id, job.workflow_job_id, :vnc)
+
+    %{
+      enabled?: enabled?,
+      can_manage?: can_manage?,
+      macos?: macos?,
+      running?: running?,
+      pod_available?: pod_available?,
+      vnc_requestable?: enabled? and can_manage? and InteractiveSessions.vnc_requestable?(job),
+      vnc_session: vnc_session
+    }
+  end
+
+  defp interactive_session_error(:unsupported_platform),
+    do: dgettext("dashboard_runners", "VNC is available for macOS runner jobs.")
+
+  defp interactive_session_error(:job_not_running),
+    do: dgettext("dashboard_runners", "VNC can be requested while the macOS runner job is claimed or running.")
+
+  defp interactive_session_error(:pod_unavailable),
+    do: dgettext("dashboard_runners", "The runner pod is not available for this job.")
+
+  defp interactive_session_error(_), do: dgettext("dashboard_runners", "The VNC session could not be requested.")
 end
