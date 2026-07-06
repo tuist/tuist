@@ -354,6 +354,14 @@ func (r *DediboxMachineReconciler) reconcileDelete(ctx context.Context, machine 
 		r.event(machine, "DeleteNodeFailed", "delete Node: %v (will retry)", err)
 		return ctrl.Result{}, err
 	}
+	// The reprovisioned box is wiped, so any node-local volume (local-path /
+	// scw-local-nvme) it hosted is gone. Delete the PVCs still bound to those
+	// dead-node PVs so their StatefulSets reprovision fresh volumes on the
+	// replacement node instead of wedging Pending forever on an unbindable PV.
+	if err := deleteNodeLocalPVCs(ctx, r.Client, machine.Name); err != nil {
+		r.event(machine, "DeletePVCsFailed", "delete node-local PVCs orphaned by reprovision: %v (will retry)", err)
+		return ctrl.Result{}, err
+	}
 	// Reinstall the box back to a clean, claimable state as the last step before
 	// dropping the finalizer — it's the only step that retries on failure, so on
 	// the happy path it fires exactly once. Fire-and-forget: the wipe + reimage

@@ -106,8 +106,9 @@ You’ll also need a solution to store files (e.g. framework and library binarie
 
 To use self-hosted Kura nodes with a self-hosted Tuist server:
 
-1. Deploy Kura nodes following the <.localized_link href="/guides/features/cache/self-hosting">self-hosted cache guide</.localized_link>.
-2. Set `TUIST_KURA_ENDPOINTS` to a comma-separated list of Kura URLs, or configure `server.kuraEndpointUrls` in the Helm chart.
+1. Configure `KURA_CONTROL_PLANE_CLIENT_ID` and `KURA_CONTROL_PLANE_CLIENT_SECRET` on the Tuist server. In fully self-hosted setups you can generate these values yourself and store them in your deployment secrets.
+2. Deploy Kura nodes following the <.localized_link href="/guides/features/cache/self-hosting">self-hosted cache guide</.localized_link>, using the same control-plane credential.
+3. Configure each Kura node with `KURA_REGISTRATION_URL` and `KURA_ADVERTISED_HTTP_URL`. Registration heartbeats tell the server which ready, client-facing Kura endpoints it can advertise to the CLI.
 
 ## Configuration {#configuration}
 
@@ -319,7 +320,7 @@ The env vars above only configure Tuist's github.com App. To integrate Tuist wit
 We provide a comprehensive Docker Compose configuration that includes all required dependencies for testing Tuist server on your local machine before deploying to your infrastructure:
 
 - PostgreSQL 15
-- ClickHouse 25 for analytics
+- ClickHouse 26.5 for analytics
 - ClickHouse Keeper for coordination
 - MinIO for S3-compatible storage
 - Kura for local self-hosted cache testing
@@ -356,12 +357,15 @@ We provide a comprehensive Docker Compose configuration that includes all requir
 
    On Apple Silicon, Docker Desktop automatically pulls the `linux/arm64` variants of the Tuist and dependency images. To force amd64 emulation for debugging, run Compose with `DOCKER_DEFAULT_PLATFORM=linux/amd64`.
 
+   The bundled compose file uses named Docker volumes for persistent data. If you replace them with host bind mounts,
+   create the host directories first and make them writable by the container users, especially the ClickHouse and
+   ClickHouse Keeper data directories.
+
 4. Access the server at http://localhost:8080
 
 **Service Endpoints:**
 - Tuist Server: http://localhost:8080
-- Kura HTTP: http://localhost:4000
-- Kura gRPC: grpc://localhost:50051
+- Kura cache (HTTP + REAPI gRPC on one port): http://localhost:4000
 - MinIO Console: http://localhost:9003 (credentials: `tuist` / `tuist_dev_password`)
 - MinIO API: http://localhost:9002
 - pgweb (PostgreSQL UI): http://localhost:8081

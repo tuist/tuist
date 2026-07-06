@@ -62,7 +62,7 @@ spec:
               service:
                 name: {{ include "kura.fullname" $ }}
                 port:
-                  name: grpc
+                  name: http
           {{- end }}
     {{- end }}
   {{- with .Values.grpcIngress.tls }}

@@ -63,10 +63,17 @@ defmodule TuistWeb.API.GenerationsControllerTest do
 
       assert %{
                "generations" => [],
-               "pagination_metadata" => %{
-                 "total_count" => 0
-               }
+               "pagination_metadata" => metadata
              } = json_response(conn, 200)
+
+      # Cursor-only pagination: no offset metadata, and no rows to derive cursors from.
+      assert metadata["total_count"] == nil
+      assert metadata["current_page"] == nil
+      assert metadata["total_pages"] == nil
+      assert metadata["start_cursor"] == nil
+      assert metadata["end_cursor"] == nil
+      assert metadata["has_next_page"] == false
+      assert metadata["has_previous_page"] == false
     end
 
     test "filters by git_branch", %{conn: conn, user: user, project: project} do
@@ -90,6 +97,120 @@ defmodule TuistWeb.API.GenerationsControllerTest do
 
       assert %{"generations" => [returned]} = json_response(conn, 200)
       assert returned["id"] == generation.id
+    end
+
+    test "paginates forward with the after cursor", %{conn: conn, user: user, project: project} do
+      expected_ids = create_ordered_generations(user, project)
+
+      # The real client flow: fetch the first page without any cursor, then reuse
+      # the returned end_cursor as `after` to walk forward.
+      first_conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/generations?page_size=2")
+
+      assert %{
+               "generations" => first_page,
+               "pagination_metadata" => first_metadata
+             } = json_response(first_conn, 200)
+
+      first_page_ids = Enum.map(first_page, & &1["id"])
+      assert first_page_ids == Enum.take(expected_ids, 2)
+
+      # The default (cursorless) request returns the first page with a usable
+      # end_cursor and none of the offset metadata.
+      assert is_binary(first_metadata["end_cursor"])
+      assert first_metadata["total_count"] == nil
+      assert first_metadata["current_page"] == nil
+      assert first_metadata["total_pages"] == nil
+      assert first_metadata["has_next_page"] == true
+      assert first_metadata["has_previous_page"] == false
+
+      end_cursor = first_metadata["end_cursor"]
+
+      second_conn =
+        build_conn()
+        |> Authentication.put_current_user(user)
+        |> assign(:selected_project, project)
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/generations?page_size=2&after=#{end_cursor}")
+
+      assert %{
+               "generations" => second_page,
+               "pagination_metadata" => second_metadata
+             } = json_response(second_conn, 200)
+
+      second_page_ids = Enum.map(second_page, & &1["id"])
+
+      # The second page holds the next (older) distinct events, with no overlap with page one.
+      assert second_page_ids == expected_ids |> Enum.drop(2) |> Enum.take(2)
+      assert second_page_ids -- first_page_ids == second_page_ids
+      assert second_metadata["has_next_page"] == true
+      assert second_metadata["has_previous_page"] == true
+      assert second_metadata["current_page"] == nil
+      assert second_metadata["total_pages"] == nil
+      assert is_binary(second_metadata["start_cursor"])
+      assert is_binary(second_metadata["end_cursor"])
+    end
+
+    test "paginates backward with the before cursor", %{conn: conn, user: user, project: project} do
+      expected_ids = create_ordered_generations(user, project)
+
+      first_conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/generations?page_size=2")
+
+      assert %{"pagination_metadata" => %{"end_cursor" => end_cursor}} = json_response(first_conn, 200)
+
+      # Step forward to the second page to grab its start_cursor.
+      second_conn =
+        build_conn()
+        |> Authentication.put_current_user(user)
+        |> assign(:selected_project, project)
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/generations?page_size=2&after=#{end_cursor}")
+
+      assert %{"pagination_metadata" => %{"start_cursor" => start_cursor}} = json_response(second_conn, 200)
+      assert is_binary(start_cursor)
+
+      # Walking back from the second page returns the first page again.
+      third_conn =
+        build_conn()
+        |> Authentication.put_current_user(user)
+        |> assign(:selected_project, project)
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/generations?page_size=2&before=#{start_cursor}")
+
+      assert %{
+               "generations" => third_page,
+               "pagination_metadata" => third_metadata
+             } = json_response(third_conn, 200)
+
+      assert Enum.map(third_page, & &1["id"]) == Enum.take(expected_ids, 2)
+      assert third_metadata["has_next_page"] == true
+      assert third_metadata["current_page"] == nil
+    end
+
+    test "ignores a legacy offset page param and returns the first page", %{conn: conn, user: user, project: project} do
+      expected_ids = create_ordered_generations(user, project)
+
+      # A stale client still sending ?page=N must degrade gracefully: the unknown
+      # offset param is ignored and the first (cursor) page is returned with 200,
+      # not a 400.
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/generations?page=99&page_size=2")
+
+      assert %{
+               "generations" => generations,
+               "pagination_metadata" => metadata
+             } = json_response(conn, 200)
+
+      assert Enum.map(generations, & &1["id"]) == Enum.take(expected_ids, 2)
+      assert metadata["current_page"] == nil
+      assert metadata["total_count"] == nil
+      assert metadata["total_pages"] == nil
+      assert is_binary(metadata["end_cursor"])
+      assert metadata["has_previous_page"] == false
     end
   end
 
@@ -160,5 +281,24 @@ defmodule TuistWeb.API.GenerationsControllerTest do
 
       assert %{"message" => "Generation not found."} = json_response(conn, 404)
     end
+  end
+
+  # Creates five generate command events with distinct ran_at values and returns
+  # their ids ordered newest-first, matching the controller's ran_at desc ordering.
+  defp create_ordered_generations(user, project) do
+    base = ~U[2024-06-01 12:00:00Z]
+
+    0..4
+    |> Enum.map(fn index ->
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        user_id: user.id,
+        created_at: DateTime.add(base, index, :minute),
+        ran_at: DateTime.add(base, index, :minute)
+      )
+    end)
+    |> Enum.reverse()
+    |> Enum.map(& &1.id)
   end
 end

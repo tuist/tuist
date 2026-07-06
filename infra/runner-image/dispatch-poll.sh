@@ -176,7 +176,15 @@ while true; do
       # `Tuist.Runners.Workers.FetchLogsWorker`); the runner VM
       # writes nothing to the ingest path.
       ./run.sh --jitconfig "${jit}" --disableupdate
-      exit $?
+      rc=$?
+      # Final metrics sample before the EXIT trap halts the VM. The
+      # looping sampler is killed mid-sleep by the shutdown, so the last
+      # interval — including "Complete job" — otherwise has no data point
+      # and the chart stops short of the job's end. One synchronous
+      # sample now, while the network is still up, closes that gap.
+      # Best-effort; never affects the runner's exit code.
+      [ -x /opt/tuist/metrics-poll.sh ] && /opt/tuist/metrics-poll.sh --once || true
+      exit "${rc}"
       ;;
     204)
       # Server has nothing for us yet. Keep polling — the VM is

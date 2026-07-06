@@ -103,8 +103,8 @@ defmodule TuistOps.JIT.ApprovalsTest do
     end
   end
 
-  describe "approve/2 — approver trust tier (second-human path)" do
-    test "rejects a Member approving another engineer's production request" do
+  describe "approve/2 — self-approval" do
+    test "Owner self-approves their own production request -> elevation created" do
       stub_default_roles()
       stub(SlackClient, :update_message, fn _, _, _ -> :ok end)
 
@@ -115,17 +115,79 @@ defmodule TuistOps.JIT.ApprovalsTest do
           target_group: "group:tuist-production-write"
         })
 
-      assert {:error, :approver_not_authorized} =
+      assert {:ok, %Request{status: "approved"}, %Elevation{status: "active"}} =
+               Approvals.approve(req.id, %{slack_id: "U_MAREK", email: "marek@tuist.dev"})
+
+      assert Repo.get_by(Elevation, request_id: req.id)
+    end
+
+    test "Member self-approves their own production request -> elevation created" do
+      # The behaviour this change restores: a Member self-services a
+      # production elevation without needing a second human.
+      stub_default_roles()
+      stub(SlackClient, :update_message, fn _, _, _ -> :ok end)
+
+      req =
+        insert_request!(%{
+          requester_email: "eduardo.ext@tuist.dev",
+          requester_slack_id: "U_EDUARDO",
+          target_group: "group:tuist-production-write"
+        })
+
+      assert {:ok, %Request{status: "approved"}, %Elevation{status: "active"}} =
                Approvals.approve(req.id, %{
                  slack_id: "U_EDUARDO",
                  email: "eduardo.ext@tuist.dev"
                })
 
-      # No Elevation row created when the approver gate trips.
+      assert Repo.get_by(Elevation, request_id: req.id)
+    end
+
+    test "requester whose role can't self-approve is rejected (:cannot_self_approve)" do
+      # A non-engineering requester (Auditor) clicking Approve on
+      # their own request hits the self-approve gate: no elevation,
+      # request stays pending for an engineering-role approver.
+      stub(TailscaleClient, :user_role, fn
+        "auditor@tuist.dev" -> {:ok, :auditor}
+        _ -> {:error, :not_found}
+      end)
+
+      stub(SlackClient, :update_message, fn _, _, _ -> :ok end)
+
+      req =
+        insert_request!(%{
+          requester_email: "auditor@tuist.dev",
+          requester_slack_id: "U_AUDITOR",
+          target_group: "group:tuist-staging-write"
+        })
+
+      assert {:error, :cannot_self_approve} =
+               Approvals.approve(req.id, %{slack_id: "U_AUDITOR", email: "auditor@tuist.dev"})
+
       assert Repo.get_by(Elevation, request_id: req.id) == nil
-      # And the Request stays pending so an Owner/Admin can still
-      # come along and approve.
       assert %Request{status: "pending"} = Repo.get!(Request, req.id)
+    end
+  end
+
+  describe "approve/2 — approver trust tier (second-human path)" do
+    test "allows a Member to approve another engineer's production request" do
+      stub_default_roles()
+      stub(SlackClient, :update_message, fn _, _, _ -> :ok end)
+
+      req =
+        insert_request!(%{
+          requester_email: "marek@tuist.dev",
+          requester_slack_id: "U_MAREK",
+          target_group: "group:tuist-production-write"
+        })
+
+      assert {:ok, %Request{status: "approved"}, %Elevation{status: "active"}} =
+               Approvals.approve(req.id, %{
+                 slack_id: "U_EDUARDO",
+                 email: "eduardo.ext@tuist.dev"
+               })
+
+      assert Repo.get_by(Elevation, request_id: req.id)
     end
 
     test "rejects an off-tailnet approver for any env" do

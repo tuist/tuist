@@ -86,6 +86,13 @@ spec:
                   maxLength: 253
                 ingressClassName:
                   type: string
+                # Host-network customer gateway (bare-metal regions, no LB):
+                # publish the account's publicHost via a per-account DNSEndpoint
+                # targeting the box its pods run on, so each account resolves to
+                # its own box across a multi-box region. Customer-plane analog of
+                # meshPeerHostNetwork.
+                publicHostNetwork:
+                  type: boolean
                 # Private marks an instance with no public endpoint:
                 # the controller skips the Ingress/external-dns surface
                 # and the in-cluster Service is the only access path
@@ -188,10 +195,7 @@ spec:
                   type: string
                 nodeAddress:
                   type: string
-                nodePortHTTP:
-                  type: integer
-                  format: int32
-                nodePortGRPC:
+                nodePortCache:
                   type: integer
                   format: int32
                 lastReconciledAt:

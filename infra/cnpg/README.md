@@ -7,7 +7,7 @@ The chart-rendered `Cluster` CR ([`infra/helm/tuist/templates/postgresql-cnpg.ya
 ## Files
 
 - Web runtime grants are applied automatically by `Tuist.Release.migrate/0` when `TUIST_DATABASE_RUNTIME_ROLE` is set (the Helm chart sets it to `postgresql.cnpg.roles.web.name` for managed CNPG migration jobs). The migration role keeps owning schema changes, and the web role gets DML on application tables plus read-only access to `schema_migrations`.
-- [`tuist-processor-grants.sql`](./tuist-processor-grants.sql) — per-table grants for the `tuist_processor` role (`oban_jobs`/`oban_peers` writes, plus `accounts`/`projects`/`webhook_endpoints` reads). The role itself is created declaratively by CNPG via `managed.roles[]`. **These grants are now applied automatically by `Tuist.Release.migrate/0` (`do_grant_processor_role`) on every migrate for managed CNPG envs**, so this file is a bootstrap/restore fallback for the window before the first migrate runs — keep it in sync with `do_grant_processor_role`. Pass `-v tuist_schema=<schema>` when the chart uses a non-`public` `postgresql.schema`.
+- [`tuist-processor-grants.sql`](./tuist-processor-grants.sql) — per-table grants for the `tuist_processor` role. The role itself is created declaratively by CNPG via `managed.roles[]`. **These grants are now applied automatically by `Tuist.Release.migrate/0` (`do_grant_processor_role`) on every migrate for managed CNPG envs**, so this file is a bootstrap/restore fallback for the window before the first migrate runs — keep it in sync with `do_grant_processor_role`. Pass `-v tuist_schema=<schema>` when the chart uses a non-`public` `postgresql.schema`.
 - [`tuist-ops-ro-grants.sql`](./tuist-ops-ro-grants.sql) — `CONNECT` on the application database for the `tuist_ops_ro` role, plus an explicit `REVOKE` of write privileges on the application schema (defense-in-depth against a future grant-by-default change in Postgres widening `pg_read_all_data`). The role is for ad-hoc operator psql access; the `/ops/db` LiveView uses Tuist.Repo under the web runtime role and enforces read-only at the app layer (see `Tuist.Ops.Database.execute/2`).
 - [`pg-stat-statements.sql`](./pg-stat-statements.sql) — `CREATE EXTENSION pg_stat_statements`, enabling the per-query latency metrics (`cnpg_tuist_query_stats_*`) that back the dashboard's query-latency panels. The library is preloaded via the chart (`postgresql.cnpg.sharedPreloadLibraries`); this creates the reading view. **Runs against `postgres`, not `tuist`** (the metrics exporter queries the instance-global view from the maintenance database). Only relevant when `postgresql.cnpg.queryStats.enabled` is set. **Only for clusters bootstrapped before query-stats was enabled** — fresh clusters create the extension automatically via the Cluster CR's `bootstrap.initdb.postInitSQL`, and it persists across restores. (The operator now supports `Database.spec.extensions`, which could reconcile it declaratively on existing clusters instead.)
 
@@ -60,7 +60,7 @@ kubectl cnpg psql -n "$NAMESPACE" "$CLUSTER" -- -d postgres -f - \
   < infra/cnpg/pg-stat-statements.sql
 ```
 
-Each file ends with a sanity-check `SELECT … information_schema.role_table_grants …` query that prints the exact privilege set the role holds after the run. A clean run shows the expected `arwd/postgres` shape on the granted tables.
+Each file ends with a sanity-check `SELECT … information_schema.role_table_grants …` query that prints the exact privilege set the role holds after the run. A clean run shows write privileges on the Oban tables and read-only privileges on the lookup tables the processors use.
 
 ## Why not an Ecto migration
 
@@ -111,20 +111,41 @@ Continuous WAL archiving + daily 03:00 UTC base backups, both targeting the per-
 
 The Tigris key used for backups is **separate** from the workload's `S3_CREDENTIALS` — a dedicated `S3_BACKUP_CREDENTIALS` item per env, scoped to the env's backup bucket only. Rotate it independently from the workload key.
 
-Restore-validation drill (run quarterly, or before any operation that depends on backups being usable):
+Restore-validation drill, automated by
+[`.github/workflows/cnpg-restore-drill.yml`](../../.github/workflows/cnpg-restore-drill.yml)
+(weekly + on-demand per env; also run it by hand before any operation that
+depends on backups being usable). It builds a one-shot recovery `Cluster` that
+replays from the archive, checks the restored data + schema against live, then
+deletes it (and its PVCs). Recover through `externalClusters[].plugin`, reusing
+the `ObjectStore` CR the chart already renders in the namespace. `serverName` is the original cluster name (the archive
+prefix), `barmanObjectName` is the rendered store (`tuist-tuist-pg-backup-store`
+for the main cluster, `tuist-ops-pg-backup-store` for tuist-ops):
 
-```bash
-ENV=staging
-NAMESPACE=tuist-$ENV
-CLUSTER=tuist-tuist-pg
-
-# Create a one-shot cluster restored to the latest available recovery
-# point. CNPG provisions a new primary, replays from the WAL archive,
-# and reports the recovery target it landed on.
-kubectl cnpg backup-status -n "$NAMESPACE" "$CLUSTER"
-# Then build a restore manifest using `kubectl cnpg restore` (see the
-# CNPG docs); destroy it once the validation queries finish.
+```yaml
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: tuist-tuist-pg-restore-check
+  namespace: tuist-staging
+spec:
+  instances: 1
+  storage:
+    size: 100Gi            # >= the source cluster's storage
+  bootstrap:
+    recovery:
+      source: source
+  externalClusters:
+    - name: source
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: tuist-tuist-pg-backup-store
+          serverName: tuist-tuist-pg
 ```
+
+Apply the manifest, wait for `phase: Cluster in healthy state`, run the
+validation queries, then `kubectl delete cluster` it. Backup state shows in the
+`ObjectStore`/`Cluster` status.
 
 ## Operator version & upgrade path
 
@@ -171,44 +192,37 @@ Merge an operator-bump PR at the start of a low-traffic window wider than the
 deploy lag (the prod step runs after the canary deploy and acceptance tests, so
 roughly 20-40 min after merge), so the switchover lands inside the quiet period.
 
-In-tree `barmanObjectStore` backups are deprecated (since operator 1.26) in
-favor of the Barman Cloud Plugin but still work on 1.29. The plugin migration is
-wired up but gated off — see below.
+In-tree `barmanObjectStore` backups (the operator's native path, deprecated
+since 1.26) are no longer rendered; every cluster backs up through the Barman
+Cloud Plugin.
 
-## Backup: in-tree barmanObjectStore -> Barman Cloud Plugin
+## Backup: Barman Cloud Plugin
 
-In-tree Barman Cloud is deprecated (since operator 1.26) and is being phased out
-of the core operator. This chart can render backups either way, switched per
-cluster by `…backup.plugin.enabled` (default `false` = the in-tree
-`barmanObjectStore`, unchanged). When enabled, the cluster archives via the
-Barman Cloud Plugin (CNPG-I): an `ObjectStore` CR holds the bucket config and
-the `Cluster` references it through `.spec.plugins`. Value keys: the main server
-uses `postgresql.cnpg.backup.plugin.*`; tuist-ops uses `postgresql.backup.plugin.*`.
+Backups run through the Barman Cloud Plugin (CNPG-I): an `ObjectStore` CR holds
+the bucket config, the `Cluster` references it through `.spec.plugins` for WAL
+archiving, and a `ScheduledBackup` with `method: plugin` takes the daily base
+backup (03:00 UTC). Value keys: the main server uses
+`postgresql.cnpg.backup.plugin.*`; tuist-ops uses `postgresql.backup.plugin.*`.
 
-**The plugin is installed on every cluster by the platform deploy** — it's a
+**The plugin is installed on every cluster by the platform deploy.** It's a
 dependency of the platform chart (`plugin-barman-cloud`, pinned in
 [`infra/helm/platform/Chart.yaml`](../helm/platform/Chart.yaml), toggled by
 `plugin-barman-cloud.enabled`). As a subchart of the `platform` release it lands
 in the `platform` namespace alongside the operator, which is where the plugin
-must run. It's idle until a `Cluster` opts in, so installing it changes no
-backups. Bump it like any other platform dependency: edit the pin and redeploy.
+must run. Bump it like any other platform dependency: edit the pin and redeploy.
 It needs cert-manager (already a platform dependency) and adds the
-`objectstores.barmancloud.cnpg.io` CRD, the `barman-cloud` Deployment, a
-Service, and self-signed mTLS Certificates.
+`objectstores.barmancloud.cnpg.io` CRD, the `platform-plugin-barman-cloud`
+Deployment (release-prefixed as a subchart), a Service, and self-signed mTLS
+Certificates.
 
-**Cutover (per env):** with the plugin installed, flip
-`…backup.plugin.enabled` to `true` and deploy. This is an atomic change to the
-`Cluster` (drops `.spec.backup.barmanObjectStore`, adds `.spec.plugins`), so it
-triggers a rolling update + switchover — merge it in a low-traffic window like
-an operator bump.
+**Archive continuity:** `serverName` is pinned to the cluster name and the
+`ObjectStore` uses the same `destinationPath` + credentials, so the plugin reads
+and writes one continuous `s3://…/<serverName>` archive; recovery replays the
+whole history. Confirm health from a primary pod's `plugin-barman-cloud` sidecar
+logs: `Archived WAL file` for the WAL stream, `Backup completed` for the daily
+base backup.
 
-**Continuity invariant (verify before trusting it):** the plugin must keep
-writing to the SAME archive. `serverName` is pinned to the cluster name (the
-value the in-tree path defaulted to) and the `ObjectStore` reuses the same
-`destinationPath` + credentials, so the prefix is unchanged. After cutover,
-confirm the primary's logs show `Archived WAL file` to the same
-`s3://…/<serverName>` path, then run a restore-validation drill from a
-plugin-written backup before retiring the in-tree path elsewhere.
-
-**Observability:** backup metrics rename from `cnpg_collector_*` to
-`barman_cloud_cloudnative_pg_io_*`; repoint any panels or backup-failure alerts.
+**Observability:** the plugin reports backup freshness via
+`barman_cloud_cloudnative_pg_io_*`. The operator's `cnpg_collector_*` backup
+timestamps do NOT track plugin backups, so point backup panels and alerts at the
+`barman_cloud_*` series.

@@ -968,10 +968,11 @@ macosFleet:
   #   kuraServiceCIDR — the cluster's Service CIDR
   #     (infra/k8s/clusters/cluster-<env>.yaml,
   #     .spec.clusterNetwork.services; 10.128.0.0/12 in managed
-  #     envs), reachable on TCP 4000 (Kura cache HTTP) + 50051
-  #     (gRPC). Mirrors the Linux runner namespace's NetworkPolicy
-  #     egress carve-out; per-account isolation stays at Kura's
-  #     app layer (JWT tenant check), same as for Linux runners.
+  #     envs), reachable on TCP 4000 (the Kura cache port, co-hosted
+  #     HTTP + gRPC). Mirrors the Linux runner namespace's
+  #     NetworkPolicy egress carve-out; per-account isolation stays
+  #     at Kura's app layer (JWT tenant check), same as for Linux
+  #     runners.
   #   clusterDNSIP — kube-dns's ClusterIP (`kubectl -n kube-system
   #     get svc kube-dns`; 10.128.0.10 in managed envs), reachable
   #     on 53 so the runner VM's /etc/resolver entry can resolve
@@ -1808,15 +1809,11 @@ postgresql:
       # bucket name in the path; the endpoint is shared.
       destinationPath: ""
       endpointURL: "https://t3.storage.dev"
-      # Barman Cloud Plugin (CNPG-I) migration. When enabled, the cluster
-      # archives via the plugin sidecar + an ObjectStore CR instead of the
-      # in-tree barmanObjectStore (deprecated since operator 1.26). Requires
-      # the plugin-barman-cloud manifest installed in the operator namespace
-      # (`platform`) — see infra/cnpg/README.md. Default off: this is a
-      # no-op until flipped per-env after validating WAL continuity (same
-      # bucket + serverName) and a restore drill from a plugin-written backup.
+      # Barman Cloud Plugin (CNPG-I): the cluster archives via the plugin
+      # sidecar + an ObjectStore CR. Requires the plugin-barman-cloud manifest
+      # installed in the operator namespace (`platform`) — see
+      # infra/cnpg/README.md.
       plugin:
-        enabled: false
         name: barman-cloud.cloudnative-pg.io
     externalSecrets:
       refreshInterval: "1h"

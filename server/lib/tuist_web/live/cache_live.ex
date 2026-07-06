@@ -8,7 +8,7 @@ defmodule TuistWeb.CacheLive do
   alias Phoenix.HTML.Form
   alias Tuist.Authorization
   alias Tuist.Billing.Entitlements
-  alias Tuist.Environment
+  alias Tuist.FeatureFlags
   alias Tuist.Kura
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Registrations
@@ -196,6 +196,7 @@ defmodule TuistWeb.CacheLive do
     |> assign(:regions, [])
     |> assign(:available_regions, [])
     |> assign(:latest_version, nil)
+    |> assign(:managed_cache_visible?, false)
     |> assign(:add_cache_server_form, default_server_form([]))
   end
 
@@ -220,6 +221,7 @@ defmodule TuistWeb.CacheLive do
     |> assign(:regions, regions)
     |> assign(:available_regions, available_regions)
     |> assign(:latest_version, latest)
+    |> assign(:managed_cache_visible?, servers != [] or available_regions != [])
     |> assign(:add_cache_server_form, default_server_form(available_regions))
   end
 
@@ -242,7 +244,7 @@ defmodule TuistWeb.CacheLive do
   end
 
   defp cache_enabled?(account) do
-    Environment.dev?() or FunWithFlags.enabled?(:kura, for: account)
+    FeatureFlags.kura_enabled?(account)
   end
 
   defp available_regions(regions, servers) do
@@ -587,12 +589,6 @@ defmodule TuistWeb.CacheLive do
             disabled={is_nil(@latest_version)}
           />
         </:col>
-        <:empty_state>
-          <.table_empty_state
-            title={dgettext("dashboard_account", "No cache servers available")}
-            subtitle={dgettext("dashboard_account", "No regions are available for this account yet.")}
-          />
-        </:empty_state>
       </.table>
     </.card_section>
     """

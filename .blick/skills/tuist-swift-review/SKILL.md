@@ -1,13 +1,13 @@
 ---
 name: tuist-swift-review
-description: Project-specific PR-review rules for the tuist/tuist Swift codebase (cli). Focuses on the things only this repo knows — preferring value types, the testing framework choice, and migration of XCTest to Swift Testing.
+description: Project-specific pull request review rules for the tuist/tuist Swift codebases. Focuses on the things only this repo knows, including preferring value types, the testing framework choice, and migration of XCTest to Swift Testing.
 ---
 
 # Tuist Swift Review
 
 This skill is intentionally narrow. **Generic Swift style, formatting,
-naming, and lint hygiene are already covered by SwiftFormat / SwiftLint
-in CI — do not flag those.** Focus on the rules below.
+naming, and lint hygiene are already covered by SwiftFormat and SwiftLint
+in continuous integration. Do not flag those.** Focus on the rules below.
 
 For each finding, cite `path:line` and quote the relevant snippet.
 

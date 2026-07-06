@@ -227,7 +227,13 @@ defmodule Tuist.Environment do
 
   def dev_all_locales?, do: @dev_all_locales
 
-  def dev_single_locale?, do: dev?() and not dev_all_locales?()
+  # Both :dev and :test compile a single locale ("en") by default so the
+  # ex_cldr backend doesn't generate number/currency/datetime code for all
+  # ten locales on every cold compile. A fresh worktree's :test build paid
+  # that cost on the first `mix test`, dominating the compile time. Tests
+  # that genuinely exercise other locales are tagged `:locale` and only run
+  # when TUIST_DEV_ALL_LOCALES=1 flips this back to the full set.
+  def single_locale?, do: (dev?() or test?()) and not dev_all_locales?()
 
   def log_level do
     "TUIST_LOG_LEVEL" |> System.get_env("info") |> String.to_atom()
@@ -246,15 +252,6 @@ defmodule Tuist.Environment do
     |> System.get_env("")
     |> String.split(",", trim: true)
     |> Enum.map(&String.trim/1)
-    |> Enum.reject(&(&1 == ""))
-  end
-
-  def kura_dedicated_gateway_account_handles do
-    "TUIST_KURA_DEDICATED_GATEWAY_ACCOUNTS"
-    |> System.get_env("")
-    |> String.split(",", trim: true)
-    |> Enum.map(&String.trim/1)
-    |> Enum.map(&String.downcase/1)
     |> Enum.reject(&(&1 == ""))
   end
 
@@ -936,6 +933,21 @@ defmodule Tuist.Environment do
     case get([:clickhouse, :max_threads], secrets) do
       max_threads when is_binary(max_threads) -> String.to_integer(max_threads)
       _ -> 4
+    end
+  end
+
+  # Per-query memory ceiling (in bytes) for the read path. ClickHouse enforces
+  # this per query, so a single pathological aggregation fails on its own with
+  # a `(for query)` error the caller can retry, instead of pushing the process
+  # to its `(total)` server ceiling and killing whatever unrelated query
+  # allocates next. The default stays well under the process limit while
+  # leaving ample headroom over normal analytics; override per
+  # environment/instance size via the `clickhouse.max_memory_usage_bytes`
+  # secret.
+  def clickhouse_max_memory_usage_bytes(secrets \\ secrets()) do
+    case get([:clickhouse, :max_memory_usage_bytes], secrets) do
+      value when is_binary(value) -> String.to_integer(value)
+      _ -> 6 * 1024 * 1024 * 1024
     end
   end
 

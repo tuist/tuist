@@ -30,7 +30,7 @@ public struct AnalyticsStateController {
     ) async throws {
         let cutoffDate = Date().addingTimeInterval(-maxAge)
 
-        try? database.removeOldEntries(olderThan: cutoffDate)
+        try? await database.removeOldEntries(olderThan: cutoffDate)
 
         for directory in ["cas", "nodes"] {
             let directoryPath = stateDirectory.appending(component: directory)

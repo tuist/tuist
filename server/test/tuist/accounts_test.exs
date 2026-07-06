@@ -4138,6 +4138,8 @@ defmodule Tuist.AccountsTest do
   end
 
   describe "update_user_preferred_locale/2" do
+    # "es"/"ja" are only valid supported locales when TUIST_DEV_ALL_LOCALES=1.
+    @tag :locale
     test "sets a supported locale" do
       # Given
       user = AccountsFixtures.user_fixture()
@@ -4149,6 +4151,7 @@ defmodule Tuist.AccountsTest do
       assert updated_user.preferred_locale == "es"
     end
 
+    @tag :locale
     test "clears the locale when set to nil" do
       # Given
       user = AccountsFixtures.user_fixture()

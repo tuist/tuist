@@ -18,7 +18,6 @@ services:
     domainname: kura.internal
     environment:
       KURA_PORT: "4000"
-      KURA_GRPC_PORT: "50051"
       KURA_INTERNAL_PORT: "7443"
       KURA_TENANT_ID: default
       KURA_TMP_DIR: /tmp/kura
@@ -49,7 +48,6 @@ services:
       kura.tenant_id: default
     ports:
       - "${KURA_US_2_PORT:-4402}:4000"
-      - "${KURA_US_2_GRPC_PORT:-5402}:50051"
     volumes:
       - kura-us-2-data:/var/cache/kura
     networks:

@@ -105,6 +105,7 @@ defmodule Tuist.ShardsTest do
         shard_max: 2
       }
 
+      stub(Tuist.Storage, :object_exists?, fn _key, _account -> false end)
       stub(Tuist.Storage, :generate_download_url, fn _key, _account -> "https://download.example.com" end)
 
       result = Shards.create_shard_plan(project, params)
@@ -134,6 +135,64 @@ defmodule Tuist.ShardsTest do
       assert {:ok, regular} = Shards.get_shard(project, account, "catch-all-1", 0)
       assert regular.skip == []
       assert regular.suites == %{"AppTests" => ["LoginSuite"]}
+    end
+
+    test "catch-all shard downloads products for every module, including un-enumerated ones" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+
+      # Only "AppTests" has suite history. "NewTests" is built and uploaded but has no recorded
+      # suites, so it never appears in the plan's per-suite assignments — yet the catch-all still has
+      # to run it (that's its whole purpose), so it must download its products.
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 10_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "LoginSuite", status: "success", duration: 6_000},
+              %{name: "SignupSuite", status: "success", duration: 4_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      params = %{
+        reference: "catch-all-download-1",
+        modules: ["AppTests", "NewTests"],
+        granularity: "suite",
+        shard_total: 2
+      }
+
+      # Split artifacts were uploaded (a shared bundle plus one per module). Echo the object key back
+      # as the URL so we can assert which module products the shard is told to download.
+      stub(Tuist.Storage, :object_exists?, fn _key, _account -> true end)
+      stub(Tuist.Storage, :generate_download_url, fn key, _account -> key end)
+
+      result = Shards.create_shard_plan(project, params)
+      catch_all_index = result.shard_count - 1
+
+      assert {:ok, shard} =
+               Shards.get_shard(project, account, "catch-all-download-1", catch_all_index, suite_catch_all?: true)
+
+      # The catch-all carries no -only-testing, but must still fetch every module's products so the
+      # whole .xctestrun can load — including "NewTests", which has no planned suites.
+      assert shard.modules == []
+      assert Enum.any?(shard.download_urls, &String.ends_with?(&1, "/shared.aar"))
+      assert Enum.any?(shard.download_urls, &String.ends_with?(&1, "/modules/AppTests.aar"))
+      assert Enum.any?(shard.download_urls, &String.ends_with?(&1, "/modules/NewTests.aar"))
+
+      # A regular shard downloads only its own suites' modules, not the un-enumerated ones.
+      assert {:ok, regular} = Shards.get_shard(project, account, "catch-all-download-1", 0)
+      assert Enum.any?(regular.download_urls, &String.ends_with?(&1, "/modules/AppTests.aar"))
+      refute Enum.any?(regular.download_urls, &String.ends_with?(&1, "/modules/NewTests.aar"))
     end
 
     test "does not append a catch-all shard for module granularity" do
@@ -219,6 +278,50 @@ defmodule Tuist.ShardsTest do
       params = %{
         reference: "history-derived-1",
         modules: ["AppTests"],
+        granularity: "suite",
+        shard_total: 2
+      }
+
+      result = Shards.create_shard_plan(project, params)
+      assert result.shard_count == 2
+
+      planned =
+        result.shard_assignments
+        |> Enum.flat_map(fn a -> a["test_targets"] end)
+        |> MapSet.new()
+
+      assert MapSet.equal?(planned, MapSet.new(["AppTests/LoginSuite", "AppTests/SignupSuite"]))
+    end
+
+    test "derives suite units from history when test_suites is present but nil" do
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        is_ci: true,
+        git_branch: project.default_branch,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 10_000,
+            test_cases: [],
+            test_suites: [
+              %{name: "LoginSuite", status: "success", duration: 6_000},
+              %{name: "SignupSuite", status: "success", duration: 4_000}
+            ]
+          }
+        ]
+      )
+
+      RunsFixtures.optimize_test_runs()
+
+      # The controller always sets test_suites from the request body, so a client that no longer
+      # enumerates suites yields test_suites: nil (key present, value nil) rather than an omitted key.
+      params = %{
+        reference: "history-derived-nil",
+        modules: ["AppTests"],
+        test_suites: nil,
         granularity: "suite",
         shard_total: 2
       }
@@ -676,6 +779,8 @@ defmodule Tuist.ShardsTest do
         module_name: "CoreTests"
       )
 
+      stub(Tuist.Storage, :object_exists?, fn _key, _account -> false end)
+
       stub(Tuist.Storage, :generate_download_url, fn _key, _account ->
         "https://download.example.com"
       end)
@@ -684,6 +789,7 @@ defmodule Tuist.ShardsTest do
       assert Enum.sort(result.modules) == ["AppTests", "CoreTests"]
       assert result.suites == %{}
       assert result.download_url == "https://download.example.com"
+      assert result.download_urls == ["https://download.example.com"]
     end
 
     test "returns suites grouped by module for suite granularity" do
@@ -709,6 +815,8 @@ defmodule Tuist.ShardsTest do
         test_suite_name: "SignupTests"
       )
 
+      stub(Tuist.Storage, :object_exists?, fn _key, _account -> false end)
+
       stub(Tuist.Storage, :generate_download_url, fn _key, _account ->
         "https://download.example.com"
       end)
@@ -717,6 +825,41 @@ defmodule Tuist.ShardsTest do
       assert result.modules == ["AppTests"]
       assert Enum.sort(result.suites["AppTests"]) == ["LoginTests", "SignupTests"]
       assert result.download_url == "https://download.example.com"
+      assert result.download_urls == ["https://download.example.com"]
+    end
+
+    test "returns shared plus per-module download urls when split artifacts exist" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+
+      plan =
+        ShardsFixtures.shard_plan_fixture(project_id: project.id, reference: "plan-split", granularity: "module")
+
+      ShardsFixtures.shard_plan_module_fixture(
+        shard_plan_id: plan.id,
+        project_id: project.id,
+        shard_index: 0,
+        module_name: "AppTests"
+      )
+
+      ShardsFixtures.shard_plan_module_fixture(
+        shard_plan_id: plan.id,
+        project_id: project.id,
+        shard_index: 0,
+        module_name: "CoreTests"
+      )
+
+      stub(Tuist.Storage, :object_exists?, fn _key, _account -> true end)
+      stub(Tuist.Storage, :generate_download_url, fn key, _account -> key end)
+
+      assert {:ok, result} = Shards.get_shard(project, account, "plan-split", 0)
+      assert result.download_url == nil
+      assert length(result.download_urls) == 3
+      assert Enum.any?(result.download_urls, &String.ends_with?(&1, "/shared.aar"))
+
+      assert "#{account.id}/#{project.id}/shards/#{plan.id}/modules/AppTests.aar" in result.download_urls
+
+      assert "#{account.id}/#{project.id}/shards/#{plan.id}/modules/CoreTests.aar" in result.download_urls
     end
 
     test "returns legacy final suite shard as assigned suites when no catch-all rows exist" do
@@ -746,6 +889,8 @@ defmodule Tuist.ShardsTest do
         module_name: "AppTests",
         test_suite_name: "SignupTests"
       )
+
+      stub(Tuist.Storage, :object_exists?, fn _key, _account -> false end)
 
       stub(Tuist.Storage, :generate_download_url, fn _key, _account ->
         "https://download.example.com"

@@ -223,30 +223,6 @@ checksum = "sha256:55f85cfc05fa4f62751f69f3a70d95c3dde25395ca9c56729ecf659212135
 url = "https://github.com/pomerium/cli/releases/download/v0.32.2/pomerium-cli-windows-amd64.zip"
 url_api = "https://api.github.com/repos/pomerium/cli/releases/assets/392601582"
 
-[[tools."github:tuist/blick"]]
-version = "0.8.0"
-backend = "github:tuist/blick"
-
-[tools."github:tuist/blick"."platforms.linux-x64"]
-checksum = "sha256:7026d22cd165aea97285f081a1beb2814ecabcbd270b85cbe01280fa3e34ee25"
-url = "https://github.com/tuist/blick/releases/download/0.8.0/blick-0.8.0-x86_64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/tuist/blick/releases/assets/412682235"
-
-[tools."github:tuist/blick"."platforms.linux-x64-musl"]
-checksum = "sha256:7026d22cd165aea97285f081a1beb2814ecabcbd270b85cbe01280fa3e34ee25"
-url = "https://github.com/tuist/blick/releases/download/0.8.0/blick-0.8.0-x86_64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/tuist/blick/releases/assets/412682235"
-
-[tools."github:tuist/blick"."platforms.macos-arm64"]
-checksum = "sha256:22a86c7f647c38f0bc9ee17d52464b6e088c3d245857501080ec628f35782a30"
-url = "https://github.com/tuist/blick/releases/download/0.8.0/blick-0.8.0-aarch64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/tuist/blick/releases/assets/412682239"
-
-[tools."github:tuist/blick"."platforms.macos-x64"]
-checksum = "sha256:bb17d4f507aa3dc0f8964c77e9139a33739118ada1a088295e9509474072101d"
-url = "https://github.com/tuist/blick/releases/download/0.8.0/blick-0.8.0-x86_64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/tuist/blick/releases/assets/412682236"
-
 [[tools.gradle]]
 version = "8.12.1"
 backend = "aqua:gradle/gradle"
@@ -393,10 +369,6 @@ url = "https://dl.k8s.io/v1.36.1/bin/darwin/amd64/kubectl"
 [tools.kubectl."platforms.windows-x64"]
 checksum = "sha256:538f4229eee91a17b34724da7daade7687393d6988e33b723c6c306572c13900"
 url = "https://dl.k8s.io/v1.36.1/bin/windows/amd64/kubectl.exe"
-
-[[tools."npm:opencode-ai"]]
-version = "1.14.39"
-backend = "npm:opencode-ai"
 
 [[tools.oras]]
 version = "1.3.0"
@@ -605,32 +577,32 @@ url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swif
 url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swiftlint.zip"
 
 [[tools.tuist]]
-version = "4.202.0-canary.16"
+version = "4.202.0-canary.32"
 backend = "aqua:tuist/tuist"
 
 [tools.tuist."platforms.linux-arm64"]
-checksum = "sha256:6e270689f08996dbc3750ede193ad7b50774eb84449e4b978651e68fe9fb760c"
-url = "https://github.com/tuist/tuist/releases/download/4.202.0-canary.16/tuist-linux-aarch64.tar.gz"
+checksum = "sha256:c230828d1ca24ead90440a48d5c22cb579a77899d92977a61252d846c99cd437"
+url = "https://github.com/tuist/tuist/releases/download/4.202.0-canary.32/tuist-linux-aarch64.tar.gz"
 
 [tools.tuist."platforms.linux-arm64-musl"]
-checksum = "sha256:6e270689f08996dbc3750ede193ad7b50774eb84449e4b978651e68fe9fb760c"
-url = "https://github.com/tuist/tuist/releases/download/4.202.0-canary.16/tuist-linux-aarch64.tar.gz"
+checksum = "sha256:c230828d1ca24ead90440a48d5c22cb579a77899d92977a61252d846c99cd437"
+url = "https://github.com/tuist/tuist/releases/download/4.202.0-canary.32/tuist-linux-aarch64.tar.gz"
 
 [tools.tuist."platforms.linux-x64"]
-checksum = "sha256:fcf2e91e07aaf479f9c99e290c8833edff9db81d8cbd85c9ea1b43171bed2986"
-url = "https://github.com/tuist/tuist/releases/download/4.202.0-canary.16/tuist-linux-x86_64.tar.gz"
+checksum = "sha256:ab5ab9b7f241fa9fd295b647a4bdf3f3a8b4d53a170022dbbeb997e07de61824"
+url = "https://github.com/tuist/tuist/releases/download/4.202.0-canary.32/tuist-linux-x86_64.tar.gz"
 
 [tools.tuist."platforms.linux-x64-musl"]
-checksum = "sha256:fcf2e91e07aaf479f9c99e290c8833edff9db81d8cbd85c9ea1b43171bed2986"
-url = "https://github.com/tuist/tuist/releases/download/4.202.0-canary.16/tuist-linux-x86_64.tar.gz"
+checksum = "sha256:ab5ab9b7f241fa9fd295b647a4bdf3f3a8b4d53a170022dbbeb997e07de61824"
+url = "https://github.com/tuist/tuist/releases/download/4.202.0-canary.32/tuist-linux-x86_64.tar.gz"
 
 [tools.tuist."platforms.macos-arm64"]
-checksum = "sha256:3e3fe56304aa622099582bb806a6562c53e08dc8bde60ac9c158d892d4247174"
-url = "https://github.com/tuist/tuist/releases/download/4.202.0-canary.16/tuist.zip"
+checksum = "sha256:dcb620732228b7e8fd9002c4fcd2b5406e338409d81c34b076eb9bf6fe7f3cdf"
+url = "https://github.com/tuist/tuist/releases/download/4.202.0-canary.32/tuist.zip"
 
 [tools.tuist."platforms.macos-x64"]
-checksum = "sha256:3e3fe56304aa622099582bb806a6562c53e08dc8bde60ac9c158d892d4247174"
-url = "https://github.com/tuist/tuist/releases/download/4.202.0-canary.16/tuist.zip"
+checksum = "sha256:dcb620732228b7e8fd9002c4fcd2b5406e338409d81c34b076eb9bf6fe7f3cdf"
+url = "https://github.com/tuist/tuist/releases/download/4.202.0-canary.32/tuist.zip"
 
 [[tools.xcodes]]
 version = "1.6.0"

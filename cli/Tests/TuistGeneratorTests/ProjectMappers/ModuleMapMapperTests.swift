@@ -428,7 +428,7 @@ struct ModuleMapMapperTests {
                         """
                         set -eu
                         mkdir -p "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules"
-                        cp '\(moduleMapPath.pathString)' "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules/module.modulemap"
+                        cp -f '\(moduleMapPath.pathString)' "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules/module.modulemap"
                         """
                     ),
                     inputPaths: [moduleMapPath.pathString],

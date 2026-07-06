@@ -9,6 +9,7 @@ defmodule Tuist.CommandEvents do
   alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents.Event
+  alias Tuist.CommandEvents.ModuleCacheOutput
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
@@ -126,6 +127,17 @@ defmodule Tuist.CommandEvents do
     Storage.generate_download_url(get_result_bundle_key(command_event), project.account)
   end
 
+  # Run-scoped variants for remote-processed test runs (`tuist inspect test`),
+  # which store the bundle under the test run id and have no command_event.
+  # `project` must have `:account` preloaded.
+  def has_result_bundle?(run_id, project) when is_binary(run_id) do
+    Storage.object_exists?(get_result_bundle_key(run_id, project), project.account)
+  end
+
+  def generate_result_bundle_url(run_id, project) when is_binary(run_id) do
+    Storage.generate_download_url(get_result_bundle_key(run_id, project), project.account)
+  end
+
   def has_session?(command_event) do
     {:ok, project} = get_project_for_command_event(command_event, preload: :account)
     Storage.object_exists?(get_session_key(command_event), project.account)
@@ -235,6 +247,82 @@ defmodule Tuist.CommandEvents do
 
     command_event
   end
+
+  @doc """
+  Persists per-artifact module (binary) cache transfer operations for a command event.
+
+  Mirrors `Tuist.Builds.create_cas_outputs/2` but keys the rows by `command_event_id`,
+  since module cache artifacts are fetched during `tuist generate`, before any build run
+  exists. Writes are buffered and flushed asynchronously to ClickHouse.
+  """
+  def create_module_cache_outputs(command_event, transfers) do
+    rows =
+      transfers
+      |> Enum.map(&ModuleCacheOutput.changeset(command_event.id, command_event.project_id, &1))
+      |> Enum.map(&Ecto.Changeset.apply_changes/1)
+      |> Enum.map(fn struct ->
+        %{
+          command_event_id: struct.command_event_id,
+          project_id: struct.project_id,
+          operation: struct.operation,
+          name: struct.name,
+          hash: struct.hash,
+          size: struct.size,
+          compressed_size: struct.compressed_size,
+          duration: struct.duration,
+          inserted_at: struct.inserted_at
+        }
+      end)
+
+    ModuleCacheOutput.Buffer.insert_all(rows)
+  end
+
+  @doc """
+  Returns the module (binary) cache network transfer summary for a single command event: the artifact
+  counts, the bytes transferred over the wire, and the time-weighted average download/upload throughput
+  (bytes per second) downloaded from and uploaded to the remote cache. Byte totals and throughput use
+  `compressed_size` (the on-the-wire payload) rather than `size` (the on-disk artifact), since this is
+  network analytics. Mirrors `Tuist.Builds.cas_output_metrics/1` but keyed by `command_event_id`. Used
+  to surface per-run transfer cost on the run detail page.
+  """
+  def module_cache_output_metrics(command_event_id) do
+    # ClickHouse aggregates the conditional sums (`countIf`/`sumIf`) via fragments; the throughput
+    # division is derived in Elixir. Byte totals cover all rows; throughput only weights rows with a
+    # recorded duration.
+    metrics =
+      ClickHouseRepo.one(
+        from(o in ModuleCacheOutput,
+          where: o.command_event_id == ^command_event_id,
+          select: %{
+            download_count: fragment("countIf(? = 'download')", o.operation),
+            upload_count: fragment("countIf(? = 'upload')", o.operation),
+            download_bytes: fragment("sumIf(?, ? = 'download')", o.compressed_size, o.operation),
+            upload_bytes: fragment("sumIf(?, ? = 'upload')", o.compressed_size, o.operation),
+            download_transferred_bytes:
+              fragment("sumIf(?, ? = 'download' AND ? > 0)", o.compressed_size, o.operation, o.duration),
+            download_transferred_ms: fragment("sumIf(?, ? = 'download' AND ? > 0)", o.duration, o.operation, o.duration),
+            upload_transferred_bytes:
+              fragment("sumIf(?, ? = 'upload' AND ? > 0)", o.compressed_size, o.operation, o.duration),
+            upload_transferred_ms: fragment("sumIf(?, ? = 'upload' AND ? > 0)", o.duration, o.operation, o.duration)
+          }
+        )
+      )
+
+    %{
+      download_count: metrics.download_count || 0,
+      upload_count: metrics.upload_count || 0,
+      download_bytes: metrics.download_bytes || 0,
+      upload_bytes: metrics.upload_bytes || 0,
+      download_throughput:
+        throughput_bytes_per_second(metrics.download_transferred_bytes, metrics.download_transferred_ms),
+      upload_throughput: throughput_bytes_per_second(metrics.upload_transferred_bytes, metrics.upload_transferred_ms)
+    }
+  end
+
+  # Time-weighted average throughput in bytes per second, 0 when nothing with a duration transferred.
+  defp throughput_bytes_per_second(_bytes, ms) when ms in [nil, 0], do: 0
+  defp throughput_bytes_per_second(nil, _ms), do: 0
+  defp throughput_bytes_per_second(bytes, ms), do: bytes / ms * 1000
 
   defp truncate_error_message(error_message) do
     if not is_nil(error_message) and String.length(error_message) > 255 do

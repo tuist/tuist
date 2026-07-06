@@ -87,4 +87,50 @@ spec:
         apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
         kind: ScalewayElasticMetalMachineTemplate
         name: {{ $fleetName }}
+---
+{{- /*
+MachineHealthCheck — the auto-remediation backstop for a box that stays dead.
+The in-box bootstrap hardening (systemd hardware watchdog + panic sysctls) reboots
+a silently-locked-up box in ~30s without touching the OS, so this only fires when
+that self-heal fails: a Node NotReady for 10 continuous minutes is remediated. The
+provider's release path is a wipe-and-reinstall, so remediation reinstalls the box
+and re-adopts it once it comes back clean. Without this, a frozen box sits NotReady
+forever, drops the observability node-exporter DaemonSet below full availability,
+and wedges every deploy.
+
+unhealthyRange "[0-1]" remediates a single dead box but never reinstalls a whole
+region at once: a cluster-wide blip that NotReadies every replica is left for an
+operator rather than mass-reinstalled. nodeStartupTimeout must clear the FULL
+bare-metal OS reinstall + boot — a Scaleway Elastic Metal reinstall + boot can
+run well past 30 min. Set it below that and the health check culls the box mid-
+install, the provider wipes and reinstalls it, and the clock restarts from zero:
+an endless reinstall loop that never lets the box join and wedges helm --wait on
+the MachineDeployment (the node never reaches Ready, so this only gates the
+initial startup window — a box that dies after joining is still remediated by the
+unhealthyConditions below).
+*/ -}}
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineHealthCheck
+metadata:
+  name: {{ $fleetName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-fleet
+    tuist.dev/fleet: {{ $fleetName }}
+spec:
+  clusterName: {{ $clusterName }}
+  nodeStartupTimeout: 90m
+  unhealthyRange: "[0-1]"
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+      tuist.dev/fleet: {{ $fleetName }}
+  unhealthyConditions:
+    - type: Ready
+      status: Unknown
+      timeout: 600s
+    - type: Ready
+      status: "False"
+      timeout: 600s
 {{- end }}

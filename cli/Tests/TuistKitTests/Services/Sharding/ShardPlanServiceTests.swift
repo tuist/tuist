@@ -157,7 +157,9 @@ struct ShardPlanServiceTests {
             .startUpload(
                 fullHandle: .any,
                 serverURL: .any,
-                shardPlanId: .value("plan-id")
+                shardPlanId: .value("plan-id"),
+                reference: .any,
+                artifact: .any
             )
             .willReturn("upload-id")
 
@@ -182,7 +184,8 @@ struct ShardPlanServiceTests {
                 shardPlanId: .value("plan-id"),
                 reference: .any,
                 uploadId: .value("upload-id"),
-                partNumber: .value(1)
+                partNumber: .value(1),
+                artifact: .any
             )
             .willReturn("https://tuist.dev/upload")
 
@@ -196,7 +199,8 @@ struct ShardPlanServiceTests {
                 uploadId: .value("upload-id"),
                 parts: .matching { parts in
                     parts.count == 1 && parts[0].partNumber == 1 && parts[0].etag == "etag"
-                }
+                },
+                artifact: .any
             )
             .willReturn()
 

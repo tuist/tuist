@@ -47,8 +47,9 @@ import (
 const (
 	KuraInstanceFinalizer = "kurainstances.kura.tuist.dev/finalizer"
 
+	// httpPort is the single cache port: Kura co-hosts the HTTP cache API
+	// and REAPI gRPC (h2c) on one listener (KURA_PORT).
 	httpPort int32 = 4000
-	grpcPort int32 = 50051
 	peerPort int32 = 7443
 
 	// drainCompletionTimeoutMs and preStopDelaySeconds together set how
@@ -182,7 +183,8 @@ func terminationGracePeriodSeconds() int64 {
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
-// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=persistentvolumes,verbs=get;list;watch
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses;networkpolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=policy,resources=poddisruptionbudgets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=get;list;watch;create;update;patch;delete
@@ -209,6 +211,21 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		if err := r.Update(ctx, instance); err != nil {
 			return ctrl.Result{}, err
 		}
+	}
+
+	// A StatefulSet's volumeClaimTemplates are immutable, and a node-local data
+	// volume is pinned to the box it was carved on. Two states wedge an instance
+	// Pending forever with nothing to self-heal it: a storageClassName change on
+	// the CR that the live StatefulSet silently ignores (immutable template), and
+	// a bare-metal fleet node reprovisioned out from under a node-local PV. The
+	// cache is regenerable, so recreate the StatefulSet — dropping its PVCs via the
+	// Delete retention policy — and let it provision fresh volumes on the current
+	// storage class and node. Requeue while the cleanup is in flight so the
+	// recreated StatefulSet never re-adopts a stale PVC.
+	if inProgress, err := r.reconcileStaleDataStorage(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	} else if inProgress {
+		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
 	if err := r.reconcileConfigMap(ctx, instance); err != nil {
@@ -248,6 +265,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcileGRPCIngress(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
+	if err := r.reconcilePublicDNSEndpoint(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
 	if err := r.reconcilePublicCertificate(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -283,8 +303,7 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	instance.Status.ReadyReplicas = rollout.readyReplicas
 	instance.Status.Message = rollout.message
 	instance.Status.NodeAddress = external.nodeAddress
-	instance.Status.NodePortHTTP = external.nodePortHTTP
-	instance.Status.NodePortGRPC = external.nodePortGRPC
+	instance.Status.NodePortCache = external.nodePortCache
 	instance.Status.LastReconciledAt = &now
 
 	if err := r.Status().Update(ctx, instance); err != nil {
@@ -465,7 +484,7 @@ func (r *KuraInstanceReconciler) reconcilePeerDNSEndpoint(ctx context.Context, i
 	// IP. On bare-metal regions the node InternalIP is the box's public IP.
 	target := instance.Spec.MeshPeerFailoverIP
 	if target == "" {
-		ip, err := r.instancePeerNodeIP(ctx, instance)
+		ip, err := r.instanceNodeIP(ctx, instance)
 		if err != nil {
 			return err
 		}
@@ -504,11 +523,75 @@ func (r *KuraInstanceReconciler) reconcilePeerDNSEndpoint(ctx context.Context, i
 	return err
 }
 
-// instancePeerNodeIP returns the InternalIP of a node running one of the
-// instance's pods (the account's co-located box), or "" when none is scheduled
-// yet. On bare-metal regions the node InternalIP is the box's public IP, which
-// is what a self-hosted node must resolve the peer host to.
-func (r *KuraInstanceReconciler) instancePeerNodeIP(ctx context.Context, instance *kurav1alpha1.KuraInstance) (string, error) {
+// reconcilePublicDNSEndpoint publishes the account's customer host on
+// host-network (bare-metal) regions, where the gateway is a DaemonSet across
+// every box: a per-account DNSEndpoint pointing PublicHost at the box the
+// account's pods run on, so each account resolves to its own box and the gateway
+// there routes locally (no cross-box hop). It is the authoritative source once
+// the gateway stops feeding external-dns the ambiguous all-nodes address; on a
+// single box the target equals that address, so the two coexist harmlessly until
+// then. LB regions publish DNS off the gateway Service/Ingress and never touch
+// this. The short TTL keeps client re-resolution quick when the account moves
+// boxes (the warm-handoff cutover flips this record's target).
+func (r *KuraInstanceReconciler) reconcilePublicDNSEndpoint(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	// Only host-network regions get a per-account public DNSEndpoint. Never
+	// touching the DNSEndpoint API elsewhere keeps the common reconcile path
+	// (LB regions, Private instances) free of it.
+	if !instance.Spec.PublicHostNetwork {
+		return nil
+	}
+
+	endpoint := &unstructured.Unstructured{}
+	endpoint.SetGroupVersionKind(dnsEndpointGVK)
+	endpoint.SetNamespace(instance.Namespace)
+	endpoint.SetName(instance.Name + "-public-dns")
+
+	// The box the account's pods run on. The account is pinned to one box per
+	// region (co-location), so the box IP is the per-account customer target. On
+	// bare-metal regions the node InternalIP is the box's public IP.
+	target, err := r.instanceNodeIP(ctx, instance)
+	if err != nil {
+		return err
+	}
+
+	// No public host (Private, or none set), or no box yet (no pod scheduled):
+	// tear down any DNSEndpoint created earlier so external-dns stops publishing
+	// a dead record, mirroring reconcilePublicIngress.
+	if instance.Spec.Private || instance.Spec.PublicHost == "" || target == "" {
+		if err := r.Delete(ctx, endpoint); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+		return nil
+	}
+
+	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, endpoint, func() error {
+		endpoint.SetLabels(map[string]string{
+			"app.kubernetes.io/name":       "kura",
+			"app.kubernetes.io/instance":   instance.Name,
+			"app.kubernetes.io/managed-by": "kura-controller",
+			"tuist.dev/account":            instance.Spec.AccountHandle,
+		})
+		if err := unstructured.SetNestedSlice(endpoint.Object, []interface{}{
+			map[string]interface{}{
+				"dnsName":    instance.Spec.PublicHost,
+				"recordType": "A",
+				"recordTTL":  int64(60),
+				"targets":    []interface{}{target},
+			},
+		}, "spec", "endpoints"); err != nil {
+			return err
+		}
+		return controllerutil.SetControllerReference(instance, endpoint, r.Scheme)
+	})
+	return err
+}
+
+// instanceNodeIP returns the InternalIP of a node running one of the instance's
+// pods (the account's co-located box), or "" when none is scheduled yet. On
+// bare-metal regions the node InternalIP is the box's public IP, which is what
+// both the peer host (self-hosted dial-in) and the customer host (per-account
+// public DNSEndpoint) must resolve to.
+func (r *KuraInstanceReconciler) instanceNodeIP(ctx context.Context, instance *kurav1alpha1.KuraInstance) (string, error) {
 	var pods corev1.PodList
 	if err := r.List(ctx, &pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
 		return "", err
@@ -551,9 +634,10 @@ func (r *KuraInstanceReconciler) reconcileService(ctx context.Context, instance 
 	return err
 }
 
-// reconcileExternalService publishes http/grpc on a NodePort Service
-// for clients that share a network with the node pool but not the pod
-// network (see KuraInstanceSpec.ExposeNodePort). externalTrafficPolicy
+// reconcileExternalService publishes the co-hosted cache port on a
+// NodePort Service for clients that share a network with the node pool
+// but not the pod network (see KuraInstanceSpec.ExposeNodePort).
+// externalTrafficPolicy
 // Local both preserves the client source IP (so ClientCIDRs NetworkPolicy
 // rules can match it) and refuses traffic on nodes not hosting the
 // primary pod — dispatch always pairs the port with status.NodeAddress.
@@ -588,9 +672,8 @@ func (r *KuraInstanceReconciler) reconcileExternalService(ctx context.Context, i
 }
 
 type externalEndpoint struct {
-	nodeAddress  string
-	nodePortHTTP int32
-	nodePortGRPC int32
+	nodeAddress   string
+	nodePortCache int32
 }
 
 // externalEndpoint resolves what NodePort clients dial: the allocated
@@ -610,11 +693,8 @@ func (r *KuraInstanceReconciler) externalEndpoint(ctx context.Context, instance 
 	switch err := r.Get(ctx, types.NamespacedName{Name: externalServiceName(instance), Namespace: instance.Namespace}, service); {
 	case err == nil:
 		for _, port := range service.Spec.Ports {
-			switch port.Name {
-			case "http":
-				endpoint.nodePortHTTP = port.NodePort
-			case "grpc":
-				endpoint.nodePortGRPC = port.NodePort
+			if port.Name == "http" {
+				endpoint.nodePortCache = port.NodePort
 			}
 		}
 	case apierrors.IsNotFound(err):
@@ -758,12 +838,15 @@ func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, insta
 		ingress.Annotations = grpcIngressAnnotations()
 		ingress.Spec.IngressClassName = ptr(ingressClassName(instance))
 		ingress.Spec.TLS = nil
+		// The backend is the same co-hosted cache port that serves HTTP;
+		// this Ingress only exists so ingress-nginx renders these paths
+		// with grpc_pass (backend-protocol: GRPC) instead of proxy_pass.
 		paths := make([]networkingv1.HTTPIngressPath, 0, len(grpcREAPIPathPrefixes))
 		for _, prefix := range grpcREAPIPathPrefixes {
 			paths = append(paths, networkingv1.HTTPIngressPath{
 				Path:     prefix,
 				PathType: ptr(networkingv1.PathTypeImplementationSpecific),
-				Backend:  ingressBackend(instance.Name, "grpc"),
+				Backend:  ingressBackend(instance.Name, "http"),
 			})
 		}
 		ingress.Spec.Rules = []networkingv1.IngressRule{{
@@ -1477,6 +1560,125 @@ func (r *KuraInstanceReconciler) reconcileDataPersistentVolumeClaims(ctx context
 	return nil
 }
 
+// reconcileStaleDataStorage recreates the StatefulSet when its data PVCs can
+// never bind on the current infrastructure. It reports true while the cleanup is
+// still in flight; the caller requeues and skips the rest of the reconcile until
+// the stale StatefulSet and PVCs are gone, at which point the normal
+// reconcileStatefulSet path recreates them fresh.
+func (r *KuraInstanceReconciler) reconcileStaleDataStorage(ctx context.Context, instance *kurav1alpha1.KuraInstance) (bool, error) {
+	reason, err := r.staleDataStorageReason(ctx, instance)
+	if err != nil || reason == "" {
+		return false, err
+	}
+	log.FromContext(ctx).Info("recreating Kura StatefulSet for stale data storage", "reason", reason)
+
+	// Delete the StatefulSet first so it stops backing the stale PVCs, then the
+	// PVCs themselves. Both deletions are idempotent; staleDataStorageReason keeps
+	// returning a reason (so the caller keeps requeuing) until the objects are
+	// gone, which is what stops the recreated StatefulSet from adopting them.
+	sts := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
+	if err := r.Delete(ctx, sts, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil && !apierrors.IsNotFound(err) {
+		return false, err
+	}
+	for ordinal := int32(0); ordinal < replicas(instance); ordinal++ {
+		pvc := &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("data-%s-%d", instance.Name, ordinal),
+			Namespace: instance.Namespace,
+		}}
+		if err := r.Delete(ctx, pvc); err != nil && !apierrors.IsNotFound(err) {
+			return false, err
+		}
+	}
+	return true, nil
+}
+
+// staleDataStorageReason returns a non-empty reason when a data PVC can never
+// bind and the StatefulSet must be recreated: it is still terminating from an
+// earlier pass, its storage class no longer matches spec.StorageClassName
+// (StatefulSet volumeClaimTemplates are immutable, so a CR change is otherwise
+// silently dropped), or it is Bound to a volume pinned to a node that no longer
+// exists (a bare-metal fleet node was reprovisioned). A still-present stale PVC
+// keeps returning a reason so the caller waits for deletion to finish before the
+// StatefulSet is recreated.
+func (r *KuraInstanceReconciler) staleDataStorageReason(ctx context.Context, instance *kurav1alpha1.KuraInstance) (string, error) {
+	desiredStorageClass := instance.Spec.StorageClassName
+	for ordinal := int32(0); ordinal < replicas(instance); ordinal++ {
+		name := fmt.Sprintf("data-%s-%d", instance.Name, ordinal)
+		pvc := &corev1.PersistentVolumeClaim{}
+		if err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: instance.Namespace}, pvc); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return "", err
+		}
+		if pvc.DeletionTimestamp != nil {
+			return fmt.Sprintf("data PVC %s is still terminating from a prior recreate", name), nil
+		}
+		if desiredStorageClass != "" && pvcStorageClassName(pvc) != desiredStorageClass {
+			return fmt.Sprintf("data PVC %s storage class %q no longer matches desired %q", name, pvcStorageClassName(pvc), desiredStorageClass), nil
+		}
+		if pvc.Status.Phase == corev1.ClaimBound && pvc.Spec.VolumeName != "" {
+			node, err := r.pvMissingPinnedNode(ctx, pvc.Spec.VolumeName)
+			if err != nil {
+				return "", err
+			}
+			if node != "" {
+				return fmt.Sprintf("data PVC %s is bound to a volume pinned to missing node %q", name, node), nil
+			}
+		}
+	}
+	return "", nil
+}
+
+// pvMissingPinnedNode returns the hostname a PV's required node affinity pins it
+// to when that node no longer exists, or "" when the PV isn't hostname-pinned or
+// its node is still present. A local-path (node-local) PV keeps a
+// kubernetes.io/hostname affinity that outlives the node it was carved on.
+func (r *KuraInstanceReconciler) pvMissingPinnedNode(ctx context.Context, pvName string) (string, error) {
+	pv := &corev1.PersistentVolume{}
+	if err := r.Get(ctx, types.NamespacedName{Name: pvName}, pv); err != nil {
+		if apierrors.IsNotFound(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	for _, hostname := range pvRequiredHostnames(pv) {
+		node := &corev1.Node{}
+		err := r.Get(ctx, types.NamespacedName{Name: hostname}, node)
+		if apierrors.IsNotFound(err) {
+			return hostname, nil
+		}
+		if err != nil {
+			return "", err
+		}
+	}
+	return "", nil
+}
+
+func pvcStorageClassName(pvc *corev1.PersistentVolumeClaim) string {
+	if pvc.Spec.StorageClassName != nil {
+		return *pvc.Spec.StorageClassName
+	}
+	return ""
+}
+
+// pvRequiredHostnames returns the kubernetes.io/hostname values a PV's required
+// node affinity restricts it to.
+func pvRequiredHostnames(pv *corev1.PersistentVolume) []string {
+	if pv.Spec.NodeAffinity == nil || pv.Spec.NodeAffinity.Required == nil {
+		return nil
+	}
+	var hostnames []string
+	for _, term := range pv.Spec.NodeAffinity.Required.NodeSelectorTerms {
+		for _, expr := range term.MatchExpressions {
+			if expr.Key == corev1.LabelHostname && expr.Operator == corev1.NodeSelectorOpIn {
+				hostnames = append(hostnames, expr.Values...)
+			}
+		}
+	}
+	return hostnames
+}
+
 func (r *KuraInstanceReconciler) sharedSecretsResourceVersion(ctx context.Context, namespace string) (string, error) {
 	secret := &corev1.Secret{}
 	if err := r.Get(ctx, types.NamespacedName{Name: sharedSecretsName, Namespace: namespace}, secret); err != nil {
@@ -1729,15 +1931,14 @@ func (r *KuraInstanceReconciler) reconcileNetworkPolicy(ctx context.Context, ins
 			},
 			{
 				// Tuist server pod-list calls and internal health
-				// checks. Limit plain HTTP and plaintext gRPC to
-				// in-cluster peers; the JWT layer in the runtime is
-				// the auth boundary.
+				// checks. Limit the plaintext cache port (co-hosted
+				// HTTP + gRPC) to in-cluster peers; the JWT layer in
+				// the runtime is the auth boundary.
 				From: []networkingv1.NetworkPolicyPeer{
 					{NamespaceSelector: &metav1.LabelSelector{}},
 				},
 				Ports: []networkingv1.NetworkPolicyPort{
 					{Port: ptr(intstr.FromString("http")), Protocol: ptr(corev1.ProtocolTCP)},
-					{Port: ptr(intstr.FromString("grpc")), Protocol: ptr(corev1.ProtocolTCP)},
 				},
 			},
 		}
@@ -1753,7 +1954,6 @@ func (r *KuraInstanceReconciler) reconcileNetworkPolicy(ctx context.Context, ins
 				From: peers,
 				Ports: []networkingv1.NetworkPolicyPort{
 					{Port: ptr(intstr.FromString("http")), Protocol: ptr(corev1.ProtocolTCP)},
-					{Port: ptr(intstr.FromString("grpc")), Protocol: ptr(corev1.ProtocolTCP)},
 				},
 			})
 		}
@@ -1847,7 +2047,16 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 		{Name: "POD_NAME", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"}}},
 		{Name: "POD_NAMESPACE", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"}}},
 		{Name: "KURA_PORT", Value: fmt.Sprintf("%d", httpPort)},
-		{Name: "KURA_GRPC_PORT", Value: fmt.Sprintf("%d", grpcPort)},
+		// Transitional no-op for pre-cohosted images only: images at or
+		// below the last dedicated-listener release hard-require
+		// KURA_GRPC_PORT (required_value) and exit(1) without it, and the
+		// controller rewrites every pod template on its reconcile loop —
+		// without this a still-pinned instance would crash-loop, taking
+		// the HTTP cache down with it. Co-hosted images ignore unknown
+		// env. The value is the old default; old images validate it
+		// differs from KURA_INTERNAL_PORT/KURA_HTTPS_PORT. Remove once
+		// the fleet is fully past the co-hosted floor (tracked in #11654).
+		{Name: "KURA_GRPC_PORT", Value: "50051"},
 		{Name: "KURA_TENANT_ID", Value: instance.Spec.TenantID},
 		{Name: "KURA_REGION", Value: instance.Spec.Region},
 		{Name: "KURA_TMP_DIR", Value: "/var/cache/kura/tmp"},
@@ -1904,13 +2113,12 @@ func hasEnvVar(env []corev1.EnvVar, name string) bool {
 	return false
 }
 
-// containerPorts exposes only the plain HTTP, gRPC, and internal mTLS
-// peer ports. Customer-facing TLS terminates at the regional Kura ingress, not
-// inside each Kura runtime pod.
+// containerPorts exposes only the plain co-hosted cache port (HTTP + h2c
+// gRPC) and the internal mTLS peer port. Customer-facing TLS terminates at
+// the regional Kura ingress, not inside each Kura runtime pod.
 func containerPorts(instance *kurav1alpha1.KuraInstance) []corev1.ContainerPort {
 	return []corev1.ContainerPort{
 		{Name: "http", ContainerPort: httpPort},
-		{Name: "grpc", ContainerPort: grpcPort},
 		{Name: "peer", ContainerPort: peerPort},
 	}
 }
@@ -1980,7 +2188,6 @@ func httpProbe(path string, initialDelay, period int32) *corev1.Probe {
 func ports() []corev1.ServicePort {
 	return []corev1.ServicePort{
 		{Name: "http", Port: httpPort, TargetPort: intstr.FromString("http")},
-		{Name: "grpc", Port: grpcPort, TargetPort: intstr.FromString("grpc")},
 		{Name: "peer", Port: peerPort, TargetPort: intstr.FromString("peer")},
 	}
 }
@@ -1990,7 +2197,6 @@ func ports() []corev1.ServicePort {
 func externalPorts() []corev1.ServicePort {
 	return []corev1.ServicePort{
 		{Name: "http", Port: httpPort, TargetPort: intstr.FromString("http")},
-		{Name: "grpc", Port: grpcPort, TargetPort: intstr.FromString("grpc")},
 	}
 }
 

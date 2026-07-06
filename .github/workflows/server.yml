@@ -216,6 +216,11 @@ jobs:
     runs-on: tuist-linux-large
     timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    # Local `mix test` compiles only the "en" locale for fast cold builds
+    # (Tuist.Environment.single_locale?/0). CI opts into the full ex_cldr/Gettext
+    # locale set so the `:locale`-tagged i18n tests run and are covered here.
+    env:
+      TUIST_DEV_ALL_LOCALES: "1"
     services:
       postgres:
         image: public.ecr.aws/docker/library/postgres:16
@@ -238,6 +243,15 @@ jobs:
           mix-cache-key: mix-test-v2
           mix-cache-restore-key: mix-test-v2-
           restore-mix-cache: "false"
+      - name: Restore CLDR locale cache
+        uses: actions/cache@v4
+        with:
+          path: server/_build/cldr/locales
+          key: cldr-locales-v1-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            cldr-locales-v1-
+      - name: Prefetch CLDR locale data
+        run: mise/tasks/cldr/prefetch-locale-data.sh
       - name: Compile
         run: mix compile --warnings-as-errors
       - name: Start ClickHouse
