@@ -129,6 +129,33 @@ jobs:
 
           echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
           echo "Deploying image tag $IMAGE_TAG"
+      - name: Strip leftover in-tree barmanObjectStore before plugin cutover
+        run: |
+          set -uo pipefail
+          # Only runs when the chart renders the Barman Cloud Plugin (an ObjectStore
+          # CR + spec.plugins, no barmanObjectStore). Helm 4 applies server-side, so
+          # swapping the live cluster from the in-tree barmanObjectStore to the
+          # plugin only strips the barmanObjectStore sub-fields Helm owns
+          # (destinationPath, endpointURL, s3Credentials) and leaves the
+          # operator-defaulted wal/data blocks behind. The Cluster then carries both
+          # spec.plugins and a credential-less barmanObjectStore, which the CNPG
+          # webhook rejects ("Cannot enable a WAL archiver plugin when
+          # barmanObjectStore is configured"). Remove the whole stanza up front so
+          # the plugin-only apply is clean. Idempotent: a no-op once it is gone.
+          if helm template "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+               -f "$HELM_CHART_PATH/values-managed-production.yaml" \
+               --set image.tag="$IMAGE_TAG" | grep -qE '^kind: ObjectStore$'; then
+            CLUSTER="$(kubectl -n "$NAMESPACE" get cluster.postgresql.cnpg.io \
+              -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+            if [ -n "$CLUSTER" ] && kubectl -n "$NAMESPACE" patch cluster.postgresql.cnpg.io "$CLUSTER" \
+                 --type=json -p '[{"op":"remove","path":"/spec/backup/barmanObjectStore"}]' 2>/dev/null; then
+              echo "Removed leftover in-tree barmanObjectStore from $CLUSTER before plugin cutover."
+            else
+              echo "Plugin mode, but no in-tree barmanObjectStore to remove (already migrated or fresh install)."
+            fi
+          else
+            echo "Chart is in in-tree barmanObjectStore mode; nothing to migrate."
+          fi
       - name: helm upgrade --install
         run: |
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
