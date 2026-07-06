@@ -1203,7 +1203,7 @@ defmodule Tuist.Tests do
     project_ids = slim_results |> Enum.map(& &1.project_id) |> Enum.uniq()
     test_case_ids = slim_results |> Enum.map(& &1.test_case_id) |> Enum.uniq()
     {min_ran_at, max_ran_at} = ran_at_bounds(slim_results)
-    inserted_at_partition_months = inserted_at_partition_months(slim_results)
+    inserted_at_partition_range = inserted_at_partition_range(slim_results)
 
     # `test_case_runs` is ReplacingMergeTree; re-inserts (e.g. flaky flag
     # updates) leave multiple versions per id until background merges
@@ -1221,10 +1221,7 @@ defmodule Tuist.Tests do
       )
 
     query =
-      case inserted_at_partition_months do
-        [] -> query
-        months -> from(tcr in query, where: fragment("toYYYYMM(?)", tcr.inserted_at) in ^months)
-      end
+      scope_to_inserted_at_partition(query, inserted_at_partition_range)
 
     query
     |> ClickHouseRepo.all()
@@ -1251,24 +1248,62 @@ defmodule Tuist.Tests do
     end)
   end
 
-  defp inserted_at_partition_months(slim_results) do
+  defp inserted_at_partition_range(slim_results) do
     slim_results
-    |> Enum.flat_map(fn run ->
-      case Map.get(run, :inserted_at) do
-        %NaiveDateTime{} = inserted_at ->
-          [inserted_at.year * 100 + inserted_at.month]
+    |> Enum.flat_map(&inserted_at_partition_timestamps/1)
+    |> case do
+      [] ->
+        nil
 
-        %DateTime{} = inserted_at ->
-          [inserted_at.year * 100 + inserted_at.month]
+      timestamps ->
+        {min_inserted_at, max_inserted_at} =
+          Enum.min_max_by(timestamps, &NaiveDateTime.to_gregorian_seconds/1)
 
-        _ ->
-          case uuidv7_to_yyyymm(run.id) do
-            {:ok, month} -> [month]
-            :error -> []
-          end
-      end
-    end)
-    |> Enum.uniq()
+        {month_start(min_inserted_at), next_month_start(max_inserted_at)}
+    end
+  end
+
+  defp inserted_at_partition_timestamps(run) do
+    case Map.get(run, :inserted_at) do
+      %NaiveDateTime{} = inserted_at ->
+        [inserted_at]
+
+      %DateTime{} = inserted_at ->
+        [DateTime.to_naive(inserted_at)]
+
+      _ ->
+        case uuidv7_to_inserted_at(run.id) do
+          {:ok, inserted_at} -> [inserted_at]
+          :error -> []
+        end
+    end
+  end
+
+  defp scope_to_inserted_at_partition(query, nil), do: query
+
+  defp scope_to_inserted_at_partition(query, {partition_start, partition_end}) do
+    from(tcr in query,
+      where: tcr.inserted_at >= ^partition_start,
+      where: tcr.inserted_at < ^partition_end
+    )
+  end
+
+  defp month_start(%NaiveDateTime{year: year, month: month}) do
+    month_start(year, month)
+  end
+
+  defp next_month_start(%NaiveDateTime{year: year, month: 12}) do
+    month_start(year + 1, 1)
+  end
+
+  defp next_month_start(%NaiveDateTime{year: year, month: month}) do
+    month_start(year, month + 1)
+  end
+
+  defp month_start(year, month) do
+    year
+    |> Date.new!(month, 1)
+    |> NaiveDateTime.new!(~T[00:00:00.000000])
   end
 
   # Filter precedence for routing: a narrower scope wins so we use the
@@ -1317,25 +1352,18 @@ defmodule Tuist.Tests do
 
     query =
       case Keyword.get(opts, :project_id) do
-        nil ->
-          case uuidv7_to_yyyymm(id) do
-            {:ok, month} ->
-              where(query, [tcr], fragment("toYYYYMM(?)", tcr.inserted_at) == ^month)
+        nil -> query
+        project_id -> where(query, [tcr], tcr.project_id == ^project_id)
+      end
 
-            :error ->
-              query
-          end
+    query =
+      case uuidv7_to_inserted_at(id) do
+        {:ok, inserted_at} ->
+          partition_range = {month_start(inserted_at), next_month_start(inserted_at)}
+          scope_to_inserted_at_partition(query, partition_range)
 
-        project_id ->
-          query = where(query, [tcr], tcr.project_id == ^project_id)
-
-          case uuidv7_to_yyyymm(id) do
-            {:ok, month} ->
-              where(query, [tcr], fragment("toYYYYMM(?)", tcr.inserted_at) == ^month)
-
-            :error ->
-              query
-          end
+        :error ->
+          query
       end
 
     case ClickHouseRepo.one(query) do
@@ -1353,14 +1381,14 @@ defmodule Tuist.Tests do
   # partition hint, the proj_by_id projection must check every part across all
   # monthly partitions (~93K rows read, ~2.7s p50 in production). UUIDv7 encodes
   # a millisecond timestamp in the first 48 bits, which closely matches
-  # inserted_at, so we extract the month and add a toYYYYMM filter to prune all
-  # but one partition (~8K rows read, ~35x improvement).
-  defp uuidv7_to_yyyymm(uuid_string) do
+  # inserted_at, so we derive the month range and add an inserted_at filter to
+  # prune all but one partition (~8K rows read, ~35x improvement).
+  defp uuidv7_to_inserted_at(uuid_string) do
     hex = uuid_string |> String.replace("-", "") |> String.slice(0, 12)
     timestamp_ms = String.to_integer(hex, 16)
 
     case DateTime.from_unix(timestamp_ms, :millisecond) do
-      {:ok, datetime} -> {:ok, datetime.year * 100 + datetime.month}
+      {:ok, datetime} -> {:ok, DateTime.to_naive(datetime)}
       _ -> :error
     end
   rescue
