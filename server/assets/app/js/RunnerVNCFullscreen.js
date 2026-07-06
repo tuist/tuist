@@ -26,11 +26,14 @@ function fullscreenSupported(element) {
 
 export default {
   mounted() {
-    this.button = this.el.querySelector("[data-fullscreen-toggle]");
+    this.button = this.el.matches("[data-fullscreen-toggle]")
+      ? this.el
+      : this.el.querySelector("[data-fullscreen-toggle]");
+    this.target = document.querySelector(this.el.dataset.fullscreenTarget) || this.el;
     this.onClick = () => this.toggle();
     this.onFullscreenChange = () => this.sync();
 
-    if (!fullscreenSupported(this.el)) {
+    if (!fullscreenSupported(this.target)) {
       this.disable();
       return;
     }
@@ -48,8 +51,8 @@ export default {
   },
 
   toggle() {
-    const active = fullscreenElement() === this.el;
-    const action = active ? exitFullscreen() : requestFullscreen(this.el);
+    const active = fullscreenElement() === this.target;
+    const action = active ? exitFullscreen() : requestFullscreen(this.target);
 
     action.catch(() => {
       this.el.dataset.fullscreenUnsupported = "true";
@@ -58,7 +61,7 @@ export default {
   },
 
   sync() {
-    const active = fullscreenElement() === this.el;
+    const active = fullscreenElement() === this.target;
 
     this.el.dataset.fullscreen = active ? "active" : "idle";
     this.button?.setAttribute("aria-pressed", active ? "true" : "false");
