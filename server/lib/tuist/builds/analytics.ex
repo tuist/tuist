@@ -2372,9 +2372,11 @@ defmodule Tuist.Builds.Analytics do
     end
   end
 
-  # Fetches the most recent build (in the window/filters) that carries dependency
-  # edges and returns a `%{module_name => [dependency names]}` map for its targets.
-  # Empty when no build has edges yet, which keeps blast radius unknown (nil).
+  # Returns each module's most recent dependency edges (in the window/filters) as a
+  # `%{module_name => [dependency names]}` map. Uses `argMax(dependencies, ran_at)`
+  # per module so every module gets its latest known edges independently — a build
+  # that doesn't include some module doesn't drop that module's edges. Empty when no
+  # build carries edges yet, which keeps blast radius unknown (nil).
   defp latest_graph_dependencies(opts) do
     project_id = Keyword.fetch!(opts, :project_id)
 
@@ -2388,24 +2390,30 @@ defmodule Tuist.Builds.Analytics do
       Map.merge(%{project_id: project_id, start: start_datetime, end: end_datetime}, filter_params)
 
     query = """
-    SELECT xt.name AS name, xt.dependencies AS dependencies
-    FROM xcode_targets AS xt
-    WHERE xt.command_event_id = (
-      SELECT e.id
-      FROM command_events AS e
-      INNER JOIN xcode_targets AS dep_xt ON dep_xt.command_event_id = e.id
+    SELECT name, argMax(dependencies, ran_at) AS dependencies
+    FROM (
+      SELECT xt.name AS name, xt.dependencies AS dependencies, e.ran_at AS ran_at
+      FROM xcode_targets AS xt
+      INNER JOIN command_events AS e ON xt.command_event_id = e.id
       WHERE e.project_id = {project_id:Int64}
         AND e.ran_at >= {start:DateTime64(6)}
         AND e.ran_at <= {end:DateTime64(6)}
-        AND notEmpty(dep_xt.dependencies)#{filter_sql}
-      ORDER BY e.ran_at DESC
-      LIMIT 1
+        AND xt.binary_cache_hash IS NOT NULL#{filter_sql}
     )
+    GROUP BY name
     """
 
     case ClickHouseRepo.query(query, params) do
-      {:ok, %{rows: rows}} -> Map.new(rows, fn [name, dependencies] -> {name, dependencies} end)
-      _ -> %{}
+      {:ok, %{rows: rows}} ->
+        edges = Map.new(rows, fn [name, dependencies] -> {name, dependencies} end)
+
+        # Include leaf modules (empty deps) as graph nodes so they can be counted as
+        # downstream targets. But if no module carries any edge, the project's CLI
+        # isn't sending the graph yet — keep blast radius unknown (nil) for all.
+        if Enum.any?(edges, fn {_name, deps} -> deps != [] end), do: edges, else: %{}
+
+      _ ->
+        %{}
     end
   end
 

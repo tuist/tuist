@@ -1733,6 +1733,18 @@ create_xcode_data_for_events = fn events, label ->
   if length(events) > 0 do
     xcode_target_names = ["App", "Framework", "Core", "UI", "Networking", "AppTests", "FrameworkTests"]
     product_types = ["app", "framework", "static_library", "unit_test_bundle"]
+    # Dependency edges (within a project) so demo modules have a downstream blast
+    # radius. Keyed by bare target name; prefixed with the project name when emitted.
+    generic_module_deps = %{
+      "App" => ["Core", "UI", "Networking"],
+      "Framework" => ["Core"],
+      "UI" => ["Core"],
+      "Networking" => ["Core"],
+      "Core" => [],
+      "AppTests" => ["App"],
+      "FrameworkTests" => ["Framework"]
+    }
+
     dest_pool = [["iphone"], ["ipad"], ["mac"], ["iphone", "ipad"]]
     hash_pool = Enum.map(1..100, fn _ -> SeedHelpers.random_hex(64) end)
     subhash_pool = Enum.map(1..100, fn _ -> SeedHelpers.random_hex(32) end)
@@ -1821,7 +1833,8 @@ create_xcode_data_for_events = fn events, label ->
             project_settings_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 9, 100))),
             target_settings_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 10, 100))),
             buildable_folders_hash: "",
-            additional_strings: []
+            additional_strings: [],
+            dependencies: Enum.map(Map.get(generic_module_deps, target_name, []), &"#{project.name}_#{&1}")
           }
         end)
       end)
