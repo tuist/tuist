@@ -42,11 +42,11 @@ defmodule Tuist.OAuth.IntrospectionTest do
       assert project_writes == ["#{organization.account.name}/#{project.name}"]
     end
 
-    test "returns read-only user grants for accounts that restrict Kura writes to tokens" do
+    test "returns read-only user grants for accounts that restrict cache writes to tokens" do
       user = AccountsFixtures.user_fixture(preload: [:account])
       organization = AccountsFixtures.organization_fixture(name: "read-only-org", creator: user)
       Accounts.add_user_to_organization(user, organization, role: :admin)
-      {:ok, account} = Accounts.update_account(organization.account, %{kura_cache_write_policy: :tokens_only})
+      {:ok, account} = Accounts.update_account(organization.account, %{cache_write_policy: :tokens_only})
       project = ProjectsFixtures.project_fixture(account: account)
 
       assert %{
@@ -96,9 +96,9 @@ defmodule Tuist.OAuth.IntrospectionTest do
       assert project_reads == ["#{organization.account.name}/#{project.name}"]
     end
 
-    test "keeps write grants for scoped account tokens when Kura writes are restricted to tokens" do
+    test "keeps write grants for scoped account tokens when cache writes are restricted to tokens" do
       organization = AccountsFixtures.organization_fixture(name: "token-writer-org")
-      {:ok, account} = Accounts.update_account(organization.account, %{kura_cache_write_policy: :tokens_only})
+      {:ok, account} = Accounts.update_account(organization.account, %{cache_write_policy: :tokens_only})
       project = ProjectsFixtures.project_fixture(account: account)
 
       {:ok, {_token, token_value}} =
@@ -209,11 +209,11 @@ defmodule Tuist.OAuth.IntrospectionTest do
       assert project_writes == ["#{organization.account.name}/#{project.name}"]
     end
 
-    test "returns tenant-scoped read-only user grants when Kura writes are restricted to tokens" do
+    test "returns tenant-scoped read-only user grants when cache writes are restricted to tokens" do
       user = AccountsFixtures.user_fixture(preload: [:account])
       organization = AccountsFixtures.organization_fixture(name: "scoped-read-only-org", creator: user)
       Accounts.add_user_to_organization(user, organization, role: :admin)
-      {:ok, account} = Accounts.update_account(organization.account, %{kura_cache_write_policy: :tokens_only})
+      {:ok, account} = Accounts.update_account(organization.account, %{cache_write_policy: :tokens_only})
       project = ProjectsFixtures.project_fixture(account: account)
 
       assert %{
@@ -231,10 +231,10 @@ defmodule Tuist.OAuth.IntrospectionTest do
       assert project_writes == []
     end
 
-    test "returns tenant-scoped read-only user-issued OAuth grants when Kura writes are restricted to tokens" do
+    test "returns tenant-scoped read-only user-issued OAuth grants when cache writes are restricted to tokens" do
       user = AccountsFixtures.user_fixture(preload: [:account])
       organization = AccountsFixtures.organization_fixture(name: "oauth-read-only-org", creator: user)
-      {:ok, account} = Accounts.update_account(organization.account, %{kura_cache_write_policy: :tokens_only})
+      {:ok, account} = Accounts.update_account(organization.account, %{cache_write_policy: :tokens_only})
       project = ProjectsFixtures.project_fixture(account: account)
 
       {:ok, token, _claims} =

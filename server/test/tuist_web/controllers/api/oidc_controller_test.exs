@@ -17,7 +17,7 @@ defmodule TuistWeb.API.OIDCControllerTest do
           preload: [:account, :vcs_connection]
         )
 
-      {:ok, account} = Accounts.update_account(project.account, %{kura_cache_write_policy: :tokens_only})
+      {:ok, account} = Accounts.update_account(project.account, %{cache_write_policy: :tokens_only})
 
       stub(OIDC, :claims, fn _token -> {:ok, %{repository: "tuist/tuist"}} end)
 

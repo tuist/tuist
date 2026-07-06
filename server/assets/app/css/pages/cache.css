@@ -29,7 +29,7 @@
     padding: var(--noora-spacing-8);
   }
 
-  & > [data-part="kura-cache-write-policy-card"],
+  & > [data-part="cache-write-policy-card"],
   & > [data-part="servers-card"],
   & > [data-part="self-hosted-card"] {
     display: flex;
@@ -95,7 +95,7 @@
     }
   }
 
-  & > [data-part="kura-cache-write-policy-card"] {
+  & > [data-part="cache-write-policy-card"] {
     gap: var(--noora-spacing-5);
 
     & > [data-part="header"] {

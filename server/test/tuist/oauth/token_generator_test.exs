@@ -63,9 +63,9 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
       assert project_handle in claims["cache_grants"]["project"]["write"]
     end
 
-    test "embeds read-only Kura cache grants for user-issued OAuth tokens on restricted accounts", %{user: user} do
+    test "embeds read-only cache grants for user-issued OAuth tokens on restricted accounts", %{user: user} do
       organization = AccountsFixtures.organization_fixture(creator: user)
-      {:ok, account} = Accounts.update_account(organization.account, %{kura_cache_write_policy: :tokens_only})
+      {:ok, account} = Accounts.update_account(organization.account, %{cache_write_policy: :tokens_only})
       project = ProjectsFixtures.project_fixture(account: account)
 
       token = %Token{

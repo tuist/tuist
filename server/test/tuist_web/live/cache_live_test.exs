@@ -172,7 +172,7 @@ defmodule TuistWeb.CacheLiveTest do
     assert Floki.attribute(document, "#cache-upload-policy-members-and-tokens", "data-selected") == ["false"]
     assert Floki.attribute(document, "#cache-upload-policy-tokens-only", "data-selected") == ["true"]
     assert {:ok, updated_account} = Accounts.get_account_by_id(account.id)
-    assert updated_account.kura_cache_write_policy == :tokens_only
+    assert updated_account.cache_write_policy == :tokens_only
 
     html = render_click(lv, "select_cache_upload_policy", %{"policy" => "members_and_tokens"})
 
@@ -181,7 +181,7 @@ defmodule TuistWeb.CacheLiveTest do
     assert Floki.attribute(document, "#cache-upload-policy-members-and-tokens", "data-selected") == ["true"]
     assert Floki.attribute(document, "#cache-upload-policy-tokens-only", "data-selected") == ["false"]
     assert {:ok, updated_account} = Accounts.get_account_by_id(account.id)
-    assert updated_account.kura_cache_write_policy == :members_and_tokens
+    assert updated_account.cache_write_policy == :members_and_tokens
   end
 
   test "shows cache server state, domain, and version", %{conn: conn, account: account} do

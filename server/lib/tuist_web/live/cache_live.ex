@@ -130,10 +130,10 @@ defmodule TuistWeb.CacheLive do
       case policy do
         "members_and_tokens" -> :members_and_tokens
         "tokens_only" -> :tokens_only
-        _ -> selected_account.kura_cache_write_policy
+        _ -> selected_account.cache_write_policy
       end
 
-    {:ok, updated_account} = Accounts.update_account(selected_account, %{kura_cache_write_policy: policy})
+    {:ok, updated_account} = Accounts.update_account(selected_account, %{cache_write_policy: policy})
 
     {:noreply, assign(socket, :selected_account, updated_account)}
   end
@@ -431,11 +431,11 @@ defmodule TuistWeb.CacheLive do
 
   defp version_label(image_tag), do: Kura.version_label(image_tag)
 
-  attr(:kura_cache_write_policy, :atom, required: true)
+  attr(:cache_write_policy, :atom, required: true)
 
   def cache_write_policy_section(assigns) do
     ~H"""
-    <.card_section data-part="kura-cache-write-policy-card">
+    <.card_section data-part="cache-write-policy-card">
       <div data-part="header">
         <div data-part="title-group">
           <span data-part="title">{dgettext("dashboard_account", "Cache upload access")}</span>
@@ -458,11 +458,9 @@ defmodule TuistWeb.CacheLive do
           id="cache-upload-policy-members-and-tokens"
           type="button"
           data-part="policy-option"
-          data-selected={
-            if @kura_cache_write_policy == :members_and_tokens, do: "true", else: "false"
-          }
+          data-selected={if @cache_write_policy == :members_and_tokens, do: "true", else: "false"}
           role="radio"
-          aria-checked={if @kura_cache_write_policy == :members_and_tokens, do: "true", else: "false"}
+          aria-checked={if @cache_write_policy == :members_and_tokens, do: "true", else: "false"}
           phx-click="select_cache_upload_policy"
           phx-value-policy="members_and_tokens"
         >
@@ -470,7 +468,7 @@ defmodule TuistWeb.CacheLive do
             <span data-part="label">
               {dgettext("dashboard_account", "Members, CI, and account tokens")}
             </span>
-            <span :if={@kura_cache_write_policy == :members_and_tokens} data-part="check">
+            <span :if={@cache_write_policy == :members_and_tokens} data-part="check">
               <.icon name="check" />
             </span>
           </span>
@@ -485,9 +483,9 @@ defmodule TuistWeb.CacheLive do
           id="cache-upload-policy-tokens-only"
           type="button"
           data-part="policy-option"
-          data-selected={if @kura_cache_write_policy == :tokens_only, do: "true", else: "false"}
+          data-selected={if @cache_write_policy == :tokens_only, do: "true", else: "false"}
           role="radio"
-          aria-checked={if @kura_cache_write_policy == :tokens_only, do: "true", else: "false"}
+          aria-checked={if @cache_write_policy == :tokens_only, do: "true", else: "false"}
           phx-click="select_cache_upload_policy"
           phx-value-policy="tokens_only"
         >
@@ -495,7 +493,7 @@ defmodule TuistWeb.CacheLive do
             <span data-part="label">
               {dgettext("dashboard_account", "CI and account tokens only")}
             </span>
-            <span :if={@kura_cache_write_policy == :tokens_only} data-part="check">
+            <span :if={@cache_write_policy == :tokens_only} data-part="check">
               <.icon name="check" />
             </span>
           </span>

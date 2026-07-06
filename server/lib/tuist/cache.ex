@@ -205,7 +205,7 @@ defmodule Tuist.Cache do
   defp write_account_cache_handles(resource) do
     resource
     |> accessible_accounts()
-    |> Enum.reject(&kura_cache_writes_restricted?(resource, &1))
+    |> Enum.reject(&cache_writes_restricted?(resource, &1))
     |> account_handles()
   end
 
@@ -238,7 +238,7 @@ defmodule Tuist.Cache do
   defp write_project_cache_handles(resource, opts) do
     resource
     |> accessible_projects(opts)
-    |> Enum.reject(&kura_cache_writes_restricted?(resource, &1.account))
+    |> Enum.reject(&cache_writes_restricted?(resource, &1.account))
     |> Enum.map(&project_handle/1)
     |> Enum.uniq()
     |> Enum.sort()
@@ -248,16 +248,16 @@ defmodule Tuist.Cache do
     "#{account_name}/#{project_name}"
   end
 
-  defp kura_cache_writes_restricted_to_tokens?(%Account{kura_cache_write_policy: :tokens_only}), do: true
-  defp kura_cache_writes_restricted_to_tokens?(_account), do: false
+  defp cache_writes_restricted_to_tokens?(%Account{cache_write_policy: :tokens_only}), do: true
+  defp cache_writes_restricted_to_tokens?(_account), do: false
 
-  defp kura_cache_writes_restricted?(%User{}, account), do: kura_cache_writes_restricted_to_tokens?(account)
+  defp cache_writes_restricted?(%User{}, account), do: cache_writes_restricted_to_tokens?(account)
 
-  defp kura_cache_writes_restricted?(%AuthenticatedAccount{issued_by: %User{}}, account) do
-    kura_cache_writes_restricted_to_tokens?(account)
+  defp cache_writes_restricted?(%AuthenticatedAccount{issued_by: %User{}}, account) do
+    cache_writes_restricted_to_tokens?(account)
   end
 
-  defp kura_cache_writes_restricted?(_resource, _account), do: false
+  defp cache_writes_restricted?(_resource, _account), do: false
 
   defp scope_grants_action?(scopes, level, :read) do
     expanded_scopes = Checks.expand_scopes(scopes)

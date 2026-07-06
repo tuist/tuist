@@ -50,7 +50,7 @@ defmodule Tuist.Accounts.Account do
     field :current_month_remote_cache_hits_count_updated_at, :naive_datetime
     field :region, Ecto.Enum, values: [all: 0, europe: 1, usa: 2], default: :all
 
-    field :kura_cache_write_policy, Ecto.Enum,
+    field :cache_write_policy, Ecto.Enum,
       values: [members_and_tokens: 0, tokens_only: 1],
       default: :members_and_tokens
 
@@ -127,10 +127,10 @@ defmodule Tuist.Accounts.Account do
 
   def update_changeset(account, attrs) do
     account
-    |> cast(attrs, [:name, :region, :billing_email, :kura_cache_write_policy, :custom_cache_endpoints_enabled])
+    |> cast(attrs, [:name, :region, :billing_email, :cache_write_policy, :custom_cache_endpoints_enabled])
     |> validate_handle()
     |> validate_inclusion(:region, [:all, :europe, :usa])
-    |> validate_inclusion(:kura_cache_write_policy, [:members_and_tokens, :tokens_only])
+    |> validate_inclusion(:cache_write_policy, [:members_and_tokens, :tokens_only])
   end
 
   @s3_fields [:s3_bucket_name, :s3_access_key_id, :s3_secret_access_key, :s3_region, :s3_endpoint]
