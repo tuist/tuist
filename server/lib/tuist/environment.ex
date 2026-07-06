@@ -936,6 +936,20 @@ defmodule Tuist.Environment do
     end
   end
 
+  def clickhouse_read_max_threads(secrets \\ secrets()) do
+    case get([:clickhouse, :read_max_threads], secrets) do
+      max_threads when is_binary(max_threads) -> String.to_integer(max_threads)
+      _ -> clickhouse_max_threads(secrets)
+    end
+  end
+
+  def clickhouse_write_max_threads(secrets \\ secrets()) do
+    case get([:clickhouse, :write_max_threads], secrets) do
+      max_threads when is_binary(max_threads) -> String.to_integer(max_threads)
+      _ -> clickhouse_max_threads(secrets)
+    end
+  end
+
   # Per-query memory ceiling (in bytes) for the read path. ClickHouse enforces
   # this per query, so a single pathological aggregation fails on its own with
   # a `(for query)` error the caller can retry, instead of pushing the process

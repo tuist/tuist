@@ -1203,20 +1203,30 @@ defmodule Tuist.Tests do
     project_ids = slim_results |> Enum.map(& &1.project_id) |> Enum.uniq()
     test_case_ids = slim_results |> Enum.map(& &1.test_case_id) |> Enum.uniq()
     {min_ran_at, max_ran_at} = ran_at_bounds(slim_results)
+    inserted_at_months = inserted_at_months(slim_results)
 
     # `test_case_runs` is ReplacingMergeTree; re-inserts (e.g. flaky flag
     # updates) leave multiple versions per id until background merges
     # collapse them. Dedupe in Elixir by `desc: inserted_at` rather than
     # paying FINAL's full-part scan and in-memory merge for the page-sized
     # set of ids that the slim MV already narrowed us to.
-    from(tcr in TestCaseRun,
-      where: tcr.project_id in ^project_ids,
-      where: tcr.test_case_id in ^test_case_ids,
-      where: tcr.ran_at >= ^min_ran_at,
-      where: tcr.ran_at <= ^max_ran_at,
-      where: tcr.id in ^ids,
-      order_by: [desc: tcr.inserted_at]
-    )
+    query =
+      from(tcr in TestCaseRun,
+        where: tcr.project_id in ^project_ids,
+        where: tcr.test_case_id in ^test_case_ids,
+        where: tcr.ran_at >= ^min_ran_at,
+        where: tcr.ran_at <= ^max_ran_at,
+        where: tcr.id in ^ids,
+        order_by: [desc: tcr.inserted_at]
+      )
+
+    query =
+      case inserted_at_months do
+        [] -> query
+        months -> from(tcr in query, where: fragment("toYYYYMM(?)", tcr.inserted_at) in ^months)
+      end
+
+    query
     |> ClickHouseRepo.all()
     |> Enum.uniq_by(& &1.id)
   end
@@ -1239,6 +1249,26 @@ defmodule Tuist.Tests do
 
       {min_ran_at, max_ran_at}
     end)
+  end
+
+  defp inserted_at_months(slim_results) do
+    slim_results
+    |> Enum.flat_map(fn run ->
+      case Map.get(run, :inserted_at) do
+        %NaiveDateTime{} = inserted_at ->
+          [inserted_at.year * 100 + inserted_at.month]
+
+        %DateTime{} = inserted_at ->
+          [inserted_at.year * 100 + inserted_at.month]
+
+        _ ->
+          case uuidv7_to_yyyymm(run.id) do
+            {:ok, month} -> [month]
+            :error -> []
+          end
+      end
+    end)
+    |> Enum.uniq()
   end
 
   # Filter precedence for routing: a narrower scope wins so we use the
