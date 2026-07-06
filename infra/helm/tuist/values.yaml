@@ -1497,10 +1497,20 @@ cache:
     enabled: true
     # Keep this aligned with the cache application's module part size limit.
     clientMaxBodySize: "10m"
+    proxyConnectTimeout: "30s"
+    proxyReadTimeout: "300s"
+    proxySendTimeout: "300s"
     image:
       repository: nginx
       tag: "1.29-alpine"
       pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 512Mi
   service:
     type: ClusterIP
     port: 80

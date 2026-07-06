@@ -142,6 +142,10 @@ spec:
               port: http
             initialDelaySeconds: 20
             periodSeconds: 20
+          {{- with .Values.cache.nginx.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
         {{- end }}
       volumes:
         - name: storage
