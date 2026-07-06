@@ -1,8 +1,10 @@
 import Foundation
+import Path
 import TuistAutomation
 import TuistConfig
 import TuistCore
 import TuistDependencies
+import TuistEnvironment
 import TuistGenerator
 import TuistLoader
 import TuistSupport
@@ -100,8 +102,25 @@ public struct ProjectMapperFactory: ProjectMapperFactorying {
         mappers.append(IDETemplateMacrosMapper())
 
         // Xcode cache settings
-        mappers.append(XcodeCacheSettingsProjectMapper(tuist: tuist))
+        mappers.append(XcodeCacheSettingsProjectMapper(tuist: tuist, casPluginPath: resolveCASPluginPath()))
 
         return mappers
+    }
+
+    /// Resolves the bundled CAS plugin dylib relative to the executable,
+    /// synchronously (project mapping is not an async context). Mirrors
+    /// `ResourceLocator.casPlugin()`.
+    private func resolveCASPluginPath() -> AbsolutePath? {
+        if let override = Environment.current.variables["TUIST_CAS_PLUGIN_PATH"], !override.isEmpty {
+            return try? AbsolutePath(validating: override)
+        }
+        guard let bundlePath = try? AbsolutePath(validating: Bundle(for: ManifestLoader.self).bundleURL.path)
+        else { return nil }
+        let candidates = [
+            bundlePath,
+            bundlePath.parentDirectory,
+            bundlePath.parentDirectory.appending(component: "lib"),
+        ].map { $0.appending(component: "libtuist_cas_plugin.dylib") }
+        return candidates.first { FileManager.default.fileExists(atPath: $0.pathString) }
     }
 }

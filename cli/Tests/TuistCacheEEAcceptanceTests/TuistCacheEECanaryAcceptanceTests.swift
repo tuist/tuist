@@ -7,8 +7,10 @@ import Testing
 import TuistAcceptanceTesting
 import TuistBuildCommand
 import TuistCacheCommand
+import TuistCAS
 import TuistConfigLoader
 import TuistCore
+import TuistLoader
 import TuistEnvironment
 import TuistEnvironmentTesting
 import TuistGenerateCommand
@@ -25,7 +27,7 @@ import XcodeProj
 struct TuistCacheEECanaryAcceptanceTests {
     @Test(
         .inTemporaryDirectory,
-        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedEnvironment(inheritingVariables: ["PATH", "DEVELOPER_DIR", "TUIST_CAS_PLUGIN_PATH", "TUIST_CAS_BROKER_PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
         .withFixtureConnectedToCanary("generated_project_with_caching_enabled", accountHandle: "tuist")
@@ -42,6 +44,9 @@ struct TuistCacheEECanaryAcceptanceTests {
             defer { environment.stateDirectory = previousStateDirectory }
 
             let fixtureFullHandle = try #require(TuistTest.fixtureFullHandle)
+            let serverURL = try #require(
+                URL(string: Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev")
+            )
 
             try await fileSystem.writeText(
                 """
@@ -49,7 +54,7 @@ struct TuistCacheEECanaryAcceptanceTests {
 
                 let tuist = Tuist(
                     fullHandle: "\(fixtureFullHandle)",
-                    url: "\(Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev")",
+                    url: "\(serverURL.absoluteString)",
                     project: .tuist(
                         generationOptions: .options(
                             enableCaching: true
@@ -61,16 +66,34 @@ struct TuistCacheEECanaryAcceptanceTests {
                 options: Set([.overwrite])
             )
 
-            let remoteCacheServicePath = environment.stateDirectory
-                .appending(component: "\(fixtureFullHandle.replacingOccurrences(of: "/", with: "_")).sock")
+            // The compilation-cache plugin (built from `cas-plugin/`) is loaded by
+            // absolute path baked into the generated project. Its remote path is
+            // the per-machine broker, reached over a unix socket — no
+            // COMPILATION_CACHE_REMOTE_SERVICE_PATH. CI builds the Rust artifacts
+            // and exports these two paths.
+            let pluginPath = try #require(
+                Environment.current.variables["TUIST_CAS_PLUGIN_PATH"],
+                "Set TUIST_CAS_PLUGIN_PATH to the built libtuist_cas_plugin.dylib (CI builds the cas-plugin)."
+            )
+            let brokerSocketPath = environment.stateDirectory.appending(component: "cas-broker.sock")
             try #require(
-                remoteCacheServicePath.pathString.utf8.count < 104,
-                "Unix-domain socket path is too long: \(remoteCacheServicePath.pathString)"
+                brokerSocketPath.pathString.utf8.count < 104,
+                "Unix-domain socket path is too long: \(brokerSocketPath.pathString)"
             )
 
-            try await withCacheServer(
-                fullHandle: fixtureFullHandle,
-                socketPath: remoteCacheServicePath,
+            // Request kura (REAPI) endpoints and route the plugin, loaded inside
+            // xcodebuild's compilers, to the broker socket. XcodeBuildController
+            // forwards Environment.current.variables to the xcodebuild subprocess.
+            environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+            environment.variables["TUIST_CAS_PLUGIN_PATH"] = pluginPath
+            environment.variables["TUIST_CAS_BROKER_SOCKET"] = brokerSocketPath.pathString
+
+            let accountHandle = fixtureFullHandle.split(separator: "/").first.map(String.init)
+
+            try await withCacheBroker(
+                serverURL: serverURL,
+                accountHandle: accountHandle,
+                socketPath: brokerSocketPath,
                 fileSystem: fileSystem
             ) {
                 try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
@@ -84,7 +107,6 @@ struct TuistCacheEECanaryAcceptanceTests {
                     "CODE_SIGN_IDENTITY=",
                     "CODE_SIGNING_REQUIRED=NO",
                     "CODE_SIGNING_ALLOWED=NO",
-                    "COMPILATION_CACHE_REMOTE_SERVICE_PATH=\(remoteCacheServicePath.pathString)",
                 ]
                 try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
                 TuistTest.expectLogs("cacheable tasks (0%)")
@@ -327,33 +349,48 @@ struct TuistCacheEECanaryAcceptanceTests {
         try? await fileSystem.remove(directory)
     }
 
-    private func withCacheServer(
-        fullHandle: String,
+    /// Starts the per-machine Rust cache broker (`tuist-cas-broker`) for the test,
+    /// mirroring what `tuist cache-broker` does at runtime: resolve the kura REAPI
+    /// endpoint and the bearer, then run the broker on `socketPath`. The broker is
+    /// seeded with the token directly (there is no installed `tuist` for it to
+    /// shell out to via `tuist auth token` inside the test process).
+    private func withCacheBroker(
+        serverURL: URL,
+        accountHandle: String?,
         socketPath: AbsolutePath,
         fileSystem: FileSysteming,
         operation: () async throws -> Void
     ) async throws {
-        let cacheServerTask = Task {
-            try await TuistTest.run(
-                CacheStartCommand.self,
-                [fullHandle, "--url", Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev"]
-            )
+        let resolvedBroker = try await ResourceLocator().casBroker()
+        let brokerPath = try #require(
+            resolvedBroker,
+            "tuist-cas-broker not found. Set TUIST_CAS_BROKER_PATH to the built binary (CI builds the cas-plugin)."
+        )
+        let resolvedToken = try await ServerAuthenticationController()
+            .authenticationToken(serverURL: serverURL, refreshIfNeeded: true)?.value
+        let token = try #require(resolvedToken)
+        let endpoint = try await CacheURLStore().getCacheURL(for: serverURL, accountHandle: accountHandle)
+
+        let process = Foundation.Process()
+        process.executableURL = URL(fileURLWithPath: brokerPath.pathString)
+        var processEnvironment = ProcessInfo.processInfo.environment
+        processEnvironment["TUIST_CAS_BROKER_SOCKET"] = socketPath.pathString
+        processEnvironment["TUIST_CAS_REMOTE_GRPC_URL"] = endpoint.absoluteString
+        processEnvironment["TUIST_CAS_TOKEN"] = token
+        if let developerDir = Environment.current.variables["DEVELOPER_DIR"] {
+            processEnvironment["TUIST_CAS_UPSTREAM_PLUGIN"] = "\(developerDir)/usr/lib/libToolchainCASPlugin.dylib"
         }
+        process.environment = processEnvironment
+        try process.run()
 
         do {
             try await waitForCacheServer(at: socketPath, fileSystem: fileSystem)
             try await operation()
         } catch {
-            await stopCacheServer(cacheServerTask)
+            process.terminate()
             throw error
         }
-
-        await stopCacheServer(cacheServerTask)
-    }
-
-    private func stopCacheServer(_ task: Task<Void, Error>) async {
-        task.cancel()
-        _ = await task.result
+        process.terminate()
     }
 
     private func waitForCacheServer(

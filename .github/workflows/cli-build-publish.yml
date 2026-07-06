@@ -69,7 +69,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "--locked tuist git-cliff 1password-cli jq"
+          install_args: "--locked tuist git-cliff 1password-cli jq rust@1.94.1"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
@@ -94,6 +94,7 @@ jobs:
           fi
           INCLUDE_PATHS=(
             --include-path "cli/**/*"
+            --include-path "cas-plugin/**/*"
             --include-path "mise/tasks/cli/**/*"
             --include-path "mise/tasks/release/components.json"
             --include-path ".github/workflows/cli-release.yml"
@@ -121,6 +122,7 @@ jobs:
         run: |
           INCLUDE_PATHS=(
             --include-path "cli/**/*"
+            --include-path "cas-plugin/**/*"
             --include-path "mise/tasks/cli/**/*"
             --include-path "mise/tasks/release/components.json"
             --include-path ".github/workflows/cli-release.yml"

@@ -85,6 +85,11 @@ public protocol Environmenting: Sendable {
     /// and `tuist teardown cache` (which boots it out).
     func cacheLaunchAgentLabel(for fullHandle: String) -> String
 
+    /// Returns the machine-wide LaunchAgent label for the Xcode compilation-cache
+    /// broker. Unlike `cacheLaunchAgentLabel(for:)`, this is not per-project: one
+    /// broker serves every project on the machine, multiplexing by instance.
+    func casBrokerLaunchAgentLabel() -> String
+
     /// Returns the current architecture of the machine
     func architecture() async throws -> MacArchitecture
 
@@ -400,6 +405,10 @@ public struct Environment: Environmenting {
 
     public func cacheLaunchAgentLabel(for fullHandle: String) -> String {
         "tuist.cache.\(fullHandle.replacingOccurrences(of: "/", with: "_"))"
+    }
+
+    public func casBrokerLaunchAgentLabel() -> String {
+        "tuist.cas-broker"
     }
 
     #if os(macOS)

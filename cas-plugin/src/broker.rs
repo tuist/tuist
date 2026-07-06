@@ -10,8 +10,9 @@
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::os::unix::net::{UnixListener, UnixStream};
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::Instant;
 
 use crate::broker_proto::{
@@ -19,10 +20,22 @@ use crate::broker_proto::{
     STATUS_MISS,
 };
 use crate::prefetch::Prefetcher;
-use crate::reapi::{self, ManifestEntry, Remote};
+use crate::reapi::{self, ManifestEntry, Remote, RemoteConfig};
+use crate::token::TokenProvider;
 use crate::types::*;
 use crate::upstream::Upstream;
 use crate::PublishRecord;
+
+// Bounds for the per-path in-memory caches so a long-lived (machine-wide,
+// launchd-managed) broker cannot grow without limit across many builds. They
+// are correctness-preserving caches — clearing only forces a re-resolve or a
+// re-check, never a wrong answer — so clearing on overflow is safe. The caps sit
+// well above a single warm build's working set (a warm build touches ~1.9M
+// known-local digests total, i.e. ~60k per shard), so within-build warmth is
+// preserved and only cross-build accumulation is reclaimed.
+const MAX_RESOLVED: usize = 1_000_000;
+const MAX_KNOWN_LOCAL_PER_SHARD: usize = 250_000;
+const MAX_PUBLISH_CACHE: usize = 500_000;
 
 /// Per-local-CAS-path state. Leaked for 'static lifetime: the broker runs
 /// until killed.
@@ -67,19 +80,44 @@ unsafe impl Send for PathState {}
 unsafe impl Sync for PathState {}
 
 pub struct Broker {
-    remote: std::sync::Arc<Remote>,
+    grpc_url: String,
+    tokens: Arc<TokenProvider>,
     upstream_plugin: String,
+    // One REAPI client per account/project instance, created on first use.
+    // All share the machine's endpoint + token; only the instance the request
+    // is scoped to differs. This is what lets one broker serve every project.
+    remotes: Mutex<HashMap<String, Arc<Remote>>>,
+    // cas_path -> instance, primed by builds that declare their instance and
+    // persisted so an Xcode ⌘B build (which declares none) still routes after
+    // a broker restart. See broker_proto for why the fallback exists.
+    path_instance: Mutex<HashMap<String, String>>,
+    registry_path: Option<PathBuf>,
     paths: Mutex<HashMap<String, &'static PathState>>,
     publisher: Prefetcher,
+    // Per-node transfer analytics, written to cas_analytics.db for parity with
+    // the legacy daemon. `None` when no analytics path was configured.
+    analytics: Option<crate::analytics::Analytics>,
 }
 
 impl Broker {
-    pub fn new(remote: std::sync::Arc<Remote>, upstream_plugin: String) -> &'static Broker {
+    pub fn new(
+        grpc_url: String,
+        tokens: Arc<TokenProvider>,
+        upstream_plugin: String,
+        registry_path: Option<PathBuf>,
+        analytics: Option<crate::analytics::Analytics>,
+    ) -> &'static Broker {
+        let path_instance = registry_path.as_deref().map(load_registry).unwrap_or_default();
         let broker: &'static Broker = Box::leak(Box::new(Broker {
-            remote,
+            grpc_url,
+            tokens,
             upstream_plugin,
+            remotes: Mutex::new(HashMap::new()),
+            path_instance: Mutex::new(path_instance),
+            registry_path,
             paths: Mutex::new(HashMap::new()),
             publisher: Prefetcher::new(),
+            analytics,
         }));
         let broker_addr = broker as *const Broker as usize;
         broker.publisher.configure(8, move |item| {
@@ -87,6 +125,56 @@ impl Broker {
             broker.publish_item(&item);
         });
         broker
+    }
+
+    /// The REAPI client for an instance, created and cached on first use.
+    fn remote_for(&self, instance: &str) -> Arc<Remote> {
+        if let Some(remote) = self.remotes.lock().unwrap().get(instance) {
+            return remote.clone();
+        }
+        let remote = Remote::new(
+            RemoteConfig {
+                grpc_url: self.grpc_url.clone(),
+                instance: instance.to_string(),
+            },
+            self.tokens.clone(),
+        );
+        self.remotes
+            .lock()
+            .unwrap()
+            .entry(instance.to_string())
+            .or_insert(remote)
+            .clone()
+    }
+
+    /// The instance a connection routes to. A declared (non-empty) instance is
+    /// authoritative and primes the cas_path mapping for later ⌘B builds; an
+    /// empty one falls back to whatever a prior build primed. `None` means an
+    /// unprimed ⌘B build: the caller degrades it to a miss.
+    fn resolve_instance(&self, cas_path: &str, declared: &str) -> Option<String> {
+        if !declared.is_empty() {
+            let mut map = self.path_instance.lock().unwrap();
+            if map.get(cas_path).map(String::as_str) != Some(declared) {
+                map.insert(cas_path.to_string(), declared.to_string());
+                self.persist_registry(&map);
+            }
+            return Some(declared.to_string());
+        }
+        self.path_instance.lock().unwrap().get(cas_path).cloned()
+    }
+
+    fn persist_registry(&self, map: &HashMap<String, String>) {
+        let Some(path) = &self.registry_path else { return };
+        let mut body = String::new();
+        for (cas_path, instance) in map {
+            if !cas_path.contains(['\t', '\n']) && !instance.contains(['\t', '\n']) {
+                body.push_str(cas_path);
+                body.push('\t');
+                body.push_str(instance);
+                body.push('\n');
+            }
+        }
+        let _ = std::fs::write(path, body);
     }
 
     fn path_state(&self, cas_path: &str) -> Result<&'static PathState, String> {
@@ -124,7 +212,12 @@ impl Broker {
 
     /// Serves one RESOLVE: answer from the resolved map, else read-through
     /// (manifest + batched fetch of globally-missing blobs + local store).
-    fn resolve(&self, state: &'static PathState, key: &[u8]) -> Result<Option<Vec<u8>>, String> {
+    fn resolve(
+        &self,
+        remote: &Remote,
+        state: &'static PathState,
+        key: &[u8],
+    ) -> Result<Option<Vec<u8>>, String> {
         state.stats_resolves.fetch_add(1, Ordering::Relaxed);
         // Single-flight: wait out a concurrent resolve of the same key.
         {
@@ -140,7 +233,7 @@ impl Broker {
                 inflight = state.inflight_cvar.wait(inflight).unwrap();
             }
         }
-        let outcome = self.resolve_uncached(state, key);
+        let outcome = self.resolve_uncached(remote, state, key);
         {
             let mut inflight = state.inflight.lock().unwrap();
             inflight.remove(key);
@@ -151,15 +244,20 @@ impl Broker {
 
     fn resolve_uncached(
         &self,
+        remote: &Remote,
         state: &'static PathState,
         key: &[u8],
     ) -> Result<Option<Vec<u8>>, String> {
+        let op_start = Instant::now();
         let phase = Instant::now();
-        let manifest = match self.remote.get_action(key)? {
+        let manifest = match remote.get_action(key)? {
             Some(manifest) if !manifest.is_empty() => manifest,
             _ => {
                 state.stats_misses.fetch_add(1, Ordering::Relaxed);
                 state.resolved.lock().unwrap().insert(key.to_vec(), None);
+                if let Some(analytics) = &self.analytics {
+                    analytics.record_keyvalue(key, "read", op_start.elapsed().as_secs_f64());
+                }
                 return Ok(None);
             }
         };
@@ -183,10 +281,15 @@ impl Broker {
             // pinned per-resolve latency at per-RPC cost times groups).
             let phase = Instant::now();
             let digests: Vec<_> = missing.iter().map(|entry| entry.blob.clone()).collect();
-            let contents = self.remote.batch_read(&digests)?;
+            let contents = remote.batch_read(&digests)?;
+            let fetch_elapsed = phase.elapsed();
             state
                 .ms_fetch
-                .fetch_add(phase.elapsed().as_millis() as u64, Ordering::Relaxed);
+                .fetch_add(fetch_elapsed.as_millis() as u64, Ordering::Relaxed);
+            // The fetch is one batch RPC; attribute its wall time to each node in
+            // proportion to that node's compressed bytes for the per-node
+            // transfer analytics.
+            let total_compressed: i64 = missing.iter().map(|entry| entry.blob.size_bytes).sum::<i64>().max(1);
             for entry in &missing {
                 let Some(blob) = contents.get(&entry.blob.hash) else {
                     // Incomplete graph on the server: degrade to a miss (do
@@ -200,9 +303,31 @@ impl Broker {
                 let Some(node) = reapi::decode_frame(&frame) else {
                     return Ok(None);
                 };
+                let codec_elapsed = phase.elapsed();
                 state
                     .ms_decode
-                    .fetch_add(phase.elapsed().as_millis() as u64, Ordering::Relaxed);
+                    .fetch_add(codec_elapsed.as_millis() as u64, Ordering::Relaxed);
+                if let Some(analytics) = &self.analytics {
+                    let compressed = entry.blob.size_bytes;
+                    let transfer =
+                        fetch_elapsed.as_secs_f64() * (compressed as f64 / total_compressed as f64);
+                    let codec = codec_elapsed.as_secs_f64();
+                    // This node's own transfer, keyed by its content-digest hex
+                    // (which equals the checksum in its parent's reference).
+                    analytics.record_cas_output(
+                        &crate::analytics::hex_upper(&entry.llcas_digest),
+                        frame.len() as i64,
+                        compressed,
+                        transfer + codec,
+                        transfer,
+                        codec,
+                    );
+                    // The (casID -> checksum) references this node makes, for the
+                    // nodes table the server maps build-log node ids through.
+                    for (cas_id, hex) in crate::analytics::parse_cas_references(&node.data) {
+                        analytics.record_node(&cas_id, &hex);
+                    }
+                }
                 let phase = Instant::now();
                 unsafe { store_node(state, &node)? };
                 state
@@ -222,6 +347,9 @@ impl Broker {
             .lock()
             .unwrap()
             .insert(key.to_vec(), Some(value.clone()));
+        if let Some(analytics) = &self.analytics {
+            analytics.record_keyvalue(key, "read", op_start.elapsed().as_secs_f64());
+        }
         Ok(Some(value))
     }
 
@@ -255,9 +383,11 @@ impl Broker {
     }
 
     /// PUBLISH notify: queue the record for the publisher pool. Items encode
-    /// cas_path + record path.
-    fn enqueue_publish(&self, cas_path: &str, record_path: &str) {
-        let mut item = Vec::with_capacity(2 + cas_path.len() + record_path.len());
+    /// instance + cas_path + record path.
+    fn enqueue_publish(&self, cas_path: &str, instance: &str, record_path: &str) {
+        let mut item = Vec::with_capacity(4 + instance.len() + cas_path.len() + record_path.len());
+        item.extend_from_slice(&(instance.len() as u16).to_be_bytes());
+        item.extend_from_slice(instance.as_bytes());
         item.extend_from_slice(&(cas_path.len() as u16).to_be_bytes());
         item.extend_from_slice(cas_path.as_bytes());
         item.extend_from_slice(record_path.as_bytes());
@@ -265,15 +395,12 @@ impl Broker {
     }
 
     fn publish_item(&self, item: &[u8]) {
-        if item.len() < 2 {
-            return;
-        }
-        let path_len = u16::from_be_bytes([item[0], item[1]]) as usize;
-        if item.len() < 2 + path_len {
-            return;
-        }
-        let cas_path = String::from_utf8_lossy(&item[2..2 + path_len]).into_owned();
-        let record_path = String::from_utf8_lossy(&item[2 + path_len..]).into_owned();
+        let Some((instance, rest)) = take_u16_field(item) else { return };
+        let Some((cas_path, record_path)) = take_u16_field(rest) else { return };
+        let instance = String::from_utf8_lossy(instance).into_owned();
+        let cas_path = String::from_utf8_lossy(cas_path).into_owned();
+        let record_path = String::from_utf8_lossy(record_path).into_owned();
+        let remote = self.remote_for(&instance);
         let Ok(state) = self.path_state(&cas_path) else { return };
         let Ok(bytes) = std::fs::read(&record_path) else { return };
         let Some(record) =
@@ -282,7 +409,7 @@ impl Broker {
             let _ = std::fs::remove_file(&record_path);
             return;
         };
-        match self.publish(state, &record) {
+        match self.publish(&remote, state, &record) {
             Ok(()) => {
                 let _ = std::fs::remove_file(&record_path);
                 state.stats_published.fetch_add(1, Ordering::Relaxed);
@@ -298,8 +425,14 @@ impl Broker {
         }
     }
 
-    fn publish(&self, state: &'static PathState, record: &PublishRecord) -> Result<(), String> {
-        if let Ok(Some(manifest)) = self.remote.get_action(&record.key) {
+    fn publish(
+        &self,
+        remote: &Remote,
+        state: &'static PathState,
+        record: &PublishRecord,
+    ) -> Result<(), String> {
+        let op_start = Instant::now();
+        if let Ok(Some(manifest)) = remote.get_action(&record.key) {
             if manifest.first().map(|entry| entry.llcas_digest.as_slice())
                 == Some(record.value_digest.as_slice())
             {
@@ -333,14 +466,16 @@ impl Broker {
             blobs.push(Some(blob));
             pending.extend(children);
         }
-        let missing = self
-            .remote
-            .find_missing(entries.iter().map(|entry| entry.blob.clone()).collect())?;
+        let missing =
+            remote.find_missing(entries.iter().map(|entry| entry.blob.clone()).collect())?;
         let missing_set: HashSet<(String, i64)> = missing
             .into_iter()
             .map(|digest| (digest.hash, digest.size_bytes))
             .collect();
         let mut uploads: Vec<(reapi::Digest, Vec<u8>)> = Vec::new();
+        // (llcas_digest, uncompressed size, compressed size, node data) per
+        // uploaded node, recorded once the batch transfer time is known.
+        let mut upload_meta: Vec<(Vec<u8>, i64, i64, Vec<u8>)> = Vec::new();
         for (entry, blob) in entries.iter().zip(blobs) {
             if !missing_set.contains(&(entry.blob.hash.clone(), entry.blob.size_bytes)) {
                 continue;
@@ -349,18 +484,71 @@ impl Broker {
                 Some(bytes) => bytes,
                 None => unsafe { encode_node_blob(state, &entry.llcas_digest)?.0 },
             };
+            if self.analytics.is_some() {
+                let (size, data) = reapi::decompress_frame(&bytes)
+                    .and_then(|frame| reapi::decode_frame(&frame).map(|node| (frame.len(), node.data)))
+                    .unwrap_or((bytes.len(), Vec::new()));
+                upload_meta.push((entry.llcas_digest.clone(), size as i64, entry.blob.size_bytes, data));
+            }
             uploads.push((entry.blob.clone(), bytes));
         }
         if !uploads.is_empty() {
-            self.remote.batch_update(uploads)?;
+            let upload_start = Instant::now();
+            remote.batch_update(uploads)?;
+            if let Some(analytics) = &self.analytics {
+                let elapsed = upload_start.elapsed().as_secs_f64();
+                let total: i64 = upload_meta.iter().map(|(_, _, c, _)| c).sum::<i64>().max(1);
+                for (digest, size, compressed, data) in &upload_meta {
+                    let transfer = elapsed * (*compressed as f64 / total as f64);
+                    analytics.record_cas_output(
+                        &crate::analytics::hex_upper(digest),
+                        *size,
+                        *compressed,
+                        transfer,
+                        transfer,
+                        0.0,
+                    );
+                    for (cas_id, hex) in crate::analytics::parse_cas_references(data) {
+                        analytics.record_node(&cas_id, &hex);
+                    }
+                }
+            }
         }
-        self.remote.update_action(&record.key, &entries)
+        let result = remote.update_action(&record.key, &entries);
+        if let Some(analytics) = &self.analytics {
+            analytics.record_keyvalue(&record.key, "write", op_start.elapsed().as_secs_f64());
+        }
+        result
     }
 
-    /// Sweeps orphaned publication records for every known CAS path.
+    /// Clears any per-path cache grown past its bound. Called from the periodic
+    /// maintenance loop; a no-op while every map stays under its cap.
+    pub fn enforce_cache_bounds(&self) {
+        let states: Vec<&'static PathState> =
+            self.paths.lock().unwrap().values().copied().collect();
+        for state in states {
+            if state.resolved.lock().unwrap().len() > MAX_RESOLVED {
+                state.resolved.lock().unwrap().clear();
+            }
+            if state.publish_cache.lock().unwrap().len() > MAX_PUBLISH_CACHE {
+                state.publish_cache.lock().unwrap().clear();
+            }
+            for shard in &state.known_local {
+                if shard.lock().unwrap().len() > MAX_KNOWN_LOCAL_PER_SHARD {
+                    shard.lock().unwrap().clear();
+                }
+            }
+        }
+    }
+
+    /// Sweeps orphaned publication records for every known CAS path whose
+    /// instance the broker knows (an unprimed path has nothing to publish to).
     pub fn sweep(&self) {
         let paths: Vec<String> = self.paths.lock().unwrap().keys().cloned().collect();
         for cas_path in paths {
+            let Some(instance) = self.path_instance.lock().unwrap().get(&cas_path).cloned() else {
+                continue;
+            };
             let spool = std::path::Path::new(&cas_path).join("tuist-spool");
             let Ok(entries) = std::fs::read_dir(&spool) else { continue };
             for entry in entries.flatten() {
@@ -377,10 +565,17 @@ impl Broker {
                         }
                         None => entry.path(),
                     };
-                    self.enqueue_publish(&cas_path, &path.to_string_lossy());
+                    self.enqueue_publish(&cas_path, &instance, &path.to_string_lossy());
                 }
             }
         }
+    }
+
+    /// Proactively refreshes the bearer so a long-lived broker stays ahead of
+    /// token expiry. Called from the periodic maintenance loop; a no-op in
+    /// env-only (CI) mode.
+    pub fn refresh_token(&self) {
+        self.tokens.force_refresh();
     }
 
     pub fn stats_line(&self) -> String {
@@ -416,11 +611,23 @@ impl Broker {
 
     fn handle(&self, mut stream: UnixStream) -> std::io::Result<()> {
         let request: Request = read_request(&mut stream)?;
+        // A plugin from a different CLI version speaks a different frame layout;
+        // reject rather than misparse, so the plugin degrades to a local miss.
+        if request.version != crate::broker_proto::PROTOCOL_VERSION {
+            return write_response(&mut stream, STATUS_ERROR, b"broker protocol version mismatch");
+        }
         match request.op {
             OP_RESOLVE => {
+                let Some(instance) = self.resolve_instance(&request.cas_path, &request.instance)
+                else {
+                    // Unprimed ⌘B build: no instance to route to. Degrade to a
+                    // miss so the compiler proceeds on the local CAS.
+                    return write_response(&mut stream, STATUS_MISS, &[]);
+                };
+                let remote = self.remote_for(&instance);
                 let outcome = self
                     .path_state(&request.cas_path)
-                    .and_then(|state| self.resolve(state, &request.payload));
+                    .and_then(|state| self.resolve(&remote, state, &request.payload));
                 match outcome {
                     Ok(Some(value)) => write_response(&mut stream, STATUS_HIT, &value),
                     Ok(None) => write_response(&mut stream, STATUS_MISS, &[]),
@@ -431,13 +638,44 @@ impl Broker {
                 }
             }
             OP_PUBLISH => {
-                let record_path = String::from_utf8_lossy(&request.payload).into_owned();
-                self.enqueue_publish(&request.cas_path, &record_path);
+                // Ack even when unprimed: the record stays spooled for a later
+                // sweep once a build primes the instance.
+                if let Some(instance) = self.resolve_instance(&request.cas_path, &request.instance) {
+                    let record_path = String::from_utf8_lossy(&request.payload).into_owned();
+                    self.enqueue_publish(&request.cas_path, &instance, &record_path);
+                }
                 write_response(&mut stream, STATUS_HIT, &[])
             }
             _ => write_response(&mut stream, STATUS_ERROR, b"bad op"),
         }
     }
+}
+
+/// Reads a `u16`-length-prefixed field from the front of `buf`, returning it
+/// and the remainder. `None` if the buffer is truncated.
+fn take_u16_field(buf: &[u8]) -> Option<(&[u8], &[u8])> {
+    if buf.len() < 2 {
+        return None;
+    }
+    let len = u16::from_be_bytes([buf[0], buf[1]]) as usize;
+    let rest = &buf[2..];
+    if rest.len() < len {
+        return None;
+    }
+    Some((&rest[..len], &rest[len..]))
+}
+
+/// Loads the persisted `cas_path -> instance` registry (tab-separated lines).
+fn load_registry(path: &Path) -> HashMap<String, String> {
+    let mut map = HashMap::new();
+    if let Ok(body) = std::fs::read_to_string(path) {
+        for line in body.lines() {
+            if let Some((cas_path, instance)) = line.split_once('\t') {
+                map.insert(cas_path.to_string(), instance.to_string());
+            }
+        }
+    }
+    map
 }
 
 unsafe fn open_cas(up: &'static Upstream, path: &str) -> Result<llcas_cas_t, String> {

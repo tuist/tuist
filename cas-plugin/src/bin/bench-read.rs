@@ -6,13 +6,14 @@
 use std::time::Instant;
 
 use tuist_cas_plugin::reapi::{blob_digest, Remote, RemoteConfig};
+use tuist_cas_plugin::token::TokenProvider;
 
 fn main() {
     let Some(config) = RemoteConfig::from_env() else {
         eprintln!("TUIST_CAS_REMOTE_GRPC_URL required");
         std::process::exit(2);
     };
-    let remote = Remote::new(config);
+    let remote = Remote::new(config, TokenProvider::from_env());
 
     // Seed 480 blobs of ~16KB with distinct content.
     let mut blobs = Vec::new();

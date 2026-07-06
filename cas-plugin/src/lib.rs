@@ -7,10 +7,12 @@
 //! traffic. Interception is deliberately not keyed on the `globally` flag,
 //! which is never set on this path.
 
+pub mod analytics;
 pub mod broker;
 pub mod broker_proto;
 pub mod prefetch;
 pub mod reapi;
+pub mod token;
 pub mod types;
 pub mod upstream;
 
@@ -21,6 +23,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use broker_proto::{BrokerClient, Resolution};
 use prefetch::Prefetcher;
 use reapi::{ManifestEntry, OpStats, Remote, RemoteConfig};
+use token::TokenProvider;
 use types::*;
 use upstream::Upstream;
 
@@ -156,6 +159,40 @@ impl PublishRecord {
     }
 }
 
+/// Reads a boolean env var, treating unset as `default` and `0`/`false`/`no`/`off`
+/// (case-insensitive) as false; any other value is true.
+fn env_bool(name: &str, default: bool) -> bool {
+    match std::env::var(name) {
+        Ok(value) => !matches!(
+            value.trim().to_ascii_lowercase().as_str(),
+            "0" | "false" | "no" | "off"
+        ),
+        Err(_) => default,
+    }
+}
+
+/// The well-known per-machine broker socket. Both the plugin (as its ⌘B
+/// fallback) and the broker binary (as its default bind path) resolve it, so
+/// an Xcode ⌘B build with no CLI environment still finds a running broker. A
+/// per-user path keeps the socket off the world-readable `/tmp`.
+pub fn default_broker_socket() -> String {
+    match std::env::var("HOME") {
+        Ok(home) if !home.is_empty() => format!("{home}/.tuist/cas-broker.sock"),
+        _ => "/tmp/tuist-cas-broker.sock".to_string(),
+    }
+}
+
+/// The value of a plugin option the build system passed to `set_option`
+/// (e.g. `tuist-instance`), or `None` when absent or empty.
+fn option_value(state: &OptionsState, name: &str) -> Option<String> {
+    state
+        .options
+        .iter()
+        .find(|(option_name, _)| option_name.to_string_lossy() == name)
+        .map(|(_, value)| value.to_string_lossy().into_owned())
+        .filter(|value| !value.is_empty())
+}
+
 struct CasState {
     up: &'static Upstream,
     cas: llcas_cas_t,
@@ -163,9 +200,14 @@ struct CasState {
     // Broker mode: all remote work is delegated to the per-machine broker
     // over a unix socket; this process runs no gRPC client at all.
     broker: Option<BrokerClient>,
-    // Diagnostic experiment switch: with TUIST_CAS_READONLY set, nothing is
-    // published (no entry or node uploads); the read path is unchanged.
-    readonly: bool,
+    // The account/project this build's cache belongs to, declared to the broker
+    // so it routes to the right instance. Empty for an Xcode ⌘B build (no CLI
+    // env); the broker then falls back to its primed cas_path mapping.
+    broker_instance: String,
+    // Upload policy from `xcodeCache(upload:)`. When false, read hits still work
+    // but no value graphs are published (the read path is unchanged). Controlled
+    // by TUIST_CAS_UPLOAD (default true; set false to disable uploads).
+    upload: bool,
     created_at: std::time::Instant,
     cas_dir: Option<std::path::PathBuf>,
     sweeper: Mutex<Option<std::thread::JoinHandle<()>>>,
@@ -395,10 +437,36 @@ pub unsafe extern "C" fn llcas_cas_create(
         return std::ptr::null_mut();
     }
 
-    let broker = std::env::var("TUIST_CAS_BROKER_SOCKET")
+    let explicit_socket = std::env::var("TUIST_CAS_BROKER_SOCKET")
         .ok()
+        .filter(|socket| !socket.is_empty());
+    let has_direct_endpoint = std::env::var("TUIST_CAS_REMOTE_GRPC_URL").is_ok();
+    // Broker mode when a socket is given, or (the Xcode ⌘B case, which carries
+    // no CLI environment) when no direct endpoint is configured: fall back to
+    // the well-known broker socket so a running broker is used, else the
+    // connect fails and we degrade to the local CAS. Direct mode is bench-only.
+    let broker = explicit_socket
+        .or_else(|| (!has_direct_endpoint).then(default_broker_socket))
         .map(|socket_path| BrokerClient { socket_path });
-    let remote = if broker.is_some() { None } else { RemoteConfig::from_env().map(Remote::new) };
+    // The account/project this build's cache belongs to, routed to the broker.
+    // Prefer the `tuist-instance` plugin option (baked into build settings by
+    // `tuist generate`, so it reaches every compiler frontend including an Xcode
+    // ⌘B build that carries no CLI environment); fall back to the CLI env, then
+    // empty (the broker resolves the instance from its registry).
+    let broker_instance = option_value(state, "tuist-instance").unwrap_or_else(|| {
+        match (
+            std::env::var("TUIST_CAS_ACCOUNT"),
+            std::env::var("TUIST_CAS_PROJECT"),
+        ) {
+            (Ok(account), Ok(project)) => format!("{account}/{project}"),
+            _ => String::new(),
+        }
+    });
+    let remote = if broker.is_some() {
+        None
+    } else {
+        RemoteConfig::from_env().map(|config| Remote::new(config, TokenProvider::from_env()))
+    };
     let has_remote = remote.is_some();
     let cas_dir = state
         .ondisk_path
@@ -410,7 +478,8 @@ pub unsafe extern "C" fn llcas_cas_create(
         cas: upstream_cas,
         remote,
         broker,
-        readonly: std::env::var("TUIST_CAS_READONLY").is_ok(),
+        broker_instance,
+        upload: env_bool("TUIST_CAS_UPLOAD", true),
         created_at: std::time::Instant::now(),
         cas_dir,
         sweeper: Mutex::new(None),
@@ -989,7 +1058,7 @@ unsafe fn actioncache_get_impl(
             .as_ref()
             .map(|dir| dir.to_string_lossy().into_owned())
             .unwrap_or_default();
-        match client.resolve(&cas_path, key) {
+        match client.resolve(&cas_path, &state.broker_instance, key) {
             Ok(Resolution::Hit(value_digest)) => {
                 state.stats_remote_entry_hits.fetch_add(1, Ordering::Relaxed);
                 let value_digest_t =
@@ -1200,7 +1269,7 @@ pub unsafe extern "C" fn llcas_actioncache_get_for_digest_async(
 }
 
 unsafe fn actioncache_put_remote(state: &CasState, key: &[u8], value: llcas_objectid_t) {
-    if state.broker.is_some() && !state.readonly {
+    if state.broker.is_some() && state.upload {
         let value_digest = digest_bytes(state, value);
         if !state
             .published
@@ -1219,12 +1288,12 @@ unsafe fn actioncache_put_remote(state: &CasState, key: &[u8], value: llcas_obje
                 .unwrap_or_default();
             if let Some(client) = &state.broker {
                 // Failure is fine: the record survives for the broker sweep.
-                let _ = client.publish(&cas_path, &path.to_string_lossy());
+                let _ = client.publish(&cas_path, &state.broker_instance, &path.to_string_lossy());
             }
         }
         return;
     }
-    if state.remote.is_some() && !state.readonly {
+    if state.remote.is_some() && state.upload {
         if std::env::var("TUIST_CAS_LOG_PUTS").is_ok() {
             let mut hex = String::with_capacity(key.len() * 2);
             for byte in key {

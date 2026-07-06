@@ -68,45 +68,51 @@ struct SetupCacheCommandService {
             throw SetupCacheCommandServiceError.notAuthenticated
         }
 
-        var programArguments = [
-            "cache-start",
-            fullHandle,
-        ]
+        let accountHandle = fullHandle.split(separator: "/").first.map(String.init)
 
-        programArguments.append(contentsOf: ["--url", serverURL.absoluteString])
-
-        if !config.xcodeCache.upload {
-            programArguments.append("--no-upload")
+        var programArguments = ["cache-broker", "--url", serverURL.absoluteString]
+        if let accountHandle {
+            programArguments.append(contentsOf: ["--account", accountHandle])
         }
 
         var environmentVariables: [String: String] = [:]
+        // The broker fetches and refreshes its bearer itself by shelling out to
+        // `tuist auth token`. On CI, where the credential is an environment
+        // token rather than a keychain session, seed it directly.
         if let token = Environment.current.tuistVariables[Constants.EnvironmentVariables.token] {
-            environmentVariables["TUIST_TOKEN"] = token
+            environmentVariables["TUIST_CAS_TOKEN"] = token
         } else if let token = Environment.current.tuistVariables[Constants.EnvironmentVariables.deprecatedToken] {
             AlertController.current
                 .warning("Use `TUIST_TOKEN` environment variable instead of `TUIST_CONFIG_TOKEN` to authenticate on the CI")
-            environmentVariables["TUIST_TOKEN"] = token
+            environmentVariables["TUIST_CAS_TOKEN"] = token
         }
 
-        // The cache daemon runs as a launchd agent that does not inherit the
-        // caller's environment. Forward the client feature flags so it behaves
-        // consistently with the rest of the CLI.
+        // The broker runs as a launchd agent that does not inherit the caller's
+        // environment. Request kura (REAPI) endpoints, and forward the client
+        // feature flags so endpoint resolution matches the rest of the CLI.
+        environmentVariables["TUIST_FEATURE_FLAG_KURA"] = "1"
         for (key, value) in ClientFeatureFlags.environmentVariables() {
             environmentVariables[key] = value
         }
 
         // Forward the cache-endpoint override. The runner-cache dispatch hands
         // runners the private-network cache as a hard TUIST_CACHE_ENDPOINT
-        // override (which the module cache already honors); the daemon needs it
-        // explicitly, or the Xcode CAS keeps resolving the public endpoint via
-        // getCacheEndpoints while the module cache uses the private one. The
-        // feature flags above are not enough on their own: getCacheEndpoints
-        // returns the public, CLI-facing endpoint regardless of the kura flag.
+        // override, which CacheURLStore honors when the broker resolves its
+        // endpoint at launch.
         if let cacheEndpoint = Environment.current.variables["TUIST_CACHE_ENDPOINT"] {
             environmentVariables["TUIST_CACHE_ENDPOINT"] = cacheEndpoint
         }
 
-        let label = Environment.current.cacheLaunchAgentLabel(for: fullHandle)
+        // One broker per machine, multiplexing every project by instance — not a
+        // per-project daemon. Boot out any legacy per-project cache daemon so the
+        // two do not both run.
+        let legacyLabel = Environment.current.cacheLaunchAgentLabel(for: fullHandle)
+        try? await launchAgentService.teardownLaunchAgent(
+            label: legacyLabel,
+            plistFileName: "\(legacyLabel).plist"
+        )
+
+        let label = Environment.current.casBrokerLaunchAgentLabel()
 
         try await launchAgentService.setupLaunchAgent(
             label: label,
@@ -114,8 +120,6 @@ struct SetupCacheCommandService {
             programArguments: programArguments,
             environmentVariables: environmentVariables
         )
-
-        let socketPath = Environment.current.cacheSocketPathString(for: fullHandle)
 
         if try await manifestLoader.hasRootManifest(at: path) {
             if let generationOptions = config.project.generatedProject?.generationOptions,
@@ -126,7 +130,7 @@ struct SetupCacheCommandService {
                         "Xcode Cache has been enabled 🎉",
                         takeaways: [
                             "Learn more in the \(.link(title: "Xcode cache docs", href: "https://tuist.dev/en/docs/guides/features/cache/xcode-cache"))",
-                            "Xcode talks to the cache daemon over the socket at \(.accent(socketPath))",
+                            "The cache broker is running; `tuist generate` wires the compilation-cache plugin into your project automatically",
                         ]
                     )
                 )
@@ -146,7 +150,7 @@ struct SetupCacheCommandService {
                         )
                     )
 
-                    Xcode talks to the cache daemon over the socket at: \(socketPath)
+                    The cache broker is running; `tuist generate` will wire the compilation-cache plugin into your project.
                     """
                 )
             }
@@ -155,13 +159,12 @@ struct SetupCacheCommandService {
                 """
                 Xcode Cache setup is almost complete!
 
-                To finish the setup, set the following build settings in Xcode projects that you want to use caching for:
+                The cache broker is running. For projects not generated by Tuist, set the following build
+                settings in the Xcode projects you want to use caching for (see the Xcode cache docs for the
+                plugin path):
                 COMPILATION_CACHE_ENABLE_CACHING=YES
-                COMPILATION_CACHE_REMOTE_SERVICE_PATH=\(socketPath)
                 COMPILATION_CACHE_ENABLE_PLUGIN=YES
-                COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
-
-                Note that `COMPILATION_CACHE_REMOTE_SERVICE_PATH` and `COMPILATION_CACHE_ENABLE_PLUGIN` are currently not directly exposed by Xcode and you need to manually add these as user-defined build settings.
+                COMPILATION_CACHE_PLUGIN_PATH=<path to libtuist_cas_plugin.dylib>
                 """
             )
         }

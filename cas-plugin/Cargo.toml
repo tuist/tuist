@@ -20,10 +20,15 @@ libloading = "0.8"
 zstd = "0.13"
 libc = "0.2"
 bazel-remote-apis = "0.27.0"
-tonic = "0.14.2"
+tonic = { version = "0.14.2", features = ["tls-ring", "tls-native-roots"] }
 prost = "0.14.1"
 sha2 = "0.10"
 tokio = { version = "1.48", features = ["rt-multi-thread", "time"] }
+# Analytics parity with the legacy daemon: the broker writes cas_analytics.db,
+# read by the server's xcactivitylog NIF. `bundled` compiles SQLite in, so the
+# universal build has no system dependency.
+rusqlite = { version = "0.32", features = ["bundled"] }
+base64 = "0.22"
 
 [profile.release]
 opt-level = 2

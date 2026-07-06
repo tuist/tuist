@@ -2,8 +2,15 @@
 //! per-machine broker, over a unix domain socket.
 //!
 //! One request per connection, length-prefixed:
-//!   request  = u8 op | u16 cas_path_len | cas_path | u16 payload_len | payload
+//!   request  = u8 op | u16 cas_path_len | cas_path | u16 instance_len |
+//!              instance | u16 payload_len | payload
 //!   response = u8 status | u16 body_len | body
+//!
+//! `instance` is the `account/project` the connection's cache belongs to. It
+//! routes the request to the right per-instance remote in the machine-wide
+//! broker. tuist-driven builds pass it (from the CLI's env); an empty instance
+//! (an Xcode ⌘B build, which has no CLI env) tells the broker to fall back to
+//! the `cas_path -> instance` mapping a prior build primed.
 //!
 //! RESOLVE (op 1): payload = action key digest bytes. status 1 = hit (body =
 //! value llcas digest, materialized into the local CAS before replying),
@@ -15,6 +22,12 @@ use std::io::{Read, Write};
 use std::os::unix::net::UnixStream;
 use std::time::Duration;
 
+/// Bumped on any incompatible change to the frame layout below. The broker
+/// rejects a mismatched version (→ the plugin degrades to a local miss) instead
+/// of misparsing, so a stale broker left running across a CLI upgrade can't
+/// corrupt a build.
+pub const PROTOCOL_VERSION: u8 = 1;
+
 pub const OP_RESOLVE: u8 = 1;
 pub const OP_PUBLISH: u8 = 2;
 
@@ -23,36 +36,47 @@ pub const STATUS_HIT: u8 = 1;
 pub const STATUS_ERROR: u8 = 2;
 
 pub struct Request {
+    pub version: u8,
     pub op: u8,
     pub cas_path: String,
+    pub instance: String,
     pub payload: Vec<u8>,
 }
 
+fn read_u16_field(stream: &mut UnixStream) -> std::io::Result<Vec<u8>> {
+    let mut len = [0u8; 2];
+    stream.read_exact(&mut len)?;
+    let mut field = vec![0u8; u16::from_be_bytes(len) as usize];
+    stream.read_exact(&mut field)?;
+    Ok(field)
+}
+
 pub fn write_request(stream: &mut UnixStream, request: &Request) -> std::io::Result<()> {
-    let mut frame = Vec::with_capacity(5 + request.cas_path.len() + request.payload.len());
+    let mut frame = Vec::with_capacity(
+        8 + request.cas_path.len() + request.instance.len() + request.payload.len(),
+    );
+    frame.push(request.version);
     frame.push(request.op);
     frame.extend_from_slice(&(request.cas_path.len() as u16).to_be_bytes());
     frame.extend_from_slice(request.cas_path.as_bytes());
+    frame.extend_from_slice(&(request.instance.len() as u16).to_be_bytes());
+    frame.extend_from_slice(request.instance.as_bytes());
     frame.extend_from_slice(&(request.payload.len() as u16).to_be_bytes());
     frame.extend_from_slice(&request.payload);
     stream.write_all(&frame)
 }
 
 pub fn read_request(stream: &mut UnixStream) -> std::io::Result<Request> {
-    let mut header = [0u8; 3];
+    let mut header = [0u8; 2];
     stream.read_exact(&mut header)?;
-    let op = header[0];
-    let path_len = u16::from_be_bytes([header[1], header[2]]) as usize;
-    let mut path = vec![0u8; path_len];
-    stream.read_exact(&mut path)?;
-    let mut len = [0u8; 2];
-    stream.read_exact(&mut len)?;
-    let payload_len = u16::from_be_bytes(len) as usize;
-    let mut payload = vec![0u8; payload_len];
-    stream.read_exact(&mut payload)?;
+    let cas_path = read_u16_field(stream)?;
+    let instance = read_u16_field(stream)?;
+    let payload = read_u16_field(stream)?;
     Ok(Request {
-        op,
-        cas_path: String::from_utf8_lossy(&path).into_owned(),
+        version: header[0],
+        op: header[1],
+        cas_path: String::from_utf8_lossy(&cas_path).into_owned(),
+        instance: String::from_utf8_lossy(&instance).into_owned(),
         payload,
     })
 }
@@ -94,13 +118,15 @@ impl BrokerClient {
         Ok(stream)
     }
 
-    pub fn resolve(&self, cas_path: &str, key: &[u8]) -> Result<Resolution, String> {
+    pub fn resolve(&self, cas_path: &str, instance: &str, key: &[u8]) -> Result<Resolution, String> {
         let mut stream = self.connect().map_err(|e| format!("broker connect: {e}"))?;
         write_request(
             &mut stream,
             &Request {
+                version: PROTOCOL_VERSION,
                 op: OP_RESOLVE,
                 cas_path: cas_path.to_string(),
+                instance: instance.to_string(),
                 payload: key.to_vec(),
             },
         )
@@ -113,13 +139,15 @@ impl BrokerClient {
         }
     }
 
-    pub fn publish(&self, cas_path: &str, record_path: &str) -> Result<(), String> {
+    pub fn publish(&self, cas_path: &str, instance: &str, record_path: &str) -> Result<(), String> {
         let mut stream = self.connect().map_err(|e| format!("broker connect: {e}"))?;
         write_request(
             &mut stream,
             &Request {
+                version: PROTOCOL_VERSION,
                 op: OP_PUBLISH,
                 cas_path: cas_path.to_string(),
+                instance: instance.to_string(),
                 payload: record_path.as_bytes().to_vec(),
             },
         )
@@ -130,5 +158,49 @@ impl BrokerClient {
         } else {
             Err(format!("broker publish: {}", String::from_utf8_lossy(&body)))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn round_trip(request: &Request) -> Request {
+        let (mut writer, mut reader) = UnixStream::pair().unwrap();
+        write_request(&mut writer, request).unwrap();
+        read_request(&mut reader).unwrap()
+    }
+
+    #[test]
+    fn request_round_trips_with_declared_instance() {
+        let read = round_trip(&Request {
+            version: PROTOCOL_VERSION,
+            op: OP_RESOLVE,
+            cas_path: "/dd/App-abc/CompilationCache.noindex/plugin".to_string(),
+            instance: "acme/app".to_string(),
+            payload: vec![0xde, 0xad, 0xbe, 0xef],
+        });
+        assert_eq!(read.version, PROTOCOL_VERSION);
+        assert_eq!(read.op, OP_RESOLVE);
+        assert_eq!(read.cas_path, "/dd/App-abc/CompilationCache.noindex/plugin");
+        assert_eq!(read.instance, "acme/app");
+        assert_eq!(read.payload, vec![0xde, 0xad, 0xbe, 0xef]);
+    }
+
+    #[test]
+    fn request_round_trips_with_empty_instance() {
+        // The Xcode ⌘B case: no CLI env, so the plugin declares no instance and
+        // the broker must still parse the frame (and fall back to its registry).
+        let read = round_trip(&Request {
+            version: PROTOCOL_VERSION,
+            op: OP_PUBLISH,
+            cas_path: "/dd/App-abc".to_string(),
+            instance: String::new(),
+            payload: b"/spool/record".to_vec(),
+        });
+        assert_eq!(read.op, OP_PUBLISH);
+        assert_eq!(read.cas_path, "/dd/App-abc");
+        assert!(read.instance.is_empty());
+        assert_eq!(read.payload, b"/spool/record");
     }
 }

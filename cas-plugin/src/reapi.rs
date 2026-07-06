@@ -25,7 +25,9 @@ use bazel_remote_apis::build::bazel::remote::execution::v2::{
 };
 pub use bazel_remote_apis::build::bazel::remote::execution::v2::Digest;
 use sha2::{Digest as _, Sha256};
-use tonic::transport::{Channel, Endpoint};
+use tonic::transport::{Channel, ClientTlsConfig, Endpoint};
+
+use crate::token::TokenProvider;
 
 #[derive(Default)]
 pub struct OpStats {
@@ -132,6 +134,7 @@ fn runtime() -> &'static tokio::runtime::Runtime {
 
 pub struct Remote {
     config: RemoteConfig,
+    tokens: Arc<TokenProvider>,
     channel: OnceLock<Result<Channel, String>>,
     pub get_stats: OpStats,
     pub post_stats: OpStats,
@@ -147,20 +150,44 @@ fn retryable(status: &tonic::Status) -> bool {
     )
 }
 
+type AuthValue = tonic::metadata::MetadataValue<tonic::metadata::Ascii>;
+
+/// Wraps a message in a `tonic::Request`, attaching the bearer when present.
+fn authed_request<T>(message: T, auth: Option<&AuthValue>) -> tonic::Request<T> {
+    let mut request = tonic::Request::new(message);
+    if let Some(value) = auth {
+        request.metadata_mut().insert("authorization", value.clone());
+    }
+    request
+}
+
 impl Remote {
-    pub fn new(config: RemoteConfig) -> Arc<Self> {
+    pub fn new(config: RemoteConfig, tokens: Arc<TokenProvider>) -> Arc<Self> {
         Arc::new(Self {
             config,
+            tokens,
             channel: OnceLock::new(),
             get_stats: OpStats::default(),
             post_stats: OpStats::default(),
         })
     }
 
+    /// The `authorization: Bearer <token>` header, or `None` when the endpoint
+    /// is unauthenticated. Cloned onto every request so the spawned batch-read
+    /// tasks stay self-contained.
+    fn authorization(&self) -> Option<AuthValue> {
+        let token = self.tokens.current()?;
+        AuthValue::try_from(format!("Bearer {token}")).ok()
+    }
+
+    fn authed<T>(&self, message: T) -> tonic::Request<T> {
+        authed_request(message, self.authorization().as_ref())
+    }
+
     fn channel(&self) -> Result<Channel, String> {
         self.channel
             .get_or_init(|| {
-                let endpoint = Endpoint::from_shared(self.config.grpc_url.clone())
+                let mut endpoint = Endpoint::from_shared(self.config.grpc_url.clone())
                     .map_err(|e| format!("bad grpc url: {e}"))?
                     .connect_timeout(Duration::from_secs(5))
                     .timeout(RPC_TIMEOUT)
@@ -176,6 +203,13 @@ impl Remote {
                     // vs ~1ms server-side).
                     .initial_stream_window_size(Some(16 * 1024 * 1024))
                     .initial_connection_window_size(Some(64 * 1024 * 1024));
+                // Public kura endpoints are https (TLS with the system trust
+                // store); private-network endpoints stay plaintext h2c.
+                if self.config.grpc_url.starts_with("https://") {
+                    endpoint = endpoint
+                        .tls_config(ClientTlsConfig::new().with_native_roots())
+                        .map_err(|e| format!("tls config: {e}"))?;
+                }
                 runtime()
                     .block_on(endpoint.connect())
                     .map_err(|e| format!("grpc connect: {e}"))
@@ -205,7 +239,7 @@ impl Remote {
             };
             for attempt in 0..ATTEMPTS {
                 let response =
-                    runtime().block_on(client.get_action_result(request.clone()));
+                    runtime().block_on(client.get_action_result(self.authed(request.clone())));
                 match response {
                     Ok(response) => {
                         let manifest = response
@@ -243,11 +277,13 @@ impl Remote {
         let result = (|| {
             let client = self.cas_client()?;
             let instance = self.config.instance.clone();
+            let auth = self.authorization();
             let chunks = chunk_digests(blobs);
             let outcomes = runtime().block_on(async {
                 let mut join_set = tokio::task::JoinSet::new();
                 for chunk in &chunks {
                     let mut client = client.clone();
+                    let auth = auth.clone();
                     let request = reapi::BatchReadBlobsRequest {
                         instance_name: instance.clone(),
                         digests: chunk.to_vec(),
@@ -256,7 +292,10 @@ impl Remote {
                     join_set.spawn(async move {
                         let mut last_error = String::new();
                         for attempt in 0..ATTEMPTS {
-                            match client.batch_read_blobs(request.clone()).await {
+                            match client
+                                .batch_read_blobs(authed_request(request.clone(), auth.as_ref()))
+                                .await
+                            {
                                 Ok(response) => return Ok(response.into_inner().responses),
                                 Err(status) if retryable(&status) && attempt + 1 < ATTEMPTS => {
                                     last_error = status.to_string();
@@ -304,7 +343,7 @@ impl Remote {
             };
             let mut last_error = String::new();
             for attempt in 0..ATTEMPTS {
-                match runtime().block_on(client.find_missing_blobs(request.clone())) {
+                match runtime().block_on(client.find_missing_blobs(self.authed(request.clone()))) {
                     Ok(response) => return Ok(response.into_inner().missing_blob_digests),
                     Err(status) if retryable(&status) && attempt + 1 < ATTEMPTS => {
                         last_error = status.to_string();
@@ -351,7 +390,7 @@ impl Remote {
                 let mut last_error = String::new();
                 let mut done = false;
                 for attempt in 0..ATTEMPTS {
-                    match runtime().block_on(client.batch_update_blobs(request.clone())) {
+                    match runtime().block_on(client.batch_update_blobs(self.authed(request.clone()))) {
                         Ok(response) => {
                             for entry in response.into_inner().responses {
                                 if let Some(status) = entry.status {
@@ -407,7 +446,7 @@ impl Remote {
             };
             let mut last_error = String::new();
             for attempt in 0..ATTEMPTS {
-                match runtime().block_on(client.update_action_result(request.clone())) {
+                match runtime().block_on(client.update_action_result(self.authed(request.clone()))) {
                     Ok(_) => return Ok(()),
                     Err(status) if retryable(&status) && attempt + 1 < ATTEMPTS => {
                         last_error = status.to_string();

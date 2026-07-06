@@ -38,7 +38,9 @@ Once you have a `Tuist.swift` file referencing your `fullHandle`, you can set up
 tuist setup cache
 ```
 
-This command creates a [LaunchAgent](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html) to run a local cache service on startup that the Swift [build system](https://github.com/swiftlang/swift-build) uses to share compilation artifacts. This command needs to be run once in both your local and CI environments.
+This command creates a [LaunchAgent](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html) that runs the Tuist cache broker: a single per-machine process that brokers compilation artifacts between the Swift [build system](https://github.com/swiftlang/swift-build) and Tuist's remote cache for every project on the machine. This command needs to be run once in both your local and CI environments.
+
+The build system talks to the broker through the Tuist compilation-cache plugin (`libtuist_cas_plugin.dylib`, shipped next to the `tuist` binary), which owns all remote traffic in-process. When the broker or the remote cache is unreachable, the plugin degrades to a local cache miss and the build proceeds at no-cache speed, so a missing broker never hangs a build.
 
 To set up the cache on the CI, make sure you are <.localized_link href="/guides/integrations/continuous-integration#authentication">authenticated</.localized_link>.
 
@@ -48,26 +50,20 @@ Add the following build settings to your Xcode project:
 
 ```
 COMPILATION_CACHE_ENABLE_CACHING = YES
-COMPILATION_CACHE_REMOTE_SERVICE_PATH = $HOME/.local/state/tuist/your_org_your_project.sock
 COMPILATION_CACHE_ENABLE_PLUGIN = YES
+COMPILATION_CACHE_PLUGIN_PATH = <path to libtuist_cas_plugin.dylib>
 COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
 ```
 
-Note that `COMPILATION_CACHE_REMOTE_SERVICE_PATH` and `COMPILATION_CACHE_ENABLE_PLUGIN` need to be added as **user-defined build settings** since they're not directly exposed in Xcode's build settings UI:
-
-> [!NOTE]
-> **Socket Path**
->
-> The socket path will be displayed when you run `tuist setup cache`. It's based on your project's full handle with slashes replaced by underscores.
-
+`COMPILATION_CACHE_PLUGIN_PATH` points at the Tuist compilation-cache plugin, which ships next to the `tuist` binary (for a Homebrew install, `$(dirname $(which tuist))/libtuist_cas_plugin.dylib`). The plugin finds the running broker automatically, so there is no socket path to configure. Note that `COMPILATION_CACHE_ENABLE_PLUGIN` and `COMPILATION_CACHE_PLUGIN_PATH` need to be added as **user-defined build settings** since they're not directly exposed in Xcode's build settings UI.
 
 You can also specify these settings when running `xcodebuild` by adding the following flags, such as:
 
 ```
 xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
     COMPILATION_CACHE_ENABLE_CACHING=YES \
-    COMPILATION_CACHE_REMOTE_SERVICE_PATH=$HOME/.local/state/tuist/your_org_your_project.sock \
     COMPILATION_CACHE_ENABLE_PLUGIN=YES \
+    COMPILATION_CACHE_PLUGIN_PATH=<path to libtuist_cas_plugin.dylib> \
     COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
 ```
 
@@ -160,61 +156,27 @@ See the <.localized_link href="/guides/integrations/continuous-integration">Cont
 
 ## Troubleshooting {#troubleshooting}
 
-### Builds are extremely slow and emit `CAS error: deadlineExceeded` warnings {#cas-deadline-exceeded}
+### Builds hang with `CAS error: deadlineExceeded` warnings {#cas-deadline-exceeded}
 
-If your builds take much longer than expected and the Xcode build log is full of warnings like:
+A build log full of warnings like:
 
 ```
 Warning: CAS error: deadlineExceeded(connectionError: Optional(connect(descriptor:addr:size:): Connection refused (errno: 61)))
 note: cache key query failed
 ```
 
-or:
+is specific to the **legacy remote-service setup**, where `COMPILATION_CACHE_REMOTE_SERVICE_PATH` pointed Xcode's built-in plugin at a local daemon socket. When that socket was unreachable, Xcode retried the connection on every compilation-cache request rather than failing fast — behavior implemented inside Xcode that Tuist cannot configure — which could make a build take an hour or more.
 
-```
-Warning: CAS error: deadlineExceeded(connectionError: Optional(connect(descriptor:addr:size:): No such file or directory (errno: 2)))
-```
+The Tuist compilation-cache plugin (`COMPILATION_CACHE_PLUGIN_PATH`) does not have this failure mode. It owns remote traffic in-process and degrades to a local cache miss when the broker or the remote cache is unreachable, so the build proceeds at no-cache speed instead of hanging.
 
-then the Xcode cache daemon (the local socket started by `tuist setup cache`) is not reachable. When the daemon is down, Xcode retries the connection on every compilation cache request rather than failing fast, which can make a build take an hour or more. This retry behavior is implemented inside Xcode and cannot be configured by Tuist, so the only fix is to make sure the daemon is running.
+**If you see this warning**, you are still on the remote-service-path setup. Remove `COMPILATION_CACHE_REMOTE_SERVICE_PATH` and switch to the plugin: run `tuist setup cache` (which installs the broker), and for generated projects regenerate with `enableCaching: true` (it wires `COMPILATION_CACHE_PLUGIN_PATH` automatically), or set the build settings from [Configure Xcode Build Settings](#configure-xcode-build-settings) manually.
 
-> [!WARNING]
-> **Xcode cannot be told to fail fast**
->
-> Tuist only provides the local socket Xcode communicates with. When the socket is unreachable, Xcode decides to keep retrying with a deadline per task, and that behavior is not something we can override. If you are not actively using the Xcode cache, disable it rather than leaving the build settings enabled without a running daemon.
+**If you are not using the Xcode cache at all**, remove the `COMPILATION_CACHE_*` build settings, set `enableCaching: false` (or leave it unset) in your `Tuist.swift`, and run `tuist teardown cache` to unload the broker LaunchAgent.
 
-**If you are not using the Xcode cache**, remove the `COMPILATION_CACHE_*` build settings and set `enableCaching: false` (or leave it unset) in your `Tuist.swift` so Xcode does not attempt CAS queries at all. You can also run `tuist teardown cache` to unload the LaunchAgent and remove the socket file so no daemon is kept alive in the background.
+### Some artifacts upload while others fail with `deadlineExceeded` in the same build {#intermittent-cas-errors}
 
-**If you are using the Xcode cache**, verify the daemon:
-
-1. Check that the socket file exists and has a listener. The socket path is printed by `tuist setup cache` on success and is usually `~/.local/state/tuist/<org>_<project>.sock`:
-
-   ```bash
-   lsof ~/.local/state/tuist/<org>_<project>.sock
-   ```
-
-   If the command prints nothing and exits with status `1`, no process is listening on the socket.
-
-2. Stream the daemon's logs and run your build in another terminal. If nothing is logged while `xcodebuild` runs, the requests are not reaching the daemon:
-
-   ```bash
-   log stream --predicate 'subsystem == "dev.tuist.cache"' --debug
-   ```
-
-3. Tear down and re-run setup. The safest way to recover from a stale socket or a LaunchAgent that refuses to come back up is to run `tuist teardown cache` (which unloads the LaunchAgent, removes its plist, and deletes the socket file) followed by a fresh `tuist setup cache`:
-
-   ```bash
-   tuist teardown cache
-   tuist setup cache
-   ```
-
-   If `launchctl` itself is failing, run `tuist setup cache --verbose` to see the bootstrap step and the path of the generated LaunchAgent plist (for example `~/Library/LaunchAgents/tuist.cache.<org>_<project>.plist`).
-
-On CI, run `tuist setup cache` on every job before any `xcodebuild` or `tuist cache warm` invocation. On developer machines, `tuist setup cache` only needs to run once per machine, but wiring it into a `post-checkout` Git hook (or an equivalent bootstrap script) is a reliable way to make sure the daemon is running after a reboot or a fresh clone.
-
-### Some artifacts upload successfully while others fail with `deadlineExceeded` in the same build {#intermittent-cas-errors}
-
-A build log that mixes successful `uploaded CAS output` notes with `deadlineExceeded` warnings usually means the daemon was running when the build started but became unreachable partway through (for example it was killed, the socket file was removed, or a wrapper script restarted it). Follow the steps above to confirm the daemon is still running after the failing build, and make sure nothing in your CI or local tooling removes the socket file or kills the `tuist cache-start` process during the build.
+A build log that mixes successful `uploaded CAS output` notes with `deadlineExceeded` warnings is, again, specific to the legacy `COMPILATION_CACHE_REMOTE_SERVICE_PATH` daemon becoming unreachable partway through a build. With the compilation-cache plugin this does not happen: a broker that stops mid-build simply turns subsequent requests into local cache misses. Migrate to the plugin as described above.
 
 ### `uploaded CAS output` appears locally even though uploads are disabled {#uploaded-cas-output-with-upload-disabled}
 
-When `xcodeCache: .xcodeCache(upload: false)` (or `upload: Environment.isCI` on a non-CI machine) is set, you may still see `note: uploaded CAS output ...` in the build log. `xcodebuild` has no way to skip those calls, so the socket still receives them; the daemon short-circuits the request internally and does not send anything to the Tuist server. The dashboard metrics account for this, so no spurious upload traffic is reported.
+When `xcodeCache: .xcodeCache(upload: false)` (or `upload: Environment.isCI` on a non-CI machine) is set, you may still see `note: uploaded CAS output ...` in the build log. `xcodebuild` emits that note itself and has no way to skip the plugin call, but the plugin honors the policy: it serves read hits and publishes nothing to the remote cache, so no upload traffic reaches the Tuist server. The dashboard metrics account for this, so no spurious upload traffic is reported.

@@ -8,6 +8,13 @@ import TuistSupport
 public protocol ResourceLocating {
     func projectDescription() async throws -> AbsolutePath
     func cliPath() async throws -> AbsolutePath
+    /// The bundled Xcode compilation-cache CAS plugin (`libtuist_cas_plugin.dylib`),
+    /// or `nil` if it is not present (e.g. a build from source without the release
+    /// bundle). Honours the `TUIST_CAS_PLUGIN_PATH` override.
+    func casPlugin() async throws -> AbsolutePath?
+    /// The bundled Xcode compilation-cache broker binary (`tuist-cas-broker`), or
+    /// `nil` if it is not present. Honours the `TUIST_CAS_BROKER_PATH` override.
+    func casBroker() async throws -> AbsolutePath?
 }
 
 enum ResourceLocatingError: FatalError {
@@ -45,6 +52,36 @@ public struct ResourceLocator: ResourceLocating {
 
     public func cliPath() async throws -> AbsolutePath {
         try await toolPath("tuist")
+    }
+
+    public func casPlugin() async throws -> AbsolutePath? {
+        if let override = Environment.current.variables["TUIST_CAS_PLUGIN_PATH"], !override.isEmpty {
+            let path = try AbsolutePath(validating: override)
+            return try await fileSystem.exists(path) ? path : nil
+        }
+        // Shipped in the release bundle next to `tuist` (see mise/tasks/cli/bundle.sh).
+        let bundlePath = try AbsolutePath(validating: Bundle(for: ManifestLoader.self).bundleURL.path)
+        let candidates = [
+            bundlePath,
+            bundlePath.parentDirectory,
+            bundlePath.parentDirectory.appending(component: "lib"),
+        ].map { $0.appending(component: "libtuist_cas_plugin.dylib") }
+        return try await candidates.concurrentFilter { try await self.fileSystem.exists($0) }.first
+    }
+
+    public func casBroker() async throws -> AbsolutePath? {
+        if let override = Environment.current.variables["TUIST_CAS_BROKER_PATH"], !override.isEmpty {
+            let path = try AbsolutePath(validating: override)
+            return try await fileSystem.exists(path) ? path : nil
+        }
+        // Shipped in the release bundle next to `tuist` (see mise/tasks/cli/bundle.sh).
+        let bundlePath = try AbsolutePath(validating: Bundle(for: ManifestLoader.self).bundleURL.path)
+        let candidates = [
+            bundlePath,
+            bundlePath.parentDirectory,
+            bundlePath.parentDirectory.appending(component: "lib"),
+        ].map { $0.appending(component: "tuist-cas-broker") }
+        return try await candidates.concurrentFilter { try await self.fileSystem.exists($0) }.first
     }
 
     // MARK: - Fileprivate
@@ -112,6 +149,20 @@ public struct ResourceLocator: ResourceLocating {
         public func cliPath() throws -> AbsolutePath {
             cliPathCount += 1
             return try cliPathStub?() ?? AbsolutePath(validating: "/")
+        }
+
+        public var casPluginCount: UInt = 0
+        public var casPluginStub: (() throws -> AbsolutePath?)?
+        public func casPlugin() throws -> AbsolutePath? {
+            casPluginCount += 1
+            return try casPluginStub?()
+        }
+
+        public var casBrokerCount: UInt = 0
+        public var casBrokerStub: (() throws -> AbsolutePath?)?
+        public func casBroker() throws -> AbsolutePath? {
+            casBrokerCount += 1
+            return try casBrokerStub?()
         }
 
         public func embedPath() throws -> AbsolutePath {

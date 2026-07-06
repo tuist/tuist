@@ -25,7 +25,10 @@ struct XcodeCacheSettingsProjectMapperTests {
             inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
             url: Constants.URLs.production
         )
-        let subject = XcodeCacheSettingsProjectMapper(tuist: tuist)
+        let subject = XcodeCacheSettingsProjectMapper(
+            tuist: tuist,
+            casPluginPath: try AbsolutePath(validating: "/tuist/libtuist_cas_plugin.dylib")
+        )
         let project = Project.test(
             name: "TestProject",
             settings: .test(
@@ -55,7 +58,10 @@ struct XcodeCacheSettingsProjectMapperTests {
             inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
             url: Constants.URLs.production
         )
-        let subject = XcodeCacheSettingsProjectMapper(tuist: tuist)
+        let subject = XcodeCacheSettingsProjectMapper(
+            tuist: tuist,
+            casPluginPath: try AbsolutePath(validating: "/tuist/libtuist_cas_plugin.dylib")
+        )
         let project = Project.test(
             name: "TestProject",
             settings: .test(
@@ -95,7 +101,10 @@ struct XcodeCacheSettingsProjectMapperTests {
             inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
             url: Constants.URLs.production
         )
-        let subject = XcodeCacheSettingsProjectMapper(tuist: tuist)
+        let subject = XcodeCacheSettingsProjectMapper(
+            tuist: tuist,
+            casPluginPath: try AbsolutePath(validating: "/tuist/libtuist_cas_plugin.dylib")
+        )
         let project = Project.test(
             name: "TestProject",
             settings: .test(
@@ -119,8 +128,15 @@ struct XcodeCacheSettingsProjectMapperTests {
         // Remote caching settings (since fullHandle is provided)
         #expect(baseSettings["COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS"] == .string("YES"))
         #expect(baseSettings["COMPILATION_CACHE_ENABLE_PLUGIN"] == .string("YES"))
-        let socketPath = Environment.current.cacheSocketPathString(for: fullHandle)
-        #expect(baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] == .string(socketPath))
+        #expect(baseSettings["COMPILATION_CACHE_PLUGIN_PATH"] == .string("/tuist/libtuist_cas_plugin.dylib"))
+        #expect(baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] == nil)
+
+        // The account/project is delivered to the plugin as a compiler option so
+        // it reaches every frontend, including Xcode ⌘B builds.
+        #expect(
+            baseSettings["OTHER_SWIFT_FLAGS"]
+                == .array(["$(inherited)", "-cas-plugin-option", "tuist-instance=test-org/test-project"])
+        )
 
         #expect(mappedProject.settings.configurations == project.settings.configurations)
     }
@@ -139,7 +155,10 @@ struct XcodeCacheSettingsProjectMapperTests {
             inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
             url: Constants.URLs.production
         )
-        let subject = XcodeCacheSettingsProjectMapper(tuist: tuist)
+        let subject = XcodeCacheSettingsProjectMapper(
+            tuist: tuist,
+            casPluginPath: try AbsolutePath(validating: "/tuist/libtuist_cas_plugin.dylib")
+        )
         let project = Project.test(
             name: "TestProject",
             settings: .test(base: [:])
@@ -159,8 +178,8 @@ struct XcodeCacheSettingsProjectMapperTests {
         // Remote caching settings (since fullHandle is provided)
         #expect(baseSettings["COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS"] == .string("YES"))
         #expect(baseSettings["COMPILATION_CACHE_ENABLE_PLUGIN"] == .string("YES"))
-        let socketPath = Environment.current.cacheSocketPathString(for: fullHandle)
-        #expect(baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] == .string(socketPath))
+        #expect(baseSettings["COMPILATION_CACHE_PLUGIN_PATH"] == .string("/tuist/libtuist_cas_plugin.dylib"))
+        #expect(baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] == nil)
     }
 
     @Test(.inTemporaryDirectory)
@@ -177,7 +196,10 @@ struct XcodeCacheSettingsProjectMapperTests {
             inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
             url: Constants.URLs.production
         )
-        let subject = XcodeCacheSettingsProjectMapper(tuist: tuist)
+        let subject = XcodeCacheSettingsProjectMapper(
+            tuist: tuist,
+            casPluginPath: try AbsolutePath(validating: "/tuist/libtuist_cas_plugin.dylib")
+        )
 
         let targets = [
             Target.test(name: "App", product: .app),

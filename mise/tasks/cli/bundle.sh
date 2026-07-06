@@ -97,6 +97,33 @@ bundle_swift_runtime_libraries() {
     fi
 }
 
+# Builds the cas-plugin (Xcode compilation-cache CAS plugin) as a universal
+# dylib, plus the per-machine broker binary, both bundled next to `tuist`. The
+# CLI points Xcode's compilation caching at the dylib via
+# COMPILATION_CACHE_PLUGIN_PATH and launches the broker via `tuist cache-broker`;
+# ResourceLocator resolves both relative to the executable. Both are
+# self-contained (Rust deps statically linked), so no rpath wiring is needed.
+build_cas_plugin() {
+    CAS_TARGET_DIR=$TMP_DIR/cas-plugin-target
+    rustup target add aarch64-apple-darwin x86_64-apple-darwin
+    (
+        cd "$TUIST_DIR/cas-plugin" || exit 1
+        cargo build --release --lib --bin tuist-cas-broker --target aarch64-apple-darwin --target-dir "$CAS_TARGET_DIR"
+        cargo build --release --lib --bin tuist-cas-broker --target x86_64-apple-darwin --target-dir "$CAS_TARGET_DIR"
+    )
+    lipo -create \
+        "$CAS_TARGET_DIR/aarch64-apple-darwin/release/libtuist_cas_plugin.dylib" \
+        "$CAS_TARGET_DIR/x86_64-apple-darwin/release/libtuist_cas_plugin.dylib" \
+        -output "$BUILD_DIRECTORY/libtuist_cas_plugin.dylib"
+    # Replace the build-path install id with the bare name (the plugin is loaded
+    # by absolute path, so the id is cosmetic but a build path is not shippable).
+    install_name_tool -id "libtuist_cas_plugin.dylib" "$BUILD_DIRECTORY/libtuist_cas_plugin.dylib"
+    lipo -create \
+        "$CAS_TARGET_DIR/aarch64-apple-darwin/release/tuist-cas-broker" \
+        "$CAS_TARGET_DIR/x86_64-apple-darwin/release/tuist-cas-broker" \
+        -output "$BUILD_DIRECTORY/tuist-cas-broker"
+}
+
 echo "$(format_section "Building")"
 
 echo "$(format_subsection "Generating Xcode project")"
@@ -107,6 +134,9 @@ build_cli
 
 echo "$(format_subsection "Building ProjectDescription framework")"
 build_project_desscription
+
+echo "$(format_subsection "Building cas-plugin dylib")"
+build_cas_plugin
 
 echo "$(format_subsection "Bundling Swift runtime libraries")"
 bundle_swift_runtime_libraries
@@ -127,11 +157,13 @@ echo "$(format_section "Bundling")"
             /usr/bin/codesign --force --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose "$library"
         done
     fi
+    /usr/bin/codesign --force --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose libtuist_cas_plugin.dylib
+    /usr/bin/codesign --force --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose tuist-cas-broker
     /usr/bin/codesign --force --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose tuist
     /usr/bin/codesign --force --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose ProjectDescription.framework
 
     echo "$(format_subsection "Notarizing")"
-    zip -q -r --symlinks "notarization-bundle.zip" tuist ProjectDescription.framework vendor
+    zip -q -r --symlinks "notarization-bundle.zip" tuist ProjectDescription.framework vendor libtuist_cas_plugin.dylib tuist-cas-broker
 
     RAW_JSON=$(xcrun notarytool submit "notarization-bundle.zip" \
         --apple-id "$APPLE_ID" \
@@ -175,7 +207,7 @@ echo "$(format_section "Bundling")"
     rm "notarization-bundle.zip"
 
     echo "$(format_subsection "Bundling tuist.zip")"
-    zip -q -r --symlinks tuist.zip tuist ProjectDescription.framework ProjectDescription.framework.dSYM Templates vendor
+    zip -q -r --symlinks tuist.zip tuist ProjectDescription.framework ProjectDescription.framework.dSYM Templates vendor libtuist_cas_plugin.dylib tuist-cas-broker
 
     echo "$(format_subsection "Bundling ProjectDescription.xcframework.zip")"
     xcodebuild -create-xcframework -framework ProjectDescription.framework -output ProjectDescription.xcframework
@@ -186,7 +218,7 @@ echo "$(format_section "Bundling")"
     ./tuist --experimental-dump-help --path "$SPEC_TMP_DIR" > tuist.spec.json
     rm -rf "$SPEC_TMP_DIR"
 
-    rm -rf tuist ProjectDescription.framework ProjectDescription.xcframework ProjectDescription.framework.dSYM Templates vendor
+    rm -rf tuist ProjectDescription.framework ProjectDescription.xcframework ProjectDescription.framework.dSYM Templates vendor libtuist_cas_plugin.dylib tuist-cas-broker
 
     : > SHASUMS256.txt
     : > SHASUMS512.txt

@@ -37,23 +37,29 @@ struct TeardownCacheCommandService {
     func run(
         path: String?
     ) async throws {
-        let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
-        let config = try await configLoader.loadConfig(path: path)
-
-        guard let fullHandle = config.fullHandle else {
-            throw TeardownCacheCommandServiceError.missingFullHandle
-        }
-
-        let label = Environment.current.cacheLaunchAgentLabel(for: fullHandle)
-
+        // The broker is one machine-wide agent, not per-project, so tearing it
+        // down needs no fullHandle.
+        let brokerLabel = Environment.current.casBrokerLaunchAgentLabel()
         try await launchAgentService.teardownLaunchAgent(
-            label: label,
-            plistFileName: "\(label).plist"
+            label: brokerLabel,
+            plistFileName: "\(brokerLabel).plist"
         )
 
-        let socketPath = Environment.current.cacheSocketPath(for: fullHandle)
-        if try await fileSystem.exists(socketPath) {
-            try await fileSystem.remove(socketPath)
+        // Best-effort cleanup of a legacy per-project cache daemon, for machines
+        // migrating from the old socket-service setup.
+        let resolvedPath = try await Environment.current.pathRelativeToWorkingDirectory(path)
+        if let config = try? await configLoader.loadConfig(path: resolvedPath),
+           let fullHandle = config.fullHandle
+        {
+            let legacyLabel = Environment.current.cacheLaunchAgentLabel(for: fullHandle)
+            try? await launchAgentService.teardownLaunchAgent(
+                label: legacyLabel,
+                plistFileName: "\(legacyLabel).plist"
+            )
+            let legacySocket = Environment.current.cacheSocketPath(for: fullHandle)
+            if try await fileSystem.exists(legacySocket) {
+                try await fileSystem.remove(legacySocket)
+            }
         }
 
         Logger.current.info("Xcode Cache has been torn down 🧹", metadata: .success)
