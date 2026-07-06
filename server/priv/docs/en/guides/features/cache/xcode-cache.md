@@ -51,28 +51,19 @@ Add the following build settings to your Xcode project:
 ```
 COMPILATION_CACHE_ENABLE_CACHING = YES
 COMPILATION_CACHE_ENABLE_PLUGIN = YES
-COMPILATION_CACHE_PLUGIN_PATH = <path to libtuist_cas_plugin.dylib>
+COMPILATION_CACHE_PLUGIN_PATH = $(HOME)/.tuist/libtuist_cas_plugin.dylib
 COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
 ```
 
-`COMPILATION_CACHE_PLUGIN_PATH` points at the Tuist compilation-cache plugin, which ships next to the `tuist` binary. Because Xcode's build-settings UI can't evaluate shell, resolve the absolute path once and paste it in — the plugin always lives beside whichever `tuist` your environment resolves:
+`tuist setup cache` maintains `~/.tuist/libtuist_cas_plugin.dylib` as a stable symlink to the compilation-cache plugin that ships with your installed `tuist`, so you can set this path once and never touch it again (Xcode expands `$(HOME)` in build settings). **Re-run `tuist setup cache` after upgrading Tuist** so the symlink — and the cache proxy — repoint to the matching plugin version. The plugin finds the running cache proxy automatically, so there is no socket path to configure. Note that `COMPILATION_CACHE_ENABLE_PLUGIN` and `COMPILATION_CACHE_PLUGIN_PATH` need to be added as **user-defined build settings** since they're not directly exposed in Xcode's build settings UI.
 
-```bash
-# mise-managed install (recommended)
-echo "$(dirname "$(mise which tuist)")/libtuist_cas_plugin.dylib"
-# Homebrew install
-echo "$(dirname "$(which tuist)")/libtuist_cas_plugin.dylib"
-```
-
-The plugin finds the running cache proxy automatically, so there is no socket path to configure. Note that `COMPILATION_CACHE_ENABLE_PLUGIN` and `COMPILATION_CACHE_PLUGIN_PATH` need to be added as **user-defined build settings** since they're not directly exposed in Xcode's build settings UI.
-
-You can also specify these settings when running `xcodebuild` by adding the following flags. On the command line you can compute the plugin path inline instead of hardcoding it:
+You can also specify these settings when running `xcodebuild` by adding the following flags:
 
 ```
 xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
     COMPILATION_CACHE_ENABLE_CACHING=YES \
     COMPILATION_CACHE_ENABLE_PLUGIN=YES \
-    COMPILATION_CACHE_PLUGIN_PATH="$(dirname "$(mise which tuist)")/libtuist_cas_plugin.dylib" \
+    COMPILATION_CACHE_PLUGIN_PATH="$HOME/.tuist/libtuist_cas_plugin.dylib" \
     COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
 ```
 
