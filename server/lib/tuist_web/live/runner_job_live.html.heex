@@ -406,16 +406,6 @@
         >
           <:icon_left><.player_play /></:icon_left>
         </.button>
-        <.button
-          :if={@interactive.vnc_session}
-          id="close-vnc-session-button"
-          phx-click="close_vnc_session"
-          variant="secondary"
-          size="medium"
-          label={dgettext("dashboard_runners", "Close VNC")}
-        >
-          <:icon_left><.circle_x /></:icon_left>
-        </.button>
       </:actions>
       <.card_section data-part="interactive-section">
         <div id="runner-vnc-session" data-part="interactive-session">

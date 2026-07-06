@@ -442,7 +442,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     refute html =~ "Terminal sessions are not available in this rollout."
     refute html =~ "Not requested"
     refute html =~ "Requested"
-    assert has_element?(lv, ~s{#close-vnc-session-button[data-variant="secondary"]})
+    refute has_element?(lv, ~s{#close-vnc-session-button})
     assert has_element?(lv, ~s{#runner-vnc-session})
 
     assert has_element?(
@@ -458,13 +458,6 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert session.state == :requested
     assert session.pod_name == "macos-pod-vnc"
     assert session.requested_by_user_id
-
-    html_after_close = lv |> element(~s{#close-vnc-session-button}) |> render_click()
-
-    assert html_after_close =~ "VNC session idle"
-    refute html_after_close =~ "Not requested"
-    assert has_element?(lv, ~s{#request-vnc-session-button[data-variant="secondary"]})
-    assert Repo.reload!(session).state == :closed
   end
 
   test "does not show the Interactive tab for queued macOS jobs", %{conn: conn, account: account} do

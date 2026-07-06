@@ -1110,11 +1110,6 @@ msgstr ""
 msgid "Wait"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:415
-#, elixir-autogen, elixir-format
-msgid "Close VNC"
-msgstr ""
-
 #: lib/tuist_web/live/runner_job_live.html.heex:68
 #, elixir-autogen, elixir-format
 msgid "Interactive"
@@ -1125,8 +1120,7 @@ msgstr ""
 msgid "Interactive access"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.ex:376
-#: lib/tuist_web/live/runner_job_live.ex:425
+#: lib/tuist_web/live/runner_job_live.ex:401
 #, elixir-autogen, elixir-format
 msgid "Interactive access is not available."
 msgstr ""
@@ -1141,50 +1135,40 @@ msgstr ""
 msgid "Start VNC"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.ex:390
-#, elixir-autogen, elixir-format
-msgid "The VNC session could not be closed."
-msgstr ""
-
-#: lib/tuist_web/live/runner_job_live.ex:606
+#: lib/tuist_web/live/runner_job_live.ex:582
 #, elixir-autogen, elixir-format
 msgid "The VNC session could not be requested."
 msgstr ""
 
 #: lib/tuist_web/live/runner_job_live.ex:303
-#: lib/tuist_web/live/runner_job_live.ex:604
+#: lib/tuist_web/live/runner_job_live.ex:580
 #, elixir-autogen, elixir-format
 msgid "The runner pod is not available for this job."
 msgstr ""
 
 #: lib/tuist_web/live/runner_job_live.ex:300
-#: lib/tuist_web/live/runner_job_live.ex:601
+#: lib/tuist_web/live/runner_job_live.ex:577
 #, elixir-autogen, elixir-format
 msgid "VNC can be requested while the macOS runner job is claimed or running."
 msgstr ""
 
 #: lib/tuist_web/live/runner_job_live.ex:297
-#: lib/tuist_web/live/runner_job_live.ex:598
+#: lib/tuist_web/live/runner_job_live.ex:574
 #, elixir-autogen, elixir-format
 msgid "VNC is available for macOS runner jobs."
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.ex:386
-#, elixir-autogen, elixir-format
-msgid "VNC session closed."
-msgstr ""
-
-#: lib/tuist_web/live/runner_job_live.html.heex:436
+#: lib/tuist_web/live/runner_job_live.html.heex:426
 #, elixir-autogen, elixir-format
 msgid "VNC session idle"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:435
+#: lib/tuist_web/live/runner_job_live.html.heex:425
 #, elixir-autogen, elixir-format
 msgid "VNC session requested"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.ex:434
+#: lib/tuist_web/live/runner_job_live.ex:410
 #, elixir-autogen, elixir-format
 msgid "VNC session requested."
 msgstr ""

@@ -368,30 +368,6 @@ defmodule TuistWeb.RunnerJobLive do
     {:noreply, request_vnc_session(socket)}
   end
 
-  def handle_event("close_vnc_session", _params, socket) do
-    %{interactive: interactive} = socket.assigns
-
-    cond do
-      not interactive.enabled? or not interactive.can_manage? ->
-        {:noreply, put_flash(socket, :error, dgettext("dashboard_runners", "Interactive access is not available."))}
-
-      is_nil(interactive.vnc_session) ->
-        {:noreply, socket}
-
-      true ->
-        case InteractiveSessions.close(interactive.vnc_session, "user") do
-          {:ok, _session} ->
-            {:noreply,
-             socket
-             |> put_flash(:info, dgettext("dashboard_runners", "VNC session closed."))
-             |> refresh_interactive_state()}
-
-          {:error, _changeset} ->
-            {:noreply, put_flash(socket, :error, dgettext("dashboard_runners", "The VNC session could not be closed."))}
-        end
-    end
-  end
-
   def handle_event("load_older", _params, %{assigns: %{oldest_line: nil}} = socket), do: {:noreply, socket}
 
   def handle_event("load_older", _params, socket) do
