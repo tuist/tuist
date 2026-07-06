@@ -24,6 +24,11 @@ name: Runners Staging Smoke Test
 
 on:
   workflow_dispatch:
+    inputs:
+      hold_minutes:
+        description: Minutes to keep the runner alive for interactive VNC after startup (0 disables)
+        required: false
+        default: "0"
   # Also fires when this workflow file itself changes on the
   # feat/runners-shape-2 branch. The smoke isn't a default CI
   # hook (would burn a runner slot on every PR), but during the
@@ -51,7 +56,7 @@ jobs:
     # to also list `self-hosted` (which is advertised on the
     # runner but isn't an authorization boundary).
     runs-on: tuist-staging-macos
-    timeout-minutes: 10
+    timeout-minutes: 45
     steps:
       - name: Show environment
         run: |
@@ -62,6 +67,24 @@ jobs:
           # Confirm we're inside a Tart VM. The VM's hostname is
           # set by Tart and the host CPU model leaks via sysctl.
           sysctl -n machdep.cpu.brand_string
+
+      - name: Hold runner for interactive VNC
+        if: ${{ inputs.hold_minutes != '' && inputs.hold_minutes != '0' }}
+        run: |
+          set -euo pipefail
+          hold_minutes="${{ inputs.hold_minutes }}"
+          case "$hold_minutes" in
+            ''|*[!0-9]*)
+              echo "::error::hold_minutes must be an integer from 0 to 30"
+              exit 1
+              ;;
+          esac
+          if [ "$hold_minutes" -gt 30 ]; then
+            echo "::error::hold_minutes must be 30 or less"
+            exit 1
+          fi
+          echo "Holding runner for ${hold_minutes} minute(s) so the staging dashboard can attach over VNC."
+          sleep "$((hold_minutes * 60))"
 
       - name: Public reachability check
         run: |
