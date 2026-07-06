@@ -26,6 +26,11 @@ defmodule Tuist.Guardian do
     {:ok, sub}
   end
 
+  def subject_for_token(%AuthenticatedAccount{account: %Account{id: id}}, _claims) do
+    sub = to_string(id)
+    {:ok, sub}
+  end
+
   def subject_for_token(_, _) do
     {:error, :invalid_subject}
   end

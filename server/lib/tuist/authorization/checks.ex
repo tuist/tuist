@@ -80,27 +80,8 @@ defmodule Tuist.Authorization.Checks do
     false
   end
 
-  # Internal token signing/refresh paths can use a bare Account as the
-  # trusted subject. Account tokens use AuthenticatedAccount and must pass
-  # scopes_permit instead.
-  def authenticated_as_internal_account(%Account{}, _) do
-    true
-  end
-
-  def authenticated_as_internal_account(_, _) do
-    false
-  end
-
   def accounts_match(%AuthenticatedAccount{account: %Account{} = authenticated_account}, %Account{} = account) do
     authenticated_account.id == account.id
-  end
-
-  def accounts_match(%Account{} = authenticated_account, %Account{} = account) do
-    authenticated_account.id == account.id
-  end
-
-  def accounts_match(%Account{id: authenticated_account_id}, %Project{account_id: account_id}) do
-    authenticated_account_id == account_id
   end
 
   def accounts_match(%Project{account: %Account{} = project_account}, %Account{} = account) do

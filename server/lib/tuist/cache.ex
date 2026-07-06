@@ -144,6 +144,8 @@ defmodule Tuist.Cache do
   defp accessible_accounts(%AuthenticatedAccount{account: %Account{} = account, all_projects: true}), do: [account]
   defp accessible_accounts(%AuthenticatedAccount{account: %Account{} = account}), do: [account]
   defp accessible_accounts(%AuthenticatedAccount{}), do: []
+  defp accessible_accounts(%Project{}), do: []
+  defp accessible_accounts(_), do: []
 
   defp account_handles(accounts) do
     accounts

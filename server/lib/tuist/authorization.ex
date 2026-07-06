@@ -116,9 +116,6 @@ defmodule Tuist.Authorization do
 
       desc("Allows an account token with project:cache:write scope to create cache entries.")
       allow([:authenticated_as_account, :cache_write_policy_permits_subject, scopes_permit: "project:cache:write"])
-
-      desc("Allows an account to create entries in its project caches.")
-      allow([:authenticated_as_internal_account, :accounts_match])
     end
 
     action :read do
@@ -141,9 +138,6 @@ defmodule Tuist.Authorization do
       desc("Allows an account token with project:cache:read or project:cache:write scope to read cache.")
       allow([:authenticated_as_account, scopes_permit: "project:cache:read"])
       allow([:authenticated_as_account, scopes_permit: "project:cache:write"])
-
-      desc("Allows an account to read its project caches.")
-      allow([:authenticated_as_internal_account, :accounts_match])
     end
 
     action :update do
@@ -158,9 +152,6 @@ defmodule Tuist.Authorization do
 
       desc("Allows an account token with project:cache:write scope to update cache.")
       allow([:authenticated_as_account, :cache_write_policy_permits_subject, scopes_permit: "project:cache:write"])
-
-      desc("Allows an account to update its project caches.")
-      allow([:authenticated_as_internal_account, :accounts_match])
     end
   end
 
@@ -174,9 +165,6 @@ defmodule Tuist.Authorization do
 
       desc("Allows an account token with account:cache:write scope to create account cache entries.")
       allow([:authenticated_as_account, :cache_write_policy_permits_subject, scopes_permit: "account:cache:write"])
-
-      desc("Allows an account to create entries in its own account cache.")
-      allow([:authenticated_as_internal_account, :accounts_match])
     end
 
     action :read do
@@ -189,9 +177,6 @@ defmodule Tuist.Authorization do
       desc("Allows an account token with account:cache:read or account:cache:write scope to read account cache.")
       allow([:authenticated_as_account, scopes_permit: "account:cache:read"])
       allow([:authenticated_as_account, scopes_permit: "account:cache:write"])
-
-      desc("Allows an account to read its own account cache.")
-      allow([:authenticated_as_internal_account, :accounts_match])
     end
   end
 

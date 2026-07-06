@@ -321,6 +321,35 @@ defmodule Tuist.AuthenticationTest do
       assert personal_project_handle in claims["cache_grants"]["project"]["write"]
     end
 
+    test "uses account JWT scopes when embedding account cache claims" do
+      # Given
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      project = ProjectsFixtures.project_fixture(account: account)
+
+      # When
+      {:ok, _token, claims} =
+        Authentication.encode_and_sign(
+          account,
+          %{
+            "type" => "account",
+            "scopes" => ["account:cache:write", "project:cache:write"],
+            "all_projects" => true
+          },
+          token_type: :access,
+          ttl: {1, :hour}
+        )
+
+      # Then
+      project_handle = "#{account.name}/#{project.name}"
+
+      assert claims["accounts"] == [account.name]
+      assert claims["projects"] == [project_handle]
+      assert claims["cache_grants"]["account"]["read"] == [account.name]
+      assert claims["cache_grants"]["account"]["write"] == [account.name]
+      assert claims["cache_grants"]["project"]["read"] == [project_handle]
+      assert claims["cache_grants"]["project"]["write"] == [project_handle]
+    end
+
     test "keeps user token size independent from accessible account count" do
       # Given
       user = AccountsFixtures.user_fixture()
