@@ -243,6 +243,15 @@ jobs:
           mix-cache-key: mix-test-v2
           mix-cache-restore-key: mix-test-v2-
           restore-mix-cache: "false"
+      - name: Restore CLDR locale cache
+        uses: actions/cache@v4
+        with:
+          path: server/_build/cldr/locales
+          key: cldr-locales-v1-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            cldr-locales-v1-
+      - name: Prefetch CLDR locale data
+        run: mise/tasks/cldr/prefetch-locale-data.sh
       - name: Compile
         run: mix compile --warnings-as-errors
       - name: Start ClickHouse

@@ -63,7 +63,7 @@ WORKDIR /app
 # ========================================
 FROM ${BUILDER_IMAGE} AS deps-builder
 
-RUN apt-get update -y && apt-get upgrade -y && apt-get install -y build-essential git \
+RUN apt-get update -y && apt-get upgrade -y && apt-get install -y build-essential ca-certificates curl git \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 WORKDIR /app
@@ -89,6 +89,7 @@ ENV HEX_HTTP_TIMEOUT=120
 ENV ELIXIR_ERL_OPTIONS="+S 2"
 
 COPY server/mix.exs server/mix.lock ./
+COPY server/mise/tasks/cldr mise/tasks/cldr
 RUN mkdir config
 
 # Copy path dependencies (only mix.exs/mix.lock for dep resolution)
@@ -121,6 +122,7 @@ COPY server/config/config.exs config/
 COPY server/config/prod.exs server/config/can.exs server/config/stag.exs config/
 
 RUN mix deps.compile
+RUN mise/tasks/cldr/prefetch-locale-data.sh
 
 # ========================================
 # Stage: OG image generator

@@ -69,10 +69,15 @@ server:
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
     # resolves to the node-port form (http://<node PN address>:<NodePort>
     # on scw-fr-par-runners), reached over the PN the minis attach to
-    # (macosFleet.vmCachePrivateNetwork below). linux is the default and
-    # stays inert here (prod advertises no Linux private cache region).
+    # (macosFleet.vmCachePrivateNetwork below). linux is TEMPORARILY off
+    # this list: prod has no Linux private (in-cluster) Kura region, so
+    # gating it here only had Linux jobs fall back to the public regional
+    # ingress, which the runners' egress rules block. The Linux runners
+    # are moving to Scaleway Dedibox bare metal, where a node-local Kura
+    # will live (like the macOS fleet); re-add `linux` once that region
+    # exists so dispatch routes Linux jobs to it.
     - name: TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS
-      value: linux,macos
+      value: macos
     # Operator project-access grants. The public key verifies grants
     # signed by ops (private half: TUIST_OPS_BOT 1P `project_access_signing_key`,
     # which MUST be stored before this deploys). The reason-form URL turns
