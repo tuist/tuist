@@ -183,14 +183,6 @@ postgresql:
   mode: cnpg
   cnpg:
     instances: 3
-    # Cutover to the Barman Cloud Plugin uses `restart` (recreate the primary in
-    # place) instead of the default `switchover`: the plugin sidecar isn't on the
-    # old primary yet, so a graceful switchover deadlocks waiting for it to
-    # archive (validated on staging 2026-07-04). Costs a bounded ~3 min of write
-    # downtime during the one cutover roll. Revert to the default (switchover)
-    # once prod is on the plugin, so future operator bumps keep the seconds-long
-    # switchover blip. See infra/cnpg/README.md.
-    primaryUpdateMethod: restart
     # Route the processor through the transaction-mode PgBouncer pooler.
     # Web tier stays direct on `-rw` (it holds a long-lived ~75-conn pool
     # that wouldn't benefit from session-mode bouncing); the processor's
