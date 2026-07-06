@@ -38,9 +38,9 @@ Once you have a `Tuist.swift` file referencing your `fullHandle`, you can set up
 tuist setup cache
 ```
 
-This command creates a [LaunchAgent](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html) that runs the Tuist cache broker: a single per-machine process that brokers compilation artifacts between the Swift [build system](https://github.com/swiftlang/swift-build) and Tuist's remote cache for every project on the machine. This command needs to be run once in both your local and CI environments.
+This command creates a [LaunchAgent](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html) that runs the Tuist cache proxy: a single per-machine process that connects the Swift [build system](https://github.com/swiftlang/swift-build) to Tuist's remote cache, sharing compilation artifacts across every project on the machine. This command needs to be run once in both your local and CI environments.
 
-The build system talks to the broker through the Tuist compilation-cache plugin (`libtuist_cas_plugin.dylib`, shipped next to the `tuist` binary), which owns all remote traffic in-process. When the broker or the remote cache is unreachable, the plugin degrades to a local cache miss and the build proceeds at no-cache speed, so a missing broker never hangs a build.
+The build system talks to the cache proxy through the Tuist compilation-cache plugin (`libtuist_cas_plugin.dylib`, shipped next to the `tuist` binary), which owns all remote traffic in-process. When the cache proxy or the remote cache is unreachable, the plugin degrades to a local cache miss and the build proceeds as it normally would without a remote cache, so a missing cache proxy never hangs a build.
 
 To set up the cache on the CI, make sure you are <.localized_link href="/guides/integrations/continuous-integration#authentication">authenticated</.localized_link>.
 
@@ -55,15 +55,24 @@ COMPILATION_CACHE_PLUGIN_PATH = <path to libtuist_cas_plugin.dylib>
 COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
 ```
 
-`COMPILATION_CACHE_PLUGIN_PATH` points at the Tuist compilation-cache plugin, which ships next to the `tuist` binary (for a Homebrew install, `$(dirname $(which tuist))/libtuist_cas_plugin.dylib`). The plugin finds the running broker automatically, so there is no socket path to configure. Note that `COMPILATION_CACHE_ENABLE_PLUGIN` and `COMPILATION_CACHE_PLUGIN_PATH` need to be added as **user-defined build settings** since they're not directly exposed in Xcode's build settings UI.
+`COMPILATION_CACHE_PLUGIN_PATH` points at the Tuist compilation-cache plugin, which ships next to the `tuist` binary. Because Xcode's build-settings UI can't evaluate shell, resolve the absolute path once and paste it in — the plugin always lives beside whichever `tuist` your environment resolves:
 
-You can also specify these settings when running `xcodebuild` by adding the following flags, such as:
+```bash
+# mise-managed install (recommended)
+echo "$(dirname "$(mise which tuist)")/libtuist_cas_plugin.dylib"
+# Homebrew install
+echo "$(dirname "$(which tuist)")/libtuist_cas_plugin.dylib"
+```
+
+The plugin finds the running cache proxy automatically, so there is no socket path to configure. Note that `COMPILATION_CACHE_ENABLE_PLUGIN` and `COMPILATION_CACHE_PLUGIN_PATH` need to be added as **user-defined build settings** since they're not directly exposed in Xcode's build settings UI.
+
+You can also specify these settings when running `xcodebuild` by adding the following flags. On the command line you can compute the plugin path inline instead of hardcoding it:
 
 ```
 xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
     COMPILATION_CACHE_ENABLE_CACHING=YES \
     COMPILATION_CACHE_ENABLE_PLUGIN=YES \
-    COMPILATION_CACHE_PLUGIN_PATH=<path to libtuist_cas_plugin.dylib> \
+    COMPILATION_CACHE_PLUGIN_PATH="$(dirname "$(mise which tuist)")/libtuist_cas_plugin.dylib" \
     COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
 ```
 
@@ -89,7 +98,7 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
 
 ### Cache upload policy {#cache-upload-policy}
 
-By default, the cache service both downloads and uploads artifacts to the remote cache. You can control this with the `xcodeCache` option in your `Tuist.swift` file to enable read-only mode, where artifacts are downloaded but never uploaded:
+By default, the cache proxy both downloads and uploads artifacts to the remote cache. You can control this with the `xcodeCache` option in your `Tuist.swift` file to enable read-only mode, where artifacts are downloaded but never uploaded:
 
 ```swift
 import ProjectDescription
@@ -155,27 +164,6 @@ jobs:
 See the <.localized_link href="/guides/integrations/continuous-integration">Continuous Integration guide</.localized_link> for more examples, including token-based authentication and other CI platforms like Xcode Cloud, CircleCI, Bitrise, and Codemagic.
 
 ## Troubleshooting {#troubleshooting}
-
-### Builds hang with `CAS error: deadlineExceeded` warnings {#cas-deadline-exceeded}
-
-A build log full of warnings like:
-
-```
-Warning: CAS error: deadlineExceeded(connectionError: Optional(connect(descriptor:addr:size:): Connection refused (errno: 61)))
-note: cache key query failed
-```
-
-is specific to the **legacy remote-service setup**, where `COMPILATION_CACHE_REMOTE_SERVICE_PATH` pointed Xcode's built-in plugin at a local daemon socket. When that socket was unreachable, Xcode retried the connection on every compilation-cache request rather than failing fast — behavior implemented inside Xcode that Tuist cannot configure — which could make a build take an hour or more.
-
-The Tuist compilation-cache plugin (`COMPILATION_CACHE_PLUGIN_PATH`) does not have this failure mode. It owns remote traffic in-process and degrades to a local cache miss when the broker or the remote cache is unreachable, so the build proceeds at no-cache speed instead of hanging.
-
-**If you see this warning**, you are still on the remote-service-path setup. Remove `COMPILATION_CACHE_REMOTE_SERVICE_PATH` and switch to the plugin: run `tuist setup cache` (which installs the broker), and for generated projects regenerate with `enableCaching: true` (it wires `COMPILATION_CACHE_PLUGIN_PATH` automatically), or set the build settings from [Configure Xcode Build Settings](#configure-xcode-build-settings) manually.
-
-**If you are not using the Xcode cache at all**, remove the `COMPILATION_CACHE_*` build settings, set `enableCaching: false` (or leave it unset) in your `Tuist.swift`, and run `tuist teardown cache` to unload the broker LaunchAgent.
-
-### Some artifacts upload while others fail with `deadlineExceeded` in the same build {#intermittent-cas-errors}
-
-A build log that mixes successful `uploaded CAS output` notes with `deadlineExceeded` warnings is, again, specific to the legacy `COMPILATION_CACHE_REMOTE_SERVICE_PATH` daemon becoming unreachable partway through a build. With the compilation-cache plugin this does not happen: a broker that stops mid-build simply turns subsequent requests into local cache misses. Migrate to the plugin as described above.
 
 ### `uploaded CAS output` appears locally even though uploads are disabled {#uploaded-cas-output-with-upload-disabled}
 
