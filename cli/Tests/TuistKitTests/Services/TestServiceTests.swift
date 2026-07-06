@@ -645,6 +645,54 @@ final class TestServiceTests: TuistUnitTestCase {
         XCTAssertEqual(testedSchemes, ["TestScheme"])
     }
 
+    func test_run_focuses_focused_targets_alongside_test_targets() async throws {
+        // Given
+        givenGenerator()
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([Scheme.test(name: "TestScheme")])
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (
+                    path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])),
+                    MapperEnvironment()
+                )
+            }
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        // When
+        try await testRun(
+            schemeName: "TestScheme",
+            path: try temporaryPath(),
+            testTargets: [try TestIdentifier(target: "ModuleTests")],
+            focusedTargets: [.named("Module"), "tag:coverage"]
+        )
+
+        // Then: the module under test and the tag query are focused (built from
+        // source) in addition to the test target.
+        verify(generatorFactory)
+            .testing(
+                config: .any,
+                testPlan: .any,
+                includedTargets: .matching { included in
+                    included == ["ModuleTests", "Module", "tag:coverage"]
+                },
+                excludedTargets: .any,
+                skipUITests: .any,
+                skipUnitTests: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                ignoreSelectiveTesting: .any,
+                cacheStorage: .any,
+                destination: .any,
+                schemeName: .any
+            )
+            .called(1)
+    }
+
     func test_run_tests_all_project_schemes() async throws {
         // Given
         givenGenerator()
@@ -5576,6 +5624,7 @@ final class TestServiceTests: TuistUnitTestCase {
         retryCount: Int = 0,
         testTargets: [TestIdentifier] = [],
         skipTestTargets: [TestIdentifier] = [],
+        focusedTargets: [TargetQuery] = [],
         testPlanConfiguration: TestPlanConfiguration? = nil,
         generateOnly: Bool = false,
         passthroughXcodeBuildArguments: [String] = [],
@@ -5611,6 +5660,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 retryCount: retryCount,
                 testTargets: testTargets,
                 skipTestTargets: skipTestTargets,
+                focusedTargets: focusedTargets,
                 testPlanConfiguration: testPlanConfiguration,
                 ignoreBinaryCache: false,
                 ignoreSelectiveTesting: false,

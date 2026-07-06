@@ -178,6 +178,7 @@ public enum EnvKey: String, CaseIterable {
     case testTestPlan = "TUIST_TEST_TEST_PLAN"
     case testTestTargets = "TUIST_TEST_TEST_TARGETS"
     case testSkipTestTargets = "TUIST_TEST_SKIP_TEST_TARGETS"
+    case testFocusedTargets = "TUIST_TEST_FOCUSED_TARGETS"
     case testConfigurations = "TUIST_TEST_CONFIGURATIONS"
     case testSkipConfigurations = "TUIST_TEST_SKIP_CONFIGURATIONS"
     case testGenerateOnly = "TUIST_TEST_GENERATE_ONLY"

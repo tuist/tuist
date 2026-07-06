@@ -232,6 +232,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         retryCount: Int,
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
+        focusedTargets: [TargetQuery] = [],
         testPlanConfiguration: TestPlanConfiguration?,
         validateTestTargetsParameters: Bool = true,
         ignoreBinaryCache: Bool,
@@ -339,10 +340,22 @@ public struct TestService { // swiftlint:disable:this type_body_length
             osVersion: osVersion
         )
 
+        // Test targets are always built from source. `focusedTargets` additionally
+        // focuses non-test targets (e.g. the module under test) so that source-only
+        // build steps such as code coverage instrumentation apply to them instead of
+        // linking them from the binary cache.
+        let focusedTargetStrings: Set<String> = Set(
+            focusedTargets.map { query in
+                switch query {
+                case let .named(name): return name
+                case let .tagged(tag): return "tag:\(tag)"
+                }
+            }
+        )
         let testGenerator = generatorFactory.testing(
             config: config,
             testPlan: testPlanConfiguration?.testPlan,
-            includedTargets: Set(testTargets.map(\.target)),
+            includedTargets: Set(testTargets.map(\.target)).union(focusedTargetStrings),
             excludedTargets: Set(skipTestTargets.filter { $0.class == nil }.map(\.target)),
             skipUITests: skipUITests,
             skipUnitTests: skipUnitTests,

@@ -3,6 +3,7 @@
     import Foundation
     import Path
     import TuistBuildCommand
+    import TuistConfig
     import TuistCore
     import TuistEnvironment
     import TuistEnvKey
@@ -197,6 +198,15 @@
             envKey: .testSkipTestTargets
         )
         var skipTestTargets: [TestIdentifier] = []
+
+        @Option(
+            name: .long,
+            parsing: .upToNextOption,
+            help:
+            "Targets to build from source instead of linking from the binary cache, specified by name or tag query (e.g. 'tag:feature'). Their test targets are already built from source; this additionally focuses the listed targets (e.g. the module under test) so that source-only build steps such as code coverage instrumentation apply to them.",
+            envKey: .testFocusedTargets
+        )
+        var focusedTargets: [TargetQuery] = []
 
         @Option(
             name: .customLong("filter-configurations"),
@@ -417,6 +427,7 @@
                 retryCount: retryCount,
                 testTargets: testTargets,
                 skipTestTargets: skipTestTargets,
+                focusedTargets: focusedTargets,
                 testPlanConfiguration: testPlan.map { testPlan in
                     TestPlanConfiguration(
                         testPlan: testPlan,
