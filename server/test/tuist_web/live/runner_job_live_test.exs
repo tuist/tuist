@@ -437,6 +437,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
     assert html =~ "Interactive access"
     assert html =~ "VNC session requested"
+    refute html =~ "macOS desktop"
+    refute html =~ "VNC session for the live runner desktop."
     refute html =~ "Terminal sessions are not available in this rollout."
     refute html =~ "Not requested"
     refute html =~ "Requested"
@@ -445,7 +447,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
     assert has_element?(
              lv,
-             ~s{#runner-vnc-fullscreen-button[phx-hook="RunnerVNCFullscreen"][data-fullscreen-target="#runner-vnc-session"][data-fullscreen-enter-label="Full screen"][data-fullscreen-exit-label="Exit full screen"][data-variant="secondary"]}
+             ~s{#runner-vnc-fullscreen-button[phx-hook="RunnerVNCFullscreen"][data-fullscreen-target="#runner-vnc-card"][data-fullscreen-enter-label="Full screen"][data-fullscreen-exit-label="Exit full screen"][data-variant="secondary"]}
            )
 
     assert html =~ "Full screen"

@@ -381,6 +381,21 @@
     >
       <:actions>
         <.button
+          :if={@interactive.vnc_session}
+          id="runner-vnc-fullscreen-button"
+          phx-hook="RunnerVNCFullscreen"
+          variant="secondary"
+          size="medium"
+          label={dgettext("dashboard_runners", "Full screen")}
+          aria-label={dgettext("dashboard_runners", "Full screen")}
+          data-fullscreen-toggle
+          data-fullscreen-target="#runner-vnc-card"
+          data-fullscreen-enter-label={dgettext("dashboard_runners", "Full screen")}
+          data-fullscreen-exit-label={dgettext("dashboard_runners", "Exit full screen")}
+        >
+          <:icon_left><.icon name="device_desktop_share" /></:icon_left>
+        </.button>
+        <.button
           :if={is_nil(@interactive.vnc_session)}
           id="request-vnc-session-button"
           phx-click="request_vnc_session"
@@ -404,34 +419,6 @@
       </:actions>
       <.card_section data-part="interactive-section">
         <div id="runner-vnc-session" data-part="interactive-session">
-          <div data-part="interactive-summary">
-            <div data-part="interactive-kind">
-              <div data-part="interactive-kind-icon"><.device_laptop /></div>
-              <div data-part="interactive-kind-copy">
-                <div data-part="title">{dgettext("dashboard_runners", "macOS desktop")}</div>
-                <div data-part="description">
-                  {dgettext("dashboard_runners", "VNC session for the live runner desktop.")}
-                </div>
-              </div>
-            </div>
-            <div :if={@interactive.vnc_session} data-part="interactive-session-actions">
-              <.button
-                id="runner-vnc-fullscreen-button"
-                phx-hook="RunnerVNCFullscreen"
-                variant="secondary"
-                size="medium"
-                label={dgettext("dashboard_runners", "Full screen")}
-                aria-label={dgettext("dashboard_runners", "Full screen")}
-                data-fullscreen-toggle
-                data-fullscreen-target="#runner-vnc-session"
-                data-fullscreen-enter-label={dgettext("dashboard_runners", "Full screen")}
-                data-fullscreen-exit-label={dgettext("dashboard_runners", "Exit full screen")}
-              >
-                <:icon_left><.icon name="device_desktop_share" /></:icon_left>
-              </.button>
-            </div>
-          </div>
-
           <div :if={unavailable_reason} data-part="interactive-notice">
             {unavailable_reason}
           </div>

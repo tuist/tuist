@@ -1110,7 +1110,7 @@ msgstr ""
 msgid "Wait"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:400
+#: lib/tuist_web/live/runner_job_live.html.heex:415
 #, elixir-autogen, elixir-format
 msgid "Close VNC"
 msgstr ""
@@ -1136,7 +1136,7 @@ msgstr ""
 msgid "Interactive access is not enabled for this account."
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:389
+#: lib/tuist_web/live/runner_job_live.html.heex:404
 #, elixir-autogen, elixir-format
 msgid "Start VNC"
 msgstr ""
@@ -1174,17 +1174,12 @@ msgstr ""
 msgid "VNC session closed."
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:413
-#, elixir-autogen, elixir-format
-msgid "VNC session for the live runner desktop."
-msgstr ""
-
-#: lib/tuist_web/live/runner_job_live.html.heex:449
+#: lib/tuist_web/live/runner_job_live.html.heex:436
 #, elixir-autogen, elixir-format
 msgid "VNC session idle"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:448
+#: lib/tuist_web/live/runner_job_live.html.heex:435
 #, elixir-autogen, elixir-format
 msgid "VNC session requested"
 msgstr ""
@@ -1199,19 +1194,14 @@ msgstr ""
 msgid "You are not authorized to request interactive access."
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:411
-#, elixir-autogen, elixir-format
-msgid "macOS desktop"
-msgstr ""
-
-#: lib/tuist_web/live/runner_job_live.html.heex:428
+#: lib/tuist_web/live/runner_job_live.html.heex:394
 #, elixir-autogen, elixir-format
 msgid "Exit full screen"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:423
-#: lib/tuist_web/live/runner_job_live.html.heex:424
-#: lib/tuist_web/live/runner_job_live.html.heex:427
+#: lib/tuist_web/live/runner_job_live.html.heex:389
+#: lib/tuist_web/live/runner_job_live.html.heex:390
+#: lib/tuist_web/live/runner_job_live.html.heex:393
 #, elixir-autogen, elixir-format
 msgid "Full screen"
 msgstr ""
