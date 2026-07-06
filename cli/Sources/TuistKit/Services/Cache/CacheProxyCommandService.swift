@@ -13,24 +13,24 @@ import TuistLogging
 import TuistServer
 import TuistSupport
 
-enum CacheBrokerCommandServiceError: Equatable, LocalizedError {
-    case brokerBinaryMissing
+enum CacheProxyCommandServiceError: Equatable, LocalizedError {
+    case proxyBinaryMissing
     case execFailed(String)
 
     var errorDescription: String? {
         switch self {
-        case .brokerBinaryMissing:
-            return "The 'tuist-cas-broker' binary is missing from the Tuist installation."
+        case .proxyBinaryMissing:
+            return "The 'tuist-cas-proxy' binary is missing from the Tuist installation."
         case let .execFailed(message):
-            return "Failed to launch the cache broker: \(message)"
+            return "Failed to launch the cache proxy: \(message)"
         }
     }
 }
 
-/// Launches the per-machine Rust cache broker (`tuist-cas-broker`). Resolves the
-/// kura REAPI endpoint, then hands off via `execv` so launchd manages the broker
+/// Launches the per-machine Rust cache proxy (`tuist-cas-proxy`). Resolves the
+/// kura REAPI endpoint, then hands off via `execv` so launchd manages the proxy
 /// process directly — there is no idle Swift parent to forward signals through.
-struct CacheBrokerCommandService {
+struct CacheProxyCommandService {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let cacheURLStore: CacheURLStoring
@@ -52,27 +52,27 @@ struct CacheBrokerCommandService {
         let serverURL = try resolveServerURL(url: url)
 
         // When launched without credentials (e.g. logged out), exit cleanly so
-        // launchd does not respawn the broker every few seconds.
+        // launchd does not respawn the proxy every few seconds.
         guard try await serverAuthenticationController.authenticationToken(serverURL: serverURL) != nil else {
             Logger.current.debug(
-                "Not authenticated against \(serverURL.absoluteString). The cache broker will exit without starting."
+                "Not authenticated against \(serverURL.absoluteString). The cache proxy will exit without starting."
             )
             return
         }
 
-        guard let brokerPath = try await resourceLocator.casBroker() else {
-            throw CacheBrokerCommandServiceError.brokerBinaryMissing
+        guard let proxyPath = try await resourceLocator.casProxy() else {
+            throw CacheProxyCommandServiceError.proxyBinaryMissing
         }
         let tuistPath = try await resourceLocator.cliPath()
         let endpoint = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
 
-        // Hand the broker its config via the environment. The broker fetches and
+        // Hand the proxy its config via the environment. The proxy fetches and
         // refreshes its bearer itself by shelling out to `tuist auth token`
         // (TUIST_CAS_TUIST_BIN), so no token is written here.
         setenv("TUIST_CAS_REMOTE_GRPC_URL", endpoint.absoluteString, 1)
         setenv("TUIST_CAS_SERVER_URL", serverURL.absoluteString, 1)
         setenv("TUIST_CAS_TUIST_BIN", tuistPath.pathString, 1)
-        // The broker records per-node transfer analytics into this db, which the
+        // The proxy records per-node transfer analytics into this db, which the
         // build-report upload ships to the server — the same path and schema the
         // legacy daemon used, so the upload + server pipeline is unchanged.
         let analyticsDatabasePath = Environment.current.stateDirectory
@@ -80,17 +80,17 @@ struct CacheBrokerCommandService {
         setenv("TUIST_CAS_ANALYTICS_DB", analyticsDatabasePath.pathString, 1)
         // Create/upgrade the canonical analytics schema before handing off. The
         // Swift CASAnalyticsDatabase owns this schema (the server reads it and
-        // its migrate adds any missing columns to an older db), so the broker
+        // its migrate adds any missing columns to an older db), so the proxy
         // only ever inserts into an existing, current-schema table rather than
         // racing to create a divergent one.
         try? await CASAnalyticsDatabase().migrate()
 
-        Logger.current.debug("Launching cache broker at \(brokerPath.pathString) for endpoint \(endpoint.absoluteString)")
+        Logger.current.debug("Launching cache proxy at \(proxyPath.pathString) for endpoint \(endpoint.absoluteString)")
 
-        let arguments: [UnsafeMutablePointer<CChar>?] = [strdup(brokerPath.pathString), nil]
-        execv(brokerPath.pathString, arguments)
+        let arguments: [UnsafeMutablePointer<CChar>?] = [strdup(proxyPath.pathString), nil]
+        execv(proxyPath.pathString, arguments)
         // execv only returns on failure.
-        throw CacheBrokerCommandServiceError.execFailed(String(cString: strerror(errno)))
+        throw CacheProxyCommandServiceError.execFailed(String(cString: strerror(errno)))
     }
 
     private func resolveServerURL(url: String?) throws -> URL {

@@ -27,7 +27,7 @@ import XcodeProj
 struct TuistCacheEECanaryAcceptanceTests {
     @Test(
         .inTemporaryDirectory,
-        .withMockedEnvironment(inheritingVariables: ["PATH", "DEVELOPER_DIR", "TUIST_CAS_PLUGIN_PATH", "TUIST_CAS_BROKER_PATH"]),
+        .withMockedEnvironment(inheritingVariables: ["PATH", "DEVELOPER_DIR", "TUIST_CAS_PLUGIN_PATH", "TUIST_CAS_PROXY_PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
         .withFixtureConnectedToCanary("generated_project_with_caching_enabled", accountHandle: "tuist")
@@ -68,32 +68,32 @@ struct TuistCacheEECanaryAcceptanceTests {
 
             // The compilation-cache plugin (built from `cas-plugin/`) is loaded by
             // absolute path baked into the generated project. Its remote path is
-            // the per-machine broker, reached over a unix socket — no
+            // the per-machine proxy, reached over a unix socket — no
             // COMPILATION_CACHE_REMOTE_SERVICE_PATH. CI builds the Rust artifacts
             // and exports these two paths.
             let pluginPath = try #require(
                 Environment.current.variables["TUIST_CAS_PLUGIN_PATH"],
                 "Set TUIST_CAS_PLUGIN_PATH to the built libtuist_cas_plugin.dylib (CI builds the cas-plugin)."
             )
-            let brokerSocketPath = environment.stateDirectory.appending(component: "cas-broker.sock")
+            let proxySocketPath = environment.stateDirectory.appending(component: "cas-proxy.sock")
             try #require(
-                brokerSocketPath.pathString.utf8.count < 104,
-                "Unix-domain socket path is too long: \(brokerSocketPath.pathString)"
+                proxySocketPath.pathString.utf8.count < 104,
+                "Unix-domain socket path is too long: \(proxySocketPath.pathString)"
             )
 
             // Request kura (REAPI) endpoints and route the plugin, loaded inside
-            // xcodebuild's compilers, to the broker socket. XcodeBuildController
+            // xcodebuild's compilers, to the proxy socket. XcodeBuildController
             // forwards Environment.current.variables to the xcodebuild subprocess.
             environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
             environment.variables["TUIST_CAS_PLUGIN_PATH"] = pluginPath
-            environment.variables["TUIST_CAS_BROKER_SOCKET"] = brokerSocketPath.pathString
+            environment.variables["TUIST_CAS_PROXY_SOCKET"] = proxySocketPath.pathString
 
             let accountHandle = fixtureFullHandle.split(separator: "/").first.map(String.init)
 
-            try await withCacheBroker(
+            try await withCacheProxy(
                 serverURL: serverURL,
                 accountHandle: accountHandle,
-                socketPath: brokerSocketPath,
+                socketPath: proxySocketPath,
                 fileSystem: fileSystem
             ) {
                 try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
@@ -349,22 +349,22 @@ struct TuistCacheEECanaryAcceptanceTests {
         try? await fileSystem.remove(directory)
     }
 
-    /// Starts the per-machine Rust cache broker (`tuist-cas-broker`) for the test,
-    /// mirroring what `tuist cache-broker` does at runtime: resolve the kura REAPI
-    /// endpoint and the bearer, then run the broker on `socketPath`. The broker is
+    /// Starts the per-machine Rust cache proxy (`tuist-cas-proxy`) for the test,
+    /// mirroring what `tuist cache-proxy` does at runtime: resolve the kura REAPI
+    /// endpoint and the bearer, then run the proxy on `socketPath`. The proxy is
     /// seeded with the token directly (there is no installed `tuist` for it to
     /// shell out to via `tuist auth token` inside the test process).
-    private func withCacheBroker(
+    private func withCacheProxy(
         serverURL: URL,
         accountHandle: String?,
         socketPath: AbsolutePath,
         fileSystem: FileSysteming,
         operation: () async throws -> Void
     ) async throws {
-        let resolvedBroker = try await ResourceLocator().casBroker()
-        let brokerPath = try #require(
-            resolvedBroker,
-            "tuist-cas-broker not found. Set TUIST_CAS_BROKER_PATH to the built binary (CI builds the cas-plugin)."
+        let resolvedProxy = try await ResourceLocator().casProxy()
+        let proxyPath = try #require(
+            resolvedProxy,
+            "tuist-cas-proxy not found. Set TUIST_CAS_PROXY_PATH to the built binary (CI builds the cas-plugin)."
         )
         let resolvedToken = try await ServerAuthenticationController()
             .authenticationToken(serverURL: serverURL, refreshIfNeeded: true)?.value
@@ -372,9 +372,9 @@ struct TuistCacheEECanaryAcceptanceTests {
         let endpoint = try await CacheURLStore().getCacheURL(for: serverURL, accountHandle: accountHandle)
 
         let process = Foundation.Process()
-        process.executableURL = URL(fileURLWithPath: brokerPath.pathString)
+        process.executableURL = URL(fileURLWithPath: proxyPath.pathString)
         var processEnvironment = ProcessInfo.processInfo.environment
-        processEnvironment["TUIST_CAS_BROKER_SOCKET"] = socketPath.pathString
+        processEnvironment["TUIST_CAS_PROXY_SOCKET"] = socketPath.pathString
         processEnvironment["TUIST_CAS_REMOTE_GRPC_URL"] = endpoint.absoluteString
         processEnvironment["TUIST_CAS_TOKEN"] = token
         if let developerDir = Environment.current.variables["DEVELOPER_DIR"] {

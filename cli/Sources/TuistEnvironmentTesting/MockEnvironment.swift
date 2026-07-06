@@ -83,8 +83,8 @@ public final class MockEnvironment: Environmenting, @unchecked Sendable {
         "tuist.cache.\(fullHandle.replacingOccurrences(of: "/", with: "_"))"
     }
 
-    public func casBrokerLaunchAgentLabel() -> String {
-        "tuist.cas-broker"
+    public func casProxyLaunchAgentLabel() -> String {
+        "tuist.cas-proxy"
     }
 }
 

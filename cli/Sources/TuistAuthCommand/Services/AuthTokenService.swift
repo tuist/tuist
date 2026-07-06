@@ -14,7 +14,7 @@ enum AuthTokenServiceError: LocalizedError, Equatable {
 
 /// Resolves the authentication token for a server and prints it to stdout.
 ///
-/// This is a hidden command used by the Xcode compilation-cache broker
+/// This is a hidden command used by the Xcode compilation-cache proxy
 /// (`tuist-cas-plugin`), which is written in Rust and cannot read the keychain
 /// itself. It keeps `ServerAuthenticationController` the single source of truth
 /// for token resolution, refresh, and cross-process refresh locking.

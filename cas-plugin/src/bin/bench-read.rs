@@ -1,7 +1,7 @@
 //! Read-path microbench against a kura REAPI endpoint. Self-seeds synthetic
 //! blobs sized like real CAS nodes, then measures: sequential single-blob
 //! batches (per-RPC atom), one big batch (server-side batch behavior), and
-//! 16 concurrent 30-blob batches (the broker's warm-build workload shape).
+//! 16 concurrent 30-blob batches (the proxy's warm-build workload shape).
 
 use std::time::Instant;
 

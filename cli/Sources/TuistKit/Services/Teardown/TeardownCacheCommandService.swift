@@ -37,12 +37,12 @@ struct TeardownCacheCommandService {
     func run(
         path: String?
     ) async throws {
-        // The broker is one machine-wide agent, not per-project, so tearing it
+        // The proxy is one machine-wide agent, not per-project, so tearing it
         // down needs no fullHandle.
-        let brokerLabel = Environment.current.casBrokerLaunchAgentLabel()
+        let proxyLabel = Environment.current.casProxyLaunchAgentLabel()
         try await launchAgentService.teardownLaunchAgent(
-            label: brokerLabel,
-            plistFileName: "\(brokerLabel).plist"
+            label: proxyLabel,
+            plistFileName: "\(proxyLabel).plist"
         )
 
         // Best-effort cleanup of a legacy per-project cache daemon, for machines

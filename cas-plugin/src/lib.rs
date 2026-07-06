@@ -8,8 +8,8 @@
 //! which is never set on this path.
 
 pub mod analytics;
-pub mod broker;
-pub mod broker_proto;
+pub mod proxy;
+pub mod proxy_proto;
 pub mod prefetch;
 pub mod reapi;
 pub mod token;
@@ -20,7 +20,7 @@ use std::ffi::{c_char, c_void, CStr, CString};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
-use broker_proto::{BrokerClient, Resolution};
+use proxy_proto::{ProxyClient, Resolution};
 use prefetch::Prefetcher;
 use reapi::{ManifestEntry, OpStats, Remote, RemoteConfig};
 use token::TokenProvider;
@@ -171,14 +171,14 @@ fn env_bool(name: &str, default: bool) -> bool {
     }
 }
 
-/// The well-known per-machine broker socket. Both the plugin (as its ⌘B
-/// fallback) and the broker binary (as its default bind path) resolve it, so
-/// an Xcode ⌘B build with no CLI environment still finds a running broker. A
+/// The well-known per-machine proxy socket. Both the plugin (as its ⌘B
+/// fallback) and the proxy binary (as its default bind path) resolve it, so
+/// an Xcode ⌘B build with no CLI environment still finds a running proxy. A
 /// per-user path keeps the socket off the world-readable `/tmp`.
-pub fn default_broker_socket() -> String {
+pub fn default_proxy_socket() -> String {
     match std::env::var("HOME") {
-        Ok(home) if !home.is_empty() => format!("{home}/.tuist/cas-broker.sock"),
-        _ => "/tmp/tuist-cas-broker.sock".to_string(),
+        Ok(home) if !home.is_empty() => format!("{home}/.tuist/cas-proxy.sock"),
+        _ => "/tmp/tuist-cas-proxy.sock".to_string(),
     }
 }
 
@@ -197,13 +197,13 @@ struct CasState {
     up: &'static Upstream,
     cas: llcas_cas_t,
     remote: Option<Arc<Remote>>,
-    // Broker mode: all remote work is delegated to the per-machine broker
+    // Proxy mode: all remote work is delegated to the per-machine proxy
     // over a unix socket; this process runs no gRPC client at all.
-    broker: Option<BrokerClient>,
-    // The account/project this build's cache belongs to, declared to the broker
+    proxy: Option<ProxyClient>,
+    // The account/project this build's cache belongs to, declared to the proxy
     // so it routes to the right instance. Empty for an Xcode ⌘B build (no CLI
-    // env); the broker then falls back to its primed cas_path mapping.
-    broker_instance: String,
+    // env); the proxy then falls back to its primed cas_path mapping.
+    proxy_instance: String,
     // Upload policy from `xcodeCache(upload:)`. When false, read hits still work
     // but no value graphs are published (the read path is unchanged). Controlled
     // by TUIST_CAS_UPLOAD (default true; set false to disable uploads).
@@ -437,23 +437,23 @@ pub unsafe extern "C" fn llcas_cas_create(
         return std::ptr::null_mut();
     }
 
-    let explicit_socket = std::env::var("TUIST_CAS_BROKER_SOCKET")
+    let explicit_socket = std::env::var("TUIST_CAS_PROXY_SOCKET")
         .ok()
         .filter(|socket| !socket.is_empty());
     let has_direct_endpoint = std::env::var("TUIST_CAS_REMOTE_GRPC_URL").is_ok();
-    // Broker mode when a socket is given, or (the Xcode ⌘B case, which carries
+    // Proxy mode when a socket is given, or (the Xcode ⌘B case, which carries
     // no CLI environment) when no direct endpoint is configured: fall back to
-    // the well-known broker socket so a running broker is used, else the
+    // the well-known proxy socket so a running proxy is used, else the
     // connect fails and we degrade to the local CAS. Direct mode is bench-only.
-    let broker = explicit_socket
-        .or_else(|| (!has_direct_endpoint).then(default_broker_socket))
-        .map(|socket_path| BrokerClient { socket_path });
-    // The account/project this build's cache belongs to, routed to the broker.
+    let proxy = explicit_socket
+        .or_else(|| (!has_direct_endpoint).then(default_proxy_socket))
+        .map(|socket_path| ProxyClient { socket_path });
+    // The account/project this build's cache belongs to, routed to the proxy.
     // Prefer the `tuist-instance` plugin option (baked into build settings by
     // `tuist generate`, so it reaches every compiler frontend including an Xcode
     // ⌘B build that carries no CLI environment); fall back to the CLI env, then
-    // empty (the broker resolves the instance from its registry).
-    let broker_instance = option_value(state, "tuist-instance").unwrap_or_else(|| {
+    // empty (the proxy resolves the instance from its registry).
+    let proxy_instance = option_value(state, "tuist-instance").unwrap_or_else(|| {
         match (
             std::env::var("TUIST_CAS_ACCOUNT"),
             std::env::var("TUIST_CAS_PROJECT"),
@@ -462,7 +462,7 @@ pub unsafe extern "C" fn llcas_cas_create(
             _ => String::new(),
         }
     });
-    let remote = if broker.is_some() {
+    let remote = if proxy.is_some() {
         None
     } else {
         RemoteConfig::from_env().map(|config| Remote::new(config, TokenProvider::from_env()))
@@ -477,8 +477,8 @@ pub unsafe extern "C" fn llcas_cas_create(
         up,
         cas: upstream_cas,
         remote,
-        broker,
-        broker_instance,
+        proxy,
+        proxy_instance,
         upload: env_bool("TUIST_CAS_UPLOAD", true),
         created_at: std::time::Instant::now(),
         cas_dir,
@@ -1042,7 +1042,7 @@ unsafe fn actioncache_get_impl(
     let result =
         (state.up.llcas_actioncache_get_for_digest)(state.cas, key_digest, p_value, globally, &mut upstream_error);
     if result != LLCAS_LOOKUP_RESULT_NOTFOUND
-        || (state.remote.is_none() && state.broker.is_none())
+        || (state.remote.is_none() && state.proxy.is_none())
     {
         adopt_error(state.up, upstream_error, error);
         return result;
@@ -1052,13 +1052,13 @@ unsafe fn actioncache_get_impl(
     }
 
     let _demand_guard = DemandWaitGuard { state, started: std::time::Instant::now() };
-    if let Some(client) = &state.broker {
+    if let Some(client) = &state.proxy {
         let cas_path = state
             .cas_dir
             .as_ref()
             .map(|dir| dir.to_string_lossy().into_owned())
             .unwrap_or_default();
-        match client.resolve(&cas_path, &state.broker_instance, key) {
+        match client.resolve(&cas_path, &state.proxy_instance, key) {
             Ok(Resolution::Hit(value_digest)) => {
                 state.stats_remote_entry_hits.fetch_add(1, Ordering::Relaxed);
                 let value_digest_t =
@@ -1085,7 +1085,7 @@ unsafe fn actioncache_get_impl(
             }
             Err(message) => {
                 state.stats_remote_misses.fetch_add(1, Ordering::Relaxed);
-                log_line(&format!("broker resolve error: {message}"));
+                log_line(&format!("proxy resolve error: {message}"));
                 return LLCAS_LOOKUP_RESULT_NOTFOUND;
             }
         }
@@ -1243,7 +1243,7 @@ pub unsafe extern "C" fn llcas_actioncache_get_for_digest_async(
     let result =
         (state.up.llcas_actioncache_get_for_digest)(state.cas, key_digest, &mut value, globally, &mut probe_error);
     if result != LLCAS_LOOKUP_RESULT_NOTFOUND
-        || (state.remote.is_none() && state.broker.is_none())
+        || (state.remote.is_none() && state.proxy.is_none())
     {
         let _ = ours_cancel_token(cancel_tok);
         let error = adopt_upstream_string(state.up, probe_error);
@@ -1269,7 +1269,7 @@ pub unsafe extern "C" fn llcas_actioncache_get_for_digest_async(
 }
 
 unsafe fn actioncache_put_remote(state: &CasState, key: &[u8], value: llcas_objectid_t) {
-    if state.broker.is_some() && state.upload {
+    if state.proxy.is_some() && state.upload {
         let value_digest = digest_bytes(state, value);
         if !state
             .published
@@ -1286,9 +1286,9 @@ unsafe fn actioncache_put_remote(state: &CasState, key: &[u8], value: llcas_obje
                 .as_ref()
                 .map(|dir| dir.to_string_lossy().into_owned())
                 .unwrap_or_default();
-            if let Some(client) = &state.broker {
-                // Failure is fine: the record survives for the broker sweep.
-                let _ = client.publish(&cas_path, &state.broker_instance, &path.to_string_lossy());
+            if let Some(client) = &state.proxy {
+                // Failure is fine: the record survives for the proxy sweep.
+                let _ = client.publish(&cas_path, &state.proxy_instance, &path.to_string_lossy());
             }
         }
         return;

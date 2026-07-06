@@ -1,6 +1,6 @@
 //! Bearer token acquisition for the REAPI endpoint.
 //!
-//! The broker holds no auth logic. It caches a bearer and, when it has none,
+//! The proxy holds no auth logic. It caches a bearer and, when it has none,
 //! shells out to `tuist auth token <url>` (a hidden command that resolves the
 //! token, refreshing if needed, and prints it). The CLI's
 //! ServerAuthenticationController owns the keychain read, the refresh, and the
@@ -61,7 +61,7 @@ impl TokenProvider {
         fresh
     }
 
-    /// Forces a fresh fetch, replacing the cache. The broker calls this
+    /// Forces a fresh fetch, replacing the cache. The proxy calls this
     /// periodically to stay ahead of expiry. A no-op without a fetch config.
     pub fn force_refresh(&self) {
         let Some(fetch) = self.fetch.as_ref() else {

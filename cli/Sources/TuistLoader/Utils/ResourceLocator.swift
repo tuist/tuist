@@ -12,9 +12,9 @@ public protocol ResourceLocating {
     /// or `nil` if it is not present (e.g. a build from source without the release
     /// bundle). Honours the `TUIST_CAS_PLUGIN_PATH` override.
     func casPlugin() async throws -> AbsolutePath?
-    /// The bundled Xcode compilation-cache broker binary (`tuist-cas-broker`), or
-    /// `nil` if it is not present. Honours the `TUIST_CAS_BROKER_PATH` override.
-    func casBroker() async throws -> AbsolutePath?
+    /// The bundled Xcode compilation-cache proxy binary (`tuist-cas-proxy`), or
+    /// `nil` if it is not present. Honours the `TUIST_CAS_PROXY_PATH` override.
+    func casProxy() async throws -> AbsolutePath?
 }
 
 enum ResourceLocatingError: FatalError {
@@ -69,8 +69,8 @@ public struct ResourceLocator: ResourceLocating {
         return try await candidates.concurrentFilter { try await self.fileSystem.exists($0) }.first
     }
 
-    public func casBroker() async throws -> AbsolutePath? {
-        if let override = Environment.current.variables["TUIST_CAS_BROKER_PATH"], !override.isEmpty {
+    public func casProxy() async throws -> AbsolutePath? {
+        if let override = Environment.current.variables["TUIST_CAS_PROXY_PATH"], !override.isEmpty {
             let path = try AbsolutePath(validating: override)
             return try await fileSystem.exists(path) ? path : nil
         }
@@ -80,7 +80,7 @@ public struct ResourceLocator: ResourceLocating {
             bundlePath,
             bundlePath.parentDirectory,
             bundlePath.parentDirectory.appending(component: "lib"),
-        ].map { $0.appending(component: "tuist-cas-broker") }
+        ].map { $0.appending(component: "tuist-cas-proxy") }
         return try await candidates.concurrentFilter { try await self.fileSystem.exists($0) }.first
     }
 
@@ -158,11 +158,11 @@ public struct ResourceLocator: ResourceLocating {
             return try casPluginStub?()
         }
 
-        public var casBrokerCount: UInt = 0
-        public var casBrokerStub: (() throws -> AbsolutePath?)?
-        public func casBroker() throws -> AbsolutePath? {
-            casBrokerCount += 1
-            return try casBrokerStub?()
+        public var casProxyCount: UInt = 0
+        public var casProxyStub: (() throws -> AbsolutePath?)?
+        public func casProxy() throws -> AbsolutePath? {
+            casProxyCount += 1
+            return try casProxyStub?()
         }
 
         public func embedPath() throws -> AbsolutePath {

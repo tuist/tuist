@@ -90,8 +90,8 @@ struct SetupCacheCommandServiceTests {
         // Then
         verify(launchAgentService)
             .setupLaunchAgent(
-                label: .value("tuist.cas-broker"),
-                plistFileName: .value("tuist.cas-broker.plist"),
+                label: .value("tuist.cas-proxy"),
+                plistFileName: .value("tuist.cas-proxy.plist"),
                 programArguments: .any,
                 environmentVariables: .any
             )
@@ -99,7 +99,7 @@ struct SetupCacheCommandServiceTests {
 
         let success = try #require(alertController.success().last)
         #expect(success.message.plain().contains("Xcode Cache has been enabled 🎉"))
-        #expect(success.takeaways.contains { $0.plain().contains("The cache broker is running") })
+        #expect(success.takeaways.contains { $0.plain().contains("The cache proxy is running") })
     }
 
     @Test(
@@ -180,8 +180,8 @@ struct SetupCacheCommandServiceTests {
         // Then
         verify(launchAgentService)
             .setupLaunchAgent(
-                label: .value("tuist.cas-broker"),
-                plistFileName: .value("tuist.cas-broker.plist"),
+                label: .value("tuist.cas-proxy"),
+                plistFileName: .value("tuist.cas-proxy.plist"),
                 programArguments: .any,
                 environmentVariables: .any
             )
@@ -384,13 +384,13 @@ struct SetupCacheCommandServiceTests {
         TuistTest
             .expectLogs("To enable Xcode Cache for this project, set the enableCaching property in your Tuist.swift file to true:"
             )
-        TuistTest.expectLogs("The cache broker is running")
+        TuistTest.expectLogs("The cache proxy is running")
     }
 
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment()
-    ) func setupCache_programArgumentsIncludeCacheBrokerAndAccount() async throws {
+    ) func setupCache_programArgumentsIncludeCacheProxyAndAccount() async throws {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
@@ -409,7 +409,7 @@ struct SetupCacheCommandServiceTests {
             .setupLaunchAgent(
                 label: .any,
                 plistFileName: .any,
-                programArguments: .matching { $0.contains("cache-broker") && $0.contains("organization") },
+                programArguments: .matching { $0.contains("cache-proxy") && $0.contains("organization") },
                 environmentVariables: .any
             )
             .called(1)

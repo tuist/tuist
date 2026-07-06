@@ -1,5 +1,5 @@
 //! Wire protocol between the plugin (inside compiler processes) and the
-//! per-machine broker, over a unix domain socket.
+//! per-machine proxy, over a unix domain socket.
 //!
 //! One request per connection, length-prefixed:
 //!   request  = u8 op | u16 cas_path_len | cas_path | u16 instance_len |
@@ -8,13 +8,13 @@
 //!
 //! `instance` is the `account/project` the connection's cache belongs to. It
 //! routes the request to the right per-instance remote in the machine-wide
-//! broker. tuist-driven builds pass it (from the CLI's env); an empty instance
-//! (an Xcode ⌘B build, which has no CLI env) tells the broker to fall back to
+//! proxy. tuist-driven builds pass it (from the CLI's env); an empty instance
+//! (an Xcode ⌘B build, which has no CLI env) tells the proxy to fall back to
 //! the `cas_path -> instance` mapping a prior build primed.
 //!
 //! RESOLVE (op 1): payload = action key digest bytes. status 1 = hit (body =
 //! value llcas digest, materialized into the local CAS before replying),
-//! status 0 = definitive miss, status 2 = broker error (treat as miss).
+//! status 0 = definitive miss, status 2 = proxy error (treat as miss).
 //! PUBLISH (op 2): payload = utf8 path of a write-ahead publication record.
 //! status 1 = accepted (publication proceeds asynchronously).
 
@@ -22,9 +22,9 @@ use std::io::{Read, Write};
 use std::os::unix::net::UnixStream;
 use std::time::Duration;
 
-/// Bumped on any incompatible change to the frame layout below. The broker
+/// Bumped on any incompatible change to the frame layout below. The proxy
 /// rejects a mismatched version (→ the plugin degrades to a local miss) instead
-/// of misparsing, so a stale broker left running across a CLI upgrade can't
+/// of misparsing, so a stale proxy left running across a CLI upgrade can't
 /// corrupt a build.
 pub const PROTOCOL_VERSION: u8 = 1;
 
@@ -106,11 +106,11 @@ pub enum Resolution {
 /// Blocking client used inside compiler processes. One connection per
 /// request keeps it stateless and robust; unix-socket connects are tens of
 /// microseconds.
-pub struct BrokerClient {
+pub struct ProxyClient {
     pub socket_path: String,
 }
 
-impl BrokerClient {
+impl ProxyClient {
     fn connect(&self) -> std::io::Result<UnixStream> {
         let stream = UnixStream::connect(&self.socket_path)?;
         stream.set_read_timeout(Some(Duration::from_secs(120)))?;
@@ -119,7 +119,7 @@ impl BrokerClient {
     }
 
     pub fn resolve(&self, cas_path: &str, instance: &str, key: &[u8]) -> Result<Resolution, String> {
-        let mut stream = self.connect().map_err(|e| format!("broker connect: {e}"))?;
+        let mut stream = self.connect().map_err(|e| format!("proxy connect: {e}"))?;
         write_request(
             &mut stream,
             &Request {
@@ -130,17 +130,17 @@ impl BrokerClient {
                 payload: key.to_vec(),
             },
         )
-        .map_err(|e| format!("broker send: {e}"))?;
-        let (status, body) = read_response(&mut stream).map_err(|e| format!("broker recv: {e}"))?;
+        .map_err(|e| format!("proxy send: {e}"))?;
+        let (status, body) = read_response(&mut stream).map_err(|e| format!("proxy recv: {e}"))?;
         match status {
             STATUS_HIT => Ok(Resolution::Hit(body)),
             STATUS_MISS => Ok(Resolution::Miss),
-            _ => Err(format!("broker error: {}", String::from_utf8_lossy(&body))),
+            _ => Err(format!("proxy error: {}", String::from_utf8_lossy(&body))),
         }
     }
 
     pub fn publish(&self, cas_path: &str, instance: &str, record_path: &str) -> Result<(), String> {
-        let mut stream = self.connect().map_err(|e| format!("broker connect: {e}"))?;
+        let mut stream = self.connect().map_err(|e| format!("proxy connect: {e}"))?;
         write_request(
             &mut stream,
             &Request {
@@ -151,12 +151,12 @@ impl BrokerClient {
                 payload: record_path.as_bytes().to_vec(),
             },
         )
-        .map_err(|e| format!("broker send: {e}"))?;
-        let (status, body) = read_response(&mut stream).map_err(|e| format!("broker recv: {e}"))?;
+        .map_err(|e| format!("proxy send: {e}"))?;
+        let (status, body) = read_response(&mut stream).map_err(|e| format!("proxy recv: {e}"))?;
         if status == STATUS_HIT {
             Ok(())
         } else {
-            Err(format!("broker publish: {}", String::from_utf8_lossy(&body)))
+            Err(format!("proxy publish: {}", String::from_utf8_lossy(&body)))
         }
     }
 }
@@ -190,7 +190,7 @@ mod tests {
     #[test]
     fn request_round_trips_with_empty_instance() {
         // The Xcode ⌘B case: no CLI env, so the plugin declares no instance and
-        // the broker must still parse the frame (and fall back to its registry).
+        // the proxy must still parse the frame (and fall back to its registry).
         let read = round_trip(&Request {
             version: PROTOCOL_VERSION,
             op: OP_PUBLISH,

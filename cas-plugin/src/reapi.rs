@@ -212,7 +212,7 @@ impl Remote {
                 }
                 // connect_lazy establishes (and transparently re-establishes)
                 // the connection per request, so a Kura restart or transient
-                // unreachability during the broker's first call no longer gets
+                // unreachability during the proxy's first call no longer gets
                 // cached as a permanent Err that poisons every later RPC. The
                 // only errors cached here are deterministic endpoint/TLS config
                 // errors, which will never succeed on retry anyway.

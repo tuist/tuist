@@ -21,13 +21,13 @@ Xcode's own remote-caching mode (`COMPILATION_CACHE_REMOTE_SERVICE_PATH`, a gRPC
 
 ## Configuration (environment)
 
-The plugin runs in one of two modes. **Broker mode** (`TUIST_CAS_BROKER_SOCKET` set) delegates all remote work to the per-machine broker over a unix socket; this is the productized path and the one the benchmarks measure. **Direct mode** (no broker socket, `TUIST_CAS_REMOTE_GRPC_URL` set) opens a REAPI channel per compiler process; kept for benchmarks. Without either, the plugin is a pure passthrough.
+The plugin runs in one of two modes. **Proxy mode** (`TUIST_CAS_PROXY_SOCKET` set) delegates all remote work to the per-machine proxy over a unix socket; this is the productized path and the one the benchmarks measure. **Direct mode** (no proxy socket, `TUIST_CAS_REMOTE_GRPC_URL` set) opens a REAPI channel per compiler process; kept for benchmarks. Without either, the plugin is a pure passthrough.
 
 - `TUIST_CAS_UPSTREAM_PLUGIN` - path to the wrapped plugin (default: `$DEVELOPER_DIR/usr/lib/libToolchainCASPlugin.dylib`).
-- `TUIST_CAS_BROKER_SOCKET` - unix socket of the per-machine broker; when set the plugin runs in broker mode.
-- `TUIST_CAS_ACCOUNT`, `TUIST_CAS_PROJECT` - the `account/project` this build's cache belongs to, used to declare the instance to the broker. Lower precedence than the `tuist-instance` plugin option (see below); when neither is present the broker falls back to its `cas_path -> instance` registry.
-- `TUIST_CAS_REMOTE_GRPC_URL`, `TUIST_CAS_TOKEN` - REAPI endpoint + bearer. In broker mode these configure the broker (one endpoint/token, many instances); in direct mode they configure this process.
-- `TUIST_CAS_UPLOAD` (default true) - upload policy from `xcodeCache(upload:)`. When false the plugin still serves remote read hits but publishes nothing (no value graphs to broker or remote).
+- `TUIST_CAS_PROXY_SOCKET` - unix socket of the per-machine proxy; when set the plugin runs in proxy mode.
+- `TUIST_CAS_ACCOUNT`, `TUIST_CAS_PROJECT` - the `account/project` this build's cache belongs to, used to declare the instance to the proxy. Lower precedence than the `tuist-instance` plugin option (see below); when neither is present the proxy falls back to its `cas_path -> instance` registry.
+- `TUIST_CAS_REMOTE_GRPC_URL`, `TUIST_CAS_TOKEN` - REAPI endpoint + bearer. In proxy mode these configure the proxy (one endpoint/token, many instances); in direct mode they configure this process.
+- `TUIST_CAS_UPLOAD` (default true) - upload policy from `xcodeCache(upload:)`. When false the plugin still serves remote read hits but publishes nothing (no value graphs to proxy or remote).
 - `TUIST_CAS_PREFETCH` (default 24), `TUIST_CAS_POOL` (default 16) - worker pool sizes.
 - `TUIST_CAS_LOG` - append per-process stats (hits, misses, prefetched, GET/POST latency) on dispose.
 
@@ -50,7 +50,7 @@ Requires `SWIFT_ENABLE_EXPLICIT_MODULES` and works with Xcode 26.x. Not yet wire
 
 ## Kura placement (on-host vs PN node)
 
-The broker can point at kura wherever it runs; two placements were measured on the CLI fixture (8-core runner VM, all kura perf fixes):
+The proxy can point at kura wherever it runs; two placements were measured on the CLI fixture (8-core runner VM, all kura perf fixes):
 
 - **On-host** — one kura per runner Mac (served to the VM over the loopback/bridge). Warm build **113.6s** (median of 5). This placement is **not bandwidth-constrained**: the bridge measured 2.34 GB/s and loopback is effectively unbounded, so a very cache-heavy build or many concurrent frontends never contend on a shared NIC.
 - **PN node off-host** — a shared kura on a nearby Private Network fleet node (0.89ms). Warm build **118s** (median of 3) — only ~5s slower, since sub-ms LAN is the same latency regime as the bridge. Simpler operationally (one kura per region instead of per-Mac), at the cost of a shared node NIC that could bottleneck under enough concurrent runners.

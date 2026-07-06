@@ -2,13 +2,13 @@ import ArgumentParser
 import Path
 import TuistSupport
 
-public struct CacheBrokerCommand: AsyncParsableCommand, HARRecordingCommand {
+public struct CacheProxyCommand: AsyncParsableCommand, HARRecordingCommand {
     public var shouldRecordHAR: Bool { false }
 
     public init() {}
     public static let configuration = CommandConfiguration(
-        commandName: "cache-broker",
-        abstract: "Run the machine-wide Xcode compilation-cache broker",
+        commandName: "cache-proxy",
+        abstract: "Run the machine-wide Xcode compilation-cache proxy",
         shouldDisplay: false
     )
 
@@ -24,6 +24,6 @@ public struct CacheBrokerCommand: AsyncParsableCommand, HARRecordingCommand {
     var account: String?
 
     public func run() async throws {
-        try await CacheBrokerCommandService().run(url: url, accountHandle: account)
+        try await CacheProxyCommandService().run(url: url, accountHandle: account)
     }
 }

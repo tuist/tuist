@@ -81,13 +81,13 @@ public protocol Environmenting: Sendable {
 
     /// Returns the LaunchAgent label for a legacy per-project Xcode cache daemon.
     /// Retained only so `tuist setup cache` / `tuist teardown cache` can boot out
-    /// a daemon left over from before the machine-wide broker.
+    /// a daemon left over from before the machine-wide proxy.
     func cacheLaunchAgentLabel(for fullHandle: String) -> String
 
     /// Returns the machine-wide LaunchAgent label for the Xcode compilation-cache
-    /// broker. Unlike `cacheLaunchAgentLabel(for:)`, this is not per-project: one
-    /// broker serves every project on the machine, multiplexing by instance.
-    func casBrokerLaunchAgentLabel() -> String
+    /// proxy. Unlike `cacheLaunchAgentLabel(for:)`, this is not per-project: one
+    /// proxy serves every project on the machine, multiplexing by instance.
+    func casProxyLaunchAgentLabel() -> String
 
     /// Returns the current architecture of the machine
     func architecture() async throws -> MacArchitecture
@@ -396,8 +396,8 @@ public struct Environment: Environmenting {
         "tuist.cache.\(fullHandle.replacingOccurrences(of: "/", with: "_"))"
     }
 
-    public func casBrokerLaunchAgentLabel() -> String {
-        "tuist.cas-broker"
+    public func casProxyLaunchAgentLabel() -> String {
+        "tuist.cas-proxy"
     }
 
     #if os(macOS)

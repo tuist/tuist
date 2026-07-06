@@ -36,15 +36,15 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
         if let fullHandle = tuist.fullHandle, let casPluginPath {
             // Route Xcode's compilation caching through the Tuist CAS plugin,
             // which owns remote (kura) read/write-through via the per-machine
-            // broker. Deliberately no COMPILATION_CACHE_REMOTE_SERVICE_PATH:
+            // proxy. Deliberately no COMPILATION_CACHE_REMOTE_SERVICE_PATH:
             // that is the daemon-socket path the plugin replaces.
             baseSettings["COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS"] = "YES"
             baseSettings["COMPILATION_CACHE_ENABLE_PLUGIN"] = "YES"
             baseSettings["COMPILATION_CACHE_PLUGIN_PATH"] = .string(casPluginPath.pathString)
             // Hand the plugin the account/project as a compiler option, which
             // reaches every frontend — including an Xcode ⌘B build that carries
-            // no CLI environment — so the broker can route without the CLI. Swift
-            // only; C/ObjC frontends fall back to the broker's routing registry.
+            // no CLI environment — so the proxy can route without the CLI. Swift
+            // only; C/ObjC frontends fall back to the proxy's routing registry.
             baseSettings["OTHER_SWIFT_FLAGS"] = Self.appendingCASInstanceFlag(
                 fullHandle: fullHandle,
                 to: baseSettings["OTHER_SWIFT_FLAGS"]

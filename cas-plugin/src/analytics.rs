@@ -1,9 +1,9 @@
 //! CAS analytics parity with the legacy Swift daemon.
 //!
-//! The broker records per-node transfer metadata into `cas_analytics.db` at the
+//! The proxy records per-node transfer metadata into `cas_analytics.db` at the
 //! path the CLI's `UploadBuildRunService` already ships with the build report,
 //! so the upload and server-side (xcactivitylog NIF) pipelines are unchanged —
-//! the broker just took over the writing the daemon used to do.
+//! the proxy just took over the writing the daemon used to do.
 //!
 //! Two tables drive the server's enrichment (see the NIF's `CASMetadataReader`):
 //! - `nodes`: build-log node id -> checksum. The node id is `"0~" +
@@ -77,7 +77,7 @@ impl Analytics {
     pub fn open(path: &str) -> Option<Analytics> {
         let conn = Connection::open(path).ok()?;
         // WAL so the CLI's `checkpoint`+copy at upload time can read a consistent
-        // snapshot while the broker keeps writing.
+        // snapshot while the proxy keeps writing.
         conn.pragma_update(None, "journal_mode", "WAL").ok()?;
         conn.busy_timeout(std::time::Duration::from_secs(5)).ok()?;
         conn.execute_batch(SCHEMA).ok()?;
@@ -144,7 +144,7 @@ fn keyvalue_key_for(key: &[u8]) -> String {
     format!("0~{}", base64::engine::general_purpose::URL_SAFE.encode(rest))
 }
 
-/// Uppercase hex of a content digest — the `cas_outputs` key the broker derives
+/// Uppercase hex of a content digest — the `cas_outputs` key the proxy derives
 /// from a fetched node's llcas digest.
 pub fn hex_upper(bytes: &[u8]) -> String {
     let mut hex = String::with_capacity(bytes.len() * 2);
@@ -186,7 +186,7 @@ pub fn parse_cas_references(data: &[u8]) -> Vec<(Vec<u8>, String)> {
 
 /// `created_at` as SQLite.swift serializes a `Date`: a UTC `"yyyy-MM-dd'T'HH:mm:ss.SSS"`
 /// TEXT string (no offset), which is what the Swift [`CASAnalyticsDatabase`] writes.
-/// The broker and the Swift writer share the same `cas_analytics.db`, so the
+/// The proxy and the Swift writer share the same `cas_analytics.db`, so the
 /// column type and format must match or one side's inserts land in a schema the
 /// other created.
 fn now_iso8601() -> String {
@@ -288,7 +288,7 @@ mod tests {
     #[test]
     fn created_at_matches_sqlite_swift_date_text() {
         // SQLite.swift serializes a `Date` as UTC "yyyy-MM-dd'T'HH:mm:ss.SSS";
-        // the broker shares cas_analytics.db with the Swift CASAnalyticsDatabase,
+        // the proxy shares cas_analytics.db with the Swift CASAnalyticsDatabase,
         // so its created_at must be byte-compatible with that column.
         assert_eq!(iso8601_from_unix(0, 0), "1970-01-01T00:00:00.000");
         // 1_000_000_000 unix seconds is the well-known 2001-09-09T01:46:40 UTC.
@@ -315,12 +315,12 @@ mod tests {
 
     #[test]
     fn records_into_a_swift_created_canonical_schema() {
-        // Regression for the schema-divergence bug: the broker shares
+        // Regression for the schema-divergence bug: the proxy shares
         // cas_analytics.db with the Swift CASAnalyticsDatabase, whose SQLite.swift
         // `migrate()` creates these exact tables (created_at as TEXT, double-quoted
-        // identifiers, defaults). If the broker's rows are not compatible with that
+        // identifiers, defaults). If the proxy's rows are not compatible with that
         // pre-existing schema, its INSERTs silently drop and nothing is recorded.
-        // This creates the table the Swift way first, then drives the broker's
+        // This creates the table the Swift way first, then drives the proxy's
         // recording against it.
         let path = std::env::temp_dir().join(format!("cas-swift-schema-{}.db", std::process::id()));
         let path = path.to_str().unwrap().to_string();

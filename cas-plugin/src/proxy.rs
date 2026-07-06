@@ -1,10 +1,10 @@
-//! The per-machine broker: one long-lived process owns the REAPI channel,
+//! The per-machine proxy: one long-lived process owns the REAPI channel,
 //! the resolved-key map, the global known-local set, and all publications.
 //! Compiler processes stay thin (one unix-socket round trip per cache miss),
 //! which is what keeps warm builds near the local-CAS floor: any fixed
 //! per-process cost is multiplied by thousands of short-lived frontends.
 //!
-//! The broker opens the same on-disk local CAS the compilers use (the store
+//! The proxy opens the same on-disk local CAS the compilers use (the store
 //! is multi-process by design) and materializes fetched graphs into it
 //! before answering a resolve, so consumers' demand loads are local hits.
 
@@ -15,7 +15,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::Instant;
 
-use crate::broker_proto::{
+use crate::proxy_proto::{
     read_request, write_response, Request, OP_PUBLISH, OP_RESOLVE, STATUS_ERROR, STATUS_HIT,
     STATUS_MISS,
 };
@@ -27,7 +27,7 @@ use crate::upstream::Upstream;
 use crate::PublishRecord;
 
 // Bounds for the per-path in-memory caches so a long-lived (machine-wide,
-// launchd-managed) broker cannot grow without limit across many builds. They
+// launchd-managed) proxy cannot grow without limit across many builds. They
 // are correctness-preserving caches — clearing only forces a re-resolve or a
 // re-check, never a wrong answer — so clearing on overflow is safe. The caps sit
 // well above a single warm build's working set (a warm build touches ~1.9M
@@ -37,7 +37,7 @@ const MAX_RESOLVED: usize = 1_000_000;
 const MAX_KNOWN_LOCAL_PER_SHARD: usize = 250_000;
 const MAX_PUBLISH_CACHE: usize = 500_000;
 
-/// Per-local-CAS-path state. Leaked for 'static lifetime: the broker runs
+/// Per-local-CAS-path state. Leaked for 'static lifetime: the proxy runs
 /// until killed.
 pub struct PathState {
     up: &'static Upstream,
@@ -73,23 +73,23 @@ impl PathState {
     }
 }
 
-// The broker is single-process and owns these raw handles for its lifetime;
+// The proxy is single-process and owns these raw handles for its lifetime;
 // the llcas API is thread-safe (the same handles are shared across worker
 // threads inside compiler processes too).
 unsafe impl Send for PathState {}
 unsafe impl Sync for PathState {}
 
-pub struct Broker {
+pub struct Proxy {
     grpc_url: String,
     tokens: Arc<TokenProvider>,
     upstream_plugin: String,
     // One REAPI client per account/project instance, created on first use.
     // All share the machine's endpoint + token; only the instance the request
-    // is scoped to differs. This is what lets one broker serve every project.
+    // is scoped to differs. This is what lets one proxy serve every project.
     remotes: Mutex<HashMap<String, Arc<Remote>>>,
     // cas_path -> instance, primed by builds that declare their instance and
     // persisted so an Xcode ⌘B build (which declares none) still routes after
-    // a broker restart. See broker_proto for why the fallback exists.
+    // a proxy restart. See proxy_proto for why the fallback exists.
     path_instance: Mutex<HashMap<String, String>>,
     registry_path: Option<PathBuf>,
     paths: Mutex<HashMap<String, &'static PathState>>,
@@ -99,16 +99,16 @@ pub struct Broker {
     analytics: Option<crate::analytics::Analytics>,
 }
 
-impl Broker {
+impl Proxy {
     pub fn new(
         grpc_url: String,
         tokens: Arc<TokenProvider>,
         upstream_plugin: String,
         registry_path: Option<PathBuf>,
         analytics: Option<crate::analytics::Analytics>,
-    ) -> &'static Broker {
+    ) -> &'static Proxy {
         let path_instance = registry_path.as_deref().map(load_registry).unwrap_or_default();
-        let broker: &'static Broker = Box::leak(Box::new(Broker {
+        let proxy: &'static Proxy = Box::leak(Box::new(Proxy {
             grpc_url,
             tokens,
             upstream_plugin,
@@ -119,12 +119,12 @@ impl Broker {
             publisher: Prefetcher::new(),
             analytics,
         }));
-        let broker_addr = broker as *const Broker as usize;
-        broker.publisher.configure(8, move |item| {
-            let broker = unsafe { &*(broker_addr as *const Broker) };
-            broker.publish_item(&item);
+        let proxy_addr = proxy as *const Proxy as usize;
+        proxy.publisher.configure(8, move |item| {
+            let proxy = unsafe { &*(proxy_addr as *const Proxy) };
+            proxy.publish_item(&item);
         });
-        broker
+        proxy
     }
 
     /// The REAPI client for an instance, created and cached on first use.
@@ -256,7 +256,7 @@ impl Broker {
                 // A local compiler may have published (and locally stored) this
                 // key between our get_action miss and now; the publisher pool
                 // runs outside this resolve's single-flight guard. Never clobber
-                // that Some with a negative entry, or the long-lived broker would
+                // that Some with a negative entry, or the long-lived proxy would
                 // answer misses for a key it can actually serve. Prefer the
                 // freshly-published value if present.
                 {
@@ -432,7 +432,7 @@ impl Broker {
                     .insert(record.key.clone(), Some(record.value_digest.clone()));
             }
             Err(reason) => {
-                crate::log_line(&format!("broker publish failed ({reason}); record kept"));
+                crate::log_line(&format!("proxy publish failed ({reason}); record kept"));
             }
         }
     }
@@ -554,7 +554,7 @@ impl Broker {
     }
 
     /// Sweeps orphaned publication records for every known CAS path whose
-    /// instance the broker knows (an unprimed path has nothing to publish to).
+    /// instance the proxy knows (an unprimed path has nothing to publish to).
     pub fn sweep(&self) {
         let paths: Vec<String> = self.paths.lock().unwrap().keys().cloned().collect();
         for cas_path in paths {
@@ -583,7 +583,7 @@ impl Broker {
         }
     }
 
-    /// Proactively refreshes the bearer so a long-lived broker stays ahead of
+    /// Proactively refreshes the bearer so a long-lived proxy stays ahead of
     /// token expiry. Called from the periodic maintenance loop; a no-op in
     /// env-only (CI) mode.
     pub fn refresh_token(&self) {
@@ -625,8 +625,8 @@ impl Broker {
         let request: Request = read_request(&mut stream)?;
         // A plugin from a different CLI version speaks a different frame layout;
         // reject rather than misparse, so the plugin degrades to a local miss.
-        if request.version != crate::broker_proto::PROTOCOL_VERSION {
-            return write_response(&mut stream, STATUS_ERROR, b"broker protocol version mismatch");
+        if request.version != crate::proxy_proto::PROTOCOL_VERSION {
+            return write_response(&mut stream, STATUS_ERROR, b"proxy protocol version mismatch");
         }
         match request.op {
             OP_RESOLVE => {
@@ -644,7 +644,7 @@ impl Broker {
                     Ok(Some(value)) => write_response(&mut stream, STATUS_HIT, &value),
                     Ok(None) => write_response(&mut stream, STATUS_MISS, &[]),
                     Err(message) => {
-                        crate::log_line(&format!("broker resolve failed: {message}"));
+                        crate::log_line(&format!("proxy resolve failed: {message}"));
                         write_response(&mut stream, STATUS_ERROR, message.as_bytes())
                     }
                 }

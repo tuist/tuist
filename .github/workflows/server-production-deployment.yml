@@ -1960,7 +1960,7 @@ jobs:
     if: ${{ always() && needs.canary.result == 'success' }}
     runs-on: tuist-macos
     # The Xcode compilation-cache acceptance test needs the cas-plugin dylib +
-    # broker built from source; the extra timeout covers a cold Rust release
+    # proxy built from source; the extra timeout covers a cold Rust release
     # build (rust-cache makes subsequent runs incremental).
     timeout-minutes: 25
     environment: server-k8s-canary
@@ -1987,9 +1987,9 @@ jobs:
           TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
         run: mise run cli:ee
       # The Xcode compilation-cache acceptance test loads the cas-plugin dylib
-      # inside xcodebuild's compilers and routes it to the broker over a unix
+      # inside xcodebuild's compilers and routes it to the proxy over a unix
       # socket. Build both from source and hand their paths to the test via the
-      # TUIST_CAS_PLUGIN_PATH / TUIST_CAS_BROKER_PATH overrides ResourceLocator
+      # TUIST_CAS_PLUGIN_PATH / TUIST_CAS_PROXY_PATH overrides ResourceLocator
       # honours.
       - uses: jdx/mise-action@v4.0.1
         with:
@@ -2004,9 +2004,9 @@ jobs:
       - name: Build the cas-plugin
         working-directory: cas-plugin
         run: |
-          cargo build --release --lib --bin tuist-cas-broker
+          cargo build --release --lib --bin tuist-cas-proxy
           echo "TUIST_CAS_PLUGIN_PATH=$(pwd)/target/release/libtuist_cas_plugin.dylib" >> "$GITHUB_ENV"
-          echo "TUIST_CAS_BROKER_PATH=$(pwd)/target/release/tuist-cas-broker" >> "$GITHUB_ENV"
+          echo "TUIST_CAS_PROXY_PATH=$(pwd)/target/release/tuist-cas-proxy" >> "$GITHUB_ENV"
       - name: Test
         env:
           TUIST_EE: 1

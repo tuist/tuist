@@ -87,10 +87,10 @@ impl Prefetcher {
                 let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| process(digest)));
                 // Drop the item from `seen` once processed: dedup is meant to
                 // collapse concurrent/pending duplicates, not to permanently
-                // block a re-enqueue. The broker keeps a failed publication's
+                // block a re-enqueue. The proxy keeps a failed publication's
                 // write-ahead record and the sweep re-enqueues the same path;
-                // without this, that retry is silently dropped until the broker
-                // restarts. Also bounds `seen` in the long-lived broker.
+                // without this, that retry is silently dropped until the proxy
+                // restarts. Also bounds `seen` in the long-lived proxy.
                 this.seen.lock().unwrap().remove(&key);
                 // Decrement under the lock so a drain check can't miss the
                 // wakeup between reading inflight and parking on the condvar.
