@@ -199,6 +199,9 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                 mappers.append(TreeShakePrunedTargetsGraphMapper())
                 mappers.append(StaticXCFrameworkModuleMapGraphMapper())
                 mappers.append(StaticXCFrameworkAppIntentsMetadataGraphMapper())
+                if ClientFeatureFlags.contains("xcframework_slice_linking") {
+                    mappers.append(PreselectedXCFrameworkSlicesGraphMapper())
+                }
             }
 
             mappers.append(FrameworkSearchPathsGraphMapper())
@@ -238,6 +241,9 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                 mappers.append(TreeShakePrunedTargetsGraphMapper())
                 mappers.append(StaticXCFrameworkModuleMapGraphMapper())
                 mappers.append(StaticXCFrameworkAppIntentsMetadataGraphMapper())
+                if ClientFeatureFlags.contains("xcframework_slice_linking") {
+                    mappers.append(PreselectedXCFrameworkSlicesGraphMapper())
+                }
             }
 
             mappers.append(FrameworkSearchPathsGraphMapper())
@@ -296,6 +302,9 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                 mappers.append(TreeShakePrunedTargetsGraphMapper())
                 mappers.append(StaticXCFrameworkModuleMapGraphMapper())
                 mappers.append(StaticXCFrameworkAppIntentsMetadataGraphMapper())
+                if ClientFeatureFlags.contains("xcframework_slice_linking") {
+                    mappers.append(PreselectedXCFrameworkSlicesGraphMapper())
+                }
             }
 
             mappers.append(FrameworkSearchPathsGraphMapper())
@@ -349,6 +358,9 @@ public struct GraphMapperFactory: GraphMapperFactorying {
             mappers.append(TreeShakePrunedTargetsGraphMapper())
             mappers.append(StaticXCFrameworkModuleMapGraphMapper())
             mappers.append(StaticXCFrameworkAppIntentsMetadataGraphMapper())
+            if ClientFeatureFlags.contains("xcframework_slice_linking") {
+                mappers.append(PreselectedXCFrameworkSlicesGraphMapper())
+            }
 
             mappers.append(FrameworkSearchPathsGraphMapper())
             mappers.append(ForeignBuildSideEffectGraphMapper())
