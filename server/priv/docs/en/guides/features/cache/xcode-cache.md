@@ -38,9 +38,9 @@ Once you have a `Tuist.swift` file referencing your `fullHandle`, you can set up
 tuist setup cache
 ```
 
-This command creates a [LaunchAgent](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html) that runs the Tuist cache proxy: a single per-machine process that connects the Swift [build system](https://github.com/swiftlang/swift-build) to Tuist's remote cache, sharing compilation artifacts across every project on the machine. This command needs to be run once in both your local and CI environments.
+This command creates a [LaunchAgent](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html) that runs the Tuist cache proxy: a single per-machine process that holds the connection to Tuist's remote cache, fetching and uploading compilation artifacts for every project on the machine. This command needs to be run once in both your local and CI environments.
 
-The build system talks to the cache proxy through the Tuist compilation-cache plugin (`libtuist_cas_plugin.dylib`, shipped next to the `tuist` binary), which owns all remote traffic in-process. When the cache proxy or the remote cache is unreachable, the plugin degrades to a local cache miss and the build proceeds as it normally would without a remote cache, so a missing cache proxy never hangs a build.
+The Swift [build system](https://github.com/swiftlang/swift-build)'s compilers reach the proxy through the Tuist compilation-cache plugin (`libtuist_cas_plugin.dylib`, shipped next to the `tuist` binary): loaded in-process by each compiler, the plugin forwards cache reads and writes to the cache proxy over a local socket, and the proxy performs the actual transfers with the remote cache. When the cache proxy or the remote cache is unreachable, the plugin degrades to a local cache miss and the build proceeds as it normally would without a remote cache, so a missing cache proxy never hangs a build.
 
 To set up the cache on the CI, make sure you are <.localized_link href="/guides/integrations/continuous-integration#authentication">authenticated</.localized_link>.
 
