@@ -693,6 +693,52 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
+    func test_run_without_focused_targets_only_focuses_test_targets() async throws {
+        // Given
+        givenGenerator()
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([Scheme.test(name: "TestScheme")])
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (
+                    path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])),
+                    MapperEnvironment()
+                )
+            }
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        // When: no focused targets are passed (the default).
+        try await testRun(
+            schemeName: "TestScheme",
+            path: try temporaryPath(),
+            testTargets: [try TestIdentifier(target: "ModuleTests")]
+        )
+
+        // Then: only the test target is focused — cache usage is unchanged.
+        verify(generatorFactory)
+            .testing(
+                config: .any,
+                testPlan: .any,
+                includedTargets: .matching { included in
+                    included == ["ModuleTests"]
+                },
+                excludedTargets: .any,
+                skipUITests: .any,
+                skipUnitTests: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                ignoreSelectiveTesting: .any,
+                cacheStorage: .any,
+                destination: .any,
+                schemeName: .any
+            )
+            .called(1)
+    }
+
     func test_run_tests_all_project_schemes() async throws {
         // Given
         givenGenerator()
