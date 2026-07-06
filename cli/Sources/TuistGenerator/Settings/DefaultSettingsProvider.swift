@@ -51,6 +51,7 @@ public struct DefaultSettingsProvider: DefaultSettingsProviding {
         "SDKROOT",
         "CODE_SIGN_IDENTITY",
         "LD_RUNPATH_SEARCH_PATHS",
+        "ONLY_ACTIVE_ARCH",
         "SWIFT_OPTIMIZATION_LEVEL",
         "SWIFT_ACTIVE_COMPILATION_CONDITIONS",
         "CURRENT_PROJECT_VERSION",
@@ -287,6 +288,7 @@ public struct DefaultSettingsProvider: DefaultSettingsProviding {
             ]
         } else if target.product == .macro {
             return [
+                "ONLY_ACTIVE_ARCH": "YES",
                 "SKIP_INSTALL": "YES",
             ]
         } else {
