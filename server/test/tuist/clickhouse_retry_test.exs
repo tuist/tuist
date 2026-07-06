@@ -61,6 +61,42 @@ defmodule Tuist.ClickHouseRetryTest do
       assert :counters.get(counter, 1) == 2
     end
 
+    test "retries on transient ClickHouse table shutdown errors" do
+      counter = :counters.new(1, [])
+
+      log =
+        capture_log(fn ->
+          assert ClickHouseRetry.with_retry(fn ->
+                   :counters.add(counter, 1, 1)
+
+                   if :counters.get(counter, 1) < 2 do
+                     raise %Ch.Error{
+                       code: 242,
+                       message: "Table is in readonly mode while shutting down (TABLE_IS_READ_ONLY)"
+                     }
+                   end
+
+                   :ok
+                 end) == :ok
+        end)
+
+      assert :counters.get(counter, 1) == 2
+      assert log =~ "ClickHouse operation failed"
+    end
+
+    test "lets non-transient ClickHouse errors propagate without retry" do
+      counter = :counters.new(1, [])
+
+      assert_raise Ch.Error, fn ->
+        ClickHouseRetry.with_retry(fn ->
+          :counters.add(counter, 1, 1)
+          raise %Ch.Error{code: 60, message: "Unknown table"}
+        end)
+      end
+
+      assert :counters.get(counter, 1) == 1
+    end
+
     test "reraises Mint.TransportError after exhausting retries" do
       counter = :counters.new(1, [])
 
