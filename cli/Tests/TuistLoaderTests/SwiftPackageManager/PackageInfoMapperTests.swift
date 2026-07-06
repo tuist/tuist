@@ -5361,7 +5361,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func map_whenExternalLocalSwiftPackageHasTestTarget() async throws {
+    ) func map_whenExternalLocalSwiftPackageHasTestTarget_ignoresTestTarget() async throws {
         // Given
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
@@ -5395,10 +5395,7 @@ struct PackageInfoMapperTests {
 
         // Then
         #expect(project != nil)
-        #expect(Set(project?.targets.map(\.name) ?? []) == Set(["Target", "TargetTests"]))
-        let testTarget = project?.targets.first { $0.name == "TargetTests" }
-        #expect(testTarget?.product == .unitTests)
-        #expect(testTarget?.metadata.tags.contains(TargetTags.localSwiftPackageTest) == true)
+        #expect(Set(project?.targets.map(\.name) ?? []) == Set(["Target"]))
     }
 
     @Test(
@@ -7808,7 +7805,7 @@ struct PackageInfoMapperTests {
 
     @Test(
         .inTemporaryDirectory, .withMockedSwiftVersionProvider
-    ) func map_whenTestTargetOnlyDependsOnPluginTarget_keepsPrebuiltProductAsSourceDependency() async throws {
+    ) func map_whenExternalLocalTestTargetOnlyDependsOnPluginTarget_ignoresTestTarget() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
 
         try await fileSystem.makeDirectory(
@@ -7861,11 +7858,7 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        let target = try #require(project?.targets.first(where: { $0.name == "PluginTests" }))
-        #expect(target.dependencies.contains(.external(name: "SwiftSyntax", condition: nil)))
-        #expect(target.settings?.base["OTHER_SWIFT_FLAGS"] == .array(["$(inherited)"]))
-        #expect(target.settings?.base["LIBRARY_SEARCH_PATHS"] == nil)
-        #expect(target.settings?.base["OTHER_LDFLAGS"] == nil)
+        #expect(project == nil)
     }
 
     @Test(

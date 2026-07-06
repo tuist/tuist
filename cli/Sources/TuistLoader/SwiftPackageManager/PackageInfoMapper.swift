@@ -91,7 +91,7 @@ public enum PackageType {
 
     fileprivate var includesTestTargets: Bool {
         switch self {
-        case .local, .external(origin: .local, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _):
+        case .local:
             return true
         case .external:
             return false
