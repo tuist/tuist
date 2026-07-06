@@ -3,8 +3,22 @@ import Foundation
 import Path
 import ProjectDescription
 import TuistCore
+import TuistLogging
 import TuistSupport
 import XcodeGraph
+
+enum TargetScriptManifestMapperError: FatalError, Equatable {
+    case invalidGeneratedFileListPath(String)
+
+    var type: ErrorType { .abort }
+
+    var description: String {
+        switch self {
+        case let .invalidGeneratedFileListPath(path):
+            return "Generated file list paths must be relative to the manifest directory and cannot escape it: \(path)"
+        }
+    }
+}
 
 extension XcodeGraph.TargetScript {
     /// Maps a ProjectDescription.TargetAction instance into a XcodeGraph.TargetAction model.
@@ -168,7 +182,7 @@ extension XcodeGraph.TargetScript {
         try await paths.concurrentMap { fileListPath -> [XcodeGraph.TargetScript.FileListPath] in
             switch fileListPath {
             case let .generated(path):
-                return [.generated(try generatorPaths.resolve(path: path))]
+                return [.generated(try generatedFileListPath(path, generatorPaths: generatorPaths))]
 
             case .path:
                 return try await resolvePathStrings(
@@ -179,6 +193,20 @@ extension XcodeGraph.TargetScript {
                 .map(XcodeGraph.TargetScript.FileListPath.path)
             }
         }.reduce([], +)
+    }
+
+    private static func generatedFileListPath(
+        _ path: Path,
+        generatorPaths: GeneratorPaths
+    ) throws -> AbsolutePath {
+        guard path.type == .relativeToManifest,
+              !path.pathString.hasPrefix("/"),
+              !path.pathString.split(separator: "/").contains("..")
+        else {
+            throw TargetScriptManifestMapperError.invalidGeneratedFileListPath(path.pathString)
+        }
+
+        return try generatorPaths.resolve(path: path)
     }
 }
 

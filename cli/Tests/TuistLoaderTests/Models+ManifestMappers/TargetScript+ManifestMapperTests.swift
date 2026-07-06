@@ -316,6 +316,87 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
         )
     }
 
+    func test_generated_file_list_path_whenAbsolutePath_throws() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: temporaryPath
+        )
+        let manifest = ProjectDescription.TargetScript.test(
+            name: "GenerateSourceryInputs",
+            tool: "my_tool",
+            order: .pre,
+            inputFileListPaths: [
+                .generated(.relativeToManifest("/tmp/SourceryInputs.xcfilelist")),
+            ]
+        )
+
+        // When / Then
+        await XCTAssertThrowsSpecific(
+            try await XcodeGraph.TargetScript.from(
+                manifest: manifest,
+                generatorPaths: generatorPaths,
+                fileSystem: fileSystem
+            ),
+            TargetScriptManifestMapperError.invalidGeneratedFileListPath("/tmp/SourceryInputs.xcfilelist")
+        )
+    }
+
+    func test_generated_file_list_path_whenParentDirectoryEscape_throws() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: temporaryPath
+        )
+        let manifest = ProjectDescription.TargetScript.test(
+            name: "GenerateSourceryInputs",
+            tool: "my_tool",
+            order: .pre,
+            inputFileListPaths: [
+                .generated(.relativeToManifest("../SourceryInputs.xcfilelist")),
+            ]
+        )
+
+        // When / Then
+        await XCTAssertThrowsSpecific(
+            try await XcodeGraph.TargetScript.from(
+                manifest: manifest,
+                generatorPaths: generatorPaths,
+                fileSystem: fileSystem
+            ),
+            TargetScriptManifestMapperError.invalidGeneratedFileListPath("../SourceryInputs.xcfilelist")
+        )
+    }
+
+    func test_generated_file_list_path_whenRelativeToRoot_throws() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: temporaryPath
+        )
+        let manifest = ProjectDescription.TargetScript.test(
+            name: "GenerateSourceryInputs",
+            tool: "my_tool",
+            order: .pre,
+            inputFileListPaths: [
+                .generated(.relativeToRoot("SourceryInputs.xcfilelist")),
+            ]
+        )
+
+        // When / Then
+        await XCTAssertThrowsSpecific(
+            try await XcodeGraph.TargetScript.from(
+                manifest: manifest,
+                generatorPaths: generatorPaths,
+                fileSystem: fileSystem
+            ),
+            TargetScriptManifestMapperError.invalidGeneratedFileListPath("SourceryInputs.xcfilelist")
+        )
+    }
+
     func test_inputPaths_with_build_variables_are_kept_as_strings() async throws {
         // Given
         let temporaryPath = try temporaryPath()
