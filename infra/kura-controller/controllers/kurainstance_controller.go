@@ -183,7 +183,8 @@ func terminationGracePeriodSeconds() int64 {
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
-// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=persistentvolumes,verbs=get;list;watch
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses;networkpolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=policy,resources=poddisruptionbudgets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=get;list;watch;create;update;patch;delete
@@ -210,6 +211,21 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		if err := r.Update(ctx, instance); err != nil {
 			return ctrl.Result{}, err
 		}
+	}
+
+	// A StatefulSet's volumeClaimTemplates are immutable, and a node-local data
+	// volume is pinned to the box it was carved on. Two states wedge an instance
+	// Pending forever with nothing to self-heal it: a storageClassName change on
+	// the CR that the live StatefulSet silently ignores (immutable template), and
+	// a bare-metal fleet node reprovisioned out from under a node-local PV. The
+	// cache is regenerable, so recreate the StatefulSet — dropping its PVCs via the
+	// Delete retention policy — and let it provision fresh volumes on the current
+	// storage class and node. Requeue while the cleanup is in flight so the
+	// recreated StatefulSet never re-adopts a stale PVC.
+	if inProgress, err := r.reconcileStaleDataStorage(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	} else if inProgress {
+		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
 	if err := r.reconcileConfigMap(ctx, instance); err != nil {
@@ -1542,6 +1558,125 @@ func (r *KuraInstanceReconciler) reconcileDataPersistentVolumeClaims(ctx context
 		}
 	}
 	return nil
+}
+
+// reconcileStaleDataStorage recreates the StatefulSet when its data PVCs can
+// never bind on the current infrastructure. It reports true while the cleanup is
+// still in flight; the caller requeues and skips the rest of the reconcile until
+// the stale StatefulSet and PVCs are gone, at which point the normal
+// reconcileStatefulSet path recreates them fresh.
+func (r *KuraInstanceReconciler) reconcileStaleDataStorage(ctx context.Context, instance *kurav1alpha1.KuraInstance) (bool, error) {
+	reason, err := r.staleDataStorageReason(ctx, instance)
+	if err != nil || reason == "" {
+		return false, err
+	}
+	log.FromContext(ctx).Info("recreating Kura StatefulSet for stale data storage", "reason", reason)
+
+	// Delete the StatefulSet first so it stops backing the stale PVCs, then the
+	// PVCs themselves. Both deletions are idempotent; staleDataStorageReason keeps
+	// returning a reason (so the caller keeps requeuing) until the objects are
+	// gone, which is what stops the recreated StatefulSet from adopting them.
+	sts := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
+	if err := r.Delete(ctx, sts, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil && !apierrors.IsNotFound(err) {
+		return false, err
+	}
+	for ordinal := int32(0); ordinal < replicas(instance); ordinal++ {
+		pvc := &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("data-%s-%d", instance.Name, ordinal),
+			Namespace: instance.Namespace,
+		}}
+		if err := r.Delete(ctx, pvc); err != nil && !apierrors.IsNotFound(err) {
+			return false, err
+		}
+	}
+	return true, nil
+}
+
+// staleDataStorageReason returns a non-empty reason when a data PVC can never
+// bind and the StatefulSet must be recreated: it is still terminating from an
+// earlier pass, its storage class no longer matches spec.StorageClassName
+// (StatefulSet volumeClaimTemplates are immutable, so a CR change is otherwise
+// silently dropped), or it is Bound to a volume pinned to a node that no longer
+// exists (a bare-metal fleet node was reprovisioned). A still-present stale PVC
+// keeps returning a reason so the caller waits for deletion to finish before the
+// StatefulSet is recreated.
+func (r *KuraInstanceReconciler) staleDataStorageReason(ctx context.Context, instance *kurav1alpha1.KuraInstance) (string, error) {
+	desiredStorageClass := instance.Spec.StorageClassName
+	for ordinal := int32(0); ordinal < replicas(instance); ordinal++ {
+		name := fmt.Sprintf("data-%s-%d", instance.Name, ordinal)
+		pvc := &corev1.PersistentVolumeClaim{}
+		if err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: instance.Namespace}, pvc); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return "", err
+		}
+		if pvc.DeletionTimestamp != nil {
+			return fmt.Sprintf("data PVC %s is still terminating from a prior recreate", name), nil
+		}
+		if desiredStorageClass != "" && pvcStorageClassName(pvc) != desiredStorageClass {
+			return fmt.Sprintf("data PVC %s storage class %q no longer matches desired %q", name, pvcStorageClassName(pvc), desiredStorageClass), nil
+		}
+		if pvc.Status.Phase == corev1.ClaimBound && pvc.Spec.VolumeName != "" {
+			node, err := r.pvMissingPinnedNode(ctx, pvc.Spec.VolumeName)
+			if err != nil {
+				return "", err
+			}
+			if node != "" {
+				return fmt.Sprintf("data PVC %s is bound to a volume pinned to missing node %q", name, node), nil
+			}
+		}
+	}
+	return "", nil
+}
+
+// pvMissingPinnedNode returns the hostname a PV's required node affinity pins it
+// to when that node no longer exists, or "" when the PV isn't hostname-pinned or
+// its node is still present. A local-path (node-local) PV keeps a
+// kubernetes.io/hostname affinity that outlives the node it was carved on.
+func (r *KuraInstanceReconciler) pvMissingPinnedNode(ctx context.Context, pvName string) (string, error) {
+	pv := &corev1.PersistentVolume{}
+	if err := r.Get(ctx, types.NamespacedName{Name: pvName}, pv); err != nil {
+		if apierrors.IsNotFound(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	for _, hostname := range pvRequiredHostnames(pv) {
+		node := &corev1.Node{}
+		err := r.Get(ctx, types.NamespacedName{Name: hostname}, node)
+		if apierrors.IsNotFound(err) {
+			return hostname, nil
+		}
+		if err != nil {
+			return "", err
+		}
+	}
+	return "", nil
+}
+
+func pvcStorageClassName(pvc *corev1.PersistentVolumeClaim) string {
+	if pvc.Spec.StorageClassName != nil {
+		return *pvc.Spec.StorageClassName
+	}
+	return ""
+}
+
+// pvRequiredHostnames returns the kubernetes.io/hostname values a PV's required
+// node affinity restricts it to.
+func pvRequiredHostnames(pv *corev1.PersistentVolume) []string {
+	if pv.Spec.NodeAffinity == nil || pv.Spec.NodeAffinity.Required == nil {
+		return nil
+	}
+	var hostnames []string
+	for _, term := range pv.Spec.NodeAffinity.Required.NodeSelectorTerms {
+		for _, expr := range term.MatchExpressions {
+			if expr.Key == corev1.LabelHostname && expr.Operator == corev1.NodeSelectorOpIn {
+				hostnames = append(hostnames, expr.Values...)
+			}
+		}
+	}
+	return hostnames
 }
 
 func (r *KuraInstanceReconciler) sharedSecretsResourceVersion(ctx context.Context, namespace string) (string, error) {

@@ -75,9 +75,17 @@ rules:
   - apiGroups: [""]
     resources: [pods]
     verbs: [get, list, watch]
+  # delete: self-heal a wedged instance by recreating its StatefulSet and
+  # dropping data PVCs that can never bind (storage-class drift on the immutable
+  # volumeClaimTemplate, or a node-local volume orphaned by a reprovisioned
+  # bare-metal fleet node). The cache is regenerable, so a fresh PVC is provisioned.
+  # delete (namespaced): self-heal a wedged instance by recreating its
+  # StatefulSet and dropping data PVCs that can never bind. PVs are read for the
+  # same purpose but are cluster-scoped, so they live in the -node-reads
+  # ClusterRole below, not this namespaced Role.
   - apiGroups: [""]
     resources: [persistentvolumeclaims]
-    verbs: [get, list, watch, update, patch]
+    verbs: [get, list, watch, update, patch, delete]
   - apiGroups: ["networking.k8s.io"]
     resources: [ingresses, networkpolicies]
     verbs: [get, list, watch, create, update, patch, delete]
@@ -109,6 +117,12 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: [nodes]
+    verbs: [get, list, watch]
+  # PVs are cluster-scoped too: reconcileStaleDataStorage reads a bound data
+  # PVC's PersistentVolume to detect a node-local volume pinned (node affinity)
+  # to a node that no longer exists — a reprovisioned bare-metal fleet node.
+  - apiGroups: [""]
+    resources: [persistentvolumes]
     verbs: [get, list, watch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1

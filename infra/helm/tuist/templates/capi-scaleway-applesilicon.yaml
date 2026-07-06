@@ -87,6 +87,17 @@ rules:
     resources: [nodes/status]
     verbs: [get, update, patch]
   - apiGroups: [""]
+    # On Machine (node) delete, the Linux reconcilers reap PVCs bound to
+    # node-local PVs pinned to the departing box's hostname so their
+    # StatefulSets reprovision fresh volumes on the replacement node. PVs are
+    # listed to find the ones pinned to the node; the orphaned PVCs are deleted
+    # (the runner cache they back is regenerable).
+    resources: [persistentvolumes]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims]
+    verbs: [get, list, watch, delete]
+  - apiGroups: [""]
     # The failover-IP controller reads peer-demux pod readiness to drain the IP
     # off a box whose demux is rolling.
     resources: [pods]
