@@ -1203,7 +1203,7 @@ defmodule Tuist.Tests do
     project_ids = slim_results |> Enum.map(& &1.project_id) |> Enum.uniq()
     test_case_ids = slim_results |> Enum.map(& &1.test_case_id) |> Enum.uniq()
     {min_ran_at, max_ran_at} = ran_at_bounds(slim_results)
-    inserted_at_months = inserted_at_months(slim_results)
+    inserted_at_partition_months = inserted_at_partition_months(slim_results)
 
     # `test_case_runs` is ReplacingMergeTree; re-inserts (e.g. flaky flag
     # updates) leave multiple versions per id until background merges
@@ -1221,7 +1221,7 @@ defmodule Tuist.Tests do
       )
 
     query =
-      case inserted_at_months do
+      case inserted_at_partition_months do
         [] -> query
         months -> from(tcr in query, where: fragment("toYYYYMM(?)", tcr.inserted_at) in ^months)
       end
@@ -1251,7 +1251,7 @@ defmodule Tuist.Tests do
     end)
   end
 
-  defp inserted_at_months(slim_results) do
+  defp inserted_at_partition_months(slim_results) do
     slim_results
     |> Enum.flat_map(fn run ->
       case Map.get(run, :inserted_at) do
