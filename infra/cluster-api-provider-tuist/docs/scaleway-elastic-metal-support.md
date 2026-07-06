@@ -142,10 +142,15 @@ attached to the caph cluster, not a ClusterClass topology entry.
   Cross-cloud nodes (Elastic Metal + macOS PN) report a reachable `InternalIP`
   but no `ExternalIP` and a Hostname the Hetzner apiserver can't resolve, so
   this is what lets the apiserver reach those kubelets for `logs`/`exec`.
-- **Node replacement**: CAPI cordons and drains a removed Machine. A
-  replacement EM node re-warms its cache (local NVMe isn't re-attachable like
-  block storage) and the per-account-CA mesh re-bootstraps onto it; the durable
-  mesh state is per-account and rebuilds, so there's no data loss.
+- **Node replacement**: on Machine delete the provider deletes the Node object
+  and reaps the PVCs bound to node-local PVs pinned to the departing box's
+  hostname (`deleteNodeLocalPVCs`, called from each Linux provider's
+  `reconcileDelete`). A node-local (local-NVMe) PV can't follow the box, so
+  without this the replacement node's cache StatefulSet would stay Pending on the
+  old node's unbindable PV; deleting the orphaned PVC lets it provision a fresh
+  volume. The cache re-warms from the per-account-CA mesh (local NVMe isn't
+  re-attachable like block storage); the durable mesh state is per-account and
+  rebuilds, so there's no data loss.
 - **Naming**: the provider binary/repo is `...-applesilicon`; with a Linux kind
   alongside Apple Silicon that's a misnomer, kept for now (a rename is broad
   churn: image, chart, RBAC, CRD group). Revisit if it keeps growing.
@@ -203,11 +208,33 @@ flag), so it no longer has to be applied by hand. The provider IAM key also need
 
 ## Remaining gaps
 
-- **Storage-class migration isn't declarative**: a StatefulSet's
-  `volumeClaimTemplates` are immutable and the controller updates in place, so
-  changing a live KuraInstance's `storageClassName` (e.g. `scw-bssd`→
-  `scw-local-nvme`) silently no-ops and needs a manual delete+recreate; the
-  controller should detect the change and recreate.
+- **Storage-class migration isn't declarative** — *fixed*: a StatefulSet's
+  `volumeClaimTemplates` are immutable, so a live KuraInstance's `storageClassName`
+  change (e.g. `scw-bssd`→`scw-local-nvme`) can't update in place. The
+  kura-controller's `reconcileStaleDataStorage` now detects a data PVC whose
+  storage class no longer matches the CR (or a volume orphaned by a reprovisioned
+  node) and recreates the StatefulSet with a fresh PVC. The cache is regenerable,
+  so the recreate is non-disruptive.
+
+- **Runner-cache readiness has no alert**: the private runner-cache regions
+  expose no public endpoint, so they skip the public HTTPS readiness probe and
+  are the instances with the *least* monitoring — a storage wedge (both gaps
+  above) ran ~34h unnoticed. There is no alert-as-code in this repo (rules live
+  in Grafana Cloud), so add one there against the remote-written
+  kube-state-metrics. The driving metrics already ship (the chart's default KSM
+  allow-list keeps `kube_statefulset_*`); only the Grafana Cloud rule is missing:
+
+  ```promql
+  # KuraRunnerCacheNotReady (severity: warning, for: 15m)
+  # A per-account Kura StatefulSet has been short of ready replicas for 15m.
+  kube_statefulset_status_replicas_ready{namespace="kura"}
+    < kube_statefulset_replicas{namespace="kura"}
+  ```
+
+  The standard kube-prometheus `KubeStatefulSetReplicasMismatch` alert would also
+  catch this if it is enabled and routed for the `kura` namespace — it was not,
+  which is why the wedge was silent. Enabling/routing that is the lighter path;
+  the scoped rule above is the explicit alternative.
 - **Stuck-`:failed` runner-cache nodes aren't auto-retried** server-side
   (`nodes_to_retry` only self-heals servers with `current_image_tag == nil`),
   so a node that deployed then failed needs an operator reset.

@@ -75,9 +75,18 @@ rules:
   - apiGroups: [""]
     resources: [pods]
     verbs: [get, list, watch]
+  # delete: self-heal a wedged instance by recreating its StatefulSet and
+  # dropping data PVCs that can never bind (storage-class drift on the immutable
+  # volumeClaimTemplate, or a node-local volume orphaned by a reprovisioned
+  # bare-metal fleet node). The cache is regenerable, so a fresh PVC is provisioned.
   - apiGroups: [""]
     resources: [persistentvolumeclaims]
-    verbs: [get, list, watch, update, patch]
+    verbs: [get, list, watch, update, patch, delete]
+  # read PVs to detect a data volume pinned (node affinity) to a node that no
+  # longer exists — the reprovisioned-node orphan case above.
+  - apiGroups: [""]
+    resources: [persistentvolumes]
+    verbs: [get, list, watch]
   - apiGroups: ["networking.k8s.io"]
     resources: [ingresses, networkpolicies]
     verbs: [get, list, watch, create, update, patch, delete]
