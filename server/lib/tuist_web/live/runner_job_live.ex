@@ -287,20 +287,6 @@ defmodule TuistWeb.RunnerJobLive do
 
   def interactive_tab_visible?(_), do: false
 
-  def interactive_status_badge_props(nil), do: nil
-
-  def interactive_status_badge_props(%{state: :requested}),
-    do: %{label: dgettext("dashboard_runners", "Requested"), color: "information"}
-
-  def interactive_status_badge_props(%{state: :ready}),
-    do: %{label: dgettext("dashboard_runners", "Ready"), color: "success"}
-
-  def interactive_status_badge_props(%{state: :active}),
-    do: %{label: dgettext("dashboard_runners", "Connected"), color: "success"}
-
-  def interactive_status_badge_props(%{state: :closed}),
-    do: %{label: dgettext("dashboard_runners", "Closed"), color: "neutral"}
-
   def interactive_vnc_unavailable_reason(%{enabled?: false}),
     do: dgettext("dashboard_runners", "Interactive access is not enabled for this account.")
 

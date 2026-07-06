@@ -439,6 +439,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert html =~ "VNC session requested"
     refute html =~ "Terminal sessions are not available in this rollout."
     refute html =~ "Not requested"
+    refute html =~ "Requested"
     assert has_element?(lv, ~s{#close-vnc-session-button[data-variant="secondary"]})
     refute has_element?(lv, ~s{#request-vnc-session-button})
 
