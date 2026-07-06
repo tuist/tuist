@@ -80,8 +80,24 @@ defmodule Tuist.Authorization.Checks do
     false
   end
 
+  def authenticated_as_raw_account(%Account{}, _) do
+    true
+  end
+
+  def authenticated_as_raw_account(_, _) do
+    false
+  end
+
   def accounts_match(%AuthenticatedAccount{account: %Account{} = authenticated_account}, %Account{} = account) do
     authenticated_account.id == account.id
+  end
+
+  def accounts_match(%Account{} = authenticated_account, %Account{} = account) do
+    authenticated_account.id == account.id
+  end
+
+  def accounts_match(%Account{id: authenticated_account_id}, %Project{account_id: account_id}) do
+    authenticated_account_id == account_id
   end
 
   def accounts_match(%Project{account: %Account{} = project_account}, %Account{} = account) do
@@ -116,6 +132,18 @@ defmodule Tuist.Authorization.Checks do
 
   def scopes_permit(_, _, _) do
     false
+  end
+
+  def cache_write_policy_permits_subject(%User{}, resource) do
+    cache_write_policy_permits_members?(resource)
+  end
+
+  def cache_write_policy_permits_subject(%AuthenticatedAccount{issued_by: %User{}}, resource) do
+    cache_write_policy_permits_members?(resource)
+  end
+
+  def cache_write_policy_permits_subject(_, _) do
+    true
   end
 
   def expand_scopes(scopes) do
@@ -158,6 +186,26 @@ defmodule Tuist.Authorization.Checks do
   def project_access_permitted(_, _) do
     false
   end
+
+  defp cache_write_policy_permits_members?(resource) do
+    case resource_account(resource) do
+      %Account{cache_write_policy: :tokens_only} -> false
+      %Account{} -> true
+      _ -> false
+    end
+  end
+
+  defp resource_account(%Account{} = account), do: account
+  defp resource_account(%Project{account: %Account{} = account}), do: account
+
+  defp resource_account(%Project{account_id: account_id}) when not is_nil(account_id) do
+    case Accounts.get_account_by_id(account_id) do
+      {:ok, account} -> account
+      _ -> nil
+    end
+  end
+
+  defp resource_account(_), do: nil
 
   def projects_match(%User{}, %Project{}) do
     false

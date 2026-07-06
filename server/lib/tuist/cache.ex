@@ -7,7 +7,7 @@ defmodule Tuist.Cache do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
-  alias Tuist.Authorization.Checks
+  alias Tuist.Authorization
   alias Tuist.Cache.CASEvent
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
@@ -142,6 +142,7 @@ defmodule Tuist.Cache do
     do: accessible_accounts(user)
 
   defp accessible_accounts(%AuthenticatedAccount{account: %Account{} = account, all_projects: true}), do: [account]
+  defp accessible_accounts(%AuthenticatedAccount{account: %Account{} = account}), do: [account]
   defp accessible_accounts(%AuthenticatedAccount{}), do: []
 
   defp account_handles(accounts) do
@@ -168,77 +169,17 @@ defmodule Tuist.Cache do
     Projects.list_accessible_projects(resource, Keyword.put_new(opts, :preload, [:account]))
   end
 
-  defp account_cache_handles(%User{} = user, :write) do
-    write_account_cache_handles(user)
-  end
-
-  defp account_cache_handles(%AuthenticatedAccount{issued_by: %User{}} = subject, :write) do
-    if scope_grants_action?(subject.scopes, :account, :write) do
-      write_account_cache_handles(subject)
-    else
-      []
-    end
-  end
-
-  defp account_cache_handles(%User{} = user, _action), do: accessible_account_handles(user)
-  defp account_cache_handles(%Account{} = account, _action), do: accessible_account_handles(account)
-  defp account_cache_handles(%Project{}, _action), do: []
-
-  defp account_cache_handles(%AuthenticatedAccount{issued_by: %User{}} = subject, action) do
-    if scope_grants_action?(subject.scopes, :account, action) do
-      accessible_account_handles(subject)
-    else
-      []
-    end
-  end
-
-  defp account_cache_handles(%AuthenticatedAccount{account: %Account{name: name}} = subject, action) do
-    if scope_grants_action?(subject.scopes, :account, action) do
-      [name]
-    else
-      []
-    end
-  end
-
-  defp account_cache_handles(_, _action), do: []
-
-  defp write_account_cache_handles(resource) do
+  defp account_cache_handles(resource, action) do
     resource
     |> accessible_accounts()
-    |> Enum.reject(&cache_writes_restricted?(resource, &1))
+    |> Enum.filter(&authorized?(:account_cache, action, resource, &1))
     |> account_handles()
   end
 
-  defp project_cache_handles(%User{} = user, :write, opts) do
-    write_project_cache_handles(user, opts)
-  end
-
-  defp project_cache_handles(%AuthenticatedAccount{issued_by: %User{}} = subject, :write, opts) do
-    if scope_grants_action?(subject.scopes, :project, :write) do
-      write_project_cache_handles(subject, opts)
-    else
-      []
-    end
-  end
-
-  defp project_cache_handles(%User{} = user, _action, opts), do: accessible_project_handles(user, opts)
-  defp project_cache_handles(%Account{} = account, _action, opts), do: accessible_project_handles(account, opts)
-  defp project_cache_handles(%Project{} = project, _action, opts), do: accessible_project_handles(project, opts)
-
-  defp project_cache_handles(%AuthenticatedAccount{} = subject, action, opts) do
-    if scope_grants_action?(subject.scopes, :project, action) do
-      accessible_project_handles(subject, opts)
-    else
-      []
-    end
-  end
-
-  defp project_cache_handles(_, _action, _opts), do: []
-
-  defp write_project_cache_handles(resource, opts) do
+  defp project_cache_handles(resource, action, opts) do
     resource
     |> accessible_projects(opts)
-    |> Enum.reject(&cache_writes_restricted?(resource, &1.account))
+    |> Enum.filter(&authorized?(:cache, action, resource, &1))
     |> Enum.map(&project_handle/1)
     |> Enum.uniq()
     |> Enum.sort()
@@ -248,26 +189,15 @@ defmodule Tuist.Cache do
     "#{account_name}/#{project_name}"
   end
 
-  defp cache_writes_restricted_to_tokens?(%Account{cache_write_policy: :tokens_only}), do: true
-  defp cache_writes_restricted_to_tokens?(_account), do: false
-
-  defp cache_writes_restricted?(%User{}, account), do: cache_writes_restricted_to_tokens?(account)
-
-  defp cache_writes_restricted?(%AuthenticatedAccount{issued_by: %User{}}, account) do
-    cache_writes_restricted_to_tokens?(account)
+  defp authorized?(category, action, subject, resource) do
+    category
+    |> authorization_action(action)
+    |> Authorization.authorize(subject, resource)
+    |> Kernel.==(:ok)
   end
 
-  defp cache_writes_restricted?(_resource, _account), do: false
-
-  defp scope_grants_action?(scopes, level, :read) do
-    expanded_scopes = Checks.expand_scopes(scopes)
-
-    Enum.member?(expanded_scopes, "#{level}:cache:read") or
-      Enum.member?(expanded_scopes, "#{level}:cache:write")
-  end
-
-  defp scope_grants_action?(scopes, level, :write) do
-    expanded_scopes = Checks.expand_scopes(scopes)
-    Enum.member?(expanded_scopes, "#{level}:cache:write")
-  end
+  defp authorization_action(:account_cache, :read), do: :account_cache_read
+  defp authorization_action(:account_cache, :write), do: :account_cache_create
+  defp authorization_action(:cache, :read), do: :cache_read
+  defp authorization_action(:cache, :write), do: :cache_create
 end

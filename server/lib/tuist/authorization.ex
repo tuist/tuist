@@ -105,17 +105,20 @@ defmodule Tuist.Authorization do
   object :cache do
     action :create do
       desc("Allows users of a project's account to create entries in the project cache.")
-      allow([:authenticated_as_user, user_role: :user])
+      allow([:authenticated_as_user, :cache_write_policy_permits_subject, user_role: :user])
 
       desc("Allows the admin of a project's account to create entries in the project cache.")
-      allow([:authenticated_as_user, user_role: :admin])
+      allow([:authenticated_as_user, :cache_write_policy_permits_subject, user_role: :admin])
 
       desc("Allows the authenticated project to read the cache if it matches the project whose cache is being read.")
 
       allow([:authenticated_as_project, :projects_match])
 
       desc("Allows an account token with project:cache:write scope to create cache entries.")
-      allow([:authenticated_as_account, scopes_permit: "project:cache:write"])
+      allow([:authenticated_as_account, :cache_write_policy_permits_subject, scopes_permit: "project:cache:write"])
+
+      desc("Allows an account to create entries in its project caches.")
+      allow([:authenticated_as_raw_account, :accounts_match])
     end
 
     action :read do
@@ -138,20 +141,57 @@ defmodule Tuist.Authorization do
       desc("Allows an account token with project:cache:read or project:cache:write scope to read cache.")
       allow([:authenticated_as_account, scopes_permit: "project:cache:read"])
       allow([:authenticated_as_account, scopes_permit: "project:cache:write"])
+
+      desc("Allows an account to read its project caches.")
+      allow([:authenticated_as_raw_account, :accounts_match])
     end
 
     action :update do
       desc("Allows users of a project to update cache.")
-      allow([:authenticated_as_user, user_role: :user])
+      allow([:authenticated_as_user, :cache_write_policy_permits_subject, user_role: :user])
 
       desc("Allows the admin of a project to update cache.")
-      allow([:authenticated_as_user, user_role: :admin])
+      allow([:authenticated_as_user, :cache_write_policy_permits_subject, user_role: :admin])
 
       desc("Allows the authenticated project to update cache if it matches the project.")
       allow([:authenticated_as_project, :projects_match])
 
       desc("Allows an account token with project:cache:write scope to update cache.")
-      allow([:authenticated_as_account, scopes_permit: "project:cache:write"])
+      allow([:authenticated_as_account, :cache_write_policy_permits_subject, scopes_permit: "project:cache:write"])
+
+      desc("Allows an account to update its project caches.")
+      allow([:authenticated_as_raw_account, :accounts_match])
+    end
+  end
+
+  object :account_cache do
+    action :create do
+      desc("Allows users of an account to create entries in the account cache.")
+      allow([:authenticated_as_user, :cache_write_policy_permits_subject, user_role: :user])
+
+      desc("Allows the admin of an account to create entries in the account cache.")
+      allow([:authenticated_as_user, :cache_write_policy_permits_subject, user_role: :admin])
+
+      desc("Allows an account token with account:cache:write scope to create account cache entries.")
+      allow([:authenticated_as_account, :cache_write_policy_permits_subject, scopes_permit: "account:cache:write"])
+
+      desc("Allows an account to create entries in its own account cache.")
+      allow([:authenticated_as_raw_account, :accounts_match])
+    end
+
+    action :read do
+      desc("Allows users of an account to read the account cache.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of an account to read the account cache.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows an account token with account:cache:read or account:cache:write scope to read account cache.")
+      allow([:authenticated_as_account, scopes_permit: "account:cache:read"])
+      allow([:authenticated_as_account, scopes_permit: "account:cache:write"])
+
+      desc("Allows an account to read its own account cache.")
+      allow([:authenticated_as_raw_account, :accounts_match])
     end
   end
 

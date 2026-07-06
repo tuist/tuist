@@ -38,6 +38,8 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
     cache_key = [
       Atom.to_string(__MODULE__),
       "authorize",
+      Atom.to_string(category),
+      Atom.to_string(action),
       "#{subject_kind(subject)}-#{subject_id(subject)}",
       "#{Atom.to_string(selected_project.__struct__)}-#{selected_project.id}"
     ]

@@ -216,5 +216,36 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
                }
       end
     end
+
+    test "caches authorization responses by action", %{cache: cache} do
+      # Given
+      project =
+        %{account: %{name: account_handle}} =
+        Repo.preload(ProjectsFixtures.project_fixture(), :account)
+
+      opts =
+        AuthorizationPlug.init(category: :cache, caching: true, cache_ttl: to_timeout(minute: 5))
+
+      expect(Authorization, :authorize, 2, fn
+        :cache_read, _, _ -> :ok
+        :cache_create, _, _ -> {:error, :forbidden}
+      end)
+
+      conn =
+        build_conn()
+        |> assign(:cache, cache)
+        |> assign(:selected_project, project)
+        |> TuistWeb.Authentication.put_current_project(project)
+
+      read_conn = %{conn | method: "GET"}
+      create_conn = %{conn | method: "POST"}
+
+      # When/Then
+      refute AuthorizationPlug.call(read_conn, opts).halted
+
+      assert create_conn |> AuthorizationPlug.call(opts) |> json_response(:forbidden) == %{
+               "message" => "#{account_handle} is not authorized to create cache"
+             }
+    end
   end
 end
