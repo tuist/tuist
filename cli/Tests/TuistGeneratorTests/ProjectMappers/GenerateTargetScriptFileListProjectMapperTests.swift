@@ -1,12 +1,12 @@
 import Path
+import Testing
 import TuistCore
 import XcodeGraph
-import XCTest
 @testable import TuistGenerator
-@testable import TuistTesting
 
-final class GenerateTargetScriptFileListProjectMapperTests: TuistUnitTestCase {
-    func test_map_returns_sideEffectsToCreateGeneratedFileLists() throws {
+struct GenerateTargetScriptFileListProjectMapperTests {
+    @Test
+    func map_returns_sideEffectsToCreateGeneratedFileLists() throws {
         // Given
         let subject = GenerateTargetScriptFileListProjectMapper()
         let fileListPath = try AbsolutePath(validating: "/Project/SourceryInputs.xcfilelist")
@@ -35,10 +35,9 @@ final class GenerateTargetScriptFileListProjectMapperTests: TuistUnitTestCase {
         let (mappedProject, sideEffects) = try subject.map(project: project)
 
         // Then
-        XCTAssertEqual(mappedProject, project)
-        XCTAssertEqual(
-            sideEffects,
-            [
+        #expect(mappedProject == project)
+        #expect(
+            sideEffects == [
                 .file(FileDescriptor(path: fileListPath)),
                 .file(FileDescriptor(path: nestedFileListPath)),
             ]
