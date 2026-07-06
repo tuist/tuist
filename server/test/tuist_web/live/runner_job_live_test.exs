@@ -438,6 +438,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert html =~ "Interactive access"
     assert html =~ "VNC session requested"
     refute html =~ "Terminal sessions are not available in this rollout."
+    refute html =~ "Not requested"
+    assert has_element?(lv, ~s{#close-vnc-session-button[data-variant="secondary"]})
     refute has_element?(lv, ~s{#request-vnc-session-button})
 
     session = Repo.get_by!(InteractiveSession, workflow_job_id: 31_750, kind: :vnc)
@@ -448,6 +450,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
     html_after_close = lv |> element(~s{#close-vnc-session-button}) |> render_click()
 
     assert html_after_close =~ "VNC session idle"
+    refute html_after_close =~ "Not requested"
+    assert has_element?(lv, ~s{#request-vnc-session-button[data-variant="secondary"]})
     assert Repo.reload!(session).state == :closed
   end
 

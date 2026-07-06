@@ -385,7 +385,7 @@
           :if={is_nil(@interactive.vnc_session)}
           id="request-vnc-session-button"
           phx-click="request_vnc_session"
-          variant="primary"
+          variant="secondary"
           size="medium"
           label={dgettext("dashboard_runners", "Start VNC")}
           disabled={!@interactive.vnc_requestable?}
@@ -396,7 +396,7 @@
           :if={@interactive.vnc_session}
           id="close-vnc-session-button"
           phx-click="close_vnc_session"
-          variant="destructive"
+          variant="secondary"
           size="medium"
           label={dgettext("dashboard_runners", "Close VNC")}
         >
@@ -415,6 +415,7 @@
             </div>
           </div>
           <.badge
+            :if={vnc_status}
             label={vnc_status.label}
             color={vnc_status.color}
             style="light-fill"

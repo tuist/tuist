@@ -287,7 +287,7 @@ defmodule TuistWeb.RunnerJobLive do
 
   def interactive_tab_visible?(_), do: false
 
-  def interactive_status_badge_props(nil), do: %{label: dgettext("dashboard_runners", "Not requested"), color: "neutral"}
+  def interactive_status_badge_props(nil), do: nil
 
   def interactive_status_badge_props(%{state: :requested}),
     do: %{label: dgettext("dashboard_runners", "Requested"), color: "information"}
