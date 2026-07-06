@@ -185,47 +185,20 @@ spec:
         passwordSecret:
           name: {{ $opsRoSecretName }}
 
-  {{- if .Values.postgresql.cnpg.backup.plugin.enabled }}
-  # Barman Cloud Plugin (CNPG-I) path. WAL archiving + base backups run via
-  # the plugin sidecar against the ObjectStore CR below. `serverName` is
-  # pinned to the cluster name — the same value the in-tree barmanObjectStore
-  # defaulted to — so the plugin continues the EXISTING archive prefix
-  # (no new base backup, no orphaned PITR history). This is the single most
-  # important continuity invariant; verify it before trusting the cutover.
+  # Barman Cloud Plugin (CNPG-I). WAL archiving + base backups run via the
+  # plugin sidecar against the ObjectStore CR below. `serverName` is pinned to
+  # the cluster name — the value the archive prefix has always used — so the
+  # plugin reads and writes the existing PITR history.
   plugins:
     - name: {{ .Values.postgresql.cnpg.backup.plugin.name | quote }}
       isWALArchiver: true
       parameters:
         barmanObjectName: {{ $objectStoreName | quote }}
         serverName: {{ $clusterName | quote }}
-  {{- else }}
-  backup:
-    retentionPolicy: {{ .Values.postgresql.cnpg.backup.retention | quote }}
-    barmanObjectStore:
-      destinationPath: {{ .Values.postgresql.cnpg.backup.destinationPath | quote }}
-      endpointURL: {{ .Values.postgresql.cnpg.backup.endpointURL | quote }}
-      s3Credentials:
-        accessKeyId:
-          name: {{ $backupSecretName }}
-          key: ACCESS_KEY_ID
-        secretAccessKey:
-          name: {{ $backupSecretName }}
-          key: ACCESS_SECRET_KEY
-      wal:
-        compression: gzip
-        maxParallel: 4
-      data:
-        compression: gzip
-        immediateCheckpoint: false
-        jobs: 2
-  {{- end }}
-{{- if .Values.postgresql.cnpg.backup.plugin.enabled }}
 ---
-# Barman Cloud Plugin object-store config. Mirrors the in-tree
-# barmanObjectStore stanza exactly (same bucket, credentials, wal/data,
-# retention) so the plugin reads and writes the existing archive. Referenced
-# by the Cluster's plugins[].parameters.barmanObjectName above. Note:
-# retention moves from the Cluster (.spec.backup.retentionPolicy) to here.
+# Barman Cloud Plugin object-store config: bucket, credentials, wal/data
+# compression, and retention for the archive the plugin reads and writes.
+# Referenced by the Cluster's plugins[].parameters.barmanObjectName above.
 apiVersion: barmancloud.cnpg.io/v1
 kind: ObjectStore
 metadata:
@@ -251,7 +224,6 @@ spec:
     data:
       compression: gzip
       jobs: 2
-{{- end }}
 ---
 # Daily base backup at 03:00 UTC. The continuous WAL stream archived by
 # the Cluster above keeps PITR alive between base backups; the
@@ -266,11 +238,9 @@ metadata:
 spec:
   schedule: {{ .Values.postgresql.cnpg.backup.schedule | quote }}
   backupOwnerReference: self
-  {{- if .Values.postgresql.cnpg.backup.plugin.enabled }}
   method: plugin
   pluginConfiguration:
     name: {{ .Values.postgresql.cnpg.backup.plugin.name | quote }}
-  {{- end }}
   cluster:
     name: {{ $clusterName }}
   immediate: true

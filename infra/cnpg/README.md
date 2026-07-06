@@ -111,14 +111,13 @@ Continuous WAL archiving + daily 03:00 UTC base backups, both targeting the per-
 
 The Tigris key used for backups is **separate** from the workload's `S3_CREDENTIALS` — a dedicated `S3_BACKUP_CREDENTIALS` item per env, scoped to the env's backup bucket only. Rotate it independently from the workload key.
 
-Restore-validation drill (run quarterly, or before any operation that depends on
-backups being usable). Build a one-shot recovery `Cluster` that replays from the
-archive, run validation queries against it, then delete it (and its PVCs). The
-recovery-source shape depends on which backup mode the cluster is in.
-
-**Plugin path** (`…backup.plugin.enabled: true`) — recover through
-`externalClusters[].plugin`, reusing the `ObjectStore` CR the chart already
-renders in the namespace. `serverName` is the original cluster name (the archive
+Restore-validation drill, automated by
+[`.github/workflows/cnpg-restore-drill.yml`](../../.github/workflows/cnpg-restore-drill.yml)
+(weekly + on-demand per env; also run it by hand before any operation that
+depends on backups being usable). It builds a one-shot recovery `Cluster` that
+replays from the archive, checks the restored data + schema against live, then
+deletes it (and its PVCs). Recover through `externalClusters[].plugin`, reusing
+the `ObjectStore` CR the chart already renders in the namespace. `serverName` is the original cluster name (the archive
 prefix), `barmanObjectName` is the rendered store (`tuist-tuist-pg-backup-store`
 for the main cluster, `tuist-ops-pg-backup-store` for tuist-ops):
 
@@ -144,15 +143,9 @@ spec:
           serverName: tuist-tuist-pg
 ```
 
-**In-tree path** (`…backup.plugin.enabled: false`, the pre-cutover default) —
-same `bootstrap.recovery` + `externalClusters`, but the entry uses
-`barmanObjectStore:` (the `destinationPath` + `endpointURL` + `s3Credentials`)
-instead of `plugin:`.
-
 Apply the manifest, wait for `phase: Cluster in healthy state`, run the
-validation queries, then `kubectl delete cluster` it. Note: with the plugin,
-backup state shows in the `ObjectStore`/`Cluster` status rather than the in-tree
-`kubectl cnpg backup-status` view.
+validation queries, then `kubectl delete cluster` it. Backup state shows in the
+`ObjectStore`/`Cluster` status.
 
 ## Operator version & upgrade path
 
@@ -199,62 +192,37 @@ Merge an operator-bump PR at the start of a low-traffic window wider than the
 deploy lag (the prod step runs after the canary deploy and acceptance tests, so
 roughly 20-40 min after merge), so the switchover lands inside the quiet period.
 
-In-tree `barmanObjectStore` backups are deprecated (since operator 1.26) in
-favor of the Barman Cloud Plugin but still work on 1.29. The plugin migration is
-wired up but gated off — see below.
+In-tree `barmanObjectStore` backups (the operator's native path, deprecated
+since 1.26) are no longer rendered; every cluster backs up through the Barman
+Cloud Plugin.
 
-## Backup: in-tree barmanObjectStore -> Barman Cloud Plugin
+## Backup: Barman Cloud Plugin
 
-In-tree Barman Cloud is deprecated (since operator 1.26) and is being phased out
-of the core operator. This chart can render backups either way, switched per
-cluster by `…backup.plugin.enabled` (default `false` = the in-tree
-`barmanObjectStore`, unchanged). When enabled, the cluster archives via the
-Barman Cloud Plugin (CNPG-I): an `ObjectStore` CR holds the bucket config and
-the `Cluster` references it through `.spec.plugins`. Value keys: the main server
-uses `postgresql.cnpg.backup.plugin.*`; tuist-ops uses `postgresql.backup.plugin.*`.
+Backups run through the Barman Cloud Plugin (CNPG-I): an `ObjectStore` CR holds
+the bucket config, the `Cluster` references it through `.spec.plugins` for WAL
+archiving, and a `ScheduledBackup` with `method: plugin` takes the daily base
+backup (03:00 UTC). Value keys: the main server uses
+`postgresql.cnpg.backup.plugin.*`; tuist-ops uses `postgresql.backup.plugin.*`.
 
-**The plugin is installed on every cluster by the platform deploy** — it's a
+**The plugin is installed on every cluster by the platform deploy.** It's a
 dependency of the platform chart (`plugin-barman-cloud`, pinned in
 [`infra/helm/platform/Chart.yaml`](../helm/platform/Chart.yaml), toggled by
 `plugin-barman-cloud.enabled`). As a subchart of the `platform` release it lands
 in the `platform` namespace alongside the operator, which is where the plugin
-must run. It's idle until a `Cluster` opts in, so installing it changes no
-backups. Bump it like any other platform dependency: edit the pin and redeploy.
+must run. Bump it like any other platform dependency: edit the pin and redeploy.
 It needs cert-manager (already a platform dependency) and adds the
 `objectstores.barmancloud.cnpg.io` CRD, the `platform-plugin-barman-cloud`
 Deployment (release-prefixed as a subchart), a Service, and self-signed mTLS
 Certificates.
 
-**Cutover (per env):** with the plugin installed, flip
-`…backup.plugin.enabled` to `true` **and set `…cnpg.primaryUpdateMethod:
-restart`** for the roll, then deploy. This is an atomic `Cluster` change (drops
-`.spec.backup.barmanObjectStore`, adds `.spec.plugins`) that recreates every
-instance to inject the plugin sidecar.
+**Archive continuity:** `serverName` is pinned to the cluster name and the
+`ObjectStore` uses the same `destinationPath` + credentials, so the plugin reads
+and writes one continuous `s3://…/<serverName>` archive; recovery replays the
+whole history. Confirm health from a primary pod's `plugin-barman-cloud` sidecar
+logs: `Archived WAL file` for the WAL stream, `Backup completed` for the daily
+base backup.
 
-**Do NOT cut over with the default `switchover` method.** The old primary has no
-sidecar yet, so it can't archive via the plugin, and CNPG's graceful switchover
-hangs indefinitely waiting for it to archive its final WAL — the operator wedges
-with no primary (this happened on canary 2026-07-04). `restart` recreates the
-primary *in place* instead, avoiding the handoff. Validated on staging, at the
-cost of a bounded **~3 min of write-downtime** while the primary pod recreates —
-so merge in a low-traffic window. Revert `primaryUpdateMethod` to the default
-(`switchover`) once the env is on the plugin, so future operator bumps keep the
-seconds-long switchover blip.
-
-**If the roll sticks anyway** (no primary, operator looping "switchover in
-progress"), recover with break-glass: force-remove the old primary and restart
-the operator — `kubectl delete pod <old-primary> --grace-period=0 --force` then
-`kubectl -n platform rollout restart deploy/platform-cloudnative-pg`. CNPG then
-promotes the caught-up sync standby, lossless (RPO 0 with quorum sync). Proven
-recovery.
-
-**Continuity invariant (verify before trusting it):** the plugin must keep
-writing to the SAME archive. `serverName` is pinned to the cluster name (the
-value the in-tree path defaulted to) and the `ObjectStore` reuses the same
-`destinationPath` + credentials, so the prefix is unchanged. After cutover,
-confirm the primary's logs show `Archived WAL file` to the same
-`s3://…/<serverName>` path, then run a restore-validation drill from a
-plugin-written backup before retiring the in-tree path elsewhere.
-
-**Observability:** backup metrics rename from `cnpg_collector_*` to
-`barman_cloud_cloudnative_pg_io_*`; repoint any panels or backup-failure alerts.
+**Observability:** the plugin reports backup freshness via
+`barman_cloud_cloudnative_pg_io_*`. The operator's `cnpg_collector_*` backup
+timestamps do NOT track plugin backups, so point backup panels and alerts at the
+`barman_cloud_*` series.
