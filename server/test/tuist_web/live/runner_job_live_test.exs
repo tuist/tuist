@@ -441,6 +441,13 @@ defmodule TuistWeb.RunnerJobLiveTest do
     refute html =~ "Not requested"
     refute html =~ "Requested"
     assert has_element?(lv, ~s{#close-vnc-session-button[data-variant="secondary"]})
+    assert has_element?(lv, ~s{#runner-vnc-viewport[phx-hook="RunnerVNCFullscreen"]})
+
+    assert has_element?(
+             lv,
+             ~s{#runner-vnc-viewport button[data-fullscreen-toggle][data-variant="secondary"]}
+           )
+
     refute has_element?(lv, ~s{#request-vnc-session-button})
 
     session = Repo.get_by!(InteractiveSession, workflow_job_id: 31_750, kind: :vnc)

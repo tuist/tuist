@@ -419,9 +419,30 @@
         </div>
 
         <div
+          id="runner-vnc-viewport"
+          phx-hook="RunnerVNCFullscreen"
           data-part="interactive-viewport"
           data-state={if(@interactive.vnc_session, do: "requested", else: "idle")}
         >
+          <div data-part="interactive-viewport-fullscreen-control">
+            <.tooltip
+              id="runner-vnc-fullscreen-tooltip"
+              title={dgettext("dashboard_runners", "Full screen")}
+            >
+              <:trigger :let={attrs}>
+                <.button
+                  icon_only
+                  variant="secondary"
+                  size="medium"
+                  aria-label={dgettext("dashboard_runners", "Show VNC full screen")}
+                  data-fullscreen-toggle
+                  {attrs}
+                >
+                  <.icon name="device_desktop_share" />
+                </.button>
+              </:trigger>
+            </.tooltip>
+          </div>
           <div data-part="interactive-viewport-frame">
             <div data-part="interactive-viewport-icon"><.device_laptop /></div>
             <div data-part="interactive-viewport-title">

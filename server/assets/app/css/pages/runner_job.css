@@ -588,6 +588,7 @@
   }
 
   & [data-part="interactive-viewport"] {
+    position: relative;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -605,6 +606,28 @@
           transparent 52%
         ),
         var(--noora-surface-background-secondary);
+    }
+
+    &:fullscreen,
+    &:-webkit-full-screen {
+      aspect-ratio: auto;
+      border-radius: 0;
+      width: 100vw;
+      height: 100vh;
+      min-height: 100vh;
+      background: var(--noora-surface-background-secondary);
+    }
+  }
+
+  & [data-part="interactive-viewport-fullscreen-control"] {
+    position: absolute;
+    top: var(--noora-spacing-4);
+    right: var(--noora-spacing-4);
+    z-index: 1;
+
+    & [data-fullscreen-toggle][disabled] {
+      opacity: 0.5;
+      pointer-events: none;
     }
   }
 
