@@ -441,13 +441,14 @@ defmodule TuistWeb.RunnerJobLiveTest do
     refute html =~ "Not requested"
     refute html =~ "Requested"
     assert has_element?(lv, ~s{#close-vnc-session-button[data-variant="secondary"]})
-    assert has_element?(lv, ~s{#runner-vnc-card})
+    assert has_element?(lv, ~s{#runner-vnc-session})
 
     assert has_element?(
              lv,
-             ~s{#runner-vnc-fullscreen-button[phx-hook="RunnerVNCFullscreen"][data-fullscreen-target="#runner-vnc-card"][data-variant="secondary"]}
+             ~s{#runner-vnc-fullscreen-button[phx-hook="RunnerVNCFullscreen"][data-fullscreen-target="#runner-vnc-session"][data-fullscreen-enter-label="Full screen"][data-fullscreen-exit-label="Exit full screen"][data-variant="secondary"]}
            )
 
+    assert html =~ "Full screen"
     refute has_element?(lv, ~s{#runner-vnc-viewport button[data-fullscreen-toggle]})
     refute has_element?(lv, ~s{#request-vnc-session-button})
 

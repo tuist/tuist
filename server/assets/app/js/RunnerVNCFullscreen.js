@@ -30,6 +30,12 @@ export default {
       ? this.el
       : this.el.querySelector("[data-fullscreen-toggle]");
     this.target = document.querySelector(this.el.dataset.fullscreenTarget) || this.el;
+    this.label = this.button?.querySelector("span");
+    this.enterLabel =
+      this.button?.dataset.fullscreenEnterLabel ||
+      this.button?.getAttribute("aria-label") ||
+      "Full screen";
+    this.exitLabel = this.button?.dataset.fullscreenExitLabel || "Exit full screen";
     this.onClick = () => this.toggle();
     this.onFullscreenChange = () => this.sync();
 
@@ -62,9 +68,12 @@ export default {
 
   sync() {
     const active = fullscreenElement() === this.target;
+    const label = active ? this.exitLabel : this.enterLabel;
 
     this.el.dataset.fullscreen = active ? "active" : "idle";
     this.button?.setAttribute("aria-pressed", active ? "true" : "false");
+    this.button?.setAttribute("aria-label", label);
+    if (this.label) this.label.textContent = label;
   },
 
   disable() {
