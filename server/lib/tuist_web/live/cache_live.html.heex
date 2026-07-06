@@ -10,6 +10,9 @@
   </div>
 
   <%= if @cache_enabled do %>
+    <.cache_write_policy_section kura_cache_write_policy={
+      @selected_account.kura_cache_write_policy
+    } />
     <.cache_servers_section
       :if={@managed_cache_visible?}
       servers={@servers}

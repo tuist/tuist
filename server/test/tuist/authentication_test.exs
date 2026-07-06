@@ -290,6 +290,37 @@ defmodule Tuist.AuthenticationTest do
       assert "#{organization.account.name}/#{project.name}" in claims["cache_grants"]["project"]["read"]
     end
 
+    test "omits Kura write grants for user-accessible accounts restricted to tokens" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      personal_project = ProjectsFixtures.project_fixture(account: user.account)
+      organization = AccountsFixtures.organization_fixture()
+      Accounts.add_user_to_organization(user, organization, role: :admin)
+
+      {:ok, organization_account} =
+        Accounts.update_account(organization.account, %{kura_cache_write_policy: :tokens_only})
+
+      organization_project = ProjectsFixtures.project_fixture(account: organization_account)
+
+      # When
+      {:ok, _token, claims} =
+        Authentication.encode_and_sign(
+          user,
+          %{email: user.email},
+          token_type: :access,
+          ttl: {1, :hour}
+        )
+
+      # Then
+      personal_project_handle = "#{user.account.name}/#{personal_project.name}"
+      organization_project_handle = "#{organization_account.name}/#{organization_project.name}"
+
+      assert organization_project_handle in claims["projects"]
+      assert organization_project_handle in claims["cache_grants"]["project"]["read"]
+      refute organization_project_handle in claims["cache_grants"]["project"]["write"]
+      assert personal_project_handle in claims["cache_grants"]["project"]["write"]
+    end
+
     test "keeps user token size independent from accessible account count" do
       # Given
       user = AccountsFixtures.user_fixture()

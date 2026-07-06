@@ -2,16 +2,22 @@ defmodule TuistWeb.API.OIDCControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  alias Tuist.Accounts
+  alias Tuist.OAuth.Introspection
   alias Tuist.OIDC
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   describe "POST /api/auth/oidc/token" do
-    test "returns access token when OIDC token is valid and project has VCS connection", %{conn: conn} do
+    test "returns access token with cache write access when OIDC token is valid and project has VCS connection", %{
+      conn: conn
+    } do
       project =
         ProjectsFixtures.project_fixture(
           vcs_connection: [repository_full_handle: "tuist/tuist"],
           preload: [:account, :vcs_connection]
         )
+
+      {:ok, account} = Accounts.update_account(project.account, %{kura_cache_write_policy: :tokens_only})
 
       stub(OIDC, :claims, fn _token -> {:ok, %{repository: "tuist/tuist"}} end)
 
@@ -31,6 +37,15 @@ defmodule TuistWeb.API.OIDCControllerTest do
       assert claims["scopes"] == ["ci"]
 
       assert project.id in claims["project_ids"]
+
+      project_handle = "#{account.name}/#{project.name}"
+
+      assert %{
+               active: true,
+               cache_grants: %{
+                 "project" => %{"read" => [^project_handle], "write" => [^project_handle]}
+               }
+             } = Introspection.token_response(response["access_token"], account)
     end
 
     test "returns access token for multiple projects with same VCS connection (monorepo)", %{conn: conn} do

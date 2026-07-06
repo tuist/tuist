@@ -19,6 +19,12 @@ The goal is low-latency caching everywhere, not only in the one environment wher
 
 The Tuist server tells clients which cache endpoints to use. This keeps endpoint discovery centralized while allowing the cache itself to stay decentralized and close to the compute that needs it.
 
+## Restrict uploads to CI {#restrict-uploads-to-ci}
+
+For Kura-backed cache endpoints, account administrators can make developers read-only while allowing CI to upload cache artifacts. Open the account's **Cache** settings in Tuist and set **Cache upload access** to **CI and account tokens only**. After that, members authenticated with login sessions can still download from Kura, but uploads require CI OIDC authentication or an account token with cache write scopes such as `project:cache:write` or `ci`.
+
+Use this when CI is the trusted cache producer and local machines should only consume the cache. The setting affects Kura authorization grants only; legacy cache endpoints continue to use their existing authorization behavior.
+
 ## Deploy on Kubernetes {#deploy-on-kubernetes}
 
 Kura is distributed as a Helm chart through GitHub Container Registry. It deploys Kura as a `StatefulSet` with persistent volumes, a headless service for peer discovery, and a regular service for HTTP and gRPC traffic.

@@ -145,6 +145,45 @@ defmodule TuistWeb.CacheLiveTest do
     refute html =~ "Kura"
   end
 
+  test "updates the cache upload access", %{conn: conn, account: account} do
+    enable_cache(account)
+    stub(Kura, :latest_versions, fn 1 -> [] end)
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/cache")
+
+    assert html =~ "Cache upload access"
+    assert html =~ "Learn more about how to authenticate CI"
+    assert html =~ ~s(href="/en/docs/guides/server/authentication#continuous-integration")
+    assert html =~ "here</a>."
+    assert html =~ "Members, CI, and account tokens"
+    assert html =~ "CI and account tokens only"
+    assert html =~ ~s(id="cache-upload-policy-members-and-tokens")
+    assert html =~ ~s(id="cache-upload-policy-tokens-only")
+    assert html =~ ~s(phx-value-policy="members_and_tokens")
+    document = Floki.parse_fragment!(html)
+    assert Floki.attribute(document, "#cache-upload-policy-members-and-tokens", "data-selected") == ["true"]
+    assert Floki.attribute(document, "#cache-upload-policy-tokens-only", "data-selected") == ["false"]
+
+    html = render_click(lv, "select_cache_upload_policy", %{"policy" => "tokens_only"})
+
+    assert html =~ ~s(id="cache-upload-policy-tokens-only")
+    assert html =~ ~s(phx-value-policy="tokens_only")
+    document = Floki.parse_fragment!(html)
+    assert Floki.attribute(document, "#cache-upload-policy-members-and-tokens", "data-selected") == ["false"]
+    assert Floki.attribute(document, "#cache-upload-policy-tokens-only", "data-selected") == ["true"]
+    assert {:ok, updated_account} = Accounts.get_account_by_id(account.id)
+    assert updated_account.kura_cache_write_policy == :tokens_only
+
+    html = render_click(lv, "select_cache_upload_policy", %{"policy" => "members_and_tokens"})
+
+    assert html =~ ~s(id="cache-upload-policy-members-and-tokens")
+    document = Floki.parse_fragment!(html)
+    assert Floki.attribute(document, "#cache-upload-policy-members-and-tokens", "data-selected") == ["true"]
+    assert Floki.attribute(document, "#cache-upload-policy-tokens-only", "data-selected") == ["false"]
+    assert {:ok, updated_account} = Accounts.get_account_by_id(account.id)
+    assert updated_account.kura_cache_write_policy == :members_and_tokens
+  end
+
   test "shows cache server state, domain, and version", %{conn: conn, account: account} do
     enable_cache(account)
     stub(Kura, :latest_versions, fn 1 -> [%{version: "0.5.3", released_at: DateTime.utc_now(:second)}] end)
