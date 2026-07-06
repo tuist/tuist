@@ -28,20 +28,20 @@ CREATE TABLE IF NOT EXISTS cas_outputs (
     size INTEGER NOT NULL,
     duration REAL NOT NULL,
     compressed_size INTEGER NOT NULL,
-    created_at REAL NOT NULL,
+    created_at TEXT NOT NULL,
     transfer_duration REAL NOT NULL DEFAULT 0,
     codec_duration REAL NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS nodes (
     key TEXT PRIMARY KEY,
     checksum TEXT NOT NULL,
-    created_at REAL NOT NULL
+    created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS keyvalue_metadata (
     key TEXT NOT NULL,
     operation_type TEXT NOT NULL,
     duration REAL NOT NULL,
-    created_at REAL NOT NULL,
+    created_at TEXT NOT NULL,
     PRIMARY KEY (key, operation_type)
 );
 ";
@@ -78,7 +78,7 @@ impl Analytics {
         let conn = Connection::open(path).ok()?;
         // WAL so the CLI's `checkpoint`+copy at upload time can read a consistent
         // snapshot while the broker keeps writing.
-        conn.pragma_update(None, "journal_mode", &"WAL").ok()?;
+        conn.pragma_update(None, "journal_mode", "WAL").ok()?;
         conn.busy_timeout(std::time::Duration::from_secs(5)).ok()?;
         conn.execute_batch(SCHEMA).ok()?;
         let (sender, receiver) = std::sync::mpsc::channel();
@@ -184,11 +184,38 @@ pub fn parse_cas_references(data: &[u8]) -> Vec<(Vec<u8>, String)> {
     references
 }
 
-fn now_unix() -> f64 {
-    SystemTime::now()
+/// `created_at` as SQLite.swift serializes a `Date`: a UTC `"yyyy-MM-dd'T'HH:mm:ss.SSS"`
+/// TEXT string (no offset), which is what the Swift [`CASAnalyticsDatabase`] writes.
+/// The broker and the Swift writer share the same `cas_analytics.db`, so the
+/// column type and format must match or one side's inserts land in a schema the
+/// other created.
+fn now_iso8601() -> String {
+    let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs_f64())
-        .unwrap_or(0.0)
+        .unwrap_or_default();
+    iso8601_from_unix(now.as_secs(), now.subsec_millis())
+}
+
+fn iso8601_from_unix(secs: u64, millis: u32) -> String {
+    let days = (secs / 86_400) as i64;
+    let rem = secs % 86_400;
+    let (hour, minute, second) = (rem / 3600, (rem % 3600) / 60, rem % 60);
+    let (year, month, day) = civil_from_days(days);
+    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}.{millis:03}")
+}
+
+/// Howard Hinnant's `civil_from_days`: days since 1970-01-01 -> (year, month, day).
+fn civil_from_days(z: i64) -> (i64, u64, u64) {
+    let z = z + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = (z - era * 146_097) as u64;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let year = yoe as i64 + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    (if month <= 2 { year + 1 } else { year }, month, day)
 }
 
 fn writer_loop(mut conn: Connection, receiver: Receiver<Record>) {
@@ -202,10 +229,10 @@ fn writer_loop(mut conn: Connection, receiver: Receiver<Record>) {
                 break;
             }
         }
-        let created_at = now_unix();
+        let created_at = now_iso8601();
         let Ok(tx) = conn.transaction() else { continue };
         for record in &batch {
-            let _ = write_record(&tx, record, created_at);
+            let _ = write_record(&tx, record, &created_at);
         }
         let _ = tx.commit();
     }
@@ -214,7 +241,7 @@ fn writer_loop(mut conn: Connection, receiver: Receiver<Record>) {
 fn write_record(
     tx: &rusqlite::Transaction,
     record: &Record,
-    created_at: f64,
+    created_at: &str,
 ) -> rusqlite::Result<usize> {
     match record {
         Record::Node { node_id, checksum } => tx.execute(
@@ -259,6 +286,17 @@ mod tests {
     }
 
     #[test]
+    fn created_at_matches_sqlite_swift_date_text() {
+        // SQLite.swift serializes a `Date` as UTC "yyyy-MM-dd'T'HH:mm:ss.SSS";
+        // the broker shares cas_analytics.db with the Swift CASAnalyticsDatabase,
+        // so its created_at must be byte-compatible with that column.
+        assert_eq!(iso8601_from_unix(0, 0), "1970-01-01T00:00:00.000");
+        // 1_000_000_000 unix seconds is the well-known 2001-09-09T01:46:40 UTC.
+        assert_eq!(iso8601_from_unix(1_000_000_000, 500), "2001-09-09T01:46:40.500");
+        assert_eq!(civil_from_days(-1), (1969, 12, 31));
+    }
+
+    #[test]
     fn parse_cas_references_extracts_the_casid_hex_pattern() {
         let cas_id = vec![0xABu8; 64];
         let hex = "AB".repeat(32); // 64 ASCII hex chars
@@ -273,6 +311,58 @@ mod tests {
         assert_eq!(references.len(), 1);
         assert_eq!(references[0].0, cas_id);
         assert_eq!(references[0].1, hex);
+    }
+
+    #[test]
+    fn records_into_a_swift_created_canonical_schema() {
+        // Regression for the schema-divergence bug: the broker shares
+        // cas_analytics.db with the Swift CASAnalyticsDatabase, whose SQLite.swift
+        // `migrate()` creates these exact tables (created_at as TEXT, double-quoted
+        // identifiers, defaults). If the broker's rows are not compatible with that
+        // pre-existing schema, its INSERTs silently drop and nothing is recorded.
+        // This creates the table the Swift way first, then drives the broker's
+        // recording against it.
+        let path = std::env::temp_dir().join(format!("cas-swift-schema-{}.db", std::process::id()));
+        let path = path.to_str().unwrap().to_string();
+        let _ = std::fs::remove_file(&path);
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE \"cas_outputs\" (\"key\" TEXT PRIMARY KEY NOT NULL, \"size\" INTEGER NOT NULL, \"duration\" REAL NOT NULL, \"compressed_size\" INTEGER NOT NULL, \"created_at\" TEXT NOT NULL DEFAULT ('2026-01-01T00:00:00.000'), \"transfer_duration\" REAL NOT NULL DEFAULT (0.0), \"codec_duration\" REAL NOT NULL DEFAULT (0.0));
+                 CREATE TABLE \"nodes\" (\"key\" TEXT PRIMARY KEY NOT NULL, \"checksum\" TEXT NOT NULL, \"created_at\" TEXT NOT NULL DEFAULT ('2026-01-01T00:00:00.000'));
+                 CREATE TABLE \"keyvalue_metadata\" (\"key\" TEXT NOT NULL, \"operation_type\" TEXT NOT NULL, \"duration\" REAL NOT NULL, \"created_at\" TEXT NOT NULL DEFAULT ('2026-01-01T00:00:00.000'), PRIMARY KEY (\"key\", \"operation_type\"));",
+            )
+            .unwrap();
+        }
+        {
+            let analytics = Analytics::open(&path).unwrap();
+            analytics.record_node(&[0xDEu8, 0xAD, 0xBE, 0xEF], "abc123");
+            analytics.record_cas_output("abc123", 100, 40, 0.5, 0.3, 0.2);
+            analytics.record_keyvalue(&[0x00, 0xFB, 0xFF], "write", 0.1);
+        }
+        std::thread::sleep(std::time::Duration::from_millis(300));
+
+        let conn = Connection::open(&path).unwrap();
+        let node_checksum: String = conn
+            .query_row("SELECT checksum FROM nodes WHERE key = '0~3q2-7w=='", [], |row| row.get(0))
+            .expect("node row must land in the Swift-created table");
+        assert_eq!(node_checksum, "ABC123");
+        let (size, kind): (i64, String) = conn
+            .query_row(
+                "SELECT c.size, k.operation_type FROM cas_outputs c, keyvalue_metadata k WHERE c.key = 'ABC123'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("cas_output + keyvalue rows must land in the Swift-created tables");
+        assert_eq!(size, 100);
+        assert_eq!(kind, "write");
+        // created_at written as TEXT (not a REAL), so it matches the column type.
+        let created_at_type: String = conn
+            .query_row("SELECT typeof(created_at) FROM nodes LIMIT 1", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(created_at_type, "text");
+
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]

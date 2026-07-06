@@ -78,6 +78,12 @@ struct CacheBrokerCommandService {
         let analyticsDatabasePath = Environment.current.stateDirectory
             .appending(component: CASAnalyticsDatabase.databaseName)
         setenv("TUIST_CAS_ANALYTICS_DB", analyticsDatabasePath.pathString, 1)
+        // Create/upgrade the canonical analytics schema before handing off. The
+        // Swift CASAnalyticsDatabase owns this schema (the server reads it and
+        // its migrate adds any missing columns to an older db), so the broker
+        // only ever inserts into an existing, current-schema table rather than
+        // racing to create a divergent one.
+        try? await CASAnalyticsDatabase().migrate()
 
         Logger.current.debug("Launching cache broker at \(brokerPath.pathString) for endpoint \(endpoint.absoluteString)")
 
