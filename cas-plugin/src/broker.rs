@@ -253,8 +253,20 @@ impl Broker {
         let manifest = match remote.get_action(key)? {
             Some(manifest) if !manifest.is_empty() => manifest,
             _ => {
+                // A local compiler may have published (and locally stored) this
+                // key between our get_action miss and now; the publisher pool
+                // runs outside this resolve's single-flight guard. Never clobber
+                // that Some with a negative entry, or the long-lived broker would
+                // answer misses for a key it can actually serve. Prefer the
+                // freshly-published value if present.
+                {
+                    let mut resolved = state.resolved.lock().unwrap();
+                    if let Some(Some(value)) = resolved.get(key) {
+                        return Ok(Some(value.clone()));
+                    }
+                    resolved.insert(key.to_vec(), None);
+                }
                 state.stats_misses.fetch_add(1, Ordering::Relaxed);
-                state.resolved.lock().unwrap().insert(key.to_vec(), None);
                 if let Some(analytics) = &self.analytics {
                     analytics.record_keyvalue(key, "read", op_start.elapsed().as_secs_f64());
                 }

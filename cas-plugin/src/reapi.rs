@@ -210,9 +210,13 @@ impl Remote {
                         .tls_config(ClientTlsConfig::new().with_native_roots())
                         .map_err(|e| format!("tls config: {e}"))?;
                 }
-                runtime()
-                    .block_on(endpoint.connect())
-                    .map_err(|e| format!("grpc connect: {e}"))
+                // connect_lazy establishes (and transparently re-establishes)
+                // the connection per request, so a Kura restart or transient
+                // unreachability during the broker's first call no longer gets
+                // cached as a permanent Err that poisons every later RPC. The
+                // only errors cached here are deterministic endpoint/TLS config
+                // errors, which will never succeed on retry anyway.
+                Ok(endpoint.connect_lazy())
             })
             .clone()
     }
