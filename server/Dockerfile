@@ -122,7 +122,16 @@ COPY server/config/config.exs config/
 COPY server/config/prod.exs server/config/can.exs server/config/stag.exs config/
 
 RUN mix deps.compile
-RUN mise/tasks/cldr/prefetch-locale-data.sh
+# Prefetch CLDR locale JSON before the full-locale compile so ex_cldr does not
+# fall back to rate-limited raw.githubusercontent.com downloads. Authenticate
+# via a BuildKit secret (never baked into a layer) to lift the unauthenticated
+# rate ceiling; the script stays unauthenticated when no secret is mounted
+# (local builds). The `env=` secret target needs the built-in Dockerfile
+# frontend >= 1.10 (BuildKit 0.16 / Docker Engine 27.3, Sep 2024) — every CI
+# path here provisions a current BuildKit via setup-buildx-action, so no
+# `# syntax=` pin (and its Docker Hub frontend pull) is needed.
+RUN --mount=type=secret,id=github_token,env=GITHUB_TOKEN \
+    mise/tasks/cldr/prefetch-locale-data.sh
 
 # ========================================
 # Stage: OG image generator

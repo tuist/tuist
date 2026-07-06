@@ -226,6 +226,8 @@ jobs:
           target: runner
           platforms: linux/amd64
           outputs: type=image,name=ghcr.io/tuist/tuist,push-by-digest=true,name-canonical=true,push=true
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}
           build-args: |
             TUIST_HOSTED=0
             TUIST_VERSION=${{ needs.check-releases.outputs.server-next-version-number }}
@@ -273,6 +275,8 @@ jobs:
           target: runner
           platforms: linux/arm64
           outputs: type=image,name=ghcr.io/tuist/tuist,push-by-digest=true,name-canonical=true,push=true
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}
           build-args: |
             TUIST_HOSTED=0
             TUIST_VERSION=${{ needs.check-releases.outputs.server-next-version-number }}
@@ -1911,6 +1915,8 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}
           # Shared registry layer cache. This workflow runs on every push to
           # main, so it keeps `buildcache:server` warm merge to merge;
           # server-deployment.yml reads and writes the same ref. `mode=max`

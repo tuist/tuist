@@ -207,6 +207,8 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}
           # Shared `buildcache:server` ref, kept warm by the push-to-main
           # build in server-production-deployment.yml. `mode=max` exports
           # cache for every stage (deps.compile, builder, og-images).
