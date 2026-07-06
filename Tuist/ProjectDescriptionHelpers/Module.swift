@@ -1102,21 +1102,14 @@ public enum Module: String, CaseIterable {
                 ]
             case .cas:
                 [
-                    .target(name: Module.core.targetName, condition: .when([.macos])),
                     .target(name: Module.support.targetName, condition: .when([.macos])),
                     .target(name: Module.server.targetName),
-                    .target(name: Module.cache.targetName, condition: .when([.macos])),
-                    .target(name: Module.casAnalytics.targetName, condition: .when([.macos])),
                     .target(name: Module.http.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "OpenAPIRuntime"),
-                    .external(name: "GRPCCore"),
-                    .external(name: "GRPCNIOTransportHTTP2"),
-                    .external(name: "GRPCProtobuf"),
-                    .external(name: "SwiftProtobuf"),
-                    .external(name: "libzstd"),
+                    .external(name: "Mockable"),
                 ]
             case .reapi:
                 [

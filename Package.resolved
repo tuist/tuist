@@ -258,14 +258,6 @@
       }
     },
     {
-      "identity" : "facebook.zstd",
-      "kind" : "registry",
-      "location" : "",
-      "state" : {
-        "version" : "1.5.7"
-      }
-    },
-    {
       "identity" : "flight-school.AnyCodable",
       "kind" : "registry",
       "location" : "",
