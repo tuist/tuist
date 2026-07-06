@@ -52,6 +52,7 @@ Add the following build settings to your Xcode project:
 COMPILATION_CACHE_ENABLE_CACHING = YES
 COMPILATION_CACHE_ENABLE_PLUGIN = YES
 COMPILATION_CACHE_PLUGIN_PATH = $(HOME)/.local/share/mise/installs/tuist/latest/bin/libtuist_cas_plugin.dylib
+// Homebrew (Apple Silicon) instead: COMPILATION_CACHE_PLUGIN_PATH = /opt/homebrew/opt/tuist/bin/libtuist_cas_plugin.dylib
 COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
 ```
 
@@ -67,6 +68,7 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
     COMPILATION_CACHE_ENABLE_PLUGIN=YES \
     COMPILATION_CACHE_PLUGIN_PATH="$(dirname "$(mise which tuist)")/libtuist_cas_plugin.dylib" \
     COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
+# Homebrew instead: COMPILATION_CACHE_PLUGIN_PATH="$(brew --prefix tuist)/bin/libtuist_cas_plugin.dylib"
 ```
 
 > [!NOTE]
