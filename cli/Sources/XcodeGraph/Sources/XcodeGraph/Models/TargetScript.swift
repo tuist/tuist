@@ -57,43 +57,6 @@ public struct TargetScript: Equatable, Codable, Sendable {
                 return path.relative(to: sourceRootPath).pathString
             }
         }
-
-        public init(from decoder: Decoder) throws {
-            if let path = try? decoder.singleValueContainer().decode(String.self) {
-                self = .path(path)
-                return
-            }
-
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            if let generatedPath = try container.decodeIfPresent(AbsolutePath.self, forKey: .generated) {
-                self = .generated(generatedPath)
-            } else if let path = try? container.decode(String.self, forKey: .path) {
-                self = .path(path)
-            } else {
-                throw DecodingError.dataCorrupted(
-                    .init(
-                        codingPath: decoder.codingPath,
-                        debugDescription: "Expected a file list path string or generated path."
-                    )
-                )
-            }
-        }
-
-        public func encode(to encoder: Encoder) throws {
-            switch self {
-            case let .path(path):
-                var container = encoder.singleValueContainer()
-                try container.encode(path)
-            case let .generated(path):
-                var container = encoder.container(keyedBy: CodingKeys.self)
-                try container.encode(path, forKey: .generated)
-            }
-        }
-
-        private enum CodingKeys: String, CodingKey {
-            case path
-            case generated
-        }
     }
 
     /// Name of the build phase when the project gets generated

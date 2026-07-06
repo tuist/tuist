@@ -24,27 +24,4 @@ final class TargetScriptTests: XCTestCase {
         // Then
         XCTAssertCodable(subject)
     }
-
-    func test_decoding_whenFileListPathsAreStrings() throws {
-        // Given
-        let data = try JSONSerialization.data(withJSONObject: [
-            "name": "name",
-            "script": ["embedded": ["_0": script]],
-            "order": "pre",
-            "inputPaths": [],
-            "inputFileListPaths": ["Inputs.xcfilelist"],
-            "outputPaths": [],
-            "outputFileListPaths": ["Outputs.xcfilelist"],
-            "showEnvVarsInLog": true,
-            "runForInstallBuildsOnly": false,
-            "shellPath": "/bin/sh",
-        ])
-
-        // When
-        let got = try JSONDecoder().decode(TargetScript.self, from: data)
-
-        // Then
-        XCTAssertEqual(got.inputFileListPaths, ["Inputs.xcfilelist"])
-        XCTAssertEqual(got.outputFileListPaths, ["Outputs.xcfilelist"])
-    }
 }
