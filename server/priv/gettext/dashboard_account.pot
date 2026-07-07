@@ -629,10 +629,10 @@ msgstr ""
 #: lib/tuist_web/live/account_settings_live.ex:500
 #: lib/tuist_web/live/account_settings_live.ex:572
 #: lib/tuist_web/live/account_settings_live.ex:786
-#: lib/tuist_web/live/cache_live.ex:556
-#: lib/tuist_web/live/cache_live.ex:572
-#: lib/tuist_web/live/cache_live.ex:640
-#: lib/tuist_web/live/cache_live.ex:956
+#: lib/tuist_web/live/cache_live.ex:554
+#: lib/tuist_web/live/cache_live.ex:570
+#: lib/tuist_web/live/cache_live.ex:638
+#: lib/tuist_web/live/cache_live.ex:954
 #, elixir-autogen, elixir-format
 msgid "Region"
 msgstr ""
@@ -751,8 +751,8 @@ msgid "Standard support: Via Slack and email"
 msgstr ""
 
 #: lib/tuist_web/live/account_settings_live.ex:575
-#: lib/tuist_web/live/cache_live.ex:643
-#: lib/tuist_web/live/cache_live.ex:962
+#: lib/tuist_web/live/cache_live.ex:641
+#: lib/tuist_web/live/cache_live.ex:960
 #: lib/tuist_web/live/members_live.ex:288
 #: lib/tuist_web/live/webhook_event_live.html.heex:28
 #: lib/tuist_web/live/webhook_live.ex:265
@@ -1057,14 +1057,14 @@ msgid "No custom cache endpoints configured. Tuist will use the default Tuist-ho
 msgstr ""
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:317
-#: lib/tuist_web/live/cache_live.ex:772
-#: lib/tuist_web/live/cache_live.ex:862
+#: lib/tuist_web/live/cache_live.ex:770
+#: lib/tuist_web/live/cache_live.ex:860
 #, elixir-autogen, elixir-format
 msgid "Client ID"
 msgstr ""
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:336
-#: lib/tuist_web/live/cache_live.ex:792
+#: lib/tuist_web/live/cache_live.ex:790
 #, elixir-autogen, elixir-format
 msgid "Client secret"
 msgstr ""
@@ -1282,7 +1282,7 @@ msgid "Dashboard"
 msgstr ""
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:512
-#: lib/tuist_web/live/cache_live.ex:832
+#: lib/tuist_web/live/cache_live.ex:830
 #: lib/tuist_web/live/members_live.ex:418
 #: lib/tuist_web/live/webhook_live.html.heex:404
 #: lib/tuist_web/live/webhooks_live.html.heex:104
@@ -1291,7 +1291,7 @@ msgid "Done"
 msgstr ""
 
 #: lib/tuist_web/live/authentication_settings_live.html.heex:523
-#: lib/tuist_web/live/cache_live.ex:848
+#: lib/tuist_web/live/cache_live.ex:846
 #, elixir-autogen, elixir-format
 msgid "Generate"
 msgstr ""
@@ -1430,9 +1430,9 @@ msgstr ""
 #: lib/tuist_web/live/account_settings_live.ex:550
 #: lib/tuist_web/live/account_settings_live.ex:556
 #: lib/tuist_web/live/account_settings_live.ex:618
-#: lib/tuist_web/live/cache_live.ex:622
-#: lib/tuist_web/live/cache_live.ex:628
-#: lib/tuist_web/live/cache_live.ex:682
+#: lib/tuist_web/live/cache_live.ex:620
+#: lib/tuist_web/live/cache_live.ex:626
+#: lib/tuist_web/live/cache_live.ex:680
 #, elixir-autogen, elixir-format
 msgid "Deploy"
 msgstr ""
@@ -1462,7 +1462,7 @@ msgid "Deploying Kura in %{region}..."
 msgstr ""
 
 #: lib/tuist_web/live/account_settings_live.ex:602
-#: lib/tuist_web/live/cache_live.ex:666
+#: lib/tuist_web/live/cache_live.ex:664
 #, elixir-autogen, elixir-format
 msgid "Destroy"
 msgstr ""
@@ -1490,7 +1490,7 @@ msgid "Destroying Kura server..."
 msgstr ""
 
 #: lib/tuist_web/live/account_settings_live.ex:582
-#: lib/tuist_web/live/cache_live.ex:646
+#: lib/tuist_web/live/cache_live.ex:644
 #, elixir-autogen, elixir-format
 msgid "Domain"
 msgstr ""
@@ -1527,14 +1527,14 @@ msgid "New servers start on Kura"
 msgstr ""
 
 #: lib/tuist_web/live/account_settings_live.ex:585
-#: lib/tuist_web/live/cache_live.ex:649
-#: lib/tuist_web/live/cache_live.ex:959
+#: lib/tuist_web/live/cache_live.ex:647
+#: lib/tuist_web/live/cache_live.ex:957
 #, elixir-autogen, elixir-format
 msgid "Version"
 msgstr ""
 
 #: lib/tuist_web/live/account_settings_live.ex:521
-#: lib/tuist_web/live/cache_live.ex:593
+#: lib/tuist_web/live/cache_live.ex:591
 #, elixir-autogen, elixir-format
 msgid "(current deploy)."
 msgstr ""
@@ -1860,7 +1860,7 @@ msgid "Copy payload"
 msgstr ""
 
 #: lib/tuist_web/live/account_settings_live.ex:592
-#: lib/tuist_web/live/cache_live.ex:656
+#: lib/tuist_web/live/cache_live.ex:654
 #, elixir-autogen, elixir-format
 msgid "Retry"
 msgstr ""
@@ -1913,27 +1913,27 @@ msgstr ""
 msgid "Cache server not found."
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:524
+#: lib/tuist_web/live/cache_live.ex:522
 #, elixir-autogen, elixir-format
 msgid "Cache servers"
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.html.heex:37
+#: lib/tuist_web/live/cache_live.html.heex:35
 #, elixir-autogen, elixir-format
 msgid "Cache servers are not enabled for this account yet."
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:761
+#: lib/tuist_web/live/cache_live.ex:759
 #, elixir-autogen, elixir-format
 msgid "Client credentials"
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:784
+#: lib/tuist_web/live/cache_live.ex:782
 #, elixir-autogen, elixir-format
 msgid "Copy client ID"
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:806
+#: lib/tuist_web/live/cache_live.ex:804
 #, elixir-autogen, elixir-format
 msgid "Copy client secret"
 msgstr ""
@@ -1944,23 +1944,23 @@ msgstr ""
 msgid "Copy invite link"
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:764
+#: lib/tuist_web/live/cache_live.ex:762
 #, elixir-autogen, elixir-format
 msgid "Copy the secret now. It will not be shown again after you close this dialog."
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:720
+#: lib/tuist_web/live/cache_live.ex:718
 #, elixir-autogen, elixir-format
 msgid "Credentials"
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:526
+#: lib/tuist_web/live/cache_live.ex:524
 #, elixir-autogen, elixir-format
 msgid "Deploy regional cache servers managed by Tuist. Each region can have at most one server."
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:535
-#: lib/tuist_web/live/cache_live.ex:542
+#: lib/tuist_web/live/cache_live.ex:533
+#: lib/tuist_web/live/cache_live.ex:540
 #, elixir-autogen, elixir-format
 msgid "Deploy server"
 msgstr ""
@@ -1970,7 +1970,7 @@ msgstr ""
 msgid "Deploying cache server in %{region}..."
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:672
+#: lib/tuist_web/live/cache_live.ex:670
 #, elixir-autogen, elixir-format
 msgid "Destroy the cache server in %{region}? This removes the account's cache endpoint for that region."
 msgstr ""
@@ -1980,7 +1980,7 @@ msgstr ""
 msgid "Destroying cache server..."
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:953
+#: lib/tuist_web/live/cache_live.ex:951
 #, elixir-autogen, elixir-format
 msgid "Endpoint"
 msgstr ""
@@ -1991,12 +1991,12 @@ msgstr ""
 msgid "Failed to deploy cache server: %{reason}"
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:746
+#: lib/tuist_web/live/cache_live.ex:744
 #, elixir-autogen, elixir-format
 msgid "Generate credential"
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:930
+#: lib/tuist_web/live/cache_live.ex:928
 #, elixir-autogen, elixir-format
 msgid "Generate one to authorize your self-hosted nodes."
 msgstr ""
@@ -2011,7 +2011,7 @@ msgstr ""
 msgid "Invite"
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:969
+#: lib/tuist_web/live/cache_live.ex:967
 #, elixir-autogen, elixir-format
 msgid "Last heartbeat"
 msgstr ""
@@ -2021,79 +2021,79 @@ msgstr ""
 msgid "Manage where build artifacts are cached for this account: Tuist-managed cache servers and your own self-hosted nodes."
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:591
+#: lib/tuist_web/live/cache_live.ex:589
 #, elixir-autogen, elixir-format
 msgid "New servers start on"
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:928
+#: lib/tuist_web/live/cache_live.ex:926
 #, elixir-autogen, elixir-format
 msgid "No credentials yet"
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:974
+#: lib/tuist_web/live/cache_live.ex:972
 #, elixir-autogen, elixir-format
 msgid "No registered nodes"
 msgstr ""
 
 #: lib/tuist_web/live/cache_live.ex:75
-#: lib/tuist_web/live/cache_live.ex:586
+#: lib/tuist_web/live/cache_live.ex:584
 #, elixir-autogen, elixir-format
 msgid "No runtime image is configured right now. Try again after the next server deploy."
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:950
+#: lib/tuist_web/live/cache_live.ex:948
 #, elixir-autogen, elixir-format
 msgid "Node"
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:739
+#: lib/tuist_web/live/cache_live.ex:737
 #, elixir-autogen, elixir-format
 msgid "Node credential"
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:990
+#: lib/tuist_web/live/cache_live.ex:988
 #, elixir-autogen, elixir-format
 msgid "Not ready"
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:819
+#: lib/tuist_web/live/cache_live.ex:817
 #, elixir-autogen, elixir-format
 msgid "Production mesh"
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:989
+#: lib/tuist_web/live/cache_live.ex:987
 #, elixir-autogen, elixir-format
 msgid "Ready"
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:940
+#: lib/tuist_web/live/cache_live.ex:938
 #, elixir-autogen, elixir-format
 msgid "Registered nodes"
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:913
+#: lib/tuist_web/live/cache_live.ex:911
 #, elixir-autogen, elixir-format
 msgid "Revoke"
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:895
+#: lib/tuist_web/live/cache_live.ex:893
 #, elixir-autogen, elixir-format
 msgid "Revoke %{name}? Self-hosted nodes using it will stop authenticating."
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:873
-#: lib/tuist_web/live/cache_live.ex:884
+#: lib/tuist_web/live/cache_live.ex:871
+#: lib/tuist_web/live/cache_live.ex:882
 #, elixir-autogen, elixir-format
 msgid "Revoke credential"
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:709
+#: lib/tuist_web/live/cache_live.ex:707
 #, elixir-autogen, elixir-format
 msgid "Run your own cache nodes. Generate a credential they authenticate with, and they register themselves so the CLI can reach them directly."
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:865
+#: lib/tuist_web/live/cache_live.ex:863
 #, elixir-autogen, elixir-format
 msgid "Secret"
 msgstr ""
@@ -2103,17 +2103,17 @@ msgstr ""
 msgid "Select a region before deploying."
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:706
+#: lib/tuist_web/live/cache_live.ex:704
 #, elixir-autogen, elixir-format
 msgid "Self-hosted cache servers"
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:976
+#: lib/tuist_web/live/cache_live.ex:974
 #, elixir-autogen, elixir-format
 msgid "Self-hosted nodes appear here once they start sending registration heartbeats."
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:942
+#: lib/tuist_web/live/cache_live.ex:940
 #, elixir-autogen, elixir-format
 msgid "Self-hosted nodes reporting in via registration heartbeats. The CLI routes cache traffic to each node's endpoint, and a node drops off this list when it stops heartbeating."
 msgstr ""
@@ -2123,7 +2123,7 @@ msgstr ""
 msgid "Share this link with %{email} so they can join. You'll also find it in the invitations list."
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:722
+#: lib/tuist_web/live/cache_live.ex:720
 #, elixir-autogen, elixir-format
 msgid "Tenant-scoped credentials your nodes present to Tuist. A credential only authorizes this account's traffic."
 msgstr ""
@@ -2139,7 +2139,7 @@ msgstr ""
 msgid "Cache upload access"
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:496
+#: lib/tuist_web/live/cache_live.ex:494
 #, elixir-autogen, elixir-format
 msgid "CI and account tokens only"
 msgstr ""
@@ -2149,17 +2149,17 @@ msgstr ""
 msgid "Choose whether members can upload or CI is the trusted cache writer."
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:503
+#: lib/tuist_web/live/cache_live.ex:501
 #, elixir-autogen, elixir-format
 msgid "Members can download, but uploads require CI OIDC tokens or account tokens with cache write scopes."
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:478
+#: lib/tuist_web/live/cache_live.ex:476
 #, elixir-autogen, elixir-format
 msgid "Members using login sessions, CI OIDC tokens, and account tokens with cache write scopes can upload."
 msgstr ""
 
-#: lib/tuist_web/live/cache_live.ex:471
+#: lib/tuist_web/live/cache_live.ex:469
 #, elixir-autogen, elixir-format
 msgid "Members, CI, and account tokens"
 msgstr ""
