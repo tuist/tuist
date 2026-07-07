@@ -183,25 +183,33 @@ build {
     ]
   }
 
-  provisioner "file" {
-    source      = "${path.root}/setup-assistant.mobileconfig"
-    destination = "/tmp/dev.tuist.runner.setup-assistant.mobileconfig"
-  }
-
   # The runner auto-login opens a real desktop session so launchd can
   # run the GitHub Actions agent. On fresh macOS images that first
   # desktop can be intercepted by Setup Assistant's "Update Mac
   # Automatically" pane, which is exactly what the dashboard VNC
-  # would then show. Install the macOS 15+ managed Setup Assistant
-  # skip profile and seed the older per-user seen flags so the
-  # runner session lands on the desktop instead of a first-run pane.
+  # would then show. macOS 11+ rejects silent .mobileconfig installs,
+  # so seed the macOS 15+ SkipSetupItems preferences directly and also
+  # write the older seen flags that previous Setup Assistant releases
+  # still consult.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
-      "echo 'admin' | sudo -S profiles install -type configuration -path /tmp/dev.tuist.runner.setup-assistant.mobileconfig",
-      "rm -f /tmp/dev.tuist.runner.setup-assistant.mobileconfig",
+      "echo 'admin' | sudo -S true",
+      "SETUP_ITEMS=(AppleID Appearance Biometric Diagnostics FileVault iCloudStorage Intelligence Location Privacy ScreenTime Siri SoftwareUpdate UnlockWithWatch UpdateCompleted Welcome)",
+      "sudo mkdir -p '/Library/Managed Preferences' '/Library/Managed Preferences/runner'",
+      "sudo defaults write '/Library/Managed Preferences/com.apple.SetupAssistant.managed' SkipSetupItems -array \"$${SETUP_ITEMS[@]}\"",
+      "sudo defaults write '/Library/Managed Preferences/runner/com.apple.SetupAssistant.managed' SkipSetupItems -array \"$${SETUP_ITEMS[@]}\"",
+      "sudo defaults write /Library/Preferences/com.apple.SetupAssistant.managed SkipSetupItems -array \"$${SETUP_ITEMS[@]}\"",
+      "sudo -u runner defaults write com.apple.SetupAssistant.managed SkipSetupItems -array \"$${SETUP_ITEMS[@]}\"",
+      "sudo chmod 755 '/Library/Managed Preferences' '/Library/Managed Preferences/runner'",
+      "sudo chmod 644 '/Library/Managed Preferences/com.apple.SetupAssistant.managed.plist' '/Library/Managed Preferences/runner/com.apple.SetupAssistant.managed.plist' /Library/Preferences/com.apple.SetupAssistant.managed.plist",
       "PRODUCT_VERSION=$(sw_vers -productVersion)",
       "BUILD_VERSION=$(sw_vers -buildVersion)",
+      "sudo defaults write /Library/Preferences/com.apple.SetupAssistant DidSeeCloudSetup -bool true",
+      "sudo defaults write /Library/Preferences/com.apple.SetupAssistant DidSeeSiriSetup -bool true",
+      "sudo defaults write /Library/Preferences/com.apple.SetupAssistant DidSeePrivacy -bool true",
+      "sudo defaults write /Library/Preferences/com.apple.SetupAssistant LastSeenCloudProductVersion \"$PRODUCT_VERSION\"",
+      "sudo defaults write /Library/Preferences/com.apple.SetupAssistant LastSeenBuddyBuildVersion \"$BUILD_VERSION\"",
       "sudo -u runner defaults write com.apple.SetupAssistant DidSeeCloudSetup -bool true",
       "sudo -u runner defaults write com.apple.SetupAssistant DidSeeSiriSetup -bool true",
       "sudo -u runner defaults write com.apple.SetupAssistant DidSeePrivacy -bool true",
