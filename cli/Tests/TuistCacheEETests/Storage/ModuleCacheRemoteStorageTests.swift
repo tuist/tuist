@@ -126,6 +126,39 @@ struct ModuleCacheRemoteStorageTests {
         #expect(try artifactSigner.isValid(path) == true)
     }
 
+    @Test(.inTemporaryDirectory) func fetch_when_bundle_product_name_replaces_dash_with_underscore() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let bundlePath = temporaryDirectory.appending(component: "Dash_NamedBundle.bundle")
+        try await fileSystem.makeDirectory(at: bundlePath)
+        try await fileSystem.touch(bundlePath.appending(component: "Info.plist"))
+        let zipPath = try await makeArchive(paths: [bundlePath], name: "test")
+        let zipData = try Data(contentsOf: zipPath.url)
+
+        given(downloadModuleCacheService)
+            .downloadModuleCacheArtifact(
+                accountHandle: .value("tuist"),
+                projectHandle: .value("tuist"),
+                hash: .value("hash"),
+                name: .value("Dash-NamedBundle.zip"),
+                cacheCategory: .value("builds"),
+                serverURL: .value(Constants.URLs.production),
+                authenticationURL: .value(Constants.URLs.production),
+                serverAuthenticationController: .any
+            )
+            .willReturn(zipData)
+
+        let got = try await subject.fetch(
+            Set([.init(name: "Dash-NamedBundle", hash: "hash")]),
+            cacheCategory: .binaries
+        )
+
+        let path = try #require(
+            got[.test(name: "Dash-NamedBundle", hash: "hash", source: .remote, cacheCategory: .binaries)]
+        )
+        #expect(path.basename == "Dash_NamedBundle.bundle")
+        #expect(try artifactSigner.isValid(path) == true)
+    }
+
     @Test(.inTemporaryDirectory) func fetch_when_downloaded_archive_does_not_contain_artifact_returns_empty() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let frameworkPath = temporaryDirectory.appending(component: "Other.framework")
