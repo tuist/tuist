@@ -7,18 +7,6 @@ import TuistLaunchctl
 import TuistLoader
 import TuistLogging
 
-enum TeardownCacheCommandServiceError: Equatable, LocalizedError {
-    case missingFullHandle
-
-    var errorDescription: String? {
-        switch self {
-        case .missingFullHandle:
-            return
-                "The 'Tuist.swift' file is missing a fullHandle. See how to set up a Tuist project at: https://tuist.dev/en/docs/guides/server/accounts-and-projects#projects"
-        }
-    }
-}
-
 struct TeardownCacheCommandService {
     private let launchAgentService: LaunchAgentServicing
     private let configLoader: ConfigLoading
