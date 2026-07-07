@@ -3,9 +3,11 @@ defmodule TuistWeb.MembersLiveTest do
   use TuistTestSupport.Cases.LiveCase
   use Mimic
 
+  import Ecto.Query
   import Phoenix.LiveViewTest
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.Invitation
   alias Tuist.Environment
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -57,6 +59,70 @@ defmodule TuistWeb.MembersLiveTest do
     end
   end
 
+  describe "resend_invite" do
+    test "does not allow resending an invitation belonging to a different organization", %{
+      conn: conn,
+      account: account
+    } do
+      other_user = AccountsFixtures.user_fixture()
+      other_org = AccountsFixtures.organization_fixture(creator: other_user, preload: [:account])
+
+      {:ok, other_invitation} =
+        Accounts.invite_user_to_organization(
+          "victim@example.com",
+          %{
+            inviter: other_user,
+            to: other_org,
+            url: &"/auth/invitations/#{&1}"
+          },
+          token: "other-org-token"
+        )
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
+
+      render_hook(lv, "resend_invite", %{"id" => other_invitation.id})
+
+      assert Accounts.get_invitation_by_id(other_invitation.id).token == "other-org-token"
+    end
+
+    test "refreshes the invitation and reveals the new link", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      account: account
+    } do
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization(
+          "invitee@example.com",
+          %{
+            inviter: user,
+            to: organization,
+            url: &"/auth/invitations/#{&1}"
+          },
+          token: "old-token"
+        )
+
+      stub(Environment, :mail_configured?, fn -> true end)
+
+      expect(Accounts.UserNotifier, :deliver_invitation, fn invitee_email, opts ->
+        assert invitee_email == "invitee@example.com"
+        assert opts.url =~ "/auth/invitations/"
+        refute opts.url =~ "old-token"
+        :ok
+      end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
+
+      html = render_hook(lv, "resend_invite", %{"id" => invitation.id})
+      resent_invitation = Accounts.get_invitation_by_id(invitation.id)
+
+      assert resent_invitation.token != "old-token"
+      assert html =~ "Invitation link"
+      assert html =~ "/auth/invitations/#{resent_invitation.token}"
+      assert html =~ "emailed this invitation to invitee@example.com"
+    end
+  end
+
   describe "invitations table" do
     test "surfaces a copy-able invite link so members can be onboarded without email delivery", %{
       conn: conn,
@@ -86,6 +152,45 @@ defmodule TuistWeb.MembersLiveTest do
       # Then: the invitation row exposes the acceptance link for the clipboard action
       assert html =~ "copy-invite-link-#{invitation.id}"
       assert html =~ "/auth/invitations/#{invitation.token}"
+      assert html =~ "Resend invitation"
+    end
+
+    test "shows expired invitations as expired and hides the stale copy action", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      account: account
+    } do
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization(
+          "expired@example.com",
+          %{
+            inviter: user,
+            to: organization,
+            url: &"/auth/invitations/#{&1}"
+          }
+        )
+
+      expired_at =
+        NaiveDateTime.utc_now()
+        |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
+        |> NaiveDateTime.truncate(:second)
+
+      Tuist.Repo.update_all(
+        from(i in Invitation, where: i.id == ^invitation.id),
+        set: [updated_at: expired_at]
+      )
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
+
+      html =
+        lv
+        |> element("[phx-value-tab='invitations']")
+        |> render_click()
+
+      assert html =~ "Expired"
+      assert html =~ "resend-invite-#{invitation.id}"
+      refute html =~ "copy-invite-link-#{invitation.id}"
     end
 
     test "reveals the invite link and notes no email was sent when mail is not configured", %{
