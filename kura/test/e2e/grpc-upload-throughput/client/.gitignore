@@ -1,0 +1,2 @@
+# Compiled binary from a local `go build` (the harness builds it in Docker).
+/kura-throughput-client

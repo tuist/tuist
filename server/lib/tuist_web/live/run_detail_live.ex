@@ -158,6 +158,7 @@ defmodule TuistWeb.RunDetailLive do
     |> assign(:binary_cache_page_count, 0)
     |> assign(:binary_cache_active_filters, [])
     |> assign(:expanded_target_names, MapSet.new())
+    |> assign(:module_cache_metrics, nil)
   end
 
   defp filter_page_param("selective_testing_hit"), do: "selective-testing-page"
@@ -176,7 +177,9 @@ defmodule TuistWeb.RunDetailLive do
   defp assign_tab_data(socket, "module-cache", params) do
     {analytics, meta} = load_binary_cache_data(socket.assigns.run, params)
 
-    assign_binary_cache_data(socket, analytics, meta, params)
+    socket
+    |> assign(:module_cache_metrics, CommandEvents.module_cache_output_metrics(socket.assigns.run.id))
+    |> assign_binary_cache_data(analytics, meta, params)
   end
 
   defp assign_tab_data(socket, _tab, params) do

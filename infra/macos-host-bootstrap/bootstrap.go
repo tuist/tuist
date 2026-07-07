@@ -45,6 +45,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -150,8 +151,9 @@ type Config struct {
 	// of the VM egress firewall (installVMEgressFirewall): Tart VMs
 	// may reach this CIDR — the cluster's Service CIDR, where the
 	// per-account runner-cache Kura ClusterIPs live — on TCP 4000
-	// (cache HTTP API) + 50051 (gRPC), mirroring the Linux runner
-	// namespace's NetworkPolicy egress carve-out. Everything else in
+	// (the co-hosted HTTP + gRPC cache port), mirroring the Linux
+	// runner namespace's NetworkPolicy egress carve-out.
+	// Everything else in
 	// the RFC1918 blocklist stays blocked; per-account isolation is
 	// the Kura app layer's JWT tenant check, exactly as on Linux.
 	// Must parse as an IPv4 CIDR; bootstrap fails closed otherwise.
@@ -804,6 +806,13 @@ type HostKeyState struct {
 	captured string // SHA256 of the key the host actually presented
 }
 
+// ErrHostKeyMismatch is returned by the host-key callback when the host
+// presents a key that differs from the operator's pinned fingerprint. Callers
+// that adopt boxes from a reinstall-on-release pool match against it (errors.Is)
+// to re-TOFU during bootstrap: a freshly-claimed box can be reimaged after its
+// key was pinned, legitimately rotating the host key.
+var ErrHostKeyMismatch = errors.New("host key fingerprint mismatch")
+
 func NewHostKeyState(known string) *HostKeyState {
 	return &HostKeyState{expected: known}
 }
@@ -839,7 +848,7 @@ func (h *HostKeyState) Callback() ssh.HostKeyCallback {
 		// host-fingerprint from a prior reconcile), refuse anything
 		// else regardless of TOFU state.
 		if h.expected != "" && got != h.expected {
-			return fmt.Errorf("host key fingerprint mismatch: expected %s, got %s", h.expected, got)
+			return fmt.Errorf("%w: expected %s, got %s", ErrHostKeyMismatch, h.expected, got)
 		}
 		h.captured = got
 		return nil
@@ -1151,8 +1160,9 @@ sudo chmod 0755 /usr/local/bin/tart
 // One optional carve-out punches through the blocklist: when
 // cfg.VMKuraEgressCIDR is set, VMs may reach that CIDR (the
 // cluster's Service CIDR, advertised to the host over the tailnet
-// by the cluster-side subnet router) on the Kura cache ports
-// 4000/50051, plus — when cfg.VMClusterDNSIP is set — the kube-dns
+// by the cluster-side subnet router) on the Kura cache port
+// (4000, co-hosted HTTP + gRPC),
+// plus — when cfg.VMClusterDNSIP is set — the kube-dns
 // ClusterIP on 53 so `*.svc.cluster.local` names resolve inside the
 // VM. pf is first-match-wins across `quick` rules, so the pass
 // lines render BEFORE the block lines. The inputs are validated as
@@ -1210,13 +1220,13 @@ func renderVMEgressFirewallScript(cfg Config) (string, error) {
 		}
 		carveOut = fmt.Sprintf(`
 # Runner-cache carve-out: VMs may dial the cluster's Kura cache
-# Service ClusterIPs (HTTP 4000 + gRPC 50051) — and, when wired,
+# Service ClusterIPs (4000, co-hosted HTTP + gRPC) — and, when wired,
 # cluster DNS on 53 — through the host's tailnet route. These pass
 # rules are evaluated before the block rules below (first 'quick'
 # match wins). Per-account isolation is Kura's app-layer JWT tenant
 # check, mirroring the Linux runner namespace's NetworkPolicy
 # carve-out.
-pass out quick proto tcp from <vm_sources> to %s port { 4000, 50051 } keep state
+pass out quick proto tcp from <vm_sources> to %s port 4000 keep state
 `, cfg.VMKuraEgressCIDR)
 
 		if cfg.VMClusterDNSIP != "" {

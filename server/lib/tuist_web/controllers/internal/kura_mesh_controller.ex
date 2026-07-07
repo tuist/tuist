@@ -2,6 +2,10 @@ defmodule TuistWeb.Internal.KuraMeshController do
   use TuistWeb, :controller
 
   alias Boruta.BasicAuth
+  alias Boruta.Oauth.Authorization.Client
+  alias Tuist.Accounts
+  alias Tuist.Billing.Entitlements
+  alias Tuist.Environment
   alias Tuist.Kura.Mesh
   alias Tuist.Kura.Registrations
   alias Tuist.Kura.SelfHostedClients
@@ -56,7 +60,7 @@ defmodule TuistWeb.Internal.KuraMeshController do
   # node that stops heartbeating disappears without the control plane probing it.
   def register(conn, %{"node_id" => node_id, "advertised_http_url" => advertised_http_url} = params)
       when is_binary(node_id) and is_binary(advertised_http_url) do
-    case authorize(conn) do
+    case authorize_registration(conn, params) do
       {:ok, account} ->
         if tenant_mismatch?(params, account) do
           conn
@@ -115,11 +119,55 @@ defmodule TuistWeb.Internal.KuraMeshController do
 
   defp authorize(conn) do
     with {:ok, client_id, client_secret} <- basic_credentials(conn),
-         {:ok, account} <- SelfHostedClients.verify(client_id, client_secret) do
+         {:ok, account} <- authorize_self_hosted(client_id, client_secret) do
       {:ok, account}
     else
       _ -> {:error, :unauthorized}
     end
+  end
+
+  defp authorize_registration(conn, params) do
+    case basic_credentials(conn) do
+      {:ok, client_id, client_secret} ->
+        if dedicated_kura_client?(client_id) do
+          authorize_control_plane_registration(client_id, client_secret, params)
+        else
+          authorize_self_hosted(client_id, client_secret)
+        end
+
+      _ ->
+        {:error, :unauthorized}
+    end
+  end
+
+  defp authorize_control_plane_registration(client_id, client_secret, %{"tenant_id" => tenant_id})
+       when is_binary(tenant_id) and tenant_id != "" do
+    with {:ok, _client} <-
+           Client.authorize(
+             id: client_id,
+             source: %{type: "basic", value: client_secret},
+             grant_type: "kura_registration"
+           ),
+         %{} = account <- Accounts.get_account_by_handle(tenant_id),
+         true <- Entitlements.allows?(account, :self_hosted_cache) do
+      {:ok, account}
+    else
+      _ -> {:error, :unauthorized}
+    end
+  end
+
+  defp authorize_control_plane_registration(_client_id, _client_secret, _params), do: {:error, :unauthorized}
+
+  defp authorize_self_hosted(client_id, client_secret) do
+    case SelfHostedClients.verify(client_id, client_secret) do
+      {:ok, account} -> {:ok, account}
+      :error -> {:error, :unauthorized}
+    end
+  end
+
+  defp dedicated_kura_client?(client_id) do
+    Environment.kura_control_plane_configured?() and
+      client_id == Environment.kura_control_plane_client_id()
   end
 
   defp basic_credentials(conn) do

@@ -51,30 +51,107 @@ defmodule Tuist.Kura.Regions do
   # controller's peerPort). Self-hosted nodes dial the public peer host here.
   @peer_port 7443
   @managed_region_storage_class "hcloud-volumes"
+  # The guaranteed egress floor an enterprise tenant reserves on a shared
+  # bare-metal box, requested as the tuist.dev/egress-mbps extended resource the
+  # scheduler bin-packs against the node's budget. Uniform across regions — a
+  # tenant's guaranteed minimum shouldn't depend on which box it lands on.
+  # Deliberately low to start: at 25 Mbps all ~20 enterprise tenants pack onto a
+  # single box (even a ~1 Gbit/s one would still admit ~40); the per-region burst
+  # ceiling does the real sharing. Bump as real per-tenant usage data lands. The
+  # default bursty tenant reserves nothing (best-effort under the burst ceiling).
+  @enterprise_egress_floor_mbps 25
   @managed_region_specs [
+    # US East (Vint Hill VA) and US West (Hillsboro OR) run on OVH bare metal:
+    # their own OVH fleets (kura-us-east / kura-us-west node pools), local-NVMe
+    # storage, a hostNetwork regional gateway bound to the box's public IP (OVH
+    # has no Hetzner LB), and two bounded-size replicas — the same bare-metal
+    # shape as eu-central (Dedibox) and ca-east (OVH BHS). The region
+    # ids, cluster_ids, ingress classes, and public hostnames are unchanged from
+    # the former Hetzner backing, so the cutover is invisible to customers. Only
+    # production serves these regions (TUIST_KURA_AVAILABLE_REGIONS), so the
+    # switch is prod-only.
     %{
       id: "us-east",
       display_name: "US East",
       cluster_id: "us-east-1",
-      hetzner_location: "ash",
       ingress_class_name: "kura-us-east",
-      node_pool: "kura-us-east"
+      node_pool: "kura-us-east",
+      storage_class: "scw-local-nvme",
+      gateway: :host_network,
+      replicas: 2,
+      storage_size: "50Gi",
+      # Egress governance on the shared box (Advance-1 ~3 Gbit/s public NIC):
+      # the enterprise per-tenant floor (uniform across regions) is bin-packed as
+      # the tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst
+      # ceiling (~half the NIC) every tenant gets.
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
+      egress_burst_mbps: 1500
     },
     %{
       id: "us-west",
       display_name: "US West",
       cluster_id: "us-west-1",
-      hetzner_location: "hil",
       ingress_class_name: "kura-us-west",
-      node_pool: "kura-us-west"
+      node_pool: "kura-us-west",
+      storage_class: "scw-local-nvme",
+      gateway: :host_network,
+      replicas: 2,
+      storage_size: "50Gi",
+      # Egress governance on the shared box (Advance-1 ~3 Gbit/s public NIC):
+      # the enterprise per-tenant floor (uniform across regions) is bin-packed as
+      # the tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst
+      # ceiling (~half the NIC) every tenant gets.
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
+      egress_burst_mbps: 1500
     },
+    # EU Central runs on Scaleway Dedibox bare metal: the `kura-dedibox` node
+    # pool (each environment's `dediboxFleet`), local-NVMe storage, a hostNetwork
+    # regional gateway bound to the box's public IP (Dedibox has no Hetzner LB),
+    # and two bounded-size replicas so a rolling deploy fails the cache Service
+    # over to the warm standby instead of dropping traffic while the primary pod
+    # restarts. Both replicas of an account stay co-located on its box (controller
+    # pod affinity); the standby covers gapless deploys, not box loss (a dead box's
+    # cache regenerates / re-bootstraps from cross-region peers). The region
+    # id, cluster_id, ingress class, and public hostnames are unchanged from the
+    # former Hetzner ccx13 backing, so the cutover is invisible to the customer.
     %{
       id: "eu-central",
       display_name: "EU Central",
       cluster_id: "eu-central-1",
-      hetzner_location: "fsn1",
       ingress_class_name: "kura-eu-central",
-      node_pool: "kura"
+      node_pool: "kura-dedibox",
+      storage_class: "scw-local-nvme",
+      gateway: :host_network,
+      replicas: 2,
+      storage_size: "50Gi",
+      # Egress governance on the shared box (~1 Gbit/s NIC): the enterprise
+      # per-tenant floor (uniform across regions) is bin-packed as the
+      # tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst ceiling.
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
+      egress_burst_mbps: 500
+    },
+    # Canada East (Beauharnois / OVHcloud BHS) on OVH bare metal: the
+    # `kura-ca-east` node pool (the `ovhFleet`), local-NVMe storage, and a
+    # hostNetwork regional gateway bound to the box's public IP (OVH has no
+    # Hetzner LB) — the same bare-metal shape as eu-central on Dedibox. The
+    # provider (OVH) is an implementation detail behind the geographic id. Gated
+    # by TUIST_KURA_AVAILABLE_REGIONS (staging/canary-only while the integration
+    # is validated; production serves us-east/us-west on their own OVH fleets).
+    %{
+      id: "ca-east",
+      display_name: "Canada East",
+      cluster_id: "ca-east-1",
+      ingress_class_name: "kura-ca-east",
+      node_pool: "kura-ca-east",
+      storage_class: "scw-local-nvme",
+      gateway: :host_network,
+      replicas: 2,
+      storage_size: "50Gi",
+      # Egress governance on the shared box (SYS-1 ~1 Gbit/s NIC): the
+      # enterprise per-tenant floor (uniform across regions) is bin-packed as the
+      # tuist.dev/egress-mbps request; egress_burst_mbps is the Cilium burst ceiling.
+      egress_guaranteed_mbps: @enterprise_egress_floor_mbps,
+      egress_burst_mbps: 500
     }
   ]
   # Private runner-cache regions. Both share the same model: a single-
@@ -287,20 +364,54 @@ defmodule Tuist.Kura.Regions do
       provisioner: KubernetesController,
       provisioner_config: %{
         cluster_id: spec.cluster_id,
-        hetzner_location: spec.hetzner_location,
+        hetzner_location: Map.get(spec, :hetzner_location),
         public_host_template: String.replace(@managed_region_public_host_template, "{env_suffix}", host_suffix),
         grpc_public_host_template: String.replace(@managed_region_grpc_public_host_template, "{env_suffix}", host_suffix),
         peer_public_host_template: String.replace(@managed_region_peer_public_host_template, "{env_suffix}", host_suffix),
         ingress_class_name: spec.ingress_class_name,
-        storage_class: @managed_region_storage_class,
+        storage_class: Map.get(spec, :storage_class, @managed_region_storage_class),
+        gateway: Map.get(spec, :gateway, :hetzner),
+        # The region's public peer failover IP (bare-metal regions only): the
+        # stable IP self-hosted nodes resolve `peer.<host>` to, kept routed to a
+        # healthy box by the CAPI provider. nil on the Hetzner cloud regions
+        # (their public peer plane is a per-instance LoadBalancer instead).
+        failover_ip: Tuist.Environment.kura_peer_failover_ip(spec.id),
+        # nil for the multi-box Hetzner regions (controller default applies);
+        # bare-metal regions set 2 (a warm standby for gapless rolling deploys)
+        # + a bounded storage_size.
+        replicas: Map.get(spec, :replicas),
+        storage_size: Map.get(spec, :storage_size),
         tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
         node_selector: %{@managed_region_node_pool_label => spec.node_pool},
-        dedicated_gateway_account_handles: Tuist.Environment.kura_dedicated_gateway_account_handles(),
+        # Tolerate the customer-facing cache nodes' taint so the cache pod
+        # still schedules onto the dedicated (Dedibox/OVH) bare-metal node.
+        tolerations: [
+          %{"key" => "tuist.dev/kura-cache", "operator" => "Exists", "effect" => "NoSchedule"}
+        ],
+        # Per-pod egress governance on the shared bare-metal boxes: every
+        # tenant gets the Cilium burst ceiling (a pod annotation); enterprise
+        # tenants additionally reserve egress_guaranteed_mbps as a bin-packed
+        # tuist.dev/egress-mbps request (gated in the provisioner via Entitlements)
+        # against the node budget the CAPI provider advertises. The default,
+        # bursty tenant runs best-effort under the ceiling alone. Both unset on
+        # the Hetzner cloud regions (no shared-NIC contention to govern).
+        pod_annotations: managed_region_pod_annotations(spec),
+        egress_guaranteed_mbps: Map.get(spec, :egress_guaranteed_mbps),
         # Controller-managed per-account peer mesh: an account's nodes
         # across regions replicate to each other under one per-account CA.
         mesh: true
       }
     }
+  end
+
+  # Burst ceiling: a Cilium bandwidth-manager egress cap so one tenant pod
+  # can't monopolize the shared box NIC. Set on the bare-metal regions (from
+  # egress_burst_mbps); empty on the Hetzner cloud regions.
+  defp managed_region_pod_annotations(spec) do
+    case Map.get(spec, :egress_burst_mbps) do
+      nil -> %{}
+      mbps -> %{"kubernetes.io/egress-bandwidth" => "#{mbps}M"}
+    end
   end
 
   # Environment suffix woven into managed-region public hostnames so the

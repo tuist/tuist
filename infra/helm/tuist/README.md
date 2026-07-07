@@ -105,6 +105,8 @@ Some cluster-specific fixes are intentionally opt-in:
 
 - `cache.podSecurityContext` is empty by default. Set `fsGroup` only if your storage class needs it.
 - `cache.nginx.clientMaxBodySize` defaults to `10m`, matching the cache application's module part size limit. Raise it only when the application limit is raised too.
+- `cache.nginx.resources` is separate from `cache.resources` because the nginx sidecar is a distinct container. Set it explicitly in clusters with strict default LimitRanger policies.
+- `cache.nginx.proxyConnectTimeout`, `cache.nginx.proxyReadTimeout`, and `cache.nginx.proxySendTimeout` default to `60s`. Increase them for slower links or larger uploads.
 - `clickhouse.embedded.service.nativePort` defaults to ClickHouse's standard `9000` service port and can be overridden for mesh or port-allocation conflicts.
 - `clickhouse.external.pingUrl` lets the migration job wait for an external ClickHouse instance through a dedicated `/ping` URL when `clickhouse.external.url` includes a database path.
 
@@ -124,6 +126,15 @@ Embedded compatibility override example:
 cache:
   nginx:
     clientMaxBodySize: 10m
+    proxyReadTimeout: 300s
+    proxySendTimeout: 300s
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 1
+        memory: 512Mi
   podSecurityContext:
     fsGroup: 990
 

@@ -964,33 +964,33 @@ msgstr ""
 msgid "This profile is a default and can't be deleted."
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:264
+#: lib/tuist_web/live/runner_job_live.html.heex:265
 #, elixir-autogen, elixir-format
 msgid "Download logs"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:331
+#: lib/tuist_web/live/runner_job_live.html.heex:332
 #, elixir-autogen, elixir-format
 msgid "Load older logs"
 msgstr ""
 
 #: lib/tuist_web/live/runner_job_live.html.heex:57
-#: lib/tuist_web/live/runner_job_live.html.heex:252
+#: lib/tuist_web/live/runner_job_live.html.heex:253
 #, elixir-autogen, elixir-format
 msgid "Logs"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:307
+#: lib/tuist_web/live/runner_job_live.html.heex:308
 #, elixir-autogen, elixir-format
 msgid "No log lines match your search."
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:271
+#: lib/tuist_web/live/runner_job_live.html.heex:272
 #, elixir-autogen, elixir-format
 msgid "No logs have been captured for this job yet."
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:238
+#: lib/tuist_web/live/runner_job_live.html.heex:239
 #, elixir-autogen, elixir-format
 msgid "No logs were captured for this step."
 msgstr ""
@@ -1000,23 +1000,23 @@ msgstr ""
 msgid "Overview"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:281
+#: lib/tuist_web/live/runner_job_live.html.heex:282
 #, elixir-autogen, elixir-format
 msgid "Search logs..."
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:170
+#: lib/tuist_web/live/runner_job_live.html.heex:171
 #, elixir-autogen, elixir-format
 msgid "Steps"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:191
+#: lib/tuist_web/live/runner_job_live.html.heex:192
 #, elixir-autogen, elixir-format
 msgid "Steps will appear here once the job finishes."
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:181
-#: lib/tuist_web/live/runner_job_live.html.heex:292
+#: lib/tuist_web/live/runner_job_live.html.heex:182
+#: lib/tuist_web/live/runner_job_live.html.heex:293
 #, elixir-autogen, elixir-format
 msgid "Timestamps"
 msgstr ""
@@ -1058,54 +1058,54 @@ msgstr ""
 msgid "Xcode version"
 msgstr ""
 
-#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:58
+#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:62
 #, elixir-autogen, elixir-format
 msgid "CPU I/O Wait"
 msgstr ""
 
-#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:50
-#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:103
+#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:53
+#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:112
 #, elixir-autogen, elixir-format
 msgid "In"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:357
+#: lib/tuist_web/live/runner_job_live.html.heex:359
 #, elixir-autogen, elixir-format
 msgid "Machine metrics will appear here once the job has run on a Tuist runner."
 msgstr ""
 
-#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:30
+#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:31
 #: lib/tuist_web/live/runner_job_live.html.heex:62
-#: lib/tuist_web/live/runner_job_live.html.heex:352
+#: lib/tuist_web/live/runner_job_live.html.heex:354
 #, elixir-autogen, elixir-format
 msgid "Metrics"
 msgstr ""
 
-#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:51
-#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:104
+#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:54
+#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:113
 #, elixir-autogen, elixir-format
 msgid "Out"
 msgstr ""
 
-#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:65
+#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:70
 #, elixir-autogen, elixir-format
 msgid "Storage"
 msgstr ""
 
-#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:35
-#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:88
+#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:36
+#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:95
 #, elixir-autogen, elixir-format
 msgid "Usage"
 msgstr ""
 
-#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:42
-#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:66
-#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:95
+#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:44
+#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:71
+#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:103
 #, elixir-autogen, elixir-format
 msgid "Used"
 msgstr ""
 
-#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:59
+#: lib/tuist_web/live/components/runner_job_metrics_charts.ex:63
 #, elixir-autogen, elixir-format
 msgid "Wait"
 msgstr ""

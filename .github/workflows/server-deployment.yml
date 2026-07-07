@@ -135,8 +135,8 @@ env:
   MISE_GITHUB_ATTESTATIONS: 0
   # Skip mise's SLSA provenance verification for github-backend tools
   # only. The platform-install job runs `mise -C infra run`, which
-  # resolves the repo toolset including `github:tuist/blick` +
-  # `github:endevco/aube`; mise's SLSA check builds a malformed release
+  # resolves the repo toolset including `github:endevco/aube`;
+  # mise's SLSA check builds a malformed release
   # URL for github-backend tools (releases/tags/<owner>/<repo>@<ver>
   # instead of /<ver>) and 404s on cache-cold runners. GitHub artifact
   # attestations still verify. Aqua-backend SLSA stays ON: mise.lock
@@ -207,6 +207,8 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}
           # Shared `buildcache:server` ref, kept warm by the push-to-main
           # build in server-production-deployment.yml. `mode=max` exports
           # cache for every stage (deps.compile, builder, og-images).

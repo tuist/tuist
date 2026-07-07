@@ -207,6 +207,7 @@ spec:
                 fieldRef:
                   fieldPath: metadata.name
             {{- end }}
+            {{- include "tuist.clickhousePoolEnv" . | nindent 12 }}
             {{- with .Values.xcresultProcessor.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

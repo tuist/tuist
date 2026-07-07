@@ -10,6 +10,8 @@ defmodule TuistWeb.OverviewLiveTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
+  @render_async_timeout 1_000
+
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture(handle: "user123#{System.unique_integer([:positive])}")
 
@@ -58,7 +60,7 @@ defmodule TuistWeb.OverviewLiveTest do
 
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}")
-    render_async(lv)
+    render_async(lv, @render_async_timeout)
 
     assert has_element?(lv, ".tuist-widget span", "50.0%")
   end
@@ -79,7 +81,7 @@ defmodule TuistWeb.OverviewLiveTest do
 
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}")
-    render_async(lv)
+    render_async(lv, @render_async_timeout)
 
     assert has_element?(lv, "div[data-part=average-build-time-chart] span", "1.0s")
   end
@@ -91,7 +93,7 @@ defmodule TuistWeb.OverviewLiveTest do
   } do
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}")
-    render_async(lv)
+    render_async(lv, @render_async_timeout)
 
     assert has_element?(
              lv,

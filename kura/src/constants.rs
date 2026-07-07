@@ -1,4 +1,10 @@
-pub const MAX_XCODE_BYTES: u64 = 25 * 1024 * 1024;
+// Xcode compilation-cache outputs have a heavy tail (fat debug-info objects,
+// asset-catalog outputs). At 25 MiB that tail could never publish, so the
+// affected tasks missed on every rebuild AND re-attempted the doomed upload
+// each time, which made the cache net-negative for app-shaped projects.
+// Uploads stream to the budgeted tmp dir (never RAM), so the binding ceiling
+// is MAX_SEGMENT_BYTES; 256 MiB stays well under it.
+pub const MAX_XCODE_BYTES: u64 = 256 * 1024 * 1024;
 pub const MAX_GRADLE_BYTES: u64 = 100 * 1024 * 1024;
 pub const MAX_MODULE_PART_BYTES: u64 = 10 * 1024 * 1024;
 pub const MAX_MODULE_TOTAL_BYTES: u64 = 2 * 1024 * 1024 * 1024;

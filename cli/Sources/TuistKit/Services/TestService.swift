@@ -580,21 +580,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 if isSharding,
                    let fullHandle = config.fullHandle
                 {
-                    let shardDestination = try await shardPlanDestination(
-                        schemes: schemes,
-                        testPlan: testPlanConfiguration?.testPlan,
-                        platform: platform,
-                        version: version,
-                        deviceName: deviceName,
-                        passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
-                        graphTraverser: graphTraverser
-                    )
-
                     let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
                     let buildRunId = await RunMetadataStorage.current.buildRunId
                     _ = try await shardPlanService.plan(
                         xctestproductsPath: testProductsPath,
-                        destination: shardDestination,
                         reference: shardReference,
                         shardGranularity: shardGranularity,
                         shardMin: shardMin,
@@ -622,10 +611,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return ([], [])
         }
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-        async let mutedTask = testCaseListService.listTestCases(
+        async let mutedTask = testCaseListService.listAllTestCases(
             fullHandle: fullHandle, serverURL: serverURL, state: .muted
         )
-        async let skippedTask = testCaseListService.listTestCases(
+        async let skippedTask = testCaseListService.listAllTestCases(
             fullHandle: fullHandle, serverURL: serverURL, state: .skipped
         )
         let muted: [TestIdentifier]
@@ -716,6 +705,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             testTargets: testTargets,
             skipTestTargets: skipTestTargets,
             shardTestIdentifiers: shard.testIdentifiers,
+            shardSkipTestIdentifiers: shard.skipTestIdentifiers,
             testPlanConfiguration: testPlanConfiguration,
             deviceName: deviceName,
             platform: platform,
@@ -919,6 +909,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
         shardTestIdentifiers: [String] = [],
+        shardSkipTestIdentifiers: [String] = [],
         testPlanConfiguration: TestPlanConfiguration?,
         deviceName: String?,
         platform: String?,
@@ -940,6 +931,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
         for shardTestIdentifier in shardTestIdentifiers {
             arguments += ["-only-testing", shardTestIdentifier]
+        }
+        // The catch-all shard carries no `-only-testing` and instead skips every suite assigned to
+        // other shards, so it runs everything not explicitly assigned (newly added or un-enumerated
+        // suites included). Without applying these, `tuist test` sharding runs the wrong set.
+        for shardSkipTestIdentifier in shardSkipTestIdentifiers {
+            arguments += ["-skip-testing", shardSkipTestIdentifier]
         }
         for skipTarget in skipTestTargets {
             arguments += ["-skip-testing", skipTarget.description]
@@ -2043,122 +2040,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return resolvedPlatform.xcodebuildPlatformDestination
         }
         return nil
-    }
-
-    func shardPlanDestination(
-        schemes: [Scheme],
-        testPlan: String?,
-        platform: String?,
-        version: Version?,
-        deviceName: String?,
-        passthroughXcodeBuildArguments: [String],
-        graphTraverser: GraphTraversing
-    ) async throws -> String? {
-        if let explicitDestination = passedValue(for: "-destination", arguments: passthroughXcodeBuildArguments) {
-            guard let simulatorPlatform = simulatorPlatform(from: explicitDestination),
-                  !hasConcreteDevice(in: explicitDestination)
-            else {
-                return explicitDestination
-            }
-
-            let destinationVersion = xcodebuildDestinationParameter("OS", in: explicitDestination)?.version() ?? version
-            return await concreteShardPlanDestinationIfAvailable(
-                schemes: schemes,
-                testPlan: testPlan,
-                platform: simulatorPlatform,
-                version: destinationVersion,
-                deviceName: deviceName,
-                graphTraverser: graphTraverser
-            ) ?? explicitDestination
-        }
-
-        if let platform {
-            let buildPlatform = try XcodeGraph.Platform.from(commandLineValue: platform)
-            return await concreteShardPlanDestinationIfAvailable(
-                schemes: schemes,
-                testPlan: testPlan,
-                platform: buildPlatform,
-                version: version,
-                deviceName: deviceName,
-                graphTraverser: graphTraverser
-            ) ?? buildPlatform.xcodebuildPlatformDestination
-        }
-
-        if let inferredDestination = inferPlatformDestination(
-            schemes: schemes,
-            testPlan: testPlan,
-            graphTraverser: graphTraverser
-        ) {
-            guard let inferredPlatform = xcodebuildPlatform(from: inferredDestination) else {
-                return inferredDestination
-            }
-
-            return await concreteShardPlanDestinationIfAvailable(
-                schemes: schemes,
-                testPlan: testPlan,
-                platform: inferredPlatform,
-                version: version,
-                deviceName: deviceName,
-                graphTraverser: graphTraverser
-            ) ?? inferredDestination
-        }
-
-        return nil
-    }
-
-    private func concreteShardPlanDestinationIfAvailable(
-        schemes: [Scheme],
-        testPlan: String?,
-        platform: XcodeGraph.Platform,
-        version: Version?,
-        deviceName: String?,
-        graphTraverser: GraphTraversing
-    ) async -> String? {
-        do {
-            return try await concreteShardPlanDestination(
-                schemes: schemes,
-                testPlan: testPlan,
-                platform: platform,
-                version: version,
-                deviceName: deviceName,
-                graphTraverser: graphTraverser
-            )
-        } catch {
-            return nil
-        }
-    }
-
-    private func concreteShardPlanDestination(
-        schemes: [Scheme],
-        testPlan: String?,
-        platform: XcodeGraph.Platform,
-        version: Version?,
-        deviceName: String?,
-        graphTraverser: GraphTraversing
-    ) async throws -> String? {
-        for scheme in schemes {
-            guard let target = buildGraphInspector.testableTarget(
-                scheme: scheme,
-                testPlan: testPlan,
-                testTargets: [],
-                skipTestTargets: [],
-                graphTraverser: graphTraverser,
-                action: .build
-            ) else { continue }
-
-            guard target.target.supportedPlatforms.contains(platform) else { continue }
-
-            return try await xcodebuildDestination(
-                for: target,
-                scheme: scheme,
-                platform: platform,
-                version: version,
-                deviceName: deviceName,
-                graphTraverser: graphTraverser
-            )
-        }
-
-        return platform.xcodebuildPlatformDestination
     }
 
     private func xcodebuildDestination(

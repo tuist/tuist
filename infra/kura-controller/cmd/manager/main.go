@@ -35,7 +35,6 @@ func main() {
 	var grpcClusterIssuer string
 	var otlpTracesEndpoint string
 	var deploymentEnvironment string
-	var gatewayServiceAccountName string
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -44,7 +43,6 @@ func main() {
 	flag.StringVar(&grpcClusterIssuer, "grpc-cluster-issuer", "", "cert-manager ClusterIssuer to use for gRPC TLS certificates (leaves gRPC plaintext when empty)")
 	flag.StringVar(&otlpTracesEndpoint, "otlp-traces-endpoint", "", "Default OTLP traces endpoint injected into managed Kura pods when they do not set one explicitly")
 	flag.StringVar(&deploymentEnvironment, "deployment-environment", "production", "Deployment environment injected into managed Kura pods for OpenTelemetry and Sentry")
-	flag.StringVar(&gatewayServiceAccountName, "gateway-service-account-name", "kura-gateway-ingress-nginx", "ServiceAccount used by dynamically reconciled dedicated Kura ingress-nginx gateways")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
@@ -81,12 +79,13 @@ func main() {
 		setupLog.Error(err, "setup KuraInstanceReconciler")
 		os.Exit(1)
 	}
-	if err := (&controllers.KuraGatewayReconciler{
-		Client:                    mgr.GetClient(),
-		Scheme:                    mgr.GetScheme(),
-		GatewayServiceAccountName: gatewayServiceAccountName,
+	if err := (&controllers.PeerDemuxReconciler{
+		Client:    mgr.GetClient(),
+		APIReader: mgr.GetAPIReader(),
+		Scheme:    mgr.GetScheme(),
+		Image:     os.Getenv("KURA_PEER_DEMUX_IMAGE"),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "setup KuraGatewayReconciler")
+		setupLog.Error(err, "setup PeerDemuxReconciler")
 		os.Exit(1)
 	}
 

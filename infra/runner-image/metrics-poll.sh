@@ -89,7 +89,8 @@ delta() {
   awk -v c="$1" -v p="$2" 'BEGIN { d = c - p; if (d < 0) d = 0; printf "%d", d }'
 }
 
-while true; do
+emit_sample() {
+  local ts cpu mem_used rx tx disk_used disk_total net_in net_out payload
   ts="$(date +%s)"
   cpu="$(cpu_busy_percent)"
   mem_used="$(mem_used_bytes)"
@@ -115,6 +116,20 @@ while true; do
     --header "Content-Type: application/json" \
     --data "${payload}" \
     "${metrics_url}" || true
+}
 
+# `--once` samples a single time and exits. dispatch-poll invokes it
+# right after the runner exits — before the EXIT trap halts the VM — so
+# the job's final moments (the tail past the loop's last sample,
+# including "Complete job") get a data point and the chart reaches the
+# job's end. A one-shot has no previous counters, so its network deltas
+# report 0; end-of-job throughput is ~0 anyway.
+if [ "${1:-}" = "--once" ]; then
+  emit_sample
+  exit 0
+fi
+
+while true; do
+  emit_sample
   sleep "${interval}"
 done

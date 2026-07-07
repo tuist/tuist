@@ -179,6 +179,13 @@ defmodule Tuist.Environment do
     end
   end
 
+  def database_processor_role do
+    case System.get_env("TUIST_DATABASE_PROCESSOR_ROLE") do
+      role when is_binary(role) and role != "" -> role
+      _ -> nil
+    end
+  end
+
   def database_config_from_url(url) do
     parsed_url = URI.parse(url)
 
@@ -220,7 +227,13 @@ defmodule Tuist.Environment do
 
   def dev_all_locales?, do: @dev_all_locales
 
-  def dev_single_locale?, do: dev?() and not dev_all_locales?()
+  # Both :dev and :test compile a single locale ("en") by default so the
+  # ex_cldr backend doesn't generate number/currency/datetime code for all
+  # ten locales on every cold compile. A fresh worktree's :test build paid
+  # that cost on the first `mix test`, dominating the compile time. Tests
+  # that genuinely exercise other locales are tagged `:locale` and only run
+  # when TUIST_DEV_ALL_LOCALES=1 flips this back to the full set.
+  def single_locale?, do: (dev?() or test?()) and not dev_all_locales?()
 
   def log_level do
     "TUIST_LOG_LEVEL" |> System.get_env("info") |> String.to_atom()
@@ -242,17 +255,27 @@ defmodule Tuist.Environment do
     |> Enum.reject(&(&1 == ""))
   end
 
-  def kura_dedicated_gateway_account_handles do
-    "TUIST_KURA_DEDICATED_GATEWAY_ACCOUNTS"
-    |> System.get_env("")
-    |> String.split(",", trim: true)
-    |> Enum.map(&String.trim/1)
-    |> Enum.map(&String.downcase/1)
-    |> Enum.reject(&(&1 == ""))
-  end
-
   def kura_runtime_image_tag(secrets \\ secrets()) do
     System.get_env("TUIST_KURA_RUNTIME_IMAGE_TAG") || get([:kura, :runtime_image_tag], secrets)
+  end
+
+  @doc """
+  The public peer failover IP for a bare-metal region, or `nil` when none is
+  configured. Self-hosted nodes resolve a region's `peer.` host to this IP; the
+  CAPI provider keeps it routed to a healthy box of the region's pool. Read from
+  `TUIST_KURA_PEER_FAILOVER_IPS` as a `region=ip` comma list (e.g.
+  `eu-central=1.2.3.4,ca-east=5.6.7.8`).
+  """
+  def kura_peer_failover_ip(region_id) when is_binary(region_id) do
+    "TUIST_KURA_PEER_FAILOVER_IPS"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.find_value(fn pair ->
+      case pair |> String.split("=", parts: 2) |> Enum.map(&String.trim/1) do
+        [key, ip] when key == region_id and ip != "" -> ip
+        _ -> nil
+      end
+    end)
   end
 
   def kura_tuist_base_url do
@@ -817,10 +840,10 @@ defmodule Tuist.Environment do
     get([:clickhouse, :url], secrets)
   end
 
-  def clickhouse_pool_size(secrets \\ secrets()) do
-    case get([:clickhouse, :pool_size], secrets) do
+  def clickhouse_pool_size(_secrets \\ nil) do
+    case System.get_env("TUIST_CLICKHOUSE_POOL_SIZE") || System.get_env("TUIST_DATABASE_POOL_SIZE") do
       pool_size when is_binary(pool_size) -> String.to_integer(pool_size)
-      _ -> database_pool_size(secrets)
+      _ -> 10
     end
   end
 
@@ -899,8 +922,8 @@ defmodule Tuist.Environment do
     end
   end
 
-  def clickhouse_buffer_pool_size(secrets \\ secrets()) do
-    case get([:clickhouse, :buffer_pool_size], secrets) do
+  def clickhouse_buffer_pool_size(_secrets \\ nil) do
+    case System.get_env("TUIST_CLICKHOUSE_BUFFER_POOL_SIZE") do
       buffer_pool_size when is_binary(buffer_pool_size) -> String.to_integer(buffer_pool_size)
       _ -> 5
     end
@@ -910,6 +933,35 @@ defmodule Tuist.Environment do
     case get([:clickhouse, :max_threads], secrets) do
       max_threads when is_binary(max_threads) -> String.to_integer(max_threads)
       _ -> 4
+    end
+  end
+
+  def clickhouse_read_max_threads(secrets \\ secrets()) do
+    case get([:clickhouse, :read_max_threads], secrets) do
+      max_threads when is_binary(max_threads) -> String.to_integer(max_threads)
+      _ -> clickhouse_max_threads(secrets)
+    end
+  end
+
+  def clickhouse_write_max_threads(secrets \\ secrets()) do
+    case get([:clickhouse, :write_max_threads], secrets) do
+      max_threads when is_binary(max_threads) -> String.to_integer(max_threads)
+      _ -> clickhouse_max_threads(secrets)
+    end
+  end
+
+  # Per-query memory ceiling (in bytes) for the read path. ClickHouse enforces
+  # this per query, so a single pathological aggregation fails on its own with
+  # a `(for query)` error the caller can retry, instead of pushing the process
+  # to its `(total)` server ceiling and killing whatever unrelated query
+  # allocates next. The default stays well under the process limit while
+  # leaving ample headroom over normal analytics; override per
+  # environment/instance size via the `clickhouse.max_memory_usage_bytes`
+  # secret.
+  def clickhouse_max_memory_usage_bytes(secrets \\ secrets()) do
+    case get([:clickhouse, :max_memory_usage_bytes], secrets) do
+      value when is_binary(value) -> String.to_integer(value)
+      _ -> 6 * 1024 * 1024 * 1024
     end
   end
 

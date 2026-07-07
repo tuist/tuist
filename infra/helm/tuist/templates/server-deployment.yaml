@@ -279,7 +279,7 @@ spec:
                   name: {{ $secretName }}
                   key: object-storage-secret-key
             {{- end }}
-            {{- if .Values.cache.enabled }}
+            {{- if or .Values.cache.enabled .Values.server.cacheEndpointUrl }}
             - name: TUIST_CACHE_ENDPOINTS
               value: {{ .Values.server.cacheEndpointUrl | default (printf "http://%s:%v" (include "tuist.componentName" (dict "root" . "component" "cache")) .Values.cache.service.port) | quote }}
             {{- end }}
@@ -312,6 +312,11 @@ spec:
             - name: TUIST_LOKI_URL
               value: "http://{{ include "tuist.componentName" (dict "root" . "component" "loki") }}:3100"
             {{- end }}
+            {{- if .Values.server.kuraPeerFailoverIps }}
+            - name: TUIST_KURA_PEER_FAILOVER_IPS
+              value: "{{- range $i, $e := .Values.server.kuraPeerFailoverIps }}{{ if $i }},{{ end }}{{ $e.region }}={{ $e.ip }}{{- end }}"
+            {{- end }}
+            {{- include "tuist.clickhousePoolEnv" . | nindent 12 }}
             {{- with .Values.server.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

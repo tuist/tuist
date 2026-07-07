@@ -108,7 +108,7 @@ resources_items = [
     href: TuistWeb.Marketing.MarketingHTML.localized_href("/customers")
   }
 ] %>
-<header id="marketing-navbar">
+<header id="marketing-navbar" phx-update="ignore">
   <div data-part="bar">
     <.link href={TuistWeb.Marketing.MarketingHTML.localized_href("/")} data-part="tuist">
       <img

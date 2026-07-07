@@ -326,8 +326,8 @@ struct ContentHashingIntegrationTests {
         )
 
         // Then
-        #expect(firstRun[framework1]?.hash == "44ed803cd024f35c2ca112a1eaedb41a")
-        #expect(firstRun[framework2]?.hash == "f6d100abb55f897858cf39069cd7d06d")
+        #expect(firstRun[framework1]?.hash == "f68b09f927c9c4ebc63eed3d9a098602")
+        #expect(firstRun[framework2]?.hash == "22bea05d7b0e1b0ac8ad0df533883009")
         #expect(firstRun[framework1]?.hash == secondRun[framework1]?.hash)
         #expect(firstRun[framework2]?.hash == secondRun[framework2]?.hash)
         #expect(firstRun[framework1]?.hash != firstRun[framework2]?.hash)

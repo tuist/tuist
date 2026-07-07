@@ -694,4 +694,23 @@ defmodule TuistWeb.RunnerJobLiveTest do
       live(conn, ~p"/#{account.name}/runners/runs/312010/jobs/notanumber")
     end
   end
+
+  describe "step_window/1" do
+    test "spans the first step's start to the last step's end in epoch ms" do
+      steps = [
+        %{started_at: ~U[2026-05-28 10:00:00Z], completed_at: ~U[2026-05-28 10:00:05Z]},
+        %{started_at: ~U[2026-05-28 10:00:05Z], completed_at: ~U[2026-05-28 10:01:00Z]}
+      ]
+
+      assert TuistWeb.RunnerJobLive.step_window(steps) == %{
+               min: DateTime.to_unix(~U[2026-05-28 10:00:00Z], :millisecond),
+               max: DateTime.to_unix(~U[2026-05-28 10:01:00Z], :millisecond)
+             }
+    end
+
+    test "returns nil when there are no steps with timestamps" do
+      assert TuistWeb.RunnerJobLive.step_window([]) == nil
+      assert TuistWeb.RunnerJobLive.step_window([%{started_at: nil, completed_at: nil}]) == nil
+    end
+  end
 end

@@ -411,7 +411,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "time() - max(cnpg_collector_last_available_backup_timestamp{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"})",
+            "expr": "time() - max(barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"})",
             "instant": true,
             "range": false,
             "refId": "A"
@@ -2029,7 +2029,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "1000 * max(cnpg_collector_last_available_backup_timestamp{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"})",
+            "expr": "1000 * max(barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"})",
             "legendFormat": "last available backup",
             "range": true,
             "refId": "A"
@@ -2037,7 +2037,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "1000 * max(cnpg_collector_first_recoverability_point{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"})",
+            "expr": "1000 * max(barman_cloud_cloudnative_pg_io_first_recoverability_point{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"})",
             "legendFormat": "first recoverability point",
             "range": true,
             "refId": "B"
@@ -2045,7 +2045,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "1000 * max(cnpg_collector_last_failed_backup_timestamp{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"})",
+            "expr": "1000 * max(barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"})",
             "legendFormat": "last failed backup",
             "range": true,
             "refId": "C"
@@ -2717,10 +2717,10 @@
           "current": {
             "selected": true,
             "text": [
-              "All"
+              "tuist"
             ],
             "value": [
-              "$__all"
+              "tuist"
             ]
           },
           "datasource": "$datasource",

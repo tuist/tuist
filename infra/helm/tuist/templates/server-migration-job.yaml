@@ -122,6 +122,8 @@ spec:
             {{- if .Values.server.managedSecrets }}
             - name: TUIST_DATABASE_RUNTIME_ROLE
               value: {{ .Values.postgresql.cnpg.roles.web.name | quote }}
+            - name: TUIST_DATABASE_PROCESSOR_ROLE
+              value: {{ .Values.postgresql.cnpg.roles.processor.name | quote }}
             {{- end }}
             - name: TUIST_USE_SSL_FOR_DATABASE
               value: "0"
@@ -180,6 +182,7 @@ spec:
                   name: {{ $secretName }}
                   key: object-storage-secret-key
             {{- end }}
+            {{- include "tuist.clickhousePoolEnv" . | nindent 12 }}
             {{- with .Values.server.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
