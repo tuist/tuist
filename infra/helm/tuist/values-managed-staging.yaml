@@ -545,7 +545,7 @@ runnersFleet:
       # entry — the in-VM halves of the runner-cache path. Drop this
       # pin (back to the semver-derived tag) once a runner-image
       # release containing those changes is cut.
-      imageTag: macos-26-5-8ab1924e
+      imageTag: macos-26-5-9d343ebe
       autoscaling:
         enabled: true
         minWarmPoolFloor: 1
