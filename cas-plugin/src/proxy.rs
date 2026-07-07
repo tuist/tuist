@@ -95,7 +95,7 @@ pub struct Proxy {
     paths: Mutex<HashMap<String, &'static PathState>>,
     publisher: Prefetcher,
     // Per-node transfer analytics, written to cas_analytics.db for parity with
-    // the legacy daemon. `None` when no analytics path was configured.
+    // the Swift `CASAnalyticsDatabase`. `None` when no analytics path was configured.
     analytics: Option<crate::analytics::Analytics>,
 }
 
@@ -583,11 +583,12 @@ impl Proxy {
         }
     }
 
-    /// Proactively refreshes the bearer so a long-lived proxy stays ahead of
-    /// token expiry. Called from the periodic maintenance loop; a no-op in
-    /// env-only (CI) mode.
-    pub fn refresh_token(&self) {
-        self.tokens.force_refresh();
+    /// Refreshes the bearer only when it is within `lead` of its JWT expiry,
+    /// keeping a long-lived proxy authenticated without re-auth'ing on a fixed
+    /// cadence. Called every maintenance tick (cheap); a no-op in env-only (CI)
+    /// mode or for opaque, non-expiring tokens.
+    pub fn maintain_token(&self, lead: std::time::Duration) {
+        self.tokens.refresh_if_expiring(lead);
     }
 
     pub fn stats_line(&self) -> String {

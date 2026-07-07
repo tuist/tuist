@@ -1,4 +1,4 @@
-//! Per-machine proxy daemon. See proxy.rs for the architecture.
+//! Per-machine cache proxy. See proxy.rs for the architecture.
 //!
 //! The proxy is not bound to a single project: it multiplexes REAPI clients
 //! per `account/project` instance, which each connection declares (or which
@@ -22,9 +22,12 @@ use std::os::unix::net::UnixListener;
 use tuist_cas_plugin::proxy::Proxy;
 use tuist_cas_plugin::token::TokenProvider;
 
-// Token refresh cadence, in units of the 10s maintenance tick (~3 minutes):
-// long-lived proxys stay ahead of expiry without shelling out every tick.
-const TOKEN_REFRESH_TICKS: u64 = 18;
+// Refresh the bearer only inside this window before its JWT expiry, checked
+// every maintenance tick. Kept under the CLI's own 30s refresh threshold so a
+// proactive fetch mints a fresh token instead of returning the still-valid one,
+// and above the 10s tick interval so a tick cannot step over the window (see
+// token::TokenProvider::refresh_if_expiring).
+const TOKEN_REFRESH_LEAD: std::time::Duration = std::time::Duration::from_secs(25);
 
 fn main() {
     let socket_path = std::env::var("TUIST_CAS_PROXY_SOCKET")
@@ -62,7 +65,7 @@ fn main() {
     let _ = std::fs::set_permissions(&socket_path, std::fs::Permissions::from_mode(0o600));
 
     // Per-node transfer analytics into cas_analytics.db, for parity with the
-    // legacy daemon; the CLI ships this db with the build report.
+    // Swift `CASAnalyticsDatabase`; the CLI ships this db with the build report.
     let analytics = std::env::var("TUIST_CAS_ANALYTICS_DB")
         .ok()
         .filter(|path| !path.is_empty())
@@ -77,20 +80,14 @@ fn main() {
     );
 
     // Periodic sweep of orphaned publication records + token refresh + stats.
-    std::thread::spawn(move || {
-        let mut tick: u64 = 0;
-        loop {
-            std::thread::sleep(std::time::Duration::from_secs(10));
-            proxy.sweep();
-            proxy.enforce_cache_bounds();
-            tick += 1;
-            if tick % TOKEN_REFRESH_TICKS == 0 {
-                proxy.refresh_token();
-            }
-            let stats = proxy.stats_line();
-            if !stats.is_empty() {
-                tuist_cas_plugin::log_line(&format!("proxy stats: {stats}"));
-            }
+    std::thread::spawn(move || loop {
+        std::thread::sleep(std::time::Duration::from_secs(10));
+        proxy.sweep();
+        proxy.enforce_cache_bounds();
+        proxy.maintain_token(TOKEN_REFRESH_LEAD);
+        let stats = proxy.stats_line();
+        if !stats.is_empty() {
+            tuist_cas_plugin::log_line(&format!("proxy stats: {stats}"));
         }
     });
 
