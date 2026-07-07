@@ -13,7 +13,7 @@ use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::proxy_proto::{
     read_request, write_response, Request, OP_PUBLISH, OP_RESOLVE, STATUS_ERROR, STATUS_HIT,
@@ -37,15 +37,31 @@ const MAX_RESOLVED: usize = 1_000_000;
 const MAX_KNOWN_LOCAL_PER_SHARD: usize = 250_000;
 const MAX_PUBLISH_CACHE: usize = 500_000;
 
+/// How long a cached miss is served before it is re-resolved. Positive results
+/// are content-addressed and kept forever; only negatives expire, so a key
+/// published by another machine after our miss becomes visible on the next
+/// resolve past this window rather than requiring a proxy restart.
+const NEGATIVE_TTL: Duration = Duration::from_secs(60);
+
+/// A cached resolve outcome for a key.
+enum Resolution {
+    /// A value digest, kept indefinitely (content-addressed, always valid).
+    Hit(Vec<u8>),
+    /// A miss, with the time it was cached so it can expire (see NEGATIVE_TTL).
+    Miss(Instant),
+}
+
 /// Per-local-CAS-path state. Leaked for 'static lifetime: the proxy runs
 /// until killed.
 pub struct PathState {
     up: &'static Upstream,
     cas: llcas_cas_t,
-    // key digest -> Some(value digest) for published/fetched results, None
-    // for definitive misses. A publish updates its entry, so a miss cached
-    // during planning turns into a hit once the local build publishes it.
-    resolved: Mutex<HashMap<Vec<u8>, Option<Vec<u8>>>>,
+    // key digest -> resolved outcome. A local publish updates its entry, so a
+    // miss cached during planning turns into a hit once the local build
+    // publishes it; misses also carry a timestamp so a key another machine
+    // publishes later (overnight CI is the typical writer) stops being served
+    // as a miss after NEGATIVE_TTL instead of until the proxy restarts.
+    resolved: Mutex<HashMap<Vec<u8>, Resolution>>,
     // Single-flight: concurrent resolves of the same key (the build system
     // plans while the compiler asks) wait for the first instead of
     // duplicating manifest + fetch work.
@@ -223,8 +239,15 @@ impl Proxy {
         {
             let mut inflight = state.inflight.lock().unwrap();
             loop {
-                if let Some(resolution) = state.resolved.lock().unwrap().get(key) {
-                    return Ok(resolution.clone());
+                match state.resolved.lock().unwrap().get(key) {
+                    Some(Resolution::Hit(value)) => return Ok(Some(value.clone())),
+                    // A fresh miss answers without a round-trip; a stale one
+                    // falls through to re-resolve so a key published later
+                    // (by another machine) can still land.
+                    Some(Resolution::Miss(at)) if at.elapsed() < NEGATIVE_TTL => {
+                        return Ok(None)
+                    }
+                    _ => {}
                 }
                 if !inflight.contains(key) {
                     inflight.insert(key.to_vec());
@@ -261,10 +284,10 @@ impl Proxy {
                 // freshly-published value if present.
                 {
                     let mut resolved = state.resolved.lock().unwrap();
-                    if let Some(Some(value)) = resolved.get(key) {
+                    if let Some(Resolution::Hit(value)) = resolved.get(key) {
                         return Ok(Some(value.clone()));
                     }
-                    resolved.insert(key.to_vec(), None);
+                    resolved.insert(key.to_vec(), Resolution::Miss(Instant::now()));
                 }
                 state.stats_misses.fetch_add(1, Ordering::Relaxed);
                 if let Some(analytics) = &self.analytics {
@@ -358,7 +381,7 @@ impl Proxy {
             .resolved
             .lock()
             .unwrap()
-            .insert(key.to_vec(), Some(value.clone()));
+            .insert(key.to_vec(), Resolution::Hit(value.clone()));
         if let Some(analytics) = &self.analytics {
             analytics.record_keyvalue(key, "read", op_start.elapsed().as_secs_f64());
         }
@@ -429,7 +452,7 @@ impl Proxy {
                     .resolved
                     .lock()
                     .unwrap()
-                    .insert(record.key.clone(), Some(record.value_digest.clone()));
+                    .insert(record.key.clone(), Resolution::Hit(record.value_digest.clone()));
             }
             Err(reason) => {
                 crate::log_line(&format!("proxy publish failed ({reason}); record kept"));

@@ -34,8 +34,8 @@ The plugin runs in one of two modes. **Proxy mode** (`TUIST_CAS_PROXY_SOCKET` se
 - `TUIST_CAS_PROXY_SOCKET` - unix socket of the per-machine proxy; when set the plugin runs in proxy mode.
 - `TUIST_CAS_ACCOUNT`, `TUIST_CAS_PROJECT` - the `account/project` this build's cache belongs to, used to declare the instance to the proxy. Lower precedence than the `tuist-instance` plugin option (see below); when neither is present the proxy falls back to its `cas_path -> instance` registry.
 - `TUIST_CAS_REMOTE_GRPC_URL`, `TUIST_CAS_TOKEN` - REAPI endpoint + bearer. In proxy mode these configure the proxy (one endpoint/token, many instances); in direct mode they configure this process.
-- `TUIST_CAS_UPLOAD` (default true) - upload policy from `xcodeCache(upload:)`. When false the plugin still serves remote read hits but publishes nothing (no value graphs to proxy or remote).
-- `TUIST_CAS_PREFETCH` (default 24), `TUIST_CAS_POOL` (default 16) - worker pool sizes.
+- `TUIST_CAS_UPLOAD` (default true) - upload policy from `xcodeCache(upload:)`. When false the plugin still serves remote read hits but publishes nothing (no value graphs to proxy or remote). Lower precedence than the `tuist-upload` plugin option (see below).
+- `TUIST_CAS_PREFETCH` (default 24) - size of the plugin's prefetch/upload worker pool.
 - `TUIST_CAS_LOG` - append per-process stats (hits, misses, prefetched, cache get/put latency) on dispose.
 
 ## Configuration (plugin options)
@@ -43,6 +43,7 @@ The plugin runs in one of two modes. **Proxy mode** (`TUIST_CAS_PROXY_SOCKET` se
 Xcode passes `-cas-plugin-option <name>=<value>` flags to the plugin via `llcas_cas_options_set_option`, sourced from build settings (`tuist generate` bakes them into `OTHER_SWIFT_FLAGS`). Unlike the environment, these reach **every** compiler frontend — including an Xcode ⌘B build that carries no CLI environment — which is how the plugin learns its instance without the CLI.
 
 - `tuist-instance=<account/project>` - the instance this build routes to; takes precedence over `TUIST_CAS_ACCOUNT`/`TUIST_CAS_PROJECT`. `tuist-*` options are consumed here and never forwarded to the wrapped plugin.
+- `tuist-upload=false` - disables publishing for this build (`xcodeCache(upload: false)`); read hits are unaffected. Takes precedence over `TUIST_CAS_UPLOAD`. This is the carrier that reaches a ⌘B build (the per-machine proxy env can't express a per-project setting).
 
 ## Development
 

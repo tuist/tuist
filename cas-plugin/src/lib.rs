@@ -35,9 +35,32 @@ fn upstream_path() -> String {
     if let Ok(path) = std::env::var("TUIST_CAS_UPSTREAM_PLUGIN") {
         return path;
     }
-    let developer_dir =
-        std::env::var("DEVELOPER_DIR").unwrap_or_else(|_| "/Applications/Xcode.app/Contents/Developer".into());
+    // Resolve the active developer dir: explicit DEVELOPER_DIR, then
+    // `xcode-select -p` (the system's active Xcode, which handles versioned
+    // install paths like /Applications/Xcode-26.5.0.app), then the default
+    // location as a last resort. Without the xcode-select fallback a launchd or
+    // CI context that sets neither env would silently degrade every resolve to a
+    // local miss on any non-default Xcode install.
+    let developer_dir = std::env::var("DEVELOPER_DIR")
+        .ok()
+        .filter(|dir| !dir.is_empty())
+        .or_else(xcode_select_developer_dir)
+        .unwrap_or_else(|| "/Applications/Xcode.app/Contents/Developer".into());
     format!("{developer_dir}/usr/lib/libToolchainCASPlugin.dylib")
+}
+
+/// The active developer directory reported by `xcode-select -p`, or `None` when
+/// the tool is missing or fails.
+fn xcode_select_developer_dir() -> Option<String> {
+    let output = std::process::Command::new("xcode-select")
+        .arg("-p")
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    (!path.is_empty()).then_some(path)
 }
 
 fn upstream() -> Result<&'static Upstream, String> {
@@ -220,6 +243,18 @@ fn option_value(state: &OptionsState, name: &str) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
+/// Whether this build publishes value graphs (`xcodeCache(upload:)`). Prefers
+/// the `tuist-upload` plugin option (baked into build settings by `tuist
+/// generate`, so it reaches every frontend including a ⌘B build with no CLI
+/// env), then the `TUIST_CAS_UPLOAD` env, then defaults to on. An explicit
+/// `false` on either channel disables publishing; read hits are unaffected.
+fn resolve_upload(state: &OptionsState) -> bool {
+    match option_value(state, "tuist-upload") {
+        Some(value) => !value.eq_ignore_ascii_case("false"),
+        None => env_bool("TUIST_CAS_UPLOAD", true),
+    }
+}
+
 struct CasState {
     up: &'static Upstream,
     cas: llcas_cas_t,
@@ -232,8 +267,9 @@ struct CasState {
     // env); the proxy then falls back to its primed cas_path mapping.
     proxy_instance: String,
     // Upload policy from `xcodeCache(upload:)`. When false, read hits still work
-    // but no value graphs are published (the read path is unchanged). Controlled
-    // by TUIST_CAS_UPLOAD (default true; set false to disable uploads).
+    // but no value graphs are published (the read path is unchanged). Carried by
+    // the `tuist-upload` plugin option (so it reaches every frontend, including a
+    // ⌘B build) with the `TUIST_CAS_UPLOAD` env as a fallback; see resolve_upload.
     upload: bool,
     created_at: std::time::Instant,
     cas_dir: Option<std::path::PathBuf>,
@@ -506,7 +542,7 @@ pub unsafe extern "C" fn llcas_cas_create(
         remote,
         proxy,
         proxy_instance,
-        upload: env_bool("TUIST_CAS_UPLOAD", true),
+        upload: resolve_upload(state),
         created_at: std::time::Instant::now(),
         cas_dir,
         sweeper: Mutex::new(None),

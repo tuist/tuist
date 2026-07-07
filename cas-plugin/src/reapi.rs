@@ -89,6 +89,40 @@ const MAX_BATCH_BYTES: i64 = 32 << 20;
 const RPC_TIMEOUT: Duration = Duration::from_secs(60);
 const ATTEMPTS: usize = 3;
 
+/// Retries a synchronous gRPC call up to `ATTEMPTS` times on retryable statuses,
+/// keeping the retry policy in one place. The caller maps success and terminal
+/// errors (e.g. NotFound) at the call site.
+fn retry_call<T>(mut op: impl FnMut() -> Result<T, tonic::Status>) -> Result<T, tonic::Status> {
+    let mut last = None;
+    for attempt in 0..ATTEMPTS {
+        match op() {
+            Ok(value) => return Ok(value),
+            Err(status) if retryable(&status) && attempt + 1 < ATTEMPTS => last = Some(status),
+            Err(status) => return Err(status),
+        }
+    }
+    Err(last.unwrap_or_else(|| tonic::Status::unknown("retry attempts exhausted")))
+}
+
+/// Async counterpart of `retry_call`, for calls issued from within a tokio task
+/// where blocking is not allowed. `op` is re-invoked (returning a fresh future)
+/// per attempt.
+async fn retry_call_async<T, F, Fut>(mut op: F) -> Result<T, tonic::Status>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = Result<T, tonic::Status>>,
+{
+    let mut last = None;
+    for attempt in 0..ATTEMPTS {
+        match op().await {
+            Ok(value) => return Ok(value),
+            Err(status) if retryable(&status) && attempt + 1 < ATTEMPTS => last = Some(status),
+            Err(status) => return Err(status),
+        }
+    }
+    Err(last.unwrap_or_else(|| tonic::Status::unknown("retry attempts exhausted")))
+}
+
 fn hex(bytes: &[u8]) -> String {
     let mut s = String::with_capacity(bytes.len() * 2);
     for b in bytes {
@@ -241,30 +275,27 @@ impl Remote {
                 action_digest: Some(action_digest(key)),
                 ..Default::default()
             };
-            for attempt in 0..ATTEMPTS {
-                let response =
-                    runtime().block_on(client.get_action_result(self.authed(request.clone())));
-                match response {
-                    Ok(response) => {
-                        let manifest = response
-                            .into_inner()
-                            .output_files
-                            .into_iter()
-                            .filter_map(|file| {
-                                Some(ManifestEntry {
-                                    llcas_digest: unhex(&file.path)?,
-                                    blob: file.digest?,
-                                })
+            let response = retry_call(|| {
+                runtime().block_on(client.get_action_result(self.authed(request.clone())))
+            });
+            match response {
+                Ok(response) => {
+                    let manifest = response
+                        .into_inner()
+                        .output_files
+                        .into_iter()
+                        .filter_map(|file| {
+                            Some(ManifestEntry {
+                                llcas_digest: unhex(&file.path)?,
+                                blob: file.digest?,
                             })
-                            .collect();
-                        return Ok(Some(manifest));
-                    }
-                    Err(status) if status.code() == tonic::Code::NotFound => return Ok(None),
-                    Err(status) if retryable(&status) && attempt + 1 < ATTEMPTS => continue,
-                    Err(status) => return Err(format!("get_action: {status}")),
+                        })
+                        .collect();
+                    Ok(Some(manifest))
                 }
+                Err(status) if status.code() == tonic::Code::NotFound => Ok(None),
+                Err(status) => Err(format!("get_action: {status}")),
             }
-            unreachable!()
         })();
         self.get_stats.record(started.elapsed());
         result
@@ -286,7 +317,7 @@ impl Remote {
             let outcomes = runtime().block_on(async {
                 let mut join_set = tokio::task::JoinSet::new();
                 for chunk in &chunks {
-                    let mut client = client.clone();
+                    let client = client.clone();
                     let auth = auth.clone();
                     let request = reapi::BatchReadBlobsRequest {
                         instance_name: instance.clone(),
@@ -294,20 +325,19 @@ impl Remote {
                         ..Default::default()
                     };
                     join_set.spawn(async move {
-                        let mut last_error = String::new();
-                        for attempt in 0..ATTEMPTS {
-                            match client
-                                .batch_read_blobs(authed_request(request.clone(), auth.as_ref()))
-                                .await
-                            {
-                                Ok(response) => return Ok(response.into_inner().responses),
-                                Err(status) if retryable(&status) && attempt + 1 < ATTEMPTS => {
-                                    last_error = status.to_string();
-                                }
-                                Err(status) => return Err(format!("batch_read: {status}")),
+                        retry_call_async(|| {
+                            let mut client = client.clone();
+                            let request = request.clone();
+                            let auth = auth.clone();
+                            async move {
+                                client
+                                    .batch_read_blobs(authed_request(request, auth.as_ref()))
+                                    .await
                             }
-                        }
-                        Err(format!("batch_read: {last_error}"))
+                        })
+                        .await
+                        .map(|response| response.into_inner().responses)
+                        .map_err(|status| format!("batch_read: {status}"))
                     });
                 }
                 let mut all = Vec::new();
@@ -325,7 +355,10 @@ impl Remote {
                 let ok = entry.status.as_ref().map(|s| s.code == 0).unwrap_or(false);
                 if ok {
                     if let Some(digest) = entry.digest {
-                        contents.insert(digest.hash, entry.data.to_vec());
+                        // The loop owns `entry`; move its data out rather than
+                        // deep-copying every fetched blob (batches run to 32MB
+                        // while the requesting compiler blocks on the resolve).
+                        contents.insert(digest.hash, entry.data);
                     }
                 }
             }
@@ -345,17 +378,11 @@ impl Remote {
                 blob_digests: blobs,
                 ..Default::default()
             };
-            let mut last_error = String::new();
-            for attempt in 0..ATTEMPTS {
-                match runtime().block_on(client.find_missing_blobs(self.authed(request.clone()))) {
-                    Ok(response) => return Ok(response.into_inner().missing_blob_digests),
-                    Err(status) if retryable(&status) && attempt + 1 < ATTEMPTS => {
-                        last_error = status.to_string();
-                    }
-                    Err(status) => return Err(format!("find_missing: {status}")),
-                }
-            }
-            Err(format!("find_missing: {last_error}"))
+            let response = retry_call(|| {
+                runtime().block_on(client.find_missing_blobs(self.authed(request.clone())))
+            })
+            .map_err(|status| format!("find_missing: {status}"))?;
+            Ok(response.into_inner().missing_blob_digests)
         })();
         self.get_stats.record(started.elapsed());
         result
@@ -391,32 +418,16 @@ impl Remote {
                     requests: chunk,
                     ..Default::default()
                 };
-                let mut last_error = String::new();
-                let mut done = false;
-                for attempt in 0..ATTEMPTS {
-                    match runtime().block_on(client.batch_update_blobs(self.authed(request.clone()))) {
-                        Ok(response) => {
-                            for entry in response.into_inner().responses {
-                                if let Some(status) = entry.status {
-                                    if status.code != 0 {
-                                        return Err(format!(
-                                            "batch_update blob rejected: {}",
-                                            status.message
-                                        ));
-                                    }
-                                }
-                            }
-                            done = true;
-                            break;
+                let response = retry_call(|| {
+                    runtime().block_on(client.batch_update_blobs(self.authed(request.clone())))
+                })
+                .map_err(|status| format!("batch_update: {status}"))?;
+                for entry in response.into_inner().responses {
+                    if let Some(status) = entry.status {
+                        if status.code != 0 {
+                            return Err(format!("batch_update blob rejected: {}", status.message));
                         }
-                        Err(status) if retryable(&status) && attempt + 1 < ATTEMPTS => {
-                            last_error = status.to_string();
-                        }
-                        Err(status) => return Err(format!("batch_update: {status}")),
                     }
-                }
-                if !done {
-                    return Err(format!("batch_update: {last_error}"));
                 }
             }
             Ok(())
@@ -448,17 +459,11 @@ impl Remote {
                 action_result: Some(action_result),
                 ..Default::default()
             };
-            let mut last_error = String::new();
-            for attempt in 0..ATTEMPTS {
-                match runtime().block_on(client.update_action_result(self.authed(request.clone()))) {
-                    Ok(_) => return Ok(()),
-                    Err(status) if retryable(&status) && attempt + 1 < ATTEMPTS => {
-                        last_error = status.to_string();
-                    }
-                    Err(status) => return Err(format!("update_action: {status}")),
-                }
-            }
-            Err(format!("update_action: {last_error}"))
+            retry_call(|| {
+                runtime().block_on(client.update_action_result(self.authed(request.clone())))
+            })
+            .map_err(|status| format!("update_action: {status}"))?;
+            Ok(())
         })();
         self.post_stats.record(started.elapsed());
         result
