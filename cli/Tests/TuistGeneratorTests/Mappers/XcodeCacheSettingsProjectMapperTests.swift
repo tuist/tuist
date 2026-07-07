@@ -174,6 +174,47 @@ struct XcodeCacheSettingsProjectMapperTests {
     }
 
     @Test(.inTemporaryDirectory)
+    func map_whenUploadDisabled_addsUploadOptionToSwiftFlags() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let casPluginPath = temporaryDirectory.appending(component: "libtuist_cas_plugin.dylib")
+        try await FileSystem().touch(casPluginPath)
+        let tuist = Tuist(
+            project: .generated(
+                .test(
+                    generationOptions: .test(enableCaching: true)
+                )
+            ),
+            fullHandle: "test-org/test-project",
+            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            xcodeCache: .init(upload: false),
+            url: Constants.URLs.production
+        )
+        let subject = XcodeCacheSettingsProjectMapper(
+            tuist: tuist,
+            kuraEnabled: true,
+            casPluginCandidates: [casPluginPath]
+        )
+        let project = Project.test(name: "TestProject", settings: .test(base: [:]))
+
+        // When
+        let (mappedProject, _) = try await subject.map(project: project)
+
+        // Then: xcodeCache(upload: false) is carried to the plugin as a per-project
+        // option (the machine-wide proxy env can't express a per-project setting).
+        #expect(
+            mappedProject.settings.base["OTHER_SWIFT_FLAGS"]
+                == .array([
+                    "$(inherited)",
+                    "-cas-plugin-option",
+                    "tuist-instance=test-org/test-project",
+                    "-cas-plugin-option",
+                    "tuist-upload=false",
+                ])
+        )
+    }
+
+    @Test(.inTemporaryDirectory)
     func map_whenNoExistingSettings_addsOnlyCacheSettings() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)

@@ -255,7 +255,11 @@ struct SetupCacheCommandServiceTests {
                 label: .any,
                 plistFileName: .any,
                 programArguments: .any,
-                environmentVariables: .value(["TUIST_CAS_TOKEN": token, "TUIST_FEATURE_FLAG_KURA": "1"])
+                environmentVariables: .value([
+                    "TUIST_CAS_TOKEN": token,
+                    "TUIST_TOKEN": token,
+                    "TUIST_FEATURE_FLAG_KURA": "1",
+                ])
             )
             .called(1)
     }
@@ -287,6 +291,7 @@ struct SetupCacheCommandServiceTests {
                 programArguments: .any,
                 environmentVariables: .value([
                     "TUIST_CAS_TOKEN": token,
+                    "TUIST_TOKEN": token,
                     "TUIST_FEATURE_FLAG_KURA": "1",
                 ])
             )
@@ -321,6 +326,7 @@ struct SetupCacheCommandServiceTests {
                 programArguments: .any,
                 environmentVariables: .value([
                     "TUIST_CAS_TOKEN": token,
+                    "TUIST_TOKEN": token,
                     "TUIST_FEATURE_FLAG_KURA": "1",
                     "TUIST_CACHE_ENDPOINT": "http://172.16.0.2:30815",
                 ])
@@ -422,6 +428,49 @@ struct SetupCacheCommandServiceTests {
                 plistFileName: .any,
                 programArguments: .matching { $0.contains("cache-proxy") && $0.contains("organization") },
                 environmentVariables: .any
+            )
+            .called(1)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(),
+        .withMockedLogger()
+    ) func setupCache_withoutKuraFlag_installsLegacyDaemon() async throws {
+        // Given: no TUIST_FEATURE_FLAG_KURA, so setup takes the legacy per-project
+        // daemon path that every not-yet-migrated account still runs. The kura
+        // backwards-compat promise rests on this branch, so pin its behaviour.
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        let token = "test-auth-token-123"
+        environment.variables[Constants.EnvironmentVariables.token] = token
+
+        let config = Tuist.test(
+            fullHandle: "organization/project",
+            xcodeCache: Tuist.XcodeCache(upload: false)
+        )
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(config)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then: the per-project agent label, `cache-start` args (with --no-upload),
+        // and TUIST_TOKEN seeding are all pinned.
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .value("tuist.cache.organization_project"),
+                plistFileName: .value("tuist.cache.organization_project.plist"),
+                programArguments: .value([
+                    "cache-start",
+                    "organization/project",
+                    "--url",
+                    Constants.URLs.production.absoluteString,
+                    "--no-upload",
+                ]),
+                environmentVariables: .value(["TUIST_TOKEN": token])
             )
             .called(1)
     }
