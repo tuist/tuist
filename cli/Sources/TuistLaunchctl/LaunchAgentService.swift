@@ -152,14 +152,6 @@ public struct LaunchAgentService: LaunchAgentServicing {
             throw LaunchAgentServiceError.missingExecutablePath
         }
 
-        // Pin the launch agent to the exact binary that registered it. A mise
-        // setup previously rewrote the concrete versioned install to mise's
-        // `latest` symlink, but `latest` tracks the newest *stable* install, not
-        // the project's pinned or canary version. That silently launches a tuist
-        // predating the arguments baked into the plist (e.g. `--url`), which
-        // exits with an "unknown option" error. The mise postinstall hook
-        // re-runs `tuist setup` on every version change, so pinning the concrete
-        // path stays self-healing.
         return currentPath
     }
 
