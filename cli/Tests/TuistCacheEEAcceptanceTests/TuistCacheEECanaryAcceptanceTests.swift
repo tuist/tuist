@@ -373,7 +373,7 @@ struct TuistCacheEECanaryAcceptanceTests {
 
         let process = Foundation.Process()
         process.executableURL = URL(fileURLWithPath: proxyPath.pathString)
-        var processEnvironment = ProcessInfo.processInfo.environment
+        var processEnvironment = Environment.current.variables
         processEnvironment["TUIST_CAS_PROXY_SOCKET"] = socketPath.pathString
         processEnvironment["TUIST_CAS_REMOTE_GRPC_URL"] = endpoint.absoluteString
         processEnvironment["TUIST_CAS_TOKEN"] = token
