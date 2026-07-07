@@ -354,6 +354,10 @@ func main() {
 	// left empty so the hash is identical across the fleet and drift is a
 	// config change, not a host identity. The reconciler stamps it on
 	// each Machine and re-pushes the host config when it moves.
+	vncRelayPort := 0
+	if egressProxyGroup != "" && egressNamespace != "" {
+		vncRelayPort = macos.DashboardVNCRelayPort
+	}
 	hostConfigHash := bootstrap.HostConfigHash(bootstrap.Config{
 		TartKubeletBinary:     tartKubeletBinary,
 		TailscaleBinaries:     tailscaleBinaries,
@@ -366,6 +370,7 @@ func main() {
 		HostCPU:               tartKubeletHostCPU,
 		HostMemoryMB:          tartKubeletHostMemory,
 		MaxPods:               tartKubeletMaxPods,
+		VNCRelayPort:          vncRelayPort,
 	})
 	setupLog.Info("computed host config hash", "hash", hostConfigHash)
 

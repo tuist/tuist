@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -67,6 +68,8 @@ func main() {
 		probeAddr          string
 		tartBinary         string
 		vncControlDir      string
+		vncRelayHost       string
+		vncRelayPort       int
 		disableVMGC        bool
 	)
 	flag.StringVar(&nodeName, "node-name", envOr("TART_KUBELET_NODE_NAME", ""), "Node name to register as. Defaults to os.Hostname() when empty.")
@@ -106,6 +109,10 @@ func main() {
 	flag.StringVar(&tartBinary, "tart-binary", "/usr/local/bin/tart", "Path to the local tart CLI.")
 	flag.StringVar(&vncControlDir, "vnc-control-dir", envOr("TART_KUBELET_VNC_CONTROL_DIR", "/var/lib/tart-vnc-control"),
 		"Host-local operator control directory for Phase 1 runner VNC access. Create requests/<namespace>_<pod> to open a VNC relay for a running runner Pod; tart-kubelet writes sensitive connection metadata under state/ with 0600 permissions. Empty disables operator VNC relays.")
+	flag.StringVar(&vncRelayHost, "vnc-relay-host", envOr("TART_KUBELET_VNC_RELAY_HOST", ""),
+		"Host name to advertise for dashboard VNC relays. Empty advertises --node-ip. Managed tailnet deployments set this to the per-Mac Kubernetes egress Service DNS name so the server connects through the Tailscale operator instead of dialing the raw tailnet IP.")
+	flag.IntVar(&vncRelayPort, "vnc-relay-port", envIntOr("TART_KUBELET_VNC_RELAY_PORT", 0),
+		"Host port to bind and advertise for dashboard VNC relays. 0 chooses an ephemeral port. Managed tailnet deployments use a fixed port that is declared on the per-Mac Tailscale egress Service.")
 	flag.BoolVar(&disableVMGC, "disable-vm-gc", false,
 		"Disable the periodic orphan-VM garbage collector. The GC deletes every local "+
 			"Tart VM not backed by a Pod scheduled to this Node. On builder-fleet Nodes — "+
@@ -122,6 +129,11 @@ func main() {
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	if vncRelayPort < 0 || vncRelayPort > 65535 {
+		setupLog.Error(fmt.Errorf("invalid --vnc-relay-port %d", vncRelayPort), "parse flag")
+		os.Exit(1)
+	}
 
 	if nodeName == "" {
 		hostname, err := os.Hostname()
@@ -287,6 +299,8 @@ func main() {
 		NodeIP:             nodeIP,
 		ScrapeAllowedCIDRs: scrapeAllowedCIDRs.Value(),
 		VNCControlDir:      vncControlDir,
+		VNCRelayHost:       vncRelayHost,
+		VNCRelayPort:       vncRelayPort,
 		Tart:               tartClient,
 		Resolver:           resolver,
 		Store:              store,
@@ -370,6 +384,19 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func envIntOr(key string, fallback int) int {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		setupLog.Error(err, "parse integer environment variable", "key", key, "value", raw)
+		os.Exit(1)
+	}
+	return value
 }
 
 // parseNodeLabels parses kubelet's --node-labels=k=v,k=v form. Empty

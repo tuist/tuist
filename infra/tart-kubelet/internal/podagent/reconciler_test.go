@@ -252,6 +252,9 @@ func TestWriteVNCStateUsesHostControlStateAndRemovesItOnStop(t *testing.T) {
 	if got, want := state.RelayURL, vncURL("127.0.0.1", tcpAddr.Port, "secret-pass"); got != want {
 		t.Fatalf("relay_url = %q, want %q", got, want)
 	}
+	if got, want := state.RelayHost, "127.0.0.1"; got != want {
+		t.Fatalf("relay_host = %q, want %q", got, want)
+	}
 
 	r.stopVNCForwarder(pod.Namespace, pod.Name, entry)
 	if _, err := os.Stat(statePath); !os.IsNotExist(err) {
@@ -270,7 +273,12 @@ func TestWriteVNCStatePatchesServerRelayAnnotations(t *testing.T) {
 		},
 	}
 	kubeClient := newPodTestClient(t, pod)
-	r := &Reconciler{CachedClient: kubeClient, NodeIP: "127.0.0.1", VNCControlDir: dir}
+	r := &Reconciler{
+		CachedClient:  kubeClient,
+		NodeIP:        "127.0.0.1",
+		VNCControlDir: dir,
+		VNCRelayHost:  "macmini-1.tailscale-operator.svc.cluster.local",
+	}
 
 	fw, err := NewTCPForwarder("127.0.0.1:0", func() (string, error) {
 		return "127.0.0.1:5901", nil
@@ -292,7 +300,7 @@ func TestWriteVNCStatePatchesServerRelayAnnotations(t *testing.T) {
 	if got, want := updatedPod.Annotations[vncStateAnnotation], "ready"; got != want {
 		t.Fatalf("state annotation = %q, want %q", got, want)
 	}
-	if got, want := updatedPod.Annotations[vncRelayHostAnnotation], "127.0.0.1"; got != want {
+	if got, want := updatedPod.Annotations[vncRelayHostAnnotation], "macmini-1.tailscale-operator.svc.cluster.local"; got != want {
 		t.Fatalf("relay host annotation = %q, want %q", got, want)
 	}
 	if got, want := updatedPod.Annotations[vncRelayPortAnnotation], strconv.Itoa(tcpAddr.Port); got != want {
@@ -317,7 +325,14 @@ func TestStartVNCForwarderUsesPersistedEndpointForRecoveredVM(t *testing.T) {
 		},
 	}
 	kubeClient := newPodTestClient(t, pod)
-	r := &Reconciler{CachedClient: kubeClient, NodeIP: "127.0.0.1", VNCControlDir: dir}
+	port := freeTCPPort(t)
+	r := &Reconciler{
+		CachedClient:  kubeClient,
+		NodeIP:        "127.0.0.1",
+		VNCControlDir: dir,
+		VNCRelayHost:  "macmini-1.tailscale-operator.svc.cluster.local",
+		VNCRelayPort:  port,
+	}
 	entry := &Entry{VMName: "vm-runner-recovered"}
 
 	if err := r.writeVNCEndpointState(pod, entry, tart.VNCInfo{Host: "127.0.0.1", Port: 5901, Password: "secret-pass"}); err != nil {
@@ -334,12 +349,22 @@ func TestStartVNCForwarderUsesPersistedEndpointForRecoveredVM(t *testing.T) {
 	if got, want := updatedPod.Annotations[vncStateAnnotation], "ready"; got != want {
 		t.Fatalf("state annotation = %q, want %q", got, want)
 	}
-	if got, want := updatedPod.Annotations[vncRelayHostAnnotation], "127.0.0.1"; got != want {
+	if got, want := updatedPod.Annotations[vncRelayHostAnnotation], "macmini-1.tailscale-operator.svc.cluster.local"; got != want {
 		t.Fatalf("relay host annotation = %q, want %q", got, want)
 	}
-	if updatedPod.Annotations[vncRelayPortAnnotation] == "" {
-		t.Fatal("missing relay port annotation")
+	if got, want := updatedPod.Annotations[vncRelayPortAnnotation], strconv.Itoa(port); got != want {
+		t.Fatalf("relay port annotation = %q, want %q", got, want)
 	}
+}
+
+func freeTCPPort(t *testing.T) int {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen for free port: %v", err)
+	}
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port
 }
 
 func newPodTestClient(t *testing.T, objects ...runtime.Object) client.Client {

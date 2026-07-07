@@ -203,6 +203,13 @@ type Config struct {
 	HostMemoryMB int
 	MaxPods      int
 
+	// VNCRelayHost / VNCRelayPort configure the server-facing runner VNC
+	// relay coordinates that tart-kubelet advertises after a dashboard
+	// session is requested. Managed tailnet clusters set these to the
+	// per-Mac Tailscale egress Service DNS name and port.
+	VNCRelayHost string
+	VNCRelayPort int
+
 	// NodeLabels is the set of labels tart-kubelet stamps on the
 	// Node it registers. The bootstrap layer is generic — fleet
 	// membership is just one entry the caller adds (typically
@@ -437,6 +444,7 @@ func HostConfigHash(cfg Config) string {
 	cfg.ProviderID = ""
 	cfg.Kubeconfig = ""
 	cfg.TailscaleAuthKey = ""
+	cfg.VNCRelayHost = ""
 	cfg.VMCachePNVLAN = 0
 	cfg.KnownHostFingerprint = ""
 	cfg.GHActionsRunner = nil
@@ -752,6 +760,14 @@ func renderLaunchdPlist(cfg Config) string {
 	if cfg.GHActionsRunner != nil || cfg.DisableVMGC {
 		disableVMGCArg = "\n    <string>--disable-vm-gc</string>"
 	}
+	vncRelayHostArg := ""
+	if cfg.VNCRelayHost != "" {
+		vncRelayHostArg = fmt.Sprintf("\n    <string>--vnc-relay-host=%s</string>", cfg.VNCRelayHost)
+	}
+	vncRelayPortArg := ""
+	if cfg.VNCRelayPort > 0 {
+		vncRelayPortArg = fmt.Sprintf("\n    <string>--vnc-relay-port=%d</string>", cfg.VNCRelayPort)
+	}
 	// Run tart-kubelet as the SSH user (m1). Apple's
 	// Virtualization.framework requires the calling process to be the
 	// same user that holds the live GUI console session — Tart's
@@ -774,7 +790,7 @@ func renderLaunchdPlist(cfg Config) string {
     <string>--kubeconfig=/etc/tart-kubelet/kubeconfig</string>
     <string>--host-cpu=%[2]d</string>
     <string>--host-memory-mb=%[3]d</string>
-    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s
+    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s%[10]s%[11]s
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -788,7 +804,7 @@ func renderLaunchdPlist(cfg Config) string {
   </dict>
 </dict>
 </plist>
-`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg)
+`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg, vncRelayHostArg, vncRelayPortArg)
 }
 
 func shellQuote(s string) string {

@@ -87,6 +87,12 @@ type Reconciler struct {
 	// and reports server-consumable no-auth relay coordinates through Pod
 	// annotations. Empty disables VNC relay control.
 	VNCControlDir string
+	// VNCRelayHost overrides the host written to server-facing VNC relay
+	// annotations. Empty falls back to NodeIP.
+	VNCRelayHost string
+	// VNCRelayPort pins the host-side VNC relay port. 0 uses an
+	// ephemeral port, matching the legacy operator-only behavior.
+	VNCRelayPort int
 
 	Tart     *tart.Client
 	Resolver *envresolver.Resolver
@@ -732,7 +738,11 @@ func (r *Reconciler) startVNCForwarder(ctx context.Context, pod *corev1.Pod, ent
 	if entry.VNCForwarder == nil {
 		target := net.JoinHostPort(vncInfo.Host, strconv.Itoa(vncInfo.Port))
 		resolve := func() (string, error) { return target, nil }
-		listenAddr := net.JoinHostPort(r.NodeIP, "0")
+		listenPort := "0"
+		if r.VNCRelayPort > 0 {
+			listenPort = strconv.Itoa(r.VNCRelayPort)
+		}
+		listenAddr := net.JoinHostPort(r.NodeIP, listenPort)
 		allowed := r.ScrapeAllowedCIDRs
 		if len(allowed) == 0 {
 			allowed = DefaultScrapeAllowedCIDRs()
@@ -886,11 +896,12 @@ func (r *Reconciler) writeVNCState(ctx context.Context, pod *corev1.Pod, entry *
 		return fmt.Errorf("mkdir VNC state dir: %w", err)
 	}
 
+	relayHost := r.advertisedVNCRelayHost()
 	state := vncRelayState{
 		Pod:       pod.Namespace + "/" + pod.Name,
 		VMName:    entry.VMName,
-		RelayURL:  vncURL(r.NodeIP, tcpAddr.Port, vncInfo.Password),
-		RelayHost: r.NodeIP,
+		RelayURL:  vncURL(relayHost, tcpAddr.Port, vncInfo.Password),
+		RelayHost: relayHost,
 		RelayPort: tcpAddr.Port,
 		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
@@ -975,6 +986,13 @@ func vncURL(host string, port int, password string) string {
 		User:   url.UserPassword("", password),
 		Host:   net.JoinHostPort(host, strconv.Itoa(port)),
 	}).String()
+}
+
+func (r *Reconciler) advertisedVNCRelayHost() string {
+	if r.VNCRelayHost != "" {
+		return r.VNCRelayHost
+	}
+	return r.NodeIP
 }
 
 // contextWithTimeout is split out so the production resolver can use
