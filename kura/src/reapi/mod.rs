@@ -244,6 +244,46 @@ impl ReapiService {
         Ok(())
     }
 
+    // Record a served gRPC download (egress) against the usage rollups so REAPI
+    // bandwidth reaches `kura_usage_events` on parity with the HTTP path. A no-op
+    // when usage reporting is disabled. Call only on success arms, mirroring how
+    // the HTTP handlers record on the `"ok"` metric arm.
+    fn record_reapi_download(
+        &self,
+        metadata: &tonic::metadata::MetadataMap,
+        namespace_id: &str,
+        bytes: u64,
+    ) {
+        let Some(usage) = self.state.usage.as_ref() else {
+            return;
+        };
+        usage.record_public_grpc_download(
+            &usage_tenant_id(metadata, &self.state.config.tenant_id),
+            namespace_id,
+            REAPI_USAGE_ARTIFACT_KIND,
+            bytes,
+        );
+    }
+
+    // Record a received gRPC upload (ingress) against the usage rollups. See
+    // [`record_reapi_download`] for the parity and call-site conventions.
+    fn record_reapi_upload(
+        &self,
+        metadata: &tonic::metadata::MetadataMap,
+        namespace_id: &str,
+        bytes: u64,
+    ) {
+        let Some(usage) = self.state.usage.as_ref() else {
+            return;
+        };
+        usage.record_public_grpc_upload(
+            &usage_tenant_id(metadata, &self.state.config.tenant_id),
+            namespace_id,
+            REAPI_USAGE_ARTIFACT_KIND,
+            bytes,
+        );
+    }
+
     // Body of ByteStream::write. Every step here is fallible via `?`; the caller
     // (write) removes temp_path on any error this returns, so this never cleans
     // up inline — which is what keeps transport/cancel/write/flush failures from
@@ -410,6 +450,7 @@ impl ReapiService {
         self.state
             .metrics
             .record_artifact_write(ArtifactProducer::Reapi, "ok", manifest.size);
+        self.record_reapi_upload(&metadata, &resource.namespace_id, manifest.size);
 
         let mut response = Response::new(bytestream::WriteResponse {
             committed_size: written as i64,
@@ -710,10 +751,17 @@ impl ContentAddressableStorage for ReapiService {
                 continue;
             }
             match persist_cas_blob(&self.state, namespace_id, &digest, &item.data).await {
-                Ok(()) => responses.push(reapi::batch_update_blobs_response::Response {
-                    digest: Some(digest),
-                    status: Some(rpc_status(0, "")),
-                }),
+                Ok(()) => {
+                    self.record_reapi_upload(
+                        request.metadata(),
+                        namespace_id,
+                        item.data.len() as u64,
+                    );
+                    responses.push(reapi::batch_update_blobs_response::Response {
+                        digest: Some(digest),
+                        status: Some(rpc_status(0, "")),
+                    })
+                }
                 Err(error) => responses.push(reapi::batch_update_blobs_response::Response {
                     digest: Some(digest),
                     status: Some(rpc_status(13, error)),
@@ -779,6 +827,15 @@ impl ContentAddressableStorage for ReapiService {
             .buffered(16)
             .collect()
             .await;
+        for response in &responses {
+            if response.status.as_ref().is_some_and(|status| status.code == 0) {
+                self.record_reapi_download(
+                    request.metadata(),
+                    namespace_id,
+                    response.data.len() as u64,
+                );
+            }
+        }
 
         let mut response = Response::new(reapi::BatchReadBlobsResponse { responses });
         self.apply_response_headers(&mut response, extension, principal.as_ref())
@@ -885,6 +942,7 @@ impl ByteStream for ReapiService {
         self.state
             .metrics
             .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes_to_read);
+        self.record_reapi_download(request.metadata(), &resource.namespace_id, bytes_to_read);
         let stream =
             ReaderStream::with_capacity(reader, REAPI_READ_STREAM_CHUNK_BYTES).map(move |result| {
                 match result {
@@ -1259,6 +1317,28 @@ fn rpc_status_from_grpc_status(status: &Status) -> RpcStatus {
 // tenant guard the HTTP path already has; the namespace still comes from the
 // REAPI `instance_name`/`resource_name`, so it always matches what is stored.
 const TENANT_HEADER_KEYS: &[&str] = &["x-kura-tenant-id", "x-tuist-account-handle"];
+
+const REAPI_USAGE_ARTIFACT_KIND: &str = "reapi";
+
+// The account a gRPC request is billed to. Mirrors the HTTP path, which keys
+// usage off the per-request tenant; over gRPC that arrives as one of the
+// `TENANT_HEADER_KEYS` metadata headers (the same headers the extension
+// authorizes against). Falls back to the node's configured tenant when the
+// client omits it, so REAPI bandwidth is always attributed rather than silently
+// dropped.
+fn usage_tenant_id(metadata: &tonic::metadata::MetadataMap, fallback_tenant_id: &str) -> String {
+    TENANT_HEADER_KEYS
+        .iter()
+        .find_map(|key| {
+            metadata
+                .get(*key)
+                .and_then(|value| value.to_str().ok())
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(ToOwned::to_owned)
+        })
+        .unwrap_or_else(|| fallback_tenant_id.to_owned())
+}
 
 fn grpc_extension_context(
     server_tenant_id: &str,
@@ -2245,5 +2325,246 @@ end
 
         assert_eq!(error.code(), tonic::Code::Unavailable);
         assert!(error.message().contains("draining"));
+    }
+
+    #[test]
+    fn usage_tenant_id_prefers_metadata_header_and_falls_back_to_node_tenant() {
+        let mut metadata = tonic::metadata::MetadataMap::new();
+        assert_eq!(usage_tenant_id(&metadata, "node-tenant"), "node-tenant");
+
+        metadata.insert("x-tuist-account-handle", "  acme  ".parse().unwrap());
+        assert_eq!(usage_tenant_id(&metadata, "node-tenant"), "acme");
+
+        let mut kura_metadata = tonic::metadata::MetadataMap::new();
+        kura_metadata.insert("x-kura-tenant-id", "globex".parse().unwrap());
+        assert_eq!(usage_tenant_id(&kura_metadata, "node-tenant"), "globex");
+    }
+
+    fn test_usage_config() -> crate::config::UsageConfig {
+        crate::config::UsageConfig {
+            control_plane_url: "http://localhost:0".to_owned(),
+            client_id: "kura".to_owned(),
+            client_secret: "secret".to_owned(),
+            window_secs: 60,
+            flush_interval_ms: 1_000,
+            delivery_interval_ms: 1_000,
+            batch_size: 100,
+            max_buckets: 100,
+            outbox_max_depth: 100,
+        }
+    }
+
+    // The CAS batch handlers carry the bulk of small-blob REAPI traffic; both
+    // must land in the usage rollups tagged protocol="grpc"/artifact_kind="reapi"
+    // and attributed to the tenant declared via the account-handle metadata
+    // header (the gRPC analog of the HTTP tenant_id query param).
+    #[tokio::test]
+    async fn cas_batch_transfers_record_grpc_usage_events() {
+        let context = test_context(|config| {
+            config.usage = Some(test_usage_config());
+        })
+        .await;
+        let service = ReapiService {
+            state: context.state.clone(),
+        };
+
+        let blob = b"reapi-cas-blob".to_vec();
+        let digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(&blob)),
+            size_bytes: blob.len() as i64,
+        };
+
+        let mut update = Request::new(reapi::BatchUpdateBlobsRequest {
+            instance_name: "ios".into(),
+            requests: vec![reapi::batch_update_blobs_request::Request {
+                digest: Some(digest.clone()),
+                data: blob.clone(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        update
+            .metadata_mut()
+            .insert("x-tuist-account-handle", "acme".parse().unwrap());
+        service
+            .batch_update_blobs(update)
+            .await
+            .expect("batch update should succeed");
+
+        let mut read = Request::new(reapi::BatchReadBlobsRequest {
+            instance_name: "ios".into(),
+            digests: vec![digest],
+            digest_function: reapi::digest_function::Value::Sha256 as i32,
+            ..Default::default()
+        });
+        read.metadata_mut()
+            .insert("x-tuist-account-handle", "acme".parse().unwrap());
+        service
+            .batch_read_blobs(read)
+            .await
+            .expect("batch read should succeed");
+
+        let rollups = context
+            .state
+            .usage
+            .as_ref()
+            .expect("usage should be enabled")
+            .current_rollups_for_tests();
+
+        let upload = rollups
+            .iter()
+            .find(|rollup| rollup.operation == "upload")
+            .expect("batch_update_blobs should record an upload rollup");
+        assert_eq!(upload.tenant_id, "acme");
+        assert_eq!(upload.namespace_id, "ios");
+        assert_eq!(upload.traffic_plane, "public");
+        assert_eq!(upload.direction, "ingress");
+        assert_eq!(upload.protocol, "grpc");
+        assert_eq!(upload.artifact_kind, "reapi");
+        assert_eq!(upload.bytes, blob.len() as u64);
+        assert_eq!(upload.request_count, 1);
+
+        let download = rollups
+            .iter()
+            .find(|rollup| rollup.operation == "download")
+            .expect("batch_read_blobs should record a download rollup");
+        assert_eq!(download.tenant_id, "acme");
+        assert_eq!(download.namespace_id, "ios");
+        assert_eq!(download.traffic_plane, "public");
+        assert_eq!(download.direction, "egress");
+        assert_eq!(download.protocol, "grpc");
+        assert_eq!(download.artifact_kind, "reapi");
+        assert_eq!(download.bytes, blob.len() as u64);
+        assert_eq!(download.request_count, 1);
+    }
+
+    // Drives the real ByteStream gRPC handlers (the large-artifact read/write
+    // path) end to end and asserts each emits a grpc/reapi usage rollup, so the
+    // primary bandwidth carriers are no longer invisible to kura_usage_events.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn bytestream_transfers_record_grpc_usage_events() {
+        use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
+
+        let context = test_context(|config| {
+            config.usage = Some(test_usage_config());
+        })
+        .await;
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test listener");
+        let addr = listener.local_addr().expect("listener addr");
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+        let server_state = context.state.clone();
+        let server = tokio::spawn(async move {
+            serve_routes(listener, server_state, async move {
+                let _ = shutdown_rx.await;
+            })
+            .await
+        });
+
+        let endpoint = format!("http://{addr}");
+        let mut channel = None;
+        for _ in 0..50 {
+            match tonic::transport::Endpoint::from_shared(endpoint.clone())
+                .expect("valid endpoint")
+                .connect()
+                .await
+            {
+                Ok(connected) => {
+                    channel = Some(connected);
+                    break;
+                }
+                Err(_) => tokio::time::sleep(Duration::from_millis(20)).await,
+            }
+        }
+        let channel = channel.expect("gRPC server should accept connections");
+
+        let blob: Vec<u8> = (0..200_000u32).map(|byte| byte as u8).collect();
+        let hash = hex::encode(Sha256::digest(&blob));
+        let resource = format!("ios/uploads/upload-1/blobs/{hash}/{}", blob.len());
+
+        let chunk_size = 64 * 1024;
+        let mut requests = Vec::new();
+        let mut offset = 0usize;
+        while offset < blob.len() {
+            let end = (offset + chunk_size).min(blob.len());
+            requests.push(bytestream::WriteRequest {
+                resource_name: if offset == 0 {
+                    resource.clone()
+                } else {
+                    String::new()
+                },
+                write_offset: offset as i64,
+                finish_write: end == blob.len(),
+                data: blob[offset..end].to_vec(),
+            });
+            offset = end;
+        }
+
+        let mut client = ByteStreamClient::new(channel.clone());
+        let mut write_request = Request::new(tokio_stream::iter(requests));
+        write_request
+            .metadata_mut()
+            .insert("x-tuist-account-handle", "acme".parse().unwrap());
+        let committed = client
+            .write(write_request)
+            .await
+            .expect("bytestream write should persist")
+            .into_inner()
+            .committed_size;
+        assert_eq!(committed as usize, blob.len());
+
+        let mut read_request = Request::new(bytestream::ReadRequest {
+            resource_name: format!("ios/blobs/{hash}/{}", blob.len()),
+            read_offset: 0,
+            read_limit: 0,
+        });
+        read_request
+            .metadata_mut()
+            .insert("x-tuist-account-handle", "acme".parse().unwrap());
+        let mut stream = client
+            .read(read_request)
+            .await
+            .expect("blob should read back")
+            .into_inner();
+        let mut roundtrip = Vec::new();
+        while let Some(chunk) = stream.message().await.expect("read chunk") {
+            roundtrip.extend_from_slice(&chunk.data);
+        }
+        assert_eq!(roundtrip, blob);
+
+        let _ = shutdown_tx.send(());
+        let _ = server.await;
+
+        let rollups = context
+            .state
+            .usage
+            .as_ref()
+            .expect("usage should be enabled")
+            .current_rollups_for_tests();
+
+        let upload = rollups
+            .iter()
+            .find(|rollup| rollup.operation == "upload")
+            .expect("bytestream write should record an upload rollup");
+        assert_eq!(upload.tenant_id, "acme");
+        assert_eq!(upload.namespace_id, "ios");
+        assert_eq!(upload.protocol, "grpc");
+        assert_eq!(upload.artifact_kind, "reapi");
+        assert_eq!(upload.direction, "ingress");
+        assert_eq!(upload.bytes, blob.len() as u64);
+        assert_eq!(upload.request_count, 1);
+
+        let download = rollups
+            .iter()
+            .find(|rollup| rollup.operation == "download")
+            .expect("bytestream read should record a download rollup");
+        assert_eq!(download.tenant_id, "acme");
+        assert_eq!(download.namespace_id, "ios");
+        assert_eq!(download.protocol, "grpc");
+        assert_eq!(download.artifact_kind, "reapi");
+        assert_eq!(download.direction, "egress");
+        assert_eq!(download.bytes, blob.len() as u64);
+        assert_eq!(download.request_count, 1);
     }
 }
