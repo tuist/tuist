@@ -161,13 +161,20 @@ struct SetupCacheCommandService {
         var environmentVariables: [String: String] = [:]
         // The proxy fetches and refreshes its bearer itself by shelling out to
         // `tuist auth token`. On CI, where the credential is an environment token
-        // rather than a keychain session, seed it directly.
+        // rather than a keychain session, seed it directly. `TUIST_TOKEN` is
+        // forwarded alongside `TUIST_CAS_TOKEN` because the `cache-proxy` wrapper
+        // gates on `ServerAuthenticationController.authenticationToken`, whose env
+        // lookup reads `TUIST_TOKEN`/`TUIST_CONFIG_TOKEN` (not `TUIST_CAS_TOKEN`)
+        // before the keychain — and under launchd on CI the keychain is empty, so
+        // without this the wrapper exits cleanly and the proxy never starts.
         if let token = Environment.current.tuistVariables[Constants.EnvironmentVariables.token] {
             environmentVariables["TUIST_CAS_TOKEN"] = token
+            environmentVariables[Constants.EnvironmentVariables.token] = token
         } else if let token = Environment.current.tuistVariables[Constants.EnvironmentVariables.deprecatedToken] {
             AlertController.current
                 .warning("Use `TUIST_TOKEN` environment variable instead of `TUIST_CONFIG_TOKEN` to authenticate on the CI")
             environmentVariables["TUIST_CAS_TOKEN"] = token
+            environmentVariables[Constants.EnvironmentVariables.token] = token
         }
 
         // The proxy runs as a launchd agent that does not inherit the caller's

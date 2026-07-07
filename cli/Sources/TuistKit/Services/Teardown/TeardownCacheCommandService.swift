@@ -48,6 +48,14 @@ struct TeardownCacheCommandService {
             if try await fileSystem.exists(legacySocket) {
                 try await fileSystem.remove(legacySocket)
             }
+        } else {
+            // Without a resolvable fullHandle we can't name the per-project legacy
+            // daemon agent, so one (if installed) is left running. Surface that
+            // rather than let the success message imply a clean teardown.
+            Logger.current
+                .warning(
+                    "Could not resolve a project fullHandle, so a legacy per-project Xcode cache daemon (if one was installed) could not be identified and may still be running. Run `tuist teardown cache` from the project directory to remove it."
+                )
         }
 
         Logger.current.info("Xcode Cache has been torn down 🧹", metadata: .success)

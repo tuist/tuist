@@ -53,15 +53,23 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
                     baseSettings["COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS"] = "YES"
                     baseSettings["COMPILATION_CACHE_ENABLE_PLUGIN"] = "YES"
                     baseSettings["COMPILATION_CACHE_PLUGIN_PATH"] = .string(casPluginPath.pathString)
-                    // Hand the plugin the account/project as a compiler option, which
-                    // reaches every frontend — including an Xcode ⌘B build that carries
-                    // no CLI environment — so the proxy can route without the CLI. Swift
-                    // only: clang/ObjC never loads the CAS plugin (Xcode routes its
-                    // compilation caching to the builtin CAS), so C/ObjC is cached
-                    // locally but never remote.
-                    baseSettings["OTHER_SWIFT_FLAGS"] = Self.appendingCASInstanceFlag(
+                    // Hand the plugin its per-project options as compiler flags, which
+                    // reach every frontend — including an Xcode ⌘B build that carries
+                    // no CLI environment — so the proxy can route (and honor the upload
+                    // policy) without the CLI. Swift only: clang/ObjC never loads the CAS
+                    // plugin (Xcode routes its compilation caching to the builtin CAS),
+                    // so C/ObjC is cached locally but never remote.
+                    baseSettings["OTHER_SWIFT_FLAGS"] = Self.appendingCASPluginOptions(
                         fullHandle: fullHandle,
+                        upload: tuist.xcodeCache.upload,
                         to: baseSettings["OTHER_SWIFT_FLAGS"]
+                    )
+                } else {
+                    // Kura is enabled but the bundled dylib is absent, so the build
+                    // silently falls back to local-only caching (no remote). Warn
+                    // rather than let a cold cache be the first symptom.
+                    Logger.current.warning(
+                        "Xcode Cache is enabled for \(fullHandle) but the CAS plugin (libtuist_cas_plugin.dylib) was not found next to `tuist`. This build will use local-only compilation caching with no remote cache. Reinstall Tuist, or set TUIST_CAS_PLUGIN_PATH to the dylib."
                     )
                 }
             } else {
@@ -96,13 +104,20 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
         return nil
     }
 
-    /// Appends `-cas-plugin-option tuist-instance=<fullHandle>` to an existing
-    /// `OTHER_SWIFT_FLAGS` value, preserving inherited flags.
-    private static func appendingCASInstanceFlag(
+    /// Appends the plugin's per-project `-cas-plugin-option` flags
+    /// (`tuist-instance`, and `tuist-upload=false` when uploads are disabled) to
+    /// an existing `OTHER_SWIFT_FLAGS` value, preserving inherited flags.
+    private static func appendingCASPluginOptions(
         fullHandle: String,
+        upload: Bool,
         to existing: SettingValue?
     ) -> SettingValue {
-        let flags = ["-cas-plugin-option", "tuist-instance=\(fullHandle)"]
+        var flags = ["-cas-plugin-option", "tuist-instance=\(fullHandle)"]
+        if !upload {
+            // `xcodeCache(upload:)` is per-project, but the proxy is machine-wide;
+            // carry the opt-out as a plugin option so it reaches every frontend.
+            flags += ["-cas-plugin-option", "tuist-upload=false"]
+        }
         switch existing {
         case let .array(values):
             return .array(values + flags)
