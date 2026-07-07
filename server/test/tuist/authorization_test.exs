@@ -293,6 +293,21 @@ defmodule Tuist.AuthorizationTest do
     assert Authorization.authorize(:cache_create, subject, project) == :ok
   end
 
+  test "can.create.account.cache when a CI account token writes to a token-restricted account" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    {:ok, account} = Accounts.update_account(organization.account, %{cache_write_policy: :tokens_only})
+
+    subject = %AuthenticatedAccount{
+      account: account,
+      scopes: ["ci"],
+      all_projects: true
+    }
+
+    # When
+    assert Authorization.authorize(:account_cache_create, subject, account) == :ok
+  end
+
   test "cannot.create.project.cache when a user-issued account token writes to a token-restricted account" do
     # Given
     user = AccountsFixtures.user_fixture()

@@ -10,6 +10,7 @@ defmodule Tuist.Authorization.Checks do
 
   @scope_groups %{
     "ci" => [
+      "account:cache:write",
       "project:cache:write",
       "project:previews:write",
       "project:bundles:write",
