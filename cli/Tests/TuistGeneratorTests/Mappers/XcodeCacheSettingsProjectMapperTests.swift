@@ -259,4 +259,36 @@ struct XcodeCacheSettingsProjectMapperTests {
         #expect(mappedProject.settings.base["CUSTOM"] == .string("value"))
         #expect(mappedProject.settings.base["COMPILATION_CACHE_ENABLE_CACHING"] == .string("YES"))
     }
+
+    @Test(.inTemporaryDirectory)
+    func map_whenKuraDisabled_addsLegacyRemoteServiceSettings() async throws {
+        // Given: no kura flag → the legacy per-project daemon path
+        let fullHandle = "test-org/test-project"
+        let tuist = Tuist(
+            project: .generated(
+                .test(
+                    generationOptions: .test(enableCaching: true)
+                )
+            ),
+            fullHandle: fullHandle,
+            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            url: Constants.URLs.production
+        )
+        let subject = XcodeCacheSettingsProjectMapper(tuist: tuist, kuraEnabled: false)
+        let project = Project.test(name: "TestProject", settings: .test(base: [:]))
+
+        // When
+        let (mappedProject, _) = try await subject.map(project: project)
+
+        // Then: Xcode's built-in remote-cache service (daemon socket), not the plugin
+        let baseSettings = mappedProject.settings.base
+        #expect(baseSettings["COMPILATION_CACHE_ENABLE_CACHING"] == .string("YES"))
+        #expect(baseSettings["COMPILATION_CACHE_ENABLE_PLUGIN"] == .string("YES"))
+        #expect(
+            baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"]
+                == .string(Environment.current.cacheSocketPathString(for: fullHandle))
+        )
+        #expect(baseSettings["COMPILATION_CACHE_PLUGIN_PATH"] == nil)
+        #expect(baseSettings["OTHER_SWIFT_FLAGS"] == nil)
+    }
 }
