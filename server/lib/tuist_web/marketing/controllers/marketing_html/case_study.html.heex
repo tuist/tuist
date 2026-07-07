@@ -23,8 +23,9 @@
 
       <img
         data-part="image"
-        src={@case_study.og_image_path}
+        src={static_asset_path(@case_study.og_image_path)}
         alt={dgettext("marketing", "%{company} case study", company: @case_study.company)}
+        decoding="async"
       />
     </header>
 
@@ -52,7 +53,7 @@
     </section>
 
     <section id="case-study-content" data-part="content" data-prose>
-      {raw(@case_study.body)}
+      {raw(content_html(@case_study.body))}
     </section>
 
     <section :if={@related_case_studies != []} data-part="read-next">
@@ -74,8 +75,10 @@
         >
           <img
             data-part="image"
-            src={related.og_image_path}
+            src={static_asset_path(related.og_image_path)}
             alt={dgettext("marketing", "%{company} case study", company: related.company)}
+            loading="lazy"
+            decoding="async"
           />
           <div data-part="content">
             <h3 data-part="title">{related.title}</h3>

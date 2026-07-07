@@ -12,7 +12,12 @@
     <TuistWeb.Marketing.MarketingComponents.header_background />
 
     <header data-part="header">
-      <img data-part="logo" src={~p"/marketing/images/customers/logo.webp"} alt="" />
+      <img
+        data-part="logo"
+        src={~p"/marketing/images/customers/logo.webp"}
+        alt=""
+        decoding="async"
+      />
       <h1 data-part="title">
         {dgettext("marketing", "Customers")}
       </h1>
@@ -61,8 +66,10 @@
       >
         <img
           data-part="image"
-          src={case.og_image_path}
+          src={TuistWeb.Marketing.MarketingHTML.static_asset_path(case.og_image_path)}
           alt={dgettext("marketing", "%{company} case study", company: case.company)}
+          loading="lazy"
+          decoding="async"
         />
         <div data-part="content">
           <h3 data-part="title">{case.title}</h3>

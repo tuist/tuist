@@ -143,6 +143,46 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
     assert is_integer(lease) and is_integer(interval)
   end
 
+  test "registers a heartbeat with the deployment-level Kura control-plane credential", %{
+    conn: conn,
+    account: account
+  } do
+    stub(Tuist.Environment, :kura_control_plane_configured?, fn -> true end)
+    stub(Tuist.Environment, :kura_control_plane_client_id, fn -> "static-kura-client" end)
+    stub(Tuist.Environment, :kura_control_plane_client_secret, fn -> "static-kura-secret" end)
+
+    conn =
+      conn
+      |> basic_auth("static-kura-client", "static-kura-secret")
+      |> post(~p"/_internal/kura/mesh/registrations", %{
+        node_id: "kura-0",
+        tenant_id: account.name,
+        advertised_http_url: "https://cache.acme.internal",
+        ready: true,
+        version: "0.5.2"
+      })
+
+    assert %{"accepted" => true} = json_response(conn, 200)
+  end
+
+  test "rejects deployment-level registration without a tenant", %{conn: conn} do
+    stub(Tuist.Environment, :kura_control_plane_configured?, fn -> true end)
+    stub(Tuist.Environment, :kura_control_plane_client_id, fn -> "static-kura-client" end)
+    stub(Tuist.Environment, :kura_control_plane_client_secret, fn -> "static-kura-secret" end)
+
+    conn =
+      conn
+      |> basic_auth("static-kura-client", "static-kura-secret")
+      |> post(~p"/_internal/kura/mesh/registrations", %{
+        node_id: "kura-0",
+        advertised_http_url: "https://cache.acme.internal",
+        ready: true,
+        version: "0.5.2"
+      })
+
+    assert json_response(conn, 401)
+  end
+
   test "rejects a registration heartbeat with invalid credentials", %{conn: conn} do
     conn =
       conn

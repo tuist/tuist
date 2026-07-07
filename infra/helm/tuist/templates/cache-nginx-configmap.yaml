@@ -20,6 +20,9 @@ data:
       server {
         listen 80;
         client_max_body_size {{ .Values.cache.nginx.clientMaxBodySize }};
+        proxy_connect_timeout {{ .Values.cache.nginx.proxyConnectTimeout }};
+        proxy_read_timeout {{ .Values.cache.nginx.proxyReadTimeout }};
+        proxy_send_timeout {{ .Values.cache.nginx.proxySendTimeout }};
 
         location /up {
           proxy_pass http://cache_upstream;

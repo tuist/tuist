@@ -63,7 +63,7 @@ WORKDIR /app
 # ========================================
 FROM ${BUILDER_IMAGE} AS deps-builder
 
-RUN apt-get update -y && apt-get upgrade -y && apt-get install -y build-essential git \
+RUN apt-get update -y && apt-get upgrade -y && apt-get install -y build-essential ca-certificates curl git \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 WORKDIR /app
@@ -89,6 +89,7 @@ ENV HEX_HTTP_TIMEOUT=120
 ENV ELIXIR_ERL_OPTIONS="+S 2"
 
 COPY server/mix.exs server/mix.lock ./
+COPY server/mise/tasks/cldr mise/tasks/cldr
 RUN mkdir config
 
 # Copy path dependencies (only mix.exs/mix.lock for dep resolution)
@@ -121,6 +122,16 @@ COPY server/config/config.exs config/
 COPY server/config/prod.exs server/config/can.exs server/config/stag.exs config/
 
 RUN mix deps.compile
+# Prefetch CLDR locale JSON before the full-locale compile so ex_cldr does not
+# fall back to rate-limited raw.githubusercontent.com downloads. Authenticate
+# via a BuildKit secret (never baked into a layer) to lift the unauthenticated
+# rate ceiling; the script stays unauthenticated when no secret is mounted
+# (local builds). The `env=` secret target needs the built-in Dockerfile
+# frontend >= 1.10 (BuildKit 0.16 / Docker Engine 27.3, Sep 2024) — every CI
+# path here provisions a current BuildKit via setup-buildx-action, so no
+# `# syntax=` pin (and its Docker Hub frontend pull) is needed.
+RUN --mount=type=secret,id=github_token,env=GITHUB_TOKEN \
+    mise/tasks/cldr/prefetch-locale-data.sh
 
 # ========================================
 # Stage: OG image generator

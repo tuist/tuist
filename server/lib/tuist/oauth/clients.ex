@@ -148,7 +148,7 @@ defmodule Tuist.OAuth.Clients do
         id: Environment.kura_control_plane_client_id(),
         secret: Environment.kura_control_plane_client_secret(),
         name: "Kura control plane",
-        supported_grant_types: ["introspect", "kura_usage"],
+        supported_grant_types: ["introspect", "kura_usage", "kura_registration"],
         confidential: true,
         token_endpoint_auth_methods: [
           "client_secret_basic",

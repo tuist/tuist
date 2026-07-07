@@ -342,8 +342,18 @@
       data-part="empty-insights-card-section"
     >
       <:image>
-        <img src="/images/empty_insights_light.png" data-theme="light" />
-        <img src="/images/empty_insights_dark.png" data-theme="dark" />
+        <img
+          src={~p"/images/empty_insights_light.png"}
+          data-theme="light"
+          loading="lazy"
+          decoding="async"
+        />
+        <img
+          src={~p"/images/empty_insights_dark.png"}
+          data-theme="dark"
+          loading="lazy"
+          decoding="async"
+        />
       </:image>
     </.empty_card_section>
 
