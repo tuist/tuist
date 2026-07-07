@@ -108,6 +108,13 @@ export default {
       }
     }
 
+    const positioningStrategy =
+      getOption(this.el, "positioningStrategy", ["absolute", "fixed"]) ||
+      (this.el.closest(".noora-table") ? "fixed" : undefined);
+    if (positioningStrategy) {
+      this.el.dataset.positioningStrategy = positioningStrategy;
+    }
+
     this.context = {
       id: this.el.id,
       loopFocus: getBooleanOption(this.el, "loopFocus"),
@@ -115,6 +122,7 @@ export default {
       typeahead: getBooleanOption(this.el, "typeahead"),
       positioning: {
         placement: getOption(this.el, "positioningPlacement") || "bottom-start",
+        strategy: positioningStrategy,
         offset: { mainAxis: getOption(this.el, "positioningOffsetMainAxis") },
         ...(() => {
           const anchorPart = getOption(this.el, "positioningAnchor");
