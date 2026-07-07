@@ -2,7 +2,7 @@ name: Helm
 
 # Validate Helm charts at the PR stage so chart bugs
 # are caught before a deploy workflow tries to apply them to a real
-# cluster. Three layers of checks, each progressively stricter:
+# cluster. Four layers of checks, each progressively stricter:
 #
 #   1. `helm lint` — Chart.yaml well-formedness, template parse, value
 #      reference sanity.
@@ -15,8 +15,11 @@ name: Helm
 #      Catches typo'd field names and wrong apiVersion/kind combinations
 #      that `helm template` happily emits but the API server would
 #      reject.
+#   4. K3s smoke install — starts a disposable single-node K3s cluster,
+#      checks that the chart is accepted by the K3s control plane,
+#      and waits for the embedded storage dependencies to become ready.
 #
-# All charts run sequentially inside two jobs (lint, render) instead of
+# All charts run sequentially inside the lint and render jobs instead of
 # a per-chart matrix. Each per-chart pass takes seconds, so spinning up
 # a runner per chart was mostly setup overhead. Per-chart `::group::`
 # sections keep the GitHub Actions UI navigable.
@@ -51,6 +54,8 @@ env:
   # cluster tooling into the default dev shell. `mise use -g` activates
   # them globally for the runner so the shims resolve.
   HELM_VERSION: "4.1.4"
+  K3D_VERSION: "5.9.0"
+  KUBECTL_VERSION: "1.36.1"
   KUBECONFORM_VERSION: "0.7.0"
 
 jobs:
@@ -75,6 +80,7 @@ jobs:
             "infra/helm/slack|values-ci.yaml"
             "infra/helm/noora-storybook|values-ci.yaml"
             "infra/helm/tuist|values-ci.yaml"
+            "infra/helm/tuist|values-k3s-smoke.yaml"
             "infra/helm/k8s-monitoring|"
             "infra/helm/platform|"
           )
@@ -183,3 +189,22 @@ jobs:
             echo "::error::render/validation failed for: ${failed[*]}"
             exit 1
           fi
+
+  k3s:
+    name: K3s Smoke Install
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs:
+      - lint
+      - render
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install: "false"
+      - name: Install smoke test tools
+        run: mise use -g "helm@${HELM_VERSION}" "kubectl@${KUBECTL_VERSION}" "k3d@${K3D_VERSION}"
+      - name: Smoke test Tuist chart on K3s
+        run: mise run helm:k3s-smoke

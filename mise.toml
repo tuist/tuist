@@ -22,6 +22,7 @@
     caddy = "2.11.2"
     kubectl = "1.36.1"
     helm = "4.2.0"
+    k3d = "5.9.0"
     # pomerium-cli is the kubeconfig exec credential plugin that does
     # the Google OIDC dance + caches the session for kubectl calls
     # against the kube-<env>.tuist.dev Pomerium gateway. See
@@ -127,6 +128,10 @@
     echo "1. Commit the updated signatures file: git add $SIGNATURES_FILE && git commit -m \"add CLA signature for $user_name\""
     echo "2. Push your changes to complete the CLA signing process"
     '''
+
+[tasks."helm:k3s-smoke"]
+    description = "Smoke test the Tuist Helm chart on a disposable K3s cluster"
+    run = "bash {{config_root}}/mise/tasks/helm/k3s-smoke.sh"
 
 [plugins]
     swiftformat = "https://github.com/mise-plugins/mise-swiftformat.git"
