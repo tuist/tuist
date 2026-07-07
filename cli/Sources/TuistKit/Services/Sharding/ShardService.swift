@@ -116,14 +116,16 @@ public struct ShardService: ShardServicing {
             Logger.current.debug("Extracted local shard archive to \(resolvedTestProductsPath.pathString)")
         } else {
             let extractedTestProductsPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-unzip")
+            let downloadedArtifactsPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-downloads")
             // The shard's products are split across artifacts (a shared bundle plus one per module
             // assigned to the shard); download each and extract them into a single merged directory.
-            for downloadURLString in shard.download_urls {
+            for (downloadIndex, downloadURLString) in shard.download_urls.enumerated() {
                 guard let downloadURL = URL(string: downloadURLString) else {
                     throw ShardServiceError.invalidDownloadURL(downloadURLString)
                 }
+                let shardArchiveDestinationPath = downloadedArtifactsPath.appending(component: "artifact-\(downloadIndex).aar")
                 let shardArchivePath = try await retryProvider.runWithRetries {
-                    try await fileClient.download(url: downloadURL)
+                    try await fileClient.download(url: downloadURL, to: shardArchiveDestinationPath)
                 }
                 try await appleArchiver.decompress(archive: shardArchivePath, to: extractedTestProductsPath)
                 try? await fileSystem.remove(shardArchivePath)

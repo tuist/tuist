@@ -996,6 +996,7 @@ var targets: [Target] = [
             "TuistHTTP",
             "TuistEnvironment",
             "TuistEnvironmentTesting",
+            fileSystemDependency,
             mockableDependency,
         ],
         path: "cli/Tests/TuistHTTPTests"

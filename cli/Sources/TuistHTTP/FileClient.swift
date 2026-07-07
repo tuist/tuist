@@ -51,7 +51,7 @@ import Path
 
     public protocol FileClienting {
         func upload(file: AbsolutePath, hash: String, to url: URL) async throws -> Bool
-        func download(url: URL) async throws -> AbsolutePath
+        func download(url: URL, to destination: AbsolutePath) async throws -> AbsolutePath
     }
 
     public struct FileClient: FileClienting {
@@ -73,7 +73,7 @@ import Path
 
         // MARK: - Public
 
-        public func download(url: URL) async throws -> AbsolutePath {
+        public func download(url: URL, to destination: AbsolutePath) async throws -> AbsolutePath {
             let request = URLRequest(url: url)
             let session = resolvedSession()
             do {
@@ -89,7 +89,9 @@ import Path
                     await Self.recordDownload(request: request, response: httpResponse, recorder: recorder)
                 }
                 if successStatusCodeRange.contains(httpResponse.statusCode) {
-                    return try AbsolutePath(validating: localUrl.path)
+                    let downloadedPath = try AbsolutePath(validating: localUrl.path)
+                    try await fileSystem.move(from: downloadedPath, to: destination)
+                    return destination
                 } else {
                     throw FileClientError.invalidResponse(request, nil)
                 }
@@ -99,7 +101,7 @@ import Path
                 HARRecorder.recordDetached { recorder in
                     await Self.recordDownloadError(request: request, error: error, recorder: recorder)
                 }
-                throw FileClientError.urlSessionError(request, error, nil)
+                throw FileClientError.urlSessionError(request, error, destination)
             }
         }
 
