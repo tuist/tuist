@@ -146,8 +146,8 @@ source "tart-cli" "runner" {
   # tight values held for years on the original Mac mini but timed out
   # on newly-onboarded hosts. 15m gives headroom for the cold path on a
   # cirruslabs Tahoe base; the warm path returns long before then.
-  ssh_timeout  = "15m"
-  headless     = true
+  ssh_timeout = "15m"
+  headless    = true
 }
 
 build {
@@ -180,6 +180,35 @@ build {
       "echo 'admin' | sudo -S sysadminctl -addUser runner -fullName 'GitHub Actions Runner' -password runner -admin",
       "echo 'admin' | sudo -S mkdir -p /opt/tuist /etc/tuist",
       "echo 'admin' | sudo -S chown root:wheel /opt/tuist"
+    ]
+  }
+
+  provisioner "file" {
+    source      = "${path.root}/setup-assistant.mobileconfig"
+    destination = "/tmp/dev.tuist.runner.setup-assistant.mobileconfig"
+  }
+
+  # The runner auto-login opens a real desktop session so launchd can
+  # run the GitHub Actions agent. On fresh macOS images that first
+  # desktop can be intercepted by Setup Assistant's "Update Mac
+  # Automatically" pane, which is exactly what the dashboard VNC
+  # would then show. Install the macOS 15+ managed Setup Assistant
+  # skip profile and seed the older per-user seen flags so the
+  # runner session lands on the desktop instead of a first-run pane.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "echo 'admin' | sudo -S profiles install -type configuration -path /tmp/dev.tuist.runner.setup-assistant.mobileconfig",
+      "rm -f /tmp/dev.tuist.runner.setup-assistant.mobileconfig",
+      "PRODUCT_VERSION=$(sw_vers -productVersion)",
+      "BUILD_VERSION=$(sw_vers -buildVersion)",
+      "sudo -u runner defaults write com.apple.SetupAssistant DidSeeCloudSetup -bool true",
+      "sudo -u runner defaults write com.apple.SetupAssistant DidSeeSiriSetup -bool true",
+      "sudo -u runner defaults write com.apple.SetupAssistant DidSeePrivacy -bool true",
+      "sudo -u runner defaults write com.apple.SetupAssistant LastSeenCloudProductVersion \"$PRODUCT_VERSION\"",
+      "sudo -u runner defaults write com.apple.SetupAssistant LastSeenBuddyBuildVersion \"$BUILD_VERSION\"",
+      "sudo -u runner defaults write com.apple.SoftwareUpdate AutomaticCheckEnabled -bool false",
+      "sudo -u runner defaults write com.apple.SoftwareUpdate AutomaticDownload -bool false"
     ]
   }
 

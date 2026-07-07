@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>PayloadContent</key>
+  <array>
+    <dict>
+      <key>PayloadDescription</key>
+      <string>Skips Setup Assistant panes that block headless runner desktops.</string>
+      <key>PayloadDisplayName</key>
+      <string>Tuist Runner Setup Assistant</string>
+      <key>PayloadIdentifier</key>
+      <string>dev.tuist.runner.setup-assistant.managed</string>
+      <key>PayloadType</key>
+      <string>com.apple.SetupAssistant.managed</string>
+      <key>PayloadUUID</key>
+      <string>62A5C553-5595-42E9-85DA-B63663D7B82A</string>
+      <key>PayloadVersion</key>
+      <integer>1</integer>
+      <key>SkipSetupItems</key>
+      <array>
+        <string>AppleID</string>
+        <string>Appearance</string>
+        <string>Biometric</string>
+        <string>Diagnostics</string>
+        <string>iCloudStorage</string>
+        <string>Location</string>
+        <string>Privacy</string>
+        <string>ScreenTime</string>
+        <string>Siri</string>
+        <string>SoftwareUpdate</string>
+        <string>UnlockWithWatch</string>
+        <string>UpdateCompleted</string>
+        <string>Welcome</string>
+      </array>
+    </dict>
+  </array>
+  <key>PayloadDescription</key>
+  <string>Tuist runner defaults for Setup Assistant.</string>
+  <key>PayloadDisplayName</key>
+  <string>Tuist Runner Setup Assistant</string>
+  <key>PayloadIdentifier</key>
+  <string>dev.tuist.runner.setup-assistant</string>
+  <key>PayloadOrganization</key>
+  <string>Tuist</string>
+  <key>PayloadRemovalDisallowed</key>
+  <true/>
+  <key>PayloadScope</key>
+  <string>System</string>
+  <key>PayloadType</key>
+  <string>Configuration</string>
+  <key>PayloadUUID</key>
+  <string>D971375D-3C6A-47BF-A491-A63044EA658C</string>
+  <key>PayloadVersion</key>
+  <integer>1</integer>
+</dict>
+</plist>
