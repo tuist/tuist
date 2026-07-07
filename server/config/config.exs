@@ -221,7 +221,7 @@ config :tuist, Tuist.Vault, key: {Tuist.Environment, :secret_key_encryption, []}
 config :tuist, TuistWeb.Endpoint,
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
-    formats: [html: TuistWeb.ErrorHTML, json: TuistWeb.ErrorJSON],
+    formats: [html: TuistWeb.ErrorHTML, json: TuistWeb.ErrorJSON, "scim+json": TuistWeb.SCIM.ErrorJSON],
     layout: false
   ],
   pubsub_server: Tuist.PubSub,
