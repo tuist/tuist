@@ -86,7 +86,7 @@ struct MultipartUploadArtifactServiceTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func multipartUploadArtifact_retriesWhenArtifactChangesWhileUploading() async throws {
+    func multipartUploadArtifact_rejectsArtifactChangesWhileUploading() async throws {
         MultipartUploadURLProtocol.reset()
         MultipartUploadURLProtocol.statusCode = 200
 
@@ -121,17 +121,24 @@ struct MultipartUploadArtifactServiceTests {
             retryProvider: NoRetryProvider()
         )
 
-        let parts = try await subject.multipartUploadArtifact(
-            artifactPath: artifactPath,
-            generateUploadURL: { part in "https://tuist.dev/upload?partNumber=\(part.number)" },
-            updateProgress: { _ in }
-        )
-
-        #expect(parts.map(\.partNumber) == [1])
-        #expect(parts.map(\.etag) == ["etag-1"])
+        do {
+            _ = try await subject.multipartUploadArtifact(
+                artifactPath: artifactPath,
+                generateUploadURL: { part in "https://tuist.dev/upload?partNumber=\(part.number)" },
+                updateProgress: { _ in }
+            )
+            Issue.record("Expected multipart upload to reject the changing artifact")
+        } catch let error as MultipartUploadArtifactServiceError {
+            guard case let .incompleteArtifactRead(_, expectedBytes, readBytes) = error else {
+                Issue.record("Expected incompleteArtifactRead, got \(error)")
+                return
+            }
+            #expect(expectedBytes == UInt64(expectedPayload.count))
+            #expect(readBytes == UInt64(initialPayload.count))
+        }
 
         let requests = MultipartUploadURLProtocol.requests
-        #expect(requests.map(\.body) == [initialPayload, expectedPayload])
+        #expect(requests.map(\.body) == [initialPayload])
     }
 }
 

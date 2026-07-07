@@ -244,6 +244,107 @@ struct ShardPlanServiceTests {
         #expect(uploadURL == "https://tuist.dev/upload")
     }
 
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func plan_withRemoteUpload_groupsDuplicateXCTestBasenamesIntoOneModuleArtifact() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        try await fileSystem.writeAsPlist(
+            XCTestRunFixture(
+                testConfigurations: [
+                    .init(
+                        testTargets: [
+                            .init(blueprintName: "AppTests"),
+                        ]
+                    ),
+                ]
+            ),
+            at: testProductsPath.appending(component: "MyApp.xctestrun"),
+            encoder: plistEncoder()
+        )
+
+        let firstXCTestPath = testProductsPath.appending(components: "Binaries", "0", "Debug", "AppTests.xctest")
+        let secondXCTestPath = testProductsPath.appending(components: "Binaries", "1", "Debug", "AppTests.xctest")
+        try await fileSystem.makeDirectory(at: firstXCTestPath)
+        try await fileSystem.makeDirectory(at: secondXCTestPath)
+        try await fileSystem.writeText("first", at: firstXCTestPath.appending(component: "AppTests"))
+        try await fileSystem.writeText("second", at: secondXCTestPath.appending(component: "AppTests"))
+
+        let createShardPlanService = MockCreateShardPlanServicing()
+        given(createShardPlanService)
+            .createShardPlan(
+                fullHandle: .any,
+                serverURL: .any,
+                reference: .any,
+                modules: .any,
+                testSuites: .any,
+                shardMin: .any,
+                shardMax: .any,
+                shardTotal: .any,
+                shardMaxDuration: .any,
+                shardGranularity: .any,
+                buildRunId: .any
+            )
+            .willReturn(
+                Components.Schemas.ShardPlan(
+                    id: "plan-id",
+                    reference: "ref",
+                    shard_count: 1,
+                    shards: [],
+                    upload_url: "https://tuist.dev/api/projects/tuist/tuist/tests/shards/upload/start"
+                )
+            )
+
+        let uploadRecorder = ShardUploadRecorder()
+        let appleArchiver = RecordingAppleArchiver()
+        let shardMatrixOutputService = MockShardMatrixOutputServicing()
+        given(shardMatrixOutputService)
+            .output(.any)
+            .willReturn()
+
+        let subject = ShardPlanService(
+            createShardPlanService: createShardPlanService,
+            startShardUploadService: RecordingStartShardUploadService(recorder: uploadRecorder),
+            multipartUploadArtifactService: RecordingMultipartUploadArtifactService(recorder: uploadRecorder),
+            multipartUploadGenerateURLShardsService: RecordingMultipartUploadGenerateURLShardsService(recorder: uploadRecorder),
+            multipartUploadCompleteShardsService: RecordingMultipartUploadCompleteShardsService(recorder: uploadRecorder),
+            fileSystem: fileSystem,
+            shardMatrixOutputService: shardMatrixOutputService,
+            appleArchiver: appleArchiver
+        )
+
+        _ = try await subject.plan(
+            xctestproductsPath: testProductsPath,
+            reference: "ref",
+            shardGranularity: .module,
+            shardMin: nil,
+            shardMax: nil,
+            shardTotal: 1,
+            shardMaxDuration: nil,
+            fullHandle: "tuist/tuist",
+            serverURL: try #require(URL(string: "https://tuist.dev")),
+            buildRunId: nil,
+            skipUpload: false,
+            archivePath: nil
+        )
+
+        let artifacts = await uploadRecorder.startedArtifacts.compactMap(\.self).sorted()
+        #expect(artifacts == ["module:AppTests", "shared"])
+
+        let uploadedArchiveBasenames = await uploadRecorder.uploadedArchivePaths.map(\.basename).sorted()
+        #expect(uploadedArchiveBasenames == ["AppTests.aar", "shared.aar"])
+
+        let moduleArchives = await appleArchiver.moduleArchives
+        #expect(moduleArchives.count == 1)
+        #expect(moduleArchives.first?.archivePath.basename == "AppTests.aar")
+        #expect(moduleArchives.first?.subdirectories.map(\.pathString).sorted() == [
+            firstXCTestPath.pathString,
+            secondXCTestPath.pathString,
+        ])
+    }
+
     private func mockCreateShardPlanService(
         capturingTestSuites capture: @escaping ([String]?) -> Void
     ) -> MockCreateShardPlanServicing {
@@ -316,4 +417,121 @@ private func plistEncoder() -> PropertyListEncoder {
     let encoder = PropertyListEncoder()
     encoder.outputFormat = .xml
     return encoder
+}
+
+private actor RecordingAppleArchiver: AppleArchiving {
+    private(set) var moduleArchives: [(subdirectories: [AbsolutePath], archivePath: AbsolutePath)] = []
+
+    func compress(
+        directory _: AbsolutePath,
+        to archivePath: AbsolutePath,
+        excludePatterns _: [String],
+        preservesBaseDirectory _: Bool
+    ) async throws {
+        try Data("shared".utf8).write(to: URL(fileURLWithPath: archivePath.pathString))
+    }
+
+    func compress(
+        subdirectory: AbsolutePath,
+        relativeTo baseDirectory: AbsolutePath,
+        to archivePath: AbsolutePath
+    ) async throws {
+        try await compress(subdirectories: [subdirectory], relativeTo: baseDirectory, to: archivePath)
+    }
+
+    func compress(
+        subdirectories: [AbsolutePath],
+        relativeTo _: AbsolutePath,
+        to archivePath: AbsolutePath
+    ) async throws {
+        moduleArchives.append((subdirectories: subdirectories, archivePath: archivePath))
+        try Data("module".utf8).write(to: URL(fileURLWithPath: archivePath.pathString))
+    }
+
+    func decompress(archive _: AbsolutePath, to _: AbsolutePath) async throws {}
+}
+
+private actor ShardUploadRecorder {
+    private(set) var startedArtifacts: [String?] = []
+    private(set) var generatedURLArtifacts: [String?] = []
+    private(set) var completedArtifacts: [String?] = []
+    private(set) var uploadedArchivePaths: [AbsolutePath] = []
+
+    func recordStartedArtifact(_ artifact: String?) {
+        startedArtifacts.append(artifact)
+    }
+
+    func recordGeneratedURLArtifact(_ artifact: String?) {
+        generatedURLArtifacts.append(artifact)
+    }
+
+    func recordCompletedArtifact(_ artifact: String?) {
+        completedArtifacts.append(artifact)
+    }
+
+    func recordUploadedArchivePath(_ path: AbsolutePath) {
+        uploadedArchivePaths.append(path)
+    }
+}
+
+private struct RecordingStartShardUploadService: StartShardUploadServicing {
+    let recorder: ShardUploadRecorder
+
+    func startUpload(
+        fullHandle _: String,
+        serverURL _: URL,
+        shardPlanId _: String?,
+        reference _: String,
+        artifact: String?
+    ) async throws -> String {
+        await recorder.recordStartedArtifact(artifact)
+        return "upload-\(artifact ?? "bundle")"
+    }
+}
+
+private struct RecordingMultipartUploadArtifactService: MultipartUploadArtifactServicing {
+    let recorder: ShardUploadRecorder
+
+    func multipartUploadArtifact(
+        artifactPath: AbsolutePath,
+        generateUploadURL: @escaping (MultipartUploadArtifactPart) async throws -> String,
+        updateProgress _: @escaping (Double) -> Void
+    ) async throws -> [(etag: String, partNumber: Int)] {
+        await recorder.recordUploadedArchivePath(artifactPath)
+        _ = try await generateUploadURL(.init(number: 1, contentLength: 6))
+        return [(etag: "etag", partNumber: 1)]
+    }
+}
+
+private struct RecordingMultipartUploadGenerateURLShardsService: MultipartUploadGenerateURLShardsServicing {
+    let recorder: ShardUploadRecorder
+
+    func generateUploadURL(
+        fullHandle _: String,
+        serverURL _: URL,
+        shardPlanId _: String?,
+        reference _: String,
+        uploadId _: String,
+        partNumber _: Int,
+        artifact: String?
+    ) async throws -> String {
+        await recorder.recordGeneratedURLArtifact(artifact)
+        return "https://tuist.dev/upload"
+    }
+}
+
+private struct RecordingMultipartUploadCompleteShardsService: MultipartUploadCompleteShardsServicing {
+    let recorder: ShardUploadRecorder
+
+    func completeUpload(
+        fullHandle _: String,
+        serverURL _: URL,
+        shardPlanId _: String?,
+        reference _: String,
+        uploadId _: String,
+        parts _: [(partNumber: Int, etag: String)],
+        artifact: String?
+    ) async throws {
+        await recorder.recordCompletedArtifact(artifact)
+    }
 }

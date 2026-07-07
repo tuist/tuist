@@ -95,8 +95,6 @@ public struct MultipartUploadArtifactService: MultipartUploadArtifactServicing {
     /// holds every part in memory at once, so memory grows with the artifact and OOMs on multi-GB
     /// uploads (e.g. a large shard test-products bundle).
     private static let maxConcurrentParts = 10
-    private static let maxReadAttempts = 3
-    private static let readRetryDelayNanoseconds: UInt64 = 100_000_000
 
     private let urlSession: URLSession?
     private let fileSystem: FileSysteming
@@ -117,34 +115,25 @@ public struct MultipartUploadArtifactService: MultipartUploadArtifactServicing {
         generateUploadURL: @escaping (MultipartUploadArtifactPart) async throws -> String,
         updateProgress: @escaping (Double) -> Void
     ) async throws -> [(etag: String, partNumber: Int)] {
-        var lastReadMismatch: (expectedBytes: UInt64, readBytes: UInt64)?
+        let size = try await fileSizeInBytes(at: artifactPath)
+        let uploadResult = try await uploadParts(
+            artifactPath: artifactPath,
+            fileSize: size,
+            generateUploadURL: generateUploadURL,
+            updateProgress: updateProgress
+        )
+        let currentSize = try await fileSizeInBytes(at: artifactPath)
 
-        for attempt in 1 ... Self.maxReadAttempts {
-            let size = try await fileSizeInBytes(at: artifactPath)
-            let uploadResult = try await uploadParts(
-                artifactPath: artifactPath,
-                fileSize: size,
-                generateUploadURL: generateUploadURL,
-                updateProgress: updateProgress
+        guard uploadResult.readBytes == size, currentSize == size else {
+            throw MultipartUploadArtifactServiceError.incompleteArtifactRead(
+                artifactPath,
+                expectedBytes: currentSize,
+                readBytes: uploadResult.readBytes
             )
-            let currentSize = try await fileSizeInBytes(at: artifactPath)
-
-            if uploadResult.readBytes == size, currentSize == size {
-                return uploadResult.uploadedParts
-                    .sorted(by: { $0.partNumber < $1.partNumber })
-            }
-
-            lastReadMismatch = (expectedBytes: currentSize, readBytes: uploadResult.readBytes)
-            if attempt < Self.maxReadAttempts {
-                try await Task.sleep(nanoseconds: Self.readRetryDelayNanoseconds)
-            }
         }
 
-        throw MultipartUploadArtifactServiceError.incompleteArtifactRead(
-            artifactPath,
-            expectedBytes: lastReadMismatch?.expectedBytes ?? 0,
-            readBytes: lastReadMismatch?.readBytes ?? 0
-        )
+        return uploadResult.uploadedParts
+            .sorted(by: { $0.partNumber < $1.partNumber })
     }
 
     private func fileSizeInBytes(at path: AbsolutePath) async throws -> UInt64 {
