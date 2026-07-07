@@ -7,13 +7,11 @@ import Testing
 import TuistAcceptanceTesting
 import TuistBuildCommand
 import TuistCacheCommand
-import TuistCAS
 import TuistConfigLoader
 import TuistCore
 import TuistEnvironment
 import TuistEnvironmentTesting
 import TuistGenerateCommand
-import TuistLoader
 import TuistLoggerTesting
 import TuistNooraTesting
 import TuistServer
@@ -25,22 +23,9 @@ import XcodeProj
 @testable import TuistKit
 
 struct TuistCacheEECanaryAcceptanceTests {
-    /// This is a full remote compilation-cache e2e: it boots the Rust
-    /// `tuist-cas-proxy`, loads the plugin inside xcodebuild's compilers, and
-    /// routes them to a kura REAPI (gRPC) endpoint. It only runs where the
-    /// cas-plugin is built (TUIST_CAS_PLUGIN_PATH/TUIST_CAS_PROXY_PATH exported)
-    /// and a reachable kura REAPI is available: the production-deployment
-    /// acceptance job on the PN-kura runner fleet, not the generic PR CI
-    /// acceptance shard (whose local server serves the REST cache API, not
-    /// REAPI). Gating on the plugin path keeps the PR shard green while the test
-    /// still runs in the pipeline built for it.
     @Test(
-        .enabled(
-            if: Environment.current.variables["TUIST_CAS_PLUGIN_PATH"] != nil,
-            "Requires the cas-plugin built (TUIST_CAS_PLUGIN_PATH) and a reachable kura REAPI endpoint; runs in the production-deployment acceptance job, not the PR CI acceptance shard."
-        ),
         .inTemporaryDirectory,
-        .withMockedEnvironment(inheritingVariables: ["PATH", "DEVELOPER_DIR", "TUIST_CAS_PLUGIN_PATH", "TUIST_CAS_PROXY_PATH"]),
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
         .withFixtureConnectedToCanary("generated_project_with_caching_enabled", accountHandle: "tuist")
@@ -57,9 +42,6 @@ struct TuistCacheEECanaryAcceptanceTests {
             defer { environment.stateDirectory = previousStateDirectory }
 
             let fixtureFullHandle = try #require(TuistTest.fixtureFullHandle)
-            let serverURL = try #require(
-                URL(string: Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev")
-            )
 
             try await fileSystem.writeText(
                 """
@@ -67,7 +49,7 @@ struct TuistCacheEECanaryAcceptanceTests {
 
                 let tuist = Tuist(
                     fullHandle: "\(fixtureFullHandle)",
-                    url: "\(serverURL.absoluteString)",
+                    url: "\(Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev")",
                     project: .tuist(
                         generationOptions: .options(
                             enableCaching: true
@@ -79,34 +61,16 @@ struct TuistCacheEECanaryAcceptanceTests {
                 options: Set([.overwrite])
             )
 
-            // The compilation-cache plugin (built from `cas-plugin/`) is loaded by
-            // absolute path baked into the generated project. Its remote path is
-            // the per-machine proxy, reached over a unix socket — no
-            // COMPILATION_CACHE_REMOTE_SERVICE_PATH. CI builds the Rust artifacts
-            // and exports these two paths.
-            let pluginPath = try #require(
-                Environment.current.variables["TUIST_CAS_PLUGIN_PATH"],
-                "Set TUIST_CAS_PLUGIN_PATH to the built libtuist_cas_plugin.dylib (CI builds the cas-plugin)."
-            )
-            let proxySocketPath = environment.stateDirectory.appending(component: "cas-proxy.sock")
+            let remoteCacheServicePath = environment.stateDirectory
+                .appending(component: "\(fixtureFullHandle.replacingOccurrences(of: "/", with: "_")).sock")
             try #require(
-                proxySocketPath.pathString.utf8.count < 104,
-                "Unix-domain socket path is too long: \(proxySocketPath.pathString)"
+                remoteCacheServicePath.pathString.utf8.count < 104,
+                "Unix-domain socket path is too long: \(remoteCacheServicePath.pathString)"
             )
 
-            // Request kura (REAPI) endpoints and route the plugin, loaded inside
-            // xcodebuild's compilers, to the proxy socket. XcodeBuildController
-            // forwards Environment.current.variables to the xcodebuild subprocess.
-            environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
-            environment.variables["TUIST_CAS_PLUGIN_PATH"] = pluginPath
-            environment.variables["TUIST_CAS_PROXY_SOCKET"] = proxySocketPath.pathString
-
-            let accountHandle = fixtureFullHandle.split(separator: "/").first.map(String.init)
-
-            try await withCacheProxy(
-                serverURL: serverURL,
-                accountHandle: accountHandle,
-                socketPath: proxySocketPath,
+            try await withCacheServer(
+                fullHandle: fixtureFullHandle,
+                socketPath: remoteCacheServicePath,
                 fileSystem: fileSystem
             ) {
                 try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
@@ -120,6 +84,7 @@ struct TuistCacheEECanaryAcceptanceTests {
                     "CODE_SIGN_IDENTITY=",
                     "CODE_SIGNING_REQUIRED=NO",
                     "CODE_SIGNING_ALLOWED=NO",
+                    "COMPILATION_CACHE_REMOTE_SERVICE_PATH=\(remoteCacheServicePath.pathString)",
                 ]
                 try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
                 TuistTest.expectLogs("cacheable tasks (0%)")
@@ -362,48 +327,33 @@ struct TuistCacheEECanaryAcceptanceTests {
         try? await fileSystem.remove(directory)
     }
 
-    /// Starts the per-machine Rust cache proxy (`tuist-cas-proxy`) for the test,
-    /// mirroring what `tuist cache-proxy` does at runtime: resolve the kura REAPI
-    /// endpoint and the bearer, then run the proxy on `socketPath`. The proxy is
-    /// seeded with the token directly (there is no installed `tuist` for it to
-    /// shell out to via `tuist auth token` inside the test process).
-    private func withCacheProxy(
-        serverURL: URL,
-        accountHandle: String?,
+    private func withCacheServer(
+        fullHandle: String,
         socketPath: AbsolutePath,
         fileSystem: FileSysteming,
         operation: () async throws -> Void
     ) async throws {
-        let resolvedProxy = try await ResourceLocator().casProxy()
-        let proxyPath = try #require(
-            resolvedProxy,
-            "tuist-cas-proxy not found. Set TUIST_CAS_PROXY_PATH to the built binary (CI builds the cas-plugin)."
-        )
-        let resolvedToken = try await ServerAuthenticationController()
-            .authenticationToken(serverURL: serverURL, refreshIfNeeded: true)?.value
-        let token = try #require(resolvedToken)
-        let endpoint = try await CacheURLStore().getCacheURL(for: serverURL, accountHandle: accountHandle)
-
-        let process = Foundation.Process()
-        process.executableURL = URL(fileURLWithPath: proxyPath.pathString)
-        var processEnvironment = Environment.current.variables
-        processEnvironment["TUIST_CAS_PROXY_SOCKET"] = socketPath.pathString
-        processEnvironment["TUIST_CAS_REMOTE_GRPC_URL"] = endpoint.absoluteString
-        processEnvironment["TUIST_CAS_TOKEN"] = token
-        if let developerDir = Environment.current.variables["DEVELOPER_DIR"] {
-            processEnvironment["TUIST_CAS_UPSTREAM_PLUGIN"] = "\(developerDir)/usr/lib/libToolchainCASPlugin.dylib"
+        let cacheServerTask = Task {
+            try await TuistTest.run(
+                CacheStartCommand.self,
+                [fullHandle, "--url", Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev"]
+            )
         }
-        process.environment = processEnvironment
-        try process.run()
 
         do {
             try await waitForCacheServer(at: socketPath, fileSystem: fileSystem)
             try await operation()
         } catch {
-            process.terminate()
+            await stopCacheServer(cacheServerTask)
             throw error
         }
-        process.terminate()
+
+        await stopCacheServer(cacheServerTask)
+    }
+
+    private func stopCacheServer(_ task: Task<Void, Error>) async {
+        task.cancel()
+        _ = await task.result
     }
 
     private func waitForCacheServer(
