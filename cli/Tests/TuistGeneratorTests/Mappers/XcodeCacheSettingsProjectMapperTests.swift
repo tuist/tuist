@@ -101,6 +101,7 @@ struct XcodeCacheSettingsProjectMapperTests {
         )
         let subject = XcodeCacheSettingsProjectMapper(
             tuist: tuist,
+            kuraEnabled: true,
             casPluginCandidates: [casPluginPath]
         )
         let project = Project.test(
@@ -156,6 +157,7 @@ struct XcodeCacheSettingsProjectMapperTests {
         )
         let subject = XcodeCacheSettingsProjectMapper(
             tuist: tuist,
+            kuraEnabled: true,
             casPluginCandidates: [missingPluginPath]
         )
         let project = Project.test(name: "TestProject", settings: .test(base: [:]))
@@ -190,6 +192,7 @@ struct XcodeCacheSettingsProjectMapperTests {
         )
         let subject = XcodeCacheSettingsProjectMapper(
             tuist: tuist,
+            kuraEnabled: true,
             casPluginCandidates: [casPluginPath]
         )
         let project = Project.test(
