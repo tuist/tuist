@@ -40,6 +40,6 @@ Learn the cache workflow that matches your project or deployment model:
 
 ## Restrict uploads to CI {#restrict-uploads-to-ci}
 
-For Kura-backed cache endpoints, account administrators can make developers read-only while allowing CI to upload cache artifacts. Open the account's **Cache** settings in Tuist and set **Cache upload access** to **CI and account tokens only**. After that, members authenticated with login sessions can still download from Kura, but uploads require CI OIDC authentication or an account token with cache write scopes such as `project:cache:write` or `ci`.
+Account administrators can make developers read-only while allowing CI to upload cache artifacts. Open the account's **Cache** settings in Tuist and set **Cache upload access** to **CI and account tokens only**. After that, members authenticated with login sessions can still download from the cache, but uploads require CI OIDC authentication or an account token with cache write scopes such as `project:cache:write` or `ci`.
 
-Use this when CI is the trusted cache producer and local machines should only consume the cache. The setting affects Kura authorization grants only; legacy cache endpoints continue to use their existing authorization behavior.
+Use this when CI is the trusted cache producer and local machines should only consume the cache. The setting affects cache upload authorization only.
