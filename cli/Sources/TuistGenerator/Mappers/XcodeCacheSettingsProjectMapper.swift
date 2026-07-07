@@ -37,7 +37,7 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
             // Route Xcode's compilation caching through the Tuist CAS plugin,
             // which owns remote (kura) read/write-through via the per-machine
             // proxy. Deliberately no COMPILATION_CACHE_REMOTE_SERVICE_PATH:
-            // that is the daemon-socket path the plugin replaces.
+            // that is the remote-service socket path the plugin replaces.
             baseSettings["COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS"] = "YES"
             baseSettings["COMPILATION_CACHE_ENABLE_PLUGIN"] = "YES"
             baseSettings["COMPILATION_CACHE_PLUGIN_PATH"] = .string(casPluginPath.pathString)

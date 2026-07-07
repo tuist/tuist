@@ -1,9 +1,10 @@
-//! CAS analytics parity with the legacy Swift daemon.
+//! CAS analytics parity with the Swift `CASAnalyticsDatabase`.
 //!
 //! The proxy records per-node transfer metadata into `cas_analytics.db` at the
 //! path the CLI's `UploadBuildRunService` already ships with the build report,
-//! so the upload and server-side (xcactivitylog NIF) pipelines are unchanged —
-//! the proxy just took over the writing the daemon used to do.
+//! so the upload and server-side (xcactivitylog NIF) pipelines are unchanged:
+//! the proxy writes the same rows and encodings the Swift `CASAnalyticsDatabase`
+//! schema and the server's reader expect.
 //!
 //! Two tables drive the server's enrichment (see the NIF's `CASMetadataReader`):
 //! - `nodes`: build-log node id -> checksum. The node id is `"0~" +
@@ -119,8 +120,8 @@ impl Analytics {
     }
 
     /// A `keyvalue_metadata` row for an action-cache op. `operation_type` is
-    /// "read" (resolve) or "write" (publish); the key is encoded as the daemon's
-    /// `convertKeyToCasID` did.
+    /// "read" (resolve) or "write" (publish); the key is encoded for the server
+    /// reader by `keyvalue_key_for`.
     pub fn record_keyvalue(&self, key: &[u8], operation_type: &str, duration: f64) {
         let _ = self.sender.send(Record::KeyValue {
             key: keyvalue_key_for(key),
@@ -130,15 +131,15 @@ impl Analytics {
     }
 }
 
-/// `"0~" + base64url(casID)` — the CAS-output node id as it appears in Xcode's
-/// build-log remarks and the daemon's `nodes` table (the daemon base64s the
-/// casID, then maps `+`->`-`, `/`->`_`, keeping `=` padding: URL-safe base64).
+/// `"0~" + base64url(casID)`: the CAS-output node id as it appears in Xcode's
+/// build-log remarks and the `nodes` table the server reads (base64 the casID,
+/// then map `+`->`-`, `/`->`_`, keeping `=` padding: URL-safe base64).
 fn node_id_for(cas_id: &[u8]) -> String {
     format!("0~{}", base64::engine::general_purpose::URL_SAFE.encode(cas_id))
 }
 
-/// The action-cache key as the daemon's `convertKeyToCasID`: `"0~"` + URL-safe
-/// base64 of the key with its first byte dropped.
+/// The action-cache key as the server reads it: `"0~"` + URL-safe base64 of the
+/// key with its first byte dropped.
 fn keyvalue_key_for(key: &[u8]) -> String {
     let rest = key.get(1..).unwrap_or(&[]);
     format!("0~{}", base64::engine::general_purpose::URL_SAFE.encode(rest))
@@ -154,9 +155,9 @@ pub fn hex_upper(bytes: &[u8]) -> String {
     hex
 }
 
-/// Scans a value node's bytes for the CAS-entry pattern the daemon parsed
-/// (`findNextCASEntry`): `0x0A 0x41 0x00` then a 64-byte casID, then `0x12 0x40`
-/// then a 64-char ASCII hex checksum. Returns each `(casID, hex)` reference.
+/// Scans a value node's bytes for the CAS-entry pattern in Apple's closed CAS
+/// serialization: `0x0A 0x41 0x00` then a 64-byte casID, then `0x12 0x40` then a
+/// 64-char ASCII hex checksum. Returns each `(casID, hex)` reference.
 pub fn parse_cas_references(data: &[u8]) -> Vec<(Vec<u8>, String)> {
     let mut references = Vec::new();
     let mut offset = 0;

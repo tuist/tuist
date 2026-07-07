@@ -74,7 +74,7 @@ struct CacheProxyCommandService {
         setenv("TUIST_CAS_TUIST_BIN", tuistPath.pathString, 1)
         // The proxy records per-node transfer analytics into this db, which the
         // build-report upload ships to the server — the same path and schema the
-        // legacy daemon used, so the upload + server pipeline is unchanged.
+        // Swift CASAnalyticsDatabase defines, so the upload + server pipeline is unchanged.
         let analyticsDatabasePath = Environment.current.stateDirectory
             .appending(component: CASAnalyticsDatabase.databaseName)
         setenv("TUIST_CAS_ANALYTICS_DB", analyticsDatabasePath.pathString, 1)
