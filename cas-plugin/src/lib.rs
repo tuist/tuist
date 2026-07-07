@@ -175,9 +175,16 @@ fn env_bool(name: &str, default: bool) -> bool {
 /// fallback) and the proxy binary (as its default bind path) resolve it, so
 /// an Xcode ⌘B build with no CLI environment still finds a running proxy. A
 /// per-user path keeps the socket off the world-readable `/tmp`.
+///
+/// This is the *default* state location (`~/.local/state/tuist`), matching where
+/// the CLI keeps `cas_analytics.db` and where the old daemon's socket lived.
+/// Deliberately anchored to `HOME` and NOT honoring `XDG_STATE_HOME`, unlike the
+/// CLI's `Environment.stateDirectory`: the plugin resolves this itself inside
+/// compiler frontends (an Xcode ⌘B build carries no CLI environment), so it must
+/// agree with the launchd proxy from `HOME` alone.
 pub fn default_proxy_socket() -> String {
     match std::env::var("HOME") {
-        Ok(home) if !home.is_empty() => format!("{home}/.tuist/cas-proxy.sock"),
+        Ok(home) if !home.is_empty() => format!("{home}/.local/state/tuist/cas-proxy.sock"),
         _ => "/tmp/tuist-cas-proxy.sock".to_string(),
     }
 }

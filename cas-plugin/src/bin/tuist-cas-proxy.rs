@@ -6,7 +6,7 @@
 //!
 //! Environment:
 //! - TUIST_CAS_PROXY_SOCKET: unix socket path to listen on
-//!   (default /tmp/tuist-cas-proxy.sock)
+//!   (default ~/.local/state/tuist/cas-proxy.sock; see `default_proxy_socket`)
 //! - TUIST_CAS_REMOTE_GRPC_URL: REAPI endpoint (required)
 //! - TUIST_CAS_TOKEN: initial bearer (set directly on CI). Absent on a dev
 //!   machine: the proxy fetches one via the CLI (see TUIST_CAS_TUIST_BIN).
