@@ -1839,6 +1839,7 @@ let package = Package(
         .package(id: "apple.swift-protobuf", exact: "1.35.1"),
         .package(id: "grpc.grpc-swift-protobuf", from: "2.0.0"),
         .package(id: "grpc.grpc-swift-nio-transport", from: "2.0.0"),
+        .package(id: "facebook.zstd", from: "1.5.0"),
         .package(id: "chrisaljoudi.swift-log-oslog", .upToNextMajor(from: "0.2.2")),
         .package(id: "MobileNativeFoundation.XCLogParser", .upToNextMajor(from: "0.2.48")),
         .package(path: "server/native/xcactivitylog_nif"),
