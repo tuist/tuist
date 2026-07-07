@@ -2,11 +2,15 @@ defmodule Tuist.Runners.Dispatch do
   @moduledoc """
   Webhook handler for `workflow_job` events from GitHub.
 
-  Handles two action values:
+  Handles three action values:
 
     * `queued` — INSERTs a `runner_jobs` row (status='queued') in
       ClickHouse. A polling Pod's next dispatch claim will pick
       it up.
+    * `waiting` — INSERTs the same queued row only if the job is
+      missing. GitHub can emit this state when a self-hosted job is
+      waiting for capacity; a late duplicate must not regress an
+      already claimed/running job.
     * `completed` — UPDATEs the matching row via RMT (status='completed',
       conclusion, completed_at).
 
@@ -67,6 +71,12 @@ defmodule Tuist.Runners.Dispatch do
     result
   end
 
+  def handle_webhook(%{"action" => "waiting"} = payload, installation_id) when is_integer(installation_id) do
+    result = handle_waiting(payload)
+    emit_webhook_telemetry("waiting", result)
+    result
+  end
+
   def handle_webhook(%{"action" => "completed"} = payload, installation_id) when is_integer(installation_id) do
     result = handle_completed(payload, installation_id)
     emit_webhook_telemetry("completed", result)
@@ -106,6 +116,14 @@ defmodule Tuist.Runners.Dispatch do
   defp webhook_outcome(_), do: "unknown"
 
   defp handle_queued(payload) do
+    handle_queueable(payload, &Jobs.enqueue/1)
+  end
+
+  defp handle_waiting(payload) do
+    handle_queueable(payload, &Jobs.enqueue_if_missing/1)
+  end
+
+  defp handle_queueable(payload, enqueue_fun) do
     job = Map.get(payload, "workflow_job", %{})
     repo = Map.get(payload, "repository", %{})
     full_name = Map.get(repo, "full_name", "")
@@ -114,7 +132,7 @@ defmodule Tuist.Runners.Dispatch do
 
     with {:ok, account} <- fetch_enabled_account(owner),
          {:ok, target} <- resolve_dispatch_target(account, requested),
-         :ok <- Jobs.enqueue(enqueue_attrs(account, target, full_name, job)) do
+         :ok <- enqueue_fun.(enqueue_attrs(account, target, full_name, job)) do
       Logger.info("runners: enqueued",
         account: account.name,
         repo: full_name,
