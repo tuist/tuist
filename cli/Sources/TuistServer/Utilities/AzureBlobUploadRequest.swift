@@ -15,7 +15,7 @@ extension URLRequest {
 }
 
 extension URL {
-    private var isAzureBlobPutBlobSASURL: Bool {
+    fileprivate var isAzureBlobPutBlobSASURL: Bool {
         guard let components = URLComponents(url: self, resolvingAgainstBaseURL: false),
               let queryItems = components.queryItems
         else { return false }
