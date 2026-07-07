@@ -13,15 +13,25 @@ function fullscreenElement() {
   return document.fullscreenElement || document.webkitFullscreenElement;
 }
 
+function validSize(width, height) {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
+
+  return { width, height };
+}
+
+function rfbSize(rfb) {
+  return (
+    validSize(rfb?._fbWidth, rfb?._fbHeight) ||
+    validSize(rfb?._display?.width, rfb?._display?.height) ||
+    validSize(rfb?._display?._fbWidth, rfb?._display?._fbHeight)
+  );
+}
+
 function canvasSize(element) {
   const canvas = element.querySelector("canvas");
   if (!canvas) return null;
 
-  const width = canvas.width;
-  const height = canvas.height;
-  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
-
-  return { width, height };
+  return validSize(canvas.width, canvas.height);
 }
 
 export default {
@@ -109,7 +119,7 @@ export default {
   },
 
   syncDesktopSize() {
-    const size = canvasSize(this.el);
+    const size = rfbSize(this.rfb) || canvasSize(this.el);
     if (!size) {
       this.syncViewportSize();
       return;
@@ -148,5 +158,6 @@ export default {
 
     this.viewport.style.setProperty("--runner-vnc-width", `${Math.floor(width)}px`);
     this.viewport.style.setProperty("--runner-vnc-height", `${Math.floor(height)}px`);
+    this.rfb?._handleResize?.();
   },
 };
