@@ -332,12 +332,11 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   defp recent_runs_column("reliability_rate"), do: "recent_successful_runs"
   defp recent_runs_column(_monitor_type), do: "recent_runs"
 
-  # Returns `{table, recent_runs_expr, run_key_expr}`. `recent_runs_expr`
-  # merges the full per-test-case aggregate; the dedup and latest-`size` slice
-  # happen downstream. `run_key_expr` maps a tuple's sort key back to a
-  # "larger = more recent" number so both encodings order the same way: the
-  # 1000-entry fallback stores `ran_at` directly, while the buckets store
-  # `-ran_at_microseconds`.
+  # Returns `{table, recent_runs_expr}`. `recent_runs_expr` merges the full
+  # per-test-case aggregate and normalizes both aggregate encodings to
+  # `(run_key_microseconds, flag)` tuples. The dedup and latest-`size` slice
+  # happen downstream. The 1000-entry fallback stores `ran_at` directly, while
+  # the buckets store `-ran_at_microseconds`.
   #
   # The bucket is chosen strictly larger than the window (`size < bucket`) so
   # de-dup has headroom: a bucket only holds `bucket` physical rows, and
@@ -350,21 +349,19 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
       nil ->
         {
           "test_case_runs_recent_per_case",
-          "groupArrayLastMerge(#{@max_rolling_window_size})(#{column})",
-          "toUnixTimestamp64Micro(tupleElement(entry, 1))"
+          "arrayMap(entry -> (toUnixTimestamp64Micro(tupleElement(entry, 1)), tupleElement(entry, 2)), groupArrayLastMerge(#{@max_rolling_window_size})(#{column}))"
         }
 
       bucket_size ->
         {
           "test_case_runs_recent_#{bucket_size}_per_case",
-          "groupArraySortedMerge(#{bucket_size})(#{column})",
-          "-tupleElement(entry, 1)"
+          "arrayMap(entry -> (-tupleElement(entry, 1), tupleElement(entry, 2)), groupArraySortedMerge(#{bucket_size})(#{column}))"
         }
     end
   end
 
   defp rolling_triggered_test_case_ids_from_recent_runs(
-         {table, recent_runs_expr, run_key_expr},
+         {table, recent_runs_expr},
          project_id,
          monitor_type,
          size,
@@ -378,35 +375,43 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
         _test_case_ids -> "AND test_case_id IN {test_case_ids:Array(UUID)}"
       end
 
-    # Expand the recent-runs array and collapse it to one row per run (keyed on
-    # `run_key`, the run's `ran_at`), keeping `max(flag)` so a run that was ever
-    # re-marked flaky / ever succeeded is represented once with the right flag.
-    # Then keep the latest `size` distinct runs and compute the rate over those,
-    # so a re-inserted run can no longer be counted more than once.
+    # Collapse the bounded per-test-case array to one tuple per run
+    # (`run_key` is the run's `ran_at` in microseconds), keeping `max(flag)` so
+    # a run that was ever re-marked flaky / ever succeeded is represented once
+    # with the right flag. Then keep the latest `size` distinct runs and compute
+    # the rate over those, so a re-inserted run can no longer be counted more
+    # than once. Keeping the work inside arrays avoids the expensive
+    # ARRAY JOIN + GROUP BY + LIMIT BY shape that multiplied each active test
+    # case into hundreds of rows.
     sql = """
     SELECT test_case_id
     FROM (
-      SELECT test_case_id, run_key, max(flag) AS flag
+      SELECT
+        test_case_id,
+        arraySlice(
+          arrayFilter(
+            (entry, position) -> position = 1,
+            sorted_runs,
+            arrayEnumerateUniq(arrayMap(entry -> tupleElement(entry, 1), sorted_runs))
+          ),
+          1,
+          #{size}
+        ) AS recent_runs
       FROM (
         SELECT
           test_case_id,
-          #{run_key_expr} AS run_key,
-          tupleElement(entry, 2) AS flag
+          arrayReverseSort(entry -> (tupleElement(entry, 1), tupleElement(entry, 2)), merged_runs) AS sorted_runs
         FROM (
-          SELECT test_case_id, #{recent_runs_expr} AS recent_runs
+          SELECT test_case_id, #{recent_runs_expr} AS merged_runs
           FROM #{table}
           WHERE project_id = {project_id:Int64}
             #{test_case_filter}
           GROUP BY test_case_id
         )
-        ARRAY JOIN recent_runs AS entry
       )
-      GROUP BY test_case_id, run_key
-      ORDER BY run_key DESC
-      LIMIT #{size} BY test_case_id
     )
-    GROUP BY test_case_id
-    HAVING #{rolling_having_expr(monitor_type)} #{rolling_comparison_op(comparison)} {threshold:Float64}
+    WHERE length(recent_runs) > 0
+      AND #{rolling_having_expr(monitor_type)} #{rolling_comparison_op(comparison)} {threshold:Float64}
     """
 
     params = maybe_put_test_case_ids(%{project_id: project_id, threshold: threshold * 1.0}, test_case_ids)
@@ -424,11 +429,13 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     Enum.map(rows, fn [binary] -> Ecto.UUID.load!(binary) end)
   end
 
-  defp rolling_having_expr("flakiness_rate"), do: "sum(flag) * 100.0 / count()"
+  defp rolling_having_expr("flakiness_rate"),
+    do: "arraySum(entry -> tupleElement(entry, 2), recent_runs) * 100.0 / length(recent_runs)"
 
-  defp rolling_having_expr("flaky_run_count"), do: "sum(flag)"
+  defp rolling_having_expr("flaky_run_count"), do: "arraySum(entry -> tupleElement(entry, 2), recent_runs)"
 
-  defp rolling_having_expr("reliability_rate"), do: "sum(flag) * 100.0 / count()"
+  defp rolling_having_expr("reliability_rate"),
+    do: "arraySum(entry -> tupleElement(entry, 2), recent_runs) * 100.0 / length(recent_runs)"
 
   defp rolling_comparison_op("gte"), do: ">="
   defp rolling_comparison_op("gt"), do: ">"

@@ -1841,6 +1841,11 @@ postgresql:
 
 clickhouse:
   mode: embedded
+  # Optional runtime pool sizes for the Elixir ClickHouse repos. These are
+  # operational capacity knobs, not secrets; managed deployments set them in
+  # values-managed-*.yaml so all server-release workloads render the same env.
+  poolSize: ""
+  bufferPoolSize: ""
   external:
     url: ""
     # Optional separate URL for the readiness probe ping check.
