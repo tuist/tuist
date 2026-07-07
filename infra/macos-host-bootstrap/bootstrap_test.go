@@ -138,6 +138,16 @@ func TestRenderLaunchdPlist_RendersDisableVMGCWhenSet(t *testing.T) {
 	}
 }
 
+func TestRenderTartKubeletLaunchdScript_PreparesVNCControlDir(t *testing.T) {
+	out := renderTartKubeletLaunchdScript(Config{SSHUser: "m1"})
+	if !strings.Contains(out, "/var/lib/tart-vnc-control") {
+		t.Fatalf("expected VNC control directory to be prepared\n%s", out)
+	}
+	if !strings.Contains(out, "sudo chown -R 'm1':staff") {
+		t.Fatalf("expected VNC control directory ownership to follow SSH user\n%s", out)
+	}
+}
+
 // HostKeyState is the SSH-side TOFU primitive. The first observation
 // of a host key on a fresh state is captured; later observations
 // against a state seeded with KnownHostFingerprint must match.
