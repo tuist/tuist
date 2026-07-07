@@ -2861,7 +2861,10 @@ impl ExistenceCache {
     }
 
     fn insert(&mut self, artifact_id: String) {
-        let previous_order = self.entries.get(&artifact_id).map(|entry| entry.access_order);
+        let previous_order = self
+            .entries
+            .get(&artifact_id)
+            .map(|entry| entry.access_order);
         let access_order = self.access.touch(&artifact_id, previous_order);
         self.entries.insert(
             artifact_id,

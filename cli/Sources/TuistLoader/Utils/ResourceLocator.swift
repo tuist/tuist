@@ -66,7 +66,7 @@ public struct ResourceLocator: ResourceLocating {
             bundlePath.parentDirectory,
             bundlePath.parentDirectory.appending(component: "lib"),
         ].map { $0.appending(component: "libtuist_cas_plugin.dylib") }
-        return try await candidates.concurrentFilter { try await self.fileSystem.exists($0) }.first
+        return try await candidates.concurrentFilter { try await fileSystem.exists($0) }.first
     }
 
     public func casProxy() async throws -> AbsolutePath? {
@@ -81,7 +81,7 @@ public struct ResourceLocator: ResourceLocating {
             bundlePath.parentDirectory,
             bundlePath.parentDirectory.appending(component: "lib"),
         ].map { $0.appending(component: "tuist-cas-proxy") }
-        return try await candidates.concurrentFilter { try await self.fileSystem.exists($0) }.first
+        return try await candidates.concurrentFilter { try await fileSystem.exists($0) }.first
     }
 
     // MARK: - Fileprivate

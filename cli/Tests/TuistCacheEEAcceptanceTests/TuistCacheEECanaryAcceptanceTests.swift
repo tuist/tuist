@@ -10,10 +10,10 @@ import TuistCacheCommand
 import TuistCAS
 import TuistConfigLoader
 import TuistCore
-import TuistLoader
 import TuistEnvironment
 import TuistEnvironmentTesting
 import TuistGenerateCommand
+import TuistLoader
 import TuistLoggerTesting
 import TuistNooraTesting
 import TuistServer
