@@ -48,6 +48,11 @@ const (
 	// dediboxInstanceType is the node.cluster.x-k8s.io/instance-type label value
 	// the self-join stamps.
 	dediboxInstanceType = "dedibox"
+
+	dediboxReleaseReinstallStartedAnnotation  = "dedibox.cluster.x-k8s.io/release-reinstall-started"
+	dediboxReleaseReinstallObservedAnnotation = "dedibox.cluster.x-k8s.io/release-reinstall-observed"
+
+	dediboxInstallPollInterval = time.Minute
 )
 
 // DediboxMachineReconciler reconciles a DediboxMachine: it adopts a pre-ordered
@@ -189,14 +194,23 @@ func (r *DediboxMachineReconciler) reconcileNormal(ctx context.Context, machine 
 		if getErr != nil {
 			return ctrl.Result{}, getErr
 		}
+		installState, installErr := r.DediboxClient.InstallState(ctx, machine.Status.Zone, serverID)
+		if installErr != nil {
+			return ctrl.Result{}, fmt.Errorf("get Dedibox install state: %w", installErr)
+		}
+		if installState != dedibox.InstallDone {
+			conditions.MarkFalse(machine, shared.ProvisionedCondition, "InstallInProgress",
+				clusterv1.ConditionSeverityInfo, "Dedibox server %d install is %s", serverID, installState)
+			machine.Status.Phase = "Installing"
+			logger.Info("waiting for Dedibox install before bootstrap", "id", machine.Status.ServerID, "state", installState.String())
+			return ctrl.Result{RequeueAfter: dediboxInstallPollInterval}, nil
+		}
 		// Adoption is claim + self-join, never install. The operator prepares the
 		// box (Ubuntu + the fleet key + tuist passwordless sudo) before tagging it
-		// into the pool, so a claimed box is already reachable — the same shape as a
-		// Scaleway mini that is already up. Keeping the OS install off this path is
-		// what makes adoption a ~2-5 min self-join, so the fleet MachineDeployment
-		// goes Ready quickly and never wedges helm --wait; the reinstall that wipes a
-		// box back to a clean, claimable state lives on the release path
-		// (reconcileDelete).
+		// into the pool, so a claimed box is expected to be reachable — the same
+		// shape as a Scaleway mini that is already up. The install-state gate above
+		// keeps a box that is still being release-reinstalled out of the SSH path
+		// until Scaleway reports the clean OS is back.
 		host := server.PublicIP
 		if host == "" {
 			machine.Status.Phase = "Provisioning"
@@ -246,11 +260,9 @@ func (r *DediboxMachineReconciler) reconcileNormal(ctx context.Context, machine 
 		}
 		if bootErr != nil {
 			if errors.Is(bootErr, bootstrap.ErrHostKeyMismatch) {
-				// Reinstall-on-release race: reinstallToPool is fire-and-forget,
-				// so a fresh claim can dial the box mid-reimage and pin a key the
-				// completed reinstall then rotates. Clear the stale pin so the next
-				// dial re-TOFUs the reinstalled key. Bounded to bootstrap — a
-				// Provisioned box is never re-dialed.
+				// A prior controller version or manual reinstall may leave a stale
+				// TOFU pin for a host that has since been reimaged. Clear it so the
+				// next bootstrap attempt can pin the freshly installed host key.
 				if perr := r.CredentialsManager.SetMachineHostFingerprint(ctx, machine.Name, ""); perr != nil {
 					logger.Error(perr, "clear stale host fingerprint after reinstall; will retry")
 				}
@@ -334,7 +346,6 @@ func (r *DediboxMachineReconciler) claimedServerIDs(ctx context.Context, self *i
 // removes the finalizer. Reinstalling on release (rather than on adoption) is what
 // keeps adoption a fast self-join.
 func (r *DediboxMachineReconciler) reconcileDelete(ctx context.Context, machine *infrav1.DediboxMachine) (ctrl.Result, error) {
-	logger := log.FromContext(ctx)
 	machine.Status.Phase = "Deleting"
 	if err := r.CredentialsManager.DeleteNodeIdentity(ctx, machine.Name); err != nil {
 		r.event(machine, "DeleteIdentityFailed", "delete node identity: %v (will retry)", err)
@@ -362,26 +373,64 @@ func (r *DediboxMachineReconciler) reconcileDelete(ctx context.Context, machine 
 		r.event(machine, "DeletePVCsFailed", "delete node-local PVCs orphaned by reprovision: %v (will retry)", err)
 		return ctrl.Result{}, err
 	}
-	// Reinstall the box back to a clean, claimable state as the last step before
-	// dropping the finalizer — it's the only step that retries on failure, so on
-	// the happy path it fires exactly once. Fire-and-forget: the wipe + reimage
-	// (Ubuntu + fleet key + tuist login) finishes after the Machine is gone,
-	// leaving a box the next claim self-joins.
 	if machine.Status.ServerID != 0 {
-		if err := r.reinstallToPool(ctx, machine); err != nil {
-			r.event(machine, "ReleaseReinstallFailed", "reinstall on release: %v (will retry)", err)
-			return ctrl.Result{}, err
+		result, done, err := r.reconcileReleaseReinstall(ctx, machine)
+		if err != nil || !done {
+			return result, err
 		}
-		r.event(machine, "ReleasedToPool", "Reinstalling Dedibox server %d to a clean, claimable state", machine.Status.ServerID)
-		logger.Info("reinstalling Dedibox box on release", "id", machine.Status.ServerID)
 	}
 	controllerutil.RemoveFinalizer(machine, DediboxMachineFinalizer)
 	return ctrl.Result{}, nil
 }
 
+func (r *DediboxMachineReconciler) reconcileReleaseReinstall(ctx context.Context, machine *infrav1.DediboxMachine) (ctrl.Result, bool, error) {
+	logger := log.FromContext(ctx)
+	if machine.Annotations == nil {
+		machine.Annotations = map[string]string{}
+	}
+
+	serverID := uint64(machine.Status.ServerID)
+	if machine.Annotations[dediboxReleaseReinstallStartedAnnotation] != "true" {
+		if err := r.reinstallToPool(ctx, machine); err != nil {
+			r.event(machine, "ReleaseReinstallFailed", "reinstall on release: %v (will retry)", err)
+			return ctrl.Result{}, false, err
+		}
+		machine.Annotations[dediboxReleaseReinstallStartedAnnotation] = "true"
+		machine.Status.Phase = "Reinstalling"
+		r.event(machine, "ReleasedToPool", "Reinstalling Dedibox server %d to a clean, claimable state", machine.Status.ServerID)
+		logger.Info("started Dedibox reinstall on release", "id", machine.Status.ServerID)
+		return ctrl.Result{RequeueAfter: dediboxInstallPollInterval}, false, nil
+	}
+
+	state, err := r.DediboxClient.InstallState(ctx, machine.Status.Zone, serverID)
+	if err != nil {
+		r.event(machine, "ReleaseReinstallPollFailed", "poll reinstall on release: %v (will retry)", err)
+		logger.Error(err, "poll Dedibox reinstall on release", "id", machine.Status.ServerID)
+		return ctrl.Result{RequeueAfter: dediboxInstallPollInterval}, false, nil
+	}
+	if state != dedibox.InstallDone {
+		machine.Annotations[dediboxReleaseReinstallObservedAnnotation] = "true"
+		machine.Status.Phase = "Reinstalling"
+		conditions.MarkFalse(machine, shared.ProvisionedCondition, "ReleaseReinstalling",
+			clusterv1.ConditionSeverityInfo, "Dedibox server %d release reinstall is %s", serverID, state)
+		logger.Info("waiting for Dedibox release reinstall", "id", machine.Status.ServerID, "state", state.String())
+		return ctrl.Result{RequeueAfter: dediboxInstallPollInterval}, false, nil
+	}
+	if machine.Annotations[dediboxReleaseReinstallObservedAnnotation] != "true" {
+		machine.Status.Phase = "Reinstalling"
+		logger.Info("waiting for Dedibox release reinstall to report in progress before accepting done", "id", machine.Status.ServerID)
+		return ctrl.Result{RequeueAfter: dediboxInstallPollInterval}, false, nil
+	}
+
+	r.event(machine, "ReleasedToPool", "Reinstalled Dedibox server %d to a clean, claimable state", machine.Status.ServerID)
+	logger.Info("Dedibox release reinstall completed", "id", machine.Status.ServerID)
+	return ctrl.Result{}, true, nil
+}
+
 // reinstallToPool wipes the adopted box back to a clean Ubuntu install with the
 // fleet key authorized and the tuist login, so the next claim self-joins it
-// without operator prep. Fire-and-forget: it kicks the install off and returns.
+// without operator prep. It kicks the install off and returns; reconcileDelete
+// keeps the Machine finalizer until InstallState observes the reinstall complete.
 func (r *DediboxMachineReconciler) reinstallToPool(ctx context.Context, machine *infrav1.DediboxMachine) error {
 	fleet := firstNonEmpty(machine.Spec.FleetName, machine.Namespace+"-"+machine.Name)
 	privateKey, keyErr := r.CredentialsManager.EnsureFleetSSHKey(ctx, fleet)
