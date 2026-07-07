@@ -157,7 +157,8 @@ defmodule Tuist.Storage.AzureBlob do
   def download_to_file(object_key, file_path) do
     object_key
     |> stream_object()
-    |> Enum.into(File.stream!(file_path))
+    |> Stream.into(File.stream!(file_path))
+    |> Stream.run()
 
     {:ok, :done}
   rescue
@@ -253,7 +254,11 @@ defmodule Tuist.Storage.AzureBlob do
   end
 
   defp list_all_objects(prefix, continuation_token \\ nil, acc \\ []) do
-    case list_objects(config().container_name, prefix: prefix, max_keys: 5000, continuation_token: continuation_token) do
+    case list_objects(config().container_name,
+           prefix: prefix,
+           max_keys: 5000,
+           continuation_token: continuation_token
+         ) do
       {:ok, %{body: %{contents: contents, next_continuation_token: nil}}} ->
         {:ok, acc ++ contents}
 

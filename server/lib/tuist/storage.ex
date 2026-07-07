@@ -4,6 +4,7 @@ defmodule Tuist.Storage do
   """
   import SweetXml, only: [sigil_x: 2]
 
+  alias ExAws.S3.Upload
   alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.Performance
@@ -494,18 +495,7 @@ defmodule Tuist.Storage do
       {:ok, response} ->
         {time, size} =
           Performance.measure_time_in_milliseconds(fn ->
-            case storage_provider(actor) do
-              :azure_blob ->
-                response
-
-              :s3 ->
-                response
-                |> Map.get(:headers)
-                |> Enum.find(fn {key, _value} -> key == "content-length" end)
-                |> elem(1)
-                |> List.first()
-                |> String.to_integer()
-            end
+            object_size_from_response(response, actor)
           end)
 
         :telemetry.execute(
@@ -536,6 +526,22 @@ defmodule Tuist.Storage do
         |> ExAws.S3.head_object(object_key)
         |> ExAws.request(Map.merge(config, fast_api_req_opts()))
     end
+  end
+
+  defp object_size_from_response(response, actor) do
+    case storage_provider(actor) do
+      :azure_blob -> response
+      :s3 -> s3_object_size_from_response(response)
+    end
+  end
+
+  defp s3_object_size_from_response(response) do
+    response
+    |> Map.get(:headers)
+    |> Enum.find(fn {key, _value} -> key == "content-length" end)
+    |> elem(1)
+    |> List.first()
+    |> String.to_integer()
   end
 
   defp s3_config_and_bucket(actor) do
@@ -572,7 +578,7 @@ defmodule Tuist.Storage do
   defp s3_upload_file_parts(file_path, bucket_name, object_key, upload_id, config) do
     results =
       file_path
-      |> ExAws.S3.Upload.stream_file()
+      |> Upload.stream_file()
       |> Stream.with_index(1)
       |> Task.async_stream(
         fn chunk -> s3_upload_file_part_with_retry(chunk, bucket_name, object_key, upload_id, config, 1) end,
