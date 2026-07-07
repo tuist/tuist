@@ -71,7 +71,7 @@ defmodule Noora.Badge do
   )
 
   attr(:status, :string,
-    values: ~w(success error warning attention disabled expired in_progress),
+    values: ~w(success error warning attention disabled in_progress),
     required: true,
     doc: "The status of the badge"
   )
@@ -116,12 +116,6 @@ defmodule Noora.Badge do
   end
 
   def status_icon(%{status: "disabled"} = assigns) do
-    ~H"""
-    <.cancel />
-    """
-  end
-
-  def status_icon(%{status: "expired"} = assigns) do
     ~H"""
     <.cancel />
     """

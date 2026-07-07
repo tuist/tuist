@@ -189,7 +189,7 @@ defmodule TuistWeb.MembersLiveTest do
         |> render_click()
 
       assert html =~ "Expired"
-      assert html =~ ~s(data-status="expired")
+      assert html =~ ~s(data-status="error")
       assert html =~ "resend-invite-#{invitation.id}"
       refute html =~ "copy-invite-link-#{invitation.id}"
     end
