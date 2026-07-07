@@ -49,6 +49,10 @@ server:
     className: nginx
     host: canary.tuist.dev
     tlsSecretName: tuist-tls-cloudflare-origin
+    annotations:
+      nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 
   # Request sized so a surge pod (chart-default maxSurge: 1) co-schedules
   # alongside the live pod on the 2-worker canary nodepool. Steady-state
