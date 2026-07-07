@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Logging
 import Path
@@ -12,14 +13,20 @@ import XcodeGraph
 /// When a fullHandle is also provided, remote caching settings are additionally configured.
 public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
     private let tuist: Tuist
-    private let casPluginPath: AbsolutePath?
+    private let casPluginCandidates: [AbsolutePath]
+    private let fileSystem: FileSysteming
 
-    public init(tuist: Tuist, casPluginPath: AbsolutePath? = nil) {
+    public init(
+        tuist: Tuist,
+        casPluginCandidates: [AbsolutePath] = [],
+        fileSystem: FileSysteming = FileSystem()
+    ) {
         self.tuist = tuist
-        self.casPluginPath = casPluginPath
+        self.casPluginCandidates = casPluginCandidates
+        self.fileSystem = fileSystem
     }
 
-    public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
+    public func map(project: Project) async throws -> (Project, [SideEffectDescriptor]) {
         guard tuist.project.generatedProject?.generationOptions.enableCaching ?? false else {
             return (project, [])
         }
@@ -33,7 +40,7 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
         var baseSettings = project.settings.base
 
         baseSettings["COMPILATION_CACHE_ENABLE_CACHING"] = "YES"
-        if let fullHandle = tuist.fullHandle, let casPluginPath {
+        if let fullHandle = tuist.fullHandle, let casPluginPath = try await resolvedCASPluginPath() {
             // Route Xcode's compilation caching through the Tuist CAS plugin,
             // which owns remote (kura) read/write-through via the per-machine
             // proxy. Deliberately no COMPILATION_CACHE_REMOTE_SERVICE_PATH:
@@ -58,6 +65,16 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
         )
 
         return (project, [])
+    }
+
+    /// The first CAS plugin dylib candidate that exists on disk, or `nil` when
+    /// none are present (the build then gets local-only compilation caching
+    /// rather than a `COMPILATION_CACHE_PLUGIN_PATH` pointing at a missing file).
+    private func resolvedCASPluginPath() async throws -> AbsolutePath? {
+        for candidate in casPluginCandidates where try await fileSystem.exists(candidate) {
+            return candidate
+        }
+        return nil
     }
 
     /// Appends `-cas-plugin-option tuist-instance=<fullHandle>` to an existing

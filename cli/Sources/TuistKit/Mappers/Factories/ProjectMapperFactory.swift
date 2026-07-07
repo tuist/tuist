@@ -102,25 +102,25 @@ public struct ProjectMapperFactory: ProjectMapperFactorying {
         mappers.append(IDETemplateMacrosMapper())
 
         // Xcode cache settings
-        mappers.append(XcodeCacheSettingsProjectMapper(tuist: tuist, casPluginPath: resolveCASPluginPath()))
+        mappers.append(XcodeCacheSettingsProjectMapper(tuist: tuist, casPluginCandidates: casPluginCandidates()))
 
         return mappers
     }
 
-    /// Resolves the bundled CAS plugin dylib relative to the executable,
-    /// synchronously (project mapping is not an async context). Mirrors
-    /// `ResourceLocator.casPlugin()`.
-    private func resolveCASPluginPath() -> AbsolutePath? {
+    /// Candidate locations for the bundled CAS plugin dylib, relative to the
+    /// executable, or the `TUIST_CAS_PLUGIN_PATH` override when set. Pure path
+    /// math (no I/O): the mapper existence-checks these in its async `map`,
+    /// picking the first present. Mirrors `ResourceLocator.casPlugin()`.
+    private func casPluginCandidates() -> [AbsolutePath] {
         if let override = Environment.current.variables["TUIST_CAS_PLUGIN_PATH"], !override.isEmpty {
-            return try? AbsolutePath(validating: override)
+            return (try? AbsolutePath(validating: override)).map { [$0] } ?? []
         }
         guard let bundlePath = try? AbsolutePath(validating: Bundle(for: ManifestLoader.self).bundleURL.path)
-        else { return nil }
-        let candidates = [
+        else { return [] }
+        return [
             bundlePath,
             bundlePath.parentDirectory,
             bundlePath.parentDirectory.appending(component: "lib"),
         ].map { $0.appending(component: "libtuist_cas_plugin.dylib") }
-        return candidates.first { FileManager.default.fileExists(atPath: $0.pathString) }
     }
 }
