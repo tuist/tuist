@@ -11,6 +11,8 @@ defmodule Tuist.Runners.InteractiveSessions do
 
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.User
+  alias Tuist.Environment
+  alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Repo
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.InteractiveSession
@@ -18,6 +20,19 @@ defmodule Tuist.Runners.InteractiveSessions do
   require Logger
 
   @default_ttl_seconds 60 * 60
+  @vnc_session_id_annotation "tuist.dev/vnc-session-id"
+  @vnc_requested_at_annotation "tuist.dev/vnc-requested-at"
+  @vnc_state_annotation "tuist.dev/vnc-state"
+  @vnc_relay_host_annotation "tuist.dev/vnc-relay-host"
+  @vnc_relay_port_annotation "tuist.dev/vnc-relay-port"
+  @vnc_relay_ready_at_annotation "tuist.dev/vnc-relay-ready-at"
+
+  def vnc_session_id_annotation, do: @vnc_session_id_annotation
+  def vnc_requested_at_annotation, do: @vnc_requested_at_annotation
+  def vnc_state_annotation, do: @vnc_state_annotation
+  def vnc_relay_host_annotation, do: @vnc_relay_host_annotation
+  def vnc_relay_port_annotation, do: @vnc_relay_port_annotation
+  def vnc_relay_ready_at_annotation, do: @vnc_relay_ready_at_annotation
 
   def request_vnc(%{workflow_job_id: workflow_job_id, account_id: account_id} = job, %Account{id: account_id}, %User{
         id: user_id
@@ -25,7 +40,7 @@ defmodule Tuist.Runners.InteractiveSessions do
     with :ok <- validate_vnc_job(job) do
       case current_for_job(account_id, workflow_job_id, :vnc) do
         %InteractiveSession{} = session ->
-          {:ok, session}
+          refresh_token(session)
 
         nil ->
           create_session(job, user_id, :vnc)
@@ -60,6 +75,58 @@ defmodule Tuist.Runners.InteractiveSessions do
       nil -> {:error, :invalid_or_expired}
     end
   end
+
+  def request_vnc_relay(%InteractiveSession{kind: :vnc, closed_at: nil} = session) do
+    now = now()
+
+    Environment.runners_namespace()
+    |> K8sClient.patch_pod(session.pod_name, %{
+      "metadata" => %{
+        "annotations" => %{
+          @vnc_session_id_annotation => Integer.to_string(session.id),
+          @vnc_requested_at_annotation => DateTime.to_iso8601(now)
+        }
+      }
+    })
+    |> case do
+      {:ok, _pod} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def request_vnc_relay(_session), do: {:error, :unsupported_session}
+
+  def sync_vnc_relay_state(%InteractiveSession{kind: :vnc, closed_at: nil} = session) do
+    case K8sClient.get_pod(Environment.runners_namespace(), session.pod_name) do
+      {:ok, pod} ->
+        sync_vnc_relay_state_from_pod(session, pod)
+
+      {:error, :not_found} ->
+        {:ok, session}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  def sync_vnc_relay_state(%InteractiveSession{} = session), do: {:ok, session}
+
+  def mark_active(%InteractiveSession{closed_at: nil} = session) do
+    now = now()
+
+    attrs = %{
+      state: :active,
+      connected_at: session.connected_at || now,
+      last_activity_at: now,
+      updated_at: now
+    }
+
+    session
+    |> InteractiveSession.changeset(attrs)
+    |> Repo.update()
+  end
+
+  def mark_active(%InteractiveSession{} = session), do: {:ok, session}
 
   def close(%InteractiveSession{} = session, reason \\ "user") do
     closed_at = now()
@@ -138,6 +205,44 @@ defmodule Tuist.Runners.InteractiveSessions do
 
   def vnc_requestable?(_), do: false
 
+  defp sync_vnc_relay_state_from_pod(session, pod) do
+    annotations = get_in(pod, ["metadata", "annotations"]) || %{}
+    session_id = Integer.to_string(session.id)
+
+    with ^session_id <- annotations[@vnc_session_id_annotation],
+         "ready" <- annotations[@vnc_state_annotation],
+         relay_host when is_binary(relay_host) and relay_host != "" <- annotations[@vnc_relay_host_annotation],
+         relay_port_raw when is_binary(relay_port_raw) <- annotations[@vnc_relay_port_annotation],
+         {relay_port, ""} when relay_port > 0 and relay_port <= 65_535 <- Integer.parse(relay_port_raw) do
+      mark_relay_ready(session, relay_host, relay_port)
+    else
+      _ -> {:ok, session}
+    end
+  end
+
+  defp mark_relay_ready(session, relay_host, relay_port) do
+    now = now()
+
+    attrs =
+      maybe_put_ready_state(
+        %{
+          relay_host: relay_host,
+          relay_port: relay_port,
+          relay_ready_at: session.relay_ready_at || now,
+          last_activity_at: now,
+          updated_at: now
+        },
+        session
+      )
+
+    session
+    |> InteractiveSession.changeset(attrs)
+    |> Repo.update()
+  end
+
+  defp maybe_put_ready_state(attrs, %{state: :requested}), do: Map.put(attrs, :state, :ready)
+  defp maybe_put_ready_state(attrs, _session), do: attrs
+
   defp validate_vnc_job(job) do
     cond do
       Catalog.fleet_platform(job.fleet_name) != :macos ->
@@ -183,6 +288,24 @@ defmodule Tuist.Runners.InteractiveSessions do
           %InteractiveSession{} = session -> {:ok, session}
           nil -> {:error, changeset}
         end
+    end
+  end
+
+  defp refresh_token(%InteractiveSession{} = session) do
+    {token, hash} = build_token()
+    now = now()
+
+    session
+    |> InteractiveSession.changeset(%{
+      token_hash: hash,
+      expires_at: DateTime.add(now, @default_ttl_seconds, :second),
+      last_activity_at: now,
+      updated_at: now
+    })
+    |> Repo.update()
+    |> case do
+      {:ok, updated} -> {:ok, %{updated | token: token}}
+      {:error, changeset} -> {:error, changeset}
     end
   end
 

@@ -5,6 +5,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Repo
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.InteractiveSession
@@ -17,6 +18,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
   alias TuistWeb.Errors.NotFoundError
 
   setup %{conn: conn} do
+    stub(K8sClient, :patch_pod, fn _namespace, _pod_name, _patch -> {:ok, %{}} end)
+    stub(K8sClient, :get_pod, fn _namespace, _pod_name -> {:ok, %{"metadata" => %{"annotations" => %{}}}} end)
+
     user = AccountsFixtures.user_fixture()
 
     %{account: account} =
@@ -491,11 +495,16 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
     {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/317520/jobs/31752?tab=interactive")
 
-    assert html =~ "VNC session ready"
+    refute html =~ "VNC session ready"
 
     assert has_element?(
              lv,
              ~s{#runner-vnc-fullscreen-button[phx-hook="RunnerVNCFullscreen"][data-fullscreen-target="#runner-vnc-card"][data-fullscreen-enter-label="Full screen"][data-fullscreen-exit-label="Exit full screen"][data-variant="secondary"]}
+           )
+
+    assert has_element?(
+             lv,
+             ~s{#runner-vnc-client[phx-hook="RunnerVNCClient"][data-vnc-path]}
            )
   end
 

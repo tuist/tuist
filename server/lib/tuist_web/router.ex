@@ -1009,6 +1009,10 @@ defmodule TuistWeb.Router do
     get "/billing/manage", BillingController, :manage
     get "/billing/upgrade", BillingController, :upgrade
 
+    get "/runners/interactive/vnc/:token",
+        RunnerInteractiveVNCController,
+        :connect
+
     get "/runners/runs/:workflow_run_id/jobs/:workflow_job_id/logs/download",
         RunnerJobLogsController,
         :download

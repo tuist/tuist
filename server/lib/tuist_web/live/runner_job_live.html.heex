@@ -423,7 +423,19 @@
               )
             }
           >
-            <div data-part="interactive-viewport-frame">
+            <div
+              :if={@interactive.vnc_session_ready? and @interactive.vnc_websocket_path}
+              id="runner-vnc-client"
+              phx-hook="RunnerVNCClient"
+              phx-update="ignore"
+              data-part="interactive-client"
+              data-vnc-path={@interactive.vnc_websocket_path}
+            >
+            </div>
+            <div
+              :if={!(@interactive.vnc_session_ready? and @interactive.vnc_websocket_path)}
+              data-part="interactive-viewport-frame"
+            >
               <div data-part="interactive-viewport-icon"><.device_laptop /></div>
               <div data-part="interactive-viewport-title">
                 {case @interactive.vnc_session do

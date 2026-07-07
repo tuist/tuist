@@ -25,6 +25,9 @@ defmodule Tuist.Runners.InteractiveSession do
     field :closed_at, :utc_datetime
     field :expires_at, :utc_datetime
     field :last_activity_at, :utc_datetime
+    field :relay_host, :string
+    field :relay_port, :integer
+    field :relay_ready_at, :utc_datetime
     field :close_reason, :string
 
     belongs_to :account, Account
@@ -48,8 +51,12 @@ defmodule Tuist.Runners.InteractiveSession do
       :closed_at,
       :expires_at,
       :last_activity_at,
+      :relay_host,
+      :relay_port,
+      :relay_ready_at,
       :close_reason
     ])
+    |> validate_number(:relay_port, greater_than: 0, less_than: 65_536)
     |> validate_required([
       :account_id,
       :workflow_job_id,

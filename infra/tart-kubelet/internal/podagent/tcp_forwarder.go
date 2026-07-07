@@ -36,6 +36,10 @@ type TCPForwarderOptions struct {
 
 	// Logger receives detailed relay errors. Nil falls back to slog.Default().
 	Logger *slog.Logger
+
+	// Relay handles one accepted client connection after the upstream
+	// target has been resolved. Nil uses a raw TCP byte relay.
+	Relay func(client net.Conn, target string, logger *slog.Logger)
 }
 
 // NewTCPForwarder starts a TCP relay on listenAddr. Resolve is called for
@@ -83,7 +87,11 @@ func NewTCPForwarder(listenAddr string, resolve func() (string, error), opts TCP
 			}
 			f.track(client)
 			f.wg.Add(1)
-			go f.relay(client, target)
+			relay := opts.Relay
+			if relay == nil {
+				relay = rawTCPRelay
+			}
+			go f.relay(client, target, relay)
 		}
 	}()
 
@@ -108,11 +116,15 @@ func (f *TCPForwarder) Stop() {
 	<-f.done
 }
 
-func (f *TCPForwarder) relay(client net.Conn, target string) {
+func (f *TCPForwarder) relay(client net.Conn, target string, relay func(net.Conn, string, *slog.Logger)) {
 	defer f.wg.Done()
 	defer f.untrack(client)
 	defer client.Close()
 
+	relay(client, target, f.logger)
+}
+
+func rawTCPRelay(client net.Conn, target string, logger *slog.Logger) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	upstream, err := (&net.Dialer{
@@ -122,12 +134,16 @@ func (f *TCPForwarder) relay(client net.Conn, target string) {
 		},
 	}).DialContext(ctx, "tcp", target)
 	if err != nil {
-		f.logger.Warn("tcp forwarder: upstream dial failed",
+		logger.Warn("tcp forwarder: upstream dial failed",
 			"target", target, "remote", client.RemoteAddr().String(), "err", err)
 		return
 	}
 	defer upstream.Close()
 
+	copyBidirectional(client, upstream)
+}
+
+func copyBidirectional(client net.Conn, upstream net.Conn) {
 	var copies sync.WaitGroup
 	copies.Add(2)
 	go func() {
@@ -149,6 +165,18 @@ func (f *TCPForwarder) relay(client net.Conn, target string) {
 		}
 	}()
 	copies.Wait()
+}
+
+func dialForwarderUpstream(target string) (net.Conn, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	return (&net.Dialer{
+		Timeout: 5 * time.Second,
+		Control: func(network, address string, c syscall.RawConn) error {
+			return bindDialToTargetInterface(network, address, c)
+		},
+	}).DialContext(ctx, "tcp", target)
 }
 
 func (f *TCPForwarder) track(conn net.Conn) {

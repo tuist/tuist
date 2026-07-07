@@ -42,7 +42,15 @@ import (
 // running on the host until GC sweeps it. The standard finalizer
 // pattern lets us guarantee VM teardown completes before the Pod
 // disappears from the API server's perspective.
-const PodFinalizer = "tart-kubelet.tuist.dev/vm-cleanup"
+const (
+	PodFinalizer = "tart-kubelet.tuist.dev/vm-cleanup"
+
+	vncSessionIDAnnotation    = "tuist.dev/vnc-session-id"
+	vncStateAnnotation        = "tuist.dev/vnc-state"
+	vncRelayHostAnnotation    = "tuist.dev/vnc-relay-host"
+	vncRelayPortAnnotation    = "tuist.dev/vnc-relay-port"
+	vncRelayReadyAtAnnotation = "tuist.dev/vnc-relay-ready-at"
+)
 
 // Reconciler is the controller-runtime reconciler for Pods on this
 // Node. The cached client here is fine: the manager runs a single
@@ -72,10 +80,12 @@ type Reconciler struct {
 	ScrapeAllowedCIDRs []*net.IPNet
 
 	// VNCControlDir is a host-local operator control directory for
-	// Phase 1 interactive access. Creating `requests/<namespace>_<pod>`
-	// opens a relay for that runner Pod; removing it closes the relay.
-	// tart-kubelet writes sensitive connection metadata under `state/`
-	// with 0600 permissions. Empty disables operator VNC relay control.
+	// interactive access. Creating `requests/<namespace>_<pod>` or
+	// stamping the server-owned Pod request annotation opens a relay for
+	// that runner Pod; removing both closes the relay. tart-kubelet
+	// writes legacy operator state under `state/` with 0600 permissions
+	// and reports server-consumable no-auth relay coordinates through Pod
+	// annotations. Empty disables VNC relay control.
 	VNCControlDir string
 
 	Tart     *tart.Client
@@ -664,10 +674,11 @@ func metricsPortFromPod(pod *corev1.Pod) (int, bool) {
 	return port, true
 }
 
-// syncVNCForwarder opens or closes the Phase 1 operator VNC relay for a
-// running macOS runner Pod. The switch is host-local:
-//   - requests/<namespace>_<pod> present: open the relay.
-//   - request absent: close the relay and remove state.
+// syncVNCForwarder opens or closes the VNC relay for a running macOS
+// runner Pod. The switch is server/operator controlled:
+//   - requests/<namespace>_<pod> present: open the legacy operator relay.
+//   - tuist.dev/vnc-session-id present: open the dashboard relay.
+//   - both absent: close the relay and remove state.
 //
 // The Pod, guest, and workflow cannot activate this path.
 func (r *Reconciler) syncVNCForwarder(ctx context.Context, pod *corev1.Pod, entry *Entry) error {
@@ -682,6 +693,9 @@ func (r *Reconciler) syncVNCForwarder(ctx context.Context, pod *corev1.Pod, entr
 	}
 	if !requested {
 		r.stopVNCForwarder(pod.Namespace, pod.Name, entry)
+		if err := r.writeVNCRelayAnnotations(ctx, pod, nil); err != nil {
+			return err
+		}
 		return nil
 	}
 	return r.startVNCForwarder(ctx, pod, entry)
@@ -710,14 +724,14 @@ func (r *Reconciler) startVNCForwarder(ctx context.Context, pod *corev1.Pod, ent
 		if len(allowed) == 0 {
 			allowed = DefaultScrapeAllowedCIDRs()
 		}
-		fw, err := NewTCPForwarder(listenAddr, resolve, TCPForwarderOptions{AllowedCIDRs: allowed})
+		fw, err := NewVNCForwarder(listenAddr, resolve, vncInfo.Password, TCPForwarderOptions{AllowedCIDRs: allowed})
 		if err != nil {
 			return fmt.Errorf("start VNC forwarder for %s/%s on %s: %w", pod.Namespace, pod.Name, listenAddr, err)
 		}
 		entry.VNCForwarder = fw
 	}
 
-	return r.writeVNCState(pod, entry, vncInfo)
+	return r.writeVNCState(ctx, pod, entry, vncInfo)
 }
 
 func (r *Reconciler) stopVNCForwarder(namespace, name string, entry *Entry) {
@@ -731,6 +745,10 @@ func (r *Reconciler) stopVNCForwarder(namespace, name string, entry *Entry) {
 }
 
 func (r *Reconciler) vncRelayRequested(pod *corev1.Pod) (bool, error) {
+	if pod.Annotations[vncSessionIDAnnotation] != "" {
+		return true, nil
+	}
+
 	_, err := os.Stat(r.vncRequestPath(pod.Namespace, pod.Name))
 	if err == nil {
 		return true, nil
@@ -750,7 +768,7 @@ type vncRelayState struct {
 	UpdatedAt string `json:"updated_at"`
 }
 
-func (r *Reconciler) writeVNCState(pod *corev1.Pod, entry *Entry, vncInfo tart.VNCInfo) error {
+func (r *Reconciler) writeVNCState(ctx context.Context, pod *corev1.Pod, entry *Entry, vncInfo tart.VNCInfo) error {
 	tcpAddr, ok := entry.VNCForwarder.Addr().(*net.TCPAddr)
 	if !ok {
 		return fmt.Errorf("VNC forwarder has non-TCP address %s", entry.VNCForwarder.Addr())
@@ -783,6 +801,37 @@ func (r *Reconciler) writeVNCState(pod *corev1.Pod, entry *Entry, vncInfo tart.V
 	if err := os.Rename(tmp, path); err != nil {
 		_ = os.Remove(tmp)
 		return fmt.Errorf("rename VNC state file: %w", err)
+	}
+
+	return r.writeVNCRelayAnnotations(ctx, pod, &state)
+}
+
+func (r *Reconciler) writeVNCRelayAnnotations(ctx context.Context, pod *corev1.Pod, state *vncRelayState) error {
+	if r.CachedClient == nil {
+		return nil
+	}
+
+	patched := pod.DeepCopy()
+	annotations := patched.GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+
+	if state == nil {
+		delete(annotations, vncStateAnnotation)
+		delete(annotations, vncRelayHostAnnotation)
+		delete(annotations, vncRelayPortAnnotation)
+		delete(annotations, vncRelayReadyAtAnnotation)
+	} else if patched.Annotations[vncSessionIDAnnotation] != "" {
+		annotations[vncStateAnnotation] = "ready"
+		annotations[vncRelayHostAnnotation] = state.RelayHost
+		annotations[vncRelayPortAnnotation] = strconv.Itoa(state.RelayPort)
+		annotations[vncRelayReadyAtAnnotation] = state.UpdatedAt
+	}
+
+	patched.SetAnnotations(annotations)
+	if err := r.CachedClient.Patch(ctx, patched, client.MergeFrom(pod)); err != nil {
+		return fmt.Errorf("patch VNC relay annotations for %s/%s: %w", pod.Namespace, pod.Name, err)
 	}
 	return nil
 }
