@@ -243,6 +243,9 @@
   &[data-status="error"] [data-part="icon"] {
     color: var(--noora-badge-status-error);
   }
+  &[data-status="expired"] [data-part="icon"] {
+    color: var(--noora-badge-status-error);
+  }
   &[data-status="warning"] [data-part="icon"] {
     color: var(--noora-badge-status-warning);
   }

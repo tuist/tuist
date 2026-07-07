@@ -449,7 +449,7 @@ defmodule Noora.Table do
   end
 
   attr(:status, :string,
-    values: ~w(success error warning disabled attention in_progress),
+    values: ~w(success error warning disabled expired attention in_progress),
     required: true,
     doc: "The status of the badge"
   )
