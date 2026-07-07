@@ -526,12 +526,12 @@
       flex-direction: column;
       gap: var(--noora-spacing-3);
       box-sizing: border-box;
-      width: 100vw;
-      height: 100vh;
-      max-width: none;
       border-radius: 0;
       background: var(--noora-surface-background-primary);
       padding: var(--noora-spacing-3);
+      width: 100vw;
+      max-width: none;
+      height: 100vh;
     }
 
     &:fullscreen > [data-part="header"],
@@ -549,21 +549,22 @@
     &:fullscreen > [data-part="interactive-section"],
     &:-webkit-full-screen > [data-part="interactive-section"] {
       flex: 1;
-      min-height: 0;
+      align-items: center;
       padding: 0;
+      min-height: 0;
     }
 
     &:fullscreen [data-part="interactive-session"],
-    &:-webkit-full-screen [data-part="interactive-session"],
-    &:fullscreen [data-part="interactive-viewport"],
-    &:-webkit-full-screen [data-part="interactive-viewport"] {
+    &:-webkit-full-screen [data-part="interactive-session"] {
       flex: 1;
+      align-items: center;
+      width: 100%;
       min-height: 0;
     }
 
     &:fullscreen [data-part="interactive-viewport"],
     &:-webkit-full-screen [data-part="interactive-viewport"] {
-      aspect-ratio: auto;
+      flex: 0 0 auto;
     }
   }
 
@@ -608,19 +609,19 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    aspect-ratio: 16 / 10;
+    align-self: center;
     border-radius: var(--noora-radius-4);
     background: var(--noora-surface-background-secondary);
+    aspect-ratio: 16 / 10;
+    aspect-ratio: var(--runner-vnc-aspect-ratio, 16 / 10);
+    width: min(100%, var(--runner-vnc-width, 100%));
+    height: var(--runner-vnc-height, auto);
     min-height: 280px;
     overflow: hidden;
 
     &[data-state="requested"] {
       background:
-        linear-gradient(
-          135deg,
-          color-mix(in srgb, var(--noora-azure-500) 12%, transparent),
-          transparent 52%
-        ),
+        linear-gradient(135deg, color-mix(in srgb, var(--noora-azure-500) 12%, transparent), transparent 52%),
         var(--noora-surface-background-secondary);
     }
   }
@@ -629,14 +630,9 @@
     display: flex;
     flex: 1;
     align-self: stretch;
+    background: var(--noora-surface-background-primary);
     min-width: 0;
     min-height: 0;
-    background: var(--noora-surface-background-primary);
-
-    & canvas {
-      width: 100%;
-      height: 100%;
-    }
   }
 
   & [data-part="interactive-viewport-frame"] {
@@ -656,7 +652,6 @@
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
   }
-
 }
 
 .tuist-runner-metrics {
