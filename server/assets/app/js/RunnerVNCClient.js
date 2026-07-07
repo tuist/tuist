@@ -34,6 +34,48 @@ function canvasSize(element) {
   return validSize(canvas.width, canvas.height);
 }
 
+function redBlueSwappedBytes(arr, offset, length) {
+  const source = new Uint8Array(arr.buffer, arr.byteOffset + offset, length);
+  const swapped = new Uint8Array(length);
+  swapped.set(source);
+
+  for (let index = 0; index < swapped.length; index += 4) {
+    const red = swapped[index];
+    swapped[index] = swapped[index + 2];
+    swapped[index + 2] = red;
+  }
+
+  return swapped;
+}
+
+function redBlueSwappedColor(color) {
+  return [color[2], color[1], color[0]];
+}
+
+function installColorChannelFix(rfb) {
+  const display = rfb?._display;
+  if (!display || display._tuistColorChannelFixInstalled) return;
+
+  const blitImage = display.blitImage.bind(display);
+  const fillRect = display.fillRect.bind(display);
+
+  // Tart's experimental VNC stream currently sends BGRX/BGRA updates even
+  // though noVNC requests RGBA byte order for browser-native ImageData.
+  display.blitImage = (x, y, width, height, arr, offset = 0, fromQueue = false) => {
+    if (fromQueue) return blitImage(x, y, width, height, arr, offset, fromQueue);
+
+    return blitImage(x, y, width, height, redBlueSwappedBytes(arr, offset, width * height * 4), 0, fromQueue);
+  };
+
+  display.fillRect = (x, y, width, height, color, fromQueue = false) => {
+    if (fromQueue) return fillRect(x, y, width, height, color, fromQueue);
+
+    return fillRect(x, y, width, height, redBlueSwappedColor(color), fromQueue);
+  };
+
+  display._tuistColorChannelFixInstalled = true;
+}
+
 export default {
   mounted() {
     this.viewport = this.el.closest('[data-part="interactive-viewport"]');
@@ -71,6 +113,7 @@ export default {
     this.rfb.dragViewport = false;
     this.rfb.focusOnClick = true;
     this.rfb.viewOnly = false;
+    if (this.el.dataset.framebufferColorOrder === "bgr") installColorChannelFix(this.rfb);
 
     this.onConnect = () => {
       this.el.dataset.connection = "connected";

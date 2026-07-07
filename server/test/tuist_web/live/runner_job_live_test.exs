@@ -504,7 +504,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
     assert has_element?(
              lv,
-             ~s{#runner-vnc-client[phx-hook="RunnerVNCClient"][data-vnc-path]}
+             ~s{#runner-vnc-client[phx-hook="RunnerVNCClient"][data-vnc-path][data-framebuffer-color-order="bgr"]}
            )
   end
 
