@@ -18,8 +18,11 @@ let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("co
 
 observeThemeChanges();
 
+// Keep this aligned with nginx.ingress.kubernetes.io/proxy-connect-timeout.
+const liveSocketFallbackMs = 10000;
+
 let liveSocket = new LiveSocket("/live", Socket, {
-  longPollFallbackMs: 2500,
+  longPollFallbackMs: liveSocketFallbackMs,
   params: { _csrf_token: csrfToken, _csp_nonce: cspNonce },
   hooks: {
     ...Noora.Hooks,
