@@ -14,17 +14,6 @@ USE_CURRENT_CONTEXT="${TUIST_HELM_K3S_USE_CURRENT_CONTEXT:-0}"
 KUBECTL_BIN="${KUBECTL:-kubectl}"
 RENDER_ONLY="${usage_render_only:-false}"
 
-require_command() {
-    local command_name="$1"
-    if ! command -v "$command_name" >/dev/null 2>&1; then
-        echo "Missing required command: $command_name" >&2
-        exit 1
-    fi
-}
-
-require_command helm
-require_command "$KUBECTL_BIN"
-
 rendered="$(mktemp)"
 cleanup_rendered() {
     rm -f "$rendered"
@@ -64,9 +53,6 @@ collect_diagnostics() {
 trap collect_diagnostics EXIT
 
 if [[ "$USE_CURRENT_CONTEXT" != "1" ]]; then
-    require_command docker
-    require_command k3d
-
     if ! docker info >/dev/null 2>&1; then
         echo "Docker must be running to create the disposable k3d cluster." >&2
         exit 1
