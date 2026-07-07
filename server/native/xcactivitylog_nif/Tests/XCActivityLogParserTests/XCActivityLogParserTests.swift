@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Path
 import Testing
+import XCLogParser
 
 @testable import XCActivityLogParser
 
@@ -158,6 +159,24 @@ struct XCActivityLogParserTests {
             #expect(task.status != "hit_local",
                     "Upload-bearing key \(task.key) misclassified as hit_local")
         }
+    }
+
+    @Test func slfLexer_tokenizesStringsUsingUTF16Length() throws {
+        let value = "Sources/Bundle+Locali🙂"
+        let contents = "SLF0#\(value.utf16.count)\"\(value)1#"
+
+        let tokens = try SLFLexer(filePath: "test.xcactivitylog").tokenize(contents: contents)
+
+        #expect(tokens == [.int(0), .string(value), .int(1)])
+    }
+
+    @Test func slfLexer_preservesEmbeddedNullBytes() throws {
+        let value = "Sources/Bundle+Locali\u{0}zation"
+        let contents = "SLF0#\(value.utf16.count)\"\(value)1#"
+
+        let tokens = try SLFLexer(filePath: "test.xcactivitylog").tokenize(contents: contents)
+
+        #expect(tokens == [.int(0), .string(value), .int(1)])
     }
 }
 

@@ -20,6 +20,7 @@ let package = Package(
         ),
     ],
     dependencies: [
+        .package(id: "1024jp.gzipswift", from: "5.2.0"),
         .package(id: "MobileNativeFoundation.XCLogParser", from: "0.2.48"),
         .package(id: "tuist.Path", from: "0.3.8"),
         .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.16.2")),
@@ -36,6 +37,7 @@ let package = Package(
             name: "XCActivityLogParser",
             dependencies: [
                 "CASAnalyticsDatabase",
+                .product(name: "Gzip", package: "1024jp.gzipswift"),
                 .product(name: "XCLogParser", package: "MobileNativeFoundation.XCLogParser"),
                 .product(name: "Path", package: "tuist.Path"),
                 .product(name: "FileSystem", package: "tuist.FileSystem"),

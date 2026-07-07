@@ -10,11 +10,7 @@ public struct XCActivityLogParser: Sendable {
         casAnalyticsDatabasePath: AbsolutePath,
         legacyCASMetadataPath: AbsolutePath? = nil
     ) async throws -> BuildData {
-        let activityLog = try ActivityParser().parseActivityLogInURL(
-            xcactivitylogURL,
-            redacted: false,
-            withoutBuildSpecificInformation: false
-        )
+        let activityLog = try parseActivityLog(at: xcactivitylogURL)
 
         let buildStep = try ParserBuildSteps(
             omitWarningsDetails: false,
@@ -78,6 +74,25 @@ public struct XCActivityLogParser: Sendable {
             cacheable_tasks: cacheableTasks,
             cas_outputs: casOutputs
         )
+    }
+
+    private func parseActivityLog(at url: URL) throws -> IDEActivityLog {
+        let activityParser = ActivityParser()
+        do {
+            return try activityParser.parseActivityLogInURL(
+                url,
+                redacted: false,
+                withoutBuildSpecificInformation: false
+            )
+        } catch let upstreamError {
+            do {
+                let contents = try SLFLogLoader.load(from: url)
+                let tokens = try SLFLexer(filePath: url.path).tokenize(contents: contents)
+                return try activityParser.parseIDEActiviyLogFromTokens(tokens)
+            } catch {
+                throw upstreamError
+            }
+        }
     }
 
     // MARK: - Build Steps
