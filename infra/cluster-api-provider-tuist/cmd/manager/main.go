@@ -86,6 +86,9 @@ func main() {
 		tartKubeletHostCPU           int
 		tartKubeletHostMemory        int
 		tartKubeletMaxPods           int
+		tartKubeletRunnerCacheRoot   string
+		tartKubeletHostKuraVersion   string
+		tartKubeletEMPeerURLTemplate string
 		tartKubeletMaxUpdateAttempts int
 		bootstrapRebootAfter         int
 		bootstrapMaxAttempts         int
@@ -205,6 +208,15 @@ func main() {
 		"Max concurrent Pods on each Mac mini. Capped at 2 by Apple's macOS SLA "+
 			"(no more than two simultaneous virtualized macOS instances per host); "+
 			"Tart refuses to start a third VM.")
+	flag.StringVar(&tartKubeletRunnerCacheRoot, "tartkubelet-runner-cache-root",
+		envOrDefault("CAPI_TARTKUBELET_RUNNER_CACHE_ROOT", ""),
+		"Host directory passed through to tart-kubelet --runner-cache-root. Empty disables host-local runner cache volume mounting.")
+	flag.StringVar(&tartKubeletHostKuraVersion, "tartkubelet-host-kura-version",
+		envOrDefault("CAPI_TARTKUBELET_HOST_KURA_VERSION", ""),
+		"kura release version installed on each Mac host for the persistent per-account host Kura (Option A). Requires --tartkubelet-runner-cache-root. Empty disables the host-Kura path.")
+	flag.StringVar(&tartKubeletEMPeerURLTemplate, "tartkubelet-em-peer-url-template",
+		envOrDefault("CAPI_TARTKUBELET_EM_PEER_URL_TEMPLATE", ""),
+		"Plaintext http URL template (with a single %s for the account id) of the Elastic Metal Kura peer each host Kura replicates with. Empty runs host Kuras islanded.")
 	flag.IntVar(&tartKubeletMaxUpdateAttempts, "tartkubelet-max-update-attempts", 5,
 		"Drift-loop retries before transitioning the CR to a terminal Failed state. "+
 			"Set to 0 to disable the cap (not recommended for production).")
@@ -481,6 +493,9 @@ func main() {
 		TartKubeletHostCPU:           tartKubeletHostCPU,
 		TartKubeletHostMemoryMB:      tartKubeletHostMemory,
 		TartKubeletMaxPods:           tartKubeletMaxPods,
+		TartKubeletRunnerCacheRoot:   tartKubeletRunnerCacheRoot,
+		TartKubeletHostKuraVersion:   tartKubeletHostKuraVersion,
+		TartKubeletEMPeerURLTemplate: tartKubeletEMPeerURLTemplate,
 		TartKubeletMaxUpdateAttempts: int32(tartKubeletMaxUpdateAttempts),
 		BootstrapRebootAfter:         int32(bootstrapRebootAfter),
 		BootstrapMaxAttempts:         int32(bootstrapMaxAttempts),

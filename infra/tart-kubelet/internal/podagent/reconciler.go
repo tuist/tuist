@@ -71,6 +71,21 @@ type Reconciler struct {
 	Resolver *envresolver.Resolver
 	Store    *Store
 
+	// CacheVolumes stages the per-VM tuist-cache share for Pods that opt in via
+	// RunnerCacheVolumeAnnotation (the share the host Kura endpoint marker is
+	// written into). Optional; nil keeps the current no-cache-share behavior.
+	CacheVolumes *CacheVolumeManager
+
+	// HostKura runs the persistent per-account host Kura (Option A): tart-kubelet
+	// points each runner VM at it via an endpoint marker in the tuist-cache
+	// share. The host Kura owns the account cache and persists across VMs, so
+	// there is no per-VM copy-in or merge-back. Optional.
+	HostKura *HostKuraManager
+	// hostBridgeIP resolves the host's vmnet-bridge IP for a VM IP (the address
+	// the VM uses to reach the host Kura). Defaults to HostBridgeIPForVM;
+	// injectable for tests.
+	hostBridgeIP func(vmIP string) (string, error)
+
 	// TokenMinter mints projected ServiceAccount tokens for Pods
 	// whose Spec.AutomountServiceAccountToken is true. Optional —
 	// when nil, no token is staged (the env file is the only file
@@ -142,7 +157,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			// fires today is if the Pod was created without our
 			// finalizer or someone yanked it manually). Best-effort
 			// VM cleanup still runs from the in-memory Store.
-			r.deleteByKey(ctx, req.Namespace, req.Name)
+			if err := r.deleteByKey(ctx, req.Namespace, req.Name); err != nil {
+				logger.Error(err, "delete orphaned VM; will retry")
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
@@ -235,7 +253,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// Store entry); only the published Phase differs.
 	if entry := r.Store.Get(pod.Namespace, pod.Name); entry != nil && entry.Run != nil {
 		if exitErr, exited := entry.Run.Exited(); exited {
-			_ = r.deleteByKey(ctx, pod.Namespace, pod.Name)
+			if err := r.deleteByKey(ctx, pod.Namespace, pod.Name); err != nil {
+				logger.Error(err, "delete exited VM; will retry")
+				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+			}
 
 			status := &corev1.PodStatus{Reason: "TartRunExited"}
 			if exitErr == nil {
@@ -252,6 +273,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 			_ = r.publishStatus(ctx, pod, status)
 			return ctrl.Result{}, nil
+		}
+	}
+
+	if entry := r.Store.Get(pod.Namespace, pod.Name); entry != nil {
+		if err := r.prepareCacheVolume(ctx, pod, entry); err != nil {
+			logger.Error(err, "prepare runner cache volume; will retry")
+			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 		}
 	}
 
@@ -311,6 +339,7 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	if err != nil {
 		return err
 	}
+	sharedDirs := []string{"env:" + envDir + ":ro"}
 
 	// Mint + stage a projected SA token alongside the env file when
 	// the Pod opts in via AutomountServiceAccountToken. The VM's
@@ -406,6 +435,15 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	// pull/clone time the boot histogram (which starts at `tart run`) can't.
 	podProvisionDelaySeconds.WithLabelValues(pool).Observe(time.Since(pod.CreationTimestamp.Time).Seconds())
 
+	cacheShareDir := ""
+	if r.CacheVolumes.EnabledForPod(pod) {
+		cacheShareDir, err = r.CacheVolumes.StageVM(vmName)
+		if err != nil {
+			return fmt.Errorf("stage runner cache volume: %w", err)
+		}
+		sharedDirs = append(sharedDirs, cacheShareMount(cacheShareDir))
+	}
+
 	// Record the Pod ↔ VM mapping before kicking the VM off so the
 	// rest of the system (deletePod, GC, recoverState) can keep
 	// track of it even if `tart run` exits oddly. Without this an
@@ -413,18 +451,22 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	// and the GC loop would happily reap it on the next pass —
 	// exactly the orphan we used to clean up reactively.
 	entry := &Entry{
-		VMName:  vmName,
-		StartTS: metav1.Now(),
+		VMName:        vmName,
+		StartTS:       metav1.Now(),
+		CacheShareDir: cacheShareDir,
 	}
 	r.Store.Put(pod.Namespace, pod.Name, entry)
 
-	handle, err := r.Tart.Run(ctx, vmName, []string{"env:" + envDir + ":ro"})
+	handle, err := r.Tart.Run(ctx, vmName, sharedDirs)
 	if err != nil {
 		// Roll back the Store entry — the VM either never started
 		// (cmd.Start error) or `tart run` exited immediately, so
 		// there is no live VM for podStatus to observe and no
 		// background process for deletePod to tear down.
 		r.Store.Delete(pod.Namespace, pod.Name)
+		if r.CacheVolumes.EnabledForPod(pod) {
+			_ = r.CacheVolumes.CleanupVM(vmName)
+		}
 		return fmt.Errorf("tart run: %w", err)
 	}
 	entry.Run = handle
@@ -690,11 +732,85 @@ func (r *Reconciler) deleteByKey(ctx context.Context, namespace, name string) er
 	}
 
 	_ = r.Tart.Stop(ctx, entry.VMName, 30*time.Second)
+	if r.CacheVolumes != nil {
+		// The persistent per-account host Kura owns the account cache directly,
+		// so there is no per-VM merge-back — only tear down the share.
+		if err := r.CacheVolumes.CleanupVM(entry.VMName); err != nil {
+			return err
+		}
+	}
 	if err := r.Tart.Delete(ctx, entry.VMName); err != nil {
 		return fmt.Errorf("tart delete: %w", err)
 	}
 	_ = r.Tart.CleanupVMUserData(entry.VMName)
 	r.Store.Delete(namespace, name)
+	return nil
+}
+
+// cacheShareMount returns the `tart run --dir` argument mounting the per-VM
+// cache share into the runner VM. Read-write is Tart's default; the only valid
+// `--dir` suffix is `:ro`. A `:rw` suffix is a malformed mount tag that makes
+// `tart run` exit 1 immediately, so the share is mounted with no suffix.
+func cacheShareMount(shareDir string) string {
+	return RunnerCacheShareName + ":" + shareDir
+}
+
+func (r *Reconciler) prepareCacheVolume(ctx context.Context, pod *corev1.Pod, entry *Entry) error {
+	if r.HostKura.EnabledForPod(pod) {
+		return r.bindHostKura(ctx, pod, entry)
+	}
+	return nil
+}
+
+// bindHostKura points a runner VM at the persistent per-account host Kura
+// (Option A). Once the dispatch-time account label is observed, it ensures the
+// account's host Kura is running and ready, resolves the host's bridge IP for
+// the VM, and writes the endpoint marker into the per-VM share. Returning a
+// non-nil error requeues the reconcile (e.g. the Kura is still bootstrapping or
+// the VM has no IP yet), which is the intended "wait and retry" behavior.
+func (r *Reconciler) bindHostKura(ctx context.Context, pod *corev1.Pod, entry *Entry) error {
+	accountID := strings.TrimSpace(pod.Labels[RunnerAccountLabel])
+	if accountID == "" {
+		return nil // account not stamped yet; nothing to bind
+	}
+	if entry.CachePreparedAccountID == accountID {
+		return nil // endpoint already written for this account
+	}
+	if entry.CacheShareDir == "" {
+		return nil // share not staged yet (createPod stages it first)
+	}
+
+	port, ready, err := r.HostKura.Ensure(ctx, accountID)
+	if err != nil {
+		return fmt.Errorf("ensure host kura for account %s: %w", accountID, err)
+	}
+	if !ready {
+		// Bootstrapping from EM; requeue until it is serving.
+		return fmt.Errorf("host kura for account %s not ready yet", accountID)
+	}
+
+	vmIP, err := r.Tart.IP(ctx, entry.VMName)
+	if err != nil {
+		return fmt.Errorf("resolve ip for vm %s: %w", entry.VMName, err)
+	}
+	if vmIP == "" {
+		return fmt.Errorf("vm %s has no IP yet", entry.VMName)
+	}
+
+	resolve := r.hostBridgeIP
+	if resolve == nil {
+		resolve = HostBridgeIPForVM
+	}
+	hostIP, err := resolve(vmIP)
+	if err != nil {
+		return fmt.Errorf("resolve host bridge ip for vm %s (%s): %w", entry.VMName, vmIP, err)
+	}
+
+	if err := WriteEndpoint(entry.CacheShareDir, hostIP, port); err != nil {
+		return fmt.Errorf("write cache endpoint marker: %w", err)
+	}
+	r.HostKura.Touch(accountID)
+	entry.CachePreparedAccountID = accountID
 	return nil
 }
 
@@ -748,7 +864,9 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 		// entry so the host state mirrors what the API server
 		// will see post-update, then mark the Pod Succeeded so
 		// the watcher refills the warm pool.
-		_ = r.deleteByKey(ctx, pod.Namespace, pod.Name)
+		if err := r.deleteByKey(ctx, pod.Namespace, pod.Name); err != nil {
+			return nil, err
+		}
 		status.Phase = corev1.PodSucceeded
 		status.Reason = "TartRunExited"
 		return status, nil
@@ -955,6 +1073,12 @@ type Entry struct {
 	VMName  string
 	StartTS metav1.Time
 	Run     *tart.RunHandle
+	// CacheShareDir is the host directory mounted into the VM as
+	// RunnerCacheShareName. CachePreparedAccountID is set after the
+	// dispatch-time account label has been observed and the per-VM
+	// share has been populated from that account's warm cache.
+	CacheShareDir          string
+	CachePreparedAccountID string
 	// BootObserved is true after we've recorded
 	// `tart_kubelet_vm_boot_duration_seconds` for this VM. The
 	// histogram observes once per VM (at the Pending→Running

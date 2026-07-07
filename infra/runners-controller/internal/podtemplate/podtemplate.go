@@ -42,6 +42,14 @@ const (
 	// jitFilePath is the file the poller writes the minted JIT to and
 	// the runner reads it from.
 	jitFilePath = jitMountPath + "/jit"
+
+	runnerCacheVolumeAnnotation = "tart-kubelet.tuist.dev/runner-cache-volume"
+	runnerCacheShareDir         = "/Volumes/My Shared Files/tuist-cache"
+	// runnerCacheEndpointFile is the marker tart-kubelet writes into the share:
+	// the http URL of the persistent per-account host Kura reachable over the
+	// host<->VM bridge. dispatch-poll.sh reads it and routes the job's cache
+	// there. Keep the basename in sync with podagent.RunnerCacheEndpointFile.
+	runnerCacheEndpointFile = runnerCacheShareDir + "/.tuist-cache-endpoint"
 )
 
 // Build returns the Pod manifest the controller stamps on the API
@@ -122,6 +130,12 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		dispatchEnv = append(dispatchEnv,
 			corev1.EnvVar{Name: "TUIST_CLUSTER_DNS_IP", Value: clusterDNSIP},
 			corev1.EnvVar{Name: "TUIST_CLUSTER_DOMAIN", Value: clusterDomain},
+		)
+	}
+
+	if !linuxPod {
+		dispatchEnv = append(dispatchEnv,
+			corev1.EnvVar{Name: "TUIST_RUNNER_CACHE_ENDPOINT_FILE", Value: runnerCacheEndpointFile},
 		)
 	}
 
@@ -386,6 +400,9 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		// because the containerd kata runtime whitelists
 		// `io.katacontainers.*` pod annotations.
 		annotations["io.katacontainers.config.hypervisor.kernel_params"] = "psi=1"
+	}
+	if !linuxPod {
+		annotations[runnerCacheVolumeAnnotation] = "true"
 	}
 
 	// Mirror the actions/runner diagnostic log (_diag) to the runner

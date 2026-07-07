@@ -61,6 +61,7 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - **Runner job machine metrics** (ClickHouse `runner_job_machine_metrics`, ReplacingMergeTree on `(workflow_job_id, timestamp)`): per-sample resource usage of the runner Pod/VM while a workflow_job executes, one row per snapshot. Columns: `workflow_job_id`, `account_id`, `timestamp` (epoch seconds the sample was taken), `cpu_usage_percent`, `cpu_iowait_percent` (0 on macOS, which has no iowait accounting), `memory_used_bytes`, `memory_total_bytes`, `network_bytes_in`, `network_bytes_out`, `disk_used_bytes`, `disk_total_bytes`, and `inserted_at` (the RMT version). Unlike logs, these have no GitHub-side source — they describe our infrastructure's runner; the runner metrics collector samples each running job's Pod and POSTs batches to `POST /api/internal/runners/jobs/:workflow_job_id/metrics` (authenticated with the runners-controller's in-cluster ServiceAccount token). Surfaced on the job detail page's Overview charts and Metrics tab. Retained for 90 days.
 - **Runner job log archives** (S3 `runners/{account_id}/{workflow_job_id}/runner.log.gz`): once `FetchLogsWorker` finishes ingesting a job's lines, `Tuist.Runners.Workers.ArchiveLogsWorker` stream-gzips them into a single object (multipart-uploaded so a large log never materialises in memory) and stamps `log_archived_at` on the `runner_jobs` row. The "Download logs" action redirects to a presigned URL for that object; the button is hidden while `log_archived_at` is `NULL`. Same content as `runner_job_logs`, rendered to plain text (`<ISO timestamp> <message>` per line). Retained for 90 days, matched to the row-level TTL by `Tuist.Runners.Workers.PruneArchivedLogsWorker` (a daily Oban cron) which both deletes the S3 object and clears `log_archived_at`.
 - **Kubernetes-side state** (`RunnerPool` CR + Pods / ServiceAccounts in the `tuist-runners` namespace): operational metadata only — pool name, dispatch label, image, replica count, owner labels on Pods. Reconciled by the runners-controller.
+- **macOS runner warm cache volumes** (host-local, only when `macosFleet.tartKubelet.runnerCacheRoot` is configured): tart-kubelet mounts a per-VM cache share at `<runnerCacheRoot>/vms/{vm_name}` and, once dispatch stamps `tuist.dev/runner-account`, clones the account's warm cache from `<runnerCacheRoot>/accounts/{account_id}/current` into that per-VM directory. The contents are Kura/cache artifacts derived from the account's build cache, not new source records. When the VM Pod is torn down, tart-kubelet merges the per-VM share back into the account-level `current` source before deleting the per-VM share. That account-level `current` source, if present, is a disposable cache artifact store and must be included in account cache export/purge operations while it exists.
 - **JIT runner configs**: the GitHub-issued JIT credential the dispatch endpoint mints for each runner registration is an ephemeral authentication secret and is never persisted server-side. Only the resulting `runner_name` (the GitHub-side runner label) is recorded in `runner_jobs`.
 
 ### Slack Integration
@@ -119,6 +120,7 @@ All uploaded files associated with the account are included:
 - **Run artifacts**: uploaded result bundles, invocation records, result-bundle objects, and session archives stored under `{account}/{project}/runs/{run_id}/`
 - **Shard bundles**: Shared `.xctestproducts` bundles stored at `{account_id}/{project_id}/shards/{shard_plan_id}/`
 - **Runner job log archives**: gzipped runner logs stored at `runners/{account_id}/{workflow_job_id}/runner.log.gz`
+- **macOS runner warm cache artifacts**: host-local Kura/cache artifacts under `<runnerCacheRoot>/accounts/{account_id}/current` when the macOS runner cache volume path is enabled and the account has a warm-cache source present
 
 ## Data Retention
 
@@ -140,6 +142,7 @@ dashboards remain intact. Retention windows, in days, by plan:
 | Run artifacts | 30 | 30 | 30 |
 | Test run attachments | 30 | 30 | 30 |
 | Shard bundles | 7 | 14 | 30 |
+| macOS runner warm cache artifacts | 14 | 30 | 90 |
 
 Retention status is computed when cleanup runs. Cache artifacts use the object
 storage `last_modified` timestamp, while previews, current build archives, test
@@ -149,6 +152,11 @@ the object storage `last_modified` timestamp; legacy build artifacts whose
 account prefix no longer resolves to a live account use the Air build archive
 window. The active account plan determines the applicable window, with Air used
 when an account has no active subscription.
+
+macOS runner per-VM warm cache clones are deleted on VM teardown and are not a
+retention source. Any account-level warm cache source under
+`<runnerCacheRoot>/accounts/{account_id}/current` is treated as cache artifact
+data for export and purge purposes while it exists.
 
 Tuist stores per-account cleanup progress for database-backed artifact families so
 daily retention jobs can resume after previously-purged metadata rows without

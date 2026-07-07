@@ -79,6 +79,7 @@ const KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND: &str =
 const KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS: &str = "KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS";
 const KURA_MULTIPART_UPLOAD_TTL_MS: &str = "KURA_MULTIPART_UPLOAD_TTL_MS";
 const KURA_MULTIPART_JANITOR_INTERVAL_MS: &str = "KURA_MULTIPART_JANITOR_INTERVAL_MS";
+const KURA_BOOTSTRAP_ENABLED: &str = "KURA_BOOTSTRAP_ENABLED";
 const KURA_BOOTSTRAP_TIMEOUT_MS: &str = "KURA_BOOTSTRAP_TIMEOUT_MS";
 const KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS: &str = "KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS";
 const KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: &str = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT";
@@ -144,6 +145,7 @@ pub struct Config {
     pub replication_public_latency_target_ms: u64,
     pub multipart_upload_ttl_ms: u64,
     pub multipart_janitor_interval_ms: u64,
+    pub bootstrap_enabled: bool,
     pub bootstrap_timeout_ms: u64,
     pub bootstrap_max_concurrent_peers: usize,
     pub analytics: Option<AnalyticsConfig>,
@@ -839,6 +841,13 @@ impl Config {
                 "{KURA_MULTIPART_JANITOR_INTERVAL_MS} must be greater than 0"
             ));
         }
+        let bootstrap_enabled =
+            optional_parsed_value(&mut lookup, KURA_BOOTSTRAP_ENABLED, &mut invalid, |value| {
+                value
+                    .parse::<bool>()
+                    .map_err(|_| format!("{KURA_BOOTSTRAP_ENABLED} must be a valid bool"))
+            })
+            .unwrap_or(true);
         let bootstrap_timeout_ms = optional_parsed_value(
             &mut lookup,
             KURA_BOOTSTRAP_TIMEOUT_MS,
@@ -1291,6 +1300,7 @@ impl Config {
             replication_public_latency_target_ms,
             multipart_upload_ttl_ms,
             multipart_janitor_interval_ms,
+            bootstrap_enabled,
             bootstrap_timeout_ms,
             bootstrap_max_concurrent_peers,
             analytics,
@@ -1573,6 +1583,7 @@ mod tests {
         );
         assert_eq!(config.tmp_dir_max_bytes, DEFAULT_TMP_DIR_MAX_BYTES);
         assert_eq!(config.replication_public_latency_target_ms, 100);
+        assert!(config.bootstrap_enabled);
         assert_eq!(
             config.accelerated_file_serving,
             AcceleratedFileServingConfig {
@@ -1631,6 +1642,7 @@ mod tests {
                 "10485760",
             ),
             (KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS, "75"),
+            (KURA_BOOTSTRAP_ENABLED, "false"),
             (
                 KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
                 "https://otel.example.com/v1/traces",
@@ -1685,6 +1697,7 @@ mod tests {
             10_485_760
         );
         assert_eq!(config.replication_public_latency_target_ms, 75);
+        assert!(!config.bootstrap_enabled);
         assert_eq!(config.analytics, None);
         assert_eq!(
             config.otlp_traces_endpoint.as_deref(),

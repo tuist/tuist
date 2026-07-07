@@ -388,6 +388,10 @@ impl AppState {
         if !snapshot.initial_discovery_completed || !snapshot.readiness_settled {
             return;
         }
+        if !self.config.bootstrap_enabled {
+            self.runtime.mark_serving();
+            return;
+        }
 
         let bootstrapped = snapshot
             .bootstrapped_peers
@@ -438,10 +442,13 @@ impl AppState {
         {
             reasons.push("discovery settling".to_string());
         }
-        if !self.runtime.is_serving() && !snapshot.bootstrap_inflight_peers.is_empty() {
+        if self.config.bootstrap_enabled
+            && !self.runtime.is_serving()
+            && !snapshot.bootstrap_inflight_peers.is_empty()
+        {
             reasons.push("bootstrap in progress".to_string());
         }
-        if !self.runtime.is_serving() {
+        if self.config.bootstrap_enabled && !self.runtime.is_serving() {
             let bootstrapped = snapshot
                 .bootstrapped_peers
                 .iter()
@@ -700,6 +707,37 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    #[tokio::test]
+    async fn app_state_serves_without_bootstrap_when_bootstrap_is_disabled() {
+        let context = test_context(|config| {
+            config.bootstrap_enabled = false;
+        })
+        .await;
+        let peer = "http://peer.kura.internal:7443".to_string();
+        context
+            .state
+            .apply_membership_view(
+                BTreeSet::from(["remote".to_string()]),
+                BTreeMap::from([(peer.clone(), "remote".to_string())]),
+                true,
+            )
+            .await;
+        context.state.expire_readiness_settle_window().await;
+        context.state.maybe_mark_serving().await;
+
+        let report = context.state.readiness_report().await;
+        assert!(report.ready);
+        assert_eq!(report.state, TrafficState::Serving);
+        assert!(
+            !report
+                .reasons
+                .iter()
+                .any(|reason| reason.contains("bootstrap"))
+        );
+        assert_eq!(report.known_peers, vec![peer]);
+        assert!(report.bootstrapped_peers.is_empty());
     }
 
     #[tokio::test]

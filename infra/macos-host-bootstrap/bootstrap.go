@@ -217,6 +217,28 @@ type Config struct {
 	// follow with `kubeadm`'s `kubeletExtraArgs.node-labels`.
 	NodeLabels map[string]string
 
+	// RunnerCacheRoot is the host directory tart-kubelet uses for
+	// dispatch-bound runner cache volumes. When set, tart-kubelet can
+	// mount per-VM `tuist-cache` shares and clone account warm caches
+	// from <root>/accounts/<account-id>/current into them.
+	RunnerCacheRoot string
+
+	// HostKuraVersion, when set alongside RunnerCacheRoot, makes the bootstrap
+	// download and install the kura binary (the kura@<version> GitHub release,
+	// matching the host arch) to /usr/local/bin/kura and pass
+	// --host-kura-binary to tart-kubelet, enabling the persistent per-account
+	// host Kura (Option A) the runner VMs talk to over the host<->VM bridge.
+	// Empty disables on-host serving; runner VMs fall back to the dispatch
+	// cache endpoint (L2).
+	HostKuraVersion string
+
+	// EMPeerURLTemplate is the plaintext http URL template (with a single %s for
+	// the account id) of the Elastic Metal Kura peer each host Kura replicates
+	// with, passed to tart-kubelet as --em-peer-url-template. Empty runs every
+	// host Kura islanded; the PN mesh fan-out beyond EM is EM's job, not the
+	// Mac's.
+	EMPeerURLTemplate string
+
 	// KnownHostFingerprint is the SHA256 fingerprint of the SSH
 	// server's host key, persisted by the controller after the first
 	// successful bootstrap. When empty (first reconcile, fleet
@@ -316,6 +338,9 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := installNodeExporter(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install node_exporter: %w", err)
 	}
+	if err := installHostKura(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install host kura: %w", err)
+	}
 	if err := writeKubeconfig(ctx, client, cfg.Kubeconfig); err != nil {
 		return hk.Observed(), fmt.Errorf("write kubeconfig: %w", err)
 	}
@@ -400,6 +425,9 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	if err := installNodeExporter(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install node_exporter: %w", err)
 	}
+	if err := installHostKura(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install host kura: %w", err)
+	}
 	if err := loadTartKubeletLaunchd(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("reload launchd job: %w", err)
 	}
@@ -466,6 +494,7 @@ func HostConfigHash(cfg Config) string {
 		{"launchd-plist", renderLaunchdPlist(cfg)},
 		{"tailscale", renderTailscaleScript(cfg)},
 		{"node-exporter", renderNodeExporterScript()},
+		{"host-kura-install", renderHostKuraInstallScript(cfg)},
 		{"tart-kubelet-install", renderTartKubeletInstallScript()},
 	} {
 		b.WriteString(part.name)
@@ -607,6 +636,13 @@ func loadTartKubeletLaunchd(ctx context.Context, client *ssh.Client, cfg Config)
 // owns kubelet's writable paths, so it is config-shaped and folds into
 // the host config hash.
 func renderTartKubeletLaunchdScript(cfg Config) string {
+	installDirs := "/var/log/tart-vms /var/lib/tart-userdata /etc/tart-kubelet"
+	chownDirs := "/var/log/tart-vms /var/lib/tart-userdata /var/log/tart-kubelet.log"
+	if cfg.RunnerCacheRoot != "" {
+		quotedRoot := shellQuote(cfg.RunnerCacheRoot)
+		installDirs += " " + quotedRoot
+		chownDirs += " " + quotedRoot
+	}
 	return fmt.Sprintf(`set -euo pipefail
 PLIST=/Library/LaunchDaemons/dev.tuist.tart-kubelet.plist
 NEW="$(mktemp)"
@@ -616,9 +652,9 @@ cat >"$NEW"
 # owned by the user with the live GUI console session — see
 # renderLaunchdPlist's UserName field. Hand kubelet-writable paths to
 # that user so it can write VM logs / userdata / read its kubeconfig.
-sudo mkdir -p /var/log/tart-vms /var/lib/tart-userdata /etc/tart-kubelet
+sudo mkdir -p %[2]s
 sudo touch /var/log/tart-kubelet.log
-sudo chown -R %[1]s:staff /var/log/tart-vms /var/lib/tart-userdata /var/log/tart-kubelet.log
+sudo chown -R %[1]s:staff %[3]s
 sudo chown %[1]s:staff /etc/tart-kubelet/kubeconfig
 sudo chmod 0600 /etc/tart-kubelet/kubeconfig
 
@@ -665,7 +701,7 @@ sudo launchctl kickstart -k system/dev.tuist.tart-kubelet 2>/dev/null || true
 settled && exit 0
 echo "tart-kubelet did not reach a running state after launchd reload" >&2
 exit 1
-`, shellQuote(cfg.SSHUser))
+`, shellQuote(cfg.SSHUser), installDirs, chownDirs)
 }
 
 func renderLaunchdPlist(cfg Config) string {
@@ -752,6 +788,21 @@ func renderLaunchdPlist(cfg Config) string {
 	if cfg.GHActionsRunner != nil || cfg.DisableVMGC {
 		disableVMGCArg = "\n    <string>--disable-vm-gc</string>"
 	}
+	runnerCacheRootArg := ""
+	if cfg.RunnerCacheRoot != "" {
+		runnerCacheRootArg = fmt.Sprintf("\n    <string>--runner-cache-root=%s</string>", cfg.RunnerCacheRoot)
+	}
+	// Option A: point tart-kubelet at the host kura binary (installed by
+	// installHostKura) and, when wired, the EM peer template. Both are gated on
+	// HostKuraVersion — no version, no host-Kura path.
+	hostKuraBinaryArg := ""
+	emPeerURLTemplateArg := ""
+	if cfg.HostKuraVersion != "" {
+		hostKuraBinaryArg = "\n    <string>--host-kura-binary=/usr/local/bin/kura</string>"
+		if cfg.EMPeerURLTemplate != "" {
+			emPeerURLTemplateArg = fmt.Sprintf("\n    <string>--em-peer-url-template=%s</string>", cfg.EMPeerURLTemplate)
+		}
+	}
 	// Run tart-kubelet as the SSH user (m1). Apple's
 	// Virtualization.framework requires the calling process to be the
 	// same user that holds the live GUI console session — Tart's
@@ -774,7 +825,7 @@ func renderLaunchdPlist(cfg Config) string {
     <string>--kubeconfig=/etc/tart-kubelet/kubeconfig</string>
     <string>--host-cpu=%[2]d</string>
     <string>--host-memory-mb=%[3]d</string>
-    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s
+    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s%[10]s%[11]s%[12]s
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -788,7 +839,7 @@ func renderLaunchdPlist(cfg Config) string {
   </dict>
 </dict>
 </plist>
-`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg)
+`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg, runnerCacheRootArg, hostKuraBinaryArg, emPeerURLTemplateArg)
 }
 
 func shellQuote(s string) string {
@@ -1756,6 +1807,53 @@ func installNodeExporter(ctx context.Context, client *ssh.Client, cfg Config) er
 		return nil
 	}
 	return RunCommandWithStdin(ctx, client, renderNodeExporterScript(), bytes.NewReader(cfg.NodeExporterBinary))
+}
+
+// installHostKura downloads and installs the kura binary onto the Mac host for
+// the persistent per-account host Kura (Option A). Unlike tart-kubelet (piped
+// from the operator image), kura is a released artifact, so it's fetched from
+// the kura@<version> GitHub release matching the host arch — the same asset the
+// runner VM image installs. No-op unless both the cache root and a kura version
+// are configured. Idempotent: a version stamp lets a re-run skip the download.
+func installHostKura(ctx context.Context, client *ssh.Client, cfg Config) error {
+	if cfg.RunnerCacheRoot == "" || cfg.HostKuraVersion == "" {
+		return nil
+	}
+	return RunCommand(ctx, client, renderHostKuraInstallScript(cfg))
+}
+
+// renderHostKuraInstallScript downloads kura@<version> for the host arch and
+// installs it to /usr/local/bin/kura. It re-signs ad-hoc after a fresh-inode
+// replace for the same AMFI reason installTartKubelet does, and stamps the
+// installed version so an unchanged version is a no-op.
+func renderHostKuraInstallScript(cfg Config) string {
+	return fmt.Sprintf(`set -euo pipefail
+KURA_VERSION=%s
+STAMP=/usr/local/bin/.kura-version
+if [ -x /usr/local/bin/kura ] && [ "$(cat "${STAMP}" 2>/dev/null)" = "${KURA_VERSION}" ]; then
+  echo "kura ${KURA_VERSION} already installed"
+  exit 0
+fi
+ARCH="$(uname -m)"
+case "${ARCH}" in
+  arm64) KURA_ASSET='kura-aarch64-apple-darwin.tar.gz' ;;
+  x86_64) KURA_ASSET='kura-x86_64-apple-darwin.tar.gz' ;;
+  *) echo "unsupported kura arch ${ARCH}" >&2; exit 1 ;;
+esac
+KURA_URL="https://github.com/tuist/tuist/releases/download/kura@${KURA_VERSION}/${KURA_ASSET}"
+rm -rf /tmp/host-kura-install /tmp/host-kura.tar.gz
+mkdir -p /tmp/host-kura-install
+curl -fsSL -o /tmp/host-kura.tar.gz "${KURA_URL}"
+tar -xzf /tmp/host-kura.tar.gz -C /tmp/host-kura-install
+KURA_BIN="$(find /tmp/host-kura-install -type f -name kura | head -n 1)"
+test -n "${KURA_BIN}"
+sudo rm -f /usr/local/bin/kura
+sudo install -m 0755 "${KURA_BIN}" /usr/local/bin/kura
+sudo codesign --force --sign - /usr/local/bin/kura
+test -x /usr/local/bin/kura
+echo "${KURA_VERSION}" | sudo tee "${STAMP}" >/dev/null
+rm -rf /tmp/host-kura-install /tmp/host-kura.tar.gz
+`, shellQuote(cfg.HostKuraVersion))
 }
 
 // renderNodeExporterScript is the static SSH script that installs the
