@@ -152,24 +152,14 @@ public struct LaunchAgentService: LaunchAgentServicing {
             throw LaunchAgentServiceError.missingExecutablePath
         }
 
-        if currentPath.pathString.contains("/.local/share/mise/installs/tuist/") {
-            let homeDir = Environment.current.homeDirectory
-
-            let misePath = homeDir.appending(
-                components: ".local", "share", "mise", "installs", "tuist", "latest", "tuist"
-            )
-            if try await fileSystem.exists(misePath) {
-                return misePath
-            }
-
-            let oldMisePath = homeDir.appending(
-                components: ".local", "share", "mise", "installs", "tuist", "latest", "bin", "tuist"
-            )
-            if try await fileSystem.exists(oldMisePath) {
-                return oldMisePath
-            }
-        }
-
+        // Pin the launch agent to the exact binary that registered it. A mise
+        // setup previously rewrote the concrete versioned install to mise's
+        // `latest` symlink, but `latest` tracks the newest *stable* install, not
+        // the project's pinned or canary version. That silently launches a tuist
+        // predating the arguments baked into the plist (e.g. `--url`), which
+        // exits with an "unknown option" error. The mise postinstall hook
+        // re-runs `tuist setup` on every version change, so pinning the concrete
+        // path stays self-healing.
         return currentPath
     }
 
