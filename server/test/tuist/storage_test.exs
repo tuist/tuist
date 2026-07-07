@@ -7,6 +7,7 @@ defmodule Tuist.StorageTest do
   alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.Storage
+  alias Tuist.Storage.AzureBlob
 
   setup do
     # Mock ExAws.Config.new to return a proper config that won't try to access instance metadata
@@ -778,6 +779,37 @@ defmodule Tuist.StorageTest do
     end
   end
 
+  describe "bucket helpers" do
+    test "list_objects_from_bucket uses S3 by default" do
+      bucket_name = UUIDv7.generate()
+      operation = %S3{body: UUIDv7.generate()}
+
+      expect(ExAws.S3, :list_objects_v2, fn ^bucket_name, [prefix: "prefix", max_keys: 10] ->
+        operation
+      end)
+
+      expect(ExAws, :request, fn ^operation, config ->
+        assert config.access_key_id == "test-access-key"
+        {:ok, %{body: %{contents: []}}}
+      end)
+
+      assert Storage.list_objects_from_bucket(bucket_name, prefix: "prefix", max_keys: 10) ==
+               {:ok, %{body: %{contents: []}}}
+    end
+
+    test "list_objects_from_bucket can opt into Azure Blob" do
+      bucket_name = UUIDv7.generate()
+
+      expect(AzureBlob, :list_objects, fn ^bucket_name, opts ->
+        assert opts[:storage_provider] == :azure_blob
+        {:ok, %{body: %{contents: []}}}
+      end)
+
+      assert Storage.list_objects_from_bucket(bucket_name, storage_provider: :azure_blob) ==
+               {:ok, %{body: %{contents: []}}}
+    end
+  end
+
   describe "get_object_size/1" do
     test "gets the size using ExAws.S3 and sends the right telemetry event" do
       # Given
@@ -1263,6 +1295,36 @@ defmodule Tuist.StorageTest do
 
       # Then
       assert result == url
+    end
+  end
+
+  describe "azure blob provider" do
+    test "delegates generated download URLs to Azure Blob when configured as the default provider" do
+      object_key = UUIDv7.generate()
+      url = "https://tuiststorage.blob.core.windows.net/tuist/#{object_key}?sig=signature"
+
+      expect(Environment, :object_storage_provider, fn -> :azure_blob end)
+      expect(AzureBlob, :generate_download_url, fn ^object_key, _opts -> url end)
+
+      assert Storage.generate_download_url(object_key, :test) == url
+    end
+
+    test "custom S3 storage takes precedence over the Azure Blob default provider" do
+      account = %Account{
+        s3_bucket_name: "custom-bucket",
+        s3_access_key_id: "CUSTOM_ACCESS_KEY",
+        s3_secret_access_key: "CUSTOM_SECRET_KEY"
+      }
+
+      object_key = UUIDv7.generate()
+      url = "https://custom-bucket.s3.amazonaws.com/test-key"
+
+      expect(ExAws.S3, :presigned_url, fn config, :get, "custom-bucket", ^object_key, _opts ->
+        assert config.access_key_id == "CUSTOM_ACCESS_KEY"
+        {:ok, url}
+      end)
+
+      assert Storage.generate_download_url(object_key, account) == url
     end
   end
 end

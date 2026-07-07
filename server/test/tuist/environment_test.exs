@@ -189,6 +189,48 @@ defmodule Tuist.EnvironmentTest do
     end
   end
 
+  describe "object_storage_provider/1" do
+    test "defaults to S3" do
+      assert Environment.object_storage_provider(%{}) == :s3
+    end
+
+    test "returns azure_blob when configured in secrets" do
+      assert Environment.object_storage_provider(%{"object_storage" => %{"provider" => "azure_blob"}}) == :azure_blob
+    end
+
+    test "raises for unsupported providers" do
+      assert_raise RuntimeError, ~r/Unsupported TUIST_OBJECT_STORAGE_PROVIDER/, fn ->
+        Environment.object_storage_provider(%{"object_storage" => %{"provider" => "gcs"}})
+      end
+    end
+  end
+
+  describe "azure blob storage configuration" do
+    test "reads account configuration from secrets" do
+      secrets = %{
+        "azure_blob" => %{
+          "account_name" => "tuiststorage",
+          "account_key" => "account-key",
+          "container_name" => "tuist",
+          "endpoint" => "https://blob.internal",
+          "service_version" => "2020-12-06"
+        }
+      }
+
+      assert Environment.azure_storage_account_name(secrets) == "tuiststorage"
+      assert Environment.azure_storage_account_key(secrets) == "account-key"
+      assert Environment.azure_blob_container_name(secrets) == "tuist"
+      assert Environment.azure_blob_endpoint(secrets) == "https://blob.internal"
+      assert Environment.azure_blob_service_version(secrets) == "2020-12-06"
+    end
+
+    test "derives the public blob endpoint from the account name when endpoint is omitted" do
+      secrets = %{"azure_blob" => %{"account_name" => "tuiststorage"}}
+
+      assert Environment.azure_blob_endpoint(secrets) == "https://tuiststorage.blob.core.windows.net"
+    end
+  end
+
   describe "mode/1" do
     test "defaults to :web when TUIST_MODE is unset or empty" do
       assert Environment.mode(nil) == :web

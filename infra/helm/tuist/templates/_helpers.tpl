@@ -185,6 +185,30 @@ http://{{ include "tuist.componentName" (dict "root" . "component" "object-stora
 {{- end -}}
 {{- end -}}
 
+{{- define "tuist.serverObjectStorageEnv" -}}
+- name: TUIST_OBJECT_STORAGE_PROVIDER
+  value: {{ .Values.server.storage.provider | quote }}
+{{- if eq .Values.server.storage.provider "azure_blob" }}
+- name: TUIST_AZURE_STORAGE_ACCOUNT_NAME
+  value: {{ .Values.server.azureBlob.accountName | quote }}
+- name: TUIST_AZURE_BLOB_CONTAINER_NAME
+  value: {{ .Values.server.azureBlob.containerName | quote }}
+{{- with .Values.server.azureBlob.endpoint }}
+- name: TUIST_AZURE_BLOB_ENDPOINT
+  value: {{ . | quote }}
+{{- end }}
+- name: TUIST_AZURE_BLOB_SERVICE_VERSION
+  value: {{ .Values.server.azureBlob.serviceVersion | quote }}
+{{- if .Values.server.azureBlob.accountKey }}
+- name: TUIST_AZURE_STORAGE_ACCOUNT_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+      key: azure-blob-account-key
+{{- end }}
+{{- end }}
+{{- end -}}
+
 {{/*
 Cache app's DATABASE_URL. Resolves to (in order):
   1. cache.databaseUrl when set explicitly (self-hosted with own Postgres).

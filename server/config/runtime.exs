@@ -424,23 +424,7 @@ if Tuist.Environment.error_tracking_enabled?() do
     before_send: {Tuist.SentryEventFilter, :before_send}
 end
 
-# Ex.AWS
 if Tuist.Environment.env() not in [:test] do
-  %{host: s3_endpoint_host, scheme: s3_scheme, port: s3_port} =
-    secrets |> Tuist.Environment.s3_endpoint() |> URI.parse()
-
-  s3_config =
-    then(
-      [
-        scheme: "#{s3_scheme}://",
-        host: s3_endpoint_host,
-        region: Tuist.Environment.s3_region(secrets),
-        virtual_host: Tuist.Environment.s3_virtual_host(secrets),
-        bucket_as_host: Tuist.Environment.s3_bucket_as_host(secrets)
-      ],
-      &if(is_nil(s3_port), do: &1, else: Keyword.put(&1, :port, s3_port))
-    )
-
   config :ex_aws, :req_opts,
     # Note: connect_options cannot be used with Finch
     # Connection timeout is handled at the Finch pool level
@@ -460,18 +444,42 @@ if Tuist.Environment.env() not in [:test] do
     # become available before timing out
     pool_timeout: Tuist.Environment.s3_pool_timeout(secrets)
 
-  config :ex_aws, :s3, s3_config
-
-  config :ex_aws,
-         Tuist.AWS.S3AuthenticationConfig.ex_aws_config(
-           Tuist.Environment.s3_authentication_method(secrets),
-           secrets
-         )
-
   config :ex_aws,
     http_client: TuistCommon.AWS.Client
 
   config :tuist_common, finch_name: Tuist.Finch
+
+  s3_endpoint = Tuist.Environment.get([:s3, :endpoint], secrets)
+
+  s3_runtime_configured? =
+    Tuist.Environment.object_storage_provider(secrets) == :s3 or
+      (is_binary(s3_endpoint) and s3_endpoint != "") or
+      (not is_binary(s3_endpoint) and not is_nil(s3_endpoint))
+
+  if s3_runtime_configured? do
+    %{host: s3_endpoint_host, scheme: s3_scheme, port: s3_port} =
+      secrets |> Tuist.Environment.s3_endpoint() |> URI.parse()
+
+    s3_config =
+      then(
+        [
+          scheme: "#{s3_scheme}://",
+          host: s3_endpoint_host,
+          region: Tuist.Environment.s3_region(secrets),
+          virtual_host: Tuist.Environment.s3_virtual_host(secrets),
+          bucket_as_host: Tuist.Environment.s3_bucket_as_host(secrets)
+        ],
+        &if(is_nil(s3_port), do: &1, else: Keyword.put(&1, :port, s3_port))
+      )
+
+    config :ex_aws, :s3, s3_config
+
+    config :ex_aws,
+           Tuist.AWS.S3AuthenticationConfig.ex_aws_config(
+             Tuist.Environment.s3_authentication_method(secrets),
+             secrets
+           )
+  end
 end
 
 # Stripe config

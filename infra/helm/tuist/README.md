@@ -13,6 +13,8 @@ Noora Storybook ships from the standalone `infra/helm/noora-storybook/` chart so
 
 Each dependency defaults to `embedded` (deployed within the chart). To use an external provider instead, set its `mode` to `external` and configure the connection details under the corresponding section in `values.yaml`.
 
+The Tuist server can use Azure Blob Storage for server-owned artifacts by setting `server.storage.provider: azure_blob` and filling `server.azureBlob.*`. The top-level `objectStorage` dependency remains S3-compatible because optional workloads such as the cache service and registry mirror still use S3-compatible APIs. For Azure-only deployments with those workloads disabled, set `objectStorage.mode: external` and leave the external object-storage endpoint and credentials empty to avoid deploying the embedded MinIO StatefulSet.
+
 External PostgreSQL with an existing Secret:
 
 ```yaml

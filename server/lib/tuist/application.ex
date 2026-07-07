@@ -425,9 +425,9 @@ defmodule Tuist.Application do
     if Environment.test?() do
       %{:default => [size: 10]}
     else
-      {s3_endpoint, s3_pool_opts} =
+      {object_storage_endpoint, object_storage_pool_opts} =
         TuistCommon.FinchPools.s3_pool(
-          endpoint: Environment.s3_endpoint(),
+          endpoint: object_storage_endpoint(),
           size: Environment.s3_pool_size(),
           count: Environment.s3_pool_count(),
           protocols: Environment.s3_protocols(),
@@ -453,7 +453,7 @@ defmodule Tuist.Application do
             protocols: [:http2, :http1],
             start_pool_metrics?: true
           ],
-          s3_endpoint => s3_pool_opts,
+          object_storage_endpoint => object_storage_pool_opts,
           "https://marketing.tuist.dev" => [
             conn_opts: [
               log: true,
@@ -494,6 +494,13 @@ defmodule Tuist.Application do
         end)
 
       Map.merge(base_pools, additional_pools)
+    end
+  end
+
+  defp object_storage_endpoint do
+    case Environment.object_storage_provider() do
+      :azure_blob -> Environment.azure_blob_endpoint()
+      :s3 -> Environment.s3_endpoint()
     end
   end
 

@@ -129,6 +129,7 @@ public struct UploadPreviewIconService: UploadPreviewIconServicing {
             request.setValue(String(fileSize), forHTTPHeaderField: "Content-Length")
         }
         request.httpBody = data
+        request.addAzureBlobTypeHeaderIfNeeded()
         return request
     }
 }
