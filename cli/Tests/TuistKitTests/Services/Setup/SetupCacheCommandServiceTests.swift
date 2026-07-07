@@ -65,6 +65,7 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
 
         let config = Tuist.test(
             project: .generated(.test(generationOptions: .test(enableCaching: true))),
@@ -99,7 +100,7 @@ struct SetupCacheCommandServiceTests {
 
         let success = try #require(alertController.success().last)
         #expect(success.message.plain().contains("Xcode Cache has been enabled 🎉"))
-        #expect(success.takeaways.contains { $0.plain().contains("The cache proxy is running") })
+        #expect(success.takeaways.contains { $0.plain().contains("Xcode Cache is set up") })
     }
 
     @Test(
@@ -110,6 +111,7 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
 
         let config = Tuist.test(fullHandle: "organization/project")
         configLoader.reset()
@@ -133,6 +135,7 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
 
         let customURL = URL(string: "https://custom.tuist.dev")!
         let config = Tuist.test(
@@ -167,6 +170,7 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
 
         let config = Tuist.test(fullHandle: "organization/project")
         configLoader.reset()
@@ -192,6 +196,7 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
 
         let config = Tuist.test(fullHandle: nil)
         configLoader.reset()
@@ -209,6 +214,7 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
 
         serverAuthenticationController.reset()
         given(serverAuthenticationController)
@@ -230,6 +236,7 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
         let token = "test-auth-token-123"
         environment.variables[Constants.EnvironmentVariables.token] = token
 
@@ -257,9 +264,9 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
         let token = "test-auth-token-123"
         environment.variables[Constants.EnvironmentVariables.token] = token
-        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
 
         let config = Tuist.test(fullHandle: "organization/project")
         configLoader.reset()
@@ -290,6 +297,7 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
         let token = "test-auth-token-123"
         environment.variables[Constants.EnvironmentVariables.token] = token
         environment.variables["TUIST_CACHE_ENDPOINT"] = "http://172.16.0.2:30815"
@@ -327,6 +335,7 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
         environment.variables[Constants.EnvironmentVariables.token] = nil
 
         let config = Tuist.test(fullHandle: "organization/project")
@@ -357,6 +366,7 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
 
         let config = Tuist.test(
             project: .generated(.test(generationOptions: .test(enableCaching: false))),
@@ -384,7 +394,7 @@ struct SetupCacheCommandServiceTests {
         TuistTest
             .expectLogs("To enable Xcode Cache for this project, set the enableCaching property in your Tuist.swift file to true:"
             )
-        TuistTest.expectLogs("The cache proxy is running")
+        TuistTest.expectLogs("Xcode Cache is set up")
     }
 
     @Test(
@@ -394,6 +404,7 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
 
         let config = Tuist.test(fullHandle: "organization/project")
         configLoader.reset()
