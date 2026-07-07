@@ -25,6 +25,9 @@ tokio = { version = "1.48", features = ["rt-multi-thread", "time"] }
 # SQLite in, so the universal build has no system dependency.
 rusqlite = { version = "0.32", features = ["bundled"] }
 base64 = "0.22"
+# Formats `created_at` in the exact SQLite.swift `Date` text the shared
+# cas_analytics.db uses; `macros` gives a compile-time-checked format string.
+time = { version = "0.3", features = ["formatting", "macros"] }
 
 [profile.release]
 opt-level = 2

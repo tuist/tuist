@@ -190,6 +190,10 @@ pub fn parse_cas_references(data: &[u8]) -> Vec<(Vec<u8>, String)> {
 /// The proxy and the Swift writer share the same `cas_analytics.db`, so the
 /// column type and format must match or one side's inserts land in a schema the
 /// other created.
+const CREATED_AT_FORMAT: &[time::format_description::FormatItem<'_>] = time::macros::format_description!(
+    "[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond digits:3]"
+);
+
 fn now_iso8601() -> String {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -198,25 +202,11 @@ fn now_iso8601() -> String {
 }
 
 fn iso8601_from_unix(secs: u64, millis: u32) -> String {
-    let days = (secs / 86_400) as i64;
-    let rem = secs % 86_400;
-    let (hour, minute, second) = (rem / 3600, (rem % 3600) / 60, rem % 60);
-    let (year, month, day) = civil_from_days(days);
-    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}.{millis:03}")
-}
-
-/// Howard Hinnant's `civil_from_days`: days since 1970-01-01 -> (year, month, day).
-fn civil_from_days(z: i64) -> (i64, u64, u64) {
-    let z = z + 719_468;
-    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
-    let doe = (z - era * 146_097) as u64;
-    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
-    let year = yoe as i64 + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let day = doy - (153 * mp + 2) / 5 + 1;
-    let month = if mp < 10 { mp + 3 } else { mp - 9 };
-    (if month <= 2 { year + 1 } else { year }, month, day)
+    let nanos = i128::from(secs) * 1_000_000_000 + i128::from(millis) * 1_000_000;
+    time::OffsetDateTime::from_unix_timestamp_nanos(nanos)
+        .ok()
+        .and_then(|dt| dt.format(CREATED_AT_FORMAT).ok())
+        .unwrap_or_default()
 }
 
 fn writer_loop(mut conn: Connection, receiver: Receiver<Record>) {
@@ -294,7 +284,6 @@ mod tests {
         assert_eq!(iso8601_from_unix(0, 0), "1970-01-01T00:00:00.000");
         // 1_000_000_000 unix seconds is the well-known 2001-09-09T01:46:40 UTC.
         assert_eq!(iso8601_from_unix(1_000_000_000, 500), "2001-09-09T01:46:40.500");
-        assert_eq!(civil_from_days(-1), (1969, 12, 31));
     }
 
     #[test]
