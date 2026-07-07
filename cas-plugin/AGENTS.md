@@ -44,16 +44,40 @@ Xcode passes `-cas-plugin-option <name>=<value>` flags to the plugin via `llcas_
 
 - `tuist-instance=<account/project>` - the instance this build routes to; takes precedence over `TUIST_CAS_ACCOUNT`/`TUIST_CAS_PROJECT`. `tuist-*` options are consumed here and never forwarded to the wrapped plugin.
 
-## Build and use
+## Development
+
+A source-built `tuist` has nothing bundled beside it, so `ResourceLocator` and the generation mapper find no dylib and fall back to local-only caching. Point them at your `cargo`-built artifacts with two overrides:
 
 ```sh
-cargo build --release
-xcodebuild ... \
-  COMPILATION_CACHE_ENABLE_CACHING=YES COMPILATION_CACHE_ENABLE_PLUGIN=YES \
-  COMPILATION_CACHE_PLUGIN_PATH=$PWD/target/release/libtuist_cas_plugin.dylib
+cd cas-plugin && mise run build   # → target/release/{libtuist_cas_plugin.dylib, tuist-cas-proxy}
+export TUIST_CAS_PLUGIN_PATH="$PWD/target/release/libtuist_cas_plugin.dylib"
+export TUIST_CAS_PROXY_PATH="$PWD/target/release/tuist-cas-proxy"
 ```
 
-Requires `SWIFT_ENABLE_EXPLICIT_MODULES` and works with Xcode 26.x. The manual invocation above is for local plugin development; the CLI ships and wires this automatically (`tuist setup cache` installs the proxy launchd agent, `tuist generate` bakes the settings into generated projects, and the dylib + proxy binary ship in CLI releases).
+**Through a dev `tuist` (recommended).** With both exports set and logged in (`tuist auth`), run the proxy foregrounded (it resolves the kura endpoint and auto-refreshes the token, like production), then generate + build in another shell:
+
+```sh
+tuist cache-proxy --url https://tuist.dev   # hidden command; Ctrl-C to stop
+tuist generate                              # bakes the dev dylib path + tuist-instance
+```
+
+`tuist setup cache` / `tuist teardown cache` install and remove the same thing as a launchd agent (honoring `TUIST_CAS_PROXY_PATH`).
+
+**Plugin/proxy only (fastest Rust loop).** Run the proxy binary directly and hand `xcodebuild` the dev dylib; the plugin auto-finds the proxy at the default socket. You supply the kura gRPC URL yourself (no endpoint resolution):
+
+```sh
+TUIST_CAS_REMOTE_GRPC_URL="<kura grpc url>" TUIST_CAS_TUIST_BIN="$(which tuist)" \
+TUIST_CAS_SERVER_URL="https://tuist.dev" ./target/release/tuist-cas-proxy
+xcodebuild ... \
+  COMPILATION_CACHE_ENABLE_CACHING=YES COMPILATION_CACHE_ENABLE_PLUGIN=YES \
+  COMPILATION_CACHE_PLUGIN_PATH="$PWD/target/release/libtuist_cas_plugin.dylib" \
+  COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES \
+  OTHER_SWIFT_FLAGS="-cas-plugin-option tuist-instance=<account>/<project>"
+```
+
+For **direct mode** (no proxy, bench/debug), put `TUIST_CAS_REMOTE_GRPC_URL` + `TUIST_CAS_TOKEN` in the build environment instead of running a proxy: the plugin opens its own REAPI channel per compiler.
+
+Requires `SWIFT_ENABLE_EXPLICIT_MODULES` and works with Xcode 26.x. `TUIST_CAS_LOG=/tmp/cas.log` appends per-process stats on dispose and `COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS` prints Xcode's hit/miss remarks in the build log. In a shipped CLI all of this is automatic (`tuist setup cache` + `tuist generate`; the dylib and proxy ship next to `tuist`).
 
 ## Kura placement (on-host vs PN node)
 
