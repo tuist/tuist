@@ -167,9 +167,11 @@ defmodule Tuist.RunnersTest do
     # JIT mint, whose `labels` the caller asserts on. The PG-backed
     # `RunnerSessions.open/1` and `Accounts.get_account_by_id/1` run
     # for real against the sandboxed repo.
-    defp stub_dispatch_path(account, candidate, test_pid) do
-      expect(K8sClient, :get_service_account, fn "tuist-runners", "pod-1" ->
-        {:ok, sa_with_pool_label("pod-1", "fleet-a")}
+    defp stub_dispatch_path(account, candidate, test_pid, opts \\ []) do
+      pod_name = Keyword.get(opts, :pod_name, "pod-1")
+
+      expect(K8sClient, :get_service_account, fn "tuist-runners", ^pod_name ->
+        {:ok, sa_with_pool_label(pod_name, "fleet-a")}
       end)
 
       # Missing RunnerPool downgrades the stale-image check to :ok.
@@ -178,8 +180,12 @@ defmodule Tuist.RunnersTest do
       end)
 
       expect(Jobs, :pick_queued, fn "fleet-a", _ineligible -> {:ok, candidate} end)
-      expect(Claims, :attempt, fn 90_001, _account_id, "fleet-a", "pod-1" -> {:ok, %{claimed_at: DateTime.utc_now()}} end)
-      expect(Jobs, :record_claimed, fn ^candidate, "pod-1", _claimed_at -> :ok end)
+
+      expect(Claims, :attempt, fn 90_001, _account_id, "fleet-a", ^pod_name ->
+        {:ok, %{claimed_at: DateTime.utc_now()}}
+      end)
+
+      expect(Jobs, :record_claimed, fn ^candidate, ^pod_name, _claimed_at -> :ok end)
 
       expect(Dispatch, :pool_summary_by_name, fn "fleet-a" ->
         {:ok, %{dispatch_label: "shape-linux-4vcpu-16gb", runner_labels: ["self-hosted", "Linux", "X64"]}}
@@ -192,13 +198,23 @@ defmodule Tuist.RunnersTest do
         {:ok, %{installation_id: 42, client_url: "https://github.com"}}
       end)
 
-      expect(GitHubClient, :generate_jit_config, fn _installation, _login, %{labels: labels} ->
+      expect(GitHubClient, :generate_jit_config, fn _installation, _login, %{labels: labels, name: runner_name} ->
         send(test_pid, {:jit_labels, labels})
-        {:ok, %{encoded_jit_config: "jit-blob", runner_name: "pod-1"}}
+        send(test_pid, {:jit_runner_name, runner_name})
+        {:ok, %{encoded_jit_config: "jit-blob", runner_name: runner_name}}
       end)
 
-      expect(Claims, :mark_running, fn 90_001, "pod-1" -> :ok end)
-      expect(Jobs, :record_running, fn 90_001, "pod-1" -> :ok end)
+      expect(Claims, :mark_running, fn 90_001, runner_name ->
+        assert String.starts_with?(runner_name, String.slice(pod_name, 0, 55))
+        assert byte_size(runner_name) <= 64
+        :ok
+      end)
+
+      expect(Jobs, :record_running, fn 90_001, runner_name ->
+        assert String.starts_with?(runner_name, String.slice(pod_name, 0, 55))
+        assert byte_size(runner_name) <= 64
+        :ok
+      end)
     end
 
     test "stamps the candidate's requested_dispatch_label on the minted JIT" do
@@ -206,7 +222,9 @@ defmodule Tuist.RunnersTest do
       candidate = candidate_with_label(account, "tuist-default")
       stub_dispatch_path(account, candidate, self())
 
-      assert {:ok, %{runner_name: "pod-1"}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert {:ok, %{runner_name: runner_name}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert String.starts_with?(runner_name, "pod-1-")
+      assert byte_size(runner_name) <= 64
 
       assert_receive {:jit_labels, labels}
       # The customer's profile label wins; the pool's internal
@@ -216,12 +234,27 @@ defmodule Tuist.RunnersTest do
       refute "shape-linux-4vcpu-16gb" in labels
     end
 
+    test "keeps generated GitHub runner names within the API limit" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default")
+      pod_name = "tuist-tuist-runner-pool-linux-ubuntu-22-04-runner-01234567"
+      stub_dispatch_path(account, candidate, self(), pod_name: pod_name)
+
+      assert {:ok, %{runner_name: runner_name}} = Runners.dispatch_for_sa("tuist-runners", pod_name)
+
+      assert_receive {:jit_runner_name, ^runner_name}
+      assert byte_size(runner_name) == 64
+      assert runner_name =~ ~r/-[0-9a-f]{8}$/
+      assert runner_name != pod_name
+    end
+
     test "falls back to the pool dispatchLabel when the candidate has no requested label (legacy row)" do
       account = account_fixture()
       candidate = candidate_with_label(account, "")
       stub_dispatch_path(account, candidate, self())
 
-      assert {:ok, %{runner_name: "pod-1"}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert {:ok, %{runner_name: runner_name}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert String.starts_with?(runner_name, "pod-1-")
 
       assert_receive {:jit_labels, labels}
       assert "shape-linux-4vcpu-16gb" in labels
@@ -240,7 +273,8 @@ defmodule Tuist.RunnersTest do
       expect(K8sClient, :patch_pod, fn _ns, _pod, _patch -> {:error, :timeout} end)
       expect(K8sClient, :patch_pod, fn _ns, _pod, _patch -> {:ok, %{}} end)
 
-      assert {:ok, %{runner_name: "pod-1"}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert {:ok, %{runner_name: runner_name}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert String.starts_with?(runner_name, "pod-1-")
       assert_receive {:jit_labels, _labels}
     end
 
@@ -254,7 +288,8 @@ defmodule Tuist.RunnersTest do
       # not retried forever — verify_on_exit! asserts exactly 3 calls.
       expect(K8sClient, :patch_pod, 3, fn _ns, _pod, _patch -> {:error, :timeout} end)
 
-      assert {:ok, %{runner_name: "pod-1"}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert {:ok, %{runner_name: runner_name}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert String.starts_with?(runner_name, "pod-1-")
     end
   end
 end
