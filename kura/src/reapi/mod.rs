@@ -775,8 +775,8 @@ impl ContentAddressableStorage for ReapiService {
                 continue;
             }
             match persist_cas_blob(&self.state, namespace_id, &digest, &item.data).await {
-                Ok(outcome) => {
-                    if outcome.stored() {
+                Ok(newly_stored) => {
+                    if newly_stored {
                         stored_bytes = stored_bytes.saturating_add(item.data.len() as u64);
                         stored_any = true;
                     }
@@ -1210,18 +1210,19 @@ async fn maybe_read_cas_bytes(
     Ok(Some(bytes))
 }
 
+// Persists a CAS blob and returns whether it was newly stored (`true`) or was
+// already present (`false`). Billing uses this to charge only new bytes, the
+// same signal the HTTP upload path uses (`artifact_exists`) — a re-upload that
+// advances the stored version still persists as `Applied`, so the version-based
+// outcome can't stand in for "was already present".
 async fn persist_cas_blob(
     state: &SharedState,
     namespace_id: &str,
     digest: &reapi::Digest,
     bytes: &[u8],
-) -> Result<PersistOutcome, String> {
+) -> Result<bool, String> {
     validate_digest_bytes(digest, bytes)?;
     let key = blob_key(&digest_key(digest).map_err(|error| error.message().to_owned())?);
-    // Check presence before storing so we can bill only newly-stored bytes, the
-    // same signal the HTTP upload path uses (`artifact_exists`). A re-upload that
-    // advances the stored version still returns `Applied`, so the version-based
-    // outcome can't stand in for "was already present".
     let already_present = state
         .store
         .artifact_exists(ArtifactProducer::Reapi, namespace_id, &key)
@@ -1242,26 +1243,7 @@ async fn persist_cas_blob(
     state
         .metrics
         .record_artifact_write(ArtifactProducer::Reapi, "ok", manifest.size);
-    Ok(if already_present {
-        PersistOutcome::AlreadyPresent
-    } else {
-        PersistOutcome::Stored
-    })
-}
-
-// Whether a persist call actually added new bytes, so only newly-stored blobs
-// are billed — matching the HTTP upload path, which never bills an
-// already-present blob.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum PersistOutcome {
-    Stored,
-    AlreadyPresent,
-}
-
-impl PersistOutcome {
-    fn stored(self) -> bool {
-        matches!(self, PersistOutcome::Stored)
-    }
+    Ok(!already_present)
 }
 
 async fn read_manifest_bytes(
