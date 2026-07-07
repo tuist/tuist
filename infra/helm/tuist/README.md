@@ -51,7 +51,7 @@ helm install tuist infra/helm/tuist
 Run the same [K3s](https://k3s.io/) smoke profile used by the Helm workflow. The task creates a disposable [k3d](https://k3d.io/) cluster, renders the chart, runs a server-side dry run, installs the chart, and waits for the embedded dependencies:
 
 ```bash
-mise run helm:k3s-smoke
+mise -C infra run helm:k3s-smoke
 ```
 
 This profile keeps the server Deployment rendered, but scales it to zero
@@ -62,7 +62,7 @@ PostgreSQL, ClickHouse, and MinIO dependencies with its default storage class.
 To validate only the Helm render without creating a cluster:
 
 ```bash
-mise run helm:k3s-smoke -- --render-only
+mise -C infra run helm:k3s-smoke --render-only
 ```
 
 Lint the chart:

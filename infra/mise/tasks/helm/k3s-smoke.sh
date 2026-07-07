@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
+#MISE description="Smoke test the Tuist Helm chart on a disposable K3s cluster"
+#USAGE flag "--render-only" help="Only lint and render the chart without creating a cluster"
 set -euo pipefail
 
-ROOT="${MISE_PROJECT_ROOT:-${MISE_CONFIG_ROOT:-$(git rev-parse --show-toplevel)}}"
+ROOT="$(git rev-parse --show-toplevel)"
 CHART="${ROOT}/infra/helm/tuist"
 VALUES="${CHART}/values-k3s-smoke.yaml"
 RELEASE="${TUIST_HELM_K3S_RELEASE:-tuist}"
@@ -10,20 +12,7 @@ CLUSTER="${TUIST_HELM_K3S_CLUSTER:-tuist-helm-smoke}"
 KEEP_CLUSTER="${TUIST_HELM_K3S_KEEP_CLUSTER:-0}"
 USE_CURRENT_CONTEXT="${TUIST_HELM_K3S_USE_CURRENT_CONTEXT:-0}"
 KUBECTL_BIN="${KUBECTL:-kubectl}"
-RENDER_ONLY=0
-
-for arg in "$@"; do
-    case "$arg" in
-        --render-only)
-            RENDER_ONLY=1
-            ;;
-        *)
-            echo "Unsupported argument: $arg" >&2
-            echo "Usage: mise run helm:k3s-smoke [--render-only]" >&2
-            exit 1
-            ;;
-    esac
-done
+RENDER_ONLY="${usage_render_only:-false}"
 
 require_command() {
     local command_name="$1"
@@ -50,7 +39,7 @@ helm lint "$CHART" -f "$VALUES"
 helm template "$RELEASE" "$CHART" --include-crds -f "$VALUES" > "$rendered"
 echo "Rendered $(wc -l <"$rendered") lines of manifests."
 
-if [[ "$RENDER_ONLY" == "1" ]]; then
+if [[ "$RENDER_ONLY" == "true" ]]; then
     exit 0
 fi
 
