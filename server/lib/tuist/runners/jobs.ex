@@ -1115,7 +1115,6 @@ defmodule Tuist.Runners.Jobs do
   # recovery path.
   defp normalise_conclusion(c) when c in [nil, ""], do: "unknown"
   defp normalise_conclusion(c) when is_binary(c), do: c
-  defp normalise_conclusion(_), do: "unknown"
 
   @doc """
   Pub/Sub topic for an account's runner-job lifecycle events.

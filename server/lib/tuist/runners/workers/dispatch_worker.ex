@@ -50,7 +50,6 @@ defmodule Tuist.Runners.Workers.DispatchWorker do
       {:ok, _kind} -> :ok
       {:ignored, _reason} -> :ok
       :ignored -> :ok
-      {:error, reason} -> {:error, reason}
     end
   end
 end

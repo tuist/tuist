@@ -12,9 +12,6 @@ defmodule Tuist.Docs.Loader do
   alias Tuist.Markdown
   alias Tuist.Webhooks.WebhookEndpoint
 
-  # Live doc pages reference these modules from HEEx templates at compile time.
-  require Noora.Alert
-
   # Paths
   @docs_root Path.expand("../../priv/docs", __DIR__)
   @locales Locale.supported_locales()

@@ -808,7 +808,7 @@ defmodule TuistWeb.BundleLive do
   end
 
   defp filter_collapsed_children(children) do
-    Enum.filter(children, &(not &1.collapsed? or is_nil(&1.collapsed?)))
+    Enum.filter(children, &(not &1.collapsed?))
   end
 
   defp map_single_child(single_child, filter, duplicates, self_matches, base) do

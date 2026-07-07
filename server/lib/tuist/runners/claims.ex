@@ -61,8 +61,6 @@ defmodule Tuist.Runners.Claims do
   alias Tuist.Repo
   alias Tuist.Runners.Claim
 
-  require Logger
-
   # Postgres advisory locks accept a single 64-bit int or two
   # 32-bit ints. Using the two-int form lets us namespace by a
   # constant so we don't collide with other advisory-lock users

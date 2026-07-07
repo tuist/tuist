@@ -1,10 +1,10 @@
-ARG ELIXIR_VERSION=1.19.5
-ARG OTP_VERSION=28.4.3
+ARG ELIXIR_VERSION=1.20.2
+ARG OTP_VERSION=29.0.3
 ARG DOCKER_IMAGE_PREFIX=
 ARG DOCKER_OFFICIAL_IMAGE_PREFIX=
 # hexpm/elixir uses date-pinned tags; their specific bookworm tag has both
 # linux/amd64 and linux/arm64/v8 manifests so the builder stage is multi-arch.
-ARG DEBIAN_BUILDER_VERSION=bookworm-20260406-slim
+ARG DEBIAN_BUILDER_VERSION=bookworm-20260623-slim
 # The plain debian:bookworm-20260406-slim tag is amd64-only. Use the unpinned
 # bookworm-slim tag for the runner base so the final image supports both
 # amd64 and arm64. Trading a small amount of reproducibility for multi-arch.

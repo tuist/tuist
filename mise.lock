@@ -143,14 +143,11 @@ checksum = "sha256:2902d2a278597e4983d70ed6d694fcab36b29b0b7d109771c59d7da7147af
 url = "https://github.com/caddyserver/caddy/releases/download/v2.11.2/caddy_2.11.2_windows_amd64.zip"
 
 [[tools.elixir]]
-version = "1.19.5"
+version = "1.20.2"
 backend = "core:elixir"
 
-[tools.elixir."platforms.linux-x64"]
-checksum = "blake3:1d0caecc22478e4a7c8eb4c4bdc230d1ef287c1dbfa91b79348bf4db1c286acb"
-
 [[tools.erlang]]
-version = "28.4.3"
+version = "29.0.3"
 backend = "core:erlang"
 
 [[tools.git-cliff]]

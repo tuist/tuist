@@ -106,7 +106,7 @@ defmodule TuistWeb.API.InvitationsController do
         |> put_status(:bad_request)
         |> json(%{message: "The invitee email address is not a valid email address."})
 
-      !is_nil(organization) ->
+      true ->
         inviter = inviter_from_subject(subject)
         inviter_account = Accounts.get_account_from_user(inviter)
 

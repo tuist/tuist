@@ -142,19 +142,6 @@ defmodule Tuist.Runners.Dispatch do
 
         {:ignored, :runners_disabled}
 
-      {:error, :no_matching_profile} ->
-        # No customer profile matches the `runs-on:` label, and the
-        # legacy pool fallback didn't match either. Either the
-        # customer hasn't created a matching profile yet, or this
-        # workflow_job is targeting a different runner provider.
-        Logger.info(
-          "runners: workflow_job has no matching profile; ignoring (labels=#{inspect(requested)})",
-          owner: owner,
-          repo: full_name
-        )
-
-        {:ignored, :no_matching_profile}
-
       {:error, :no_matching_pool} ->
         # Legacy pool fallback path: nothing matched the requested
         # label. Same outcome as :no_matching_profile but kept as a
@@ -180,10 +167,6 @@ defmodule Tuist.Runners.Dispatch do
         # Logger.error inside `match_pool/1` gives ops something
         # to alert on.
         {:ignored, :ambiguous_pool}
-
-      {:error, reason} = err ->
-        Logger.warning("runners: enqueue failed: #{inspect(reason)}", repo: full_name)
-        err
     end
   end
 

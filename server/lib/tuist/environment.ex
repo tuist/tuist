@@ -34,7 +34,12 @@ defmodule Tuist.Environment do
   def modes, do: @modes
 
   def env do
-    with :prod <- @compile_env,
+    # Gate on the stringified compile env rather than matching the `:prod`
+    # atom directly: `@compile_env` is a compile-time literal, so a
+    # `:prod <- @compile_env` match trips Elixir's type checker in test/dev
+    # builds (and narrowing `env/0` to that literal poisons every caller
+    # that compares `env()` against another env atom).
+    with "prod" <- Atom.to_string(@compile_env),
          deploy_env when deploy_env in @runtime_envs <- System.get_env("TUIST_DEPLOY_ENV") do
       String.to_existing_atom(deploy_env)
     else
