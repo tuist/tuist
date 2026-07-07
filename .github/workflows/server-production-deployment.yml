@@ -1965,7 +1965,7 @@ jobs:
     needs: canary
     if: ${{ always() && needs.canary.result == 'success' }}
     runs-on: tuist-macos
-    timeout-minutes: 15
+    timeout-minutes: 25
     environment: server-k8s-canary
     permissions:
       contents: read
@@ -1989,6 +1989,27 @@ jobs:
         env:
           TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
         run: mise run cli:ee
+      # The Xcode compilation-cache acceptance test loads the cas-plugin dylib
+      # inside xcodebuild's compilers and routes it to the proxy over a unix
+      # socket. Build both from source and hand their paths to the test via the
+      # TUIST_CAS_PLUGIN_PATH / TUIST_CAS_PROXY_PATH overrides ResourceLocator
+      # honours.
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          github_token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+          install_args: rust
+          working_directory: cas-plugin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: cas-plugin-rust-${{ runner.os }}
+          workspaces: |
+            cas-plugin -> target
+      - name: Build the cas-plugin
+        working-directory: cas-plugin
+        run: |
+          mise run build
+          echo "TUIST_CAS_PLUGIN_PATH=$(pwd)/target/release/libtuist_cas_plugin.dylib" >> "$GITHUB_ENV"
+          echo "TUIST_CAS_PROXY_PATH=$(pwd)/target/release/tuist-cas-proxy" >> "$GITHUB_ENV"
       - name: Test
         env:
           TUIST_EE: 1
