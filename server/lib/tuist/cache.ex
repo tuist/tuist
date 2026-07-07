@@ -63,7 +63,15 @@ defmodule Tuist.Cache do
 
   def accessible_account_handles(%Account{} = account), do: [account.name]
 
-  def accessible_account_handles(%AuthenticatedAccount{} = subject), do: account_handles(accessible_accounts(subject))
+  def accessible_account_handles(%AuthenticatedAccount{issued_by: %User{} = user, all_projects: true}) do
+    accessible_account_handles(user)
+  end
+
+  def accessible_account_handles(%AuthenticatedAccount{account: %Account{} = account, all_projects: true}) do
+    accessible_account_handles(account)
+  end
+
+  def accessible_account_handles(%AuthenticatedAccount{}), do: []
 
   def accessible_account_handles(%Project{}), do: []
   def accessible_account_handles(_), do: []
