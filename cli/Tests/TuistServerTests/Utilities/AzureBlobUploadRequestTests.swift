@@ -8,7 +8,10 @@ import Testing
 
 struct AzureBlobUploadRequestTests {
     @Test func addsBlobTypeHeaderForAzurePutBlobSASURL() throws {
-        let url = try #require(URL(string: "https://tuiststorage.blob.core.windows.net/tuist/icon.png?sv=2020-12-06&sr=b&sp=cw&sig=abc"))
+        let url = try #require(URL(
+            string: "https://tuiststorage.blob.core.windows.net/tuist/icon.png" +
+                "?sv=2020-12-06&sr=b&sp=cw&sig=abc"
+        ))
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
 
@@ -18,7 +21,10 @@ struct AzureBlobUploadRequestTests {
     }
 
     @Test func doesNotAddBlobTypeHeaderForAzurePutBlockSASURL() throws {
-        let url = try #require(URL(string: "https://tuiststorage.blob.core.windows.net/tuist/archive.zip?comp=block&blockid=abc&sv=2020-12-06&sr=b&sp=cw&sig=abc"))
+        let url = try #require(URL(
+            string: "https://tuiststorage.blob.core.windows.net/tuist/archive.zip" +
+                "?comp=block&blockid=abc&sv=2020-12-06&sr=b&sp=cw&sig=abc"
+        ))
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
 
