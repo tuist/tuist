@@ -303,6 +303,45 @@ func TestWriteVNCStatePatchesServerRelayAnnotations(t *testing.T) {
 	}
 }
 
+func TestStartVNCForwarderUsesPersistedEndpointForRecoveredVM(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "tuist-runners",
+			Name:      "runner-recovered",
+			Annotations: map[string]string{
+				vncSessionIDAnnotation: "123",
+			},
+			Labels: map[string]string{"tuist.dev/runner": "true"},
+		},
+	}
+	kubeClient := newPodTestClient(t, pod)
+	r := &Reconciler{CachedClient: kubeClient, NodeIP: "127.0.0.1", VNCControlDir: dir}
+	entry := &Entry{VMName: "vm-runner-recovered"}
+
+	if err := r.writeVNCEndpointState(pod, entry, tart.VNCInfo{Host: "127.0.0.1", Port: 5901, Password: "secret-pass"}); err != nil {
+		t.Fatalf("writeVNCEndpointState: %v", err)
+	}
+	storedPod := getPod(t, ctx, kubeClient, types.NamespacedName{Namespace: "tuist-runners", Name: "runner-recovered"})
+
+	if err := r.startVNCForwarder(ctx, storedPod, entry); err != nil {
+		t.Fatalf("startVNCForwarder: %v", err)
+	}
+	defer entry.VNCForwarder.Stop()
+
+	updatedPod := getPod(t, ctx, kubeClient, types.NamespacedName{Namespace: "tuist-runners", Name: "runner-recovered"})
+	if got, want := updatedPod.Annotations[vncStateAnnotation], "ready"; got != want {
+		t.Fatalf("state annotation = %q, want %q", got, want)
+	}
+	if got, want := updatedPod.Annotations[vncRelayHostAnnotation], "127.0.0.1"; got != want {
+		t.Fatalf("relay host annotation = %q, want %q", got, want)
+	}
+	if updatedPod.Annotations[vncRelayPortAnnotation] == "" {
+		t.Fatal("missing relay port annotation")
+	}
+}
+
 func newPodTestClient(t *testing.T, objects ...runtime.Object) client.Client {
 	t.Helper()
 	scheme := runtime.NewScheme()

@@ -452,6 +452,9 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 		return fmt.Errorf("tart run: %w", err)
 	}
 	entry.Run = handle
+	if vncCapableRunnerPod(pod) && r.VNCControlDir != "" {
+		go r.captureVNCInfo(ctx, pod.DeepCopy(), entry)
+	}
 
 	// Start the metrics forwarder lazily on first podStatus rather
 	// than here — the VM hasn't booted yet, IP() returns empty, and
@@ -705,15 +708,25 @@ func (r *Reconciler) startVNCForwarder(ctx context.Context, pod *corev1.Pod, ent
 	if r.NodeIP == "" {
 		return fmt.Errorf("node IP is empty")
 	}
-	if entry.Run == nil {
-		return fmt.Errorf("VNC metadata unavailable for recovered VM %s", entry.VMName)
-	}
 
-	vncCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-	vncInfo, err := entry.Run.WaitVNCInfo(vncCtx)
+	vncInfo, ok, err := r.readVNCEndpointState(pod.Namespace, pod.Name, entry.VMName)
 	if err != nil {
-		return fmt.Errorf("wait for Tart VNC endpoint: %w", err)
+		return err
+	}
+	if !ok {
+		if entry.Run == nil {
+			return fmt.Errorf("VNC metadata unavailable for recovered VM %s", entry.VMName)
+		}
+
+		vncCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		vncInfo, err = entry.Run.WaitVNCInfo(vncCtx)
+		if err != nil {
+			return fmt.Errorf("wait for Tart VNC endpoint: %w", err)
+		}
+		if err := r.writeVNCEndpointState(pod, entry, vncInfo); err != nil {
+			return err
+		}
 	}
 
 	if entry.VNCForwarder == nil {
@@ -741,6 +754,7 @@ func (r *Reconciler) stopVNCForwarder(namespace, name string, entry *Entry) {
 	}
 	if r.VNCControlDir != "" {
 		_ = os.Remove(r.vncStatePath(namespace, name))
+		_ = os.Remove(r.vncEndpointPath(namespace, name))
 	}
 }
 
@@ -766,6 +780,99 @@ type vncRelayState struct {
 	RelayHost string `json:"relay_host"`
 	RelayPort int    `json:"relay_port"`
 	UpdatedAt string `json:"updated_at"`
+}
+
+type vncEndpointState struct {
+	Pod       string `json:"pod"`
+	VMName    string `json:"vm_name"`
+	Host      string `json:"host"`
+	Port      int    `json:"port"`
+	Password  string `json:"password"`
+	UpdatedAt string `json:"updated_at"`
+}
+
+func (r *Reconciler) captureVNCInfo(ctx context.Context, pod *corev1.Pod, entry *Entry) {
+	if !vncCapableRunnerPod(pod) || r.VNCControlDir == "" || entry.Run == nil {
+		return
+	}
+
+	vncCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	if deadline, ok := ctx.Deadline(); ok {
+		vncCtx, cancel = context.WithDeadline(context.Background(), deadline.Add(2*time.Minute))
+		defer cancel()
+	}
+
+	vncInfo, err := entry.Run.WaitVNCInfo(vncCtx)
+	if err != nil {
+		log.FromContext(ctx).Error(err, "capture VNC endpoint",
+			"pod", pod.Namespace+"/"+pod.Name)
+		return
+	}
+	if err := r.writeVNCEndpointState(pod, entry, vncInfo); err != nil {
+		log.FromContext(ctx).Error(err, "write VNC endpoint state",
+			"pod", pod.Namespace+"/"+pod.Name)
+	}
+}
+
+func (r *Reconciler) writeVNCEndpointState(pod *corev1.Pod, entry *Entry, vncInfo tart.VNCInfo) error {
+	if r.VNCControlDir == "" {
+		return nil
+	}
+	stateDir := filepath.Join(r.VNCControlDir, "state")
+	if err := os.MkdirAll(stateDir, 0o700); err != nil {
+		return fmt.Errorf("mkdir VNC state dir: %w", err)
+	}
+
+	state := vncEndpointState{
+		Pod:       pod.Namespace + "/" + pod.Name,
+		VMName:    entry.VMName,
+		Host:      vncInfo.Host,
+		Port:      vncInfo.Port,
+		Password:  vncInfo.Password,
+		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
+	}
+	body, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return err
+	}
+	body = append(body, '\n')
+
+	path := r.vncEndpointPath(pod.Namespace, pod.Name)
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, body, 0o600); err != nil {
+		return fmt.Errorf("write VNC endpoint file: %w", err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("rename VNC endpoint file: %w", err)
+	}
+	return nil
+}
+
+func (r *Reconciler) readVNCEndpointState(namespace, name, vmName string) (tart.VNCInfo, bool, error) {
+	if r.VNCControlDir == "" {
+		return tart.VNCInfo{}, false, nil
+	}
+	body, err := os.ReadFile(r.vncEndpointPath(namespace, name))
+	if os.IsNotExist(err) {
+		return tart.VNCInfo{}, false, nil
+	}
+	if err != nil {
+		return tart.VNCInfo{}, false, fmt.Errorf("read VNC endpoint file: %w", err)
+	}
+
+	var state vncEndpointState
+	if err := json.Unmarshal(body, &state); err != nil {
+		return tart.VNCInfo{}, false, fmt.Errorf("unmarshal VNC endpoint file: %w", err)
+	}
+	if state.VMName != vmName {
+		return tart.VNCInfo{}, false, nil
+	}
+	if state.Host == "" || state.Port <= 0 || state.Port > 65_535 || state.Password == "" {
+		return tart.VNCInfo{}, false, fmt.Errorf("invalid VNC endpoint file for %s/%s", namespace, name)
+	}
+	return tart.VNCInfo{Host: state.Host, Port: state.Port, Password: state.Password}, true, nil
 }
 
 func (r *Reconciler) writeVNCState(ctx context.Context, pod *corev1.Pod, entry *Entry, vncInfo tart.VNCInfo) error {
@@ -845,6 +952,13 @@ func (r *Reconciler) vncStatePath(namespace, name string) string {
 		return ""
 	}
 	return filepath.Join(r.VNCControlDir, "state", vncControlKey(namespace, name)+".json")
+}
+
+func (r *Reconciler) vncEndpointPath(namespace, name string) string {
+	if r.VNCControlDir == "" {
+		return ""
+	}
+	return filepath.Join(r.VNCControlDir, "state", vncControlKey(namespace, name)+".endpoint.json")
 }
 
 func vncControlKey(namespace, name string) string {
