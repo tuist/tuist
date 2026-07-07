@@ -455,6 +455,52 @@ defmodule Tuist.Environment do
     get([:posthog, :url], secrets)
   end
 
+  def object_storage_provider(secrets \\ secrets()) do
+    provider =
+      System.get_env("TUIST_OBJECT_STORAGE_PROVIDER") ||
+        get([:object_storage, :provider], secrets) ||
+        "s3"
+
+    case provider do
+      "s3" -> :s3
+      :s3 -> :s3
+      "azure_blob" -> :azure_blob
+      :azure_blob -> :azure_blob
+      other -> raise "Unsupported TUIST_OBJECT_STORAGE_PROVIDER=#{inspect(other)}. Expected \"s3\" or \"azure_blob\"."
+    end
+  end
+
+  def azure_storage_account_name(secrets \\ secrets()) do
+    System.get_env("TUIST_AZURE_STORAGE_ACCOUNT_NAME") ||
+      get([:azure_blob, :account_name], secrets)
+  end
+
+  def azure_storage_account_key(secrets \\ secrets()) do
+    System.get_env("TUIST_AZURE_STORAGE_ACCOUNT_KEY") ||
+      get([:azure_blob, :account_key], secrets)
+  end
+
+  def azure_blob_container_name(secrets \\ secrets()) do
+    System.get_env("TUIST_AZURE_BLOB_CONTAINER_NAME") ||
+      get([:azure_blob, :container_name], secrets)
+  end
+
+  def azure_blob_endpoint(secrets \\ secrets()) do
+    System.get_env("TUIST_AZURE_BLOB_ENDPOINT") ||
+      get([:azure_blob, :endpoint], secrets) ||
+      azure_blob_endpoint_from_account_name(azure_storage_account_name(secrets))
+  end
+
+  def azure_blob_service_version(secrets \\ secrets()) do
+    System.get_env("TUIST_AZURE_BLOB_SERVICE_VERSION") ||
+      get([:azure_blob, :service_version], secrets) ||
+      "2020-12-06"
+  end
+
+  defp azure_blob_endpoint_from_account_name(nil), do: nil
+  defp azure_blob_endpoint_from_account_name(""), do: nil
+  defp azure_blob_endpoint_from_account_name(account_name), do: "https://#{account_name}.blob.core.windows.net"
+
   def s3_authentication_method(secrets \\ secrets()) do
     case get([:s3, :authentication_method], secrets) do
       authentication_method when is_binary(authentication_method) ->

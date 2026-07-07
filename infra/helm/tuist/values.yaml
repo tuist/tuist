@@ -258,11 +258,24 @@ server:
     selfHostingDevelopmentMode: false
   database:
     ssl: false
+  storage:
+    # Storage backend used by the Tuist server for build archives, previews,
+    # test attachments, runner log archives, and other server-owned artifacts.
+    # Supported values:
+    #   - s3: use the chart's S3-compatible objectStorage settings.
+    #   - azure_blob: use server.azureBlob below.
+    provider: s3
   s3:
     region: auto
     virtualHost: false
     bucketAsHost: false
     bucketName: tuist
+  azureBlob:
+    accountName: ""
+    accountKey: ""
+    containerName: tuist
+    endpoint: ""
+    serviceVersion: "2020-12-06"
   cacheEndpointUrl: ""
   # Kura endpoint URLs advertised by this server when clients request the
   # Kura cache technology. Self-hosted installs can point this at Kura

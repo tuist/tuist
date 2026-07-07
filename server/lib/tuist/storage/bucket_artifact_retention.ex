@@ -21,12 +21,15 @@ defmodule Tuist.Storage.BucketArtifactRetention do
       page_size = Keyword.get(opts, :page_size, @default_page_size)
       continuation_token = Keyword.get(opts, :continuation_token)
       prefix = Map.get(target, :prefix, "")
+      storage_provider = Map.get(target, :storage_provider, :s3)
 
-      case Storage.list_objects_from_bucket(bucket_name,
-             prefix: prefix,
-             max_keys: page_size,
-             continuation_token: continuation_token
-           ) do
+      list_opts =
+        maybe_put_storage_provider(
+          [prefix: prefix, max_keys: page_size, continuation_token: continuation_token],
+          storage_provider
+        )
+
+      case Storage.list_objects_from_bucket(bucket_name, list_opts) do
         {:ok, %{body: body}} ->
           objects = Map.get(body, :contents, [])
 
@@ -35,7 +38,11 @@ defmodule Tuist.Storage.BucketArtifactRetention do
             |> Enum.filter(Map.fetch!(target, :object_matches?))
             |> expired_objects(target)
 
-          delete_opts = [receive_timeout: @delete_receive_timeout, task_timeout: @delete_task_timeout]
+          delete_opts =
+            maybe_put_storage_provider(
+              [receive_timeout: @delete_receive_timeout, task_timeout: @delete_task_timeout],
+              storage_provider
+            )
 
           with :ok <- Storage.delete_objects_from_bucket(Enum.map(objects_to_delete, & &1.key), bucket_name, delete_opts) do
             {:ok, next_continuation_token(body)}
@@ -46,6 +53,9 @@ defmodule Tuist.Storage.BucketArtifactRetention do
       end
     end
   end
+
+  defp maybe_put_storage_provider(opts, :s3), do: opts
+  defp maybe_put_storage_provider(opts, storage_provider), do: Keyword.put(opts, :storage_provider, storage_provider)
 
   defp expired_objects(objects, target) do
     plans_by_account_handle = managed_plans_by_account_handle(objects, target)
