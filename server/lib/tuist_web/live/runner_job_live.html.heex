@@ -381,7 +381,7 @@
     >
       <:actions>
         <.button
-          :if={@interactive.vnc_session}
+          :if={@interactive.vnc_session_ready?}
           id="runner-vnc-fullscreen-button"
           phx-hook="RunnerVNCFullscreen"
           variant="secondary"
@@ -416,15 +416,32 @@
           <div
             id="runner-vnc-viewport"
             data-part="interactive-viewport"
-            data-state={if(@interactive.vnc_session, do: "requested", else: "idle")}
+            data-state={
+              if(@interactive.vnc_session,
+                do: Atom.to_string(@interactive.vnc_session.state),
+                else: "idle"
+              )
+            }
           >
             <div data-part="interactive-viewport-frame">
               <div data-part="interactive-viewport-icon"><.device_laptop /></div>
               <div data-part="interactive-viewport-title">
-                {if(@interactive.vnc_session,
-                  do: dgettext("dashboard_runners", "VNC session requested"),
-                  else: dgettext("dashboard_runners", "VNC session idle")
-                )}
+                {case @interactive.vnc_session do
+                  nil ->
+                    dgettext("dashboard_runners", "VNC session idle")
+
+                  %{state: :requested} ->
+                    dgettext("dashboard_runners", "Waiting for runner relay")
+
+                  %{state: :ready} ->
+                    dgettext("dashboard_runners", "VNC session ready")
+
+                  %{state: :active} ->
+                    dgettext("dashboard_runners", "VNC session active")
+
+                  _ ->
+                    dgettext("dashboard_runners", "VNC session unavailable")
+                end}
               </div>
             </div>
           </div>

@@ -8,6 +8,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
   alias Tuist.Repo
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.InteractiveSession
+  alias Tuist.Runners.InteractiveSessions
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.JobMetrics
   alias Tuist.Runners.Jobs
@@ -412,7 +413,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     refute has_element?(lv2, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Overview")
   end
 
-  test "automatically requests and closes a VNC session from the Interactive tab", %{conn: conn, account: account} do
+  test "automatically requests a VNC session from the Interactive tab", %{conn: conn, account: account} do
     :ok =
       Jobs.enqueue(%{
         workflow_job_id: 31_750,
@@ -436,7 +437,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/317500/jobs/31750?tab=interactive")
 
     assert html =~ "Interactive access"
-    assert html =~ "VNC session requested"
+    assert html =~ "Waiting for runner relay"
     refute html =~ "macOS desktop"
     refute html =~ "VNC session for the live runner desktop."
     refute html =~ "Terminal sessions are not available in this rollout."
@@ -445,12 +446,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
     refute has_element?(lv, ~s{#close-vnc-session-button})
     assert has_element?(lv, ~s{#runner-vnc-session})
 
-    assert has_element?(
-             lv,
-             ~s{#runner-vnc-fullscreen-button[phx-hook="RunnerVNCFullscreen"][data-fullscreen-target="#runner-vnc-card"][data-fullscreen-enter-label="Full screen"][data-fullscreen-exit-label="Exit full screen"][data-variant="secondary"]}
-           )
-
-    assert html =~ "Full screen"
+    refute has_element?(lv, ~s{#runner-vnc-fullscreen-button})
+    refute html =~ "Full screen"
     refute has_element?(lv, ~s{#runner-vnc-viewport button[data-fullscreen-toggle]})
     refute has_element?(lv, ~s{#request-vnc-session-button})
 
@@ -458,6 +455,48 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert session.state == :requested
     assert session.pod_name == "macos-pod-vnc"
     assert session.requested_by_user_id
+  end
+
+  test "shows the full screen action only after the VNC relay is ready", %{
+    conn: conn,
+    account: account,
+    user: user
+  } do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_752,
+        account_id: account.id,
+        fleet_name: Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}),
+        repository: "tuist/tuist",
+        workflow_run_id: 317_520,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Ready VNC",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} =
+      Jobs.pick_queued(Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}), [])
+
+    :ok = Jobs.record_claimed(candidate, "macos-pod-ready-vnc", DateTime.utc_now())
+    :ok = Jobs.record_running(31_752, "tuist-runner-ready-vnc")
+
+    {:ok, job} = Jobs.get_for_account(account.id, 31_752)
+    {:ok, session} = InteractiveSessions.request_vnc(job, account, user)
+
+    session
+    |> InteractiveSession.changeset(%{state: :ready})
+    |> Repo.update!()
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/317520/jobs/31752?tab=interactive")
+
+    assert html =~ "VNC session ready"
+
+    assert has_element?(
+             lv,
+             ~s{#runner-vnc-fullscreen-button[phx-hook="RunnerVNCFullscreen"][data-fullscreen-target="#runner-vnc-card"][data-fullscreen-enter-label="Full screen"][data-fullscreen-exit-label="Exit full screen"][data-variant="secondary"]}
+           )
   end
 
   test "does not show the Interactive tab for queued macOS jobs", %{conn: conn, account: account} do

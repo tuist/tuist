@@ -407,7 +407,11 @@ defmodule TuistWeb.RunnerJobLive do
         case InteractiveSessions.request_vnc(job, selected_account, current_user) do
           {:ok, _session} ->
             socket
-            |> maybe_put_flash(notify?, :info, dgettext("dashboard_runners", "VNC session requested."))
+            |> maybe_put_flash(
+              notify?,
+              :info,
+              dgettext("dashboard_runners", "VNC session requested. Waiting for the runner relay.")
+            )
             |> refresh_interactive_state()
 
           {:error, reason} ->
@@ -566,9 +570,13 @@ defmodule TuistWeb.RunnerJobLive do
       running?: running?,
       pod_available?: pod_available?,
       vnc_requestable?: enabled? and can_manage? and InteractiveSessions.vnc_requestable?(job),
-      vnc_session: vnc_session
+      vnc_session: vnc_session,
+      vnc_session_ready?: vnc_session_ready?(vnc_session)
     }
   end
+
+  defp vnc_session_ready?(%{state: state}) when state in [:ready, :active], do: true
+  defp vnc_session_ready?(_), do: false
 
   defp interactive_session_error(:unsupported_platform),
     do: dgettext("dashboard_runners", "VNC is available for macOS runner jobs.")
