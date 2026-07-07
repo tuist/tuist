@@ -199,7 +199,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
         AuthorizationPlug.init(category: :cache, caching: true, cache_ttl: to_timeout(minute: 5))
 
       # We check that the authorization API, which hits the DB, is onnly invoked once.
-      expect(Authorization, :authorize, 1, fn :cache_read, _, _ ->
+      expect(Authorization, :authorize, 1, fn :project_cache_read, _, _ ->
         {:error, :forbidden}
       end)
 
@@ -227,8 +227,8 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
         AuthorizationPlug.init(category: :cache, caching: true, cache_ttl: to_timeout(minute: 5))
 
       expect(Authorization, :authorize, 2, fn
-        :cache_read, _, _ -> :ok
-        :cache_create, _, _ -> {:error, :forbidden}
+        :project_cache_read, _, _ -> :ok
+        :project_cache_create, _, _ -> {:error, :forbidden}
       end)
 
       conn =

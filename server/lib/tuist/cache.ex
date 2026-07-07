@@ -174,14 +174,14 @@ defmodule Tuist.Cache do
   defp account_cache_handles(resource, action) do
     resource
     |> accessible_accounts()
-    |> Enum.filter(&authorized?(:account_cache, action, resource, &1))
+    |> Enum.filter(&authorized?(:account, cache_action(action), resource, &1))
     |> account_handles()
   end
 
   defp project_cache_handles(resource, action, opts) do
     resource
     |> accessible_projects(opts)
-    |> Enum.filter(&authorized?(:cache, action, resource, &1))
+    |> Enum.filter(&authorized?(:project, cache_action(action), resource, &1))
     |> Enum.map(&project_handle/1)
     |> Enum.uniq()
     |> Enum.sort()
@@ -198,8 +198,8 @@ defmodule Tuist.Cache do
     |> Kernel.==(:ok)
   end
 
-  defp authorization_action(:account_cache, :read), do: :account_cache_read
-  defp authorization_action(:account_cache, :write), do: :account_cache_create
-  defp authorization_action(:cache, :read), do: :cache_read
-  defp authorization_action(:cache, :write), do: :cache_create
+  defp authorization_action(category, action), do: :"#{category}_#{action}"
+
+  defp cache_action(:read), do: :cache_read
+  defp cache_action(:write), do: :cache_create
 end
