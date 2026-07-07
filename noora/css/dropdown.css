@@ -126,7 +126,6 @@
     > [data-state="open"]
     + [data-part="positioner"] {
     width: max-content;
-    min-width: var(--reference-width, max-content) !important;
   }
 
   & [data-part="indicator"] {
