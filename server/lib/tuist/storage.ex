@@ -170,14 +170,17 @@ defmodule Tuist.Storage do
   end
 
   def upload_file(file_path, object_key, actor, opts \\ []) do
-    case storage_provider(actor) do
-      :azure_blob ->
-        AzureBlob.upload_file(file_path, object_key, opts)
+    result =
+      case storage_provider(actor) do
+        :azure_blob ->
+          AzureBlob.upload_file(file_path, object_key, opts)
 
-      :s3 ->
-        bucket_name = Keyword.get(opts, :bucket_name)
-        s3_upload_file(file_path, object_key, actor, bucket_name)
-    end
+        :s3 ->
+          bucket_name = Keyword.get(opts, :bucket_name)
+          s3_upload_file(file_path, object_key, actor, bucket_name)
+      end
+
+    normalize_upload_file_result(result)
   end
 
   def put_object(object_key, content, actor) do
@@ -305,36 +308,14 @@ defmodule Tuist.Storage do
   end
 
   def delete_all_objects(prefix, actor) do
-    {time, _} =
+    {time, result} =
       Performance.measure_time_in_milliseconds(fn ->
         case storage_provider(actor) do
           :azure_blob ->
             AzureBlob.delete_all_objects(prefix)
 
           :s3 ->
-            {config, bucket_name} = s3_config_and_bucket(actor)
-
-            # Check if there are any objects with the given prefix
-            any_objects? =
-              bucket_name
-              |> ExAws.S3.list_objects_v2(prefix: prefix, max_keys: 1)
-              |> ExAws.request!(config)
-              |> Map.get(:body)
-              |> Map.get(:contents)
-              |> Enum.any?()
-
-            if any_objects? do
-              stream =
-                bucket_name
-                |> ExAws.S3.list_objects_v2(prefix: prefix, max_keys: 1000)
-                |> ExAws.stream!(config)
-                |> Stream.map(& &1.key)
-
-              {:ok, _} =
-                bucket_name |> ExAws.S3.delete_all_objects(stream) |> ExAws.request(config)
-            else
-              :ok
-            end
+            s3_delete_all_objects(prefix, actor)
         end
       end)
 
@@ -344,7 +325,7 @@ defmodule Tuist.Storage do
       %{project_slug: prefix}
     )
 
-    :ok
+    result
   end
 
   def delete_object(object_key, actor) do
@@ -557,6 +538,43 @@ defmodule Tuist.Storage do
       :s3
     else
       Environment.object_storage_provider()
+    end
+  end
+
+  defp normalize_upload_file_result({:ok, _response} = result), do: result
+  defp normalize_upload_file_result({:error, _reason} = result), do: result
+  defp normalize_upload_file_result(:ok), do: {:ok, :done}
+  defp normalize_upload_file_result(response), do: {:ok, response}
+
+  defp s3_delete_all_objects(prefix, actor) do
+    {config, bucket_name} = s3_config_and_bucket(actor)
+
+    if s3_objects_with_prefix?(bucket_name, prefix, config) do
+      s3_delete_all_objects_with_prefix(bucket_name, prefix, config)
+    else
+      :ok
+    end
+  end
+
+  defp s3_objects_with_prefix?(bucket_name, prefix, config) do
+    bucket_name
+    |> ExAws.S3.list_objects_v2(prefix: prefix, max_keys: 1)
+    |> ExAws.request!(config)
+    |> Map.get(:body)
+    |> Map.get(:contents)
+    |> Enum.any?()
+  end
+
+  defp s3_delete_all_objects_with_prefix(bucket_name, prefix, config) do
+    stream =
+      bucket_name
+      |> ExAws.S3.list_objects_v2(prefix: prefix, max_keys: 1000)
+      |> ExAws.stream!(config)
+      |> Stream.map(& &1.key)
+
+    case bucket_name |> ExAws.S3.delete_all_objects(stream) |> ExAws.request(config) do
+      {:ok, _response} -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 

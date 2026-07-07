@@ -118,6 +118,29 @@ defmodule Tuist.Storage.AzureBlobTest do
     end
   end
 
+  describe "stream_object/1" do
+    test "waits for consumer demand before continuing the download stream" do
+      parent = self()
+
+      expect(Finch, :stream, fn _request, Tuist.Finch, nil, callback ->
+        callback.({:status, 200}, nil)
+        callback.({:data, "first"}, nil)
+        send(parent, :first_chunk_acknowledged)
+        callback.({:data, "second"}, nil)
+        send(parent, :second_chunk_acknowledged)
+        {:ok, nil}
+      end)
+
+      stream = AzureBlob.stream_object("builds/build.zip")
+
+      refute_receive :first_chunk_acknowledged, 50
+
+      assert Enum.to_list(stream) == ["first", "second"]
+      assert_receive :first_chunk_acknowledged
+      assert_receive :second_chunk_acknowledged
+    end
+  end
+
   describe "multipart_complete_upload/3" do
     test "commits deterministic block IDs in part order" do
       upload_id = "018f6a3c-b6bd-7d79-a2ef-67f6c7f09734"

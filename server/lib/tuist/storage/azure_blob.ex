@@ -75,8 +75,11 @@ defmodule Tuist.Storage.AzureBlob do
                 acc
 
               {:data, data}, acc ->
-                send(parent, {ref, {:data, data}})
-                acc
+                send(parent, {ref, {:data, self(), data}})
+
+                receive do
+                  {^ref, :continue} -> acc
+                end
             end)
             |> case do
               {:ok, _acc} -> send(parent, {ref, :done})
@@ -88,7 +91,8 @@ defmodule Tuist.Storage.AzureBlob do
       end,
       fn {ref, task} = acc ->
         receive do
-          {^ref, {:data, data}} ->
+          {^ref, {:data, producer, data}} ->
+            send(producer, {ref, :continue})
             {[data], acc}
 
           {^ref, :done} ->

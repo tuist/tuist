@@ -539,6 +539,31 @@ defmodule Tuist.StorageTest do
   end
 
   describe "delete_all_objects/1" do
+    test "returns Azure Blob deletion errors instead of hiding them" do
+      # Given
+      event_name =
+        Tuist.Telemetry.event_name_storage_delete_all_objects()
+
+      event_ref =
+        :telemetry_test.attach_event_handlers(self(), [event_name])
+
+      project_slug = UUIDv7.generate()
+
+      expect(Environment, :object_storage_provider, fn -> :azure_blob end)
+
+      expect(AzureBlob, :delete_all_objects, fn ^project_slug ->
+        {:error, :list_failed}
+      end)
+
+      # When
+      assert Storage.delete_all_objects(project_slug, :test) == {:error, :list_failed}
+
+      # Then
+      assert_received {^event_name, ^event_ref, %{duration: duration}, %{project_slug: ^project_slug}}
+
+      assert is_number(duration)
+    end
+
     test "deletes all objects using ExAws.S3 and sends the right telemetry event" do
       # Given
       event_name =
@@ -618,6 +643,38 @@ defmodule Tuist.StorageTest do
       assert_received {^event_name, ^event_ref, %{duration: duration}, %{}}
 
       assert is_number(duration)
+    end
+  end
+
+  describe "upload_file/4" do
+    test "normalizes Azure Blob successful uploads to the shared success tuple" do
+      # Given
+      file_path = "/tmp/build.zip"
+      object_key = UUIDv7.generate()
+
+      expect(Environment, :object_storage_provider, fn -> :azure_blob end)
+
+      expect(AzureBlob, :upload_file, fn ^file_path, ^object_key, [block_size: 10] ->
+        :ok
+      end)
+
+      # When/Then
+      assert Storage.upload_file(file_path, object_key, :test, block_size: 10) == {:ok, :done}
+    end
+
+    test "keeps Azure Blob upload errors unchanged" do
+      # Given
+      file_path = "/tmp/build.zip"
+      object_key = UUIDv7.generate()
+
+      expect(Environment, :object_storage_provider, fn -> :azure_blob end)
+
+      expect(AzureBlob, :upload_file, fn ^file_path, ^object_key, [] ->
+        {:error, :upload_failed}
+      end)
+
+      # When/Then
+      assert Storage.upload_file(file_path, object_key, :test) == {:error, :upload_failed}
     end
   end
 
