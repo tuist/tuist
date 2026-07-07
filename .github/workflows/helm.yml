@@ -30,12 +30,18 @@ on:
       - main
     paths:
       - infra/helm/**
+      - infra/mise.toml
+      - infra/mise.lock
+      - infra/mise/tasks/helm/**
       - kura/ops/helm/kura/**
       - .github/workflows/helm.yml
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - infra/helm/**
+      - infra/mise.toml
+      - infra/mise.lock
+      - infra/mise/tasks/helm/**
       - kura/ops/helm/kura/**
       - .github/workflows/helm.yml
   merge_group: {}
@@ -50,9 +56,8 @@ concurrency:
 env:
   MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ github.token }}
-  # Pinned in this workflow rather than `.mise.toml` to avoid pulling
-  # cluster tooling into the default dev shell. `mise use -g` activates
-  # them globally for the runner so the shims resolve.
+  # Helm is pinned here for the generic lint and render jobs. The K3s
+  # smoke job uses the infra mise tool pins instead.
   HELM_VERSION: "4.1.4"
   KUBECONFORM_VERSION: "0.7.0"
 
@@ -192,9 +197,6 @@ jobs:
     name: K3s Smoke Install
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    needs:
-      - lint
-      - render
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
