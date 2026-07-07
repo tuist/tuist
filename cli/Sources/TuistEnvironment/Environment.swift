@@ -73,15 +73,16 @@ public protocol Environmenting: Sendable {
     /// Returns path to the Tuist executable
     func currentExecutablePath() -> AbsolutePath?
 
-    /// Returns the cache socket path for a given full handle (e.g., "tuist-org/tuist").
-    /// Retained only to boot out a legacy per-project cache daemon during
-    /// `tuist setup cache` / `tuist teardown cache` on machines upgrading from
-    /// the old socket-service setup.
+    /// Returns the cache socket path for a given full handle (e.g., "tuist-org/tuist")
+    /// This path is used for cache server communication
     func cacheSocketPath(for fullHandle: String) -> AbsolutePath
 
-    /// Returns the LaunchAgent label for a legacy per-project Xcode cache daemon.
-    /// Retained only so `tuist setup cache` / `tuist teardown cache` can boot out
-    /// a daemon left over from before the machine-wide proxy.
+    /// A cache socket path string for a given full handle with $HOME prefix to be environment-independent
+    func cacheSocketPathString(for fullHandle: String) -> String
+
+    /// Returns the LaunchAgent label for the per-project Xcode cache daemon (the
+    /// non-kura path) of the given full handle. Shared between `tuist setup cache`
+    /// (which registers the LaunchAgent) and `tuist teardown cache` (which boots it out).
     func cacheLaunchAgentLabel(for fullHandle: String) -> String
 
     /// Returns the machine-wide LaunchAgent label for the Xcode compilation-cache
@@ -390,6 +391,16 @@ public struct Environment: Environmenting {
 
     public func cacheSocketPath(for fullHandle: String) -> AbsolutePath {
         stateDirectory.appending(component: "\(fullHandle.replacingOccurrences(of: "/", with: "_")).sock")
+    }
+
+    public func cacheSocketPathString(for fullHandle: String) -> String {
+        let socketPathString = cacheSocketPath(for: fullHandle).pathString
+        let homeDirectoryPathString = homeDirectory.pathString
+        if socketPathString.hasPrefix(homeDirectoryPathString) {
+            return "$HOME" + socketPathString.dropFirst(homeDirectoryPathString.count)
+        } else {
+            return socketPathString
+        }
     }
 
     public func cacheLaunchAgentLabel(for fullHandle: String) -> String {

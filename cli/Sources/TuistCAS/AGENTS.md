@@ -1,16 +1,19 @@
 # TuistCAS (CLI Module)
 
 This module resolves the cache (CAS) endpoint the CLI and the compilation-cache
-proxy talk to.
+proxy talk to, and hosts the legacy per-project Swift CAS daemon
+(`CASService`/`KeyValueService`) served on the non-kura path.
 
 ## Responsibilities
 - Resolve the cache URL for a server/account (`CacheURLStore`), honoring the
   `TUIST_CACHE_ENDPOINT` override and the kura (REAPI) endpoints.
 - Pick the lowest-latency endpoint when several are returned (`EndpointLatencyService`).
+- Serve Xcode's compilation-cache gRPC protocol (`cas.proto`/`keyvalue.proto`
+  stubs, `CASService`/`KeyValueService`) from the per-project daemon for accounts
+  not yet on kura. On the kura path this transport instead lives in the Rust
+  `cas-plugin/` crate and its `tuist-cas-proxy`; the CLI picks between them on
+  the `kura` client feature flag.
 
-The Xcode compilation-cache CAS/key-value transport itself now lives in the Rust
-`cas-plugin/` crate and its `tuist-cas-proxy`; the legacy Swift gRPC daemon
-(`CASService`/`KeyValueService`) was removed.
 
 ## Boundaries
 - Keep CLI command wiring in `cli/Sources/TuistKit`.
@@ -18,4 +21,3 @@ The Xcode compilation-cache CAS/key-value transport itself now lives in the Rust
 
 ## Related Context
 - cli/Sources/TuistCache/AGENTS.md
-- cas-plugin/AGENTS.md
