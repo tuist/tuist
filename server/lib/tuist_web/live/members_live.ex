@@ -706,7 +706,7 @@ defmodule TuistWeb.MembersLive do
 
   defp invitation_status_badge(invitation) do
     if Accounts.invitation_expired?(invitation) do
-      %{label: dgettext("dashboard_account", "Expired"), status: "error"}
+      %{label: dgettext("dashboard_account", "Expired"), status: "disabled"}
     else
       %{label: dgettext("dashboard_account", "Pending"), status: "attention"}
     end
