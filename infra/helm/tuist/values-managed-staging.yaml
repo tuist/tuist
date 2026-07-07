@@ -163,6 +163,10 @@ objectStorage:
     buckets:
       default: tuist-stag-storage
 
+clickhouse:
+  poolSize: "15"
+  bufferPoolSize: "15"
+
 cache:
   extraEnv:
     - name: XCODE_DATABASE_INTERACTIONS_ENABLED

@@ -840,10 +840,10 @@ defmodule Tuist.Environment do
     get([:clickhouse, :url], secrets)
   end
 
-  def clickhouse_pool_size(secrets \\ secrets()) do
-    case get([:clickhouse, :pool_size], secrets) do
+  def clickhouse_pool_size(_secrets \\ nil) do
+    case System.get_env("TUIST_CLICKHOUSE_POOL_SIZE") || System.get_env("TUIST_DATABASE_POOL_SIZE") do
       pool_size when is_binary(pool_size) -> String.to_integer(pool_size)
-      _ -> database_pool_size(secrets)
+      _ -> 10
     end
   end
 
@@ -922,8 +922,8 @@ defmodule Tuist.Environment do
     end
   end
 
-  def clickhouse_buffer_pool_size(secrets \\ secrets()) do
-    case get([:clickhouse, :buffer_pool_size], secrets) do
+  def clickhouse_buffer_pool_size(_secrets \\ nil) do
+    case System.get_env("TUIST_CLICKHOUSE_BUFFER_POOL_SIZE") do
       buffer_pool_size when is_binary(buffer_pool_size) -> String.to_integer(buffer_pool_size)
       _ -> 5
     end

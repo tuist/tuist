@@ -529,6 +529,22 @@ own way).
 {{- end -}}
 
 {{/*
+ClickHouse repo pool sizes are non-secret operational knobs. Render them from
+chart values so the server, migration, processor, and xcresult-processor pods
+stay aligned without relying on the runtime secret bundle.
+*/}}
+{{- define "tuist.clickhousePoolEnv" -}}
+{{- with .Values.clickhouse.poolSize }}
+- name: TUIST_CLICKHOUSE_POOL_SIZE
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.clickhouse.bufferPoolSize }}
+- name: TUIST_CLICKHOUSE_BUFFER_POOL_SIZE
+  value: {{ . | quote }}
+{{- end }}
+{{- end -}}
+
+{{/*
 Stripe price IDs. These are not secrets (just identifiers for the products in
 Stripe), so they live in chart values as a readable plan -> category -> [ids]
 map instead of the secret store. `Tuist.Environment.stripe_prices/1` reads

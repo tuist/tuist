@@ -111,6 +111,10 @@ objectStorage:
     buckets:
       default: tuist-can-storage
 
+clickhouse:
+  poolSize: "30"
+  bufferPoolSize: "30"
+
 cache:
   extraEnv:
     - name: XCODE_DATABASE_INTERACTIONS_ENABLED

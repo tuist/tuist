@@ -261,6 +261,8 @@ postgresql:
       destinationPath: s3://tuist-prod-pg-backups/
 
 clickhouse:
+  poolSize: "15"
+  bufferPoolSize: "15"
   external:
     url: ""  # Set via helm --set at deploy time; see runbook.
 
