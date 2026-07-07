@@ -101,6 +101,24 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
 
       assert :ok = InteractiveSessions.request_vnc_relay(session)
     end
+
+    test "closes the session when the runner pod no longer exists" do
+      account = account_fixture()
+      user = user_fixture()
+      {:ok, session} = InteractiveSessions.request_vnc(job(account, %{pod_name: "pod-missing"}), account, user)
+
+      expect(K8sClient, :patch_pod, fn "tuist-runners", "pod-missing", _patch ->
+        {:error, :not_found}
+      end)
+
+      assert {:error, :pod_unavailable} = InteractiveSessions.request_vnc_relay(session)
+
+      closed = Repo.reload!(session)
+      assert closed.state == :closed
+      assert closed.close_reason == "pod_not_found"
+      assert closed.closed_at
+      assert InteractiveSessions.current_for_job(account.id, session.workflow_job_id, :vnc) == nil
+    end
   end
 
   describe "sync_vnc_relay_state/1" do
@@ -153,6 +171,22 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
       assert unchanged.state == :requested
       assert unchanged.relay_host == nil
       assert unchanged.relay_port == nil
+    end
+
+    test "closes the session when the runner pod disappears" do
+      account = account_fixture()
+      user = user_fixture()
+      {:ok, session} = InteractiveSessions.request_vnc(job(account, %{pod_name: "pod-gone"}), account, user)
+
+      expect(K8sClient, :get_pod, fn "tuist-runners", "pod-gone" ->
+        {:error, :not_found}
+      end)
+
+      assert {:ok, closed} = InteractiveSessions.sync_vnc_relay_state(session)
+      assert closed.state == :closed
+      assert closed.close_reason == "pod_not_found"
+      assert closed.closed_at
+      assert InteractiveSessions.current_for_job(account.id, session.workflow_job_id, :vnc) == nil
     end
   end
 

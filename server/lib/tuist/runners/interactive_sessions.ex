@@ -89,8 +89,15 @@ defmodule Tuist.Runners.InteractiveSessions do
       }
     })
     |> case do
-      {:ok, _pod} -> :ok
-      {:error, reason} -> {:error, reason}
+      {:ok, _pod} ->
+        :ok
+
+      {:error, :not_found} ->
+        _ = close(session, "pod_not_found")
+        {:error, :pod_unavailable}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -102,7 +109,7 @@ defmodule Tuist.Runners.InteractiveSessions do
         sync_vnc_relay_state_from_pod(session, pod)
 
       {:error, :not_found} ->
-        {:ok, session}
+        close(session, "pod_not_found")
 
       {:error, reason} ->
         {:error, reason}
