@@ -301,9 +301,22 @@ defmodule Tuist.SCIM do
           {:ok, user} ->
             {:ok, user, :created}
 
-          {:error, changeset} ->
+          {:error, :email_taken} ->
+            provisionable_user_created_concurrently(email)
+
+          {:error, %Ecto.Changeset{} = changeset} ->
             if email_taken?(changeset), do: {:error, :email_taken}, else: {:error, changeset}
+
+          {:error, reason} ->
+            {:error, reason}
         end
+    end
+  end
+
+  defp provisionable_user_created_concurrently(email) do
+    case Accounts.get_user_by_email(email) do
+      {:ok, %User{} = user} -> {:ok, user, :existing}
+      {:error, :not_found} -> {:error, :email_taken}
     end
   end
 

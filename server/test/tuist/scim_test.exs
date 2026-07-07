@@ -1,5 +1,6 @@
 defmodule Tuist.SCIMTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
   import TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -7,6 +8,8 @@ defmodule Tuist.SCIMTest do
   alias Tuist.Accounts.AccountToken
   alias Tuist.SCIM
   alias Tuist.SCIM.Workers.AttachmentNotifierWorker
+
+  setup :verify_on_exit!
 
   describe "tokens" do
     test "create_token/2 issues a usable bearer and persists only its hash" do
@@ -124,6 +127,28 @@ defmodule Tuist.SCIMTest do
         worker: AttachmentNotifierWorker,
         args: %{"user_id" => existing.id, "organization_id" => org.id}
       )
+    end
+
+    test "provision_user/2 attaches a user created concurrently after the first lookup", %{organization: org} do
+      email = "race@example.com"
+      existing = user_fixture(email: email)
+      lookup_counter = start_supervised!({Agent, fn -> 0 end})
+
+      expect(Accounts, :get_user_by_email, 2, fn ^email ->
+        Agent.get_and_update(lookup_counter, fn
+          0 -> {{:error, :not_found}, 1}
+          count -> {{:ok, existing}, count + 1}
+        end)
+      end)
+
+      expect(Accounts, :create_user, fn ^email, opts ->
+        assert Keyword.has_key?(opts, :confirmed_at)
+        {:error, :email_taken}
+      end)
+
+      assert {:ok, user} = SCIM.provision_user(org, %{user_name: email})
+      assert user.id == existing.id
+      assert Accounts.belongs_to_organization?(user, org)
     end
 
     test "provision_user/2 does not enqueue a notification when a brand-new user is created", %{organization: org} do
