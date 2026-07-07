@@ -54,11 +54,14 @@ COMPILATION_CACHE_ENABLE_PLUGIN = YES
 COMPILATION_CACHE_PLUGIN_PATH = $(HOME)/.local/share/mise/installs/tuist/latest/bin/libtuist_cas_plugin.dylib
 // Homebrew (Apple Silicon) instead: COMPILATION_CACHE_PLUGIN_PATH = /opt/homebrew/opt/tuist/bin/libtuist_cas_plugin.dylib
 COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
+OTHER_SWIFT_FLAGS = $(inherited) -cas-plugin-option tuist-instance=your-org/your-project
 ```
 
 The plugin (`libtuist_cas_plugin.dylib`) ships next to the `tuist` binary. The path above points at it through the stable `latest` symlink that [mise](https://mise.jdx.dev) — the recommended installer — keeps for your newest installed Tuist, so it keeps working across upgrades (Xcode expands `$(HOME)` in build settings; set `MISE_DATA_DIR` if you've relocated mise's data directory). For a Homebrew install, the plugin sits beside the binary in the Cellar, under `$(brew --prefix tuist)/bin/`.
 
 The plugin finds the running cache proxy automatically, so there is no socket path to configure. Note that `COMPILATION_CACHE_ENABLE_PLUGIN` and `COMPILATION_CACHE_PLUGIN_PATH` need to be added as **user-defined build settings** since they're not directly exposed in Xcode's build settings UI.
+
+The `tuist-instance` flag in `OTHER_SWIFT_FLAGS` tells the machine-wide cache proxy which account and project this build's cache belongs to, using the same `your-org/your-project` handle as your `Tuist.swift` `fullHandle`. It is required for raw Xcode projects: without it, the plugin still caches locally, but performs no remote reads or writes. On the `xcodebuild` command line or CI you can instead export `TUIST_CAS_ACCOUNT` and `TUIST_CAS_PROJECT`, but those are not visible to an Xcode ⌘B build, so the build setting is the more reliable option. Generated projects set this automatically (see the note below).
 
 You can also specify these settings when running `xcodebuild`. On the command line you can resolve the plugin next to whichever `tuist` your shell picks up instead of hardcoding it:
 
@@ -67,7 +70,8 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
     COMPILATION_CACHE_ENABLE_CACHING=YES \
     COMPILATION_CACHE_ENABLE_PLUGIN=YES \
     COMPILATION_CACHE_PLUGIN_PATH="$(dirname "$(mise which tuist)")/libtuist_cas_plugin.dylib" \
-    COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
+    COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES \
+    OTHER_SWIFT_FLAGS="\$(inherited) -cas-plugin-option tuist-instance=your-org/your-project"
 # Homebrew instead: COMPILATION_CACHE_PLUGIN_PATH="$(brew --prefix tuist)/bin/libtuist_cas_plugin.dylib"
 ```
 
