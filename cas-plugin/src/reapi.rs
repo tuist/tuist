@@ -221,6 +221,14 @@ impl Remote {
     fn channel(&self) -> Result<Channel, String> {
         self.channel
             .get_or_init(|| {
+                // connect_lazy wires the hyper connection pool and the h2
+                // keepalive timers to the *current* Tokio runtime. This runs from
+                // a proxy handler thread (outside the runtime), so without
+                // entering the runtime here the first RPC panics with "there is
+                // no reactor running" on a detached connection task; the panic is
+                // swallowed at the FFI boundary and every resolve silently
+                // degrades to a local miss (0% remote cache).
+                let _runtime_guard = runtime().enter();
                 let mut endpoint = Endpoint::from_shared(self.config.grpc_url.clone())
                     .map_err(|e| format!("bad grpc url: {e}"))?
                     .connect_timeout(Duration::from_secs(5))

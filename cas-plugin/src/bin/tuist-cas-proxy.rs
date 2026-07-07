@@ -39,11 +39,12 @@ fn main() {
         std::process::exit(2);
     };
     let tokens = TokenProvider::from_env();
-    let upstream_plugin = std::env::var("TUIST_CAS_UPSTREAM_PLUGIN").unwrap_or_else(|_| {
-        let developer_dir = std::env::var("DEVELOPER_DIR")
-            .unwrap_or_else(|_| "/Applications/Xcode.app/Contents/Developer".into());
-        format!("{developer_dir}/usr/lib/libToolchainCASPlugin.dylib")
-    });
+    // Resolve the upstream via the shared `upstream_path()` so the proxy gets the
+    // same `xcode-select` fallback as the plugin. The proxy is launched by
+    // launchd/`tuist cache-proxy` with no DEVELOPER_DIR, so without this it would
+    // fall back to the hardcoded `/Applications/Xcode.app` and fail to load
+    // Apple's plugin on any versioned Xcode install (every resolve then misses).
+    let upstream_plugin = tuist_cas_plugin::upstream_path();
     let registry_path = std::env::var("TUIST_CAS_PROXY_REGISTRY")
         .unwrap_or_else(|_| format!("{socket_path}.registry"));
 

@@ -31,7 +31,10 @@ use upstream::Upstream;
 
 static UPSTREAM: OnceLock<Result<&'static Upstream, String>> = OnceLock::new();
 
-fn upstream_path() -> String {
+/// Resolves the path to Apple's `libToolchainCASPlugin.dylib`. Shared with the
+/// `tuist-cas-proxy` binary so the plugin and the proxy agree on how to find the
+/// upstream (including the `xcode-select` fallback for versioned Xcode installs).
+pub fn upstream_path() -> String {
     if let Ok(path) = std::env::var("TUIST_CAS_UPSTREAM_PLUGIN") {
         return path;
     }
