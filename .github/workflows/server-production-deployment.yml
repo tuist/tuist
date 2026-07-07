@@ -1959,9 +1959,6 @@ jobs:
     needs: canary
     if: ${{ always() && needs.canary.result == 'success' }}
     runs-on: tuist-macos
-    # The Xcode compilation-cache acceptance test needs the cas-plugin dylib +
-    # proxy built from source; the extra timeout covers a cold Rust release
-    # build (rust-cache makes subsequent runs incremental).
     timeout-minutes: 25
     environment: server-k8s-canary
     permissions:
