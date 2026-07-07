@@ -75,6 +75,26 @@ unsafe fn set_error(error: *mut *mut c_char, message: &str) {
     }
 }
 
+/// Runs `body`, catching any panic so it can never unwind across an
+/// `extern "C"` boundary. A panic escaping a `#[no_mangle] extern "C"` function
+/// aborts the whole process (the compiler / build service) instead of degrading
+/// to a local miss, which is the invariant this plugin promises. On a panic,
+/// writes `message` into `error` (when non-null) and returns `sentinel`. The
+/// async llcas paths already guard their impl calls this way; this brings the
+/// synchronous entry points that run our own logic (remote resolves, mutex
+/// locks) to parity.
+unsafe fn ffi_guard<R>(
+    error: *mut *mut c_char,
+    sentinel: R,
+    message: &str,
+    body: impl FnOnce() -> R,
+) -> R {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(body)).unwrap_or_else(|_| {
+        set_error(error, message);
+        sentinel
+    })
+}
+
 unsafe fn adopt_error(up: &Upstream, error_in: *mut c_char, error_out: *mut *mut c_char) {
     if error_out.is_null() {
         if !error_in.is_null() {
@@ -939,7 +959,10 @@ pub unsafe extern "C" fn llcas_cas_load_object(
     loaded: *mut llcas_loaded_object_t,
     error: *mut *mut c_char,
 ) -> llcas_lookup_result_t {
-    load_object_impl(cas_state(cas), id, loaded, error)
+    let state = cas_state(cas);
+    ffi_guard(error, LLCAS_LOOKUP_RESULT_ERROR, "tuist-cas-plugin: panic during load", || {
+        load_object_impl(state, id, loaded, error)
+    })
 }
 
 #[no_mangle]
@@ -1228,7 +1251,9 @@ pub unsafe extern "C" fn llcas_actioncache_get_for_digest(
 ) -> llcas_lookup_result_t {
     let state = cas_state(cas);
     let key = std::slice::from_raw_parts(key.data, key.size).to_vec();
-    actioncache_get_impl(state, &key, globally, p_value, error)
+    ffi_guard(error, LLCAS_LOOKUP_RESULT_ERROR, "tuist-cas-plugin: panic during cache query", || {
+        actioncache_get_impl(state, &key, globally, p_value, error)
+    })
 }
 
 #[no_mangle]
@@ -1469,7 +1494,11 @@ pub unsafe extern "C" fn llcas_actioncache_put_for_digest(
     adopt_error(state.up, upstream_error, error);
     if !failed {
         let key = std::slice::from_raw_parts(key.data, key.size).to_vec();
-        actioncache_put_remote(state, &key, value);
+        // Best-effort remote publish: a panic here must neither fail the
+        // already-succeeded local put nor unwind across the extern "C" boundary.
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            actioncache_put_remote(state, &key, value)
+        }));
     }
     failed
 }
@@ -1491,7 +1520,11 @@ pub unsafe extern "C" fn llcas_actioncache_put_for_digest_async(
     let error = adopt_upstream_string(state.up, upstream_error);
     if !failed {
         let key = std::slice::from_raw_parts(key.data, key.size).to_vec();
-        actioncache_put_remote(state, &key, value);
+        // Best-effort remote publish: swallow panics so they cannot fail the
+        // local put or unwind across the extern "C" boundary.
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            actioncache_put_remote(state, &key, value)
+        }));
     }
     callback(ctx_cb, failed, error);
 }

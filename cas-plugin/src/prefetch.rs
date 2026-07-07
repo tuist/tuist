@@ -21,6 +21,31 @@ pub struct Prefetcher {
     starter: Mutex<Option<(usize, ProcessFn)>>,
 }
 
+/// Balances an inflight increment: dropping it decrements the counter under the
+/// queue lock and wakes any drain waiter. Making the decrement a Drop guard
+/// keeps it panic-safe — if the post-process cleanup below panics (e.g. a
+/// poisoned lock), unwinding still runs the decrement, so `drain_stop` cannot be
+/// left waiting on a counter that never returns to zero.
+struct InflightGuard<'a> {
+    prefetcher: &'a Prefetcher,
+}
+
+impl Drop for InflightGuard<'_> {
+    fn drop(&mut self) {
+        // Decrement under the lock so a drain check can't miss the wakeup
+        // between reading inflight and parking on the condvar. Recover from a
+        // poisoned lock rather than re-panicking: the decrement must run or
+        // drain_stop hangs.
+        let _queue = self
+            .prefetcher
+            .queue
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        self.prefetcher.inflight.fetch_sub(1, Ordering::AcqRel);
+        self.prefetcher.cvar.notify_all();
+    }
+}
+
 impl Prefetcher {
     pub fn new() -> Self {
         Self {
@@ -81,8 +106,9 @@ impl Prefetcher {
                         queue = this.cvar.wait(queue).unwrap();
                     }
                 };
-                // A panicking process() must not skip the inflight decrement,
-                // or drain_stop waits forever.
+                // The decrement (and its drain wakeup) now rides on this guard's
+                // Drop, so it runs even if process() or the cleanup below panics.
+                let _inflight = InflightGuard { prefetcher: this };
                 let key = digest.clone();
                 let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| process(digest)));
                 // Drop the item from `seen` once processed: dedup is meant to
@@ -92,11 +118,6 @@ impl Prefetcher {
                 // without this, that retry is silently dropped until the proxy
                 // restarts. Also bounds `seen` in the long-lived proxy.
                 this.seen.lock().unwrap().remove(&key);
-                // Decrement under the lock so a drain check can't miss the
-                // wakeup between reading inflight and parking on the condvar.
-                let _guard = this.queue.lock().unwrap();
-                this.inflight.fetch_sub(1, Ordering::AcqRel);
-                this.cvar.notify_all();
             }));
         }
     }

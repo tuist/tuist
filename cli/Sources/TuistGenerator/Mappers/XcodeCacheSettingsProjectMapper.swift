@@ -56,7 +56,9 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
                     // Hand the plugin the account/project as a compiler option, which
                     // reaches every frontend — including an Xcode ⌘B build that carries
                     // no CLI environment — so the proxy can route without the CLI. Swift
-                    // only; C/ObjC frontends fall back to the proxy's routing registry.
+                    // only: clang/ObjC never loads the CAS plugin (Xcode routes its
+                    // compilation caching to the builtin CAS), so C/ObjC is cached
+                    // locally but never remote.
                     baseSettings["OTHER_SWIFT_FLAGS"] = Self.appendingCASInstanceFlag(
                         fullHandle: fullHandle,
                         to: baseSettings["OTHER_SWIFT_FLAGS"]
