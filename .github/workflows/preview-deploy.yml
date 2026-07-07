@@ -342,6 +342,8 @@ jobs:
           target: runner
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}
           build-args: |
             TUIST_HOSTED=1
             MIX_ENV=prod
