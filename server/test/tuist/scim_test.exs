@@ -129,7 +129,9 @@ defmodule Tuist.SCIMTest do
       )
     end
 
-    test "provision_user/2 attaches a user created concurrently after the first lookup", %{organization: org} do
+    test "provision_user/2 attaches a user when creation reports the email was taken after lookup", %{
+      organization: org
+    } do
       email = "race@example.com"
       existing = user_fixture(email: email)
       lookup_counter = start_supervised!({Agent, fn -> 0 end})

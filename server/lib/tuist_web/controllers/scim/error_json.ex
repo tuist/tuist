@@ -6,22 +6,12 @@ defmodule TuistWeb.SCIM.ErrorJSON do
   alias Plug.Parsers
   alias Tuist.SCIM.Resource
 
-  def render(template, assigns) do
-    status = Map.get(assigns, :status) || status_from_template(template)
+  def render(_template, %{status: status} = assigns) when is_integer(status) do
     {detail, scim_type} = error_detail(status, Map.get(assigns, :reason))
 
     status
     |> Resource.render_error(detail, scim_type)
     |> JSON.encode!()
-  end
-
-  defp status_from_template(template) do
-    template
-    |> String.split(".")
-    |> hd()
-    |> String.to_integer()
-  rescue
-    _ -> 500
   end
 
   defp error_detail(400, %Parsers.ParseError{}), do: {"Invalid JSON payload", "invalidSyntax"}
