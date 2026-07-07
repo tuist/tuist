@@ -25,7 +25,20 @@ import XcodeProj
 @testable import TuistKit
 
 struct TuistCacheEECanaryAcceptanceTests {
+    /// This is a full remote compilation-cache e2e: it boots the Rust
+    /// `tuist-cas-proxy`, loads the plugin inside xcodebuild's compilers, and
+    /// routes them to a kura REAPI (gRPC) endpoint. It only runs where the
+    /// cas-plugin is built (TUIST_CAS_PLUGIN_PATH/TUIST_CAS_PROXY_PATH exported)
+    /// and a reachable kura REAPI is available: the production-deployment
+    /// acceptance job on the PN-kura runner fleet, not the generic PR CI
+    /// acceptance shard (whose local server serves the REST cache API, not
+    /// REAPI). Gating on the plugin path keeps the PR shard green while the test
+    /// still runs in the pipeline built for it.
     @Test(
+        .enabled(
+            if: Environment.current.variables["TUIST_CAS_PLUGIN_PATH"] != nil,
+            "Requires the cas-plugin built (TUIST_CAS_PLUGIN_PATH) and a reachable kura REAPI endpoint; runs in the production-deployment acceptance job, not the PR CI acceptance shard."
+        ),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH", "DEVELOPER_DIR", "TUIST_CAS_PLUGIN_PATH", "TUIST_CAS_PROXY_PATH"]),
         .withMockedNoora,
