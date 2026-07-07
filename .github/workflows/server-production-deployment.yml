@@ -2001,7 +2001,7 @@ jobs:
       - name: Build the cas-plugin
         working-directory: cas-plugin
         run: |
-          cargo build --release --lib --bin tuist-cas-proxy
+          mise run build
           echo "TUIST_CAS_PLUGIN_PATH=$(pwd)/target/release/libtuist_cas_plugin.dylib" >> "$GITHUB_ENV"
           echo "TUIST_CAS_PROXY_PATH=$(pwd)/target/release/tuist-cas-proxy" >> "$GITHUB_ENV"
       - name: Test

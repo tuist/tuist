@@ -1,2 +1,6 @@
 [tools]
 rust = { version = "1.94.1", profile = "default", components = "clippy,rustfmt" }
+
+[tasks.build]
+description = "Build the release cas-plugin dylib and tuist-cas-proxy binary for the host arch"
+run = "cargo build --release --lib --bin tuist-cas-proxy"
