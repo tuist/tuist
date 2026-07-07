@@ -26,6 +26,17 @@ defmodule Noora.Avatar do
 
   attr(:image_href, :string, default: nil, doc: "The URL of the image to render as the avatar.")
 
+  attr(:image_decoding, :string,
+    values: ~w(sync async auto),
+    default: "async",
+    doc: "The image decoding strategy to use when rendering an avatar image."
+  )
+
+  attr(:image_loading, :string,
+    default: nil,
+    doc: "The loading strategy to use when rendering an avatar image."
+  )
+
   attr(:fallback, :string,
     values: ~w(initials placeholder),
     default: "initials",
@@ -70,7 +81,13 @@ defmodule Noora.Avatar do
       data-color={@color}
       {@rest}
     >
-      <img :if={@image_href} data-part="image" src={@image_href} />
+      <img
+        :if={@image_href}
+        data-part="image"
+        src={@image_href}
+        decoding={@image_decoding}
+        loading={@image_loading}
+      />
       <.fallback_image
         :if={@fallback == "placeholder"}
         class="noora-avatar__fallback-image"

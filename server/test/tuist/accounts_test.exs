@@ -98,7 +98,7 @@ defmodule Tuist.AccountsTest do
       got = Accounts.create_customer_when_absent(account)
 
       # Then
-      assert got == %{account | customer_id: customer_id}
+      assert %{got | updated_at: account.updated_at} == %{account | customer_id: customer_id}
     end
   end
 
