@@ -677,6 +677,13 @@ jobs:
               # to a plain /Volumes/ramcache directory on the root disk would
               # invalidate the measurement.
               mount | grep -q "/Volumes/ramcache" || { echo "::error::RAM disk did not mount"; exit 1; }
+              # Spotlight indexes freshly-mounted volumes by default; mds
+              # chewing through 5000 new Mach-Os during the pull pollutes the
+              # measurement. First RAM run came back 19.5s (vs 3.7s on disk),
+              # physically impossible for the I/O — suspecting indexing and/or
+              # memory pressure, hence the diagnostics below.
+              mdutil -i off /Volumes/ramcache >/dev/null 2>&1 || true
+              sysctl -n hw.memsize | awk '{printf "VM RAM: %.0f GiB\n", $1/1073741824}'
               export XDG_CACHE_HOME=/Volumes/ramcache/xdg
               export TMPDIR=/Volumes/ramcache/tmp/
               mkdir -p "$XDG_CACHE_HOME" "$TMPDIR"
@@ -687,7 +694,13 @@ jobs:
               tuist generate "$GEN_TARGET" --no-binary-cache >/dev/null 2>&1 || true
               now() { python3 -c 'import time;print(time.time())'; }
               eval "$CLEAN_DD"; tuist clean binaries >/dev/null 2>&1 || true
+              echo "== vm pressure BEFORE pull =="
+              vm_stat | grep -E "Pageouts|Swapouts|Compressions|Pages free" || true
+              sysctl vm.swapusage || true
               g0=$(now); tuist generate "$GEN_TARGET"; g1=$(now)          # resolve+PULL(to RAM)+gen
+              echo "== vm pressure AFTER pull =="
+              vm_stat | grep -E "Pageouts|Swapouts|Compressions|Pages free" || true
+              sysctl vm.swapusage || true
               g2=$(now); tuist generate "$GEN_TARGET"; g3=$(now)          # resolve+gen (binaries in RAM, no pull)
               du_cache=$(du -sm "$XDG_CACHE_HOME/tuist" 2>/dev/null | awk '{print $1}')
               b0=$(now); eval "$BUILD_NO_CACHE"; b1=$(now)        # compile
