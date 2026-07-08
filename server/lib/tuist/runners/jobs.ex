@@ -480,6 +480,80 @@ defmodule Tuist.Runners.Jobs do
     count || 0
   end
 
+  @doc """
+  Returns a query selecting GitHub workflow run ids for runner jobs
+  matching account-scoped runner dimensions.
+
+  Build and test insights use this as a subquery against their
+  `ci_run_id` column, which stores GitHub workflow run ids as strings.
+  """
+  def ci_run_ids_query(account_id, opts \\ []) when is_integer(account_id) and is_list(opts) do
+    Job
+    |> from(hints: ["FINAL"])
+    |> where([j], j.account_id == ^account_id and j.workflow_run_id > 0)
+    |> maybe_filter_platform(Keyword.get(opts, :platform))
+    |> maybe_filter_fleet_name(Keyword.get(opts, :fleet_name))
+    |> maybe_filter_repository(Keyword.get(opts, :repository))
+    |> maybe_filter_workflow_run_id(Keyword.get(opts, :workflow_run_id))
+    |> distinct(true)
+    |> select([j], fragment("toString(?)", j.workflow_run_id))
+  end
+
+  @doc """
+  Lists distinct fleet names an account has used recently.
+  """
+  def distinct_fleet_names_for_account(account_id) when is_integer(account_id) do
+    thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
+
+    Job
+    |> from(hints: ["FINAL"])
+    |> where([j], j.account_id == ^account_id and j.fleet_name != "" and j.enqueued_at >= ^thirty_days_ago)
+    |> distinct(true)
+    |> order_by([j], asc: j.fleet_name)
+    |> select([j], j.fleet_name)
+    |> ClickHouseRepo.all()
+  end
+
+  @doc """
+  Returns one representative latest job per GitHub workflow run id.
+  """
+  def latest_by_workflow_run_ids(account_id, workflow_run_ids)
+      when is_integer(account_id) and is_list(workflow_run_ids) do
+    workflow_run_ids =
+      workflow_run_ids
+      |> Enum.map(&normalise_workflow_run_id/1)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    if workflow_run_ids == [] do
+      %{}
+    else
+      account_id
+      |> latest_jobs_subquery([])
+      |> then(fn sub ->
+        from(j in subquery(sub),
+          where: j.workflow_run_id in ^workflow_run_ids,
+          order_by: [desc: j.enqueued_at, desc: j.workflow_job_id],
+          select: j
+        )
+      end)
+      |> ClickHouseRepo.all()
+      |> Enum.group_by(& &1.workflow_run_id)
+      |> Map.new(fn {workflow_run_id, [job | _]} -> {Integer.to_string(workflow_run_id), job} end)
+    end
+  end
+
+  defp normalise_workflow_run_id(value) when is_integer(value), do: value
+
+  defp normalise_workflow_run_id(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {id, ""} -> id
+      _ -> nil
+    end
+  end
+
+  defp normalise_workflow_run_id(_), do: nil
+
   # Inner dedup subquery for every multi-row read in this module.
   # GROUP BY workflow_job_id + argMax(field, updated_at) gives us
   # one row per workflow_job carrying its latest state — the same
@@ -547,6 +621,35 @@ defmodule Tuist.Runners.Jobs do
   defp maybe_filter_platform(query, "macos"), do: filter_by_prefixes(query, Catalog.fleet_name_prefixes(:macos))
 
   defp maybe_filter_platform(query, _), do: query
+
+  defp maybe_filter_fleet_name(query, nil), do: query
+  defp maybe_filter_fleet_name(query, ""), do: query
+  defp maybe_filter_fleet_name(query, "any"), do: query
+
+  defp maybe_filter_fleet_name(query, fleet_name) when is_binary(fleet_name),
+    do: where(query, [j], j.fleet_name == ^fleet_name)
+
+  defp maybe_filter_repository(query, nil), do: query
+  defp maybe_filter_repository(query, ""), do: query
+  defp maybe_filter_repository(query, "any"), do: query
+
+  defp maybe_filter_repository(query, repository) when is_binary(repository),
+    do: where(query, [j], j.repository == ^repository)
+
+  defp maybe_filter_workflow_run_id(query, nil), do: query
+  defp maybe_filter_workflow_run_id(query, ""), do: query
+  defp maybe_filter_workflow_run_id(query, "any"), do: query
+
+  defp maybe_filter_workflow_run_id(query, workflow_run_id) when is_integer(workflow_run_id) do
+    where(query, [j], j.workflow_run_id == ^workflow_run_id)
+  end
+
+  defp maybe_filter_workflow_run_id(query, workflow_run_id) when is_binary(workflow_run_id) do
+    case Integer.parse(workflow_run_id) do
+      {id, ""} -> maybe_filter_workflow_run_id(query, id)
+      _ -> query
+    end
+  end
 
   # OR `startsWith(fleet_name, prefix)` across every prefix as a
   # single `where` clause. `or_where` would OR against the *whole*

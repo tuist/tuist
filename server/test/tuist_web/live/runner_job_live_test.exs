@@ -11,6 +11,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.JobSteps
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistWeb.Errors.NotFoundError
 
   setup %{conn: conn} do
@@ -84,6 +87,253 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert html =~ "Linux"
     # status_badge_props maps conclusion=success → "Passed"
     assert html =~ "Passed"
+  end
+
+  test "surfaces linked build and test insights for the runner workflow run", %{
+    conn: conn,
+    account: account
+  } do
+    project = ProjectsFixtures.project_fixture(name: "tuist", account_id: account.id)
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_301,
+        account_id: account.id,
+        fleet_name: "macos-xcode-26.4",
+        repository: "tuist/tuist",
+        workflow_run_id: 313_010,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Build and test",
+        head_branch: "main",
+        head_sha: "abcdef1234567890"
+      })
+
+    {:ok, build_run} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        user_id: account.id,
+        scheme: "App",
+        duration: 120_000,
+        inserted_at: ~N[2026-05-28 10:03:00.000000],
+        ci_provider: "github",
+        ci_project_handle: "tuist/tuist",
+        ci_run_id: "313010",
+        cacheable_tasks_count: 4,
+        cacheable_task_local_hits_count: 1,
+        cacheable_task_remote_hits_count: 1
+      )
+
+    {:ok, second_build_run} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        user_id: account.id,
+        scheme: "AppClip",
+        duration: 60_000,
+        inserted_at: ~N[2026-05-28 10:02:00.000000],
+        ci_provider: "github",
+        ci_project_handle: "tuist/tuist",
+        ci_run_id: "313010",
+        cacheable_tasks_count: 2,
+        cacheable_task_local_hits_count: 1,
+        cacheable_task_remote_hits_count: 1
+      )
+
+    CommandEventsFixtures.command_event_fixture(
+      project_id: project.id,
+      name: "xcodebuild",
+      is_ci: true,
+      build_run_id: build_run.id,
+      cacheable_targets: ["App", "Core", "UI", "Networking"],
+      local_cache_target_hits: ["App"],
+      remote_cache_target_hits: ["Core", "UI"]
+    )
+
+    CommandEventsFixtures.command_event_fixture(
+      project_id: project.id,
+      name: "xcodebuild",
+      is_ci: true,
+      build_run_id: second_build_run.id,
+      cacheable_targets: ["AppClip", "AppClipCore"],
+      local_cache_target_hits: ["AppClip"],
+      remote_cache_target_hits: []
+    )
+
+    {:ok, test_run} =
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        account_id: account.id,
+        scheme: "AppTests",
+        duration: 90_000,
+        ran_at: ~N[2026-05-28 10:03:15.000000],
+        ci_provider: "github",
+        ci_project_handle: "tuist/tuist",
+        ci_run_id: "313010"
+      )
+
+    {:ok, second_test_run} =
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        account_id: account.id,
+        scheme: "AppClipTests",
+        duration: 30_000,
+        ran_at: ~N[2026-05-28 10:02:15.000000],
+        ci_provider: "github",
+        ci_project_handle: "tuist/tuist",
+        ci_run_id: "313010"
+      )
+
+    CommandEventsFixtures.command_event_fixture(
+      project_id: project.id,
+      name: "test",
+      is_ci: true,
+      test_run_id: test_run.id,
+      test_targets: ["AppTests", "CoreTests", "UITests", "NetworkingTests"],
+      local_test_target_hits: ["AppTests"],
+      remote_test_target_hits: ["CoreTests", "UITests"]
+    )
+
+    CommandEventsFixtures.command_event_fixture(
+      project_id: project.id,
+      name: "test",
+      is_ci: true,
+      test_run_id: second_test_run.id,
+      test_targets: ["AppClipTests", "AppClipUITests"],
+      local_test_target_hits: ["AppClipTests"],
+      remote_test_target_hits: []
+    )
+
+    step_started_at = ~U[2026-05-28 10:00:00.000000Z]
+    step_completed_at = ~U[2026-05-28 10:03:30.000000Z]
+
+    :ok =
+      JobSteps.record([
+        %{
+          workflow_job_id: 31_301,
+          account_id: account.id,
+          number: 1,
+          name: "Build and test",
+          status: "completed",
+          conclusion: "success",
+          started_at: step_started_at,
+          completed_at: step_completed_at
+        }
+      ])
+
+    :ok =
+      JobMetrics.record(31_301, account.id, [
+        %{
+          timestamp: DateTime.to_unix(step_started_at, :second) / 1,
+          cpu_usage_percent: 55.0,
+          memory_used_bytes: 8_000_000_000,
+          memory_total_bytes: 16_000_000_000,
+          network_bytes_in: 1_048_576,
+          network_bytes_out: 524_288
+        },
+        %{
+          timestamp: DateTime.to_unix(step_completed_at, :second) / 1,
+          cpu_usage_percent: 80.0,
+          memory_used_bytes: 10_000_000_000,
+          memory_total_bytes: 16_000_000_000,
+          network_bytes_in: 2_048_576,
+          network_bytes_out: 1_524_288
+        }
+      ])
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/313010/jobs/31301")
+    document = Floki.parse_fragment!(html)
+
+    overview_html = document |> Floki.find("#runner-job-overview") |> Floki.raw_html()
+    step_start_ms = step_started_at |> DateTime.to_unix(:millisecond) |> Integer.to_string()
+    step_end_ms = step_completed_at |> DateTime.to_unix(:millisecond) |> Integer.to_string()
+
+    index = fn needle ->
+      case :binary.match(overview_html, needle) do
+        {index, _length} -> index
+        :nomatch -> flunk("Expected #{inspect(needle)} to be present in the runner overview")
+      end
+    end
+
+    ci_details_index = index.(~s(data-part="ci-details"))
+    summary_index = index.(~s(data-part="ci-details-section"))
+    insights_card_index = index.(~s(data-part="insights-card"))
+    insights_index = index.(~s(data-part="insights-grid"))
+    metrics_card_index = index.(~s(data-part="overview-metrics-card"))
+    metrics_index = index.(~s(data-part="overview"))
+    steps_index = index.(~s(data-part="steps-card"))
+
+    assert html =~ "Insights"
+    assert html =~ "Builds"
+    assert html =~ "Tests"
+    assert html =~ "Metrics"
+    assert ci_details_index < steps_index
+    assert summary_index < insights_index
+    assert summary_index < insights_card_index
+    assert insights_card_index < metrics_card_index
+    assert insights_index < metrics_index
+    assert metrics_index < steps_index
+    refute html =~ "Build runs"
+    refute html =~ "Test runs"
+    refute html =~ "Open builds"
+    refute html =~ "Open tests"
+    assert html =~ "App"
+    assert html =~ "AppClip"
+    assert html =~ "AppTests"
+    assert html =~ "AppClipTests"
+    assert html =~ "67%"
+    assert html =~ "Module cache"
+    assert html =~ "Selective testing"
+    refute html =~ "4/6 hits"
+    refute html =~ "Xcode cache 50%"
+    refute html =~ "2 runs"
+
+    build_chip =
+      document
+      |> Floki.find("a[data-part='step-insight-chip'][data-kind='build']")
+      |> List.first()
+
+    test_chip =
+      document
+      |> Floki.find("a[data-part='step-insight-chip'][data-kind='test']")
+      |> List.first()
+
+    assert build_chip
+    assert test_chip
+
+    assert build_chip |> Floki.find("[data-part='step-insight-chip-kind']") |> Floki.text() |> String.trim() ==
+             "Build"
+
+    assert build_chip |> Floki.find("[data-part='step-insight-chip-label']") |> Floki.text() |> String.trim() ==
+             "App"
+
+    assert test_chip |> Floki.find("[data-part='step-insight-chip-kind']") |> Floki.text() |> String.trim() ==
+             "Test"
+
+    assert test_chip |> Floki.find("[data-part='step-insight-chip-label']") |> Floki.text() |> String.trim() ==
+             "AppTests"
+
+    assert Floki.find(build_chip, "[data-part='step-insight-chip-status']") == []
+    assert Floki.find(test_chip, "[data-part='step-insight-chip-status']") == []
+    refute Floki.text(build_chip) =~ "Passed"
+    refute Floki.text(test_chip) =~ "Passed"
+
+    {"a", build_chip_attrs, _} = build_chip
+    {"a", test_chip_attrs, _} = test_chip
+
+    assert {"href", "/#{account.name}/tuist/builds/build-runs/#{build_run.id}"} in build_chip_attrs
+
+    assert {"href", "/#{account.name}/tuist/tests/test-runs/#{test_run.id}"} in test_chip_attrs
+
+    for {"a", attrs, _} <- Floki.find(document, "[data-part='insights-run-row']") do
+      assert {"data-step-start", step_start_ms} in attrs
+      assert {"data-step-end", step_end_ms} in attrs
+    end
+
+    lv |> element(~s{[data-part="step-header"][phx-value-number="1"]}) |> render_click()
+    expanded = lv |> element(~s{[data-part="step-expanded"]}) |> render()
+
+    refute expanded =~ ~s(data-part="step-insight-detail")
+    assert expanded =~ "No logs were captured for this step."
   end
 
   test "renders the captured steps for a completed job", %{conn: conn, account: account} do

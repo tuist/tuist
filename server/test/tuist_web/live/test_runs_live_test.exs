@@ -6,13 +6,14 @@ defmodule TuistWeb.TestRunsLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Runners.Jobs
   alias Tuist.Runs.Analytics, as: RunsAnalytics
   alias TuistTestSupport.Fixtures.RunsFixtures
 
   describe "lists latest test runs" do
     setup do
       copy(RunsAnalytics)
-      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30.000000Z] end)
 
       stub(RunsAnalytics, :runs_analytics, fn _, _, _ ->
         %{runs_per_period: %{}, dates: [], values: [], count: 0, trend: 0}
@@ -138,6 +139,79 @@ defmodule TuistWeb.TestRunsLiveTest do
       assert html =~ "does not contain"
       assert html =~ "Regular"
       refute html =~ "Queued"
+    end
+
+    test "filters test runs by runner platform", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      ran_at = ~N[2024-04-30 10:19:30]
+      enqueued_at = ~U[2024-04-30 10:20:30.000000Z]
+
+      :ok =
+        Jobs.enqueue(%{
+          workflow_job_id: 41_101,
+          account_id: organization.account.id,
+          fleet_name: "macos-xcode-26.4",
+          repository: "tuist/tuist",
+          workflow_run_id: 411_010,
+          workflow_name: "Server",
+          run_attempt: 1,
+          job_name: "Test",
+          head_branch: "main",
+          head_sha: "abc",
+          enqueued_at: enqueued_at
+        })
+
+      :ok =
+        Jobs.enqueue(%{
+          workflow_job_id: 41_102,
+          account_id: organization.account.id,
+          fleet_name: "linux-amd64",
+          repository: "tuist/tuist",
+          workflow_run_id: 411_020,
+          workflow_name: "Server",
+          run_attempt: 1,
+          job_name: "Test",
+          head_branch: "main",
+          head_sha: "def",
+          enqueued_at: enqueued_at
+        })
+
+      {:ok, _mac_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: organization.account.id,
+          scheme: "RunnerMacTests",
+          ran_at: ran_at,
+          ci_provider: "github",
+          ci_project_handle: "tuist/tuist",
+          ci_run_id: "411010"
+        )
+
+      {:ok, _linux_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: organization.account.id,
+          scheme: "RunnerLinuxTests",
+          ran_at: ran_at,
+          ci_provider: "github",
+          ci_project_handle: "tuist/tuist",
+          ci_run_id: "411020"
+        )
+
+      query =
+        URI.encode_query(%{
+          "filter_runner_platform_op" => "==",
+          "filter_runner_platform_val" => "macos"
+        })
+
+      {:ok, lv, _html} =
+        live(conn, "/#{organization.account.name}/#{project.name}/tests/test-runs?#{query}")
+
+      assert has_element?(lv, "[data-part='test-runs-table']", "RunnerMacTests")
+      refute has_element?(lv, "[data-part='test-runs-table']", "RunnerLinuxTests")
     end
   end
 end

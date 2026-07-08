@@ -507,6 +507,13 @@
           <:col :let={test_run} label={dgettext("dashboard_tests", "Ran by")}>
             <.test_ran_by_badge_cell test={test_run} />
           </:col>
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Runner")}>
+            <% runner_job = TuistWeb.TestRunsLive.runner_job_for(@runner_jobs_by_run_id, test_run) %>
+            <.text_cell
+              label={TuistWeb.TestRunsLive.runner_job_label(runner_job)}
+              icon="server"
+            />
+          </:col>
           <:col :let={test_run} label={dgettext("dashboard_tests", "Duration")}>
             <.text_cell
               label={

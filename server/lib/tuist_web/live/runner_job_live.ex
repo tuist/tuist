@@ -6,13 +6,17 @@ defmodule TuistWeb.RunnerJobLive do
   import TuistWeb.Components.RunnerJobMetricsCharts
 
   alias Tuist.Authorization
+  alias Tuist.Builds
+  alias Tuist.CommandEvents
   alias Tuist.FeatureFlags
+  alias Tuist.Projects
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.JobMetrics
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.JobSteps
   alias Tuist.Runners.LogFormatter
+  alias Tuist.Tests
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
@@ -65,6 +69,7 @@ defmodule TuistWeb.RunnerJobLive do
          |> assign(:job, job)
          |> assign(:steps, JobSteps.list_for_job(job.workflow_job_id))
          |> assign(:machine_metrics, machine_metrics)
+         |> assign_runner_insights(selected_account, job)
          |> assign(:expanded_steps, MapSet.new())
          |> assign(:step_logs, %{})
          |> assign(:search, "")
@@ -271,10 +276,287 @@ defmodule TuistWeb.RunnerJobLive do
   end
 
   @doc """
+  The step window associated with a build or test insight. Runner jobs
+  do not carry per-artifact step identifiers yet, so we map insights to
+  the same step-name heuristics used to surface them on the step rows.
+  """
+  def insight_step_window(steps, kind) do
+    steps
+    |> Enum.filter(&step_name_matches?(&1, kind))
+    |> step_window()
+  end
+
+  @doc """
   Whether the job has any machine-metrics samples to chart. Drives
   the Metrics tab's empty state and gates the Overview chart row.
   """
   def has_machine_metrics?(metrics), do: metrics != []
+
+  def cache_hit_rate_label(%{cacheable_tasks_count: count}) when count in [nil, 0] do
+    dgettext("dashboard_runners", "No cache data")
+  end
+
+  def cache_hit_rate_label(%{
+        cacheable_tasks_count: count,
+        cacheable_task_local_hits_count: local_hits,
+        cacheable_task_remote_hits_count: remote_hits
+      }) do
+    hits = (local_hits || 0) + (remote_hits || 0)
+    "#{round(hits / count * 100)}%"
+  end
+
+  def cache_hit_rate_label(_), do: dgettext("dashboard_runners", "No cache data")
+
+  def build_runs_duration_ms(build_runs) do
+    build_runs
+    |> Enum.map(&(&1.duration || 0))
+    |> Enum.sum()
+  end
+
+  def build_runs_status_badge_props([]), do: %{label: dgettext("dashboard_runners", "Unknown"), color: "neutral"}
+
+  def build_runs_status_badge_props(build_runs) do
+    cond do
+      Enum.any?(build_runs, &(&1.status == "failure")) ->
+        %{label: dgettext("dashboard_runners", "Failed"), color: "destructive"}
+
+      Enum.any?(build_runs, &(&1.status == "failed_processing")) ->
+        %{label: dgettext("dashboard_runners", "Failed processing"), color: "warning"}
+
+      Enum.any?(build_runs, &(&1.status == "processing")) ->
+        %{label: dgettext("dashboard_runners", "Processing"), color: "neutral"}
+
+      true ->
+        %{label: dgettext("dashboard_runners", "Passed"), color: "success"}
+    end
+  end
+
+  def hit_rate_summary?(%{total_count: total_count}) when total_count > 0, do: true
+  def hit_rate_summary?(_), do: false
+
+  def hit_rate_label(%{hits_count: hits_count, total_count: total_count}) when total_count > 0 do
+    "#{round(hits_count / total_count * 100)}%"
+  end
+
+  def xcode_cache_summary(build_runs) do
+    total_count = Enum.sum(Enum.map(build_runs, &(&1.cacheable_tasks_count || 0)))
+    local_hits_count = Enum.sum(Enum.map(build_runs, &(&1.cacheable_task_local_hits_count || 0)))
+    remote_hits_count = Enum.sum(Enum.map(build_runs, &(&1.cacheable_task_remote_hits_count || 0)))
+
+    %{
+      local_hits_count: local_hits_count,
+      remote_hits_count: remote_hits_count,
+      hits_count: local_hits_count + remote_hits_count,
+      total_count: total_count
+    }
+  end
+
+  def build_status_badge_props(%{status: "success"}),
+    do: %{label: dgettext("dashboard_runners", "Passed"), color: "success"}
+
+  def build_status_badge_props(%{status: "failure"}),
+    do: %{label: dgettext("dashboard_runners", "Failed"), color: "destructive"}
+
+  def build_status_badge_props(%{status: "processing"}),
+    do: %{label: dgettext("dashboard_runners", "Processing"), color: "neutral"}
+
+  def build_status_badge_props(%{status: "failed_processing"}),
+    do: %{label: dgettext("dashboard_runners", "Failed processing"), color: "warning"}
+
+  def build_status_badge_props(_), do: %{label: dgettext("dashboard_runners", "Unknown"), color: "neutral"}
+
+  def insight_scheme_label(%{scheme: scheme}) when is_binary(scheme) and scheme != "" do
+    scheme
+  end
+
+  def insight_scheme_label(_), do: dgettext("dashboard_runners", "Unknown scheme")
+
+  def test_status_badge_props(%{status: "success", is_flaky: true}),
+    do: %{label: dgettext("dashboard_runners", "Passed (flaky)"), color: "warning"}
+
+  def test_status_badge_props(%{status: "success"}),
+    do: %{label: dgettext("dashboard_runners", "Passed"), color: "success"}
+
+  def test_status_badge_props(%{status: "failure"}),
+    do: %{label: dgettext("dashboard_runners", "Failed"), color: "destructive"}
+
+  def test_status_badge_props(%{status: "skipped"}),
+    do: %{label: dgettext("dashboard_runners", "Skipped"), color: "warning"}
+
+  def test_status_badge_props(_), do: %{label: dgettext("dashboard_runners", "Unknown"), color: "neutral"}
+
+  def step_insights(step, build_runs, test_runs) do
+    %{
+      build_runs: matching_step_build_runs(step, build_runs),
+      test_runs: matching_step_test_runs(step, test_runs)
+    }
+  end
+
+  def step_has_insights?(%{build_runs: build_runs, test_runs: test_runs}) do
+    build_runs != [] or test_runs != []
+  end
+
+  def step_has_insights?(_), do: false
+
+  def step_test_duration_ms(test_runs) do
+    test_runs
+    |> Enum.map(&(&1.duration || 0))
+    |> Enum.sum()
+  end
+
+  def module_cache_summary(command_events) do
+    total_count = Enum.sum(Enum.map(command_events, &(&1.cacheable_targets_count || 0)))
+    local_hits_count = Enum.sum(Enum.map(command_events, &(&1.local_cache_hits_count || 0)))
+    remote_hits_count = Enum.sum(Enum.map(command_events, &(&1.remote_cache_hits_count || 0)))
+
+    %{
+      local_hits_count: local_hits_count,
+      remote_hits_count: remote_hits_count,
+      hits_count: local_hits_count + remote_hits_count,
+      total_count: total_count
+    }
+  end
+
+  def selective_testing_summary(command_events) do
+    total_count = Enum.sum(Enum.map(command_events, &(&1.test_targets_count || 0)))
+    local_hits_count = Enum.sum(Enum.map(command_events, &(&1.local_test_hits_count || 0)))
+    remote_hits_count = Enum.sum(Enum.map(command_events, &(&1.remote_test_hits_count || 0)))
+
+    %{
+      local_hits_count: local_hits_count,
+      remote_hits_count: remote_hits_count,
+      hits_count: local_hits_count + remote_hits_count,
+      total_count: total_count
+    }
+  end
+
+  defp assign_runner_insights(socket, selected_account, job) do
+    case project_for_runner_job(selected_account, job) do
+      nil ->
+        socket
+        |> assign(:insights_project, nil)
+        |> assign(:linked_build_runs, [])
+        |> assign(:linked_test_runs, [])
+        |> assign(:linked_build_module_cache_summary, module_cache_summary([]))
+        |> assign(:linked_test_selective_testing_summary, selective_testing_summary([]))
+
+      project ->
+        runner_filters = [account_id: selected_account.id, workflow_run_id: job.workflow_run_id]
+
+        build_runs = list_runner_build_runs(project, runner_filters)
+        test_runs = list_runner_test_runs(project, runner_filters)
+
+        build_command_events = build_runs |> command_events_for_runs(:build) |> Enum.reject(&is_nil/1)
+        test_command_events = test_runs |> command_events_for_runs(:test) |> Enum.reject(&is_nil/1)
+
+        socket
+        |> assign(:insights_project, project)
+        |> assign(:linked_build_runs, build_runs)
+        |> assign(:linked_test_runs, test_runs)
+        |> assign(:linked_build_module_cache_summary, module_cache_summary(build_command_events))
+        |> assign(:linked_test_selective_testing_summary, selective_testing_summary(test_command_events))
+    end
+  end
+
+  defp project_for_runner_job(account, %{repository: repository}) when is_binary(repository) do
+    case String.split(repository, "/", parts: 2) do
+      [_owner, project_handle] ->
+        Projects.get_project_by_account_and_project_handles(account.name, project_handle)
+
+      _ ->
+        nil
+    end
+  end
+
+  defp project_for_runner_job(_, _), do: nil
+
+  defp list_runner_build_runs(project, runner_filters) do
+    attrs = %{
+      filters: [%{field: :project_id, op: :==, value: project.id}],
+      order_by: [:inserted_at],
+      order_directions: [:desc]
+    }
+
+    {build_runs, meta} = Builds.list_build_runs(attrs, runner_filters: runner_filters)
+    total_count = Map.get(meta, :total_count)
+
+    if is_integer(total_count) and total_count > length(build_runs) do
+      attrs
+      |> Map.put(:first, total_count)
+      |> Builds.list_build_runs(runner_filters: runner_filters)
+      |> elem(0)
+    else
+      build_runs
+    end
+  end
+
+  defp list_runner_test_runs(project, runner_filters) do
+    attrs = %{
+      filters: [
+        %{field: :project_id, op: :==, value: project.id},
+        %{field: :status, op: :!=, value: "in_progress"}
+      ],
+      order_by: [:ran_at],
+      order_directions: [:desc]
+    }
+
+    {test_runs, meta} = Tests.list_test_runs(attrs, runner_filters: runner_filters)
+    total_count = Map.get(meta, :total_count)
+
+    if is_integer(total_count) and total_count > length(test_runs) do
+      attrs
+      |> Map.put(:first, total_count)
+      |> Tests.list_test_runs(runner_filters: runner_filters)
+      |> elem(0)
+    else
+      test_runs
+    end
+  end
+
+  defp command_events_for_runs(runs, kind) do
+    Enum.map(runs, fn run ->
+      case kind do
+        :build ->
+          case CommandEvents.get_command_event_by_build_run_id(run.id, project_id: run.project_id) do
+            {:ok, event} -> event
+            {:error, :not_found} -> nil
+          end
+
+        :test ->
+          case CommandEvents.get_command_event_by_test_run_id(run.id, project_id: run.project_id) do
+            {:ok, event} -> event
+            {:error, :not_found} -> nil
+          end
+      end
+    end)
+  end
+
+  defp matching_step_build_runs(step, build_runs) do
+    if step_name_matches?(step, :build) do
+      build_runs
+    else
+      []
+    end
+  end
+
+  defp matching_step_test_runs(step, test_runs) do
+    if step_name_matches?(step, :test) do
+      test_runs
+    else
+      []
+    end
+  end
+
+  defp step_name_matches?(%{name: name}, kind) when is_binary(name) do
+    normalized = name |> String.downcase() |> String.replace(~r/[^a-z0-9]+/, " ")
+
+    case kind do
+      :build -> String.match?(normalized, ~r/\b(build|xcodebuild|compile|assemble|archive)\b/)
+      :test -> String.match?(normalized, ~r/\b(test|tests|xcresult)\b/)
+    end
+  end
+
+  defp step_name_matches?(_, _), do: false
 
   # FetchLogsWorker finished ingesting the job's captured log. Reload
   # the tail and reset the stream so the empty state ("No logs have

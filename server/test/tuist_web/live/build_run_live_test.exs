@@ -7,6 +7,7 @@ defmodule TuistWeb.BuildRunLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.CommandEvents
+  alias Tuist.Runners.Jobs
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -135,6 +136,40 @@ defmodule TuistWeb.BuildRunLiveTest do
     # Then
     assert has_element?(lv, "a", "CI Run")
     assert has_element?(lv, ~s|a[href="https://github.com/tuist/tuist/actions/runs/1234567890"]|)
+  end
+
+  test "shows Runner Job button when a GitHub build run matches a runner job", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 42_101,
+        account_id: organization.account.id,
+        fleet_name: "macos-xcode-26.4",
+        repository: "tuist/tuist",
+        workflow_run_id: 421_010,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, build_run} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        scheme: "App",
+        ci_provider: "github",
+        ci_project_handle: "tuist/tuist",
+        ci_run_id: "421010"
+      )
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_run.id}")
+
+    assert has_element?(lv, "a", "Runner Job")
+    assert has_element?(lv, ~s|a[href="/#{organization.account.name}/runners/runs/421010/jobs/42101"]|)
   end
 
   test "hides CI Run button when build run has no CI metadata", %{

@@ -7,6 +7,7 @@ defmodule TuistWeb.TestRunLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.CommandEvents
+  alias Tuist.Runners.Jobs
   alias Tuist.Shards.Analytics, as: ShardsAnalytics
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -95,6 +96,41 @@ defmodule TuistWeb.TestRunLiveTest do
     # Then
     assert has_element?(lv, "[data-part='test-cases-card']")
     assert has_element?(lv, "#test-cases-table")
+  end
+
+  test "shows Runner Job button when a GitHub test run matches a runner job", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 42_201,
+        account_id: organization.account.id,
+        fleet_name: "macos-xcode-26.4",
+        repository: "tuist/tuist",
+        workflow_run_id: 422_010,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Test",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, test_run} =
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        account_id: organization.account.id,
+        scheme: "AppTests",
+        ci_provider: "github",
+        ci_project_handle: "tuist/tuist",
+        ci_run_id: "422010"
+      )
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+    assert has_element?(lv, "a", "Runner Job")
+    assert has_element?(lv, ~s|a[href="/#{organization.account.name}/runners/runs/422010/jobs/42201"]|)
   end
 
   test "shows download button with command event ID when test run has result bundle", %{

@@ -29,6 +29,7 @@ defmodule Tuist.Tests do
   alias Tuist.KeyValueStore
   alias Tuist.Projects.Project
   alias Tuist.Repo
+  alias Tuist.Runners.Jobs, as: RunnerJobs
   alias Tuist.Shards
   alias Tuist.Shards.ShardRun
   alias Tuist.Tests.CrashReport
@@ -286,12 +287,39 @@ defmodule Tuist.Tests do
     end
   end
 
-  def list_test_runs(attrs) do
-    {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(Test, attrs, for: Test)
+  def list_test_runs(attrs, opts \\ []) do
+    runner_filters = Keyword.get(opts, :runner_filters, [])
+
+    base_query = apply_runner_filters(Test, runner_filters)
+
+    {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: Test)
 
     results = Repo.preload(results, :ran_by_account)
 
     {results, meta}
+  end
+
+  defp apply_runner_filters(query, opts) when opts in [nil, []], do: query
+
+  defp apply_runner_filters(query, opts) when is_list(opts) do
+    account_id = Keyword.get(opts, :account_id)
+
+    if is_integer(account_id) and runner_filters_active?(opts) do
+      runner_run_ids = RunnerJobs.ci_run_ids_query(account_id, opts)
+
+      from(t in query,
+        where: t.ci_provider == "github" and t.ci_run_id in subquery(runner_run_ids)
+      )
+    else
+      query
+    end
+  end
+
+  defp runner_filters_active?(opts) do
+    Enum.any?([:platform, :fleet_name, :repository, :workflow_run_id], fn key ->
+      value = Keyword.get(opts, key)
+      value not in [nil, "", "any"]
+    end)
   end
 
   def list_sharded_test_runs(attrs) do

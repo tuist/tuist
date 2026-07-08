@@ -17,6 +17,7 @@ defmodule TuistWeb.TestRunLive do
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
   alias Tuist.Projects
+  alias Tuist.Runners.Jobs, as: RunnerJobs
   alias Tuist.Shards.ShardPlan
   alias Tuist.Storage
   alias Tuist.Tests
@@ -87,6 +88,7 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:run, run)
       |> assign(:command_event, command_event)
       |> assign(:module_cache_metrics, command_event && CommandEvents.module_cache_output_metrics(command_event.id))
+      |> assign(:runner_job, runner_job(project.account_id, run))
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Run")} · #{slug} · Tuist")
       |> assign(:test_metrics, test_metrics)
       |> assign(:failures_count, failures_count)
@@ -311,6 +313,7 @@ defmodule TuistWeb.TestRunLive do
 
         socket
         |> assign(:run, refreshed_run)
+        |> assign(:runner_job, runner_job(project.account_id, refreshed_run))
         |> assign_initial_analytics_state()
         |> assign_initial_test_cases_state()
         |> assign_initial_failures_state()
@@ -323,6 +326,12 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp transient?(status), do: status in @transient_statuses
+
+  defp runner_job(account_id, %{ci_run_id: ci_run_id}) do
+    account_id
+    |> RunnerJobs.latest_by_workflow_run_ids([ci_run_id])
+    |> Map.get(ci_run_id)
+  end
 
   defp schedule_run_poll do
     Process.send_after(self(), :poll_run_state, @run_poll_interval)

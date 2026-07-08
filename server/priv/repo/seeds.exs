@@ -10,8 +10,12 @@ alias Tuist.Billing
 alias Tuist.Billing.Subscription
 alias Tuist.Builds.Build
 alias Tuist.Builds.BuildMachineMetric
+alias Tuist.Builds.CacheableTask
+alias Tuist.Builds.CASOutput
 alias Tuist.Bundles
+alias Tuist.Cache.CASEvent
 alias Tuist.CommandEvents.Event
+alias Tuist.CommandEvents.ModuleCacheOutput
 alias Tuist.Environment
 alias Tuist.Gradle.Build, as: GradleBuild
 alias Tuist.Gradle.CacheEvent, as: GradleCacheEvent
@@ -34,6 +38,7 @@ alias Tuist.Slack.Installation
 alias Tuist.Tests.Test
 alias Tuist.Tests.TestCase
 alias Tuist.Tests.TestCaseEvent
+alias Tuist.Tests.TestCaseFailure
 alias Tuist.Tests.TestCaseRun
 alias Tuist.Tests.TestModuleRun
 alias Tuist.Tests.TestSuiteRun
@@ -656,7 +661,7 @@ end
 completed_builds = Enum.reject(builds, fn b -> b.status in ["processing", "failed_processing"] end)
 
 cas_outputs = SeedHelpers.parallel_flat_map(completed_builds, cas_output_generator)
-SeedHelpers.insert_bulk_ch(cas_outputs, Tuist.Builds.CASOutput, IngestRepo, "CAS outputs")
+SeedHelpers.insert_bulk_ch(cas_outputs, CASOutput, IngestRepo, "CAS outputs")
 
 # Generate CAS events based on CAS outputs
 # CAS events track upload/download actions for analytics
@@ -677,7 +682,7 @@ cas_events =
     }
   end)
 
-SeedHelpers.insert_bulk_ch(cas_events, Tuist.Cache.CASEvent, IngestRepo, "CAS events")
+SeedHelpers.insert_bulk_ch(cas_events, CASEvent, IngestRepo, "CAS events")
 
 # Group CAS outputs by build_id for later use
 cas_outputs_by_build = Enum.group_by(cas_outputs, & &1.build_run_id)
@@ -785,7 +790,7 @@ cacheable_tasks =
     tasks
   end)
 
-SeedHelpers.insert_bulk_ch(cacheable_tasks, Tuist.Builds.CacheableTask, IngestRepo, "cacheable tasks")
+SeedHelpers.insert_bulk_ch(cacheable_tasks, CacheableTask, IngestRepo, "cacheable tasks")
 
 # Generate build targets
 if seed_config.targets_per_build > 0 do
@@ -1417,7 +1422,7 @@ chunk_processor = fn chunk_indices ->
     end
 
     if length(failures) > 0 do
-      IngestRepo.insert_all(Tuist.Tests.TestCaseFailure, failures, timeout: 120_000)
+      IngestRepo.insert_all(TestCaseFailure, failures, timeout: 120_000)
       :counters.add(failure_counter, 1, length(failures))
     end
   end)
@@ -3423,14 +3428,17 @@ runner_jobs_account_id = organization.account.id
 runner_jobs_repos = [
   "tuist/tuist",
   "tuist/noora",
-  "tuist/cli",
   "tuist/cache",
   "tuist/kura",
   "tuist/skills"
 ]
 
-runner_jobs_fleets = ["macos-xcode-26.4", "macos-xcode-26.3", "linux-amd64"]
-runner_jobs_branches = ["main", "feat/runners-ui", "fix/cache-flake", "renovate/deps"]
+# Production runner read access in this dev context is intentionally limited to
+# Kubernetes metadata (no exec, no port-forward, no secrets). The local fixture
+# therefore mirrors the visible production topology (macOS fleet first) and uses
+# aggregate-shaped, synthetic insight values below rather than copied rows.
+runner_jobs_fleets = ["macos-xcode-26.4", "macos-xcode-26.3", "macos-xcode-26.2"]
+runner_jobs_branches = ["main", "release/4.85", "feat/cache-observability", "fix/runner-teardown"]
 now = DateTime.utc_now()
 
 random_sha = fn ->
@@ -3557,7 +3565,7 @@ completed_jobs = [
     run_attempt: 1,
     minutes_ago: 42,
     duration_s: 198,
-    repo_idx: 2
+    repo_idx: 0
   },
   %{
     conclusion: "success",
@@ -3566,7 +3574,7 @@ completed_jobs = [
     run_attempt: 2,
     minutes_ago: 54,
     duration_s: 287,
-    repo_idx: 2
+    repo_idx: 0
   },
   %{
     conclusion: "cancelled",
@@ -3659,6 +3667,90 @@ recent_24h_seeds =
 
 completed_jobs = completed_jobs ++ recent_24h_seeds ++ additional_workflow_seeds
 
+runner_insight_shapes = [
+  %{
+    build_duration_ms: 214_000,
+    total_tasks: 164,
+    remote_hit_rate: 0.58,
+    local_hit_rate: 0.19,
+    module_downloads: 26,
+    module_uploads: 5
+  },
+  %{
+    build_duration_ms: 348_000,
+    total_tasks: 236,
+    remote_hit_rate: 0.46,
+    local_hit_rate: 0.22,
+    module_downloads: 38,
+    module_uploads: 8
+  },
+  %{
+    build_duration_ms: 126_000,
+    total_tasks: 112,
+    remote_hit_rate: 0.64,
+    local_hit_rate: 0.12,
+    module_downloads: 18,
+    module_uploads: 3
+  },
+  %{
+    build_duration_ms: 492_000,
+    total_tasks: 312,
+    remote_hit_rate: 0.39,
+    local_hit_rate: 0.16,
+    module_downloads: 44,
+    module_uploads: 12
+  }
+]
+
+runner_module_cache_names = [
+  "TuistCore",
+  "TuistServer",
+  "TuistWeb",
+  "TuistSupport",
+  "TuistCache",
+  "TuistGenerator",
+  "Noora",
+  "XcodeGraph",
+  "ProjectDescription",
+  "TuistTesting",
+  "TuistAutomation",
+  "TuistAcceptanceTesting"
+]
+
+runner_test_profiles_by_workflow = fn workflow ->
+  case workflow do
+    "CLI" ->
+      [
+        %{scheme: "TuistKitTests", duration_ms: 118_000, cases: 148},
+        %{scheme: "TuistAcceptanceTests", duration_ms: 286_000, cases: 42},
+        %{scheme: "TuistGeneratorTests", duration_ms: 96_000, cases: 121}
+      ]
+
+    "Cache" ->
+      [
+        %{scheme: "TuistCacheTests", duration_ms: 74_000, cases: 86},
+        %{scheme: "TuistCASTests", duration_ms: 132_000, cases: 57}
+      ]
+
+    _ ->
+      [
+        %{scheme: "TuistServerTests", duration_ms: 152_000, cases: 173},
+        %{scheme: "TuistWebTests", duration_ms: 91_000, cases: 118},
+        %{scheme: "TuistCommonTests", duration_ms: 63_000, cases: 79}
+      ]
+  end
+end
+
+rows_for_count = fn count, fun ->
+  if count > 0 do
+    Enum.map(1..count, fun)
+  else
+    []
+  end
+end
+
+runner_linked_command_events = :ets.new(:runner_linked_command_events, [:bag, :public])
+
 completed_jobs
 |> Enum.with_index()
 |> Enum.each(fn {job, idx} ->
@@ -3728,6 +3820,409 @@ completed_jobs
       build_runner_job_metrics.(workflow_job_id, runner_jobs_account_id, fleet, started_at, completed_at)
     )
 
+  if repo == "tuist/tuist" and job.conclusion in ["success", "failure"] do
+    shape = Enum.at(runner_insight_shapes, rem(idx, length(runner_insight_shapes)))
+    linked_build_id = UUIDv7.generate()
+    workflow_run_id = workflow_job_id - 1000
+    workflow_run_id_string = Integer.to_string(workflow_run_id)
+    xcode_version = String.replace_prefix(fleet, "macos-xcode-", "")
+    macos_version = Enum.at(["26.0", "26.0", "15.6"], rem(idx, 3))
+    model_identifier = Enum.at(["Mac15,6", "Mac16,10", "Mac14,15"], rem(idx, 3))
+    inserted_at = completed_at |> DateTime.to_naive() |> NaiveDateTime.truncate(:microsecond)
+    inserted_at_seconds = NaiveDateTime.truncate(inserted_at, :second)
+    commit_sha = random_sha.()
+    build_scheme = if(job.workflow == "CLI", do: "Tuist", else: "TuistServer")
+
+    total_tasks = shape.total_tasks + rem(idx * 13, 31)
+    remote_hits = min(total_tasks, trunc(total_tasks * shape.remote_hit_rate))
+    local_hits = min(total_tasks - remote_hits, trunc(total_tasks * shape.local_hit_rate))
+    misses = total_tasks - remote_hits - local_hits
+    build_duration = max(shape.build_duration_ms + rem(idx * 19_337, 90_000) - 30_000, 35_000)
+
+    build_command_event_id = UUIDv7.generate()
+    module_targets = Enum.take(runner_module_cache_names, 8 + rem(idx, 4))
+    remote_module_hits = Enum.take(module_targets, min(length(module_targets), max(1, div(remote_hits, 24))))
+
+    local_module_hits =
+      module_targets |> Enum.reverse() |> Enum.take(min(length(module_targets), max(1, div(local_hits, 28))))
+
+    build_command_event = %{
+      id: build_command_event_id,
+      name: "xcodebuild",
+      duration: build_duration,
+      tuist_version: "4.85.0",
+      project_id: tuist_project.id,
+      cacheable_targets: module_targets,
+      local_cache_target_hits: local_module_hits,
+      remote_cache_target_hits: remote_module_hits,
+      test_targets: [],
+      local_test_target_hits: [],
+      remote_test_target_hits: [],
+      swift_version: "6.2",
+      macos_version: macos_version,
+      subcommand: "build",
+      command_arguments: "xcodebuild build -scheme #{build_scheme} -configuration Release",
+      is_ci: true,
+      user_id: nil,
+      client_id: "github-actions-runner",
+      status: if(job.conclusion == "success", do: 0, else: 1),
+      error_message: if(job.conclusion == "success", do: nil, else: "xcodebuild exited with code 65"),
+      preview_id: nil,
+      git_ref: "refs/heads/#{branch}",
+      git_commit_sha: commit_sha,
+      git_branch: branch,
+      created_at: inserted_at,
+      updated_at: inserted_at,
+      ran_at: inserted_at,
+      build_run_id: linked_build_id,
+      test_run_id: nil,
+      cache_endpoint: "tuist-cloud"
+    }
+
+    IngestRepo.insert_all(Build, [
+      %{
+        id: linked_build_id,
+        duration: build_duration,
+        macos_version: macos_version,
+        xcode_version: xcode_version,
+        is_ci: true,
+        model_identifier: model_identifier,
+        project_id: tuist_project.id,
+        account_id: runner_jobs_account_id,
+        scheme: build_scheme,
+        configuration: "Release",
+        inserted_at: inserted_at,
+        status: job.conclusion,
+        category: "incremental",
+        git_branch: branch,
+        git_commit_sha: commit_sha,
+        git_ref: "refs/heads/#{branch}",
+        ci_run_id: workflow_run_id_string,
+        ci_project_handle: repo,
+        ci_host: "",
+        ci_provider: "github",
+        cacheable_tasks_count: total_tasks,
+        cacheable_task_remote_hits_count: remote_hits,
+        cacheable_task_local_hits_count: local_hits,
+        custom_tags: ["runner-linked", "macos", "xcode-cache"],
+        custom_values: %{
+          "runner_fleet" => fleet,
+          "runner_job_id" => Integer.to_string(workflow_job_id),
+          "module_cache_downloads" => Integer.to_string(shape.module_downloads),
+          "module_cache_uploads" => Integer.to_string(shape.module_uploads)
+        },
+        xcode_cache_upload_enabled: true
+      }
+    ])
+
+    cas_outputs =
+      rows_for_count.(min(total_tasks, 48), fn output_idx ->
+        size = 750_000 + rem((idx + 3) * output_idx * 913_337, 42_000_000)
+        compressed_size = trunc(size * (0.38 + rem(output_idx, 24) / 100))
+
+        %{
+          project_id: tuist_project.id,
+          build_run_id: linked_build_id,
+          node_id: generate_cas_node_id.(),
+          checksum: generate_checksum.(),
+          size: size,
+          duration: 180 + rem((idx + 1) * output_idx * 157, 7_500),
+          compressed_size: compressed_size,
+          operation: if(rem(output_idx + idx, 5) == 0, do: "upload", else: "download"),
+          type: Enum.at(cas_file_types, rem(output_idx + idx, length(cas_file_types))),
+          inserted_at: inserted_at_seconds
+        }
+      end)
+
+    if cas_outputs != [] do
+      IngestRepo.insert_all(CASOutput, cas_outputs, timeout: 120_000)
+
+      cas_events =
+        Enum.map(cas_outputs, fn cas_output ->
+          %{
+            id: UUIDv7.generate(),
+            action: cas_output.operation,
+            size: cas_output.size,
+            cas_id: cas_output.node_id,
+            project_id: tuist_project.id,
+            cache_endpoint: "tuist-cloud",
+            inserted_at: inserted_at_seconds
+          }
+        end)
+
+      IngestRepo.insert_all(CASEvent, cas_events, timeout: 120_000)
+    end
+
+    cas_node_ids = Enum.map(cas_outputs, & &1.node_id)
+
+    cacheable_tasks_for = fn status, count, offset ->
+      rows_for_count.(count, fn task_idx ->
+        type = if(rem(task_idx + offset, 4) == 0, do: "clang", else: "swift")
+        selected_node_ids = Enum.take(cas_node_ids, rem(task_idx + offset, min(length(cas_node_ids), 5) + 1))
+
+        %{
+          build_run_id: linked_build_id,
+          type: type,
+          status: status,
+          key: generate_cache_key.(linked_build_id, status, task_idx),
+          read_duration:
+            case status do
+              "hit_local" -> (8 + rem(task_idx * 7, 80)) * 1.0
+              "hit_remote" -> (140 + rem(task_idx * 41, 1_900)) * 1.0
+              "miss" -> (80 + rem(task_idx * 23, 420)) * 1.0
+            end,
+          write_duration: if(status == "miss", do: (180 + rem(task_idx * 31, 1_900)) * 1.0),
+          description: generate_task_description.(type),
+          cas_output_node_ids: selected_node_ids,
+          inserted_at: inserted_at_seconds
+        }
+      end)
+    end
+
+    cacheable_tasks =
+      cacheable_tasks_for.("hit_remote", remote_hits, 0) ++
+        cacheable_tasks_for.("hit_local", local_hits, remote_hits) ++
+        cacheable_tasks_for.("miss", misses, remote_hits + local_hits)
+
+    if cacheable_tasks != [] do
+      IngestRepo.insert_all(CacheableTask, cacheable_tasks, timeout: 120_000)
+    end
+
+    test_profiles =
+      if workflow_job_id == 4_200_008 do
+        # Keep the default runner detail URL focused on the common case:
+        # one build insight and one test insight linked to the CI job.
+        [job.workflow |> runner_test_profiles_by_workflow.() |> List.first()]
+      else
+        runner_test_profiles_by_workflow.(job.workflow)
+      end
+
+    failing_test_index = rem(idx, length(test_profiles))
+
+    test_runs_with_events =
+      test_profiles
+      |> Enum.with_index()
+      |> Enum.map(fn {profile, test_idx} ->
+        test_id = UUIDv7.generate()
+        test_status = if(job.conclusion == "failure" and test_idx == failing_test_index, do: "failure", else: "success")
+        test_duration = profile.duration_ms + rem((idx + 1) * (test_idx + 3) * 7_331, 48_000)
+        test_inserted_at = NaiveDateTime.add(inserted_at, test_idx * 7, :second)
+        test_command_event_id = UUIDv7.generate()
+        test_targets = [profile.scheme]
+
+        test_run = %{
+          id: test_id,
+          duration: test_duration,
+          macos_version: macos_version,
+          xcode_version: xcode_version,
+          is_ci: true,
+          is_flaky: test_status == "failure" and rem(idx + test_idx, 2) == 0,
+          model_identifier: model_identifier,
+          scheme: profile.scheme,
+          status: test_status,
+          git_branch: branch,
+          git_commit_sha: commit_sha,
+          git_ref: "refs/heads/#{branch}",
+          ran_at: test_inserted_at,
+          project_id: tuist_project.id,
+          account_id: runner_jobs_account_id,
+          inserted_at: test_inserted_at,
+          build_run_id: linked_build_id,
+          ci_run_id: workflow_run_id_string,
+          ci_project_handle: repo,
+          ci_host: "",
+          ci_provider: "github",
+          build_system: "xcode"
+        }
+
+        test_command_event = %{
+          id: test_command_event_id,
+          name: "test",
+          duration: test_duration,
+          tuist_version: "4.85.0",
+          project_id: tuist_project.id,
+          cacheable_targets: module_targets,
+          local_cache_target_hits: local_module_hits,
+          remote_cache_target_hits: remote_module_hits,
+          test_targets: test_targets,
+          local_test_target_hits: if(test_status == "success" and rem(test_idx, 2) == 0, do: test_targets, else: []),
+          remote_test_target_hits: if(test_status == "success" and rem(test_idx, 2) == 1, do: test_targets, else: []),
+          swift_version: "6.2",
+          macos_version: macos_version,
+          subcommand: "",
+          command_arguments: "test --scheme #{profile.scheme} --configuration Release",
+          is_ci: true,
+          user_id: nil,
+          client_id: "github-actions-runner",
+          status: if(test_status == "success", do: 0, else: 1),
+          error_message: if(test_status == "success", do: nil, else: "Some tests failed"),
+          preview_id: nil,
+          git_ref: "refs/heads/#{branch}",
+          git_commit_sha: commit_sha,
+          git_branch: branch,
+          created_at: test_inserted_at,
+          updated_at: test_inserted_at,
+          ran_at: test_inserted_at,
+          build_run_id: nil,
+          test_run_id: test_id,
+          cache_endpoint: "tuist-cloud"
+        }
+
+        {test_run, test_command_event, profile, test_idx}
+      end)
+
+    test_runs = Enum.map(test_runs_with_events, fn {test_run, _event, _profile, _test_idx} -> test_run end)
+
+    command_events = [
+      build_command_event | Enum.map(test_runs_with_events, fn {_test, event, _profile, _idx} -> event end)
+    ]
+
+    IngestRepo.insert_all(Test, test_runs, timeout: 120_000)
+    IngestRepo.insert_all(Event, command_events, timeout: 120_000)
+    Enum.each(command_events, fn event -> :ets.insert(runner_linked_command_events, {:event, event}) end)
+
+    module_cache_outputs =
+      Enum.flat_map(command_events, fn event ->
+        downloads = shape.module_downloads + rem(idx + String.length(event.name), 6)
+
+        uploads =
+          if(event.name == "xcodebuild",
+            do: shape.module_uploads + rem(idx, 3),
+            else: max(1, div(shape.module_uploads, 2))
+          )
+
+        rows_for_count.(downloads + uploads, fn transfer_idx ->
+          operation = if transfer_idx <= downloads, do: "download", else: "upload"
+          size = 1_500_000 + rem((idx + 5) * transfer_idx * 2_145_917, 55_000_000)
+
+          %{
+            command_event_id: event.id,
+            project_id: tuist_project.id,
+            operation: operation,
+            name: Enum.at(runner_module_cache_names, rem(transfer_idx + idx, length(runner_module_cache_names))),
+            hash: SeedHelpers.random_hex(64),
+            size: size,
+            compressed_size: trunc(size * (0.34 + rem(transfer_idx, 18) / 100)),
+            duration:
+              if(operation == "download",
+                do: 120 + rem(transfer_idx * 89, 2_400),
+                else: 220 + rem(transfer_idx * 131, 3_600)
+              ),
+            inserted_at: NaiveDateTime.truncate(event.ran_at, :second)
+          }
+        end)
+      end)
+
+    if module_cache_outputs != [] do
+      IngestRepo.insert_all(ModuleCacheOutput, module_cache_outputs, timeout: 120_000)
+    end
+
+    {module_runs, suite_runs, case_runs, failures} =
+      Enum.reduce(test_runs_with_events, {[], [], [], []}, fn {test_run, _event, profile, test_idx},
+                                                              {module_acc, suite_acc, case_acc, failure_acc} ->
+        selected_case_count = max(6, min(14, div(profile.cases, 12)))
+        module_id = UUIDv7.generate()
+        suite_id = UUIDv7.generate()
+        failing_case_index = rem(idx + test_idx, selected_case_count)
+        suite_status = if test_run.status == "failure", do: 1, else: 0
+        representative_case = Enum.at(all_test_cases_list, rem(idx * 37 + test_idx * 11, length(all_test_cases_list)))
+
+        module_run = %{
+          id: module_id,
+          name: representative_case.module_name,
+          test_run_id: test_run.id,
+          status: suite_status,
+          is_flaky: test_run.is_flaky,
+          duration: test_run.duration,
+          test_suite_count: 1,
+          test_case_count: selected_case_count,
+          avg_test_case_duration: div(test_run.duration, selected_case_count),
+          inserted_at: test_run.inserted_at
+        }
+
+        suite_run = %{
+          id: suite_id,
+          name: representative_case.suite_name,
+          test_run_id: test_run.id,
+          test_module_run_id: module_id,
+          status: suite_status,
+          is_flaky: test_run.is_flaky,
+          duration: test_run.duration,
+          test_case_count: selected_case_count,
+          avg_test_case_duration: div(test_run.duration, selected_case_count),
+          inserted_at: test_run.inserted_at
+        }
+
+        {case_rows, failure_rows} =
+          selected_case_count
+          |> rows_for_count.(fn case_idx ->
+            test_case =
+              Enum.at(all_test_cases_list, rem(idx * 41 + test_idx * 13 + case_idx, length(all_test_cases_list)))
+
+            case_status = if(test_run.status == "failure" and case_idx == failing_case_index, do: 1, else: 0)
+            case_run_id = UUIDv7.generate()
+
+            case_run = %{
+              id: case_run_id,
+              name: test_case.name,
+              test_run_id: test_run.id,
+              test_module_run_id: module_id,
+              test_suite_run_id: suite_id,
+              test_case_id: test_case.id,
+              project_id: test_run.project_id,
+              is_ci: true,
+              scheme: test_run.scheme,
+              account_id: test_run.account_id,
+              ran_at: test_run.ran_at,
+              git_branch: test_run.git_branch,
+              git_commit_sha: test_run.git_commit_sha,
+              status: case_status,
+              is_flaky: test_run.is_flaky and case_status == 1,
+              is_new: rem(case_idx + idx, 19) == 0,
+              duration: 25 + rem(case_idx * 17 + idx, 620),
+              module_name: test_case.module_name,
+              suite_name: test_case.suite_name,
+              inserted_at: test_run.inserted_at
+            }
+
+            failure =
+              if case_status == 1 do
+                [
+                  %{
+                    id: UUIDv7.generate(),
+                    test_case_run_id: case_run_id,
+                    message: "XCTAssertEqual failed: seeded runner-linked failure",
+                    path: "Tests/#{test_case.suite_name}.swift",
+                    line_number: 40 + rem(idx + case_idx, 180),
+                    issue_type: "assertion_failure",
+                    inserted_at: test_run.inserted_at
+                  }
+                ]
+              else
+                []
+              end
+
+            {case_run, failure}
+          end)
+          |> Enum.unzip()
+
+        {
+          [module_run | module_acc],
+          [suite_run | suite_acc],
+          case_rows ++ case_acc,
+          List.flatten(failure_rows) ++ failure_acc
+        }
+      end)
+
+    IngestRepo.insert_all(TestModuleRun, module_runs, timeout: 120_000)
+    IngestRepo.insert_all(TestSuiteRun, suite_runs, timeout: 120_000)
+    IngestRepo.insert_all(TestCaseRun, case_runs, timeout: 120_000)
+
+    if failures != [] do
+      IngestRepo.insert_all(TestCaseFailure, failures, timeout: 120_000)
+    end
+  end
+
   # In production `Tuist.Runners.serve_claim/5` opens a billing
   # session AFTER `record_running_safe` succeeds (so failed
   # dispatches don't leak open sessions). The seed bypasses
@@ -3779,9 +4274,20 @@ completed_jobs
   end
 end)
 
+runner_linked_command_event_rows =
+  runner_linked_command_events
+  |> :ets.tab2list()
+  |> Enum.map(fn {:event, event} -> event end)
+
+:ets.delete(runner_linked_command_events)
+
+if runner_linked_command_event_rows != [] do
+  create_xcode_data_for_events.(runner_linked_command_event_rows, "Runner-linked runs")
+end
+
 # Running jobs — currently being executed
 running_jobs = [
-  %{workflow: "CLI", job_name: "Build Acceptance Tests", run_attempt: 1, started_seconds_ago: 124, repo_idx: 2},
+  %{workflow: "CLI", job_name: "Build Acceptance Tests", run_attempt: 1, started_seconds_ago: 124, repo_idx: 0},
   %{workflow: "Server", job_name: "esbuild", run_attempt: 1, started_seconds_ago: 39, repo_idx: 0}
 ]
 
@@ -3976,10 +4482,10 @@ if File.exists?(runner_smoke_log_path) do
     Jobs.enqueue(%{
       workflow_job_id: smoke_workflow_job_id,
       account_id: runner_jobs_account_id,
-      fleet_name: "linux-amd64",
+      fleet_name: "macos-xcode-26.4",
       repository: "tuist/tuist",
       workflow_run_id: smoke_workflow_run_id,
-      workflow_name: "Linux Runners Staging Smoke Test",
+      workflow_name: "macOS Runners Staging Smoke Test",
       run_attempt: 1,
       job_name: "smoke",
       head_branch: "main",
@@ -3987,7 +4493,7 @@ if File.exists?(runner_smoke_log_path) do
       enqueued_at: DateTime.add(smoke_started_at, -10, :second)
     })
 
-  {:ok, smoke_candidate} = Jobs.pick_queued("linux-amd64", [])
+  {:ok, smoke_candidate} = Jobs.pick_queued("macos-xcode-26.4", [])
   :ok = Jobs.record_claimed(smoke_candidate, "runner-pod-smoke", smoke_started_at)
   :ok = Jobs.record_running(smoke_workflow_job_id, "tuist-runner-smoke")
   {:ok, _} = Jobs.complete(smoke_workflow_job_id, "success")

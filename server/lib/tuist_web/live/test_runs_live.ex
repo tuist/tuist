@@ -12,6 +12,7 @@ defmodule TuistWeb.TestRunsLive do
 
   alias Noora.Filter
   alias Tuist.Accounts
+  alias Tuist.Runners.Jobs, as: RunnerJobs
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
   alias TuistWeb.Helpers.DatePicker
@@ -25,12 +26,15 @@ defmodule TuistWeb.TestRunsLive do
       socket
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Runs")} · #{slug} · Tuist")
       |> assign(OpenGraph.og_image_assigns("test-runs"))
-      |> assign(:available_filters, define_filters(project))
+      |> assign(
+        :available_filters,
+        define_filters(project, RunnerJobs.distinct_fleet_names_for_account(project.account_id))
+      )
 
     {:ok, socket}
   end
 
-  defp define_filters(project) do
+  defp define_filters(project, fleet_names) do
     base = [
       %Filter.Filter{
         id: "status",
@@ -53,8 +57,48 @@ defmodule TuistWeb.TestRunsLive do
         type: :text,
         operator: :=~,
         value: ""
+      },
+      %Filter.Filter{
+        id: "runner_platform",
+        field: :runner_platform,
+        display_name: dgettext("dashboard_tests", "Runner platform"),
+        type: :option,
+        options: ["macos", "linux"],
+        options_display_names: %{
+          "macos" => dgettext("dashboard_tests", "macOS"),
+          "linux" => dgettext("dashboard_tests", "Linux")
+        },
+        operator: :==,
+        value: nil
+      },
+      %Filter.Filter{
+        id: "runner_workflow_run_id",
+        field: :runner_workflow_run_id,
+        display_name: dgettext("dashboard_tests", "Runner run ID"),
+        type: :text,
+        operator: :==,
+        value: ""
       }
     ]
+
+    runner_fleet_filter =
+      if Enum.any?(fleet_names) do
+        [
+          %Filter.Filter{
+            id: "runner_fleet",
+            field: :runner_fleet,
+            display_name: dgettext("dashboard_tests", "Runner fleet"),
+            type: :option,
+            searchable: true,
+            options: fleet_names,
+            options_display_names: Map.new(fleet_names, &{&1, &1}),
+            operator: :==,
+            value: nil
+          }
+        ]
+      else
+        []
+      end
 
     organization =
       if Accounts.organization?(project.account) do
@@ -83,7 +127,7 @@ defmodule TuistWeb.TestRunsLive do
         []
       end
 
-    base ++ organization
+    base ++ runner_fleet_filter ++ organization
   end
 
   def handle_params(_params, uri, socket) do
@@ -373,13 +417,15 @@ defmodule TuistWeb.TestRunsLive do
 
     {start_datetime, end_datetime} = socket.assigns.analytics_period
 
+    {filter_flop_filters, runner_filters} = build_filters(filters, search, project)
+
     flop_filters =
       [
         %{field: :project_id, op: :==, value: project.id},
         %{field: :status, op: :!=, value: "in_progress"},
         %{field: :ran_at, op: :>=, value: start_datetime},
         %{field: :ran_at, op: :<=, value: end_datetime}
-      ] ++ build_flop_filters(filters, search) ++ page_level_environment_filters(socket.assigns)
+      ] ++ filter_flop_filters ++ page_level_environment_filters(socket.assigns)
 
     options = %{
       filters: flop_filters,
@@ -403,16 +449,23 @@ defmodule TuistWeb.TestRunsLive do
           Map.put(options, :first, 20)
       end
 
-    {test_runs, test_runs_meta} = Tests.list_test_runs(options)
+    {test_runs, test_runs_meta} = Tests.list_test_runs(options, runner_filters: runner_filters)
+
+    runner_jobs_by_run_id =
+      RunnerJobs.latest_by_workflow_run_ids(project.account_id, Enum.map(test_runs, & &1.ci_run_id))
 
     socket
     |> assign(:active_filters, filters)
     |> assign(:test_runs, test_runs)
     |> assign(:test_runs_meta, test_runs_meta)
     |> assign(:test_runs_filter, search)
+    |> assign(:runner_jobs_by_run_id, runner_jobs_by_run_id)
   end
 
-  defp build_flop_filters(filters, search) do
+  defp build_filters(filters, search, project) do
+    {runner_filters, filters} =
+      Enum.split_with(filters, &(&1.id in ["runner_platform", "runner_fleet", "runner_workflow_run_id"]))
+
     {ran_by, filters} = Enum.split_with(filters, &(&1.id == "ran_by"))
 
     flop_filters =
@@ -445,7 +498,23 @@ defmodule TuistWeb.TestRunsLive do
         [%{field: :scheme, op: :ilike_and, value: search}]
       end
 
-    flop_filters ++ ran_by_flop_filters ++ search_filters
+    {flop_filters ++ ran_by_flop_filters ++ search_filters, runner_filter_opts(project, runner_filters)}
+  end
+
+  defp runner_filter_opts(project, filters) do
+    Enum.reduce(filters, [account_id: project.account_id], fn
+      %{id: "runner_platform", value: value}, opts when value not in [nil, "", "any"] ->
+        Keyword.put(opts, :platform, value)
+
+      %{id: "runner_fleet", value: value}, opts when value not in [nil, "", "any"] ->
+        Keyword.put(opts, :fleet_name, value)
+
+      %{id: "runner_workflow_run_id", value: value}, opts when value not in [nil, "", "any"] ->
+        Keyword.put(opts, :workflow_run_id, value)
+
+      _filter, opts ->
+        opts
+    end)
   end
 
   defp page_level_environment_filters(%{analytics_environment: "ci"}), do: [%{field: :is_ci, op: :==, value: true}]
@@ -455,4 +524,20 @@ defmodule TuistWeb.TestRunsLive do
   defp normalize_text_filter_operator(%Filter.Filter{operator: :"!=~"} = filter), do: %{filter | operator: :not_ilike}
 
   defp normalize_text_filter_operator(filter), do: filter
+
+  def runner_job_for(runner_jobs_by_run_id, test_run) when is_map(runner_jobs_by_run_id) do
+    Map.get(runner_jobs_by_run_id, test_run.ci_run_id)
+  end
+
+  def runner_job_for(_, _), do: nil
+
+  def runner_job_label(nil), do: dgettext("dashboard_tests", "Unknown")
+
+  def runner_job_label(%{fleet_name: fleet_name, workflow_name: workflow_name})
+      when is_binary(fleet_name) and fleet_name != "" and is_binary(workflow_name) and workflow_name != "" do
+    "#{workflow_name} · #{fleet_name}"
+  end
+
+  def runner_job_label(%{fleet_name: fleet_name}) when is_binary(fleet_name) and fleet_name != "", do: fleet_name
+  def runner_job_label(_), do: dgettext("dashboard_tests", "Unknown")
 end
