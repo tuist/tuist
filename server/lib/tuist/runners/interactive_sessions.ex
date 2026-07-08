@@ -121,6 +121,14 @@ defmodule Tuist.Runners.InteractiveSessions do
 
   def sync_vnc_relay_state(%InteractiveSession{} = session), do: {:ok, session}
 
+  def mark_vnc_relay_ready(%InteractiveSession{kind: :vnc, closed_at: nil} = session, relay_host, relay_port)
+      when is_binary(relay_host) and relay_host != "" and is_integer(relay_port) and relay_port > 0 and
+             relay_port <= 65_535 do
+    mark_relay_ready(session, relay_host, relay_port)
+  end
+
+  def mark_vnc_relay_ready(%InteractiveSession{}, _relay_host, _relay_port), do: {:error, :closed_session}
+
   def disconnect_grace_seconds, do: @disconnect_grace_seconds
 
   def mark_active(session, connection_id \\ Ecto.UUID.generate())

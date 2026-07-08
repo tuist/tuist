@@ -210,6 +210,20 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
     end
   end
 
+  describe "mark_vnc_relay_ready/3" do
+    test "marks a requested VNC session ready without touching Kubernetes" do
+      account = account_fixture()
+      user = user_fixture()
+      {:ok, session} = InteractiveSessions.request_vnc(job(account), account, user)
+
+      assert {:ok, ready} = InteractiveSessions.mark_vnc_relay_ready(session, "127.0.0.1", 5900)
+      assert ready.state == :ready
+      assert ready.relay_host == "127.0.0.1"
+      assert ready.relay_port == 5900
+      assert ready.relay_ready_at
+    end
+  end
+
   describe "close_by_pod_name/3" do
     test "closes open sessions for the stopped pod" do
       account = account_fixture()

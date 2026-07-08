@@ -520,11 +520,12 @@ defmodule TuistWeb.RunnerJobLiveTest do
            )
   end
 
-  test "renders a local development VNC preview without requesting a real session", %{
+  test "renders a local development VNC preview with a fake ready session", %{
     conn: conn,
     account: account
   } do
     stub(Environment, :dev?, fn -> true end)
+    reject(&K8sClient.patch_pod/3)
 
     :ok =
       Jobs.enqueue(%{
@@ -554,7 +555,12 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert has_element?(lv, ~s{#runner-vnc-fullscreen-button})
     refute has_element?(lv, ~s{#request-vnc-session-button})
     refute has_element?(lv, ~s{#runner-vnc-client})
-    refute Repo.get_by(InteractiveSession, workflow_job_id: 31_753, kind: :vnc)
+
+    session = Repo.get_by!(InteractiveSession, workflow_job_id: 31_753, kind: :vnc)
+    assert session.state == :ready
+    assert session.relay_host == "127.0.0.1"
+    assert session.relay_port == 5900
+    assert session.relay_ready_at
   end
 
   test "does not show the Interactive tab for queued macOS jobs", %{conn: conn, account: account} do

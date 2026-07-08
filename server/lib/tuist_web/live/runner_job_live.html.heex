@@ -434,7 +434,7 @@
             >
             </div>
             <div
-              :if={@interactive.vnc_dev_preview?}
+              :if={@interactive.vnc_dev_preview? and @interactive.vnc_session_ready?}
               data-part="interactive-dev-preview"
               aria-label={dgettext("dashboard_runners", "macOS desktop")}
             >
@@ -474,7 +474,7 @@
             </div>
             <div
               :if={
-                !@interactive.vnc_dev_preview? and
+                !(@interactive.vnc_dev_preview? and @interactive.vnc_session_ready?) and
                   !(@interactive.vnc_session_ready? and @interactive.vnc_websocket_path)
               }
               data-part="interactive-viewport-frame"

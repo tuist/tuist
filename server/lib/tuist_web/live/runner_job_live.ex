@@ -434,9 +434,6 @@ defmodule TuistWeb.RunnerJobLive do
     } = socket.assigns
 
     cond do
-      interactive.vnc_dev_preview? ->
-        socket
-
       not interactive.can_read? ->
         maybe_put_flash(
           socket,
@@ -451,7 +448,7 @@ defmodule TuistWeb.RunnerJobLive do
       true ->
         case InteractiveSessions.request_vnc(job, selected_account, current_user) do
           {:ok, session} ->
-            relay_result = InteractiveSessions.request_vnc_relay(session)
+            relay_result = request_vnc_relay(session, interactive)
 
             socket
             |> assign(:vnc_session_token, session.token)
@@ -466,7 +463,7 @@ defmodule TuistWeb.RunnerJobLive do
   end
 
   defp maybe_auto_request_vnc_session(%{assigns: %{selected_tab: "interactive"}} = socket) do
-    if connected?(socket) and not socket.assigns.interactive.vnc_dev_preview? do
+    if connected?(socket) do
       request_vnc_session(socket, notify?: false)
     else
       socket
@@ -475,12 +472,29 @@ defmodule TuistWeb.RunnerJobLive do
 
   defp maybe_auto_request_vnc_session(socket), do: socket
 
+  defp request_vnc_relay(session, %{vnc_dev_preview?: true}) do
+    InteractiveSessions.mark_vnc_relay_ready(session, "127.0.0.1", 5900)
+  end
+
+  defp request_vnc_relay(session, _interactive) do
+    InteractiveSessions.request_vnc_relay(session)
+  end
+
   defp handle_vnc_relay_request_result(socket, :ok, notify?) do
     maybe_put_flash(
       socket,
       notify?,
       :info,
       dgettext("dashboard_runners", "VNC session requested. Waiting for the runner relay.")
+    )
+  end
+
+  defp handle_vnc_relay_request_result(socket, {:ok, _session}, notify?) do
+    maybe_put_flash(
+      socket,
+      notify?,
+      :info,
+      dgettext("dashboard_runners", "VNC session ready.")
     )
   end
 
@@ -683,7 +697,7 @@ defmodule TuistWeb.RunnerJobLive do
       vnc_dev_preview_menu_time: Calendar.strftime(vnc_dev_preview_at, "%a %b %d %I:%M %p"),
       vnc_dev_preview_month: vnc_dev_preview_at |> Calendar.strftime("%B") |> String.upcase(),
       vnc_session: vnc_session,
-      vnc_session_ready?: vnc_dev_preview? or vnc_session_ready?(vnc_session),
+      vnc_session_ready?: vnc_session_ready?(vnc_session),
       vnc_websocket_path: vnc_websocket_path
     }
   end
