@@ -5,7 +5,7 @@
 
     @testable import TuistHTTP
 
-    @Suite(.serialized)
+    @Suite
     struct FileClientTests {
         @Test func download_moves_url_session_temporary_file_to_requested_destination() async throws {
             DownloadURLProtocol.responseData = Data("downloaded shard archive".utf8)
