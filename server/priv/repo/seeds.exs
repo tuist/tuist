@@ -287,6 +287,10 @@ organization =
     organization
   end
 
+organization_account = Repo.preload(organization, :account).account
+{:ok, true} = FunWithFlags.enable(:kura, for_actor: organization_account)
+{:ok, true} = FunWithFlags.enable(:kura_cache, for_actor: organization_account)
+
 # Create additional organization member
 member_email = "member@tuist.dev"
 

@@ -3,9 +3,11 @@ defmodule TuistWeb.CacheLive do
   use TuistWeb, :live_view
   use Noora
 
+  import Noora.CheckboxControl
   import Phoenix.Component
 
   alias Phoenix.HTML.Form
+  alias Tuist.Accounts
   alias Tuist.Authorization
   alias Tuist.Billing.Entitlements
   alias Tuist.FeatureFlags
@@ -119,6 +121,23 @@ defmodule TuistWeb.CacheLive do
   end
 
   def handle_event("retry_cache_server", _params, socket), do: {:noreply, socket}
+
+  def handle_event(
+        "select_cache_upload_policy",
+        %{"policy" => policy},
+        %{assigns: %{selected_account: selected_account}} = socket
+      ) do
+    policy =
+      case policy do
+        "members_and_tokens" -> :members_and_tokens
+        "tokens_only" -> :tokens_only
+        _ -> selected_account.cache_write_policy
+      end
+
+    {:ok, updated_account} = Accounts.update_account(selected_account, %{cache_write_policy: policy})
+
+    {:noreply, assign(socket, :selected_account, updated_account)}
+  end
 
   def handle_event(
         "create_self_hosted_client",
@@ -412,6 +431,87 @@ defmodule TuistWeb.CacheLive do
   end
 
   defp version_label(image_tag), do: Kura.version_label(image_tag)
+
+  attr(:cache_write_policy, :atom, required: true)
+
+  def cache_write_policy_section(assigns) do
+    ~H"""
+    <.card_section data-part="cache-write-policy-card">
+      <div data-part="header">
+        <div data-part="title-group">
+          <span data-part="title">{dgettext("dashboard_account", "Cache upload access")}</span>
+          <span data-part="subtitle">
+            {dgettext(
+              "dashboard_account",
+              "Choose whether members can upload or CI is the trusted cache writer."
+            )}
+            {dgettext("dashboard_account", "Learn more about how to authenticate CI")}
+            <span phx-no-format><.link href="/en/docs/guides/server/authentication#continuous-integration" target="_blank" data-part="docs-link">{dgettext("dashboard_account", "here")}</.link>.</span>
+          </span>
+        </div>
+      </div>
+      <div
+        data-part="policy-options"
+        role="radiogroup"
+        aria-label={dgettext("dashboard_account", "Cache upload access")}
+      >
+        <button
+          id="cache-upload-policy-members-and-tokens"
+          type="button"
+          data-part="policy-option"
+          data-selected={if @cache_write_policy == :members_and_tokens, do: "true", else: "false"}
+          role="radio"
+          aria-checked={if @cache_write_policy == :members_and_tokens, do: "true", else: "false"}
+          phx-click="select_cache_upload_policy"
+          phx-value-policy="members_and_tokens"
+        >
+          <span data-part="option-header">
+            <.checkbox_control
+              checked={@cache_write_policy == :members_and_tokens}
+              data-part="control"
+            />
+            <span data-part="body">
+              <span data-part="label">
+                {dgettext("dashboard_account", "Members, CI, and account tokens")}
+              </span>
+              <span data-part="description">
+                {dgettext(
+                  "dashboard_account",
+                  "Members using login sessions, CI OIDC tokens, and account tokens with cache write scopes can upload."
+                )}
+              </span>
+            </span>
+          </span>
+        </button>
+        <button
+          id="cache-upload-policy-tokens-only"
+          type="button"
+          data-part="policy-option"
+          data-selected={if @cache_write_policy == :tokens_only, do: "true", else: "false"}
+          role="radio"
+          aria-checked={if @cache_write_policy == :tokens_only, do: "true", else: "false"}
+          phx-click="select_cache_upload_policy"
+          phx-value-policy="tokens_only"
+        >
+          <span data-part="option-header">
+            <.checkbox_control checked={@cache_write_policy == :tokens_only} data-part="control" />
+            <span data-part="body">
+              <span data-part="label">
+                {dgettext("dashboard_account", "CI and account tokens only")}
+              </span>
+              <span data-part="description">
+                {dgettext(
+                  "dashboard_account",
+                  "Members can download, but uploads require CI OIDC tokens or account tokens with cache write scopes."
+                )}
+              </span>
+            </span>
+          </span>
+        </button>
+      </div>
+    </.card_section>
+    """
+  end
 
   attr(:servers, :list, required: true)
   attr(:available_regions, :list, required: true)

@@ -109,19 +109,54 @@ defmodule Tuist.Authentication do
 
   defp refresh_subject(%User{account: %{name: name}} = user), do: {name, user}
 
-  defp refresh_subject(%AuthenticatedAccount{account: %{name: name} = account}), do: {name, account}
+  defp refresh_subject(%AuthenticatedAccount{account: %{name: name}} = resource), do: {name, resource}
 
   def exchange(old_token, from_type, to_type, options) do
     Tuist.Guardian.exchange(old_token, from_type, to_type, options)
   end
 
   def encode_and_sign(resource, claims \\ %{}, opts \\ []) do
+    cache_claims_subject = cache_claims_subject(resource, claims)
+
     claims =
       claims
       |> Map.delete("accounts")
-      |> Map.merge(Cache.embedded_cache_claims(resource, recent: 5))
+      |> Map.merge(Cache.embedded_cache_claims(cache_claims_subject, recent: 5))
 
     Tuist.Guardian.encode_and_sign(resource, claims, opts)
+  end
+
+  defp cache_claims_subject(%Account{} = account, claims) do
+    if Map.get(claims, "type") == "account" or Map.get(claims, :type) == "account" do
+      %AuthenticatedAccount{
+        account: account,
+        scopes: Map.get(claims, "scopes") || Map.get(claims, :scopes) || [],
+        all_projects: Map.get(claims, "all_projects") || Map.get(claims, :all_projects) || false,
+        project_ids: extract_project_ids(claims),
+        issued_by: issued_by_user(claims)
+      }
+    else
+      account
+    end
+  end
+
+  defp cache_claims_subject(resource, _claims), do: resource
+
+  defp issued_by_user(claims) do
+    case Map.get(claims, "user_id") || Map.get(claims, :user_id) do
+      nil -> nil
+      user_id -> Accounts.get_user_by_id(user_id)
+    end
+  end
+
+  defp extract_project_ids(claims) do
+    cond do
+      is_list(Map.get(claims, "project_ids")) -> Map.get(claims, "project_ids")
+      is_list(Map.get(claims, :project_ids)) -> Map.get(claims, :project_ids)
+      not is_nil(Map.get(claims, "project_id")) -> [Map.get(claims, "project_id")]
+      not is_nil(Map.get(claims, :project_id)) -> [Map.get(claims, :project_id)]
+      true -> nil
+    end
   end
 
   def revoke(token, opts \\ []) do

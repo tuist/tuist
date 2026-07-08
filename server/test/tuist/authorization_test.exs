@@ -158,7 +158,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture()
 
     # When
-    assert Authorization.authorize(:cache_read, project, project) == :ok
+    assert Authorization.authorize(:project_cache_read, project, project) == :ok
   end
 
   test "can.read.project.cache when the subject is not the same project being read" do
@@ -167,7 +167,7 @@ defmodule Tuist.AuthorizationTest do
     another_project = ProjectsFixtures.project_fixture()
 
     # When
-    assert Authorization.authorize(:cache_read, another_project, project) ==
+    assert Authorization.authorize(:project_cache_read, another_project, project) ==
              {:error, :forbidden}
   end
 
@@ -176,7 +176,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture()
 
     # When
-    assert Authorization.authorize(:cache_create, project, project) == :ok
+    assert Authorization.authorize(:project_cache_create, project, project) == :ok
   end
 
   test "can.create.project.cache when the subject is not the same project being read" do
@@ -185,7 +185,7 @@ defmodule Tuist.AuthorizationTest do
     another_project = ProjectsFixtures.project_fixture()
 
     # When
-    assert Authorization.authorize(:cache_create, another_project, project) ==
+    assert Authorization.authorize(:project_cache_create, another_project, project) ==
              {:error, :forbidden}
   end
 
@@ -194,7 +194,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture()
 
     # When
-    assert Authorization.authorize(:cache_update, project, project) == :ok
+    assert Authorization.authorize(:project_cache_update, project, project) == :ok
   end
 
   test "can.update.project.cache when the subject is not the same project being read" do
@@ -203,7 +203,7 @@ defmodule Tuist.AuthorizationTest do
     another_project = ProjectsFixtures.project_fixture()
 
     # When
-    assert Authorization.authorize(:cache_update, another_project, project) ==
+    assert Authorization.authorize(:project_cache_update, another_project, project) ==
              {:error, :forbidden}
   end
 
@@ -216,7 +216,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :user)
 
     # When
-    assert Authorization.authorize(:cache_read, user, project) == :ok
+    assert Authorization.authorize(:project_cache_read, user, project) == :ok
   end
 
   test "can.read.project.cache when the subject is a user that doesn't belong to the project organization" do
@@ -227,7 +227,7 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When
-    assert Authorization.authorize(:cache_read, user, project) == {:error, :forbidden}
+    assert Authorization.authorize(:project_cache_read, user, project) == {:error, :forbidden}
   end
 
   test "can.read.project.cache when the subject is a user that doesn't belong to the project organization and the project is public" do
@@ -238,7 +238,7 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When
-    assert Authorization.authorize(:cache_read, user, project) == :ok
+    assert Authorization.authorize(:project_cache_read, user, project) == :ok
   end
 
   test "can.create.project.cache when the subject is a user that belongs to the project organization" do
@@ -250,7 +250,80 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :user)
 
     # When
-    assert Authorization.authorize(:cache_create, user, project) == :ok
+    assert Authorization.authorize(:project_cache_create, user, project) == :ok
+  end
+
+  test "cannot.create.project.cache when the account restricts cache writes to tokens" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    {:ok, account} = Accounts.update_account(organization.account, %{cache_write_policy: :tokens_only})
+    project = ProjectsFixtures.project_fixture(account: account)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization, role: :admin)
+
+    # When
+    assert Authorization.authorize(:project_cache_create, user, project) == {:error, :forbidden}
+  end
+
+  test "can.read.project.cache when the account restricts cache writes to tokens" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    {:ok, account} = Accounts.update_account(organization.account, %{cache_write_policy: :tokens_only})
+    project = ProjectsFixtures.project_fixture(account: account)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization, role: :admin)
+
+    # When
+    assert Authorization.authorize(:project_cache_read, user, project) == :ok
+  end
+
+  test "can.create.project.cache when an account token has cache write scope and writes are restricted to tokens" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    {:ok, account} = Accounts.update_account(organization.account, %{cache_write_policy: :tokens_only})
+    project = ProjectsFixtures.project_fixture(account: account)
+
+    subject = %AuthenticatedAccount{
+      account: account,
+      scopes: ["project:cache:write"],
+      all_projects: true
+    }
+
+    # When
+    assert Authorization.authorize(:project_cache_create, subject, project) == :ok
+  end
+
+  test "can.create.account.cache when a CI account token writes to a token-restricted account" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    {:ok, account} = Accounts.update_account(organization.account, %{cache_write_policy: :tokens_only})
+
+    subject = %AuthenticatedAccount{
+      account: account,
+      scopes: ["ci"],
+      all_projects: true
+    }
+
+    # When
+    assert Authorization.authorize(:account_cache_create, subject, account) == :ok
+  end
+
+  test "cannot.create.project.cache when a user-issued account token writes to a token-restricted account" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    organization = AccountsFixtures.organization_fixture(creator: user)
+    {:ok, account} = Accounts.update_account(organization.account, %{cache_write_policy: :tokens_only})
+    project = ProjectsFixtures.project_fixture(account: account)
+
+    subject = %AuthenticatedAccount{
+      account: user.account,
+      issued_by: user,
+      scopes: ["project:cache:write"],
+      all_projects: true
+    }
+
+    # When
+    assert Authorization.authorize(:project_cache_create, subject, project) == {:error, :forbidden}
   end
 
   test "can.create.project.cache when the subject is a user that doesn't belong to the project organization" do
@@ -261,7 +334,7 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When
-    assert Authorization.authorize(:cache_create, user, project) ==
+    assert Authorization.authorize(:project_cache_create, user, project) ==
              {:error, :forbidden}
   end
 
@@ -274,7 +347,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :user)
 
     # When
-    assert Authorization.authorize(:cache_update, user, project) == :ok
+    assert Authorization.authorize(:project_cache_update, user, project) == :ok
   end
 
   test "can.update.project.cache when the subject is a user that doesn't belong to the project organization" do
@@ -285,7 +358,7 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When
-    assert Authorization.authorize(:cache_update, user, project) ==
+    assert Authorization.authorize(:project_cache_update, user, project) ==
              {:error, :forbidden}
   end
 
