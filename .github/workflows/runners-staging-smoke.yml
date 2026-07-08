@@ -26,7 +26,7 @@ on:
   workflow_dispatch:
     inputs:
       strategy:
-        description: "Cache benchmark to run on the host-Kura runner after the smoke (empty = smoke only). xcode-cache | xcode-cache-probe | xcode-cache-ramstate | module-cache | combined | no-cache"
+        description: "Cache benchmark to run on the host-Kura runner after the smoke (empty = smoke only). xcode-cache | xcode-cache-probe | xcode-cache-ramstate | module-cache | module-cache-ram | disk-probe | combined | no-cache"
         required: false
         default: ""
       runs:
@@ -361,6 +361,16 @@ jobs:
           tw4=time.time()-t0
           t1=time.time(); subprocess.run(["sync"]); ts4=time.time()-t1
           print(f"  F) extract 5000 files 2GB  : write {tw4:.2f}s ({mbs(2*GB,tw4)})  sync {ts4:.2f}s  total {tw4+ts4:.2f}s   [workload shape: write vs flush phase]")
+          import threading
+          res=[0.0]*4
+          def cw(i):
+              wseq(f"{d}/cw{i}.bin",GB,8*1024*1024)
+          ths=[threading.Thread(target=cw,args=(i,)) for i in range(4)]
+          t0=time.time()
+          for th in ths: th.start()
+          for th in ths: th.join()
+          tc=time.time()-t0
+          print(f"  G) 4 parallel 1GB writers  : wall {tc:.2f}s -> aggregate {mbs(4*GB,tc)}   [does virtio scale with concurrent writers?]")
           shutil.rmtree(d,ignore_errors=True)
           DPEOF
           case "$STRATEGY" in
@@ -648,6 +658,34 @@ jobs:
               hyperfine --warmup 1 --runs "$HYPERFINE_RUNS" --export-json result.json --show-output \
                 --prepare "$CLEAN_DD"' && tuist clean binaries' \
                 'tuist generate '"$GEN_TARGET"' && '"$BUILD_NO_CACHE" || rc=$? ;;
+            module-cache-ram)
+              # Same breakdown as module-cache, but the tuist cache dir AND
+              # TMPDIR live on a guest RAM disk. The VM is discarded after the
+              # job, so Binaries/ only needs to survive one build — this
+              # measures the pull with the virtio-disk write path (and the
+              # temp-archive round trip to disk) taken out: downloads land in
+              # RAM, extraction writes to RAM, temp->cache moves are
+              # same-volume renames. Bounds how much of the ~3.7s pull is disk
+              # writes vs decompress/transfer/per-op.
+              tuist install
+              tuist cache
+              RAMDEV=$(hdiutil attach -nomount ram://8388608)   # 4 GiB
+              diskutil erasevolume APFS ramcache "$RAMDEV" >/dev/null
+              export XDG_CACHE_HOME=/Volumes/ramcache/xdg
+              export TMPDIR=/Volumes/ramcache/tmp/
+              mkdir -p "$XDG_CACHE_HOME" "$TMPDIR"
+              # Warm the manifest/plugin caches on the fresh RAM XDG without
+              # pulling binaries, so generate#1 - generate#2 isolates the pull
+              # (in plain module-cache, `tuist cache` warms these as a side
+              # effect because it shares the XDG dir).
+              tuist generate "$GEN_TARGET" --no-binary-cache >/dev/null 2>&1 || true
+              now() { python3 -c 'import time;print(time.time())'; }
+              eval "$CLEAN_DD"; tuist clean binaries >/dev/null 2>&1 || true
+              g0=$(now); tuist generate "$GEN_TARGET"; g1=$(now)          # resolve+PULL(to RAM)+gen
+              g2=$(now); tuist generate "$GEN_TARGET"; g3=$(now)          # resolve+gen (binaries in RAM, no pull)
+              du_cache=$(du -sm "$XDG_CACHE_HOME/tuist" 2>/dev/null | awk '{print $1}')
+              b0=$(now); eval "$BUILD_NO_CACHE"; b1=$(now)        # compile
+              python3 -c "g0,g1,g2,g3,b0,b1,du=$g0,$g1,$g2,$g3,$b0,$b1,${du_cache:-0}; gen1=g1-g0; gen2=g3-g2; pull=max(0.0,gen1-gen2); build=b1-b0; print('== module-cache-ram BREAKDOWN (cache+tmp on guest RAM disk) =='); print(f'  generate#1 (resolve+pull+gen)={gen1:.1f}s   generate#2 (resolve+gen, cached)={gen2:.1f}s'); print(f'  -> PULL(download binaries)~{pull:.1f}s   GEN(resolve+project)~{gen2:.1f}s   BUILD(compile)={build:.1f}s'); print(f'  one-shot generate#1+build={gen1+build:.1f}s   binary-cache footprint~{du:.0f}MB')" ;;
             no-cache)
               tuist install
               tuist generate --no-binary-cache
