@@ -557,13 +557,12 @@ runnersFleet:
   # don't double-book the cluster.
   xcodeOverrides:
     "26.5":
-      # Pinned to the feat/kura-macos-runner-cache branch bake whose
-      # dispatch-poll exports TUIST_CACHE_ENDPOINT from the claim
-      # response and installs the in-VM /etc/resolver cluster-DNS
-      # entry — the in-VM halves of the runner-cache path. Drop this
-      # pin (back to the semver-derived tag) once a runner-image
-      # release containing those changes is cut.
-      imageTag: macos-26-5-8ab1924e
+      # Pinned to the claude/host-kura-runner-cache bake whose dispatch-poll
+      # routes the job's cache at the persistent per-account host Kura over
+      # the host<->VM bridge (Option A endpoint marker), falling back to the
+      # dispatch L2 endpoint. Deploy-only pin for host-Kura validation; drop
+      # back to the semver-derived tag once a runner-image release ships.
+      imageTag: macos-26-5-08e609dd
       autoscaling:
         enabled: true
         minWarmPoolFloor: 1
