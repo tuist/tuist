@@ -655,13 +655,16 @@ jobs:
               du_cache=$(du -sm "$HOME/.cache/tuist" 2>/dev/null | awk '{print $1}')
               b0=$(now); eval "$BUILD_NO_CACHE"; b1=$(now)        # compile
               python3 -c "g0,g1,g2,g3,b0,b1,du=$g0,$g1,$g2,$g3,$b0,$b1,${du_cache:-0}; gen1=g1-g0; gen2=g3-g2; pull=max(0.0,gen1-gen2); build=b1-b0; print('== module-cache BREAKDOWN =='); print(f'  generate#1 (resolve+pull+gen)={gen1:.1f}s   generate#2 (resolve+gen, cached)={gen2:.1f}s'); print(f'  -> PULL(download binaries)~{pull:.1f}s   GEN(resolve+project)~{gen2:.1f}s   BUILD(compile)={build:.1f}s'); print(f'  one-shot generate#1+build={gen1+build:.1f}s   binary-cache footprint~{du:.0f}MB')"
-              # Concurrency sweep: the RAM-disk A/B showed the pull is not
-              # write-bound, so the residual is decompress CPU + per-artifact
-              # orchestration. The default fans out 100 concurrent items on 6
-              # vCPUs; re-pull at lower fan-outs (same job, same host state as
-              # the default-100 breakdown above) to see where the curve sits.
+              # Concurrency sweep. Round 1 (24, 8) showed LOWER fan-out is much
+              # slower (PULL 17.5s / 13.4s vs 3.9s at the default 100): the
+              # pull is hiding a large per-item latency (~2s at 100/24-way),
+              # not thrashing CPUs. If 100-way ~= 2 waves of 199 items, one
+              # 200-wide wave should approach the single-item latency floor.
+              # 400 probes whether per-item latency keeps growing with width,
+              # and the repeat of 100 checks within-job drift (gen2 inflated
+              # 13.4->17.8s across round-1 iterations).
               echo "== module-cache CONCURRENCY SWEEP (default=100 above) =="
-              for lim in 24 8; do
+              for lim in 200 400 100; do
                 tuist clean binaries >/dev/null 2>&1 || true
                 s0=$(now); TUIST_CACHE_CONCURRENCY_LIMIT=$lim tuist generate "$GEN_TARGET" >/dev/null 2>&1; s1=$(now)
                 s2=$(now); tuist generate "$GEN_TARGET" >/dev/null 2>&1; s3=$(now)
