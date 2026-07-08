@@ -51,6 +51,48 @@ enum Resolution {
     Miss(Instant),
 }
 
+/// The pre-single-flight cache decision for a key (see `fast_path`).
+enum FastPath {
+    /// Serve this value digest: a cached Hit whose value object is still on disk.
+    Hit(Vec<u8>),
+    /// Serve a fresh negative: a cached Miss still inside NEGATIVE_TTL.
+    Miss,
+    /// Fall through to a full (re-)resolve under single-flight.
+    Resolve,
+}
+
+/// Decides what to serve for `key` from the resolved map before entering
+/// single-flight. A cached Hit is served ONLY when `present` confirms its value
+/// object is still on disk; a Hit whose object is gone (the local CAS was wiped
+/// by `xcodebuild clean` or a deleted DerivedData under this long-lived proxy)
+/// calls `invalidate` and returns `Resolve`, so the graph is re-materialized
+/// instead of handing the compiler a value whose blobs no longer exist (which
+/// surfaces as `CAS error: missing object` in the frontend). Kept free of the
+/// FFI presence load and of `PathState` so the guard is unit-testable: the map
+/// is snapshotted and its lock released before `present` runs, both so the load
+/// never serializes other keys and so a Hit can be probed off-lock.
+fn fast_path(
+    resolved: &Mutex<HashMap<Vec<u8>, Resolution>>,
+    key: &[u8],
+    present: impl FnOnce(&[u8]) -> bool,
+    invalidate: impl FnOnce(),
+) -> FastPath {
+    let value = {
+        let map = resolved.lock().unwrap();
+        match map.get(key) {
+            Some(Resolution::Hit(value)) => value.clone(),
+            Some(Resolution::Miss(at)) if at.elapsed() < NEGATIVE_TTL => return FastPath::Miss,
+            _ => return FastPath::Resolve,
+        }
+    };
+    if present(&value) {
+        FastPath::Hit(value)
+    } else {
+        invalidate();
+        FastPath::Resolve
+    }
+}
+
 /// Per-local-CAS-path state. Leaked for 'static lifetime: the proxy runs
 /// until killed.
 pub struct PathState {
@@ -86,6 +128,21 @@ pub struct PathState {
 impl PathState {
     fn shard(&self, digest: &[u8]) -> &Mutex<HashSet<Vec<u8>>> {
         &self.known_local[digest.first().copied().unwrap_or(0) as usize % 32]
+    }
+
+    /// Drops all cached knowledge of the on-disk CAS for this path: the
+    /// resolved key->value map and the known-local shard sets. Called when a
+    /// cached Hit's value object is found missing from disk (`xcodebuild clean`
+    /// or a deleted DerivedData wiped the local CAS under this long-lived
+    /// proxy), so the re-resolve re-probes every manifest entry authoritatively
+    /// and re-materializes the full graph rather than trusting stale in-memory
+    /// marks. Content-addressed and correctness-preserving, so clearing only
+    /// forces re-work, never a wrong answer.
+    fn invalidate(&self) {
+        self.resolved.lock().unwrap().clear();
+        for shard in &self.known_local {
+            shard.lock().unwrap().clear();
+        }
     }
 }
 
@@ -240,10 +297,29 @@ impl Proxy {
         key: &[u8],
     ) -> Result<Option<Vec<u8>>, String> {
         state.stats_resolves.fetch_add(1, Ordering::Relaxed);
+        // Fast path, outside single-flight so the presence load never
+        // serializes other keys: serve a cached Hit only after confirming its
+        // value object is still on disk. A long-lived proxy keeps Hits in memory
+        // across builds, but a wiped DerivedData removes the value graph; serving
+        // the stale Hit then fails the compiler with `missing object`. On absence
+        // the path's stale caches are dropped and we re-resolve below.
+        match fast_path(
+            &state.resolved,
+            key,
+            |value| self.load_present(state, value),
+            || state.invalidate(),
+        ) {
+            FastPath::Hit(value) => return Ok(Some(value)),
+            FastPath::Miss => return Ok(None),
+            FastPath::Resolve => {}
+        }
         // Single-flight: wait out a concurrent resolve of the same key.
         {
             let mut inflight = state.inflight.lock().unwrap();
             loop {
+                // Re-peek under the lock. A Hit that appears here was just
+                // materialized by the winning resolver (or a local publish), so
+                // its graph is on disk; serve it without another presence load.
                 match state.resolved.lock().unwrap().get(key) {
                     Some(Resolution::Hit(value)) => return Ok(Some(value.clone())),
                     // A fresh miss answers without a round-trip; a stale one
@@ -397,6 +473,19 @@ impl Proxy {
         if state.shard(digest).lock().unwrap().contains(digest) {
             return true;
         }
+        if self.load_present(state, digest) {
+            state.shard(digest).lock().unwrap().insert(digest.to_vec());
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Authoritative on-disk presence for `digest`: an actual llcas load, the
+    /// same call the consumer will make, bypassing the known-local cache. Used
+    /// both by `is_local` (which memoizes a positive result) and to guard a
+    /// cached Hit against a wiped local CAS, where the in-memory marks lie.
+    fn load_present(&self, state: &PathState, digest: &[u8]) -> bool {
         unsafe {
             let digest_t = llcas_digest_t { data: digest.as_ptr(), size: digest.len() };
             let mut id = llcas_objectid_t { opaque: 0 };
@@ -413,12 +502,7 @@ impl Proxy {
             if !load_error.is_null() {
                 (state.up.llcas_string_dispose)(load_error);
             }
-            if result == LLCAS_LOOKUP_RESULT_SUCCESS {
-                state.shard(digest).lock().unwrap().insert(digest.to_vec());
-                true
-            } else {
-                false
-            }
+            result == LLCAS_LOOKUP_RESULT_SUCCESS
         }
     }
 
@@ -812,4 +896,118 @@ unsafe fn encode_node_blob(
     }
     let blob = reapi::compress_frame(&reapi::encode_frame(&ref_digests, node_data));
     Ok((blob, ref_digests))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::Cell;
+
+    fn resolved_with(entries: Vec<(Vec<u8>, Resolution)>) -> Mutex<HashMap<Vec<u8>, Resolution>> {
+        let mut map = HashMap::new();
+        for (key, resolution) in entries {
+            map.insert(key, resolution);
+        }
+        Mutex::new(map)
+    }
+
+    // The reported bug: a long-lived proxy caches an action-cache Hit, the user
+    // wipes DerivedData, and the next resolve returns the stale Hit for a value
+    // graph no longer on disk (compiler fails with `missing object`). The fix
+    // makes the fast path verify presence: a Hit whose value object is gone must
+    // NOT be served, and the path's stale in-memory state must be invalidated so
+    // the re-resolve re-materializes the graph.
+    #[test]
+    fn cached_hit_with_wiped_value_reresolves_and_invalidates() {
+        let key = b"action-key".to_vec();
+        let value = b"value-digest".to_vec();
+        let resolved = resolved_with(vec![(key.clone(), Resolution::Hit(value.clone()))]);
+
+        let invalidated = Cell::new(false);
+        let decision = fast_path(
+            &resolved,
+            &key,
+            |probed| {
+                assert_eq!(probed, value.as_slice());
+                false // value object absent on disk (wiped)
+            },
+            || invalidated.set(true),
+        );
+
+        assert!(matches!(decision, FastPath::Resolve));
+        assert!(
+            invalidated.get(),
+            "a Hit whose value object is missing must invalidate the path's stale caches"
+        );
+    }
+
+    // The warm path must stay fast: a Hit whose value object is present is served
+    // directly, without invalidation.
+    #[test]
+    fn cached_hit_present_is_served() {
+        let key = b"action-key".to_vec();
+        let value = b"value-digest".to_vec();
+        let resolved = resolved_with(vec![(key.clone(), Resolution::Hit(value.clone()))]);
+
+        let decision = fast_path(
+            &resolved,
+            &key,
+            |_| true,
+            || panic!("a present Hit must not invalidate"),
+        );
+
+        match decision {
+            FastPath::Hit(served) => assert_eq!(served, value),
+            _ => panic!("expected the present Hit to be served"),
+        }
+    }
+
+    // A fresh negative is answered without a round trip and without probing disk.
+    #[test]
+    fn fresh_miss_is_served_without_probe() {
+        let key = b"action-key".to_vec();
+        let resolved = resolved_with(vec![(key.clone(), Resolution::Miss(Instant::now()))]);
+
+        let decision = fast_path(
+            &resolved,
+            &key,
+            |_| panic!("a Miss must not probe the value object"),
+            || panic!("a Miss must not invalidate"),
+        );
+
+        assert!(matches!(decision, FastPath::Miss));
+    }
+
+    // A miss older than NEGATIVE_TTL falls through to a full resolve so a key
+    // published later (by another machine) can still land.
+    #[test]
+    fn stale_miss_falls_through_to_resolve() {
+        let key = b"action-key".to_vec();
+        let stale = Instant::now() - NEGATIVE_TTL - Duration::from_secs(1);
+        let resolved = resolved_with(vec![(key.clone(), Resolution::Miss(stale))]);
+
+        let decision = fast_path(
+            &resolved,
+            &key,
+            |_| panic!("a stale Miss must not probe the value object"),
+            || panic!("a stale Miss must not invalidate"),
+        );
+
+        assert!(matches!(decision, FastPath::Resolve));
+    }
+
+    // No cache entry falls through to a full resolve.
+    #[test]
+    fn absent_key_falls_through_to_resolve() {
+        let resolved = resolved_with(vec![]);
+
+        let decision = fast_path(
+            &resolved,
+            b"unknown-key",
+            |_| panic!("an absent key must not probe the value object"),
+            || panic!("an absent key must not invalidate"),
+        );
+
+        assert!(matches!(decision, FastPath::Resolve));
+    }
 }
