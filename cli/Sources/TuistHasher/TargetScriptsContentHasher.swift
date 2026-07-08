@@ -33,8 +33,24 @@ public struct TargetScriptsContentHasher: TargetScriptsContentHashing {
             var pathsToHash: [AbsolutePath] = []
             script.path.map { pathsToHash.append($0) }
 
+            let inputFileListPaths = script.inputFileListPaths.compactMap { fileListPath -> String? in
+                switch fileListPath {
+                case let .path(path):
+                    return path
+                case .generated:
+                    return nil
+                }
+            }
+            let generatedInputFileListPathStrings = script.inputFileListPaths.compactMap { fileListPath -> String? in
+                switch fileListPath {
+                case .path:
+                    return nil
+                case let .generated(path):
+                    return path.relative(to: sourceRootPath).pathString
+                }
+            }
             var dynamicPaths = resolvePathStrings(
-                script.inputPaths + script.inputFileListPaths.map(\.path),
+                script.inputPaths + inputFileListPaths,
                 sourceRootPath: sourceRootPath
             )
             .sorted()
@@ -52,13 +68,14 @@ public struct TargetScriptsContentHasher: TargetScriptsContentHashing {
                     pathsToHash.append(path)
                 }
             }
-            stringsToHash.append(contentsOf: try await pathsToHash.concurrentMap {
+            let inputPathHashes = try await pathsToHash.concurrentMap {
                 do {
                     return try await contentHasher.hash(path: $0)
                 } catch ContentHashingError.fileHashingFailed {
                     return $0.relative(to: sourceRootPath).pathString
                 }
-            }.sorted())
+            }
+            stringsToHash.append(contentsOf: (generatedInputFileListPathStrings + inputPathHashes).sorted())
             stringsToHash.append(
                 contentsOf: resolvePathStrings(
                     script.outputPaths + script.outputFileListPaths.map(\.path),

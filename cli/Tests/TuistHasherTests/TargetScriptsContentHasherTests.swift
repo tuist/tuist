@@ -144,6 +144,50 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
             .called(1)
     }
 
+    func test_hash_targetAction_whenInputFileListPathIsGenerated_hashesPathString() async throws {
+        // Given
+        let sourceRootPath = try AbsolutePath(validating: "/project")
+        let inputPath = sourceRootPath.appending(component: "Input.swift")
+        let generatedFileListPath = sourceRootPath.appending(components: "Generated", "SourceryInputs.xcfilelist")
+        given(contentHasher)
+            .hash(path: .value(inputPath))
+            .willReturn("input-hash")
+        given(contentHasher)
+            .hash(path: .value(generatedFileListPath))
+            .willReturn("generated-file-list-contents-hash")
+
+        let targetScript = TargetScript(
+            name: "Script",
+            order: .pre,
+            script: .tool(path: "tool", args: []),
+            inputPaths: ["Input.swift"],
+            inputFileListPaths: [
+                .generated(generatedFileListPath),
+            ],
+            outputPaths: [],
+            outputFileListPaths: [],
+            dependencyFile: nil
+        )
+
+        // When
+        _ = try await subject.hash(targetScripts: [targetScript], sourceRootPath: sourceRootPath)
+
+        // Then
+        let expected = [
+            "Generated/SourceryInputs.xcfilelist",
+            "input-hash",
+            "Script",
+            "tool",
+            "pre",
+        ]
+        verify(contentHasher)
+            .hash(.value(expected))
+            .called(1)
+        verify(contentHasher)
+            .hash(path: .value(generatedFileListPath))
+            .called(0)
+    }
+
     func test_hash_targetAction_when_path_nil_callsMockHasherWithExpectedStrings() async throws {
         // Given
         let inputPaths1Hash = "inputPaths1-hash"
