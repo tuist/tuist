@@ -5,6 +5,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Repo
   alias Tuist.Runners.Catalog
@@ -19,7 +20,10 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
   setup %{conn: conn} do
     stub(K8sClient, :patch_pod, fn _namespace, _pod_name, _patch -> {:ok, %{}} end)
-    stub(K8sClient, :get_pod, fn _namespace, _pod_name -> {:ok, %{"metadata" => %{"annotations" => %{}}}} end)
+
+    stub(K8sClient, :get_pod, fn _namespace, _pod_name ->
+      {:ok, %{"metadata" => %{"annotations" => %{}}}}
+    end)
 
     user = AccountsFixtures.user_fixture()
 
@@ -393,7 +397,10 @@ defmodule TuistWeb.RunnerJobLiveTest do
     refute panel =~ "Current runner version"
   end
 
-  test "defaults to the Overview tab and selects Logs via ?tab=logs", %{conn: conn, account: account} do
+  test "defaults to the Overview tab and selects Logs via ?tab=logs", %{
+    conn: conn,
+    account: account
+  } do
     :ok =
       Jobs.enqueue(%{
         workflow_job_id: 31_701,
@@ -417,7 +424,10 @@ defmodule TuistWeb.RunnerJobLiveTest do
     refute has_element?(lv2, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Overview")
   end
 
-  test "automatically requests a VNC session from the Interactive tab", %{conn: conn, account: account} do
+  test "automatically requests a VNC session from the Interactive tab", %{
+    conn: conn,
+    account: account
+  } do
     :ok =
       Jobs.enqueue(%{
         workflow_job_id: 31_750,
@@ -438,7 +448,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
     :ok = Jobs.record_claimed(candidate, "macos-pod-vnc", DateTime.utc_now())
     :ok = Jobs.record_running(31_750, "tuist-runner-vnc")
 
-    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/317500/jobs/31750?tab=interactive")
+    {:ok, lv, html} =
+      live(conn, ~p"/#{account.name}/runners/runs/317500/jobs/31750?tab=interactive")
 
     assert html =~ "Interactive access"
     assert html =~ "Waiting for runner relay"
@@ -493,7 +504,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
     |> InteractiveSession.changeset(%{state: :ready})
     |> Repo.update!()
 
-    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/317520/jobs/31752?tab=interactive")
+    {:ok, lv, html} =
+      live(conn, ~p"/#{account.name}/runners/runs/317520/jobs/31752?tab=interactive")
 
     refute html =~ "VNC session ready"
 
@@ -506,6 +518,43 @@ defmodule TuistWeb.RunnerJobLiveTest do
              lv,
              ~s{#runner-vnc-client[phx-hook="RunnerVNCClient"][data-vnc-path][data-framebuffer-color-order="bgr"]}
            )
+  end
+
+  test "renders a local development VNC preview without requesting a real session", %{
+    conn: conn,
+    account: account
+  } do
+    stub(Environment, :dev?, fn -> true end)
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_753,
+        account_id: account.id,
+        fleet_name: Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}),
+        repository: "tuist/tuist",
+        workflow_run_id: 317_530,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Dev VNC",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} =
+      Jobs.pick_queued(Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}), [])
+
+    :ok = Jobs.record_claimed(candidate, "macos-pod-dev-vnc", DateTime.utc_now())
+    :ok = Jobs.record_running(31_753, "tuist-runner-dev-vnc")
+
+    {:ok, lv, html} =
+      live(conn, ~p"/#{account.name}/runners/runs/317530/jobs/31753?tab=interactive")
+
+    assert html =~ "Interactive access"
+    assert has_element?(lv, ~s{[data-part="interactive-dev-preview"]})
+    assert has_element?(lv, ~s{#runner-vnc-fullscreen-button})
+    refute has_element?(lv, ~s{#request-vnc-session-button})
+    refute has_element?(lv, ~s{#runner-vnc-client})
+    refute Repo.get_by(InteractiveSession, workflow_job_id: 31_753, kind: :vnc)
   end
 
   test "does not show the Interactive tab for queued macOS jobs", %{conn: conn, account: account} do
@@ -523,7 +572,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
         head_sha: "abc"
       })
 
-    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/317510/jobs/31751?tab=interactive")
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{account.name}/runners/runs/317510/jobs/31751?tab=interactive")
 
     refute has_element?(lv, ~s{.noora-tab-menu-horizontal-item}, "Interactive")
     assert has_element?(lv, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Overview")
@@ -628,7 +678,10 @@ defmodule TuistWeb.RunnerJobLiveTest do
     refute has_element?(lv, ~s{[phx-click="load_older"]})
   end
 
-  test "searches the full log, including lines outside the loaded tail", %{conn: conn, account: account} do
+  test "searches the full log, including lines outside the loaded tail", %{
+    conn: conn,
+    account: account
+  } do
     :ok =
       Jobs.enqueue(%{
         workflow_job_id: 31_901,
@@ -713,7 +766,10 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert toggled =~ "icon-tabler-hourglass-off"
   end
 
-  test "the Steps card also has a timestamps button toggling per-step timestamps", %{conn: conn, account: account} do
+  test "the Steps card also has a timestamps button toggling per-step timestamps", %{
+    conn: conn,
+    account: account
+  } do
     :ok =
       Jobs.enqueue(%{
         workflow_job_id: 31_950,

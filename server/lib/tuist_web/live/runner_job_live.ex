@@ -6,6 +6,7 @@ defmodule TuistWeb.RunnerJobLive do
   import TuistWeb.Components.RunnerJobMetricsCharts
 
   alias Tuist.Authorization
+  alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.InteractiveSessions
@@ -37,7 +38,10 @@ defmodule TuistWeb.RunnerJobLive do
     if Authorization.authorize(:projects_read, current_user, selected_account) != :ok or
          not FeatureFlags.runners_enabled?(selected_account) do
       raise NotFoundError,
-            dgettext("dashboard_runners", "The page you are looking for doesn't exist or has been moved.")
+            dgettext(
+              "dashboard_runners",
+              "The page you are looking for doesn't exist or has been moved."
+            )
     end
 
     workflow_run_id = parse_id(workflow_run_id_param)
@@ -80,7 +84,10 @@ defmodule TuistWeb.RunnerJobLive do
 
       _ ->
         raise NotFoundError,
-              dgettext("dashboard_runners", "The job you are looking for doesn't exist or has been moved.")
+              dgettext(
+                "dashboard_runners",
+                "The job you are looking for doesn't exist or has been moved."
+              )
     end
   end
 
@@ -105,11 +112,15 @@ defmodule TuistWeb.RunnerJobLive do
 
       _ ->
         raise NotFoundError,
-              dgettext("dashboard_runners", "The job you are looking for doesn't exist or has been moved.")
+              dgettext(
+                "dashboard_runners",
+                "The job you are looking for doesn't exist or has been moved."
+              )
     end
   end
 
-  defp job_title(%{workflow_name: workflow, job_name: job}) when workflow != "" and job != "", do: "#{workflow} · #{job}"
+  defp job_title(%{workflow_name: workflow, job_name: job}) when workflow != "" and job != "",
+    do: "#{workflow} · #{job}"
 
   defp job_title(%{job_name: job}) when job != "", do: job
   defp job_title(%{workflow_job_id: id}), do: "Job ##{id}"
@@ -143,7 +154,8 @@ defmodule TuistWeb.RunnerJobLive do
   def status_badge_props(%{status: "completed", conclusion: "skipped"}),
     do: %{label: dgettext("dashboard_runners", "Skipped"), color: "warning"}
 
-  def status_badge_props(%{status: "queued"}), do: %{label: dgettext("dashboard_runners", "Queued"), color: "warning"}
+  def status_badge_props(%{status: "queued"}),
+    do: %{label: dgettext("dashboard_runners", "Queued"), color: "warning"}
 
   def status_badge_props(%{status: "claimed"}),
     do: %{label: dgettext("dashboard_runners", "Claimed"), color: "information"}
@@ -151,7 +163,8 @@ defmodule TuistWeb.RunnerJobLive do
   def status_badge_props(%{status: "running"}),
     do: %{label: dgettext("dashboard_runners", "Running"), color: "information"}
 
-  def status_badge_props(_), do: %{label: dgettext("dashboard_runners", "Unknown"), color: "neutral"}
+  def status_badge_props(_),
+    do: %{label: dgettext("dashboard_runners", "Unknown"), color: "neutral"}
 
   def platform_label(fleet_name) when is_binary(fleet_name) do
     cond do
@@ -190,7 +203,8 @@ defmodule TuistWeb.RunnerJobLive do
   def platform_badge_color(_), do: "neutral"
 
   def github_job_url(%{repository: repository, workflow_run_id: run_id, workflow_job_id: job_id})
-      when is_binary(repository) and repository != "" and is_integer(run_id) and run_id > 0 and is_integer(job_id) and
+      when is_binary(repository) and repository != "" and is_integer(run_id) and run_id > 0 and
+             is_integer(job_id) and
              job_id > 0 do
     "https://github.com/#{repository}/actions/runs/#{run_id}/job/#{job_id}"
   end
@@ -205,7 +219,8 @@ defmodule TuistWeb.RunnerJobLive do
   skip the link entirely instead of routing to a broken URL.
   """
   def path(account_name, %{workflow_run_id: run_id, workflow_job_id: job_id})
-      when is_binary(account_name) and is_integer(run_id) and run_id > 0 and is_integer(job_id) and job_id > 0 do
+      when is_binary(account_name) and is_integer(run_id) and run_id > 0 and is_integer(job_id) and
+             job_id > 0 do
     "/#{account_name}/runners/runs/#{run_id}/jobs/#{job_id}"
   end
 
@@ -244,7 +259,10 @@ defmodule TuistWeb.RunnerJobLive do
   when either timestamp is missing (e.g. a skipped step) so the
   template can omit the duration badge entirely.
   """
-  def step_duration_ms(%{started_at: %DateTime{} = started, completed_at: %DateTime{} = completed}) do
+  def step_duration_ms(%{
+        started_at: %DateTime{} = started,
+        completed_at: %DateTime{} = completed
+      }) do
     max(DateTime.diff(completed, started, :millisecond), 0)
   end
 
@@ -283,13 +301,14 @@ defmodule TuistWeb.RunnerJobLive do
   """
   def has_machine_metrics?(metrics), do: metrics != []
 
-  def interactive_tab_visible?(%{enabled?: true, can_manage?: true, macos?: true, running?: true, pod_available?: true}),
-    do: true
+  def interactive_tab_visible?(%{
+        can_manage?: true,
+        macos?: true,
+        running?: true,
+        pod_available?: true
+      }), do: true
 
   def interactive_tab_visible?(_), do: false
-
-  def interactive_vnc_unavailable_reason(%{enabled?: false}),
-    do: dgettext("dashboard_runners", "Interactive access is not enabled for this account.")
 
   def interactive_vnc_unavailable_reason(%{can_manage?: false}),
     do: dgettext("dashboard_runners", "You are not authorized to request interactive access.")
@@ -298,7 +317,11 @@ defmodule TuistWeb.RunnerJobLive do
     do: dgettext("dashboard_runners", "VNC is available for macOS runner jobs.")
 
   def interactive_vnc_unavailable_reason(%{running?: false}),
-    do: dgettext("dashboard_runners", "VNC can be requested while the macOS runner job is claimed or running.")
+    do:
+      dgettext(
+        "dashboard_runners",
+        "VNC can be requested while the macOS runner job is claimed or running."
+      )
 
   def interactive_vnc_unavailable_reason(%{pod_available?: false}),
     do: dgettext("dashboard_runners", "The runner pod is not available for this job.")
@@ -378,7 +401,8 @@ defmodule TuistWeb.RunnerJobLive do
     {:noreply, request_vnc_session(socket)}
   end
 
-  def handle_event("load_older", _params, %{assigns: %{oldest_line: nil}} = socket), do: {:noreply, socket}
+  def handle_event("load_older", _params, %{assigns: %{oldest_line: nil}} = socket),
+    do: {:noreply, socket}
 
   def handle_event("load_older", _params, socket) do
     %{job: job, oldest_line: oldest_line} = socket.assigns
@@ -401,11 +425,25 @@ defmodule TuistWeb.RunnerJobLive do
 
   defp request_vnc_session(socket, opts \\ []) do
     notify? = Keyword.get(opts, :notify?, true)
-    %{current_user: current_user, selected_account: selected_account, job: job, interactive: interactive} = socket.assigns
+
+    %{
+      current_user: current_user,
+      selected_account: selected_account,
+      job: job,
+      interactive: interactive
+    } = socket.assigns
 
     cond do
-      not interactive.enabled? or not interactive.can_manage? ->
-        maybe_put_flash(socket, notify?, :error, dgettext("dashboard_runners", "Interactive access is not available."))
+      interactive.vnc_dev_preview? ->
+        socket
+
+      not interactive.can_manage? ->
+        maybe_put_flash(
+          socket,
+          notify?,
+          :error,
+          dgettext("dashboard_runners", "Interactive access is not available.")
+        )
 
       not interactive.vnc_requestable? ->
         maybe_put_flash(socket, notify?, :error, interactive_vnc_unavailable_reason(interactive))
@@ -428,7 +466,11 @@ defmodule TuistWeb.RunnerJobLive do
   end
 
   defp maybe_auto_request_vnc_session(%{assigns: %{selected_tab: "interactive"}} = socket) do
-    if connected?(socket), do: request_vnc_session(socket, notify?: false), else: socket
+    if connected?(socket) and not socket.assigns.interactive.vnc_dev_preview? do
+      request_vnc_session(socket, notify?: false)
+    else
+      socket
+    end
   end
 
   defp maybe_auto_request_vnc_session(socket), do: socket
@@ -443,10 +485,17 @@ defmodule TuistWeb.RunnerJobLive do
   end
 
   defp handle_vnc_relay_request_result(socket, {:error, reason}, notify?) do
-    maybe_put_flash(socket, notify?, :error, interactive_session_error({:relay_request_failed, reason}))
+    maybe_put_flash(
+      socket,
+      notify?,
+      :error,
+      interactive_session_error({:relay_request_failed, reason})
+    )
   end
 
-  defp schedule_interactive_refresh(%{assigns: %{selected_tab: "interactive", interactive: interactive}} = socket) do
+  defp schedule_interactive_refresh(
+         %{assigns: %{selected_tab: "interactive", interactive: interactive}} = socket
+       ) do
     if connected?(socket) and match?(%{state: :requested}, interactive.vnc_session) do
       Process.send_after(self(), :refresh_interactive_access, @interactive_refresh_ms)
     end
@@ -456,7 +505,9 @@ defmodule TuistWeb.RunnerJobLive do
 
   defp schedule_interactive_refresh(socket), do: socket
 
-  defp refresh_vnc_relay_state(%{assigns: %{interactive: %{vnc_session: %{}} = interactive}} = socket) do
+  defp refresh_vnc_relay_state(
+         %{assigns: %{interactive: %{vnc_session: %{}} = interactive}} = socket
+       ) do
     case InteractiveSessions.sync_vnc_relay_state(interactive.vnc_session) do
       {:ok, _session} -> refresh_interactive_state(socket)
       {:error, _reason} -> socket
@@ -466,10 +517,15 @@ defmodule TuistWeb.RunnerJobLive do
   defp refresh_vnc_relay_state(socket), do: socket
 
   defp maybe_put_flash(socket, false, _kind, _message), do: socket
-  defp maybe_put_flash(socket, true, kind, nil), do: put_flash(socket, kind, interactive_session_error(nil))
+
+  defp maybe_put_flash(socket, true, kind, nil),
+    do: put_flash(socket, kind, interactive_session_error(nil))
+
   defp maybe_put_flash(socket, true, kind, message), do: put_flash(socket, kind, message)
 
-  def step_expanded?(expanded_steps, %{number: number}), do: MapSet.member?(expanded_steps, number)
+  def step_expanded?(expanded_steps, %{number: number}),
+    do: MapSet.member?(expanded_steps, number)
+
   def step_expanded?(_expanded_steps, _step), do: false
 
   @doc """
@@ -493,7 +549,7 @@ defmodule TuistWeb.RunnerJobLive do
   # own log UI; lines render with ANSI SGR codes decoded into
   # `<span>` classes so the user sees colours instead of literal
   # `[36;1m` artefacts.
-  attr :tree, :list, required: true
+  attr(:tree, :list, required: true)
 
   def log_tree(assigns) do
     ~H"""
@@ -501,7 +557,7 @@ defmodule TuistWeb.RunnerJobLive do
     """
   end
 
-  attr :node, :any, required: true
+  attr(:node, :any, required: true)
 
   def log_node(%{node: {:line, _line}} = assigns) do
     {:line, line} = assigns.node
@@ -599,8 +655,14 @@ defmodule TuistWeb.RunnerJobLive do
     macos? = Catalog.fleet_platform(job.fleet_name) == :macos
     running? = job.status in ["claimed", "running"]
     pod_available? = is_binary(job.pod_name) and job.pod_name != ""
-    enabled? = FeatureFlags.runners_interactive_enabled?(selected_account)
-    can_manage? = Authorization.authorize(:runner_interactive_session_create, current_user, selected_account) == :ok
+
+    can_manage? =
+      Authorization.authorize(:runner_interactive_session_create, current_user, selected_account) ==
+        :ok
+
+    vnc_requestable? = can_manage? and InteractiveSessions.vnc_requestable?(job)
+    vnc_dev_preview? = Environment.dev?() and vnc_requestable?
+    vnc_dev_preview_at = DateTime.utc_now()
 
     vnc_session =
       selected_account.id
@@ -608,19 +670,22 @@ defmodule TuistWeb.RunnerJobLive do
       |> with_vnc_session_token(vnc_session_token)
 
     vnc_websocket_path =
-      if vnc_session_ready?(vnc_session) and is_binary(vnc_session_token) do
+      if not vnc_dev_preview? and vnc_session_ready?(vnc_session) and is_binary(vnc_session_token) do
         "/#{selected_account.name}/runners/interactive/vnc/#{vnc_session_token}"
       end
 
     %{
-      enabled?: enabled?,
       can_manage?: can_manage?,
       macos?: macos?,
       running?: running?,
       pod_available?: pod_available?,
-      vnc_requestable?: enabled? and can_manage? and InteractiveSessions.vnc_requestable?(job),
+      vnc_requestable?: vnc_requestable?,
+      vnc_dev_preview?: vnc_dev_preview?,
+      vnc_dev_preview_day: vnc_dev_preview_at.day,
+      vnc_dev_preview_menu_time: Calendar.strftime(vnc_dev_preview_at, "%a %b %d %I:%M %p"),
+      vnc_dev_preview_month: vnc_dev_preview_at |> Calendar.strftime("%B") |> String.upcase(),
       vnc_session: vnc_session,
-      vnc_session_ready?: vnc_session_ready?(vnc_session),
+      vnc_session_ready?: vnc_dev_preview? or vnc_session_ready?(vnc_session),
       vnc_websocket_path: vnc_websocket_path
     }
   end
@@ -636,7 +701,11 @@ defmodule TuistWeb.RunnerJobLive do
     do: dgettext("dashboard_runners", "VNC is available for macOS runner jobs.")
 
   defp interactive_session_error(:job_not_running),
-    do: dgettext("dashboard_runners", "VNC can be requested while the macOS runner job is claimed or running.")
+    do:
+      dgettext(
+        "dashboard_runners",
+        "VNC can be requested while the macOS runner job is claimed or running."
+      )
 
   defp interactive_session_error(:pod_unavailable),
     do: dgettext("dashboard_runners", "The runner pod is not available for this job.")
@@ -644,5 +713,6 @@ defmodule TuistWeb.RunnerJobLive do
   defp interactive_session_error({:relay_request_failed, _reason}),
     do: dgettext("dashboard_runners", "The runner relay could not be requested.")
 
-  defp interactive_session_error(_), do: dgettext("dashboard_runners", "The VNC session could not be requested.")
+  defp interactive_session_error(_),
+    do: dgettext("dashboard_runners", "The VNC session could not be requested.")
 end

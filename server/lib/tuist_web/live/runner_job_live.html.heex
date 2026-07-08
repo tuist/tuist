@@ -396,7 +396,7 @@
           <:icon_left><.icon name="device_desktop_share" /></:icon_left>
         </.button>
         <.button
-          :if={is_nil(@interactive.vnc_session)}
+          :if={is_nil(@interactive.vnc_session) and !@interactive.vnc_dev_preview?}
           id="request-vnc-session-button"
           phx-click="request_vnc_session"
           variant="secondary"
@@ -434,7 +434,49 @@
             >
             </div>
             <div
-              :if={!(@interactive.vnc_session_ready? and @interactive.vnc_websocket_path)}
+              :if={@interactive.vnc_dev_preview?}
+              data-part="interactive-dev-preview"
+              aria-label={dgettext("dashboard_runners", "macOS desktop")}
+            >
+              <div data-part="interactive-dev-menu">
+                <div data-part="interactive-dev-menu-left">
+                  <span>Finder</span>
+                  <span>File</span>
+                  <span>Edit</span>
+                  <span>View</span>
+                  <span>Go</span>
+                  <span>Window</span>
+                  <span>Help</span>
+                </div>
+                <div data-part="interactive-dev-menu-right">
+                  <span>Tuist</span>
+                  <span>{@interactive.vnc_dev_preview_menu_time}</span>
+                </div>
+              </div>
+              <div data-part="interactive-dev-desktop">
+                <div data-part="interactive-dev-widget" data-size="small">
+                  <span>{@interactive.vnc_dev_preview_month}</span>
+                  <strong>{@interactive.vnc_dev_preview_day}</strong>
+                </div>
+                <div data-part="interactive-dev-widget">
+                  <span>Runner</span>
+                  <strong>Live</strong>
+                </div>
+                <div data-part="interactive-dev-window">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+                <div data-part="interactive-dev-dock">
+                  <span :for={_ <- 1..12}></span>
+                </div>
+              </div>
+            </div>
+            <div
+              :if={
+                !@interactive.vnc_dev_preview? and
+                  !(@interactive.vnc_session_ready? and @interactive.vnc_websocket_path)
+              }
               data-part="interactive-viewport-frame"
             >
               <div data-part="interactive-viewport-icon"><.device_laptop /></div>

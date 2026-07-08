@@ -15,16 +15,6 @@ defmodule Tuist.FeatureFlags do
   end
 
   @doc """
-  Whether interactive runner access can be requested from the
-  dashboard. Non-production environments expose it with the rest of
-  the runners surface; production requires the narrower
-  `:runners_interactive` flag.
-  """
-  def runners_interactive_enabled?(account) do
-    not Environment.prod?() or FunWithFlags.enabled?(:runners_interactive, for: account)
-  end
-
-  @doc """
   Whether the Kura surface (the per-account Kura servers, the
   self-hosted cache management, and the Usage dashboard) should be
   visible for the given account. Self-hosted deployments (including
