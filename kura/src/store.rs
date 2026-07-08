@@ -248,6 +248,27 @@ impl PersistArtifactOutcome {
             Self::IgnoredTombstone => ArtifactApplyOutcome::IgnoredTombstone,
         }
     }
+
+    // Converts a client-facing persist outcome into the public result: both
+    // Applied and IgnoredStale surface their manifest, while a tombstone
+    // rejection is an error (client writes must not be silently dropped).
+    fn into_persisted(
+        self,
+        already_present: bool,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        key: &str,
+    ) -> Result<PersistedArtifact, String> {
+        match self {
+            Self::Applied(manifest) | Self::IgnoredStale(manifest) => Ok(PersistedArtifact {
+                manifest,
+                already_present,
+            }),
+            Self::IgnoredTombstone => Err(format!(
+                "artifact write for {producer:?}/{namespace_id}/{key} was rejected by a newer tombstone"
+            )),
+        }
+    }
 }
 
 impl Store {
@@ -537,22 +558,10 @@ impl Store {
             version_ms: now_ms(),
             replication_targets,
         };
-        match self
+        let (outcome, already_present) = self
             .persist_artifact_from_path_with_version(spec, source_path)
-            .await?
-        {
-            (
-                PersistArtifactOutcome::Applied(manifest)
-                | PersistArtifactOutcome::IgnoredStale(manifest),
-                already_present,
-            ) => Ok(PersistedArtifact {
-                manifest,
-                already_present,
-            }),
-            (PersistArtifactOutcome::IgnoredTombstone, _) => Err(format!(
-                "artifact write for {producer:?}/{namespace_id}/{key} was rejected by a newer tombstone"
-            )),
-        }
+            .await?;
+        outcome.into_persisted(already_present, producer, namespace_id, key)
     }
 
     pub async fn apply_replicated_artifact_from_path(
@@ -1612,19 +1621,12 @@ impl Store {
             version_ms: now_ms(),
             replication_targets: &[],
         };
-        match self
+        let (outcome, already_present) = self
             .persist_artifact_from_bytes_with_version(spec, bytes)
-            .await?
-        {
-            (
-                PersistArtifactOutcome::Applied(manifest)
-                | PersistArtifactOutcome::IgnoredStale(manifest),
-                _,
-            ) => Ok(manifest),
-            (PersistArtifactOutcome::IgnoredTombstone, _) => Err(format!(
-                "artifact write for {producer:?}/{namespace_id}/{key} was rejected by a newer tombstone"
-            )),
-        }
+            .await?;
+        outcome
+            .into_persisted(already_present, producer, namespace_id, key)
+            .map(|persisted| persisted.manifest)
     }
 
     pub async fn persist_artifact_from_bytes_and_enqueue(
@@ -1644,22 +1646,10 @@ impl Store {
             version_ms: now_ms(),
             replication_targets,
         };
-        match self
+        let (outcome, already_present) = self
             .persist_artifact_from_bytes_with_version(spec, bytes)
-            .await?
-        {
-            (
-                PersistArtifactOutcome::Applied(manifest)
-                | PersistArtifactOutcome::IgnoredStale(manifest),
-                already_present,
-            ) => Ok(PersistedArtifact {
-                manifest,
-                already_present,
-            }),
-            (PersistArtifactOutcome::IgnoredTombstone, _) => Err(format!(
-                "artifact write for {producer:?}/{namespace_id}/{key} was rejected by a newer tombstone"
-            )),
-        }
+            .await?;
+        outcome.into_persisted(already_present, producer, namespace_id, key)
     }
 
     #[cfg(test)]
