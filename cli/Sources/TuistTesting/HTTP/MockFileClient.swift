@@ -33,14 +33,12 @@ import TuistSupport
         public var invokedDownloadCount = 0
         public var invokedDownloadParameters: (url: URL, destination: AbsolutePath)?
         public var invokedDownloadParametersList = [(url: URL, destination: AbsolutePath)]()
-        public var stubbedDownloadResult: AbsolutePath!
 
-        public func download(url: URL, to destination: AbsolutePath) async throws -> AbsolutePath {
+        public func download(url: URL, to destination: AbsolutePath) async throws {
             invokedDownload = true
             invokedDownloadCount += 1
             invokedDownloadParameters = (url, destination)
             invokedDownloadParametersList.append((url, destination))
-            return stubbedDownloadResult ?? destination
         }
     }
 

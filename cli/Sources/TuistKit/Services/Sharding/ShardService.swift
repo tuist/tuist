@@ -124,11 +124,11 @@ public struct ShardService: ShardServicing {
                     throw ShardServiceError.invalidDownloadURL(downloadURLString)
                 }
                 let shardArchiveDestinationPath = downloadedArtifactsPath.appending(component: "artifact-\(downloadIndex).aar")
-                let shardArchivePath = try await retryProvider.runWithRetries {
+                try await retryProvider.runWithRetries {
                     try await fileClient.download(url: downloadURL, to: shardArchiveDestinationPath)
                 }
-                try await appleArchiver.decompress(archive: shardArchivePath, to: extractedTestProductsPath)
-                try? await fileSystem.remove(shardArchivePath)
+                try await appleArchiver.decompress(archive: shardArchiveDestinationPath, to: extractedTestProductsPath)
+                try? await fileSystem.remove(shardArchiveDestinationPath)
             }
             Logger.current.debug("Downloaded \(shard.download_urls.count) test products artifact(s).")
             resolvedTestProductsPath = try await normalizeExtractedTestProductsPath(extractedTestProductsPath)

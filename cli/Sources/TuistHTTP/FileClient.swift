@@ -51,7 +51,7 @@ import Path
 
     public protocol FileClienting {
         func upload(file: AbsolutePath, hash: String, to url: URL) async throws -> Bool
-        func download(url: URL, to destination: AbsolutePath) async throws -> AbsolutePath
+        func download(url: URL, to destination: AbsolutePath) async throws
     }
 
     public struct FileClient: FileClienting {
@@ -73,7 +73,7 @@ import Path
 
         // MARK: - Public
 
-        public func download(url: URL, to destination: AbsolutePath) async throws -> AbsolutePath {
+        public func download(url: URL, to destination: AbsolutePath) async throws {
             let request = URLRequest(url: url)
             let session = resolvedSession()
             do {
@@ -91,7 +91,6 @@ import Path
                 if successStatusCodeRange.contains(httpResponse.statusCode) {
                     let downloadedPath = try AbsolutePath(validating: localUrl.path)
                     try await fileSystem.move(from: downloadedPath, to: destination)
-                    return destination
                 } else {
                     throw FileClientError.invalidResponse(request, nil)
                 }

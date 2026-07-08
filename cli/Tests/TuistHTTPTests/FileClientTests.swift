@@ -19,13 +19,12 @@
             let destinationDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "file-client-download-test")
             let destinationPath = destinationDirectory.appending(component: "shared.aar")
 
-            let downloadedPath = try await subject.download(
+            try await subject.download(
                 url: URL(string: "https://tuist.dev/artifacts/shared.aar")!,
                 to: destinationPath
             )
 
-            #expect(downloadedPath == destinationPath)
-            #expect(try await fileSystem.readTextFile(at: downloadedPath) == "downloaded shard archive")
+            #expect(try await fileSystem.readTextFile(at: destinationPath) == "downloaded shard archive")
         }
     }
 
