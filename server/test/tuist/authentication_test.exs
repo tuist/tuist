@@ -75,6 +75,26 @@ defmodule Tuist.AuthenticationTest do
     assert result.project_ids == []
   end
 
+  test "authenticated_subject includes the account token creator as issued_by" do
+    # Given
+    account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    creator = AccountsFixtures.user_fixture(preload: [:account])
+
+    {:ok, {_, token_value}} =
+      Accounts.create_account_token(%{
+        account: account,
+        created_by_account: creator.account,
+        scopes: ["account:members:write"],
+        name: "test-token"
+      })
+
+    # When
+    result = Authentication.authenticated_subject(token_value)
+
+    # Then
+    assert result.issued_by.id == creator.id
+  end
+
   test "authenticated_subject returns nil for account tokens owned by inactive personal users" do
     # Given
     user = AccountsFixtures.user_fixture(preload: [:account])

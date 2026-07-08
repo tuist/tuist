@@ -3,6 +3,7 @@ defmodule Tuist.AuthorizationTest do
   use Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Authorization
   alias Tuist.Environment
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -755,6 +756,28 @@ defmodule Tuist.AuthorizationTest do
              {:error, :forbidden}
   end
 
+  test "can.read.account.organization when the subject is a matching account token with members read scope" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    subject = %AuthenticatedAccount{account: account, scopes: ["account:members:read"]}
+
+    # When
+    assert Authorization.authorize(:organization_read, subject, account) == :ok
+  end
+
+  test "cannot.read.account.organization when the subject is an account token for another account" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    other_account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    subject = %AuthenticatedAccount{account: other_account, scopes: ["account:members:read"]}
+
+    # When
+    assert Authorization.authorize(:organization_read, subject, account) ==
+             {:error, :forbidden}
+  end
+
   test "can.read.account.oragnization_usage when the subject is a user that is admin of an organization" do
     # Given
     organization = AccountsFixtures.organization_fixture()
@@ -890,6 +913,27 @@ defmodule Tuist.AuthorizationTest do
              {:error, :forbidden}
   end
 
+  test "can.create.account.invitation when the subject is a matching account token with members write scope" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    subject = %AuthenticatedAccount{account: account, scopes: ["account:members:write"]}
+
+    # When
+    assert Authorization.authorize(:invitation_create, subject, account) == :ok
+  end
+
+  test "cannot.create.account.invitation when the subject is a matching account token with members read scope" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    subject = %AuthenticatedAccount{account: account, scopes: ["account:members:read"]}
+
+    # When
+    assert Authorization.authorize(:invitation_create, subject, account) ==
+             {:error, :forbidden}
+  end
+
   test "can.delete.account.invitation when the subject is a user that is admin of an organization" do
     # Given
     organization = AccountsFixtures.organization_fixture()
@@ -924,6 +968,16 @@ defmodule Tuist.AuthorizationTest do
              {:error, :forbidden}
   end
 
+  test "can.delete.account.invitation when the subject is a matching account token with members write scope" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    subject = %AuthenticatedAccount{account: account, scopes: ["account:members:write"]}
+
+    # When
+    assert Authorization.authorize(:invitation_delete, subject, account) == :ok
+  end
+
   test "can.delete.account.member when the subject is a user that is admin of an organization" do
     # Given
     organization = AccountsFixtures.organization_fixture()
@@ -956,6 +1010,16 @@ defmodule Tuist.AuthorizationTest do
     assert Authorization.authorize(:member_delete, user, account) == {:error, :forbidden}
   end
 
+  test "can.delete.account.member when the subject is a matching account token with members write scope" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    subject = %AuthenticatedAccount{account: account, scopes: ["account:members:write"]}
+
+    # When
+    assert Authorization.authorize(:member_delete, subject, account) == :ok
+  end
+
   test "can.update.account.member when the subject is a user that is admin of an organization" do
     # Given
     organization = AccountsFixtures.organization_fixture()
@@ -986,6 +1050,16 @@ defmodule Tuist.AuthorizationTest do
 
     # When
     assert Authorization.authorize(:member_update, user, account) == {:error, :forbidden}
+  end
+
+  test "can.update.account.member when the subject is a matching account token with members write scope" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    subject = %AuthenticatedAccount{account: account, scopes: ["account:members:write"]}
+
+    # When
+    assert Authorization.authorize(:member_update, subject, account) == :ok
   end
 
   test "can.create.account.token when the subject is the same account being read" do
