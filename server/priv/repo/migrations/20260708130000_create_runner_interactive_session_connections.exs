@@ -30,10 +30,5 @@ defmodule Tuist.Repo.Migrations.CreateRunnerInteractiveSessionConnections do
              [:interactive_session_id, :disconnected_at],
              name: :runner_interactive_session_connections_disconnected_index
            )
-
-    alter table(:runner_interactive_sessions) do
-      # excellent_migrations:safety-assured-for-next-line column_removed
-      remove :connection_id, :string
-    end
   end
 end
