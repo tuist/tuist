@@ -10,6 +10,9 @@ on:
       - "cli/Sources/**"
       - "cli/Tests/**"
       - "cli/Templates/**"
+      # cas-plugin (the Xcode CAS dylib + tuist-cas-proxy) is built and shipped
+      # inside the CLI, so its changes must run CLI build/test/acceptance.
+      - "cas-plugin/**"
       - "*.swift"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
@@ -30,6 +33,9 @@ on:
       - "cli/Sources/**"
       - "cli/Tests/**"
       - "cli/Templates/**"
+      # cas-plugin (the Xcode CAS dylib + tuist-cas-proxy) is built and shipped
+      # inside the CLI, so its changes must run CLI build/test/acceptance.
+      - "cas-plugin/**"
       - "*.swift"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
