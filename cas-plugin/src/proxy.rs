@@ -9,11 +9,12 @@
 //! before answering a resolve, so consumers' demand loads are local hits.
 
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::os::unix::fs::MetadataExt;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use crate::proxy_proto::{
     read_request, write_response, Request, OP_PUBLISH, OP_RESOLVE, STATUS_ERROR, STATUS_HIT,
@@ -108,11 +109,52 @@ fn should_reclaim(idle: Duration, cas_dir_gone: bool) -> bool {
     cas_dir_gone || idle > IDLE_RECLAIM
 }
 
+/// A cheap identity for the on-disk CAS directory. When it changes, the
+/// directory was deleted and recreated (`xcodebuild clean` / a deleted
+/// DerivedData) under this long-lived proxy, so the in-memory `known_local` and
+/// `resolved` marks now describe a store that no longer exists on disk.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct CasGeneration {
+    ino: u64,
+    // Birth time in nanos since the Unix epoch; 0 when the platform can't report
+    // it. Guards the (very unlikely) inode reuse when a directory is recreated.
+    birth_nanos: u128,
+}
+
+/// The CAS directory's current generation, or `None` if it does not exist
+/// (deleted and not yet recreated).
+fn cas_generation(cas_path: &str) -> Option<CasGeneration> {
+    let meta = std::fs::metadata(cas_path).ok()?;
+    let birth_nanos = meta
+        .created()
+        .ok()
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    Some(CasGeneration { ino: meta.ino(), birth_nanos })
+}
+
+/// Whether the CAS directory changed identity between two observations, i.e. it
+/// was recreated (a wipe). A `None` current generation (the directory is gone)
+/// is not a change: a resolve can't run against a missing store anyway, and
+/// `reclaim_idle` drops such a path's marks; a `None` stored generation is the
+/// first observation. Pure so the wipe policy is unit-testable.
+fn generation_changed(stored: Option<CasGeneration>, current: Option<CasGeneration>) -> bool {
+    matches!((stored, current), (Some(prev), Some(now)) if prev != now)
+}
+
 /// Per-local-CAS-path state. Leaked for 'static lifetime: the proxy runs
 /// until killed.
 pub struct PathState {
     up: &'static Upstream,
     cas: llcas_cas_t,
+    // The on-disk CAS directory this state wraps, kept so a resolve can restat
+    // it for wipe detection (see `generation`).
+    cas_path: String,
+    // Identity of the CAS directory as last observed by a resolve. A change means
+    // the store was deleted and recreated under this long-lived proxy, so the
+    // in-memory marks below are stale and must be dropped before they are trusted.
+    generation: Mutex<Option<CasGeneration>>,
     // key digest -> resolved outcome. A local publish updates its entry, so a
     // miss cached during planning turns into a hit once the local build
     // publishes it; misses also carry a timestamp so a key another machine
@@ -287,6 +329,8 @@ impl Proxy {
         let state: &'static PathState = Box::leak(Box::new(PathState {
             up,
             cas,
+            cas_path: cas_path.to_string(),
+            generation: Mutex::new(cas_generation(cas_path)),
             resolved: Mutex::new(HashMap::new()),
             inflight: Mutex::new(HashSet::new()),
             inflight_cvar: Condvar::new(),
@@ -323,6 +367,12 @@ impl Proxy {
         state
             .last_used
             .store(self.epoch.elapsed().as_millis() as u64, Ordering::Relaxed);
+        // Drop stale marks if the on-disk CAS was wiped and recreated. This runs
+        // before the fast path and before resolve_uncached's manifest filter, so
+        // an uncached/changed key or a parallel build can't trust known_local
+        // marks for a store that no longer exists (which would skip re-fetching
+        // wiped nodes and hand back a value whose graph is missing on disk).
+        self.check_generation(state);
         // Fast path, outside single-flight so the presence load never
         // serializes other keys: serve a cached Hit only after confirming its
         // value object is still on disk. A long-lived proxy keeps Hits in memory
@@ -493,6 +543,25 @@ impl Proxy {
             analytics.record_keyvalue(key, "read", op_start.elapsed().as_secs_f64());
         }
         Ok(Some(value))
+    }
+
+    /// Detects a wiped-and-recreated on-disk CAS (a deleted DerivedData under
+    /// this long-lived proxy) from a change in the CAS directory's identity and
+    /// drops the now-stale in-memory marks (`resolved`, `known_local`,
+    /// `publish_cache`) so a resolve re-probes and re-materializes authoritatively.
+    /// Called at the head of every resolve, so it covers uncached/changed keys
+    /// and parallel builds, not only re-requested cached Hits. The generation
+    /// lock is held across the invalidation so a concurrent resolve can't observe
+    /// the new generation as unchanged and filter against `known_local` while it
+    /// is being cleared.
+    fn check_generation(&self, state: &PathState) {
+        let Some(current) = cas_generation(&state.cas_path) else { return };
+        let mut stored = state.generation.lock().unwrap();
+        if generation_changed(*stored, Some(current)) {
+            state.invalidate();
+            state.publish_cache.lock().unwrap().clear();
+        }
+        *stored = Some(current);
     }
 
     fn is_local(&self, state: &PathState, digest: &[u8]) -> bool {
@@ -1088,5 +1157,43 @@ mod tests {
     fn gone_cas_dir_is_reclaimed_regardless_of_idle() {
         assert!(should_reclaim(Duration::from_secs(0), true));
         assert!(should_reclaim(IDLE_RECLAIM + Duration::from_secs(1), true));
+    }
+
+    fn generation(ino: u64, birth_nanos: u128) -> CasGeneration {
+        CasGeneration { ino, birth_nanos }
+    }
+
+    // A recreated CAS directory (a wipe) is a change; a stable one, the first
+    // observation, and a disappeared directory are not.
+    #[test]
+    fn generation_change_is_detected_only_on_recreate() {
+        let g1 = generation(1, 100);
+        let g2 = generation(2, 200);
+        assert!(generation_changed(Some(g1), Some(g2)));
+        assert!(generation_changed(Some(g2), Some(g1)));
+        assert!(!generation_changed(Some(g1), Some(g1)));
+        assert!(!generation_changed(None, Some(g1)), "first observation is not a change");
+        assert!(!generation_changed(Some(g1), None), "a gone dir is left to reclaim_idle");
+    }
+
+    // Deleting and recreating a directory at the same path yields a different
+    // generation, which is the signal check_generation invalidates on. This is
+    // the exact DerivedData-wipe reproduction, at the filesystem layer.
+    #[test]
+    fn recreated_directory_has_a_new_generation() {
+        let dir = std::env::temp_dir().join(format!("cas-generation-{}", std::process::id()));
+        let path = dir.to_string_lossy().into_owned();
+
+        std::fs::create_dir_all(&dir).unwrap();
+        let before = cas_generation(&path);
+
+        std::fs::remove_dir_all(&dir).unwrap();
+        std::fs::create_dir_all(&dir).unwrap();
+        let after = cas_generation(&path);
+
+        let _ = std::fs::remove_dir_all(&dir);
+
+        assert!(before.is_some() && after.is_some());
+        assert_ne!(before, after, "a recreated CAS directory must read as a new generation");
     }
 }
