@@ -208,5 +208,14 @@ defmodule TuistWeb.API.InvitationsController do
 
   defp inviter_from_subject(%User{} = user), do: user
   defp inviter_from_subject(%AuthenticatedAccount{issued_by: %User{} = user}), do: user
+  defp inviter_from_subject(%AuthenticatedAccount{created_by_account_id: nil}), do: nil
+
+  defp inviter_from_subject(%AuthenticatedAccount{created_by_account_id: created_by_account_id}) do
+    case Accounts.get_account_by_id(created_by_account_id) do
+      {:ok, %{user_id: user_id}} when not is_nil(user_id) -> Accounts.get_user_by_id(user_id)
+      _ -> nil
+    end
+  end
+
   defp inviter_from_subject(_subject), do: nil
 end

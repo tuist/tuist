@@ -48,7 +48,7 @@ defmodule Tuist.Authentication do
     project_token = Projects.get_project_by_full_token(token)
 
     if is_nil(project_token) do
-      case Accounts.account_token(token, preload: [:account, created_by_account: :user]) do
+      case Accounts.account_token(token, preload: [:account, :account_token_projects]) do
         {:ok, account_token} ->
           %AuthenticatedAccount{
             account: account_token.account,
@@ -56,8 +56,7 @@ defmodule Tuist.Authentication do
             all_projects: account_token.all_projects,
             project_ids: Enum.map(account_token.account_token_projects, & &1.project_id),
             token_id: account_token.id,
-            created_by_account_id: account_token.created_by_account_id,
-            issued_by: issued_by_user(account_token)
+            created_by_account_id: account_token.created_by_account_id
           }
 
         _ ->
@@ -67,9 +66,6 @@ defmodule Tuist.Authentication do
       project_token
     end
   end
-
-  defp issued_by_user(%{created_by_account: %{user: %User{} = user}}), do: user
-  defp issued_by_user(_account_token), do: nil
 
   @doc """
     Refreshes a given token, updating the account handle in the `preferred_username` claim.
