@@ -307,9 +307,8 @@ impl Proxy {
             }
         };
         state.stats_remote_hits.fetch_add(1, Ordering::Relaxed);
-        state
-            .ms_action
-            .fetch_add(phase.elapsed().as_millis() as u64, Ordering::Relaxed);
+        let action_ms = phase.elapsed().as_millis() as u64;
+        state.ms_action.fetch_add(action_ms, Ordering::Relaxed);
 
         let phase = Instant::now();
         let missing: Vec<&ManifestEntry> = manifest
@@ -343,6 +342,20 @@ impl Proxy {
             state
                 .ms_fetch
                 .fetch_add(fetch_elapsed.as_millis() as u64, Ordering::Relaxed);
+            // TEMP diagnostics: per-resolve batch shape + per-leg wall time, to
+            // attribute where in-build fetch latency goes (size tail vs uniform
+            // slowdown). Gated so normal runs stay quiet.
+            if std::env::var_os("TUIST_CAS_LOG_RESOLVES").is_some() {
+                let bytes: i64 = digests.iter().map(|digest| digest.size_bytes).sum();
+                crate::log_line(&format!(
+                    "resolve manifest={} fetched={} bytes={} action_ms={} fetch_ms={}",
+                    manifest.len(),
+                    digests.len(),
+                    bytes,
+                    action_ms,
+                    fetch_elapsed.as_millis()
+                ));
+            }
             // The fetch is one batch RPC; attribute its wall time to each
             // batch-read node in proportion to that node's compressed bytes
             // for the per-node transfer analytics. Inlined nodes rode the
