@@ -153,11 +153,10 @@ spec:
             - name: TUIST_SELF_HOSTING_DEVELOPMENT_MODE
               value: {{ .Values.server.license.selfHostingDevelopmentMode | ternary "1" "0" | quote }}
             {{- include "tuist.licenseEnv" . | nindent 12 }}
-            # S3 boot config must be set unconditionally: runtime.exs configures
-            # ex_aws for every non-test env at boot (URI.parse on the endpoint), so
-            # the migrate Job crashes if TUIST_S3_ENDPOINT is unset. For managed
-            # deployments these used to be supplied by the encrypted blob; with the
-            # blob gone they must come from the chart like the server Deployment does.
+            # Object-storage boot config must be set unconditionally. The
+            # release runtime reads the selected provider at boot even though
+            # the migration job does not actively upload or download artifacts.
+            {{- include "tuist.serverObjectStorageEnv" . | nindent 12 }}
             - name: TUIST_S3_BUCKET_NAME
               value: {{ include "tuist.objectStorageBucketDefault" . | quote }}
             - name: TUIST_S3_ENDPOINT
@@ -182,6 +181,7 @@ spec:
                   name: {{ $secretName }}
                   key: object-storage-secret-key
             {{- end }}
+            {{- include "tuist.clickhousePoolEnv" . | nindent 12 }}
             {{- with .Values.server.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

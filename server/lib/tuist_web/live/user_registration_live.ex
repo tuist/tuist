@@ -56,16 +56,17 @@ defmodule TuistWeb.UserRegistrationLive do
             </div>
           </div>
           <div data-part="image" data-oauth-enabled={oauth_configured?()}>
-            <img data-theme="light" src="/app/images/signup-light.png" />
-            <img data-theme="dark" src="/app/images/signup-dark.png" />
+            <img data-theme="light" src={~p"/app/images/signup-light.png"} decoding="async" />
+            <img data-theme="dark" src={~p"/app/images/signup-dark.png"} decoding="async" />
           </div>
         </div>
         <div data-part="frame">
           <div data-part="content">
             <img
-              src="/images/tuist_logo_32x32@2x.png"
+              src={~p"/images/tuist_logo_32x32@2x.png"}
               alt={dgettext("dashboard_auth", "Tuist Logo")}
               data-part="logo"
+              decoding="async"
             />
             <div data-part="dots">
               <.dots_light />
@@ -207,9 +208,10 @@ defmodule TuistWeb.UserRegistrationLive do
         <div data-part="frame">
           <div data-part="content">
             <img
-              src="/images/tuist_logo_32x32@2x.png"
+              src={~p"/images/tuist_logo_32x32@2x.png"}
               alt={dgettext("dashboard_auth", "Tuist Logo")}
               data-part="logo"
+              decoding="async"
             />
             <div data-part="dots">
               <.dots_light />

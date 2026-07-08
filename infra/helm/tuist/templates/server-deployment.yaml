@@ -246,6 +246,7 @@ spec:
             - name: RELEASE_NODE
               value: "$(TUIST_CLUSTER_APP_NAME)@$(POD_IP)"
             {{- end }}
+            {{- include "tuist.serverObjectStorageEnv" . | nindent 12 }}
             - name: TUIST_S3_BUCKET_NAME
               value: {{ include "tuist.objectStorageBucketDefault" . | quote }}
             - name: TUIST_S3_ENDPOINT
@@ -316,6 +317,7 @@ spec:
             - name: TUIST_KURA_PEER_FAILOVER_IPS
               value: "{{- range $i, $e := .Values.server.kuraPeerFailoverIps }}{{ if $i }},{{ end }}{{ $e.region }}={{ $e.ip }}{{- end }}"
             {{- end }}
+            {{- include "tuist.clickhousePoolEnv" . | nindent 12 }}
             {{- with .Values.server.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

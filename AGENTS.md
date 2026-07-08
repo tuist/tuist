@@ -8,6 +8,7 @@ This file provides guidance to AI agents when working with code in this reposito
 - `cache/` - Tuist cache service (Elixir/Phoenix) - see `cache/AGENTS.md`
 - `slack/` - Tuist Slack invitation app (Elixir/Phoenix + SQLite) - see `slack/AGENTS.md`
 - `kura/` - Kura distributed cache mesh (Rust) - see `kura/AGENTS.md`
+- `cas-plugin/` - Xcode compilation-cache CAS plugin (Rust cdylib) wrapping Apple's libToolchainCASPlugin with Tuist-remote read/write-through - see `cas-plugin/AGENTS.md`
 - `tuist_common/` - Shared Elixir utilities used across services - see `tuist_common/AGENTS.md`
 - `app/` - Tuist iOS and macOS app - see `app/AGENTS.md`
 - `android/` - Tuist Android app (Kotlin/Compose) - see `android/AGENTS.md`

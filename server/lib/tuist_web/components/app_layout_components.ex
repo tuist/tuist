@@ -568,9 +568,10 @@ defmodule TuistWeb.AppLayoutComponents do
       <div data-part="left-section">
         <.link navigate={~p"/#{@selected_account.name}/projects"}>
           <img
-            src="/images/tuist_dashboard.png"
+            src={~p"/images/tuist_dashboard.png"}
             alt={dgettext("dashboard", "Tuist Icon")}
             class="headerbar__logo"
+            decoding="async"
           />
         </.link>
         <span :if={@title} data-part="title">{@title}</span>
@@ -610,9 +611,10 @@ defmodule TuistWeb.AppLayoutComponents do
         <div data-part="left-section">
           <.link navigate={~p"/#{@selected_account.name}/projects"}>
             <img
-              src="/images/tuist_dashboard.png"
+              src={~p"/images/tuist_dashboard.png"}
               alt={dgettext("dashboard", "Tuist Icon")}
               class="headerbar__logo"
+              decoding="async"
             />
           </.link>
           <span :if={@title} data-part="title">{@title}</span>

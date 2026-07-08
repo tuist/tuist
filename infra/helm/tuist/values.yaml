@@ -258,11 +258,24 @@ server:
     selfHostingDevelopmentMode: false
   database:
     ssl: false
+  storage:
+    # Storage backend used by the Tuist server for build archives, previews,
+    # test attachments, runner log archives, and other server-owned artifacts.
+    # Supported values:
+    #   - s3: use the chart's S3-compatible objectStorage settings.
+    #   - azure_blob: use server.azureBlob below.
+    provider: s3
   s3:
     region: auto
     virtualHost: false
     bucketAsHost: false
     bucketName: tuist
+  azureBlob:
+    accountName: ""
+    accountKey: ""
+    containerName: tuist
+    endpoint: ""
+    serviceVersion: "2020-12-06"
   cacheEndpointUrl: ""
   # Kura endpoint URLs advertised by this server when clients request the
   # Kura cache technology. Self-hosted installs can point this at Kura
@@ -1511,6 +1524,15 @@ cache:
     enabled: true
     # Keep this aligned with the cache application's module part size limit.
     clientMaxBodySize: "10m"
+    # Explicit upstream timeouts for upload/download paths. Defaults mirror
+    # NGINX defaults; override in values-managed-<env>.yaml for slower links
+    # or larger payloads.
+    proxyConnectTimeout: "60s"
+    proxyReadTimeout: "60s"
+    proxySendTimeout: "60s"
+    # Sidecar resources are separate from cache.resources because NGINX is a
+    # distinct container in the same pod.
+    resources: {}
     image:
       repository: nginx
       tag: "1.29-alpine"
@@ -1855,6 +1877,11 @@ postgresql:
 
 clickhouse:
   mode: embedded
+  # Optional runtime pool sizes for the Elixir ClickHouse repos. These are
+  # operational capacity knobs, not secrets; managed deployments set them in
+  # values-managed-*.yaml so all server-release workloads render the same env.
+  poolSize: ""
+  bufferPoolSize: ""
   external:
     url: ""
     # Optional separate URL for the readiness probe ping check.

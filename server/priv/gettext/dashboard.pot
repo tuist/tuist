@@ -191,15 +191,15 @@ msgid "Module Cache"
 msgstr ""
 
 #: lib/tuist_web/components/percentile_dropdown_widget.ex:117
-#: lib/tuist_web/live/xcode_cache_live.html.heex:234
-#: lib/tuist_web/live/xcode_cache_live.html.heex:251
-#: lib/tuist_web/live/xcode_cache_live.html.heex:268
-#: lib/tuist_web/live/xcode_cache_live.html.heex:323
-#: lib/tuist_web/live/xcode_cache_live.html.heex:343
-#: lib/tuist_web/live/xcode_cache_live.html.heex:363
-#: lib/tuist_web/live/xcode_cache_live.html.heex:418
-#: lib/tuist_web/live/xcode_cache_live.html.heex:438
-#: lib/tuist_web/live/xcode_cache_live.html.heex:458
+#: lib/tuist_web/live/xcode_cache_live.html.heex:242
+#: lib/tuist_web/live/xcode_cache_live.html.heex:259
+#: lib/tuist_web/live/xcode_cache_live.html.heex:276
+#: lib/tuist_web/live/xcode_cache_live.html.heex:331
+#: lib/tuist_web/live/xcode_cache_live.html.heex:351
+#: lib/tuist_web/live/xcode_cache_live.html.heex:371
+#: lib/tuist_web/live/xcode_cache_live.html.heex:426
+#: lib/tuist_web/live/xcode_cache_live.html.heex:446
+#: lib/tuist_web/live/xcode_cache_live.html.heex:466
 #, elixir-autogen, elixir-format
 msgid "N/A"
 msgstr ""
@@ -389,7 +389,7 @@ msgid "Too many requests."
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:572
-#: lib/tuist_web/components/app_layout_components.ex:614
+#: lib/tuist_web/components/app_layout_components.ex:615
 #, elixir-autogen, elixir-format
 msgid "Tuist Icon"
 msgstr ""
@@ -1830,7 +1830,7 @@ msgstr ""
 msgid "Usage"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:595
+#: lib/tuist_web/components/app_layout_components.ex:596
 #, elixir-autogen, elixir-format
 msgid "Documentation"
 msgstr ""

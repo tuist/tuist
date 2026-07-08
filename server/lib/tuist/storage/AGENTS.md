@@ -1,6 +1,6 @@
 # Storage (Context)
 
-This context owns object storage access (S3-compatible).
+This context owns object storage access (S3-compatible and Azure Blob).
 
 ## Responsibilities
 - Generate presigned URLs for upload/download (including multipart uploads).

@@ -1,0 +1,56 @@
+# Values used by the Helm workflow's K3s smoke check.
+#
+# The production server image requires a valid Tuist license to boot, so this
+# profile keeps the server Deployment rendered and accepted by Kubernetes while
+# scaling it to zero. The check still installs the embedded dependencies on
+# K3s' default local-path storage class and waits for them to become ready.
+
+server:
+  replicaCount: 0
+  migrationJob:
+    enabled: false
+  license:
+    selfHostingDevelopmentMode: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+cache:
+  enabled: false
+
+postgresql:
+  embedded:
+    persistence:
+      size: 1Gi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        memory: 512Mi
+
+clickhouse:
+  embedded:
+    persistence:
+      size: 1Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        memory: 1Gi
+
+objectStorage:
+  embedded:
+    persistence:
+      size: 1Gi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        memory: 512Mi

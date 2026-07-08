@@ -114,6 +114,10 @@ server:
     className: nginx
     host: staging.tuist.dev
     tlsSecretName: tuist-tls-cloudflare-origin
+    annotations:
+      nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 
   autoscaling:
     enabled: false
@@ -162,6 +166,10 @@ objectStorage:
   external:
     buckets:
       default: tuist-stag-storage
+
+clickhouse:
+  poolSize: "15"
+  bufferPoolSize: "15"
 
 cache:
   extraEnv:
