@@ -144,6 +144,11 @@ impl Proxy {
     }
 
     /// The REAPI client for an instance, created and cached on first use.
+    ///
+    /// `instance` is the `account/project` full handle used to key the client
+    /// map (two accounts may own like-named projects). The REAPI `instance_name`
+    /// itself is the project segment only; the account rides on the bearer token
+    /// and Kura assembles the authz identifier as `{tenant}/{instance_name}`.
     fn remote_for(&self, instance: &str) -> Arc<Remote> {
         if let Some(remote) = self.remotes.lock().unwrap().get(instance) {
             return remote.clone();
@@ -151,7 +156,7 @@ impl Proxy {
         let remote = Remote::new(
             RemoteConfig {
                 grpc_url: self.grpc_url.clone(),
-                instance: instance.to_string(),
+                instance: reapi::reapi_instance(instance).to_string(),
             },
             self.tokens.clone(),
         );

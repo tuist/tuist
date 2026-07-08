@@ -57,17 +57,31 @@ impl OpStats {
 
 pub struct RemoteConfig {
     pub grpc_url: String,
+    /// REAPI `instance_name`: the project segment only, NOT the `account/project`
+    /// full handle. Kura derives the tenant (account) from the bearer token and
+    /// builds the authz identifier as `{tenant}/{instance_name}`, so carrying the
+    /// account here would double-count it (e.g. `tuist/tuist/tuist`, which no
+    /// principal is granted). See `reapi_instance`.
     pub instance: String,
+}
+
+/// The REAPI `instance_name` for an `account/project` full handle: the project
+/// segment only (everything after the first `/`). The account is conveyed to
+/// Kura by the bearer token, so it must not also be part of `instance_name`.
+pub fn reapi_instance(full_handle: &str) -> &str {
+    full_handle
+        .split_once('/')
+        .map(|(_account, project)| project)
+        .unwrap_or(full_handle)
 }
 
 impl RemoteConfig {
     pub fn from_env() -> Option<Self> {
         let grpc_url = std::env::var("TUIST_CAS_REMOTE_GRPC_URL").ok()?;
-        let account = std::env::var("TUIST_CAS_ACCOUNT").unwrap_or_else(|_| "tuist".into());
         let project = std::env::var("TUIST_CAS_PROJECT").unwrap_or_else(|_| "tuist".into());
         Some(Self {
             grpc_url,
-            instance: format!("{account}/{project}"),
+            instance: reapi_instance(&project).to_string(),
         })
     }
 }
@@ -543,4 +557,23 @@ pub fn compress_frame(frame: &[u8]) -> Vec<u8> {
 
 pub fn decompress_frame(blob: &[u8]) -> Option<Vec<u8>> {
     zstd::stream::decode_all(blob).ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::reapi_instance;
+
+    #[test]
+    fn reapi_instance_strips_the_account_from_a_full_handle() {
+        // Kura prepends the token's tenant to instance_name, so instance_name is
+        // the project only; the full handle would become account/account/project.
+        assert_eq!(reapi_instance("tuist/tuist"), "tuist");
+        assert_eq!(reapi_instance("acme/ios-app"), "ios-app");
+    }
+
+    #[test]
+    fn reapi_instance_passes_through_a_bare_project() {
+        assert_eq!(reapi_instance("tuist"), "tuist");
+        assert_eq!(reapi_instance(""), "");
+    }
 }
