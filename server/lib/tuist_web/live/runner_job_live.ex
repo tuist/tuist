@@ -405,9 +405,7 @@ defmodule TuistWeb.RunnerJobLive do
      |> assign(:has_older, JobLogs.has_older?(job.workflow_job_id, new_oldest))}
   end
 
-  defp request_vnc_session(socket, opts \\ []) do
-    notify? = Keyword.get(opts, :notify?, true)
-
+  defp request_vnc_session(socket) do
     %{
       current_user: current_user,
       selected_account: selected_account,
@@ -417,36 +415,30 @@ defmodule TuistWeb.RunnerJobLive do
 
     cond do
       not interactive.can_read? ->
-        maybe_put_flash(
-          socket,
-          notify?,
-          :error,
-          dgettext("dashboard_runners", "Interactive access is not available.")
-        )
+        socket
 
       not interactive.vnc_requestable? ->
-        maybe_put_flash(socket, notify?, :error, interactive_vnc_unavailable_reason(interactive))
+        socket
 
       true ->
         case InteractiveSessions.request_vnc(job, selected_account, current_user) do
           {:ok, session} ->
-            relay_result = request_vnc_relay(session, interactive)
+            request_vnc_relay(session, interactive)
 
             socket
             |> assign(:vnc_session_token, session.token)
-            |> handle_vnc_relay_request_result(relay_result, notify?)
             |> refresh_interactive_state()
             |> schedule_interactive_refresh()
 
-          {:error, reason} ->
-            maybe_put_flash(socket, notify?, :error, interactive_session_error(reason))
+          {:error, _reason} ->
+            socket
         end
     end
   end
 
   defp maybe_auto_request_vnc_session(%{assigns: %{selected_tab: "interactive"}} = socket) do
     if connected?(socket) do
-      request_vnc_session(socket, notify?: false)
+      request_vnc_session(socket)
     else
       socket
     end
@@ -460,33 +452,6 @@ defmodule TuistWeb.RunnerJobLive do
 
   defp request_vnc_relay(session, _interactive) do
     InteractiveSessions.request_vnc_relay(session)
-  end
-
-  defp handle_vnc_relay_request_result(socket, :ok, notify?) do
-    maybe_put_flash(
-      socket,
-      notify?,
-      :info,
-      dgettext("dashboard_runners", "VNC session requested. Waiting for the runner relay.")
-    )
-  end
-
-  defp handle_vnc_relay_request_result(socket, {:ok, _session}, notify?) do
-    maybe_put_flash(
-      socket,
-      notify?,
-      :info,
-      dgettext("dashboard_runners", "VNC session ready.")
-    )
-  end
-
-  defp handle_vnc_relay_request_result(socket, {:error, reason}, notify?) do
-    maybe_put_flash(
-      socket,
-      notify?,
-      :error,
-      interactive_session_error({:relay_request_failed, reason})
-    )
   end
 
   defp schedule_interactive_refresh(%{assigns: %{selected_tab: "interactive", interactive: interactive}} = socket) do
@@ -507,12 +472,6 @@ defmodule TuistWeb.RunnerJobLive do
   end
 
   defp refresh_vnc_relay_state(socket), do: socket
-
-  defp maybe_put_flash(socket, false, _kind, _message), do: socket
-
-  defp maybe_put_flash(socket, true, kind, nil), do: put_flash(socket, kind, interactive_session_error(nil))
-
-  defp maybe_put_flash(socket, true, kind, message), do: put_flash(socket, kind, message)
 
   def step_expanded?(expanded_steps, %{number: number}), do: MapSet.member?(expanded_steps, number)
 
@@ -680,18 +639,4 @@ defmodule TuistWeb.RunnerJobLive do
 
   defp vnc_session_ready?(%{state: state}) when state in [:ready, :active], do: true
   defp vnc_session_ready?(_), do: false
-
-  defp interactive_session_error(:unsupported_platform),
-    do: dgettext("dashboard_runners", "VNC is available for macOS runner jobs.")
-
-  defp interactive_session_error(:job_not_running),
-    do: dgettext("dashboard_runners", "VNC can be requested while the macOS runner job is claimed or running.")
-
-  defp interactive_session_error(:pod_unavailable),
-    do: dgettext("dashboard_runners", "The runner pod is not available for this job.")
-
-  defp interactive_session_error({:relay_request_failed, _reason}),
-    do: dgettext("dashboard_runners", "The runner relay could not be requested.")
-
-  defp interactive_session_error(_), do: dgettext("dashboard_runners", "The VNC session could not be requested.")
 end
