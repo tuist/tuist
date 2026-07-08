@@ -119,8 +119,7 @@ defmodule TuistWeb.RunnerJobLive do
     end
   end
 
-  defp job_title(%{workflow_name: workflow, job_name: job}) when workflow != "" and job != "",
-    do: "#{workflow} · #{job}"
+  defp job_title(%{workflow_name: workflow, job_name: job}) when workflow != "" and job != "", do: "#{workflow} · #{job}"
 
   defp job_title(%{job_name: job}) when job != "", do: job
   defp job_title(%{workflow_job_id: id}), do: "Job ##{id}"
@@ -154,8 +153,7 @@ defmodule TuistWeb.RunnerJobLive do
   def status_badge_props(%{status: "completed", conclusion: "skipped"}),
     do: %{label: dgettext("dashboard_runners", "Skipped"), color: "warning"}
 
-  def status_badge_props(%{status: "queued"}),
-    do: %{label: dgettext("dashboard_runners", "Queued"), color: "warning"}
+  def status_badge_props(%{status: "queued"}), do: %{label: dgettext("dashboard_runners", "Queued"), color: "warning"}
 
   def status_badge_props(%{status: "claimed"}),
     do: %{label: dgettext("dashboard_runners", "Claimed"), color: "information"}
@@ -163,8 +161,7 @@ defmodule TuistWeb.RunnerJobLive do
   def status_badge_props(%{status: "running"}),
     do: %{label: dgettext("dashboard_runners", "Running"), color: "information"}
 
-  def status_badge_props(_),
-    do: %{label: dgettext("dashboard_runners", "Unknown"), color: "neutral"}
+  def status_badge_props(_), do: %{label: dgettext("dashboard_runners", "Unknown"), color: "neutral"}
 
   def platform_label(fleet_name) when is_binary(fleet_name) do
     cond do
@@ -203,8 +200,7 @@ defmodule TuistWeb.RunnerJobLive do
   def platform_badge_color(_), do: "neutral"
 
   def github_job_url(%{repository: repository, workflow_run_id: run_id, workflow_job_id: job_id})
-      when is_binary(repository) and repository != "" and is_integer(run_id) and run_id > 0 and
-             is_integer(job_id) and
+      when is_binary(repository) and repository != "" and is_integer(run_id) and run_id > 0 and is_integer(job_id) and
              job_id > 0 do
     "https://github.com/#{repository}/actions/runs/#{run_id}/job/#{job_id}"
   end
@@ -219,8 +215,7 @@ defmodule TuistWeb.RunnerJobLive do
   skip the link entirely instead of routing to a broken URL.
   """
   def path(account_name, %{workflow_run_id: run_id, workflow_job_id: job_id})
-      when is_binary(account_name) and is_integer(run_id) and run_id > 0 and is_integer(job_id) and
-             job_id > 0 do
+      when is_binary(account_name) and is_integer(run_id) and run_id > 0 and is_integer(job_id) and job_id > 0 do
     "/#{account_name}/runners/runs/#{run_id}/jobs/#{job_id}"
   end
 
@@ -259,10 +254,7 @@ defmodule TuistWeb.RunnerJobLive do
   when either timestamp is missing (e.g. a skipped step) so the
   template can omit the duration badge entirely.
   """
-  def step_duration_ms(%{
-        started_at: %DateTime{} = started,
-        completed_at: %DateTime{} = completed
-      }) do
+  def step_duration_ms(%{started_at: %DateTime{} = started, completed_at: %DateTime{} = completed}) do
     max(DateTime.diff(completed, started, :millisecond), 0)
   end
 
@@ -301,12 +293,7 @@ defmodule TuistWeb.RunnerJobLive do
   """
   def has_machine_metrics?(metrics), do: metrics != []
 
-  def interactive_tab_visible?(%{
-        can_read?: true,
-        macos?: true,
-        running?: true,
-        pod_available?: true
-      }), do: true
+  def interactive_tab_visible?(%{can_read?: true, macos?: true, running?: true, pod_available?: true}), do: true
 
   def interactive_tab_visible?(_), do: false
 
@@ -317,11 +304,7 @@ defmodule TuistWeb.RunnerJobLive do
     do: dgettext("dashboard_runners", "VNC is available for macOS runner jobs.")
 
   def interactive_vnc_unavailable_reason(%{running?: false}),
-    do:
-      dgettext(
-        "dashboard_runners",
-        "VNC can be requested while the macOS runner job is claimed or running."
-      )
+    do: dgettext("dashboard_runners", "VNC can be requested while the macOS runner job is claimed or running.")
 
   def interactive_vnc_unavailable_reason(%{pod_available?: false}),
     do: dgettext("dashboard_runners", "The runner pod is not available for this job.")
@@ -401,8 +384,7 @@ defmodule TuistWeb.RunnerJobLive do
     {:noreply, request_vnc_session(socket)}
   end
 
-  def handle_event("load_older", _params, %{assigns: %{oldest_line: nil}} = socket),
-    do: {:noreply, socket}
+  def handle_event("load_older", _params, %{assigns: %{oldest_line: nil}} = socket), do: {:noreply, socket}
 
   def handle_event("load_older", _params, socket) do
     %{job: job, oldest_line: oldest_line} = socket.assigns
@@ -472,7 +454,7 @@ defmodule TuistWeb.RunnerJobLive do
 
   defp maybe_auto_request_vnc_session(socket), do: socket
 
-  defp request_vnc_relay(session, %{vnc_dev_preview?: true}) do
+  defp request_vnc_relay(session, %{vnc_dev_placeholder?: true}) do
     InteractiveSessions.mark_vnc_relay_ready(session, "127.0.0.1", 5900)
   end
 
@@ -507,9 +489,7 @@ defmodule TuistWeb.RunnerJobLive do
     )
   end
 
-  defp schedule_interactive_refresh(
-         %{assigns: %{selected_tab: "interactive", interactive: interactive}} = socket
-       ) do
+  defp schedule_interactive_refresh(%{assigns: %{selected_tab: "interactive", interactive: interactive}} = socket) do
     if connected?(socket) and match?(%{state: :requested}, interactive.vnc_session) do
       Process.send_after(self(), :refresh_interactive_access, @interactive_refresh_ms)
     end
@@ -519,9 +499,7 @@ defmodule TuistWeb.RunnerJobLive do
 
   defp schedule_interactive_refresh(socket), do: socket
 
-  defp refresh_vnc_relay_state(
-         %{assigns: %{interactive: %{vnc_session: %{}} = interactive}} = socket
-       ) do
+  defp refresh_vnc_relay_state(%{assigns: %{interactive: %{vnc_session: %{}} = interactive}} = socket) do
     case InteractiveSessions.sync_vnc_relay_state(interactive.vnc_session) do
       {:ok, _session} -> refresh_interactive_state(socket)
       {:error, _reason} -> socket
@@ -532,13 +510,11 @@ defmodule TuistWeb.RunnerJobLive do
 
   defp maybe_put_flash(socket, false, _kind, _message), do: socket
 
-  defp maybe_put_flash(socket, true, kind, nil),
-    do: put_flash(socket, kind, interactive_session_error(nil))
+  defp maybe_put_flash(socket, true, kind, nil), do: put_flash(socket, kind, interactive_session_error(nil))
 
   defp maybe_put_flash(socket, true, kind, message), do: put_flash(socket, kind, message)
 
-  def step_expanded?(expanded_steps, %{number: number}),
-    do: MapSet.member?(expanded_steps, number)
+  def step_expanded?(expanded_steps, %{number: number}), do: MapSet.member?(expanded_steps, number)
 
   def step_expanded?(_expanded_steps, _step), do: false
 
@@ -673,8 +649,7 @@ defmodule TuistWeb.RunnerJobLive do
     can_read? = Authorization.authorize(:runners_read, current_user, selected_account) == :ok
 
     vnc_requestable? = can_read? and InteractiveSessions.vnc_requestable?(job)
-    vnc_dev_preview? = Environment.dev?() and vnc_requestable?
-    vnc_dev_preview_at = DateTime.utc_now()
+    vnc_dev_placeholder? = Environment.dev?() and vnc_requestable?
 
     vnc_session =
       selected_account.id
@@ -682,7 +657,7 @@ defmodule TuistWeb.RunnerJobLive do
       |> with_vnc_session_token(vnc_session_token)
 
     vnc_websocket_path =
-      if not vnc_dev_preview? and vnc_session_ready?(vnc_session) and is_binary(vnc_session_token) do
+      if not vnc_dev_placeholder? and vnc_session_ready?(vnc_session) and is_binary(vnc_session_token) do
         "/#{selected_account.name}/runners/interactive/vnc/#{vnc_session_token}"
       end
 
@@ -692,10 +667,7 @@ defmodule TuistWeb.RunnerJobLive do
       running?: running?,
       pod_available?: pod_available?,
       vnc_requestable?: vnc_requestable?,
-      vnc_dev_preview?: vnc_dev_preview?,
-      vnc_dev_preview_day: vnc_dev_preview_at.day,
-      vnc_dev_preview_menu_time: Calendar.strftime(vnc_dev_preview_at, "%a %b %d %I:%M %p"),
-      vnc_dev_preview_month: vnc_dev_preview_at |> Calendar.strftime("%B") |> String.upcase(),
+      vnc_dev_placeholder?: vnc_dev_placeholder?,
       vnc_session: vnc_session,
       vnc_session_ready?: vnc_session_ready?(vnc_session),
       vnc_websocket_path: vnc_websocket_path
@@ -713,11 +685,7 @@ defmodule TuistWeb.RunnerJobLive do
     do: dgettext("dashboard_runners", "VNC is available for macOS runner jobs.")
 
   defp interactive_session_error(:job_not_running),
-    do:
-      dgettext(
-        "dashboard_runners",
-        "VNC can be requested while the macOS runner job is claimed or running."
-      )
+    do: dgettext("dashboard_runners", "VNC can be requested while the macOS runner job is claimed or running.")
 
   defp interactive_session_error(:pod_unavailable),
     do: dgettext("dashboard_runners", "The runner pod is not available for this job.")
@@ -725,6 +693,5 @@ defmodule TuistWeb.RunnerJobLive do
   defp interactive_session_error({:relay_request_failed, _reason}),
     do: dgettext("dashboard_runners", "The runner relay could not be requested.")
 
-  defp interactive_session_error(_),
-    do: dgettext("dashboard_runners", "The VNC session could not be requested.")
+  defp interactive_session_error(_), do: dgettext("dashboard_runners", "The VNC session could not be requested.")
 end

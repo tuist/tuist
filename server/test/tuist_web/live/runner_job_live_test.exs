@@ -520,7 +520,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
            )
   end
 
-  test "renders a local development VNC preview with a fake ready session", %{
+  test "renders a local development VNC placeholder with a fake ready session", %{
     conn: conn,
     account: account
   } do
@@ -551,7 +551,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
       live(conn, ~p"/#{account.name}/runners/runs/317530/jobs/31753?tab=interactive")
 
     assert html =~ "Interactive access"
-    assert has_element?(lv, ~s{[data-part="interactive-dev-preview"]})
+    refute has_element?(lv, ~s{[data-part="interactive-dev-preview"]})
+    assert has_element?(lv, ~s{[data-part="interactive-viewport-frame"]})
+    assert html =~ "VNC session ready"
     assert has_element?(lv, ~s{#runner-vnc-fullscreen-button})
     refute has_element?(lv, ~s{#request-vnc-session-button})
     refute has_element?(lv, ~s{#runner-vnc-client})
