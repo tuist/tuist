@@ -32,10 +32,17 @@ enum CacheVersion: String, Equatable, Hashable {
     /// Reverted static framework resource embedding (resources go back into separate .bundle targets).
     /// Existing caches from the embedding approach must be invalidated.
     case version5 = "5"
+
+    /// Bench-only: this A/B branch forked before the LZFSE bump (#11637,
+    /// version 6), so its v5 hash-space collides with pre-LZFSE stored-ZIP
+    /// artifacts that the Apple Archive reader cannot decompress. A unique
+    /// version string moves the benchmark into virgin hash-space, colliding
+    /// with neither stale v5 ZIPs nor live v6 entries.
+    case version6TempskipBench = "6-tsb1"
 }
 
 struct CacheVersionFetcher: CacheVersionFetching {
     func version() -> CacheVersion {
-        .version5
+        .version6TempskipBench
     }
 }
