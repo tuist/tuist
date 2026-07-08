@@ -59,8 +59,9 @@ function installColorChannelFix(rfb) {
   const blitImage = display.blitImage.bind(display);
   const fillRect = display.fillRect.bind(display);
 
-  // Tart's experimental VNC stream currently sends BGRX/BGRA updates even
-  // though noVNC requests RGBA byte order for browser-native ImageData.
+  // Tart's experimental Virtualization.framework-backed VNC stream currently
+  // sends BGRX/BGRA updates even though noVNC requests RGBA byte order for
+  // browser-native ImageData.
   display.blitImage = (x, y, width, height, arr, offset = 0, fromQueue = false) => {
     if (fromQueue) return blitImage(x, y, width, height, arr, offset, fromQueue);
 
