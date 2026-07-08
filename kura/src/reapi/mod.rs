@@ -453,9 +453,11 @@ impl ReapiService {
                 }
             })?;
         self.state.notify.notify_one();
-        self.state
-            .metrics
-            .record_artifact_write(ArtifactProducer::Reapi, "ok", persisted.manifest.size);
+        self.state.metrics.record_artifact_write(
+            ArtifactProducer::Reapi,
+            "ok",
+            persisted.manifest.size,
+        );
 
         let mut response = Response::new(bytestream::WriteResponse {
             committed_size: written as i64,
