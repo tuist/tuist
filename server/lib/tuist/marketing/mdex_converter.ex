@@ -10,6 +10,7 @@ defmodule Tuist.Marketing.MDExConverter do
   use Noora
 
   alias Phoenix.HTML.Safe
+  alias Tuist.Markdown
 
   @copy_icon %{__changed__: nil} |> Noora.Icon.copy() |> Safe.to_iodata() |> IO.iodata_to_binary()
   @copy_check_icon %{__changed__: nil} |> Noora.Icon.copy_check() |> Safe.to_iodata() |> IO.iodata_to_binary()
@@ -80,7 +81,7 @@ defmodule Tuist.Marketing.MDExConverter do
           |> protect_highlight_whitespace()
 
         language = info |> String.split(~r/\s/, parts: 2) |> List.first() || ""
-        copy_source = literal |> String.trim() |> html_escape()
+        copy_source = literal |> String.trim() |> Markdown.html_escape()
 
         %MDEx.HtmlBlock{
           literal: """
@@ -110,10 +111,4 @@ defmodule Tuist.Marketing.MDExConverter do
 
   defp highlight_whitespace(" "), do: ~s(<span data-code-whitespace="true">&nbsp;</span>)
   defp highlight_whitespace("\t"), do: ~s(<span data-code-whitespace="true">\t</span>)
-
-  defp html_escape(text) do
-    text
-    |> Phoenix.HTML.html_escape()
-    |> Phoenix.HTML.safe_to_string()
-  end
 end

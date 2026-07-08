@@ -3,6 +3,8 @@ defmodule Tuist.Docs.HTML do
   Shared HTML post-processing helpers for documentation rendering.
   """
 
+  alias Tuist.Markdown
+
   @noora_icons_path Path.expand("../noora/lib/noora/icons", File.cwd!())
   @copy_icon @noora_icons_path |> Path.join("copy.svg") |> File.read!() |> String.trim()
   @copy_check_icon @noora_icons_path
@@ -87,7 +89,7 @@ defmodule Tuist.Docs.HTML do
     |> then(&Regex.replace(~r/<[^>]*>/, &1, ""))
     |> decode_html_entities()
     |> String.trim()
-    |> html_escape()
+    |> Markdown.html_escape()
   end
 
   defp decode_html_entities(text) do
@@ -97,12 +99,6 @@ defmodule Tuist.Docs.HTML do
         {:error, _reason} -> entity
       end
     end)
-  end
-
-  defp html_escape(text) do
-    text
-    |> Phoenix.HTML.html_escape()
-    |> Phoenix.HTML.safe_to_string()
   end
 
   defp protect_code_contents(html) do
