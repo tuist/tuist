@@ -642,10 +642,24 @@
     align-self: stretch;
     border-radius: inherit;
     background:
-      radial-gradient(circle at 82% 28%, rgb(114 197 178 / 52%), transparent 22%),
-      radial-gradient(circle at 24% 70%, rgb(93 142 218 / 45%), transparent 30%),
-      linear-gradient(150deg, #c88930 0%, #d2a658 34%, #5e8f98 66%, #2f625f 100%);
-    color: #ffffff;
+      radial-gradient(
+        circle at 82% 28%,
+        color-mix(in srgb, var(--noora-green-400) 52%, transparent),
+        transparent 22%
+      ),
+      radial-gradient(
+        circle at 24% 70%,
+        color-mix(in srgb, var(--noora-blue-500) 45%, transparent),
+        transparent 30%
+      ),
+      linear-gradient(
+        150deg,
+        var(--noora-orange-600) 0%,
+        var(--noora-yellow-400) 34%,
+        var(--noora-azure-500) 66%,
+        var(--noora-green-700) 100%
+      );
+    color: var(--noora-neutral-light-50);
     min-width: 0;
     min-height: 0;
     overflow: hidden;
@@ -656,9 +670,9 @@
     flex-shrink: 0;
     justify-content: space-between;
     align-items: center;
-    background: rgb(20 24 28 / 40%);
+    background: color-mix(in srgb, var(--noora-neutral-dark-1200) 40%, transparent);
     padding: var(--noora-spacing-3) var(--noora-spacing-6);
-    color: #ffffff;
+    color: var(--noora-neutral-light-50);
     font: var(--noora-font-weight-semibold) var(--noora-font-body-small);
     backdrop-filter: blur(16px);
   }
@@ -689,14 +703,14 @@
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    border: 1px solid rgb(255 255 255 / 36%);
+    border: 1px solid color-mix(in srgb, var(--noora-neutral-light-50) 36%, transparent);
     border-radius: var(--noora-radius-7);
-    background: rgb(255 255 255 / 72%);
+    background: color-mix(in srgb, var(--noora-neutral-light-50) 72%, transparent);
     box-shadow: var(--noora-border-light-default);
     padding: var(--noora-spacing-5);
     width: 160px;
     height: 136px;
-    color: #292a30;
+    color: var(--noora-neutral-light-1200);
     backdrop-filter: blur(12px);
   }
 
@@ -710,7 +724,7 @@
   }
 
   & [data-part="interactive-dev-widget"] span {
-    color: #4a57e8;
+    color: var(--noora-purple-500);
     font: var(--noora-font-weight-semibold) var(--noora-font-body-small);
   }
 
@@ -727,10 +741,10 @@
     display: flex;
     gap: var(--noora-spacing-2);
     transform: translateX(-50%);
-    border: 1px solid rgb(255 255 255 / 42%);
+    border: 1px solid color-mix(in srgb, var(--noora-neutral-light-50) 42%, transparent);
     border-radius: var(--noora-radius-7);
-    background: rgb(255 255 255 / 76%);
-    box-shadow: 0 22px 68px rgb(13 24 33 / 26%);
+    background: color-mix(in srgb, var(--noora-neutral-light-50) 76%, transparent);
+    box-shadow: 0 22px 68px color-mix(in srgb, var(--noora-neutral-dark-1200) 26%, transparent);
     padding: var(--noora-spacing-5);
     width: min(420px, 48%);
     height: 230px;
@@ -745,15 +759,15 @@
   }
 
   & [data-part="interactive-dev-window"] span:nth-child(1) {
-    background: #ff5f57;
+    background: var(--noora-red-500);
   }
 
   & [data-part="interactive-dev-window"] span:nth-child(2) {
-    background: #ffbd2e;
+    background: var(--noora-yellow-500);
   }
 
   & [data-part="interactive-dev-window"] span:nth-child(3) {
-    background: #28c840;
+    background: var(--noora-green-500);
   }
 
   & [data-part="interactive-dev-dock"] {
@@ -763,9 +777,9 @@
     display: flex;
     gap: var(--noora-spacing-3);
     transform: translateX(-50%);
-    border: 1px solid rgb(255 255 255 / 32%);
+    border: 1px solid color-mix(in srgb, var(--noora-neutral-light-50) 32%, transparent);
     border-radius: var(--noora-radius-7);
-    background: rgb(248 249 250 / 48%);
+    background: color-mix(in srgb, var(--noora-neutral-light-100) 48%, transparent);
     padding: var(--noora-spacing-3);
     backdrop-filter: blur(18px);
   }
@@ -773,7 +787,11 @@
   & [data-part="interactive-dev-dock"] span {
     border-radius: var(--noora-radius-4);
     background:
-      linear-gradient(135deg, rgb(255 255 255 / 64%), transparent 48%),
+      linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--noora-neutral-light-50) 64%, transparent),
+        transparent 48%
+      ),
       var(--noora-azure-500);
     width: 34px;
     height: 34px;
@@ -781,14 +799,22 @@
 
   & [data-part="interactive-dev-dock"] span:nth-child(3n + 1) {
     background:
-      linear-gradient(135deg, rgb(255 255 255 / 64%), transparent 48%),
-      #34c759;
+      linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--noora-neutral-light-50) 64%, transparent),
+        transparent 48%
+      ),
+      var(--noora-green-500);
   }
 
   & [data-part="interactive-dev-dock"] span:nth-child(3n + 2) {
     background:
-      linear-gradient(135deg, rgb(255 255 255 / 64%), transparent 48%),
-      #ff9500;
+      linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--noora-neutral-light-50) 64%, transparent),
+        transparent 48%
+      ),
+      var(--noora-orange-500);
   }
 
   & [data-part="interactive-viewport-frame"] {
