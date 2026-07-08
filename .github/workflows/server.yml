@@ -294,8 +294,8 @@ jobs:
       - name: Check format
         run: |
           mix format --check-formatted
-          aube exec prettier -c priv/static/app
-          aube exec prettier -c assets
+          aube exec prettier --check priv/static/app
+          aube exec prettier --check assets
   esbuild:
     name: esbuild
     runs-on: tuist-linux

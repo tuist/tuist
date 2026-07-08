@@ -3,9 +3,9 @@
   flex-shrink: 0;
   flex-direction: row;
   align-items: center;
+  border-bottom: 1px solid var(--noora-content-divider-line);
 
   background: var(--noora-surface-background-tertiary);
-  border-bottom: 1px solid var(--noora-content-divider-line);
   padding: var(--noora-spacing-4) var(--noora-spacing-6);
 
   & [data-part="left-section"] {
@@ -34,8 +34,8 @@
 }
 
 .mobile-headerbar {
-  background: var(--noora-surface-background-tertiary);
   border-bottom: 1px solid var(--noora-content-divider-line);
+  background: var(--noora-surface-background-tertiary);
   @media (min-width: 768px) {
     display: none;
   }
