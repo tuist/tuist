@@ -112,8 +112,12 @@ html[data-theme="dark"] .code-window {
   white-space: pre;
 }
 
-.code-window > [data-part="code"] code .line {
+.code-window > [data-part="code"] .line {
   display: block;
   min-height: 1lh;
+  white-space: pre;
+}
+
+.code-window > [data-part="code"] [data-code-whitespace] {
   white-space: pre;
 }

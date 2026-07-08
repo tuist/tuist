@@ -9,6 +9,10 @@ function flashCopyCheck(button) {
   }, 2000);
 }
 
+function copyableCodeText(codeBlock) {
+  return codeBlock.textContent.replace(/\u00a0/g, " ").trim();
+}
+
 function setupCodeCopy(el) {
   el.querySelectorAll('.code-window [data-part="copy"]').forEach((button) => {
     button.setAttribute("role", "button");
@@ -18,7 +22,7 @@ function setupCodeCopy(el) {
     button.addEventListener("click", () => {
       const codeBlock = button.closest(".code-window")?.querySelector('[data-part="code"]');
       if (!codeBlock) return;
-      copyTextToClipboard(codeBlock.textContent.trim())
+      copyTextToClipboard(copyableCodeText(codeBlock))
         .then(() => flashCopyCheck(button))
         .catch((err) => console.error("Failed to copy code:", err));
     });
@@ -41,4 +45,4 @@ const CodeCopy = {
   },
 };
 
-export { CodeCopy, setupCodeCopy, flashCopyCheck };
+export { CodeCopy, setupCodeCopy, flashCopyCheck, copyableCodeText };

@@ -15,7 +15,11 @@
     padding: var(--noora-spacing-1);
     color: var(--surface-label-primary);
     font: var(--noora-font-weight-regular) var(--noora-font-code-large);
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-all;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
   }
 
   & blockquote {
