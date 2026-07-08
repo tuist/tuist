@@ -568,6 +568,10 @@ impl ActionCache for ReapiService {
             Some(&mut materialization_budget),
         )
         .await?;
+        // Everything this RPC returns is egress: the stored action result plus
+        // any stdout/stderr/output-file blobs inlined below, so all of it is
+        // accumulated for the usage rollup.
+        let mut served_bytes = size_bytes;
 
         if request.get_ref().inline_stdout
             && action_result.stdout_raw.is_empty()
@@ -580,6 +584,7 @@ impl ActionCache for ReapiService {
             )
             .await?
         {
+            served_bytes = served_bytes.saturating_add(bytes.len() as u64);
             action_result.stdout_raw = bytes;
         }
         if request.get_ref().inline_stderr
@@ -593,6 +598,7 @@ impl ActionCache for ReapiService {
             )
             .await?
         {
+            served_bytes = served_bytes.saturating_add(bytes.len() as u64);
             action_result.stderr_raw = bytes;
         }
         if !request.get_ref().inline_output_files.is_empty() {
@@ -615,6 +621,7 @@ impl ActionCache for ReapiService {
                     )
                     .await?
                 {
+                    served_bytes = served_bytes.saturating_add(bytes.len() as u64);
                     output_file.contents = bytes;
                 }
             }
@@ -626,6 +633,9 @@ impl ActionCache for ReapiService {
         self.state
             .metrics
             .record_artifact_read(ArtifactProducer::Reapi, "ok", size_bytes);
+        // Book usage only after the response is fully built (headers applied),
+        // matching the other handlers' success-arm convention.
+        self.record_reapi_download(request.metadata(), namespace_id, served_bytes);
         Ok(response)
     }
 
@@ -677,6 +687,11 @@ impl ActionCache for ReapiService {
         let mut response = Response::new(action_result);
         self.apply_response_headers(&mut response, extension, principal.as_ref())
             .await?;
+        // Book usage only after the response is fully built. Every applied
+        // update is billed: an action result is a mutable entry whose content
+        // changes across updates, so there is no CAS-style "already present"
+        // dedupe — matching the HTTP key-value path, which bills each put.
+        self.record_reapi_upload(request.metadata(), namespace_id, manifest.size);
         Ok(response)
     }
 }
@@ -2541,6 +2556,118 @@ end
         assert_eq!(download.artifact_kind, "reapi");
         // One batch read of two blobs is one request carrying both blobs' bytes.
         assert_eq!(download.bytes, total_bytes);
+        assert_eq!(download.request_count, 1);
+    }
+
+    // The ActionCache methods move real bytes too: UpdateActionResult uploads an
+    // encoded action result, and GetActionResult returns it plus any inlined
+    // stdout/stderr/output-file blobs. Both must land in the grpc/reapi usage
+    // rollups like the ByteStream/CAS handlers, with the download counting the
+    // inlined blob bytes as egress.
+    #[tokio::test]
+    async fn action_cache_transfers_record_grpc_usage_events() {
+        let context = test_context(|config| {
+            config.usage = Some(test_usage_config());
+        })
+        .await;
+        let service = ReapiService {
+            state: context.state.clone(),
+        };
+
+        let stdout_bytes = b"action stdout".to_vec();
+        let stdout_digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(&stdout_bytes)),
+            size_bytes: stdout_bytes.len() as i64,
+        };
+        let stdout_key = blob_key(&digest_key(&stdout_digest).expect("digest key should build"));
+        context
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                &stdout_key,
+                "application/octet-stream",
+                &stdout_bytes,
+            )
+            .await
+            .expect("stdout blob should persist");
+
+        let action_result = reapi::ActionResult {
+            stdout_digest: Some(stdout_digest),
+            ..Default::default()
+        };
+        let encoded_bytes = action_result.encode_to_vec().len() as u64;
+        let action_digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(b"action")),
+            size_bytes: "action".len() as i64,
+        };
+
+        let mut update = Request::new(reapi::UpdateActionResultRequest {
+            instance_name: "ios".into(),
+            action_digest: Some(action_digest.clone()),
+            action_result: Some(action_result),
+            digest_function: reapi::digest_function::Value::Sha256 as i32,
+            ..Default::default()
+        });
+        update
+            .metadata_mut()
+            .insert("x-tuist-account-handle", "acme".parse().unwrap());
+        service
+            .update_action_result(update)
+            .await
+            .expect("update action result should succeed");
+
+        let mut get = Request::new(reapi::GetActionResultRequest {
+            instance_name: "ios".into(),
+            action_digest: Some(action_digest),
+            inline_stdout: true,
+            digest_function: reapi::digest_function::Value::Sha256 as i32,
+            ..Default::default()
+        });
+        get.metadata_mut()
+            .insert("x-tuist-account-handle", "acme".parse().unwrap());
+        let fetched = service
+            .get_action_result(get)
+            .await
+            .expect("get action result should succeed");
+        assert_eq!(
+            fetched.get_ref().stdout_raw,
+            stdout_bytes,
+            "stdout should be inlined into the response"
+        );
+
+        let rollups = context
+            .state
+            .usage
+            .as_ref()
+            .expect("usage should be enabled")
+            .current_rollups_for_tests();
+
+        let upload = rollups
+            .iter()
+            .find(|rollup| rollup.operation == "upload")
+            .expect("update_action_result should record an upload rollup");
+        assert_eq!(upload.tenant_id, "acme");
+        assert_eq!(upload.namespace_id, "ios");
+        assert_eq!(upload.direction, "ingress");
+        assert_eq!(upload.protocol, "grpc");
+        assert_eq!(upload.artifact_kind, "reapi");
+        assert_eq!(upload.bytes, encoded_bytes);
+        assert_eq!(upload.request_count, 1);
+
+        let download = rollups
+            .iter()
+            .find(|rollup| rollup.operation == "download")
+            .expect("get_action_result should record a download rollup");
+        assert_eq!(download.tenant_id, "acme");
+        assert_eq!(download.namespace_id, "ios");
+        assert_eq!(download.direction, "egress");
+        assert_eq!(download.protocol, "grpc");
+        assert_eq!(download.artifact_kind, "reapi");
+        // The download egress is the stored action result plus the inlined
+        // stdout blob it carried out.
+        assert_eq!(download.bytes, encoded_bytes + stdout_bytes.len() as u64);
         assert_eq!(download.request_count, 1);
     }
 
