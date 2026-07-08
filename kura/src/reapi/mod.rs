@@ -424,22 +424,14 @@ impl ReapiService {
             .map_err(|error| Status::internal(format!("failed to flush temp blob: {error}")))?;
         drop(temp_file);
 
-        // Presence before storing decides billing, matching the HTTP upload
-        // path's `artifact_exists` short-circuit: a re-uploaded blob (retry, or a
-        // client that skips FindMissingBlobs) must not be billed twice. A failed
-        // check defaults to "not present" so real new bytes are never dropped.
-        let already_present = self
-            .state
-            .store
-            .artifact_exists(
-                ArtifactProducer::Reapi,
-                &resource.namespace_id,
-                &resource.key,
-            )
-            .await
-            .unwrap_or(false);
         let targets = replication_targets(&self.state).await;
-        let manifest = self
+        // The persist reports `already_present` from under the store's
+        // per-artifact write lock, which decides billing below: a re-uploaded
+        // blob (retry, or a client that skips FindMissingBlobs) must not be
+        // billed twice — matching the HTTP upload path's `artifact_exists`
+        // short-circuit — and concurrent uploads of the same missing blob
+        // resolve to exactly one billed writer.
+        let persisted = self
             .state
             .store
             .persist_artifact_from_path_and_enqueue(
@@ -463,7 +455,7 @@ impl ReapiService {
         self.state.notify.notify_one();
         self.state
             .metrics
-            .record_artifact_write(ArtifactProducer::Reapi, "ok", manifest.size);
+            .record_artifact_write(ArtifactProducer::Reapi, "ok", persisted.manifest.size);
 
         let mut response = Response::new(bytestream::WriteResponse {
             committed_size: written as i64,
@@ -483,8 +475,8 @@ impl ReapiService {
         .await?;
         // Book usage only after the response is fully built (headers applied) and
         // only when the blob was newly stored, so a re-upload isn't billed twice.
-        if !already_present {
-            self.record_reapi_upload(&metadata, &resource.namespace_id, manifest.size);
+        if !persisted.already_present {
+            self.record_reapi_upload(&metadata, &resource.namespace_id, persisted.manifest.size);
         }
         Ok(response)
     }
@@ -751,8 +743,9 @@ impl ContentAddressableStorage for ReapiService {
         let mut responses = Vec::with_capacity(request.get_ref().requests.len());
         // Accumulate only the bytes this RPC actually stored so the whole batch
         // books a single usage request (matching how ByteStream/HTTP count one
-        // request per call), and so already-present blobs (IgnoredStale) are not
-        // billed — mirroring the HTTP upload path's `artifact_exists` short-circuit.
+        // request per call), and so already-present blobs are not billed —
+        // mirroring the HTTP upload path's `artifact_exists` short-circuit,
+        // with presence decided under the store's write lock.
         let mut stored_bytes = 0_u64;
         let mut stored_any = false;
 
@@ -1212,9 +1205,12 @@ async fn maybe_read_cas_bytes(
 
 // Persists a CAS blob and returns whether it was newly stored (`true`) or was
 // already present (`false`). Billing uses this to charge only new bytes, the
-// same signal the HTTP upload path uses (`artifact_exists`) — a re-upload that
-// advances the stored version still persists as `Applied`, so the version-based
-// outcome can't stand in for "was already present".
+// same rule as the HTTP upload path's `artifact_exists` short-circuit. The
+// presence signal comes from the store's persist, evaluated under the
+// per-artifact write lock, so concurrent uploads of the same missing blob
+// resolve to exactly one `true` — a version-based `Applied` outcome can't
+// stand in for this, because a re-upload that advances the stored version
+// still applies over an already-present blob.
 async fn persist_cas_blob(
     state: &SharedState,
     namespace_id: &str,
@@ -1223,12 +1219,8 @@ async fn persist_cas_blob(
 ) -> Result<bool, String> {
     validate_digest_bytes(digest, bytes)?;
     let key = blob_key(&digest_key(digest).map_err(|error| error.message().to_owned())?);
-    let already_present = state
-        .store
-        .artifact_exists(ArtifactProducer::Reapi, namespace_id, &key)
-        .await?;
     let targets = replication_targets(state).await;
-    let manifest = state
+    let persisted = state
         .store
         .persist_artifact_from_bytes_and_enqueue(
             ArtifactProducer::Reapi,
@@ -1242,8 +1234,8 @@ async fn persist_cas_blob(
     state.notify.notify_one();
     state
         .metrics
-        .record_artifact_write(ArtifactProducer::Reapi, "ok", manifest.size);
-    Ok(!already_present)
+        .record_artifact_write(ArtifactProducer::Reapi, "ok", persisted.manifest.size);
+    Ok(!persisted.already_present)
 }
 
 async fn read_manifest_bytes(
