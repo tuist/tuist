@@ -203,6 +203,10 @@ func vncAuthResponse(password string, challenge []byte) ([]byte, error) {
 		key[index] = reverseBits(key[index])
 	}
 
+	// RFB VNC Authentication requires DES challenge-response with
+	// bit-reversed password bytes. This is protocol compatibility with
+	// Tart's VNC endpoint, not application data crypto.
+	// codeql[go/weak-cryptographic-algorithm]
 	block, err := des.NewCipher(key[:])
 	if err != nil {
 		return nil, err
