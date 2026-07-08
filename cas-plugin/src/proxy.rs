@@ -43,6 +43,14 @@ const MAX_PUBLISH_CACHE: usize = 500_000;
 /// resolve past this window rather than requiring a proxy restart.
 const NEGATIVE_TTL: Duration = Duration::from_secs(60);
 
+/// How long a path may go without a request before its in-memory caches are
+/// reclaimed by the maintenance loop. Well beyond a build's internal pauses
+/// (planning gaps, incremental rebuilds), so an actively-built project is never
+/// reclaimed mid-work; a reclaimed path just re-warms from the remote on its
+/// next build. Bounds the RAM a long-lived proxy holds for projects nobody is
+/// building, which the size caps alone never release.
+const IDLE_RECLAIM: Duration = Duration::from_secs(30 * 60);
+
 /// A cached resolve outcome for a key.
 enum Resolution {
     /// A value digest, kept indefinitely (content-addressed, always valid).
@@ -93,6 +101,13 @@ fn fast_path(
     }
 }
 
+/// Whether a path's in-memory caches should be reclaimed: its on-disk CAS is
+/// gone (deleted project/worktree — it never comes back) or it has been idle
+/// past IDLE_RECLAIM. Pure so the policy is unit-testable.
+fn should_reclaim(idle: Duration, cas_dir_gone: bool) -> bool {
+    cas_dir_gone || idle > IDLE_RECLAIM
+}
+
 /// Per-local-CAS-path state. Leaked for 'static lifetime: the proxy runs
 /// until killed.
 pub struct PathState {
@@ -113,6 +128,10 @@ pub struct PathState {
     // warm build) from every connection thread.
     known_local: [Mutex<HashSet<Vec<u8>>>; 32],
     publish_cache: Mutex<HashMap<Vec<u8>, (reapi::Digest, Vec<Vec<u8>>)>>,
+    // Millis since Proxy.epoch of the last request that touched this path, for
+    // idle reclamation. Bumped once per resolve/publish (per action key, not per
+    // node), so the maintenance loop can free caches of projects nobody builds.
+    last_used: AtomicU64,
     pub stats_resolves: AtomicU64,
     pub stats_remote_hits: AtomicU64,
     pub stats_misses: AtomicU64,
@@ -156,6 +175,8 @@ pub struct Proxy {
     grpc_url: String,
     tokens: Arc<TokenProvider>,
     upstream_plugin: String,
+    // Monotonic base for per-path last-used timestamps (see PathState.last_used).
+    epoch: Instant,
     // One REAPI client per account/project instance, created on first use.
     // All share the machine's endpoint + token; only the instance the request
     // is scoped to differs. This is what lets one proxy serve every project.
@@ -185,6 +206,7 @@ impl Proxy {
             grpc_url,
             tokens,
             upstream_plugin,
+            epoch: Instant::now(),
             remotes: Mutex::new(HashMap::new()),
             path_instance: Mutex::new(path_instance),
             registry_path,
@@ -270,6 +292,7 @@ impl Proxy {
             inflight_cvar: Condvar::new(),
             known_local: std::array::from_fn(|_| Mutex::new(HashSet::new())),
             publish_cache: Mutex::new(HashMap::new()),
+            last_used: AtomicU64::new(self.epoch.elapsed().as_millis() as u64),
             stats_resolves: AtomicU64::new(0),
             stats_remote_hits: AtomicU64::new(0),
             stats_misses: AtomicU64::new(0),
@@ -297,6 +320,9 @@ impl Proxy {
         key: &[u8],
     ) -> Result<Option<Vec<u8>>, String> {
         state.stats_resolves.fetch_add(1, Ordering::Relaxed);
+        state
+            .last_used
+            .store(self.epoch.elapsed().as_millis() as u64, Ordering::Relaxed);
         // Fast path, outside single-flight so the presence load never
         // serializes other keys: serve a cached Hit only after confirming its
         // value object is still on disk. A long-lived proxy keeps Hits in memory
@@ -526,6 +552,9 @@ impl Proxy {
         let record_path = String::from_utf8_lossy(record_path).into_owned();
         let remote = self.remote_for(&instance);
         let Ok(state) = self.path_state(&cas_path) else { return };
+        state
+            .last_used
+            .store(self.epoch.elapsed().as_millis() as u64, Ordering::Relaxed);
         let Ok(bytes) = std::fs::read(&record_path) else { return };
         let Some(record) =
             PublishRecord::decode_body(&bytes, Some(std::path::PathBuf::from(&record_path)))
@@ -661,6 +690,35 @@ impl Proxy {
                 if shard.lock().unwrap().len() > MAX_KNOWN_LOCAL_PER_SHARD {
                     shard.lock().unwrap().clear();
                 }
+            }
+        }
+    }
+
+    /// Reclaims the in-memory caches (resolved map, known-local shards, publish
+    /// cache) of paths whose on-disk CAS is gone or that have been idle past
+    /// IDLE_RECLAIM. Called from the maintenance loop; complements
+    /// `enforce_cache_bounds`, which only releases memory when a single build
+    /// overruns a size cap and never for projects that simply stop being built.
+    ///
+    /// The PathState shell (llcas handle + now-empty maps, ~KB) is retained: a
+    /// later build at the same path finds it and re-warms from the remote. These
+    /// caches are correctness-preserving, so clearing only forces re-work.
+    pub fn reclaim_idle(&self) {
+        let now = self.epoch.elapsed();
+        let paths: Vec<(String, &'static PathState)> = self
+            .paths
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(cas_path, state)| (cas_path.clone(), *state))
+            .collect();
+        for (cas_path, state) in paths {
+            let last = Duration::from_millis(state.last_used.load(Ordering::Relaxed));
+            let idle = now.saturating_sub(last);
+            let cas_dir_gone = std::fs::symlink_metadata(&cas_path).is_err();
+            if should_reclaim(idle, cas_dir_gone) {
+                state.invalidate();
+                state.publish_cache.lock().unwrap().clear();
             }
         }
     }
@@ -1009,5 +1067,26 @@ mod tests {
         );
 
         assert!(matches!(decision, FastPath::Resolve));
+    }
+
+    // A present path idle less than IDLE_RECLAIM is kept.
+    #[test]
+    fn active_path_is_not_reclaimed() {
+        assert!(!should_reclaim(Duration::from_secs(0), false));
+        assert!(!should_reclaim(IDLE_RECLAIM - Duration::from_secs(1), false));
+    }
+
+    // A present path idle past IDLE_RECLAIM is reclaimed.
+    #[test]
+    fn long_idle_path_is_reclaimed() {
+        assert!(should_reclaim(IDLE_RECLAIM + Duration::from_secs(1), false));
+    }
+
+    // A path whose on-disk CAS is gone is reclaimed immediately, however recently
+    // it was used (a deleted project/worktree never comes back).
+    #[test]
+    fn gone_cas_dir_is_reclaimed_regardless_of_idle() {
+        assert!(should_reclaim(Duration::from_secs(0), true));
+        assert!(should_reclaim(IDLE_RECLAIM + Duration::from_secs(1), true));
     }
 }
