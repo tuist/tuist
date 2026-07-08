@@ -292,7 +292,23 @@ jobs:
           BINARY_RUN_ID: ${{ inputs.binary_run_id }}
         run: |
           set -euo pipefail
-          gh run download "$BINARY_RUN_ID" --repo "$GITHUB_REPOSITORY" -n tuist-ee-release -D prebuilt
+          mkdir -p prebuilt
+          if [[ "$BINARY_RUN_ID" =~ ^[0-9]+$ ]]; then
+            gh run download "$BINARY_RUN_ID" --repo "$GITHUB_REPOSITORY" -n tuist-ee-release -D prebuilt
+          else
+            # A git ref carrying the bundle as tuist-ee-release.tar.gz.partNN
+            # (split under the contents API's 100MB raw limit). Used when the
+            # binary is built off-runner: the runner's github.token cannot
+            # clone the private EE repo, but it can read this repo's refs.
+            parts=$(gh api "repos/$GITHUB_REPOSITORY/contents/?ref=$BINARY_RUN_ID" --jq '.[].name' | grep '^tuist-ee-release.tar.gz.part' | sort)
+            [ -n "$parts" ] || { echo "::error::no tuist-ee-release.tar.gz.part* on ref $BINARY_RUN_ID"; exit 1; }
+            : > bundle.tar.gz
+            for p in $parts; do
+              gh api -H "Accept: application/vnd.github.raw" "repos/$GITHUB_REPOSITORY/contents/$p?ref=$BINARY_RUN_ID" >> bundle.tar.gz
+            done
+            tar -xzf bundle.tar.gz -C prebuilt
+            rm bundle.tar.gz
+          fi
           chmod +x prebuilt/tuist
           # Prepend so this binary wins over the mise canary shim.
           echo "$PWD/prebuilt" >> "$GITHUB_PATH"
