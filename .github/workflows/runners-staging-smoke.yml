@@ -651,6 +651,42 @@ jobs:
               now() { python3 -c 'import time;print(time.time())'; }
               eval "$CLEAN_DD"; tuist clean binaries >/dev/null 2>&1 || true
               g0=$(now); tuist generate "$GEN_TARGET"; g1=$(now)          # resolve+PULL+gen
+              # Per-request wire timings for generate#1's pull, from the HAR
+              # the CLI records by default into its session directory. Splits
+              # each artifact GET into blocked/connect/wait/receive so the
+              # ~2s per-item latency can be attributed to wire vs client
+              # overhead. generate#1's session is the newest dir at this point.
+              HARDIR=$(ls -td "$HOME/.local/state/tuist/sessions"/*/ 2>/dev/null | head -1)
+              python3 - "${HARDIR}network.har" <<'HAREOF' || true
+          import json,sys
+          from datetime import datetime
+          try:
+              har=json.load(open(sys.argv[1]))
+          except Exception as e:
+              print(f"  (no HAR: {e})"); sys.exit(0)
+          es=[e for e in har["log"]["entries"] if "192.168.64.1" in e["request"]["url"]]
+          if not es:
+              print("  (no cache-endpoint entries in HAR)"); sys.exit(0)
+          def ts(e): return datetime.fromisoformat(e["startedDateTime"].replace("Z","+00:00")).timestamp()
+          def rbytes(e):
+              r=e["response"]
+              v=r.get("bodySize")
+              if v and v>0: return v
+              v=(r.get("content") or {}).get("size")
+              if v and v>0: return v
+              for h in r.get("headers",[]):
+                  if h["name"].lower()=="content-length":
+                      try: return int(h["value"])
+                      except ValueError: pass
+              return 0
+          n=len(es); tot=sorted(e["time"] for e in es)
+          byts=sum(rbytes(e) for e in es)
+          span=max(ts(e)+e["time"]/1000 for e in es)-min(ts(e) for e in es)
+          ph={k:sum((e["timings"].get(k) or 0) for e in es)/n for k in ("blocked","dns","connect","ssl","send","wait","receive")}
+          print(f"== HAR (generate#1): {n} cache GETs, {byts/1048576:.0f} MiB, wall span {span:.1f}s -> {byts/1048576/max(span,0.01):.0f} MiB/s aggregate ==")
+          print(f"  per-req total ms: p50={tot[n//2]:.0f} p90={tot[int(n*.9)]:.0f} max={tot[-1]:.0f}")
+          print(f"  mean phases ms: blocked={ph['blocked']:.0f} dns={ph['dns']:.0f} connect={ph['connect']:.0f} ssl={ph['ssl']:.0f} send={ph['send']:.0f} wait={ph['wait']:.0f} receive={ph['receive']:.0f}")
+          HAREOF
               g2=$(now); tuist generate "$GEN_TARGET"; g3=$(now)          # resolve+gen (binaries cached, no pull)
               du_cache=$(du -sm "$HOME/.cache/tuist" 2>/dev/null | awk '{print $1}')
               b0=$(now); eval "$BUILD_NO_CACHE"; b1=$(now)        # compile
