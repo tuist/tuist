@@ -17,8 +17,8 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use crate::proxy_proto::{
-    read_request, write_response, Request, OP_PUBLISH, OP_RESOLVE, STATUS_ERROR, STATUS_HIT,
-    STATUS_MISS,
+    read_request, write_response, Request, OP_INVALIDATE, OP_PUBLISH, OP_RESOLVE, STATUS_ERROR,
+    STATUS_HIT, STATUS_MISS,
 };
 use crate::prefetch::Prefetcher;
 use crate::reapi::{self, ManifestEntry, Remote, RemoteConfig};
@@ -155,6 +155,11 @@ pub struct PathState {
     // the store was deleted and recreated under this long-lived proxy, so the
     // in-memory marks below are stale and must be dropped before they are trusted.
     generation: Mutex<Option<CasGeneration>>,
+    // Monotonic counter bumped by every invalidation (a detected wipe or a prune
+    // signal). A resolve snapshots it after its wipe check and only commits its
+    // known_local / resolved writes if it is unchanged, so a resolve that began
+    // under an older store can't reinsert stale marks after the maps were cleared.
+    gen_counter: AtomicU64,
     // key digest -> resolved outcome. A local publish updates its entry, so a
     // miss cached during planning turns into a hit once the local build
     // publishes it; misses also carry a timestamp so a key another machine
@@ -199,12 +204,27 @@ impl PathState {
     /// and re-materializes the full graph rather than trusting stale in-memory
     /// marks. Content-addressed and correctness-preserving, so clearing only
     /// forces re-work, never a wrong answer.
+    ///
+    /// The counter is bumped BEFORE the maps are cleared so that a concurrent
+    /// in-flight resolve (which checks the counter while holding the same map
+    /// lock it is about to write) either sees the new counter and skips its
+    /// write, or writes first and then has it cleared here — never inserts a
+    /// stale mark that survives the clear.
     fn invalidate(&self) {
+        self.gen_counter.fetch_add(1, Ordering::SeqCst);
         self.resolved.lock().unwrap().clear();
         for shard in &self.known_local {
             shard.lock().unwrap().clear();
         }
     }
+}
+
+/// Whether writes from a resolve that observed generation `observed` may still
+/// be committed: only if no wipe or prune advanced the path's `gen_counter`
+/// since. A stale resolve's known_local / resolved inserts describe a store that
+/// has been replaced, so they must be dropped rather than trusted.
+fn committable(observed: u64, current: u64) -> bool {
+    observed == current
 }
 
 // The proxy is single-process and owns these raw handles for its lifetime;
@@ -331,6 +351,7 @@ impl Proxy {
             cas,
             cas_path: cas_path.to_string(),
             generation: Mutex::new(cas_generation(cas_path)),
+            gen_counter: AtomicU64::new(0),
             resolved: Mutex::new(HashMap::new()),
             inflight: Mutex::new(HashSet::new()),
             inflight_cvar: Condvar::new(),
@@ -413,7 +434,13 @@ impl Proxy {
                 inflight = state.inflight_cvar.wait(inflight).unwrap();
             }
         }
-        let outcome = self.resolve_uncached(remote, state, key);
+        // Re-check the generation now that we hold the single-flight slot: a wipe
+        // during the wait must be caught before resolve_uncached trusts
+        // known_local. `observed` is snapshotted here so the write guard drops
+        // this resolve's marks if a wipe/prune advances the counter mid-resolve.
+        self.check_generation(state);
+        let observed = state.gen_counter.load(Ordering::SeqCst);
+        let outcome = self.resolve_uncached(remote, state, key, observed);
         {
             let mut inflight = state.inflight.lock().unwrap();
             inflight.remove(key);
@@ -427,6 +454,7 @@ impl Proxy {
         remote: &Remote,
         state: &'static PathState,
         key: &[u8],
+        observed: u64,
     ) -> Result<Option<Vec<u8>>, String> {
         let op_start = Instant::now();
         let phase = Instant::now();
@@ -461,7 +489,7 @@ impl Proxy {
         let phase = Instant::now();
         let missing: Vec<&ManifestEntry> = manifest
             .iter()
-            .filter(|entry| !self.is_local(state, &entry.llcas_digest))
+            .filter(|entry| !self.is_local(state, observed, &entry.llcas_digest))
             .collect();
         state
             .ms_filter
@@ -525,20 +553,40 @@ impl Proxy {
                 state
                     .ms_store
                     .fetch_add(phase.elapsed().as_millis() as u64, Ordering::Relaxed);
-                state
-                    .shard(&entry.llcas_digest)
-                    .lock()
-                    .unwrap()
-                    .insert(entry.llcas_digest.clone());
+                // Mark local only while still on this generation, checked under
+                // the shard lock: a wipe/prune that clears the shards after this
+                // must not leave the freshly-fetched digest behind as a mark for
+                // a store it did not write. (invalidate bumps the counter before
+                // clearing, so a stale insert either loses the race or is cleared.)
+                {
+                    let mut shard = state.shard(&entry.llcas_digest).lock().unwrap();
+                    if committable(observed, state.gen_counter.load(Ordering::SeqCst)) {
+                        shard.insert(entry.llcas_digest.clone());
+                    }
+                }
                 state.stats_blobs_fetched.fetch_add(1, Ordering::Relaxed);
             }
         }
         let value = manifest[0].llcas_digest.clone();
-        state
-            .resolved
-            .lock()
-            .unwrap()
-            .insert(key.to_vec(), Resolution::Hit(value.clone()));
+        // Commit the Hit only if no wipe/prune advanced the generation while we
+        // were fetching. If it did, the graph we just materialized targets a
+        // store that has been replaced, so caching this value (or returning it)
+        // could hand back a graph that is not on the current disk. Drop the write
+        // and answer a miss; the next resolve re-materializes against the new
+        // store. Checked under the resolved lock, against which invalidate's
+        // clear is serialized.
+        let committed = {
+            let mut resolved = state.resolved.lock().unwrap();
+            if committable(observed, state.gen_counter.load(Ordering::SeqCst)) {
+                resolved.insert(key.to_vec(), Resolution::Hit(value.clone()));
+                true
+            } else {
+                false
+            }
+        };
+        if !committed {
+            return Ok(None);
+        }
         if let Some(analytics) = &self.analytics {
             analytics.record_keyvalue(key, "read", op_start.elapsed().as_secs_f64());
         }
@@ -564,12 +612,18 @@ impl Proxy {
         *stored = Some(current);
     }
 
-    fn is_local(&self, state: &PathState, digest: &[u8]) -> bool {
+    fn is_local(&self, state: &PathState, observed: u64, digest: &[u8]) -> bool {
         if state.shard(digest).lock().unwrap().contains(digest) {
             return true;
         }
         if self.load_present(state, digest) {
-            state.shard(digest).lock().unwrap().insert(digest.to_vec());
+            // Memoize the authoritative load only while still on this generation:
+            // a wipe/prune that cleared the shards must not have this present-now
+            // fact re-inserted for what may already be a replaced store.
+            let mut shard = state.shard(digest).lock().unwrap();
+            if committable(observed, state.gen_counter.load(Ordering::SeqCst)) {
+                shard.insert(digest.to_vec());
+            }
             true
         } else {
             false
@@ -898,6 +952,19 @@ impl Proxy {
                 }
                 write_response(&mut stream, STATUS_HIT, &[])
             }
+            OP_INVALIDATE => {
+                // A prune emptied this path's on-disk CAS in place; drop our marks
+                // so a resolve re-fetches. Only if we already track the path — an
+                // unknown path has nothing cached, and we must not open a CAS
+                // handle for it here. Bind first so the `paths` lock is released
+                // before invalidating.
+                let state = self.paths.lock().unwrap().get(&request.cas_path).copied();
+                if let Some(state) = state {
+                    state.invalidate();
+                    state.publish_cache.lock().unwrap().clear();
+                }
+                write_response(&mut stream, STATUS_HIT, &[])
+            }
             _ => write_response(&mut stream, STATUS_ERROR, b"bad op"),
         }
     }
@@ -1174,6 +1241,14 @@ mod tests {
         assert!(!generation_changed(Some(g1), Some(g1)));
         assert!(!generation_changed(None, Some(g1)), "first observation is not a change");
         assert!(!generation_changed(Some(g1), None), "a gone dir is left to reclaim_idle");
+    }
+
+    // A resolve's writes commit only if the generation it observed still holds;
+    // a wipe/prune that advanced the counter mid-resolve drops them.
+    #[test]
+    fn writes_commit_only_on_the_observed_generation() {
+        assert!(committable(7, 7));
+        assert!(!committable(7, 8), "an advanced generation must drop stale writes");
     }
 
     // Deleting and recreating a directory at the same path yields a different
