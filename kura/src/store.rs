@@ -862,6 +862,35 @@ impl Store {
         Err("manifest does not have a readable storage location".to_string())
     }
 
+    /// Reads a served artifact's bytes, tolerating a concurrent background
+    /// promotion (see [`Store::enqueue_promotion`]). A promotion can rewrite the
+    /// artifact into the current segment and evict the old one between the
+    /// caller's manifest read and the file open in `read_artifact_bytes`, so a
+    /// stale manifest's open loses the race to the unlink. On the first read
+    /// failure, re-resolve the manifest once against the DB: if the artifact
+    /// moved (promoted), read from its new, live location; if it is genuinely
+    /// gone, report a miss (`Ok(None)`) rather than an error; otherwise the
+    /// failure was not a relocation and the original error stands.
+    ///
+    /// Only one retry is needed: the promoted copy lands in the current
+    /// generation, which is not itself eligible for eviction, so it cannot be
+    /// unlinked out from under the retried read.
+    pub async fn read_artifact_bytes_tolerating_promotion(
+        &self,
+        manifest: &ArtifactManifest,
+    ) -> Result<Option<Vec<u8>>, String> {
+        match self.read_artifact_bytes(manifest).await {
+            Ok(bytes) => Ok(Some(bytes)),
+            Err(first_error) => match self.manifest_from_db(&manifest.artifact_id)? {
+                Some(fresh) if fresh.segment_id != manifest.segment_id => {
+                    self.read_artifact_bytes(&fresh).await.map(Some)
+                }
+                Some(_) => Err(first_error),
+                None => Ok(None),
+            },
+        }
+    }
+
     pub async fn open_artifact_reader_range(
         &self,
         manifest: &ArtifactManifest,
@@ -4413,6 +4442,106 @@ mod tests {
             .expect("promoted manifest should exist");
         assert_ne!(promoted.segment_id, Some(original_segment_id));
         assert_eq!(read_manifest_bytes(&store, &promoted).await, b"hello");
+    }
+
+    #[tokio::test]
+    async fn tolerant_read_reresolves_when_a_concurrent_promotion_evicted_the_old_segment() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        // Persist, then promote so the live manifest points at a new segment,
+        // then evict the original segment out from under the pre-promotion
+        // manifest -- the exact race a background promotion opens against a
+        // serving read that already captured the old manifest.
+        let stale = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-1",
+                "application/octet-stream",
+                b"hello",
+            )
+            .await
+            .expect("failed to persist artifact");
+        let old_segment = stale
+            .segment_id
+            .clone()
+            .expect("segment-backed artifact should have a segment id");
+        store
+            .save_segment_state(&SegmentState {
+                old: vec![SegmentReference::new(old_segment.clone(), 1)],
+                current: Vec::new(),
+                new: vec![SegmentReference::new("fresh-segment".into(), 2)],
+            })
+            .expect("failed to seed segment state");
+        store
+            .promote_artifact(&stale.artifact_id)
+            .await
+            .expect("promotion should succeed");
+        assert_ne!(
+            store
+                .manifest(&stale.artifact_id)
+                .expect("lookup")
+                .expect("manifest")
+                .segment_id,
+            stale.segment_id,
+            "promotion should have relocated the artifact"
+        );
+        store
+            .evict_segment(&old_segment)
+            .await
+            .expect("eviction should succeed");
+
+        // The pre-promotion manifest can no longer be read directly...
+        assert!(store.read_artifact_bytes(&stale).await.is_err());
+        // ...but the tolerant read re-resolves to the promoted location.
+        assert_eq!(
+            store
+                .read_artifact_bytes_tolerating_promotion(&stale)
+                .await
+                .expect("tolerant read should succeed"),
+            Some(b"hello".to_vec())
+        );
+    }
+
+    #[tokio::test]
+    async fn tolerant_read_reports_a_miss_when_the_artifact_was_actually_evicted() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        let stale = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-1",
+                "application/octet-stream",
+                b"hello",
+            )
+            .await
+            .expect("failed to persist artifact");
+        let old_segment = stale
+            .segment_id
+            .clone()
+            .expect("segment-backed artifact should have a segment id");
+        // Evict while the artifact still lives in the old segment (not promoted)
+        // so its manifest is deleted and the file unlinked: a genuine miss.
+        store
+            .save_segment_state(&SegmentState {
+                old: vec![SegmentReference::new(old_segment.clone(), 1)],
+                current: Vec::new(),
+                new: vec![SegmentReference::new("fresh-segment".into(), 2)],
+            })
+            .expect("failed to seed segment state");
+        store
+            .evict_segment(&old_segment)
+            .await
+            .expect("eviction should succeed");
+
+        assert_eq!(
+            store
+                .read_artifact_bytes_tolerating_promotion(&stale)
+                .await
+                .expect("tolerant read should not error on a miss"),
+            None
+        );
     }
 
     #[tokio::test]

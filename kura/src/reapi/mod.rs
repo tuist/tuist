@@ -624,30 +624,37 @@ impl ActionCache for ReapiService {
             // latency times manifest size, the same serialization
             // batch_read_blobs buffers to avoid (measured ~4ms per blob
             // serialized).
-            let targets: Vec<(usize, reapi::Digest)> = action_result
+            // Each target carries whether the client listed its path explicitly
+            // (as opposed to only matching via `"*"`): a wildcard match inlines
+            // best-effort, but an explicit path keeps the hard budget error even
+            // when `"*"` is also present.
+            let targets: Vec<(usize, reapi::Digest, bool)> = action_result
                 .output_files
                 .iter()
                 .enumerate()
-                .filter(|(_, output_file)| {
-                    (inline_all
-                        || request
-                            .get_ref()
-                            .inline_output_files
-                            .iter()
-                            .any(|path| path == &output_file.path))
-                        && output_file.contents.is_empty()
-                })
                 .filter_map(|(index, output_file)| {
-                    output_file.digest.clone().map(|digest| (index, digest))
+                    let explicit = request
+                        .get_ref()
+                        .inline_output_files
+                        .iter()
+                        .any(|path| path == &output_file.path);
+                    if (!inline_all && !explicit) || !output_file.contents.is_empty() {
+                        return None;
+                    }
+                    output_file
+                        .digest
+                        .clone()
+                        .map(|digest| (index, digest, explicit))
                 })
                 .collect();
             let budget = std::sync::Mutex::new(materialization_budget);
-            let reads: Vec<(usize, Result<Option<Vec<u8>>, Status>)> =
-                futures_util::stream::iter(targets.into_iter().map(|(index, digest)| {
+            let reads: Vec<(usize, bool, Result<Option<Vec<u8>>, Status>)> =
+                futures_util::stream::iter(targets.into_iter().map(|(index, digest, explicit)| {
                     let budget = &budget;
                     async move {
                         (
                             index,
+                            explicit,
                             batch_read_one(&self.state, namespace_id, &digest, budget).await,
                         )
                     }
@@ -655,19 +662,19 @@ impl ActionCache for ReapiService {
                 .buffered(16)
                 .collect()
                 .await;
-            for (index, read) in reads {
+            for (index, explicit, read) in reads {
                 match read {
                     Ok(Some(bytes)) => {
                         served_bytes = served_bytes.saturating_add(bytes.len() as u64);
                         action_result.output_files[index].contents = bytes;
                     }
                     Ok(None) => {}
-                    // Wildcard inlining degrades to partial rather than
-                    // failing the lookup; a smaller file may still fit the
-                    // remaining budget. Explicitly requested paths keep the
-                    // hard error.
-                    Err(status)
-                        if inline_all && status.code() == tonic::Code::ResourceExhausted => {}
+                    // A wildcard-only match inlines best-effort: on budget
+                    // exhaustion it stays un-inlined (a smaller later file may
+                    // still fit) and the client falls back to BatchReadBlobs.
+                    // A path the client listed explicitly keeps the hard error.
+                    Err(status) if !explicit && status.code() == tonic::Code::ResourceExhausted => {
+                    }
                     Err(status) => return Err(status),
                 }
             }
@@ -1210,14 +1217,20 @@ async fn batch_read_one(
         .lock()
         .expect("budget lock")
         .claim(manifest.size, "CAS response materialization")?;
-    let bytes = read_manifest_bytes(state, &manifest)
+    let Some(bytes) = read_serving_bytes(state, &manifest)
         .await
         .inspect_err(|_| {
             state
                 .metrics
                 .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
         })
-        .map_err(Status::internal)?;
+        .map_err(Status::internal)?
+    else {
+        state
+            .metrics
+            .record_artifact_read(ArtifactProducer::Reapi, "not_found", 0);
+        return Ok(None);
+    };
     state
         .metrics
         .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes.len() as u64);
@@ -1250,14 +1263,20 @@ async fn maybe_read_cas_bytes(
     if let Some(budget) = materialization_budget {
         budget.claim(manifest.size, "CAS response materialization")?;
     }
-    let bytes = read_manifest_bytes(state, &manifest)
+    let Some(bytes) = read_serving_bytes(state, &manifest)
         .await
         .inspect_err(|_| {
             state
                 .metrics
                 .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
         })
-        .map_err(Status::internal)?;
+        .map_err(Status::internal)?
+    else {
+        state
+            .metrics
+            .record_artifact_read(ArtifactProducer::Reapi, "not_found", 0);
+        return Ok(None);
+    };
     state
         .metrics
         .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes.len() as u64);
@@ -1304,6 +1323,21 @@ async fn read_manifest_bytes(
     manifest: &ArtifactManifest,
 ) -> Result<Vec<u8>, String> {
     state.store.read_artifact_bytes(manifest).await
+}
+
+/// Reads a CAS blob served to a client, tolerating a concurrent background
+/// segment promotion that may have relocated the artifact and evicted the old
+/// segment between the manifest lookup and the read. `Ok(None)` is a genuine
+/// miss (the artifact was evicted, not relocated). See
+/// `Store::read_artifact_bytes_tolerating_promotion`.
+async fn read_serving_bytes(
+    state: &SharedState,
+    manifest: &ArtifactManifest,
+) -> Result<Option<Vec<u8>>, String> {
+    state
+        .store
+        .read_artifact_bytes_tolerating_promotion(manifest)
+        .await
 }
 
 struct MaterializationBudget<'a> {
@@ -2557,6 +2591,45 @@ end
         let output_files = &response.get_ref().output_files;
         assert!(output_files[0].contents.is_empty());
         assert_eq!(output_files[1].contents, small_bytes);
+    }
+
+    #[tokio::test]
+    async fn wildcard_inline_keeps_the_hard_budget_error_for_an_explicitly_listed_path() {
+        let context = test_context(|config| {
+            config.memory_soft_limit_bytes = 32 * 1024 * 1024;
+            config.memory_hard_limit_bytes = 64 * 1024 * 1024;
+        })
+        .await;
+        let service = ReapiService {
+            state: context.state.clone(),
+        };
+        // Larger than the response budget; listed BOTH via "*" and explicitly.
+        // The explicit listing must keep the hard error even though "*" would
+        // otherwise let it degrade to partial.
+        let large_bytes = vec![b'x'; 9 * 1024 * 1024];
+        let large_digest = persist_output_file_blob(&context, &large_bytes).await;
+        let action_digest = persist_action_result_with_outputs(
+            &context,
+            vec![reapi::OutputFile {
+                path: "required".into(),
+                digest: Some(large_digest),
+                ..Default::default()
+            }],
+        )
+        .await;
+
+        let error = service
+            .get_action_result(Request::new(reapi::GetActionResultRequest {
+                instance_name: DEFAULT_INSTANCE_NAME.into(),
+                action_digest: Some(action_digest),
+                inline_output_files: vec!["*".into(), "required".into()],
+                digest_function: reapi::digest_function::Value::Sha256 as i32,
+                ..Default::default()
+            }))
+            .await
+            .expect_err("an explicitly listed over-budget file must fail the lookup");
+
+        assert_eq!(error.code(), tonic::Code::ResourceExhausted);
     }
 
     #[tokio::test]
