@@ -292,10 +292,7 @@ jobs:
       - name: Install aube dependencies
         run: aube install
       - name: Check format
-        run: |
-          mix format --check-formatted
-          aube exec prettier --check priv/static/app
-          aube exec prettier --check assets
+        run: mise run --skip-tools format --check
   esbuild:
     name: esbuild
     runs-on: tuist-linux
