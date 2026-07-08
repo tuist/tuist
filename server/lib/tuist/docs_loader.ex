@@ -12,13 +12,11 @@ defmodule Tuist.Docs.Loader do
   alias Tuist.Markdown
   alias Tuist.Webhooks.WebhookEndpoint
 
-  # Live doc pages reference these modules from HEEx templates at compile time.
-  require Noora.Alert
-
   # Paths
-  @docs_root Path.expand("../../priv/docs", __DIR__)
-  @locales Locale.supported_locales()
-  @examples_root Path.expand("../../../examples/xcode", __DIR__)
+  @source_docs_root Path.expand("../../priv/docs", __DIR__)
+  @locales if(Tuist.Environment.test?(), do: ["en"], else: Locale.supported_locales())
+  @source_examples_root Path.expand("../../../examples/xcode", __DIR__)
+  @priv_examples_root Path.expand("../../priv/examples/xcode", __DIR__)
 
   # Icons (rendered from Noora components at compile time)
   @copy_icon %{__changed__: nil} |> Noora.Icon.copy() |> Safe.to_iodata() |> IO.iodata_to_binary()
@@ -46,51 +44,74 @@ defmodule Tuist.Docs.Loader do
     "caution" => "error"
   }
 
+  @syntax_highlight_options (if Tuist.Environment.test?() do
+                               []
+                             else
+                               [
+                                 syntax_highlight: [
+                                   formatter:
+                                     {:html_multi_themes,
+                                      themes: [light: "github_light", dark: "github_dark"], default_theme: "light-dark()"}
+                                 ]
+                               ]
+                             end)
+
   @mdex_options [
-    extension: [
-      header_ids: "",
-      autolink: true,
-      table: true,
-      strikethrough: true,
-      tasklist: true,
-      alerts: true,
-      phoenix_heex: true
-    ],
-    render: [unsafe: true],
-    syntax_highlight: [
-      formatter: {:html_multi_themes, themes: [light: "github_light", dark: "github_dark"], default_theme: "light-dark()"}
-    ]
-  ]
+                  extension: [
+                    header_ids: "",
+                    autolink: true,
+                    table: true,
+                    strikethrough: true,
+                    tasklist: true,
+                    alerts: true,
+                    phoenix_heex: true
+                  ],
+                  render: [unsafe: true]
+                ] ++ @syntax_highlight_options
 
   def load_pages! do
-    source_paths =
-      @locales
-      |> Enum.flat_map(fn locale ->
-        @docs_root
-        |> Path.join(locale)
-        |> Path.join("**/*.md")
-        |> Path.wildcard()
-      end)
-      |> Enum.sort()
-      |> Enum.reject(&excluded_source?/1)
-
-    example_readmes =
-      @examples_root
-      |> Path.join("*/README.md")
-      |> Path.wildcard()
-      |> Enum.sort()
-
+    source_paths = source_paths()
+    example_readmes = example_readmes()
     pages = Enum.map(source_paths, &build_page!/1) ++ Enum.map(example_readmes, &build_example_page!/1)
     all_source_paths = source_paths ++ example_readmes
     {pages, all_source_paths}
   end
 
+  def load_slugs! do
+    docs_slugs =
+      Enum.map(source_paths(), fn source_path ->
+        source_path
+        |> Path.relative_to(docs_root())
+        |> source_to_slug()
+      end)
+
+    example_slugs = Enum.map(example_readmes(), &example_slug/1)
+
+    Enum.sort(docs_slugs ++ example_slugs)
+  end
+
+  def load_page!(slug) do
+    source_path =
+      Enum.find(source_paths(), fn source_path ->
+        source_path
+        |> Path.relative_to(docs_root())
+        |> source_to_slug() == slug
+      end)
+
+    cond do
+      source_path != nil ->
+        build_page!(source_path)
+
+      readme_path = Enum.find(example_readmes(), &(example_slug(&1) == slug)) ->
+        build_example_page!(readme_path)
+
+      true ->
+        nil
+    end
+  end
+
   def load_example_items! do
-    @examples_root
-    |> Path.join("*/README.md")
-    |> Path.wildcard()
-    |> Enum.sort()
-    |> Enum.map(fn readme_path ->
+    Enum.map(example_readmes(), fn readme_path ->
       dir_name = readme_path |> Path.dirname() |> Path.basename()
       markdown = File.read!(readme_path)
       title = title_from_markdown(markdown) || dir_name
@@ -107,8 +128,35 @@ defmodule Tuist.Docs.Loader do
     :ok
   end
 
+  defp source_paths do
+    docs_root = docs_root()
+
+    @locales
+    |> Enum.flat_map(fn locale ->
+      docs_root
+      |> Path.join(locale)
+      |> Path.join("**/*.md")
+      |> Path.wildcard()
+    end)
+    |> Enum.sort()
+    |> Enum.reject(&excluded_source?/1)
+  end
+
+  defp example_readmes do
+    case examples_root() do
+      nil ->
+        []
+
+      examples_root ->
+        examples_root
+        |> Path.join("*/README.md")
+        |> Path.wildcard()
+        |> Enum.sort()
+    end
+  end
+
   defp build_page!(source_path) do
-    relative_path = Path.relative_to(source_path, @docs_root)
+    relative_path = Path.relative_to(source_path, docs_root())
     slug = source_to_slug(relative_path)
     locale = relative_path |> String.split("/") |> List.first()
     contents = File.read!(source_path)
@@ -134,7 +182,7 @@ defmodule Tuist.Docs.Loader do
 
   defp build_example_page!(readme_path) do
     dir_name = readme_path |> Path.dirname() |> Path.basename()
-    slug = "/en/references/examples/generated-projects/#{String.downcase(dir_name)}"
+    slug = example_slug(readme_path)
     markdown = File.read!(readme_path)
     title = title_from_markdown(markdown) || dir_name
     github_url = "https://github.com/tuist/tuist/tree/main/examples/xcode/#{dir_name}"
@@ -155,6 +203,26 @@ defmodule Tuist.Docs.Loader do
       headings: extract_headings(markdown_with_link),
       last_modified: file_last_modified(readme_path)
     }
+  end
+
+  defp example_slug(readme_path) do
+    dir_name = readme_path |> Path.dirname() |> Path.basename()
+    "/en/references/examples/generated-projects/#{String.downcase(dir_name)}"
+  end
+
+  defp docs_root do
+    if File.dir?(@source_docs_root) do
+      @source_docs_root
+    else
+      Application.app_dir(:tuist, "priv/docs")
+    end
+  end
+
+  defp examples_root do
+    Enum.find(
+      [@source_examples_root, @priv_examples_root, Application.app_dir(:tuist, "priv/examples/xcode")],
+      &File.dir?/1
+    )
   end
 
   # Compile-time macros documentation pages can reference with
@@ -496,7 +564,7 @@ defmodule Tuist.Docs.Loader do
   end
 
   defp excluded_source?(source_path) do
-    relative_path = Path.relative_to(source_path, @docs_root)
+    relative_path = Path.relative_to(source_path, docs_root())
 
     String.contains?(relative_path, "[") or
       String.starts_with?(relative_path, "en/references/project-description/")

@@ -50,7 +50,7 @@ defmodule Tuist.DocsTest do
       page = Docs.get_page("/en/guides/install-tuist")
 
       assert is_list(page.headings)
-      assert length(page.headings) > 0
+      assert [_ | _] = page.headings
 
       assert Enum.all?(page.headings, fn h ->
                Map.has_key?(h, :level) and Map.has_key?(h, :text) and Map.has_key?(h, :id)

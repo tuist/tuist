@@ -6,8 +6,6 @@ defmodule Cache.Application do
   alias Cache.DBConnection.TelemetryListener
   alias TuistCommon.HTTP.TransportLogger
 
-  require Logger
-
   @impl true
   def start(_type, _args) do
     if System.get_env("SKIP_MIGRATIONS") != "true" do

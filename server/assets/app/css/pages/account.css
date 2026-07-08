@@ -42,7 +42,6 @@
 }
 
 #projects {
-
   & > [data-part="recent-section"],
   & > [data-part="all-section"] {
     display: flex;

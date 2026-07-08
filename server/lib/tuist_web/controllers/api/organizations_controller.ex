@@ -123,7 +123,7 @@ defmodule TuistWeb.API.OrganizationsController do
       is_nil(existing_account) ->
         create_organization(conn, organization_name, user)
 
-      !is_nil(existing_account) ->
+      true ->
         conn
         |> put_status(:bad_request)
         |> json(%{
@@ -199,7 +199,7 @@ defmodule TuistWeb.API.OrganizationsController do
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
 
-      !is_nil(organization) ->
+      true ->
         Accounts.delete_organization!(organization)
 
         conn
@@ -245,7 +245,7 @@ defmodule TuistWeb.API.OrganizationsController do
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
 
-      !is_nil(organization) ->
+      true ->
         admins =
           organization
           |> Accounts.get_organization_members(:admin)
@@ -339,7 +339,7 @@ defmodule TuistWeb.API.OrganizationsController do
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
 
-      !is_nil(organization) ->
+      true ->
         json(conn, %{
           current_month_remote_cache_hits: organization.account.current_month_remote_cache_hits_count
         })
@@ -442,7 +442,7 @@ defmodule TuistWeb.API.OrganizationsController do
           message: "Your SSO organization must be the same as the one you are trying to update your organization to."
         })
 
-      !is_nil(organization) ->
+      true ->
         update_organization(%{
           organization: organization,
           sso_provider: sso_provider,

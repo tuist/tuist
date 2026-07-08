@@ -68,9 +68,6 @@ defmodule TuistWeb.AuthController do
 
           {:error, :oauth2_not_configured} ->
             raise_sso_unauthorized(:sso_not_configured)
-
-          _ ->
-            raise_sso_unauthorized(:sso_request_failed)
         end
 
       _ ->
@@ -107,9 +104,6 @@ defmodule TuistWeb.AuthController do
           {:error, reason} ->
             log(:error, "Failed SSO callback: #{inspect(reason)}")
             raise_sso_unauthorized(reason)
-
-          _ ->
-            raise_sso_unauthorized(:sso_callback_failed)
         end
 
       _ ->

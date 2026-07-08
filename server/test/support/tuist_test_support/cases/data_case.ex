@@ -17,8 +17,6 @@ defmodule TuistTestSupport.Cases.DataCase do
 
   alias Ecto.Adapters.SQL.Sandbox
 
-  require File
-
   using do
     quote do
       use Oban.Testing, repo: Tuist.Repo

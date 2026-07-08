@@ -14,11 +14,6 @@ defmodule TuistWeb.Internal.AtlasUsageController do
 
       {:error, :not_found} ->
         conn |> put_status(:not_found) |> json(%{error: "account_not_found"})
-
-      {:error, _reason} ->
-        conn
-        |> put_status(:internal_server_error)
-        |> json(%{error: "usage lookup failed"})
     end
   end
 

@@ -313,19 +313,13 @@ defmodule Tuist.Authorization.Checks do
   end
 
   def project_command_event_access(%User{} = user, command_event) when is_struct(command_event) do
-    case Map.get(command_event, :project) do
-      %Project{} = project ->
+    case Map.get(command_event, :project_id) do
+      project_id when not is_nil(project_id) ->
+        project = Tuist.Projects.get_project_by_id(project_id)
         user_role(user, project, :user)
 
       _ ->
-        case Map.get(command_event, :project_id) do
-          project_id when not is_nil(project_id) ->
-            project = Tuist.Projects.get_project_by_id(project_id)
-            user_role(user, project, :user)
-
-          _ ->
-            false
-        end
+        false
     end
   end
 
