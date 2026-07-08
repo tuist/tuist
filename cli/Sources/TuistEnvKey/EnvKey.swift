@@ -465,6 +465,7 @@ public enum EnvKey: String, CaseIterable {
     case cacheExternalOnly = "TUIST_CACHE_EXTERNAL_ONLY"
     case cacheProfile = "TUIST_CACHE_PROFILE"
     case cacheGenerateOnly = "TUIST_CACHE_GENERATE_ONLY"
+    case cacheNoUpload = "TUIST_CACHE_NO_UPLOAD"
     case cachePrintHashes = "TUIST_CACHE_PRINT_HASHES"
     case cacheConfiguration = "TUIST_CACHE_CONFIGURATION"
     case cachePath = "TUIST_CACHE_PATH"
