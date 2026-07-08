@@ -315,37 +315,52 @@ jobs:
             python3 /tmp/spawnbench.py "$1" || true
           }
           cat > /tmp/diskprobe.py <<'DPEOF'
-          import os,time,shutil,subprocess,ctypes
-          libc=ctypes.CDLL("libc.dylib",use_errno=True); CLONE=libc.clonefile
-          d=os.path.expanduser("~/disk-probe"); shutil.rmtree(d,ignore_errors=True)
-          for s in ("seq","many","clone","copy"): os.makedirs(f"{d}/{s}")
-          NF=5000; GB=2; per=(GB*1024*1024*1024)//NF
-          big=os.urandom(1024*1024); small=os.urandom(per)
-          def sync(): subprocess.run(["sync"])
-          t=time.time()
-          with open(f"{d}/seq/big.bin","wb") as f:
-              for _ in range(GB*1024): f.write(big)
-              f.flush(); os.fsync(f.fileno())
-          sync(); seq=time.time()-t
-          t=time.time()
-          for i in range(NF):
-              with open(f"{d}/many/f{i}.bin","wb") as f: f.write(small)
-          sync(); many=time.time()-t
-          t=time.time()
-          for i in range(NF): CLONE(f"{d}/many/f{i}.bin".encode(),f"{d}/clone/f{i}.bin".encode(),0)
-          sync(); cf=time.time()-t
-          t=time.time()
-          for i in range(NF): libc.setxattr(f"{d}/many/f{i}.bin".encode(),b"user.tuist.sig",b"x"*64,64,0,0)
-          sync(); xa=time.time()-t
-          t=time.time()
-          for i in range(NF): shutil.copyfile(f"{d}/many/f{i}.bin",f"{d}/copy/f{i}.bin")
-          sync(); cp=time.time()-t
-          print(f"== VM DISK PROBE ($HOME sparse image; files={NF} tot={GB}GB avg={per//1024}KB) ==")
-          print(f"  1) sequential {GB}GB write   : {seq:.2f}s = {GB*1024/seq:.0f} MB/s")
-          print(f"  2) extract {NF} small files : {many:.2f}s = {GB*1024/many:.0f} MB/s ({NF/many:.0f} files/s)")
-          print(f"  3) clonefile {NF} (CoW seed) : {cf:.2f}s = {NF/cf:.0f} files/s")
-          print(f"  4) xattr sign {NF}          : {xa:.2f}s = {NF/xa:.0f} files/s")
-          print(f"  5) byte-copy {NF} ({GB}GB)   : {cp:.2f}s = {GB*1024/cp:.0f} MB/s")
+          # v2: decompose the VM write penalty into allocation, per-request virtio
+          # overhead, flush-barrier cost, and the guest-side ceiling. Every write
+          # phase is timed separately from its flush phase so we can see whether
+          # sync=full barriers (the Virtualization.framework default; tart-kubelet
+          # only sets caching=cached) dominate — if they do, --root-disk-opts
+          # sync=none is the lever.
+          import os,time,shutil,subprocess,fcntl
+          GB=1024**3
+          d=os.path.expanduser("~/disk-probe"); shutil.rmtree(d,ignore_errors=True); os.makedirs(d)
+          buf=os.urandom(8*1024*1024); mv=memoryview(buf)
+          def wseq(path,total,chunk):
+              t0=time.time(); n=0
+              with open(path,"wb") as f:
+                  while n<total:
+                      c=min(chunk,total-n); f.write(mv[:c]); n+=c
+                  tw=time.time()-t0
+                  t1=time.time(); os.fsync(f.fileno()); ts=time.time()-t1
+              return tw,ts
+          def mbs(b,s): return f"{b/(1024*1024)/s:.0f} MB/s" if s>0.001 else ">2000 MB/s"
+          print("== VM DISK PROBE v2 (write-penalty decomposition) ==")
+          tw,ts=wseq(f"{d}/fresh.bin",2*GB,8*1024*1024)
+          print(f"  A) fresh 2GB, 8MB chunks   : write {tw:.2f}s ({mbs(2*GB,tw)})  fsync {ts:.2f}s  total {tw+ts:.2f}s")
+          tw2,ts2=wseq(f"{d}/fresh.bin",2*GB,8*1024*1024)
+          print(f"  B) overwrite in-place 2GB  : write {tw2:.2f}s ({mbs(2*GB,tw2)})  fsync {ts2:.2f}s  total {tw2+ts2:.2f}s   [B vs A = allocation/sparse-growth]")
+          tw3,ts3=wseq(f"{d}/c64.bin",1*GB,64*1024)
+          print(f"  C) fresh 1GB, 64KB chunks  : write {tw3:.2f}s ({mbs(GB,tw3)})  fsync {ts3:.2f}s   [C vs A = per-request virtio overhead]")
+          with open(f"{d}/ff.bin","wb") as f:
+              n=0
+              while n<256*1024*1024: f.write(buf); n+=len(buf)
+              t1=time.time(); fcntl.fcntl(f.fileno(),fcntl.F_FULLFSYNC); ff=time.time()-t1
+          print(f"  D) F_FULLFSYNC (256MB dirty): {ff*1000:.0f} ms   [unit barrier cost through virtio->host]")
+          try:
+              dev=subprocess.run(["hdiutil","attach","-nomount","ram://5242880"],capture_output=True,text=True).stdout.strip()
+              subprocess.run(["diskutil","erasevolume","APFS","probeRam",dev],capture_output=True,check=True)
+              twr,tsr=wseq("/Volumes/probeRam/x.bin",2*GB,8*1024*1024)
+              print(f"  E) guest RAM-disk 2GB      : write {twr:.2f}s ({mbs(2*GB,twr)})  fsync {tsr:.2f}s   [guest-side ceiling, no virtio-blk]")
+              subprocess.run(["diskutil","eject",dev],capture_output=True)
+          except Exception as e:
+              print(f"  E) RAM-disk probe failed: {e}")
+          sm=os.urandom((2*GB)//5000); os.makedirs(f"{d}/many")
+          t0=time.time()
+          for i in range(5000):
+              with open(f"{d}/many/f{i}.bin","wb") as f: f.write(sm)
+          tw4=time.time()-t0
+          t1=time.time(); subprocess.run(["sync"]); ts4=time.time()-t1
+          print(f"  F) extract 5000 files 2GB  : write {tw4:.2f}s ({mbs(2*GB,tw4)})  sync {ts4:.2f}s  total {tw4+ts4:.2f}s   [workload shape: write vs flush phase]")
           shutil.rmtree(d,ignore_errors=True)
           DPEOF
           case "$STRATEGY" in
