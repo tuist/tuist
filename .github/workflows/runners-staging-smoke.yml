@@ -49,6 +49,10 @@ on:
         description: "Benchmark fixture: tuist (CLI, deep narrow module graph) | mastodon (app-shaped, fatter targets)"
         required: false
         default: "tuist"
+      cache_endpoint:
+        description: "Cache endpoint override for the bench: empty = keep the dispatch-provided TUIST_CACHE_ENDPOINT (host-local on the host-Kura fleet) | public = unset it so the CLI uses the server-resolved public cache URL | an explicit URL (e.g. the PN NodePort http://172.16.0.2:32675), health-checked via /up before use"
+        required: false
+        default: ""
   # Also fires when this workflow file itself changes on the
   # feat/runners-shape-2 branch. The smoke isn't a default CI
   # hook (would burn a runner slot on every PR), but during the
@@ -200,6 +204,8 @@ jobs:
       # Auth control-plane against staging; the CAS data-plane stays on the
       # dispatch-set TUIST_CACHE_ENDPOINT (the host Kura).
       TUIST_URL: https://staging.tuist.dev
+      # Endpoint override for host-local vs PN vs public pull comparisons.
+      CACHE_ENDPOINT_OVERRIDE: ${{ inputs.cache_endpoint }}
     steps:
       - name: Diagnostics — cache endpoint the dispatch handed us
         run: |
@@ -295,6 +301,20 @@ jobs:
           CLEAN_DD='rm -rf "$HOME/Library/Developer/Xcode/DerivedData"'
           rc=0
           echo "== strategy=$STRATEGY runs=$HYPERFINE_RUNS =="
+          # Cache-endpoint override: measure the same pull against the
+          # host-local Kura (dispatch default on this fleet), the Scaleway PN
+          # NodePort, or the server-resolved public URL.
+          if [ -n "${CACHE_ENDPOINT_OVERRIDE:-}" ]; then
+            if [ "$CACHE_ENDPOINT_OVERRIDE" = "public" ]; then
+              unset TUIST_CACHE_ENDPOINT
+              echo "== cache endpoint override: PUBLIC (server-resolved) =="
+            else
+              code=$(curl -sS -m 8 -o /dev/null -w '%{http_code}' "${CACHE_ENDPOINT_OVERRIDE%/}/up" || echo 000)
+              [ "$code" = "200" ] || { echo "::error::override endpoint ${CACHE_ENDPOINT_OVERRIDE} /up -> HTTP ${code} (unreachable from this VM)"; exit 1; }
+              export TUIST_CACHE_ENDPOINT="$CACHE_ENDPOINT_OVERRIDE"
+              echo "== cache endpoint override: ${TUIST_CACHE_ENDPOINT} =="
+            fi
+          fi
           cat > /tmp/spawnbench.py <<'SPAWNEOF'
           import subprocess, sys, time
           label = sys.argv[1] if len(sys.argv) > 1 else "?"
@@ -664,9 +684,14 @@ jobs:
               har=json.load(open(sys.argv[1]))
           except Exception as e:
               print(f"  (no HAR: {e})"); sys.exit(0)
-          es=[e for e in har["log"]["entries"] if "192.168.64.1" in e["request"]["url"]]
-          if not es:
-              print("  (no cache-endpoint entries in HAR)"); sys.exit(0)
+          from urllib.parse import urlparse
+          # Group by host and report the host that carried the most bytes —
+          # works unchanged for host-local, PN, and public endpoint runs.
+          byhost={}
+          for e in har["log"]["entries"]:
+              byhost.setdefault(urlparse(e["request"]["url"]).netloc,[]).append(e)
+          if not byhost:
+              print("  (no entries in HAR)"); sys.exit(0)
           def ts(e): return datetime.fromisoformat(e["startedDateTime"].replace("Z","+00:00")).timestamp()
           def rbytes(e):
               r=e["response"]
@@ -679,33 +704,28 @@ jobs:
                       try: return int(h["value"])
                       except ValueError: pass
               return 0
+          host,es=max(byhost.items(),key=lambda kv:sum(rbytes(e) for e in kv[1]))
           n=len(es); tot=sorted(e["time"] for e in es)
           byts=sum(rbytes(e) for e in es)
           span=max(ts(e)+e["time"]/1000 for e in es)-min(ts(e) for e in es)
           ph={k:sum((e["timings"].get(k) or 0) for e in es)/n for k in ("blocked","dns","connect","ssl","send","wait","receive")}
-          print(f"== HAR (generate#1): {n} cache GETs, {byts/1048576:.0f} MiB, wall span {span:.1f}s -> {byts/1048576/max(span,0.01):.0f} MiB/s aggregate ==")
+          others=", ".join(f"{h}:{len(v)}" for h,v in byhost.items() if h!=host)
+          print(f"== HAR (generate#1): host {host}: {n} GETs, {byts/1048576:.0f} MiB, wall span {span:.1f}s -> {byts/1048576/max(span,0.01):.0f} MiB/s aggregate ==")
           print(f"  per-req total ms: p50={tot[n//2]:.0f} p90={tot[int(n*.9)]:.0f} max={tot[-1]:.0f}")
           print(f"  mean phases ms: blocked={ph['blocked']:.0f} dns={ph['dns']:.0f} connect={ph['connect']:.0f} ssl={ph['ssl']:.0f} send={ph['send']:.0f} wait={ph['wait']:.0f} receive={ph['receive']:.0f}")
+          if others: print(f"  other hosts in HAR: {others}")
           HAREOF
               g2=$(now); tuist generate "$GEN_TARGET"; g3=$(now)          # resolve+gen (binaries cached, no pull)
               du_cache=$(du -sm "$HOME/.cache/tuist" 2>/dev/null | awk '{print $1}')
               b0=$(now); eval "$BUILD_NO_CACHE"; b1=$(now)        # compile
               python3 -c "g0,g1,g2,g3,b0,b1,du=$g0,$g1,$g2,$g3,$b0,$b1,${du_cache:-0}; gen1=g1-g0; gen2=g3-g2; pull=max(0.0,gen1-gen2); build=b1-b0; print('== module-cache BREAKDOWN =='); print(f'  generate#1 (resolve+pull+gen)={gen1:.1f}s   generate#2 (resolve+gen, cached)={gen2:.1f}s'); print(f'  -> PULL(download binaries)~{pull:.1f}s   GEN(resolve+project)~{gen2:.1f}s   BUILD(compile)={build:.1f}s'); print(f'  one-shot generate#1+build={gen1+build:.1f}s   binary-cache footprint~{du:.0f}MB')"
-              # Concurrency sweep. Round 1 (24, 8) showed LOWER fan-out is much
-              # slower (PULL 17.5s / 13.4s vs 3.9s at the default 100): the
-              # pull is hiding a large per-item latency (~2s at 100/24-way),
-              # not thrashing CPUs. If 100-way ~= 2 waves of 199 items, one
-              # 200-wide wave should approach the single-item latency floor.
-              # 400 probes whether per-item latency keeps growing with width,
-              # and the repeat of 100 checks within-job drift (gen2 inflated
-              # 13.4->17.8s across round-1 iterations).
-              echo "== module-cache CONCURRENCY SWEEP (default=100 above) =="
-              for lim in 200 400 100; do
-                tuist clean binaries >/dev/null 2>&1 || true
-                s0=$(now); TUIST_CACHE_CONCURRENCY_LIMIT=$lim tuist generate "$GEN_TARGET" >/dev/null 2>&1; s1=$(now)
-                s2=$(now); tuist generate "$GEN_TARGET" >/dev/null 2>&1; s3=$(now)
-                python3 -c "s0,s1,s2,s3=$s0,$s1,$s2,$s3; print(f'  concurrency=$lim: gen1={s1-s0:.1f}s gen2={s3-s2:.1f}s -> PULL~{max(0.0,(s1-s0)-(s3-s2)):.1f}s')"
-              done
+              # NOTE: an in-job concurrency sweep lived here and was removed —
+              # repeated pull/generate cycles within one job degrade ALL later
+              # measurements 2-4x regardless of setting (a repeat of the
+              # default read 11.8s vs 3.3s first-position), so sweep-position
+              # numbers are not comparable. Only first-position measurements
+              # are valid across runs; the HAR above is the per-request
+              # instrument. See runs 28950803016 / 28951689769.
               hyperfine --warmup 1 --runs "$HYPERFINE_RUNS" --export-json result.json --show-output \
                 --prepare "$CLEAN_DD"' && tuist clean binaries' \
                 'tuist generate '"$GEN_TARGET"' && '"$BUILD_NO_CACHE" || rc=$? ;;
