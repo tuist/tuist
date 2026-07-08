@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet, VecDeque},
     path::{Path, PathBuf},
     pin::Pin,
     sync::{
@@ -18,7 +18,7 @@ use rocksdb::{
 use serde::{Deserialize, Serialize};
 use tokio::{
     io::{AsyncRead, AsyncWriteExt, ReadBuf},
-    sync::Mutex,
+    sync::{Mutex, Notify},
 };
 use uuid::Uuid;
 
@@ -102,8 +102,31 @@ pub struct Store {
     // once) can't each append their own copy to a segment and orphan all but the
     // last. Striped by artifact id so different keys still write concurrently.
     artifact_write_locks: [Mutex<()>; ARTIFACT_WRITE_LOCK_STRIPES],
+    // Artifacts served from an Old-generation segment queue here for background
+    // promotion into the current segment instead of refreshing inline on the
+    // read path: one value-graph read can touch thousands of tiny old
+    // artifacts, and per-read refreshes serialize them all on
+    // `segment_refresh_lock` (measured 3.9ms per 200-byte artifact, turning an
+    // 800KB batch read into 15s). Promotion stays best-effort: a dropped entry
+    // only means the artifact may be reclaimed with its segment later, the same
+    // outcome as the pre-existing memory-pressure skip.
+    promotion_queue: StdMutex<PromotionQueue>,
+    promotion_notify: Notify,
     failpoints: Arc<FailpointSet>,
 }
+
+/// Pending read-path promotions: FIFO order plus a membership set so a hot
+/// old artifact read thousands of times enqueues once.
+#[derive(Default)]
+struct PromotionQueue {
+    order: VecDeque<String>,
+    pending: HashSet<String>,
+}
+
+/// Backstop so an unbounded burst of old-artifact reads cannot grow the
+/// promotion queue without limit; far above what one build's value graphs
+/// enqueue (tens of thousands of artifacts).
+const MAX_PENDING_PROMOTIONS: usize = 262_144;
 
 pub struct StoreSnapshot {
     pub outbox_messages: usize,
@@ -429,6 +452,8 @@ impl Store {
             ),
             multipart_locks: std::array::from_fn(|_| Mutex::new(())),
             artifact_write_locks: std::array::from_fn(|_| Mutex::new(())),
+            promotion_queue: StdMutex::new(PromotionQueue::default()),
+            promotion_notify: Notify::new(),
             failpoints: Arc::new(FailpointSet::default()),
         };
         // `load_segment_state_from_db` needs `&self`, so the store must be fully
@@ -950,7 +975,75 @@ impl Store {
         if self.segment_generation(segment_id)? != Some(SegmentGeneration::Old) {
             return Ok(Some(manifest));
         }
-        self.maybe_refresh_manifest(manifest).await
+        // Serve straight from the Old segment and promote in the background.
+        // Refreshing inline here serialized every reader of old data on
+        // `segment_refresh_lock`, one artifact at a time; serving without the
+        // refresh is already the store's behavior under memory pressure (see
+        // maybe_refresh_manifest), so the only change is when the promotion
+        // happens, not whether serving old data is allowed. The read itself is
+        // safe against a concurrent reclaim: segments are unlinked, never
+        // truncated, so an open handle stays readable, and a lost race simply
+        // degrades that lookup to a miss as before.
+        self.enqueue_promotion(&manifest.artifact_id);
+        Ok(Some(manifest))
+    }
+
+    /// Queues an artifact served from an Old segment for background promotion
+    /// (see [`Store::run_promotion_worker`]). Deduplicated and bounded;
+    /// dropping an entry is safe because promotion is a best-effort keep-alive.
+    fn enqueue_promotion(&self, artifact_id: &str) {
+        {
+            let mut queue = self.promotion_queue.lock().expect("promotion queue lock");
+            if queue.pending.len() >= MAX_PENDING_PROMOTIONS
+                || !queue.pending.insert(artifact_id.to_owned())
+            {
+                return;
+            }
+            queue.order.push_back(artifact_id.to_owned());
+        }
+        self.promotion_notify.notify_one();
+    }
+
+    /// Drains the read-path promotion queue, rewriting each artifact from its
+    /// Old segment into the current one (the same refresh the serving path
+    /// used to run inline). Runs for the life of the process; spawned once at
+    /// boot.
+    pub async fn run_promotion_worker(&self) {
+        loop {
+            let next = {
+                let mut queue = self.promotion_queue.lock().expect("promotion queue lock");
+                match queue.order.pop_front() {
+                    Some(artifact_id) => {
+                        queue.pending.remove(&artifact_id);
+                        Some(artifact_id)
+                    }
+                    None => None,
+                }
+            };
+            let Some(artifact_id) = next else {
+                self.promotion_notify.notified().await;
+                continue;
+            };
+            if let Err(error) = self.promote_artifact(&artifact_id).await {
+                tracing::debug!(artifact_id, error, "segment promotion failed");
+            }
+        }
+    }
+
+    /// Promotes one artifact out of an Old segment, re-validating that the
+    /// manifest still exists and still lives in an Old segment (it may have
+    /// been promoted by a writer, replaced, or reclaimed since it was queued).
+    async fn promote_artifact(&self, artifact_id: &str) -> Result<(), String> {
+        let Some(manifest) = self.manifest(artifact_id)? else {
+            return Ok(());
+        };
+        let Some(segment_id) = manifest.segment_id.as_deref() else {
+            return Ok(());
+        };
+        if self.segment_generation(segment_id)? != Some(SegmentGeneration::Old) {
+            return Ok(());
+        }
+        self.maybe_refresh_manifest(manifest).await.map(|_| ())
     }
 
     async fn maybe_refresh_manifest(
@@ -4249,6 +4342,130 @@ mod tests {
             fetched
         );
         assert_eq!(store.segment_handles.lock().await.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn serving_defers_old_segment_promotion_off_the_read_path() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        let manifest = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-1",
+                "application/octet-stream",
+                b"hello",
+            )
+            .await
+            .expect("failed to persist artifact");
+        let original_segment_id = manifest
+            .segment_id
+            .clone()
+            .expect("segment-backed artifact should have a segment id");
+        store
+            .save_segment_state(&SegmentState {
+                old: vec![SegmentReference::new(original_segment_id.clone(), 1)],
+                current: Vec::new(),
+                new: vec![SegmentReference::new("fresh-segment".into(), 2)],
+            })
+            .expect("failed to seed segment state");
+
+        // The serving path answers straight from the Old segment (no inline
+        // refresh) and queues the artifact for background promotion.
+        let served = store
+            .fetch_artifact_for_serving(ArtifactProducer::Xcode, "ios", "artifact-1")
+            .await
+            .expect("failed to fetch artifact for serving")
+            .expect("artifact should still exist");
+        assert_eq!(served.segment_id, Some(original_segment_id.clone()));
+        assert_eq!(read_manifest_bytes(&store, &served).await, b"hello");
+        {
+            let queue = store.promotion_queue.lock().expect("queue lock");
+            assert_eq!(queue.order.len(), 1);
+            assert!(queue.pending.contains(&served.artifact_id));
+        }
+
+        // A second read of the same artifact does not enqueue it twice.
+        store
+            .fetch_artifact_for_serving(ArtifactProducer::Xcode, "ios", "artifact-1")
+            .await
+            .expect("failed to fetch artifact for serving")
+            .expect("artifact should still exist");
+        assert_eq!(
+            store
+                .promotion_queue
+                .lock()
+                .expect("queue lock")
+                .order
+                .len(),
+            1
+        );
+
+        // Applying the queued promotion rewrites the artifact into the current
+        // segment, exactly like the refresh the read path used to run inline.
+        store
+            .promote_artifact(&served.artifact_id)
+            .await
+            .expect("promotion should succeed");
+        let promoted = store
+            .manifest(&served.artifact_id)
+            .expect("failed to load manifest")
+            .expect("promoted manifest should exist");
+        assert_ne!(promoted.segment_id, Some(original_segment_id));
+        assert_eq!(read_manifest_bytes(&store, &promoted).await, b"hello");
+    }
+
+    #[tokio::test]
+    async fn promotion_worker_drains_reads_queued_from_old_segments() {
+        let (_temp_dir, _config, store) = temp_store();
+        let store = Arc::new(store);
+
+        let manifest = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-1",
+                "application/octet-stream",
+                b"hello",
+            )
+            .await
+            .expect("failed to persist artifact");
+        let original_segment_id = manifest
+            .segment_id
+            .clone()
+            .expect("segment-backed artifact should have a segment id");
+        store
+            .save_segment_state(&SegmentState {
+                old: vec![SegmentReference::new(original_segment_id.clone(), 1)],
+                current: Vec::new(),
+                new: vec![SegmentReference::new("fresh-segment".into(), 2)],
+            })
+            .expect("failed to seed segment state");
+
+        let worker_store = Arc::clone(&store);
+        tokio::spawn(async move { worker_store.run_promotion_worker().await });
+
+        store
+            .fetch_artifact_for_serving(ArtifactProducer::Xcode, "ios", "artifact-1")
+            .await
+            .expect("failed to fetch artifact for serving")
+            .expect("artifact should still exist");
+
+        let promoted = tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                let manifest = store
+                    .manifest(&manifest.artifact_id)
+                    .expect("failed to load manifest")
+                    .expect("manifest should exist");
+                if manifest.segment_id != Some(original_segment_id.clone()) {
+                    return manifest;
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .expect("worker should promote the artifact");
+        assert_eq!(read_manifest_bytes(&store, &promoted).await, b"hello");
     }
 
     #[tokio::test]
