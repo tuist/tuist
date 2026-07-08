@@ -46,10 +46,11 @@ defmodule Tuist.Runners.Workers.DispatchWorker do
     payload = Map.fetch!(args, "payload")
     installation_id = Map.fetch!(args, "installation_id")
 
-    case Dispatch.handle_webhook(payload, installation_id) do
+    case apply(Dispatch, :handle_webhook, [payload, installation_id]) do
       {:ok, _kind} -> :ok
       {:ignored, _reason} -> :ok
       :ignored -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 end
