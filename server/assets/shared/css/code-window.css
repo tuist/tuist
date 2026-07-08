@@ -47,8 +47,8 @@ html[data-theme="dark"] .code-window {
 }
 
 .code-window > [data-part="bar"] > [data-part="copy"] svg {
-  width: 20px;
-  height: 20px;
+  width: 12px;
+  height: 12px;
 }
 
 .code-window > [data-part="bar"] > [data-part="copy"] [data-part="copy-icon"],
