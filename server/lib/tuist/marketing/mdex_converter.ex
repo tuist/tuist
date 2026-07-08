@@ -80,6 +80,7 @@ defmodule Tuist.Marketing.MDExConverter do
           |> protect_highlight_whitespace()
 
         language = info |> String.split(~r/\s/, parts: 2) |> List.first() || ""
+        copy_source = literal |> String.trim() |> html_escape()
 
         %MDEx.HtmlBlock{
           literal: """
@@ -88,6 +89,7 @@ defmodule Tuist.Marketing.MDExConverter do
           <div data-part="language">#{language}</div>\
           <div data-part="copy"><span data-part="copy-icon">#{@copy_icon}</span><span data-part="copy-check-icon">#{@copy_check_icon}</span></div>\
           </div>\
+          <template data-part="copy-source">#{copy_source}</template>\
           <div data-part="code">#{highlighted_html}</div>\
           </div>
           """
@@ -108,4 +110,10 @@ defmodule Tuist.Marketing.MDExConverter do
 
   defp highlight_whitespace(" "), do: ~s(<span data-code-whitespace="true">&nbsp;</span>)
   defp highlight_whitespace("\t"), do: ~s(<span data-code-whitespace="true">\t</span>)
+
+  defp html_escape(text) do
+    text
+    |> Phoenix.HTML.html_escape()
+    |> Phoenix.HTML.safe_to_string()
+  end
 end
