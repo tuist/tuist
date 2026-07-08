@@ -2108,25 +2108,32 @@ async fn put_blob_artifact(
         .await;
     state.io.remove_file_if_exists(&temp.path).await;
     match result {
-        Ok(manifest) => {
+        Ok(persisted) => {
             state.notify.notify_one();
             state
                 .metrics
-                .record_artifact_write(producer, "ok", manifest.size);
-            record_usage_event(
-                &state,
-                producer,
-                "upload",
-                spec.usage.as_ref(),
-                manifest.size,
-            );
+                .record_artifact_write(producer, "ok", persisted.manifest.size);
+            // The `artifact_exists` early return above keeps the common
+            // re-upload from reading the body at all; billing still relies on
+            // the store's under-lock presence so concurrent uploads of the
+            // same missing artifact (which all pass that pre-check) resolve
+            // to exactly one billed writer.
+            if !persisted.already_present {
+                record_usage_event(
+                    &state,
+                    producer,
+                    "upload",
+                    spec.usage.as_ref(),
+                    persisted.manifest.size,
+                );
+            }
             record_project_scoped_cache_event(
                 &state,
                 producer,
                 "upload",
                 spec.analytics,
                 spec.analytics_key.unwrap_or(spec.key),
-                manifest.size,
+                persisted.manifest.size,
             );
             spec.success_status.into_response()
         }

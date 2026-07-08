@@ -9,6 +9,7 @@ defmodule Tuist.Docs.Loader do
   alias Tuist.Docs.HTML
   alias Tuist.Docs.Page
   alias Tuist.Locale
+  alias Tuist.Markdown
   alias Tuist.Webhooks.WebhookEndpoint
 
   # Live doc pages reference these modules from HEEx templates at compile time.
@@ -380,13 +381,15 @@ defmodule Tuist.Docs.Loader do
         |> Enum.with_index()
         |> Enum.map_join("", fn {[_, lang, _label, code], index} ->
           hidden = if index == 0, do: "", else: ~s( data-hidden="true")
+          copy_source = code |> String.trim() |> Markdown.html_escape() |> String.replace("\n", "&#10;")
 
           EEx.eval_string(
-            ~s(<div data-part="panel" data-index="<%= index %>"<%= hidden %>>\n\n```<%= lang %>\n<%= code %>```\n\n</div>),
+            ~s(<div data-part="panel" data-index="<%= index %>"<%= hidden %>><template data-part="copy-source"><%= copy_source %></template>\n\n```<%= lang %>\n<%= code %>```\n\n</div>),
             index: index,
             hidden: hidden,
             lang: lang,
-            code: code
+            code: code,
+            copy_source: copy_source
           )
         end)
 

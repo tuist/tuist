@@ -244,6 +244,46 @@ impl ReapiService {
         Ok(())
     }
 
+    // Record a served gRPC download (egress) against the usage rollups so REAPI
+    // bandwidth reaches `kura_usage_events` on parity with the HTTP path. A no-op
+    // when usage reporting is disabled. Call only on success arms, mirroring how
+    // the HTTP handlers record on the `"ok"` metric arm.
+    fn record_reapi_download(
+        &self,
+        metadata: &tonic::metadata::MetadataMap,
+        namespace_id: &str,
+        bytes: u64,
+    ) {
+        let Some(usage) = self.state.usage.as_ref() else {
+            return;
+        };
+        usage.record_public_grpc_download(
+            &usage_tenant_id(metadata, &self.state.config.tenant_id),
+            namespace_id,
+            REAPI_USAGE_ARTIFACT_KIND,
+            bytes,
+        );
+    }
+
+    // Record a received gRPC upload (ingress) against the usage rollups. See
+    // [`record_reapi_download`] for the parity and call-site conventions.
+    fn record_reapi_upload(
+        &self,
+        metadata: &tonic::metadata::MetadataMap,
+        namespace_id: &str,
+        bytes: u64,
+    ) {
+        let Some(usage) = self.state.usage.as_ref() else {
+            return;
+        };
+        usage.record_public_grpc_upload(
+            &usage_tenant_id(metadata, &self.state.config.tenant_id),
+            namespace_id,
+            REAPI_USAGE_ARTIFACT_KIND,
+            bytes,
+        );
+    }
+
     // Body of ByteStream::write. Every step here is fallible via `?`; the caller
     // (write) removes temp_path on any error this returns, so this never cleans
     // up inline — which is what keeps transport/cancel/write/flush failures from
@@ -385,7 +425,13 @@ impl ReapiService {
         drop(temp_file);
 
         let targets = replication_targets(&self.state).await;
-        let manifest = self
+        // The persist reports `already_present` from under the store's
+        // per-artifact write lock, which decides billing below: a re-uploaded
+        // blob (retry, or a client that skips FindMissingBlobs) must not be
+        // billed twice — matching the HTTP upload path's `artifact_exists`
+        // short-circuit — and concurrent uploads of the same missing blob
+        // resolve to exactly one billed writer.
+        let persisted = self
             .state
             .store
             .persist_artifact_from_path_and_enqueue(
@@ -407,9 +453,11 @@ impl ReapiService {
                 }
             })?;
         self.state.notify.notify_one();
-        self.state
-            .metrics
-            .record_artifact_write(ArtifactProducer::Reapi, "ok", manifest.size);
+        self.state.metrics.record_artifact_write(
+            ArtifactProducer::Reapi,
+            "ok",
+            persisted.manifest.size,
+        );
 
         let mut response = Response::new(bytestream::WriteResponse {
             committed_size: written as i64,
@@ -427,6 +475,11 @@ impl ReapiService {
             principal.as_ref(),
         )
         .await?;
+        // Book usage only after the response is fully built (headers applied) and
+        // only when the blob was newly stored, so a re-upload isn't billed twice.
+        if !persisted.already_present {
+            self.record_reapi_upload(&metadata, &resource.namespace_id, persisted.manifest.size);
+        }
         Ok(response)
     }
 }
@@ -517,6 +570,10 @@ impl ActionCache for ReapiService {
             Some(&mut materialization_budget),
         )
         .await?;
+        // Everything this RPC returns is egress: the stored action result plus
+        // any stdout/stderr/output-file blobs inlined below, so all of it is
+        // accumulated for the usage rollup.
+        let mut served_bytes = size_bytes;
 
         if request.get_ref().inline_stdout
             && action_result.stdout_raw.is_empty()
@@ -529,6 +586,7 @@ impl ActionCache for ReapiService {
             )
             .await?
         {
+            served_bytes = served_bytes.saturating_add(bytes.len() as u64);
             action_result.stdout_raw = bytes;
         }
         if request.get_ref().inline_stderr
@@ -542,6 +600,7 @@ impl ActionCache for ReapiService {
             )
             .await?
         {
+            served_bytes = served_bytes.saturating_add(bytes.len() as u64);
             action_result.stderr_raw = bytes;
         }
         if !request.get_ref().inline_output_files.is_empty() {
@@ -598,7 +657,10 @@ impl ActionCache for ReapiService {
                 .await;
             for (index, read) in reads {
                 match read {
-                    Ok(Some(bytes)) => action_result.output_files[index].contents = bytes,
+                    Ok(Some(bytes)) => {
+                        served_bytes = served_bytes.saturating_add(bytes.len() as u64);
+                        action_result.output_files[index].contents = bytes;
+                    }
                     Ok(None) => {}
                     // Wildcard inlining degrades to partial rather than
                     // failing the lookup; a smaller file may still fit the
@@ -617,6 +679,9 @@ impl ActionCache for ReapiService {
         self.state
             .metrics
             .record_artifact_read(ArtifactProducer::Reapi, "ok", size_bytes);
+        // Book usage only after the response is fully built (headers applied),
+        // matching the other handlers' success-arm convention.
+        self.record_reapi_download(request.metadata(), namespace_id, served_bytes);
         Ok(response)
     }
 
@@ -668,6 +733,11 @@ impl ActionCache for ReapiService {
         let mut response = Response::new(action_result);
         self.apply_response_headers(&mut response, extension, principal.as_ref())
             .await?;
+        // Book usage only after the response is fully built. Every applied
+        // update is billed: an action result is a mutable entry whose content
+        // changes across updates, so there is no CAS-style "already present"
+        // dedupe — matching the HTTP key-value path, which bills each put.
+        self.record_reapi_upload(request.metadata(), namespace_id, manifest.size);
         Ok(response)
     }
 }
@@ -732,6 +802,13 @@ impl ContentAddressableStorage for ReapiService {
         };
         let principal = self.authorize_request(&request, extension.clone()).await?;
         let mut responses = Vec::with_capacity(request.get_ref().requests.len());
+        // Accumulate only the bytes this RPC actually stored so the whole batch
+        // books a single usage request (matching how ByteStream/HTTP count one
+        // request per call), and so already-present blobs are not billed —
+        // mirroring the HTTP upload path's `artifact_exists` short-circuit,
+        // with presence decided under the store's write lock.
+        let mut stored_bytes = 0_u64;
+        let mut stored_any = false;
 
         for item in &request.get_ref().requests {
             let digest = match &item.digest {
@@ -752,10 +829,16 @@ impl ContentAddressableStorage for ReapiService {
                 continue;
             }
             match persist_cas_blob(&self.state, namespace_id, &digest, &item.data).await {
-                Ok(()) => responses.push(reapi::batch_update_blobs_response::Response {
-                    digest: Some(digest),
-                    status: Some(rpc_status(0, "")),
-                }),
+                Ok(newly_stored) => {
+                    if newly_stored {
+                        stored_bytes = stored_bytes.saturating_add(item.data.len() as u64);
+                        stored_any = true;
+                    }
+                    responses.push(reapi::batch_update_blobs_response::Response {
+                        digest: Some(digest),
+                        status: Some(rpc_status(0, "")),
+                    })
+                }
                 Err(error) => responses.push(reapi::batch_update_blobs_response::Response {
                     digest: Some(digest),
                     status: Some(rpc_status(13, error)),
@@ -766,6 +849,9 @@ impl ContentAddressableStorage for ReapiService {
         let mut response = Response::new(reapi::BatchUpdateBlobsResponse { responses });
         self.apply_response_headers(&mut response, extension, principal.as_ref())
             .await?;
+        if stored_any {
+            self.record_reapi_upload(request.metadata(), namespace_id, stored_bytes);
+        }
         Ok(response)
     }
 
@@ -821,10 +907,32 @@ impl ContentAddressableStorage for ReapiService {
             .buffered(16)
             .collect()
             .await;
+        // Sum the bytes served so the whole batch books a single download usage
+        // request, matching how ByteStream/HTTP count one request per call. A
+        // successful read carries gRPC status code 0.
+        let served_bytes: u64 = responses
+            .iter()
+            .filter(|response| {
+                response
+                    .status
+                    .as_ref()
+                    .is_some_and(|status| status.code == 0)
+            })
+            .map(|response| response.data.len() as u64)
+            .sum();
+        let served_any = responses.iter().any(|response| {
+            response
+                .status
+                .as_ref()
+                .is_some_and(|status| status.code == 0)
+        });
 
         let mut response = Response::new(reapi::BatchReadBlobsResponse { responses });
         self.apply_response_headers(&mut response, extension, principal.as_ref())
             .await?;
+        if served_any {
+            self.record_reapi_download(request.metadata(), namespace_id, served_bytes);
+        }
         Ok(response)
     }
 
@@ -942,6 +1050,11 @@ impl ByteStream for ReapiService {
         let mut response = Response::new(Box::pin(stream) as Self::ReadStream);
         self.apply_response_headers(&mut response, extension, principal.as_ref())
             .await?;
+        // Book usage only once the response is fully built (headers applied): a
+        // failure above turns into a gRPC error with no payload, so billing must
+        // not have fired. Recorded before the body streams, mirroring the "ok"
+        // read metric and the HTTP path's optimistic size accounting.
+        self.record_reapi_download(request.metadata(), &resource.namespace_id, bytes_to_read);
         Ok(response)
     }
 
@@ -1151,16 +1264,24 @@ async fn maybe_read_cas_bytes(
     Ok(Some(bytes))
 }
 
+// Persists a CAS blob and returns whether it was newly stored (`true`) or was
+// already present (`false`). Billing uses this to charge only new bytes, the
+// same rule as the HTTP upload path's `artifact_exists` short-circuit. The
+// presence signal comes from the store's persist, evaluated under the
+// per-artifact write lock, so concurrent uploads of the same missing blob
+// resolve to exactly one `true` — a version-based `Applied` outcome can't
+// stand in for this, because a re-upload that advances the stored version
+// still applies over an already-present blob.
 async fn persist_cas_blob(
     state: &SharedState,
     namespace_id: &str,
     digest: &reapi::Digest,
     bytes: &[u8],
-) -> Result<(), String> {
+) -> Result<bool, String> {
     validate_digest_bytes(digest, bytes)?;
     let key = blob_key(&digest_key(digest).map_err(|error| error.message().to_owned())?);
     let targets = replication_targets(state).await;
-    let manifest = state
+    let persisted = state
         .store
         .persist_artifact_from_bytes_and_enqueue(
             ArtifactProducer::Reapi,
@@ -1174,8 +1295,8 @@ async fn persist_cas_blob(
     state.notify.notify_one();
     state
         .metrics
-        .record_artifact_write(ArtifactProducer::Reapi, "ok", manifest.size);
-    Ok(())
+        .record_artifact_write(ArtifactProducer::Reapi, "ok", persisted.manifest.size);
+    Ok(!persisted.already_present)
 }
 
 async fn read_manifest_bytes(
@@ -1302,6 +1423,34 @@ fn rpc_status_from_grpc_status(status: &Status) -> RpcStatus {
 // REAPI `instance_name`/`resource_name`, so it always matches what is stored.
 const TENANT_HEADER_KEYS: &[&str] = &["x-kura-tenant-id", "x-tuist-account-handle"];
 
+const REAPI_USAGE_ARTIFACT_KIND: &str = "reapi";
+
+// The request-declared tenant, read straight from the metadata: the first
+// non-empty `TENANT_HEADER_KEYS` value, taking the first value of a repeated
+// key. Authorization (`grpc_extension_context`) and billing (`usage_tenant_id`)
+// both resolve the tenant through this one function so a client that duplicates
+// the header can never be authorized as one account and billed to another.
+fn tenant_id_from_metadata(metadata: &tonic::metadata::MetadataMap) -> Option<String> {
+    TENANT_HEADER_KEYS.iter().find_map(|key| {
+        metadata
+            .get(*key)
+            .and_then(|value| value.to_str().ok())
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned)
+    })
+}
+
+// The account a gRPC request is billed to. Mirrors the HTTP path, which keys
+// usage off the per-request tenant; over gRPC that arrives as one of the
+// `TENANT_HEADER_KEYS` metadata headers (the same headers the extension
+// authorizes against, via the shared [`tenant_id_from_metadata`]). Falls back to
+// the node's configured tenant when the client omits it, so REAPI bandwidth is
+// always attributed rather than silently dropped.
+fn usage_tenant_id(metadata: &tonic::metadata::MetadataMap, fallback_tenant_id: &str) -> String {
+    tenant_id_from_metadata(metadata).unwrap_or_else(|| fallback_tenant_id.to_owned())
+}
+
 fn grpc_extension_context(
     server_tenant_id: &str,
     spec: &GrpcExtensionSpec<'_>,
@@ -1309,13 +1458,7 @@ fn grpc_extension_context(
     status_code: Option<u16>,
 ) -> ExtensionContext {
     let headers = metadata_to_btree(metadata);
-    let tenant_id = TENANT_HEADER_KEYS.iter().find_map(|key| {
-        headers
-            .get(*key)
-            .map(|value| value.trim())
-            .filter(|value| !value.is_empty())
-            .map(ToOwned::to_owned)
-    });
+    let tenant_id = tenant_id_from_metadata(metadata);
     ExtensionContext {
         transport: "grpc".into(),
         route: spec.route.to_owned(),
@@ -2431,5 +2574,432 @@ end
 
         assert_eq!(error.code(), tonic::Code::Unavailable);
         assert!(error.message().contains("draining"));
+    }
+
+    #[test]
+    fn usage_tenant_id_prefers_metadata_header_and_falls_back_to_node_tenant() {
+        let mut metadata = tonic::metadata::MetadataMap::new();
+        assert_eq!(usage_tenant_id(&metadata, "node-tenant"), "node-tenant");
+
+        metadata.insert("x-tuist-account-handle", "  acme  ".parse().unwrap());
+        assert_eq!(usage_tenant_id(&metadata, "node-tenant"), "acme");
+
+        let mut kura_metadata = tonic::metadata::MetadataMap::new();
+        kura_metadata.insert("x-kura-tenant-id", "globex".parse().unwrap());
+        assert_eq!(usage_tenant_id(&kura_metadata, "node-tenant"), "globex");
+    }
+
+    // Authorization and billing must resolve the tenant from a duplicated header
+    // identically; otherwise a client could be authorized as one account and
+    // billed to another. Both go through `tenant_id_from_metadata`, which takes
+    // the first value of a repeated key.
+    #[test]
+    fn tenant_id_from_metadata_takes_first_value_of_a_repeated_header() {
+        let mut metadata = tonic::metadata::MetadataMap::new();
+        metadata.append("x-tuist-account-handle", "acme".parse().unwrap());
+        metadata.append("x-tuist-account-handle", "globex".parse().unwrap());
+
+        // The authorization path (grpc_extension_context) and the billing path
+        // (usage_tenant_id) read the same value.
+        assert_eq!(tenant_id_from_metadata(&metadata).as_deref(), Some("acme"));
+        assert_eq!(usage_tenant_id(&metadata, "node-tenant"), "acme");
+
+        let spec = GrpcExtensionSpec {
+            route: "reapi.bytestream.read",
+            operation: "artifact.read",
+            namespace_id: Some("ios"),
+            producer: Some("reapi"),
+            artifact_key: None,
+            artifact_hash: None,
+        };
+        let context = grpc_extension_context("acme", &spec, &metadata, None);
+        assert_eq!(context.tenant_id.as_deref(), Some("acme"));
+    }
+
+    fn test_usage_config() -> crate::config::UsageConfig {
+        crate::config::UsageConfig {
+            control_plane_url: "http://localhost:0".to_owned(),
+            client_id: "kura".to_owned(),
+            client_secret: "secret".to_owned(),
+            window_secs: 60,
+            flush_interval_ms: 1_000,
+            delivery_interval_ms: 1_000,
+            batch_size: 100,
+            max_buckets: 100,
+            outbox_max_depth: 100,
+        }
+    }
+
+    // The CAS batch handlers carry the bulk of small-blob REAPI traffic; both
+    // must land in the usage rollups tagged protocol="grpc"/artifact_kind="reapi"
+    // and attributed to the tenant declared via the account-handle metadata
+    // header (the gRPC analog of the HTTP tenant_id query param). A batch RPC of N
+    // blobs counts as ONE request (not N), and re-uploading an already-present
+    // blob is not billed a second time — matching the HTTP upload path.
+    #[tokio::test]
+    async fn cas_batch_transfers_record_grpc_usage_events() {
+        let context = test_context(|config| {
+            config.usage = Some(test_usage_config());
+        })
+        .await;
+        let service = ReapiService {
+            state: context.state.clone(),
+        };
+
+        let blob_a = b"reapi-cas-blob-a".to_vec();
+        let blob_b = b"reapi-cas-blob-bb".to_vec();
+        let total_bytes = (blob_a.len() + blob_b.len()) as u64;
+        let build_update = || {
+            let mut update = Request::new(reapi::BatchUpdateBlobsRequest {
+                instance_name: "ios".into(),
+                requests: vec![
+                    reapi::batch_update_blobs_request::Request {
+                        digest: Some(reapi::Digest {
+                            hash: hex::encode(Sha256::digest(&blob_a)),
+                            size_bytes: blob_a.len() as i64,
+                        }),
+                        data: blob_a.clone(),
+                        ..Default::default()
+                    },
+                    reapi::batch_update_blobs_request::Request {
+                        digest: Some(reapi::Digest {
+                            hash: hex::encode(Sha256::digest(&blob_b)),
+                            size_bytes: blob_b.len() as i64,
+                        }),
+                        data: blob_b.clone(),
+                        ..Default::default()
+                    },
+                ],
+                ..Default::default()
+            });
+            update
+                .metadata_mut()
+                .insert("x-tuist-account-handle", "acme".parse().unwrap());
+            update
+        };
+
+        // First upload stores both blobs; the second finds both already present
+        // (IgnoredStale) and must not bill them again.
+        service
+            .batch_update_blobs(build_update())
+            .await
+            .expect("batch update should succeed");
+        service
+            .batch_update_blobs(build_update())
+            .await
+            .expect("repeat batch update should succeed");
+
+        let mut read = Request::new(reapi::BatchReadBlobsRequest {
+            instance_name: "ios".into(),
+            digests: vec![
+                reapi::Digest {
+                    hash: hex::encode(Sha256::digest(&blob_a)),
+                    size_bytes: blob_a.len() as i64,
+                },
+                reapi::Digest {
+                    hash: hex::encode(Sha256::digest(&blob_b)),
+                    size_bytes: blob_b.len() as i64,
+                },
+            ],
+            digest_function: reapi::digest_function::Value::Sha256 as i32,
+            ..Default::default()
+        });
+        read.metadata_mut()
+            .insert("x-tuist-account-handle", "acme".parse().unwrap());
+        service
+            .batch_read_blobs(read)
+            .await
+            .expect("batch read should succeed");
+
+        let rollups = context
+            .state
+            .usage
+            .as_ref()
+            .expect("usage should be enabled")
+            .current_rollups_for_tests();
+
+        let upload = rollups
+            .iter()
+            .find(|rollup| rollup.operation == "upload")
+            .expect("batch_update_blobs should record an upload rollup");
+        assert_eq!(upload.tenant_id, "acme");
+        assert_eq!(upload.namespace_id, "ios");
+        assert_eq!(upload.traffic_plane, "public");
+        assert_eq!(upload.direction, "ingress");
+        assert_eq!(upload.protocol, "grpc");
+        assert_eq!(upload.artifact_kind, "reapi");
+        // Two blobs stored across two RPCs, but only the first RPC stored new
+        // bytes and each batch RPC books one request: request_count == 1, and the
+        // stale re-upload added nothing.
+        assert_eq!(upload.bytes, total_bytes);
+        assert_eq!(upload.request_count, 1);
+
+        let download = rollups
+            .iter()
+            .find(|rollup| rollup.operation == "download")
+            .expect("batch_read_blobs should record a download rollup");
+        assert_eq!(download.tenant_id, "acme");
+        assert_eq!(download.namespace_id, "ios");
+        assert_eq!(download.traffic_plane, "public");
+        assert_eq!(download.direction, "egress");
+        assert_eq!(download.protocol, "grpc");
+        assert_eq!(download.artifact_kind, "reapi");
+        // One batch read of two blobs is one request carrying both blobs' bytes.
+        assert_eq!(download.bytes, total_bytes);
+        assert_eq!(download.request_count, 1);
+    }
+
+    // The ActionCache methods move real bytes too: UpdateActionResult uploads an
+    // encoded action result, and GetActionResult returns it plus any inlined
+    // stdout/stderr/output-file blobs. Both must land in the grpc/reapi usage
+    // rollups like the ByteStream/CAS handlers, with the download counting the
+    // inlined blob bytes as egress.
+    #[tokio::test]
+    async fn action_cache_transfers_record_grpc_usage_events() {
+        let context = test_context(|config| {
+            config.usage = Some(test_usage_config());
+        })
+        .await;
+        let service = ReapiService {
+            state: context.state.clone(),
+        };
+
+        let stdout_bytes = b"action stdout".to_vec();
+        let stdout_digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(&stdout_bytes)),
+            size_bytes: stdout_bytes.len() as i64,
+        };
+        let stdout_key = blob_key(&digest_key(&stdout_digest).expect("digest key should build"));
+        context
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                &stdout_key,
+                "application/octet-stream",
+                &stdout_bytes,
+            )
+            .await
+            .expect("stdout blob should persist");
+
+        let action_result = reapi::ActionResult {
+            stdout_digest: Some(stdout_digest),
+            ..Default::default()
+        };
+        let encoded_bytes = action_result.encode_to_vec().len() as u64;
+        let action_digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(b"action")),
+            size_bytes: "action".len() as i64,
+        };
+
+        let mut update = Request::new(reapi::UpdateActionResultRequest {
+            instance_name: "ios".into(),
+            action_digest: Some(action_digest.clone()),
+            action_result: Some(action_result),
+            digest_function: reapi::digest_function::Value::Sha256 as i32,
+            ..Default::default()
+        });
+        update
+            .metadata_mut()
+            .insert("x-tuist-account-handle", "acme".parse().unwrap());
+        service
+            .update_action_result(update)
+            .await
+            .expect("update action result should succeed");
+
+        let mut get = Request::new(reapi::GetActionResultRequest {
+            instance_name: "ios".into(),
+            action_digest: Some(action_digest),
+            inline_stdout: true,
+            digest_function: reapi::digest_function::Value::Sha256 as i32,
+            ..Default::default()
+        });
+        get.metadata_mut()
+            .insert("x-tuist-account-handle", "acme".parse().unwrap());
+        let fetched = service
+            .get_action_result(get)
+            .await
+            .expect("get action result should succeed");
+        assert_eq!(
+            fetched.get_ref().stdout_raw,
+            stdout_bytes,
+            "stdout should be inlined into the response"
+        );
+
+        let rollups = context
+            .state
+            .usage
+            .as_ref()
+            .expect("usage should be enabled")
+            .current_rollups_for_tests();
+
+        let upload = rollups
+            .iter()
+            .find(|rollup| rollup.operation == "upload")
+            .expect("update_action_result should record an upload rollup");
+        assert_eq!(upload.tenant_id, "acme");
+        assert_eq!(upload.namespace_id, "ios");
+        assert_eq!(upload.direction, "ingress");
+        assert_eq!(upload.protocol, "grpc");
+        assert_eq!(upload.artifact_kind, "reapi");
+        assert_eq!(upload.bytes, encoded_bytes);
+        assert_eq!(upload.request_count, 1);
+
+        let download = rollups
+            .iter()
+            .find(|rollup| rollup.operation == "download")
+            .expect("get_action_result should record a download rollup");
+        assert_eq!(download.tenant_id, "acme");
+        assert_eq!(download.namespace_id, "ios");
+        assert_eq!(download.direction, "egress");
+        assert_eq!(download.protocol, "grpc");
+        assert_eq!(download.artifact_kind, "reapi");
+        // The download egress is the stored action result plus the inlined
+        // stdout blob it carried out.
+        assert_eq!(download.bytes, encoded_bytes + stdout_bytes.len() as u64);
+        assert_eq!(download.request_count, 1);
+    }
+
+    // Drives the real ByteStream gRPC handlers (the large-artifact read/write
+    // path) end to end and asserts each emits a grpc/reapi usage rollup, so the
+    // primary bandwidth carriers are no longer invisible to kura_usage_events.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn bytestream_transfers_record_grpc_usage_events() {
+        use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
+
+        let context = test_context(|config| {
+            config.usage = Some(test_usage_config());
+        })
+        .await;
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test listener");
+        let addr = listener.local_addr().expect("listener addr");
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+        let server_state = context.state.clone();
+        let server = tokio::spawn(async move {
+            serve_routes(listener, server_state, async move {
+                let _ = shutdown_rx.await;
+            })
+            .await
+        });
+
+        let endpoint = format!("http://{addr}");
+        let mut channel = None;
+        for _ in 0..50 {
+            match tonic::transport::Endpoint::from_shared(endpoint.clone())
+                .expect("valid endpoint")
+                .connect()
+                .await
+            {
+                Ok(connected) => {
+                    channel = Some(connected);
+                    break;
+                }
+                Err(_) => tokio::time::sleep(Duration::from_millis(20)).await,
+            }
+        }
+        let channel = channel.expect("gRPC server should accept connections");
+
+        let blob: Vec<u8> = (0..200_000u32).map(|byte| byte as u8).collect();
+        let hash = hex::encode(Sha256::digest(&blob));
+        let resource = format!("ios/uploads/upload-1/blobs/{hash}/{}", blob.len());
+
+        let chunk_size = 64 * 1024;
+        let build_write = || {
+            let mut requests = Vec::new();
+            let mut offset = 0usize;
+            while offset < blob.len() {
+                let end = (offset + chunk_size).min(blob.len());
+                requests.push(bytestream::WriteRequest {
+                    resource_name: if offset == 0 {
+                        resource.clone()
+                    } else {
+                        String::new()
+                    },
+                    write_offset: offset as i64,
+                    finish_write: end == blob.len(),
+                    data: blob[offset..end].to_vec(),
+                });
+                offset = end;
+            }
+            let mut write_request = Request::new(tokio_stream::iter(requests));
+            write_request
+                .metadata_mut()
+                .insert("x-tuist-account-handle", "acme".parse().unwrap());
+            write_request
+        };
+
+        let mut client = ByteStreamClient::new(channel.clone());
+        let committed = client
+            .write(build_write())
+            .await
+            .expect("bytestream write should persist")
+            .into_inner()
+            .committed_size;
+        assert_eq!(committed as usize, blob.len());
+
+        // A second write of the same blob is already present and must not be
+        // billed again (parity with the HTTP upload path).
+        client
+            .write(build_write())
+            .await
+            .expect("repeat bytestream write should succeed");
+
+        let mut read_request = Request::new(bytestream::ReadRequest {
+            resource_name: format!("ios/blobs/{hash}/{}", blob.len()),
+            read_offset: 0,
+            read_limit: 0,
+        });
+        read_request
+            .metadata_mut()
+            .insert("x-tuist-account-handle", "acme".parse().unwrap());
+        let mut stream = client
+            .read(read_request)
+            .await
+            .expect("blob should read back")
+            .into_inner();
+        let mut roundtrip = Vec::new();
+        while let Some(chunk) = stream.message().await.expect("read chunk") {
+            roundtrip.extend_from_slice(&chunk.data);
+        }
+        assert_eq!(roundtrip, blob);
+
+        let _ = shutdown_tx.send(());
+        let _ = server.await;
+
+        let rollups = context
+            .state
+            .usage
+            .as_ref()
+            .expect("usage should be enabled")
+            .current_rollups_for_tests();
+
+        let upload = rollups
+            .iter()
+            .find(|rollup| rollup.operation == "upload")
+            .expect("bytestream write should record an upload rollup");
+        assert_eq!(upload.tenant_id, "acme");
+        assert_eq!(upload.namespace_id, "ios");
+        assert_eq!(upload.protocol, "grpc");
+        assert_eq!(upload.artifact_kind, "reapi");
+        assert_eq!(upload.direction, "ingress");
+        // Two writes of the same blob, but the second was already present: exactly
+        // one request and one blob's worth of bytes are billed.
+        assert_eq!(upload.bytes, blob.len() as u64);
+        assert_eq!(upload.request_count, 1);
+
+        let download = rollups
+            .iter()
+            .find(|rollup| rollup.operation == "download")
+            .expect("bytestream read should record a download rollup");
+        assert_eq!(download.tenant_id, "acme");
+        assert_eq!(download.namespace_id, "ios");
+        assert_eq!(download.protocol, "grpc");
+        assert_eq!(download.artifact_kind, "reapi");
+        assert_eq!(download.direction, "egress");
+        assert_eq!(download.bytes, blob.len() as u64);
+        assert_eq!(download.request_count, 1);
     }
 }

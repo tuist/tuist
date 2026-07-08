@@ -10,9 +10,16 @@ echo "$wd"
 """
 
 final class TargetScriptTests: XCTestCase {
-    func test_codable() {
+    func test_codable() throws {
         // Given
-        let subject = TargetScript(name: "name", order: .pre, script: .embedded(script))
+        let subject = TargetScript(
+            name: "name",
+            order: .pre,
+            script: .embedded(script),
+            inputFileListPaths: [
+                .generated(try AbsolutePath(validating: "/Generated/File.xcfilelist")),
+            ]
+        )
 
         // Then
         XCTAssertCodable(subject)
