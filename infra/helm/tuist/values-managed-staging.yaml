@@ -427,6 +427,16 @@ ovhFleet:
 macosFleet:
   enabled: true
   replicas: 1
+  # Option A host-Kura: install kura on each staging Mac host and run a
+  # persistent per-account host Kura that the runner VMs talk to over the
+  # host<->VM bridge (endpoint marker in the tuist-cache share). Islanded
+  # (emPeerURLTemplate empty) — host-local serving + same-host warm — while
+  # the staging kura-scw-fr-par EM node is degraded; a released kura serves
+  # immediately with no peers, so 0.12.0 is fine for the islanded path.
+  tartKubelet:
+    runnerCacheRoot: /var/lib/tuist-runner-cache
+    hostKuraVersion: "0.12.0"
+    emPeerURLTemplate: ""
   # Share the pre-ordered pool with runnersFleet (same prefix
   # below). Both MachineDeployments draw from one Scaleway-side
   # pool of `tuist-pool-*` hosts; the controller claims the first
