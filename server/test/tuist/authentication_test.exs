@@ -7,6 +7,7 @@ defmodule Tuist.AuthenticationTest do
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
   alias Tuist.Authentication
+  alias Tuist.Authorization.Checks
   alias Tuist.Projects
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -73,6 +74,33 @@ defmodule Tuist.AuthenticationTest do
     assert result.account == account
     assert result.all_projects == false
     assert result.project_ids == []
+  end
+
+  test "authenticated_subject does not use stored account token creator as issued_by" do
+    # Given
+    account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    creator = AccountsFixtures.user_fixture(preload: [:account])
+    target_organization = AccountsFixtures.organization_fixture(preload: [:account])
+    Accounts.add_user_to_organization(creator, target_organization, role: :admin)
+    target_project = ProjectsFixtures.project_fixture(account_id: target_organization.account.id)
+
+    {:ok, {_, token_value}} =
+      Accounts.create_account_token(%{
+        account: account,
+        created_by_account: creator.account,
+        scopes: ["project:cache:read"],
+        name: "test-token",
+        all_projects: true
+      })
+
+    # When
+    result = Authentication.authenticated_subject(token_value)
+
+    # Then
+    assert result.created_by_account_id == creator.account.id
+    assert result.issued_by == nil
+
+    assert Checks.scopes_permit(result, target_project, "project:cache:read") == false
   end
 
   test "authenticated_subject returns nil for account tokens owned by inactive personal users" do

@@ -4,6 +4,8 @@ defmodule TuistWeb.API.InvitationsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Accounts
+  alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Accounts.User
   alias Tuist.Authorization
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Invitation
@@ -54,12 +56,11 @@ defmodule TuistWeb.API.InvitationsController do
         %{path_params: %{"organization_name" => organization_name}, body_params: %{invitee_email: invitee_email}} = conn,
         _params
       ) do
-    user = Authentication.current_user(conn)
-    user_account = Accounts.get_account_from_user(user)
+    subject = Authentication.authenticated_subject(conn)
 
     organization = Accounts.get_organization_by_handle(organization_name)
 
-    invitee_email_valid? = Tuist.Accounts.User.email_valid?(invitee_email)
+    invitee_email_valid? = User.email_valid?(invitee_email)
 
     invitee =
       case Accounts.get_user_by_email(invitee_email) do
@@ -73,7 +74,12 @@ defmodule TuistWeb.API.InvitationsController do
         |> put_status(:not_found)
         |> json(%{message: "Organization #{organization_name} was not found."})
 
-      Authorization.authorize(:invitation_create, user, organization.account) != :ok ->
+      Authorization.authorize(:invitation_create, subject, organization.account) != :ok ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{message: "The authenticated subject is not authorized to perform this action"})
+
+      is_nil(inviter_from_subject(subject)) ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
@@ -101,9 +107,12 @@ defmodule TuistWeb.API.InvitationsController do
         |> json(%{message: "The invitee email address is not a valid email address."})
 
       !is_nil(organization) ->
+        inviter = inviter_from_subject(subject)
+        inviter_account = Accounts.get_account_from_user(inviter)
+
         {:ok, invitation} =
           Accounts.invite_user_to_organization(invitee_email, %{
-            inviter: user,
+            inviter: inviter,
             to: organization,
             url: &url(~p"/auth/invitations/#{&1}")
           })
@@ -114,9 +123,9 @@ defmodule TuistWeb.API.InvitationsController do
           id: invitation.id,
           invitee_email: invitation.invitee_email,
           inviter: %{
-            id: user.id,
-            email: user.email,
-            name: user_account.name
+            id: inviter.id,
+            email: inviter.email,
+            name: inviter_account.name
           },
           token: invitation.token,
           organization_id: invitation.organization_id
@@ -161,7 +170,7 @@ defmodule TuistWeb.API.InvitationsController do
         %{path_params: %{"organization_name" => organization_name}, body_params: %{invitee_email: invitee_email}} = conn,
         _params
       ) do
-    user = Authentication.current_user(conn)
+    subject = Authentication.authenticated_subject(conn)
 
     organization = Accounts.get_organization_by_handle(organization_name)
 
@@ -183,7 +192,7 @@ defmodule TuistWeb.API.InvitationsController do
           message: "The invitation with the given invitee email and organization name was not found"
         })
 
-      Authorization.authorize(:invitation_delete, user, organization.account) != :ok ->
+      Authorization.authorize(:invitation_delete, subject, organization.account) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
@@ -196,4 +205,17 @@ defmodule TuistWeb.API.InvitationsController do
         |> json(%{})
     end
   end
+
+  defp inviter_from_subject(%User{} = user), do: user
+  defp inviter_from_subject(%AuthenticatedAccount{issued_by: %User{} = user}), do: user
+  defp inviter_from_subject(%AuthenticatedAccount{created_by_account_id: nil}), do: nil
+
+  defp inviter_from_subject(%AuthenticatedAccount{created_by_account_id: created_by_account_id}) do
+    case Accounts.get_account_by_id(created_by_account_id) do
+      {:ok, %{user_id: user_id}} when not is_nil(user_id) -> Accounts.get_user_by_id(user_id)
+      _ -> nil
+    end
+  end
+
+  defp inviter_from_subject(_subject), do: nil
 end

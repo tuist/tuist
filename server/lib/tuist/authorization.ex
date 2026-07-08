@@ -354,6 +354,13 @@ defmodule Tuist.Authorization do
 
       desc("Allows users with ops access to read any organization info.")
       allow([:authenticated_as_user, :ops_access])
+
+      desc(
+        "Allows an account token with account:members:read or account:members:write scope to read organization members."
+      )
+
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:members:read"])
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:members:write"])
     end
 
     action :update do
@@ -371,6 +378,9 @@ defmodule Tuist.Authorization do
     action :create do
       desc("Allows the admin of an account to create invitations.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows an account token with account:members:write scope to create invitations.")
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:members:write"])
     end
 
     action :read do
@@ -379,11 +389,18 @@ defmodule Tuist.Authorization do
 
       desc("Allows users with ops access to read any invitations.")
       allow([:authenticated_as_user, :ops_access])
+
+      desc("Allows an account token with account:members:read or account:members:write scope to read invitations.")
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:members:read"])
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:members:write"])
     end
 
     action :delete do
       desc("Allows the admin of an account to delete invitations.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows an account token with account:members:write scope to delete invitations.")
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:members:write"])
     end
   end
 
@@ -391,11 +408,17 @@ defmodule Tuist.Authorization do
     action :update do
       desc("Allows the admin of an account to update members.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows an account token with account:members:write scope to update members.")
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:members:write"])
     end
 
     action :delete do
       desc("Allows the admin of an account to delete members.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows an account token with account:members:write scope to delete members.")
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:members:write"])
     end
   end
 
