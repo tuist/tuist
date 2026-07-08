@@ -311,6 +311,7 @@ defmodule Tuist.Application do
         Tuist.Vault,
         {Oban, Application.fetch_env!(:tuist, Oban)},
         {Cachex, [:tuist, []]},
+        Cache,
         {Finch, name: Tuist.Finch, pools: finch_pools()},
         {Phoenix.PubSub, name: Tuist.PubSub},
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
@@ -383,7 +384,6 @@ defmodule Tuist.Application do
       ]
 
       [
-        Cache,
         Supervisor.child_spec(
           {Tuist.ContentFileWatcher, name: ContentFileWatcher, dirs: docs_dirs, extensions: [".md"], cache: Cache},
           id: ContentFileWatcher

@@ -232,12 +232,10 @@ defmodule Tuist.Environment do
 
   def dev_all_locales?, do: @dev_all_locales
 
-  # Both :dev and :test compile a single locale ("en") by default so the
-  # ex_cldr backend doesn't generate number/currency/datetime code for all
-  # ten locales on every cold compile. A fresh worktree's :test build paid
-  # that cost on the first `mix test`, dominating the compile time. Tests
-  # that genuinely exercise other locales are tagged `:locale` and only run
-  # when TUIST_DEV_ALL_LOCALES=1 flips this back to the full set.
+  # Both :dev and :test compile a single locale ("en") by default so Gettext
+  # doesn't generate all locale modules on every cold compile. Tests that
+  # genuinely exercise other locales are tagged `:locale` and only run when
+  # TUIST_DEV_ALL_LOCALES=1 flips this back to the full set.
   def single_locale?, do: (dev?() or test?()) and not dev_all_locales?()
 
   def log_level do

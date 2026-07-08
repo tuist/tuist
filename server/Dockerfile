@@ -188,8 +188,9 @@ COPY skills/skills priv/static/skills
 COPY server/assets assets
 COPY server/native native
 
-# Xcode example READMEs needed at compile time by Tuist.Docs.Loader
+# Xcode example READMEs needed by Tuist.Docs.Loader in source and release paths
 COPY examples/xcode /examples/xcode
+COPY examples/xcode priv/examples/xcode
 
 COPY server/lib lib
 
