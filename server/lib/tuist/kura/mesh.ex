@@ -22,10 +22,21 @@ defmodule Tuist.Kura.Mesh do
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura
   alias Tuist.Kura.Regions
+  alias Tuist.Kura.RegisteredEndpoint
   alias Tuist.Repo
   alias X509.Certificate.Extension
 
   @kura_namespace "kura"
+  # How long a self-hosted peer may go without proving liveness (an enrollment,
+  # a registration heartbeat touching the row, or an unexpired registration
+  # lease) before it is dropped from the account's mesh. Wide relative to the
+  # 60s heartbeat cadence so a control-plane blip cannot evict a live node —
+  # eviction cascades into managed pods' KURA_PEERS and a false positive is
+  # only healed by the node's next enrollment (boot or certificate renewal).
+  @stale_peer_after_minutes 30
+  # Heartbeats arrive every 60s per node; bumping the mesh row at most this
+  # often keeps the liveness marker fresh without a write per heartbeat.
+  @touch_throttle_minutes 5
   # There is no CRL/OCSP in Kura's peer verifier, so a node is revoked by no
   # longer re-signing its CSR and letting the leaf expire: the leaf lifetime is
   # the revocation latency. Nodes re-enroll on each boot today, so the leaf is
@@ -170,10 +181,90 @@ defmodule Tuist.Kura.Mesh do
     |> Enum.reject(&is_nil/1)
   end
 
+  @doc """
+  Refreshes the liveness marker (`updated_at`) of the account's self-hosted
+  peer rows whose URL host matches `node_id`, so registration heartbeats keep
+  the node's mesh membership alive. Throttled to at most one write per row per
+  `#{@touch_throttle_minutes}` minutes.
+  """
+  def touch_self_hosted_peer(%Account{} = account, node_id) when is_binary(node_id) do
+    now = now()
+    throttle_cutoff = DateTime.add(now, -@touch_throttle_minutes * 60, :second)
+
+    ids =
+      from(e in AccountCacheEndpoint,
+        where:
+          e.account_id == ^account.id and e.technology == :kura_self_hosted_peer and
+            e.updated_at < ^throttle_cutoff
+      )
+      |> Repo.all()
+      |> Enum.filter(&(peer_host(&1.url) == node_id))
+      |> Enum.map(& &1.id)
+
+    if ids != [] do
+      Repo.update_all(from(e in AccountCacheEndpoint, where: e.id in ^ids), set: [updated_at: now])
+    end
+
+    :ok
+  end
+
+  @doc """
+  Drops self-hosted peers that stopped responding: rows whose liveness marker
+  is older than the staleness window and whose node also holds no unexpired
+  registration lease. Returns the deleted endpoints.
+
+  Removal cascades on its own: the peer disappears from enrollment responses,
+  and the managed pods' manifest revision covers the peer list, so the
+  reconciler re-renders `KURA_PEERS` and nodes stop dialing and replicating to
+  the dead peer (kura prunes its queued outbox messages for targets that left
+  the mesh).
+  """
+  def prune_stale_self_hosted_peers(opts \\ []) do
+    stale_after_minutes = Keyword.get(opts, :stale_after_minutes, @stale_peer_after_minutes)
+    now = now()
+    cutoff = DateTime.add(now, -stale_after_minutes * 60, :second)
+
+    stale =
+      from(e in AccountCacheEndpoint,
+        where: e.technology == :kura_self_hosted_peer and e.updated_at < ^cutoff
+      )
+      |> Repo.all()
+      |> Enum.reject(&live_registration?(&1, now))
+
+    if stale != [] do
+      ids = Enum.map(stale, & &1.id)
+      Repo.delete_all(from(e in AccountCacheEndpoint, where: e.id in ^ids))
+    end
+
+    stale
+  end
+
+  defp live_registration?(%AccountCacheEndpoint{} = endpoint, now) do
+    case peer_host(endpoint.url) do
+      nil ->
+        false
+
+      host ->
+        Repo.exists?(
+          from(r in RegisteredEndpoint,
+            where: r.account_id == ^endpoint.account_id and r.node_id == ^host and r.expires_at > ^now
+          )
+        )
+    end
+  end
+
+  defp peer_host(url) do
+    case node_host(url) do
+      {:ok, host} -> host
+      _ -> nil
+    end
+  end
+
   # The enrolled node's internal peer URL, recorded only for mesh discovery.
   # It is never a client-facing cache endpoint (that is the node's advertised
   # HTTP URL, reported via registration heartbeats), so it is stored under the
   # `kura_self_hosted_peer` technology and excluded from CLI endpoint lookup.
+  # Re-enrollment bumps `updated_at`: the row's liveness marker for pruning.
   defp register_node_endpoint(%Account{} = account, node_url) do
     %AccountCacheEndpoint{}
     |> AccountCacheEndpoint.create_changeset(%{
@@ -181,7 +272,10 @@ defmodule Tuist.Kura.Mesh do
       url: node_url,
       technology: :kura_self_hosted_peer
     })
-    |> Repo.insert(on_conflict: :nothing, conflict_target: [:account_id, :technology, :url])
+    |> Repo.insert(
+      on_conflict: [set: [updated_at: now()]],
+      conflict_target: [:account_id, :technology, :url]
+    )
   end
 
   defp parse_csr(csr_pem) when is_binary(csr_pem) do
@@ -215,4 +309,6 @@ defmodule Tuist.Kura.Mesh do
     |> DateTime.add(days * 24 * 60 * 60, :second)
     |> DateTime.truncate(:second)
   end
+
+  defp now, do: DateTime.truncate(DateTime.utc_now(), :second)
 end

@@ -12,6 +12,7 @@ defmodule Tuist.Kura.Registrations do
   import Ecto.Query
 
   alias Tuist.Accounts.Account
+  alias Tuist.Kura.Mesh
   alias Tuist.Kura.RegisteredEndpoint
   alias Tuist.Repo
 
@@ -47,6 +48,17 @@ defmodule Tuist.Kura.Registrations do
     case_result
     |> RegisteredEndpoint.changeset(params)
     |> Repo.insert_or_update()
+    |> case do
+      {:ok, endpoint} ->
+        # The heartbeat also keeps the node's mesh membership alive: without
+        # this, a peer enrolled in the mesh would be prunable as soon as its
+        # enrollment row ages past the staleness window.
+        Mesh.touch_self_hosted_peer(account, endpoint.node_id)
+        {:ok, endpoint}
+
+      error ->
+        error
+    end
   end
 
   @doc """

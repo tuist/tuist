@@ -201,6 +201,7 @@ async fn membership_task_loop(state: SharedState) {
 }
 
 async fn outbox_task_loop(state: SharedState) {
+    let mut stale_targets: BTreeMap<String, Instant> = BTreeMap::new();
     loop {
         let notified = state.notify.notified();
         tokio::pin!(notified);
@@ -209,7 +210,7 @@ async fn outbox_task_loop(state: SharedState) {
         state
             .metrics
             .update_background_work_paused("outbox", pause_outbox);
-        if !pause_outbox && let Err(error) = process_outbox(&state).await {
+        if !pause_outbox && let Err(error) = process_outbox(&state, &mut stale_targets).await {
             warn!("outbox processing failed: {error}");
         }
 
@@ -764,10 +765,47 @@ struct BootstrapStats {
     artifacts_applied: u64,
 }
 
-pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
+pub async fn process_outbox(
+    state: &SharedState,
+    stale_targets: &mut BTreeMap<String, Instant>,
+) -> Result<(), String> {
+    let current_targets: BTreeSet<String> =
+        state.replication_targets().await.into_iter().collect();
+    // A target that reappeared in the mesh is no longer stale.
+    stale_targets.retain(|target, _| !current_targets.contains(target));
+
+    let pass_started_at = Instant::now();
+    let stale_grace = Duration::from_millis(state.config.outbox_stale_target_grace_ms);
+    let mut dropped: BTreeMap<String, u64> = BTreeMap::new();
+
     let mut after = None::<Vec<u8>>;
     while let Some((message_key, message)) = state.store.next_outbox_message(after.as_deref())? {
         after = Some(message_key.clone());
+
+        // Messages for a peer that left the mesh can never be delivered and
+        // would otherwise accumulate until the outbox depth cap sheds writes.
+        // Drop them once the target has been continuously absent from the
+        // current peer set for the grace window (which rides out enrollment
+        // races and membership flaps); a peer that later rejoins re-bootstraps
+        // the full dataset, so the dropped deltas are recovered. An empty
+        // target set means the node has no peer view at all (e.g. the control
+        // plane is unreachable), not that every peer left — never prune on it.
+        if !current_targets.is_empty() && !current_targets.contains(&message.target) {
+            let missing_since = *stale_targets
+                .entry(message.target.clone())
+                .or_insert(pass_started_at);
+            if pass_started_at.duration_since(missing_since) >= stale_grace {
+                state.store.delete_outbox_message(&message_key)?;
+                state.metrics.record_replication(
+                    &message.target,
+                    message.operation.name(),
+                    "dropped_stale_target",
+                    Duration::ZERO,
+                );
+                *dropped.entry(message.target.clone()).or_insert(0) += 1;
+                continue;
+            }
+        }
 
         if state
             .replication_target_backed_off(&message.target, Instant::now())
@@ -821,6 +859,10 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
                 warn!("replication to {} failed: {error}", message.target);
             }
         }
+    }
+
+    for (target, count) in dropped {
+        warn!("dropped {count} outbox message(s) for {target}: no longer a replication target");
     }
 
     Ok(())
@@ -1168,7 +1210,7 @@ mod tests {
             })
             .expect("delete should enqueue");
 
-        process_outbox(&local.state)
+        process_outbox(&local.state, &mut BTreeMap::new())
             .await
             .expect("outbox processing should succeed");
 
@@ -1201,6 +1243,107 @@ mod tests {
         assert!(
             queued.is_empty(),
             "successful replication should clear outbox"
+        );
+    }
+
+    fn stale_target_message(target: &str) -> OutboxMessage {
+        OutboxMessage {
+            target: target.into(),
+            operation: ReplicationOperation::DeleteNamespace {
+                namespace_id: "ios".into(),
+                version_ms: 1,
+            },
+        }
+    }
+
+    #[tokio::test]
+    async fn process_outbox_drops_messages_for_targets_that_left_the_mesh() {
+        let local = test_context(|config| {
+            config.peers = vec!["https://live-peer.test:7443".into()];
+            config.outbox_stale_target_grace_ms = 0;
+        })
+        .await;
+        local
+            .state
+            .store
+            .enqueue(stale_target_message("https://gone-peer.test:7443"))
+            .expect("enqueue should succeed");
+
+        let mut stale_targets = BTreeMap::new();
+        process_outbox(&local.state, &mut stale_targets)
+            .await
+            .expect("outbox processing should succeed");
+
+        let queued = local
+            .state
+            .store
+            .outbox_messages()
+            .expect("outbox should load");
+        assert!(
+            queued.is_empty(),
+            "messages for a target that left the mesh should be dropped"
+        );
+    }
+
+    #[tokio::test]
+    async fn process_outbox_keeps_messages_for_missing_targets_within_grace() {
+        let local = test_context(|config| {
+            config.peers = vec!["https://live-peer.test:7443".into()];
+            config.outbox_stale_target_grace_ms = 60 * 60 * 1000;
+        })
+        .await;
+        local
+            .state
+            .store
+            .enqueue(stale_target_message("https://gone-peer.test:7443"))
+            .expect("enqueue should succeed");
+
+        let mut stale_targets = BTreeMap::new();
+        for _ in 0..2 {
+            process_outbox(&local.state, &mut stale_targets)
+                .await
+                .expect("outbox processing should succeed");
+        }
+
+        let queued = local
+            .state
+            .store
+            .outbox_messages()
+            .expect("outbox should load");
+        assert_eq!(
+            queued.len(),
+            1,
+            "messages should survive while the target is within the stale grace window"
+        );
+    }
+
+    #[tokio::test]
+    async fn process_outbox_never_drops_when_the_node_has_no_peer_view() {
+        // The default test config's only peer is the node itself, so the
+        // current target set is empty — the control-plane-unreachable shape.
+        let local = test_context(|config| {
+            config.outbox_stale_target_grace_ms = 0;
+        })
+        .await;
+        local
+            .state
+            .store
+            .enqueue(stale_target_message("https://gone-peer.test:7443"))
+            .expect("enqueue should succeed");
+
+        process_outbox(&local.state, &mut BTreeMap::new())
+            .await
+            .expect("outbox processing should succeed");
+
+        let queued = local
+            .state
+            .store
+            .outbox_messages()
+            .expect("outbox should load");
+        assert_eq!(
+            queued.len(),
+            1,
+            "an empty peer view must never be treated as every peer having left"
         );
     }
 
@@ -1251,7 +1394,7 @@ mod tests {
                 .await
         );
 
-        process_outbox(&local.state)
+        process_outbox(&local.state, &mut BTreeMap::new())
             .await
             .expect("outbox processing should not error on a failed peer");
 
@@ -1321,7 +1464,7 @@ mod tests {
             .note_replication_failure(&remote_url, Instant::now())
             .await;
 
-        process_outbox(&local.state)
+        process_outbox(&local.state, &mut BTreeMap::new())
             .await
             .expect("outbox processing should succeed");
 
@@ -1348,7 +1491,7 @@ mod tests {
 
         local.state.note_replication_success(&remote_url).await;
 
-        process_outbox(&local.state)
+        process_outbox(&local.state, &mut BTreeMap::new())
             .await
             .expect("outbox processing should succeed");
 
@@ -1414,7 +1557,7 @@ mod tests {
             FailpointAction::Error("delete interrupted".into()),
         );
 
-        process_outbox(&local.state)
+        process_outbox(&local.state, &mut BTreeMap::new())
             .await
             .expect("outbox processing should complete");
 
@@ -1427,7 +1570,7 @@ mod tests {
             1
         );
 
-        process_outbox(&local.state)
+        process_outbox(&local.state, &mut BTreeMap::new())
             .await
             .expect("outbox retry should complete");
 

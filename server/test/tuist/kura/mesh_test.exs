@@ -2,11 +2,15 @@ defmodule Tuist.Kura.MeshTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  import Ecto.Query
+
   alias Tuist.Accounts
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura
   alias Tuist.Kura.Mesh
+  alias Tuist.Kura.Registrations
   alias Tuist.Kura.Server
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   defp csr_pem(subject \\ "/CN=node") do
@@ -115,6 +119,23 @@ defmodule Tuist.Kura.MeshTest do
                {:error, :invalid_node_url}
     end
 
+    test "re-enrollment refreshes the endpoint's liveness marker" do
+      account = AccountsFixtures.organization_fixture().account
+      stub_account_peer_ca()
+
+      {:ok, _} =
+        Mesh.enroll_node(account, %{csr: csr_pem(), node_url: "https://kura-1.acme.test:4433"})
+
+      [endpoint] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
+      age_endpoint(endpoint, minutes: 90)
+
+      {:ok, _} =
+        Mesh.enroll_node(account, %{csr: csr_pem(), node_url: "https://kura-1.acme.test:4433"})
+
+      [endpoint] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
+      assert DateTime.diff(DateTime.utc_now(), endpoint.updated_at, :minute) < 5
+    end
+
     test "seeds the managed region's public peer endpoint so the node dials the managed mesh" do
       account = AccountsFixtures.organization_fixture().account
 
@@ -135,5 +156,122 @@ defmodule Tuist.Kura.MeshTest do
       expected = "https://peer.#{String.downcase(account.name)}-eu-central-1.kura.tuist.dev:7443"
       assert expected in enrollment.peers
     end
+  end
+
+  describe "touch_self_hosted_peer/2" do
+    test "bumps the liveness marker of rows whose URL host matches the node id" do
+      account = AccountsFixtures.organization_fixture().account
+      stub_account_peer_ca()
+
+      {:ok, _} =
+        Mesh.enroll_node(account, %{csr: csr_pem(), node_url: "https://kura-1.acme.test:4433"})
+
+      {:ok, _} =
+        Mesh.enroll_node(account, %{csr: csr_pem(), node_url: "https://kura-2.acme.test:4433"})
+
+      account
+      |> Accounts.list_account_cache_endpoints(:kura_self_hosted_peer)
+      |> Enum.each(&age_endpoint(&1, minutes: 90))
+
+      :ok = Mesh.touch_self_hosted_peer(account, "kura-1.acme.test")
+
+      endpoints = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
+      touched = Enum.find(endpoints, &(&1.url == "https://kura-1.acme.test:4433"))
+      untouched = Enum.find(endpoints, &(&1.url == "https://kura-2.acme.test:4433"))
+
+      assert DateTime.diff(DateTime.utc_now(), touched.updated_at, :minute) < 5
+      assert DateTime.diff(DateTime.utc_now(), untouched.updated_at, :minute) >= 90
+    end
+  end
+
+  describe "prune_stale_self_hosted_peers/1" do
+    test "drops peers whose liveness marker lapsed and that hold no registration lease" do
+      account = AccountsFixtures.organization_fixture().account
+      stub_account_peer_ca()
+
+      {:ok, _} =
+        Mesh.enroll_node(account, %{csr: csr_pem(), node_url: "https://gone.acme.test:4433"})
+
+      [endpoint] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
+      age_endpoint(endpoint, minutes: 90)
+
+      assert [pruned] = Mesh.prune_stale_self_hosted_peers()
+      assert pruned.url == "https://gone.acme.test:4433"
+      assert Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer) == []
+    end
+
+    test "keeps peers whose liveness marker is fresh" do
+      account = AccountsFixtures.organization_fixture().account
+      stub_account_peer_ca()
+
+      {:ok, _} =
+        Mesh.enroll_node(account, %{csr: csr_pem(), node_url: "https://fresh.acme.test:4433"})
+
+      assert Mesh.prune_stale_self_hosted_peers() == []
+
+      assert [_] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
+    end
+
+    test "keeps stale-marked peers whose node still holds an unexpired registration lease" do
+      account = AccountsFixtures.organization_fixture().account
+      stub_account_peer_ca()
+
+      {:ok, _} =
+        Mesh.enroll_node(account, %{csr: csr_pem(), node_url: "https://leased.acme.test:4433"})
+
+      [endpoint] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
+      age_endpoint(endpoint, minutes: 90)
+
+      {:ok, _} =
+        Registrations.register_heartbeat(account, %{
+          node_id: "leased.acme.test",
+          advertised_http_url: "https://cache.acme.test",
+          ready: true
+        })
+
+      # The heartbeat itself refreshes the marker; re-age the row so only the
+      # lease can save it.
+      [endpoint] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
+      age_endpoint(endpoint, minutes: 90)
+
+      assert Mesh.prune_stale_self_hosted_peers() == []
+      assert [_] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
+    end
+  end
+
+  describe "registration heartbeats" do
+    test "keep the node's mesh membership alive across the staleness window" do
+      account = AccountsFixtures.organization_fixture().account
+      stub_account_peer_ca()
+
+      {:ok, _} =
+        Mesh.enroll_node(account, %{csr: csr_pem(), node_url: "https://kura-1.acme.test:4433"})
+
+      [endpoint] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
+      age_endpoint(endpoint, minutes: 90)
+
+      {:ok, _} =
+        Registrations.register_heartbeat(account, %{
+          node_id: "kura-1.acme.test",
+          advertised_http_url: "https://cache.acme.test",
+          ready: true
+        })
+
+      [endpoint] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
+      assert DateTime.diff(DateTime.utc_now(), endpoint.updated_at, :minute) < 5
+    end
+  end
+
+  defp age_endpoint(endpoint, minutes: minutes) do
+    aged =
+      DateTime.utc_now()
+      |> DateTime.add(-minutes * 60, :second)
+      |> DateTime.truncate(:second)
+
+    {1, _} =
+      Repo.update_all(
+        from(e in Tuist.Accounts.AccountCacheEndpoint, where: e.id == ^endpoint.id),
+        set: [updated_at: aged]
+      )
   end
 end
