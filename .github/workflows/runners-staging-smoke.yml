@@ -669,8 +669,14 @@ jobs:
               # writes vs decompress/transfer/per-op.
               tuist install
               tuist cache
-              RAMDEV=$(hdiutil attach -nomount ram://8388608)   # 4 GiB
+              # hdiutil pads its device path with trailing spaces — strip them
+              # or diskutil fails with "Unable to find disk".
+              RAMDEV=$(hdiutil attach -nomount ram://8388608 | tr -d '[:space:]')   # 4 GiB
               diskutil erasevolume APFS ramcache "$RAMDEV" >/dev/null
+              # Fail loudly if the RAM volume didn't mount — a silent fallback
+              # to a plain /Volumes/ramcache directory on the root disk would
+              # invalidate the measurement.
+              mount | grep -q "/Volumes/ramcache" || { echo "::error::RAM disk did not mount"; exit 1; }
               export XDG_CACHE_HOME=/Volumes/ramcache/xdg
               export TMPDIR=/Volumes/ramcache/tmp/
               mkdir -p "$XDG_CACHE_HOME" "$TMPDIR"
