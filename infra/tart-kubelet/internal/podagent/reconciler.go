@@ -73,25 +73,26 @@ type Reconciler struct {
 	NodeIP string
 
 	// ScrapeAllowedCIDRs restricts which client addresses the
-	// per-Pod host-side forwarders (metrics and operator VNC relays) accept.
+	// per-Pod host-side forwarders (metrics and VNC relays) accept.
 	// NodeIP can in practice be a public IP on Scaleway, so the bind
 	// address alone isn't a security boundary; this allowlist is.
 	// Empty defers to DefaultScrapeAllowedCIDRs at forwarder construction.
 	ScrapeAllowedCIDRs []*net.IPNet
 
-	// VNCControlDir is a host-local operator control directory for
-	// interactive access. Creating `requests/<namespace>_<pod>` or
-	// stamping the server-owned Pod request annotation opens a relay for
-	// that runner Pod; removing both closes the relay. tart-kubelet
-	// writes legacy operator state under `state/` with 0600 permissions
-	// and reports server-consumable no-auth relay coordinates through Pod
-	// annotations. Empty disables VNC relay control.
+	// VNCControlDir is the host-local control/state directory for
+	// interactive access. Creating a legacy operator request file at
+	// `requests/<namespace>_<pod>` or stamping the server-owned Pod
+	// request annotation opens a relay for that runner Pod; removing both
+	// closes the relay. tart-kubelet writes host-control state under
+	// `state/` with 0600 permissions and reports server-consumable no-auth
+	// relay coordinates through Pod annotations. Empty disables VNC relay
+	// control.
 	VNCControlDir string
 	// VNCRelayHost overrides the host written to server-facing VNC relay
 	// annotations. Empty falls back to NodeIP.
 	VNCRelayHost string
 	// VNCRelayPort pins the host-side VNC relay port. 0 uses an
-	// ephemeral port, matching the legacy operator-only behavior.
+	// ephemeral port, matching the per-request relay default.
 	VNCRelayPort int
 
 	Tart     *tart.Client
@@ -1303,9 +1304,9 @@ func VMNameForPod(pod *corev1.Pod) string {
 // next reconcile-and-restart cycle will set one up.
 //
 // VNCForwarder is the host-side TCP relay (node_ip:ephemeral_port →
-// Tart's host-local VNC endpoint) for operator-requested VNC sessions.
-// The request and sensitive state live under Reconciler.VNCControlDir,
-// not in Pod annotations.
+// Tart's host-local VNC endpoint) for requested VNC sessions. Sensitive
+// Tart endpoint state lives under Reconciler.VNCControlDir, while Pod
+// annotations carry only server-consumable relay readiness metadata.
 type Entry struct {
 	VMName  string
 	StartTS metav1.Time
