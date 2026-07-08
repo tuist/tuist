@@ -693,6 +693,157 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
+    func test_run_tests_all_project_schemes_uses_unique_result_bundle_paths_when_cloud_is_configured() async throws {
+        // Given
+        givenGenerator()
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn(
+                [
+                    Scheme.test(name: "ProjectSchemeOne"),
+                    Scheme.test(name: "ProjectSchemeTwo"),
+                ]
+            )
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (path, .test(), MapperEnvironment())
+            }
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        let runsCacheDirectory = try temporaryPath()
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.runs))
+            .willReturn(runsCacheDirectory)
+
+        let firstResultBundlePath = runsCacheDirectory
+            .appending(components: "run-id", "\(Constants.resultBundleName)-ProjectSchemeOne")
+        let secondResultBundlePath = runsCacheDirectory
+            .appending(components: "run-id", "\(Constants.resultBundleName)-ProjectSchemeTwo")
+
+        // When
+        try await testRun(
+            path: try temporaryPath()
+        )
+
+        // Then
+        verify(xcodebuildController)
+            .test(
+                .any,
+                scheme: .value("ProjectSchemeOne"),
+                clean: .any,
+                destination: .any,
+                action: .any,
+                rosetta: .any,
+                derivedDataPath: .any,
+                resultBundlePath: .value(firstResultBundlePath),
+                arguments: .any,
+                retryCount: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .called(1)
+        verify(xcodebuildController)
+            .test(
+                .any,
+                scheme: .value("ProjectSchemeTwo"),
+                clean: .any,
+                destination: .any,
+                action: .any,
+                rosetta: .any,
+                derivedDataPath: .any,
+                resultBundlePath: .value(secondResultBundlePath),
+                arguments: .any,
+                retryCount: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .called(1)
+    }
+
+    func test_run_tests_all_project_schemes_uses_unique_given_result_bundle_paths() async throws {
+        // Given
+        givenGenerator()
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn(
+                [
+                    Scheme.test(name: "ProjectSchemeOne"),
+                    Scheme.test(name: "ProjectSchemeTwo"),
+                ]
+            )
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (path, .test(), MapperEnvironment())
+            }
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+
+        let resultBundlePath = try temporaryPath().appending(component: "results.xcresult")
+        let firstResultBundlePath = resultBundlePath.parentDirectory
+            .appending(component: "results-ProjectSchemeOne.xcresult")
+        let secondResultBundlePath = resultBundlePath.parentDirectory
+            .appending(component: "results-ProjectSchemeTwo.xcresult")
+
+        // When
+        try await testRun(
+            path: try temporaryPath(),
+            resultBundlePath: resultBundlePath
+        )
+
+        // Then
+        verify(xcodebuildController)
+            .test(
+                .any,
+                scheme: .value("ProjectSchemeOne"),
+                clean: .any,
+                destination: .any,
+                action: .any,
+                rosetta: .any,
+                derivedDataPath: .any,
+                resultBundlePath: .value(firstResultBundlePath),
+                arguments: .any,
+                retryCount: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .called(1)
+        verify(xcodebuildController)
+            .test(
+                .any,
+                scheme: .value("ProjectSchemeTwo"),
+                clean: .any,
+                destination: .any,
+                action: .any,
+                rosetta: .any,
+                derivedDataPath: .any,
+                resultBundlePath: .value(secondResultBundlePath),
+                arguments: .any,
+                retryCount: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .called(1)
+    }
+
     func test_run_uploads_to_local_cache_storage_when_no_upload() async throws {
         // Given
         givenGenerator()
