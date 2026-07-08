@@ -1177,6 +1177,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         do {
+            let passthroughDerivedDataPath = try? await xcodeBuildAgumentParser
+                .parse(passthroughXcodeBuildArguments)
+                .derivedDataPath
+            let hostlessDerivedDataBasePath = derivedDataPath ?? passthroughDerivedDataPath
             var didRunTests = false
             for testScheme in schemes {
                 let testSchemeTargetNames = Set(
@@ -1212,8 +1216,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     testPlanConfiguration: testPlanConfiguration,
                     action: action
                 ) {
-                    if let derivedDataPath {
-                        schemeDerivedDataPath = derivedDataPath
+                    if let hostlessDerivedDataBasePath {
+                        schemeDerivedDataPath = hostlessDerivedDataBasePath
                             .appending(components: "HostlessTests", testScheme.name)
                     } else {
                         schemeDerivedDataPath = try await fileSystem
@@ -1421,7 +1425,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         Logger.current.debug(
             "Workspace schemes include hosted tests and host-less unit tests; running generated project schemes separately."
         )
-        return (projectSchemes, true)
+        return (projectSchemes, action == .test)
     }
 
     /// A scheme is host-less when at least one of its test targets is a `.unitTests` bundle that has
