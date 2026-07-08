@@ -182,7 +182,7 @@ func TestVNCRelayRequestedUsesPodAnnotation(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:   "tuist-runners",
 			Name:        "runner-annotated",
-			Annotations: map[string]string{vncSessionIDAnnotation: "123"},
+			Annotations: map[string]string{vncSessionIDAnnotation: "123", vncRelayTokenHashAnnotation: "token-hash"},
 		},
 	}
 
@@ -192,6 +192,25 @@ func TestVNCRelayRequestedUsesPodAnnotation(t *testing.T) {
 	}
 	if !requested {
 		t.Fatal("relay not requested despite server-owned pod annotation")
+	}
+}
+
+func TestVNCRelayRequestedRequiresTokenHashForPodAnnotation(t *testing.T) {
+	r := &Reconciler{VNCControlDir: t.TempDir()}
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:   "tuist-runners",
+			Name:        "runner-annotated",
+			Annotations: map[string]string{vncSessionIDAnnotation: "123"},
+		},
+	}
+
+	requested, err := r.vncRelayRequested(pod)
+	if err != nil {
+		t.Fatalf("vncRelayRequested with pod annotation: %v", err)
+	}
+	if requested {
+		t.Fatal("relay requested without server-owned token hash annotation")
 	}
 }
 
@@ -269,7 +288,7 @@ func TestWriteVNCStatePatchesServerRelayAnnotations(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:   "tuist-runners",
 			Name:        "runner-annotated",
-			Annotations: map[string]string{vncSessionIDAnnotation: "123"},
+			Annotations: map[string]string{vncSessionIDAnnotation: "123", vncRelayTokenHashAnnotation: "token-hash"},
 		},
 	}
 	kubeClient := newPodTestClient(t, pod)
@@ -319,7 +338,8 @@ func TestStartVNCForwarderUsesPersistedEndpointForRecoveredVM(t *testing.T) {
 			Namespace: "tuist-runners",
 			Name:      "runner-recovered",
 			Annotations: map[string]string{
-				vncSessionIDAnnotation: "123",
+				vncSessionIDAnnotation:      "123",
+				vncRelayTokenHashAnnotation: "token-hash",
 			},
 			Labels: map[string]string{"tuist.dev/runner": "true"},
 		},

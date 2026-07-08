@@ -25,6 +25,7 @@ defmodule Tuist.Runners.InteractiveSessions do
   @disconnect_grace_seconds 60
   @vnc_session_id_annotation "tuist.dev/vnc-session-id"
   @vnc_requested_at_annotation "tuist.dev/vnc-requested-at"
+  @vnc_relay_token_hash_annotation "tuist.dev/vnc-relay-token-hash"
   @vnc_state_annotation "tuist.dev/vnc-state"
   @vnc_relay_host_annotation "tuist.dev/vnc-relay-host"
   @vnc_relay_port_annotation "tuist.dev/vnc-relay-port"
@@ -32,6 +33,7 @@ defmodule Tuist.Runners.InteractiveSessions do
 
   def vnc_session_id_annotation, do: @vnc_session_id_annotation
   def vnc_requested_at_annotation, do: @vnc_requested_at_annotation
+  def vnc_relay_token_hash_annotation, do: @vnc_relay_token_hash_annotation
   def vnc_state_annotation, do: @vnc_state_annotation
   def vnc_relay_host_annotation, do: @vnc_relay_host_annotation
   def vnc_relay_port_annotation, do: @vnc_relay_port_annotation
@@ -43,7 +45,7 @@ defmodule Tuist.Runners.InteractiveSessions do
     with :ok <- validate_vnc_job(job) do
       case current_for_job(account_id, workflow_job_id, :vnc) do
         %InteractiveSession{} = session ->
-          refresh_token(session)
+          refresh_token(session, user_id)
 
         nil ->
           create_session(job, user_id, :vnc)
@@ -66,18 +68,24 @@ defmodule Tuist.Runners.InteractiveSessions do
     |> Repo.one()
   end
 
-  def validate_token(token) when is_binary(token) and token != "" do
+  def validate_token(token, %Account{id: account_id}, %User{id: user_id}) when is_binary(token) and token != "" do
     now = now()
     hash = token_hash(token)
 
     InteractiveSession
-    |> where([session], session.token_hash == ^hash and is_nil(session.closed_at) and session.expires_at > ^now)
+    |> where(
+      [session],
+      session.token_hash == ^hash and session.account_id == ^account_id and
+        session.requested_by_user_id == ^user_id and is_nil(session.closed_at) and session.expires_at > ^now
+    )
     |> Repo.one()
     |> case do
       %InteractiveSession{} = session -> {:ok, session}
       nil -> {:error, :invalid_or_expired}
     end
   end
+
+  def validate_token(_token, %Account{}, %User{}), do: {:error, :invalid_or_expired}
 
   def request_vnc_relay(%InteractiveSession{kind: :vnc, closed_at: nil} = session) do
     now = now()
@@ -87,7 +95,8 @@ defmodule Tuist.Runners.InteractiveSessions do
       "metadata" => %{
         "annotations" => %{
           @vnc_session_id_annotation => Integer.to_string(session.id),
-          @vnc_requested_at_annotation => DateTime.to_iso8601(now)
+          @vnc_requested_at_annotation => DateTime.to_iso8601(now),
+          @vnc_relay_token_hash_annotation => Base.url_encode64(session.token_hash, padding: false)
         }
       }
     })
@@ -447,6 +456,7 @@ defmodule Tuist.Runners.InteractiveSessions do
         "annotations" => %{
           @vnc_session_id_annotation => nil,
           @vnc_requested_at_annotation => nil,
+          @vnc_relay_token_hash_annotation => nil,
           @vnc_state_annotation => nil,
           @vnc_relay_host_annotation => nil,
           @vnc_relay_port_annotation => nil,
@@ -487,19 +497,20 @@ defmodule Tuist.Runners.InteractiveSessions do
 
       {:error, changeset} ->
         case current_for_job(job.account_id, job.workflow_job_id, kind) do
-          %InteractiveSession{} = session -> refresh_token(session)
+          %InteractiveSession{} = session -> refresh_token(session, user_id)
           nil -> {:error, changeset}
         end
     end
   end
 
-  defp refresh_token(%InteractiveSession{} = session) do
+  defp refresh_token(%InteractiveSession{} = session, user_id) do
     {token, hash} = build_token()
     now = now()
 
     session
     |> InteractiveSession.changeset(%{
       token_hash: hash,
+      requested_by_user_id: user_id,
       expires_at: DateTime.add(now, @default_ttl_seconds, :second),
       last_activity_at: now,
       updated_at: now

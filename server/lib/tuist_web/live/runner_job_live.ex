@@ -617,7 +617,7 @@ defmodule TuistWeb.RunnerJobLive do
 
     vnc_websocket_path =
       if not vnc_dev_placeholder? and vnc_session_ready?(vnc_session) and is_binary(vnc_session_token) do
-        "/#{selected_account.name}/runners/interactive/vnc/#{vnc_session_token}"
+        "/#{selected_account.name}/runners/interactive/vnc"
       end
 
     %{
@@ -629,7 +629,8 @@ defmodule TuistWeb.RunnerJobLive do
       vnc_dev_placeholder?: vnc_dev_placeholder?,
       vnc_session: vnc_session,
       vnc_session_ready?: vnc_session_ready?(vnc_session),
-      vnc_websocket_path: vnc_websocket_path
+      vnc_websocket_path: vnc_websocket_path,
+      vnc_websocket_token: vnc_session_token
     }
   end
 

@@ -6,6 +6,8 @@ defmodule TuistWeb.RunnerVNCWebSock do
   alias Tuist.Runners.InteractiveSessions
 
   @connect_timeout_ms 5_000
+  @relay_auth_probe_timeout_ms 100
+  @relay_auth_prefix "tuist-vnc-token "
 
   @impl WebSock
   def init(%{session: session}) do
@@ -16,16 +18,22 @@ defmodule TuistWeb.RunnerVNCWebSock do
            session.relay_port,
            [
              :binary,
-             active: true,
+             active: false,
              packet: :raw
            ],
            @connect_timeout_ms
          ) do
       {:ok, socket} ->
-        case InteractiveSessions.mark_active(session, connection_id) do
-          {:ok, active_session} ->
-            {:ok, %{socket: socket, session: active_session, connection_id: connection_id}}
+        with {:ok, initial_data} <- prepare_relay_socket(socket, session.token),
+             {:ok, active_session} <- InteractiveSessions.mark_active(session, connection_id),
+             :ok <- :inet.setopts(socket, active: true) do
+          state = %{socket: socket, session: active_session, connection_id: connection_id}
 
+          case initial_data do
+            data when is_binary(data) and byte_size(data) > 0 -> {:push, {:binary, data}, state}
+            _ -> {:ok, state}
+          end
+        else
           {:error, reason} ->
             :gen_tcp.close(socket)
             {:stop, {:session_activate_failed, reason}, {1011, "session unavailable"}, %{}}
@@ -63,4 +71,25 @@ defmodule TuistWeb.RunnerVNCWebSock do
   end
 
   def terminate(_reason, _state), do: :ok
+
+  defp prepare_relay_socket(socket, token) when is_binary(token) and token != "" do
+    case :gen_tcp.recv(socket, 0, @relay_auth_probe_timeout_ms) do
+      {:ok, <<"RFB ", _rest::binary>> = initial_data} ->
+        {:ok, initial_data}
+
+      {:ok, _unexpected} ->
+        {:error, :unexpected_relay_greeting}
+
+      {:error, :timeout} ->
+        case :gen_tcp.send(socket, @relay_auth_prefix <> token <> "\n") do
+          :ok -> {:ok, nil}
+          {:error, reason} -> {:error, {:relay_auth_send_failed, reason}}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp prepare_relay_socket(_socket, _token), do: {:error, :missing_relay_token}
 end

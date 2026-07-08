@@ -516,8 +516,10 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
     assert has_element?(
              lv,
-             ~s{#runner-vnc-client[phx-hook="RunnerVNCClient"][data-vnc-path][data-framebuffer-color-order="bgr"]}
+             ~s{#runner-vnc-client[phx-hook="RunnerVNCClient"][data-vnc-path="/#{account.name}/runners/interactive/vnc"][data-vnc-token][data-framebuffer-color-order="bgr"]}
            )
+
+    refute html =~ "/runners/interactive/vnc/"
   end
 
   test "renders a local development VNC placeholder with a fake ready session", %{

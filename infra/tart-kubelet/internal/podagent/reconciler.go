@@ -45,11 +45,12 @@ import (
 const (
 	PodFinalizer = "tart-kubelet.tuist.dev/vm-cleanup"
 
-	vncSessionIDAnnotation    = "tuist.dev/vnc-session-id"
-	vncStateAnnotation        = "tuist.dev/vnc-state"
-	vncRelayHostAnnotation    = "tuist.dev/vnc-relay-host"
-	vncRelayPortAnnotation    = "tuist.dev/vnc-relay-port"
-	vncRelayReadyAtAnnotation = "tuist.dev/vnc-relay-ready-at"
+	vncSessionIDAnnotation      = "tuist.dev/vnc-session-id"
+	vncRelayTokenHashAnnotation = "tuist.dev/vnc-relay-token-hash"
+	vncStateAnnotation          = "tuist.dev/vnc-state"
+	vncRelayHostAnnotation      = "tuist.dev/vnc-relay-host"
+	vncRelayPortAnnotation      = "tuist.dev/vnc-relay-port"
+	vncRelayReadyAtAnnotation   = "tuist.dev/vnc-relay-ready-at"
 )
 
 // Reconciler is the controller-runtime reconciler for Pods on this
@@ -736,6 +737,13 @@ func (r *Reconciler) startVNCForwarder(ctx context.Context, pod *corev1.Pod, ent
 		}
 	}
 
+	relayTokenHash := strings.TrimSpace(pod.Annotations[vncRelayTokenHashAnnotation])
+	if entry.VNCForwarder != nil && entry.VNCRelayTokenHash != relayTokenHash {
+		entry.VNCForwarder.Stop()
+		entry.VNCForwarder = nil
+		entry.VNCRelayTokenHash = ""
+	}
+
 	if entry.VNCForwarder == nil {
 		target := net.JoinHostPort(vncInfo.Host, strconv.Itoa(vncInfo.Port))
 		resolve := func() (string, error) { return target, nil }
@@ -748,11 +756,12 @@ func (r *Reconciler) startVNCForwarder(ctx context.Context, pod *corev1.Pod, ent
 		if len(allowed) == 0 {
 			allowed = DefaultScrapeAllowedCIDRs()
 		}
-		fw, err := NewVNCForwarder(listenAddr, resolve, vncInfo.Password, TCPForwarderOptions{AllowedCIDRs: allowed})
+		fw, err := NewVNCForwarder(listenAddr, resolve, vncInfo.Password, relayTokenHash, TCPForwarderOptions{AllowedCIDRs: allowed})
 		if err != nil {
 			return fmt.Errorf("start VNC forwarder for %s/%s on %s: %w", pod.Namespace, pod.Name, listenAddr, err)
 		}
 		entry.VNCForwarder = fw
+		entry.VNCRelayTokenHash = relayTokenHash
 	}
 
 	return r.writeVNCState(ctx, pod, entry, vncInfo)
@@ -762,6 +771,7 @@ func (r *Reconciler) stopVNCForwarder(namespace, name string, entry *Entry) {
 	if entry.VNCForwarder != nil {
 		entry.VNCForwarder.Stop()
 		entry.VNCForwarder = nil
+		entry.VNCRelayTokenHash = ""
 	}
 	if r.VNCControlDir != "" {
 		_ = os.Remove(r.vncStatePath(namespace, name))
@@ -771,7 +781,7 @@ func (r *Reconciler) stopVNCForwarder(namespace, name string, entry *Entry) {
 
 func (r *Reconciler) vncRelayRequested(pod *corev1.Pod) (bool, error) {
 	if pod.Annotations[vncSessionIDAnnotation] != "" {
-		return true, nil
+		return strings.TrimSpace(pod.Annotations[vncRelayTokenHashAnnotation]) != "", nil
 	}
 
 	_, err := os.Stat(r.vncRequestPath(pod.Namespace, pod.Name))
@@ -1317,9 +1327,10 @@ type Entry struct {
 	// transition), not per reconcile — observing on every
 	// podStatus would skew the distribution toward `0` for
 	// long-lived VMs that get reconciled hundreds of times.
-	BootObserved     bool
-	MetricsForwarder *Forwarder
-	VNCForwarder     *TCPForwarder
+	BootObserved      bool
+	MetricsForwarder  *Forwarder
+	VNCForwarder      *TCPForwarder
+	VNCRelayTokenHash string
 }
 
 // Store is a tiny thread-safe map. Backed by in-memory state — on

@@ -1,30 +1,47 @@
 package podagent
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/des"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/base64"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"log/slog"
 	"net"
+	"strings"
 )
 
 const (
 	rfbSecurityNone    byte = 1
 	rfbSecurityVNCAuth byte = 2
+
+	relayAuthPrefix = "tuist-vnc-token "
 )
 
-// NewVNCForwarder exposes a no-auth RFB endpoint to the server while
-// authenticating to Tart's generated VNC endpoint on the Mac host.
-func NewVNCForwarder(listenAddr string, resolve func() (string, error), password string, opts TCPForwarderOptions) (*TCPForwarder, error) {
+// NewVNCForwarder exposes an RFB endpoint to the server while authenticating
+// to Tart's generated VNC endpoint on the Mac host. Dashboard relays require
+// the server bridge to send a short-lived token preface before any RFB bytes.
+func NewVNCForwarder(listenAddr string, resolve func() (string, error), password string, relayTokenHash string, opts TCPForwarderOptions) (*TCPForwarder, error) {
 	opts.Relay = func(client net.Conn, target string, logger *slog.Logger) {
-		vncAuthStrippingRelay(client, target, password, logger)
+		vncAuthStrippingRelay(client, target, password, relayTokenHash, logger)
 	}
 	return NewTCPForwarder(listenAddr, resolve, opts)
 }
 
-func vncAuthStrippingRelay(client net.Conn, target string, password string, logger *slog.Logger) {
+func vncAuthStrippingRelay(client net.Conn, target string, password string, relayTokenHash string, logger *slog.Logger) {
+	clientReader := bufio.NewReader(client)
+	if relayTokenHash != "" {
+		if err := authenticateRelayClient(clientReader, relayTokenHash); err != nil {
+			logger.Warn("vnc forwarder: relay client auth failed",
+				"target", target, "remote", client.RemoteAddr().String(), "err", err)
+			return
+		}
+	}
+
 	upstream, err := dialForwarderUpstream(target)
 	if err != nil {
 		logger.Warn("vnc forwarder: upstream dial failed",
@@ -33,7 +50,7 @@ func vncAuthStrippingRelay(client net.Conn, target string, password string, logg
 	}
 	defer upstream.Close()
 
-	if err := bridgeVNCHandshake(client, upstream, password); err != nil {
+	if err := bridgeVNCHandshake(clientReader, client, upstream, password); err != nil {
 		logger.Warn("vnc forwarder: handshake failed",
 			"target", target, "remote", client.RemoteAddr().String(), "err", err)
 		return
@@ -42,7 +59,23 @@ func vncAuthStrippingRelay(client net.Conn, target string, password string, logg
 	copyBidirectional(client, upstream)
 }
 
-func bridgeVNCHandshake(client net.Conn, upstream net.Conn, password string) error {
+func authenticateRelayClient(client *bufio.Reader, expectedHash string) error {
+	line, err := client.ReadString('\n')
+	if err != nil {
+		return fmt.Errorf("read relay auth preface: %w", err)
+	}
+	line = strings.TrimSuffix(strings.TrimSuffix(line, "\n"), "\r")
+	token, ok := strings.CutPrefix(line, relayAuthPrefix)
+	if !ok || token == "" {
+		return fmt.Errorf("missing relay auth preface")
+	}
+	if subtle.ConstantTimeCompare([]byte(relayTokenHash(token)), []byte(expectedHash)) != 1 {
+		return fmt.Errorf("invalid relay token")
+	}
+	return nil
+}
+
+func bridgeVNCHandshake(clientReader io.Reader, client io.Writer, upstream net.Conn, password string) error {
 	upstreamVersion, err := readRFBVersion(upstream)
 	if err != nil {
 		return fmt.Errorf("read upstream version: %w", err)
@@ -51,7 +84,7 @@ func bridgeVNCHandshake(client net.Conn, upstream net.Conn, password string) err
 		return fmt.Errorf("write client version: %w", err)
 	}
 
-	clientVersion, err := readRFBVersion(client)
+	clientVersion, err := readRFBVersion(clientReader)
 	if err != nil {
 		return fmt.Errorf("read client version: %w", err)
 	}
@@ -62,12 +95,12 @@ func bridgeVNCHandshake(client net.Conn, upstream net.Conn, password string) err
 	if err := authenticateUpstreamVNC(upstream, upstreamVersion, password); err != nil {
 		return err
 	}
-	if err := presentNoAuthToClient(client, clientVersion); err != nil {
+	if err := presentNoAuthToClient(clientReader, client, clientVersion); err != nil {
 		return err
 	}
 
 	var clientInit [1]byte
-	if _, err := io.ReadFull(client, clientInit[:]); err != nil {
+	if _, err := io.ReadFull(clientReader, clientInit[:]); err != nil {
 		return fmt.Errorf("read client init: %w", err)
 	}
 	if _, err := upstream.Write(clientInit[:]); err != nil {
@@ -77,7 +110,7 @@ func bridgeVNCHandshake(client net.Conn, upstream net.Conn, password string) err
 	return nil
 }
 
-func readRFBVersion(conn net.Conn) ([]byte, error) {
+func readRFBVersion(conn io.Reader) ([]byte, error) {
 	version := make([]byte, 12)
 	if _, err := io.ReadFull(conn, version); err != nil {
 		return nil, err
@@ -166,7 +199,7 @@ func readSecurityResult(conn net.Conn) error {
 	return nil
 }
 
-func presentNoAuthToClient(client net.Conn, version []byte) error {
+func presentNoAuthToClient(clientReader io.Reader, client io.Writer, version []byte) error {
 	if rfb33(version) {
 		var securityType [4]byte
 		binary.BigEndian.PutUint32(securityType[:], uint32(rfbSecurityNone))
@@ -178,7 +211,7 @@ func presentNoAuthToClient(client net.Conn, version []byte) error {
 		return fmt.Errorf("write client no-auth security type: %w", err)
 	}
 	var selected [1]byte
-	if _, err := io.ReadFull(client, selected[:]); err != nil {
+	if _, err := io.ReadFull(clientReader, selected[:]); err != nil {
 		return fmt.Errorf("read client security selection: %w", err)
 	}
 	if selected[0] != rfbSecurityNone {
@@ -190,6 +223,11 @@ func presentNoAuthToClient(client net.Conn, version []byte) error {
 		return fmt.Errorf("write client security result: %w", err)
 	}
 	return nil
+}
+
+func relayTokenHash(token string) string {
+	hash := sha256.Sum256([]byte(token))
+	return base64.RawURLEncoding.EncodeToString(hash[:])
 }
 
 func vncAuthResponse(password string, challenge []byte) ([]byte, error) {

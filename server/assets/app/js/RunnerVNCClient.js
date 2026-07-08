@@ -103,10 +103,11 @@ export default {
 
   connect() {
     const path = this.el.dataset.vncPath;
+    const token = this.el.dataset.vncToken;
     if (!path) return;
 
     this.el.dataset.connection = "connecting";
-    this.rfb = new RFB(this.el, websocketURL(path));
+    this.rfb = new RFB(this.el, websocketURL(path), { wsProtocols: token ? [token] : [] });
     this.rfb.background = "transparent";
     this.rfb.scaleViewport = true;
     this.rfb.resizeSession = false;

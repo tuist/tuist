@@ -49,8 +49,19 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
       user = user_fixture()
       {:ok, session} = InteractiveSessions.request_vnc(job(account), account, user)
 
-      assert {:ok, validated} = InteractiveSessions.validate_token(session.token)
+      assert {:ok, validated} = InteractiveSessions.validate_token(session.token, account, user)
       assert validated.id == session.id
+    end
+
+    test "rejects a token for the wrong account or user" do
+      account = account_fixture()
+      user = user_fixture()
+      other_account = account_fixture()
+      other_user = user_fixture()
+      {:ok, session} = InteractiveSessions.request_vnc(job(account), account, user)
+
+      assert {:error, :invalid_or_expired} = InteractiveSessions.validate_token(session.token, other_account, user)
+      assert {:error, :invalid_or_expired} = InteractiveSessions.validate_token(session.token, account, other_user)
     end
 
     test "returns the existing open session with a rotated token for duplicate requests" do
@@ -64,9 +75,25 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
       assert second.id == first.id
       assert is_binary(second.token)
       assert second.token != first.token
-      assert {:error, :invalid_or_expired} = InteractiveSessions.validate_token(first.token)
-      assert {:ok, validated} = InteractiveSessions.validate_token(second.token)
+      assert {:error, :invalid_or_expired} = InteractiveSessions.validate_token(first.token, account, user)
+      assert {:ok, validated} = InteractiveSessions.validate_token(second.token, account, user)
       assert validated.id == first.id
+    end
+
+    test "moves token ownership to the latest requester when refreshing an open session" do
+      account = account_fixture()
+      first_user = user_fixture()
+      second_user = user_fixture()
+      job = job(account, %{workflow_job_id: 70_003, pod_name: "pod-two-users"})
+
+      assert {:ok, first} = InteractiveSessions.request_vnc(job, account, first_user)
+      assert {:ok, second} = InteractiveSessions.request_vnc(job, account, second_user)
+
+      assert second.id == first.id
+      assert second.requested_by_user_id == second_user.id
+      assert {:error, :invalid_or_expired} = InteractiveSessions.validate_token(second.token, account, first_user)
+      assert {:ok, validated} = InteractiveSessions.validate_token(second.token, account, second_user)
+      assert validated.id == second.id
     end
 
     test "keeps active connection rows when refreshing an open session token" do
@@ -115,6 +142,7 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
 
         assert annotations[InteractiveSessions.vnc_session_id_annotation()] == Integer.to_string(session.id)
         assert is_binary(annotations[InteractiveSessions.vnc_requested_at_annotation()])
+        assert is_binary(annotations[InteractiveSessions.vnc_relay_token_hash_annotation()])
 
         {:ok, %{}}
       end)
@@ -307,6 +335,7 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
              "annotations" => %{
                InteractiveSessions.vnc_session_id_annotation() => Integer.to_string(active.id),
                InteractiveSessions.vnc_requested_at_annotation() => "2026-07-08T10:00:00Z",
+               InteractiveSessions.vnc_relay_token_hash_annotation() => "relay-token-hash",
                InteractiveSessions.vnc_state_annotation() => "ready",
                InteractiveSessions.vnc_relay_host_annotation() => "100.88.125.7",
                InteractiveSessions.vnc_relay_port_annotation() => "49152",
@@ -321,6 +350,7 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
 
         assert annotations[InteractiveSessions.vnc_session_id_annotation()] == nil
         assert annotations[InteractiveSessions.vnc_requested_at_annotation()] == nil
+        assert annotations[InteractiveSessions.vnc_relay_token_hash_annotation()] == nil
         assert annotations[InteractiveSessions.vnc_state_annotation()] == nil
         assert annotations[InteractiveSessions.vnc_relay_host_annotation()] == nil
         assert annotations[InteractiveSessions.vnc_relay_port_annotation()] == nil

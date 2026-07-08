@@ -1,10 +1,12 @@
 package podagent
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"io"
 	"net"
+	"strings"
 	"testing"
 )
 
@@ -60,7 +62,7 @@ func TestVNCForwarderAuthenticatesUpstreamAndPresentsNoAuth(t *testing.T) {
 
 	fw, err := NewVNCForwarder("127.0.0.1:0", func() (string, error) {
 		return upstream.Addr().String(), nil
-	}, "secret", TCPForwarderOptions{})
+	}, "secret", "", TCPForwarderOptions{})
 	if err != nil {
 		t.Fatalf("NewVNCForwarder: %v", err)
 	}
@@ -114,4 +116,35 @@ func TestVNCForwarderAuthenticatesUpstreamAndPresentsNoAuth(t *testing.T) {
 	}
 
 	<-upstreamDone
+}
+
+func TestAuthenticateRelayClientAcceptsExpectedTokenAndPreservesBufferedRFB(t *testing.T) {
+	reader := bufio.NewReader(strings.NewReader(relayAuthPrefix + "dashboard-token\nRFB 003.008\n"))
+
+	if err := authenticateRelayClient(reader, relayTokenHash("dashboard-token")); err != nil {
+		t.Fatalf("authenticateRelayClient: %v", err)
+	}
+
+	remaining := make([]byte, 12)
+	if _, err := io.ReadFull(reader, remaining); err != nil {
+		t.Fatalf("read buffered RFB version: %v", err)
+	}
+	if !bytes.Equal(remaining, []byte("RFB 003.008\n")) {
+		t.Fatalf("remaining = %q, want RFB version", remaining)
+	}
+}
+
+func TestAuthenticateRelayClientRejectsMissingOrWrongToken(t *testing.T) {
+	for name, input := range map[string]string{
+		"missing preface": "RFB 003.008\n",
+		"wrong token":     relayAuthPrefix + "wrong-token\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			reader := bufio.NewReader(strings.NewReader(input))
+
+			if err := authenticateRelayClient(reader, relayTokenHash("dashboard-token")); err == nil {
+				t.Fatal("authenticateRelayClient unexpectedly succeeded")
+			}
+		})
+	}
 }
