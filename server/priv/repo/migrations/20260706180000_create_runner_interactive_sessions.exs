@@ -20,10 +20,12 @@ defmodule Tuist.Repo.Migrations.CreateRunnerInteractiveSessions do
       timestamps(type: :timestamptz)
     end
 
+    # excellent_migrations:safety-assured-for-next-line check_constraint_added
     create constraint(:runner_interactive_sessions, :runner_interactive_sessions_kind,
              check: "kind IN ('vnc', 'shell')"
            )
 
+    # excellent_migrations:safety-assured-for-next-line check_constraint_added
     create constraint(:runner_interactive_sessions, :runner_interactive_sessions_state,
              check: "state IN ('requested', 'ready', 'active', 'closed')"
            )
