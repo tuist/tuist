@@ -214,7 +214,7 @@ jobs:
     # guest ("lost communication"). The 4 vCPU / 16 GB shape restores the
     # headroom this job had before the default was downsized (#11052).
     runs-on: tuist-linux-large
-    timeout-minutes: 30
+    timeout-minutes: 75
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     # Local `mix test` compiles only the "en" locale for fast cold builds
     # (Tuist.Environment.single_locale?/0). CI opts into the full ex_cldr/Gettext
@@ -367,7 +367,7 @@ jobs:
     # Bigger shape: the server image build (Elixir release compile inside
     # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM.
     runs-on: tuist-linux-large
-    timeout-minutes: 30
+    timeout-minutes: 75
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
