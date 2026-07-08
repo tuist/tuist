@@ -35,7 +35,7 @@ defmodule TuistWeb.RunnerJobLive do
         _session,
         %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket
       ) do
-    if Authorization.authorize(:projects_read, current_user, selected_account) != :ok or
+    if Authorization.authorize(:runners_read, current_user, selected_account) != :ok or
          not FeatureFlags.runners_enabled?(selected_account) do
       raise NotFoundError,
             dgettext(
@@ -302,7 +302,7 @@ defmodule TuistWeb.RunnerJobLive do
   def has_machine_metrics?(metrics), do: metrics != []
 
   def interactive_tab_visible?(%{
-        can_manage?: true,
+        can_read?: true,
         macos?: true,
         running?: true,
         pod_available?: true
@@ -310,7 +310,7 @@ defmodule TuistWeb.RunnerJobLive do
 
   def interactive_tab_visible?(_), do: false
 
-  def interactive_vnc_unavailable_reason(%{can_manage?: false}),
+  def interactive_vnc_unavailable_reason(%{can_read?: false}),
     do: dgettext("dashboard_runners", "You are not authorized to request interactive access.")
 
   def interactive_vnc_unavailable_reason(%{macos?: false}),
@@ -437,7 +437,7 @@ defmodule TuistWeb.RunnerJobLive do
       interactive.vnc_dev_preview? ->
         socket
 
-      not interactive.can_manage? ->
+      not interactive.can_read? ->
         maybe_put_flash(
           socket,
           notify?,
@@ -656,11 +656,9 @@ defmodule TuistWeb.RunnerJobLive do
     running? = job.status in ["claimed", "running"]
     pod_available? = is_binary(job.pod_name) and job.pod_name != ""
 
-    can_manage? =
-      Authorization.authorize(:runner_interactive_session_create, current_user, selected_account) ==
-        :ok
+    can_read? = Authorization.authorize(:runners_read, current_user, selected_account) == :ok
 
-    vnc_requestable? = can_manage? and InteractiveSessions.vnc_requestable?(job)
+    vnc_requestable? = can_read? and InteractiveSessions.vnc_requestable?(job)
     vnc_dev_preview? = Environment.dev?() and vnc_requestable?
     vnc_dev_preview_at = DateTime.utc_now()
 
@@ -675,7 +673,7 @@ defmodule TuistWeb.RunnerJobLive do
       end
 
     %{
-      can_manage?: can_manage?,
+      can_read?: can_read?,
       macos?: macos?,
       running?: running?,
       pod_available?: pod_available?,
