@@ -1194,6 +1194,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
             uploadCacheStorage = cacheStorage
         }
 
+        let passthroughDerivedDataPath = try? await xcodeBuildAgumentParser
+            .parse(passthroughXcodeBuildArguments)
+            .derivedDataPath
+        let hostlessDerivedDataBasePath = derivedDataPath ?? passthroughDerivedDataPath
+
         let passthroughSkippedTargetNames = passthroughSkippedTestTargetNames(passthroughXcodeBuildArguments)
         let testSchemeRuns = schemes.compactMap { testScheme -> (scheme: Scheme, testTargets: [TestIdentifier])? in
             let testSchemeTargetNames = Set(
@@ -1250,8 +1255,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     testPlanConfiguration: testPlanConfiguration,
                     action: action
                 ) {
-                    if let derivedDataPath {
-                        schemeDerivedDataPath = derivedDataPath
+                    if let hostlessDerivedDataBasePath {
+                        schemeDerivedDataPath = hostlessDerivedDataBasePath
                             .appending(components: "HostlessTests", testScheme.name)
                     } else {
                         schemeDerivedDataPath = try await fileSystem
@@ -1519,11 +1524,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 ($0.name, $0.projectPath.pathString) < ($1.name, $1.projectPath.pathString)
             }
             .compactMap { schemesByTarget[$0] }
-
-        Logger.current.debug(
-            "Workspace schemes include hosted tests and host-less unit tests; running generated project schemes separately."
-        )
-        return (projectSchemes, true)
+        return (projectSchemes, action == .test)
     }
 
     private func isCompatibleHostlessTestScheme(
