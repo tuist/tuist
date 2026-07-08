@@ -6,19 +6,16 @@ import Testing
 
 @testable import TuistServer
 
-@Suite(.serialized)
 struct MultipartUploadArtifactServiceTests {
     @Test(.inTemporaryDirectory)
     func multipartUploadArtifact_uploadsCompleteParts() async throws {
-        MultipartUploadURLProtocol.reset()
-        MultipartUploadURLProtocol.statusCode = 200
-
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let artifactPath = temporaryDirectory.appending(component: "artifact.aar")
         let partSize = 10 * 1024 * 1024
         let payload = Data(repeating: 7, count: partSize + 7)
         try payload.write(to: URL(fileURLWithPath: artifactPath.pathString))
 
+        let uploadServer = MultipartUploadURLProtocolServer()
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MultipartUploadURLProtocol.self]
         let subject = MultipartUploadArtifactService(
@@ -31,7 +28,7 @@ struct MultipartUploadArtifactServiceTests {
             artifactPath: artifactPath,
             generateUploadURL: { part in
                 await partRecorder.record(part)
-                return "https://tuist.dev/upload?partNumber=\(part.number)"
+                return uploadServer.uploadURL(partNumber: part.number)
             },
             updateProgress: { _ in }
         )
@@ -43,7 +40,7 @@ struct MultipartUploadArtifactServiceTests {
         #expect(generatedParts.map(\.number) == [1, 2])
         #expect(generatedParts.map(\.contentLength) == [partSize, 7])
 
-        let requests = MultipartUploadURLProtocol.requests.sorted(by: { $0.partNumber < $1.partNumber })
+        let requests = uploadServer.requests.sorted(by: { $0.partNumber < $1.partNumber })
         #expect(requests.map(\.partNumber) == [1, 2])
         #expect(requests.map(\.contentLength) == [partSize, 7])
         #expect(requests[0].body.count == partSize)
@@ -52,25 +49,26 @@ struct MultipartUploadArtifactServiceTests {
 
     @Test(.inTemporaryDirectory)
     func multipartUploadArtifact_rejectsNonSuccessfulUploadResponseWithEtag() async throws {
-        MultipartUploadURLProtocol.reset()
-        MultipartUploadURLProtocol.responseData = Data("storage error".utf8)
-        MultipartUploadURLProtocol.statusCode = 500
-
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let artifactPath = temporaryDirectory.appending(component: "artifact.aar")
         try Data("payload".utf8).write(to: URL(fileURLWithPath: artifactPath.pathString))
 
+        let uploadServer = MultipartUploadURLProtocolServer(
+            responseData: Data("storage error".utf8),
+            statusCode: 500
+        )
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MultipartUploadURLProtocol.self]
         let subject = MultipartUploadArtifactService(
             urlSession: URLSession(configuration: configuration),
             retryProvider: NoRetryProvider()
         )
+        let uploadURL = uploadServer.uploadURL(partNumber: 1)
 
         do {
             _ = try await subject.multipartUploadArtifact(
                 artifactPath: artifactPath,
-                generateUploadURL: { part in "https://tuist.dev/upload?partNumber=\(part.number)" },
+                generateUploadURL: { _ in uploadURL },
                 updateProgress: { _ in }
             )
             Issue.record("Expected multipart upload to reject the failed response")
@@ -79,7 +77,7 @@ struct MultipartUploadArtifactServiceTests {
                 Issue.record("Expected uploadFailed, got \(error)")
                 return
             }
-            #expect(url?.absoluteString == "https://tuist.dev/upload?partNumber=1")
+            #expect(url?.absoluteString == uploadURL)
             #expect(statusCode == 500)
             #expect(body == "storage error")
         }
@@ -87,9 +85,6 @@ struct MultipartUploadArtifactServiceTests {
 
     @Test(.inTemporaryDirectory)
     func multipartUploadArtifact_rejectsArtifactChangesWhileUploading() async throws {
-        MultipartUploadURLProtocol.reset()
-        MultipartUploadURLProtocol.statusCode = 200
-
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let artifactPath = temporaryDirectory.appending(component: "artifact.aar")
         let initialPayload = Data("initial".utf8)
@@ -100,7 +95,7 @@ struct MultipartUploadArtifactServiceTests {
 
         let lock = NSLock()
         var didAppend = false
-        MultipartUploadURLProtocol.onRequest = { _, _ in
+        let uploadServer = MultipartUploadURLProtocolServer { _, _ in
             lock.lock()
             defer { lock.unlock() }
             guard !didAppend else { return }
@@ -124,7 +119,7 @@ struct MultipartUploadArtifactServiceTests {
         do {
             _ = try await subject.multipartUploadArtifact(
                 artifactPath: artifactPath,
-                generateUploadURL: { part in "https://tuist.dev/upload?partNumber=\(part.number)" },
+                generateUploadURL: { part in uploadServer.uploadURL(partNumber: part.number) },
                 updateProgress: { _ in }
             )
             Issue.record("Expected multipart upload to reject the changing artifact")
@@ -137,7 +132,7 @@ struct MultipartUploadArtifactServiceTests {
             #expect(readBytes == UInt64(initialPayload.count))
         }
 
-        let requests = MultipartUploadURLProtocol.requests
+        let requests = uploadServer.requests
         #expect(requests.map(\.body) == [initialPayload])
     }
 }
@@ -164,27 +159,76 @@ private struct CapturedMultipartUploadRequest {
     let body: Data
 }
 
-private final class MultipartUploadURLProtocol: URLProtocol {
-    nonisolated(unsafe) static var responseData = Data()
-    nonisolated(unsafe) static var statusCode = 200
-    nonisolated(unsafe) static var onRequest: ((URLRequest, Data) -> Void)?
+private final class MultipartUploadURLProtocolServer: @unchecked Sendable {
+    private let id = UUID().uuidString
 
-    private nonisolated(unsafe) static var capturedRequests: [CapturedMultipartUploadRequest] = []
-    private nonisolated(unsafe) static let lock = NSLock()
-
-    static var requests: [CapturedMultipartUploadRequest] {
-        lock.lock()
-        defer { lock.unlock() }
-        return capturedRequests
+    init(
+        responseData: Data = Data(),
+        statusCode: Int = 200,
+        onRequest: ((URLRequest, Data) -> Void)? = nil
+    ) {
+        MultipartUploadURLProtocol.register(
+            id: id,
+            responseData: responseData,
+            statusCode: statusCode,
+            onRequest: onRequest
+        )
     }
 
-    static func reset() {
+    convenience init(onRequest: @escaping (URLRequest, Data) -> Void) {
+        self.init(responseData: Data(), statusCode: 200, onRequest: onRequest)
+    }
+
+    deinit {
+        MultipartUploadURLProtocol.unregister(id: id)
+    }
+
+    var requests: [CapturedMultipartUploadRequest] {
+        MultipartUploadURLProtocol.requests(for: id)
+    }
+
+    func uploadURL(partNumber: Int) -> String {
+        "https://tuist.dev/upload?testID=\(id)&partNumber=\(partNumber)"
+    }
+}
+
+private struct MultipartUploadURLProtocolState {
+    var responseData: Data
+    var statusCode: Int
+    var onRequest: ((URLRequest, Data) -> Void)?
+    var capturedRequests: [CapturedMultipartUploadRequest]
+}
+
+private final class MultipartUploadURLProtocol: URLProtocol {
+    private nonisolated(unsafe) static var states: [String: MultipartUploadURLProtocolState] = [:]
+    private nonisolated(unsafe) static let lock = NSLock()
+
+    static func register(
+        id: String,
+        responseData: Data,
+        statusCode: Int,
+        onRequest: ((URLRequest, Data) -> Void)?
+    ) {
         lock.lock()
         defer { lock.unlock() }
-        capturedRequests = []
-        responseData = Data()
-        statusCode = 200
-        onRequest = nil
+        states[id] = MultipartUploadURLProtocolState(
+            responseData: responseData,
+            statusCode: statusCode,
+            onRequest: onRequest,
+            capturedRequests: []
+        )
+    }
+
+    static func unregister(id: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        states[id] = nil
+    }
+
+    static func requests(for id: String) -> [CapturedMultipartUploadRequest] {
+        lock.lock()
+        defer { lock.unlock() }
+        return states[id]?.capturedRequests ?? []
     }
 
     override class func canInit(with _: URLRequest) -> Bool {
@@ -197,31 +241,21 @@ private final class MultipartUploadURLProtocol: URLProtocol {
 
     override func startLoading() {
         let body = Self.bodyData(from: request)
-        Self.onRequest?(request, body)
-        let partNumber = request.url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }?
-            .queryItems?
-            .first(where: { $0.name == "partNumber" })?
-            .value
-            .flatMap(Int.init) ?? 0
+        let testID = Self.queryItem(named: "testID", in: request.url)
+        let state = Self.state(for: testID)
+        state.onRequest?(request, body)
 
-        Self.lock.lock()
-        Self.capturedRequests.append(
-            CapturedMultipartUploadRequest(
-                partNumber: partNumber,
-                contentLength: Int(request.value(forHTTPHeaderField: "Content-Length") ?? "") ?? 0,
-                body: body
-            )
-        )
-        Self.lock.unlock()
+        let partNumber = Self.queryItem(named: "partNumber", in: request.url).flatMap(Int.init) ?? 0
+        Self.recordRequest(testID: testID, request: request, body: body, partNumber: partNumber)
 
         let response = HTTPURLResponse(
             url: request.url!,
-            statusCode: Self.statusCode,
+            statusCode: state.statusCode,
             httpVersion: nil,
             headerFields: ["Etag": "etag-\(partNumber)"]
         )!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: Self.responseData)
+        client?.urlProtocol(self, didLoad: state.responseData)
         client?.urlProtocolDidFinishLoading(self)
     }
 
@@ -247,5 +281,45 @@ private final class MultipartUploadURLProtocol: URLProtocol {
             data.append(buffer, count: bytesRead)
         }
         return data
+    }
+
+    private static func state(for testID: String?) -> MultipartUploadURLProtocolState {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let testID, let state = states[testID] else {
+            return MultipartUploadURLProtocolState(
+                responseData: Data(),
+                statusCode: 200,
+                onRequest: nil,
+                capturedRequests: []
+            )
+        }
+        return state
+    }
+
+    private static func recordRequest(
+        testID: String?,
+        request: URLRequest,
+        body: Data,
+        partNumber: Int
+    ) {
+        guard let testID else { return }
+
+        lock.lock()
+        defer { lock.unlock() }
+        states[testID]?.capturedRequests.append(
+            CapturedMultipartUploadRequest(
+                partNumber: partNumber,
+                contentLength: Int(request.value(forHTTPHeaderField: "Content-Length") ?? "") ?? 0,
+                body: body
+            )
+        )
+    }
+
+    private static func queryItem(named name: String, in url: URL?) -> String? {
+        url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }?
+            .queryItems?
+            .first(where: { $0.name == name })?
+            .value
     }
 }
