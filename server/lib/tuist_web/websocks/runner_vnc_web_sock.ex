@@ -24,7 +24,7 @@ defmodule TuistWeb.RunnerVNCWebSock do
       {:ok, socket} ->
         case InteractiveSessions.mark_active(session, connection_id) do
           {:ok, active_session} ->
-            {:ok, %{socket: socket, session: active_session}}
+            {:ok, %{socket: socket, session: active_session, connection_id: connection_id}}
 
           {:error, reason} ->
             :gen_tcp.close(socket)
@@ -56,9 +56,9 @@ defmodule TuistWeb.RunnerVNCWebSock do
   def handle_info(_message, state), do: {:ok, state}
 
   @impl WebSock
-  def terminate(_reason, %{socket: socket, session: session}) do
+  def terminate(_reason, %{socket: socket, session: session, connection_id: connection_id}) do
     :gen_tcp.close(socket)
-    _ = InteractiveSessions.schedule_disconnect_close(session)
+    _ = InteractiveSessions.schedule_disconnect_close(session, connection_id)
     :ok
   end
 

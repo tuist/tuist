@@ -1,7 +1,7 @@
 defmodule Tuist.Runners.Workers.CloseDisconnectedInteractiveSessionWorker do
   @moduledoc """
-  Closes an interactive session after its browser WebSocket disconnects
-  and no newer connection has taken over during the grace period.
+  Closes an interactive session after a browser WebSocket disconnects
+  and no viewer connections remain after the grace period.
   """
 
   use Oban.Worker, queue: :default, max_attempts: 3

@@ -7,6 +7,7 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Repo
   alias Tuist.Runners.InteractiveSession
+  alias Tuist.Runners.InteractiveSessionConnection
   alias Tuist.Runners.InteractiveSessions
   alias Tuist.Runners.Workers.CloseDisconnectedInteractiveSessionWorker
 
@@ -68,7 +69,7 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
       assert validated.id == first.id
     end
 
-    test "clears the previous connection marker when refreshing an open session token" do
+    test "keeps active connection rows when refreshing an open session token" do
       account = account_fixture()
       user = user_fixture()
       job = job(account, %{workflow_job_id: 70_002, pod_name: "pod-token-refresh"})
@@ -79,7 +80,11 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
       assert {:ok, refreshed} = InteractiveSessions.request_vnc(job, account, user)
 
       assert refreshed.id == active.id
-      assert refreshed.connection_id == nil
+
+      assert Repo.get_by!(InteractiveSessionConnection,
+               interactive_session_id: active.id,
+               connection_id: "connection-before-refresh"
+             ).disconnected_at == nil
     end
 
     test "rejects non-macOS jobs" do
@@ -223,7 +228,7 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
   end
 
   describe "mark_active/2" do
-    test "records a connection marker for the active browser WebSocket" do
+    test "records a connection row for the active browser WebSocket" do
       account = account_fixture()
       user = user_fixture()
       {:ok, session} = InteractiveSessions.request_vnc(job(account), account, user)
@@ -231,9 +236,17 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
       assert {:ok, active} = InteractiveSessions.mark_active(session, "connection-one")
 
       assert active.state == :active
-      assert active.connection_id == "connection-one"
       assert active.connected_at
       assert active.last_activity_at
+
+      connection =
+        Repo.get_by!(InteractiveSessionConnection,
+          interactive_session_id: active.id,
+          connection_id: "connection-one"
+        )
+
+      assert connection.connected_at
+      assert connection.disconnected_at == nil
     end
   end
 
@@ -244,7 +257,16 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
       {:ok, session} = InteractiveSessions.request_vnc(job(account), account, user)
       {:ok, active} = InteractiveSessions.mark_active(session, "connection-scheduled")
 
-      assert {:ok, _job} = InteractiveSessions.schedule_disconnect_close(active, grace_seconds: 15)
+      assert {:ok, _job} =
+               InteractiveSessions.schedule_disconnect_close(active, "connection-scheduled", grace_seconds: 15)
+
+      connection =
+        Repo.get_by!(InteractiveSessionConnection,
+          interactive_session_id: active.id,
+          connection_id: "connection-scheduled"
+        )
+
+      assert connection.disconnected_at
 
       assert_enqueued(
         worker: CloseDisconnectedInteractiveSessionWorker,
@@ -260,6 +282,9 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
       pod_name = "pod-disconnected"
       {:ok, session} = InteractiveSessions.request_vnc(job(account, %{pod_name: pod_name}), account, user)
       {:ok, active} = InteractiveSessions.mark_active(session, "connection-disconnected")
+
+      assert {:ok, _job} =
+               InteractiveSessions.schedule_disconnect_close(active, "connection-disconnected", grace_seconds: 15)
 
       expect(K8sClient, :get_pod, fn "tuist-runners", ^pod_name ->
         {:ok,
@@ -297,17 +322,54 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
       assert closed.closed_at
     end
 
-    test "keeps the session open when a newer WebSocket connection took over" do
+    test "keeps the session open while another WebSocket connection is active" do
       account = account_fixture()
       user = user_fixture()
       {:ok, session} = InteractiveSessions.request_vnc(job(account), account, user)
       {:ok, active} = InteractiveSessions.mark_active(session, "connection-old")
       {:ok, reconnected} = InteractiveSessions.mark_active(active, "connection-new")
 
-      assert {:ok, :reconnected} = InteractiveSessions.close_if_disconnected(reconnected.id, "connection-old")
+      assert {:ok, _job} = InteractiveSessions.schedule_disconnect_close(reconnected, "connection-old", grace_seconds: 15)
+      assert {:ok, :active_connections} = InteractiveSessions.close_if_disconnected(reconnected.id, "connection-old")
 
       assert Repo.reload!(session).closed_at == nil
-      assert Repo.reload!(session).connection_id == "connection-new"
+
+      assert Repo.get_by!(InteractiveSessionConnection,
+               interactive_session_id: reconnected.id,
+               connection_id: "connection-old"
+             ).disconnected_at
+
+      assert Repo.get_by!(InteractiveSessionConnection,
+               interactive_session_id: reconnected.id,
+               connection_id: "connection-new"
+             ).disconnected_at == nil
+    end
+
+    test "waits for the newest disconnected browser cleanup before closing a shared session" do
+      account = account_fixture()
+      user = user_fixture()
+      pod_name = "pod-shared-disconnect"
+      {:ok, session} = InteractiveSessions.request_vnc(job(account, %{pod_name: pod_name}), account, user)
+      {:ok, active} = InteractiveSessions.mark_active(session, "connection-old")
+      {:ok, shared} = InteractiveSessions.mark_active(active, "connection-new")
+
+      assert {:ok, _job} = InteractiveSessions.schedule_disconnect_close(shared, "connection-old", grace_seconds: 15)
+      assert {:ok, _job} = InteractiveSessions.schedule_disconnect_close(shared, "connection-new", grace_seconds: 15)
+
+      assert {:ok, :newer_disconnect_pending} =
+               InteractiveSessions.close_if_disconnected(shared.id, "connection-old")
+
+      assert Repo.reload!(session).closed_at == nil
+
+      expect(K8sClient, :get_pod, fn "tuist-runners", ^pod_name ->
+        {:error, :not_found}
+      end)
+
+      assert {:ok, closed} = InteractiveSessions.close_if_disconnected(shared.id, "connection-new")
+
+      assert closed.state == :closed
+      assert closed.close_reason == "browser_disconnect"
+      assert closed.closed_at
     end
   end
 

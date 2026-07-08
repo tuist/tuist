@@ -16,6 +16,7 @@ defmodule Tuist.Runners.InteractiveSessions do
   alias Tuist.Repo
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.InteractiveSession
+  alias Tuist.Runners.InteractiveSessionConnection
   alias Tuist.Runners.Workers.CloseDisconnectedInteractiveSessionWorker
 
   require Logger
@@ -124,72 +125,73 @@ defmodule Tuist.Runners.InteractiveSessions do
 
   def mark_active(session, connection_id \\ Ecto.UUID.generate())
 
-  def mark_active(%InteractiveSession{closed_at: nil} = session, connection_id)
+  def mark_active(%InteractiveSession{closed_at: nil, id: session_id}, connection_id)
       when is_binary(connection_id) and connection_id != "" do
     now = now()
 
-    {count, sessions} =
-      InteractiveSession
-      |> where([candidate], candidate.id == ^session.id and is_nil(candidate.closed_at))
-      |> select([candidate], candidate)
-      |> Repo.update_all(
-        set: [
-          state: :active,
-          connection_id: connection_id,
-          connected_at: session.connected_at || now,
-          last_activity_at: now,
-          updated_at: now
-        ]
-      )
+    Repo.transaction(fn ->
+      session =
+        InteractiveSession
+        |> where([candidate], candidate.id == ^session_id and is_nil(candidate.closed_at))
+        |> lock("FOR UPDATE")
+        |> Repo.one()
 
-    case {count, sessions} do
-      {1, [active]} -> {:ok, active}
-      _ -> {:error, :closed_session}
-    end
+      with %InteractiveSession{} <- session,
+           {:ok, active} <-
+             session
+             |> InteractiveSession.changeset(%{
+               state: :active,
+               connected_at: session.connected_at || now,
+               last_activity_at: now,
+               updated_at: now
+             })
+             |> Repo.update(),
+           {:ok, _connection} <- create_connection(active.id, connection_id, now) do
+        active
+      else
+        nil -> Repo.rollback(:closed_session)
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
   end
 
   def mark_active(%InteractiveSession{}, _connection_id), do: {:error, :closed_session}
 
-  def schedule_disconnect_close(session, opts \\ [])
+  def schedule_disconnect_close(session, connection_id, opts \\ [])
 
-  def schedule_disconnect_close(%InteractiveSession{connection_id: connection_id, id: id}, opts)
+  def schedule_disconnect_close(%InteractiveSession{id: id}, connection_id, opts)
       when is_binary(connection_id) and connection_id != "" do
+    now = now()
     grace_seconds = Keyword.get(opts, :grace_seconds, @disconnect_grace_seconds)
+
+    InteractiveSessionConnection
+    |> where(
+      [connection],
+      connection.interactive_session_id == ^id and connection.connection_id == ^connection_id and
+        is_nil(connection.disconnected_at)
+    )
+    |> Repo.update_all(set: [disconnected_at: now, updated_at: now])
 
     %{session_id: id, connection_id: connection_id}
     |> CloseDisconnectedInteractiveSessionWorker.new(schedule_in: grace_seconds)
     |> Oban.insert()
   end
 
-  def schedule_disconnect_close(%InteractiveSession{}, _opts), do: {:ok, :inactive_session}
+  def schedule_disconnect_close(%InteractiveSession{}, _connection_id, _opts), do: {:ok, :inactive_session}
 
   def close_if_disconnected(session_id, connection_id)
       when is_integer(session_id) and is_binary(connection_id) and connection_id != "" do
-    case Repo.get(InteractiveSession, session_id) do
-      nil ->
-        {:ok, :no_open_session}
-
-      %InteractiveSession{connection_id: current_connection_id} when current_connection_id != connection_id ->
-        {:ok, :reconnected}
-
-      %InteractiveSession{closed_at: %DateTime{}, close_reason: "browser_disconnect"} = session ->
-        with :ok <- clear_vnc_relay_request(session) do
-          {:ok, session}
+    case close_disconnected(session_id, connection_id) do
+      {:ok, %InteractiveSession{} = closed} ->
+        with :ok <- clear_vnc_relay_request(closed) do
+          {:ok, closed}
         end
 
-      %InteractiveSession{closed_at: %DateTime{}} ->
-        {:ok, :no_open_session}
+      {:ok, result} ->
+        {:ok, result}
 
-      %InteractiveSession{} = session ->
-        case close_disconnected(session, connection_id) do
-          {:ok, %InteractiveSession{} = closed} ->
-            with :ok <- clear_vnc_relay_request(closed) do
-              {:ok, closed}
-            end
-
-          {:ok, result} ->
-            {:ok, result}
-        end
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -332,29 +334,80 @@ defmodule Tuist.Runners.InteractiveSessions do
     |> Repo.update()
   end
 
-  defp close_disconnected(%InteractiveSession{} = session, connection_id) do
-    now = now()
+  defp close_disconnected(session_id, connection_id) do
+    Repo.transaction(fn ->
+      session =
+        InteractiveSession
+        |> where([candidate], candidate.id == ^session_id)
+        |> lock("FOR UPDATE")
+        |> Repo.one()
 
-    {count, sessions} =
-      InteractiveSession
-      |> where(
-        [candidate],
-        candidate.id == ^session.id and candidate.connection_id == ^connection_id and is_nil(candidate.closed_at)
-      )
-      |> select([candidate], candidate)
-      |> Repo.update_all(
-        set: [
-          state: :closed,
-          closed_at: now,
-          close_reason: "browser_disconnect",
-          updated_at: now
-        ]
+      cond do
+        is_nil(session) ->
+          :no_open_session
+
+        not is_nil(session.closed_at) and session.close_reason == "browser_disconnect" ->
+          session
+
+        not is_nil(session.closed_at) ->
+          :no_open_session
+
+        true ->
+          close_if_last_disconnected_connection(session, connection_id)
+      end
+    end)
+  end
+
+  defp close_if_last_disconnected_connection(%InteractiveSession{} = session, connection_id) do
+    connection =
+      Repo.get_by(InteractiveSessionConnection,
+        interactive_session_id: session.id,
+        connection_id: connection_id
       )
 
-    case {count, sessions} do
-      {1, [closed]} -> {:ok, closed}
-      _ -> {:ok, :reconnected}
+    cond do
+      is_nil(connection) ->
+        :no_open_connection
+
+      is_nil(connection.disconnected_at) ->
+        :still_connected
+
+      active_connection?(session.id) ->
+        :active_connections
+
+      newer_disconnected_connection?(connection) ->
+        :newer_disconnect_pending
+
+      true ->
+        case close(session, "browser_disconnect") do
+          {:ok, closed} -> closed
+          {:error, changeset} -> Repo.rollback(changeset)
+        end
     end
+  end
+
+  defp active_connection?(interactive_session_id) do
+    InteractiveSessionConnection
+    |> where(
+      [connection],
+      connection.interactive_session_id == ^interactive_session_id and is_nil(connection.disconnected_at)
+    )
+    |> Repo.exists?()
+  end
+
+  defp newer_disconnected_connection?(%InteractiveSessionConnection{
+         id: id,
+         interactive_session_id: interactive_session_id,
+         disconnected_at: disconnected_at
+       }) do
+    InteractiveSessionConnection
+    |> where(
+      [connection],
+      connection.interactive_session_id == ^interactive_session_id and not is_nil(connection.disconnected_at) and
+        (connection.disconnected_at > ^disconnected_at or
+           (connection.disconnected_at == ^disconnected_at and connection.id > ^id))
+    )
+    |> Repo.exists?()
   end
 
   defp clear_vnc_relay_request(%InteractiveSession{kind: :vnc, pod_name: pod_name} = session)
@@ -426,7 +479,7 @@ defmodule Tuist.Runners.InteractiveSessions do
 
       {:error, changeset} ->
         case current_for_job(job.account_id, job.workflow_job_id, kind) do
-          %InteractiveSession{} = session -> {:ok, session}
+          %InteractiveSession{} = session -> refresh_token(session)
           nil -> {:error, changeset}
         end
     end
@@ -439,7 +492,6 @@ defmodule Tuist.Runners.InteractiveSessions do
     session
     |> InteractiveSession.changeset(%{
       token_hash: hash,
-      connection_id: nil,
       expires_at: DateTime.add(now, @default_ttl_seconds, :second),
       last_activity_at: now,
       updated_at: now
@@ -449,6 +501,16 @@ defmodule Tuist.Runners.InteractiveSessions do
       {:ok, updated} -> {:ok, %{updated | token: token}}
       {:error, changeset} -> {:error, changeset}
     end
+  end
+
+  defp create_connection(interactive_session_id, connection_id, connected_at) do
+    %InteractiveSessionConnection{}
+    |> InteractiveSessionConnection.changeset(%{
+      interactive_session_id: interactive_session_id,
+      connection_id: connection_id,
+      connected_at: connected_at
+    })
+    |> Repo.insert()
   end
 
   defp build_token do
