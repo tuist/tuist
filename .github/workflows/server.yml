@@ -294,7 +294,7 @@ jobs:
       - name: Check Elixir format
         run: mix format --check-formatted
       - name: Check asset format
-        run: mise exec -- prettier --check assets
+        run: prettier --check assets
   esbuild:
     name: esbuild
     runs-on: tuist-linux
