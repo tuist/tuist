@@ -213,7 +213,9 @@ func vncAuthResponse(password string, challenge []byte) ([]byte, error) {
 	}
 
 	response := make([]byte, 16)
+	// codeql[go/weak-cryptographic-algorithm]
 	block.Encrypt(response[0:8], challenge[0:8])
+	// codeql[go/weak-cryptographic-algorithm]
 	block.Encrypt(response[8:16], challenge[8:16])
 	return response, nil
 }
