@@ -164,6 +164,18 @@ defmodule TuistWeb.CacheLiveTest do
     assert Floki.attribute(document, "#cache-upload-policy-members-and-tokens", "data-selected") == ["true"]
     assert Floki.attribute(document, "#cache-upload-policy-tokens-only", "data-selected") == ["false"]
 
+    assert Floki.attribute(document, "#cache-upload-policy-members-and-tokens [data-part='control']", "class") == [
+             "noora-checkbox-control"
+           ]
+
+    assert Floki.attribute(document, "#cache-upload-policy-members-and-tokens [data-part='control']", "data-state") == [
+             "checked"
+           ]
+
+    assert Floki.attribute(document, "#cache-upload-policy-tokens-only [data-part='control']", "data-state") == [
+             "unchecked"
+           ]
+
     html = render_click(lv, "select_cache_upload_policy", %{"policy" => "tokens_only"})
 
     assert html =~ ~s(id="cache-upload-policy-tokens-only")
@@ -171,6 +183,15 @@ defmodule TuistWeb.CacheLiveTest do
     document = Floki.parse_fragment!(html)
     assert Floki.attribute(document, "#cache-upload-policy-members-and-tokens", "data-selected") == ["false"]
     assert Floki.attribute(document, "#cache-upload-policy-tokens-only", "data-selected") == ["true"]
+
+    assert Floki.attribute(document, "#cache-upload-policy-members-and-tokens [data-part='control']", "data-state") == [
+             "unchecked"
+           ]
+
+    assert Floki.attribute(document, "#cache-upload-policy-tokens-only [data-part='control']", "data-state") == [
+             "checked"
+           ]
+
     assert {:ok, updated_account} = Accounts.get_account_by_id(account.id)
     assert updated_account.cache_write_policy == :tokens_only
 

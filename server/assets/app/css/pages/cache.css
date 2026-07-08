@@ -111,9 +111,7 @@
 
     & [data-part="policy-option"] {
       display: flex;
-      flex-direction: column;
       align-items: flex-start;
-      gap: var(--noora-spacing-2);
       transition:
         background 0.2s ease,
         box-shadow 0.2s ease;
@@ -146,34 +144,28 @@
     & [data-part="option-header"] {
       display: flex;
       flex-direction: row;
-      align-items: center;
-      gap: var(--noora-spacing-3);
+      align-items: flex-start;
+      gap: var(--noora-spacing-4);
       width: 100%;
       min-width: 0;
     }
 
-    & [data-part="label"] {
-      flex-grow: 1;
-      min-width: 0;
-      color: var(--noora-surface-label-primary);
-      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    & [data-part="control"] {
+      flex-shrink: 0;
+      margin-top: 2px;
     }
 
-    & [data-part="check"] {
+    & [data-part="body"] {
       display: flex;
-      flex-shrink: 0;
-      align-items: center;
-      justify-content: center;
-      border-radius: var(--noora-radius-99);
-      background: var(--noora-button-primary-background);
-      width: var(--noora-spacing-5);
-      height: var(--noora-spacing-5);
-      color: var(--noora-button-primary-label);
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+      flex-grow: 1;
+      min-width: 0;
+    }
 
-      & > svg {
-        width: var(--noora-spacing-4);
-        height: var(--noora-spacing-4);
-      }
+    & [data-part="label"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
     }
 
     & [data-part="description"] {

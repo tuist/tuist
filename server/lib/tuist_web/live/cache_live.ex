@@ -3,6 +3,7 @@ defmodule TuistWeb.CacheLive do
   use TuistWeb, :live_view
   use Noora
 
+  import Noora.CheckboxControl
   import Phoenix.Component
 
   alias Phoenix.HTML.Form
@@ -465,18 +466,21 @@ defmodule TuistWeb.CacheLive do
           phx-value-policy="members_and_tokens"
         >
           <span data-part="option-header">
-            <span data-part="label">
-              {dgettext("dashboard_account", "Members, CI, and account tokens")}
+            <.checkbox_control
+              checked={@cache_write_policy == :members_and_tokens}
+              data-part="control"
+            />
+            <span data-part="body">
+              <span data-part="label">
+                {dgettext("dashboard_account", "Members, CI, and account tokens")}
+              </span>
+              <span data-part="description">
+                {dgettext(
+                  "dashboard_account",
+                  "Members using login sessions, CI OIDC tokens, and account tokens with cache write scopes can upload."
+                )}
+              </span>
             </span>
-            <span :if={@cache_write_policy == :members_and_tokens} data-part="check">
-              <.icon name="check" />
-            </span>
-          </span>
-          <span data-part="description">
-            {dgettext(
-              "dashboard_account",
-              "Members using login sessions, CI OIDC tokens, and account tokens with cache write scopes can upload."
-            )}
           </span>
         </button>
         <button
@@ -490,18 +494,18 @@ defmodule TuistWeb.CacheLive do
           phx-value-policy="tokens_only"
         >
           <span data-part="option-header">
-            <span data-part="label">
-              {dgettext("dashboard_account", "CI and account tokens only")}
+            <.checkbox_control checked={@cache_write_policy == :tokens_only} data-part="control" />
+            <span data-part="body">
+              <span data-part="label">
+                {dgettext("dashboard_account", "CI and account tokens only")}
+              </span>
+              <span data-part="description">
+                {dgettext(
+                  "dashboard_account",
+                  "Members can download, but uploads require CI OIDC tokens or account tokens with cache write scopes."
+                )}
+              </span>
             </span>
-            <span :if={@cache_write_policy == :tokens_only} data-part="check">
-              <.icon name="check" />
-            </span>
-          </span>
-          <span data-part="description">
-            {dgettext(
-              "dashboard_account",
-              "Members can download, but uploads require CI OIDC tokens or account tokens with cache write scopes."
-            )}
           </span>
         </button>
       </div>
