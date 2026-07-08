@@ -28,6 +28,7 @@ defmodule Tuist.Runners.InteractiveSession do
     field :relay_host, :string
     field :relay_port, :integer
     field :relay_ready_at, :utc_datetime
+    field :connection_id, :string
     field :close_reason, :string
 
     belongs_to :account, Account
@@ -54,6 +55,7 @@ defmodule Tuist.Runners.InteractiveSession do
       :relay_host,
       :relay_port,
       :relay_ready_at,
+      :connection_id,
       :close_reason
     ])
     |> validate_number(:relay_port, greater_than: 0, less_than: 65_536)

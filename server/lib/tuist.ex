@@ -192,6 +192,7 @@ defmodule Tuist do
       Runners.Billing,
       Runners.Catalog,
       Runners.Dispatch,
+      Runners.Workers.CloseDisconnectedInteractiveSessionWorker,
       Runners.Workers.DispatchWorker,
       Runners.Workers.ExpireInteractiveSessionsWorker,
       Runners.Workers.WebhookRedeliveryWorker,

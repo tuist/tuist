@@ -9,6 +9,8 @@ defmodule TuistWeb.RunnerVNCWebSock do
 
   @impl WebSock
   def init(%{session: session}) do
+    connection_id = Ecto.UUID.generate()
+
     case :gen_tcp.connect(
            String.to_charlist(session.relay_host),
            session.relay_port,
@@ -20,8 +22,14 @@ defmodule TuistWeb.RunnerVNCWebSock do
            @connect_timeout_ms
          ) do
       {:ok, socket} ->
-        _ = InteractiveSessions.mark_active(session)
-        {:ok, %{socket: socket}}
+        case InteractiveSessions.mark_active(session, connection_id) do
+          {:ok, active_session} ->
+            {:ok, %{socket: socket, session: active_session}}
+
+          {:error, reason} ->
+            :gen_tcp.close(socket)
+            {:stop, {:session_activate_failed, reason}, {1011, "session unavailable"}, %{}}
+        end
 
       {:error, reason} ->
         {:stop, {:relay_connect_failed, reason}, {1011, "relay unavailable"}, %{}}
@@ -48,6 +56,11 @@ defmodule TuistWeb.RunnerVNCWebSock do
   def handle_info(_message, state), do: {:ok, state}
 
   @impl WebSock
-  def terminate(_reason, %{socket: socket}), do: :gen_tcp.close(socket)
+  def terminate(_reason, %{socket: socket, session: session}) do
+    :gen_tcp.close(socket)
+    _ = InteractiveSessions.schedule_disconnect_close(session)
+    :ok
+  end
+
   def terminate(_reason, _state), do: :ok
 end

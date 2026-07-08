@@ -8,6 +8,7 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
   alias Tuist.Repo
   alias Tuist.Runners.InteractiveSession
   alias Tuist.Runners.InteractiveSessions
+  alias Tuist.Runners.Workers.CloseDisconnectedInteractiveSessionWorker
 
   defp job(account, attrs \\ %{}) do
     Map.merge(
@@ -65,6 +66,20 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
       assert {:error, :invalid_or_expired} = InteractiveSessions.validate_token(first.token)
       assert {:ok, validated} = InteractiveSessions.validate_token(second.token)
       assert validated.id == first.id
+    end
+
+    test "clears the previous connection marker when refreshing an open session token" do
+      account = account_fixture()
+      user = user_fixture()
+      job = job(account, %{workflow_job_id: 70_002, pod_name: "pod-token-refresh"})
+
+      {:ok, session} = InteractiveSessions.request_vnc(job, account, user)
+      {:ok, active} = InteractiveSessions.mark_active(session, "connection-before-refresh")
+
+      assert {:ok, refreshed} = InteractiveSessions.request_vnc(job, account, user)
+
+      assert refreshed.id == active.id
+      assert refreshed.connection_id == nil
     end
 
     test "rejects non-macOS jobs" do
@@ -207,6 +222,95 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
     end
   end
 
+  describe "mark_active/2" do
+    test "records a connection marker for the active browser WebSocket" do
+      account = account_fixture()
+      user = user_fixture()
+      {:ok, session} = InteractiveSessions.request_vnc(job(account), account, user)
+
+      assert {:ok, active} = InteractiveSessions.mark_active(session, "connection-one")
+
+      assert active.state == :active
+      assert active.connection_id == "connection-one"
+      assert active.connected_at
+      assert active.last_activity_at
+    end
+  end
+
+  describe "schedule_disconnect_close/2" do
+    test "enqueues delayed cleanup for the active connection" do
+      account = account_fixture()
+      user = user_fixture()
+      {:ok, session} = InteractiveSessions.request_vnc(job(account), account, user)
+      {:ok, active} = InteractiveSessions.mark_active(session, "connection-scheduled")
+
+      assert {:ok, _job} = InteractiveSessions.schedule_disconnect_close(active, grace_seconds: 15)
+
+      assert_enqueued(
+        worker: CloseDisconnectedInteractiveSessionWorker,
+        args: %{session_id: active.id, connection_id: "connection-scheduled"}
+      )
+    end
+  end
+
+  describe "close_if_disconnected/2" do
+    test "closes the still-disconnected session and clears the VNC relay request" do
+      account = account_fixture()
+      user = user_fixture()
+      pod_name = "pod-disconnected"
+      {:ok, session} = InteractiveSessions.request_vnc(job(account, %{pod_name: pod_name}), account, user)
+      {:ok, active} = InteractiveSessions.mark_active(session, "connection-disconnected")
+
+      expect(K8sClient, :get_pod, fn "tuist-runners", ^pod_name ->
+        {:ok,
+         %{
+           "metadata" => %{
+             "annotations" => %{
+               InteractiveSessions.vnc_session_id_annotation() => Integer.to_string(active.id),
+               InteractiveSessions.vnc_requested_at_annotation() => "2026-07-08T10:00:00Z",
+               InteractiveSessions.vnc_state_annotation() => "ready",
+               InteractiveSessions.vnc_relay_host_annotation() => "100.88.125.7",
+               InteractiveSessions.vnc_relay_port_annotation() => "49152",
+               InteractiveSessions.vnc_relay_ready_at_annotation() => "2026-07-08T10:00:02Z"
+             }
+           }
+         }}
+      end)
+
+      expect(K8sClient, :patch_pod, fn "tuist-runners", ^pod_name, patch ->
+        annotations = get_in(patch, ["metadata", "annotations"])
+
+        assert annotations[InteractiveSessions.vnc_session_id_annotation()] == nil
+        assert annotations[InteractiveSessions.vnc_requested_at_annotation()] == nil
+        assert annotations[InteractiveSessions.vnc_state_annotation()] == nil
+        assert annotations[InteractiveSessions.vnc_relay_host_annotation()] == nil
+        assert annotations[InteractiveSessions.vnc_relay_port_annotation()] == nil
+        assert annotations[InteractiveSessions.vnc_relay_ready_at_annotation()] == nil
+
+        {:ok, %{}}
+      end)
+
+      assert {:ok, closed} = InteractiveSessions.close_if_disconnected(active.id, "connection-disconnected")
+
+      assert closed.state == :closed
+      assert closed.close_reason == "browser_disconnect"
+      assert closed.closed_at
+    end
+
+    test "keeps the session open when a newer WebSocket connection took over" do
+      account = account_fixture()
+      user = user_fixture()
+      {:ok, session} = InteractiveSessions.request_vnc(job(account), account, user)
+      {:ok, active} = InteractiveSessions.mark_active(session, "connection-old")
+      {:ok, reconnected} = InteractiveSessions.mark_active(active, "connection-new")
+
+      assert {:ok, :reconnected} = InteractiveSessions.close_if_disconnected(reconnected.id, "connection-old")
+
+      assert Repo.reload!(session).closed_at == nil
+      assert Repo.reload!(session).connection_id == "connection-new"
+    end
+  end
+
   describe "close_expired/1" do
     test "closes open sessions whose hard TTL elapsed" do
       account = account_fixture()
@@ -216,6 +320,10 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
       session
       |> Ecto.Changeset.change(expires_at: ~U[2026-07-06 11:59:59Z])
       |> Repo.update!()
+
+      expect(K8sClient, :get_pod, fn "tuist-runners", _pod_name ->
+        {:error, :not_found}
+      end)
 
       assert {:ok, 1} = InteractiveSessions.close_expired(~U[2026-07-06 12:00:00Z])
 
