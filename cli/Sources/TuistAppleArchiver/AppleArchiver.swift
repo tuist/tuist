@@ -28,6 +28,7 @@ public protocol AppleArchiving {
         preservesBaseDirectory: Bool
     ) async throws
     func decompress(archive: AbsolutePath, to directory: AbsolutePath) async throws
+    func decompress(data: Data, to directory: AbsolutePath) async throws
 }
 
 extension AppleArchiving {
@@ -147,7 +148,6 @@ public struct AppleArchiver: AppleArchiving {
 
     public func decompress(archive: AbsolutePath, to directory: AbsolutePath) async throws {
         let source = FilePath(archive.pathString)
-        let destination = FilePath(directory.pathString)
 
         guard let readStream = ArchiveByteStream.fileStream(
             path: source,
@@ -159,6 +159,28 @@ public struct AppleArchiver: AppleArchiving {
         }
         defer { try? readStream.close() }
 
+        try extract(from: readStream, to: FilePath(directory.pathString))
+
+        try readStream.close()
+    }
+
+    /// Decompresses an archive held in memory, without materializing it as a
+    /// temporary file first. Used by the module-cache pull, where the artifact
+    /// arrives as `Data` from the download and writing it to disk only to read
+    /// it straight back is wasted I/O.
+    public func decompress(data: Data, to directory: AbsolutePath) async throws {
+        let instance = DataReadStream(data: data)
+        guard let readStream = ArchiveByteStream.customStream(instance: instance) else {
+            throw AppleArchiverError.decompressionFailed("could not create memory stream")
+        }
+        defer { try? readStream.close() }
+
+        try extract(from: readStream, to: FilePath(directory.pathString))
+
+        try readStream.close()
+    }
+
+    private func extract(from readStream: ArchiveByteStream, to destination: FilePath) throws {
         guard let decompressStream = ArchiveByteStream.decompressionStream(
             readingFrom: readStream
         ) else {
@@ -186,6 +208,62 @@ public struct AppleArchiver: AppleArchiving {
         try extractStream.close()
         try decodeStream.close()
         try decompressStream.close()
-        try readStream.close()
     }
+}
+
+/// A read-only `ArchiveByteStream` backed by an in-memory buffer.
+private final class DataReadStream: ArchiveByteStreamProtocol {
+    private let data: Data
+    private var position: Int64 = 0
+
+    init(data: Data) {
+        self.data = data
+    }
+
+    func read(into buffer: UnsafeMutableRawBufferPointer) throws -> Int {
+        let count = min(buffer.count, data.count - Int(position))
+        if count <= 0 { return 0 }
+        data.withUnsafeBytes { (source: UnsafeRawBufferPointer) in
+            buffer.baseAddress!.copyMemory(
+                from: source.baseAddress!.advanced(by: Int(position)),
+                byteCount: count
+            )
+        }
+        position += Int64(count)
+        return count
+    }
+
+    func read(into buffer: UnsafeMutableRawBufferPointer, atOffset offset: Int64) throws -> Int {
+        let count = min(buffer.count, data.count - Int(offset))
+        if count <= 0 { return 0 }
+        data.withUnsafeBytes { (source: UnsafeRawBufferPointer) in
+            buffer.baseAddress!.copyMemory(
+                from: source.baseAddress!.advanced(by: Int(offset)),
+                byteCount: count
+            )
+        }
+        return count
+    }
+
+    func write(from _: UnsafeRawBufferPointer) throws -> Int {
+        throw AppleArchiverError.decompressionFailed("memory stream is read-only")
+    }
+
+    func write(from _: UnsafeRawBufferPointer, atOffset _: Int64) throws -> Int {
+        throw AppleArchiverError.decompressionFailed("memory stream is read-only")
+    }
+
+    func seek(toOffset offset: Int64, relativeTo origin: FileDescriptor.SeekOrigin) throws -> Int64 {
+        switch origin {
+        case .start: position = offset
+        case .current: position += offset
+        case .end: position = Int64(data.count) + offset
+        default: throw AppleArchiverError.decompressionFailed("unsupported seek origin")
+        }
+        return position
+    }
+
+    func cancel() {}
+
+    func close() throws {}
 }

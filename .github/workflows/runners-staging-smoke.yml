@@ -53,6 +53,18 @@ on:
         description: "Cache endpoint override for the bench: empty = keep the dispatch-provided TUIST_CACHE_ENDPOINT (host-local on the host-Kura fleet) | public = unset it so the CLI uses the server-resolved public cache URL | an explicit URL (e.g. the PN NodePort http://172.16.0.2:32675), health-checked via /up before use"
         required: false
         default: ""
+      ee_ref:
+        description: "Build the tuist CLI WITH TuistCacheEE (module cache) from tuist_ref + this EE ref, and upload the Release products as the tuist-ee-release artifact. Use strategy=build-only to just build."
+        required: false
+        default: ""
+      binary_run_id:
+        description: "Use the tuist-ee-release artifact from this workflow run id as the CLI instead of installing the canary (pair with a prior ee_ref build run)."
+        required: false
+        default: ""
+      arm_env:
+        description: "Single NAME=VALUE exported before the benchmark (A/B arm toggle, e.g. TUIST_CACHE_TEMP_FILE=1)."
+        required: false
+        default: ""
   # Also fires when this workflow file itself changes on the
   # feat/runners-shape-2 branch. The smoke isn't a default CI
   # hook (would burn a runner slot on every PR), but during the
@@ -188,9 +200,12 @@ jobs:
     # can take ~30-40 min before the benchmark itself runs.
     timeout-minutes: 150
     # id-token for the secretless OIDC `tuist auth login` against staging.
+    # actions:read lets a bench run download the tuist-ee-release artifact
+    # built by a prior run (binary_run_id input).
     permissions:
       contents: read
       id-token: write
+      actions: read
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       RUNNER_LABEL: staging-hostkura
@@ -206,6 +221,8 @@ jobs:
       TUIST_URL: https://staging.tuist.dev
       # Endpoint override for host-local vs PN vs public pull comparisons.
       CACHE_ENDPOINT_OVERRIDE: ${{ inputs.cache_endpoint }}
+      # A/B arm toggle exported before the benchmark (e.g. TUIST_CACHE_TEMP_FILE=1).
+      ARM_ENV: ${{ inputs.arm_env }}
     steps:
       - name: Diagnostics — cache endpoint the dispatch handed us
         run: |
@@ -236,6 +253,50 @@ jobs:
             mise exec -- tuist version
           fi
           mise exec -- hyperfine --version
+
+      - name: Build tuist with TuistCacheEE (module cache) from source
+        if: ${{ inputs.ee_ref != '' && inputs.binary_run_id == '' }}
+        env:
+          EE_REF: ${{ inputs.ee_ref }}
+          EE_TUIST_REF: ${{ inputs.tuist_ref || 'claude/tempskip-bench' }}
+          FIXTURE_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN || secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          echo "== EE build: tuist@$EE_TUIST_REF + TuistCacheEE@$EE_REF (Release) =="
+          git clone --depth 1 --branch "$EE_TUIST_REF" https://github.com/tuist/tuist.git ee-src
+          git clone --depth 1 --branch "$EE_REF" "https://x-access-token:${FIXTURE_TOKEN}@github.com/tuist/TuistCacheEE.git" ee-src/cli/TuistCacheEE
+          cd ee-src
+          tuist install
+          # Source-only build: the warm cache is Debug and keyed to the canary,
+          # so binaries would not apply to a Release build of this branch anyway.
+          TUIST_EE=1 tuist generate tuist --no-open --no-binary-cache
+          xcodebuild -workspace Tuist.xcworkspace -scheme tuist -configuration Release \
+            -derivedDataPath dd CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build \
+            | tail -5
+          mkdir -p "$GITHUB_WORKSPACE/ee-build"
+          cp -R dd/Build/Products/Release "$GITHUB_WORKSPACE/ee-build/Release"
+          "$GITHUB_WORKSPACE/ee-build/Release/tuist" version || true
+          du -sh "$GITHUB_WORKSPACE/ee-build/Release"
+
+      - name: Upload the EE CLI artifact
+        if: ${{ inputs.ee_ref != '' && inputs.binary_run_id == '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: tuist-ee-release
+          path: ee-build/Release
+          retention-days: 3
+
+      - name: Use the prebuilt EE CLI from a prior run
+        if: ${{ inputs.binary_run_id != '' }}
+        env:
+          BINARY_RUN_ID: ${{ inputs.binary_run_id }}
+        run: |
+          set -euo pipefail
+          gh run download "$BINARY_RUN_ID" --repo "$GITHUB_REPOSITORY" -n tuist-ee-release -D prebuilt
+          chmod +x prebuilt/tuist
+          # Prepend so this binary wins over the mise canary shim.
+          echo "$PWD/prebuilt" >> "$GITHUB_PATH"
+          ./prebuilt/tuist version || true
 
       - name: Check out the fixture (tuist from the public repo, mastodon from the private benchmark repo)
         env:
@@ -315,6 +376,11 @@ jobs:
               echo "== cache endpoint override: ${TUIST_CACHE_ENDPOINT} =="
             fi
           fi
+          if [ -n "${ARM_ENV:-}" ]; then
+            export "${ARM_ENV?}"
+            echo "== A/B arm env: ${ARM_ENV} =="
+          fi
+          echo "== tuist on PATH: $(command -v tuist) ($(tuist version 2>/dev/null | head -1)) =="
           cat > /tmp/spawnbench.py <<'SPAWNEOF'
           import subprocess, sys, time
           label = sys.argv[1] if len(sys.argv) > 1 else "?"
@@ -717,6 +783,12 @@ jobs:
           HAREOF
               g2=$(now); tuist generate "$GEN_TARGET"; g3=$(now)          # resolve+gen (binaries cached, no pull)
               du_cache=$(du -sm "$HOME/.cache/tuist" 2>/dev/null | awk '{print $1}')
+              # runs=0 = breakdown-only mode for A/B pull measurements: skip
+              # the compile and hyperfine tail so a fresh-VM arm takes ~5 min.
+              if [ "$HYPERFINE_RUNS" = "0" ]; then
+                python3 -c "g0,g1,g2,g3,du=$g0,$g1,$g2,$g3,${du_cache:-0}; gen1=g1-g0; gen2=g3-g2; pull=max(0.0,gen1-gen2); print('== module-cache BREAKDOWN (pull-only) =='); print(f'  generate#1 (resolve+pull+gen)={gen1:.1f}s   generate#2 (resolve+gen, cached)={gen2:.1f}s'); print(f'  -> PULL(download binaries)~{pull:.1f}s   GEN(resolve+project)~{gen2:.1f}s   binary-cache footprint~{du:.0f}MB')"
+                exit 0
+              fi
               b0=$(now); eval "$BUILD_NO_CACHE"; b1=$(now)        # compile
               python3 -c "g0,g1,g2,g3,b0,b1,du=$g0,$g1,$g2,$g3,$b0,$b1,${du_cache:-0}; gen1=g1-g0; gen2=g3-g2; pull=max(0.0,gen1-gen2); build=b1-b0; print('== module-cache BREAKDOWN =='); print(f'  generate#1 (resolve+pull+gen)={gen1:.1f}s   generate#2 (resolve+gen, cached)={gen2:.1f}s'); print(f'  -> PULL(download binaries)~{pull:.1f}s   GEN(resolve+project)~{gen2:.1f}s   BUILD(compile)={build:.1f}s'); print(f'  one-shot generate#1+build={gen1+build:.1f}s   binary-cache footprint~{du:.0f}MB')"
               # NOTE: an in-job concurrency sweep lived here and was removed —
@@ -729,6 +801,8 @@ jobs:
               hyperfine --warmup 1 --runs "$HYPERFINE_RUNS" --export-json result.json --show-output \
                 --prepare "$CLEAN_DD"' && tuist clean binaries' \
                 'tuist generate '"$GEN_TARGET"' && '"$BUILD_NO_CACHE" || rc=$? ;;
+            build-only)
+              echo "build-only run: the EE CLI artifact was built and uploaded in the earlier step." ;;
             module-cache-ram)
               # Same breakdown as module-cache, but the tuist cache dir AND
               # TMPDIR live on a guest RAM disk. The VM is discarded after the
