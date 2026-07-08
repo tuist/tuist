@@ -314,6 +314,40 @@ jobs:
             echo "== spawn probe [$1]  (uptime: $(uptime | sed 's/.*up/up/;s/,.*//')) =="
             python3 /tmp/spawnbench.py "$1" || true
           }
+          cat > /tmp/diskprobe.py <<'DPEOF'
+          import os,time,shutil,subprocess,ctypes
+          libc=ctypes.CDLL("libc.dylib",use_errno=True); CLONE=libc.clonefile
+          d=os.path.expanduser("~/disk-probe"); shutil.rmtree(d,ignore_errors=True)
+          for s in ("seq","many","clone","copy"): os.makedirs(f"{d}/{s}")
+          NF=5000; GB=2; per=(GB*1024*1024*1024)//NF
+          big=os.urandom(1024*1024); small=os.urandom(per)
+          def sync(): subprocess.run(["sync"])
+          t=time.time()
+          with open(f"{d}/seq/big.bin","wb") as f:
+              for _ in range(GB*1024): f.write(big)
+              f.flush(); os.fsync(f.fileno())
+          sync(); seq=time.time()-t
+          t=time.time()
+          for i in range(NF):
+              with open(f"{d}/many/f{i}.bin","wb") as f: f.write(small)
+          sync(); many=time.time()-t
+          t=time.time()
+          for i in range(NF): CLONE(f"{d}/many/f{i}.bin".encode(),f"{d}/clone/f{i}.bin".encode(),0)
+          sync(); cf=time.time()-t
+          t=time.time()
+          for i in range(NF): libc.setxattr(f"{d}/many/f{i}.bin".encode(),b"user.tuist.sig",b"x"*64,64,0,0)
+          sync(); xa=time.time()-t
+          t=time.time()
+          for i in range(NF): shutil.copyfile(f"{d}/many/f{i}.bin",f"{d}/copy/f{i}.bin")
+          sync(); cp=time.time()-t
+          print(f"== VM DISK PROBE ($HOME sparse image; files={NF} tot={GB}GB avg={per//1024}KB) ==")
+          print(f"  1) sequential {GB}GB write   : {seq:.2f}s = {GB*1024/seq:.0f} MB/s")
+          print(f"  2) extract {NF} small files : {many:.2f}s = {GB*1024/many:.0f} MB/s ({NF/many:.0f} files/s)")
+          print(f"  3) clonefile {NF} (CoW seed) : {cf:.2f}s = {NF/cf:.0f} files/s")
+          print(f"  4) xattr sign {NF}          : {xa:.2f}s = {NF/xa:.0f} files/s")
+          print(f"  5) byte-copy {NF} ({GB}GB)   : {cp:.2f}s = {GB*1024/cp:.0f} MB/s")
+          shutil.rmtree(d,ignore_errors=True)
+          DPEOF
           case "$STRATEGY" in
             xcode-cache)
               spawnprobe "bench-start"
@@ -604,7 +638,13 @@ jobs:
               tuist generate --no-binary-cache
               hyperfine --warmup 1 --runs "$HYPERFINE_RUNS" --export-json result.json --show-output \
                 --prepare "$CLEAN_DD" "$BUILD_NO_CACHE" || rc=$? ;;
-            *) echo "unsupported strategy: $STRATEGY"; exit 2 ;;
+            disk-probe)
+              # Validate the VM sparse-disk write hypothesis: run the module-cache
+              # materialization primitives (sequential write, small-file extract,
+              # clonefile CoW, xattr sign, byte-copy) on the VM's own disk
+              # ($HOME = Tart sparse image) and compare to the native rates.
+              spawnprobe "disk-probe"
+              python3 /tmp/diskprobe.py || rc=$? ;;
           esac
           echo "== hyperfine result (exit=$rc) =="
           python3 - result.json <<'PY' 2>/dev/null || echo "  (no result.json)"
