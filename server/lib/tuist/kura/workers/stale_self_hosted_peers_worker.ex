@@ -8,7 +8,7 @@ defmodule Tuist.Kura.Workers.StaleSelfHostedPeersWorker do
   and queues replication messages for it that can never be delivered, which
   eventually trips the outbox write-shedding threshold. Enrolled nodes prove
   liveness with mesh heartbeats; peers that stop heartbeating are deactivated
-  (the returning node's next heartbeat reactivates them) and purged once their
+  (a returning node reactivates itself by re-enrolling) and purged once their
   peer certificate can no longer be valid. See
   `Tuist.Kura.Mesh.sweep_stale_self_hosted_peers/1` for the liveness rule.
   """

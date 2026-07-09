@@ -191,7 +191,7 @@ async fn membership_task_loop(state: SharedState) {
         // platform-managed like the static seeds: their absence usually means
         // unreachability, not departure, and unlike enrolled peers nothing
         // ever tells them to re-bootstrap. Remember them so outbox pruning
-        // treats their absence with static-grade patience.
+        // never drops their messages.
         let configured_urls: BTreeSet<&str> = targets.iter().map(|t| t.url.as_str()).collect();
         let discovered_only: Vec<String> = peer_nodes
             .keys()
@@ -1342,10 +1342,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn process_outbox_gives_discovered_peers_static_grade_patience() {
+    async fn process_outbox_never_drops_messages_for_discovered_peers() {
         // An in-cluster sibling known only through discovery flaps out of the
         // membership view. Unlike an enrolled peer, nothing re-bootstraps it
-        // after the flap, so its messages must survive the configured grace.
+        // after the flap, so its messages must never be dropped.
         let local = test_context(|_| {}).await;
         local.state.dynamic_peers.store(std::sync::Arc::new(vec![
             "https://live-peer.test:7443".to_string(),

@@ -35,9 +35,9 @@ defmodule Tuist.Kura.Mesh do
   # also counts as proof of life) before it is withheld from the mesh. This is
   # the mesh's entire safety margin: the moment a peer is withheld, every
   # node's next heartbeat drops it from the dynamic view and its queued
-  # replication messages are dropped immediately (no node-side grace), so the
-  # window stays wide — many missed heartbeats — to keep a blip from costing
-  # a full re-bootstrap on recovery.
+  # replication messages are dropped immediately, so the window stays many
+  # missed heartbeats wide to keep a blip from costing a full re-bootstrap
+  # on recovery.
   @stale_peer_after_minutes 30
   # There is no CRL/OCSP in Kura's peer verifier, so a node is revoked by no
   # longer re-signing its CSR and letting the leaf expire: the leaf lifetime is

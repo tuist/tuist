@@ -158,12 +158,12 @@ pub(crate) struct ReadinessState {
     // absence window and miss writes behind its cursor.
     bootstrap_epoch: u64,
     // Every peer ever seen through discovery only (not in the static or
-    // dynamic peer config): in-cluster siblings and cross-region pods. Their
-    // absence is treated with static-grade patience by outbox pruning —
-    // unlike control-plane-managed peers, nothing re-bootstraps them after a
-    // network flap, so dropping their messages would be silent
-    // under-replication. Monotone and in-memory: bounded by the peers a
-    // process ever meets, reset by restart (which also re-bootstraps).
+    // dynamic peer config): in-cluster siblings and cross-region pods. Outbox
+    // pruning never drops their messages — unlike control-plane-managed
+    // peers, nothing re-bootstraps them after a network flap, so dropping
+    // would be silent under-replication. Monotone and in-memory: bounded by
+    // the peers a process ever meets, reset by restart (which also
+    // re-bootstraps).
     ever_discovered_only_peers: BTreeSet<String>,
 }
 

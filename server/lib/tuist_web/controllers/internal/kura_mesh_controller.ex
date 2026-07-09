@@ -58,9 +58,10 @@ defmodule TuistWeb.Internal.KuraMeshController do
   # Mesh heartbeat: an enrolled node periodically proves it is still a live
   # mesh member. Independent from the registration heartbeat (which advertises
   # the node's client-facing endpoint): this one keeps the node's mesh
-  # membership from being swept as stale, reactivates it if it already was,
-  # and returns the current peer list so peers refresh at heartbeat cadence
-  # rather than at certificate renewal.
+  # membership from being swept as stale and returns the current peer list, so
+  # peers refresh at heartbeat cadence rather than at certificate renewal. A
+  # withheld node is answered `mesh_member: false` and recovers by
+  # re-enrolling.
   def heartbeat(conn, %{"node_url" => node_url}) when is_binary(node_url) do
     case authorize(conn) do
       {:ok, account} ->

@@ -44,8 +44,8 @@ const CONNECT_TIMEOUT: Duration = Duration::from_millis(1_000);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 // Recovery re-enrollments mint fresh certificates; the backoff keeps a
 // persistent `mesh_member: false` (control-plane bug, clock skew) from
-// becoming a per-minute signing loop while staying well below the sweep
-// cadence so genuine recovery is prompt.
+// becoming a per-minute signing loop while staying well inside the server's
+// staleness window so genuine recovery is prompt.
 const RECOVERY_BACKOFF_INITIAL: Duration = Duration::from_secs(60);
 const RECOVERY_BACKOFF_MAX: Duration = Duration::from_secs(300);
 
@@ -446,7 +446,7 @@ mod tests {
         assert!(!backoff.should_attempt(start));
         assert!(!backoff.should_attempt(start + RECOVERY_BACKOFF_INITIAL / 2));
         assert!(backoff.should_attempt(start + RECOVERY_BACKOFF_INITIAL));
-        // Second success window doubles.
+        // The wait doubles after each attempt.
         assert!(
             !backoff.should_attempt(start + RECOVERY_BACKOFF_INITIAL + Duration::from_secs(90))
         );

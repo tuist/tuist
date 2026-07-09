@@ -216,8 +216,8 @@ defmodule Tuist.Kura.MeshTest do
       assert %{deactivated: [deactivated], purged: []} = Mesh.sweep_stale_self_hosted_peers()
       assert deactivated.url == "https://gone.acme.test:4433"
 
-      # The row survives, withheld from the mesh, so a heartbeat from the
-      # returning node can reactivate it in place.
+      # The row survives, withheld from the mesh; the returning node's
+      # recovery re-enrollment reactivates it in place.
       assert [kept] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
       assert kept.deactivated_at
       assert Mesh.self_hosted_peer_urls(account) == []
@@ -307,7 +307,7 @@ defmodule Tuist.Kura.MeshTest do
         })
 
       # The two heartbeats are independent: registration advertises the
-      # client-facing endpoint, only the mesh heartbeat restores membership.
+      # client-facing endpoint and plays no role in mesh membership.
       assert Mesh.self_hosted_peer_urls(account) == []
     end
   end
