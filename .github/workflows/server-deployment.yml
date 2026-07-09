@@ -539,7 +539,7 @@ jobs:
           echo "::add-mask::$CLOUDFLARE_API_TOKEN"
           export CLOUDFLARE_API_TOKEN
           echo "Reconciling platform chart for cluster $CLUSTER_NAME"
-          mise -C infra run k8s:install-platform "$KUBECONFIG" "$CLUSTER_NAME"
+          infra/mise/tasks/k8s/install-platform.sh "$KUBECONFIG" "$CLUSTER_NAME"
 
   deploy:
     name: Deploy to ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
