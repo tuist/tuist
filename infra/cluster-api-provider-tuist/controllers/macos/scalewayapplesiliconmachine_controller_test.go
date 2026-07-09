@@ -454,11 +454,11 @@ func TestReconcileTailscaleEgressService_Create(t *testing.T) {
 	if got.Labels["tuist.dev/macmini-egress"] != "true" {
 		t.Errorf("macmini-egress label = %q, want true", got.Labels["tuist.dev/macmini-egress"])
 	}
-	if len(got.Spec.Ports) != 2 {
-		t.Fatalf("Spec.Ports len = %d, want 2", len(got.Spec.Ports))
+	if len(got.Spec.Ports) != 3 {
+		t.Fatalf("Spec.Ports len = %d, want 3", len(got.Spec.Ports))
 	}
-	// Ports must include node-exporter:9100 and tart-kubelet:8080 —
-	// the named ports alloy-metrics filters on.
+	// Ports must include the metrics scrape endpoints and vnc-relay:5900
+	// for dashboard interactive access through the Tailscale egress Service.
 	portByName := map[string]int32{}
 	for _, p := range got.Spec.Ports {
 		portByName[p.Name] = p.Port
@@ -468,6 +468,9 @@ func TestReconcileTailscaleEgressService_Create(t *testing.T) {
 	}
 	if portByName["tart-kubelet"] != 8080 {
 		t.Errorf("tart-kubelet port = %d, want 8080", portByName["tart-kubelet"])
+	}
+	if portByName["vnc-relay"] != DashboardVNCRelayPort {
+		t.Errorf("vnc-relay port = %d, want %d", portByName["vnc-relay"], DashboardVNCRelayPort)
 	}
 }
 

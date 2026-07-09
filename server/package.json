@@ -2,6 +2,7 @@
   "name": "@tuist/server",
   "private": true,
   "dependencies": {
+    "@novnc/novnc": "1.5.0",
     "@scalar/api-reference": "^1.52.0",
     "echarts": "^6.1.0",
     "prettier-plugin-css-order": "^2.2.0",
