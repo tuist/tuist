@@ -5,8 +5,8 @@ defmodule Tuist.Kura.Workers.StaleSelfHostedPeersWorkerTest do
   alias Tuist.Kura.Mesh
   alias Tuist.Kura.Workers.StaleSelfHostedPeersWorker
 
-  test "prunes stale self-hosted peers and completes" do
-    expect(Mesh, :prune_stale_self_hosted_peers, fn -> [] end)
+  test "sweeps stale self-hosted peers and completes" do
+    expect(Mesh, :sweep_stale_self_hosted_peers, fn -> %{deactivated: [], purged: []} end)
 
     assert :ok = StaleSelfHostedPeersWorker.perform(%Oban.Job{})
   end

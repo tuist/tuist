@@ -21,6 +21,12 @@ defmodule Tuist.Accounts.AccountCacheEndpoint do
       values: [default: 0, kura: 1, kura_self_hosted_peer: 3],
       default: :default
 
+    # Set when a `kura_self_hosted_peer` row's node stops proving liveness: the
+    # peer is withheld from the mesh but the row (and its full peer URL, which
+    # heartbeats don't carry) is kept so a heartbeat from the returning node
+    # reactivates it without re-enrollment.
+    field :deactivated_at, :utc_datetime
+
     belongs_to :account, Account
 
     timestamps(type: :utc_datetime)

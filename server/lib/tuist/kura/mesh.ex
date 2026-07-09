@@ -26,13 +26,16 @@ defmodule Tuist.Kura.Mesh do
   alias Tuist.Repo
   alias X509.Certificate.Extension
 
+  require Logger
+
   @kura_namespace "kura"
   # How long a self-hosted peer may go without proving liveness (an enrollment,
   # a registration heartbeat touching the row, or an unexpired registration
-  # lease) before it is dropped from the account's mesh. Wide relative to the
-  # 60s heartbeat cadence so a control-plane blip cannot evict a live node —
-  # eviction cascades into managed pods' KURA_PEERS and a false positive is
-  # only healed by the node's next enrollment (boot or certificate renewal).
+  # lease) before it is withheld from the account's mesh. A false positive is
+  # healed by the node's next heartbeat (reactivation), but deactivation still
+  # cascades into managed pods' KURA_PEERS, so the window stays wide relative
+  # to the 60s heartbeat cadence to keep a control-plane blip from churning
+  # the fleet.
   @stale_peer_after_minutes 30
   # Heartbeats arrive every 60s per node; bumping the mesh row at most this
   # often keeps the liveness marker fresh without a write per heartbeat.
@@ -163,7 +166,9 @@ defmodule Tuist.Kura.Mesh do
   def self_hosted_peer_urls(%Account{} = account) do
     Repo.all(
       from(e in AccountCacheEndpoint,
-        where: e.account_id == ^account.id and e.technology == :kura_self_hosted_peer,
+        where:
+          e.account_id == ^account.id and e.technology == :kura_self_hosted_peer and
+            is_nil(e.deactivated_at),
         select: e.url
       )
     )
@@ -184,59 +189,100 @@ defmodule Tuist.Kura.Mesh do
   @doc """
   Refreshes the liveness marker (`updated_at`) of the account's self-hosted
   peer rows whose URL host matches `node_id`, so registration heartbeats keep
-  the node's mesh membership alive. Throttled to at most one write per row per
-  `#{@touch_throttle_minutes}` minutes.
+  the node's mesh membership alive — and reactivates deactivated rows, so a
+  heartbeat from a node that was withheld as stale rejoins it to the mesh
+  without waiting for its next enrollment. Touches are throttled to at most
+  one write per row per `#{@touch_throttle_minutes}` minutes; reactivation is
+  never throttled.
   """
   def touch_self_hosted_peer(%Account{} = account, node_id) when is_binary(node_id) do
     now = now()
     throttle_cutoff = DateTime.add(now, -@touch_throttle_minutes * 60, :second)
 
-    ids =
+    matching =
       from(e in AccountCacheEndpoint,
         where:
           e.account_id == ^account.id and e.technology == :kura_self_hosted_peer and
-            e.updated_at < ^throttle_cutoff
+            (e.updated_at < ^throttle_cutoff or not is_nil(e.deactivated_at))
       )
       |> Repo.all()
       |> Enum.filter(&(peer_host(&1.url) == node_id))
-      |> Enum.map(& &1.id)
 
-    if ids != [] do
-      Repo.update_all(from(e in AccountCacheEndpoint, where: e.id in ^ids), set: [updated_at: now])
+    if matching != [] do
+      ids = Enum.map(matching, & &1.id)
+
+      Repo.update_all(from(e in AccountCacheEndpoint, where: e.id in ^ids),
+        set: [updated_at: now, deactivated_at: nil]
+      )
+
+      case Enum.filter(matching, & &1.deactivated_at) do
+        [] ->
+          :ok
+
+        reactivated ->
+          urls = Enum.map_join(reactivated, ", ", & &1.url)
+          Logger.info("[Kura.Mesh] reactivated self-hosted mesh peer(s) on heartbeat: #{urls}")
+      end
     end
 
     :ok
   end
 
   @doc """
-  Drops self-hosted peers that stopped responding: rows whose liveness marker
-  is older than the staleness window and whose node also holds no unexpired
-  registration lease. Returns the deleted endpoints.
+  Sweeps self-hosted peers that stopped responding. Peers whose liveness
+  marker is older than the staleness window and whose node also holds no
+  unexpired registration lease are deactivated — withheld from the mesh but
+  kept, since heartbeats only carry the URL's host, so the full peer URL must
+  survive for a heartbeat from the returning node to reactivate it. Rows
+  deactivated for longer than the peer-certificate lifetime are deleted: the
+  node's leaf can no longer be valid, so rejoining requires re-enrollment
+  (which recreates the row) anyway.
 
-  Removal cascades on its own: the peer disappears from enrollment responses,
-  and the managed pods' manifest revision covers the peer list, so the
-  reconciler re-renders `KURA_PEERS` and nodes stop dialing and replicating to
-  the dead peer (kura prunes its queued outbox messages for targets that left
-  the mesh).
+  Returns `%{deactivated: endpoints, purged: endpoints}`.
+
+  Deactivation cascades on its own: the peer disappears from enrollment
+  responses, and the managed pods' manifest revision covers the peer list, so
+  the reconciler re-renders `KURA_PEERS` and nodes stop dialing and
+  replicating to the dead peer (kura prunes its queued outbox messages for
+  targets that left the mesh).
   """
-  def prune_stale_self_hosted_peers(opts \\ []) do
+  def sweep_stale_self_hosted_peers(opts \\ []) do
     stale_after_minutes = Keyword.get(opts, :stale_after_minutes, @stale_peer_after_minutes)
     now = now()
     cutoff = DateTime.add(now, -stale_after_minutes * 60, :second)
 
     stale =
       from(e in AccountCacheEndpoint,
-        where: e.technology == :kura_self_hosted_peer and e.updated_at < ^cutoff
+        where:
+          e.technology == :kura_self_hosted_peer and is_nil(e.deactivated_at) and
+            e.updated_at < ^cutoff
       )
       |> Repo.all()
       |> Enum.reject(&live_registration?(&1, now))
 
     if stale != [] do
       ids = Enum.map(stale, & &1.id)
+
+      Repo.update_all(from(e in AccountCacheEndpoint, where: e.id in ^ids),
+        set: [deactivated_at: now]
+      )
+    end
+
+    purge_cutoff = DateTime.add(now, -@leaf_validity_days * 24 * 60 * 60, :second)
+
+    purged =
+      Repo.all(
+        from(e in AccountCacheEndpoint,
+          where: e.technology == :kura_self_hosted_peer and e.deactivated_at < ^purge_cutoff
+        )
+      )
+
+    if purged != [] do
+      ids = Enum.map(purged, & &1.id)
       Repo.delete_all(from(e in AccountCacheEndpoint, where: e.id in ^ids))
     end
 
-    stale
+    %{deactivated: stale, purged: purged}
   end
 
   defp live_registration?(%AccountCacheEndpoint{} = endpoint, now) do
@@ -264,7 +310,8 @@ defmodule Tuist.Kura.Mesh do
   # It is never a client-facing cache endpoint (that is the node's advertised
   # HTTP URL, reported via registration heartbeats), so it is stored under the
   # `kura_self_hosted_peer` technology and excluded from CLI endpoint lookup.
-  # Re-enrollment bumps `updated_at`: the row's liveness marker for pruning.
+  # Re-enrollment bumps `updated_at` (the row's liveness marker for the stale
+  # sweep) and reactivates a row deactivated while the node was away.
   defp register_node_endpoint(%Account{} = account, node_url) do
     %AccountCacheEndpoint{}
     |> AccountCacheEndpoint.create_changeset(%{
@@ -273,7 +320,7 @@ defmodule Tuist.Kura.Mesh do
       technology: :kura_self_hosted_peer
     })
     |> Repo.insert(
-      on_conflict: [set: [updated_at: now()]],
+      on_conflict: [set: [updated_at: now(), deactivated_at: nil]],
       conflict_target: [:account_id, :technology, :url]
     )
   end

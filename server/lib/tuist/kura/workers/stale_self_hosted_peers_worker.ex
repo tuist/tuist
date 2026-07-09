@@ -1,13 +1,15 @@
 defmodule Tuist.Kura.Workers.StaleSelfHostedPeersWorker do
   @moduledoc """
-  Periodically drops self-hosted mesh peers that stopped responding.
+  Periodically withholds self-hosted mesh peers that stopped responding.
 
   Enrollment only ever inserts `kura_self_hosted_peer` endpoints, so a node
   that disappears (a torn-down test instance, a decommissioned box) would
   otherwise stay in the account's mesh forever — every node keeps dialing it
   and queues replication messages for it that can never be delivered, which
-  eventually trips the outbox write-shedding threshold. See
-  `Tuist.Kura.Mesh.prune_stale_self_hosted_peers/1` for the liveness rule.
+  eventually trips the outbox write-shedding threshold. Stale peers are
+  deactivated (a heartbeat from the returning node reactivates them) and
+  purged once their peer certificate can no longer be valid. See
+  `Tuist.Kura.Mesh.sweep_stale_self_hosted_peers/1` for the liveness rule.
   """
   use Oban.Worker, queue: :default, max_attempts: 3
 
@@ -17,14 +19,22 @@ defmodule Tuist.Kura.Workers.StaleSelfHostedPeersWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
-    case Mesh.prune_stale_self_hosted_peers() do
-      [] ->
-        :ok
+    %{deactivated: deactivated, purged: purged} = Mesh.sweep_stale_self_hosted_peers()
 
-      pruned ->
-        urls = Enum.map_join(pruned, ", ", & &1.url)
+    if deactivated != [] do
+      urls = Enum.map_join(deactivated, ", ", & &1.url)
 
-        Logger.info("[Kura.StaleSelfHostedPeersWorker] pruned #{length(pruned)} stale self-hosted mesh peer(s): #{urls}")
+      Logger.info(
+        "[Kura.StaleSelfHostedPeersWorker] deactivated #{length(deactivated)} stale self-hosted mesh peer(s): #{urls}"
+      )
+    end
+
+    if purged != [] do
+      urls = Enum.map_join(purged, ", ", & &1.url)
+
+      Logger.info(
+        "[Kura.StaleSelfHostedPeersWorker] purged #{length(purged)} self-hosted mesh peer(s) deactivated past certificate lifetime: #{urls}"
+      )
     end
 
     :ok

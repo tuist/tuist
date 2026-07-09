@@ -5,6 +5,7 @@ defmodule Tuist.Kura.MeshTest do
   import Ecto.Query
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura
   alias Tuist.Kura.Mesh
@@ -184,8 +185,8 @@ defmodule Tuist.Kura.MeshTest do
     end
   end
 
-  describe "prune_stale_self_hosted_peers/1" do
-    test "drops peers whose liveness marker lapsed and that hold no registration lease" do
+  describe "sweep_stale_self_hosted_peers/1" do
+    test "deactivates peers whose liveness marker lapsed and that hold no registration lease" do
       account = AccountsFixtures.organization_fixture().account
       stub_account_peer_ca()
 
@@ -195,9 +196,14 @@ defmodule Tuist.Kura.MeshTest do
       [endpoint] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
       age_endpoint(endpoint, minutes: 90)
 
-      assert [pruned] = Mesh.prune_stale_self_hosted_peers()
-      assert pruned.url == "https://gone.acme.test:4433"
-      assert Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer) == []
+      assert %{deactivated: [deactivated], purged: []} = Mesh.sweep_stale_self_hosted_peers()
+      assert deactivated.url == "https://gone.acme.test:4433"
+
+      # The row survives (heartbeats only carry the host, so the full peer URL
+      # must be kept for reactivation) but leaves the mesh.
+      assert [kept] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
+      assert kept.deactivated_at
+      assert Mesh.self_hosted_peer_urls(account) == []
     end
 
     test "keeps peers whose liveness marker is fresh" do
@@ -207,9 +213,9 @@ defmodule Tuist.Kura.MeshTest do
       {:ok, _} =
         Mesh.enroll_node(account, %{csr: csr_pem(), node_url: "https://fresh.acme.test:4433"})
 
-      assert Mesh.prune_stale_self_hosted_peers() == []
+      assert %{deactivated: [], purged: []} = Mesh.sweep_stale_self_hosted_peers()
 
-      assert [_] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
+      assert Mesh.self_hosted_peer_urls(account) == ["https://fresh.acme.test:4433"]
     end
 
     test "keeps stale-marked peers whose node still holds an unexpired registration lease" do
@@ -234,8 +240,62 @@ defmodule Tuist.Kura.MeshTest do
       [endpoint] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
       age_endpoint(endpoint, minutes: 90)
 
-      assert Mesh.prune_stale_self_hosted_peers() == []
-      assert [_] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
+      assert %{deactivated: [], purged: []} = Mesh.sweep_stale_self_hosted_peers()
+      assert Mesh.self_hosted_peer_urls(account) == ["https://leased.acme.test:4433"]
+    end
+
+    test "purges peers deactivated for longer than the certificate lifetime" do
+      account = AccountsFixtures.organization_fixture().account
+      stub_account_peer_ca()
+
+      {:ok, _} =
+        Mesh.enroll_node(account, %{csr: csr_pem(), node_url: "https://expired.acme.test:4433"})
+
+      [endpoint] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
+      deactivate_endpoint(endpoint, days_ago: 31)
+
+      assert %{deactivated: [], purged: [purged]} = Mesh.sweep_stale_self_hosted_peers()
+      assert purged.url == "https://expired.acme.test:4433"
+      assert Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer) == []
+    end
+  end
+
+  describe "reactivation" do
+    test "a heartbeat from a deactivated node rejoins it to the mesh" do
+      account = AccountsFixtures.organization_fixture().account
+      stub_account_peer_ca()
+
+      {:ok, _} =
+        Mesh.enroll_node(account, %{csr: csr_pem(), node_url: "https://back.acme.test:4433"})
+
+      [endpoint] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
+      deactivate_endpoint(endpoint, days_ago: 1)
+      assert Mesh.self_hosted_peer_urls(account) == []
+
+      {:ok, _} =
+        Registrations.register_heartbeat(account, %{
+          node_id: "back.acme.test",
+          advertised_http_url: "https://cache.acme.test",
+          ready: true
+        })
+
+      assert Mesh.self_hosted_peer_urls(account) == ["https://back.acme.test:4433"]
+    end
+
+    test "re-enrollment rejoins a deactivated node to the mesh" do
+      account = AccountsFixtures.organization_fixture().account
+      stub_account_peer_ca()
+
+      {:ok, _} =
+        Mesh.enroll_node(account, %{csr: csr_pem(), node_url: "https://back.acme.test:4433"})
+
+      [endpoint] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
+      deactivate_endpoint(endpoint, days_ago: 1)
+
+      {:ok, _} =
+        Mesh.enroll_node(account, %{csr: csr_pem(), node_url: "https://back.acme.test:4433"})
+
+      assert Mesh.self_hosted_peer_urls(account) == ["https://back.acme.test:4433"]
     end
   end
 
@@ -270,8 +330,21 @@ defmodule Tuist.Kura.MeshTest do
 
     {1, _} =
       Repo.update_all(
-        from(e in Tuist.Accounts.AccountCacheEndpoint, where: e.id == ^endpoint.id),
+        from(e in AccountCacheEndpoint, where: e.id == ^endpoint.id),
         set: [updated_at: aged]
+      )
+  end
+
+  defp deactivate_endpoint(endpoint, days_ago: days) do
+    deactivated_at =
+      DateTime.utc_now()
+      |> DateTime.add(-days * 24 * 60 * 60, :second)
+      |> DateTime.truncate(:second)
+
+    {1, _} =
+      Repo.update_all(
+        from(e in AccountCacheEndpoint, where: e.id == ^endpoint.id),
+        set: [deactivated_at: deactivated_at]
       )
   end
 end
