@@ -236,6 +236,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 		script := renderLinuxBootstrapScript(linuxCloudInitOptions{
 			NodeName:       machine.Name,
 			KubeconfigYAML: kubeconfigYAML,
+			ClusterCAPEM:   identity.CA,
 			K8sMinor:       firstNonEmpty(r.KubernetesMinor, "v1.34"),
 			Taints:         machine.Spec.NodeTaints,
 			BootstrapUser:  ovhBootstrapUser,

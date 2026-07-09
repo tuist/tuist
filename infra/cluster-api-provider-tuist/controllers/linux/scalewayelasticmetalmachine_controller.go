@@ -308,6 +308,7 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileNormal(
 		bootstrapScript := renderLinuxBootstrapScript(linuxCloudInitOptions{
 			NodeName:           machine.Name,
 			KubeconfigYAML:     kubeconfigYAML,
+			ClusterCAPEM:       identity.CA,
 			K8sMinor:           firstNonEmpty(r.KubernetesMinor, "v1.34"),
 			Taints:             machine.Spec.NodeTaints,
 			BootstrapUser:      elasticMetalBootstrapUser,

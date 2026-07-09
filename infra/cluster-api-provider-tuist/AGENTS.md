@@ -330,6 +330,67 @@ kubectl describe scalewayapplesiliconmachine <name>
 kubectl get events --field-selector involvedObject.kind=ScalewayAppleSiliconMachine
 ```
 
+### Make `kubectl logs`/`exec` work on a fleet node
+
+The apiserver reaches a node's kubelet on `:10250` directly, so `kubectl logs`,
+`exec`, `attach`, and `port-forward` against a fleet node (Dedibox / Scaleway
+Elastic Metal / OVH) depend on three things being right at once. They fail with a
+*different* symptom per layer — diagnose by the error, not by guessing:
+
+| Symptom on `kubectl logs <fleet-pod>` | Layer | Fix |
+|---|---|---|
+| `dial tcp: lookup <node> … no such host` | 1. apiserver dials the unresolvable Hostname because its `--kubelet-preferred-address-types` lacks `InternalIP` | roll the control plane (below) |
+| `remote error: tls: internal error` | 2. kubelet has no serving cert (`serverTLSBootstrap` + unapprovable SA-identity CSR) | re-provision the node onto the current provider image |
+| `401`/anonymous / `Unauthorized` | 3. kubelet has no `clientCAFile`, so the apiserver's client cert isn't trusted | re-provision the node onto the current provider image |
+
+Layers 2 and 3 are fixed in `controllers/linux/linux_cloudinit.go` (self-signed
+serving cert + cluster CA on disk as `clientCAFile`). Because the Linux kinds
+have **no config re-push** to already-Ready hosts, an existing node picks the fix
+up only on re-provision:
+
+```bash
+kubectl delete machine <fleet-machine-name>   # MachineSet re-creates + re-joins
+```
+
+The cache re-warms from the per-account mesh, so this is non-disruptive (same as
+"Replace a wedged host").
+
+Layer 1 is Cluster-CR config (`kubeletPreferredAddressTypes:
+ExternalIP,InternalIP,Hostname,…`, already set per env in
+`infra/k8s/clusters/cluster-<env>.yaml`) **plus a control-plane rollout** —
+kubeadm bakes the apiserver flag into the static-pod manifest at CP init/join, so
+a running CP that predates the variable keeps the old flag. Confirm and roll from
+the mgmt cluster (operator, admin kubeconfig):
+
+```bash
+# On the WORKLOAD cluster: is the running apiserver actually missing InternalIP?
+# (a running flag without InternalIP is why logs dial Hostname)
+kubectl -n kube-system get pod -l component=kube-apiserver \
+  -o jsonpath='{.items[0].spec.containers[0].command}' | tr ',' '\n' | grep preferred-address
+
+# On the MGMT cluster: confirm the topology already propagated InternalIP into the
+# KCP's desired clusterConfiguration. If this shows InternalIP, it's purely a
+# not-yet-rolled CP → roll it. If it does NOT, the Cluster CR variable didn't
+# reconcile (check `kubectl get cluster <env> -o yaml` variables + the ClusterClass
+# patch) — rolling won't help until the KCP carries it.
+kubectl -n <cluster-ns> get kubeadmcontrolplane <kcp-name> \
+  -o jsonpath='{.spec.kubeadmConfigSpec.clusterConfiguration.apiServer.extraArgs}'
+
+# Roll the control plane so kubeadm regenerates the apiserver static-pod manifest
+# with the new flag:
+kubectl -n <cluster-ns> patch kubeadmcontrolplane <kcp-name> \
+  --type merge -p "{\"spec\":{\"rolloutAfter\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}}"
+```
+
+A KCP rollout replaces the CP machine(s) — HA control plane tolerates it, but
+it's a real rollout; do it deliberately, not casually. Verify end-to-end once the
+new CP is Ready and at least one fleet node has been re-provisioned:
+
+```bash
+kubectl -n kura logs <pod-on-a-dedibox-or-scw-em-fleet-node> --tail=5   # streams
+kubectl top node <fleet-node>                                           # not <unknown>
+```
+
 ### Unstick a host whose CAPI bootstrap is failing on sudo
 
 Symptom: `kubectl describe scalewayapplesiliconmachine <name>` shows
