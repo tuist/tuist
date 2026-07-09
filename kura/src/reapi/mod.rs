@@ -604,27 +604,78 @@ impl ActionCache for ReapiService {
             action_result.stderr_raw = bytes;
         }
         if !request.get_ref().inline_output_files.is_empty() {
-            for output_file in &mut action_result.output_files {
-                if !request
-                    .get_ref()
-                    .inline_output_files
-                    .iter()
-                    .any(|path| path == &output_file.path)
-                {
-                    continue;
-                }
-                if output_file.contents.is_empty()
-                    && let Some(digest) = &output_file.digest
-                    && let Some(bytes) = maybe_read_cas_bytes(
-                        &self.state,
-                        namespace_id,
-                        digest,
-                        Some(&mut materialization_budget),
-                    )
-                    .await?
-                {
-                    served_bytes = served_bytes.saturating_add(bytes.len() as u64);
-                    output_file.contents = bytes;
+            // `"*"` is a Kura extension to the REAPI `inline_output_files`
+            // hint: inline the contents of every output file the response
+            // budget affords. It exists for clients (the Xcode CAS plugin)
+            // whose output-file paths are digests unknown before this
+            // response, collapsing the action lookup + blob fetch into one
+            // round-trip. Best-effort by design: a file the budget cannot
+            // afford stays un-inlined and the client falls back to
+            // BatchReadBlobs for it, so mixed client/server versions
+            // interoperate unchanged (an old server matches no literal `"*"`
+            // path and inlines nothing).
+            let inline_all = request
+                .get_ref()
+                .inline_output_files
+                .iter()
+                .any(|path| path == "*");
+            // Collect the targets first, then read them concurrently: a
+            // sequential await per file caps wildcard inlining at per-read
+            // latency times manifest size, the same serialization
+            // batch_read_blobs buffers to avoid (measured ~4ms per blob
+            // serialized).
+            // Each target carries whether the client listed its path explicitly
+            // (as opposed to only matching via `"*"`): a wildcard match inlines
+            // best-effort, but an explicit path keeps the hard budget error even
+            // when `"*"` is also present.
+            let targets: Vec<(usize, reapi::Digest, bool)> = action_result
+                .output_files
+                .iter()
+                .enumerate()
+                .filter_map(|(index, output_file)| {
+                    let explicit = request
+                        .get_ref()
+                        .inline_output_files
+                        .iter()
+                        .any(|path| path == &output_file.path);
+                    if (!inline_all && !explicit) || !output_file.contents.is_empty() {
+                        return None;
+                    }
+                    output_file
+                        .digest
+                        .clone()
+                        .map(|digest| (index, digest, explicit))
+                })
+                .collect();
+            let budget = std::sync::Mutex::new(materialization_budget);
+            let reads: Vec<(usize, bool, Result<Option<Vec<u8>>, Status>)> =
+                futures_util::stream::iter(targets.into_iter().map(|(index, digest, explicit)| {
+                    let budget = &budget;
+                    async move {
+                        (
+                            index,
+                            explicit,
+                            batch_read_one(&self.state, namespace_id, &digest, budget).await,
+                        )
+                    }
+                }))
+                .buffered(16)
+                .collect()
+                .await;
+            for (index, explicit, read) in reads {
+                match read {
+                    Ok(Some(bytes)) => {
+                        served_bytes = served_bytes.saturating_add(bytes.len() as u64);
+                        action_result.output_files[index].contents = bytes;
+                    }
+                    Ok(None) => {}
+                    // A wildcard-only match inlines best-effort: on budget
+                    // exhaustion it stays un-inlined (a smaller later file may
+                    // still fit) and the client falls back to BatchReadBlobs.
+                    // A path the client listed explicitly keeps the hard error.
+                    Err(status) if !explicit && status.code() == tonic::Code::ResourceExhausted => {
+                    }
+                    Err(status) => return Err(status),
                 }
             }
         }
@@ -1166,14 +1217,20 @@ async fn batch_read_one(
         .lock()
         .expect("budget lock")
         .claim(manifest.size, "CAS response materialization")?;
-    let bytes = read_manifest_bytes(state, &manifest)
+    let Some(bytes) = read_serving_bytes(state, &manifest)
         .await
         .inspect_err(|_| {
             state
                 .metrics
                 .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
         })
-        .map_err(Status::internal)?;
+        .map_err(Status::internal)?
+    else {
+        state
+            .metrics
+            .record_artifact_read(ArtifactProducer::Reapi, "not_found", 0);
+        return Ok(None);
+    };
     state
         .metrics
         .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes.len() as u64);
@@ -1206,14 +1263,20 @@ async fn maybe_read_cas_bytes(
     if let Some(budget) = materialization_budget {
         budget.claim(manifest.size, "CAS response materialization")?;
     }
-    let bytes = read_manifest_bytes(state, &manifest)
+    let Some(bytes) = read_serving_bytes(state, &manifest)
         .await
         .inspect_err(|_| {
             state
                 .metrics
                 .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
         })
-        .map_err(Status::internal)?;
+        .map_err(Status::internal)?
+    else {
+        state
+            .metrics
+            .record_artifact_read(ArtifactProducer::Reapi, "not_found", 0);
+        return Ok(None);
+    };
     state
         .metrics
         .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes.len() as u64);
@@ -1260,6 +1323,21 @@ async fn read_manifest_bytes(
     manifest: &ArtifactManifest,
 ) -> Result<Vec<u8>, String> {
     state.store.read_artifact_bytes(manifest).await
+}
+
+/// Reads a CAS blob served to a client, tolerating a concurrent background
+/// segment promotion that may have relocated the artifact and evicted the old
+/// segment between the manifest lookup and the read. `Ok(None)` is a genuine
+/// miss (the artifact was evicted, not relocated). See
+/// `Store::read_artifact_bytes_tolerating_promotion`.
+async fn read_serving_bytes(
+    state: &SharedState,
+    manifest: &ArtifactManifest,
+) -> Result<Option<Vec<u8>>, String> {
+    state
+        .store
+        .read_artifact_bytes_tolerating_promotion(manifest)
+        .await
 }
 
 struct MaterializationBudget<'a> {
@@ -1538,7 +1616,7 @@ mod tests {
     use crate::{
         artifact::producer::ArtifactProducer,
         failpoints::{FailpointAction, FailpointName},
-        test_support::{test_context, test_context_with_extension},
+        test_support::{TestContext, test_context, test_context_with_extension},
     };
 
     // Serves the REAPI routes over a plaintext h2c listener for the tests
@@ -2367,6 +2445,189 @@ end
             }))
             .await
             .expect_err("inline expansion should respect the materialization budget");
+
+        assert_eq!(error.code(), tonic::Code::ResourceExhausted);
+    }
+
+    async fn persist_output_file_blob(context: &TestContext, bytes: &[u8]) -> reapi::Digest {
+        let digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(bytes)),
+            size_bytes: bytes.len() as i64,
+        };
+        let key = blob_key(&digest_key(&digest).expect("digest key should build"));
+        context
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                DEFAULT_INSTANCE_NAME,
+                &key,
+                "application/octet-stream",
+                bytes,
+            )
+            .await
+            .expect("output blob should persist");
+        digest
+    }
+
+    async fn persist_action_result_with_outputs(
+        context: &TestContext,
+        output_files: Vec<reapi::OutputFile>,
+    ) -> reapi::Digest {
+        let action_result = reapi::ActionResult {
+            output_files,
+            ..Default::default()
+        };
+        let action_bytes = action_result.encode_to_vec();
+        let action_digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(&action_bytes)),
+            size_bytes: action_bytes.len() as i64,
+        };
+        let action_key =
+            action_cache_key(&digest_key(&action_digest).expect("digest key should build"));
+        context
+            .state
+            .store
+            .persist_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                DEFAULT_INSTANCE_NAME,
+                &action_key,
+                "application/x-protobuf",
+                &action_bytes,
+            )
+            .await
+            .expect("action result should persist");
+        action_digest
+    }
+
+    #[tokio::test]
+    async fn action_cache_wildcard_inlines_every_output_file() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            state: context.state.clone(),
+        };
+        let first_bytes = b"first output".to_vec();
+        let second_bytes = b"second output".to_vec();
+        let first_digest = persist_output_file_blob(&context, &first_bytes).await;
+        let second_digest = persist_output_file_blob(&context, &second_bytes).await;
+        let action_digest = persist_action_result_with_outputs(
+            &context,
+            vec![
+                reapi::OutputFile {
+                    path: "aaaa".into(),
+                    digest: Some(first_digest),
+                    ..Default::default()
+                },
+                reapi::OutputFile {
+                    path: "bbbb".into(),
+                    digest: Some(second_digest),
+                    ..Default::default()
+                },
+            ],
+        )
+        .await;
+
+        let response = service
+            .get_action_result(Request::new(reapi::GetActionResultRequest {
+                instance_name: DEFAULT_INSTANCE_NAME.into(),
+                action_digest: Some(action_digest),
+                inline_output_files: vec!["*".into()],
+                digest_function: reapi::digest_function::Value::Sha256 as i32,
+                ..Default::default()
+            }))
+            .await
+            .expect("wildcard inline should succeed");
+
+        let output_files = &response.get_ref().output_files;
+        assert_eq!(output_files[0].contents, first_bytes);
+        assert_eq!(output_files[1].contents, second_bytes);
+    }
+
+    #[tokio::test]
+    async fn action_cache_wildcard_inline_degrades_to_partial_when_budget_is_exceeded() {
+        let context = test_context(|config| {
+            config.memory_soft_limit_bytes = 32 * 1024 * 1024;
+            config.memory_hard_limit_bytes = 64 * 1024 * 1024;
+        })
+        .await;
+        let service = ReapiService {
+            state: context.state.clone(),
+        };
+        // Larger than the response budget under this memory config (the same
+        // sizing the explicit-inline rejection test relies on), listed FIRST
+        // to prove a rejected file does not stop later ones from inlining.
+        let large_bytes = vec![b'x'; 9 * 1024 * 1024];
+        let small_bytes = b"small output".to_vec();
+        let large_digest = persist_output_file_blob(&context, &large_bytes).await;
+        let small_digest = persist_output_file_blob(&context, &small_bytes).await;
+        let action_digest = persist_action_result_with_outputs(
+            &context,
+            vec![
+                reapi::OutputFile {
+                    path: "large".into(),
+                    digest: Some(large_digest),
+                    ..Default::default()
+                },
+                reapi::OutputFile {
+                    path: "small".into(),
+                    digest: Some(small_digest),
+                    ..Default::default()
+                },
+            ],
+        )
+        .await;
+
+        let response = service
+            .get_action_result(Request::new(reapi::GetActionResultRequest {
+                instance_name: DEFAULT_INSTANCE_NAME.into(),
+                action_digest: Some(action_digest),
+                inline_output_files: vec!["*".into()],
+                digest_function: reapi::digest_function::Value::Sha256 as i32,
+                ..Default::default()
+            }))
+            .await
+            .expect("wildcard inline should degrade to partial, not fail");
+
+        let output_files = &response.get_ref().output_files;
+        assert!(output_files[0].contents.is_empty());
+        assert_eq!(output_files[1].contents, small_bytes);
+    }
+
+    #[tokio::test]
+    async fn wildcard_inline_keeps_the_hard_budget_error_for_an_explicitly_listed_path() {
+        let context = test_context(|config| {
+            config.memory_soft_limit_bytes = 32 * 1024 * 1024;
+            config.memory_hard_limit_bytes = 64 * 1024 * 1024;
+        })
+        .await;
+        let service = ReapiService {
+            state: context.state.clone(),
+        };
+        // Larger than the response budget; listed BOTH via "*" and explicitly.
+        // The explicit listing must keep the hard error even though "*" would
+        // otherwise let it degrade to partial.
+        let large_bytes = vec![b'x'; 9 * 1024 * 1024];
+        let large_digest = persist_output_file_blob(&context, &large_bytes).await;
+        let action_digest = persist_action_result_with_outputs(
+            &context,
+            vec![reapi::OutputFile {
+                path: "required".into(),
+                digest: Some(large_digest),
+                ..Default::default()
+            }],
+        )
+        .await;
+
+        let error = service
+            .get_action_result(Request::new(reapi::GetActionResultRequest {
+                instance_name: DEFAULT_INSTANCE_NAME.into(),
+                action_digest: Some(action_digest),
+                inline_output_files: vec!["*".into(), "required".into()],
+                digest_function: reapi::digest_function::Value::Sha256 as i32,
+                ..Default::default()
+            }))
+            .await
+            .expect_err("an explicitly listed over-budget file must fail the lookup");
 
         assert_eq!(error.code(), tonic::Code::ResourceExhausted);
     }

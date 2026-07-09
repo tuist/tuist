@@ -183,6 +183,10 @@ pub struct PathState {
     pub stats_remote_hits: AtomicU64,
     pub stats_misses: AtomicU64,
     pub stats_blobs_fetched: AtomicU64,
+    // Blobs that arrived inlined in the GetActionResult response instead of
+    // through a separate BatchReadBlobs round-trip (kura's
+    // `inline_output_files: ["*"]` extension).
+    pub stats_blobs_inlined: AtomicU64,
     pub stats_published: AtomicU64,
     pub ms_action: AtomicU64,
     pub ms_filter: AtomicU64,
@@ -362,6 +366,7 @@ impl Proxy {
             stats_remote_hits: AtomicU64::new(0),
             stats_misses: AtomicU64::new(0),
             stats_blobs_fetched: AtomicU64::new(0),
+            stats_blobs_inlined: AtomicU64::new(0),
             stats_published: AtomicU64::new(0),
             ms_action: AtomicU64::new(0),
             ms_filter: AtomicU64::new(0),
@@ -482,9 +487,8 @@ impl Proxy {
             }
         };
         state.stats_remote_hits.fetch_add(1, Ordering::Relaxed);
-        state
-            .ms_action
-            .fetch_add(phase.elapsed().as_millis() as u64, Ordering::Relaxed);
+        let action_ms = phase.elapsed().as_millis() as u64;
+        state.ms_action.fetch_add(action_ms, Ordering::Relaxed);
 
         let phase = Instant::now();
         let missing: Vec<&ManifestEntry> = manifest
@@ -495,26 +499,63 @@ impl Proxy {
             .ms_filter
             .fetch_add(phase.elapsed().as_millis() as u64, Ordering::Relaxed);
         if !missing.is_empty() {
-            // One batch per resolve: the server parallelizes blob reads
-            // internally, so client-side fragmentation only multiplies
-            // per-RPC overhead (measured: 6-way splitting of ~23-blob sets
-            // pinned per-resolve latency at per-RPC cost times groups).
+            // Blobs the server inlined into the GetActionResult response (see
+            // reapi::ManifestEntry::contents) need no second round-trip;
+            // batch-read only the remainder (older kura, or a value graph the
+            // server's response budget could not fully afford). One batch per
+            // resolve: the server parallelizes blob reads internally, so
+            // client-side fragmentation only multiplies per-RPC overhead
+            // (measured: 6-way splitting of ~23-blob sets pinned per-resolve
+            // latency at per-RPC cost times groups).
             let phase = Instant::now();
-            let digests: Vec<_> = missing.iter().map(|entry| entry.blob.clone()).collect();
-            let contents = remote.batch_read(&digests)?;
+            let digests: Vec<_> = missing
+                .iter()
+                .filter(|entry| entry.contents.is_none())
+                .map(|entry| entry.blob.clone())
+                .collect();
+            let contents = if digests.is_empty() {
+                HashMap::new()
+            } else {
+                remote.batch_read(&digests)?
+            };
             let fetch_elapsed = phase.elapsed();
             state
                 .ms_fetch
                 .fetch_add(fetch_elapsed.as_millis() as u64, Ordering::Relaxed);
-            // The fetch is one batch RPC; attribute its wall time to each node in
-            // proportion to that node's compressed bytes for the per-node
-            // transfer analytics.
-            let total_compressed: i64 = missing.iter().map(|entry| entry.blob.size_bytes).sum::<i64>().max(1);
+            // TEMP diagnostics: per-resolve batch shape + per-leg wall time, to
+            // attribute where in-build fetch latency goes (size tail vs uniform
+            // slowdown). Gated so normal runs stay quiet.
+            if std::env::var_os("TUIST_CAS_LOG_RESOLVES").is_some() {
+                let bytes: i64 = digests.iter().map(|digest| digest.size_bytes).sum();
+                crate::log_line(&format!(
+                    "resolve manifest={} fetched={} bytes={} action_ms={} fetch_ms={}",
+                    manifest.len(),
+                    digests.len(),
+                    bytes,
+                    action_ms,
+                    fetch_elapsed.as_millis()
+                ));
+            }
+            // The fetch is one batch RPC; attribute its wall time to each
+            // batch-read node in proportion to that node's compressed bytes
+            // for the per-node transfer analytics. Inlined nodes rode the
+            // action lookup, so they carry no share of the fetch time.
+            let total_compressed: i64 = missing
+                .iter()
+                .filter(|entry| entry.contents.is_none())
+                .map(|entry| entry.blob.size_bytes)
+                .sum::<i64>()
+                .max(1);
             for entry in &missing {
-                let Some(blob) = contents.get(&entry.blob.hash) else {
-                    // Incomplete graph on the server: degrade to a miss (do
-                    // not negative-cache; the writer may still be uploading).
-                    return Ok(None);
+                let (blob, inlined) = match &entry.contents {
+                    Some(bytes) => (bytes, true),
+                    None => match contents.get(&entry.blob.hash) {
+                        Some(bytes) => (bytes, false),
+                        // Incomplete graph on the server: degrade to a miss
+                        // (do not negative-cache; the writer may still be
+                        // uploading).
+                        None => return Ok(None),
+                    },
                 };
                 let phase = Instant::now();
                 let Some(frame) = reapi::decompress_frame(blob) else {
@@ -529,8 +570,11 @@ impl Proxy {
                     .fetch_add(codec_elapsed.as_millis() as u64, Ordering::Relaxed);
                 if let Some(analytics) = &self.analytics {
                     let compressed = entry.blob.size_bytes;
-                    let transfer =
-                        fetch_elapsed.as_secs_f64() * (compressed as f64 / total_compressed as f64);
+                    let transfer = if inlined {
+                        0.0
+                    } else {
+                        fetch_elapsed.as_secs_f64() * (compressed as f64 / total_compressed as f64)
+                    };
                     let codec = codec_elapsed.as_secs_f64();
                     // This node's own transfer, keyed by its content-digest hex
                     // (which equals the checksum in its parent's reference).
@@ -564,7 +608,11 @@ impl Proxy {
                         shard.insert(entry.llcas_digest.clone());
                     }
                 }
-                state.stats_blobs_fetched.fetch_add(1, Ordering::Relaxed);
+                if inlined {
+                    state.stats_blobs_inlined.fetch_add(1, Ordering::Relaxed);
+                } else {
+                    state.stats_blobs_fetched.fetch_add(1, Ordering::Relaxed);
+                }
             }
         }
         let value = manifest[0].llcas_digest.clone();
@@ -726,7 +774,7 @@ impl Proxy {
             if let Some((blob_digest, children)) =
                 state.publish_cache.lock().unwrap().get(&digest).cloned()
             {
-                entries.push(ManifestEntry { llcas_digest: digest, blob: blob_digest });
+                entries.push(ManifestEntry { llcas_digest: digest, blob: blob_digest, contents: None });
                 blobs.push(None);
                 pending.extend(children);
                 continue;
@@ -738,7 +786,7 @@ impl Proxy {
                 .lock()
                 .unwrap()
                 .insert(digest.clone(), (blob_digest.clone(), children.clone()));
-            entries.push(ManifestEntry { llcas_digest: digest, blob: blob_digest });
+            entries.push(ManifestEntry { llcas_digest: digest, blob: blob_digest, contents: None });
             blobs.push(Some(blob));
             pending.extend(children);
         }
@@ -889,12 +937,13 @@ impl Proxy {
         let mut parts = Vec::new();
         for (path, state) in paths.iter() {
             parts.push(format!(
-                "{}: resolves={} remote_hits={} misses={} blobs={} published={} | ms action={} filter={} fetch={} decode={} store={}",
+                "{}: resolves={} remote_hits={} misses={} blobs={} inlined={} published={} | ms action={} filter={} fetch={} decode={} store={}",
                 path,
                 state.stats_resolves.load(Ordering::Relaxed),
                 state.stats_remote_hits.load(Ordering::Relaxed),
                 state.stats_misses.load(Ordering::Relaxed),
                 state.stats_blobs_fetched.load(Ordering::Relaxed),
+                state.stats_blobs_inlined.load(Ordering::Relaxed),
                 state.stats_published.load(Ordering::Relaxed),
                 state.ms_action.load(Ordering::Relaxed),
                 state.ms_filter.load(Ordering::Relaxed),
