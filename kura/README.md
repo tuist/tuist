@@ -123,6 +123,8 @@ Kura exposes multiple cache protocols behind one service. Public HTTPS supports 
 
 For those HTTP cache routes, `tenant_id` is always required and `namespace_id` is optional. When `namespace_id` is present, the request is namespace-scoped. When it is omitted, the request is tenant-scoped and Kura stores it under an internal empty namespace key. REAPI requests carry their namespace explicitly through the gRPC `instance_name`/`resource_name`, and may declare the account with the `x-kura-tenant-id` metadata header (the gRPC analog of the `tenant_id` query param above).
 
+Kura extends the REAPI ActionCache with a wildcard form of the standard `GetActionResult.inline_output_files` hint: a literal `"*"` entry asks Kura to inline the contents of **every** output file the response budget affords (the per-request REAPI materialization budget, 8–64MB depending on the node's memory limits). It exists for clients whose output-file paths are digests unknown before the response — the Xcode CAS plugin — collapsing the action lookup and the blob fetch into one round-trip. Semantics: wildcard-matched files inline best-effort (a file the budget cannot afford stays un-inlined and the client falls back to `BatchReadBlobs`); explicitly listed paths keep the standard hard `RESOURCE_EXHAUSTED` error on budget exhaustion; servers without the extension match no literal `"*"` path and inline nothing, so mixed client/server versions interoperate unchanged. Note the trade-off: inlining happens before the server can know which blobs the client already holds, so every inlined byte counts as metered download egress even when a warm client discards it.
+
 Kura also exposes compatibility endpoints that are not a primary focus today:
 
 - 🧱 `Nx`: `PUT/GET /v1/cache/{hash}`

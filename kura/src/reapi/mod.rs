@@ -1028,17 +1028,27 @@ impl ByteStream for ReapiService {
         let bytes_to_read = read_limit
             .unwrap_or_else(|| manifest.size.saturating_sub(read_offset))
             .min(manifest.size.saturating_sub(read_offset));
-        let reader = self
+        // Tolerates a concurrent background promotion relocating the blob
+        // between the manifest fetch above and this open (see
+        // `Store::open_artifact_reader_range_tolerating_promotion`); a genuine
+        // eviction is a NOT_FOUND miss, not an internal error.
+        let Some((_, reader)) = self
             .state
             .store
-            .open_artifact_reader_range(&manifest, read_offset, read_limit)
+            .open_artifact_reader_range_tolerating_promotion(&manifest, read_offset, read_limit)
             .await
             .map_err(|error| {
                 self.state
                     .metrics
                     .record_artifact_read(ArtifactProducer::Reapi, "error", 0);
                 Status::internal(format!("failed to stream blob: {error}"))
-            })?;
+            })?
+        else {
+            self.state
+                .metrics
+                .record_artifact_read(ArtifactProducer::Reapi, "not_found", 0);
+            return Err(Status::not_found("blob not found"));
+        };
         self.state
             .metrics
             .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes_to_read);
