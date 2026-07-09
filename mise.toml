@@ -3,8 +3,8 @@
     # Auto-bumped to the latest Tuist CLI release (incl. canary) by the update-tuist-cli workflow.
     tuist = "4.202.0-canary.32"
     swiftlint = "0.59.1"
-    "elixir" = "1.19.5"
-    "erlang" = "28.4.3"
+    "elixir" = "1.20.2"
+    "erlang" = "29.0.3"
     swiftformat = "0.58.7"
     git-cliff = "2.6.0"
     sops = "3.9.3"

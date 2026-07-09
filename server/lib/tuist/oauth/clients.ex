@@ -24,10 +24,8 @@ defmodule Tuist.OAuth.Clients do
 
   @impl Clients
   def public! do
-    case tuist_oauth_client() do
-      %Client{} = client -> client
-      _ -> EctoClients.public!()
-    end
+    (%Client{} = client) = tuist_oauth_client()
+    client
   end
 
   @impl Clients
@@ -50,16 +48,12 @@ defmodule Tuist.OAuth.Clients do
 
   @impl Clients
   def list_clients_jwk do
-    tuist_client_jwk =
-      case tuist_oauth_client() do
-        %Client{} = client ->
-          case to_client_jwk(client) do
-            nil -> []
-            jwk -> [{client, jwk}]
-          end
+    %Client{} = client = tuist_oauth_client()
 
-        _ ->
-          []
+    tuist_client_jwk =
+      case to_client_jwk(client) do
+        nil -> []
+        jwk -> [{client, jwk}]
       end
 
     Enum.uniq_by(tuist_client_jwk ++ EctoClients.list_clients_jwk(), fn {_client, jwk} -> jwk["kid"] end)

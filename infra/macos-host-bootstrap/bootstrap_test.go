@@ -77,6 +77,21 @@ func TestRenderLaunchdPlist_RendersProviderID(t *testing.T) {
 	}
 }
 
+func TestRenderLaunchdPlist_RendersVNCRelayAddress(t *testing.T) {
+	out := renderLaunchdPlist(Config{
+		NodeName:     "n1",
+		SSHUser:      "m1",
+		VNCRelayHost: "macmini-1.tailscale-operator.svc.cluster.local",
+		VNCRelayPort: 5900,
+	})
+	if !strings.Contains(out, "<string>--vnc-relay-host=macmini-1.tailscale-operator.svc.cluster.local</string>") {
+		t.Fatalf("expected --vnc-relay-host flag in plist\n%s", out)
+	}
+	if !strings.Contains(out, "<string>--vnc-relay-port=5900</string>") {
+		t.Fatalf("expected --vnc-relay-port flag in plist\n%s", out)
+	}
+}
+
 func TestRenderLaunchdPlist_RendersFleetLabel(t *testing.T) {
 	out := renderLaunchdPlist(Config{
 		NodeName:   "n1",
@@ -138,6 +153,16 @@ func TestRenderLaunchdPlist_RendersDisableVMGCWhenSet(t *testing.T) {
 	}
 }
 
+func TestRenderTartKubeletLaunchdScript_PreparesVNCControlDir(t *testing.T) {
+	out := renderTartKubeletLaunchdScript(Config{SSHUser: "m1"})
+	if !strings.Contains(out, "/var/lib/tart-vnc-control") {
+		t.Fatalf("expected VNC control directory to be prepared\n%s", out)
+	}
+	if !strings.Contains(out, "sudo chown -R 'm1':staff") {
+		t.Fatalf("expected VNC control directory ownership to follow SSH user\n%s", out)
+	}
+}
+
 // HostKeyState is the SSH-side TOFU primitive. The first observation
 // of a host key on a fresh state is captured; later observations
 // against a state seeded with KnownHostFingerprint must match.
@@ -185,6 +210,7 @@ func TestHostConfigHash_IndependentOfPerHostFields(t *testing.T) {
 	perHost.IP = "51.15.1.2"
 	perHost.Kubeconfig = "kubeconfig-yaml"
 	perHost.ProviderID = "scw-applesilicon://fr-par-1/abc"
+	perHost.VNCRelayHost = "macmini-1.tailscale-operator.svc.cluster.local"
 	perHost.VMCachePNVLAN = 4242
 	perHost.KnownHostFingerprint = "SHA256:zzz"
 	perHost.DisableVMGC = true
@@ -214,6 +240,12 @@ func TestHostConfigHash_ChangesWhenFleetConfigChanges(t *testing.T) {
 	routes.TailscaleAcceptRoutes = true
 	if HostConfigHash(base) == HostConfigHash(routes) {
 		t.Fatalf("HostConfigHash must change when TailscaleAcceptRoutes changes")
+	}
+
+	vncPort := base
+	vncPort.VNCRelayPort = 5900
+	if HostConfigHash(base) == HostConfigHash(vncPort) {
+		t.Fatalf("HostConfigHash must change when VNCRelayPort changes")
 	}
 }
 

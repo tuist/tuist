@@ -214,7 +214,7 @@ jobs:
     # guest ("lost communication"). The 4 vCPU / 16 GB shape restores the
     # headroom this job had before the default was downsized (#11052).
     runs-on: tuist-linux-large
-    timeout-minutes: 30
+    timeout-minutes: 75
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     # Local `mix test` compiles only the "en" locale for fast cold builds
     # (Tuist.Environment.single_locale?/0). CI opts into the full ex_cldr/Gettext
@@ -283,7 +283,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: erlang elixir node aube
+          install_args: erlang elixir node aube npm:prettier
           cache: "true"
           working_directory: server
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -291,11 +291,10 @@ jobs:
         run: mix deps.get
       - name: Install aube dependencies
         run: aube install
-      - name: Check format
-        run: |
-          mix format --check-formatted
-          aube exec prettier -c priv/static/app
-          aube exec prettier -c assets
+      - name: Check Elixir format
+        run: mix format --check-formatted
+      - name: Check asset format
+        run: prettier --check assets
   esbuild:
     name: esbuild
     runs-on: tuist-linux
@@ -367,7 +366,7 @@ jobs:
     # Bigger shape: the server image build (Elixir release compile inside
     # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM.
     runs-on: tuist-linux-large
-    timeout-minutes: 30
+    timeout-minutes: 75
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4

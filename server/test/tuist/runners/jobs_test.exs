@@ -52,6 +52,33 @@ defmodule Tuist.Runners.JobsTest do
       counts = Jobs.status_counts(account.id)
       assert Map.get(counts, "queued", 0) == 1
     end
+
+    test "enqueue_if_missing does not regress an existing job back to queued" do
+      account = account_fixture()
+
+      attrs = %{
+        workflow_job_id: 1003,
+        account_id: account.id,
+        fleet_name: "fleet-a",
+        repository: "acme/cli",
+        workflow_run_id: 10_030,
+        run_attempt: 1,
+        workflow_name: "",
+        job_name: "build",
+        head_branch: "main",
+        head_sha: "deadbeef",
+        requested_dispatch_label: ""
+      }
+
+      assert :ok = Jobs.enqueue(attrs)
+      assert {:ok, candidate} = Jobs.pick_queued("fleet-a")
+      assert :ok = Jobs.record_claimed(candidate, "runner-pod", DateTime.utc_now())
+      assert :ok = Jobs.enqueue_if_missing(attrs)
+
+      counts = Jobs.status_counts(account.id)
+      assert Map.get(counts, "queued", 0) == 0
+      assert Map.get(counts, "claimed", 0) == 1
+    end
   end
 
   describe "last_used_at_by_dispatch_label/1" do

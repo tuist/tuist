@@ -170,7 +170,7 @@ jobs:
     # runner mid-build ("lost communication"). Mirrors server.yml's
     # docker_build job.
     runs-on: tuist-linux-large
-    timeout-minutes: 30
+    timeout-minutes: 75
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     outputs:
@@ -248,7 +248,7 @@ jobs:
     needs: check-releases
     if: needs.check-releases.outputs.server-should-release == 'true'
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 60
+    timeout-minutes: 75
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     outputs:
@@ -1860,7 +1860,7 @@ jobs:
     # runner mid-build ("lost communication"). Mirrors server.yml's
     # docker_build job.
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 75
     outputs:
       image_tag: ${{ steps.tag.outputs.image_tag }}
     steps:

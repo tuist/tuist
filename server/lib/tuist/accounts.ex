@@ -866,8 +866,7 @@ defmodule Tuist.Accounts do
         user
 
       error ->
-        # Re-raise any other errors
-        {:ok, _} = error
+        raise "Unexpected result from create_user/2 while creating OAuth2 user: #{inspect(error)}"
     end
   end
 
@@ -1207,12 +1206,10 @@ defmodule Tuist.Accounts do
       |> Repo.get_by(token: token, invitee_email: invitee.email)
       |> Repo.preload(inviter: :account)
 
-    cond do
-      is_nil(invitation) ->
-        {:error, :not_found}
-
-      !is_nil(invitation) ->
-        {:ok, invitation}
+    if is_nil(invitation) do
+      {:error, :not_found}
+    else
+      {:ok, invitation}
     end
   end
 
@@ -2068,8 +2065,6 @@ defmodule Tuist.Accounts do
       []
     end
   end
-
-  defp kura_cache_endpoints(_), do: []
 
   defp kura_cache_endpoint_urls(%Account{} = account) do
     static_urls = account |> kura_cache_endpoints() |> Enum.map(& &1.url)

@@ -36,7 +36,10 @@ defmodule Tuist.Runners.Jobs do
   Webhook retries of `workflow_job.queued` INSERT another row
   with the same `workflow_job_id`. RMT merge collapses them; both
   rows carry the same `queued` state so the merge is a no-op
-  visible to clients.
+  visible to clients. `workflow_job.waiting` uses `enqueue_if_missing/1`
+  because GitHub can emit it while waiting for self-hosted capacity;
+  it should create a missing row without regressing an already-claimed
+  job back to queued.
 
   ## Read pattern (no `FINAL`)
 
@@ -103,6 +106,22 @@ defmodule Tuist.Runners.Jobs do
 
     broadcast_status_change(Map.get(attrs, :account_id), "queued")
     :ok
+  end
+
+  @doc """
+  Enqueues a job only when no lifecycle row exists yet.
+
+  Used for GitHub's `workflow_job.waiting` webhook, which represents a
+  self-hosted job waiting for runner capacity. It fills the gap when
+  GitHub does not deliver a normal `queued` event, while avoiding a
+  late `waiting` delivery from moving an existing claimed/running job
+  back to queued.
+  """
+  def enqueue_if_missing(%{workflow_job_id: workflow_job_id} = attrs) when is_integer(workflow_job_id) do
+    case current(workflow_job_id) do
+      nil -> enqueue(attrs)
+      %Job{} -> :ok
+    end
   end
 
   @doc """
@@ -1115,7 +1134,6 @@ defmodule Tuist.Runners.Jobs do
   # recovery path.
   defp normalise_conclusion(c) when c in [nil, ""], do: "unknown"
   defp normalise_conclusion(c) when is_binary(c), do: c
-  defp normalise_conclusion(_), do: "unknown"
 
   @doc """
   Pub/Sub topic for an account's runner-job lifecycle events.

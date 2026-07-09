@@ -22,6 +22,7 @@ overrides:
   yaml: 2.8.3
 
 time:
+  '@novnc/novnc@1.5.0': 2024-06-18T12:11:50.165Z
   '@opentelemetry/core@2.8.0': 2026-06-11T12:36:40.276Z
   '@protobufjs/codegen@2.0.5': 2026-04-27T20:30:11.789Z
   '@protobufjs/eventemitter@1.1.1': 2026-05-22T02:33:03.279Z
@@ -45,6 +46,9 @@ importers:
       '@babel/runtime':
         specifier: ^7.23.2
         version: 7.29.2
+      '@novnc/novnc':
+        specifier: 1.5.0
+        version: 1.5.0
       '@scalar/api-reference':
         specifier: ^1.52.0
         version: 1.52.0
@@ -207,6 +211,9 @@ packages:
 
   '@marijn/find-cluster-break@1.0.2':
     resolution: {integrity: sha512-l0h88YhZFyKdXIFNfSWpyjStDjGHwZ/U7iobcK1cQQD8sejsONdQtTVU+1wVN1PBw40PiiHB1vA5S7VTfQiP9g==}
+
+  '@novnc/novnc@1.5.0':
+    resolution: {integrity: sha512-4yGHOtUCnEJUCsgEt/L78eeJu00kthurLBWXFiaXfonNx0pzbs6R/3gJb1byZe6iAE8V9MF0syQb0xIL8MSOtQ==}
 
   '@opentelemetry/api-logs@0.208.0':
     resolution: {integrity: sha512-CjruKY9V6NMssL/T1kAFgzosF1v9o6oeN+aX5JB/C/xPNtmgIJqcXHG7fA82Ou1zCpWGl4lROQUKwUNE1pMCyg==}
@@ -1733,6 +1740,8 @@ snapshots:
       '@lezer/lr': 1.4.2
 
   '@marijn/find-cluster-break@1.0.2': {}
+
+  '@novnc/novnc@1.5.0': {}
 
   '@opentelemetry/api-logs@0.208.0':
     dependencies:

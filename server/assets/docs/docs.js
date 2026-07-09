@@ -41,8 +41,7 @@ let liveSocket = new LiveSocket("/live", Socket, {
 // switches are picked up.
 function loadingBarColor() {
   const probe = document.createElement("div");
-  probe.style.color =
-    "light-dark(var(--noora-purple-500), var(--noora-purple-400))";
+  probe.style.color = "light-dark(var(--noora-purple-500), var(--noora-purple-400))";
   document.body.appendChild(probe);
   const color = getComputedStyle(probe).color;
   probe.remove();

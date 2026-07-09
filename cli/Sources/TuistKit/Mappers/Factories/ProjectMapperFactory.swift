@@ -68,6 +68,9 @@ public struct ProjectMapperFactory: ProjectMapperFactorying {
         // Delete current derived
         mappers.append(DeleteDerivedDirectoryProjectMapper())
 
+        // Target script file lists
+        mappers.append(GenerateTargetScriptFileListProjectMapper())
+
         // Namespace generator
         mappers.append(
             SynthesizedResourceInterfaceProjectMapper(

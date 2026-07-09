@@ -42,6 +42,8 @@ import CopyToClipboard from "./js/CopyToClipboard.js";
 import DownloadAsFile from "./js/DownloadAsFile.js";
 import ScrollToTail from "./js/ScrollToTail.js";
 import RunnerMetricsHighlight from "./js/RunnerMetricsHighlight.js";
+import RunnerVNCClient from "./js/RunnerVNCClient.js";
+import RunnerVNCFullscreen from "./js/RunnerVNCFullscreen.js";
 import { setupQueryMemory } from "./js/QueryMemory.js";
 import { getUserLocale } from "./js/UserLocale.js";
 import { getUserTimezone } from "./js/UserTimezone.js";
@@ -68,6 +70,8 @@ Hooks.CopyToClipboard = CopyToClipboard;
 Hooks.DownloadAsFile = DownloadAsFile;
 Hooks.ScrollToTail = ScrollToTail;
 Hooks.RunnerMetricsHighlight = RunnerMetricsHighlight;
+Hooks.RunnerVNCClient = RunnerVNCClient;
+Hooks.RunnerVNCFullscreen = RunnerVNCFullscreen;
 
 observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;
@@ -99,8 +103,7 @@ let liveSocket = new LiveSocket("/live", Socket, {
 // switches are picked up.
 function loadingBarColor() {
   const probe = document.createElement("div");
-  probe.style.color =
-    "light-dark(var(--noora-purple-500), var(--noora-purple-400))";
+  probe.style.color = "light-dark(var(--noora-purple-500), var(--noora-purple-400))";
   document.body.appendChild(probe);
   const color = getComputedStyle(probe).color;
   probe.remove();

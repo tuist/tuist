@@ -3,8 +3,6 @@ defmodule CacheWeb.Plugs.ObservabilityContextPlug do
   Plug to set selected account/project observability context from request parameters.
   """
 
-  require Logger
-
   def init(opts), do: opts
 
   def call(conn, _opts) do

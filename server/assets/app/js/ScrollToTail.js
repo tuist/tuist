@@ -18,14 +18,12 @@ export default {
       if (!this.isEnabled()) return;
 
       const firstItemId = this.firstItemId();
-      const prependedItems =
-        this.previousFirstItemId && firstItemId && firstItemId !== this.previousFirstItemId;
+      const prependedItems = this.previousFirstItemId && firstItemId && firstItemId !== this.previousFirstItemId;
 
       if (!this.hasPinnedTail || this.wasNearBottom) {
         this.pinTail();
       } else if (prependedItems) {
-        this.el.scrollTop =
-          this.previousScrollTop + (this.el.scrollHeight - this.previousScrollHeight);
+        this.el.scrollTop = this.previousScrollTop + (this.el.scrollHeight - this.previousScrollHeight);
       }
     });
   },

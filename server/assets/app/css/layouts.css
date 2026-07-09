@@ -17,8 +17,8 @@
   display: flex;
   flex: 1;
   flex-direction: row;
-  min-height: 0;
   background: var(--noora-surface-background-primary);
+  min-height: 0;
 
   & .noora-sidebar {
     flex-shrink: 0;

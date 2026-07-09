@@ -30,6 +30,12 @@ pub const PROTOCOL_VERSION: u8 = 1;
 
 pub const OP_RESOLVE: u8 = 1;
 pub const OP_PUBLISH: u8 = 2;
+/// The on-disk CAS at `cas_path` was pruned/emptied in place (Xcode's size
+/// management calls `llcas_cas_prune_ondisk_data`), removing objects without
+/// recreating the directory. The proxy's directory-identity wipe check can't
+/// see that, so the plugin tells it to drop the path's in-memory known-local /
+/// resolved marks, which would otherwise skip re-fetching the pruned blobs.
+pub const OP_INVALIDATE: u8 = 3;
 
 pub const STATUS_MISS: u8 = 0;
 pub const STATUS_HIT: u8 = 1;
@@ -136,6 +142,30 @@ impl ProxyClient {
             STATUS_HIT => Ok(Resolution::Hit(body)),
             STATUS_MISS => Ok(Resolution::Miss),
             _ => Err(format!("proxy error: {}", String::from_utf8_lossy(&body))),
+        }
+    }
+
+    /// Best-effort notice that the on-disk CAS at `cas_path` was pruned in place,
+    /// so the proxy should drop its in-memory marks for it. No instance is needed
+    /// (invalidation is path-scoped); the proxy no-ops if it holds no state.
+    pub fn invalidate(&self, cas_path: &str) -> Result<(), String> {
+        let mut stream = self.connect().map_err(|e| format!("proxy connect: {e}"))?;
+        write_request(
+            &mut stream,
+            &Request {
+                version: PROTOCOL_VERSION,
+                op: OP_INVALIDATE,
+                cas_path: cas_path.to_string(),
+                instance: String::new(),
+                payload: Vec::new(),
+            },
+        )
+        .map_err(|e| format!("proxy send: {e}"))?;
+        let (status, body) = read_response(&mut stream).map_err(|e| format!("proxy recv: {e}"))?;
+        if status == STATUS_HIT {
+            Ok(())
+        } else {
+            Err(format!("proxy invalidate: {}", String::from_utf8_lossy(&body)))
         }
     }
 
