@@ -24,7 +24,13 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       email = "test@example.com"
 
       expect(Loops, :send_newsletter_confirmation, fn ^email, verification_url ->
-        assert String.contains?(verification_url, "/newsletter/verify?token=")
+        uri = URI.parse(verification_url)
+        assert uri.path == "/newsletter/verify"
+        assert %{"token" => token} = URI.decode_query(uri.query)
+
+        assert {:ok, ^email} =
+                 Phoenix.Token.verify(TuistWeb.Endpoint, "newsletter_subscription", token, max_age: 2 * 24 * 60 * 60)
+
         :ok
       end)
 
@@ -104,14 +110,10 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   end
 
   describe "GET /newsletter/verify" do
-    test "successfully verifies email with valid token", %{conn: conn} do
+    test "shows a confirmation page with a valid token", %{conn: conn} do
       # Given
       email = "test@example.com"
-      token = Base.encode64(email)
-
-      expect(Loops, :add_to_newsletter_list, fn ^email ->
-        :ok
-      end)
+      token = signed_newsletter_token(email)
 
       # When
       conn = get(conn, ~p"/newsletter/verify?token=#{token}")
@@ -119,8 +121,27 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       # Then
       assert html_response(conn, 200)
       assert conn.assigns.email == email
+      assert conn.assigns.verification_token == token
+      assert conn.assigns.subscription_confirmed == false
       assert conn.assigns.error_message == nil
-      assert conn.assigns.head_title == "Successfully Subscribed!"
+      assert conn.assigns.head_title == "Confirm Subscription"
+    end
+
+    test "does not accept legacy base64 email tokens", %{conn: conn} do
+      # Given
+      token = Base.encode64("test@example.com")
+
+      # When
+      conn = get(conn, ~p"/newsletter/verify?token=#{token}")
+
+      # Then
+      assert html_response(conn, 200)
+      assert conn.assigns.email == nil
+
+      assert conn.assigns.error_message ==
+               "Invalid verification link. Please try signing up again."
+
+      assert conn.assigns.head_title == "Newsletter Verification Failed"
     end
 
     test "shows error page when token is invalid", %{conn: conn} do
@@ -153,18 +174,40 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
 
       assert conn.assigns.head_title == "Newsletter Verification Failed"
     end
+  end
+
+  describe "POST /newsletter/verify" do
+    test "subscribes email with a valid token", %{conn: conn} do
+      # Given
+      email = "test@example.com"
+      token = signed_newsletter_token(email)
+
+      expect(Loops, :add_to_newsletter_list, fn ^email ->
+        :ok
+      end)
+
+      # When
+      conn = post(conn, ~p"/newsletter/verify", %{"token" => token})
+
+      # Then
+      assert html_response(conn, 200)
+      assert conn.assigns.email == email
+      assert conn.assigns.subscription_confirmed == true
+      assert conn.assigns.error_message == nil
+      assert conn.assigns.head_title == "Successfully Subscribed!"
+    end
 
     test "shows error page when Loops API fails during verification", %{conn: conn} do
       # Given
       email = "test@example.com"
-      token = Base.encode64(email)
+      token = signed_newsletter_token(email)
 
       expect(Loops, :add_to_newsletter_list, fn ^email ->
         {:error, {:http_error, 400}}
       end)
 
       # When
-      conn = get(conn, ~p"/newsletter/verify?token=#{token}")
+      conn = post(conn, ~p"/newsletter/verify", %{"token" => token})
 
       # Then
       assert html_response(conn, 200)
@@ -172,5 +215,37 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert conn.assigns.error_message == "Verification failed. Please try signing up again."
       assert conn.assigns.head_title == "Newsletter Verification Failed"
     end
+
+    test "shows error page when token is invalid", %{conn: conn} do
+      # When
+      conn = post(conn, ~p"/newsletter/verify", %{"token" => "invalid-token"})
+
+      # Then
+      assert html_response(conn, 200)
+      assert conn.assigns.email == nil
+
+      assert conn.assigns.error_message ==
+               "Invalid verification link. Please try signing up again."
+
+      assert conn.assigns.head_title == "Newsletter Verification Failed"
+    end
+
+    test "shows error page when no token provided", %{conn: conn} do
+      # When
+      conn = post(conn, ~p"/newsletter/verify", %{})
+
+      # Then
+      assert html_response(conn, 200)
+      assert conn.assigns.email == nil
+
+      assert conn.assigns.error_message ==
+               "Verification link expired or invalid. Please try signing up again."
+
+      assert conn.assigns.head_title == "Newsletter Verification Failed"
+    end
+  end
+
+  defp signed_newsletter_token(email) do
+    Phoenix.Token.sign(TuistWeb.Endpoint, "newsletter_subscription", email)
   end
 end

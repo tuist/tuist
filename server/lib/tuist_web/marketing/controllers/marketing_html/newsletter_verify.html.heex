@@ -10,23 +10,59 @@
         data-part="image"
         decoding="async"
       />
-      <h1 data-part="title">{dgettext("marketing", "Successfully Subscribed!")}</h1>
-      <p data-part="description">
-        {dgettext(
-          "marketing",
-          "Great! The email %{email} has been confirmed and subscribed to Tuist Digest.",
-          email: @email
-        )}
-      </p>
+      <%= if @error_message do %>
+        <h1 data-part="title">{dgettext("marketing", "Newsletter Verification Failed")}</h1>
+        <p data-part="description">{@error_message}</p>
+      <% else %>
+        <%= if @subscription_confirmed do %>
+          <h1 data-part="title">{dgettext("marketing", "Successfully Subscribed!")}</h1>
+          <p data-part="description">
+            {dgettext(
+              "marketing",
+              "Great! The email %{email} has been confirmed and subscribed to Tuist Digest.",
+              email: @email
+            )}
+          </p>
+        <% else %>
+          <h1 data-part="title">{dgettext("marketing", "Confirm Subscription")}</h1>
+          <p data-part="description">
+            {dgettext(
+              "marketing",
+              "Please confirm that you want %{email} to receive Tuist Digest.",
+              email: @email
+            )}
+          </p>
+        <% end %>
+      <% end %>
     </header>
 
     <section data-part="content">
-      <p>
-        {dgettext(
-          "marketing",
-          "You'll receive newsletter issues every 6 weeks with the most important work happening in Tuist and our vision for the future of app development at scale."
-        )}
-      </p>
+      <%= cond do %>
+        <% @error_message -> %>
+          <p>
+            {dgettext(
+              "marketing",
+              "Open the confirmation link from the latest newsletter email, or subscribe again to receive a fresh link."
+            )}
+          </p>
+        <% @subscription_confirmed -> %>
+          <p>
+            {dgettext(
+              "marketing",
+              "You'll receive newsletter issues every 6 weeks with the most important work happening in Tuist and our vision for the future of app development at scale."
+            )}
+          </p>
+        <% true -> %>
+          <form method="post" action={~p"/newsletter/verify"}>
+            <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+            <input type="hidden" name="token" value={@verification_token} />
+            <.button
+              label={dgettext("marketing", "Confirm subscription")}
+              variant="primary"
+              type="submit"
+            />
+          </form>
+      <% end %>
     </section>
   </main>
 </TuistWeb.Marketing.Layouts.marketing>
