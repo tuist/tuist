@@ -270,8 +270,13 @@ async fn maybe_recover_membership(state: &SharedState, recovery: &mut RecoveryBa
         Ok(outcome) => match crate::app::apply_renewed_enrollment(state, &outcome).await {
             Ok(()) => {
                 state.reset_bootstrap_progress().await;
-                recovery.reset();
-                info!("recovered mesh membership via re-enrollment; re-bootstrapping from peers");
+                // The backoff is deliberately NOT reset here: recovery is
+                // only proven by a later heartbeat answering
+                // `mesh_member: true` (which resets it in the run loop). A
+                // successful re-enrollment that the server still answers
+                // `false` to must keep backing off, or it becomes an
+                // enroll/bootstrap-clear loop at heartbeat cadence.
+                info!("re-enrolled to recover mesh membership; re-bootstrapping from peers");
             }
             Err(error) => warn!("recovery re-enrollment: failed to apply: {error}"),
         },
