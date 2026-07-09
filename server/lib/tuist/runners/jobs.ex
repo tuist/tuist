@@ -90,14 +90,17 @@ defmodule Tuist.Runners.Jobs do
   def project_for_runner_job(account, %{repository: repository}) when is_binary(repository) do
     case String.split(repository, "/", parts: 2) do
       [_owner, project_handle] ->
-        Projects.get_project_by_account_and_project_handles(account.name, project_handle)
+        case Projects.get_project_by_account_and_project_handles(account.name, project_handle) do
+          nil -> {:error, :not_found}
+          project -> {:ok, project}
+        end
 
       _ ->
-        nil
+        {:error, :not_found}
     end
   end
 
-  def project_for_runner_job(_, _), do: nil
+  def project_for_runner_job(_, _), do: {:error, :not_found}
 
   def list_runner_build_runs(project, workflow_run_id) do
     workflow_run_id = Integer.to_string(workflow_run_id)

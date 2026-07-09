@@ -445,7 +445,7 @@ defmodule TuistWeb.RunnerJobLive do
 
   defp assign_runner_insights(socket, selected_account, job) do
     case Jobs.project_for_runner_job(selected_account, job) do
-      nil ->
+      {:error, :not_found} ->
         socket
         |> assign(:insights_project, nil)
         |> assign(:linked_build_runs, [])
@@ -453,7 +453,7 @@ defmodule TuistWeb.RunnerJobLive do
         |> assign(:linked_build_module_cache_summary, module_cache_summary([]))
         |> assign(:linked_test_selective_testing_summary, selective_testing_summary([]))
 
-      project ->
+      {:ok, project} ->
         build_runs = Jobs.list_runner_build_runs(project, job.workflow_run_id)
         test_runs = Jobs.list_runner_test_runs(project, job.workflow_run_id)
 
