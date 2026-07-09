@@ -89,6 +89,7 @@ defmodule Tuist.Kura.MeshTest do
       assert enrollment.ca_certificate_pem =~ "BEGIN CERTIFICATE"
       assert is_integer(enrollment.renew_after_seconds)
       assert enrollment.peers == []
+      assert enrollment.managed_peers == []
 
       assert [endpoint] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
       assert endpoint.url == "https://kura-1.acme.test:4433"
@@ -156,6 +157,9 @@ defmodule Tuist.Kura.MeshTest do
 
       expected = "https://peer.#{String.downcase(account.name)}-eu-central-1.kura.tuist.dev:7443"
       assert expected in enrollment.peers
+      # Split out for the node's static seed: platform-stable managed
+      # endpoints only, so volatile self-hosted membership stays dynamic.
+      assert enrollment.managed_peers == [expected]
     end
   end
 
@@ -248,7 +252,7 @@ defmodule Tuist.Kura.MeshTest do
   end
 
   describe "reactivation" do
-    test "a mesh heartbeat from a deactivated node rejoins it to the mesh" do
+    test "a mesh heartbeat from a deactivated node reports non-membership and leaves the row untouched" do
       account = AccountsFixtures.organization_fixture().account
       stub_account_peer_ca()
 
@@ -257,11 +261,16 @@ defmodule Tuist.Kura.MeshTest do
 
       [endpoint] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
       deactivate_endpoint(endpoint, days_ago: 1)
+      [deactivated] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
+
+      # Heartbeats never restore membership: the node is told to re-enroll,
+      # which is its trigger to re-bootstrap the data it missed.
+      assert %{mesh_member: false} = Mesh.heartbeat_node(account, "https://back.acme.test:4433")
+
       assert Mesh.self_hosted_peer_urls(account) == []
-
-      assert %{mesh_member: true} = Mesh.heartbeat_node(account, "https://back.acme.test:4433")
-
-      assert Mesh.self_hosted_peer_urls(account) == ["https://back.acme.test:4433"]
+      [unchanged] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
+      assert unchanged.deactivated_at == deactivated.deactivated_at
+      assert unchanged.updated_at == deactivated.updated_at
     end
 
     test "re-enrollment rejoins a deactivated node to the mesh" do

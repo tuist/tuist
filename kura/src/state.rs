@@ -346,6 +346,16 @@ impl AppState {
         self.readiness.lock().await.peers_needing_bootstrap()
     }
 
+    /// Forgets all bootstrap progress so the membership loop re-pulls the full
+    /// dataset from every known peer. Called on a *recovery* re-enrollment —
+    /// the node was out of the mesh for an unknown window, and the writes it
+    /// missed were never enqueued for it (replication targets are computed at
+    /// write time), so only a full re-bootstrap can reconcile the gap,
+    /// including namespace delete tombstones.
+    pub async fn reset_bootstrap_progress(&self) {
+        self.readiness.lock().await.bootstrapped_peers.clear();
+    }
+
     pub async fn note_bootstrap_started(&self, peer: &str) -> bool {
         self.readiness.lock().await.note_bootstrap_started(peer)
     }
@@ -382,6 +392,9 @@ impl AppState {
 
     pub async fn maybe_mark_serving(&self) {
         if self.runtime.is_draining() || self.runtime.is_serving() {
+            return;
+        }
+        if self.runtime.peer_view_pending() {
             return;
         }
         let snapshot = self.readiness_snapshot().await;
@@ -431,6 +444,9 @@ impl AppState {
         }
         if !snapshot.initial_discovery_completed {
             reasons.push("initial discovery incomplete".to_string());
+        }
+        if self.runtime.peer_view_pending() {
+            reasons.push("awaiting control-plane peer view".to_string());
         }
         if !self.runtime.is_serving()
             && snapshot.initial_discovery_completed

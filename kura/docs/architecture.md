@@ -93,7 +93,7 @@ Replication is **leaderless and eventually consistent**:
 
 - Every node is a writer for its own clients.
 - A successful local write enqueues an `OutboxMessage` in RocksDB inside the same atomic batch as the metadata commit.
-- A background **outbox worker** drains the queue and PUTs each message to the corresponding peer over the internal plane. On success, the message is deleted; on failure it stays queued and the worker retries.
+- A background **outbox worker** drains the queue and PUTs each message to the corresponding peer over the internal plane. On success, the message is deleted; on failure it stays queued and the worker retries. Messages whose target has been continuously absent from the node's current peer set for `KURA_OUTBOX_STALE_TARGET_GRACE_MS` are **dropped** (observable as `dropped_stale_target` replication results): a departed peer can never accept them, and a peer that later rejoins does so through a recovery re-enrollment that re-bootstraps the full dataset, so dropped deltas are recovered. An empty peer view never prunes — it means the node has no view (control plane unreachable), not that every peer left.
 - Large peer artifact body transfers can be application-throttled with `KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND`. The limiter is shared per node across live replication uploads, replication ingests, and bootstrap artifact fetches/responses. The configured value is a ceiling; the effective sync rate is divided by the larger of `public_inflight + 1` and the recent public request latency EWMA over `KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS`. The latency EWMA is sampled at time-to-first-byte (when the response is ready to start streaming), not at body completion, so large but healthy downloads do not register as latency and over-throttle sync; their concurrency is already captured by `public_inflight`. Public inflight includes non-probe public HTTP requests plus gRPC cache RPCs. Internal replication and probe requests do not count as public load. This lets sync work use its full budget while the node is quiet and back off automatically when public cache traffic is active or slow.
 
 Two observability surfaces support capacity and sharding decisions: `kura_public_request_latency_seconds` is a histogram of time-to-first-byte for public requests across both transports (`transport` is `http` or `grpc`, labeled by `route`), and `kura_artifact_egress_throughput_bytes_per_second` is a histogram of achieved per-response egress throughput by `producer`. Together with the aggregate `kura_artifact_egress_bytes_total` rate they indicate when a region is bandwidth-bound and a good candidate for sharding across more primary pods.
@@ -105,12 +105,15 @@ See `src/replication/mod.rs` for the membership/outbox/bootstrap loops, and `src
 
 ## Discovery And Membership
 
-A node finds peers in two ways:
+A node finds peers in three ways:
 
-1. **Static seeds** from `KURA_PEERS`.
-2. **DNS-based discovery** via `KURA_DISCOVERY_DNS_NAME`, which resolves to the addresses of the other pods (typical when running as a Kubernetes `StatefulSet` behind a headless service).
+1. **Static seeds** from `KURA_PEERS`. Static config is immutable for the process lifetime, so it carries **platform-stable peers only** (the managed regions' public peer gateways); volatile membership lives in the dynamic layer below.
+2. **Control-plane dynamic membership** (`src/mesh_heartbeat.rs`): enrolled self-hosted nodes send a mesh heartbeat every ~60s (cadence server-advertised) whose response carries the current peer list; managed pods fetch the same view read-only when `KURA_MESH_PEERS_SYNC` is set, with serving gated on the first successful fetch (a pod booting blind would accept writes without enqueuing replication for peers it cannot see). Additions **and removals** propagate at heartbeat cadence with no restart; a failed heartbeat keeps the last-known view, so a degraded control plane can never shrink the mesh.
+3. **DNS-based discovery** via `KURA_DISCOVERY_DNS_NAME`, which resolves to the addresses of the other pods (typical when running as a Kubernetes `StatefulSet` behind a headless service).
 
 A `spawn_membership_task` loop polls each candidate's `GET /_internal/status` every two seconds. Only peers that respond with the same `tenant_id` and a different `node_url` are admitted as members. The local node never lists itself.
+
+Mesh **membership itself** is control-plane state for enrolled nodes: a node that stops sending mesh heartbeats is deactivated (withheld from every peer's view) and its row is purged once its peer certificate can no longer be valid. Heartbeats never create or restore membership — a withheld node is answered `mesh_member: false` and recovers with a **recovery re-enrollment** (backoff-limited), which reactivates or recreates its membership server-side and clears local bootstrap progress so the node re-pulls the full dataset: the writes it missed while out of the mesh were never enqueued for it (replication targets are computed at write time), so only a full re-bootstrap can reconcile the gap.
 
 Each tick produces a `MembershipUpdate` and feeds it into `ReadinessState` (`src/state.rs`). The state tracks:
 

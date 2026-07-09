@@ -275,4 +275,63 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
 
     assert json_response(conn, 400)
   end
+
+  test "returns the self-hosted peer view with a self-hosted credential", %{
+    conn: conn,
+    client: client,
+    secret: secret
+  } do
+    conn
+    |> basic_auth(client.client_id, secret)
+    |> post(~p"/_internal/kura/mesh/enroll", %{
+      csr: csr_pem(),
+      node_url: "https://kura-1.acme.test:4433"
+    })
+
+    conn =
+      conn
+      |> basic_auth(client.client_id, secret)
+      |> get(~p"/_internal/kura/mesh/peers")
+
+    assert %{
+             "peers" => ["https://kura-1.acme.test:4433"],
+             "refresh_interval_seconds" => interval
+           } = json_response(conn, 200)
+
+    assert is_integer(interval)
+  end
+
+  test "returns the peer view with the deployment-level credential and a tenant", %{
+    conn: conn,
+    account: account,
+    client: client,
+    secret: secret
+  } do
+    stub(Tuist.Environment, :kura_control_plane_configured?, fn -> true end)
+    stub(Tuist.Environment, :kura_control_plane_client_id, fn -> "static-kura-client" end)
+    stub(Tuist.Environment, :kura_control_plane_client_secret, fn -> "static-kura-secret" end)
+
+    conn
+    |> basic_auth(client.client_id, secret)
+    |> post(~p"/_internal/kura/mesh/enroll", %{
+      csr: csr_pem(),
+      node_url: "https://kura-1.acme.test:4433"
+    })
+
+    conn =
+      conn
+      |> basic_auth("static-kura-client", "static-kura-secret")
+      |> get(~p"/_internal/kura/mesh/peers?tenant_id=#{account.name}")
+
+    assert %{"peers" => ["https://kura-1.acme.test:4433"]} = json_response(conn, 200)
+  end
+
+  test "rejects a peer view request with invalid credentials", %{conn: conn, client: client} do
+    conn =
+      conn
+      |> basic_auth(client.client_id, "wrong")
+      |> get(~p"/_internal/kura/mesh/peers")
+
+    assert json_response(conn, 401)
+  end
 end

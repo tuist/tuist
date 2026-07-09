@@ -769,6 +769,12 @@ pub async fn process_outbox(
     state: &SharedState,
     stale_targets: &mut BTreeMap<String, Instant>,
 ) -> Result<(), String> {
+    // The loop runs every few seconds regardless of load; skip the target-set
+    // rebuild (readiness lock + clones) when there is nothing to deliver.
+    if state.store.next_outbox_message(None)?.is_none() {
+        return Ok(());
+    }
+
     let current_targets: BTreeSet<String> = state.replication_targets().await.into_iter().collect();
     // A target that reappeared in the mesh is no longer stale.
     stale_targets.retain(|target, _| !current_targets.contains(target));
@@ -785,10 +791,13 @@ pub async fn process_outbox(
         // would otherwise accumulate until the outbox depth cap sheds writes.
         // Drop them once the target has been continuously absent from the
         // current peer set for the grace window (which rides out enrollment
-        // races and membership flaps); a peer that later rejoins re-bootstraps
-        // the full dataset, so the dropped deltas are recovered. An empty
-        // target set means the node has no peer view at all (e.g. the control
-        // plane is unreachable), not that every peer left — never prune on it.
+        // races and membership flaps); a departed peer that later rejoins does
+        // so through a recovery re-enrollment, which re-bootstraps the full
+        // dataset, so the dropped deltas are recovered. An empty target set
+        // means the node has no peer view at all (e.g. the control plane is
+        // unreachable), not that every peer left — never prune on it. The
+        // accepted trade-off: a mesh that legitimately shrinks to zero peers
+        // keeps its queued messages until a peer rejoins or the node restarts.
         if !current_targets.is_empty() && !current_targets.contains(&message.target) {
             let missing_since = *stale_targets
                 .entry(message.target.clone())
@@ -1281,6 +1290,45 @@ mod tests {
         assert!(
             queued.is_empty(),
             "messages for a target that left the mesh should be dropped"
+        );
+    }
+
+    #[tokio::test]
+    async fn process_outbox_drops_messages_for_boot_time_peers_that_left_the_mesh() {
+        // The static seed is managed/stable peers only, so a self-hosted peer
+        // present at boot lives in the dynamic view — its departure arrives
+        // via a later heartbeat and must be prunable without a restart.
+        let local = test_context(|config| {
+            config.outbox_stale_target_grace_ms = 0;
+        })
+        .await;
+        local.state.dynamic_peers.store(std::sync::Arc::new(vec![
+            "https://gone-peer.test:7443".to_string(),
+            "https://live-peer.test:7443".to_string(),
+        ]));
+        local
+            .state
+            .store
+            .enqueue(stale_target_message("https://gone-peer.test:7443"))
+            .expect("enqueue should succeed");
+
+        // The next heartbeat's peer view no longer contains the departed peer.
+        local.state.dynamic_peers.store(std::sync::Arc::new(vec![
+            "https://live-peer.test:7443".to_string(),
+        ]));
+
+        process_outbox(&local.state, &mut BTreeMap::new())
+            .await
+            .expect("outbox processing should succeed");
+
+        let queued = local
+            .state
+            .store
+            .outbox_messages()
+            .expect("outbox should load");
+        assert!(
+            queued.is_empty(),
+            "boot-time peers must be prunable once the dynamic view drops them"
         );
     }
 

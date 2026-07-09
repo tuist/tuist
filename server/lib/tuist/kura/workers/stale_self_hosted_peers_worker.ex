@@ -20,6 +20,23 @@ defmodule Tuist.Kura.Workers.StaleSelfHostedPeersWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
+    if __MODULE__.uptime_ms() < Mesh.stale_peer_after_minutes() * 60_000 do
+      # After a control-plane outage or deploy, nodes need a heartbeat cycle
+      # to refresh their markers before silence is meaningful; sweeping
+      # earlier would mass-deactivate live peers and buy each a spurious
+      # full re-bootstrap on recovery.
+      :ok
+    else
+      sweep()
+    end
+  end
+
+  def uptime_ms do
+    {uptime_ms, _since_last_call} = :erlang.statistics(:wall_clock)
+    uptime_ms
+  end
+
+  defp sweep do
     %{deactivated: deactivated, purged: purged} = Mesh.sweep_stale_self_hosted_peers()
 
     if deactivated != [] do

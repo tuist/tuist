@@ -19,7 +19,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Kura.Server
 
   @namespace "kura"
-  @manifest_revision "2026-07-02-per-account-public-dns-v1"
+  @manifest_revision "2026-07-09-mesh-peers-sync-v1"
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
   @impl true
   def provision(%{name: handle}, %Regions{} = region, %Server{}) do
@@ -387,7 +387,20 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         "KURA_CONTROL_PLANE_CLIENT_ID",
         Environment.kura_control_plane_client_id()
       ) ++
+      mesh_peers_sync_env(region) ++
       telemetry_env(region)
+  end
+
+  # Managed pods fetch the account's self-hosted peer list from the control
+  # plane at boot and on cadence, so a self-hosted peer joining or leaving
+  # propagates without rolling the fleet. Once the whole fleet runs an image
+  # that fetches, the peers digest can be dropped from the manifest revision.
+  defp mesh_peers_sync_env(region) do
+    if mesh_enabled?(region) do
+      [env_var("KURA_MESH_PEERS_SYNC", "true")]
+    else
+      []
+    end
   end
 
   defp telemetry_env(%Regions{provisioner_config: %{otlp_traces_endpoint: endpoint}})

@@ -201,7 +201,10 @@ async fn run_with_config(
     // When the node enrolled on boot, keep its peer certificate fresh in-process
     // so a short leaf does not require a restart, and prove mesh-membership
     // liveness to the control plane (which also refreshes the peer list at
-    // heartbeat cadence instead of at certificate renewal).
+    // heartbeat cadence instead of at certificate renewal). Managed pods don't
+    // enroll; they sync the peer view read-only, with serving gated on the
+    // first successful fetch so a pod booting blind never accepts writes
+    // without enqueuing replication for peers it cannot see.
     if let Some(enrollment) = enrollment
         && state.config.peer_tls.is_some()
     {
@@ -209,11 +212,15 @@ async fn run_with_config(
             .dynamic_peers
             .store(std::sync::Arc::new(enrollment.peers.clone()));
         spawn_cert_renewal_task(state.clone(), enrollment.renew_after_seconds);
-        if let Some(config) =
-            crate::mesh_heartbeat::MeshHeartbeatConfig::from_env(&state.config.node_url)
-        {
-            crate::mesh_heartbeat::spawn(state.clone(), config);
-        }
+        crate::mesh_heartbeat::spawn(
+            state.clone(),
+            crate::mesh_heartbeat::MeshHeartbeatConfig::from_enrollment(&enrollment),
+        );
+    } else if state.config.peer_tls.is_some()
+        && let Some(config) = crate::mesh_heartbeat::MeshPeersSyncConfig::from_config(&state.config)
+    {
+        state.runtime.require_peer_view();
+        crate::mesh_heartbeat::spawn_peers_sync(state.clone(), config);
     }
 
     let address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.port));
@@ -682,7 +689,7 @@ fn spawn_cert_renewal_task(state: Arc<AppState>, initial_renew_after_seconds: u6
             loop {
                 tokio::time::sleep(Duration::from_secs(renew_after)).await;
                 match crate::enrollment::renew().await {
-                    Ok(outcome) => match apply_renewed_certs(&state, &outcome).await {
+                    Ok(outcome) => match apply_renewed_enrollment(&state, &outcome).await {
                         Ok(()) => {
                             info!("renewed peer certificate");
                             renew_after = outcome.renew_after_seconds.max(60);
@@ -703,7 +710,7 @@ fn spawn_cert_renewal_task(state: Arc<AppState>, initial_renew_after_seconds: u6
     );
 }
 
-async fn apply_renewed_certs(
+pub(crate) async fn apply_renewed_enrollment(
     state: &Arc<AppState>,
     outcome: &crate::enrollment::EnrollmentOutcome,
 ) -> Result<(), String> {

@@ -143,9 +143,10 @@ pub struct Config {
     pub outbox_max_depth: usize,
     /// How long a replication target must be continuously absent from the
     /// node's current peer set before its queued outbox messages are dropped.
-    /// A peer that later rejoins re-bootstraps the full dataset, so dropped
-    /// deltas are recovered; without this, messages for a peer that left the
-    /// mesh accumulate forever and eventually trip outbox write shedding.
+    /// A departed peer that later rejoins does so through a recovery
+    /// re-enrollment, which re-bootstraps the full dataset, so dropped deltas
+    /// are recovered; without this, messages for a peer that left the mesh
+    /// accumulate forever and eventually trip outbox write shedding.
     pub outbox_stale_target_grace_ms: u64,
     pub replication_bandwidth_limit_bytes_per_second: u64,
     pub replication_public_latency_target_ms: u64,
