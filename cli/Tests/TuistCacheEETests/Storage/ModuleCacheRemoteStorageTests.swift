@@ -231,10 +231,13 @@ struct ModuleCacheRemoteStorageTests {
         )
 
         // Then
-        // The undecompressable artifact is a per-item cache miss, not a fetch
-        // failure, so no "server unavailable" alert is surfaced.
+        // The undecompressable artifact is a per-item cache miss (the fetch does
+        // not fail), surfaced as a single "could not be decompressed" warning
+        // rather than the misleading "server unavailable" alert.
         #expect(got.isEmpty == true)
-        #expect(AlertController.current.warnings().isEmpty == true)
+        #expect(AlertController.current.warnings().map(\.message).map { $0.plain() } ==
+            ["These cached artifacts could not be decompressed and were rebuilt from source: target"]
+        )
         // The payload won't change on retry, so it must be downloaded only once.
         verify(downloadModuleCacheService)
             .downloadModuleCacheArtifact(
@@ -297,7 +300,6 @@ struct ModuleCacheRemoteStorageTests {
         #expect(got.count == 1)
         #expect(got[.test(name: "Valid", hash: "valid-hash", source: .remote, cacheCategory: .binaries)] != nil)
         #expect(got[.test(name: "Corrupt", hash: "corrupt-hash", source: .remote, cacheCategory: .binaries)] == nil)
-        #expect(AlertController.current.warnings().isEmpty == true)
     }
 
     // MARK: - Authentication Failure Tests (401/403)
