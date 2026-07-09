@@ -47,6 +47,13 @@ pub const DEFAULT_USAGE_MAX_BUCKETS: usize = 10_000;
 pub const DEFAULT_USAGE_OUTBOX_MAX_DEPTH: usize = 100_000;
 
 pub const MAX_BOOTSTRAP_PAGE_BYTES: u64 = 32 * 1024 * 1024;
+// Range-digest anti-entropy: partition the sorted `artifact_id` keyspace by its
+// leading hex characters. 3 nibbles = 4096 buckets (~340 artifacts/bucket at
+// 1.4M), enough to make a mostly-in-sync bootstrap O(delta) while keeping the
+// digest payload small. `artifact_id` is a 64-char hex SHA-256, so the prefix
+// length is capped well under its width.
+pub const BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN: usize = 3;
+pub const BOOTSTRAP_DIGEST_MAX_PREFIX_LEN: usize = 8;
 pub const MAX_INLINE_REPLICATION_BODY_BYTES: u64 = 4 * 1024 * 1024;
 pub const DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS: usize = 8;
 // Stripes for the per-artifact bootstrap fetch gate that single-flights the

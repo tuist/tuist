@@ -26,8 +26,8 @@ use crate::{
     artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
     bandwidth::BandwidthLimiter,
     constants::{
-        MAX_GRADLE_BYTES, MAX_MODULE_PART_BYTES, MAX_MODULE_TOTAL_BYTES,
-        MAX_REPLICATION_BODY_BYTES, MAX_XCODE_BYTES,
+        BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN, BOOTSTRAP_DIGEST_MAX_PREFIX_LEN, MAX_GRADLE_BYTES,
+        MAX_MODULE_PART_BYTES, MAX_MODULE_TOTAL_BYTES, MAX_REPLICATION_BODY_BYTES, MAX_XCODE_BYTES,
     },
     extension::{AccessDecision, ExtensionContext},
     io::is_fd_pool_exhausted_error,
@@ -37,7 +37,7 @@ use crate::{
     replication::replication_targets,
     runtime::{HttpTrafficClass, InflightGuard},
     state::SharedState,
-    store::is_disk_full_error,
+    store::{ManifestDigest, is_disk_full_error},
     telemetry::{attach_parent_context, record_trace_context},
     utils::{BodyReadError, action_cache_key, blob_key, module_key, read_request_to_temp},
 };
@@ -61,6 +61,7 @@ const ROUTE_API_CACHE_CLEAN: &str = "/api/cache/clean";
 const ROUTE_API_CACHE_GRADLE: &str = "/api/cache/gradle/{cache_key}";
 const ROUTE_INTERNAL_STATUS: &str = "/_internal/status";
 const ROUTE_INTERNAL_BOOTSTRAP_MANIFESTS: &str = "/_internal/bootstrap/manifests";
+const ROUTE_INTERNAL_BOOTSTRAP_MANIFESTS_DIGEST: &str = "/_internal/bootstrap/digest";
 const ROUTE_INTERNAL_BOOTSTRAP_NAMESPACE_TOMBSTONES: &str =
     "/_internal/bootstrap/namespace_tombstones";
 const ROUTE_INTERNAL_BOOTSTRAP_ARTIFACT: &str = "/_internal/bootstrap/artifacts/{artifact_id}";
@@ -68,7 +69,7 @@ const ROUTE_INTERNAL_REPLICATE_ARTIFACT: &str = "/_internal/replicate/artifact";
 const ROUTE_INTERNAL_REPLICATE_NAMESPACE: &str = "/_internal/replicate/namespace";
 const UNMATCHED_ROUTE: &str = "/_unmatched";
 
-const EXACT_ROUTE_TEMPLATES: [&str; 14] = [
+const EXACT_ROUTE_TEMPLATES: [&str; 15] = [
     ROUTE_UP,
     ROUTE_READY,
     ROUTE_ROLLOUT_STATUS,
@@ -80,6 +81,7 @@ const EXACT_ROUTE_TEMPLATES: [&str; 14] = [
     ROUTE_API_CACHE_CLEAN,
     ROUTE_INTERNAL_STATUS,
     ROUTE_INTERNAL_BOOTSTRAP_MANIFESTS,
+    ROUTE_INTERNAL_BOOTSTRAP_MANIFESTS_DIGEST,
     ROUTE_INTERNAL_BOOTSTRAP_NAMESPACE_TOMBSTONES,
     ROUTE_INTERNAL_REPLICATE_ARTIFACT,
     ROUTE_INTERNAL_REPLICATE_NAMESPACE,
@@ -173,6 +175,10 @@ fn internal_routes() -> Router<SharedState> {
         .route(
             ROUTE_INTERNAL_BOOTSTRAP_MANIFESTS,
             get(internal_bootstrap_manifests),
+        )
+        .route(
+            ROUTE_INTERNAL_BOOTSTRAP_MANIFESTS_DIGEST,
+            get(internal_bootstrap_manifests_digest),
         )
         .route(
             ROUTE_INTERNAL_BOOTSTRAP_NAMESPACE_TOMBSTONES,
@@ -332,6 +338,7 @@ struct ReplicateArtifactQuery {
 #[derive(Debug, PartialEq, Eq)]
 struct PageQuery {
     after: Option<String>,
+    prefix: Option<String>,
     limit: usize,
 }
 
@@ -377,6 +384,10 @@ impl PageQuery {
         Ok(Self {
             after: params
                 .get("after")
+                .cloned()
+                .filter(|value| !value.is_empty()),
+            prefix: params
+                .get("prefix")
                 .cloned()
                 .filter(|value| !value.is_empty()),
             limit,
@@ -1734,14 +1745,49 @@ async fn internal_bootstrap_manifests(
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
 
-    match state
-        .store
-        .manifests_page(query.after.as_deref(), query.limit)
-    {
+    match state.store.manifests_page_scoped(
+        query.after.as_deref(),
+        query.prefix.as_deref(),
+        query.limit,
+    ) {
         Ok(page) => Json(page).into_response(),
         Err(error) => error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
             format!("Failed to list bootstrap manifests: {error}"),
+        ),
+    }
+}
+
+async fn internal_bootstrap_manifests_digest(
+    Query(params): Query<HashMap<String, String>>,
+    State(state): State<SharedState>,
+) -> Response {
+    let prefix_len = match params.get("prefix_len") {
+        Some(value) => match value.parse::<usize>() {
+            Ok(prefix_len) if prefix_len > 0 && prefix_len <= BOOTSTRAP_DIGEST_MAX_PREFIX_LEN => {
+                prefix_len
+            }
+            _ => {
+                return error_response(
+                    StatusCode::BAD_REQUEST,
+                    format!(
+                        "Invalid prefix_len: must be between 1 and {BOOTSTRAP_DIGEST_MAX_PREFIX_LEN}"
+                    ),
+                );
+            }
+        },
+        None => BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN,
+    };
+
+    match state.store.manifests_digest(prefix_len) {
+        Ok(buckets) => Json(ManifestDigest {
+            prefix_len,
+            buckets,
+        })
+        .into_response(),
+        Err(error) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to compute bootstrap manifest digest: {error}"),
         ),
     }
 }

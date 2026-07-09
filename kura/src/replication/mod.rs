@@ -2,7 +2,7 @@ pub mod operation;
 pub mod outbox_message;
 
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
     net::{IpAddr, SocketAddr},
     path::Path,
     time::Duration,
@@ -16,18 +16,21 @@ use tokio::{
     time::{Instant, sleep},
 };
 use tokio_util::io::ReaderStream;
-use tracing::{Instrument, field, warn};
+use tracing::{Instrument, field, info, warn};
 
 use crate::{
     artifact::manifest::ArtifactManifest,
     config::Config,
     constants::{
-        MAX_BOOTSTRAP_PAGE_BYTES, MAX_INLINE_REPLICATION_BODY_BYTES, MAX_REPLICATION_BODY_BYTES,
-        REPLICATION_RETRY_SECS,
+        BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN, MAX_BOOTSTRAP_PAGE_BYTES,
+        MAX_INLINE_REPLICATION_BODY_BYTES, MAX_REPLICATION_BODY_BYTES, REPLICATION_RETRY_SECS,
     },
     failpoints::FailpointName,
     state::SharedState,
-    store::{ArtifactApplyOutcome, ManifestPage, NamespaceTombstonePage},
+    store::{
+        ArtifactApplyOutcome, ManifestBucketDigest, ManifestDigest, ManifestPage,
+        NamespaceTombstonePage,
+    },
     telemetry::{inject_current_trace_context, record_trace_context},
     utils::{replication_target_label, temp_file_path, url_encode},
 };
@@ -321,12 +324,98 @@ async fn bootstrap_namespace_tombstones_from_peer(
 }
 
 async fn bootstrap_manifests_from_peer(state: &SharedState, peer: &str) -> Result<u64, String> {
+    let prefix_len = BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN;
+    let mut applied = 0_u64;
+    let mut failed = 0_u64;
+
+    // Range-based anti-entropy: exchange per-bucket digests and walk only the
+    // buckets whose contents differ. For a mostly-in-sync pair this collapses a
+    // full O(peer dataset) page walk into one digest exchange plus a handful of
+    // small range walks, so the joining node reconciles the delta in seconds
+    // instead of re-walking every manifest each retry until the bootstrap
+    // timeout fires.
+    match fetch_bootstrap_digest(state, peer, prefix_len).await? {
+        Some(peer_digest) => {
+            let local_digest = state.store.manifests_digest(prefix_len)?;
+            let divergent = divergent_prefixes(&local_digest, &peer_digest.buckets);
+            let walked = divergent.len() as u64;
+            let matched = (peer_digest.buckets.len() as u64).saturating_sub(walked);
+            state
+                .metrics
+                .record_bootstrap_digest_reconcile(matched, walked);
+            info!(
+                "bootstrap from {peer}: {walked}/{} manifest buckets diverged, {matched} matched and skipped",
+                peer_digest.buckets.len()
+            );
+            for prefix in divergent {
+                let (range_applied, range_failed) =
+                    bootstrap_manifest_range_from_peer(state, peer, Some(&prefix)).await?;
+                applied += range_applied;
+                failed += range_failed;
+            }
+        }
+        None => {
+            // Peer predates the digest endpoint (one-version-skew during a
+            // rollout, or a mixed-version mesh): fall back to a full keyspace
+            // walk, exactly as before.
+            let (range_applied, range_failed) =
+                bootstrap_manifest_range_from_peer(state, peer, None).await?;
+            applied += range_applied;
+            failed += range_failed;
+        }
+    }
+
+    // Surfaced as a failed bootstrap so the peer is retried, but only after this
+    // pass has applied everything it could — that forward progress is what lets
+    // a mutually-bootstrapping mesh converge instead of deadlocking. A peer is
+    // marked bootstrapped (and the node allowed to serve) only on a fully clean
+    // pass, so readiness still implies complete data.
+    if failed > 0 {
+        return Err(format!(
+            "bootstrap from {peer} incomplete: {failed} artifact(s) failed this pass, {applied} applied; will retry"
+        ));
+    }
+
+    Ok(applied)
+}
+
+/// Diff a local digest against a peer's, returning the peer bucket prefixes we
+/// must enumerate to pull the peer's data. A bucket is divergent when the peer
+/// has it and our `(count, hash)` for that prefix doesn't match exactly
+/// (including buckets we lack entirely). Buckets only *we* hold are ignored:
+/// bootstrap pulls from the peer, so there is nothing to fetch there.
+fn divergent_prefixes(
+    local: &[ManifestBucketDigest],
+    peer: &[ManifestBucketDigest],
+) -> Vec<String> {
+    let local_by_prefix: HashMap<&str, (u64, &str)> = local
+        .iter()
+        .map(|bucket| (bucket.prefix.as_str(), (bucket.count, bucket.hash.as_str())))
+        .collect();
+
+    peer.iter()
+        .filter(|bucket| {
+            local_by_prefix.get(bucket.prefix.as_str())
+                != Some(&(bucket.count, bucket.hash.as_str()))
+        })
+        .map(|bucket| bucket.prefix.clone())
+        .collect()
+}
+
+/// Walk the peer's manifest keyspace (optionally scoped to a single digest
+/// bucket prefix), pre-checking and fetching each artifact. Returns
+/// `(applied, failed)` for the caller to aggregate across ranges.
+async fn bootstrap_manifest_range_from_peer(
+    state: &SharedState,
+    peer: &str,
+    prefix: Option<&str>,
+) -> Result<(u64, u64), String> {
     let mut after = None;
     let mut applied = 0_u64;
     let mut failed = 0_u64;
 
     loop {
-        let page = fetch_bootstrap_manifests_page(state, peer, after.as_deref()).await?;
+        let page = fetch_bootstrap_manifests_page(state, peer, after.as_deref(), prefix).await?;
         state
             .store
             .hit_failpoint(FailpointName::AfterBootstrapManifestPageFetchBeforeApply)
@@ -408,18 +497,7 @@ async fn bootstrap_manifests_from_peer(state: &SharedState, peer: &str) -> Resul
         }
     }
 
-    // Surfaced as a failed bootstrap so the peer is retried, but only after this
-    // pass has applied everything it could — that forward progress is what lets
-    // a mutually-bootstrapping mesh converge instead of deadlocking. A peer is
-    // marked bootstrapped (and the node allowed to serve) only on a fully clean
-    // pass, so readiness still implies complete data.
-    if failed > 0 {
-        return Err(format!(
-            "bootstrap from {peer} incomplete: {failed} artifact(s) failed this pass, {applied} applied; will retry"
-        ));
-    }
-
-    Ok(applied)
+    Ok((applied, failed))
 }
 
 async fn bootstrap_artifact_from_peer(
@@ -591,11 +669,16 @@ async fn fetch_bootstrap_manifests_page(
     state: &SharedState,
     peer: &str,
     after: Option<&str>,
+    prefix: Option<&str>,
 ) -> Result<ManifestPage, String> {
     let mut url = format!("{peer}/_internal/bootstrap/manifests?limit={BOOTSTRAP_PAGE_LIMIT}");
     if let Some(after) = after {
         url.push_str("&after=");
         url.push_str(&url_encode(after));
+    }
+    if let Some(prefix) = prefix {
+        url.push_str("&prefix=");
+        url.push_str(&url_encode(prefix));
     }
 
     let response = state
@@ -609,6 +692,41 @@ async fn fetch_bootstrap_manifests_page(
     let bytes = read_bounded_body(response, MAX_BOOTSTRAP_PAGE_BYTES, "bootstrap manifest").await?;
     serde_json::from_slice(&bytes)
         .map_err(|error| format!("failed to decode bootstrap manifest page: {error}"))
+}
+
+/// Fetch the peer's per-bucket manifest digest for range-based anti-entropy.
+/// Returns `Ok(None)` when the peer does not implement the endpoint (older
+/// version → 404), which the caller treats as "fall back to a full walk". Any
+/// other transport or decode failure is a hard error so the bootstrap is
+/// retried rather than silently degrading to a full walk on a flaky link.
+async fn fetch_bootstrap_digest(
+    state: &SharedState,
+    peer: &str,
+    prefix_len: usize,
+) -> Result<Option<ManifestDigest>, String> {
+    let url = format!("{peer}/_internal/bootstrap/digest?prefix_len={prefix_len}");
+    let response = state
+        .client()
+        .get(&url)
+        .send()
+        .await
+        .map_err(|error| format!("bootstrap digest request failed: {error}"))?;
+    if response.status() == reqwest::StatusCode::NOT_FOUND {
+        return Ok(None);
+    }
+    let response = response
+        .error_for_status()
+        .map_err(|error| format!("bootstrap digest response failed: {error}"))?;
+    let bytes = read_bounded_body(response, MAX_BOOTSTRAP_PAGE_BYTES, "bootstrap digest").await?;
+    let digest: ManifestDigest = serde_json::from_slice(&bytes)
+        .map_err(|error| format!("failed to decode bootstrap digest: {error}"))?;
+    // A peer that answered with a different partitioning than we asked for can't
+    // be diffed against our local digest; fall back to a full walk rather than
+    // mis-diffing incompatible buckets.
+    if digest.prefix_len != prefix_len {
+        return Ok(None);
+    }
+    Ok(Some(digest))
 }
 
 async fn fetch_bootstrap_tombstones_page(
@@ -980,6 +1098,56 @@ mod tests {
         test_support::test_context,
         utils::artifact_storage_id,
     };
+
+    fn bucket(prefix: &str, count: u64, hash: &str) -> ManifestBucketDigest {
+        ManifestBucketDigest {
+            prefix: prefix.to_string(),
+            count,
+            hash: hash.to_string(),
+        }
+    }
+
+    #[test]
+    fn divergent_prefixes_are_empty_when_digests_match() {
+        let local = vec![bucket("00a", 3, "h1"), bucket("0f2", 1, "h2")];
+        let peer = local.clone();
+        assert!(
+            divergent_prefixes(&local, &peer).is_empty(),
+            "matching digests must walk zero ranges"
+        );
+    }
+
+    #[test]
+    fn divergent_prefixes_flags_changed_and_peer_only_but_not_local_only() {
+        let local = vec![
+            bucket("00a", 3, "match"),
+            bucket("0f2", 1, "old"),
+            bucket("aaa", 5, "local-only"),
+        ];
+        let peer = vec![
+            bucket("00a", 3, "match"),
+            bucket("0f2", 1, "new"),
+            bucket("bbb", 2, "peer-only"),
+        ];
+        let mut divergent = divergent_prefixes(&local, &peer);
+        divergent.sort();
+        assert_eq!(
+            divergent,
+            vec!["0f2".to_string(), "bbb".to_string()],
+            "walk changed and peer-only buckets; ignore matched and local-only"
+        );
+    }
+
+    #[test]
+    fn divergent_prefixes_flags_count_mismatch_with_colliding_hash() {
+        let local = vec![bucket("00a", 3, "h")];
+        let peer = vec![bucket("00a", 4, "h")];
+        assert_eq!(
+            divergent_prefixes(&local, &peer),
+            vec!["00a".to_string()],
+            "count is a discriminator even when the hash matches"
+        );
+    }
 
     #[test]
     fn skips_self_and_own_gateway_but_adopts_other_peers() {
@@ -1783,6 +1951,106 @@ mod tests {
                 .await
                 .expect("artifact fetch should succeed")
                 .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn bootstrap_skips_all_ranges_when_digests_match() {
+        let remote = test_context(|_| {}).await;
+        let remote_manifest = remote
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("remote artifact should persist");
+        let (remote_url, _server) = spawn_server(router(remote.state.clone())).await;
+
+        // Local already holds the identical artifact (same id and version_ms), so
+        // the digest exchange must match every bucket.
+        let local = test_context(|_| {}).await;
+        local
+            .state
+            .store
+            .apply_replicated_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+                remote_manifest.version_ms,
+            )
+            .await
+            .expect("local applies the identical replicated artifact");
+
+        // Arm the page-walk failpoint: a matching digest must skip every bucket,
+        // so no manifest page is ever fetched and this never fires. If the digest
+        // path regressed into a full walk, this would error the bootstrap.
+        local.state.store.failpoints().set_once(
+            FailpointName::AfterBootstrapManifestPageFetchBeforeApply,
+            FailpointAction::Error("no range should be walked for an in-sync pair".into()),
+        );
+
+        let applied = bootstrap_manifests_from_peer(&local.state, &remote_url)
+            .await
+            .expect("bootstrap should succeed without walking any range");
+        assert_eq!(applied, 0, "an in-sync pair applies nothing");
+    }
+
+    #[tokio::test]
+    async fn bootstrap_falls_back_to_full_walk_when_peer_lacks_digest_endpoint() {
+        use axum::{
+            extract::Request,
+            middleware::{self, Next},
+            response::IntoResponse,
+        };
+
+        let remote = test_context(|_| {}).await;
+        remote
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("remote artifact should persist");
+
+        // Model a peer one version behind, before the digest endpoint existed: it
+        // 404s the digest so the joining node must fall back to the full walk.
+        async fn deny_digest(request: Request, next: Next) -> axum::response::Response {
+            if request.uri().path() == "/_internal/bootstrap/digest" {
+                return StatusCode::NOT_FOUND.into_response();
+            }
+            next.run(request).await
+        }
+        let peer_router = router(remote.state.clone()).layer(middleware::from_fn(deny_digest));
+        let (remote_url, _server) = spawn_server(peer_router).await;
+
+        let local = test_context(|_| {}).await;
+        let applied = bootstrap_manifests_from_peer(&local.state, &remote_url)
+            .await
+            .expect("bootstrap should fall back to a full walk");
+        assert_eq!(
+            applied, 1,
+            "the peer's artifact should replicate via the fallback walk"
+        );
+        assert!(
+            local
+                .state
+                .store
+                .fetch_artifact(ArtifactProducer::Xcode, "ios", "artifact")
+                .await
+                .expect("artifact fetch should succeed")
+                .is_some()
         );
     }
 

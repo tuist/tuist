@@ -16,6 +16,7 @@ use rocksdb::{
     WriteBatch, WriteBufferManager, WriteOptions,
 };
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use tokio::{
     io::{AsyncRead, AsyncWriteExt, ReadBuf},
     sync::{Mutex, Notify},
@@ -179,6 +180,19 @@ impl AsyncRead for ArtifactReader {
 pub struct ManifestPage {
     pub manifests: Vec<ArtifactManifest>,
     pub next_after: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ManifestBucketDigest {
+    pub prefix: String,
+    pub count: u64,
+    pub hash: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ManifestDigest {
+    pub prefix_len: usize,
+    pub buckets: Vec<ManifestBucketDigest>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -2375,14 +2389,20 @@ impl Store {
         })
     }
 
-    pub fn manifests_page(
+    /// Walk the manifest keyspace, optionally restricted to an `artifact_id`
+    /// prefix. When `prefix` is set the walk starts at the prefix's lower bound
+    /// (unless a later `after` cursor is supplied) and stops as soon as it
+    /// leaves the prefix, so callers can enumerate a single digest bucket's
+    /// range without scanning the rest of the keyspace.
+    pub fn manifests_page_scoped(
         &self,
         after: Option<&str>,
+        prefix: Option<&str>,
         limit: usize,
     ) -> Result<ManifestPage, String> {
         let mut manifests = Vec::new();
         let mut next_after = None;
-        let start_key = after.unwrap_or_default();
+        let start_key = after.or(prefix).unwrap_or_default();
         let iter = self.db.iterator_cf(
             self.cf(ROCKSDB_CF_MANIFESTS),
             IteratorMode::From(start_key.as_bytes(), rocksdb::Direction::Forward),
@@ -2395,6 +2415,11 @@ impl Store {
                 .map_err(|error| format!("invalid manifest key: {error}"))?;
             if after == Some(artifact_id) {
                 continue;
+            }
+            if let Some(prefix) = prefix
+                && !artifact_id.starts_with(prefix)
+            {
+                break;
             }
             if manifests.len() == limit {
                 next_after = manifests
@@ -2409,6 +2434,62 @@ impl Store {
             manifests,
             next_after,
         })
+    }
+
+    /// Summarize the manifest keyspace as per-prefix-bucket digests for
+    /// range-based anti-entropy during bootstrap. Buckets partition the sorted
+    /// `artifact_id` space by their first `prefix_len` hex characters; each
+    /// bucket folds the ordered `(artifact_id, version_ms)` pairs it contains
+    /// into a hash so that adds, removes, and version bumps all flip the bucket.
+    /// One ordered scan builds every non-empty bucket; empty buckets are
+    /// omitted (a bucket present on only one side simply mismatches).
+    pub fn manifests_digest(&self, prefix_len: usize) -> Result<Vec<ManifestBucketDigest>, String> {
+        let iter = self
+            .db
+            .iterator_cf(self.cf(ROCKSDB_CF_MANIFESTS), IteratorMode::Start);
+
+        let mut buckets = Vec::new();
+        let mut current: Option<(String, u64, Sha256)> = None;
+
+        for item in iter {
+            let (artifact_id, payload) =
+                item.map_err(|error| format!("failed to iterate manifests: {error}"))?;
+            let artifact_id = std::str::from_utf8(&artifact_id)
+                .map_err(|error| format!("invalid manifest key: {error}"))?;
+            let prefix: String = artifact_id.chars().take(prefix_len).collect();
+            let manifest = decode_manifest_record(artifact_id, &payload)?;
+
+            match current.as_mut() {
+                Some((bucket_prefix, count, hasher)) if *bucket_prefix == prefix => {
+                    hasher.update(artifact_id.as_bytes());
+                    hasher.update(manifest.version_ms.to_le_bytes());
+                    *count += 1;
+                }
+                _ => {
+                    if let Some((bucket_prefix, count, hasher)) = current.take() {
+                        buckets.push(ManifestBucketDigest {
+                            prefix: bucket_prefix,
+                            count,
+                            hash: hex::encode(hasher.finalize()),
+                        });
+                    }
+                    let mut hasher = Sha256::new();
+                    hasher.update(artifact_id.as_bytes());
+                    hasher.update(manifest.version_ms.to_le_bytes());
+                    current = Some((prefix, 1, hasher));
+                }
+            }
+        }
+
+        if let Some((bucket_prefix, count, hasher)) = current.take() {
+            buckets.push(ManifestBucketDigest {
+                prefix: bucket_prefix,
+                count,
+                hash: hex::encode(hasher.finalize()),
+            });
+        }
+
+        Ok(buckets)
     }
 
     pub fn namespace_tombstones_page(
@@ -4082,7 +4163,7 @@ mod tests {
             .expect("failed to persist second artifact");
 
         let first_page = store
-            .manifests_page(None, 1)
+            .manifests_page_scoped(None, None, 1)
             .expect("failed to load first manifest page");
         assert_eq!(first_page.manifests.len(), 1);
         assert!(
@@ -4095,7 +4176,7 @@ mod tests {
         );
 
         let second_page = store
-            .manifests_page(first_page.next_after.as_deref(), 1)
+            .manifests_page_scoped(first_page.next_after.as_deref(), None, 1)
             .expect("failed to load second manifest page");
         assert_eq!(second_page.manifests.len(), 1);
         assert_ne!(
@@ -4105,6 +4186,144 @@ mod tests {
         assert!(
             second_page.manifests[0].artifact_id == first.artifact_id
                 || second_page.manifests[0].artifact_id == second.artifact_id
+        );
+    }
+
+    async fn apply_inline(store: &Store, key: &str, version_ms: u64, bytes: &[u8]) {
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                key,
+                "application/octet-stream",
+                bytes,
+                version_ms,
+            )
+            .await
+            .expect("failed to apply replicated inline artifact");
+    }
+
+    #[tokio::test]
+    async fn manifests_digest_partitions_keyspace_and_matches_identical_stores() {
+        let (_temp_dir_a, _config_a, store_a) = temp_store();
+        let (_temp_dir_b, _config_b, store_b) = temp_store();
+
+        // Same replicated artifacts (identical id + version_ms) on both stores,
+        // mirroring how a peer holds the same version of a replicated artifact.
+        for key in ["alpha", "beta", "gamma", "delta", "epsilon"] {
+            apply_inline(&store_a, key, 100, b"payload").await;
+            apply_inline(&store_b, key, 100, b"payload").await;
+        }
+
+        let digest_a = store_a.manifests_digest(3).expect("digest a");
+        let digest_b = store_b.manifests_digest(3).expect("digest b");
+
+        assert_eq!(
+            digest_a, digest_b,
+            "identical content must yield identical digests across nodes"
+        );
+        assert_eq!(
+            digest_a.iter().map(|bucket| bucket.count).sum::<u64>(),
+            5,
+            "bucket counts must sum to the total manifest count"
+        );
+        for bucket in &digest_a {
+            assert_eq!(bucket.prefix.len(), 3, "prefix_len must be honored");
+        }
+        let mut prefixes: Vec<&str> = digest_a.iter().map(|b| b.prefix.as_str()).collect();
+        let sorted = {
+            let mut copy = prefixes.clone();
+            copy.sort_unstable();
+            copy
+        };
+        assert_eq!(prefixes, sorted, "buckets must be emitted in sorted order");
+        prefixes.dedup();
+        assert_eq!(prefixes.len(), digest_a.len(), "bucket prefixes are unique");
+    }
+
+    #[tokio::test]
+    async fn manifests_digest_flips_only_the_changed_bucket_on_version_bump() {
+        let (_temp_dir, _config, store) = temp_store();
+        for key in ["alpha", "beta", "gamma", "delta"] {
+            apply_inline(&store, key, 100, b"payload").await;
+        }
+
+        let before = store.manifests_digest(3).expect("digest before");
+
+        // Locate the artifact_id (hence bucket prefix) for "alpha".
+        let manifests = store
+            .manifests_page_scoped(None, None, 256)
+            .expect("list manifests")
+            .manifests;
+        let alpha_id = manifests
+            .iter()
+            .find(|m| m.key == "alpha")
+            .expect("alpha manifest")
+            .artifact_id
+            .clone();
+        let alpha_prefix: String = alpha_id.chars().take(3).collect();
+
+        // A version bump on the same key keeps the id (and bucket) but must flip
+        // the bucket's hash so the peer detects the newer version.
+        apply_inline(&store, "alpha", 200, b"payload-v2").await;
+        let after = store.manifests_digest(3).expect("digest after");
+
+        for bucket_before in &before {
+            let bucket_after = after
+                .iter()
+                .find(|b| b.prefix == bucket_before.prefix)
+                .expect("bucket present after");
+            if bucket_before.prefix == alpha_prefix {
+                assert_eq!(
+                    bucket_before.count, bucket_after.count,
+                    "a version bump must not change the bucket count"
+                );
+                assert_ne!(
+                    bucket_before.hash, bucket_after.hash,
+                    "a version bump must flip the bucket hash"
+                );
+            } else {
+                assert_eq!(
+                    bucket_before, bucket_after,
+                    "unrelated buckets must be untouched"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn manifests_page_scoped_restricts_to_prefix() {
+        let (_temp_dir, _config, store) = temp_store();
+        for key in ["alpha", "beta", "gamma", "delta", "epsilon", "zeta"] {
+            apply_inline(&store, key, 100, b"payload").await;
+        }
+
+        let all = store
+            .manifests_page_scoped(None, None, 256)
+            .expect("list all")
+            .manifests;
+        let target_prefix: String = all[0].artifact_id.chars().take(2).collect();
+        let expected: Vec<String> = all
+            .iter()
+            .filter(|m| m.artifact_id.starts_with(&target_prefix))
+            .map(|m| m.artifact_id.clone())
+            .collect();
+
+        let scoped = store
+            .manifests_page_scoped(None, Some(&target_prefix), 256)
+            .expect("scoped walk")
+            .manifests;
+        let scoped_ids: Vec<String> = scoped.iter().map(|m| m.artifact_id.clone()).collect();
+
+        assert_eq!(
+            scoped_ids, expected,
+            "scoped walk must return exactly the artifacts in the prefix range"
+        );
+        assert!(
+            scoped
+                .iter()
+                .all(|m| m.artifact_id.starts_with(&target_prefix)),
+            "scoped walk must not leak artifacts outside the prefix"
         );
     }
 
