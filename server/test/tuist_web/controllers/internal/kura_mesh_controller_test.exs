@@ -211,4 +211,68 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
 
     assert json_response(conn, 409)
   end
+
+  test "mesh heartbeat confirms membership and returns the peer list", %{
+    conn: conn,
+    client: client,
+    secret: secret
+  } do
+    conn
+    |> basic_auth(client.client_id, secret)
+    |> post(~p"/_internal/kura/mesh/enroll", %{
+      csr: csr_pem(),
+      node_url: "https://kura-1.acme.test:4433"
+    })
+
+    conn
+    |> basic_auth(client.client_id, secret)
+    |> post(~p"/_internal/kura/mesh/enroll", %{
+      csr: csr_pem(),
+      node_url: "https://kura-2.acme.test:4433"
+    })
+
+    conn =
+      conn
+      |> basic_auth(client.client_id, secret)
+      |> post(~p"/_internal/kura/mesh/heartbeat", %{node_url: "https://kura-1.acme.test:4433"})
+
+    assert %{
+             "mesh_member" => true,
+             "peers" => ["https://kura-2.acme.test:4433"],
+             "heartbeat_interval_seconds" => interval
+           } = json_response(conn, 200)
+
+    assert is_integer(interval)
+  end
+
+  test "mesh heartbeat reports non-membership for a node that never enrolled", %{
+    conn: conn,
+    client: client,
+    secret: secret
+  } do
+    conn =
+      conn
+      |> basic_auth(client.client_id, secret)
+      |> post(~p"/_internal/kura/mesh/heartbeat", %{node_url: "https://stranger.acme.test:4433"})
+
+    assert %{"mesh_member" => false} = json_response(conn, 200)
+  end
+
+  test "rejects a mesh heartbeat with invalid credentials", %{conn: conn, client: client} do
+    conn =
+      conn
+      |> basic_auth(client.client_id, "wrong")
+      |> post(~p"/_internal/kura/mesh/heartbeat", %{node_url: "https://kura-1.acme.test:4433"})
+
+    assert json_response(conn, 401)
+  end
+
+  test "rejects a mesh heartbeat without a node_url", %{conn: conn, client: client, secret: secret} do
+    conn =
+      conn
+      |> basic_auth(client.client_id, secret)
+      |> post(~p"/_internal/kura/mesh/heartbeat", %{})
+
+    assert json_response(conn, 400)
+  end
 end

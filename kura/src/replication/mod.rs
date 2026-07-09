@@ -769,8 +769,7 @@ pub async fn process_outbox(
     state: &SharedState,
     stale_targets: &mut BTreeMap<String, Instant>,
 ) -> Result<(), String> {
-    let current_targets: BTreeSet<String> =
-        state.replication_targets().await.into_iter().collect();
+    let current_targets: BTreeSet<String> = state.replication_targets().await.into_iter().collect();
     // A target that reappeared in the mesh is no longer stale.
     stale_targets.retain(|target, _| !current_targets.contains(target));
 

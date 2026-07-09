@@ -758,6 +758,7 @@ defmodule TuistWeb.Router do
 
     post "/kura/usage", KuraUsageController, :create
     post "/kura/mesh/enroll", KuraMeshController, :enroll
+    post "/kura/mesh/heartbeat", KuraMeshController, :heartbeat
     post "/kura/mesh/registrations", KuraMeshController, :register
   end
 

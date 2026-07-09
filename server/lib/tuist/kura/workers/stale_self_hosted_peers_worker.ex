@@ -6,9 +6,10 @@ defmodule Tuist.Kura.Workers.StaleSelfHostedPeersWorker do
   that disappears (a torn-down test instance, a decommissioned box) would
   otherwise stay in the account's mesh forever — every node keeps dialing it
   and queues replication messages for it that can never be delivered, which
-  eventually trips the outbox write-shedding threshold. Stale peers are
-  deactivated (a heartbeat from the returning node reactivates them) and
-  purged once their peer certificate can no longer be valid. See
+  eventually trips the outbox write-shedding threshold. Enrolled nodes prove
+  liveness with mesh heartbeats; peers that stop heartbeating are deactivated
+  (the returning node's next heartbeat reactivates them) and purged once their
+  peer certificate can no longer be valid. See
   `Tuist.Kura.Mesh.sweep_stale_self_hosted_peers/1` for the liveness rule.
   """
   use Oban.Worker, queue: :default, max_attempts: 3

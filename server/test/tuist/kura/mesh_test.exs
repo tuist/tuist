@@ -159,8 +159,8 @@ defmodule Tuist.Kura.MeshTest do
     end
   end
 
-  describe "touch_self_hosted_peer/2" do
-    test "bumps the liveness marker of rows whose URL host matches the node id" do
+  describe "heartbeat_node/2" do
+    test "refreshes the liveness marker of the heartbeating node only and returns the mesh view" do
       account = AccountsFixtures.organization_fixture().account
       stub_account_peer_ca()
 
@@ -174,7 +174,10 @@ defmodule Tuist.Kura.MeshTest do
       |> Accounts.list_account_cache_endpoints(:kura_self_hosted_peer)
       |> Enum.each(&age_endpoint(&1, minutes: 90))
 
-      :ok = Mesh.touch_self_hosted_peer(account, "kura-1.acme.test")
+      assert %{mesh_member: true, peers: peers} =
+               Mesh.heartbeat_node(account, "https://kura-1.acme.test:4433")
+
+      assert peers == ["https://kura-2.acme.test:4433"]
 
       endpoints = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
       touched = Enum.find(endpoints, &(&1.url == "https://kura-1.acme.test:4433"))
@@ -183,10 +186,20 @@ defmodule Tuist.Kura.MeshTest do
       assert DateTime.diff(DateTime.utc_now(), touched.updated_at, :minute) < 5
       assert DateTime.diff(DateTime.utc_now(), untouched.updated_at, :minute) >= 90
     end
+
+    test "reports mesh_member: false for a node that never enrolled and never creates membership" do
+      account = AccountsFixtures.organization_fixture().account
+      stub_account_peer_ca()
+
+      assert %{mesh_member: false} =
+               Mesh.heartbeat_node(account, "https://stranger.acme.test:4433")
+
+      assert Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer) == []
+    end
   end
 
   describe "sweep_stale_self_hosted_peers/1" do
-    test "deactivates peers whose liveness marker lapsed and that hold no registration lease" do
+    test "deactivates peers whose liveness marker lapsed" do
       account = AccountsFixtures.organization_fixture().account
       stub_account_peer_ca()
 
@@ -199,8 +212,8 @@ defmodule Tuist.Kura.MeshTest do
       assert %{deactivated: [deactivated], purged: []} = Mesh.sweep_stale_self_hosted_peers()
       assert deactivated.url == "https://gone.acme.test:4433"
 
-      # The row survives (heartbeats only carry the host, so the full peer URL
-      # must be kept for reactivation) but leaves the mesh.
+      # The row survives, withheld from the mesh, so a heartbeat from the
+      # returning node can reactivate it in place.
       assert [kept] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
       assert kept.deactivated_at
       assert Mesh.self_hosted_peer_urls(account) == []
@@ -216,32 +229,6 @@ defmodule Tuist.Kura.MeshTest do
       assert %{deactivated: [], purged: []} = Mesh.sweep_stale_self_hosted_peers()
 
       assert Mesh.self_hosted_peer_urls(account) == ["https://fresh.acme.test:4433"]
-    end
-
-    test "keeps stale-marked peers whose node still holds an unexpired registration lease" do
-      account = AccountsFixtures.organization_fixture().account
-      stub_account_peer_ca()
-
-      {:ok, _} =
-        Mesh.enroll_node(account, %{csr: csr_pem(), node_url: "https://leased.acme.test:4433"})
-
-      [endpoint] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
-      age_endpoint(endpoint, minutes: 90)
-
-      {:ok, _} =
-        Registrations.register_heartbeat(account, %{
-          node_id: "leased.acme.test",
-          advertised_http_url: "https://cache.acme.test",
-          ready: true
-        })
-
-      # The heartbeat itself refreshes the marker; re-age the row so only the
-      # lease can save it.
-      [endpoint] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
-      age_endpoint(endpoint, minutes: 90)
-
-      assert %{deactivated: [], purged: []} = Mesh.sweep_stale_self_hosted_peers()
-      assert Mesh.self_hosted_peer_urls(account) == ["https://leased.acme.test:4433"]
     end
 
     test "purges peers deactivated for longer than the certificate lifetime" do
@@ -261,7 +248,7 @@ defmodule Tuist.Kura.MeshTest do
   end
 
   describe "reactivation" do
-    test "a heartbeat from a deactivated node rejoins it to the mesh" do
+    test "a mesh heartbeat from a deactivated node rejoins it to the mesh" do
       account = AccountsFixtures.organization_fixture().account
       stub_account_peer_ca()
 
@@ -272,12 +259,7 @@ defmodule Tuist.Kura.MeshTest do
       deactivate_endpoint(endpoint, days_ago: 1)
       assert Mesh.self_hosted_peer_urls(account) == []
 
-      {:ok, _} =
-        Registrations.register_heartbeat(account, %{
-          node_id: "back.acme.test",
-          advertised_http_url: "https://cache.acme.test",
-          ready: true
-        })
+      assert %{mesh_member: true} = Mesh.heartbeat_node(account, "https://back.acme.test:4433")
 
       assert Mesh.self_hosted_peer_urls(account) == ["https://back.acme.test:4433"]
     end
@@ -297,28 +279,27 @@ defmodule Tuist.Kura.MeshTest do
 
       assert Mesh.self_hosted_peer_urls(account) == ["https://back.acme.test:4433"]
     end
-  end
 
-  describe "registration heartbeats" do
-    test "keep the node's mesh membership alive across the staleness window" do
+    test "registration heartbeats do not affect mesh membership" do
       account = AccountsFixtures.organization_fixture().account
       stub_account_peer_ca()
 
       {:ok, _} =
-        Mesh.enroll_node(account, %{csr: csr_pem(), node_url: "https://kura-1.acme.test:4433"})
+        Mesh.enroll_node(account, %{csr: csr_pem(), node_url: "https://back.acme.test:4433"})
 
       [endpoint] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
-      age_endpoint(endpoint, minutes: 90)
+      deactivate_endpoint(endpoint, days_ago: 1)
 
       {:ok, _} =
         Registrations.register_heartbeat(account, %{
-          node_id: "kura-1.acme.test",
+          node_id: "back.acme.test",
           advertised_http_url: "https://cache.acme.test",
           ready: true
         })
 
-      [endpoint] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted_peer)
-      assert DateTime.diff(DateTime.utc_now(), endpoint.updated_at, :minute) < 5
+      # The two heartbeats are independent: registration advertises the
+      # client-facing endpoint, only the mesh heartbeat restores membership.
+      assert Mesh.self_hosted_peer_urls(account) == []
     end
   end
 

@@ -22,24 +22,24 @@ defmodule Tuist.Kura.Mesh do
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura
   alias Tuist.Kura.Regions
-  alias Tuist.Kura.RegisteredEndpoint
   alias Tuist.Repo
   alias X509.Certificate.Extension
 
   require Logger
 
   @kura_namespace "kura"
-  # How long a self-hosted peer may go without proving liveness (an enrollment,
-  # a registration heartbeat touching the row, or an unexpired registration
-  # lease) before it is withheld from the account's mesh. A false positive is
-  # healed by the node's next heartbeat (reactivation), but deactivation still
-  # cascades into managed pods' KURA_PEERS, so the window stays wide relative
-  # to the 60s heartbeat cadence to keep a control-plane blip from churning
+  # Mesh heartbeat cadence the control plane advertises back to enrolled
+  # nodes. Independent from the registration heartbeat: registration advertises
+  # the node's client-facing endpoint (public plane), the mesh heartbeat proves
+  # mesh-membership liveness (peer plane).
+  @mesh_heartbeat_interval_seconds 60
+  # How long an enrolled node may go without a mesh heartbeat (an enrollment
+  # also counts as proof of life) before it is withheld from the mesh. A false
+  # positive heals on the node's next heartbeat, but deactivation still
+  # cascades into managed pods' KURA_PEERS and rolls them, so the window stays
+  # several missed heartbeats wide to keep a control-plane blip from churning
   # the fleet.
-  @stale_peer_after_minutes 30
-  # Heartbeats arrive every 60s per node; bumping the mesh row at most this
-  # often keeps the liveness marker fresh without a write per heartbeat.
-  @touch_throttle_minutes 5
+  @stale_peer_after_minutes 10
   # There is no CRL/OCSP in Kura's peer verifier, so a node is revoked by no
   # longer re-signing its CSR and letting the leaf expire: the leaf lifetime is
   # the revocation latency. Nodes re-enroll on each boot today, so the leaf is
@@ -47,6 +47,8 @@ defmodule Tuist.Kura.Mesh do
   # support zero-downtime in-process rotation.
   @leaf_validity_days 30
   @leaf_renew_after_seconds 1_296_000
+
+  def mesh_heartbeat_interval_seconds, do: @mesh_heartbeat_interval_seconds
 
   @doc """
   Reads the account's controller-managed peer CA (the `kura-<handle>-peer-ca`
@@ -187,62 +189,57 @@ defmodule Tuist.Kura.Mesh do
   end
 
   @doc """
-  Refreshes the liveness marker (`updated_at`) of the account's self-hosted
-  peer rows whose URL host matches `node_id`, so registration heartbeats keep
-  the node's mesh membership alive — and reactivates deactivated rows, so a
-  heartbeat from a node that was withheld as stale rejoins it to the mesh
-  without waiting for its next enrollment. Touches are throttled to at most
-  one write per row per `#{@touch_throttle_minutes}` minutes; reactivation is
-  never throttled.
+  Records a mesh heartbeat from an enrolled self-hosted node: refreshes the
+  liveness marker (`updated_at`) of the node's peer row and reactivates it if
+  it was withheld as stale, so a returning node rejoins the mesh on its next
+  heartbeat without re-enrolling. Returns the node's mesh view — whether it is
+  currently a member and the current peer list, so heartbeats double as the
+  peer-refresh channel (otherwise peers only refresh at certificate renewal).
+
+  A node with no row (never enrolled, or purged after the certificate
+  lifetime) is told `mesh_member: false`; heartbeats never create membership —
+  enrollment is the only path into the mesh.
   """
-  def touch_self_hosted_peer(%Account{} = account, node_id) when is_binary(node_id) do
-    now = now()
-    throttle_cutoff = DateTime.add(now, -@touch_throttle_minutes * 60, :second)
-
-    matching =
-      from(e in AccountCacheEndpoint,
-        where:
-          e.account_id == ^account.id and e.technology == :kura_self_hosted_peer and
-            (e.updated_at < ^throttle_cutoff or not is_nil(e.deactivated_at))
-      )
-      |> Repo.all()
-      |> Enum.filter(&(peer_host(&1.url) == node_id))
-
-    if matching != [] do
-      ids = Enum.map(matching, & &1.id)
-
-      Repo.update_all(from(e in AccountCacheEndpoint, where: e.id in ^ids),
-        set: [updated_at: now, deactivated_at: nil]
+  def heartbeat_node(%Account{} = account, node_url) when is_binary(node_url) do
+    endpoint =
+      Repo.one(
+        from(e in AccountCacheEndpoint,
+          where:
+            e.account_id == ^account.id and e.technology == :kura_self_hosted_peer and
+              e.url == ^node_url
+        )
       )
 
-      case Enum.filter(matching, & &1.deactivated_at) do
-        [] ->
-          :ok
+    case endpoint do
+      nil ->
+        %{mesh_member: false, peers: mesh_peers(account, exclude: node_url)}
 
-        reactivated ->
-          urls = Enum.map_join(reactivated, ", ", & &1.url)
-          Logger.info("[Kura.Mesh] reactivated self-hosted mesh peer(s) on heartbeat: #{urls}")
-      end
+      %AccountCacheEndpoint{} = endpoint ->
+        Repo.update_all(from(e in AccountCacheEndpoint, where: e.id == ^endpoint.id),
+          set: [updated_at: now(), deactivated_at: nil]
+        )
+
+        if endpoint.deactivated_at do
+          Logger.info("[Kura.Mesh] reactivated self-hosted mesh peer on heartbeat: #{endpoint.url}")
+        end
+
+        %{mesh_member: true, peers: mesh_peers(account, exclude: node_url)}
     end
-
-    :ok
   end
 
   @doc """
-  Sweeps self-hosted peers that stopped responding. Peers whose liveness
-  marker is older than the staleness window and whose node also holds no
-  unexpired registration lease are deactivated — withheld from the mesh but
-  kept, since heartbeats only carry the URL's host, so the full peer URL must
-  survive for a heartbeat from the returning node to reactivate it. Rows
-  deactivated for longer than the peer-certificate lifetime are deleted: the
-  node's leaf can no longer be valid, so rejoining requires re-enrollment
-  (which recreates the row) anyway.
+  Sweeps self-hosted peers that stopped sending mesh heartbeats. Peers whose
+  liveness marker is older than the staleness window are deactivated —
+  withheld from the mesh but kept, so a heartbeat from the returning node
+  reactivates the row in place. Rows deactivated for longer than the
+  peer-certificate lifetime are deleted: the node's leaf can no longer be
+  valid, so rejoining requires re-enrollment (which recreates the row) anyway.
 
   Returns `%{deactivated: endpoints, purged: endpoints}`.
 
-  Deactivation cascades on its own: the peer disappears from enrollment
-  responses, and the managed pods' manifest revision covers the peer list, so
-  the reconciler re-renders `KURA_PEERS` and nodes stop dialing and
+  Deactivation cascades on its own: the peer disappears from enrollment and
+  heartbeat responses, and the managed pods' manifest revision covers the peer
+  list, so the reconciler re-renders `KURA_PEERS` and nodes stop dialing and
   replicating to the dead peer (kura prunes its queued outbox messages for
   targets that left the mesh).
   """
@@ -252,13 +249,13 @@ defmodule Tuist.Kura.Mesh do
     cutoff = DateTime.add(now, -stale_after_minutes * 60, :second)
 
     stale =
-      from(e in AccountCacheEndpoint,
-        where:
-          e.technology == :kura_self_hosted_peer and is_nil(e.deactivated_at) and
-            e.updated_at < ^cutoff
+      Repo.all(
+        from(e in AccountCacheEndpoint,
+          where:
+            e.technology == :kura_self_hosted_peer and is_nil(e.deactivated_at) and
+              e.updated_at < ^cutoff
+        )
       )
-      |> Repo.all()
-      |> Enum.reject(&live_registration?(&1, now))
 
     if stale != [] do
       ids = Enum.map(stale, & &1.id)
@@ -283,27 +280,6 @@ defmodule Tuist.Kura.Mesh do
     end
 
     %{deactivated: stale, purged: purged}
-  end
-
-  defp live_registration?(%AccountCacheEndpoint{} = endpoint, now) do
-    case peer_host(endpoint.url) do
-      nil ->
-        false
-
-      host ->
-        Repo.exists?(
-          from(r in RegisteredEndpoint,
-            where: r.account_id == ^endpoint.account_id and r.node_id == ^host and r.expires_at > ^now
-          )
-        )
-    end
-  end
-
-  defp peer_host(url) do
-    case node_host(url) do
-      {:ok, host} -> host
-      _ -> nil
-    end
   end
 
   # The enrolled node's internal peer URL, recorded only for mesh discovery.

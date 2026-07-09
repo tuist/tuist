@@ -199,7 +199,9 @@ async fn run_with_config(
     spawn_geoip_refresh_task(state.clone());
 
     // When the node enrolled on boot, keep its peer certificate fresh in-process
-    // so a short leaf does not require a restart.
+    // so a short leaf does not require a restart, and prove mesh-membership
+    // liveness to the control plane (which also refreshes the peer list at
+    // heartbeat cadence instead of at certificate renewal).
     if let Some(enrollment) = enrollment
         && state.config.peer_tls.is_some()
     {
@@ -207,6 +209,11 @@ async fn run_with_config(
             .dynamic_peers
             .store(std::sync::Arc::new(enrollment.peers.clone()));
         spawn_cert_renewal_task(state.clone(), enrollment.renew_after_seconds);
+        if let Some(config) =
+            crate::mesh_heartbeat::MeshHeartbeatConfig::from_env(&state.config.node_url)
+        {
+            crate::mesh_heartbeat::spawn(state.clone(), config);
+        }
     }
 
     let address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.port));
