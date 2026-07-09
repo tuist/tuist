@@ -410,7 +410,7 @@ defmodule TuistWeb.AuthController do
         &String.starts_with?(&1, "http")
       )
 
-    if Enum.all?(urls, &Tuist.URL.public_url?/1) do
+    if Enum.all?(urls, &Tuist.URL.sso_url?/1) do
       :ok
     else
       {:error, :unsafe_sso_url}

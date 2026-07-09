@@ -1104,7 +1104,7 @@ msgstr ""
 msgid "Single Sign-On"
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.ex:342
+#: lib/tuist_web/live/authentication_settings_live.ex:354
 #, elixir-autogen, elixir-format
 msgid "You must be authenticated with Google using an email tied to this domain. Please sign in with Google first."
 msgstr ""
@@ -1178,7 +1178,7 @@ msgstr ""
 msgid "When enabled, organization members will not be able to log in with email and password. They must use SSO instead."
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.ex:328
+#: lib/tuist_web/live/authentication_settings_live.ex:340
 #, elixir-autogen, elixir-format
 msgid "You must authenticate with the SSO provider before enforcing SSO. Please sign in with your SSO provider first."
 msgstr ""
