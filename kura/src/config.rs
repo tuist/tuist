@@ -5,9 +5,9 @@ use tokio::fs;
 use crate::constants::{
     DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS, DEFAULT_BOOTSTRAP_TIMEOUT_MS,
     DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_UPLOAD_TTL_MS,
-    DEFAULT_OUTBOX_MAX_DEPTH, DEFAULT_OUTBOX_STALE_TARGET_GRACE_MS, DEFAULT_TMP_DIR_MAX_BYTES,
-    DEFAULT_USAGE_BATCH_SIZE, DEFAULT_USAGE_DELIVERY_INTERVAL_MS, DEFAULT_USAGE_FLUSH_INTERVAL_MS,
-    DEFAULT_USAGE_MAX_BUCKETS, DEFAULT_USAGE_OUTBOX_MAX_DEPTH, DEFAULT_USAGE_WINDOW_SECS,
+    DEFAULT_OUTBOX_MAX_DEPTH, DEFAULT_TMP_DIR_MAX_BYTES, DEFAULT_USAGE_BATCH_SIZE,
+    DEFAULT_USAGE_DELIVERY_INTERVAL_MS, DEFAULT_USAGE_FLUSH_INTERVAL_MS, DEFAULT_USAGE_MAX_BUCKETS,
+    DEFAULT_USAGE_OUTBOX_MAX_DEPTH, DEFAULT_USAGE_WINDOW_SECS,
 };
 
 const KURA_PORT: &str = "KURA_PORT";
@@ -80,7 +80,6 @@ const KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS: &str = "KURA_REPLICATION_PUBLIC
 const KURA_MULTIPART_UPLOAD_TTL_MS: &str = "KURA_MULTIPART_UPLOAD_TTL_MS";
 const KURA_MULTIPART_JANITOR_INTERVAL_MS: &str = "KURA_MULTIPART_JANITOR_INTERVAL_MS";
 const KURA_BOOTSTRAP_TIMEOUT_MS: &str = "KURA_BOOTSTRAP_TIMEOUT_MS";
-const KURA_OUTBOX_STALE_TARGET_GRACE_MS: &str = "KURA_OUTBOX_STALE_TARGET_GRACE_MS";
 const KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS: &str = "KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS";
 const KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: &str = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT";
 const KURA_OTEL_SERVICE_NAME: &str = "KURA_OTEL_SERVICE_NAME";
@@ -141,13 +140,6 @@ pub struct Config {
     pub rocksdb_write_buffer_size_bytes: usize,
     pub rocksdb_max_write_buffer_number: i32,
     pub outbox_max_depth: usize,
-    /// How long a replication target must be continuously absent from the
-    /// node's current peer set before its queued outbox messages are dropped.
-    /// A departed peer that later rejoins does so through a recovery
-    /// re-enrollment, which re-bootstraps the full dataset, so dropped deltas
-    /// are recovered; without this, messages for a peer that left the mesh
-    /// accumulate forever and eventually trip outbox write shedding.
-    pub outbox_stale_target_grace_ms: u64,
     pub replication_bandwidth_limit_bytes_per_second: u64,
     pub replication_public_latency_target_ms: u64,
     pub multipart_upload_ttl_ms: u64,
@@ -791,17 +783,6 @@ impl Config {
         if outbox_max_depth == 0 {
             invalid.push(format!("{KURA_OUTBOX_MAX_DEPTH} must be greater than 0"));
         }
-        let outbox_stale_target_grace_ms = optional_parsed_value(
-            &mut lookup,
-            KURA_OUTBOX_STALE_TARGET_GRACE_MS,
-            &mut invalid,
-            |value| {
-                value
-                    .parse::<u64>()
-                    .map_err(|_| format!("{KURA_OUTBOX_STALE_TARGET_GRACE_MS} must be a valid u64"))
-            },
-        )
-        .unwrap_or(DEFAULT_OUTBOX_STALE_TARGET_GRACE_MS);
         let replication_bandwidth_limit_bytes_per_second = optional_parsed_value(
             &mut lookup,
             KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND,
@@ -1306,7 +1287,6 @@ impl Config {
             rocksdb_write_buffer_size_bytes,
             rocksdb_max_write_buffer_number,
             outbox_max_depth,
-            outbox_stale_target_grace_ms,
             replication_bandwidth_limit_bytes_per_second,
             replication_public_latency_target_ms,
             multipart_upload_ttl_ms,

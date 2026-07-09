@@ -32,12 +32,13 @@ defmodule Tuist.Kura.Mesh do
   # mesh-membership liveness (peer plane).
   @mesh_heartbeat_interval_seconds 60
   # How long an enrolled node may go without a mesh heartbeat (an enrollment
-  # also counts as proof of life) before it is withheld from the mesh. A false
-  # positive heals on the node's next heartbeat, but deactivation still
-  # cascades into managed pods' KURA_PEERS and rolls them, so the window stays
-  # several missed heartbeats wide to keep a control-plane blip from churning
-  # the fleet.
-  @stale_peer_after_minutes 10
+  # also counts as proof of life) before it is withheld from the mesh. This is
+  # the mesh's entire safety margin: the moment a peer is withheld, every
+  # node's next heartbeat drops it from the dynamic view and its queued
+  # replication messages are dropped immediately (no node-side grace), so the
+  # window stays wide — many missed heartbeats — to keep a blip from costing
+  # a full re-bootstrap on recovery.
+  @stale_peer_after_minutes 30
   # There is no CRL/OCSP in Kura's peer verifier, so a node is revoked by no
   # longer re-signing its CSR and letting the leaf expire: the leaf lifetime is
   # the revocation latency. Nodes re-enroll on each boot today, so the leaf is
