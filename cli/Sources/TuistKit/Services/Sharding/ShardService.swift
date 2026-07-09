@@ -116,17 +116,21 @@ public struct ShardService: ShardServicing {
             Logger.current.debug("Extracted local shard archive to \(resolvedTestProductsPath.pathString)")
         } else {
             let extractedTestProductsPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-unzip")
-            // The shard's products are split across artifacts (a shared bundle plus one per module
-            // assigned to the shard); download each and extract them into a single merged directory.
-            for downloadURLString in shard.download_urls {
-                guard let downloadURL = URL(string: downloadURLString) else {
-                    throw ShardServiceError.invalidDownloadURL(downloadURLString)
+            try await fileSystem.runInTemporaryDirectory(prefix: "tuist-shard-downloads") { downloadedArtifactsPath in
+                // The shard's products are split across artifacts (a shared bundle plus one per module
+                // assigned to the shard); download each and extract them into a single merged directory.
+                for (downloadIndex, downloadURLString) in shard.download_urls.enumerated() {
+                    guard let downloadURL = URL(string: downloadURLString) else {
+                        throw ShardServiceError.invalidDownloadURL(downloadURLString)
+                    }
+                    let shardArchiveDestinationPath = downloadedArtifactsPath
+                        .appending(component: "artifact-\(downloadIndex).aar")
+                    try await retryProvider.runWithRetries {
+                        try await fileClient.download(url: downloadURL, to: shardArchiveDestinationPath)
+                    }
+                    try await appleArchiver.decompress(archive: shardArchiveDestinationPath, to: extractedTestProductsPath)
+                    try? await fileSystem.remove(shardArchiveDestinationPath)
                 }
-                let shardArchivePath = try await retryProvider.runWithRetries {
-                    try await fileClient.download(url: downloadURL)
-                }
-                try await appleArchiver.decompress(archive: shardArchivePath, to: extractedTestProductsPath)
-                try? await fileSystem.remove(shardArchivePath)
             }
             Logger.current.debug("Downloaded \(shard.download_urls.count) test products artifact(s).")
             resolvedTestProductsPath = try await normalizeExtractedTestProductsPath(extractedTestProductsPath)

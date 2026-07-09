@@ -71,7 +71,7 @@ struct HARRecordingMiddlewareTests {
             }
         }
 
-        let entries = try await waitForEntries(recorder, count: 1)
+        let entries = await recorder.getEntries()
         #expect(entries.count == 1)
         #expect(entries[0].request.method == "GET")
         #expect(entries[0].request.url == "https://api.example.com/v1/projects")
