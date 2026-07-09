@@ -130,16 +130,19 @@ defmodule Tuist.Runners.Jobs do
   `Tuist.Runners.Claims.attempt/4`.
 
   `ineligible_account_ids` is an optional set of account_ids to
-  exclude from candidate selection. Returns the candidate's full
-  metadata so we can carry it forward on the `claimed` INSERT.
+  exclude from candidate selection. `excluded_workflow_job_ids`
+  skips specific queued rows that are already claimed in Postgres or
+  that this dispatch poll already lost a claim race for. Returns the
+  candidate's full metadata so we can carry it forward on the
+  `claimed` INSERT.
 
   Deterministic ordering — `(enqueued_at ASC, workflow_job_id
   ASC)` — means two concurrent pollers see the SAME row as the
   next candidate. The actual claim race then collapses on
   Postgres uniqueness in `Claims.attempt/4`.
   """
-  def pick_queued(fleet_name, ineligible_account_ids \\ [])
-      when is_binary(fleet_name) and is_list(ineligible_account_ids) do
+  def pick_queued(fleet_name, ineligible_account_ids \\ [], excluded_workflow_job_ids \\ [])
+      when is_binary(fleet_name) and is_list(ineligible_account_ids) and is_list(excluded_workflow_job_ids) do
     from(j in Job,
       where: j.fleet_name == ^fleet_name,
       group_by: j.workflow_job_id,
@@ -160,6 +163,7 @@ defmodule Tuist.Runners.Jobs do
       }
     )
     |> exclude_accounts(ineligible_account_ids)
+    |> exclude_workflow_jobs(excluded_workflow_job_ids)
     |> order_by([j], asc: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at), asc: j.workflow_job_id)
     |> limit(1)
     |> ClickHouseRepo.one()
@@ -173,6 +177,12 @@ defmodule Tuist.Runners.Jobs do
 
   defp exclude_accounts(query, account_ids) when is_list(account_ids) do
     having(query, [j], fragment("argMax(?, ?)", j.account_id, j.updated_at) not in ^account_ids)
+  end
+
+  defp exclude_workflow_jobs(query, []), do: query
+
+  defp exclude_workflow_jobs(query, workflow_job_ids) when is_list(workflow_job_ids) do
+    where(query, [j], j.workflow_job_id not in ^workflow_job_ids)
   end
 
   @doc """

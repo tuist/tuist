@@ -187,6 +187,17 @@ defmodule Tuist.Runners.JobsTest do
 
       assert {:ok, %{workflow_job_id: 3002}} = Jobs.pick_queued("fleet-cap", [a.id])
     end
+
+    test "skips excluded workflow_job IDs" do
+      account = account_fixture()
+      older = ~U[2026-07-09 10:00:00.000000Z]
+      newer = ~U[2026-07-09 10:01:00.000000Z]
+
+      :ok = enqueue_fixture(account, 3101, fleet: "fleet-skip", enqueued_at: older)
+      :ok = enqueue_fixture(account, 3102, fleet: "fleet-skip", enqueued_at: newer)
+
+      assert {:ok, %{workflow_job_id: 3102}} = Jobs.pick_queued("fleet-skip", [], [3101])
+    end
   end
 
   describe "record_claimed/3" do
