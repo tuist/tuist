@@ -108,14 +108,12 @@ const MAX_BATCH_BYTES: i64 = 32 << 20;
 const RPC_TIMEOUT: Duration = Duration::from_secs(60);
 const ATTEMPTS: usize = 3;
 
-/// Delay before retry attempt `attempt` (1-based). The first retry is
-/// immediate -- the dominant retryable condition is kura's graceful GOAWAY
-/// rotation, where re-issuing on a fresh connection succeeds right away --
-/// while later retries back off briefly so many concurrent fetches don't
-/// hammer a node that is genuinely struggling.
-fn retry_backoff(attempt: usize) -> Duration {
-    Duration::from_millis(200) * attempt.saturating_sub(1) as u32
-}
+/// Delay between retries: the first retry is immediate -- the dominant
+/// retryable condition is kura's graceful GOAWAY rotation, where re-issuing
+/// on a fresh connection succeeds right away -- while later retries back off
+/// so many concurrent fetches don't hammer a node that is genuinely
+/// struggling.
+const RETRY_BACKOFF: Duration = Duration::from_millis(200);
 
 /// Retries a synchronous gRPC call up to `ATTEMPTS` times on retryable statuses,
 /// keeping the retry policy in one place. The caller maps success and terminal
@@ -123,7 +121,9 @@ fn retry_backoff(attempt: usize) -> Duration {
 fn retry_call<T>(mut op: impl FnMut() -> Result<T, tonic::Status>) -> Result<T, tonic::Status> {
     let mut last = None;
     for attempt in 0..ATTEMPTS {
-        std::thread::sleep(retry_backoff(attempt));
+        if attempt > 1 {
+            std::thread::sleep(RETRY_BACKOFF * (attempt - 1) as u32);
+        }
         match op() {
             Ok(value) => return Ok(value),
             Err(status) if retryable(&status) && attempt + 1 < ATTEMPTS => last = Some(status),
@@ -143,7 +143,9 @@ where
 {
     let mut last = None;
     for attempt in 0..ATTEMPTS {
-        tokio::time::sleep(retry_backoff(attempt)).await;
+        if attempt > 1 {
+            tokio::time::sleep(RETRY_BACKOFF * (attempt - 1) as u32).await;
+        }
         match op().await {
             Ok(value) => return Ok(value),
             Err(status) if retryable(&status) && attempt + 1 < ATTEMPTS => last = Some(status),
