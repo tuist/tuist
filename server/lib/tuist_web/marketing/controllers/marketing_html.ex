@@ -33,21 +33,48 @@ defmodule TuistWeb.Marketing.MarketingHTML do
   def content_html(nil), do: nil
 
   def content_html(html) do
-    case Floki.parse_fragment(html) do
-      {:ok, document} ->
-        document
-        |> Floki.traverse_and_update(fn
-          {"img", attrs, children} ->
-            {"img", optimize_image_attrs(attrs), children}
+    # Floki drops whitespace-only text nodes when it re-serializes, which
+    # collapses the significant spacing inside highlighted <pre> code blocks
+    # (indentation and the spaces the syntax highlighter puts between tokens).
+    # Protect those blocks, run the image optimization on the rest, then
+    # restore them verbatim.
+    {protected, pre_blocks} = protect_pre_blocks(html)
 
-          node ->
-            node
-        end)
-        |> Floki.raw_html()
+    processed =
+      case Floki.parse_fragment(protected) do
+        {:ok, document} ->
+          document
+          |> Floki.traverse_and_update(fn
+            {"img", attrs, children} ->
+              {"img", optimize_image_attrs(attrs), children}
 
-      {:error, _reason} ->
-        html
-    end
+            node ->
+              node
+          end)
+          |> Floki.raw_html()
+
+        {:error, _reason} ->
+          protected
+      end
+
+    restore_pre_blocks(processed, pre_blocks)
+  end
+
+  defp protect_pre_blocks(html) do
+    ~r/<pre\b.*?<\/pre>/s
+    |> Regex.scan(html)
+    |> Enum.map(fn [block] -> block end)
+    |> Enum.with_index()
+    |> Enum.reduce({html, []}, fn {block, index}, {acc, blocks} ->
+      placeholder = "ONCE_PRE_PLACEHOLDER_#{index}_ENDONCE"
+      {String.replace(acc, block, placeholder, global: false), [{placeholder, block} | blocks]}
+    end)
+  end
+
+  defp restore_pre_blocks(html, blocks) do
+    Enum.reduce(blocks, html, fn {placeholder, block}, acc ->
+      String.replace(acc, placeholder, block)
+    end)
   end
 
   defp static_asset_uri?(%URI{path: path} = uri, app_uri) when is_binary(path) do
