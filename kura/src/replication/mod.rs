@@ -1095,7 +1095,7 @@ mod tests {
         artifact::producer::ArtifactProducer,
         failpoints::{FailpointAction, FailpointName},
         http::router,
-        test_support::test_context,
+        test_support::{TestContext, test_context},
         utils::artifact_storage_id,
     };
 
@@ -2051,6 +2051,176 @@ mod tests {
                 .await
                 .expect("artifact fetch should succeed")
                 .is_some()
+        );
+    }
+
+    #[tokio::test]
+    async fn range_digest_reconciles_a_mostly_in_sync_pair_by_walking_only_the_delta() {
+        use std::sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        };
+
+        use axum::{
+            extract::Request,
+            middleware::{self, Next},
+            response::IntoResponse,
+        };
+
+        // Reproduces the production wedge: a large peer dataset that the joining
+        // node already holds almost all of. Prod is ~1.4M artifacts / 4096
+        // buckets, ~99% in sync; a thousand here spans many buckets and forces
+        // the legacy full walk into several pages while staying fast.
+        const TOTAL: usize = 1024;
+        const MISSING: usize = 2;
+
+        let remote = test_context(|_| {}).await;
+        let mut keys = Vec::with_capacity(TOTAL);
+        for i in 0..TOTAL {
+            let key = format!("artifact-{i:05}");
+            remote
+                .state
+                .store
+                .apply_replicated_inline_artifact_from_bytes(
+                    ArtifactProducer::Xcode,
+                    "ios",
+                    &key,
+                    "application/octet-stream",
+                    b"payload",
+                    100,
+                )
+                .await
+                .expect("remote applies artifact");
+            keys.push(key);
+        }
+
+        // Build a fresh local that already holds all but the first MISSING keys
+        // (identical id + version_ms, exactly as a replicated peer would), i.e.
+        // ~99% in sync.
+        async fn build_local_holding_all_but_missing(keys: &[String]) -> TestContext {
+            let local = test_context(|_| {}).await;
+            for key in &keys[MISSING..] {
+                local
+                    .state
+                    .store
+                    .apply_replicated_inline_artifact_from_bytes(
+                        ArtifactProducer::Xcode,
+                        "ios",
+                        key,
+                        "application/octet-stream",
+                        b"payload",
+                        100,
+                    )
+                    .await
+                    .expect("local applies artifact");
+            }
+            local
+        }
+
+        // --- New path: peer serves the digest endpoint ---
+        let digest_pages = Arc::new(AtomicUsize::new(0));
+        let dp = digest_pages.clone();
+        let digest_router = router(remote.state.clone()).layer(middleware::from_fn(
+            move |request: Request, next: Next| {
+                let dp = dp.clone();
+                async move {
+                    if request.uri().path() == "/_internal/bootstrap/manifests" {
+                        dp.fetch_add(1, Ordering::SeqCst);
+                    }
+                    next.run(request).await
+                }
+            },
+        ));
+        let (digest_url, _digest_server) = spawn_server(digest_router).await;
+
+        let local_new = build_local_holding_all_but_missing(&keys).await;
+        let applied_new = bootstrap_manifests_from_peer(&local_new.state, &digest_url)
+            .await
+            .expect("digest-path bootstrap converges");
+        assert_eq!(applied_new, MISSING as u64, "only the delta is applied");
+        for key in &keys[..MISSING] {
+            assert!(
+                local_new
+                    .state
+                    .store
+                    .fetch_artifact(ArtifactProducer::Xcode, "ios", key)
+                    .await
+                    .expect("fetch")
+                    .is_some(),
+                "the missing artifact must be pulled"
+            );
+        }
+
+        // O(delta) proof, independent of dataset size: the digest matched almost
+        // every bucket and only the diverging ones were walked.
+        let rendered = local_new.state.metrics.render();
+        let bucket_counter = |result: &str| -> u64 {
+            rendered
+                .lines()
+                .find(|line| {
+                    line.starts_with("kura_bootstrap_digest_buckets_total")
+                        && line.contains(&format!("result=\"{result}\""))
+                })
+                .and_then(|line| line.rsplit(' ').next())
+                .and_then(|value| value.trim().parse::<u64>().ok())
+                .unwrap_or(0)
+        };
+        let matched = bucket_counter("matched");
+        let walked = bucket_counter("walked");
+        assert!(
+            walked >= 1 && walked <= MISSING as u64,
+            "walked ~= delta, got {walked}"
+        );
+        assert!(
+            matched >= 100,
+            "matched must dwarf walked (skipped ~all buckets), got matched={matched} walked={walked}"
+        );
+        let digest_page_count = digest_pages.load(Ordering::SeqCst);
+        assert!(
+            digest_page_count <= MISSING,
+            "digest path walks only diverging buckets, got {digest_page_count} pages"
+        );
+
+        // --- Old path (A/B control): identical peer, but the digest endpoint
+        // 404s so the joining node takes the legacy full walk. Same ~99%-in-sync
+        // local, yet it must page the entire keyspace to apply the same delta. ---
+        let full_pages = Arc::new(AtomicUsize::new(0));
+        let fp = full_pages.clone();
+        let fallback_router = router(remote.state.clone()).layer(middleware::from_fn(
+            move |request: Request, next: Next| {
+                let fp = fp.clone();
+                async move {
+                    let path = request.uri().path().to_owned();
+                    if path == "/_internal/bootstrap/digest" {
+                        return StatusCode::NOT_FOUND.into_response();
+                    }
+                    if path == "/_internal/bootstrap/manifests" {
+                        fp.fetch_add(1, Ordering::SeqCst);
+                    }
+                    next.run(request).await
+                }
+            },
+        ));
+        let (fallback_url, _fallback_server) = spawn_server(fallback_router).await;
+
+        let local_old = build_local_holding_all_but_missing(&keys).await;
+        let applied_old = bootstrap_manifests_from_peer(&local_old.state, &fallback_url)
+            .await
+            .expect("fallback bootstrap converges");
+        assert_eq!(
+            applied_old, MISSING as u64,
+            "fallback applies the same delta"
+        );
+
+        let full_page_count = full_pages.load(Ordering::SeqCst);
+        let expected_full_walk = TOTAL.div_ceil(BOOTSTRAP_PAGE_LIMIT);
+        assert_eq!(
+            full_page_count, expected_full_walk,
+            "legacy walk pages the entire keyspace"
+        );
+        assert!(
+            digest_page_count < full_page_count,
+            "range digest walks fewer pages than the full walk ({digest_page_count} < {full_page_count}); at prod scale (1.4M) the full walk is ~5652 pages while the digest path stays == delta"
         );
     }
 
