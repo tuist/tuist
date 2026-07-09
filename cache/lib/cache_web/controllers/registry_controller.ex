@@ -5,7 +5,6 @@ defmodule CacheWeb.RegistryController do
   alias Cache.Config
   alias Cache.Registry
   alias Cache.Registry.AlternateManifests
-  alias Cache.Registry.EventsPipeline
   alias Cache.Registry.KeyNormalizer
   alias Cache.Registry.ManifestVariants
   alias Cache.Registry.Metadata
@@ -260,7 +259,7 @@ defmodule CacheWeb.RegistryController do
       )
 
     if Registry.Disk.exists?(scope, name, normalized_version, "source_archive.zip") do
-      maybe_track_registry_download(conn, scope, name, normalized_version, key)
+      maybe_track_registry_download(conn, key)
       render_local_archive(conn, scope, name, normalized_version)
     else
       render_remote_archive(conn, scope, name, normalized_version, key)
@@ -282,10 +281,10 @@ defmodule CacheWeb.RegistryController do
     |> send_resp(:ok, "")
   end
 
-  defp render_remote_archive(conn, scope, name, normalized_version, key) do
+  defp render_remote_archive(conn, _scope, name, normalized_version, key) do
     if S3.exists?(key, type: :registry) do
       maybe_enqueue_registry_download(conn, key)
-      maybe_track_registry_download(conn, scope, name, normalized_version, key)
+      maybe_track_registry_download(conn, key)
 
       case S3.presign_download_url(key, type: :registry) do
         {:ok, url} ->
@@ -307,16 +306,12 @@ defmodule CacheWeb.RegistryController do
     end
   end
 
-  defp track_registry_download(scope, name, normalized_version, key) do
+  defp track_registry_download(key) do
+    # Per-download events used to POST to the server's /webhooks/registry
+    # endpoint; that handler was removed when the registry was extracted
+    # into its own pod. Disk eviction still needs the access tracked
+    # locally to update the LRU timestamp.
     :ok = CacheArtifacts.track_artifact_access(key)
-
-    if Config.analytics_enabled?() do
-      EventsPipeline.async_push(%{
-        scope: scope,
-        name: name,
-        version: normalized_version
-      })
-    end
   end
 
   defp serve_manifest_from_disk(conn, scope, name, version, filename, swift_version, key) do
@@ -454,9 +449,9 @@ defmodule CacheWeb.RegistryController do
     end
   end
 
-  defp maybe_track_registry_download(conn, scope, name, normalized_version, key) do
+  defp maybe_track_registry_download(conn, key) do
     if not head_request?(conn) do
-      track_registry_download(scope, name, normalized_version, key)
+      track_registry_download(key)
     end
   end
 
