@@ -842,6 +842,11 @@ jobs:
               "ghcr.io/tuist/tuist-linux-runner:${linux_runner_image_version}"
           fi
 
+          helm_values_args=(
+            -f "$HELM_CHART_PATH/values-managed-common.yaml"
+            -f "$HELM_CHART_PATH/values-managed-${{ inputs.environment }}.yaml"
+          )
+
           # Kura runtime image tag precedence:
           #   1. explicit kura_runtime_image_tag input (manual re-roll) wins.
           #   2. staging tracks the per-commit sha-<SHA> image — but only when
@@ -885,17 +890,36 @@ jobs:
           fi
           add_set "runnersController.image.tag" "$runners_controller_image_tag"
 
-          if [ -z "$REGISTRY_IMAGE_TAG" ]; then
+          registry_probe_tag="${REGISTRY_IMAGE_TAG:-registry-render-probe}"
+          registry_render="$(mktemp)"
+          helm template "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+            "${helm_values_args[@]}" \
+            --set server.image.tag="$IMAGE_TAG" \
+            --set registry.image.tag="$registry_probe_tag" \
+            --set kuraController.image.tag="$IMAGE_TAG" \
+            "${image_sets[@]}" \
+            > "$registry_render"
+
+          if grep -Eq '^[[:space:]]+app\.kubernetes\.io/component: registry$' "$registry_render"; then
+            registry_enabled=true
+          else
+            registry_enabled=false
+          fi
+          rm -f "$registry_render"
+          echo "REGISTRY_ENABLED=$registry_enabled" >> "$GITHUB_ENV"
+          echo "Swift registry component enabled: $registry_enabled"
+
+          if [ "$registry_enabled" = "true" ] && [ -z "$REGISTRY_IMAGE_TAG" ]; then
             echo "No Swift registry image tag available to deploy."
             exit 1
           fi
+          registry_image_tag="${REGISTRY_IMAGE_TAG:-registry-disabled}"
 
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \
-            -f "$HELM_CHART_PATH/values-managed-common.yaml" \
-            -f "$HELM_CHART_PATH/values-managed-${{ inputs.environment }}.yaml" \
+            "${helm_values_args[@]}" \
             --set server.image.tag="$IMAGE_TAG" \
-            --set registry.image.tag="$REGISTRY_IMAGE_TAG" \
+            --set registry.image.tag="$registry_image_tag" \
             --set kuraController.image.tag="$IMAGE_TAG" \
             "${image_sets[@]}" \
             --atomic --timeout 60m --wait
@@ -939,17 +963,21 @@ jobs:
             kubectl -n "$NAMESPACE" logs "$pod" --all-containers --previous --tail=500 || true
           done
           echo "::endgroup::"
-          echo "::group::swift registry deployment + pods"
-          kubectl -n "$NAMESPACE" describe deploy/tuist-tuist-registry || true
-          for pod in $(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/component=registry -o name 2>/dev/null); do
-            echo "--- describe $pod ---"
-            kubectl -n "$NAMESPACE" describe "$pod" || true
-            echo "--- logs $pod (current) ---"
-            kubectl -n "$NAMESPACE" logs "$pod" --all-containers --tail=500 || true
-            echo "--- logs $pod (previous) ---"
-            kubectl -n "$NAMESPACE" logs "$pod" --all-containers --previous --tail=500 || true
-          done
-          echo "::endgroup::"
+          if [ "${REGISTRY_ENABLED:-false}" = "true" ]; then
+            echo "::group::swift registry deployment + pods"
+            kubectl -n "$NAMESPACE" describe deploy/tuist-tuist-registry || true
+            for pod in $(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/component=registry -o name 2>/dev/null); do
+              echo "--- describe $pod ---"
+              kubectl -n "$NAMESPACE" describe "$pod" || true
+              echo "--- logs $pod (current) ---"
+              kubectl -n "$NAMESPACE" logs "$pod" --all-containers --tail=500 || true
+              echo "--- logs $pod (previous) ---"
+              kubectl -n "$NAMESPACE" logs "$pod" --all-containers --previous --tail=500 || true
+            done
+            echo "::endgroup::"
+          else
+            echo "Swift registry component disabled; skipping registry diagnostics."
+          fi
           echo "::group::xcresult processor deployment + pods"
           kubectl -n "$NAMESPACE" describe deploy/tuist-tuist-xcresult-processor || true
           for pod in $(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/component=xcresult-processor -o name 2>/dev/null); do
@@ -1003,6 +1031,10 @@ jobs:
           kubectl -n "$NAMESPACE" rollout status deploy/tuist-tuist-server --timeout=10m
           kubectl -n "$NAMESPACE" run smoke-$RANDOM --rm -i --restart=Never --image=curlimages/curl \
             --command -- curl -fsS "http://tuist-tuist-server/ready"
-          kubectl -n "$NAMESPACE" rollout status deploy/tuist-tuist-registry --timeout=10m
-          kubectl -n "$NAMESPACE" run registry-smoke-$RANDOM --rm -i --restart=Never --image=curlimages/curl \
-            --command -- curl -fsS "http://tuist-tuist-registry/up"
+          if [ "${REGISTRY_ENABLED:-false}" = "true" ]; then
+            kubectl -n "$NAMESPACE" rollout status deploy/tuist-tuist-registry --timeout=10m
+            kubectl -n "$NAMESPACE" run registry-smoke-$RANDOM --rm -i --restart=Never --image=curlimages/curl \
+              --command -- curl -fsS "http://tuist-tuist-registry/up"
+          else
+            echo "Swift registry component disabled; skipping registry smoke test."
+          fi
