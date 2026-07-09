@@ -36,11 +36,6 @@ pub const ROCKSDB_HARD_PENDING_COMPACTION_BYTES: u64 = 256 * 1024 * 1024 * 1024;
 
 pub const DEFAULT_OUTBOX_MAX_DEPTH: usize = 100_000;
 pub const DEFAULT_OUTBOX_STALE_TARGET_GRACE_MS: u64 = 15 * 60 * 1000;
-// Grace for targets known only through discovery (in-cluster siblings,
-// cross-region pods): platform-managed like static peers, so absence usually
-// means unreachability, not departure — but bounded, so a genuinely removed
-// pod (scale-down, region move) does not leave a permanent outbox backlog.
-pub const DISCOVERED_TARGET_STALE_GRACE_MS: u64 = 24 * 60 * 60 * 1000;
 pub const DEFAULT_MULTIPART_UPLOAD_TTL_MS: u64 = 24 * 60 * 60 * 1000;
 pub const DEFAULT_MULTIPART_JANITOR_INTERVAL_MS: u64 = 10 * 60 * 1000;
 pub const DEFAULT_BOOTSTRAP_TIMEOUT_MS: u64 = 30 * 60 * 1000;

@@ -22,8 +22,8 @@ use crate::{
     artifact::manifest::ArtifactManifest,
     config::Config,
     constants::{
-        DISCOVERED_TARGET_STALE_GRACE_MS, MAX_BOOTSTRAP_PAGE_BYTES,
-        MAX_INLINE_REPLICATION_BODY_BYTES, MAX_REPLICATION_BODY_BYTES, REPLICATION_RETRY_SECS,
+        MAX_BOOTSTRAP_PAGE_BYTES, MAX_INLINE_REPLICATION_BODY_BYTES, MAX_REPLICATION_BODY_BYTES,
+        REPLICATION_RETRY_SECS,
     },
     failpoints::FailpointName,
     state::SharedState,
@@ -795,12 +795,15 @@ pub async fn process_outbox(
     let pass_started_at = Instant::now();
     let stale_grace = Duration::from_millis(state.config.outbox_stale_target_grace_ms);
     // Discovery-only peers (in-cluster siblings, cross-region pods) are
-    // platform-managed like the static seeds: their absence usually means a
-    // network flap, not departure, and nothing re-bootstraps them afterwards,
-    // so their messages get static-grade patience. Bounded (not infinite) so
-    // a genuinely removed pod cannot leave a permanent backlog.
+    // treated like the static seeds: never pruned. Their absence usually
+    // means a network flap, not departure, and nothing re-bootstraps them
+    // afterwards, so dropping their messages would be silent
+    // under-replication. The protection is process-scoped (the history is
+    // in-memory): a genuinely removed pod is never rediscovered after the
+    // observer's next restart, so its small frozen backlog — enqueues stop
+    // within one membership tick of unreachability — falls to the normal
+    // grace and cleans up at the next deploy.
     let discovered_history = state.discovered_only_peer_history().await;
-    let discovered_grace = Duration::from_millis(DISCOVERED_TARGET_STALE_GRACE_MS);
     let mut dropped: BTreeMap<String, u64> = BTreeMap::new();
 
     let mut after = None::<Vec<u8>>;
@@ -818,16 +821,14 @@ pub async fn process_outbox(
         // unreachable), not that every peer left — never prune on it. The
         // accepted trade-off: a mesh that legitimately shrinks to zero peers
         // keeps its queued messages until a peer rejoins or the node restarts.
-        if !current_targets.is_empty() && !current_targets.contains(&message.target) {
+        if !current_targets.is_empty()
+            && !current_targets.contains(&message.target)
+            && !discovered_history.contains(&message.target)
+        {
             let missing_since = *stale_targets
                 .entry(message.target.clone())
                 .or_insert(pass_started_at);
-            let grace = if discovered_history.contains(&message.target) {
-                discovered_grace
-            } else {
-                stale_grace
-            };
-            if pass_started_at.duration_since(missing_since) >= grace {
+            if pass_started_at.duration_since(missing_since) >= stale_grace {
                 state.store.delete_outbox_message(&message_key)?;
                 state.metrics.record_replication(
                     &message.target,
