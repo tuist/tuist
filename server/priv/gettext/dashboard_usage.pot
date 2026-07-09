@@ -96,8 +96,8 @@ msgstr ""
 msgid "Ingress"
 msgstr ""
 
+#: lib/tuist_web/live/usage_live.ex:235
 #: lib/tuist_web/live/usage_live.ex:236
-#: lib/tuist_web/live/usage_live.ex:237
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr ""
@@ -117,7 +117,7 @@ msgstr ""
 msgid "Cache traffic"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:244
+#: lib/tuist_web/live/usage_live.ex:243
 #, elixir-autogen, elixir-format
 msgid "No cache traffic in this window yet"
 msgstr ""

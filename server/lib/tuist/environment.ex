@@ -34,7 +34,12 @@ defmodule Tuist.Environment do
   def modes, do: @modes
 
   def env do
-    with :prod <- @compile_env,
+    # Gate on the stringified compile env rather than matching the `:prod`
+    # atom directly: `@compile_env` is a compile-time literal, so a
+    # `:prod <- @compile_env` match trips Elixir's type checker in test/dev
+    # builds (and narrowing `env/0` to that literal poisons every caller
+    # that compares `env()` against another env atom).
+    with "prod" <- Atom.to_string(@compile_env),
          deploy_env when deploy_env in @runtime_envs <- System.get_env("TUIST_DEPLOY_ENV") do
       String.to_existing_atom(deploy_env)
     else
@@ -227,12 +232,10 @@ defmodule Tuist.Environment do
 
   def dev_all_locales?, do: @dev_all_locales
 
-  # Both :dev and :test compile a single locale ("en") by default so the
-  # ex_cldr backend doesn't generate number/currency/datetime code for all
-  # ten locales on every cold compile. A fresh worktree's :test build paid
-  # that cost on the first `mix test`, dominating the compile time. Tests
-  # that genuinely exercise other locales are tagged `:locale` and only run
-  # when TUIST_DEV_ALL_LOCALES=1 flips this back to the full set.
+  # Both :dev and :test compile a single locale ("en") by default so Gettext
+  # doesn't generate all locale modules on every cold compile. Tests that
+  # genuinely exercise other locales are tagged `:locale` and only run when
+  # TUIST_DEV_ALL_LOCALES=1 flips this back to the full set.
   def single_locale?, do: (dev?() or test?()) and not dev_all_locales?()
 
   def log_level do

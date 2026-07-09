@@ -403,14 +403,12 @@ defmodule TuistWeb.CacheLive do
       else: server_status_color(server.status)
   end
 
-  defp server_status_label(:provisioning), do: dgettext("dashboard_account", "Deploying")
   defp server_status_label(:replicating), do: dgettext("dashboard_account", "Replicating")
   defp server_status_label(:active), do: dgettext("dashboard_account", "Active")
   defp server_status_label(:failed), do: dgettext("dashboard_account", "Failed")
   defp server_status_label(:destroying), do: dgettext("dashboard_account", "Destroying")
   defp server_status_label(:destroyed), do: dgettext("dashboard_account", "Destroyed")
 
-  defp server_status_color(:provisioning), do: "information"
   defp server_status_color(:replicating), do: "information"
   defp server_status_color(:active), do: "success"
   defp server_status_color(:failed), do: "destructive"

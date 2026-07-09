@@ -143,14 +143,11 @@ checksum = "sha256:2902d2a278597e4983d70ed6d694fcab36b29b0b7d109771c59d7da7147af
 url = "https://github.com/caddyserver/caddy/releases/download/v2.11.2/caddy_2.11.2_windows_amd64.zip"
 
 [[tools.elixir]]
-version = "1.19.5"
+version = "1.20.2"
 backend = "core:elixir"
 
-[tools.elixir."platforms.linux-x64"]
-checksum = "blake3:1d0caecc22478e4a7c8eb4c4bdc230d1ef287c1dbfa91b79348bf4db1c286acb"
-
 [[tools.erlang]]
-version = "28.4.3"
+version = "29.0.3"
 backend = "core:erlang"
 
 [[tools.git-cliff]]
@@ -313,62 +310,37 @@ backend = "aqua:jqlang/jq"
 [tools.jq."platforms.linux-arm64"]
 checksum = "sha256:6bc62f25981328edd3cfcfe6fe51b073f2d7e7710d7ef7fcdac28d4e384fc3d4"
 url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-arm64"
+provenance = "github-attestations"
 
 [tools.jq."platforms.linux-arm64-musl"]
 checksum = "sha256:6bc62f25981328edd3cfcfe6fe51b073f2d7e7710d7ef7fcdac28d4e384fc3d4"
 url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-arm64"
+provenance = "github-attestations"
 
 [tools.jq."platforms.linux-x64"]
 checksum = "sha256:020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d"
 url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-amd64"
+provenance = "github-attestations"
 
 [tools.jq."platforms.linux-x64-musl"]
 checksum = "sha256:020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d"
 url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-amd64"
+provenance = "github-attestations"
 
 [tools.jq."platforms.macos-arm64"]
 checksum = "sha256:a9fe3ea2f86dfc72f6728417521ec9067b343277152b114f4e98d8cb0e263603"
 url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-macos-arm64"
+provenance = "github-attestations"
 
 [tools.jq."platforms.macos-x64"]
 checksum = "sha256:e80dbe0d2a2597e3c11c404f03337b981d74b4a8504b70586c354b7697a7c27f"
 url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-macos-amd64"
+provenance = "github-attestations"
 
 [tools.jq."platforms.windows-x64"]
 checksum = "sha256:23cb60a1354eed6bcc8d9b9735e8c7b388cd1fdcb75726b93bc299ef22dd9334"
 url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-windows-amd64.exe"
-
-[[tools.k3d]]
-version = "5.9.0"
-backend = "aqua:k3d-io/k3d"
-
-[tools.k3d."platforms.linux-arm64"]
-checksum = "sha256:03cde5cf23e6e8e67de5a039ecf26e5b85aca82fba3e5d13dadf904cd218a250"
-url = "https://github.com/k3d-io/k3d/releases/download/v5.9.0/k3d-linux-arm64"
-
-[tools.k3d."platforms.linux-arm64-musl"]
-checksum = "sha256:03cde5cf23e6e8e67de5a039ecf26e5b85aca82fba3e5d13dadf904cd218a250"
-url = "https://github.com/k3d-io/k3d/releases/download/v5.9.0/k3d-linux-arm64"
-
-[tools.k3d."platforms.linux-x64"]
-checksum = "sha256:06d8f25bc3a971c4eb29e0ff08429b180402db0f4dec838c9eac427e296800a0"
-url = "https://github.com/k3d-io/k3d/releases/download/v5.9.0/k3d-linux-amd64"
-
-[tools.k3d."platforms.linux-x64-musl"]
-checksum = "sha256:06d8f25bc3a971c4eb29e0ff08429b180402db0f4dec838c9eac427e296800a0"
-url = "https://github.com/k3d-io/k3d/releases/download/v5.9.0/k3d-linux-amd64"
-
-[tools.k3d."platforms.macos-arm64"]
-checksum = "sha256:fe106541d5d0a3f18debcd4d432a16f8c0ce3e6ddc06f8fbb6f696a122313e00"
-url = "https://github.com/k3d-io/k3d/releases/download/v5.9.0/k3d-darwin-arm64"
-
-[tools.k3d."platforms.macos-x64"]
-checksum = "sha256:b4aabc37534f95b9c764e7823f2df923f50d57600837aa60a06266cce47db732"
-url = "https://github.com/k3d-io/k3d/releases/download/v5.9.0/k3d-darwin-amd64"
-
-[tools.k3d."platforms.windows-x64"]
-checksum = "sha256:49d0b9c796f5b8ba6f58a1dd5469e8b7b34bf9b6ce9078633eedb2789680a034"
-url = "https://github.com/k3d-io/k3d/releases/download/v5.9.0/k3d-windows-amd64.exe"
+provenance = "github-attestations"
 
 [[tools.kubectl]]
 version = "1.36.1"

@@ -69,7 +69,7 @@ defmodule Tuist.MixProject do
       # unconstrained transitive dep and every `mix deps.get` re-resolves it to
       # the latest, churning the lock and forcing full recompiles.
       {:plug, "1.19.2", override: true},
-      {:credo, "== 1.7.13", only: [:dev, :test], runtime: false},
+      {:credo, "== 1.7.19", only: [:dev, :test], runtime: false},
       {:sentry, "~> 11.0.4"},
       {:tower, "0.8.0"},
       {:tower_opentelemetry, "~> 0.2.0"},

@@ -569,8 +569,6 @@ defmodule Tuist.Kubernetes.Client do
     Enum.each(paths, &File.rm/1)
   end
 
-  defp cleanup_temp_files(_), do: :ok
-
   defp url(%{server: server}, path), do: server <> path
   defp url(config, path), do: "https://#{config.host}:#{config.port}#{path}"
 

@@ -694,6 +694,27 @@ defmodule Tuist.AuthorizationTest do
     assert Authorization.authorize(:projects_read, user, account) == {:error, :forbidden}
   end
 
+  test "can.read.account.runners when the subject is a user that belongs to an organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization, role: :user)
+
+    # When
+    assert Authorization.authorize(:runners_read, user, account) == :ok
+  end
+
+  test "can.read.account.runners when the subject is a user that doesn't belong to an organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+
+    # When
+    assert Authorization.authorize(:runners_read, user, account) == {:error, :forbidden}
+  end
+
   test "can.read.account.organization when the subject is a user that is admin of an organization" do
     # Given
     organization = AccountsFixtures.organization_fixture()

@@ -352,33 +352,7 @@ defmodule Tuist.Accounts.AgentAuth do
         }
       else
         false ->
-          case get_registration_by_claim_token(claim_token, lock: "FOR UPDATE") do
-            {:ok, registration} ->
-              now = Time.utc_now()
-
-              updated_registration =
-                registration
-                |> AgentRegistration.increment_otp_attempts_changeset()
-                |> Repo.update!()
-
-              insert_event!(updated_registration, :otp_failed, %{
-                actor_ip: Map.get(attrs, :claim_completed_ip),
-                metadata: %{
-                  claim_attempt_id: updated_registration.claim_attempt_id,
-                  otp_attempt_count: updated_registration.otp_attempt_count
-                },
-                occurred_at: now
-              })
-
-              if updated_registration.otp_attempt_count >= @max_otp_attempts do
-                {:error, :rate_limited}
-              else
-                {:error, :otp_invalid}
-              end
-
-            {:error, reason} ->
-              {:error, reason}
-          end
+          record_failed_otp_attempt(claim_token, attrs)
 
         {:error, reason} ->
           {:error, reason}
@@ -386,6 +360,36 @@ defmodule Tuist.Accounts.AgentAuth do
     end
     |> Repo.transaction()
     |> unwrap_repo_transaction()
+  end
+
+  defp record_failed_otp_attempt(claim_token, attrs) do
+    case get_registration_by_claim_token(claim_token, lock: "FOR UPDATE") do
+      {:ok, registration} ->
+        now = Time.utc_now()
+
+        updated_registration =
+          registration
+          |> AgentRegistration.increment_otp_attempts_changeset()
+          |> Repo.update!()
+
+        insert_event!(updated_registration, :otp_failed, %{
+          actor_ip: Map.get(attrs, :claim_completed_ip),
+          metadata: %{
+            claim_attempt_id: updated_registration.claim_attempt_id,
+            otp_attempt_count: updated_registration.otp_attempt_count
+          },
+          occurred_at: now
+        })
+
+        if updated_registration.otp_attempt_count >= @max_otp_attempts do
+          {:error, :rate_limited}
+        else
+          {:error, :otp_invalid}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   def get_claim_view(claim_view_token) when is_binary(claim_view_token) do

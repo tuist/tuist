@@ -18,7 +18,7 @@ defmodule Tuist.Kura.SelfHostedClientsTest do
       assert client.account_id == account.id
       assert client.name == "production"
       assert String.starts_with?(client.client_id, "cache_")
-      assert is_binary(secret) and secret != ""
+      assert byte_size(secret) > 0
       refute client.encrypted_secret_hash == secret
       assert client.secret_last_four == String.slice(secret, -4, 4)
     end

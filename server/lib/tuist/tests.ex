@@ -1738,7 +1738,7 @@ defmodule Tuist.Tests do
           duration: Map.get(case_attrs, :duration, 0),
           inserted_at: NaiveDateTime.utc_now(),
           module_name: module_name,
-          suite_name: suite_name || "",
+          suite_name: suite_name,
           shard_id: if(shard_plan, do: shard_plan.id),
           shard_index: shard_index
         }

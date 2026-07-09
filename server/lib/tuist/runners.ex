@@ -76,6 +76,7 @@ defmodule Tuist.Runners do
   # falling back to best-effort.
   @owner_label_stamp_attempts 3
   @owner_label_stamp_retry_backoff_ms 100
+  @github_runner_name_max_length 64
 
   # The runners-controller stamps `tuist.dev/drain-eligible=true` on the
   # stale Pods it has selected to retire in the current roll wave, up to
@@ -399,12 +400,13 @@ defmodule Tuist.Runners do
     # Earlier versions prefixed `tuist-<account.name>-` — for macOS
     # pools that fit, but the Linux pool name is longer
     # (`<release>-tuist-runner-pool-linux-ubuntu-22-04`), so the
-    # combined string overshoots and GitHub returns 422. The SA
-    # name is already unique within the cluster and contains the
-    # chart's release + pool prefix, and the runner is registered
-    # under `account.name` via the API URL — so dropping the
-    # redundant prefix is safe.
-    runner_name = sa_name
+    # combined string overshoots and GitHub returns 422. Use the
+    # polling Pod's SA name as the stable prefix, but add a fresh
+    # per-mint suffix. GitHub reserves the runner name as soon as it
+    # creates the JIT config; if the HTTP response or a later local
+    # state write fails before the Pod receives that JIT, retrying
+    # the same name loops forever on 409 "Already exists".
+    runner_name = github_runner_name(sa_name)
 
     # Resolve the full installation row (carries `installation_id`
     # AND `client_url`) instead of just the integer id. The JIT
@@ -456,11 +458,19 @@ defmodule Tuist.Runners do
       {:error, reason} ->
         Logger.error("runners: GitHub jit mint failed",
           account: account.name,
+          runner: runner_name,
           reason: inspect(reason)
         )
 
         {:error, :github_mint_failed}
     end
+  end
+
+  defp github_runner_name(sa_name) do
+    suffix = "-" <> (4 |> :crypto.strong_rand_bytes() |> Base.encode16(case: :lower))
+    prefix = String.slice(sa_name, 0, @github_runner_name_max_length - byte_size(suffix))
+
+    prefix <> suffix
   end
 
   defp pool_label(%{"metadata" => %{"labels" => labels}}) when is_map(labels) do

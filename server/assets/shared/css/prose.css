@@ -6,6 +6,8 @@
   font: var(--noora-font-weight-regular) var(--noora-font-body-large);
 
   & :not(pre, .code-window, [data-part="code"]) > code {
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
     box-shadow:
       0 1px 1px 0 rgba(14, 14, 14, 0.05),
       0 0 0 1px rgba(46, 51, 56, 0.08),
@@ -17,8 +19,6 @@
     font: var(--noora-font-weight-regular) var(--noora-font-code-large);
     white-space: normal;
     overflow-wrap: anywhere;
-    -webkit-box-decoration-break: clone;
-    box-decoration-break: clone;
   }
 
   & blockquote {

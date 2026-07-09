@@ -147,11 +147,6 @@ defmodule TuistWeb.API.AccountTokensController do
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
-
-      _ ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{message: "Invalid request"})
     end
   end
 
