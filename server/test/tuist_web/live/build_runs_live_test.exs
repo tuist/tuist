@@ -6,7 +6,6 @@ defmodule TuistWeb.BuildRunsLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Tuist.Runners.Jobs
   alias TuistTestSupport.Fixtures.RunsFixtures
 
   test "lists latest build runs", %{
@@ -89,68 +88,6 @@ defmodule TuistWeb.BuildRunsLiveTest do
 
     assert has_element?(lv, "[data-part='build-runs-table'] span", "App")
     refute has_element?(lv, "[data-part='build-runs-table'] span", "Framework")
-  end
-
-  test "filters build runs by runner platform", %{
-    conn: conn,
-    organization: organization,
-    project: project
-  } do
-    :ok =
-      Jobs.enqueue(%{
-        workflow_job_id: 40_101,
-        account_id: organization.account.id,
-        fleet_name: "macos-xcode-26.4",
-        repository: "tuist/tuist",
-        workflow_run_id: 401_010,
-        workflow_name: "Server",
-        run_attempt: 1,
-        job_name: "Build",
-        head_branch: "main",
-        head_sha: "abc"
-      })
-
-    :ok =
-      Jobs.enqueue(%{
-        workflow_job_id: 40_102,
-        account_id: organization.account.id,
-        fleet_name: "linux-amd64",
-        repository: "tuist/tuist",
-        workflow_run_id: 401_020,
-        workflow_name: "Server",
-        run_attempt: 1,
-        job_name: "Build",
-        head_branch: "main",
-        head_sha: "def"
-      })
-
-    RunsFixtures.build_fixture(
-      project_id: project.id,
-      scheme: "RunnerMac",
-      ci_provider: "github",
-      ci_project_handle: "tuist/tuist",
-      ci_run_id: "401010"
-    )
-
-    RunsFixtures.build_fixture(
-      project_id: project.id,
-      scheme: "RunnerLinux",
-      ci_provider: "github",
-      ci_project_handle: "tuist/tuist",
-      ci_run_id: "401020"
-    )
-
-    query =
-      URI.encode_query(%{
-        "filter_runner_platform_op" => "==",
-        "filter_runner_platform_val" => "macos"
-      })
-
-    {:ok, lv, _html} =
-      live(conn, "/#{organization.account.name}/#{project.name}/builds/build-runs?#{query}")
-
-    assert has_element?(lv, "[data-part='build-runs-table'] span", "RunnerMac")
-    refute has_element?(lv, "[data-part='build-runs-table'] span", "RunnerLinux")
   end
 
   test "filters build runs by ran_by user without including continuous integration runs", %{

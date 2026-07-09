@@ -16,7 +16,6 @@ defmodule TuistWeb.BuildRunLive do
   alias Tuist.CommandEvents
   alias Tuist.Projects
   alias Tuist.Projects.Project
-  alias Tuist.Runners.Jobs, as: RunnerJobs
   alias Tuist.Tests
   alias Tuist.Xcode
   alias TuistWeb.Errors.NotFoundError
@@ -122,7 +121,6 @@ defmodule TuistWeb.BuildRunLive do
     |> assign(:binary_cache_command_event, binary_cache_command_event)
     |> assign(:module_cache_metrics, module_cache_metrics)
     |> assign(:has_binary_cache_data, has_binary_cache_data)
-    |> assign(:runner_job, runner_job(project.account_id, run))
     |> assign(:test_run, test_run)
     |> assign(:cas_metrics, cas_metrics)
     |> assign(:cacheable_task_latency_metrics, cacheable_task_latency_metrics)
@@ -141,12 +139,6 @@ defmodule TuistWeb.BuildRunLive do
       storage_key = Builds.build_storage_key(project.account.name, project.name, run_id)
       {:ok, %{has_build_download: Tuist.Storage.object_exists?(storage_key, project.account)}}
     end)
-  end
-
-  defp runner_job(account_id, %{ci_run_id: ci_run_id}) do
-    account_id
-    |> RunnerJobs.latest_by_workflow_run_ids([ci_run_id])
-    |> Map.get(ci_run_id)
   end
 
   # The Module Cache breakdown lives on the command event that carries the xcode_graph.

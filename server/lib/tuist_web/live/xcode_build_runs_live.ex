@@ -10,7 +10,6 @@ defmodule TuistWeb.XcodeBuildRunsLive do
   alias Noora.Filter
   alias Tuist.Accounts
   alias Tuist.Builds
-  alias Tuist.Runners.Jobs, as: RunnerJobs
   alias TuistWeb.Utilities.Query
   alias TuistWeb.Utilities.SHA
 
@@ -19,8 +18,7 @@ defmodule TuistWeb.XcodeBuildRunsLive do
     schemes = Builds.project_build_schemes(project)
     configurations = Builds.project_build_configurations(project)
     tags = Builds.project_build_tags(project)
-    fleet_names = RunnerJobs.distinct_fleet_names_for_account(project.account_id)
-    assign(socket, :available_filters, define_filters(project, schemes, configurations, tags, fleet_names))
+    assign(socket, :available_filters, define_filters(project, schemes, configurations, tags))
   end
 
   def assign_handle_params(socket, params) do
@@ -99,7 +97,7 @@ defmodule TuistWeb.XcodeBuildRunsLive do
       %{field: :project_id, op: :==, value: project.id}
     ]
 
-    {filter_flop_filters, runner_filters} = build_filters(filters, project)
+    filter_flop_filters = build_flop_filters(filters)
     flop_filters = base_flop_filters ++ filter_flop_filters
 
     order_by =
@@ -120,17 +118,12 @@ defmodule TuistWeb.XcodeBuildRunsLive do
         params
       )
 
-    {build_runs, build_runs_meta} =
-      Builds.list_build_runs(options, preload: :ran_by_account, runner_filters: runner_filters)
-
-    runner_jobs_by_run_id =
-      RunnerJobs.latest_by_workflow_run_ids(project.account_id, Enum.map(build_runs, & &1.ci_run_id))
+    {build_runs, build_runs_meta} = Builds.list_build_runs(options, preload: :ran_by_account)
 
     socket
     |> assign(:active_filters, filters)
     |> assign(:build_runs, build_runs)
     |> assign(:build_runs_meta, build_runs_meta)
-    |> assign(:runner_jobs_by_run_id, runner_jobs_by_run_id)
   end
 
   defp build_runs_options_with_paging(options, params) do
@@ -171,10 +164,7 @@ defmodule TuistWeb.XcodeBuildRunsLive do
     "?#{URI.encode_query(query_params)}"
   end
 
-  defp build_filters(filters, project) do
-    {runner_filters, filters} =
-      Enum.split_with(filters, &(&1.id in ["runner_platform", "runner_fleet", "runner_workflow_run_id"]))
-
+  defp build_flop_filters(filters) do
     {ran_by, filters} = Enum.split_with(filters, &(&1.id == "ran_by"))
     {tags_filters, filters} = Enum.split_with(filters, &(&1.id == "custom_tags"))
 
@@ -211,49 +201,14 @@ defmodule TuistWeb.XcodeBuildRunsLive do
           []
       end)
 
-    {
-      flop_filters ++ ran_by_flop_filters ++ tag_flop_filters,
-      runner_filter_opts(project, runner_filters)
-    }
-  end
-
-  defp runner_filter_opts(project, filters) do
-    Enum.reduce(filters, [account_id: project.account_id], fn
-      %{id: "runner_platform", value: value}, opts when value not in [nil, "", "any"] ->
-        Keyword.put(opts, :platform, value)
-
-      %{id: "runner_fleet", value: value}, opts when value not in [nil, "", "any"] ->
-        Keyword.put(opts, :fleet_name, value)
-
-      %{id: "runner_workflow_run_id", value: value}, opts when value not in [nil, "", "any"] ->
-        Keyword.put(opts, :workflow_run_id, value)
-
-      _filter, opts ->
-        opts
-    end)
+    flop_filters ++ ran_by_flop_filters ++ tag_flop_filters
   end
 
   defp normalize_text_filter_operator(%Filter.Filter{operator: :"!=~"} = filter), do: %{filter | operator: :not_ilike}
 
   defp normalize_text_filter_operator(filter), do: filter
 
-  def runner_job_for(runner_jobs_by_run_id, build_run) when is_map(runner_jobs_by_run_id) do
-    Map.get(runner_jobs_by_run_id, build_run.ci_run_id)
-  end
-
-  def runner_job_for(_, _), do: nil
-
-  def runner_job_label(nil), do: dgettext("dashboard_builds", "Unknown")
-
-  def runner_job_label(%{fleet_name: fleet_name, workflow_name: workflow_name})
-      when is_binary(fleet_name) and fleet_name != "" and is_binary(workflow_name) and workflow_name != "" do
-    "#{workflow_name} · #{fleet_name}"
-  end
-
-  def runner_job_label(%{fleet_name: fleet_name}) when is_binary(fleet_name) and fleet_name != "", do: fleet_name
-  def runner_job_label(_), do: dgettext("dashboard_builds", "Unknown")
-
-  defp define_filters(project, schemes, configurations, tags, fleet_names) do
+  defp define_filters(project, schemes, configurations, tags) do
     base = [
       %Filter.Filter{
         id: "scheme",
@@ -327,48 +282,8 @@ defmodule TuistWeb.XcodeBuildRunsLive do
         type: :text,
         operator: :=~,
         value: ""
-      },
-      %Filter.Filter{
-        id: "runner_platform",
-        field: :runner_platform,
-        display_name: dgettext("dashboard_builds", "Runner platform"),
-        type: :option,
-        options: ["macos", "linux"],
-        options_display_names: %{
-          "macos" => dgettext("dashboard_builds", "macOS"),
-          "linux" => dgettext("dashboard_builds", "Linux")
-        },
-        operator: :==,
-        value: nil
-      },
-      %Filter.Filter{
-        id: "runner_workflow_run_id",
-        field: :runner_workflow_run_id,
-        display_name: dgettext("dashboard_builds", "Runner run ID"),
-        type: :text,
-        operator: :==,
-        value: ""
       }
     ]
-
-    runner_fleet_filter =
-      if Enum.any?(fleet_names) do
-        [
-          %Filter.Filter{
-            id: "runner_fleet",
-            field: :runner_fleet,
-            display_name: dgettext("dashboard_builds", "Runner fleet"),
-            type: :option,
-            searchable: true,
-            options: fleet_names,
-            options_display_names: Map.new(fleet_names, &{&1, &1}),
-            operator: :==,
-            value: nil
-          }
-        ]
-      else
-        []
-      end
 
     tags_filter =
       if Enum.any?(tags) do
@@ -390,7 +305,7 @@ defmodule TuistWeb.XcodeBuildRunsLive do
         []
       end
 
-    base = base ++ runner_fleet_filter ++ tags_filter
+    base = base ++ tags_filter
 
     organization =
       if Accounts.organization?(project.account) do

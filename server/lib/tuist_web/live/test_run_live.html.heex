@@ -132,15 +132,6 @@
         <:icon_left><.download /></:icon_left>
       </.button>
       <.button
-        :if={@runner_job && TuistWeb.RunnerJobLive.path(@selected_account.name, @runner_job)}
-        navigate={TuistWeb.RunnerJobLive.path(@selected_account.name, @runner_job)}
-        label={dgettext("dashboard_tests", "Runner Job")}
-        variant="secondary"
-        size="medium"
-      >
-        <:icon_left><.server /></:icon_left>
-      </.button>
-      <.button
         :if={@run.status != "processing" && Tuist.Tests.test_ci_run_url(@run)}
         href={Tuist.Tests.test_ci_run_url(@run)}
         label={dgettext("dashboard_tests", "CI Run")}

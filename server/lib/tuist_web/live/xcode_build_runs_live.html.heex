@@ -130,14 +130,6 @@
           <:col :let={build_run} label={dgettext("dashboard_builds", "Ran by")}>
             <.build_ran_by_badge_cell build={build_run} />
           </:col>
-          <:col :let={build_run} label={dgettext("dashboard_builds", "Runner")}>
-            <% runner_job =
-              TuistWeb.XcodeBuildRunsLive.runner_job_for(@runner_jobs_by_run_id, build_run) %>
-            <.text_cell
-              label={TuistWeb.XcodeBuildRunsLive.runner_job_label(runner_job)}
-              icon="server"
-            />
-          </:col>
           <:col
             :let={build_run}
             label={dgettext("dashboard_builds", "Duration")}

@@ -3,10 +3,12 @@ defmodule TuistWeb.RunnerJobLive do
   use TuistWeb, :live_view
   use Noora
 
+  import Ecto.Query
   import TuistWeb.Components.RunnerJobMetricsCharts
 
   alias Tuist.Authorization
-  alias Tuist.Builds
+  alias Tuist.Builds.Build, as: BuildRun
+  alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
   alias Tuist.FeatureFlags
   alias Tuist.Projects
@@ -16,7 +18,7 @@ defmodule TuistWeb.RunnerJobLive do
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.JobSteps
   alias Tuist.Runners.LogFormatter
-  alias Tuist.Tests
+  alias Tuist.Tests.Test, as: TestRun
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
@@ -441,10 +443,8 @@ defmodule TuistWeb.RunnerJobLive do
         |> assign(:linked_test_selective_testing_summary, selective_testing_summary([]))
 
       project ->
-        runner_filters = [account_id: selected_account.id, workflow_run_id: job.workflow_run_id]
-
-        build_runs = list_runner_build_runs(project, runner_filters)
-        test_runs = list_runner_test_runs(project, runner_filters)
+        build_runs = list_runner_build_runs(project, job.workflow_run_id)
+        test_runs = list_runner_test_runs(project, job.workflow_run_id)
 
         build_command_events = build_runs |> command_events_for_runs(:build) |> Enum.reject(&is_nil/1)
         test_command_events = test_runs |> command_events_for_runs(:test) |> Enum.reject(&is_nil/1)
@@ -470,47 +470,29 @@ defmodule TuistWeb.RunnerJobLive do
 
   defp project_for_runner_job(_, _), do: nil
 
-  defp list_runner_build_runs(project, runner_filters) do
-    attrs = %{
-      filters: [%{field: :project_id, op: :==, value: project.id}],
-      order_by: [:inserted_at],
-      order_directions: [:desc]
-    }
+  defp list_runner_build_runs(project, workflow_run_id) do
+    workflow_run_id = Integer.to_string(workflow_run_id)
 
-    {build_runs, meta} = Builds.list_build_runs(attrs, runner_filters: runner_filters)
-    total_count = Map.get(meta, :total_count)
-
-    if is_integer(total_count) and total_count > length(build_runs) do
-      attrs
-      |> Map.put(:first, total_count)
-      |> Builds.list_build_runs(runner_filters: runner_filters)
-      |> elem(0)
-    else
-      build_runs
-    end
+    BuildRun
+    |> from(hints: ["FINAL"])
+    |> where([build], build.project_id == ^project.id)
+    |> where([build], build.ci_provider == "github")
+    |> where([build], build.ci_run_id == ^workflow_run_id)
+    |> order_by([build], desc: build.inserted_at)
+    |> ClickHouseRepo.all()
   end
 
-  defp list_runner_test_runs(project, runner_filters) do
-    attrs = %{
-      filters: [
-        %{field: :project_id, op: :==, value: project.id},
-        %{field: :status, op: :!=, value: "in_progress"}
-      ],
-      order_by: [:ran_at],
-      order_directions: [:desc]
-    }
+  defp list_runner_test_runs(project, workflow_run_id) do
+    workflow_run_id = Integer.to_string(workflow_run_id)
 
-    {test_runs, meta} = Tests.list_test_runs(attrs, runner_filters: runner_filters)
-    total_count = Map.get(meta, :total_count)
-
-    if is_integer(total_count) and total_count > length(test_runs) do
-      attrs
-      |> Map.put(:first, total_count)
-      |> Tests.list_test_runs(runner_filters: runner_filters)
-      |> elem(0)
-    else
-      test_runs
-    end
+    TestRun
+    |> from(hints: ["FINAL"])
+    |> where([test], test.project_id == ^project.id)
+    |> where([test], test.status != "in_progress")
+    |> where([test], test.ci_provider == "github")
+    |> where([test], test.ci_run_id == ^workflow_run_id)
+    |> order_by([test], desc: test.ran_at)
+    |> ClickHouseRepo.all()
   end
 
   defp command_events_for_runs(runs, kind) do

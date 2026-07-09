@@ -18,7 +18,6 @@ defmodule Tuist.Builds do
   alias Tuist.KeyValueStore
   alias Tuist.Projects.Project
   alias Tuist.Repo
-  alias Tuist.Runners.Jobs, as: RunnerJobs
 
   @short_cache_ttl to_timeout(second: 10)
   @build_lookup_recent_window_days 90
@@ -472,13 +471,8 @@ defmodule Tuist.Builds do
   def list_build_runs(attrs, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
     custom_values = Keyword.get(opts, :custom_values)
-    runner_filters = Keyword.get(opts, :runner_filters, [])
 
-    base_query =
-      Build
-      |> from(hints: ["FINAL"])
-      |> apply_custom_values_filter(custom_values)
-      |> apply_runner_filters(runner_filters)
+    base_query = apply_custom_values_filter(from(b in Build, hints: ["FINAL"]), custom_values)
 
     {results, meta} = ClickHouseFlop.validate_and_run!(base_query, attrs, for: Build)
 
@@ -591,29 +585,6 @@ defmodule Tuist.Builds do
   defp apply_custom_values_filter(query, values_map) when is_map(values_map) do
     Enum.reduce(values_map, query, fn {key, value}, q ->
       from(b in q, where: fragment("custom_values[?] = ?", ^key, ^value))
-    end)
-  end
-
-  defp apply_runner_filters(query, opts) when opts in [nil, []], do: query
-
-  defp apply_runner_filters(query, opts) when is_list(opts) do
-    account_id = Keyword.get(opts, :account_id)
-
-    if is_integer(account_id) and runner_filters_active?(opts) do
-      runner_run_ids = RunnerJobs.ci_run_ids_query(account_id, opts)
-
-      from(b in query,
-        where: b.ci_provider == "github" and b.ci_run_id in subquery(runner_run_ids)
-      )
-    else
-      query
-    end
-  end
-
-  defp runner_filters_active?(opts) do
-    Enum.any?([:platform, :fleet_name, :repository, :workflow_run_id], fn key ->
-      value = Keyword.get(opts, key)
-      value not in [nil, "", "any"]
     end)
   end
 
