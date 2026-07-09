@@ -7,6 +7,9 @@
 #     --set server.image.tag=$GIT_SHA
 
 registry:
+  # Keep production disabled until the registry cutover. Staging and
+  # canary exercise the component through values-managed-common.yaml.
+  enabled: false
   publicHost: registry.tuist.dev
   serverUrl: https://tuist.dev
   deployEnv: prod
@@ -375,6 +378,7 @@ processor:
   affinity: {}
 
 swiftRegistrySync:
+  enabled: false
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: prod

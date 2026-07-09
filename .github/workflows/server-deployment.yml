@@ -167,9 +167,31 @@ env:
   MISE_GITHUB_SLSA: false
 
 jobs:
+  guard_production_source:
+    name: Guard production source
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require main for production
+        run: |
+          set -euo pipefail
+
+          if [ "${{ inputs.environment }}" != "production" ]; then
+            echo "Non-production deploy; continuing."
+            exit 0
+          fi
+
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "::error::Production deploys must run from refs/heads/main. Current ref: ${{ github.ref }}"
+            exit 1
+          fi
+
+          echo "Production deploy is running from refs/heads/main."
+
   build:
     name: Build + push
-    if: inputs.image_tag == ''
+    needs: guard_production_source
+    if: needs.guard_production_source.result == 'success' && inputs.image_tag == ''
     # Bigger shape: the server image build (Elixir release compile inside
     # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM, killing the
     # runner mid-build ("lost communication"). Mirrors server.yml's
@@ -363,9 +385,9 @@ jobs:
     # queue at running + 1 waiting and drops the rest, which used to
     # leave only one of the three install jobs running per deploy.
     name: Observability chart (${{ inputs.environment }})
-    needs: build
+    needs: [build, guard_production_source]
     # `build` is skipped when image_tag is supplied - keep running.
-    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -430,8 +452,8 @@ jobs:
     # observability-install. Serializes this install against its own
     # past runs without sharing a slot with the sibling install jobs.
     name: Tailscale operator chart (${{ inputs.environment }})
-    needs: build
-    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    needs: [build, guard_production_source]
+    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -507,8 +529,8 @@ jobs:
     # observability-install. Serializes this install against its own
     # past runs without sharing a slot with the sibling install jobs.
     name: Platform chart (${{ inputs.environment }})
-    needs: build
-    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    needs: [build, guard_production_source]
+    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -563,7 +585,7 @@ jobs:
 
   deploy:
     name: Deploy to ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
-    needs: [build, build-kura-runtime, observability-install, tailscale-operator-install, platform-install]
+    needs: [build, build-kura-runtime, guard_production_source, observability-install, tailscale-operator-install, platform-install]
     # `build` may be skipped when image_tag is passed in - keep running.
     # `build-kura-runtime` is skipped on canary/production and on staging
     # re-rolls of a prebuilt image; when it does run (staging fresh build) the
@@ -580,7 +602,7 @@ jobs:
     # external-dns / ESO / metrics-server / cloudnative-pg so app-impacting
     # platform settings (including CNPG CRDs the Tuist chart consumes for
     # the in-cluster Postgres rollout) land before the app chart upgrade.
-    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-kura-runtime.result == 'success' || needs.build-kura-runtime.result == 'skipped') && needs.observability-install.result == 'success' && needs.tailscale-operator-install.result == 'success' && needs.platform-install.result == 'success'
+    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-kura-runtime.result == 'success' || needs.build-kura-runtime.result == 'skipped') && needs.observability-install.result == 'success' && needs.tailscale-operator-install.result == 'success' && needs.platform-install.result == 'success'
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -740,29 +762,6 @@ jobs:
           # so dependent pods (Pending or otherwise) go with the Job.
           echo "$stale_jobs" | xargs -r kubectl -n "$NAMESPACE" delete job \
             --ignore-not-found --cascade=foreground --timeout=2m
-      - name: Retire legacy registry release
-        # The Swift registry is now owned by the main tuist release. Older
-        # environments may still have the previous standalone registry
-        # release in the `registry` namespace, including an Ingress for the
-        # same public host. Remove it before the main chart claims the host.
-        run: |
-          set -euo pipefail
-
-          legacy_namespace="registry"
-          legacy_release="registry"
-
-          if ! kubectl get namespace "$legacy_namespace" >/dev/null 2>&1; then
-            echo "Legacy registry namespace not present; nothing to retire."
-            exit 0
-          fi
-
-          if ! helm status "$legacy_release" --namespace "$legacy_namespace" >/dev/null 2>&1; then
-            echo "Legacy registry Helm release not present; nothing to retire."
-            exit 0
-          fi
-
-          echo "Uninstalling legacy registry release $legacy_namespace/$legacy_release."
-          helm uninstall "$legacy_release" --namespace "$legacy_namespace" --wait --timeout 5m
       - name: helm upgrade --install
         # App secrets never pass through --set: the chart runs in
         # `server.managedSecrets: true` mode, which reads DATABASE_URL /
