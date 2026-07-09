@@ -49,8 +49,9 @@ pub struct AppState {
     // The inbound internal mTLS server config, retained so cert rotation can
     // hot-reload the leaf via `reload_from_config`. `None` when peer TLS is off.
     pub internal_tls: Option<RustlsConfig>,
-    // Peers learned after boot (e.g. from cert-renewal re-enrollment), merged
-    // into discovery/replication targets on top of the static `config.peers`.
+    // The control-plane-authoritative volatile peer view, refreshed at mesh
+    // heartbeat / peers-sync cadence and merged into discovery/replication
+    // targets on top of the static (platform-stable) `config.peers`.
     pub dynamic_peers: ArcSwap<Vec<String>>,
     pub replication_bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
     pub notify: Notify,
@@ -403,10 +404,10 @@ impl AppState {
         self.readiness.lock().await.bootstrap_epoch
     }
 
-    pub async fn note_discovered_only_peers<I>(&self, peers: I)
-    where
-        I: IntoIterator<Item = String>,
-    {
+    pub async fn note_discovered_only_peers(&self, peers: Vec<String>) {
+        if peers.is_empty() {
+            return;
+        }
         let mut readiness = self.readiness.lock().await;
         readiness.ever_discovered_only_peers.extend(peers);
     }

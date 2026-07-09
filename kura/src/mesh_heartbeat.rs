@@ -153,8 +153,9 @@ async fn run(state: SharedState, mut config: MeshHeartbeatConfig) {
     let mut recovery = RecoveryBackoff::new();
 
     loop {
-        match send_heartbeat(&client, &state, &config).await {
+        match send_heartbeat(&client, &config).await {
             Ok(payload) => {
+                apply_peers(&state, payload.peers);
                 if !payload.mesh_member {
                     maybe_recover_membership(&state, &mut recovery).await;
                 } else {
@@ -199,7 +200,6 @@ async fn run_peers_sync(state: SharedState, mut config: MeshPeersSyncConfig) {
 
 async fn send_heartbeat(
     client: &reqwest::Client,
-    state: &SharedState,
     config: &MeshHeartbeatConfig,
 ) -> Result<MeshHeartbeatResponse, String> {
     let response = client
@@ -219,14 +219,10 @@ async fn send_heartbeat(
         return Err(format!("control plane returned {}", response.status()));
     }
 
-    let payload = response
+    response
         .json::<MeshHeartbeatResponse>()
         .await
-        .map_err(|error| format!("failed to decode response: {error}"))?;
-
-    apply_peers(state, payload.peers.clone());
-
-    Ok(payload)
+        .map_err(|error| format!("failed to decode response: {error}"))
 }
 
 async fn fetch_peers(
