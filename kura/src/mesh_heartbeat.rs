@@ -432,7 +432,9 @@ mod tests {
                 true,
             )
             .await;
-        ctx.state.note_bootstrap_succeeded(&peer).await;
+        ctx.state
+            .note_bootstrap_succeeded(&peer, ctx.state.current_bootstrap_epoch().await)
+            .await;
         assert!(ctx.state.peers_needing_bootstrap().await.is_empty());
 
         ctx.state.reset_bootstrap_progress().await;

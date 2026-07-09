@@ -226,9 +226,9 @@ pub async fn replication_targets(state: &SharedState) -> Vec<String> {
 }
 
 async fn maybe_spawn_bootstrap_task(state: SharedState, peer: String) {
-    if !state.note_bootstrap_started(&peer).await {
+    let Some(epoch) = state.note_bootstrap_started(&peer).await else {
         return;
-    }
+    };
 
     let semaphore = state.bootstrap_semaphore.clone();
     tokio::spawn(
@@ -252,7 +252,7 @@ async fn maybe_spawn_bootstrap_task(state: SharedState, peer: String) {
                 };
             match result {
                 Ok(stats) => {
-                    state.note_bootstrap_succeeded(&peer).await;
+                    state.note_bootstrap_succeeded(&peer, epoch).await;
                     state.metrics.record_bootstrap_run(
                         "ok",
                         started_at.elapsed(),

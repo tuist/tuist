@@ -2681,7 +2681,7 @@ mod tests {
                 true,
             )
             .await;
-        assert!(context.state.note_bootstrap_started(&peer).await);
+        assert!(context.state.note_bootstrap_started(&peer).await.is_some());
 
         let response = public_router(context.state.clone())
             .oneshot(
@@ -2703,7 +2703,10 @@ mod tests {
                 .contains("bootstrap in progress")
         );
 
-        context.state.note_bootstrap_succeeded(&peer).await;
+        context
+            .state
+            .note_bootstrap_succeeded(&peer, context.state.current_bootstrap_epoch().await)
+            .await;
         context.state.maybe_mark_serving().await;
 
         let response = public_router(context.state.clone())
@@ -2753,7 +2756,10 @@ mod tests {
                 true,
             )
             .await;
-        context.state.note_bootstrap_succeeded(&peer).await;
+        context
+            .state
+            .note_bootstrap_succeeded(&peer, context.state.current_bootstrap_epoch().await)
+            .await;
         context.state.expire_readiness_settle_window().await;
         context.state.maybe_mark_serving().await;
 
@@ -2828,7 +2834,10 @@ mod tests {
                 true,
             )
             .await;
-        context.state.note_bootstrap_succeeded(&peer).await;
+        context
+            .state
+            .note_bootstrap_succeeded(&peer, context.state.current_bootstrap_epoch().await)
+            .await;
         context.state.expire_readiness_settle_window().await;
         context.state.maybe_mark_serving().await;
         context.state.metrics.update_outbox_messages(7);

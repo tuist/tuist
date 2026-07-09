@@ -150,6 +150,12 @@ pub(crate) struct ReadinessState {
     known_peers: BTreeSet<String>,
     bootstrapped_peers: BTreeSet<String>,
     bootstrap_inflight_peers: BTreeSet<String>,
+    // Bumped by reset_bootstrap_progress. A bootstrap pass captures the epoch
+    // when it starts and its completion only counts under the same epoch, so
+    // a pass already in flight when a recovery re-enrollment resets progress
+    // cannot re-mark its peer bootstrapped — the pass may straddle the
+    // absence window and miss writes behind its cursor.
+    bootstrap_epoch: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -173,6 +179,7 @@ impl ReadinessState {
             known_peers: BTreeSet::new(),
             bootstrapped_peers: BTreeSet::new(),
             bootstrap_inflight_peers: BTreeSet::new(),
+            bootstrap_epoch: 0,
         }
     }
 
@@ -238,11 +245,19 @@ impl ReadinessState {
         true
     }
 
-    fn note_bootstrap_succeeded(&mut self, peer: &str) {
+    fn note_bootstrap_succeeded(&mut self, peer: &str, epoch: u64) {
         self.bootstrap_inflight_peers.remove(peer);
-        if self.known_peers.contains(peer) {
+        // A completion from a pass started before the last progress reset does
+        // not count as bootstrapped; the peer re-enters peers_needing_bootstrap
+        // and gets a fresh pass.
+        if epoch == self.bootstrap_epoch && self.known_peers.contains(peer) {
             self.bootstrapped_peers.insert(peer.to_string());
         }
+    }
+
+    fn reset_bootstrap_progress(&mut self) {
+        self.bootstrapped_peers.clear();
+        self.bootstrap_epoch = self.bootstrap_epoch.wrapping_add(1);
     }
 
     fn note_bootstrap_failed(&mut self, peer: &str) {
@@ -351,17 +366,32 @@ impl AppState {
     /// the node was out of the mesh for an unknown window, and the writes it
     /// missed were never enqueued for it (replication targets are computed at
     /// write time), so only a full re-bootstrap can reconcile the gap,
-    /// including namespace delete tombstones.
+    /// including namespace delete tombstones. Bumps the bootstrap epoch so
+    /// passes already in flight cannot re-mark their peer bootstrapped.
     pub async fn reset_bootstrap_progress(&self) {
-        self.readiness.lock().await.bootstrapped_peers.clear();
+        self.readiness.lock().await.reset_bootstrap_progress();
     }
 
-    pub async fn note_bootstrap_started(&self, peer: &str) -> bool {
-        self.readiness.lock().await.note_bootstrap_started(peer)
+    /// Claims a bootstrap slot for `peer`, returning the epoch the pass runs
+    /// under (to be handed back to `note_bootstrap_succeeded`), or `None` when
+    /// the peer is unknown, already bootstrapped, or already in flight.
+    pub async fn note_bootstrap_started(&self, peer: &str) -> Option<u64> {
+        let mut readiness = self.readiness.lock().await;
+        readiness
+            .note_bootstrap_started(peer)
+            .then_some(readiness.bootstrap_epoch)
     }
 
-    pub async fn note_bootstrap_succeeded(&self, peer: &str) {
-        self.readiness.lock().await.note_bootstrap_succeeded(peer);
+    pub async fn note_bootstrap_succeeded(&self, peer: &str, epoch: u64) {
+        self.readiness
+            .lock()
+            .await
+            .note_bootstrap_succeeded(peer, epoch);
+    }
+
+    #[cfg(test)]
+    pub async fn current_bootstrap_epoch(&self) -> u64 {
+        self.readiness.lock().await.bootstrap_epoch
     }
 
     pub async fn note_bootstrap_failed(&self, peer: &str) {
@@ -577,7 +607,10 @@ mod tests {
         );
 
         assert!(readiness.note_bootstrap_started("http://peer-a.kura.internal:7443"));
-        readiness.note_bootstrap_succeeded("http://peer-a.kura.internal:7443");
+        readiness.note_bootstrap_succeeded(
+            "http://peer-a.kura.internal:7443",
+            readiness.bootstrap_epoch,
+        );
         assert!(
             readiness
                 .bootstrapped_peers
@@ -612,6 +645,34 @@ mod tests {
                 .bootstrapped_peers
                 .contains("http://peer-b.kura.internal:7443")
         );
+    }
+
+    #[test]
+    fn stale_epoch_bootstrap_completion_does_not_count() {
+        let now = Instant::now();
+        let mut readiness = ReadinessState::new(now);
+        let peer = "http://peer-a.kura.internal:7443".to_string();
+        readiness.apply_membership(
+            BTreeSet::from(["remote".to_string()]),
+            BTreeSet::from([peer.clone()]),
+            true,
+            now,
+        );
+
+        assert!(readiness.note_bootstrap_started(&peer));
+        // A recovery re-enrollment resets progress while the pass is in
+        // flight: the pass may straddle the absence window, so its completion
+        // must not mark the peer bootstrapped.
+        let stale_epoch = readiness.bootstrap_epoch;
+        readiness.reset_bootstrap_progress();
+        readiness.note_bootstrap_succeeded(&peer, stale_epoch);
+
+        assert_eq!(readiness.peers_needing_bootstrap(), vec![peer.clone()]);
+
+        // A fresh pass under the current epoch counts.
+        assert!(readiness.note_bootstrap_started(&peer));
+        readiness.note_bootstrap_succeeded(&peer, readiness.bootstrap_epoch);
+        assert!(readiness.peers_needing_bootstrap().is_empty());
     }
 
     #[test]
@@ -666,7 +727,7 @@ mod tests {
             now,
         );
 
-        readiness.note_bootstrap_succeeded(&peer_a);
+        readiness.note_bootstrap_succeeded(&peer_a, readiness.bootstrap_epoch);
         assert!(readiness.note_bootstrap_started(&peer_b));
 
         let pending = readiness.peers_needing_bootstrap();
@@ -712,7 +773,7 @@ mod tests {
         assert_eq!(
             [first_started, second_started]
                 .into_iter()
-                .filter(|started| *started)
+                .filter(|started| started.is_some())
                 .count(),
             1
         );
@@ -731,7 +792,10 @@ mod tests {
                 true,
             )
             .await;
-        context.state.note_bootstrap_succeeded(&peer_a).await;
+        context
+            .state
+            .note_bootstrap_succeeded(&peer_a, context.state.current_bootstrap_epoch().await)
+            .await;
         context.state.expire_readiness_settle_window().await;
         context.state.maybe_mark_serving().await;
 
