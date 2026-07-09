@@ -226,14 +226,6 @@ defmodule Tuist.Runners do
 
       {:error, :empty} ->
         {:error, :empty}
-
-      {:error, reason} ->
-        Logger.warning("runners: dispatch_for_sa failed",
-          reason: inspect(reason),
-          fleet: fleet_name
-        )
-
-        {:error, reason}
     end
   end
 
