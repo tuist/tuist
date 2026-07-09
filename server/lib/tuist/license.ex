@@ -96,27 +96,45 @@ defmodule Tuist.License do
 
   defp verify_and_build_license(verify_key, enc_data, signature, _algorithm) do
     with {:ok, public_key} <- Base.decode16(verify_key, case: :lower),
-         {:ok, sig_binary} <- Base.decode64(signature) do
-      # For Ed25519 signatures, verify against "license/" + base64 data
-      data_to_verify = "license/" <> enc_data
-
-      if :crypto.verify(:eddsa, :none, data_to_verify, sig_binary, [public_key, :ed25519]) do
-        case Base.decode64(enc_data) do
-          {:ok, decoded} ->
-            case JSON.decode(decoded) do
-              {:ok, license_data} -> build_license_struct(license_data)
-              {:error, _} -> {:error, "Failed to parse license data"}
-            end
-
-          :error ->
-            {:error, "Failed to decode license data"}
-        end
-      else
-        {:error, "Invalid signature"}
-      end
+         {:ok, sig_binary} <- Base.decode64(signature),
+         :ok <- verify_license_signature(public_key, enc_data, sig_binary),
+         {:ok, decoded} <- decode_license_data(enc_data),
+         {:ok, license_data} <- decode_license_json(decoded) do
+      build_license_struct(license_data)
     else
       :error ->
         {:error, "Failed to decode verify key or signature"}
+
+      {:error, :invalid_signature} ->
+        {:error, "Invalid signature"}
+
+      {:error, :failed_to_decode_license_data} ->
+        {:error, "Failed to decode license data"}
+
+      {:error, :failed_to_parse_license_data} ->
+        {:error, "Failed to parse license data"}
+    end
+  end
+
+  defp verify_license_signature(public_key, enc_data, signature) do
+    if :crypto.verify(:eddsa, :none, "license/" <> enc_data, signature, [public_key, :ed25519]) do
+      :ok
+    else
+      {:error, :invalid_signature}
+    end
+  end
+
+  defp decode_license_data(enc_data) do
+    case Base.decode64(enc_data) do
+      {:ok, decoded} -> {:ok, decoded}
+      :error -> {:error, :failed_to_decode_license_data}
+    end
+  end
+
+  defp decode_license_json(decoded) do
+    case JSON.decode(decoded) do
+      {:ok, license_data} -> {:ok, license_data}
+      {:error, _} -> {:error, :failed_to_parse_license_data}
     end
   end
 

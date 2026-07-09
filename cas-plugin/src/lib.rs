@@ -788,6 +788,17 @@ pub unsafe extern "C" fn llcas_cas_prune_ondisk_data(cas: llcas_cas_t, error: *m
     let mut upstream_error: *mut c_char = std::ptr::null_mut();
     let result = prune(state.cas, &mut upstream_error);
     adopt_error(state.up, upstream_error, error);
+    // Pruning removed objects from the shared on-disk CAS in place (and a partial
+    // prune that then errored may have removed some too). Drop this process's own
+    // known-local marks, and tell the per-machine proxy to drop its marks for
+    // this path: neither store recreation nor a cached-hit presence check would
+    // otherwise notice the removed blobs, so a later resolve could skip
+    // re-fetching them and hand back a broken graph. Prune is infrequent, so the
+    // occasional re-warm from an over-broad invalidation is cheap.
+    state.known_local.lock().unwrap().clear();
+    if let (Some(client), Some(cas_dir)) = (&state.proxy, &state.cas_dir) {
+        let _ = client.invalidate(&cas_dir.to_string_lossy());
+    }
     result
 }
 

@@ -71,10 +71,7 @@ defmodule Cache.WebhookClient do
         :ok
 
       {:error, reason} ->
-        if Cache.AnalyticsCircuitBreaker.melt?({:error, reason}) do
-          Cache.AnalyticsCircuitBreaker.record_failure(url, log_label, inspect(reason))
-        end
-
+        Cache.AnalyticsCircuitBreaker.record_failure(url, log_label, inspect(reason))
         Logger.error("Failed to send #{log_label}: #{inspect(reason)}")
         :ok
     end

@@ -14,7 +14,7 @@ defmodule Tuist.Ops.HourlySlackReportWorker do
     organizations_and_users =
       Accounts.new_organizations_in_last_hour() ++ Accounts.new_users_in_last_hour()
 
-    if length(organizations_and_users) != 0 do
+    if organizations_and_users != [] do
       bullet_list =
         Enum.map_join(organizations_and_users, "\n", fn
           %Organization{account: account} ->

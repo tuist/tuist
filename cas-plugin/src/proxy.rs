@@ -9,15 +9,16 @@
 //! before answering a resolve, so consumers' demand loads are local hits.
 
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::os::unix::fs::MetadataExt;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use crate::proxy_proto::{
-    read_request, write_response, Request, OP_PUBLISH, OP_RESOLVE, STATUS_ERROR, STATUS_HIT,
-    STATUS_MISS,
+    read_request, write_response, Request, OP_INVALIDATE, OP_PUBLISH, OP_RESOLVE, STATUS_ERROR,
+    STATUS_HIT, STATUS_MISS,
 };
 use crate::prefetch::Prefetcher;
 use crate::reapi::{self, ManifestEntry, Remote, RemoteConfig};
@@ -43,6 +44,14 @@ const MAX_PUBLISH_CACHE: usize = 500_000;
 /// resolve past this window rather than requiring a proxy restart.
 const NEGATIVE_TTL: Duration = Duration::from_secs(60);
 
+/// How long a path may go without a request before its in-memory caches are
+/// reclaimed by the maintenance loop. Well beyond a build's internal pauses
+/// (planning gaps, incremental rebuilds), so an actively-built project is never
+/// reclaimed mid-work; a reclaimed path just re-warms from the remote on its
+/// next build. Bounds the RAM a long-lived proxy holds for projects nobody is
+/// building, which the size caps alone never release.
+const IDLE_RECLAIM: Duration = Duration::from_secs(30 * 60);
+
 /// A cached resolve outcome for a key.
 enum Resolution {
     /// A value digest, kept indefinitely (content-addressed, always valid).
@@ -51,11 +60,106 @@ enum Resolution {
     Miss(Instant),
 }
 
+/// The pre-single-flight cache decision for a key (see `fast_path`).
+enum FastPath {
+    /// Serve this value digest: a cached Hit whose value object is still on disk.
+    Hit(Vec<u8>),
+    /// Serve a fresh negative: a cached Miss still inside NEGATIVE_TTL.
+    Miss,
+    /// Fall through to a full (re-)resolve under single-flight.
+    Resolve,
+}
+
+/// Decides what to serve for `key` from the resolved map before entering
+/// single-flight. A cached Hit is served ONLY when `present` confirms its value
+/// object is still on disk; a Hit whose object is gone (the local CAS was wiped
+/// by `xcodebuild clean` or a deleted DerivedData under this long-lived proxy)
+/// calls `invalidate` and returns `Resolve`, so the graph is re-materialized
+/// instead of handing the compiler a value whose blobs no longer exist (which
+/// surfaces as `CAS error: missing object` in the frontend). Kept free of the
+/// FFI presence load and of `PathState` so the guard is unit-testable: the map
+/// is snapshotted and its lock released before `present` runs, both so the load
+/// never serializes other keys and so a Hit can be probed off-lock.
+fn fast_path(
+    resolved: &Mutex<HashMap<Vec<u8>, Resolution>>,
+    key: &[u8],
+    present: impl FnOnce(&[u8]) -> bool,
+    invalidate: impl FnOnce(),
+) -> FastPath {
+    let value = {
+        let map = resolved.lock().unwrap();
+        match map.get(key) {
+            Some(Resolution::Hit(value)) => value.clone(),
+            Some(Resolution::Miss(at)) if at.elapsed() < NEGATIVE_TTL => return FastPath::Miss,
+            _ => return FastPath::Resolve,
+        }
+    };
+    if present(&value) {
+        FastPath::Hit(value)
+    } else {
+        invalidate();
+        FastPath::Resolve
+    }
+}
+
+/// Whether a path's in-memory caches should be reclaimed: its on-disk CAS is
+/// gone (deleted project/worktree — it never comes back) or it has been idle
+/// past IDLE_RECLAIM. Pure so the policy is unit-testable.
+fn should_reclaim(idle: Duration, cas_dir_gone: bool) -> bool {
+    cas_dir_gone || idle > IDLE_RECLAIM
+}
+
+/// A cheap identity for the on-disk CAS directory. When it changes, the
+/// directory was deleted and recreated (`xcodebuild clean` / a deleted
+/// DerivedData) under this long-lived proxy, so the in-memory `known_local` and
+/// `resolved` marks now describe a store that no longer exists on disk.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct CasGeneration {
+    ino: u64,
+    // Birth time in nanos since the Unix epoch; 0 when the platform can't report
+    // it. Guards the (very unlikely) inode reuse when a directory is recreated.
+    birth_nanos: u128,
+}
+
+/// The CAS directory's current generation, or `None` if it does not exist
+/// (deleted and not yet recreated).
+fn cas_generation(cas_path: &str) -> Option<CasGeneration> {
+    let meta = std::fs::metadata(cas_path).ok()?;
+    let birth_nanos = meta
+        .created()
+        .ok()
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    Some(CasGeneration { ino: meta.ino(), birth_nanos })
+}
+
+/// Whether the CAS directory changed identity between two observations, i.e. it
+/// was recreated (a wipe). A `None` current generation (the directory is gone)
+/// is not a change: a resolve can't run against a missing store anyway, and
+/// `reclaim_idle` drops such a path's marks; a `None` stored generation is the
+/// first observation. Pure so the wipe policy is unit-testable.
+fn generation_changed(stored: Option<CasGeneration>, current: Option<CasGeneration>) -> bool {
+    matches!((stored, current), (Some(prev), Some(now)) if prev != now)
+}
+
 /// Per-local-CAS-path state. Leaked for 'static lifetime: the proxy runs
 /// until killed.
 pub struct PathState {
     up: &'static Upstream,
     cas: llcas_cas_t,
+    // The on-disk CAS directory this state wraps, kept so a resolve can restat
+    // it for wipe detection (see `generation`).
+    cas_path: String,
+    // Identity of the CAS directory as last observed by a resolve. A change means
+    // the store was deleted and recreated under this long-lived proxy, so the
+    // in-memory marks below are stale and must be dropped before they are trusted.
+    generation: Mutex<Option<CasGeneration>>,
+    // Monotonic counter bumped by every invalidation (a detected wipe or a prune
+    // signal). A resolve snapshots it after its wipe check and only commits its
+    // known_local / resolved writes if it is unchanged, so a resolve that began
+    // under an older store can't reinsert stale marks after the maps were cleared.
+    gen_counter: AtomicU64,
     // key digest -> resolved outcome. A local publish updates its entry, so a
     // miss cached during planning turns into a hit once the local build
     // publishes it; misses also carry a timestamp so a key another machine
@@ -71,6 +175,10 @@ pub struct PathState {
     // warm build) from every connection thread.
     known_local: [Mutex<HashSet<Vec<u8>>>; 32],
     publish_cache: Mutex<HashMap<Vec<u8>, (reapi::Digest, Vec<Vec<u8>>)>>,
+    // Millis since Proxy.epoch of the last request that touched this path, for
+    // idle reclamation. Bumped once per resolve/publish (per action key, not per
+    // node), so the maintenance loop can free caches of projects nobody builds.
+    last_used: AtomicU64,
     pub stats_resolves: AtomicU64,
     pub stats_remote_hits: AtomicU64,
     pub stats_misses: AtomicU64,
@@ -87,6 +195,36 @@ impl PathState {
     fn shard(&self, digest: &[u8]) -> &Mutex<HashSet<Vec<u8>>> {
         &self.known_local[digest.first().copied().unwrap_or(0) as usize % 32]
     }
+
+    /// Drops all cached knowledge of the on-disk CAS for this path: the
+    /// resolved key->value map and the known-local shard sets. Called when a
+    /// cached Hit's value object is found missing from disk (`xcodebuild clean`
+    /// or a deleted DerivedData wiped the local CAS under this long-lived
+    /// proxy), so the re-resolve re-probes every manifest entry authoritatively
+    /// and re-materializes the full graph rather than trusting stale in-memory
+    /// marks. Content-addressed and correctness-preserving, so clearing only
+    /// forces re-work, never a wrong answer.
+    ///
+    /// The counter is bumped BEFORE the maps are cleared so that a concurrent
+    /// in-flight resolve (which checks the counter while holding the same map
+    /// lock it is about to write) either sees the new counter and skips its
+    /// write, or writes first and then has it cleared here — never inserts a
+    /// stale mark that survives the clear.
+    fn invalidate(&self) {
+        self.gen_counter.fetch_add(1, Ordering::SeqCst);
+        self.resolved.lock().unwrap().clear();
+        for shard in &self.known_local {
+            shard.lock().unwrap().clear();
+        }
+    }
+}
+
+/// Whether writes from a resolve that observed generation `observed` may still
+/// be committed: only if no wipe or prune advanced the path's `gen_counter`
+/// since. A stale resolve's known_local / resolved inserts describe a store that
+/// has been replaced, so they must be dropped rather than trusted.
+fn committable(observed: u64, current: u64) -> bool {
+    observed == current
 }
 
 // The proxy is single-process and owns these raw handles for its lifetime;
@@ -99,6 +237,8 @@ pub struct Proxy {
     grpc_url: String,
     tokens: Arc<TokenProvider>,
     upstream_plugin: String,
+    // Monotonic base for per-path last-used timestamps (see PathState.last_used).
+    epoch: Instant,
     // One REAPI client per account/project instance, created on first use.
     // All share the machine's endpoint + token; only the instance the request
     // is scoped to differs. This is what lets one proxy serve every project.
@@ -128,6 +268,7 @@ impl Proxy {
             grpc_url,
             tokens,
             upstream_plugin,
+            epoch: Instant::now(),
             remotes: Mutex::new(HashMap::new()),
             path_instance: Mutex::new(path_instance),
             registry_path,
@@ -144,6 +285,11 @@ impl Proxy {
     }
 
     /// The REAPI client for an instance, created and cached on first use.
+    ///
+    /// `instance` is the `account/project` full handle used to key the client
+    /// map (two accounts may own like-named projects). The REAPI `instance_name`
+    /// itself is the project segment only; the account rides on the bearer token
+    /// and Kura assembles the authz identifier as `{tenant}/{instance_name}`.
     fn remote_for(&self, instance: &str) -> Arc<Remote> {
         if let Some(remote) = self.remotes.lock().unwrap().get(instance) {
             return remote.clone();
@@ -151,7 +297,7 @@ impl Proxy {
         let remote = Remote::new(
             RemoteConfig {
                 grpc_url: self.grpc_url.clone(),
-                instance: instance.to_string(),
+                instance: reapi::reapi_instance(instance).to_string(),
             },
             self.tokens.clone(),
         );
@@ -203,11 +349,15 @@ impl Proxy {
         let state: &'static PathState = Box::leak(Box::new(PathState {
             up,
             cas,
+            cas_path: cas_path.to_string(),
+            generation: Mutex::new(cas_generation(cas_path)),
+            gen_counter: AtomicU64::new(0),
             resolved: Mutex::new(HashMap::new()),
             inflight: Mutex::new(HashSet::new()),
             inflight_cvar: Condvar::new(),
             known_local: std::array::from_fn(|_| Mutex::new(HashSet::new())),
             publish_cache: Mutex::new(HashMap::new()),
+            last_used: AtomicU64::new(self.epoch.elapsed().as_millis() as u64),
             stats_resolves: AtomicU64::new(0),
             stats_remote_hits: AtomicU64::new(0),
             stats_misses: AtomicU64::new(0),
@@ -235,10 +385,38 @@ impl Proxy {
         key: &[u8],
     ) -> Result<Option<Vec<u8>>, String> {
         state.stats_resolves.fetch_add(1, Ordering::Relaxed);
+        state
+            .last_used
+            .store(self.epoch.elapsed().as_millis() as u64, Ordering::Relaxed);
+        // Drop stale marks if the on-disk CAS was wiped and recreated. This runs
+        // before the fast path and before resolve_uncached's manifest filter, so
+        // an uncached/changed key or a parallel build can't trust known_local
+        // marks for a store that no longer exists (which would skip re-fetching
+        // wiped nodes and hand back a value whose graph is missing on disk).
+        self.check_generation(state);
+        // Fast path, outside single-flight so the presence load never
+        // serializes other keys: serve a cached Hit only after confirming its
+        // value object is still on disk. A long-lived proxy keeps Hits in memory
+        // across builds, but a wiped DerivedData removes the value graph; serving
+        // the stale Hit then fails the compiler with `missing object`. On absence
+        // the path's stale caches are dropped and we re-resolve below.
+        match fast_path(
+            &state.resolved,
+            key,
+            |value| self.load_present(state, value),
+            || state.invalidate(),
+        ) {
+            FastPath::Hit(value) => return Ok(Some(value)),
+            FastPath::Miss => return Ok(None),
+            FastPath::Resolve => {}
+        }
         // Single-flight: wait out a concurrent resolve of the same key.
         {
             let mut inflight = state.inflight.lock().unwrap();
             loop {
+                // Re-peek under the lock. A Hit that appears here was just
+                // materialized by the winning resolver (or a local publish), so
+                // its graph is on disk; serve it without another presence load.
                 match state.resolved.lock().unwrap().get(key) {
                     Some(Resolution::Hit(value)) => return Ok(Some(value.clone())),
                     // A fresh miss answers without a round-trip; a stale one
@@ -256,7 +434,13 @@ impl Proxy {
                 inflight = state.inflight_cvar.wait(inflight).unwrap();
             }
         }
-        let outcome = self.resolve_uncached(remote, state, key);
+        // Re-check the generation now that we hold the single-flight slot: a wipe
+        // during the wait must be caught before resolve_uncached trusts
+        // known_local. `observed` is snapshotted here so the write guard drops
+        // this resolve's marks if a wipe/prune advances the counter mid-resolve.
+        self.check_generation(state);
+        let observed = state.gen_counter.load(Ordering::SeqCst);
+        let outcome = self.resolve_uncached(remote, state, key, observed);
         {
             let mut inflight = state.inflight.lock().unwrap();
             inflight.remove(key);
@@ -270,6 +454,7 @@ impl Proxy {
         remote: &Remote,
         state: &'static PathState,
         key: &[u8],
+        observed: u64,
     ) -> Result<Option<Vec<u8>>, String> {
         let op_start = Instant::now();
         let phase = Instant::now();
@@ -304,7 +489,7 @@ impl Proxy {
         let phase = Instant::now();
         let missing: Vec<&ManifestEntry> = manifest
             .iter()
-            .filter(|entry| !self.is_local(state, &entry.llcas_digest))
+            .filter(|entry| !self.is_local(state, observed, &entry.llcas_digest))
             .collect();
         state
             .ms_filter
@@ -368,30 +553,88 @@ impl Proxy {
                 state
                     .ms_store
                     .fetch_add(phase.elapsed().as_millis() as u64, Ordering::Relaxed);
-                state
-                    .shard(&entry.llcas_digest)
-                    .lock()
-                    .unwrap()
-                    .insert(entry.llcas_digest.clone());
+                // Mark local only while still on this generation, checked under
+                // the shard lock: a wipe/prune that clears the shards after this
+                // must not leave the freshly-fetched digest behind as a mark for
+                // a store it did not write. (invalidate bumps the counter before
+                // clearing, so a stale insert either loses the race or is cleared.)
+                {
+                    let mut shard = state.shard(&entry.llcas_digest).lock().unwrap();
+                    if committable(observed, state.gen_counter.load(Ordering::SeqCst)) {
+                        shard.insert(entry.llcas_digest.clone());
+                    }
+                }
                 state.stats_blobs_fetched.fetch_add(1, Ordering::Relaxed);
             }
         }
         let value = manifest[0].llcas_digest.clone();
-        state
-            .resolved
-            .lock()
-            .unwrap()
-            .insert(key.to_vec(), Resolution::Hit(value.clone()));
+        // Commit the Hit only if no wipe/prune advanced the generation while we
+        // were fetching. If it did, the graph we just materialized targets a
+        // store that has been replaced, so caching this value (or returning it)
+        // could hand back a graph that is not on the current disk. Drop the write
+        // and answer a miss; the next resolve re-materializes against the new
+        // store. Checked under the resolved lock, against which invalidate's
+        // clear is serialized.
+        let committed = {
+            let mut resolved = state.resolved.lock().unwrap();
+            if committable(observed, state.gen_counter.load(Ordering::SeqCst)) {
+                resolved.insert(key.to_vec(), Resolution::Hit(value.clone()));
+                true
+            } else {
+                false
+            }
+        };
+        if !committed {
+            return Ok(None);
+        }
         if let Some(analytics) = &self.analytics {
             analytics.record_keyvalue(key, "read", op_start.elapsed().as_secs_f64());
         }
         Ok(Some(value))
     }
 
-    fn is_local(&self, state: &PathState, digest: &[u8]) -> bool {
+    /// Detects a wiped-and-recreated on-disk CAS (a deleted DerivedData under
+    /// this long-lived proxy) from a change in the CAS directory's identity and
+    /// drops the now-stale in-memory marks (`resolved`, `known_local`,
+    /// `publish_cache`) so a resolve re-probes and re-materializes authoritatively.
+    /// Called at the head of every resolve, so it covers uncached/changed keys
+    /// and parallel builds, not only re-requested cached Hits. The generation
+    /// lock is held across the invalidation so a concurrent resolve can't observe
+    /// the new generation as unchanged and filter against `known_local` while it
+    /// is being cleared.
+    fn check_generation(&self, state: &PathState) {
+        let Some(current) = cas_generation(&state.cas_path) else { return };
+        let mut stored = state.generation.lock().unwrap();
+        if generation_changed(*stored, Some(current)) {
+            state.invalidate();
+            state.publish_cache.lock().unwrap().clear();
+        }
+        *stored = Some(current);
+    }
+
+    fn is_local(&self, state: &PathState, observed: u64, digest: &[u8]) -> bool {
         if state.shard(digest).lock().unwrap().contains(digest) {
             return true;
         }
+        if self.load_present(state, digest) {
+            // Memoize the authoritative load only while still on this generation:
+            // a wipe/prune that cleared the shards must not have this present-now
+            // fact re-inserted for what may already be a replaced store.
+            let mut shard = state.shard(digest).lock().unwrap();
+            if committable(observed, state.gen_counter.load(Ordering::SeqCst)) {
+                shard.insert(digest.to_vec());
+            }
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Authoritative on-disk presence for `digest`: an actual llcas load, the
+    /// same call the consumer will make, bypassing the known-local cache. Used
+    /// both by `is_local` (which memoizes a positive result) and to guard a
+    /// cached Hit against a wiped local CAS, where the in-memory marks lie.
+    fn load_present(&self, state: &PathState, digest: &[u8]) -> bool {
         unsafe {
             let digest_t = llcas_digest_t { data: digest.as_ptr(), size: digest.len() };
             let mut id = llcas_objectid_t { opaque: 0 };
@@ -408,12 +651,7 @@ impl Proxy {
             if !load_error.is_null() {
                 (state.up.llcas_string_dispose)(load_error);
             }
-            if result == LLCAS_LOOKUP_RESULT_SUCCESS {
-                state.shard(digest).lock().unwrap().insert(digest.to_vec());
-                true
-            } else {
-                false
-            }
+            result == LLCAS_LOOKUP_RESULT_SUCCESS
         }
     }
 
@@ -437,6 +675,9 @@ impl Proxy {
         let record_path = String::from_utf8_lossy(record_path).into_owned();
         let remote = self.remote_for(&instance);
         let Ok(state) = self.path_state(&cas_path) else { return };
+        state
+            .last_used
+            .store(self.epoch.elapsed().as_millis() as u64, Ordering::Relaxed);
         let Ok(bytes) = std::fs::read(&record_path) else { return };
         let Some(record) =
             PublishRecord::decode_body(&bytes, Some(std::path::PathBuf::from(&record_path)))
@@ -576,6 +817,35 @@ impl Proxy {
         }
     }
 
+    /// Reclaims the in-memory caches (resolved map, known-local shards, publish
+    /// cache) of paths whose on-disk CAS is gone or that have been idle past
+    /// IDLE_RECLAIM. Called from the maintenance loop; complements
+    /// `enforce_cache_bounds`, which only releases memory when a single build
+    /// overruns a size cap and never for projects that simply stop being built.
+    ///
+    /// The PathState shell (llcas handle + now-empty maps, ~KB) is retained: a
+    /// later build at the same path finds it and re-warms from the remote. These
+    /// caches are correctness-preserving, so clearing only forces re-work.
+    pub fn reclaim_idle(&self) {
+        let now = self.epoch.elapsed();
+        let paths: Vec<(String, &'static PathState)> = self
+            .paths
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(cas_path, state)| (cas_path.clone(), *state))
+            .collect();
+        for (cas_path, state) in paths {
+            let last = Duration::from_millis(state.last_used.load(Ordering::Relaxed));
+            let idle = now.saturating_sub(last);
+            let cas_dir_gone = std::fs::symlink_metadata(&cas_path).is_err();
+            if should_reclaim(idle, cas_dir_gone) {
+                state.invalidate();
+                state.publish_cache.lock().unwrap().clear();
+            }
+        }
+    }
+
     /// Sweeps orphaned publication records for every known CAS path whose
     /// instance the proxy knows (an unprimed path has nothing to publish to).
     pub fn sweep(&self) {
@@ -679,6 +949,19 @@ impl Proxy {
                 if let Some(instance) = self.resolve_instance(&request.cas_path, &request.instance) {
                     let record_path = String::from_utf8_lossy(&request.payload).into_owned();
                     self.enqueue_publish(&request.cas_path, &instance, &record_path);
+                }
+                write_response(&mut stream, STATUS_HIT, &[])
+            }
+            OP_INVALIDATE => {
+                // A prune emptied this path's on-disk CAS in place; drop our marks
+                // so a resolve re-fetches. Only if we already track the path — an
+                // unknown path has nothing cached, and we must not open a CAS
+                // handle for it here. Bind first so the `paths` lock is released
+                // before invalidating.
+                let state = self.paths.lock().unwrap().get(&request.cas_path).copied();
+                if let Some(state) = state {
+                    state.invalidate();
+                    state.publish_cache.lock().unwrap().clear();
                 }
                 write_response(&mut stream, STATUS_HIT, &[])
             }
@@ -807,4 +1090,185 @@ unsafe fn encode_node_blob(
     }
     let blob = reapi::compress_frame(&reapi::encode_frame(&ref_digests, node_data));
     Ok((blob, ref_digests))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::Cell;
+
+    fn resolved_with(entries: Vec<(Vec<u8>, Resolution)>) -> Mutex<HashMap<Vec<u8>, Resolution>> {
+        let mut map = HashMap::new();
+        for (key, resolution) in entries {
+            map.insert(key, resolution);
+        }
+        Mutex::new(map)
+    }
+
+    // The reported bug: a long-lived proxy caches an action-cache Hit, the user
+    // wipes DerivedData, and the next resolve returns the stale Hit for a value
+    // graph no longer on disk (compiler fails with `missing object`). The fix
+    // makes the fast path verify presence: a Hit whose value object is gone must
+    // NOT be served, and the path's stale in-memory state must be invalidated so
+    // the re-resolve re-materializes the graph.
+    #[test]
+    fn cached_hit_with_wiped_value_reresolves_and_invalidates() {
+        let key = b"action-key".to_vec();
+        let value = b"value-digest".to_vec();
+        let resolved = resolved_with(vec![(key.clone(), Resolution::Hit(value.clone()))]);
+
+        let invalidated = Cell::new(false);
+        let decision = fast_path(
+            &resolved,
+            &key,
+            |probed| {
+                assert_eq!(probed, value.as_slice());
+                false // value object absent on disk (wiped)
+            },
+            || invalidated.set(true),
+        );
+
+        assert!(matches!(decision, FastPath::Resolve));
+        assert!(
+            invalidated.get(),
+            "a Hit whose value object is missing must invalidate the path's stale caches"
+        );
+    }
+
+    // The warm path must stay fast: a Hit whose value object is present is served
+    // directly, without invalidation.
+    #[test]
+    fn cached_hit_present_is_served() {
+        let key = b"action-key".to_vec();
+        let value = b"value-digest".to_vec();
+        let resolved = resolved_with(vec![(key.clone(), Resolution::Hit(value.clone()))]);
+
+        let decision = fast_path(
+            &resolved,
+            &key,
+            |_| true,
+            || panic!("a present Hit must not invalidate"),
+        );
+
+        match decision {
+            FastPath::Hit(served) => assert_eq!(served, value),
+            _ => panic!("expected the present Hit to be served"),
+        }
+    }
+
+    // A fresh negative is answered without a round trip and without probing disk.
+    #[test]
+    fn fresh_miss_is_served_without_probe() {
+        let key = b"action-key".to_vec();
+        let resolved = resolved_with(vec![(key.clone(), Resolution::Miss(Instant::now()))]);
+
+        let decision = fast_path(
+            &resolved,
+            &key,
+            |_| panic!("a Miss must not probe the value object"),
+            || panic!("a Miss must not invalidate"),
+        );
+
+        assert!(matches!(decision, FastPath::Miss));
+    }
+
+    // A miss older than NEGATIVE_TTL falls through to a full resolve so a key
+    // published later (by another machine) can still land.
+    #[test]
+    fn stale_miss_falls_through_to_resolve() {
+        let key = b"action-key".to_vec();
+        let stale = Instant::now() - NEGATIVE_TTL - Duration::from_secs(1);
+        let resolved = resolved_with(vec![(key.clone(), Resolution::Miss(stale))]);
+
+        let decision = fast_path(
+            &resolved,
+            &key,
+            |_| panic!("a stale Miss must not probe the value object"),
+            || panic!("a stale Miss must not invalidate"),
+        );
+
+        assert!(matches!(decision, FastPath::Resolve));
+    }
+
+    // No cache entry falls through to a full resolve.
+    #[test]
+    fn absent_key_falls_through_to_resolve() {
+        let resolved = resolved_with(vec![]);
+
+        let decision = fast_path(
+            &resolved,
+            b"unknown-key",
+            |_| panic!("an absent key must not probe the value object"),
+            || panic!("an absent key must not invalidate"),
+        );
+
+        assert!(matches!(decision, FastPath::Resolve));
+    }
+
+    // A present path idle less than IDLE_RECLAIM is kept.
+    #[test]
+    fn active_path_is_not_reclaimed() {
+        assert!(!should_reclaim(Duration::from_secs(0), false));
+        assert!(!should_reclaim(IDLE_RECLAIM - Duration::from_secs(1), false));
+    }
+
+    // A present path idle past IDLE_RECLAIM is reclaimed.
+    #[test]
+    fn long_idle_path_is_reclaimed() {
+        assert!(should_reclaim(IDLE_RECLAIM + Duration::from_secs(1), false));
+    }
+
+    // A path whose on-disk CAS is gone is reclaimed immediately, however recently
+    // it was used (a deleted project/worktree never comes back).
+    #[test]
+    fn gone_cas_dir_is_reclaimed_regardless_of_idle() {
+        assert!(should_reclaim(Duration::from_secs(0), true));
+        assert!(should_reclaim(IDLE_RECLAIM + Duration::from_secs(1), true));
+    }
+
+    fn generation(ino: u64, birth_nanos: u128) -> CasGeneration {
+        CasGeneration { ino, birth_nanos }
+    }
+
+    // A recreated CAS directory (a wipe) is a change; a stable one, the first
+    // observation, and a disappeared directory are not.
+    #[test]
+    fn generation_change_is_detected_only_on_recreate() {
+        let g1 = generation(1, 100);
+        let g2 = generation(2, 200);
+        assert!(generation_changed(Some(g1), Some(g2)));
+        assert!(generation_changed(Some(g2), Some(g1)));
+        assert!(!generation_changed(Some(g1), Some(g1)));
+        assert!(!generation_changed(None, Some(g1)), "first observation is not a change");
+        assert!(!generation_changed(Some(g1), None), "a gone dir is left to reclaim_idle");
+    }
+
+    // A resolve's writes commit only if the generation it observed still holds;
+    // a wipe/prune that advanced the counter mid-resolve drops them.
+    #[test]
+    fn writes_commit_only_on_the_observed_generation() {
+        assert!(committable(7, 7));
+        assert!(!committable(7, 8), "an advanced generation must drop stale writes");
+    }
+
+    // Deleting and recreating a directory at the same path yields a different
+    // generation, which is the signal check_generation invalidates on. This is
+    // the exact DerivedData-wipe reproduction, at the filesystem layer.
+    #[test]
+    fn recreated_directory_has_a_new_generation() {
+        let dir = std::env::temp_dir().join(format!("cas-generation-{}", std::process::id()));
+        let path = dir.to_string_lossy().into_owned();
+
+        std::fs::create_dir_all(&dir).unwrap();
+        let before = cas_generation(&path);
+
+        std::fs::remove_dir_all(&dir).unwrap();
+        std::fs::create_dir_all(&dir).unwrap();
+        let after = cas_generation(&path);
+
+        let _ = std::fs::remove_dir_all(&dir);
+
+        assert!(before.is_some() && after.is_some());
+        assert_ne!(before, after, "a recreated CAS directory must read as a new generation");
+    }
 }

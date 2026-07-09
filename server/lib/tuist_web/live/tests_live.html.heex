@@ -1029,8 +1029,8 @@
     <div
       :if={
         !@slowest_test_cases.ok? or !@most_flaky_test_cases.ok? or
-          (@slowest_test_cases.ok? and not Enum.empty?(@slowest_test_cases.result)) or
-          (@most_flaky_test_cases.ok? and not Enum.empty?(@most_flaky_test_cases.result))
+          not Enum.empty?(@slowest_test_cases.result) or
+          not Enum.empty?(@most_flaky_test_cases.result)
       }
       data-part="test-cases-sections"
     >

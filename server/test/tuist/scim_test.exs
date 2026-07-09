@@ -301,8 +301,8 @@ defmodule Tuist.SCIMTest do
 
     test "list_groups/1 returns the two synthetic groups", %{organization: org} do
       assert [%{id: "admins", members: admins}, %{id: "users", members: users}] = SCIM.list_groups(org)
-      assert length(admins) >= 1
-      assert length(users) >= 1
+      assert [_ | _] = admins
+      assert [_ | _] = users
     end
 
     test "patch_group/3 add op promotes a user", %{organization: org, regular: regular} do

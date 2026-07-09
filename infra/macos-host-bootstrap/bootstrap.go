@@ -203,6 +203,13 @@ type Config struct {
 	HostMemoryMB int
 	MaxPods      int
 
+	// VNCRelayHost / VNCRelayPort configure the server-facing runner VNC
+	// relay coordinates that tart-kubelet advertises after a dashboard
+	// session is requested. Managed tailnet clusters set these to the
+	// per-Mac Tailscale egress Service DNS name and port.
+	VNCRelayHost string
+	VNCRelayPort int
+
 	// NodeLabels is the set of labels tart-kubelet stamps on the
 	// Node it registers. The bootstrap layer is generic — fleet
 	// membership is just one entry the caller adds (typically
@@ -465,6 +472,7 @@ func HostConfigHash(cfg Config) string {
 	cfg.ProviderID = ""
 	cfg.Kubeconfig = ""
 	cfg.TailscaleAuthKey = ""
+	cfg.VNCRelayHost = ""
 	cfg.VMCachePNVLAN = 0
 	cfg.KnownHostFingerprint = ""
 	cfg.GHActionsRunner = nil
@@ -636,8 +644,8 @@ func loadTartKubeletLaunchd(ctx context.Context, client *ssh.Client, cfg Config)
 // owns kubelet's writable paths, so it is config-shaped and folds into
 // the host config hash.
 func renderTartKubeletLaunchdScript(cfg Config) string {
-	installDirs := "/var/log/tart-vms /var/lib/tart-userdata /etc/tart-kubelet"
-	chownDirs := "/var/log/tart-vms /var/lib/tart-userdata /var/log/tart-kubelet.log"
+	installDirs := "/var/log/tart-vms /var/lib/tart-userdata /var/lib/tart-vnc-control /etc/tart-kubelet"
+	chownDirs := "/var/log/tart-vms /var/lib/tart-userdata /var/lib/tart-vnc-control /var/log/tart-kubelet.log"
 	if cfg.RunnerCacheRoot != "" {
 		quotedRoot := shellQuote(cfg.RunnerCacheRoot)
 		installDirs += " " + quotedRoot
@@ -803,6 +811,14 @@ func renderLaunchdPlist(cfg Config) string {
 			emPeerURLTemplateArg = fmt.Sprintf("\n    <string>--em-peer-url-template=%s</string>", cfg.EMPeerURLTemplate)
 		}
 	}
+	vncRelayHostArg := ""
+	if cfg.VNCRelayHost != "" {
+		vncRelayHostArg = fmt.Sprintf("\n    <string>--vnc-relay-host=%s</string>", cfg.VNCRelayHost)
+	}
+	vncRelayPortArg := ""
+	if cfg.VNCRelayPort > 0 {
+		vncRelayPortArg = fmt.Sprintf("\n    <string>--vnc-relay-port=%d</string>", cfg.VNCRelayPort)
+	}
 	// Run tart-kubelet as the SSH user (m1). Apple's
 	// Virtualization.framework requires the calling process to be the
 	// same user that holds the live GUI console session — Tart's
@@ -825,7 +841,7 @@ func renderLaunchdPlist(cfg Config) string {
     <string>--kubeconfig=/etc/tart-kubelet/kubeconfig</string>
     <string>--host-cpu=%[2]d</string>
     <string>--host-memory-mb=%[3]d</string>
-    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s%[10]s%[11]s%[12]s
+    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s%[10]s%[11]s%[12]s%[13]s%[14]s
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -839,7 +855,7 @@ func renderLaunchdPlist(cfg Config) string {
   </dict>
 </dict>
 </plist>
-`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg, runnerCacheRootArg, hostKuraBinaryArg, emPeerURLTemplateArg)
+`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg, runnerCacheRootArg, hostKuraBinaryArg, emPeerURLTemplateArg, vncRelayHostArg, vncRelayPortArg)
 }
 
 func shellQuote(s string) string {

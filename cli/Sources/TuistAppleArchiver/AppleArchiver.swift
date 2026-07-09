@@ -104,7 +104,7 @@ public struct AppleArchiver: AppleArchiving {
             // Match exclude patterns against the path within the bundle so a
             // caller-provided pattern can't match the bundle's own basename.
             if let scopedRelativePath, !scopedRelativePath.isEmpty,
-               excludePatterns.contains(where: { scopedRelativePath.contains($0) })
+               excludePatterns.contains(where: { Self.matchesExcludePattern($0, path: scopedRelativePath) })
             {
                 return .skip
             }
@@ -151,6 +151,16 @@ public struct AppleArchiver: AppleArchiving {
         }
 
         try writeArchive(from: FilePath(baseDirectory.pathString), to: archivePath, filter: filter)
+    }
+
+    private static func matchesExcludePattern(_ pattern: String, path: String) -> Bool {
+        guard !pattern.isEmpty else { return false }
+        if path.contains(pattern) { return true }
+        guard pattern.hasSuffix("/") else { return false }
+
+        let directoryPattern = String(pattern.dropLast())
+        guard !directoryPattern.isEmpty else { return false }
+        return path.hasSuffix(directoryPattern)
     }
 
     private func writeArchive(

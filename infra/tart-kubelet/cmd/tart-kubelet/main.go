@@ -16,6 +16,8 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -69,6 +71,9 @@ func main() {
 		hostKuraBinary     string
 		hostKuraBasePort   int
 		emPeerURLTemplate  string
+		vncControlDir      string
+		vncRelayHost       string
+		vncRelayPort       int
 		disableVMGC        bool
 	)
 	flag.StringVar(&nodeName, "node-name", envOr("TART_KUBELET_NODE_NAME", ""), "Node name to register as. Defaults to os.Hostname() when empty.")
@@ -83,7 +88,7 @@ func main() {
 			"falling back to a public interface would expose the host-side metrics forwarder on "+
 			"the open internet. `--node-ip` overrides this in either mode.")
 	flag.Var(&scrapeAllowedCIDRs, "scrape-allowed-cidr",
-		"CIDR (IPv4 or IPv6) allowed to reach the per-Pod metrics forwarder. May be repeated. Defaults to RFC1918 / IPv6 ULA / loopback / link-local — covers any realistic cluster Pod or Node CIDR while clamping out the public WAN. The Mac mini's bind address can in practice be a public IP, so this allowlist (not the bind interface) is the load-bearing security boundary.")
+		"CIDR (IPv4 or IPv6) allowed to reach per-Pod host-side forwarders (metrics and VNC relays). May be repeated. Defaults to RFC1918 / IPv6 ULA / loopback / link-local — covers any realistic cluster Pod or Node CIDR while clamping out the public WAN. The Mac mini's bind address can in practice be a public IP, so this allowlist (not the bind interface) is the load-bearing security boundary.")
 	flag.StringVar(&nodeLabelsRaw, "node-labels", envOr("TART_KUBELET_NODE_LABELS", ""),
 		"Comma-separated key=value pairs the Node carries as labels (e.g. "+
 			"`tuist.dev/fleet=runners,tuist.dev/instance-type=large`). Workloads use "+
@@ -114,6 +119,12 @@ func main() {
 		"First host port handed to a per-account host Kura; subsequent accounts get the next free block of ports at or above it.")
 	flag.StringVar(&emPeerURLTemplate, "em-peer-url-template", envOr("TART_KUBELET_EM_PEER_URL_TEMPLATE", ""),
 		"Plaintext http URL template for the Elastic Metal (EM) Kura peer the host Kura replicates with, with %s replaced by the account id (e.g. http://10.0.0.5:5000). Empty runs each host Kura islanded (no EM peer); the PN mesh fan-out beyond EM is EM's responsibility, not the Mac's.")
+	flag.StringVar(&vncControlDir, "vnc-control-dir", envOr("TART_KUBELET_VNC_CONTROL_DIR", "/var/lib/tart-vnc-control"),
+		"Host-local control/state directory for runner VNC access. Create requests/<namespace>_<pod> or stamp the server-owned Pod request annotation to open a VNC relay for a running runner Pod; tart-kubelet writes sensitive connection metadata under state/ with 0600 permissions. Empty disables VNC relays.")
+	flag.StringVar(&vncRelayHost, "vnc-relay-host", envOr("TART_KUBELET_VNC_RELAY_HOST", ""),
+		"Host name to advertise for dashboard VNC relays. Empty advertises --node-ip. Managed tailnet deployments set this to the per-Mac Kubernetes egress Service DNS name so the server connects through the Tailscale operator instead of dialing the raw tailnet IP.")
+	flag.IntVar(&vncRelayPort, "vnc-relay-port", envIntOr("TART_KUBELET_VNC_RELAY_PORT", 0),
+		"Host port to bind and advertise for dashboard VNC relays. 0 chooses an ephemeral port. Managed tailnet deployments use a fixed port that is declared on the per-Mac Tailscale egress Service.")
 	flag.BoolVar(&disableVMGC, "disable-vm-gc", false,
 		"Disable the periodic orphan-VM garbage collector. The GC deletes every local "+
 			"Tart VM not backed by a Pod scheduled to this Node. On builder-fleet Nodes — "+
@@ -130,6 +141,11 @@ func main() {
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	if vncRelayPort < 0 || vncRelayPort > 65535 {
+		setupLog.Error(fmt.Errorf("invalid --vnc-relay-port %d", vncRelayPort), "parse flag")
+		os.Exit(1)
+	}
 
 	if nodeName == "" {
 		hostname, err := os.Hostname()
@@ -187,6 +203,18 @@ func main() {
 	if nodeIPSource == "tailscale" && nodeIP != "" && metricsAddr == ":8080" {
 		metricsAddr = fmt.Sprintf("%s:8080", nodeIP)
 		setupLog.Info("binding metrics endpoint to tailnet IP", "addr", metricsAddr)
+	}
+
+	if vncControlDir != "" {
+		for _, dir := range []string{
+			filepath.Join(vncControlDir, "requests"),
+			filepath.Join(vncControlDir, "state"),
+		} {
+			if err := os.MkdirAll(dir, 0o700); err != nil {
+				setupLog.Error(err, "create VNC control directory", "dir", dir)
+				os.Exit(1)
+			}
+		}
 	}
 
 	// controller-runtime's GetConfigOrDie resolves config via (in order):
@@ -303,6 +331,9 @@ func main() {
 		NodeName:           nodeName,
 		NodeIP:             nodeIP,
 		ScrapeAllowedCIDRs: scrapeAllowedCIDRs.Value(),
+		VNCControlDir:      vncControlDir,
+		VNCRelayHost:       vncRelayHost,
+		VNCRelayPort:       vncRelayPort,
 		Tart:               tartClient,
 		Resolver:           resolver,
 		Store:              store,
@@ -388,6 +419,19 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func envIntOr(key string, fallback int) int {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		setupLog.Error(err, "parse integer environment variable", "key", key, "value", raw)
+		os.Exit(1)
+	}
+	return value
 }
 
 // parseNodeLabels parses kubelet's --node-labels=k=v,k=v form. Empty

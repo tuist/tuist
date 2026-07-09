@@ -768,28 +768,27 @@ defmodule Tuist.Kura do
   history is visible in /ops alongside the retry.
   """
   def retry_server(%Server{status: :failed, current_image_tag: nil} = server, image_tag) when is_binary(image_tag) do
-    with {:ok, region} <- Regions.fetch(server.region) do
-      case Repo.transaction(fn ->
-             with {:ok, server} <-
-                    server |> Server.status_changeset(%{status: :provisioning}) |> Repo.update(),
-                  {:ok, _deployment} <- insert_initial_deployment(server, region, image_tag) do
-               server
-             else
-               {:error, reason} -> Repo.rollback(reason)
-             end
-           end) do
-        {:ok, server} ->
-          server = Repo.preload(server, :deployments, force: true)
-          broadcast_server(server, :updated)
-          {:ok, server}
-
-        {:error, reason} ->
-          {:error, reason}
-      end
+    with {:ok, region} <- Regions.fetch(server.region),
+         {:ok, server} <- retry_server_transaction(server, region, image_tag) do
+      server = Repo.preload(server, :deployments, force: true)
+      broadcast_server(server, :updated)
+      {:ok, server}
     end
   end
 
   def retry_server(%Server{}, _image_tag), do: {:error, :not_retryable}
+
+  defp retry_server_transaction(server, region, image_tag) do
+    Repo.transaction(fn ->
+      with {:ok, server} <-
+             server |> Server.status_changeset(%{status: :provisioning}) |> Repo.update(),
+           {:ok, _deployment} <- insert_initial_deployment(server, region, image_tag) do
+        server
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
 
   @doc """
   Starts a warm-handoff move of a steady-state server onto `target_node`, a box

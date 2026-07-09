@@ -17,11 +17,11 @@ defmodule Tuist.Docs.NimblePublisher.Cache do
   end
 
   def slugs do
-    current().slugs
+    ContentCache.get(__MODULE__, :slugs, &Loader.load_slugs!/0)
   end
 
   def get_page(slug) do
-    current().pages_by_slug[slug]
+    ContentCache.get(__MODULE__, {:page, slug}, fn -> Loader.load_page!(slug) end)
   end
 
   def reload do

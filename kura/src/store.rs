@@ -227,12 +227,46 @@ enum PersistArtifactOutcome {
     IgnoredTombstone,
 }
 
+// Result of a client-facing persist. `already_present` reports whether a live
+// copy of the artifact (manifest + backing storage) existed before this call,
+// evaluated under the per-artifact write lock — so concurrent persists of the
+// same key resolve it consistently: exactly one observes `false`. Billing uses
+// it to charge only newly-stored bytes; it is deliberately not derived from the
+// Applied/IgnoredStale version outcome, because a re-upload with a newer
+// version still applies over an already-present artifact.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PersistedArtifact {
+    pub manifest: ArtifactManifest,
+    pub already_present: bool,
+}
+
 impl PersistArtifactOutcome {
     fn apply_outcome(&self) -> ArtifactApplyOutcome {
         match self {
             Self::Applied(_) => ArtifactApplyOutcome::Applied,
             Self::IgnoredStale(_) => ArtifactApplyOutcome::IgnoredStale,
             Self::IgnoredTombstone => ArtifactApplyOutcome::IgnoredTombstone,
+        }
+    }
+
+    // Converts a client-facing persist outcome into the public result: both
+    // Applied and IgnoredStale surface their manifest, while a tombstone
+    // rejection is an error (client writes must not be silently dropped).
+    fn into_persisted(
+        self,
+        already_present: bool,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        key: &str,
+    ) -> Result<PersistedArtifact, String> {
+        match self {
+            Self::Applied(manifest) | Self::IgnoredStale(manifest) => Ok(PersistedArtifact {
+                manifest,
+                already_present,
+            }),
+            Self::IgnoredTombstone => Err(format!(
+                "artifact write for {producer:?}/{namespace_id}/{key} was rejected by a newer tombstone"
+            )),
         }
     }
 }
@@ -515,7 +549,7 @@ impl Store {
         content_type: &str,
         source_path: &Path,
         replication_targets: &[String],
-    ) -> Result<ArtifactManifest, String> {
+    ) -> Result<PersistedArtifact, String> {
         let spec = PersistArtifactSpec {
             producer,
             namespace_id,
@@ -524,16 +558,10 @@ impl Store {
             version_ms: now_ms(),
             replication_targets,
         };
-        match self
+        let (outcome, already_present) = self
             .persist_artifact_from_path_with_version(spec, source_path)
-            .await?
-        {
-            PersistArtifactOutcome::Applied(manifest)
-            | PersistArtifactOutcome::IgnoredStale(manifest) => Ok(manifest),
-            PersistArtifactOutcome::IgnoredTombstone => Err(format!(
-                "artifact write for {producer:?}/{namespace_id}/{key} was rejected by a newer tombstone"
-            )),
-        }
+            .await?;
+        outcome.into_persisted(already_present, producer, namespace_id, key)
     }
 
     pub async fn apply_replicated_artifact_from_path(
@@ -556,14 +584,17 @@ impl Store {
         Ok(self
             .persist_artifact_from_path_with_version(spec, source_path)
             .await?
+            .0
             .apply_outcome())
     }
 
+    // The second element of the returned pair is `already_present` (see
+    // [`PersistedArtifact`]), evaluated under the write lock below.
     async fn persist_artifact_from_path_with_version(
         &self,
         spec: PersistArtifactSpec<'_>,
         source_path: &Path,
-    ) -> Result<PersistArtifactOutcome, String> {
+    ) -> Result<(PersistArtifactOutcome, bool), String> {
         let artifact_id =
             artifact_storage_id(spec.producer, &self.tenant_id, spec.namespace_id, spec.key);
         // Hold the per-artifact write lock across the read-check, segment append,
@@ -577,17 +608,24 @@ impl Store {
         let size = self.io.metadata_len(source_path).await?;
 
         let existing = self.manifest_from_db(&artifact_id)?;
+        let already_present = match &existing {
+            Some(existing) => self.storage_exists(existing).await?,
+            None => false,
+        };
         if let Some(existing) = &existing
-            && self.storage_exists(existing).await?
+            && already_present
             && (manifest_version_ms(existing) >= spec.version_ms || spec.version_ms == 0)
         {
             self.note_artifact_exists(&artifact_id);
             self.io.remove_file_if_exists(source_path).await;
-            return Ok(PersistArtifactOutcome::IgnoredStale(existing.clone()));
+            return Ok((
+                PersistArtifactOutcome::IgnoredStale(existing.clone()),
+                already_present,
+            ));
         }
         if self.namespace_tombstone_blocks(spec.namespace_id, spec.version_ms)? {
             self.io.remove_file_if_exists(source_path).await;
-            return Ok(PersistArtifactOutcome::IgnoredTombstone);
+            return Ok((PersistArtifactOutcome::IgnoredTombstone, already_present));
         }
 
         let persisted_version_ms = persisted_version_ms(spec.version_ms);
@@ -650,7 +688,7 @@ impl Store {
 
         self.evict_segments(evicted_segments).await?;
 
-        Ok(PersistArtifactOutcome::Applied(manifest))
+        Ok((PersistArtifactOutcome::Applied(manifest), already_present))
     }
 
     pub async fn open_artifact_reader(
@@ -1583,16 +1621,12 @@ impl Store {
             version_ms: now_ms(),
             replication_targets: &[],
         };
-        match self
+        let (outcome, already_present) = self
             .persist_artifact_from_bytes_with_version(spec, bytes)
-            .await?
-        {
-            PersistArtifactOutcome::Applied(manifest)
-            | PersistArtifactOutcome::IgnoredStale(manifest) => Ok(manifest),
-            PersistArtifactOutcome::IgnoredTombstone => Err(format!(
-                "artifact write for {producer:?}/{namespace_id}/{key} was rejected by a newer tombstone"
-            )),
-        }
+            .await?;
+        outcome
+            .into_persisted(already_present, producer, namespace_id, key)
+            .map(|persisted| persisted.manifest)
     }
 
     pub async fn persist_artifact_from_bytes_and_enqueue(
@@ -1603,7 +1637,7 @@ impl Store {
         content_type: &str,
         bytes: &[u8],
         replication_targets: &[String],
-    ) -> Result<ArtifactManifest, String> {
+    ) -> Result<PersistedArtifact, String> {
         let spec = PersistArtifactSpec {
             producer,
             namespace_id,
@@ -1612,16 +1646,10 @@ impl Store {
             version_ms: now_ms(),
             replication_targets,
         };
-        match self
+        let (outcome, already_present) = self
             .persist_artifact_from_bytes_with_version(spec, bytes)
-            .await?
-        {
-            PersistArtifactOutcome::Applied(manifest)
-            | PersistArtifactOutcome::IgnoredStale(manifest) => Ok(manifest),
-            PersistArtifactOutcome::IgnoredTombstone => Err(format!(
-                "artifact write for {producer:?}/{namespace_id}/{key} was rejected by a newer tombstone"
-            )),
-        }
+            .await?;
+        outcome.into_persisted(already_present, producer, namespace_id, key)
     }
 
     #[cfg(test)]
@@ -1703,6 +1731,7 @@ impl Store {
         Ok(self
             .persist_artifact_from_bytes_with_version(spec, bytes)
             .await?
+            .0
             .apply_outcome())
     }
 
@@ -1733,7 +1762,7 @@ impl Store {
         &self,
         spec: PersistArtifactSpec<'_>,
         bytes: &[u8],
-    ) -> Result<PersistArtifactOutcome, String> {
+    ) -> Result<(PersistArtifactOutcome, bool), String> {
         let temp_path = temp_file_path(&self.tmp_dir.join("uploads"), "replication");
         self.io.write(&temp_path, bytes).await?;
         self.persist_artifact_from_path_with_version(spec, &temp_path)
@@ -2062,7 +2091,8 @@ impl Store {
                 replication_targets,
             )
             .await
-            .map_err(MultipartError::Other)?;
+            .map_err(MultipartError::Other)?
+            .manifest;
 
         self.abort_multipart_upload_locked(upload_id)
             .await
@@ -3494,6 +3524,82 @@ mod tests {
             segments_bytes <= (artifact_len as u64) * 2,
             "segment store held {segments_bytes} bytes, expected ~{artifact_len} (one copy); \
              concurrent same-key applies amplified on-disk data"
+        );
+    }
+
+    #[tokio::test]
+    async fn persist_reports_already_present_across_re_uploads() {
+        // `already_present` must reflect presence, not the Applied/IgnoredStale
+        // version outcome: a re-upload takes a newer version and still applies,
+        // yet billing must see it as already present.
+        let (_temp_dir, _config, store) = temp_store();
+
+        let persisted = store
+            .persist_artifact_from_bytes_and_enqueue(
+                ArtifactProducer::Reapi,
+                "ios",
+                "blob/abc",
+                "application/octet-stream",
+                b"payload",
+                &[],
+            )
+            .await
+            .expect("first persist should succeed");
+        assert!(
+            !persisted.already_present,
+            "first persist of a key should report the artifact as newly stored"
+        );
+
+        let re_persisted = store
+            .persist_artifact_from_bytes_and_enqueue(
+                ArtifactProducer::Reapi,
+                "ios",
+                "blob/abc",
+                "application/octet-stream",
+                b"payload",
+                &[],
+            )
+            .await
+            .expect("re-persist should succeed");
+        assert!(
+            re_persisted.already_present,
+            "a re-upload of a stored key should report the artifact as already present"
+        );
+    }
+
+    #[tokio::test]
+    async fn concurrent_persists_of_same_missing_key_report_one_not_present() {
+        // `already_present` is evaluated under the per-artifact write lock, so
+        // concurrent uploads of the same missing key must resolve to exactly one
+        // "newly stored" — the signal billing uses to avoid double-charging the
+        // losers of the race. The sleep failpoint holds the first writer between
+        // its durable append and metadata commit so the others genuinely overlap.
+        let (_temp_dir, _config, store) = temp_store();
+        store.failpoints().set_always(
+            FailpointName::AfterArtifactBytesDurableBeforeMetadata,
+            FailpointAction::Sleep(std::time::Duration::from_millis(150)),
+        );
+
+        let persists = (0..4).map(|_| {
+            store.persist_artifact_from_bytes_and_enqueue(
+                ArtifactProducer::Reapi,
+                "ios",
+                "blob/raced",
+                "application/octet-stream",
+                b"payload",
+                &[],
+            )
+        });
+        let outcomes = futures_util::future::join_all(persists).await;
+
+        let newly_stored = outcomes
+            .into_iter()
+            .map(|outcome| outcome.expect("persist should succeed"))
+            .filter(|persisted| !persisted.already_present)
+            .count();
+        assert_eq!(
+            newly_stored, 1,
+            "exactly one concurrent persist of a missing key should report it as newly stored"
         );
     }
 

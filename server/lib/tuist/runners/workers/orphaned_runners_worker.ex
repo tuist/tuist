@@ -162,14 +162,6 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
         # Account row gone (rare). Leave the orphan; cap accounting
         # is moot if the account itself is deleted.
         false
-
-      {:error, reason} ->
-        Logger.warning("runners: orphan worker lookup failed; will retry next tick",
-          workflow_job_id: workflow_job_id,
-          reason: inspect(reason)
-        )
-
-        false
     end
   end
 

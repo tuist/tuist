@@ -184,9 +184,9 @@ end
 
 # The :test env compiles only the "en" locale by default (see
 # Tuist.Environment.single_locale?/0) to keep cold compiles fast. Tests tagged
-# `:locale` assert behaviour of the other locales' ex_cldr/Gettext data, which
-# isn't compiled in that mode, so exclude them unless TUIST_DEV_ALL_LOCALES=1
-# built the full locale set.
+# `:locale` assert behaviour of other Gettext locales, which aren't compiled
+# in that mode, so exclude them unless TUIST_DEV_ALL_LOCALES=1 built the full
+# locale set.
 locale_exclude = if Tuist.Environment.dev_all_locales?(), do: [], else: [:locale]
 
 ExUnit.start(capture_log: true, exclude: [:skip] ++ locale_exclude)

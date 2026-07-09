@@ -35,7 +35,7 @@ defmodule Tuist.Bundles do
   input fails validation (invalid `type`, `supported_platforms`, or
   missing required fields).
   """
-  def create_bundle(attrs \\ %{}, opts \\ []) do
+  def create_bundle(attrs, opts \\ []) do
     {artifacts, bundle_attrs} = Map.pop(attrs, :artifacts, [])
     bundle_id = Map.fetch!(attrs, :id)
     preload = Keyword.get(opts, :preload, [])

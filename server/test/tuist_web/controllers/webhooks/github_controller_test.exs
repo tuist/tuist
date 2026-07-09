@@ -641,6 +641,36 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       )
     end
 
+    test "enqueues for action=waiting", %{conn: conn} do
+      installation_id = System.unique_integer([:positive])
+      delivery_guid = "deadbeef-waiting"
+
+      conn =
+        conn
+        |> put_req_header("x-github-event", "workflow_job")
+        |> put_req_header("x-github-delivery", delivery_guid)
+
+      params = %{
+        "action" => "waiting",
+        "installation" => %{"id" => installation_id},
+        "workflow_job" => %{"id" => 76_773_615_871, "labels" => ["tuist-macos"]},
+        "repository" => %{"full_name" => "tuist/tuist"}
+      }
+
+      result = GitHubController.handle(conn, params)
+
+      assert result.status == 200
+
+      assert_enqueued(
+        worker: DispatchWorker,
+        args: %{
+          "payload" => params,
+          "installation_id" => installation_id,
+          "delivery_guid" => delivery_guid
+        }
+      )
+    end
+
     test "200s without enqueueing when the payload has no installation.id", %{conn: conn} do
       conn =
         conn
@@ -686,7 +716,7 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
         |> put_req_header("x-github-delivery", "deadbeef-unknown-action")
 
       params = %{
-        "action" => "waiting",
+        "action" => "requested",
         "installation" => %{"id" => System.unique_integer([:positive])},
         "workflow_job" => %{"id" => 1, "labels" => ["tuist-macos"]},
         "repository" => %{"full_name" => "tuist/tuist"}

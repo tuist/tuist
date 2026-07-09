@@ -40,7 +40,6 @@ defmodule Tuist.OAuth2.SSRFGuard do
     else
       %URI{} -> {:error, :invalid_url}
       {:error, reason} -> {:error, reason}
-      _ -> {:error, :invalid_url}
     end
   end
 

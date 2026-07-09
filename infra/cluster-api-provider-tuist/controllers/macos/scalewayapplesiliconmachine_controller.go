@@ -46,6 +46,11 @@ const (
 	// BootstrappedCondition is macOS-specific (the tart-kubelet SSH bootstrap
 	// step); the cross-cutting shared.ProvisionedCondition lives in the shared package.
 	BootstrappedCondition clusterv1.ConditionType = "Bootstrapped"
+
+	// DashboardVNCRelayPort is the stable host-side port tart-kubelet
+	// advertises for dashboard VNC sessions through the per-Mac Tailscale
+	// egress Service.
+	DashboardVNCRelayPort = 5900
 )
 
 // ScalewayAppleSiliconMachineReconciler reconciles ScalewayAppleSiliconMachine objects.
@@ -590,6 +595,8 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 				clusterv1.ConditionSeverityWarning, "%v", err)
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
+		vncRelayHost := r.dashboardVNCRelayHost(machine.Name)
+		vncRelayPort := r.dashboardVNCRelayPort()
 
 		fingerprint, err := bootstrap.Run(ctx, bootstrap.Config{
 			IP:                    ip,
@@ -613,6 +620,8 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			HostCPU:               hostCPUFor(machine, r.TartKubeletHostCPU),
 			HostMemoryMB:          hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
 			MaxPods:               r.TartKubeletMaxPods,
+			VNCRelayHost:          vncRelayHost,
+			VNCRelayPort:          vncRelayPort,
 			NodeLabels:            machineNodeLabels(machine),
 			RunnerCacheRoot:       r.TartKubeletRunnerCacheRoot,
 			HostKuraVersion:       r.TartKubeletHostKuraVersion,
@@ -714,6 +723,8 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			logger.Error(err, "resolve cache private network VLAN; continuing drift update without interface management")
 			vmCachePNVLAN = 0
 		}
+		vncRelayHost := r.dashboardVNCRelayHost(machine.Name)
+		vncRelayPort := r.dashboardVNCRelayPort()
 
 		fingerprint, err := bootstrap.UpdateTartKubelet(ctx, bootstrap.Config{
 			IP:                ip,
@@ -748,6 +759,8 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			HostCPU:            hostCPUFor(machine, r.TartKubeletHostCPU),
 			HostMemoryMB:       hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
 			MaxPods:            r.TartKubeletMaxPods,
+			VNCRelayHost:       vncRelayHost,
+			VNCRelayPort:       vncRelayPort,
 			NodeLabels:         machineNodeLabels(machine),
 			RunnerCacheRoot:    r.TartKubeletRunnerCacheRoot,
 			HostKuraVersion:    r.TartKubeletHostKuraVersion,
@@ -996,10 +1009,25 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileTailscaleEgressService(
 		svc.Spec.Ports = []corev1.ServicePort{
 			{Name: "node-exporter", Port: 9100, Protocol: corev1.ProtocolTCP},
 			{Name: "tart-kubelet", Port: 8080, Protocol: corev1.ProtocolTCP},
+			{Name: "vnc-relay", Port: DashboardVNCRelayPort, Protocol: corev1.ProtocolTCP},
 		}
 		return nil
 	})
 	return err
+}
+
+func (r *ScalewayAppleSiliconMachineReconciler) dashboardVNCRelayHost(machineName string) string {
+	if r.EgressProxyGroup == "" || r.EgressNamespace == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s.%s.svc.cluster.local", machineName, r.EgressNamespace)
+}
+
+func (r *ScalewayAppleSiliconMachineReconciler) dashboardVNCRelayPort() int {
+	if r.EgressProxyGroup == "" || r.EgressNamespace == "" {
+		return 0
+	}
+	return DashboardVNCRelayPort
 }
 
 // hostConfigDrift reports whether the host config the operator would
