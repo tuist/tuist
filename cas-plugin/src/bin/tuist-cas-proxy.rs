@@ -85,6 +85,7 @@ fn main() {
         std::thread::sleep(std::time::Duration::from_secs(10));
         proxy.sweep();
         proxy.enforce_cache_bounds();
+        proxy.reclaim_idle();
         proxy.maintain_token(TOKEN_REFRESH_LEAD);
         let stats = proxy.stats_line();
         if !stats.is_empty() {
