@@ -5,6 +5,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     net::{IpAddr, SocketAddr},
     path::Path,
+    sync::atomic::{AtomicU64, Ordering},
     time::Duration,
 };
 
@@ -243,15 +244,9 @@ async fn maybe_spawn_bootstrap_task(state: SharedState, peer: String) {
                 }
             };
             let started_at = std::time::Instant::now();
-            let timeout = Duration::from_millis(state.config.bootstrap_timeout_ms);
+            let no_progress_timeout = Duration::from_millis(state.config.bootstrap_timeout_ms);
             let result =
-                match tokio::time::timeout(timeout, bootstrap_from_peer(&state, &peer)).await {
-                    Ok(result) => result,
-                    Err(_) => Err(format!(
-                        "bootstrap timed out after {} ms",
-                        state.config.bootstrap_timeout_ms
-                    )),
-                };
+                bootstrap_from_peer_with_watchdog(&state, &peer, no_progress_timeout).await;
             match result {
                 Ok(stats) => {
                     state.note_bootstrap_succeeded(&peer).await;
@@ -276,9 +271,53 @@ async fn maybe_spawn_bootstrap_task(state: SharedState, peer: String) {
     );
 }
 
-async fn bootstrap_from_peer(state: &SharedState, peer: &str) -> Result<BootstrapStats, String> {
-    let tombstones_applied = bootstrap_namespace_tombstones_from_peer(state, peer).await?;
-    let artifacts_applied = bootstrap_manifests_from_peer(state, peer).await?;
+/// Run a per-peer bootstrap under a *no-progress* watchdog. A single wall-clock
+/// cap on the whole bootstrap can never let a large cold pull finish — the walk
+/// is killed and restarts from scratch every window, so a node whose backlog
+/// exceeds one window's worth of transfer stays `NotReady` forever. Instead the
+/// bootstrap runs until it completes or genuinely stalls: every fetched page and
+/// applied artifact bumps a progress counter, and the watchdog only abandons the
+/// bootstrap after `no_progress_timeout` elapses with *no* forward progress. A
+/// steadily-progressing multi-hour pull now converges; a truly stuck one is
+/// still abandoned and retried.
+async fn bootstrap_from_peer_with_watchdog(
+    state: &SharedState,
+    peer: &str,
+    no_progress_timeout: Duration,
+) -> Result<BootstrapStats, String> {
+    let progress = AtomicU64::new(0);
+    tokio::select! {
+        result = bootstrap_from_peer(state, peer, &progress) => result,
+        () = bootstrap_no_progress_watchdog(&progress, no_progress_timeout) => Err(format!(
+            "bootstrap from {peer} made no progress for {} ms; abandoning this attempt",
+            no_progress_timeout.as_millis()
+        )),
+    }
+}
+
+/// Resolve once the `progress` counter has failed to advance across a full
+/// `interval`. Callers select this against the bootstrap future, so it acts as a
+/// stall detector rather than a total-runtime cap.
+async fn bootstrap_no_progress_watchdog(progress: &AtomicU64, interval: Duration) {
+    let mut last = progress.load(Ordering::Relaxed);
+    loop {
+        sleep(interval).await;
+        let current = progress.load(Ordering::Relaxed);
+        if current == last {
+            return;
+        }
+        last = current;
+    }
+}
+
+async fn bootstrap_from_peer(
+    state: &SharedState,
+    peer: &str,
+    progress: &AtomicU64,
+) -> Result<BootstrapStats, String> {
+    let tombstones_applied =
+        bootstrap_namespace_tombstones_from_peer(state, peer, progress).await?;
+    let artifacts_applied = bootstrap_manifests_from_peer(state, peer, progress).await?;
     Ok(BootstrapStats {
         tombstones_applied,
         artifacts_applied,
@@ -288,12 +327,14 @@ async fn bootstrap_from_peer(state: &SharedState, peer: &str) -> Result<Bootstra
 async fn bootstrap_namespace_tombstones_from_peer(
     state: &SharedState,
     peer: &str,
+    progress: &AtomicU64,
 ) -> Result<u64, String> {
     let mut after = None;
     let mut applied = 0_u64;
 
     loop {
         let page = fetch_bootstrap_tombstones_page(state, peer, after.as_deref()).await?;
+        progress.fetch_add(1, Ordering::Relaxed);
         for tombstone in &page.tombstones {
             let outcome = state
                 .store
@@ -323,7 +364,11 @@ async fn bootstrap_namespace_tombstones_from_peer(
     }
 }
 
-async fn bootstrap_manifests_from_peer(state: &SharedState, peer: &str) -> Result<u64, String> {
+async fn bootstrap_manifests_from_peer(
+    state: &SharedState,
+    peer: &str,
+    progress: &AtomicU64,
+) -> Result<u64, String> {
     let prefix_len = BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN;
     let mut applied = 0_u64;
     let mut failed = 0_u64;
@@ -336,6 +381,7 @@ async fn bootstrap_manifests_from_peer(state: &SharedState, peer: &str) -> Resul
     // timeout fires.
     match fetch_bootstrap_digest(state, peer, prefix_len).await? {
         Some(peer_digest) => {
+            progress.fetch_add(1, Ordering::Relaxed);
             let local_digest = state.store.manifests_digest(prefix_len)?;
             let divergent = divergent_prefixes(&local_digest, &peer_digest.buckets);
             let walked = divergent.len() as u64;
@@ -349,7 +395,8 @@ async fn bootstrap_manifests_from_peer(state: &SharedState, peer: &str) -> Resul
             );
             for prefix in divergent {
                 let (range_applied, range_failed) =
-                    bootstrap_manifest_range_from_peer(state, peer, Some(&prefix)).await?;
+                    bootstrap_manifest_range_from_peer(state, peer, Some(&prefix), progress)
+                        .await?;
                 applied += range_applied;
                 failed += range_failed;
             }
@@ -359,7 +406,7 @@ async fn bootstrap_manifests_from_peer(state: &SharedState, peer: &str) -> Resul
             // rollout, or a mixed-version mesh): fall back to a full keyspace
             // walk, exactly as before.
             let (range_applied, range_failed) =
-                bootstrap_manifest_range_from_peer(state, peer, None).await?;
+                bootstrap_manifest_range_from_peer(state, peer, None, progress).await?;
             applied += range_applied;
             failed += range_failed;
         }
@@ -409,6 +456,7 @@ async fn bootstrap_manifest_range_from_peer(
     state: &SharedState,
     peer: &str,
     prefix: Option<&str>,
+    progress: &AtomicU64,
 ) -> Result<(u64, u64), String> {
     let mut after = None;
     let mut applied = 0_u64;
@@ -416,6 +464,10 @@ async fn bootstrap_manifest_range_from_peer(
 
     loop {
         let page = fetch_bootstrap_manifests_page(state, peer, after.as_deref(), prefix).await?;
+        // Fetching a page is forward progress even when it applies nothing (a
+        // warm re-walk or an already-present range), so the no-progress watchdog
+        // never abandons a bootstrap that is still advancing through the walk.
+        progress.fetch_add(1, Ordering::Relaxed);
         state
             .store
             .hit_failpoint(FailpointName::AfterBootstrapManifestPageFetchBeforeApply)
@@ -485,7 +537,10 @@ async fn bootstrap_manifest_range_from_peer(
 
         for outcome in outcomes {
             match outcome {
-                Ok(true) => applied += 1,
+                Ok(true) => {
+                    applied += 1;
+                    progress.fetch_add(1, Ordering::Relaxed);
+                }
                 Ok(false) => {}
                 Err(_) => failed += 1,
             }
@@ -877,6 +932,7 @@ fn format_ip_for_url(ip: IpAddr) -> String {
     }
 }
 
+#[derive(Debug)]
 struct BootstrapStats {
     tombstones_applied: u64,
     artifacts_applied: u64,
@@ -1746,7 +1802,8 @@ mod tests {
         let (remote_url, _server) = spawn_server(app).await;
 
         let local = test_context(|_| {}).await;
-        let result = bootstrap_manifests_from_peer(&local.state, &remote_url).await;
+        let result =
+            bootstrap_manifests_from_peer(&local.state, &remote_url, &AtomicU64::new(0)).await;
 
         // The peer bootstrap surfaces failure so it gets retried ...
         assert!(
@@ -1832,7 +1889,7 @@ mod tests {
         let (remote_url, _server) = spawn_server(app).await;
         let local = test_context(|_| {}).await;
 
-        let stats = bootstrap_from_peer(&local.state, &remote_url)
+        let stats = bootstrap_from_peer(&local.state, &remote_url, &AtomicU64::new(0))
             .await
             .expect("bootstrap should complete");
         assert_eq!(stats.tombstones_applied, 1);
@@ -1902,9 +1959,10 @@ mod tests {
                 .is_some()
         );
 
-        let applied = bootstrap_namespace_tombstones_from_peer(&local.state, &remote_url)
-            .await
-            .expect("tombstone bootstrap should complete");
+        let applied =
+            bootstrap_namespace_tombstones_from_peer(&local.state, &remote_url, &AtomicU64::new(0))
+                .await
+                .expect("tombstone bootstrap should complete");
         assert_eq!(applied, 1);
         assert!(
             local
@@ -1996,7 +2054,7 @@ mod tests {
             FailpointAction::Error("no range should be walked for an in-sync pair".into()),
         );
 
-        let applied = bootstrap_manifests_from_peer(&local.state, &remote_url)
+        let applied = bootstrap_manifests_from_peer(&local.state, &remote_url, &AtomicU64::new(0))
             .await
             .expect("bootstrap should succeed without walking any range");
         assert_eq!(applied, 0, "an in-sync pair applies nothing");
@@ -2036,7 +2094,7 @@ mod tests {
         let (remote_url, _server) = spawn_server(peer_router).await;
 
         let local = test_context(|_| {}).await;
-        let applied = bootstrap_manifests_from_peer(&local.state, &remote_url)
+        let applied = bootstrap_manifests_from_peer(&local.state, &remote_url, &AtomicU64::new(0))
             .await
             .expect("bootstrap should fall back to a full walk");
         assert_eq!(
@@ -2134,9 +2192,10 @@ mod tests {
         let (digest_url, _digest_server) = spawn_server(digest_router).await;
 
         let local_new = build_local_holding_all_but_missing(&keys).await;
-        let applied_new = bootstrap_manifests_from_peer(&local_new.state, &digest_url)
-            .await
-            .expect("digest-path bootstrap converges");
+        let applied_new =
+            bootstrap_manifests_from_peer(&local_new.state, &digest_url, &AtomicU64::new(0))
+                .await
+                .expect("digest-path bootstrap converges");
         assert_eq!(applied_new, MISSING as u64, "only the delta is applied");
         for key in &keys[..MISSING] {
             assert!(
@@ -2204,9 +2263,10 @@ mod tests {
         let (fallback_url, _fallback_server) = spawn_server(fallback_router).await;
 
         let local_old = build_local_holding_all_but_missing(&keys).await;
-        let applied_old = bootstrap_manifests_from_peer(&local_old.state, &fallback_url)
-            .await
-            .expect("fallback bootstrap converges");
+        let applied_old =
+            bootstrap_manifests_from_peer(&local_old.state, &fallback_url, &AtomicU64::new(0))
+                .await
+                .expect("fallback bootstrap converges");
         assert_eq!(
             applied_old, MISSING as u64,
             "fallback applies the same delta"
@@ -2221,6 +2281,113 @@ mod tests {
         assert!(
             digest_page_count < full_page_count,
             "range digest walks fewer pages than the full walk ({digest_page_count} < {full_page_count}); at prod scale (1.4M) the full walk is ~5652 pages while the digest path stays == delta"
+        );
+    }
+
+    #[tokio::test]
+    async fn bootstrap_completes_a_slow_but_progressing_pull() {
+        use axum::{
+            extract::Request,
+            middleware::{self, Next},
+            response::IntoResponse,
+        };
+
+        // A dataset whose full pull takes far longer than one watchdog window.
+        let remote = test_context(|_| {}).await;
+        for i in 0..800 {
+            let key = format!("artifact-{i:05}");
+            remote
+                .state
+                .store
+                .apply_replicated_inline_artifact_from_bytes(
+                    ArtifactProducer::Xcode,
+                    "ios",
+                    &key,
+                    "application/octet-stream",
+                    b"payload",
+                    100,
+                )
+                .await
+                .expect("remote applies artifact");
+        }
+
+        // Peer takes the linear full walk (digest 404s) and delays every manifest
+        // page, so wall-clock runtime spans many windows while each step lands
+        // well inside one.
+        async fn slow_manifests(request: Request, next: Next) -> axum::response::Response {
+            let path = request.uri().path().to_owned();
+            if path == "/_internal/bootstrap/digest" {
+                return StatusCode::NOT_FOUND.into_response();
+            }
+            if path == "/_internal/bootstrap/manifests" {
+                sleep(Duration::from_millis(120)).await;
+            }
+            next.run(request).await
+        }
+        let peer = router(remote.state.clone()).layer(middleware::from_fn(slow_manifests));
+        let (peer_url, _server) = spawn_server(peer).await;
+
+        // A single wall-clock cap of 300ms — the old behavior — would kill this
+        // multi-second pull mid-walk and restart it forever. The no-progress
+        // watchdog lets it run to completion because every page and artifact is
+        // forward progress.
+        let local = test_context(|_| {}).await;
+        let stats =
+            bootstrap_from_peer_with_watchdog(&local.state, &peer_url, Duration::from_millis(300))
+                .await
+                .expect("a steadily-progressing bootstrap must complete, not time out");
+        assert_eq!(
+            stats.artifacts_applied, 800,
+            "the whole dataset must be pulled despite the runtime exceeding many windows"
+        );
+    }
+
+    #[tokio::test]
+    async fn bootstrap_is_abandoned_when_it_stops_making_progress() {
+        use axum::{
+            extract::Request,
+            middleware::{self, Next},
+            response::IntoResponse,
+        };
+
+        let remote = test_context(|_| {}).await;
+        remote
+            .state
+            .store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+                100,
+            )
+            .await
+            .expect("remote applies artifact");
+
+        // The peer hangs indefinitely on manifest pages: once the walk reaches
+        // manifests the bootstrap makes no further progress.
+        async fn hang_manifests(request: Request, next: Next) -> axum::response::Response {
+            let path = request.uri().path().to_owned();
+            if path == "/_internal/bootstrap/digest" {
+                return StatusCode::NOT_FOUND.into_response();
+            }
+            if path == "/_internal/bootstrap/manifests" {
+                sleep(Duration::from_secs(30)).await;
+            }
+            next.run(request).await
+        }
+        let peer = router(remote.state.clone()).layer(middleware::from_fn(hang_manifests));
+        let (peer_url, _server) = spawn_server(peer).await;
+
+        let local = test_context(|_| {}).await;
+        let error =
+            bootstrap_from_peer_with_watchdog(&local.state, &peer_url, Duration::from_millis(150))
+                .await
+                .expect_err("a stalled bootstrap must be abandoned, not hang forever");
+        assert!(
+            error.contains("made no progress"),
+            "unexpected error: {error}"
         );
     }
 
@@ -2260,7 +2427,7 @@ mod tests {
             "test should stage far more than the tmp budget allows at once"
         );
 
-        let stats = bootstrap_from_peer(&local.state, &remote_url)
+        let stats = bootstrap_from_peer(&local.state, &remote_url, &AtomicU64::new(0))
             .await
             .expect("bootstrap should converge under a fixed tmp budget");
         assert_eq!(stats.artifacts_applied, artifact_count as u64);
@@ -2506,7 +2673,9 @@ mod tests {
             .map(|peer| {
                 let state = local.state.clone();
                 let peer = peer.clone();
-                tokio::spawn(async move { bootstrap_from_peer(&state, &peer).await })
+                tokio::spawn(
+                    async move { bootstrap_from_peer(&state, &peer, &AtomicU64::new(0)).await },
+                )
             })
             .collect();
         for task in tasks {
