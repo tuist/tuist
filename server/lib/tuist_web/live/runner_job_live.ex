@@ -10,7 +10,6 @@ defmodule TuistWeb.RunnerJobLive do
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.InteractiveSessions
-  alias Tuist.Runners.JobInsights
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.JobMetrics
   alias Tuist.Runners.Jobs
@@ -418,15 +417,56 @@ defmodule TuistWeb.RunnerJobLive do
     |> Enum.sum()
   end
 
-  defp assign_runner_insights(socket, selected_account, job) do
-    insights = JobInsights.for_job(selected_account, job)
+  defp module_cache_summary(command_events) do
+    total_count = Enum.sum(Enum.map(command_events, &(&1.cacheable_targets_count || 0)))
+    local_hits_count = Enum.sum(Enum.map(command_events, &(&1.local_cache_hits_count || 0)))
+    remote_hits_count = Enum.sum(Enum.map(command_events, &(&1.remote_cache_hits_count || 0)))
 
-    socket
-    |> assign(:insights_project, insights.project)
-    |> assign(:linked_build_runs, insights.build_runs)
-    |> assign(:linked_test_runs, insights.test_runs)
-    |> assign(:linked_build_module_cache_summary, insights.build_module_cache_summary)
-    |> assign(:linked_test_selective_testing_summary, insights.test_selective_testing_summary)
+    %{
+      local_hits_count: local_hits_count,
+      remote_hits_count: remote_hits_count,
+      hits_count: local_hits_count + remote_hits_count,
+      total_count: total_count
+    }
+  end
+
+  defp selective_testing_summary(command_events) do
+    total_count = Enum.sum(Enum.map(command_events, &(&1.test_targets_count || 0)))
+    local_hits_count = Enum.sum(Enum.map(command_events, &(&1.local_test_hits_count || 0)))
+    remote_hits_count = Enum.sum(Enum.map(command_events, &(&1.remote_test_hits_count || 0)))
+
+    %{
+      local_hits_count: local_hits_count,
+      remote_hits_count: remote_hits_count,
+      hits_count: local_hits_count + remote_hits_count,
+      total_count: total_count
+    }
+  end
+
+  defp assign_runner_insights(socket, selected_account, job) do
+    case Jobs.project_for_runner_job(selected_account, job) do
+      nil ->
+        socket
+        |> assign(:insights_project, nil)
+        |> assign(:linked_build_runs, [])
+        |> assign(:linked_test_runs, [])
+        |> assign(:linked_build_module_cache_summary, module_cache_summary([]))
+        |> assign(:linked_test_selective_testing_summary, selective_testing_summary([]))
+
+      project ->
+        build_runs = Jobs.list_runner_build_runs(project, job.workflow_run_id)
+        test_runs = Jobs.list_runner_test_runs(project, job.workflow_run_id)
+
+        build_command_events = build_runs |> Jobs.command_events_for_runs(:build) |> Enum.reject(&is_nil/1)
+        test_command_events = test_runs |> Jobs.command_events_for_runs(:test) |> Enum.reject(&is_nil/1)
+
+        socket
+        |> assign(:insights_project, project)
+        |> assign(:linked_build_runs, build_runs)
+        |> assign(:linked_test_runs, test_runs)
+        |> assign(:linked_build_module_cache_summary, module_cache_summary(build_command_events))
+        |> assign(:linked_test_selective_testing_summary, selective_testing_summary(test_command_events))
+    end
   end
 
   defp matching_step_build_runs(step, build_runs) do

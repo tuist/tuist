@@ -54,11 +54,15 @@ defmodule Tuist.Runners.Jobs do
 
   import Ecto.Query
 
+  alias Tuist.Builds.Build, as: BuildRun
   alias Tuist.ClickHouseRepo
+  alias Tuist.CommandEvents
   alias Tuist.IngestRepo
+  alias Tuist.Projects
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Job
   alias Tuist.Runners.Telemetry
+  alias Tuist.Tests.Test, as: TestRun
 
   require Logger
 
@@ -81,6 +85,62 @@ defmodule Tuist.Runners.Jobs do
     )
     |> ClickHouseRepo.all()
     |> Map.new()
+  end
+
+  def project_for_runner_job(account, %{repository: repository}) when is_binary(repository) do
+    case String.split(repository, "/", parts: 2) do
+      [_owner, project_handle] ->
+        Projects.get_project_by_account_and_project_handles(account.name, project_handle)
+
+      _ ->
+        nil
+    end
+  end
+
+  def project_for_runner_job(_, _), do: nil
+
+  def list_runner_build_runs(project, workflow_run_id) do
+    workflow_run_id = Integer.to_string(workflow_run_id)
+
+    BuildRun
+    |> where([build], build.project_id == ^project.id)
+    |> where([build], build.ci_provider == "github")
+    |> where([build], build.ci_run_id == ^workflow_run_id)
+    |> order_by([build], desc: build.inserted_at)
+    |> ClickHouseRepo.all()
+    |> latest_runner_runs_by_id()
+  end
+
+  def list_runner_test_runs(project, workflow_run_id) do
+    workflow_run_id = Integer.to_string(workflow_run_id)
+
+    TestRun
+    |> where([test], test.project_id == ^project.id)
+    |> where([test], test.status != "in_progress")
+    |> where([test], test.ci_provider == "github")
+    |> where([test], test.ci_run_id == ^workflow_run_id)
+    |> order_by([test], desc: test.inserted_at, desc: test.ran_at)
+    |> ClickHouseRepo.all()
+    |> latest_runner_runs_by_id()
+    |> Enum.sort_by(&datetime_sort_key(&1.ran_at), :desc)
+  end
+
+  def command_events_for_runs(runs, kind) do
+    Enum.map(runs, fn run ->
+      case kind do
+        :build ->
+          case CommandEvents.get_command_event_by_build_run_id(run.id, project_id: run.project_id) do
+            {:ok, event} -> event
+            {:error, :not_found} -> nil
+          end
+
+        :test ->
+          case CommandEvents.get_command_event_by_test_run_id(run.id, project_id: run.project_id) do
+            {:ok, event} -> event
+            {:error, :not_found} -> nil
+          end
+      end
+    end)
   end
 
   @doc """
@@ -1095,6 +1155,16 @@ defmodule Tuist.Runners.Jobs do
   end
 
   # ----- internal -----
+
+  defp latest_runner_runs_by_id(runs) do
+    runs
+    |> Enum.sort_by(&datetime_sort_key(&1.inserted_at), :desc)
+    |> Enum.uniq_by(& &1.id)
+  end
+
+  defp datetime_sort_key(%NaiveDateTime{} = datetime), do: NaiveDateTime.to_iso8601(datetime)
+  defp datetime_sort_key(%DateTime{} = datetime), do: DateTime.to_iso8601(datetime)
+  defp datetime_sort_key(_), do: ""
 
   # Fetch the current state of a workflow_job. Single-row lookup
   # by primary key — `ORDER BY updated_at DESC LIMIT 1` returns
