@@ -230,8 +230,9 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   end
 
   defp save_oauth2_sso(%{assigns: %{organization: organization, selected_provider: selected_provider}} = socket, params) do
+    form_params = params["sso"] || %{}
     sso_provider = String.to_existing_atom(selected_provider)
-    attrs = build_oauth2_attrs(selected_provider, params["sso"] || %{}, socket.assigns.sso_enforced)
+    attrs = build_oauth2_attrs(selected_provider, form_params, socket.assigns.sso_enforced)
 
     case Accounts.update_sso_configuration(organization.id, sso_provider, attrs) do
       {:ok, updated_organization} ->
@@ -243,7 +244,18 @@ defmodule TuistWeb.AuthenticationSettingsLive do
          |> assign(flash_message: nil, field_errors: %{})}
 
       {:error, changeset} ->
-        {:noreply, assign(socket, field_errors: changeset_to_field_errors(changeset, selected_provider))}
+        form_params =
+          default_form_data()
+          |> Map.merge(form_params)
+          |> Map.put("provider", selected_provider)
+
+        {:noreply,
+         socket
+         |> assign(current_form_params: form_params)
+         |> assign(form: to_form(form_params, as: "sso"))
+         |> assign(field_errors: changeset_to_field_errors(changeset, selected_provider))
+         |> compute_form_valid()
+         |> compute_has_changes()}
     end
   end
 

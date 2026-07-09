@@ -70,6 +70,9 @@ on:
       commit_sha:
         description: Commit SHA to deploy
         required: false
+      platform_ref:
+        description: Optional Git ref for the cluster-wide platform chart
+        required: false
       ttl_hours:
         description: Auto-delete after N hours (1-168)
         required: false
@@ -98,6 +101,7 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist
+  REGISTRY_IMAGE_NAME: tuist/registry
   KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
   KURA_RUNTIME_IMAGE_NAME: tuist/kura
   HELM_CHART_PATH: infra/helm/tuist
@@ -149,6 +153,7 @@ jobs:
           DISPATCH_SLUG: ${{ inputs.slug }}
           DISPATCH_PR: ${{ inputs.pr_number }}
           DISPATCH_SHA: ${{ inputs.commit_sha }}
+          DISPATCH_PLATFORM_REF: ${{ inputs.platform_ref }}
           DISPATCH_TTL: ${{ inputs.ttl_hours }}
           REQUESTER_EMAIL: ${{ inputs.requester_email }}
           GH_TOKEN: ${{ github.token }}
@@ -242,6 +247,12 @@ jobs:
             PLATFORM_REF="$EVENT_BASE_SHA"
           else
             PLATFORM_REF="$DEFAULT_BRANCH"
+          fi
+          if [ -n "${DISPATCH_PLATFORM_REF:-}" ]; then
+            if [[ "$DISPATCH_PLATFORM_REF" =~ [[:space:]] ]]; then
+              echo "::error::platform_ref must not contain whitespace."; exit 1
+            fi
+            PLATFORM_REF="$DISPATCH_PLATFORM_REF"
           fi
 
           {
@@ -349,6 +360,36 @@ jobs:
             MIX_ENV=prod
             APT_CACHE_BUST=${{ steps.apt-bust.outputs.value }}
 
+  build-registry:
+    name: Build registry image
+    needs: resolve
+    if: needs.resolve.outputs.action == 'deploy'
+    runs-on: tuist-linux
+    timeout-minutes: 20
+    outputs:
+      image_tag: ${{ steps.tag.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.ref }}
+          submodules: false
+      - id: tag
+        run: echo "image_tag=sha-${{ needs.resolve.outputs.short_sha }}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./registry/Dockerfile
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.REGISTRY_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          build-args: |
+            MIX_ENV=prod
+
   build-kura-controller:
     name: Build kura-controller image
     needs: [resolve, paths-changed]
@@ -450,11 +491,12 @@ jobs:
 
   deploy:
     name: Deploy ${{ needs.resolve.outputs.release }}
-    needs: [resolve, paths-changed, build-server, build-kura-controller, build-kura-runtime]
+    needs: [resolve, paths-changed, build-server, build-registry, build-kura-controller, build-kura-runtime]
     if: |
       always()
       && needs.resolve.outputs.action == 'deploy'
       && needs.build-server.result == 'success'
+      && needs.build-registry.result == 'success'
       && (needs.build-kura-controller.result == 'success' || needs.build-kura-controller.result == 'skipped')
       && (needs.build-kura-runtime.result == 'success' || needs.build-kura-runtime.result == 'skipped')
     runs-on: tuist-linux
@@ -470,9 +512,12 @@ jobs:
       RELEASE: ${{ needs.resolve.outputs.release }}
       NAMESPACE: ${{ needs.resolve.outputs.namespace }}
       HOST: ${{ needs.resolve.outputs.host }}
+      REGISTRY_HOST: registry-${{ needs.resolve.outputs.slug }}.preview.tuist.dev
       SLUG: ${{ needs.resolve.outputs.slug }}
       SOURCE: ${{ needs.resolve.outputs.source }}
       IMAGE_TAG: ${{ needs.build-server.outputs.image_tag }}
+      REGISTRY_IMAGE_TAG: ${{ needs.build-registry.outputs.image_tag }}
+      REGISTRY_GITHUB_TOKEN: ${{ github.token }}
       EXPIRES_AT: ${{ needs.resolve.outputs.expires_at }}
       KURA_CONTROLLER_TAG: ${{ needs.build-kura-controller.outputs.image_tag || 'latest' }}
       KURA_RUNTIME_TAG: ${{ needs.build-kura-runtime.outputs.image_tag || 'latest' }}
@@ -571,6 +616,12 @@ jobs:
             -f "$HELM_CHART_PATH/values-preview.yaml" \
             -f "$HELM_CHART_PATH/values-preview-kura.yaml" \
             --set "server.image.tag=$IMAGE_TAG" \
+            --set "registry.image.tag=$REGISTRY_IMAGE_TAG" \
+            --set registry.ingress.enabled=true \
+            --set "registry.ingress.host=$REGISTRY_HOST" \
+            --set "registry.publicHost=$REGISTRY_HOST" \
+            --set "registry.serverUrl=https://$HOST" \
+            --set-string "swiftRegistrySync.inlineSecrets.githubToken=$REGISTRY_GITHUB_TOKEN" \
             --set server.ingress.enabled=true \
             --set "server.ingress.host=$HOST" \
             --set "server.appUrl=https://$HOST" \
@@ -647,6 +698,7 @@ jobs:
         run: |
           set -euo pipefail
           kubectl -n "$NAMESPACE" rollout status deploy/${RELEASE}-tuist-server --timeout=10m
+          kubectl -n "$NAMESPACE" rollout status deploy/${RELEASE}-tuist-registry --timeout=10m
           for i in $(seq 1 60); do
             if curl -fsSL --max-time 5 "https://${HOST}/ready" >/dev/null; then
               echo "OK: https://${HOST}/ready returned 200"
@@ -656,6 +708,33 @@ jobs:
             sleep 10
             if [ "$i" = "60" ]; then
               echo "::error::https://${HOST}/ready never returned 200 after about 10 min."
+              exit 1
+            fi
+          done
+          for i in $(seq 1 60); do
+            if curl -fsSL --max-time 5 "https://${REGISTRY_HOST}/up" >/dev/null; then
+              echo "OK: https://${REGISTRY_HOST}/up returned 200"
+              break
+            fi
+            echo "Attempt $i: https://${REGISTRY_HOST}/up not yet reachable; retrying in 10s..."
+            sleep 10
+            if [ "$i" = "60" ]; then
+              echo "::error::https://${REGISTRY_HOST}/up never returned 200 after about 10 min."
+              exit 1
+            fi
+          done
+      - name: Wait for Swift registry sync
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 90); do
+            if curl -fsSL --max-time 5 "https://${REGISTRY_HOST}/swift/alamofire/alamofire" >/dev/null; then
+              echo "OK: https://${REGISTRY_HOST}/swift/alamofire/alamofire returned 200"
+              break
+            fi
+            echo "Attempt $i: alamofire/alamofire not synced yet; retrying in 10s..."
+            sleep 10
+            if [ "$i" = "90" ]; then
+              echo "::error::alamofire/alamofire metadata was not synced after about 15 min."
               exit 1
             fi
           done
@@ -692,10 +771,16 @@ jobs:
           echo "::group::events"
           kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp | tail -50 || true
           echo "::endgroup::"
-          for pod in $(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/component=server -o name 2>/dev/null); do
-            echo "::group::$pod logs"
-            kubectl -n "$NAMESPACE" logs "$pod" --all-containers --tail=200 || true
+          for component in server registry swift-registry-sync; do
+            echo "::group::$component pods"
+            kubectl -n "$NAMESPACE" describe pods -l "app.kubernetes.io/component=$component" || true
             echo "::endgroup::"
+
+            for pod in $(kubectl -n "$NAMESPACE" get pods -l "app.kubernetes.io/component=$component" -o name 2>/dev/null); do
+              echo "::group::$pod logs"
+              kubectl -n "$NAMESPACE" logs "$pod" --all-containers --tail=300 || true
+              echo "::endgroup::"
+            done
           done
 
   delete:
@@ -774,6 +859,7 @@ jobs:
           PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
           RELEASE: ${{ needs.resolve.outputs.release }}
           HOST: ${{ needs.resolve.outputs.host }}
+          REGISTRY_HOST: registry-${{ needs.resolve.outputs.slug }}.preview.tuist.dev
           EXPIRES_AT: ${{ needs.resolve.outputs.expires_at }}
         run: |
           set -euo pipefail
@@ -782,6 +868,7 @@ jobs:
           $MARKER
           🟢 Preview deployed: **https://$HOST**
 
+          - Registry: \`https://$REGISTRY_HOST\`
           - Release: \`$RELEASE\`
           - Last updated: $(date -u '+%Y-%m-%d %H:%M UTC')
           - Expires: $(date -u -d "@$EXPIRES_AT" '+%Y-%m-%d %H:%M UTC')

@@ -2,9 +2,11 @@ defmodule TuistWeb.AcceptInvitationLiveTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use TuistTestSupport.Cases.LiveCase
 
+  import Ecto.Query
   import Phoenix.LiveViewTest
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.Invitation
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   describe "/auth/invitations/:token" do
@@ -140,6 +142,93 @@ defmodule TuistWeb.AcceptInvitationLiveTest do
       {:ok, _lv, html} = live(conn, ~p"/auth/invitations/invalid-token")
 
       assert html =~ "Invitation not found"
+    end
+
+    test "shows an expired message when the invitation is no longer valid", %{conn: conn} do
+      inviter = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: inviter)
+      invitee = AccountsFixtures.user_fixture(email: "invitee@example.com")
+
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization(
+          invitee.email,
+          %{inviter: inviter, to: organization, url: fn token -> "/auth/invitations/#{token}" end}
+        )
+
+      expired_at =
+        NaiveDateTime.utc_now()
+        |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
+        |> NaiveDateTime.truncate(:second)
+
+      Tuist.Repo.update_all(
+        from(i in Invitation, where: i.id == ^invitation.id),
+        set: [updated_at: expired_at]
+      )
+
+      conn = log_in_user(conn, invitee)
+      {:ok, _lv, html} = live(conn, ~p"/auth/invitations/#{invitation.token}")
+
+      assert html =~ "Invitation expired"
+      assert html =~ "Please ask the inviter to resend it"
+      refute html =~ "Accept invitation"
+    end
+
+    test "does not accept an invitation that expires after the page loads", %{conn: conn} do
+      inviter = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: inviter)
+      invitee = AccountsFixtures.user_fixture(email: "invitee@example.com")
+
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization(
+          invitee.email,
+          %{inviter: inviter, to: organization, url: fn token -> "/auth/invitations/#{token}" end}
+        )
+
+      conn = log_in_user(conn, invitee)
+      {:ok, lv, _html} = live(conn, ~p"/auth/invitations/#{invitation.token}")
+
+      expired_at =
+        NaiveDateTime.utc_now()
+        |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
+        |> NaiveDateTime.truncate(:second)
+
+      Tuist.Repo.update_all(
+        from(i in Invitation, where: i.id == ^invitation.id),
+        set: [updated_at: expired_at]
+      )
+
+      html = lv |> element("button", "Accept invitation") |> render_click()
+
+      assert html =~ "Invitation expired"
+      refute Accounts.organization_user?(invitee, organization)
+    end
+
+    test "does not decline an invitation that was resent after the page loads", %{conn: conn} do
+      inviter = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: inviter)
+      invitee = AccountsFixtures.user_fixture(email: "invitee@example.com")
+
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization(
+          invitee.email,
+          %{inviter: inviter, to: organization, url: fn token -> "/auth/invitations/#{token}" end},
+          token: "old-token"
+        )
+
+      conn = log_in_user(conn, invitee)
+      {:ok, lv, _html} = live(conn, ~p"/auth/invitations/#{invitation.token}")
+
+      {:ok, _invitation} =
+        Accounts.resend_invitation(
+          invitation,
+          %{url: fn token -> "/auth/invitations/#{token}" end},
+          token: "new-token"
+        )
+
+      html = lv |> element("button", "Decline") |> render_click()
+
+      assert html =~ "Invitation not found"
+      assert {:ok, %{token: "new-token"}} = Accounts.get_invitation_by_token("new-token")
     end
 
     test "ignores accept_invitation pushed from a not-found state", %{conn: conn} do

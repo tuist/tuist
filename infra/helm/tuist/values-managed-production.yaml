@@ -6,6 +6,26 @@
 #     -f infra/helm/tuist/values-managed-production.yaml \
 #     --set server.image.tag=$GIT_SHA
 
+registry:
+  # Keep production disabled until the registry cutover. Staging and
+  # canary exercise the component through values-managed-common.yaml.
+  enabled: false
+  publicHost: registry.tuist.dev
+  serverUrl: https://tuist.dev
+  deployEnv: prod
+  sentryEnv: prod
+  poolSize: "10"
+  ingress:
+    host: registry.tuist.dev
+    tlsSecretName: registry-tls
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "4"
+      memory: "4Gi"
+
 server:
   replicaCount: 2
 
@@ -356,6 +376,14 @@ processor:
     enabled: true
     whenUnsatisfiable: DoNotSchedule
   affinity: {}
+
+swiftRegistrySync:
+  enabled: false
+  extraEnv:
+    - name: TUIST_DEPLOY_ENV
+      value: prod
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
 
 # Runs as the same env as the build processor; the Tart VM reads its secrets
 # from the environment (config Secret via envFrom + object-storage ESO), same

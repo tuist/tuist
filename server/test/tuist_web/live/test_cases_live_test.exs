@@ -92,6 +92,62 @@ defmodule TuistWeb.TestCasesLiveTest do
       assert has_element?(lv, "[data-part='test-cases-table']")
     end
 
+    test "filters test cases whose module does not contain a substring", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: organization.account.id,
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -60),
+          test_modules: [
+            %{
+              name: "ArgonUITests",
+              status: "success",
+              duration: 100,
+              test_cases: [
+                %{
+                  name: "testQueued",
+                  test_suite_name: "QueueSuite",
+                  status: "success",
+                  duration: 100
+                }
+              ]
+            },
+            %{
+              name: "AppTests",
+              status: "success",
+              duration: 100,
+              test_cases: [
+                %{
+                  name: "testRegular",
+                  test_suite_name: "RegularSuite",
+                  status: "success",
+                  duration: 100
+                }
+              ]
+            }
+          ]
+        )
+
+      query =
+        URI.encode_query(%{
+          "filter_module_name_op" => "!=~",
+          "filter_module_name_val" => "ArgonUITests"
+        })
+
+      {:ok, lv, html} =
+        live(conn, "/#{organization.account.name}/#{project.name}/tests/test-cases?#{query}")
+
+      render_async(lv)
+
+      assert html =~ "does not contain"
+      assert has_element?(lv, "[data-part='test-cases-table']", "AppTests")
+      refute has_element?(lv, "[data-part='test-cases-table']", "ArgonUITests")
+    end
+
     test "shows analytics widgets", %{
       conn: conn,
       organization: organization,

@@ -415,10 +415,7 @@ defmodule TuistWeb.TestRunsLive do
   defp build_flop_filters(filters, search) do
     {ran_by, filters} = Enum.split_with(filters, &(&1.id == "ran_by"))
 
-    flop_filters =
-      filters
-      |> Enum.map(&normalize_text_filter_operator/1)
-      |> Filter.Operations.convert_filters_to_flop()
+    flop_filters = Filter.Operations.convert_filters_to_flop(filters)
 
     ran_by_flop_filters =
       Enum.flat_map(ran_by, fn
@@ -451,8 +448,4 @@ defmodule TuistWeb.TestRunsLive do
   defp page_level_environment_filters(%{analytics_environment: "ci"}), do: [%{field: :is_ci, op: :==, value: true}]
   defp page_level_environment_filters(%{analytics_environment: "local"}), do: [%{field: :is_ci, op: :==, value: false}]
   defp page_level_environment_filters(_), do: []
-
-  defp normalize_text_filter_operator(%Filter.Filter{operator: :"!=~"} = filter), do: %{filter | operator: :not_ilike}
-
-  defp normalize_text_filter_operator(filter), do: filter
 end

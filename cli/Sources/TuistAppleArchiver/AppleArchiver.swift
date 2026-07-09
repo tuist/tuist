@@ -32,6 +32,11 @@ public protocol AppleArchiving {
         relativeTo baseDirectory: AbsolutePath,
         to archivePath: AbsolutePath
     ) async throws
+    func compress(
+        subdirectories: [AbsolutePath],
+        relativeTo baseDirectory: AbsolutePath,
+        to archivePath: AbsolutePath
+    ) async throws
     func decompress(archive: AbsolutePath, to directory: AbsolutePath) async throws
 }
 
@@ -130,7 +135,17 @@ public struct AppleArchiver: AppleArchiving {
         relativeTo baseDirectory: AbsolutePath,
         to archivePath: AbsolutePath
     ) async throws {
-        let relativePath = subdirectory.relative(to: baseDirectory).pathString
+        try await compress(subdirectories: [subdirectory], relativeTo: baseDirectory, to: archivePath)
+    }
+
+    public func compress(
+        subdirectories: [AbsolutePath],
+        relativeTo baseDirectory: AbsolutePath,
+        to archivePath: AbsolutePath
+    ) async throws {
+        let relativePaths = subdirectories
+            .map { $0.relative(to: baseDirectory).pathString }
+            .sorted()
 
         // writeDirectoryContents may visit the same file twice when the source
         // directory contains symlinks to sibling directories. Track seen paths
@@ -142,8 +157,10 @@ public struct AppleArchiver: AppleArchiving {
             // to it (so the walk descends that far) and prune everything else.
             // `.skip` on a directory header also prunes its descendants, so the
             // sibling bundles in the same products directory are never read.
-            let isWithinTarget = pathString == relativePath || pathString.hasPrefix("\(relativePath)/")
-            let isAncestor = relativePath.hasPrefix("\(pathString)/")
+            let isWithinTarget = relativePaths.contains { relativePath in
+                pathString == relativePath || pathString.hasPrefix("\(relativePath)/")
+            }
+            let isAncestor = relativePaths.contains { $0.hasPrefix("\(pathString)/") }
             guard isWithinTarget || isAncestor else { return .skip }
             let inserted = seenPaths.withLock { $0.insert(pathString).inserted }
             guard inserted else { return .skip }

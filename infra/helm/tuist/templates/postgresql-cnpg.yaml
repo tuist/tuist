@@ -14,6 +14,7 @@
 {{- $webRoleSecretName := include "tuist.cnpgWebRoleSecretName" . -}}
 {{- $processorRoleSecretName := include "tuist.componentName" (dict "root" . "component" "pg-tuist-processor") -}}
 {{- $opsRoSecretName := include "tuist.componentName" (dict "root" . "component" "pg-tuist-ops-ro") -}}
+{{- $swiftRegistrySyncRoleSecretName := include "tuist.componentName" (dict "root" . "component" "pg-tuist-swift-registry-sync") -}}
 # CloudNativePG Cluster. The `cloudnative-pg` operator owns the primary,
 # the synchronous replicas, instance scheduling, role provisioning, and
 # WAL archiving. The chart only declares intent: replica count, storage
@@ -184,6 +185,12 @@ spec:
         comment: "Read-only Ops UI inspection role"
         passwordSecret:
           name: {{ $opsRoSecretName }}
+      - name: {{ .Values.postgresql.cnpg.roles.swiftRegistrySync.name | quote }}
+        ensure: present
+        login: true
+        comment: "Swift Package Registry sync worker role"
+        passwordSecret:
+          name: {{ $swiftRegistrySyncRoleSecretName }}
 
   # Barman Cloud Plugin (CNPG-I). WAL archiving + base backups run via the
   # plugin sidecar against the ObjectStore CR below. `serverName` is pinned to
@@ -357,6 +364,32 @@ spec:
     - secretKey: password
       remoteRef:
         key: "{{ .Values.postgresql.cnpg.externalSecrets.opsRoPassword.item }}/{{ .Values.postgresql.cnpg.externalSecrets.opsRoPassword.field }}"
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $swiftRegistrySyncRoleSecretName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  refreshInterval: {{ .Values.postgresql.cnpg.externalSecrets.refreshInterval | default "1h" }}
+  secretStoreRef:
+    name: {{ .Values.postgresql.cnpg.externalSecrets.storeRef.name | default "onepassword" }}
+    kind: {{ .Values.postgresql.cnpg.externalSecrets.storeRef.kind | default "ClusterSecretStore" }}
+  target:
+    name: {{ $swiftRegistrySyncRoleSecretName }}
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      type: kubernetes.io/basic-auth
+      data:
+        username: {{ .Values.postgresql.cnpg.roles.swiftRegistrySync.name | quote }}
+        password: "{{ `{{ .password }}` }}"
+  data:
+    - secretKey: password
+      remoteRef:
+        key: "{{ .Values.postgresql.cnpg.externalSecrets.swiftRegistrySyncPassword.item }}/{{ .Values.postgresql.cnpg.externalSecrets.swiftRegistrySyncPassword.field }}"
 ---
 # Lets the Tuist server read this cluster's Backup / ScheduledBackup CRs
 # so the /ops/db Backups tab can list base backups (per-snapshot phase,

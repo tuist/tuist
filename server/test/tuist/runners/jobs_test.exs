@@ -4,6 +4,8 @@ defmodule Tuist.Runners.JobsTest do
   import Ecto.Query
   import TuistTestSupport.Fixtures.AccountsFixtures
 
+  alias Tuist.IngestRepo
+  alias Tuist.Runners.Job
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.RunnerSessions
@@ -36,6 +38,38 @@ defmodule Tuist.Runners.JobsTest do
       end
 
     Jobs.enqueue(attrs)
+  end
+
+  defp completed_job_fixture(account, workflow_job_id, opts) do
+    completed_at = Keyword.fetch!(opts, :completed_at)
+    started_at = Keyword.get(opts, :started_at)
+
+    row = %{
+      workflow_job_id: workflow_job_id,
+      account_id: account.id,
+      fleet_name: Keyword.get(opts, :fleet, "fleet-a"),
+      repository: Keyword.get(opts, :repository, "acme/cli"),
+      workflow_run_id: Keyword.get(opts, :workflow_run_id, workflow_job_id * 10),
+      run_attempt: Keyword.get(opts, :run_attempt, 1),
+      workflow_name: Keyword.get(opts, :workflow_name, ""),
+      job_name: Keyword.get(opts, :job_name, "build"),
+      head_branch: Keyword.get(opts, :head_branch, "main"),
+      head_sha: Keyword.get(opts, :head_sha, "deadbeef"),
+      status: "completed",
+      conclusion: Keyword.get(opts, :conclusion, "success"),
+      enqueued_at: Keyword.get(opts, :enqueued_at, completed_at),
+      claimed_at: Keyword.get(opts, :claimed_at, started_at),
+      started_at: started_at,
+      completed_at: completed_at,
+      pod_name: Keyword.get(opts, :pod_name, ""),
+      runner_name: Keyword.get(opts, :runner_name, ""),
+      log_archived_at: Keyword.get(opts, :log_archived_at),
+      requested_dispatch_label: Keyword.get(opts, :requested_dispatch_label, ""),
+      updated_at: Keyword.get(opts, :updated_at, completed_at)
+    }
+
+    {1, _} = IngestRepo.insert_all(Job, [row])
+    :ok
   end
 
   describe "enqueue/1" do
@@ -558,24 +592,23 @@ defmodule Tuist.Runners.JobsTest do
 
     test "sorts by :sort_by 'duration' descending — completed jobs ordered by elapsed runtime" do
       account = account_fixture()
+      base = ~U[2026-05-01 10:00:00.000000Z]
 
-      # Two jobs taken through the full lifecycle so completed_at -
-      # started_at yields different elapsed times. Short job first
-      # (sleep 30ms between started → completed), long job second
-      # (sleep 120ms).
-      :ok = enqueue_fixture(account, 8501, fleet: "fleet-d-short", job_name: "short")
-      {:ok, short} = Jobs.pick_queued("fleet-d-short", [])
-      :ok = Jobs.record_claimed(short, "pod-1", DateTime.utc_now())
-      :ok = Jobs.record_running(8501, "runner-1")
-      Process.sleep(30)
-      {:ok, _} = Jobs.complete(8501, "success")
+      :ok =
+        completed_job_fixture(account, 8501,
+          fleet: "fleet-d-short",
+          job_name: "short",
+          started_at: base,
+          completed_at: DateTime.add(base, 30, :second)
+        )
 
-      :ok = enqueue_fixture(account, 8502, fleet: "fleet-d-long", job_name: "long")
-      {:ok, long} = Jobs.pick_queued("fleet-d-long", [])
-      :ok = Jobs.record_claimed(long, "pod-2", DateTime.utc_now())
-      :ok = Jobs.record_running(8502, "runner-2")
-      Process.sleep(120)
-      {:ok, _} = Jobs.complete(8502, "success")
+      :ok =
+        completed_job_fixture(account, 8502,
+          fleet: "fleet-d-long",
+          job_name: "long",
+          started_at: base,
+          completed_at: DateTime.add(base, 120, :second)
+        )
 
       [first | _] = Jobs.list_for_account(account.id, sort_by: "duration", sort_order: "desc")
       [bottom | _] = Jobs.list_for_account(account.id, sort_by: "duration", sort_order: "asc")
@@ -655,34 +688,25 @@ defmodule Tuist.Runners.JobsTest do
 
     test "sorts rollups by :sort_by 'avg_duration' descending" do
       account = account_fixture()
+      base = ~U[2026-05-01 10:00:00.000000Z]
 
-      # Workflow A: one short completed job. Workflow B: one long
-      # completed job. Descending sort should land B first.
       :ok =
-        enqueue_fixture(account, 54_001,
+        completed_job_fixture(account, 54_001,
           repository: "acme/short",
           workflow_name: "Short",
-          fleet: "fleet-avg-short"
+          fleet: "fleet-avg-short",
+          started_at: base,
+          completed_at: DateTime.add(base, 30, :second)
         )
-
-      {:ok, short} = Jobs.pick_queued("fleet-avg-short", [])
-      :ok = Jobs.record_claimed(short, "pod-1", DateTime.utc_now())
-      :ok = Jobs.record_running(54_001, "runner-1")
-      Process.sleep(30)
-      {:ok, _} = Jobs.complete(54_001, "success")
 
       :ok =
-        enqueue_fixture(account, 54_002,
+        completed_job_fixture(account, 54_002,
           repository: "acme/long",
           workflow_name: "Long",
-          fleet: "fleet-avg-long"
+          fleet: "fleet-avg-long",
+          started_at: base,
+          completed_at: DateTime.add(base, 150, :second)
         )
-
-      {:ok, long} = Jobs.pick_queued("fleet-avg-long", [])
-      :ok = Jobs.record_claimed(long, "pod-2", DateTime.utc_now())
-      :ok = Jobs.record_running(54_002, "runner-2")
-      Process.sleep(150)
-      {:ok, _} = Jobs.complete(54_002, "success")
 
       [first, second] =
         Jobs.list_workflows_for_account(account.id,
@@ -747,35 +771,27 @@ defmodule Tuist.Runners.JobsTest do
       assert Jobs.list_recent_workflow_runs_for_account(account.id) == []
     end
 
-    test "duration_ms ignores the epoch sentinel for skipped jobs" do
+    test "duration_ms ignores jobs without a started_at timestamp" do
       account = account_fixture()
+      base = ~U[2026-05-01 10:00:00.000000Z]
 
-      # Job A: full lifecycle so started_at is real and ~150ms before
-      # completed_at.
       :ok =
-        enqueue_fixture(account, 62_001,
+        completed_job_fixture(account, 62_001,
           workflow_run_id: 7_201,
           fleet: "fleet-epoch-a",
-          job_name: "Test"
+          job_name: "Test",
+          started_at: base,
+          completed_at: DateTime.add(base, 150, :second)
         )
 
-      {:ok, c} = Jobs.pick_queued("fleet-epoch-a", [])
-      :ok = Jobs.record_claimed(c, "pod", DateTime.utc_now())
-      :ok = Jobs.record_running(62_001, "runner")
-      Process.sleep(150)
-      {:ok, _} = Jobs.complete(62_001, "success")
-
-      # Job B: queued → completed("skipped") directly. `started_at`
-      # stays at the epoch sentinel — the rollup must NOT pull this
-      # into min(started_at) or the duration explodes to ~57 years.
       :ok =
-        enqueue_fixture(account, 62_002,
+        completed_job_fixture(account, 62_002,
           workflow_run_id: 7_201,
           fleet: "fleet-epoch-b",
-          job_name: "Skipped"
+          job_name: "Skipped",
+          conclusion: "skipped",
+          completed_at: DateTime.add(base, 200, :second)
         )
-
-      {:ok, _} = Jobs.complete(62_002, "skipped")
 
       [run] = Jobs.list_recent_workflow_runs_for_account(account.id)
 

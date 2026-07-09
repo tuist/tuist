@@ -131,6 +131,7 @@ const MAX_PENDING_PROMOTIONS: usize = 262_144;
 pub struct StoreSnapshot {
     pub outbox_messages: usize,
     pub multipart_uploads: usize,
+    pub promotion_queue_depth: usize,
     pub segment_counts: Vec<(&'static str, usize)>,
     pub segment_fsync_count: u64,
     pub rocksdb_block_cache_usage_bytes: u64,
@@ -891,14 +892,35 @@ impl Store {
         }
     }
 
-    pub async fn open_artifact_reader_range(
+    /// Opens a served artifact's reader, tolerating a concurrent background
+    /// promotion — the streaming-read counterpart of
+    /// [`Store::read_artifact_bytes_tolerating_promotion`], with the same
+    /// resolution rules: on the first open failure, re-resolve the manifest
+    /// once; if the artifact moved (promoted), open at its new, live location;
+    /// if it is genuinely gone, report a miss (`Ok(None)`); otherwise the
+    /// original error stands. Returns the manifest that was actually opened so
+    /// callers derive response metadata (size, content type) from the copy the
+    /// bytes come from.
+    pub async fn open_artifact_reader_range_tolerating_promotion(
         &self,
         manifest: &ArtifactManifest,
         read_offset: u64,
         read_limit: Option<u64>,
-    ) -> Result<ArtifactReader, String> {
-        self.open_manifest_reader_with_range(manifest, read_offset, read_limit)
+    ) -> Result<Option<(ArtifactManifest, ArtifactReader)>, String> {
+        match self
+            .open_manifest_reader_with_range(manifest, read_offset, read_limit)
             .await
+        {
+            Ok(reader) => Ok(Some((manifest.clone(), reader))),
+            Err(first_error) => match self.manifest_from_db(&manifest.artifact_id)? {
+                Some(fresh) if fresh.segment_id != manifest.segment_id => self
+                    .open_manifest_reader_with_range(&fresh, read_offset, read_limit)
+                    .await
+                    .map(|reader| Some((fresh, reader))),
+                Some(_) => Err(first_error),
+                None => Ok(None),
+            },
+        }
     }
 
     async fn open_manifest_reader(
@@ -1054,7 +1076,8 @@ impl Store {
                 continue;
             };
             if let Err(error) = self.promote_artifact(&artifact_id).await {
-                tracing::debug!(artifact_id, error, "segment promotion failed");
+                self.io.metrics().record_promotion_failure();
+                tracing::warn!(artifact_id, error, "segment promotion failed");
             }
         }
     }
@@ -2354,6 +2377,12 @@ impl Store {
     pub fn snapshot(&self) -> Result<StoreSnapshot, String> {
         let outbox_messages = self.outbox_message_count()?;
         let multipart_uploads = self.count_cf_entries(ROCKSDB_CF_MULTIPART_UPLOADS)?;
+        let promotion_queue_depth = self
+            .promotion_queue
+            .lock()
+            .expect("promotion queue lock")
+            .order
+            .len();
         let segment_state = self.segment_state_snapshot();
         let segment_counts = vec![
             ("old", segment_state.state.old.len()),
@@ -2363,6 +2392,7 @@ impl Store {
         Ok(StoreSnapshot {
             outbox_messages,
             multipart_uploads,
+            promotion_queue_depth,
             segment_counts,
             segment_fsync_count: self.segment_fsync_count.load(Ordering::Relaxed),
             rocksdb_block_cache_usage_bytes: self.rocksdb_block_cache.get_usage() as u64,
@@ -4541,6 +4571,102 @@ mod tests {
                 .await
                 .expect("tolerant read should not error on a miss"),
             None
+        );
+    }
+
+    async fn drain_reader(mut reader: ArtifactReader) -> Vec<u8> {
+        use tokio::io::AsyncReadExt;
+        let mut bytes = Vec::new();
+        reader
+            .read_to_end(&mut bytes)
+            .await
+            .expect("reader should drain");
+        bytes
+    }
+
+    #[tokio::test]
+    async fn tolerant_reader_reresolves_when_a_concurrent_promotion_evicted_the_old_segment() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        let stale = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-1",
+                "application/octet-stream",
+                b"hello",
+            )
+            .await
+            .expect("failed to persist artifact");
+        let old_segment = stale
+            .segment_id
+            .clone()
+            .expect("segment-backed artifact should have a segment id");
+        store
+            .save_segment_state(&SegmentState {
+                old: vec![SegmentReference::new(old_segment.clone(), 1)],
+                current: Vec::new(),
+                new: vec![SegmentReference::new("fresh-segment".into(), 2)],
+            })
+            .expect("failed to seed segment state");
+        store
+            .promote_artifact(&stale.artifact_id)
+            .await
+            .expect("promotion should succeed");
+        store
+            .evict_segment(&old_segment)
+            .await
+            .expect("eviction should succeed");
+
+        // The stale manifest can no longer be opened directly...
+        assert!(store.open_artifact_reader(&stale).await.is_err());
+        // ...but the tolerant open re-resolves to the promoted location and
+        // hands back the manifest the bytes actually come from.
+        let (fresh, reader) = store
+            .open_artifact_reader_range_tolerating_promotion(&stale, 0, None)
+            .await
+            .expect("tolerant open should succeed")
+            .expect("artifact should still be served");
+        assert_ne!(fresh.segment_id, stale.segment_id);
+        assert_eq!(drain_reader(reader).await, b"hello");
+    }
+
+    #[tokio::test]
+    async fn tolerant_reader_reports_a_miss_when_the_artifact_was_actually_evicted() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        let stale = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-1",
+                "application/octet-stream",
+                b"hello",
+            )
+            .await
+            .expect("failed to persist artifact");
+        let old_segment = stale
+            .segment_id
+            .clone()
+            .expect("segment-backed artifact should have a segment id");
+        store
+            .save_segment_state(&SegmentState {
+                old: vec![SegmentReference::new(old_segment.clone(), 1)],
+                current: Vec::new(),
+                new: vec![SegmentReference::new("fresh-segment".into(), 2)],
+            })
+            .expect("failed to seed segment state");
+        store
+            .evict_segment(&old_segment)
+            .await
+            .expect("eviction should succeed");
+
+        assert!(
+            store
+                .open_artifact_reader_range_tolerating_promotion(&stale, 0, None)
+                .await
+                .expect("tolerant open should not error on a miss")
+                .is_none()
         );
     }
 
