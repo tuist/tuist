@@ -120,8 +120,25 @@ defmodule TuistWeb.RunnerJobLiveTest do
         head_sha: "abcdef1234567890"
       })
 
+    build_run_id = UUIDv7.generate()
+
+    {:ok, _stale_build_run} =
+      RunsFixtures.build_fixture(
+        id: build_run_id,
+        project_id: project.id,
+        user_id: account.id,
+        scheme: "StaleApp",
+        duration: 10_000,
+        inserted_at: ~N[2026-05-28 10:01:00.000000],
+        status: "failure",
+        ci_provider: "github",
+        ci_project_handle: "tuist/tuist",
+        ci_run_id: "313010"
+      )
+
     {:ok, build_run} =
       RunsFixtures.build_fixture(
+        id: build_run_id,
         project_id: project.id,
         user_id: account.id,
         scheme: "App",
@@ -170,13 +187,32 @@ defmodule TuistWeb.RunnerJobLiveTest do
       remote_cache_target_hits: []
     )
 
+    test_run_id = UUIDv7.generate()
+
+    {:ok, _stale_test_run} =
+      RunsFixtures.test_fixture(
+        id: test_run_id,
+        project_id: project.id,
+        account_id: account.id,
+        scheme: "StaleAppTests",
+        duration: 10_000,
+        status: "failure",
+        ran_at: ~N[2026-05-28 10:01:15.000000],
+        inserted_at: ~N[2026-05-28 10:01:15.000000],
+        ci_provider: "github",
+        ci_project_handle: "tuist/tuist",
+        ci_run_id: "313010"
+      )
+
     {:ok, test_run} =
       RunsFixtures.test_fixture(
+        id: test_run_id,
         project_id: project.id,
         account_id: account.id,
         scheme: "AppTests",
         duration: 90_000,
         ran_at: ~N[2026-05-28 10:03:15.000000],
+        inserted_at: ~N[2026-05-28 10:03:15.000000],
         ci_provider: "github",
         ci_project_handle: "tuist/tuist",
         ci_run_id: "313010"
@@ -291,6 +327,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert html =~ "AppClip"
     assert html =~ "AppTests"
     assert html =~ "AppClipTests"
+    refute html =~ "StaleApp"
+    refute html =~ "StaleAppTests"
     assert html =~ "67%"
     assert html =~ "Module cache"
     assert html =~ "Selective testing"
