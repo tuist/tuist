@@ -520,7 +520,16 @@ async fn bootstrap_manifest_range_from_peer(
                             "artifact",
                             outcome.as_str(),
                         );
-                        Ok(outcome.applied())
+                        let applied = outcome.applied();
+                        if applied {
+                            // Tick progress as each artifact lands, not once per
+                            // page: draining a single 256-manifest page can take
+                            // longer than the no-progress window on a slow/cold
+                            // link, and batching the bump to page end would let the
+                            // watchdog cancel a bootstrap that is in fact applying.
+                            progress.fetch_add(1, Ordering::Relaxed);
+                        }
+                        Ok(applied)
                     }
                     Err(error) => {
                         state
@@ -537,15 +546,13 @@ async fn bootstrap_manifest_range_from_peer(
 
         for outcome in outcomes {
             match outcome {
-                Ok(true) => {
-                    applied += 1;
-                    progress.fetch_add(1, Ordering::Relaxed);
-                }
+                Ok(true) => applied += 1,
                 Ok(false) => {}
                 Err(_) => failed += 1,
             }
         }
 
+        ensure_cursor_advances(peer, after.as_deref(), &page)?;
         match page.next_after {
             Some(next_after) => after = Some(next_after),
             None => break,
@@ -553,6 +560,30 @@ async fn bootstrap_manifest_range_from_peer(
     }
 
     Ok((applied, failed))
+}
+
+/// Reject a peer that returns a stale or non-advancing manifest cursor. Without a
+/// total-runtime cap on the bootstrap, a `next_after` that does not move past the
+/// cursor we asked with — or a `Some(next_after)` on an empty page — would loop
+/// this walk (holding the bootstrap task and its semaphore permit) forever, and
+/// the per-page progress tick would keep the no-progress watchdog from ever
+/// firing. A well-behaved peer always returns the last artifact_id it served,
+/// which is strictly greater than the requested cursor.
+fn ensure_cursor_advances(
+    peer: &str,
+    after: Option<&str>,
+    page: &ManifestPage,
+) -> Result<(), String> {
+    let Some(next_after) = page.next_after.as_deref() else {
+        return Ok(());
+    };
+    let advanced = after.is_none_or(|current| next_after > current);
+    if page.manifests.is_empty() || !advanced {
+        return Err(format!(
+            "bootstrap from {peer} returned a non-advancing manifest cursor {next_after:?}; abandoning this attempt"
+        ));
+    }
+    Ok(())
 }
 
 async fn bootstrap_artifact_from_peer(
@@ -1202,6 +1233,80 @@ mod tests {
             divergent_prefixes(&local, &peer),
             vec!["00a".to_string()],
             "count is a discriminator even when the hash matches"
+        );
+    }
+
+    fn cursor_manifest(id: &str) -> ArtifactManifest {
+        ArtifactManifest {
+            artifact_id: id.to_string(),
+            producer: ArtifactProducer::Xcode,
+            namespace_id: "ios".to_string(),
+            key: id.to_string(),
+            content_type: "application/octet-stream".to_string(),
+            inline: false,
+            blob_path: None,
+            segment_id: None,
+            segment_offset: None,
+            size: 0,
+            version_ms: 0,
+            created_at_ms: 0,
+        }
+    }
+
+    fn manifest_page(next_after: Option<&str>, manifests: Vec<ArtifactManifest>) -> ManifestPage {
+        ManifestPage {
+            manifests,
+            next_after: next_after.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn ensure_cursor_advances_accepts_forward_and_terminal_pages() {
+        // Terminal page (no cursor) always ends the walk cleanly.
+        assert!(ensure_cursor_advances("peer", Some("m"), &manifest_page(None, vec![])).is_ok());
+        // First page (no prior cursor) that returns a cursor advances from nothing.
+        assert!(
+            ensure_cursor_advances(
+                "peer",
+                None,
+                &manifest_page(Some("b"), vec![cursor_manifest("b")])
+            )
+            .is_ok()
+        );
+        // Strictly forward cursor.
+        assert!(
+            ensure_cursor_advances(
+                "peer",
+                Some("b"),
+                &manifest_page(Some("c"), vec![cursor_manifest("c")])
+            )
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn ensure_cursor_advances_rejects_stale_backward_or_empty_pages() {
+        // Same cursor as requested → would loop forever without the guard.
+        assert!(
+            ensure_cursor_advances(
+                "peer",
+                Some("b"),
+                &manifest_page(Some("b"), vec![cursor_manifest("b")])
+            )
+            .is_err()
+        );
+        // Cursor moving backwards.
+        assert!(
+            ensure_cursor_advances(
+                "peer",
+                Some("c"),
+                &manifest_page(Some("b"), vec![cursor_manifest("b")])
+            )
+            .is_err()
+        );
+        // Empty page that still claims there is more to fetch.
+        assert!(
+            ensure_cursor_advances("peer", Some("b"), &manifest_page(Some("c"), vec![])).is_err()
         );
     }
 
@@ -2389,6 +2494,58 @@ mod tests {
             error.contains("made no progress"),
             "unexpected error: {error}"
         );
+    }
+
+    #[tokio::test]
+    async fn bootstrap_ticks_progress_per_artifact_within_a_slow_page() {
+        use axum::{
+            extract::Request,
+            middleware::{self, Next},
+            response::IntoResponse,
+        };
+
+        // Exactly one page (limit=256) of segment-backed artifacts, each body
+        // fetch delayed. At concurrency 16 the single page takes ~16*40ms to
+        // drain — many watchdog windows — with no page boundary in between.
+        let remote = test_context(|_| {}).await;
+        for i in 0..256 {
+            let key = format!("artifact-{i:05}");
+            remote
+                .state
+                .store
+                .persist_artifact_from_bytes(
+                    ArtifactProducer::Xcode,
+                    "ios",
+                    &key,
+                    "application/octet-stream",
+                    &vec![0_u8; 1024],
+                )
+                .await
+                .expect("remote persists artifact");
+        }
+
+        async fn slow_bodies(request: Request, next: Next) -> axum::response::Response {
+            let path = request.uri().path().to_owned();
+            if path == "/_internal/bootstrap/digest" {
+                return StatusCode::NOT_FOUND.into_response();
+            }
+            if path.starts_with("/_internal/bootstrap/artifacts/") {
+                sleep(Duration::from_millis(40)).await;
+            }
+            next.run(request).await
+        }
+        let peer = router(remote.state.clone()).layer(middleware::from_fn(slow_bodies));
+        let (peer_url, _server) = spawn_server(peer).await;
+
+        // Batching the progress bump to page end (the pre-fix behavior) leaves
+        // the counter flat for the whole ~640ms drain and the 200ms watchdog
+        // cancels mid-page; per-artifact ticks keep it alive to completion.
+        let local = test_context(|_| {}).await;
+        let stats =
+            bootstrap_from_peer_with_watchdog(&local.state, &peer_url, Duration::from_millis(200))
+                .await
+                .expect("per-artifact progress must keep a slow single page alive");
+        assert_eq!(stats.artifacts_applied, 256);
     }
 
     #[tokio::test]
