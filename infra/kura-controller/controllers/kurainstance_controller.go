@@ -1957,14 +1957,22 @@ func (r *KuraInstanceReconciler) reconcileNetworkPolicy(ctx context.Context, ins
 				},
 			})
 		}
-		if meshManagedPeerTLS(instance) && instance.Spec.MeshPublicPeerHost != "" {
-			// The public peer plane accepts mesh connections from off-cluster
-			// self-hosted nodes through the LoadBalancer. With
-			// externalTrafficPolicy: Cluster the source is SNATed to a node IP,
-			// so no pod/namespace selector matches — allow the peer port from
-			// anywhere. The mutual-TLS client-cert check against the account CA
-			// is the auth boundary; a connection without a valid account-CA leaf
-			// fails the handshake.
+		if crossRegionRuntimeEnabled(instance) {
+			// Any instance that peers cross-region receives peer connections
+			// whose source is SNATed, so no pod/namespace selector can match —
+			// allow the peer port from anywhere. Two SNAT paths need this, not
+			// just one:
+			//   1. off-cluster self-hosted nodes reaching the public peer
+			//      LoadBalancer (externalTrafficPolicy: Cluster SNATs to a node IP);
+			//   2. same-account peers in another region whose in-cluster
+			//      pod-to-pod traffic is SNATed across the CNI/provider boundary
+			//      (e.g. a Dedibox region dialing a Scaleway NodePort region).
+			// Gating this on MeshPublicPeerHost missed case 2: a mesh region
+			// without a public host (e.g. a NodePort runner-cache node) would
+			// silently reject cross-provider peers and never finish bootstrap.
+			// The mutual-TLS client-cert check against the account CA is the auth
+			// boundary; a connection without a valid account-CA leaf fails the
+			// handshake, so opening the port by IP grants no access on its own.
 			ingress = append(ingress, networkingv1.NetworkPolicyIngressRule{
 				From: []networkingv1.NetworkPolicyPeer{
 					{IPBlock: &networkingv1.IPBlock{CIDR: "0.0.0.0/0"}},
