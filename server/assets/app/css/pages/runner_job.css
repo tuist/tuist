@@ -172,8 +172,8 @@
 
   & [data-part="insights-grid"] {
     display: grid;
-    align-items: stretch;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
     gap: var(--noora-spacing-4);
 
     @media (max-width: 900px) {
@@ -285,8 +285,8 @@
 
   & [data-part="insights-run-row"] {
     display: grid;
-    align-items: center;
     grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
     gap: var(--noora-spacing-3);
     box-shadow: var(--noora-border-light-default);
     border-radius: var(--noora-radius-3);
@@ -305,8 +305,8 @@
 
     @media (max-width: 640px) {
       & {
-        align-items: flex-start;
         grid-template-columns: 1fr;
+        align-items: flex-start;
       }
     }
   }
@@ -336,10 +336,10 @@
 
   & [data-part="insights-run-meta"] {
     display: flex;
-    justify-self: end;
     flex-shrink: 0;
     flex-wrap: wrap;
     align-items: center;
+    justify-self: end;
     gap: var(--noora-spacing-4);
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-weight-regular) var(--noora-font-body-small);
@@ -451,16 +451,15 @@
             display: inline-flex;
             align-items: center;
             gap: var(--noora-spacing-3);
+            cursor: pointer;
             box-shadow: var(--noora-border-light-default);
             border-radius: var(--noora-radius-3);
             background: var(--noora-surface-background-primary);
-            padding: var(--noora-spacing-1) var(--noora-spacing-3) var(--noora-spacing-1)
-              var(--noora-spacing-2);
+            padding: var(--noora-spacing-1) var(--noora-spacing-3) var(--noora-spacing-1) var(--noora-spacing-2);
             max-width: 100%;
             color: var(--noora-surface-label-primary);
             font: var(--noora-font-weight-medium) var(--noora-font-body-small);
             text-decoration: none;
-            cursor: pointer;
 
             &:hover {
               background: var(--noora-surface-background-secondary);
@@ -508,7 +507,6 @@
             border-left: 1px solid var(--noora-surface-border-secondary);
             padding-left: var(--noora-spacing-2);
           }
-
         }
 
         & > [data-part="step-meta"] {
@@ -886,8 +884,7 @@
     overflow: hidden;
 
     &[data-state="requested"] {
-      background:
-        linear-gradient(135deg, color-mix(in srgb, var(--noora-azure-500) 12%, transparent), transparent 52%),
+      background: linear-gradient(135deg, color-mix(in srgb, var(--noora-azure-500) 12%, transparent), transparent 52%),
         var(--noora-surface-background-secondary);
     }
   }
