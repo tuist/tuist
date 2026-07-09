@@ -152,6 +152,57 @@ defmodule TuistWeb.RunnerJobLiveTest do
     refute html =~ "30.0s"
   end
 
+  test "expands the requested step from the URL", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_402,
+        account_id: account.id,
+        fleet_name: "macos-xcode-26.4",
+        repository: "tuist/tuist",
+        workflow_run_id: 314_020,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abcdef1"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("macos-xcode-26.4", [])
+    :ok = Jobs.record_claimed(candidate, "pod-x", DateTime.utc_now())
+    :ok = Jobs.record_running(31_402, "tuist-runner-x")
+    {:ok, _completed} = Jobs.complete(31_402, "failure")
+
+    :ok =
+      JobSteps.record([
+        %{
+          workflow_job_id: 31_402,
+          account_id: account.id,
+          number: 1,
+          name: "Set up job",
+          status: "completed",
+          conclusion: "success",
+          started_at: ~U[2026-05-28 10:00:00.000000Z],
+          completed_at: ~U[2026-05-28 10:00:05.000000Z]
+        },
+        %{
+          workflow_job_id: 31_402,
+          account_id: account.id,
+          number: 2,
+          name: "Run tests",
+          status: "completed",
+          conclusion: "failure",
+          started_at: ~U[2026-05-28 10:00:05.000000Z],
+          completed_at: ~U[2026-05-28 10:00:35.000000Z]
+        }
+      ])
+
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{account.name}/runners/runs/314020/jobs/31402?tab=overview&step=2#runner-step-2")
+
+    assert has_element?(lv, ~s|#runner-step-1[data-expanded="false"]|, "Set up job")
+    assert has_element?(lv, ~s|#runner-step-2[data-expanded="true"]|, "Run tests")
+  end
+
   test "renders the steps empty state for a job without captured steps", %{
     conn: conn,
     account: account

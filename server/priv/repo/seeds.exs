@@ -3535,15 +3535,18 @@ build_runner_job_metrics = fn workflow_job_id, account_id, fleet, started_at, co
 end
 
 # Completed jobs — history (most recent first by `enqueued_at`)
+linked_runner_profile_label = "tuist-macos"
+
 completed_jobs = [
   %{
     conclusion: "success",
     workflow: "Server",
-    job_name: "Docker build",
+    job_name: "Build and test",
     run_attempt: 1,
     minutes_ago: 7,
     duration_s: 312,
-    repo_idx: 0
+    repo_idx: 0,
+    requested_dispatch_label: linked_runner_profile_label
   },
   %{
     conclusion: "success",
@@ -3688,6 +3691,7 @@ completed_jobs
       job_name: job.job_name,
       head_branch: branch,
       head_sha: random_sha.(),
+      requested_dispatch_label: Map.get(job, :requested_dispatch_label, ""),
       enqueued_at: enqueued_at
     })
 
@@ -3704,6 +3708,7 @@ completed_jobs
         job_name: job.job_name,
         head_branch: branch,
         head_sha: random_sha.(),
+        requested_dispatch_label: Map.get(job, :requested_dispatch_label, ""),
         enqueued_at: enqueued_at
       },
       "runner-pod-#{rem(idx, 4)}",
@@ -3782,6 +3787,224 @@ completed_jobs
       IngestRepo.insert_all(Job, [row])
   end
 end)
+
+linked_runner_workflow_run_id = 4_199_000
+linked_runner_build_id = "01910000-0000-7000-8000-000000000001"
+linked_runner_test_id = "01910000-0000-7000-8000-000000000002"
+linked_runner_build_event_id = "01910000-0000-7000-8000-000000000003"
+linked_runner_test_event_id = "01910000-0000-7000-8000-000000000004"
+
+linked_runner_ran_at =
+  now |> DateTime.add(-5 * 60, :second) |> DateTime.to_naive() |> NaiveDateTime.truncate(:microsecond)
+
+linked_runner_build = %{
+  id: linked_runner_build_id,
+  duration: 206_000,
+  macos_version: "26.4",
+  xcode_version: "26.4",
+  is_ci: true,
+  model_identifier: "Mac15,6",
+  project_id: tuist_project.id,
+  account_id: runner_jobs_account_id,
+  scheme: "TuistServer",
+  configuration: "Release",
+  inserted_at: linked_runner_ran_at,
+  status: "success",
+  category: "incremental",
+  git_commit_sha: random_sha.(),
+  git_branch: "main",
+  git_ref: "refs/heads/main",
+  ci_run_id: Integer.to_string(linked_runner_workflow_run_id),
+  ci_project_handle: "tuist/tuist",
+  ci_host: "",
+  ci_provider: "github",
+  cacheable_tasks_count: 186,
+  cacheable_task_remote_hits_count: 97,
+  cacheable_task_local_hits_count: 42,
+  custom_tags: ["runner-linked", "production-shaped"],
+  custom_values: %{}
+}
+
+linked_runner_test = %{
+  id: linked_runner_test_id,
+  duration: 124_000,
+  macos_version: "26.4",
+  xcode_version: "26.4",
+  is_ci: true,
+  model_identifier: "Mac15,6",
+  scheme: "TuistServerTests",
+  status: "success",
+  is_flaky: false,
+  git_branch: "main",
+  git_commit_sha: linked_runner_build.git_commit_sha,
+  git_ref: "refs/heads/main",
+  ran_at: NaiveDateTime.add(linked_runner_ran_at, 20, :second),
+  project_id: tuist_project.id,
+  account_id: runner_jobs_account_id,
+  build_run_id: linked_runner_build_id,
+  ci_run_id: Integer.to_string(linked_runner_workflow_run_id),
+  ci_project_handle: "tuist/tuist",
+  ci_host: "",
+  ci_provider: "github",
+  build_system: "xcode",
+  inserted_at: NaiveDateTime.add(linked_runner_ran_at, 20, :second)
+}
+
+IngestRepo.insert_all(Build, [linked_runner_build], timeout: 120_000)
+IngestRepo.insert_all(Test, [linked_runner_test], timeout: 120_000)
+
+linked_runner_build_event = %{
+  id: linked_runner_build_event_id,
+  name: "xcodebuild",
+  duration: linked_runner_build.duration,
+  tuist_version: "4.85.0",
+  project_id: tuist_project.id,
+  cacheable_targets: ["TuistServer", "TuistWeb", "TuistAccounts", "TuistProjects", "Noora"],
+  local_cache_target_hits: ["TuistAccounts", "Noora"],
+  remote_cache_target_hits: ["TuistWeb", "TuistProjects"],
+  test_targets: [],
+  local_test_target_hits: [],
+  remote_test_target_hits: [],
+  swift_version: "6.2",
+  macos_version: "26.4",
+  subcommand: "",
+  command_arguments: "build --scheme TuistServer --configuration Release",
+  is_ci: true,
+  user_id: nil,
+  client_id: "github-actions-runner",
+  status: 0,
+  error_message: nil,
+  preview_id: nil,
+  git_ref: "refs/heads/main",
+  git_commit_sha: linked_runner_build.git_commit_sha,
+  git_branch: "main",
+  build_run_id: linked_runner_build_id,
+  test_run_id: nil,
+  cache_endpoint: "tuist-cloud",
+  ran_at: linked_runner_ran_at,
+  created_at: linked_runner_ran_at,
+  updated_at: linked_runner_ran_at
+}
+
+linked_runner_test_event = %{
+  id: linked_runner_test_event_id,
+  name: "test",
+  duration: linked_runner_test.duration,
+  tuist_version: "4.85.0",
+  project_id: tuist_project.id,
+  cacheable_targets: ["TuistServer", "TuistWeb", "TuistAccounts", "TuistProjects", "Noora"],
+  local_cache_target_hits: ["TuistAccounts"],
+  remote_cache_target_hits: ["TuistWeb", "TuistProjects"],
+  test_targets: ["TuistServerTests", "TuistWebTests", "TuistAccountsTests"],
+  local_test_target_hits: ["TuistAccountsTests"],
+  remote_test_target_hits: ["TuistWebTests"],
+  swift_version: "6.2",
+  macos_version: "26.4",
+  subcommand: "",
+  command_arguments: "test --scheme TuistServerTests --configuration Release",
+  is_ci: true,
+  user_id: nil,
+  client_id: "github-actions-runner",
+  status: 0,
+  error_message: nil,
+  preview_id: nil,
+  git_ref: "refs/heads/main",
+  git_commit_sha: linked_runner_test.git_commit_sha,
+  git_branch: "main",
+  build_run_id: nil,
+  test_run_id: linked_runner_test_id,
+  cache_endpoint: "tuist-cloud",
+  ran_at: linked_runner_test.ran_at,
+  created_at: linked_runner_test.ran_at,
+  updated_at: linked_runner_test.ran_at
+}
+
+IngestRepo.insert_all(Event, [linked_runner_build_event, linked_runner_test_event], timeout: 120_000)
+create_xcode_data_for_events.([linked_runner_build_event, linked_runner_test_event], "Runner-linked CI details")
+
+linked_runner_module_run_id = "01910000-0000-7000-8000-000000000005"
+linked_runner_suite_run_id = "01910000-0000-7000-8000-000000000006"
+
+IngestRepo.insert_all(
+  TestModuleRun,
+  [
+    %{
+      id: linked_runner_module_run_id,
+      name: "TuistServerTests",
+      test_run_id: linked_runner_test_id,
+      status: 0,
+      is_flaky: false,
+      duration: 124_000,
+      test_suite_count: 1,
+      test_case_count: 4,
+      avg_test_case_duration: 31_000,
+      project_id: tuist_project.id,
+      is_ci: true,
+      git_branch: "main",
+      ran_at: linked_runner_test.ran_at,
+      inserted_at: linked_runner_test.inserted_at
+    }
+  ],
+  timeout: 120_000
+)
+
+IngestRepo.insert_all(
+  TestSuiteRun,
+  [
+    %{
+      id: linked_runner_suite_run_id,
+      name: "RunnerLinkedCISuite",
+      test_run_id: linked_runner_test_id,
+      test_module_run_id: linked_runner_module_run_id,
+      status: 0,
+      is_flaky: false,
+      duration: 124_000,
+      test_case_count: 4,
+      avg_test_case_duration: 31_000,
+      project_id: tuist_project.id,
+      is_ci: true,
+      git_branch: "main",
+      ran_at: linked_runner_test.ran_at,
+      inserted_at: linked_runner_test.inserted_at
+    }
+  ],
+  timeout: 120_000
+)
+
+linked_runner_case_names = ["testCachesServerBuild", "testUploadsArtifacts", "testReportsMetrics", "testLinksRunnerJob"]
+
+linked_runner_case_runs =
+  linked_runner_case_names
+  |> Enum.with_index()
+  |> Enum.map(fn {name, idx} ->
+    %{
+      id: UUIDv7.generate(),
+      name: name,
+      test_run_id: linked_runner_test_id,
+      test_module_run_id: linked_runner_module_run_id,
+      test_suite_run_id: linked_runner_suite_run_id,
+      test_case_id: test_case_id_map[{Enum.at(test_case_names, idx), "AppTests", "LoginTests"}],
+      project_id: tuist_project.id,
+      is_ci: true,
+      scheme: linked_runner_test.scheme,
+      account_id: runner_jobs_account_id,
+      ran_at: linked_runner_test.ran_at,
+      git_branch: "main",
+      git_commit_sha: linked_runner_test.git_commit_sha,
+      status: 0,
+      is_flaky: false,
+      is_new: idx == 3,
+      duration: 18_000 + idx * 7_000,
+      module_name: "TuistServerTests",
+      suite_name: "RunnerLinkedCISuite",
+      inserted_at: linked_runner_test.inserted_at
+    }
+  end)
+
+IngestRepo.insert_all(TestCaseRun, linked_runner_case_runs, timeout: 120_000)
+
+IO.puts("  - runner-linked build detail: /#{organization.account.name}/tuist/builds/build-runs/#{linked_runner_build_id}")
+IO.puts("  - runner-linked test detail: /#{organization.account.name}/tuist/tests/test-runs/#{linked_runner_test_id}")
 
 # Running jobs — currently being executed
 running_jobs = [
@@ -4281,6 +4504,8 @@ IO.puts("  - #{seed_config.previews} previews")
 IO.puts("  - #{seed_config.bundles} bundles")
 IO.puts("  - #{length(android_test_runs)} android test runs")
 IO.puts("  - #{length(gradle_builds)} gradle builds")
+IO.puts("  - runner-linked build detail: /#{organization.account.name}/tuist/builds/build-runs/#{linked_runner_build_id}")
+IO.puts("  - runner-linked test detail: /#{organization.account.name}/tuist/tests/test-runs/#{linked_runner_test_id}")
 IO.puts("")
 IO.puts("To generate production-like volumes, run:")
 IO.puts("  SEED_SCALE=medium mix run priv/repo/seeds.exs")

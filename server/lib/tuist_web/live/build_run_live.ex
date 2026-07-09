@@ -7,6 +7,7 @@ defmodule TuistWeb.BuildRunLive do
   import TuistWeb.Components.EmptyTabStateBackground
   import TuistWeb.Components.MachineMetricsCharts
   import TuistWeb.PercentileDropdownWidget
+  import TuistWeb.Runs.CIContextCard
   import TuistWeb.Runs.ModuleCacheTab
   import TuistWeb.Runs.RanByBadge
 
@@ -19,6 +20,7 @@ defmodule TuistWeb.BuildRunLive do
   alias Tuist.Tests
   alias Tuist.Xcode
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.RunnerCIContext
   alias TuistWeb.Utilities.Query
 
   @binary_cache_page_size 20
@@ -116,11 +118,16 @@ defmodule TuistWeb.BuildRunLive do
       if binary_cache_command_event,
         do: CommandEvents.module_cache_output_metrics(binary_cache_command_event.id)
 
+    ci_run_url = Builds.build_ci_run_url(run)
+    ci_context = RunnerCIContext.build(run, socket.assigns.selected_account, :build, ci_run_url)
+
     socket
     |> assign(:command_event, command_event)
     |> assign(:binary_cache_command_event, binary_cache_command_event)
     |> assign(:module_cache_metrics, module_cache_metrics)
     |> assign(:has_binary_cache_data, has_binary_cache_data)
+    |> assign(:ci_run_url, ci_run_url)
+    |> assign(:ci_context, ci_context)
     |> assign(:test_run, test_run)
     |> assign(:cas_metrics, cas_metrics)
     |> assign(:cacheable_task_latency_metrics, cacheable_task_latency_metrics)
