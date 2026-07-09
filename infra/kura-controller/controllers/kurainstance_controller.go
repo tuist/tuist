@@ -24,6 +24,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	policyv1 "k8s.io/api/policy/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -278,6 +279,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileNetworkPolicy(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileCiliumPeerPolicy(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcilePodDisruptionBudget(ctx, instance); err != nil {
@@ -1985,6 +1989,72 @@ func (r *KuraInstanceReconciler) reconcileNetworkPolicy(ctx context.Context, ins
 		policy.Spec.Ingress = ingress
 		return nil
 	})
+	return err
+}
+
+// ciliumPeerPolicyGVK identifies the CiliumNetworkPolicy the controller emits to
+// open the mesh peer port to cross-provider peers.
+var ciliumPeerPolicyGVK = schema.GroupVersionKind{Group: "cilium.io", Version: "v2", Kind: "CiliumNetworkPolicy"}
+
+// reconcileCiliumPeerPolicy opens the peer port to Cilium's remote-node and
+// cluster entities for cross-region instances.
+//
+// A same-account peer in another region reaches this instance over
+// cross-provider in-cluster pod-to-pod traffic that Cilium SNATs to a node IP,
+// so its source carries the reserved `remote-node` identity. Standard k8s
+// NetworkPolicy ipBlock rules — even 0.0.0.0/0 — match only the `world` entity,
+// never `remote-node`, so no k8s NetworkPolicy (see reconcileNetworkPolicy) can
+// open the peer port for a cross-provider peer: the SYN is silently dropped and
+// the dialing region holds the peer inflight forever. A CiliumNetworkPolicy with
+// fromEntities [remote-node, cluster] is the only construct that admits it. The
+// account-CA mutual-TLS handshake stays the auth boundary, so opening the port
+// by entity grants no access on its own (same rationale as the ipBlock rule).
+//
+// Emitted only for cross-region instances and removed otherwise. Where the
+// CiliumNetworkPolicy CRD is absent (a non-Cilium cluster, or envtest), the
+// reconcile degrades to a no-op so the controller stays portable.
+func (r *KuraInstanceReconciler) reconcileCiliumPeerPolicy(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	policy := &unstructured.Unstructured{}
+	policy.SetGroupVersionKind(ciliumPeerPolicyGVK)
+	policy.SetNamespace(instance.Namespace)
+	policy.SetName(instance.Name + "-peer")
+
+	if !crossRegionRuntimeEnabled(instance) {
+		err := r.Delete(ctx, policy)
+		if apierrors.IsNotFound(err) || meta.IsNoMatchError(err) {
+			return nil
+		}
+		return err
+	}
+
+	matchLabels := map[string]any{}
+	for k, v := range selectorLabels(instance) {
+		matchLabels[k] = v
+	}
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, policy, func() error {
+		if err := controllerutil.SetControllerReference(instance, policy, r.Scheme); err != nil {
+			return err
+		}
+		policy.SetLabels(labels(instance))
+		return unstructured.SetNestedMap(policy.Object, map[string]any{
+			"endpointSelector": map[string]any{"matchLabels": matchLabels},
+			"ingress": []any{
+				map[string]any{
+					"fromEntities": []any{"remote-node", "cluster"},
+					"toPorts": []any{
+						map[string]any{
+							"ports": []any{
+								map[string]any{"port": strconv.Itoa(int(peerPort)), "protocol": "TCP"},
+							},
+						},
+					},
+				},
+			},
+		}, "spec")
+	})
+	if meta.IsNoMatchError(err) {
+		return nil
+	}
 	return err
 }
 

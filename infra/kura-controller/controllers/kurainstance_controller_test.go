@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -535,6 +536,80 @@ func meshTestScheme(t *testing.T) *runtime.Scheme {
 		t.Fatal(err)
 	}
 	return scheme
+}
+
+func meshTestSchemeWithCilium(t *testing.T) *runtime.Scheme {
+	t.Helper()
+	scheme := meshTestScheme(t)
+	scheme.AddKnownTypeWithName(ciliumPeerPolicyGVK, &unstructured.Unstructured{})
+	listGVK := ciliumPeerPolicyGVK
+	listGVK.Kind += "List"
+	scheme.AddKnownTypeWithName(listGVK, &unstructured.UnstructuredList{})
+	return scheme
+}
+
+// A cross-region instance gets a CiliumNetworkPolicy admitting Cilium's
+// remote-node entity on the peer port. A same-account peer in another region
+// arrives SNATed as remote-node, which a k8s NetworkPolicy ipBlock (world) can
+// never match — so this is the only construct that opens cross-provider peering.
+func TestReconcileCiliumPeerPolicyAdmitsRemoteNodeOnPeerPort(t *testing.T) {
+	ctx := context.Background()
+	scheme := meshTestSchemeWithCilium(t)
+
+	instance := meshInstance("kura-tuist-scw-fr-par", "tuist")
+	instance.Spec.ExposeNodePort = true // NodePort runner-cache mesh peer, no public host
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).WithStatusSubresource(instance).Build(),
+		Scheme: scheme,
+	}
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	cnp := &unstructured.Unstructured{}
+	cnp.SetGroupVersionKind(ciliumPeerPolicyGVK)
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name + "-peer", Namespace: instance.Namespace}, cnp); err != nil {
+		t.Fatalf("expected a CiliumNetworkPolicy for a cross-region instance: %v", err)
+	}
+	ingress, found, err := unstructured.NestedSlice(cnp.Object, "spec", "ingress")
+	if err != nil || !found || len(ingress) != 1 {
+		t.Fatalf("expected one ingress rule, got %v (found=%v err=%v)", ingress, found, err)
+	}
+	rule, _ := ingress[0].(map[string]any)
+	ents, _ := rule["fromEntities"].([]any)
+	hasRemoteNode := false
+	for _, e := range ents {
+		if e == "remote-node" {
+			hasRemoteNode = true
+		}
+	}
+	if !hasRemoteNode {
+		t.Fatalf("expected fromEntities to include remote-node, got %v", ents)
+	}
+	toPorts, _ := rule["toPorts"].([]any)
+	if len(toPorts) != 1 {
+		t.Fatalf("expected one toPorts entry, got %v", toPorts)
+	}
+	ports, _ := toPorts[0].(map[string]any)["ports"].([]any)
+	if len(ports) != 1 || ports[0].(map[string]any)["port"] != strconv.Itoa(int(peerPort)) {
+		t.Fatalf("expected the peer port %d, got %v", peerPort, ports)
+	}
+
+	// A non-cross-region instance (no Mesh, no external peer secret) gets none.
+	solo := meshInstance("kura-tuist-solo", "tuist")
+	solo.Spec.Mesh = false
+	if err := reconciler.Create(ctx, solo); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: solo.Name, Namespace: solo.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+	absent := &unstructured.Unstructured{}
+	absent.SetGroupVersionKind(ciliumPeerPolicyGVK)
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: solo.Name + "-peer", Namespace: solo.Namespace}, absent); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected no CiliumNetworkPolicy for a non-cross-region instance, got %v", err)
+	}
 }
 
 func TestKuraInstanceReconcilePeerTLSSecretMeshSignsLeafWithAccountCA(t *testing.T) {
