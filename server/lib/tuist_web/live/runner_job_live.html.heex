@@ -228,12 +228,14 @@
               </div>
               <div data-part="insights-run-list">
                 <%= for build <- @linked_build_runs do %>
+                  <% build_project = Map.get(@insights_projects_by_id, build.project_id) %>
                   <% row_status_props = TuistWeb.RunnerJobLive.build_status_badge_props(build) %>
                   <% build_step_window =
                     TuistWeb.RunnerJobLive.insight_step_window(@steps, [build], :build) %>
                   <.link
+                    :if={build_project}
                     navigate={
-                      ~p"/#{@selected_account.name}/#{@insights_project.name}/builds/build-runs/#{build.id}"
+                      ~p"/#{@selected_account.name}/#{build_project.name}/builds/build-runs/#{build.id}"
                     }
                     data-part="insights-run-row"
                     data-step-start={build_step_window && build_step_window.min}
@@ -313,12 +315,14 @@
               </div>
               <div data-part="insights-run-list">
                 <%= for test <- @linked_test_runs do %>
+                  <% test_project = Map.get(@insights_projects_by_id, test.project_id) %>
                   <% row_status_props = TuistWeb.RunnerJobLive.test_status_badge_props(test) %>
                   <% test_step_window =
                     TuistWeb.RunnerJobLive.insight_step_window(@steps, [test], :test) %>
                   <.link
+                    :if={test_project}
                     navigate={
-                      ~p"/#{@selected_account.name}/#{@insights_project.name}/tests/test-runs/#{test.id}"
+                      ~p"/#{@selected_account.name}/#{test_project.name}/tests/test-runs/#{test.id}"
                     }
                     data-part="insights-run-row"
                     data-step-start={test_step_window && test_step_window.min}
@@ -425,10 +429,12 @@
                   data-part="step-insight-chips"
                 >
                   <%= if latest_step_build do %>
+                    <% latest_step_build_project =
+                      Map.get(@insights_projects_by_id, latest_step_build.project_id) %>
                     <.link
-                      :if={@insights_project}
+                      :if={latest_step_build_project}
                       navigate={
-                        ~p"/#{@selected_account.name}/#{@insights_project.name}/builds/build-runs/#{latest_step_build.id}"
+                        ~p"/#{@selected_account.name}/#{latest_step_build_project.name}/builds/build-runs/#{latest_step_build.id}"
                       }
                       data-part="step-insight-chip"
                       data-kind="build"
@@ -451,10 +457,12 @@
                     </.link>
                   <% end %>
                   <%= if latest_step_test do %>
+                    <% latest_step_test_project =
+                      Map.get(@insights_projects_by_id, latest_step_test.project_id) %>
                     <.link
-                      :if={@insights_project}
+                      :if={latest_step_test_project}
                       navigate={
-                        ~p"/#{@selected_account.name}/#{@insights_project.name}/tests/test-runs/#{latest_step_test.id}"
+                        ~p"/#{@selected_account.name}/#{latest_step_test_project.name}/tests/test-runs/#{latest_step_test.id}"
                       }
                       data-part="step-insight-chip"
                       data-kind="test"

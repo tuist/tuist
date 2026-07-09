@@ -444,24 +444,26 @@ defmodule TuistWeb.RunnerJobLive do
   end
 
   defp assign_runner_insights(socket, selected_account, job) do
-    case Jobs.project_for_runner_job(selected_account, job) do
+    case Jobs.projects_for_runner_job(selected_account, job) do
       {:error, :not_found} ->
         socket
         |> assign(:insights_project, nil)
+        |> assign(:insights_projects_by_id, %{})
         |> assign(:linked_build_runs, [])
         |> assign(:linked_test_runs, [])
         |> assign(:linked_build_module_cache_summary, module_cache_summary([]))
         |> assign(:linked_test_selective_testing_summary, selective_testing_summary([]))
 
-      {:ok, project} ->
-        build_runs = Jobs.list_runner_build_runs(project, job.workflow_run_id)
-        test_runs = Jobs.list_runner_test_runs(project, job.workflow_run_id)
+      {:ok, projects} ->
+        build_runs = Jobs.list_runner_build_runs(projects, job.workflow_run_id)
+        test_runs = Jobs.list_runner_test_runs(projects, job.workflow_run_id)
 
         build_command_events = build_runs |> Jobs.command_events_for_runs(:build) |> Enum.reject(&is_nil/1)
         test_command_events = test_runs |> Jobs.command_events_for_runs(:test) |> Enum.reject(&is_nil/1)
 
         socket
-        |> assign(:insights_project, project)
+        |> assign(:insights_project, List.first(projects))
+        |> assign(:insights_projects_by_id, Map.new(projects, &{&1.id, &1}))
         |> assign(:linked_build_runs, build_runs)
         |> assign(:linked_test_runs, test_runs)
         |> assign(:linked_build_module_cache_summary, module_cache_summary(build_command_events))

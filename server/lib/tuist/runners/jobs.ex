@@ -56,7 +56,7 @@ defmodule Tuist.Runners.Jobs do
 
   alias Tuist.Builds.Build, as: BuildRun
   alias Tuist.ClickHouseRepo
-  alias Tuist.CommandEvents
+  alias Tuist.CommandEvents.Event
   alias Tuist.IngestRepo
   alias Tuist.Projects
   alias Tuist.Runners.Catalog
@@ -87,26 +87,26 @@ defmodule Tuist.Runners.Jobs do
     |> Map.new()
   end
 
-  def project_for_runner_job(account, %{repository: repository}) when is_binary(repository) do
-    case String.split(repository, "/", parts: 2) do
-      [_owner, project_handle] ->
-        case Projects.get_project_by_account_and_project_handles(account.name, project_handle) do
-          nil -> {:error, :not_found}
-          project -> {:ok, project}
-        end
+  def projects_for_runner_job(%{id: account_id}, %{repository: repository}) when is_binary(repository) do
+    projects =
+      repository
+      |> Projects.projects_by_vcs_repository_full_handle(preload: [:vcs_connection])
+      |> Enum.filter(&(&1.account_id == account_id and &1.vcs_connection.provider == :github))
 
-      _ ->
-        {:error, :not_found}
+    case projects do
+      [] -> {:error, :not_found}
+      projects -> {:ok, projects}
     end
   end
 
-  def project_for_runner_job(_, _), do: {:error, :not_found}
+  def projects_for_runner_job(_, _), do: {:error, :not_found}
 
-  def list_runner_build_runs(project, workflow_run_id) do
+  def list_runner_build_runs(projects, workflow_run_id) do
+    project_ids = project_ids(projects)
     workflow_run_id = Integer.to_string(workflow_run_id)
 
     BuildRun
-    |> where([build], build.project_id == ^project.id)
+    |> where([build], build.project_id in ^project_ids)
     |> where([build], build.ci_provider == "github")
     |> where([build], build.ci_run_id == ^workflow_run_id)
     |> order_by([build], desc: build.inserted_at)
@@ -114,11 +114,12 @@ defmodule Tuist.Runners.Jobs do
     |> latest_runner_runs_by_id()
   end
 
-  def list_runner_test_runs(project, workflow_run_id) do
+  def list_runner_test_runs(projects, workflow_run_id) do
+    project_ids = project_ids(projects)
     workflow_run_id = Integer.to_string(workflow_run_id)
 
     TestRun
-    |> where([test], test.project_id == ^project.id)
+    |> where([test], test.project_id in ^project_ids)
     |> where([test], test.status != "in_progress")
     |> where([test], test.ci_provider == "github")
     |> where([test], test.ci_run_id == ^workflow_run_id)
@@ -128,23 +129,40 @@ defmodule Tuist.Runners.Jobs do
     |> Enum.sort_by(&datetime_sort_key(&1.ran_at), :desc)
   end
 
-  def command_events_for_runs(runs, kind) do
-    Enum.map(runs, fn run ->
-      case kind do
-        :build ->
-          case CommandEvents.get_command_event_by_build_run_id(run.id, project_id: run.project_id) do
-            {:ok, event} -> event
-            {:error, :not_found} -> nil
-          end
+  def command_events_for_runs([], _kind), do: []
 
-        :test ->
-          case CommandEvents.get_command_event_by_test_run_id(run.id, project_id: run.project_id) do
-            {:ok, event} -> event
-            {:error, :not_found} -> nil
-          end
+  def command_events_for_runs(runs, kind) do
+    events_by_run_id =
+      case kind do
+        :build -> command_events_by_run_id(runs, :build_run_id)
+        :test -> command_events_by_run_id(runs, :test_run_id)
       end
+
+    Enum.map(runs, &Map.get(events_by_run_id, &1.id))
+  end
+
+  defp command_events_by_run_id(runs, run_id_field) do
+    run_ids = runs |> Enum.map(& &1.id) |> Enum.uniq()
+    project_ids = runs |> Enum.map(& &1.project_id) |> Enum.uniq()
+
+    Event
+    |> where([event], event.project_id in ^project_ids)
+    |> where([event], field(event, ^run_id_field) in ^run_ids)
+    |> order_by([event], desc: event.ran_at, desc: event.created_at)
+    |> ClickHouseRepo.all()
+    |> Enum.map(&Event.normalize_enums/1)
+    |> Enum.reduce(%{}, fn event, acc ->
+      Map.put_new(acc, Map.fetch!(event, run_id_field), event)
     end)
   end
+
+  defp project_ids(projects) when is_list(projects) do
+    projects
+    |> Enum.map(& &1.id)
+    |> Enum.uniq()
+  end
+
+  defp project_ids(project), do: project_ids([project])
 
   @doc """
   Idempotent enqueue. Inserts a `status='queued'` row for the

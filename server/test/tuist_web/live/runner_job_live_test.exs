@@ -104,7 +104,12 @@ defmodule TuistWeb.RunnerJobLiveTest do
     conn: conn,
     account: account
   } do
-    project = ProjectsFixtures.project_fixture(name: "tuist", account_id: account.id)
+    project =
+      ProjectsFixtures.project_fixture(
+        name: "mobile-app-#{System.unique_integer([:positive])}",
+        account: account,
+        vcs_connection: [repository_full_handle: "tuist/tuist"]
+      )
 
     :ok =
       Jobs.enqueue(%{
@@ -378,9 +383,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {"a", build_chip_attrs, _} = build_chip
     {"a", test_chip_attrs, _} = test_chip
 
-    assert {"href", "/#{account.name}/tuist/builds/build-runs/#{build_run.id}"} in build_chip_attrs
+    assert {"href", "/#{account.name}/#{project.name}/builds/build-runs/#{build_run.id}"} in build_chip_attrs
 
-    assert {"href", "/#{account.name}/tuist/tests/test-runs/#{test_run.id}"} in test_chip_attrs
+    assert {"href", "/#{account.name}/#{project.name}/tests/test-runs/#{test_run.id}"} in test_chip_attrs
 
     for {"a", attrs, _} <- Floki.find(document, "[data-part='insights-run-row']") do
       assert {"data-step-start", step_start_ms} in attrs

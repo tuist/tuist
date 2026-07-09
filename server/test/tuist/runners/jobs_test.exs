@@ -128,23 +128,47 @@ defmodule Tuist.Runners.JobsTest do
     end
   end
 
-  describe "project_for_runner_job/2" do
-    test "resolves the project from the runner job repository" do
+  describe "projects_for_runner_job/2" do
+    test "resolves the selected account projects connected to the runner job repository" do
       account = account_fixture()
-      project = ProjectsFixtures.project_fixture(account: account, name: "runner-#{System.unique_integer([:positive])}")
+      other_account = account_fixture()
 
-      assert {:ok, resolved} = Jobs.project_for_runner_job(account, %{repository: "tuist/#{project.name}"})
-      assert resolved.id == project.id
+      project =
+        ProjectsFixtures.project_fixture(
+          account: account,
+          name: "mobile-app-#{System.unique_integer([:positive])}",
+          vcs_connection: [repository_full_handle: "tuist/tuist"]
+        )
+
+      second_project =
+        ProjectsFixtures.project_fixture(
+          account: account,
+          name: "sdk-#{System.unique_integer([:positive])}",
+          vcs_connection: [repository_full_handle: "tuist/tuist"]
+        )
+
+      _other_account_project =
+        ProjectsFixtures.project_fixture(
+          account: other_account,
+          name: "other-#{System.unique_integer([:positive])}",
+          vcs_connection: [repository_full_handle: "tuist/tuist"]
+        )
+
+      assert {:ok, projects} = Jobs.projects_for_runner_job(account, %{repository: "tuist/tuist"})
+      assert Enum.sort(Enum.map(projects, & &1.id)) == Enum.sort([project.id, second_project.id])
     end
 
-    test "returns not found when the repository cannot be mapped to a project" do
+    test "returns not found when the repository is not connected to an account project" do
       account = account_fixture()
 
-      assert {:error, :not_found} =
-               Jobs.project_for_runner_job(account, %{repository: "tuist/missing-#{System.unique_integer([:positive])}"})
+      unconnected_project =
+        ProjectsFixtures.project_fixture(account: account, name: "repo-#{System.unique_integer([:positive])}")
 
-      assert {:error, :not_found} = Jobs.project_for_runner_job(account, %{repository: "missing-owner"})
-      assert {:error, :not_found} = Jobs.project_for_runner_job(account, %{})
+      assert {:error, :not_found} =
+               Jobs.projects_for_runner_job(account, %{repository: "tuist/#{unconnected_project.name}"})
+
+      assert {:error, :not_found} = Jobs.projects_for_runner_job(account, %{repository: "missing-owner"})
+      assert {:error, :not_found} = Jobs.projects_for_runner_job(account, %{})
     end
   end
 
@@ -152,6 +176,10 @@ defmodule Tuist.Runners.JobsTest do
     test "returns latest build rows for the project and workflow run" do
       account = account_fixture()
       project = ProjectsFixtures.project_fixture(account: account, name: "builds-#{System.unique_integer([:positive])}")
+
+      second_project =
+        ProjectsFixtures.project_fixture(account: account, name: "builds-sdk-#{System.unique_integer([:positive])}")
+
       other_project = ProjectsFixtures.project_fixture(name: "other-builds-#{System.unique_integer([:positive])}")
       workflow_run_id = System.unique_integer([:positive])
       ci_run_id = Integer.to_string(workflow_run_id)
@@ -190,6 +218,16 @@ defmodule Tuist.Runners.JobsTest do
           ci_run_id: ci_run_id
         )
 
+      {:ok, _second_project_build_run} =
+        RunsFixtures.build_fixture(
+          project_id: second_project.id,
+          user_id: account.id,
+          scheme: "SDK",
+          inserted_at: ~N[2026-05-28 10:02:30.000000],
+          ci_provider: "github",
+          ci_run_id: ci_run_id
+        )
+
       {:ok, _other_workflow_build_run} =
         RunsFixtures.build_fixture(
           project_id: project.id,
@@ -209,9 +247,9 @@ defmodule Tuist.Runners.JobsTest do
           ci_run_id: ci_run_id
         )
 
-      build_runs = Jobs.list_runner_build_runs(project, workflow_run_id)
+      build_runs = Jobs.list_runner_build_runs([project, second_project], workflow_run_id)
 
-      assert Enum.map(build_runs, & &1.scheme) == ["App", "AppClip"]
+      assert Enum.map(build_runs, & &1.scheme) == ["App", "SDK", "AppClip"]
     end
   end
 
@@ -219,6 +257,10 @@ defmodule Tuist.Runners.JobsTest do
     test "returns latest completed test rows for the project and workflow run" do
       account = account_fixture()
       project = ProjectsFixtures.project_fixture(account: account, name: "tests-#{System.unique_integer([:positive])}")
+
+      second_project =
+        ProjectsFixtures.project_fixture(account: account, name: "tests-sdk-#{System.unique_integer([:positive])}")
+
       other_project = ProjectsFixtures.project_fixture(name: "other-tests-#{System.unique_integer([:positive])}")
       workflow_run_id = System.unique_integer([:positive])
       ci_run_id = Integer.to_string(workflow_run_id)
@@ -263,6 +305,18 @@ defmodule Tuist.Runners.JobsTest do
           ci_run_id: ci_run_id
         )
 
+      {:ok, _second_project_test_run} =
+        RunsFixtures.test_fixture(
+          project_id: second_project.id,
+          account_id: account.id,
+          scheme: "SDKTests",
+          duration: 45_000,
+          ran_at: ~N[2026-05-28 10:02:45.000000],
+          inserted_at: ~N[2026-05-28 10:02:45.000000],
+          ci_provider: "github",
+          ci_run_id: ci_run_id
+        )
+
       {:ok, _in_progress_test_run} =
         RunsFixtures.test_fixture(
           project_id: project.id,
@@ -285,9 +339,9 @@ defmodule Tuist.Runners.JobsTest do
           ci_run_id: ci_run_id
         )
 
-      test_runs = Jobs.list_runner_test_runs(project, workflow_run_id)
+      test_runs = Jobs.list_runner_test_runs([project, second_project], workflow_run_id)
 
-      assert Enum.map(test_runs, & &1.scheme) == ["AppTests", "AppClipTests"]
+      assert Enum.map(test_runs, & &1.scheme) == ["AppTests", "SDKTests", "AppClipTests"]
     end
   end
 
@@ -301,18 +355,40 @@ defmodule Tuist.Runners.JobsTest do
       {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, account_id: account.id)
       {:ok, test_without_event} = RunsFixtures.test_fixture(project_id: project.id, account_id: account.id)
 
+      _older_build_event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "xcodebuild",
+          build_run_id: build_run.id,
+          ran_at: ~U[2026-05-28 10:00:00.000000Z],
+          created_at: ~U[2026-05-28 10:00:00.000000Z]
+        )
+
       build_event =
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
           name: "xcodebuild",
-          build_run_id: build_run.id
+          build_run_id: build_run.id,
+          ran_at: ~U[2026-05-28 10:01:00.000000Z],
+          created_at: ~U[2026-05-28 10:01:00.000000Z]
+        )
+
+      _older_test_event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "test",
+          test_run_id: test_run.id,
+          ran_at: ~U[2026-05-28 10:00:00.000000Z],
+          created_at: ~U[2026-05-28 10:00:00.000000Z]
         )
 
       test_event =
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
           name: "test",
-          test_run_id: test_run.id
+          test_run_id: test_run.id,
+          ran_at: ~U[2026-05-28 10:01:00.000000Z],
+          created_at: ~U[2026-05-28 10:01:00.000000Z]
         )
 
       assert [resolved_build_event, nil] = Jobs.command_events_for_runs([build_run, build_without_event], :build)
