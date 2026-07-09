@@ -48,6 +48,32 @@
     <link phx-track-static rel="stylesheet" href={~p"/marketing/assets/bundle.css"} />
     <script defer phx-track-static type="module" src={~p"/marketing/assets/bundle.js"}>
     </script>
+    <!-- Mermaid (loaded only on pages that contain a diagram) -->
+    <style nonce={get_csp_nonce()}>
+      pre.mermaid:not([data-processed="true"]) { visibility: hidden; }
+    </style>
+    <script nonce={get_csp_nonce()} type="module">
+      if (document.querySelector("pre.mermaid")) {
+        const { default: mermaid } = await import(
+          "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs"
+        );
+        const dark = document.documentElement.dataset.theme === "dark";
+        const light = {
+          primaryColor: "#f1f2f4", primaryBorderColor: "#c7ccd1", primaryTextColor: "#171a1c",
+          secondaryColor: "#f9fafa", tertiaryColor: "#fdfdfd", lineColor: "#848f9a",
+          textColor: "#171a1c", nodeBorder: "#c7ccd1", nodeTextColor: "#171a1c",
+          edgeLabelBackground: "#fdfdfd", fontFamily: "Inter, sans-serif", fontSize: "14px",
+        };
+        const night = {
+          primaryColor: "#22262a", primaryBorderColor: "#464646", primaryTextColor: "#f1f2f4",
+          secondaryColor: "#1b1e22", tertiaryColor: "#131619", lineColor: "#848f9a",
+          textColor: "#f1f2f4", nodeBorder: "#464646", nodeTextColor: "#f1f2f4",
+          edgeLabelBackground: "#131619", fontFamily: "Inter, sans-serif", fontSize: "14px",
+        };
+        mermaid.initialize({ startOnLoad: false, theme: "base", themeVariables: dark ? night : light });
+        await mermaid.run({ querySelector: "pre.mermaid" });
+      }
+    </script>
     <!-- RSS -->
     <%= if assigns[:head_include_blog_rss_and_atom] do %>
       <link

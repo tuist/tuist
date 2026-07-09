@@ -94,5 +94,56 @@
         max-width: 780px;
       }
     }
+
+    & .device-showcase {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: flex-start;
+      gap: var(--noora-spacing-8);
+    }
+
+    & .device-showcase .device {
+      position: relative;
+      flex: 0 0 auto;
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.06),
+        0 30px 60px -20px rgba(0, 0, 0, 0.5);
+      border-radius: 42px;
+      background: #0a0a0c;
+      padding: 10px;
+      width: 236px;
+    }
+
+    & .device-showcase .device img {
+      display: block;
+      margin: 0;
+      border-radius: 32px;
+      width: 100%;
+      max-width: 100%;
+    }
+
+    & .device-showcase .device::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 2;
+      background: #0a0a0c;
+    }
+
+    & .device-showcase .device-iphone::after {
+      top: 22px;
+      border-radius: 12px;
+      width: 80px;
+      height: 22px;
+    }
+
+    & .device-showcase .device-android::after {
+      top: 19px;
+      border-radius: 50%;
+      width: 13px;
+      height: 13px;
+    }
   }
 }
