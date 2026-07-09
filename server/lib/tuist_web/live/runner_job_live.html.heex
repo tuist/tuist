@@ -173,9 +173,6 @@
       data-part="insights-card"
     >
       <div data-part="insights-grid">
-        <% build_step_window = TuistWeb.RunnerJobLive.insight_step_window(@steps, :build) %>
-        <% test_step_window = TuistWeb.RunnerJobLive.insight_step_window(@steps, :test) %>
-
         <div data-part="runner-build-insights">
           <div data-part="insights-panel-header">
             <span data-part="insights-panel-title">
@@ -232,6 +229,8 @@
               <div data-part="insights-run-list">
                 <%= for build <- @linked_build_runs do %>
                   <% row_status_props = TuistWeb.RunnerJobLive.build_status_badge_props(build) %>
+                  <% build_step_window =
+                    TuistWeb.RunnerJobLive.insight_step_window(@steps, [build], :build) %>
                   <.link
                     navigate={
                       ~p"/#{@selected_account.name}/#{@insights_project.name}/builds/build-runs/#{build.id}"
@@ -315,6 +314,8 @@
               <div data-part="insights-run-list">
                 <%= for test <- @linked_test_runs do %>
                   <% row_status_props = TuistWeb.RunnerJobLive.test_status_badge_props(test) %>
+                  <% test_step_window =
+                    TuistWeb.RunnerJobLive.insight_step_window(@steps, [test], :test) %>
                   <.link
                     navigate={
                       ~p"/#{@selected_account.name}/#{@insights_project.name}/tests/test-runs/#{test.id}"

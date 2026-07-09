@@ -259,11 +259,21 @@ defmodule TuistWeb.RunnerJobLiveTest do
           workflow_job_id: 31_301,
           account_id: account.id,
           number: 1,
-          name: "Build and test",
+          name: "Run CI commands",
           status: "completed",
           conclusion: "success",
           started_at: step_started_at,
           completed_at: step_completed_at
+        },
+        %{
+          workflow_job_id: 31_301,
+          account_id: account.id,
+          number: 2,
+          name: "Build release notes",
+          status: "completed",
+          conclusion: "success",
+          started_at: ~U[2026-05-28 10:10:00.000000Z],
+          completed_at: ~U[2026-05-28 10:11:00.000000Z]
         }
       ])
 
@@ -336,16 +346,15 @@ defmodule TuistWeb.RunnerJobLiveTest do
     refute html =~ "Xcode cache 50%"
     refute html =~ "2 runs"
 
-    build_chip =
-      document
-      |> Floki.find("a[data-part='step-insight-chip'][data-kind='build']")
-      |> List.first()
+    build_chips = Floki.find(document, "a[data-part='step-insight-chip'][data-kind='build']")
 
-    test_chip =
-      document
-      |> Floki.find("a[data-part='step-insight-chip'][data-kind='test']")
-      |> List.first()
+    test_chips = Floki.find(document, "a[data-part='step-insight-chip'][data-kind='test']")
 
+    assert length(build_chips) == 1
+    assert length(test_chips) == 1
+
+    build_chip = List.first(build_chips)
+    test_chip = List.first(test_chips)
     assert build_chip
     assert test_chip
 

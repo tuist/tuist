@@ -289,13 +289,13 @@ defmodule TuistWeb.RunnerJobLive do
   end
 
   @doc """
-  The step window associated with a build or test insight. Runner jobs
-  do not carry per-artifact step identifiers yet, so we map insights to
-  the same step-name heuristics used to surface them on the step rows.
+  The step window associated with build or test insights.
   """
-  def insight_step_window(steps, kind) do
+  def insight_step_window(steps, runs, kind) do
     steps
-    |> Enum.filter(&step_name_matches?(&1, kind))
+    |> Enum.filter(fn step ->
+      Enum.any?(runs, &step_overlaps_run?(step, &1, kind))
+    end)
     |> step_window()
   end
 
@@ -470,31 +470,62 @@ defmodule TuistWeb.RunnerJobLive do
   end
 
   defp matching_step_build_runs(step, build_runs) do
-    if step_name_matches?(step, :build) do
-      build_runs
-    else
-      []
-    end
+    Enum.filter(build_runs, &step_overlaps_run?(step, &1, :build))
   end
 
   defp matching_step_test_runs(step, test_runs) do
-    if step_name_matches?(step, :test) do
-      test_runs
-    else
-      []
+    Enum.filter(test_runs, &step_overlaps_run?(step, &1, :test))
+  end
+
+  defp step_overlaps_run?(step, run, kind) do
+    case {step_timestamp_window(step), insight_run_window(run, kind)} do
+      {%{min: step_start, max: step_end}, %{min: run_start, max: run_end}} ->
+        step_start <= run_end and run_start <= step_end
+
+      _ ->
+        false
     end
   end
 
-  defp step_name_matches?(%{name: name}, kind) when is_binary(name) do
-    normalized = name |> String.downcase() |> String.replace(~r/[^a-z0-9]+/, " ")
+  defp step_timestamp_window(%{started_at: %DateTime{} = started_at, completed_at: %DateTime{} = completed_at}) do
+    %{min: DateTime.to_unix(started_at, :millisecond), max: DateTime.to_unix(completed_at, :millisecond)}
+  end
 
-    case kind do
-      :build -> String.match?(normalized, ~r/\b(build|xcodebuild|compile|assemble|archive)\b/)
-      :test -> String.match?(normalized, ~r/\b(test|tests|xcresult)\b/)
+  defp step_timestamp_window(_), do: nil
+
+  defp insight_run_window(%{inserted_at: inserted_at, duration: duration}, :build) do
+    case timestamp_epoch_ms(inserted_at) do
+      nil ->
+        nil
+
+      ended_at ->
+        duration = max(duration || 0, 0)
+        %{min: ended_at - duration, max: ended_at}
     end
   end
 
-  defp step_name_matches?(_, _), do: false
+  defp insight_run_window(%{ran_at: ran_at, duration: duration}, :test) do
+    case timestamp_epoch_ms(ran_at) do
+      nil ->
+        nil
+
+      started_at ->
+        duration = max(duration || 0, 0)
+        %{min: started_at, max: started_at + duration}
+    end
+  end
+
+  defp insight_run_window(_, _), do: nil
+
+  defp timestamp_epoch_ms(%DateTime{} = timestamp), do: DateTime.to_unix(timestamp, :millisecond)
+
+  defp timestamp_epoch_ms(%NaiveDateTime{} = timestamp) do
+    timestamp
+    |> DateTime.from_naive!("Etc/UTC")
+    |> DateTime.to_unix(:millisecond)
+  end
+
+  defp timestamp_epoch_ms(_), do: nil
 
   def interactive_tab_visible?(%{can_read?: true, macos?: true, running?: true, pod_available?: true}), do: true
 
