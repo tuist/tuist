@@ -32,9 +32,7 @@ export default {
     this.target = document.querySelector(this.el.dataset.fullscreenTarget) || this.el;
     this.label = this.button?.querySelector("span");
     this.enterLabel =
-      this.button?.dataset.fullscreenEnterLabel ||
-      this.button?.getAttribute("aria-label") ||
-      "Full screen";
+      this.button?.dataset.fullscreenEnterLabel || this.button?.getAttribute("aria-label") || "Full screen";
     this.exitLabel = this.button?.dataset.fullscreenExitLabel || "Exit full screen";
     this.onClick = () => this.toggle();
     this.onFullscreenChange = () => this.sync();

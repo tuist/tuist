@@ -620,8 +620,7 @@
     overflow: hidden;
 
     &[data-state="requested"] {
-      background:
-        linear-gradient(135deg, color-mix(in srgb, var(--noora-azure-500) 12%, transparent), transparent 52%),
+      background: linear-gradient(135deg, color-mix(in srgb, var(--noora-azure-500) 12%, transparent), transparent 52%),
         var(--noora-surface-background-secondary);
     }
   }

@@ -268,22 +268,26 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
             {:cont, :ok}
 
           {:skip, output} ->
-            case remove_failed_submodule_contents(destination, submodule_path) do
-              :ok ->
-                Logger.warning(
-                  "Skipping submodule #{submodule_path} for #{full_handle}@#{tag} after permanent git submodule update failure: #{output}"
-                )
-
-                {:cont, :ok}
-
-              {:error, reason} ->
-                {:halt, {:error, reason}}
-            end
+            handle_skipped_submodule(destination, submodule_path, full_handle, tag, output)
 
           {:error, reason} ->
             {:halt, {:error, reason}}
         end
       end)
+    end
+  end
+
+  defp handle_skipped_submodule(destination, submodule_path, full_handle, tag, output) do
+    case remove_failed_submodule_contents(destination, submodule_path) do
+      :ok ->
+        Logger.warning(
+          "Skipping submodule #{submodule_path} for #{full_handle}@#{tag} after permanent git submodule update failure: #{output}"
+        )
+
+        {:cont, :ok}
+
+      {:error, reason} ->
+        {:halt, {:error, reason}}
     end
   end
 
