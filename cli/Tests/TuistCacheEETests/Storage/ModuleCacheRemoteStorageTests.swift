@@ -256,36 +256,52 @@ struct ModuleCacheRemoteStorageTests {
     @Test(.inTemporaryDirectory, .withMockedLogger(), .withScopedAlertController())
     func fetch_when_one_artifact_is_corrupted_still_returns_the_valid_ones() async throws {
         // Given
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let frameworkPath = temporaryDirectory.appending(component: "Valid.framework")
-        try await fileSystem.makeDirectory(at: frameworkPath)
-        let validArchivePath = try await makeArchive(paths: [frameworkPath], name: "valid")
-        let validData = try Data(contentsOf: validArchivePath.url)
-
+        // Drive decompression through a mock archiver so the corrupt case is
+        // deterministic. Decompressing arbitrary "corrupt" bytes with the real
+        // AppleArchive has undefined behavior and is unsuitable for a fixture.
+        let appleArchiver = MockAppleArchiving()
+        let subject = ModuleCacheRemoteStorage(
+            fullHandle: fullHandle,
+            cacheURL: Constants.URLs.production,
+            serverURL: Constants.URLs.production,
+            serverAuthenticationController: serverAuthenticationController,
+            appleArchiver: appleArchiver,
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            multipartUploadService: multipartUploadService,
+            downloadModuleCacheService: downloadModuleCacheService,
+            getCacheActionItemService: getCacheActionItemService,
+            uploadCacheActionItemService: uploadCacheActionItemService,
+            artifactSigner: artifactSigner,
+            fileSystem: fileSystem,
+            retryProvider: retryProvider,
+            concurrencyLimit: 15,
+            cacheActionItemConcurrencyLimit: 15
+        )
         given(downloadModuleCacheService)
             .downloadModuleCacheArtifact(
                 accountHandle: .any,
                 projectHandle: .any,
                 hash: .any,
-                name: .value("Valid.zip"),
+                name: .any,
                 cacheCategory: .any,
                 serverURL: .any,
                 authenticationURL: .any,
                 serverAuthenticationController: .any
             )
-            .willReturn(validData)
-        given(downloadModuleCacheService)
-            .downloadModuleCacheArtifact(
-                accountHandle: .any,
-                projectHandle: .any,
-                hash: .any,
-                name: .value("Corrupt.zip"),
-                cacheCategory: .any,
-                serverURL: .any,
-                authenticationURL: .any,
-                serverAuthenticationController: .any
-            )
-            .willReturn(Data("not-a-valid-apple-archive".utf8))
+            .willReturn(Data("payload".utf8))
+        // The valid artifact decompresses into a real framework; the corrupt one
+        // fails to decompress. The archive path is "<hash>.aar", so match on hash.
+        given(appleArchiver)
+            .decompress(archive: .matching { $0.pathString.contains("valid-hash") }, to: .any)
+            .willProduce { _, directory in
+                try FileManager.default.createDirectory(
+                    at: directory.appending(component: "Valid.framework").url,
+                    withIntermediateDirectories: true
+                )
+            }
+        given(appleArchiver)
+            .decompress(archive: .matching { $0.pathString.contains("corrupt-hash") }, to: .any)
+            .willThrow(AppleArchiverError.decompressionFailed("unsupported archive format"))
 
         // When
         let got = try await subject.fetch(
