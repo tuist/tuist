@@ -68,7 +68,7 @@ msgid "Cancel"
 msgstr ""
 
 #: lib/tuist/runners/analytics.ex:910
-#: lib/tuist_web/live/runner_job_live.ex:151
+#: lib/tuist_web/live/runner_job_live.ex:152
 #: lib/tuist_web/live/runner_jobs_live.ex:499
 #: lib/tuist_web/live/runner_jobs_live.ex:524
 #: lib/tuist_web/live/runner_workflow_live.ex:178
@@ -79,7 +79,7 @@ msgstr ""
 msgid "Cancelled"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.ex:159
+#: lib/tuist_web/live/runner_job_live.ex:160
 #: lib/tuist_web/live/runner_jobs_live.ex:495
 #: lib/tuist_web/live/runner_jobs_live.ex:517
 #: lib/tuist_web/live/runner_workflow_live.ex:174
@@ -127,7 +127,10 @@ msgstr ""
 msgid "Duration"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.ex:148
+#: lib/tuist_web/live/runner_job_live.ex:149
+#: lib/tuist_web/live/runner_job_live.ex:334
+#: lib/tuist_web/live/runner_job_live.ex:371
+#: lib/tuist_web/live/runner_job_live.ex:394
 #: lib/tuist_web/live/runner_jobs_live.ex:666
 #: lib/tuist_web/live/runner_jobs_live.html.heex:193
 #: lib/tuist_web/live/runner_workflow_live.html.heex:218
@@ -275,7 +278,7 @@ msgstr ""
 msgid "Prev"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.ex:156
+#: lib/tuist_web/live/runner_job_live.ex:157
 #: lib/tuist_web/live/runner_jobs_live.ex:494
 #: lib/tuist_web/live/runner_jobs_live.ex:516
 #: lib/tuist_web/live/runner_jobs_live.html.heex:489
@@ -306,7 +309,7 @@ msgstr ""
 msgid "Runners"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.ex:162
+#: lib/tuist_web/live/runner_job_live.ex:163
 #: lib/tuist_web/live/runner_jobs_live.ex:496
 #: lib/tuist_web/live/runner_jobs_live.ex:518
 #: lib/tuist_web/live/runner_jobs_live.html.heex:472
@@ -318,7 +321,8 @@ msgid "Running"
 msgstr ""
 
 #: lib/tuist/runners/analytics.ex:911
-#: lib/tuist_web/live/runner_job_live.ex:154
+#: lib/tuist_web/live/runner_job_live.ex:155
+#: lib/tuist_web/live/runner_job_live.ex:397
 #: lib/tuist_web/live/runner_jobs_live.ex:500
 #: lib/tuist_web/live/runner_jobs_live.ex:525
 #: lib/tuist_web/live/runner_workflow_live.ex:179
@@ -368,8 +372,8 @@ msgid "Successful"
 msgstr ""
 
 #: lib/tuist_web/controllers/runner_job_logs_controller.ex:47
-#: lib/tuist_web/live/runner_job_live.ex:87
-#: lib/tuist_web/live/runner_job_live.ex:115
+#: lib/tuist_web/live/runner_job_live.ex:88
+#: lib/tuist_web/live/runner_job_live.ex:116
 #, elixir-autogen, elixir-format
 msgid "The job you are looking for doesn't exist or has been moved."
 msgstr ""
@@ -407,9 +411,12 @@ msgstr ""
 #: lib/tuist/runners/analytics.ex:907
 #: lib/tuist/runners/analytics.ex:953
 #: lib/tuist/runners/analytics.ex:954
-#: lib/tuist_web/live/runner_job_live.ex:164
-#: lib/tuist_web/live/runner_job_live.ex:175
-#: lib/tuist_web/live/runner_job_live.ex:179
+#: lib/tuist_web/live/runner_job_live.ex:165
+#: lib/tuist_web/live/runner_job_live.ex:176
+#: lib/tuist_web/live/runner_job_live.ex:180
+#: lib/tuist_web/live/runner_job_live.ex:329
+#: lib/tuist_web/live/runner_job_live.ex:379
+#: lib/tuist_web/live/runner_job_live.ex:399
 #: lib/tuist_web/live/runner_jobs_live.ex:520
 #: lib/tuist_web/live/runner_jobs_live.ex:627
 #: lib/tuist_web/live/runner_jobs_live.ex:631
@@ -677,7 +684,10 @@ msgstr ""
 msgid "Failed job runs"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.ex:145
+#: lib/tuist_web/live/runner_job_live.ex:146
+#: lib/tuist_web/live/runner_job_live.ex:343
+#: lib/tuist_web/live/runner_job_live.ex:368
+#: lib/tuist_web/live/runner_job_live.ex:391
 #: lib/tuist_web/live/runner_jobs_live.ex:665
 #: lib/tuist_web/live/runner_jobs_live.html.heex:176
 #, elixir-autogen, elixir-format
@@ -700,7 +710,7 @@ msgid "All job runs"
 msgstr ""
 
 #: lib/tuist/runners/analytics.ex:926
-#: lib/tuist_web/live/runner_job_live.ex:172
+#: lib/tuist_web/live/runner_job_live.ex:173
 #: lib/tuist_web/live/runner_jobs_live.ex:580
 #: lib/tuist_web/live/runner_jobs_live.ex:624
 #: lib/tuist_web/live/runner_profiles_live.ex:331
@@ -726,7 +736,7 @@ msgid "Platform:"
 msgstr ""
 
 #: lib/tuist/runners/analytics.ex:923
-#: lib/tuist_web/live/runner_job_live.ex:169
+#: lib/tuist_web/live/runner_job_live.ex:170
 #: lib/tuist_web/live/runner_jobs_live.ex:579
 #: lib/tuist_web/live/runner_jobs_live.ex:621
 #: lib/tuist_web/live/runner_profiles_live.ex:332
@@ -964,33 +974,33 @@ msgstr ""
 msgid "This profile is a default and can't be deleted."
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:271
+#: lib/tuist_web/live/runner_job_live.html.heex:539
 #, elixir-autogen, elixir-format
 msgid "Download logs"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:338
+#: lib/tuist_web/live/runner_job_live.html.heex:606
 #, elixir-autogen, elixir-format
 msgid "Load older logs"
 msgstr ""
 
 #: lib/tuist_web/live/runner_job_live.html.heex:57
-#: lib/tuist_web/live/runner_job_live.html.heex:259
+#: lib/tuist_web/live/runner_job_live.html.heex:527
 #, elixir-autogen, elixir-format
 msgid "Logs"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:314
+#: lib/tuist_web/live/runner_job_live.html.heex:582
 #, elixir-autogen, elixir-format
 msgid "No log lines match your search."
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:278
+#: lib/tuist_web/live/runner_job_live.html.heex:546
 #, elixir-autogen, elixir-format
 msgid "No logs have been captured for this job yet."
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:245
+#: lib/tuist_web/live/runner_job_live.html.heex:512
 #, elixir-autogen, elixir-format
 msgid "No logs were captured for this step."
 msgstr ""
@@ -1000,23 +1010,23 @@ msgstr ""
 msgid "Overview"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:288
+#: lib/tuist_web/live/runner_job_live.html.heex:556
 #, elixir-autogen, elixir-format
 msgid "Search logs..."
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:177
+#: lib/tuist_web/live/runner_job_live.html.heex:371
 #, elixir-autogen, elixir-format
 msgid "Steps"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:198
+#: lib/tuist_web/live/runner_job_live.html.heex:392
 #, elixir-autogen, elixir-format
 msgid "Steps will appear here once the job finishes."
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:188
-#: lib/tuist_web/live/runner_job_live.html.heex:299
+#: lib/tuist_web/live/runner_job_live.html.heex:382
+#: lib/tuist_web/live/runner_job_live.html.heex:567
 #, elixir-autogen, elixir-format
 msgid "Timestamps"
 msgstr ""
@@ -1069,7 +1079,7 @@ msgstr ""
 msgid "In"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:365
+#: lib/tuist_web/live/runner_job_live.html.heex:633
 #, elixir-autogen, elixir-format
 msgid "Machine metrics will appear here once the job has run on a Tuist runner."
 msgstr ""
@@ -1077,6 +1087,7 @@ msgstr ""
 #: lib/tuist_web/live/components/runner_job_metrics_charts.ex:31
 #: lib/tuist_web/live/runner_job_live.html.heex:62
 #: lib/tuist_web/live/runner_job_live.html.heex:360
+#: lib/tuist_web/live/runner_job_live.html.heex:628
 #, elixir-autogen, elixir-format
 msgid "Metrics"
 msgstr ""
@@ -1115,69 +1126,159 @@ msgstr ""
 msgid "Interactive"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:378
+#: lib/tuist_web/live/runner_job_live.html.heex:646
 #, elixir-autogen, elixir-format
 msgid "Interactive access"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:404
+#: lib/tuist_web/live/runner_job_live.html.heex:672
 #, elixir-autogen, elixir-format
 msgid "Start VNC"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.ex:310
+#: lib/tuist_web/live/runner_job_live.ex:546
 #, elixir-autogen, elixir-format
 msgid "The runner pod is not available for this job."
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.ex:307
+#: lib/tuist_web/live/runner_job_live.ex:543
 #, elixir-autogen, elixir-format
 msgid "VNC can be requested while the macOS runner job is claimed or running."
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.ex:304
+#: lib/tuist_web/live/runner_job_live.ex:540
 #, elixir-autogen, elixir-format
 msgid "VNC is available for macOS runner jobs."
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:445
+#: lib/tuist_web/live/runner_job_live.html.heex:713
 #, elixir-autogen, elixir-format
 msgid "VNC session idle"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.ex:301
+#: lib/tuist_web/live/runner_job_live.ex:537
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to request interactive access."
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:394
+#: lib/tuist_web/live/runner_job_live.html.heex:662
 #, elixir-autogen, elixir-format
 msgid "Exit full screen"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:389
-#: lib/tuist_web/live/runner_job_live.html.heex:390
-#: lib/tuist_web/live/runner_job_live.html.heex:393
+#: lib/tuist_web/live/runner_job_live.html.heex:657
+#: lib/tuist_web/live/runner_job_live.html.heex:658
+#: lib/tuist_web/live/runner_job_live.html.heex:661
 #, elixir-autogen, elixir-format
 msgid "Full screen"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:454
+#: lib/tuist_web/live/runner_job_live.html.heex:722
 #, elixir-autogen, elixir-format
 msgid "VNC session active"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:451
+#: lib/tuist_web/live/runner_job_live.html.heex:719
 #, elixir-autogen, elixir-format
 msgid "VNC session ready"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:457
+#: lib/tuist_web/live/runner_job_live.html.heex:725
 #, elixir-autogen, elixir-format
 msgid "VNC session unavailable"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:448
+#: lib/tuist_web/live/runner_job_live.html.heex:716
 #, elixir-autogen, elixir-format
 msgid "Waiting for runner relay"
+msgstr ""
+
+#: lib/tuist_web/live/runner_job_live.html.heex:444
+#, elixir-autogen, elixir-format
+msgid "Build"
+msgstr ""
+
+#: lib/tuist_web/live/runner_job_live.html.heex:179
+#, elixir-autogen, elixir-format
+msgid "Builds"
+msgstr ""
+
+#: lib/tuist_web/live/runner_job_live.ex:337
+#: lib/tuist_web/live/runner_job_live.ex:377
+#, elixir-autogen, elixir-format
+msgid "Failed processing"
+msgstr ""
+
+#: lib/tuist_web/live/runner_job_live.html.heex:171
+#, elixir-autogen, elixir-format
+msgid "Insights"
+msgstr ""
+
+#: lib/tuist_web/live/runner_job_live.html.heex:223
+#, elixir-autogen, elixir-format
+msgid "Module cache"
+msgstr ""
+
+#: lib/tuist_web/live/runner_job_live.html.heex:190
+#, elixir-autogen, elixir-format
+msgid "No build runs have reported insights for this runner job yet."
+msgstr ""
+
+#: lib/tuist_web/live/runner_job_live.ex:309
+#: lib/tuist_web/live/runner_job_live.ex:321
+#, elixir-autogen, elixir-format
+msgid "No cache data"
+msgstr ""
+
+#: lib/tuist_web/live/runner_job_live.html.heex:184
+#: lib/tuist_web/live/runner_job_live.html.heex:280
+#, elixir-autogen, elixir-format
+msgid "No matching project was found for this runner repository."
+msgstr ""
+
+#: lib/tuist_web/live/runner_job_live.html.heex:286
+#, elixir-autogen, elixir-format
+msgid "No test runs have reported insights for this runner job yet."
+msgstr ""
+
+#: lib/tuist_web/live/runner_job_live.ex:388
+#, elixir-autogen, elixir-format
+msgid "Passed (flaky)"
+msgstr ""
+
+#: lib/tuist_web/live/runner_job_live.ex:340
+#: lib/tuist_web/live/runner_job_live.ex:374
+#, elixir-autogen, elixir-format
+msgid "Processing"
+msgstr ""
+
+#: lib/tuist_web/live/runner_job_live.html.heex:309
+#, elixir-autogen, elixir-format
+msgid "Selective testing"
+msgstr ""
+
+#: lib/tuist_web/live/runner_job_live.html.heex:472
+#, elixir-autogen, elixir-format
+msgid "Test"
+msgstr ""
+
+#: lib/tuist_web/live/runner_job_live.html.heex:275
+#, elixir-autogen, elixir-format
+msgid "Tests"
+msgstr ""
+
+#: lib/tuist_web/live/runner_job_live.html.heex:202
+#: lib/tuist_web/live/runner_job_live.html.heex:296
+#, elixir-autogen, elixir-format
+msgid "Total duration"
+msgstr ""
+
+#: lib/tuist_web/live/runner_job_live.ex:385
+#, elixir-autogen, elixir-format
+msgid "Unknown scheme"
+msgstr ""
+
+#: lib/tuist_web/live/runner_job_live.html.heex:214
+#, elixir-autogen, elixir-format
+msgid "Xcode cache"
 msgstr ""

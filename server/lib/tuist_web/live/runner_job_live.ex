@@ -72,6 +72,7 @@ defmodule TuistWeb.RunnerJobLive do
          |> assign(:interactive, interactive_state(selected_account, current_user, job))
          |> assign(:steps, JobSteps.list_for_job(job.workflow_job_id))
          |> assign(:machine_metrics, machine_metrics)
+         |> assign_runner_insights(selected_account, job)
          |> assign(:expanded_steps, MapSet.new())
          |> assign(:step_logs, %{})
          |> assign(:search, "")
@@ -288,10 +289,245 @@ defmodule TuistWeb.RunnerJobLive do
   end
 
   @doc """
+  The step window associated with build or test insights.
+  """
+  def insight_step_window(steps, runs, kind) do
+    steps
+    |> Enum.filter(fn step ->
+      Enum.any?(runs, &step_overlaps_run?(step, &1, kind))
+    end)
+    |> step_window()
+  end
+
+  @doc """
   Whether the job has any machine-metrics samples to chart. Drives
   the Metrics tab's empty state and gates the Overview chart row.
   """
   def has_machine_metrics?(metrics), do: metrics != []
+
+  def cache_hit_rate_label(%{cacheable_tasks_count: count}) when count in [nil, 0] do
+    dgettext("dashboard_runners", "No cache data")
+  end
+
+  def cache_hit_rate_label(%{
+        cacheable_tasks_count: count,
+        cacheable_task_local_hits_count: local_hits,
+        cacheable_task_remote_hits_count: remote_hits
+      }) do
+    hits = (local_hits || 0) + (remote_hits || 0)
+    "#{round(hits / count * 100)}%"
+  end
+
+  def cache_hit_rate_label(_), do: dgettext("dashboard_runners", "No cache data")
+
+  def build_runs_duration_ms(build_runs) do
+    build_runs
+    |> Enum.map(&(&1.duration || 0))
+    |> Enum.sum()
+  end
+
+  def build_runs_status_badge_props([]), do: %{label: dgettext("dashboard_runners", "Unknown"), color: "neutral"}
+
+  def build_runs_status_badge_props(build_runs) do
+    cond do
+      Enum.any?(build_runs, &(&1.status == "failure")) ->
+        %{label: dgettext("dashboard_runners", "Failed"), color: "destructive"}
+
+      Enum.any?(build_runs, &(&1.status == "failed_processing")) ->
+        %{label: dgettext("dashboard_runners", "Failed processing"), color: "warning"}
+
+      Enum.any?(build_runs, &(&1.status == "processing")) ->
+        %{label: dgettext("dashboard_runners", "Processing"), color: "neutral"}
+
+      true ->
+        %{label: dgettext("dashboard_runners", "Passed"), color: "success"}
+    end
+  end
+
+  def hit_rate_summary?(%{total_count: total_count}) when total_count > 0, do: true
+  def hit_rate_summary?(_), do: false
+
+  def hit_rate_label(%{hits_count: hits_count, total_count: total_count}) when total_count > 0 do
+    "#{round(hits_count / total_count * 100)}%"
+  end
+
+  def xcode_cache_summary(build_runs) do
+    total_count = Enum.sum(Enum.map(build_runs, &(&1.cacheable_tasks_count || 0)))
+    local_hits_count = Enum.sum(Enum.map(build_runs, &(&1.cacheable_task_local_hits_count || 0)))
+    remote_hits_count = Enum.sum(Enum.map(build_runs, &(&1.cacheable_task_remote_hits_count || 0)))
+
+    %{
+      local_hits_count: local_hits_count,
+      remote_hits_count: remote_hits_count,
+      hits_count: local_hits_count + remote_hits_count,
+      total_count: total_count
+    }
+  end
+
+  def build_status_badge_props(%{status: "success"}),
+    do: %{label: dgettext("dashboard_runners", "Passed"), color: "success"}
+
+  def build_status_badge_props(%{status: "failure"}),
+    do: %{label: dgettext("dashboard_runners", "Failed"), color: "destructive"}
+
+  def build_status_badge_props(%{status: "processing"}),
+    do: %{label: dgettext("dashboard_runners", "Processing"), color: "neutral"}
+
+  def build_status_badge_props(%{status: "failed_processing"}),
+    do: %{label: dgettext("dashboard_runners", "Failed processing"), color: "warning"}
+
+  def build_status_badge_props(_), do: %{label: dgettext("dashboard_runners", "Unknown"), color: "neutral"}
+
+  def insight_scheme_label(%{scheme: scheme}) when is_binary(scheme) and scheme != "" do
+    scheme
+  end
+
+  def insight_scheme_label(_), do: dgettext("dashboard_runners", "Unknown scheme")
+
+  def test_status_badge_props(%{status: "success", is_flaky: true}),
+    do: %{label: dgettext("dashboard_runners", "Passed (flaky)"), color: "warning"}
+
+  def test_status_badge_props(%{status: "success"}),
+    do: %{label: dgettext("dashboard_runners", "Passed"), color: "success"}
+
+  def test_status_badge_props(%{status: "failure"}),
+    do: %{label: dgettext("dashboard_runners", "Failed"), color: "destructive"}
+
+  def test_status_badge_props(%{status: "skipped"}),
+    do: %{label: dgettext("dashboard_runners", "Skipped"), color: "warning"}
+
+  def test_status_badge_props(_), do: %{label: dgettext("dashboard_runners", "Unknown"), color: "neutral"}
+
+  def step_insights(step, build_runs, test_runs) do
+    %{
+      build_runs: matching_step_build_runs(step, build_runs),
+      test_runs: matching_step_test_runs(step, test_runs)
+    }
+  end
+
+  def step_has_insights?(%{build_runs: build_runs, test_runs: test_runs}) do
+    build_runs != [] or test_runs != []
+  end
+
+  def step_has_insights?(_), do: false
+
+  def step_test_duration_ms(test_runs) do
+    test_runs
+    |> Enum.map(&(&1.duration || 0))
+    |> Enum.sum()
+  end
+
+  defp module_cache_summary(command_events) do
+    total_count = Enum.sum(Enum.map(command_events, &(&1.cacheable_targets_count || 0)))
+    local_hits_count = Enum.sum(Enum.map(command_events, &(&1.local_cache_hits_count || 0)))
+    remote_hits_count = Enum.sum(Enum.map(command_events, &(&1.remote_cache_hits_count || 0)))
+
+    %{
+      local_hits_count: local_hits_count,
+      remote_hits_count: remote_hits_count,
+      hits_count: local_hits_count + remote_hits_count,
+      total_count: total_count
+    }
+  end
+
+  defp selective_testing_summary(command_events) do
+    total_count = Enum.sum(Enum.map(command_events, &(&1.test_targets_count || 0)))
+    local_hits_count = Enum.sum(Enum.map(command_events, &(&1.local_test_hits_count || 0)))
+    remote_hits_count = Enum.sum(Enum.map(command_events, &(&1.remote_test_hits_count || 0)))
+
+    %{
+      local_hits_count: local_hits_count,
+      remote_hits_count: remote_hits_count,
+      hits_count: local_hits_count + remote_hits_count,
+      total_count: total_count
+    }
+  end
+
+  defp assign_runner_insights(socket, selected_account, job) do
+    case Jobs.projects_for_runner_job(selected_account, job) do
+      {:error, :not_found} ->
+        socket
+        |> assign(:insights_project, nil)
+        |> assign(:insights_projects_by_id, %{})
+        |> assign(:linked_build_runs, [])
+        |> assign(:linked_test_runs, [])
+        |> assign(:linked_build_module_cache_summary, module_cache_summary([]))
+        |> assign(:linked_test_selective_testing_summary, selective_testing_summary([]))
+
+      {:ok, projects} ->
+        build_runs = Jobs.list_runner_build_runs(projects, job.workflow_run_id)
+        test_runs = Jobs.list_runner_test_runs(projects, job.workflow_run_id)
+
+        build_command_events = build_runs |> Jobs.command_events_for_runs(:build) |> Enum.reject(&is_nil/1)
+        test_command_events = test_runs |> Jobs.command_events_for_runs(:test) |> Enum.reject(&is_nil/1)
+
+        socket
+        |> assign(:insights_project, List.first(projects))
+        |> assign(:insights_projects_by_id, Map.new(projects, &{&1.id, &1}))
+        |> assign(:linked_build_runs, build_runs)
+        |> assign(:linked_test_runs, test_runs)
+        |> assign(:linked_build_module_cache_summary, module_cache_summary(build_command_events))
+        |> assign(:linked_test_selective_testing_summary, selective_testing_summary(test_command_events))
+    end
+  end
+
+  defp matching_step_build_runs(step, build_runs) do
+    Enum.filter(build_runs, &step_overlaps_run?(step, &1, :build))
+  end
+
+  defp matching_step_test_runs(step, test_runs) do
+    Enum.filter(test_runs, &step_overlaps_run?(step, &1, :test))
+  end
+
+  defp step_overlaps_run?(step, run, kind) do
+    case {step_timestamp_window(step), insight_run_window(run, kind)} do
+      {%{min: step_start, max: step_end}, %{min: run_start, max: run_end}} ->
+        step_start <= run_end and run_start <= step_end
+
+      _ ->
+        false
+    end
+  end
+
+  defp step_timestamp_window(%{started_at: %DateTime{} = started_at, completed_at: %DateTime{} = completed_at}) do
+    %{min: DateTime.to_unix(started_at, :millisecond), max: DateTime.to_unix(completed_at, :millisecond)}
+  end
+
+  defp step_timestamp_window(_), do: nil
+
+  defp insight_run_window(%{inserted_at: inserted_at, duration: duration}, :build) do
+    case timestamp_epoch_ms(inserted_at) do
+      nil ->
+        nil
+
+      ended_at ->
+        duration = max(duration || 0, 0)
+        %{min: ended_at - duration, max: ended_at}
+    end
+  end
+
+  defp insight_run_window(%{ran_at: ran_at, duration: duration}, :test) do
+    case timestamp_epoch_ms(ran_at) do
+      nil ->
+        nil
+
+      started_at ->
+        duration = max(duration || 0, 0)
+        %{min: started_at, max: started_at + duration}
+    end
+  end
+
+  defp insight_run_window(_, _), do: nil
+
+  defp timestamp_epoch_ms(%DateTime{} = timestamp), do: DateTime.to_unix(timestamp, :millisecond)
+
+  defp timestamp_epoch_ms(%NaiveDateTime{} = timestamp) do
+    timestamp
+    |> DateTime.from_naive!("Etc/UTC")
+    |> DateTime.to_unix(:millisecond)
+  end
+
+  defp timestamp_epoch_ms(_), do: nil
 
   def interactive_tab_visible?(%{can_read?: true, macos?: true, running?: true, pod_available?: true}), do: true
 

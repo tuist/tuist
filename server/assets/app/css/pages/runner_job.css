@@ -170,6 +170,187 @@
     }
   }
 
+  & [data-part="insights-grid"] {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    gap: var(--noora-spacing-4);
+
+    @media (max-width: 900px) {
+      & {
+        grid-template-columns: 1fr;
+        gap: var(--noora-spacing-4);
+      }
+    }
+
+    & > [data-part="runner-build-insights"],
+    & > [data-part="runner-test-insights"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-4);
+      box-sizing: border-box;
+      box-shadow: var(--noora-border-light-default);
+      border-radius: var(--noora-radius-4);
+      background: var(--noora-surface-background-primary);
+      padding: var(--noora-spacing-5);
+      height: 100%;
+    }
+  }
+
+  & [data-part="insights-panel-header"] {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+
+  & [data-part="insights-panel-title"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  }
+
+  & [data-part="insights-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-3);
+  }
+
+  & [data-part="runner-build-insights"] > [data-part="insights-section"],
+  & [data-part="runner-test-insights"] > [data-part="insights-section"] {
+    flex: 1;
+  }
+
+  & [data-part="insights-empty"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+  }
+
+  & [data-part="insights-summary"] {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: var(--noora-spacing-3) var(--noora-spacing-5);
+
+    @media (max-width: 640px) {
+      & {
+        grid-template-columns: 1fr;
+      }
+    }
+  }
+
+  & [data-part="insights-metric"] {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--noora-spacing-2);
+    min-width: 0;
+
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+    }
+
+    & > [data-part="value"],
+    & > [data-part="insight-link"] {
+      max-width: 100%;
+      overflow: hidden;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    & > [data-part="subvalue"] {
+      max-width: 100%;
+      overflow: hidden;
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    & > [data-part="insight-link"] {
+      color: var(--noora-surface-label-primary);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+  }
+
+  & [data-part="insights-run-list"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-1);
+    margin-top: auto;
+    border-top: 1px solid var(--noora-surface-border-secondary);
+    padding-top: var(--noora-spacing-4);
+  }
+
+  & [data-part="insights-run-row"] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+    box-shadow: var(--noora-border-light-default);
+    border-radius: var(--noora-radius-3);
+    padding: var(--noora-spacing-2) var(--noora-spacing-4);
+    min-height: 44px;
+    text-decoration: none;
+
+    &:hover {
+      background: var(--noora-surface-background-primary);
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: var(--noora-button-border-secondary-focus);
+    }
+
+    @media (max-width: 640px) {
+      & {
+        grid-template-columns: 1fr;
+        align-items: flex-start;
+      }
+    }
+  }
+
+  & [data-part="insights-run-main"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-1);
+    min-width: 0;
+  }
+
+  & [data-part="insights-run-title"] {
+    overflow: hidden;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  & [data-part="insights-run-subtitle"] {
+    overflow: hidden;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  & [data-part="insights-run-meta"] {
+    display: flex;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-self: end;
+    gap: var(--noora-spacing-4);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+
+    @media (max-width: 640px) {
+      & {
+        justify-self: start;
+      }
+    }
+  }
+
   & [data-part="steps-section"] {
     display: flex;
     flex-direction: column;
@@ -199,10 +380,15 @@
 
         & > [data-part="step-info"] {
           display: flex;
+          flex: 1;
           flex-direction: row;
           align-items: center;
           gap: var(--noora-spacing-5);
           min-width: 0;
+
+          &[data-has-insights="true"] {
+            align-items: flex-start;
+          }
 
           & > [data-part^="step-icon-"] {
             display: flex;
@@ -238,13 +424,88 @@
             color: var(--noora-surface-label-secondary);
           }
 
-          & > [data-part="step-name"] {
+          & > [data-part="step-label"] {
+            display: flex;
+            flex: 1;
+            flex-direction: column;
+            gap: var(--noora-spacing-3);
+            min-width: 0;
+          }
+
+          & [data-part="step-name"] {
             min-width: 0;
             overflow: hidden;
             color: var(--noora-surface-label-primary);
             font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
             text-overflow: ellipsis;
             white-space: nowrap;
+          }
+
+          & [data-part="step-insight-chips"] {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--noora-spacing-2);
+          }
+
+          & [data-part="step-insight-chip"] {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--noora-spacing-3);
+            cursor: pointer;
+            box-shadow: var(--noora-border-light-default);
+            border-radius: var(--noora-radius-3);
+            background: var(--noora-surface-background-primary);
+            padding: var(--noora-spacing-1) var(--noora-spacing-3) var(--noora-spacing-1) var(--noora-spacing-2);
+            max-width: 100%;
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+            text-decoration: none;
+
+            &:hover {
+              background: var(--noora-surface-background-secondary);
+            }
+
+            &:focus-visible {
+              outline: none;
+              box-shadow: var(--noora-button-border-secondary-focus);
+            }
+          }
+
+          & [data-part="step-insight-chip"] > [data-part="step-insight-chip-kind"] {
+            flex-shrink: 0;
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+          }
+
+          & [data-part="step-insight-chip"] > [data-part="step-insight-chip-label"] {
+            min-width: 0;
+            overflow: hidden;
+            color: var(--noora-surface-label-primary);
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+
+          & [data-part="step-insight-chip"] > [data-part="step-insight-chip-meta"] {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--noora-spacing-2);
+            min-width: 0;
+            overflow: hidden;
+            color: var(--noora-surface-label-secondary);
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+
+          & [data-part="step-insight-chip"] > [data-part="step-insight-chip-meta"] > span {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+
+          & [data-part="step-insight-chip"] > [data-part="step-insight-chip-meta"] > span + span {
+            border-left: 1px solid var(--noora-surface-border-secondary);
+            padding-left: var(--noora-spacing-2);
           }
         }
 
@@ -267,7 +528,10 @@
         }
       }
 
-      & > [data-part="step-logs"] {
+      & > [data-part="step-expanded"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-4);
         margin: var(--noora-spacing-4);
         margin-top: 0;
       }

@@ -54,11 +54,15 @@ defmodule Tuist.Runners.Jobs do
 
   import Ecto.Query
 
+  alias Tuist.Builds.Build, as: BuildRun
   alias Tuist.ClickHouseRepo
+  alias Tuist.CommandEvents.Event
   alias Tuist.IngestRepo
+  alias Tuist.Projects
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Job
   alias Tuist.Runners.Telemetry
+  alias Tuist.Tests.Test, as: TestRun
 
   require Logger
 
@@ -82,6 +86,83 @@ defmodule Tuist.Runners.Jobs do
     |> ClickHouseRepo.all()
     |> Map.new()
   end
+
+  def projects_for_runner_job(%{id: account_id}, %{repository: repository}) when is_binary(repository) do
+    projects =
+      repository
+      |> Projects.projects_by_vcs_repository_full_handle(preload: [:vcs_connection])
+      |> Enum.filter(&(&1.account_id == account_id and &1.vcs_connection.provider == :github))
+
+    case projects do
+      [] -> {:error, :not_found}
+      projects -> {:ok, projects}
+    end
+  end
+
+  def projects_for_runner_job(_, _), do: {:error, :not_found}
+
+  def list_runner_build_runs(projects, workflow_run_id) do
+    project_ids = project_ids(projects)
+    workflow_run_id = Integer.to_string(workflow_run_id)
+
+    BuildRun
+    |> where([build], build.project_id in ^project_ids)
+    |> where([build], build.ci_provider == "github")
+    |> where([build], build.ci_run_id == ^workflow_run_id)
+    |> order_by([build], desc: build.inserted_at)
+    |> ClickHouseRepo.all()
+    |> latest_runner_runs_by_id()
+  end
+
+  def list_runner_test_runs(projects, workflow_run_id) do
+    project_ids = project_ids(projects)
+    workflow_run_id = Integer.to_string(workflow_run_id)
+
+    TestRun
+    |> where([test], test.project_id in ^project_ids)
+    |> where([test], test.status != "in_progress")
+    |> where([test], test.ci_provider == "github")
+    |> where([test], test.ci_run_id == ^workflow_run_id)
+    |> order_by([test], desc: test.inserted_at, desc: test.ran_at)
+    |> ClickHouseRepo.all()
+    |> latest_runner_runs_by_id()
+    |> Enum.sort_by(&datetime_sort_key(&1.ran_at), :desc)
+  end
+
+  def command_events_for_runs([], _kind), do: []
+
+  def command_events_for_runs(runs, kind) do
+    events_by_run_id =
+      case kind do
+        :build -> command_events_by_run_id(runs, :build_run_id)
+        :test -> command_events_by_run_id(runs, :test_run_id)
+      end
+
+    Enum.map(runs, &Map.get(events_by_run_id, &1.id))
+  end
+
+  defp command_events_by_run_id(runs, run_id_field) do
+    run_ids = runs |> Enum.map(& &1.id) |> Enum.uniq()
+    project_ids = runs |> Enum.map(& &1.project_id) |> Enum.uniq()
+
+    Event
+    |> where([event], event.project_id in ^project_ids)
+    |> where([event], field(event, ^run_id_field) in ^run_ids)
+    |> order_by([event], desc: event.ran_at, desc: event.created_at)
+    |> ClickHouseRepo.all()
+    |> Enum.map(&Event.normalize_enums/1)
+    |> Enum.reduce(%{}, fn event, acc ->
+      Map.put_new(acc, Map.fetch!(event, run_id_field), event)
+    end)
+  end
+
+  defp project_ids(projects) when is_list(projects) do
+    projects
+    |> Enum.map(& &1.id)
+    |> Enum.uniq()
+  end
+
+  defp project_ids(project), do: project_ids([project])
 
   @doc """
   Idempotent enqueue. Inserts a `status='queued'` row for the
@@ -1095,6 +1176,16 @@ defmodule Tuist.Runners.Jobs do
   end
 
   # ----- internal -----
+
+  defp latest_runner_runs_by_id(runs) do
+    runs
+    |> Enum.sort_by(&datetime_sort_key(&1.inserted_at), :desc)
+    |> Enum.uniq_by(& &1.id)
+  end
+
+  defp datetime_sort_key(%NaiveDateTime{} = datetime), do: NaiveDateTime.to_iso8601(datetime)
+  defp datetime_sort_key(%DateTime{} = datetime), do: DateTime.to_iso8601(datetime)
+  defp datetime_sort_key(_), do: ""
 
   # Fetch the current state of a workflow_job. Single-row lookup
   # by primary key — `ORDER BY updated_at DESC LIMIT 1` returns
