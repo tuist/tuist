@@ -1,0 +1,211 @@
+{{- if .Values.swiftRegistrySync.enabled }}
+{{- $runtimeSecretName := .Values.swiftRegistrySync.runtimeSecretName | default (include "tuist.componentName" (dict "root" . "component" "swift-registry-sync-runtime")) -}}
+{{- $registrySecretName := ternary (include "tuist.componentName" (dict "root" . "component" "swift-registry-sync-external-secrets")) $runtimeSecretName .Values.swiftRegistrySync.managedSecrets }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "swift-registry-sync") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: swift-registry-sync
+spec:
+  replicas: {{ .Values.swiftRegistrySync.replicaCount }}
+  strategy:
+    {{- toYaml .Values.swiftRegistrySync.strategy | nindent 4 }}
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "swift-registry-sync") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "swift-registry-sync") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.swiftRegistrySync.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+        prometheus.io/port-name: metrics
+        {{- with .Values.swiftRegistrySync.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+      terminationGracePeriodSeconds: {{ .Values.swiftRegistrySync.terminationGracePeriodSeconds }}
+      {{- include "tuist.podScheduling" . | nindent 6 }}
+      {{- if .Values.swiftRegistrySync.topologySpread.enabled }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: {{ .Values.swiftRegistrySync.topologySpread.whenUnsatisfiable | default "ScheduleAnyway" }}
+          nodeTaintsPolicy: Honor
+          labelSelector:
+            matchLabels:
+              {{- include "tuist.componentLabels" (dict "root" . "component" "swift-registry-sync") | nindent 14 }}
+      {{- end }}
+      {{- with .Values.swiftRegistrySync.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.swiftRegistrySync.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.swiftRegistrySync.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: swift-registry-sync
+          # Same image as the server Deployment. The release boots into
+          # `TUIST_MODE=swift_registry_sync` below: no Phoenix listener,
+          # Oban queue set narrowed to :swift_registry_sync +
+          # :swift_registry_release. The catalog-poll cron entry lives
+          # on the :web leader, not here, so this pod is purely a
+          # consumer. Future ecosystems get their own mode + Deployment
+          # (e.g. maven-registry-sync-deployment.yaml).
+          image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.server.image.pullPolicy }}
+          command:
+            - /app/bin/tuist
+            - start
+          ports:
+            - name: metrics
+              containerPort: 9091
+          env:
+            - name: TUIST_MODE
+              value: swift_registry_sync
+            {{- if ne .Values.postgresql.mode "cnpg" }}
+            {{- if .Values.swiftRegistrySync.managedSecrets }}
+            # Managed non-CNPG installs compose DATABASE_URL from the
+            # swiftRegistrySync.database block, which is expected to point at a
+            # transaction-mode pooler.
+            - name: TUIST_DATABASE_POOLED
+              value: "1"
+            {{- end }}
+            - name: TUIST_USE_SSL_FOR_DATABASE
+              value: {{ .Values.server.database.ssl | ternary "1" "0" | quote }}
+            {{- else }}
+            {{- if .Values.postgresql.cnpg.pooler.enabled }}
+            - name: TUIST_DATABASE_POOLED
+              value: "1"
+            {{- end }}
+            - name: TUIST_USE_SSL_FOR_DATABASE
+              value: "0"
+            {{- end }}
+            # Managed environments use the dedicated
+            # tuist_swift_registry_sync database role. Non-managed previews use
+            # the chart-managed runtime Secret next to the embedded database.
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $registrySecretName }}
+                  key: DATABASE_URL
+            - name: TUIST_DATABASE_SCHEMA
+              value: {{ .Values.postgresql.schema | quote }}
+            {{- if not .Values.server.managedSecrets }}
+            - name: TUIST_CLICKHOUSE_URL
+              value: {{ include "tuist.clickhouseUrl" . | quote }}
+            {{- end }}
+            {{- include "tuist.githubEnv" . | nindent 12 }}
+            {{- include "tuist.licenseEnv" . | nindent 12 }}
+            {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
+            - name: MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ ternary (include "tuist.componentName" (dict "root" . "component" "server-external-secrets")) (include "tuist.componentName" (dict "root" . "component" "app-secrets")) .Values.server.managedSecrets }}
+                  key: server-master-key
+            {{- end }}
+            - name: TUIST_HOSTED
+              value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
+            - name: TUIST_LOG_LEVEL
+              value: {{ .Values.server.logLevel | quote }}
+            {{- if not .Values.server.managedSecrets }}
+            - name: TUIST_SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: server-secret-key-base
+            {{- end }}
+            # Registry-specific S3 credentials (separate Tigris key with
+            # policy on the registry bucket). The ex_aws config in
+            # runtime.exs detects swift_registry_sync mode and uses
+            # these instead of the account-storage credentials baked
+            # into MASTER_KEY-decrypted secrets.
+            - name: S3_REGISTRY_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $registrySecretName }}
+                  key: S3_REGISTRY_BUCKET
+            - name: S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $registrySecretName }}
+                  key: S3_ENDPOINT
+                  optional: true
+            - name: S3_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $registrySecretName }}
+                  key: S3_HOST
+            - name: S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $registrySecretName }}
+                  key: S3_REGION
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $registrySecretName }}
+                  key: S3_ACCESS_KEY_ID
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $registrySecretName }}
+                  key: S3_SECRET_ACCESS_KEY
+            - name: SWIFT_REGISTRY_GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $registrySecretName }}
+                  key: SWIFT_REGISTRY_GITHUB_TOKEN
+            {{- with .Values.swiftRegistrySync.syncAllowlist }}
+            - name: SWIFT_REGISTRY_SYNC_ALLOWLIST
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.swiftRegistrySync.syncLimit }}
+            - name: SWIFT_REGISTRY_SYNC_LIMIT
+              value: {{ . | quote }}
+            {{- end }}
+            # Always emit so an override of `false` (bool or string) actually
+            # disables sync. A `with` block treats false as empty and would
+            # silently fall back to the runtime.exs default of true.
+            {{- $syncEnabled := .Values.swiftRegistrySync.syncEnabled | toString }}
+            {{- if eq $syncEnabled "" }}{{- $syncEnabled = "true" }}{{- end }}
+            - name: SWIFT_REGISTRY_SYNC_ENABLED
+              value: {{ $syncEnabled | quote }}
+            {{- with .Values.swiftRegistrySync.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- $serverConfigEnvFrom := include "tuist.serverConfigEnvFrom" . | trim }}
+          {{- if or $serverConfigEnvFrom .Values.server.extraEnvFrom }}
+          envFrom:
+            {{- with $serverConfigEnvFrom }}
+            {{- . | nindent 12 }}
+            {{- end }}
+            {{- with .Values.server.extraEnvFrom }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.swiftRegistrySync.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: {{ .Values.swiftRegistrySync.tmpSizeLimit | quote }}
+{{- end }}

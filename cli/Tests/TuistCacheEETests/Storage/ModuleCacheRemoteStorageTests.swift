@@ -187,6 +187,137 @@ struct ModuleCacheRemoteStorageTests {
         #expect(got.isEmpty == true)
     }
 
+    @Test(.inTemporaryDirectory, .withMockedLogger(), .withScopedAlertController())
+    func fetch_when_downloaded_archive_cannot_be_decompressed_is_treated_as_a_cache_miss() async throws {
+        // Given
+        let appleArchiver = MockAppleArchiving()
+        let subject = ModuleCacheRemoteStorage(
+            fullHandle: fullHandle,
+            cacheURL: Constants.URLs.production,
+            serverURL: Constants.URLs.production,
+            serverAuthenticationController: serverAuthenticationController,
+            appleArchiver: appleArchiver,
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            multipartUploadService: multipartUploadService,
+            downloadModuleCacheService: downloadModuleCacheService,
+            getCacheActionItemService: getCacheActionItemService,
+            uploadCacheActionItemService: uploadCacheActionItemService,
+            artifactSigner: artifactSigner,
+            fileSystem: fileSystem,
+            retryProvider: retryProvider,
+            concurrencyLimit: 15,
+            cacheActionItemConcurrencyLimit: 15
+        )
+        given(downloadModuleCacheService)
+            .downloadModuleCacheArtifact(
+                accountHandle: .any,
+                projectHandle: .any,
+                hash: .any,
+                name: .any,
+                cacheCategory: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
+            .willReturn(Data("stale-stored-zip-payload".utf8))
+        given(appleArchiver)
+            .decompress(archive: .any, to: .any)
+            .willThrow(AppleArchiverError.decompressionFailed("unsupported archive format"))
+
+        // When
+        let got = try await subject.fetch(
+            Set([.init(name: "target", hash: "hash")]),
+            cacheCategory: .binaries
+        )
+
+        // Then
+        // The undecompressable artifact is a per-item cache miss (the fetch does
+        // not fail), surfaced as a single "could not be decompressed" warning
+        // rather than the misleading "server unavailable" alert.
+        #expect(got.isEmpty == true)
+        #expect(AlertController.current.warnings().map(\.message).map { $0.plain() } ==
+            ["These cached artifacts could not be decompressed and were rebuilt from source: target"]
+        )
+        // The payload won't change on retry, so it must be downloaded only once.
+        verify(downloadModuleCacheService)
+            .downloadModuleCacheArtifact(
+                accountHandle: .any,
+                projectHandle: .any,
+                hash: .any,
+                name: .any,
+                cacheCategory: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedLogger(), .withScopedAlertController())
+    func fetch_when_one_artifact_is_corrupted_still_returns_the_valid_ones() async throws {
+        // Given
+        // Drive decompression through a mock archiver so the corrupt case is
+        // deterministic. Decompressing arbitrary "corrupt" bytes with the real
+        // AppleArchive has undefined behavior and is unsuitable for a fixture.
+        let appleArchiver = MockAppleArchiving()
+        let subject = ModuleCacheRemoteStorage(
+            fullHandle: fullHandle,
+            cacheURL: Constants.URLs.production,
+            serverURL: Constants.URLs.production,
+            serverAuthenticationController: serverAuthenticationController,
+            appleArchiver: appleArchiver,
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            multipartUploadService: multipartUploadService,
+            downloadModuleCacheService: downloadModuleCacheService,
+            getCacheActionItemService: getCacheActionItemService,
+            uploadCacheActionItemService: uploadCacheActionItemService,
+            artifactSigner: artifactSigner,
+            fileSystem: fileSystem,
+            retryProvider: retryProvider,
+            concurrencyLimit: 15,
+            cacheActionItemConcurrencyLimit: 15
+        )
+        given(downloadModuleCacheService)
+            .downloadModuleCacheArtifact(
+                accountHandle: .any,
+                projectHandle: .any,
+                hash: .any,
+                name: .any,
+                cacheCategory: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
+            .willReturn(Data("payload".utf8))
+        // The valid artifact decompresses into a real framework; the corrupt one
+        // fails to decompress. The archive path is "<hash>.aar", so match on hash.
+        given(appleArchiver)
+            .decompress(archive: .matching { $0.pathString.contains("valid-hash") }, to: .any)
+            .willProduce { _, directory in
+                try FileManager.default.createDirectory(
+                    at: directory.appending(component: "Valid.framework").url,
+                    withIntermediateDirectories: true
+                )
+            }
+        given(appleArchiver)
+            .decompress(archive: .matching { $0.pathString.contains("corrupt-hash") }, to: .any)
+            .willThrow(AppleArchiverError.decompressionFailed("unsupported archive format"))
+
+        // When
+        let got = try await subject.fetch(
+            Set([
+                .init(name: "Valid", hash: "valid-hash"),
+                .init(name: "Corrupt", hash: "corrupt-hash"),
+            ]),
+            cacheCategory: .binaries
+        )
+
+        // Then
+        #expect(got.count == 1)
+        #expect(got[.test(name: "Valid", hash: "valid-hash", source: .remote, cacheCategory: .binaries)] != nil)
+        #expect(got[.test(name: "Corrupt", hash: "corrupt-hash", source: .remote, cacheCategory: .binaries)] == nil)
+    }
+
     // MARK: - Authentication Failure Tests (401/403)
 
     @Test(.inTemporaryDirectory, .withMockedLogger(), .withScopedAlertController())

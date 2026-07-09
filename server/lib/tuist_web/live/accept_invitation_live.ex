@@ -36,6 +36,9 @@ defmodule TuistWeb.AcceptInvitationLive do
 
       {:error, :not_found} ->
         :not_found
+
+      {:error, :expired} ->
+        :expired
     end
   end
 
@@ -169,6 +172,24 @@ defmodule TuistWeb.AcceptInvitationLive do
                     )}
                   </span>
                 </div>
+              <% @invitee_state == :expired -> %>
+                <div data-part="header">
+                  <h1 data-part="title">
+                    {dgettext("dashboard_account", "Invitation expired")}
+                  </h1>
+                </div>
+                <.alert
+                  id="invitation-expired"
+                  type="secondary"
+                  status="error"
+                  size="small"
+                  title={
+                    dgettext(
+                      "dashboard_account",
+                      "This invitation has expired. Please ask the inviter to resend it."
+                    )
+                  }
+                />
               <% true -> %>
                 <div data-part="header">
                   <h1 data-part="title">
@@ -191,7 +212,8 @@ defmodule TuistWeb.AcceptInvitationLive do
 
             <div
               :if={
-                @invitee_state == :not_found or match?({:mismatched, _}, @invitee_state) or @accepted or
+                @invitee_state in [:not_found, :expired] or match?({:mismatched, _}, @invitee_state) or
+                  @accepted or
                   @declined
               }
               data-part="actions"
@@ -230,30 +252,46 @@ defmodule TuistWeb.AcceptInvitationLive do
   def handle_event("accept_invitation", _params, %{assigns: %{invitee_state: {:ok, _}}} = socket) do
     user = Authentication.current_user(socket)
 
-    Accounts.accept_invitation(%{
-      invitation: socket.assigns.invitation,
-      invitee: user,
-      organization: socket.assigns.organization
-    })
+    result =
+      Accounts.accept_invitation(%{
+        invitation: socket.assigns.invitation,
+        invitee: user,
+        organization: socket.assigns.organization
+      })
 
-    case socket.assigns.post_accept_return_to do
-      nil ->
+    case {result, socket.assigns.post_accept_return_to} do
+      {{:ok, _invitation}, nil} ->
         {:noreply, assign(socket, accepted: true)}
 
-      path when is_binary(path) ->
+      {{:ok, _invitation}, path} when is_binary(path) ->
         # Resume whatever flow brought the user here — e.g. the device-code
         # URL from `tuist auth login`. The session key
         # `:post_invitation_return_to` is only read here; subsequent SSO
         # redirects overwrite it, so leaving it behind is harmless.
         {:noreply, redirect(socket, to: path)}
+
+      {{:error, :expired}, _path} ->
+        {:noreply, assign(socket, invitee_state: :expired, invitation: nil, organization: nil)}
+
+      {{:error, :not_found}, _path} ->
+        {:noreply, assign(socket, invitee_state: :not_found, invitation: nil, organization: nil)}
     end
   end
 
   def handle_event("accept_invitation", _params, socket), do: {:noreply, socket}
 
   def handle_event("decline_invitation", _params, %{assigns: %{invitee_state: {:ok, _}}} = socket) do
-    Accounts.delete_invitation(%{invitation: socket.assigns.invitation})
-    {:noreply, assign(socket, declined: true)}
+    case Accounts.get_invitation_by_token(socket.assigns.invitation.token) do
+      {:ok, invitation} ->
+        Accounts.delete_invitation(%{invitation: invitation})
+        {:noreply, assign(socket, declined: true)}
+
+      {:error, :expired} ->
+        {:noreply, assign(socket, invitee_state: :expired, invitation: nil, organization: nil)}
+
+      {:error, :not_found} ->
+        {:noreply, assign(socket, invitee_state: :not_found, invitation: nil, organization: nil)}
+    end
   end
 
   def handle_event("decline_invitation", _params, socket), do: {:noreply, socket}

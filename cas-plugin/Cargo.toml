@@ -17,6 +17,11 @@ zstd = "0.13"
 libc = "0.2"
 bazel-remote-apis = "0.27.0"
 tonic = { version = "0.14.2", features = ["tls-ring", "tls-native-roots"] }
+# Already in the tree via tonic; direct deps only so the retry classifier can
+# downcast a Status source chain to the transport error types (see
+# `transport_caused` in src/reapi.rs).
+h2 = "0.4"
+hyper = "1"
 prost = "0.14.1"
 sha2 = "0.10"
 tokio = { version = "1.48", features = ["rt-multi-thread", "time"] }

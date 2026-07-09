@@ -56,7 +56,7 @@
 
         private enum SplitArtifact {
             case shared
-            case module(AbsolutePath)
+            case module(name: String, paths: [AbsolutePath])
         }
 
         private let createShardPlanService: CreateShardPlanServicing
@@ -184,11 +184,17 @@
             Logger.current.debug("Uploading test products artifacts...")
 
             let archiveDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-archive")
-            let xctestPaths = try await fileSystem.glob(directory: xctestproductsPath, include: ["**/*.xctest"]).collect()
+            let xctestPaths = try await fileSystem.glob(directory: xctestproductsPath, include: ["**/*.xctest"])
+                .collect()
+                .sorted(by: { $0.pathString < $1.pathString })
+            let moduleArtifacts = Dictionary(grouping: xctestPaths, by: \.basenameWithoutExt)
+                .map { module, paths in (name: module, paths: paths.sorted(by: { $0.pathString < $1.pathString })) }
+                .sorted(by: { $0.name < $1.name })
+                .map { SplitArtifact.module(name: $0.name, paths: $0.paths) }
 
             // Each artifact (the shared bundle plus one per module) is an independent compress + upload;
             // run them concurrently, capped so a project with many modules doesn't oversubscribe the host.
-            let artifacts: [SplitArtifact] = [.shared] + xctestPaths.map(SplitArtifact.module)
+            let artifacts: [SplitArtifact] = [.shared] + moduleArtifacts
             _ = try await artifacts.concurrentMap(maxConcurrentTasks: Self.maxConcurrentArtifactUploads) { artifact in
                 switch artifact {
                 case .shared:
@@ -209,10 +215,9 @@
                         shardPlanId: shardPlanId,
                         reference: reference
                     )
-                case let .module(xctestPath):
-                    let module = xctestPath.basenameWithoutExt
+                case let .module(module, xctestPaths):
                     let moduleArchive = archiveDirectory.appending(component: "\(module).aar")
-                    try await archiveModuleProduct(xctestPath, productsPath: xctestproductsPath, to: moduleArchive)
+                    try await archiveModuleProducts(xctestPaths, productsPath: xctestproductsPath, to: moduleArchive)
                     try await uploadArtifact(
                         archivePath: moduleArchive,
                         artifact: "module:\(module)",
@@ -270,17 +275,18 @@
             )
         }
 
-        /// Archives a single module's `.xctest` preserving its path relative to the products root,
-        /// so extracting it alongside the shared artifact reconstructs the original layout. The
-        /// `.xctest` is read in place — a project with hundreds of modules would otherwise copy
-        /// every (multi-hundred-MB) test bundle into a staging directory before compressing it.
-        private func archiveModuleProduct(
-            _ xctestPath: AbsolutePath,
+        /// Archives a module's `.xctest` bundle(s) preserving their paths relative to the products
+        /// root, so extracting alongside the shared artifact reconstructs the original layout.
+        /// The `.xctest` bundles are read in place — a project with hundreds of modules would
+        /// otherwise copy every (multi-hundred-MB) test bundle into a staging directory before
+        /// compressing it.
+        private func archiveModuleProducts(
+            _ xctestPaths: [AbsolutePath],
             productsPath: AbsolutePath,
             to archivePath: AbsolutePath
         ) async throws {
             try await appleArchiver.compress(
-                subdirectory: xctestPath,
+                subdirectories: xctestPaths,
                 relativeTo: productsPath,
                 to: archivePath
             )

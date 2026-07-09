@@ -1014,6 +1014,67 @@ defmodule Tuist.AccountsTest do
       # Then
       assert got == Repo.preload(invitation, inviter: :account)
     end
+
+    test "returns :expired when the invitation is older than the validity window" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+      invitee = AccountsFixtures.user_fixture(email: "new@tuist.io")
+
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization("new@tuist.io", %{
+          inviter: user,
+          to: organization,
+          url: fn token -> token end
+        })
+
+      expired_at =
+        NaiveDateTime.utc_now()
+        |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
+        |> NaiveDateTime.truncate(:second)
+
+      Tuist.Repo.update_all(
+        from(i in Invitation, where: i.id == ^invitation.id),
+        set: [updated_at: expired_at]
+      )
+
+      # When
+      got = Accounts.get_invitation_by_token(invitation.token, invitee)
+
+      # Then
+      assert got == {:error, :expired}
+    end
+  end
+
+  describe "get_invitation_by_token/1" do
+    test "returns :expired when the invitation is older than the validity window" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization("new@tuist.io", %{
+          inviter: user,
+          to: organization,
+          url: fn token -> token end
+        })
+
+      expired_at =
+        NaiveDateTime.utc_now()
+        |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
+        |> NaiveDateTime.truncate(:second)
+
+      Tuist.Repo.update_all(
+        from(i in Invitation, where: i.id == ^invitation.id),
+        set: [updated_at: expired_at]
+      )
+
+      # When
+      got = Accounts.get_invitation_by_token(invitation.token)
+
+      # Then
+      assert got == {:error, :expired}
+    end
   end
 
   describe "get_pending_invitations_by_email/1" do
@@ -1098,6 +1159,35 @@ defmodule Tuist.AccountsTest do
       # Then
       assert got == []
     end
+
+    test "does not return expired invitations" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization("new@tuist.io", %{
+          inviter: user,
+          to: organization,
+          url: fn token -> token end
+        })
+
+      expired_at =
+        NaiveDateTime.utc_now()
+        |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
+        |> NaiveDateTime.truncate(:second)
+
+      Tuist.Repo.update_all(
+        from(i in Invitation, where: i.id == ^invitation.id),
+        set: [updated_at: expired_at]
+      )
+
+      # When
+      got = Accounts.get_pending_invitations_by_email("new@tuist.io")
+
+      # Then
+      assert got == []
+    end
   end
 
   describe "accept_invitation/1" do
@@ -1127,6 +1217,76 @@ defmodule Tuist.AccountsTest do
              ]
 
       assert Accounts.get_invitation_by_id(invitation.id) == nil
+    end
+
+    test "does not accept an expired invitation" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+      invitee = AccountsFixtures.user_fixture(email: "new@tuist.io")
+
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization("new@tuist.io", %{
+          inviter: user,
+          to: organization,
+          url: fn token -> token end
+        })
+
+      expired_at =
+        NaiveDateTime.utc_now()
+        |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
+        |> NaiveDateTime.truncate(:second)
+
+      Tuist.Repo.update_all(
+        from(i in Invitation, where: i.id == ^invitation.id),
+        set: [updated_at: expired_at]
+      )
+
+      # When
+      got =
+        Accounts.accept_invitation(%{
+          invitation: invitation,
+          invitee: invitee,
+          organization: organization
+        })
+
+      # Then
+      assert got == {:error, :expired}
+      refute Accounts.organization_user?(invitee, organization)
+      assert Accounts.get_invitation_by_id(invitation.id)
+    end
+
+    test "does not accept an invitation whose token was refreshed" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+      invitee = AccountsFixtures.user_fixture(email: "new@tuist.io")
+
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization(
+          "new@tuist.io",
+          %{inviter: user, to: organization, url: fn token -> token end},
+          token: "old-token"
+        )
+
+      {:ok, _resent_invitation} =
+        Accounts.resend_invitation(
+          invitation,
+          %{url: fn token -> "/auth/invitations/#{token}" end},
+          token: "new-token"
+        )
+
+      # When
+      got =
+        Accounts.accept_invitation(%{
+          invitation: invitation,
+          invitee: invitee,
+          organization: organization
+        })
+
+      # Then
+      assert got == {:error, :not_found}
+      refute Accounts.organization_user?(invitee, organization)
     end
   end
 
@@ -1180,6 +1340,55 @@ defmodule Tuist.AccountsTest do
       # Then
       assert {:error, changeset} = result
       assert "has already been taken" in errors_on(changeset).invitee_email
+    end
+  end
+
+  describe "resend_invitation/2" do
+    test "refreshes the token and delivers the new invitation URL" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization(
+          "test@tuist.io",
+          %{inviter: user, to: organization, url: fn token -> token end},
+          token: "old-token"
+        )
+
+      expired_at =
+        NaiveDateTime.utc_now()
+        |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
+        |> NaiveDateTime.truncate(:second)
+
+      Tuist.Repo.update_all(
+        from(i in Invitation, where: i.id == ^invitation.id),
+        set: [updated_at: expired_at]
+      )
+
+      stub(Environment, :mail_configured?, fn -> true end)
+
+      expect(Tuist.Accounts.UserNotifier, :deliver_invitation, fn invitee_email, opts ->
+        assert invitee_email == "test@tuist.io"
+        assert opts.inviter.id == user.id
+        assert opts.to.organization.id == organization.id
+        assert opts.url == "/auth/invitations/new-token"
+        :ok
+      end)
+
+      # When
+      {:ok, got} =
+        Accounts.resend_invitation(
+          invitation,
+          %{url: fn token -> "/auth/invitations/#{token}" end},
+          token: "new-token"
+        )
+
+      # Then
+      assert got.token == "new-token"
+      refute Invitation.expired?(got)
+      assert Accounts.get_invitation_by_token("old-token") == {:error, :not_found}
+      assert {:ok, %{token: "new-token"}} = Accounts.get_invitation_by_token("new-token")
     end
   end
 

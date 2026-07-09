@@ -1168,16 +1168,6 @@ msgstr ""
 msgid "Full screen"
 msgstr ""
 
-#: lib/tuist_web/components/runs/ci_context_card.ex:71
-#, elixir-autogen, elixir-format
-msgid "CI job duration"
-msgstr ""
-
-#: lib/tuist_web/components/runs/ci_context_card.ex:113
-#, elixir-autogen, elixir-format
-msgid "Not recorded"
-msgstr ""
-
 #: lib/tuist_web/live/runner_job_live.html.heex:455
 #, elixir-autogen, elixir-format
 msgid "VNC session active"
@@ -1196,6 +1186,16 @@ msgstr ""
 #: lib/tuist_web/live/runner_job_live.html.heex:449
 #, elixir-autogen, elixir-format
 msgid "Waiting for runner relay"
+msgstr ""
+
+#: lib/tuist_web/components/runs/ci_context_card.ex:71
+#, elixir-autogen, elixir-format
+msgid "CI job duration"
+msgstr ""
+
+#: lib/tuist_web/components/runs/ci_context_card.ex:113
+#, elixir-autogen, elixir-format
+msgid "Not recorded"
 msgstr ""
 
 #: lib/tuist_web/components/runs/ci_context_card.ex:60

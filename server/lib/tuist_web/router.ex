@@ -381,6 +381,12 @@ defmodule TuistWeb.Router do
           metadata: @marketing_route_metadata,
           private: private
 
+      post Path.join(locale_path_prefix, "/newsletter/verify"),
+           MarketingController,
+           :newsletter_confirm,
+           metadata: @marketing_route_metadata,
+           private: private
+
       get Path.join(locale_path_prefix, "/newsletter/issues/:issue_number"),
           MarketingController,
           :newsletter_issue,
