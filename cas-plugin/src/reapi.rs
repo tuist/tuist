@@ -96,6 +96,11 @@ pub struct Node {
 pub struct ManifestEntry {
     pub llcas_digest: Vec<u8>,
     pub blob: reapi::Digest,
+    /// Frame bytes the server inlined into the GetActionResult response (see
+    /// the `inline_output_files: ["*"]` request hint). `None` means the server
+    /// did not inline this blob (older kura, or response budget exhausted) and
+    /// it must be fetched via `batch_read` as before.
+    pub contents: Option<Vec<u8>>,
 }
 
 // One request must stay under kura's 64MB decoding cap, with headroom.
@@ -195,6 +200,18 @@ fn retryable(status: &tonic::Status) -> bool {
             | tonic::Code::Unknown
             | tonic::Code::DeadlineExceeded
             | tonic::Code::ResourceExhausted
+            // Kura periodically closes an h2 connection with GOAWAY(NO_ERROR)
+            // (graceful rotation), which tonic surfaces as `Internal`
+            // ("h2 protocol error"); an in-flight stream on the dropped
+            // connection surfaces as `Cancelled` ("connection closed"). Both are
+            // transient transport conditions, not the server rejecting the
+            // request -- re-issuing reconnects the lazy channel. Safe to retry
+            // because every CAS op is idempotent (content-addressed reads,
+            // dedup'd writes). Without this a graceful GOAWAY turned a cache hit
+            // into a miss + recompile: harmless at low concurrency, a real
+            // hit-rate drain once many fetches overlap.
+            | tonic::Code::Internal
+            | tonic::Code::Cancelled
     )
 }
 
@@ -295,6 +312,13 @@ impl Remote {
             let request = reapi::GetActionResultRequest {
                 instance_name: self.config.instance.clone(),
                 action_digest: Some(action_digest(key)),
+                // Kura extension: `"*"` asks the server to inline every output
+                // file's frame bytes into this response (best-effort, within
+                // its response budget), collapsing the action lookup + blob
+                // fetch into one round-trip. A server without the extension
+                // matches no literal `"*"` path and inlines nothing, in which
+                // case the caller batch-reads as before.
+                inline_output_files: vec!["*".into()],
                 ..Default::default()
             };
             let response = retry_call(|| {
@@ -309,6 +333,8 @@ impl Remote {
                         .filter_map(|file| {
                             Some(ManifestEntry {
                                 llcas_digest: unhex(&file.path)?,
+                                contents: (!file.contents.is_empty())
+                                    .then_some(file.contents),
                                 blob: file.digest?,
                             })
                         })

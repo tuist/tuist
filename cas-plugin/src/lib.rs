@@ -1232,18 +1232,33 @@ unsafe fn actioncache_get_impl(
         })
         .collect();
     if !missing.is_empty() {
-        let digests: Vec<_> = missing.iter().map(|entry| entry.blob.clone()).collect();
-        let contents = match remote.batch_read(&digests) {
-            Ok(contents) => contents,
-            Err(message) => {
-                log_line(&format!("batch_read failed: {message}"));
-                return LLCAS_LOOKUP_RESULT_NOTFOUND;
+        // Blobs the server inlined into the GetActionResult response (see
+        // reapi::ManifestEntry::contents) need no second round-trip;
+        // batch-read only the remainder.
+        let digests: Vec<_> = missing
+            .iter()
+            .filter(|entry| entry.contents.is_none())
+            .map(|entry| entry.blob.clone())
+            .collect();
+        let contents = if digests.is_empty() {
+            std::collections::HashMap::new()
+        } else {
+            match remote.batch_read(&digests) {
+                Ok(contents) => contents,
+                Err(message) => {
+                    log_line(&format!("batch_read failed: {message}"));
+                    return LLCAS_LOOKUP_RESULT_NOTFOUND;
+                }
             }
         };
         for entry in &missing {
             // An unreadable or absent blob means the published graph is
             // incomplete; degrade to a miss and let the client recompute.
-            let Some(blob) = contents.get(&entry.blob.hash) else {
+            let Some(blob) = entry
+                .contents
+                .as_ref()
+                .or_else(|| contents.get(&entry.blob.hash))
+            else {
                 return LLCAS_LOOKUP_RESULT_NOTFOUND;
             };
             let Some(frame) = reapi::decompress_frame(blob) else {
@@ -1475,7 +1490,7 @@ fn upload_process(cas_addr: usize, item: Vec<u8>) {
                 if let Some((blob_digest, children)) =
                     state.publish_cache.lock().unwrap().get(&digest).cloned()
                 {
-                    entries.push(ManifestEntry { llcas_digest: digest, blob: blob_digest });
+                    entries.push(ManifestEntry { llcas_digest: digest, blob: blob_digest, contents: None });
                     blobs.push(None);
                     pending.extend(children);
                     continue;
@@ -1487,7 +1502,7 @@ fn upload_process(cas_addr: usize, item: Vec<u8>) {
                     .lock()
                     .unwrap()
                     .insert(digest.clone(), (blob_digest.clone(), children.clone()));
-                entries.push(ManifestEntry { llcas_digest: digest, blob: blob_digest });
+                entries.push(ManifestEntry { llcas_digest: digest, blob: blob_digest, contents: None });
                 blobs.push(Some(blob));
                 pending.extend(children);
             }
