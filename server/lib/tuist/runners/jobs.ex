@@ -617,6 +617,18 @@ defmodule Tuist.Runners.Jobs do
 
   @doc """
   Returns the merged current state for a single `workflow_job_id`
+  across all accounts. Callers must perform account authorization on
+  the returned job before exposing it.
+  """
+  def get(workflow_job_id) when is_integer(workflow_job_id) do
+    case current(workflow_job_id) do
+      nil -> {:error, :not_found}
+      job -> {:ok, job}
+    end
+  end
+
+  @doc """
+  Returns the merged current state for a single `workflow_job_id`
   belonging to `account_id`. Used by the detail page so the URL
   can't be tampered with to view another customer's run.
   """

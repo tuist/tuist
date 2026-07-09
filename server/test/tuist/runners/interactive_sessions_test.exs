@@ -131,6 +131,94 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
     end
   end
 
+  describe "request_shell/3" do
+    test "creates a requested shell session for a Linux runner job" do
+      account = account_fixture()
+      user = user_fixture()
+
+      assert {:ok, %InteractiveSession{} = session} =
+               InteractiveSessions.request_shell(job(account, %{fleet_name: "linux-amd64"}), account, user)
+
+      assert session.kind == :shell
+      assert session.state == :requested
+      assert session.account_id == account.id
+      assert session.requested_by_user_id == user.id
+      assert is_binary(session.token)
+      assert byte_size(session.token_hash) == 32
+    end
+
+    test "creates a requested shell session for a macOS runner job" do
+      account = account_fixture()
+      user = user_fixture()
+
+      assert {:ok, %InteractiveSession{} = session} = InteractiveSessions.request_shell(job(account), account, user)
+
+      assert session.kind == :shell
+      assert session.state == :requested
+      assert is_binary(session.token)
+    end
+
+    test "rotates the token for duplicate shell requests" do
+      account = account_fixture()
+      user = user_fixture()
+      job = job(account, %{workflow_job_id: 70_101, pod_name: "pod-shell-refresh", fleet_name: "linux-amd64"})
+
+      assert {:ok, first} = InteractiveSessions.request_shell(job, account, user)
+      assert {:ok, second} = InteractiveSessions.request_shell(job, account, user)
+
+      assert second.id == first.id
+      assert second.token != first.token
+      assert {:error, :invalid_or_expired} = InteractiveSessions.validate_token(first.token, account, user)
+      assert {:ok, validated} = InteractiveSessions.validate_token(second.token, account, user)
+      assert validated.id == first.id
+    end
+
+    test "validates a shell token by requesting user for API websocket upgrades" do
+      account = account_fixture()
+      user = user_fixture()
+
+      {:ok, session} =
+        InteractiveSessions.request_shell(job(account, %{fleet_name: "linux-amd64"}), account, user)
+
+      assert {:ok, validated} = InteractiveSessions.validate_token(session.token, user)
+      assert validated.id == session.id
+    end
+
+    test "resolves the open shell session for the runner pod" do
+      account = account_fixture()
+      user = user_fixture()
+      pod_name = "pod-shell-agent"
+
+      {:ok, session} =
+        InteractiveSessions.request_shell(job(account, %{pod_name: pod_name, fleet_name: "linux-amd64"}), account, user)
+
+      assert InteractiveSessions.current_shell_for_pod(pod_name).id == session.id
+      assert {:ok, same_session} = InteractiveSessions.validate_shell_pod(session.id, pod_name)
+      assert same_session.id == session.id
+      assert {:error, :not_found} = InteractiveSessions.validate_shell_pod(session.id, "other-pod")
+    end
+
+    test "rejects unsupported platforms" do
+      account = account_fixture()
+      user = user_fixture()
+
+      assert {:error, :unsupported_platform} =
+               InteractiveSessions.request_shell(job(account, %{fleet_name: "windows-amd64"}), account, user)
+    end
+
+    test "rejects jobs that are not running or claimed" do
+      account = account_fixture()
+      user = user_fixture()
+
+      assert {:error, :job_not_running} =
+               InteractiveSessions.request_shell(
+                 job(account, %{status: "completed", fleet_name: "linux-amd64"}),
+                 account,
+                 user
+               )
+    end
+  end
+
   describe "request_vnc_relay/1" do
     test "patches the runner pod with the server-owned VNC request annotation" do
       account = account_fixture()

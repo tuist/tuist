@@ -211,11 +211,12 @@ USER root
 COPY dispatch-poll.sh /usr/local/bin/dispatch-poll.sh
 COPY run-job.sh /usr/local/bin/run-job.sh
 COPY vitals.sh /usr/local/bin/vitals.sh
+COPY runner-shell-agent.py /usr/local/bin/runner-shell-agent.py
 # metrics-sampler.sh runs in the `metrics` native-sidecar container
 # (holds the SA token like the poller; never the runner container) and
 # POSTs the microVM's machine metrics for the job detail page.
 COPY metrics-sampler.sh /usr/local/bin/metrics-sampler.sh
-RUN chmod +x /usr/local/bin/dispatch-poll.sh /usr/local/bin/run-job.sh /usr/local/bin/vitals.sh /usr/local/bin/metrics-sampler.sh
+RUN chmod +x /usr/local/bin/dispatch-poll.sh /usr/local/bin/run-job.sh /usr/local/bin/vitals.sh /usr/local/bin/runner-shell-agent.py /usr/local/bin/metrics-sampler.sh
 
 USER runner
 

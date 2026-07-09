@@ -589,6 +589,48 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert has_element?(lv, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Overview")
   end
 
+  test "automatically requests a shell session from the Interactive tab for Linux jobs", %{
+    conn: conn,
+    account: account
+  } do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_754,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 317_540,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Linux shell",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
+    :ok = Jobs.record_claimed(candidate, "linux-pod-shell", DateTime.utc_now())
+    :ok = Jobs.record_running(31_754, "tuist-runner-linux-shell")
+
+    {:ok, lv, html} =
+      live(conn, ~p"/#{account.name}/runners/runs/317540/jobs/31754?tab=interactive")
+
+    assert html =~ "Interactive access"
+    assert has_element?(lv, ~s{#runner-shell-session})
+
+    assert has_element?(
+             lv,
+             ~s{#runner-shell-terminal[phx-hook="RunnerShellTerminal"][data-shell-path="/#{account.name}/runners/interactive/shell"][data-shell-token]}
+           )
+
+    refute has_element?(lv, ~s{#runner-vnc-session})
+    refute has_element?(lv, ~s{#request-vnc-session-button})
+
+    session = Repo.get_by!(InteractiveSession, workflow_job_id: 31_754, kind: :shell)
+    assert session.state == :requested
+    assert session.pod_name == "linux-pod-shell"
+    assert session.requested_by_user_id
+  end
+
   test "renders the machine metrics charts on the Metrics tab", %{conn: conn, account: account} do
     :ok =
       Jobs.enqueue(%{

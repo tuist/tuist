@@ -39,6 +39,12 @@ runtime — no service, sudo entry, or auto-login targets it.
   (`top`/`vm_stat`/`netstat`/`df`) for the job's duration and POSTs to
   `…/pods/<pod>/metrics` with the same SA token, dying with the VM when
   the job ends. Best-effort; never blocks the job.
+- `/opt/tuist/runner-shell-agent.py` — interactive shell bridge.
+  `dispatch-poll.sh` starts it in the background after loading the
+  projected token. It polls the server for authorized shell sessions and
+  forwards a PTY in the runner VM over the server-owned WebSocket
+  tunnel, so dashboard terminal access and `tuist runner ssh` attach to
+  the same ephemeral job environment.
 - `/Users/runner/Library/LaunchAgents/dev.tuist.runner.plist` —
   the LaunchAgent that auto-runs `inject-env.sh` then
   `dispatch-poll.sh` once runner's user session starts at boot.

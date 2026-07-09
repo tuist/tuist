@@ -55,6 +55,22 @@ defmodule Tuist.Runners.InteractiveSessions do
 
   def request_vnc(_job, _account, _user), do: {:error, :account_mismatch}
 
+  def request_shell(%{workflow_job_id: workflow_job_id, account_id: account_id} = job, %Account{id: account_id}, %User{
+        id: user_id
+      }) do
+    with :ok <- validate_shell_job(job) do
+      case current_for_job(account_id, workflow_job_id, :shell) do
+        %InteractiveSession{} = session ->
+          refresh_token(session, user_id)
+
+        nil ->
+          create_session(job, user_id, :shell)
+      end
+    end
+  end
+
+  def request_shell(_job, _account, _user), do: {:error, :account_mismatch}
+
   def current_for_job(account_id, workflow_job_id, kind)
       when is_integer(account_id) and is_integer(workflow_job_id) and kind in [:vnc, :shell] do
     InteractiveSession
@@ -67,6 +83,22 @@ defmodule Tuist.Runners.InteractiveSessions do
     |> limit(1)
     |> Repo.one()
   end
+
+  def current_shell_for_pod(pod_name) when is_binary(pod_name) and pod_name != "" do
+    now = now()
+
+    InteractiveSession
+    |> where(
+      [session],
+      session.pod_name == ^pod_name and session.kind == :shell and is_nil(session.closed_at) and
+        session.expires_at > ^now
+    )
+    |> order_by([session], desc: session.inserted_at)
+    |> limit(1)
+    |> Repo.one()
+  end
+
+  def current_shell_for_pod(_pod_name), do: nil
 
   def validate_token(token, %Account{id: account_id}, %User{id: user_id}) when is_binary(token) and token != "" do
     now = now()
@@ -86,6 +118,62 @@ defmodule Tuist.Runners.InteractiveSessions do
   end
 
   def validate_token(_token, %Account{}, %User{}), do: {:error, :invalid_or_expired}
+
+  def validate_token(token, %User{id: user_id}) when is_binary(token) and token != "" do
+    now = now()
+    hash = token_hash(token)
+
+    InteractiveSession
+    |> where(
+      [session],
+      session.token_hash == ^hash and session.requested_by_user_id == ^user_id and is_nil(session.closed_at) and
+        session.expires_at > ^now
+    )
+    |> Repo.one()
+    |> case do
+      %InteractiveSession{} = session -> {:ok, session}
+      nil -> {:error, :invalid_or_expired}
+    end
+  end
+
+  def validate_token(_token, %User{}), do: {:error, :invalid_or_expired}
+
+  def validate_shell_pod(session_id, pod_name) when is_integer(session_id) and is_binary(pod_name) and pod_name != "" do
+    now = now()
+
+    InteractiveSession
+    |> where(
+      [session],
+      session.id == ^session_id and session.kind == :shell and session.pod_name == ^pod_name and
+        is_nil(session.closed_at) and session.expires_at > ^now
+    )
+    |> Repo.one()
+    |> case do
+      %InteractiveSession{} = session -> {:ok, session}
+      nil -> {:error, :not_found}
+    end
+  end
+
+  def validate_shell_pod(_session_id, _pod_name), do: {:error, :not_found}
+
+  def mark_shell_ready(%InteractiveSession{kind: :shell, closed_at: nil} = session) do
+    now = now()
+
+    attrs =
+      maybe_put_ready_state(
+        %{
+          last_activity_at: now,
+          updated_at: now
+        },
+        session
+      )
+
+    session
+    |> InteractiveSession.changeset(attrs)
+    |> Repo.update()
+  end
+
+  def mark_shell_ready(%InteractiveSession{}), do: {:error, :closed_session}
 
   def request_vnc_relay(%InteractiveSession{kind: :vnc, closed_at: nil} = session) do
     now = now()
@@ -286,6 +374,13 @@ defmodule Tuist.Runners.InteractiveSessions do
 
   def vnc_requestable?(_), do: false
 
+  def shell_requestable?(%{fleet_name: fleet_name, status: status, pod_name: pod_name}) do
+    Catalog.fleet_platform(fleet_name) in [:macos, :linux] and status in ["claimed", "running"] and
+      is_binary(pod_name) and pod_name != ""
+  end
+
+  def shell_requestable?(_), do: false
+
   defp sync_vnc_relay_state_from_pod(session, pod) do
     annotations = get_in(pod, ["metadata", "annotations"]) || %{}
     session_id = Integer.to_string(session.id)
@@ -327,6 +422,22 @@ defmodule Tuist.Runners.InteractiveSessions do
   defp validate_vnc_job(job) do
     cond do
       Catalog.fleet_platform(job.fleet_name) != :macos ->
+        {:error, :unsupported_platform}
+
+      job.status not in ["claimed", "running"] ->
+        {:error, :job_not_running}
+
+      not is_binary(job.pod_name) or job.pod_name == "" ->
+        {:error, :pod_unavailable}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp validate_shell_job(job) do
+    cond do
+      Catalog.fleet_platform(job.fleet_name) not in [:macos, :linux] ->
         {:error, :unsupported_platform}
 
       job.status not in ["claimed", "running"] ->

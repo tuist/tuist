@@ -381,7 +381,7 @@
     >
       <:actions>
         <.button
-          :if={@interactive.vnc_session_ready?}
+          :if={@interactive.macos? and @interactive.vnc_session_ready?}
           id="runner-vnc-fullscreen-button"
           phx-hook="RunnerVNCFullscreen"
           variant="secondary"
@@ -396,7 +396,10 @@
           <:icon_left><.icon name="device_desktop_share" /></:icon_left>
         </.button>
         <.button
-          :if={is_nil(@interactive.vnc_session) and !@interactive.vnc_dev_placeholder?}
+          :if={
+            @interactive.macos? and is_nil(@interactive.vnc_session) and
+              !@interactive.vnc_dev_placeholder?
+          }
           id="request-vnc-session-button"
           phx-click="request_vnc_session"
           variant="secondary"
@@ -406,9 +409,20 @@
         >
           <:icon_left><.player_play /></:icon_left>
         </.button>
+        <.button
+          :if={is_nil(@interactive.shell_session)}
+          id="request-shell-session-button"
+          phx-click="request_shell_session"
+          variant="secondary"
+          size="medium"
+          label={dgettext("dashboard_runners", "Start terminal")}
+          disabled={!@interactive.shell_requestable?}
+        >
+          <:icon_left><.terminal_square_icon /></:icon_left>
+        </.button>
       </:actions>
       <.card_section data-part="interactive-section">
-        <div id="runner-vnc-session" data-part="interactive-session">
+        <div :if={@interactive.macos?} id="runner-vnc-session" data-part="interactive-session">
           <div :if={unavailable_reason} data-part="interactive-notice">
             {unavailable_reason}
           </div>
@@ -457,6 +471,50 @@
                     dgettext("dashboard_runners", "VNC session unavailable")
                 end}
               </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="runner-shell-session" data-part="interactive-session">
+          <div
+            id="runner-shell-terminal"
+            phx-hook="RunnerShellTerminal"
+            phx-update="ignore"
+            data-part="interactive-terminal"
+            data-shell-path={@interactive.shell_websocket_path}
+            data-shell-token={@interactive.shell_websocket_token}
+            data-state={
+              if(@interactive.shell_session,
+                do: Atom.to_string(@interactive.shell_session.state),
+                else: "idle"
+              )
+            }
+            tabindex="0"
+          >
+            <pre data-part="interactive-terminal-output"></pre>
+          </div>
+          <div
+            :if={is_nil(@interactive.shell_websocket_path)}
+            data-part="interactive-terminal-frame"
+          >
+            <div data-part="interactive-viewport-icon"><.terminal_square_icon /></div>
+            <div data-part="interactive-viewport-title">
+              {case @interactive.shell_session do
+                nil ->
+                  dgettext("dashboard_runners", "Terminal session idle")
+
+                %{state: :requested} ->
+                  dgettext("dashboard_runners", "Waiting for runner shell")
+
+                %{state: :ready} ->
+                  dgettext("dashboard_runners", "Terminal session ready")
+
+                %{state: :active} ->
+                  dgettext("dashboard_runners", "Terminal session active")
+
+                _ ->
+                  dgettext("dashboard_runners", "Terminal session unavailable")
+              end}
             </div>
           </div>
         </div>

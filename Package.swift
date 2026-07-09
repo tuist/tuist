@@ -54,6 +54,7 @@ var tuistDependencies: [Target.Dependency] = [
     "TuistInitCommand",
     "TuistShareCommand",
     "TuistRunCommand",
+    "TuistRunnerCommand",
     "TuistInspectCommand",
     argumentParserDependency,
     "TuistServer",
@@ -376,6 +377,16 @@ var tuistRunCommandDependencies: [Target.Dependency] = [
     "TuistNooraExtension",
     "TuistSupport",
     .product(name: "Noora", package: "tuist.Noora"),
+]
+var tuistRunnerCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    fileSystemDependency,
+    "TuistServer",
+    "TuistEnvironment",
+    "TuistEnvKey",
+    "TuistConfigLoader",
+    "TuistHTTP",
 ]
 var tuistInspectCommandDependencies: [Target.Dependency] = [
     pathDependency,
@@ -905,6 +916,14 @@ var targets: [Target] = [
         ]
     ),
     .target(
+        name: "TuistRunnerCommand",
+        dependencies: tuistRunnerCommandDependencies,
+        path: "cli/Sources/TuistRunnerCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
         name: "TuistInspectCommand",
         dependencies: tuistInspectCommandDependencies,
         path: "cli/Sources/TuistInspectCommand",
@@ -1370,6 +1389,7 @@ targets.append(contentsOf: [
             "TuistProjectCommand",
             "TuistRegistryCommand",
             "TuistRunCommand",
+            "TuistRunnerCommand",
             "TuistShareCommand",
             xcodeProjDependency,
             fileSystemDependency,

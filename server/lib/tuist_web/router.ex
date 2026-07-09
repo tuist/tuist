@@ -508,6 +508,8 @@ defmodule TuistWeb.Router do
     end
 
     post "/analytics", AnalyticsController, :create
+    post "/runners/interactive/shell", RunnerInteractiveShellSessionController, :create
+    get "/runners/interactive/shell/connect", RunnerInteractiveShellController, :connect
     post "/runs/:run_id/start", AnalyticsController, :multipart_start
 
     post "/runs/:run_id/generate-url",
@@ -739,6 +741,8 @@ defmodule TuistWeb.Router do
 
     post "/runners/dispatch", RunnersController, :dispatch
     get "/runners/desired_replicas", RunnersController, :desired_replicas
+    get "/runners/interactive/shell/sessions", RunnerInteractiveShellAgentController, :show
+    get "/runners/interactive/shell/:session_id/tunnel", RunnerInteractiveShellAgentController, :connect
     post "/runners/pods/stopped", RunnerPodsController, :stopped
     post "/runners/pods/:pod_name/metrics", RunnerJobMetricsController, :create
   end
@@ -1011,6 +1015,10 @@ defmodule TuistWeb.Router do
 
     get "/runners/interactive/vnc",
         RunnerInteractiveVNCController,
+        :connect
+
+    get "/runners/interactive/shell",
+        RunnerInteractiveShellController,
         :connect
 
     get "/runners/runs/:workflow_run_id/jobs/:workflow_job_id/logs/download",

@@ -274,12 +274,18 @@ build {
     destination = "/tmp/metrics-poll.sh"
   }
 
+  provisioner "file" {
+    source      = "${path.root}/runner-shell-agent.py"
+    destination = "/tmp/runner-shell-agent.py"
+  }
+
   provisioner "shell" {
     inline = [
       "echo 'admin' | sudo -S install -m 0755 /tmp/inject-env.sh /opt/tuist/inject-env.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/dispatch-poll.sh /opt/tuist/dispatch-poll.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/metrics-poll.sh /opt/tuist/metrics-poll.sh",
-      "rm -f /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh"
+      "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent.py /opt/tuist/runner-shell-agent.py",
+      "rm -f /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh /tmp/runner-shell-agent.py"
     ]
   }
 

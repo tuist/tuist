@@ -151,6 +151,11 @@ public enum EnvKey: String, CaseIterable {
     case runRosetta = "TUIST_RUN_ROSETTA"
     case runScheme = "TUIST_RUN_SCHEME"
 
+    // RUNNER
+
+    case runnerSSHJobRef = "TUIST_RUNNER_SSH_JOB_REF"
+    case runnerSSHPath = "TUIST_RUNNER_SSH_PATH"
+
     // SCAFFOLD
 
     case scaffoldTemplate = "TUIST_SCAFFOLD_TEMPLATE"

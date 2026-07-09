@@ -605,8 +605,8 @@
     font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
   }
 
-  & [data-part="interactive-viewport"] {
-    display: flex;
+	  & [data-part="interactive-viewport"] {
+	    display: flex;
     justify-content: center;
     align-items: center;
     align-self: center;
@@ -623,11 +623,60 @@
       background:
         linear-gradient(135deg, color-mix(in srgb, var(--noora-azure-500) 12%, transparent), transparent 52%),
         var(--noora-surface-background-secondary);
-    }
-  }
+	    }
+	  }
 
-  & [data-part="interactive-client"] {
-    display: flex;
+	  & [data-part="interactive-terminal"] {
+	    display: block;
+	    outline: none;
+	    box-shadow: var(--noora-border-light-default);
+	    border-radius: var(--noora-radius-4);
+	    background: light-dark(#111827, #050712);
+	    padding: var(--noora-spacing-4);
+	    width: 100%;
+	    height: min(46vh, 440px);
+	    min-height: 320px;
+	    overflow: auto;
+	    color: #f8fafc;
+	    font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+	    white-space: pre-wrap;
+	    cursor: text;
+
+	    &:not([data-shell-path]) {
+	      display: none;
+	    }
+
+	    &:focus {
+	      box-shadow:
+	        var(--noora-border-light-focus),
+	        var(--noora-border-light-default);
+	    }
+
+	    & > [data-part="interactive-terminal-output"] {
+	      margin: 0;
+	      min-height: 100%;
+	      color: inherit;
+	      font: inherit;
+	      white-space: pre-wrap;
+	      word-break: break-word;
+	    }
+	  }
+
+	  & [data-part="interactive-terminal-frame"] {
+	    display: flex;
+	    flex-direction: column;
+	    justify-content: center;
+	    align-items: center;
+	    gap: var(--noora-spacing-4);
+	    border-radius: var(--noora-radius-4);
+	    background: var(--noora-surface-background-secondary);
+	    min-height: 260px;
+	    color: var(--noora-surface-label-secondary);
+	    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+	  }
+
+	  & [data-part="interactive-client"] {
+	    display: flex;
     flex: 1;
     align-self: stretch;
     background: var(--noora-surface-background-primary);

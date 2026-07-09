@@ -202,6 +202,7 @@ defmodule Tuist do
       Runners.Claim,
       Runners.InteractiveSession,
       Runners.InteractiveSessionConnection,
+      Runners.InteractiveShellBroker,
       Runners.InteractiveSessions,
       Runners.Jobs,
       Runners.Job,

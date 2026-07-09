@@ -21,6 +21,7 @@ import TuistOrganizationCommand
 import TuistProjectCommand
 import TuistRegistryCommand
 import TuistRunCommand
+import TuistRunnerCommand
 import TuistShareCommand
 import TuistSupport
 import TuistTestCommand
@@ -75,6 +76,7 @@ public struct TuistCommand: AsyncParsableCommand {
                         PluginCommand.self,
                         RegistryCommand.self,
                         RunCommand.self,
+                        RunnerCommand.self,
                         ScaffoldCommand.self,
                         SetupCommand.self,
                         TeardownCommand.self,
@@ -108,6 +110,7 @@ public struct TuistCommand: AsyncParsableCommand {
                     CacheCommand.self,
                     GenerateCommand.self,
                     RunCommand.self,
+                    RunnerCommand.self,
                     TestCommand.self,
                     InspectCommand.self,
                 ]

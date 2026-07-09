@@ -24,6 +24,11 @@ name: Linux Runners Staging Smoke Test
 
 on:
   workflow_dispatch:
+    inputs:
+      hold_minutes:
+        description: Minutes to hold the runner for interactive SSH/dashboard probing
+        required: false
+        default: "0"
 
 # Smoke runs a public curl + a few uname-style assertions; never
 # reads or mutates repo state, so GITHUB_TOKEN needs zero scopes.
@@ -36,7 +41,7 @@ jobs:
     # to also list `self-hosted` (which is advertised on the runner
     # but isn't an authorization boundary).
     runs-on: tuist-staging-linux
-    timeout-minutes: 10
+    timeout-minutes: 60
     steps:
       - name: Show environment
         run: |
@@ -48,6 +53,26 @@ jobs:
           echo "CPU info:    $(grep -m1 'model name' /proc/cpuinfo | sed 's/^[^:]*: //')"
           echo "Memory:      $(grep MemTotal /proc/meminfo)"
           echo "Container?  : $(grep -E 'docker|containerd|kubepods' /proc/1/cgroup 2>/dev/null | head -1 || echo unknown)"
+
+      - name: Hold runner for interactive probing
+        env:
+          HOLD_MINUTES: ${{ inputs.hold_minutes || '0' }}
+        run: |
+          set -euo pipefail
+          case "${HOLD_MINUTES}" in
+            ""|0)
+              echo "No interactive hold requested."
+              exit 0
+              ;;
+          esac
+
+          if ! [[ "${HOLD_MINUTES}" =~ ^[0-9]+$ ]]; then
+            echo "hold_minutes must be a whole number of minutes"
+            exit 1
+          fi
+
+          echo "Holding runner for ${HOLD_MINUTES} minute(s) for interactive probing..."
+          sleep "$((HOLD_MINUTES * 60))"
 
       - name: Public reachability check
         run: |

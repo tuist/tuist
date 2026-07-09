@@ -170,6 +170,45 @@ func TestBuild_LinuxMetricsSidecar(t *testing.T) {
 	}
 }
 
+func TestBuild_LinuxShellSidecar(t *testing.T) {
+	pod := build(t, basePool("linux"))
+	shell := initContainerByName(t, pod, "shell")
+
+	if shell.RestartPolicy == nil || *shell.RestartPolicy != corev1.ContainerRestartPolicyAlways {
+		t.Errorf("shell sidecar RestartPolicy = %v, want Always", shell.RestartPolicy)
+	}
+	if got := strings.Join(append(shell.Command, shell.Args...), " "); !strings.Contains(got, "runner-shell-agent.py") {
+		t.Errorf("shell command = %v args = %v, want runner-shell-agent.py", shell.Command, shell.Args)
+	}
+	if got := strings.Join(shell.Args, " "); !strings.Contains(got, "runner ALL=(ALL) NOPASSWD") {
+		t.Errorf("shell args must remove the runner passwordless sudo rule before spawning PTYs; got %v", shell.Args)
+	}
+	for _, mount := range []corev1.VolumeMount{
+		{Name: "tuist-runner-token", MountPath: "/var/run/secrets/tuist-runner"},
+		{Name: "tuist-runner-jit", MountPath: jitMountPath},
+		{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
+	} {
+		if !hasVolumeMount(shell.VolumeMounts, mount) {
+			t.Errorf("shell sidecar missing mount %+v; got %+v", mount, shell.VolumeMounts)
+		}
+	}
+	if got := envValue(shell.Env, "TUIST_RUNNER_DISPATCH_URL"); got != "http://internal-dispatch" {
+		t.Errorf("shell DISPATCH_URL = %q, want http://internal-dispatch", got)
+	}
+	if got := envValue(shell.Env, "TUIST_RUNNER_JIT_PATH"); got != jitFilePath {
+		t.Errorf("shell JIT_PATH = %q, want %q", got, jitFilePath)
+	}
+	if got := envValue(shell.Env, "TUIST_RUNNER_TOKEN_PATH"); got != "/var/run/secrets/tuist-runner/token" {
+		t.Errorf("shell TOKEN_PATH = %q, want token mount path", got)
+	}
+	if got := envValue(shell.Env, "TUIST_RUNNER_SHELL_WORKDIR"); got != "/home/runner/actions-runner/_work" {
+		t.Errorf("shell workdir = %q, want shared runner workspace", got)
+	}
+	if shell.SecurityContext == nil || shell.SecurityContext.RunAsUser == nil || *shell.SecurityContext.RunAsUser != 0 {
+		t.Errorf("shell sidecar must start as root to read the token before dropping PTY children; got %+v", shell.SecurityContext)
+	}
+}
+
 func TestBuild_MacOSHasNoMetricsSidecar(t *testing.T) {
 	// macOS samples in-VM via a script forked from dispatch-poll.sh, not
 	// a sidecar — Build must not add a metrics init container there.
@@ -177,6 +216,16 @@ func TestBuild_MacOSHasNoMetricsSidecar(t *testing.T) {
 	for _, c := range pod.Spec.InitContainers {
 		if c.Name == "metrics" {
 			t.Fatalf("macOS pod should have no metrics init container; got %+v", pod.Spec.InitContainers)
+		}
+	}
+}
+
+func TestBuild_MacOSHasNoShellSidecar(t *testing.T) {
+	// macOS runs the shell agent in the Tart VM from dispatch-poll.sh.
+	pod := build(t, basePool(""))
+	for _, c := range pod.Spec.InitContainers {
+		if c.Name == "shell" {
+			t.Fatalf("macOS pod should have no shell init container; got %+v", pod.Spec.InitContainers)
 		}
 	}
 }
@@ -276,11 +325,11 @@ func TestBuild_LinuxPodGetsDindSidecar(t *testing.T) {
 	// runner container. Mirrors the ARC pattern.
 	pod := build(t, basePool("linux"))
 
-	// Three init containers: the dind sidecar first (so its startupProbe
-	// gates the rest of the Pod), then the metrics sidecar, then the
-	// poller.
-	if len(pod.Spec.InitContainers) != 3 {
-		t.Fatalf("InitContainers = %d, want 3 (dind sidecar + metrics sidecar + poller)", len(pod.Spec.InitContainers))
+	// Four init containers: the dind sidecar first (so its startupProbe
+	// gates the rest of the Pod), then the metrics and shell sidecars,
+	// then the poller.
+	if len(pod.Spec.InitContainers) != 4 {
+		t.Fatalf("InitContainers = %d, want 4 (dind sidecar + metrics sidecar + shell sidecar + poller)", len(pod.Spec.InitContainers))
 	}
 	dind := pod.Spec.InitContainers[0]
 	if dind.Name != "dind" {
@@ -444,9 +493,9 @@ func TestBuild_LinuxPodWithoutDindImageSkipsSidecar(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build returned error: %v", err)
 	}
-	// The metrics sidecar + poller remain — but no dind sidecar.
-	if len(pod.Spec.InitContainers) != 2 {
-		t.Fatalf("InitContainers = %d, want 2 (metrics sidecar + poller) when dindImage is empty", len(pod.Spec.InitContainers))
+	// The metrics and shell sidecars + poller remain — but no dind sidecar.
+	if len(pod.Spec.InitContainers) != 3 {
+		t.Fatalf("InitContainers = %d, want 3 (metrics sidecar + shell sidecar + poller) when dindImage is empty", len(pod.Spec.InitContainers))
 	}
 	for _, c := range pod.Spec.InitContainers {
 		if c.Name == "dind" {
@@ -541,6 +590,13 @@ func TestBuild_LinuxCredentialSplit(t *testing.T) {
 	for _, v := range []string{"tuist-runner-jit", "tuist-runner-token"} {
 		if !hasVolume(pod.Spec.Volumes, v) {
 			t.Errorf("pod missing volume %q; got %+v", v, pod.Spec.Volumes)
+		}
+	}
+	for _, v := range pod.Spec.Volumes {
+		if v.Name == "tuist-runner-token" {
+			if v.Projected == nil || v.Projected.DefaultMode == nil || *v.Projected.DefaultMode != 0o400 {
+				t.Errorf("token volume DefaultMode = %+v, want 0400", v.Projected)
+			}
 		}
 	}
 	if pod.Spec.AutomountServiceAccountToken == nil || *pod.Spec.AutomountServiceAccountToken {

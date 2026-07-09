@@ -53,6 +53,13 @@ macOS image). Same single-shot lifecycle, much simpler substrate.
   JIT volume's backing filesystem every `TUIST_RUNNER_METRICS_INTERVAL`
   (default 15s) and POSTs to `…/pods/<pod>/metrics`. Best-effort;
   never affects the job.
+- `/usr/local/bin/runner-shell-agent.py` — interactive shell bridge.
+  Runs in the trusted `shell` native sidecar, waits for the poller to
+  stage a JIT (claimed job), polls the server for authorized shell
+  sessions, and forwards a PTY over the server-owned WebSocket tunnel.
+  The sidecar holds the dispatch token, but removes this image's
+  passwordless sudo rule before spawning the user-facing shell so the
+  shell cannot read the root-only token mount.
 - `docker-ce-cli`, `docker-buildx-plugin`, `docker-compose-plugin`
   from the official Docker apt repo — client side only. The
   daemon runs in the `dind` native sidecar (`docker:dind`)

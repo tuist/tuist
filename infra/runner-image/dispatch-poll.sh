@@ -82,6 +82,10 @@ if [ -z "${SA_TOKEN}" ]; then
   exit 1
 fi
 
+if [ -x /opt/tuist/runner-shell-agent.py ]; then
+  /opt/tuist/runner-shell-agent.py &
+fi
+
 # 2 s polling interval is the practical floor for "feels live" to
 # a customer staring at their CI dashboard without burning the
 # dispatch endpoint. Average pickup latency is ~1 s after a

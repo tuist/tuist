@@ -190,6 +190,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 				Name: "tuist-runner-token",
 				VolumeSource: corev1.VolumeSource{
 					Projected: &corev1.ProjectedVolumeSource{
+						DefaultMode: ptr(int32(0o400)),
 						Sources: []corev1.VolumeProjection{{
 							ServiceAccountToken: &corev1.ServiceAccountTokenProjection{
 								Audience:          "tuist-runners-dispatch",
@@ -211,7 +212,11 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		// no token mount.
 		runnerCommand = []string{"/usr/local/bin/run-job.sh"}
 		runnerEnv = []corev1.EnvVar{{Name: "TUIST_RUNNER_JIT_PATH", Value: jitFilePath}}
-		runnerMounts = []corev1.VolumeMount{{Name: "tuist-runner-jit", MountPath: jitMountPath, ReadOnly: true}}
+		volumes = append(volumes, corev1.Volume{Name: "work", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}})
+		runnerMounts = []corev1.VolumeMount{
+			{Name: "tuist-runner-jit", MountPath: jitMountPath, ReadOnly: true},
+			{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
+		}
 
 		// Linux pods get a dockerd sidecar (k8s 1.29+ native sidecar:
 		// initContainer with restartPolicy=Always). The runner stays
@@ -232,7 +237,6 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			}
 			volumes = append(volumes,
 				corev1.Volume{Name: "dind-sock", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
-				corev1.Volume{Name: "work", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 				// Node-disk emptyDir holding a sparse disk.img file.
 				// The dind sidecar loop-mounts that file as an ext4
 				// filesystem onto /var/lib/docker so dockerd's
@@ -255,7 +259,6 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			)
 			runnerMounts = append(runnerMounts,
 				corev1.VolumeMount{Name: "dind-sock", MountPath: "/var/run"},
-				corev1.VolumeMount{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
 			)
 			runnerEnv = append(runnerEnv, corev1.EnvVar{Name: "DOCKER_HOST", Value: "unix:///var/run/docker.sock"})
 			initContainers = append(initContainers, corev1.Container{
@@ -346,6 +349,37 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			},
 			// Root only to read the token mount and run our trusted
 			// sampling script — never customer code.
+			SecurityContext: &corev1.SecurityContext{RunAsUser: ptr(int64(0))},
+		})
+
+		// Interactive shell bridge: a trusted native sidecar that
+		// holds the dispatch token, waits for a claimed job, polls the
+		// server for authorized shell sessions, and brokers a PTY over
+		// the server-owned WebSocket tunnel. It removes this image's
+		// hosted-runner passwordless sudo rule before spawning the
+		// customer-facing shell, so the shell cannot read the root-only
+		// projected token.
+		shellEnv := append(append([]corev1.EnvVar{}, dispatchEnv...),
+			corev1.EnvVar{Name: "TUIST_RUNNER_JIT_PATH", Value: jitFilePath},
+			corev1.EnvVar{Name: "TUIST_RUNNER_TOKEN_PATH", Value: "/var/run/secrets/tuist-runner/token"},
+			corev1.EnvVar{Name: "TUIST_RUNNER_SHELL_WORKDIR", Value: "/home/runner/actions-runner/_work"},
+		)
+		initContainers = append(initContainers, corev1.Container{
+			Name:    "shell",
+			Image:   pool.Spec.Image,
+			Command: []string{"sh", "-c"},
+			Args: []string{
+				"sed -i '/runner ALL=(ALL) NOPASSWD/d' /etc/sudoers || true; exec /usr/local/bin/runner-shell-agent.py",
+			},
+			Env:           shellEnv,
+			RestartPolicy: ptr(corev1.ContainerRestartPolicyAlways),
+			VolumeMounts: []corev1.VolumeMount{
+				{Name: "tuist-runner-token", MountPath: "/var/run/secrets/tuist-runner", ReadOnly: true},
+				{Name: "tuist-runner-jit", MountPath: jitMountPath, ReadOnly: true},
+				{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
+			},
+			// Root only for the trusted agent: it reads the root-only
+			// token and then drops PTY children to the runner user.
 			SecurityContext: &corev1.SecurityContext{RunAsUser: ptr(int64(0))},
 		})
 
