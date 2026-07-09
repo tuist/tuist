@@ -905,6 +905,18 @@ jobs:
           else
             registry_enabled=false
           fi
+          registry_ingress_host="$(
+            awk '
+              /^---/ { kind = ""; component = "" }
+              $1 == "kind:" { kind = $2 }
+              $1 == "app.kubernetes.io/component:" { component = $2; gsub(/"/, "", component) }
+              $1 == "-" && $2 == "host:" && kind == "Ingress" && component == "registry" {
+                gsub(/"/, "", $3)
+                print $3
+                exit
+              }
+            ' "$registry_render"
+          )"
           rm -f "$registry_render"
           echo "REGISTRY_ENABLED=$registry_enabled" >> "$GITHUB_ENV"
           echo "Swift registry component enabled: $registry_enabled"
@@ -914,6 +926,28 @@ jobs:
             exit 1
           fi
           registry_image_tag="${REGISTRY_IMAGE_TAG:-registry-disabled}"
+
+          if [ "$registry_enabled" = "true" ]; then
+            if [ -n "$registry_ingress_host" ]; then
+              legacy_registry_hosts="$(
+                kubectl -n registry get ingress registry \
+                  -o jsonpath='{range .spec.rules[*]}{.host}{"\n"}{end}' 2>/dev/null ||
+                  true
+              )"
+
+              if echo "$legacy_registry_hosts" | grep -Fxq "$registry_ingress_host"; then
+                echo "Deleting legacy standalone registry ingress registry/registry for host $registry_ingress_host."
+                kubectl -n registry delete ingress registry --ignore-not-found --wait=true --timeout=2m
+              elif [ -n "$legacy_registry_hosts" ]; then
+                echo "Legacy standalone registry ingress hosts do not match $registry_ingress_host; leaving it in place:"
+                echo "$legacy_registry_hosts"
+              else
+                echo "No legacy standalone registry ingress found."
+              fi
+            else
+              echo "WARNING: registry is enabled but no registry ingress host was rendered."
+            fi
+          fi
 
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \
