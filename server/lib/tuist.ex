@@ -207,6 +207,7 @@ defmodule Tuist do
       Runners.Job,
       Runners.JobLogs,
       Runners.JobLog,
+      Runners.JobInsights,
       Runners.LogFormatter,
       Runners.JobSteps,
       Runners.JobStep,
