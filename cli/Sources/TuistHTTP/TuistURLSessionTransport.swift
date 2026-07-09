@@ -31,15 +31,23 @@ public struct TuistURLSessionTransport: ClientTransport {
         let session = resolvedSession()
 
         #if canImport(TuistHAR)
-            let metricsDelegate = TaskMetricsDelegate()
-            let (data, response) = try await session.data(for: urlRequest, delegate: metricsDelegate)
+            let data: Data
+            let response: URLResponse
+            // Bench toggle: TUIST_BENCH_LEAN=1 skips per-task metrics
+            // collection and the shared-actor store it funnels into.
+            if ProcessInfo.processInfo.environment["TUIST_BENCH_LEAN"] == "1" {
+                (data, response) = try await session.data(for: urlRequest, delegate: nil)
+            } else {
+                let metricsDelegate = TaskMetricsDelegate()
+                (data, response) = try await session.data(for: urlRequest, delegate: metricsDelegate)
 
-            // The delegate callback is guaranteed to complete before session.data() returns,
-            // so transactionMetrics is safely accessible here without race conditions.
-            if let metrics = metricsDelegate.transactionMetrics,
-               let url = urlRequest.url
-            {
-                await URLSessionMetricsDelegate.shared.storeMetrics(metrics, for: url)
+                // The delegate callback is guaranteed to complete before session.data() returns,
+                // so transactionMetrics is safely accessible here without race conditions.
+                if let metrics = metricsDelegate.transactionMetrics,
+                   let url = urlRequest.url
+                {
+                    await URLSessionMetricsDelegate.shared.storeMetrics(metrics, for: url)
+                }
             }
         #else
             let (data, response) = try await session.data(for: urlRequest, delegate: nil)
