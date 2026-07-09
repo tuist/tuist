@@ -156,6 +156,14 @@ pub(crate) struct ReadinessState {
     // cannot re-mark its peer bootstrapped — the pass may straddle the
     // absence window and miss writes behind its cursor.
     bootstrap_epoch: u64,
+    // Every peer ever seen through discovery only (not in the static or
+    // dynamic peer config): in-cluster siblings and cross-region pods. Their
+    // absence is treated with static-grade patience by outbox pruning —
+    // unlike control-plane-managed peers, nothing re-bootstraps them after a
+    // network flap, so dropping their messages would be silent
+    // under-replication. Monotone and in-memory: bounded by the peers a
+    // process ever meets, reset by restart (which also re-bootstraps).
+    ever_discovered_only_peers: BTreeSet<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -180,6 +188,7 @@ impl ReadinessState {
             bootstrapped_peers: BTreeSet::new(),
             bootstrap_inflight_peers: BTreeSet::new(),
             bootstrap_epoch: 0,
+            ever_discovered_only_peers: BTreeSet::new(),
         }
     }
 
@@ -392,6 +401,22 @@ impl AppState {
     #[cfg(test)]
     pub async fn current_bootstrap_epoch(&self) -> u64 {
         self.readiness.lock().await.bootstrap_epoch
+    }
+
+    pub async fn note_discovered_only_peers<I>(&self, peers: I)
+    where
+        I: IntoIterator<Item = String>,
+    {
+        let mut readiness = self.readiness.lock().await;
+        readiness.ever_discovered_only_peers.extend(peers);
+    }
+
+    pub async fn discovered_only_peer_history(&self) -> BTreeSet<String> {
+        self.readiness
+            .lock()
+            .await
+            .ever_discovered_only_peers
+            .clone()
     }
 
     pub async fn note_bootstrap_failed(&self, peer: &str) {

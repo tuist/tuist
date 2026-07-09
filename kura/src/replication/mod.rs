@@ -22,8 +22,8 @@ use crate::{
     artifact::manifest::ArtifactManifest,
     config::Config,
     constants::{
-        MAX_BOOTSTRAP_PAGE_BYTES, MAX_INLINE_REPLICATION_BODY_BYTES, MAX_REPLICATION_BODY_BYTES,
-        REPLICATION_RETRY_SECS,
+        DISCOVERED_TARGET_STALE_GRACE_MS, MAX_BOOTSTRAP_PAGE_BYTES,
+        MAX_INLINE_REPLICATION_BODY_BYTES, MAX_REPLICATION_BODY_BYTES, REPLICATION_RETRY_SECS,
     },
     failpoints::FailpointName,
     state::SharedState,
@@ -186,6 +186,19 @@ async fn membership_task_loop(state: SharedState) {
         }
 
         let discovery_observed = targets.is_empty() || peer_status_successes > 0;
+        // Peers we only know through discovery (in-cluster siblings found via
+        // DNS, cross-region pods via the account peer Service) are
+        // platform-managed like the static seeds: their absence usually means
+        // unreachability, not departure, and unlike enrolled peers nothing
+        // ever tells them to re-bootstrap. Remember them so outbox pruning
+        // treats their absence with static-grade patience.
+        let configured_urls: BTreeSet<&str> = targets.iter().map(|t| t.url.as_str()).collect();
+        let discovered_only: Vec<String> = peer_nodes
+            .keys()
+            .filter(|url| !configured_urls.contains(url.as_str()))
+            .cloned()
+            .collect();
+        state.note_discovered_only_peers(discovered_only).await;
         let membership_update = state
             .apply_membership_view(members, peer_nodes, discovery_observed)
             .await;
@@ -781,6 +794,13 @@ pub async fn process_outbox(
 
     let pass_started_at = Instant::now();
     let stale_grace = Duration::from_millis(state.config.outbox_stale_target_grace_ms);
+    // Discovery-only peers (in-cluster siblings, cross-region pods) are
+    // platform-managed like the static seeds: their absence usually means a
+    // network flap, not departure, and nothing re-bootstraps them afterwards,
+    // so their messages get static-grade patience. Bounded (not infinite) so
+    // a genuinely removed pod cannot leave a permanent backlog.
+    let discovered_history = state.discovered_only_peer_history().await;
+    let discovered_grace = Duration::from_millis(DISCOVERED_TARGET_STALE_GRACE_MS);
     let mut dropped: BTreeMap<String, u64> = BTreeMap::new();
 
     let mut after = None::<Vec<u8>>;
@@ -802,7 +822,12 @@ pub async fn process_outbox(
             let missing_since = *stale_targets
                 .entry(message.target.clone())
                 .or_insert(pass_started_at);
-            if pass_started_at.duration_since(missing_since) >= stale_grace {
+            let grace = if discovered_history.contains(&message.target) {
+                discovered_grace
+            } else {
+                stale_grace
+            };
+            if pass_started_at.duration_since(missing_since) >= grace {
                 state.store.delete_outbox_message(&message_key)?;
                 state.metrics.record_replication(
                     &message.target,
@@ -1329,6 +1354,44 @@ mod tests {
         assert!(
             queued.is_empty(),
             "boot-time peers must be prunable once the dynamic view drops them"
+        );
+    }
+
+    #[tokio::test]
+    async fn process_outbox_gives_discovered_peers_static_grade_patience() {
+        // An in-cluster sibling known only through discovery flaps out of the
+        // membership view. Unlike an enrolled peer, nothing re-bootstraps it
+        // after the flap, so its messages must survive the configured grace.
+        let local = test_context(|config| {
+            config.outbox_stale_target_grace_ms = 0;
+        })
+        .await;
+        local.state.dynamic_peers.store(std::sync::Arc::new(vec![
+            "https://live-peer.test:7443".to_string(),
+        ]));
+        local
+            .state
+            .note_discovered_only_peers(vec!["https://sibling-0.test:7443".to_string()])
+            .await;
+        local
+            .state
+            .store
+            .enqueue(stale_target_message("https://sibling-0.test:7443"))
+            .expect("enqueue should succeed");
+
+        process_outbox(&local.state, &mut BTreeMap::new())
+            .await
+            .expect("outbox processing should succeed");
+
+        let queued = local
+            .state
+            .store
+            .outbox_messages()
+            .expect("outbox should load");
+        assert_eq!(
+            queued.len(),
+            1,
+            "a discovered sibling's flap must not destroy its queued messages"
         );
     }
 
