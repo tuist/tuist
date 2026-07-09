@@ -309,6 +309,20 @@ defmodule Tuist.Kura do
     |> Repo.all()
   end
 
+  @doc """
+  The regions of the account's non-destroyed steady-state servers (the same
+  rows as `list_servers_for_account/1`). The slim variant for hot paths —
+  mesh heartbeats run this every minute per enrolled node and only need the
+  region strings, not the ever-growing deployment-history preload.
+  """
+  def server_regions_for_account(account_id) do
+    Server
+    |> where([s], s.account_id == ^account_id and s.status != :destroyed and s.move_phase == :none)
+    |> order_by([s], asc: s.region)
+    |> select([s], s.region)
+    |> Repo.all()
+  end
+
   @doc "Fetches a server scoped to the given account."
   def get_server(account_id, server_id) do
     Repo.get_by(Server, id: server_id, account_id: account_id)

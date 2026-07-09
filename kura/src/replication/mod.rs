@@ -795,6 +795,15 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
     // within one membership tick of unreachability — is dropped after the
     // next deploy.
     let discovered_history = state.discovered_only_peer_history().await;
+    // Pruning decides from process-scoped state (the dynamic view, the
+    // discovered-only history) while the outbox is persistent, and the static
+    // seeds keep the target set non-empty from the first pass — so a fresh
+    // process must not prune until its view has actually arrived: the first
+    // peers sync where one is configured, and one completed membership pass
+    // so the discovered-only exemption has refilled. Deliveries proceed
+    // regardless; only the destructive branch waits.
+    let prune_ready =
+        !state.runtime.peer_view_pending() && state.initial_discovery_completed().await;
     let mut dropped: BTreeMap<String, u64> = BTreeMap::new();
 
     let mut after = None::<Vec<u8>>;
@@ -814,7 +823,8 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
         // left — never prune on it. The accepted trade-off: a mesh that
         // legitimately shrinks to zero peers keeps its queued messages until
         // a peer rejoins or the node restarts.
-        if !current_targets.is_empty()
+        if prune_ready
+            && !current_targets.is_empty()
             && !current_targets.contains(&message.target)
             && !discovered_history.contains(&message.target)
         {
@@ -1278,12 +1288,23 @@ mod tests {
         }
     }
 
+    async fn complete_initial_discovery(state: &SharedState) {
+        state
+            .apply_membership_view(
+                std::collections::BTreeSet::new(),
+                std::collections::BTreeMap::new(),
+                true,
+            )
+            .await;
+    }
+
     #[tokio::test]
     async fn process_outbox_drops_messages_for_targets_that_left_the_mesh() {
         let local = test_context(|config| {
             config.peers = vec!["https://live-peer.test:7443".into()];
         })
         .await;
+        complete_initial_discovery(&local.state).await;
         local
             .state
             .store
@@ -1306,11 +1327,90 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn process_outbox_defers_pruning_until_a_membership_pass_completes() {
+        // The outbox is persistent while every pruning protection is
+        // process-scoped: a fresh process restarting with a backlog must not
+        // prune before its first membership pass, or messages for live peers
+        // whose exemptions have not refilled yet would be destroyed.
+        let local = test_context(|config| {
+            config.peers = vec!["https://live-peer.test:7443".into()];
+        })
+        .await;
+        local
+            .state
+            .store
+            .enqueue(stale_target_message("https://gone-peer.test:7443"))
+            .expect("enqueue should succeed");
+
+        process_outbox(&local.state)
+            .await
+            .expect("outbox processing should succeed");
+        assert_eq!(
+            local.state.store.outbox_messages().expect("load").len(),
+            1,
+            "nothing may be pruned before the first completed membership pass"
+        );
+
+        complete_initial_discovery(&local.state).await;
+        process_outbox(&local.state)
+            .await
+            .expect("outbox processing should succeed");
+        assert!(
+            local
+                .state
+                .store
+                .outbox_messages()
+                .expect("load")
+                .is_empty(),
+            "pruning should proceed once the peer view has arrived"
+        );
+    }
+
+    #[tokio::test]
+    async fn process_outbox_defers_pruning_while_the_first_peers_sync_is_pending() {
+        let local = test_context(|config| {
+            config.peers = vec!["https://live-peer.test:7443".into()];
+        })
+        .await;
+        local.state.runtime.require_peer_view();
+        complete_initial_discovery(&local.state).await;
+        local
+            .state
+            .store
+            .enqueue(stale_target_message("https://gone-peer.test:7443"))
+            .expect("enqueue should succeed");
+
+        process_outbox(&local.state)
+            .await
+            .expect("outbox processing should succeed");
+        assert_eq!(
+            local.state.store.outbox_messages().expect("load").len(),
+            1,
+            "nothing may be pruned while the first peers sync is pending"
+        );
+
+        local.state.runtime.mark_peer_view_ready();
+        process_outbox(&local.state)
+            .await
+            .expect("outbox processing should succeed");
+        assert!(
+            local
+                .state
+                .store
+                .outbox_messages()
+                .expect("load")
+                .is_empty(),
+            "pruning should proceed once the sync has landed"
+        );
+    }
+
+    #[tokio::test]
     async fn process_outbox_drops_messages_for_boot_time_peers_that_left_the_mesh() {
         // The static seed is managed/stable peers only, so a self-hosted peer
         // present at boot lives in the dynamic view — its departure arrives
         // via a later heartbeat and must be prunable without a restart.
         let local = test_context(|_| {}).await;
+        complete_initial_discovery(&local.state).await;
         local.state.dynamic_peers.store(std::sync::Arc::new(vec![
             "https://gone-peer.test:7443".to_string(),
             "https://live-peer.test:7443".to_string(),

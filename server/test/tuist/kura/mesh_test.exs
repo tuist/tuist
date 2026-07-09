@@ -10,7 +10,6 @@ defmodule Tuist.Kura.MeshTest do
   alias Tuist.Kura
   alias Tuist.Kura.Mesh
   alias Tuist.Kura.Registrations
-  alias Tuist.Kura.Server
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -33,7 +32,7 @@ defmodule Tuist.Kura.MeshTest do
       "ca-key.pem" => Base.encode64(X509.PrivateKey.to_pem(ca_key))
     }
 
-    stub(Kura, :list_servers_for_account, fn _ -> [%Server{region: "local-controller"}] end)
+    stub(Kura, :server_regions_for_account, fn _ -> ["local-controller"] end)
     stub(Client, :get, fn _path, _opts -> {:ok, %{"data" => data}} end)
 
     ca_cert
@@ -67,7 +66,7 @@ defmodule Tuist.Kura.MeshTest do
 
     test "fails when the account has no controller-managed CA yet" do
       account = AccountsFixtures.organization_fixture().account
-      stub(Kura, :list_servers_for_account, fn _ -> [] end)
+      stub(Kura, :server_regions_for_account, fn _ -> [] end)
 
       assert Mesh.sign_node_certificate(account, csr_pem(), ["host"]) == {:error, :ca_unavailable}
     end
@@ -149,7 +148,7 @@ defmodule Tuist.Kura.MeshTest do
         "ca-key.pem" => Base.encode64(X509.PrivateKey.to_pem(ca_key))
       }
 
-      stub(Kura, :list_servers_for_account, fn _ -> [%Server{region: "eu-central"}] end)
+      stub(Kura, :server_regions_for_account, fn _ -> ["eu-central"] end)
       stub(Client, :get, fn _path, _opts -> {:ok, %{"data" => data}} end)
 
       {:ok, enrollment} =

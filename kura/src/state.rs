@@ -371,6 +371,10 @@ impl AppState {
         self.readiness.lock().await.peers_needing_bootstrap()
     }
 
+    pub async fn initial_discovery_completed(&self) -> bool {
+        self.readiness.lock().await.initial_discovery_completed
+    }
+
     /// Forgets all bootstrap progress so the membership loop re-pulls the full
     /// dataset from every known peer. Called on a *recovery* re-enrollment —
     /// the node was out of the mesh for an unknown window, and the writes it

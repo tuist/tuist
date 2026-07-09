@@ -5,7 +5,6 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura
   alias Tuist.Kura.SelfHostedClients
-  alias Tuist.Kura.Server
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   defp csr_pem do
@@ -29,7 +28,7 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
       "ca-key.pem" => Base.encode64(X509.PrivateKey.to_pem(ca_key))
     }
 
-    stub(Kura, :list_servers_for_account, fn _ -> [%Server{region: "local-controller"}] end)
+    stub(Kura, :server_regions_for_account, fn _ -> ["local-controller"] end)
     stub(Client, :get, fn _path, _opts -> {:ok, %{"data" => data}} end)
   end
 
@@ -103,7 +102,7 @@ defmodule TuistWeb.Internal.KuraMeshControllerTest do
     client: client,
     secret: secret
   } do
-    stub(Kura, :list_servers_for_account, fn _ -> [] end)
+    stub(Kura, :server_regions_for_account, fn _ -> [] end)
 
     conn =
       conn

@@ -70,9 +70,9 @@ defmodule Tuist.Kura.Mesh do
 
   defp account_cluster_opts(%Account{} = account) do
     account.id
-    |> Kura.list_servers_for_account()
-    |> Enum.find_value({:error, :ca_unavailable}, fn server ->
-      case Regions.get(server.region) do
+    |> Kura.server_regions_for_account()
+    |> Enum.find_value({:error, :ca_unavailable}, fn region_id ->
+      case Regions.get(region_id) do
         %Regions{provisioner_config: config} -> {:ok, Map.get(config, :kubernetes_client, [])}
         _ -> nil
       end
@@ -184,9 +184,9 @@ defmodule Tuist.Kura.Mesh do
 
   defp managed_peer_urls(%Account{} = account) do
     account.id
-    |> Kura.list_servers_for_account()
-    |> Enum.map(fn server ->
-      case Regions.get(server.region) do
+    |> Kura.server_regions_for_account()
+    |> Enum.map(fn region_id ->
+      case Regions.get(region_id) do
         %Regions{} = region -> Regions.peer_public_url(account.name, region)
         _ -> nil
       end

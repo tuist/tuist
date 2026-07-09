@@ -116,7 +116,11 @@ struct MeshHeartbeat<'a> {
 
 #[derive(Deserialize)]
 struct MeshHeartbeatResponse {
-    #[serde(default)]
+    // Deliberately NOT defaulted: `false` is the destructive value (it
+    // triggers recovery re-enrollment + a full re-bootstrap), so a response
+    // that merely lacks the field — shape drift, an intermediary answering
+    // 200 with a different body — must fail the decode and land in the safe
+    // keep-last-view error path instead.
     mesh_member: bool,
     #[serde(default)]
     peers: Vec<String>,
@@ -386,14 +390,20 @@ mod tests {
 
     #[test]
     fn responses_tolerate_missing_optional_fields() {
-        let heartbeat: MeshHeartbeatResponse = serde_json::from_str("{}").expect("should decode");
-        assert!(!heartbeat.mesh_member);
+        let heartbeat: MeshHeartbeatResponse =
+            serde_json::from_str(r#"{"mesh_member": true}"#).expect("should decode");
+        assert!(heartbeat.mesh_member);
         assert!(heartbeat.peers.is_empty());
         assert_eq!(heartbeat.heartbeat_interval_seconds, None);
 
         let peers: MeshPeersResponse = serde_json::from_str("{}").expect("should decode");
         assert!(peers.peers.is_empty());
         assert_eq!(peers.refresh_interval_seconds, None);
+    }
+
+    #[test]
+    fn a_response_missing_mesh_member_fails_the_decode_instead_of_defaulting_to_false() {
+        assert!(serde_json::from_str::<MeshHeartbeatResponse>("{}").is_err());
     }
 
     #[tokio::test]
