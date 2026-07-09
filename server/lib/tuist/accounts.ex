@@ -866,8 +866,7 @@ defmodule Tuist.Accounts do
         user
 
       error ->
-        # Re-raise any other errors
-        {:ok, _} = error
+        raise "Unexpected result from create_user/2 while creating OAuth2 user: #{inspect(error)}"
     end
   end
 
@@ -2108,8 +2107,6 @@ defmodule Tuist.Accounts do
       []
     end
   end
-
-  defp kura_cache_endpoints(_), do: []
 
   defp kura_cache_endpoint_urls(%Account{} = account) do
     static_urls = account |> kura_cache_endpoints() |> Enum.map(& &1.url)

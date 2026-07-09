@@ -6,8 +6,10 @@ defmodule TuistWeb.RunnerJobLive do
   import TuistWeb.Components.RunnerJobMetricsCharts
 
   alias Tuist.Authorization
+  alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Catalog
+  alias Tuist.Runners.InteractiveSessions
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.JobMetrics
   alias Tuist.Runners.Jobs
@@ -25,6 +27,7 @@ defmodule TuistWeb.RunnerJobLive do
   # Max matching lines returned by an in-page log search (across the
   # whole job, not just the loaded tail).
   @search_limit 500
+  @interactive_refresh_ms 2_000
 
   @impl true
   def mount(
@@ -32,10 +35,13 @@ defmodule TuistWeb.RunnerJobLive do
         _session,
         %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket
       ) do
-    if Authorization.authorize(:projects_read, current_user, selected_account) != :ok or
+    if Authorization.authorize(:runners_read, current_user, selected_account) != :ok or
          not FeatureFlags.runners_enabled?(selected_account) do
       raise NotFoundError,
-            dgettext("dashboard_runners", "The page you are looking for doesn't exist or has been moved.")
+            dgettext(
+              "dashboard_runners",
+              "The page you are looking for doesn't exist or has been moved."
+            )
     end
 
     workflow_run_id = parse_id(workflow_run_id_param)
@@ -63,6 +69,7 @@ defmodule TuistWeb.RunnerJobLive do
          socket
          |> assign(:head_title, head_title)
          |> assign(:job, job)
+         |> assign(:interactive, interactive_state(selected_account, current_user, job))
          |> assign(:steps, JobSteps.list_for_job(job.workflow_job_id))
          |> assign(:machine_metrics, machine_metrics)
          |> assign(:expanded_steps, MapSet.new())
@@ -77,18 +84,25 @@ defmodule TuistWeb.RunnerJobLive do
 
       _ ->
         raise NotFoundError,
-              dgettext("dashboard_runners", "The job you are looking for doesn't exist or has been moved.")
+              dgettext(
+                "dashboard_runners",
+                "The job you are looking for doesn't exist or has been moved."
+              )
     end
   end
 
   @impl true
   def handle_params(_params, uri, socket) do
     params = Query.query_params(uri)
+    selected_tab = selected_tab(params["tab"] || "overview", socket.assigns.interactive)
 
-    {:noreply,
-     socket
-     |> assign(:selected_tab, params["tab"] || "overview")
-     |> assign(:uri, URI.new!("?" <> URI.encode_query(params)))}
+    socket =
+      socket
+      |> assign(:selected_tab, selected_tab)
+      |> assign(:uri, URI.new!("?" <> URI.encode_query(params)))
+      |> maybe_auto_request_vnc_session()
+
+    {:noreply, socket}
   end
 
   defp parse_id(value) when is_binary(value) do
@@ -98,7 +112,10 @@ defmodule TuistWeb.RunnerJobLive do
 
       _ ->
         raise NotFoundError,
-              dgettext("dashboard_runners", "The job you are looking for doesn't exist or has been moved.")
+              dgettext(
+                "dashboard_runners",
+                "The job you are looking for doesn't exist or has been moved."
+              )
     end
   end
 
@@ -276,6 +293,24 @@ defmodule TuistWeb.RunnerJobLive do
   """
   def has_machine_metrics?(metrics), do: metrics != []
 
+  def interactive_tab_visible?(%{can_read?: true, macos?: true, running?: true, pod_available?: true}), do: true
+
+  def interactive_tab_visible?(_), do: false
+
+  def interactive_vnc_unavailable_reason(%{can_read?: false}),
+    do: dgettext("dashboard_runners", "You are not authorized to request interactive access.")
+
+  def interactive_vnc_unavailable_reason(%{macos?: false}),
+    do: dgettext("dashboard_runners", "VNC is available for macOS runner jobs.")
+
+  def interactive_vnc_unavailable_reason(%{running?: false}),
+    do: dgettext("dashboard_runners", "VNC can be requested while the macOS runner job is claimed or running.")
+
+  def interactive_vnc_unavailable_reason(%{pod_available?: false}),
+    do: dgettext("dashboard_runners", "The runner pod is not available for this job.")
+
+  def interactive_vnc_unavailable_reason(_), do: nil
+
   # FetchLogsWorker finished ingesting the job's captured log. Reload
   # the tail and reset the stream so the empty state ("No logs have
   # been captured for this job yet.") flips to the loaded view without
@@ -298,6 +333,15 @@ defmodule TuistWeb.RunnerJobLive do
   # the download button's `:if={@job.log_archived_at}` flips on.
   def handle_info({:runner_job_log_archived, %{archived_at: archived_at}}, socket) do
     {:noreply, assign(socket, :job, %{socket.assigns.job | log_archived_at: archived_at})}
+  end
+
+  def handle_info(:refresh_interactive_access, socket) do
+    socket =
+      socket
+      |> refresh_vnc_relay_state()
+      |> schedule_interactive_refresh()
+
+    {:noreply, socket}
   end
 
   @impl true
@@ -336,6 +380,10 @@ defmodule TuistWeb.RunnerJobLive do
     {:noreply, assign(socket, :show_timestamps, not socket.assigns.show_timestamps)}
   end
 
+  def handle_event("request_vnc_session", _params, socket) do
+    {:noreply, request_vnc_session(socket)}
+  end
+
   def handle_event("load_older", _params, %{assigns: %{oldest_line: nil}} = socket), do: {:noreply, socket}
 
   def handle_event("load_older", _params, socket) do
@@ -357,7 +405,76 @@ defmodule TuistWeb.RunnerJobLive do
      |> assign(:has_older, JobLogs.has_older?(job.workflow_job_id, new_oldest))}
   end
 
+  defp request_vnc_session(socket) do
+    %{
+      current_user: current_user,
+      selected_account: selected_account,
+      job: job,
+      interactive: interactive
+    } = socket.assigns
+
+    cond do
+      not interactive.can_read? ->
+        socket
+
+      not interactive.vnc_requestable? ->
+        socket
+
+      true ->
+        case InteractiveSessions.request_vnc(job, selected_account, current_user) do
+          {:ok, session} ->
+            request_vnc_relay(session, interactive)
+
+            socket
+            |> assign(:vnc_session_token, session.token)
+            |> refresh_interactive_state()
+            |> schedule_interactive_refresh()
+
+          {:error, _reason} ->
+            socket
+        end
+    end
+  end
+
+  defp maybe_auto_request_vnc_session(%{assigns: %{selected_tab: "interactive"}} = socket) do
+    if connected?(socket) do
+      request_vnc_session(socket)
+    else
+      socket
+    end
+  end
+
+  defp maybe_auto_request_vnc_session(socket), do: socket
+
+  defp request_vnc_relay(session, %{vnc_dev_placeholder?: true}) do
+    InteractiveSessions.mark_vnc_relay_ready(session, "127.0.0.1", 5900)
+  end
+
+  defp request_vnc_relay(session, _interactive) do
+    InteractiveSessions.request_vnc_relay(session)
+  end
+
+  defp schedule_interactive_refresh(%{assigns: %{selected_tab: "interactive", interactive: interactive}} = socket) do
+    if connected?(socket) and match?(%{state: :requested}, interactive.vnc_session) do
+      Process.send_after(self(), :refresh_interactive_access, @interactive_refresh_ms)
+    end
+
+    socket
+  end
+
+  defp schedule_interactive_refresh(socket), do: socket
+
+  defp refresh_vnc_relay_state(%{assigns: %{interactive: %{vnc_session: %{}} = interactive}} = socket) do
+    case InteractiveSessions.sync_vnc_relay_state(interactive.vnc_session) do
+      {:ok, _session} -> refresh_interactive_state(socket)
+      {:error, _reason} -> socket
+    end
+  end
+
+  defp refresh_vnc_relay_state(socket), do: socket
+
   def step_expanded?(expanded_steps, %{number: number}), do: MapSet.member?(expanded_steps, number)
+
   def step_expanded?(_expanded_steps, _step), do: false
 
   @doc """
@@ -381,7 +498,7 @@ defmodule TuistWeb.RunnerJobLive do
   # own log UI; lines render with ANSI SGR codes decoded into
   # `<span>` classes so the user sees colours instead of literal
   # `[36;1m` artefacts.
-  attr :tree, :list, required: true
+  attr(:tree, :list, required: true)
 
   def log_tree(assigns) do
     ~H"""
@@ -389,7 +506,7 @@ defmodule TuistWeb.RunnerJobLive do
     """
   end
 
-  attr :node, :any, required: true
+  attr(:node, :any, required: true)
 
   def log_node(%{node: {:line, _line}} = assigns) do
     {:line, line} = assigns.node
@@ -468,4 +585,59 @@ defmodule TuistWeb.RunnerJobLive do
 
   defp oldest_line_number([]), do: nil
   defp oldest_line_number([first | _]), do: first.line_number
+
+  defp selected_tab("interactive", interactive) do
+    if interactive_tab_visible?(interactive), do: "interactive", else: "overview"
+  end
+
+  defp selected_tab("logs", _interactive), do: "logs"
+  defp selected_tab("metrics", _interactive), do: "metrics"
+  defp selected_tab(_, _interactive), do: "overview"
+
+  defp refresh_interactive_state(socket) do
+    %{selected_account: selected_account, current_user: current_user, job: job} = socket.assigns
+    token = socket.assigns[:vnc_session_token]
+    assign(socket, :interactive, interactive_state(selected_account, current_user, job, token))
+  end
+
+  defp interactive_state(selected_account, current_user, job, vnc_session_token \\ nil) do
+    macos? = Catalog.fleet_platform(job.fleet_name) == :macos
+    running? = job.status in ["claimed", "running"]
+    pod_available? = is_binary(job.pod_name) and job.pod_name != ""
+
+    can_read? = Authorization.authorize(:runners_read, current_user, selected_account) == :ok
+
+    vnc_requestable? = can_read? and InteractiveSessions.vnc_requestable?(job)
+    vnc_dev_placeholder? = Environment.dev?() and vnc_requestable?
+
+    vnc_session =
+      selected_account.id
+      |> InteractiveSessions.current_for_job(job.workflow_job_id, :vnc)
+      |> with_vnc_session_token(vnc_session_token)
+
+    vnc_websocket_path =
+      if not vnc_dev_placeholder? and vnc_session_ready?(vnc_session) and is_binary(vnc_session_token) do
+        "/#{selected_account.name}/runners/interactive/vnc"
+      end
+
+    %{
+      can_read?: can_read?,
+      macos?: macos?,
+      running?: running?,
+      pod_available?: pod_available?,
+      vnc_requestable?: vnc_requestable?,
+      vnc_dev_placeholder?: vnc_dev_placeholder?,
+      vnc_session: vnc_session,
+      vnc_session_ready?: vnc_session_ready?(vnc_session),
+      vnc_websocket_path: vnc_websocket_path,
+      vnc_websocket_token: vnc_session_token
+    }
+  end
+
+  defp with_vnc_session_token(nil, _token), do: nil
+  defp with_vnc_session_token(session, token) when is_binary(token), do: %{session | token: token}
+  defp with_vnc_session_token(session, _token), do: session
+
+  defp vnc_session_ready?(%{state: state}) when state in [:ready, :active], do: true
+  defp vnc_session_ready?(_), do: false
 end

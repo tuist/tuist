@@ -13,6 +13,8 @@ Noora Storybook ships from the standalone `infra/helm/noora-storybook/` chart so
 
 Each dependency defaults to `embedded` (deployed within the chart). To use an external provider instead, set its `mode` to `external` and configure the connection details under the corresponding section in `values.yaml`.
 
+The Tuist server can use Azure Blob Storage for server-owned artifacts by setting `server.storage.provider: azure_blob` and filling `server.azureBlob.*`. The top-level `objectStorage` dependency remains S3-compatible because optional workloads such as the cache service and registry mirror still use S3-compatible APIs. For Azure-only deployments with those workloads disabled, set `objectStorage.mode: external` and leave the external object-storage endpoint and credentials empty to avoid deploying the embedded MinIO StatefulSet.
+
 External PostgreSQL with an existing Secret:
 
 ```yaml
@@ -46,6 +48,23 @@ Install into a local kind cluster:
 ```bash
 kind create cluster --name tuist
 helm install tuist infra/helm/tuist
+```
+
+Run the same [K3s](https://k3s.io/) smoke profile used by the Helm workflow. The task creates a disposable [k3d](https://k3d.io/) cluster, renders the chart, runs a server-side dry run, installs the chart, and waits for the embedded dependencies:
+
+```bash
+mise -C infra run helm:k3s-smoke
+```
+
+This profile keeps the server Deployment rendered, but scales it to zero
+because booting the production server image requires a Tuist license. It
+validates that K3s accepts the chart resources and can run the embedded
+PostgreSQL, ClickHouse, and MinIO dependencies with its default storage class.
+
+To validate only the Helm render without creating a cluster:
+
+```bash
+mise -C infra run helm:k3s-smoke --render-only
 ```
 
 Lint the chart:

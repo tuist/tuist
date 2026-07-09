@@ -2122,6 +2122,19 @@ defmodule Tuist.AccountsTest do
       assert reloaded_account.custom_cache_endpoints_enabled == true
     end
 
+    test "persists the cache write policy", %{user: user} do
+      account = Repo.preload(user, :account).account
+      assert account.cache_write_policy == :members_and_tokens
+
+      assert {:ok, account} =
+               Accounts.update_account(account, %{cache_write_policy: :tokens_only})
+
+      assert account.cache_write_policy == :tokens_only
+
+      assert {:ok, reloaded_account} = Accounts.get_account_by_id(account.id)
+      assert reloaded_account.cache_write_policy == :tokens_only
+    end
+
     test "validates name format", %{user: user} do
       account = Repo.preload(user, :account).account
 

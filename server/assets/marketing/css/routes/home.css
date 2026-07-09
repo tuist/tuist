@@ -141,8 +141,8 @@
 
     & > [data-part="background"] {
       display: block;
-      object-fit: contain;
       max-width: 500px;
+      object-fit: contain;
 
       @media (min-width: 480px) {
         align-self: center;

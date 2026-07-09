@@ -742,9 +742,9 @@ defmodule Tuist.Builds.Analytics do
 
     result = build_cache_hit_rate(project_id, start_datetime, end_datetime, opts)
 
-    local_cache_hits_count = result.cacheable_task_local_hits_count || 0
-    remote_cache_hits_count = result.cacheable_task_remote_hits_count || 0
-    cacheable_tasks_count = result.cacheable_tasks_count || 0
+    local_cache_hits_count = result.cacheable_task_local_hits_count
+    remote_cache_hits_count = result.cacheable_task_remote_hits_count
+    cacheable_tasks_count = result.cacheable_tasks_count
 
     if cacheable_tasks_count == 0 do
       0.0

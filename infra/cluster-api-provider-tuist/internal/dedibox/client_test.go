@@ -68,6 +68,9 @@ func TestFindAdoptableServerByTag(t *testing.T) {
 		},
 		"/dedibox/v1/zones/fr-par-1/servers/1": scwdedibox.Server{Zone: "fr-par-1", ID: 1, Tags: []string{"tuist-kura-prod"}},
 		"/dedibox/v1/zones/fr-par-1/servers/2": scwdedibox.Server{Zone: "fr-par-1", ID: 2, Tags: []string{"tuist-kura-staging"}},
+		"/dedibox/v1/zones/fr-par-1/servers/2/install": scwdedibox.ServerInstall{
+			Status: scwdedibox.ServerInstallStatusInstalled,
+		},
 	}}
 	c := &Client{t: f, ProjectID: "proj"}
 
@@ -111,6 +114,9 @@ func TestFindAdoptableServerClaimedSkipped(t *testing.T) {
 			},
 		},
 		"/dedibox/v1/zones/fr-par-1/servers/6": scwdedibox.Server{Zone: "fr-par-1", ID: 6, Tags: []string{"tuist-kura-staging"}},
+		"/dedibox/v1/zones/fr-par-1/servers/6/install": scwdedibox.ServerInstall{
+			Status: scwdedibox.ServerInstallStatusInstalled,
+		},
 	}}
 	c := &Client{t: f, ProjectID: "proj"}
 
@@ -120,6 +126,54 @@ func TestFindAdoptableServerClaimedSkipped(t *testing.T) {
 	}
 	if got == nil || got.ID != 6 {
 		t.Fatalf("FindAdoptableServer = %+v, want server 6 (5 already claimed)", got)
+	}
+}
+
+func TestFindAdoptableServerSkipsInstallingServer(t *testing.T) {
+	f := &fakeTransport{gets: map[string]any{
+		"/dedibox/v1/zones/fr-par-1/servers": scwdedibox.ListServersResponse{
+			Servers: []*scwdedibox.ServerSummary{
+				{ID: 1, OfferName: "Start-1-M-SSD", DatacenterName: "DC2", Zone: "fr-par-1"},
+				{ID: 2, OfferName: "Start-1-M-SSD", DatacenterName: "DC2", Zone: "fr-par-1"},
+			},
+		},
+		"/dedibox/v1/zones/fr-par-1/servers/1": scwdedibox.Server{Zone: "fr-par-1", ID: 1, Tags: []string{"tuist-kura-staging"}},
+		"/dedibox/v1/zones/fr-par-1/servers/1/install": scwdedibox.ServerInstall{
+			Status: scwdedibox.ServerInstallStatusInstalling,
+		},
+		"/dedibox/v1/zones/fr-par-1/servers/2": scwdedibox.Server{Zone: "fr-par-1", ID: 2, Tags: []string{"tuist-kura-staging"}},
+		"/dedibox/v1/zones/fr-par-1/servers/2/install": scwdedibox.ServerInstall{
+			Status: scwdedibox.ServerInstallStatusInstalled,
+		},
+	}}
+	c := &Client{t: f, ProjectID: "proj"}
+
+	got, err := c.FindAdoptableServer(context.Background(), AdoptParams{Tag: "tuist-kura-staging"}, map[uint64]bool{})
+	if err != nil {
+		t.Fatalf("FindAdoptableServer: %v", err)
+	}
+	if got == nil || got.ID != 2 {
+		t.Fatalf("FindAdoptableServer = %+v, want server 2 (server 1 still installing)", got)
+	}
+}
+
+func TestFindAdoptableServerSkipsBareServer(t *testing.T) {
+	f := &fakeTransport{gets: map[string]any{
+		"/dedibox/v1/zones/fr-par-1/servers": scwdedibox.ListServersResponse{
+			Servers: []*scwdedibox.ServerSummary{
+				{ID: 1, OfferName: "Start-1-M-SSD", DatacenterName: "DC2", Zone: "fr-par-1"},
+			},
+		},
+		"/dedibox/v1/zones/fr-par-1/servers/1": scwdedibox.Server{Zone: "fr-par-1", ID: 1, Tags: []string{"tuist-kura-staging"}},
+	}}
+	c := &Client{t: f, ProjectID: "proj"}
+
+	got, err := c.FindAdoptableServer(context.Background(), AdoptParams{Tag: "tuist-kura-staging"}, map[uint64]bool{})
+	if err != nil {
+		t.Fatalf("FindAdoptableServer: %v", err)
+	}
+	if got != nil {
+		t.Fatalf("FindAdoptableServer = %+v, want nil (tagged box has no installed OS)", got)
 	}
 }
 

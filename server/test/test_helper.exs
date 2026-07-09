@@ -15,6 +15,7 @@ Mimic.copy(ExAws)
 Mimic.copy(ExAws.Config)
 Mimic.copy(ExAws.S3)
 Mimic.copy(File)
+Mimic.copy(Finch)
 Mimic.copy(FunWithFlags)
 Mimic.copy(Hammer)
 Mimic.copy(Hammer.ETS.FixWindow)
@@ -88,6 +89,7 @@ Mimic.copy(Tuist.SSHClient)
 Mimic.copy(Tuist.Shards)
 Mimic.copy(Tuist.Shards.Analytics)
 Mimic.copy(Tuist.Storage)
+Mimic.copy(Tuist.Storage.AzureBlob)
 Mimic.copy(Tuist.Storage.CacheArtifactRetention)
 Mimic.copy(Tuist.Storage.LegacyBuildArtifactRetention)
 Mimic.copy(Tuist.Time)
@@ -182,9 +184,9 @@ end
 
 # The :test env compiles only the "en" locale by default (see
 # Tuist.Environment.single_locale?/0) to keep cold compiles fast. Tests tagged
-# `:locale` assert behaviour of the other locales' ex_cldr/Gettext data, which
-# isn't compiled in that mode, so exclude them unless TUIST_DEV_ALL_LOCALES=1
-# built the full locale set.
+# `:locale` assert behaviour of other Gettext locales, which aren't compiled
+# in that mode, so exclude them unless TUIST_DEV_ALL_LOCALES=1 built the full
+# locale set.
 locale_exclude = if Tuist.Environment.dev_all_locales?(), do: [], else: [:locale]
 
 ExUnit.start(capture_log: true, exclude: [:skip] ++ locale_exclude)

@@ -34,14 +34,14 @@ public protocol CASAnalyticsDatabasing: Sendable {
 
 /// Thin facade over an actor that owns the SQLite connection.
 ///
-/// The store methods are synchronous fire-and-forget appends: rows buffer in
-/// the actor and are persisted in batched transactions. The actor runs on its
-/// own dispatch-queue executor, so SQLite work never occupies a
-/// Swift-concurrency cooperative-pool thread: the stores run once per CAS
-/// operation in the daemon, and any synchronous SQLite work there used to
-/// block a pool thread. Under a build's disk contention those blocked threads
-/// starved the daemon's fetch continuations, inflating every cache operation
-/// (~150ms/op measured on runner VMs).
+/// The cache proxy performs the per-operation analytics writes; this Swift type
+/// owns the canonical schema (`migrate`) that the proxy writes into and the
+/// server reads, plus the WAL checkpoint the build-report upload relies on. The
+/// store methods are synchronous fire-and-forget appends: rows buffer in the
+/// actor and are persisted in batched transactions. The actor runs on its own
+/// dispatch-queue executor, so SQLite work never occupies a Swift-concurrency
+/// cooperative-pool thread, which under a build's disk contention would starve
+/// the writer's fetch continuations and inflate every cache operation.
 public struct CASAnalyticsDatabase: CASAnalyticsDatabasing {
     public static let databaseName = "cas_analytics.db"
 
@@ -220,7 +220,7 @@ private actor Writer {
         guard !rows.isEmpty else { return }
         // Runs on the actor's dispatch-queue executor, not the cooperative
         // pool. Disposable analytics: a failed batch is dropped rather than
-        // allowed to disturb the daemon's request handling.
+        // surfaced to the caller.
         try? db.transaction {
             for row in rows {
                 switch row {

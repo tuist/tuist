@@ -62,6 +62,7 @@ public struct TuistCommand: AsyncParsableCommand {
                         BazelCommand.self,
                         BuildCommand.self,
                         CacheCommand.self,
+                        CacheProxyCommand.self,
                         CacheStartCommand.self,
                         SampleHostMetricsCommand.self,
                         CleanCommand.self,

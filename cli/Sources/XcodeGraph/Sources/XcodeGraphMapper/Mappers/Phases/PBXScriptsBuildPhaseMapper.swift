@@ -59,9 +59,11 @@ struct PBXScriptsBuildPhaseMapper: PBXScriptsBuildPhaseMapping {
             order: determineScriptOrder(buildPhases: buildPhases, scriptPhase: scriptPhase),
             script: .embedded(shellScript),
             inputPaths: scriptPhase.inputPaths,
-            inputFileListPaths: scriptPhase.inputFileListPaths ?? [],
+            inputFileListPaths: (scriptPhase.inputFileListPaths ?? [])
+                .map { TargetScript.FileListPath(path: $0) },
             outputPaths: scriptPhase.outputPaths,
-            outputFileListPaths: scriptPhase.outputFileListPaths ?? [],
+            outputFileListPaths: (scriptPhase.outputFileListPaths ?? [])
+                .map { TargetScript.FileListPath(path: $0) },
             showEnvVarsInLog: scriptPhase.showEnvVarsInLog,
             basedOnDependencyAnalysis: scriptPhase.alwaysOutOfDate ? false : nil,
             runForInstallBuildsOnly: scriptPhase.runOnlyForDeploymentPostprocessing,

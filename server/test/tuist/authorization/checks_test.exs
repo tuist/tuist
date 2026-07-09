@@ -402,6 +402,19 @@ defmodule Tuist.Authorization.ChecksTest do
              ) == true
     end
 
+    test "expands 'ci' scope to grant account:cache:write permission", %{organization: organization} do
+      # When/Then
+      assert Checks.scopes_permit(
+               %AuthenticatedAccount{
+                 account: organization.account,
+                 scopes: ["ci"],
+                 all_projects: true
+               },
+               organization.account,
+               "account:cache:write"
+             ) == true
+    end
+
     test "expands 'ci' scope to grant project:runs:write permission", %{organization: organization} do
       # Given
       project = ProjectsFixtures.project_fixture(account_id: organization.account.id)

@@ -197,6 +197,7 @@ async fn run_with_config(
     spawn_multipart_janitor_task(state.clone());
     spawn_tmp_dir_metrics_task(state.clone());
     spawn_geoip_refresh_task(state.clone());
+    spawn_segment_promotion_task(state.clone());
 
     // When the node enrolled on boot, keep its peer certificate fresh in-process
     // so a short leaf does not require a restart.
@@ -451,6 +452,18 @@ async fn shutdown_signal() {
     let terminate = std::future::pending::<()>();
 
     wait_for_shutdown_signal(ctrl_c, terminate).await;
+}
+
+// Drains the store's read-path promotion queue: artifacts served from an
+// Old-generation segment are rewritten into the current segment here instead
+// of inline on the read path (see Store::run_promotion_worker).
+fn spawn_segment_promotion_task(state: Arc<AppState>) {
+    tokio::spawn(
+        async move {
+            state.store.run_promotion_worker().await;
+        }
+        .in_current_span(),
+    );
 }
 
 fn spawn_snapshot_task(state: Arc<AppState>) {

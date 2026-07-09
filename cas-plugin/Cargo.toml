@@ -1,0 +1,34 @@
+[package]
+name = "tuist-cas-plugin"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "tuist_cas_plugin"
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "tuist-cas-proxy"
+path = "src/bin/tuist-cas-proxy.rs"
+
+[dependencies]
+libloading = "0.8"
+zstd = "0.13"
+libc = "0.2"
+bazel-remote-apis = "0.27.0"
+tonic = { version = "0.14.2", features = ["tls-ring", "tls-native-roots"] }
+prost = "0.14.1"
+sha2 = "0.10"
+tokio = { version = "1.48", features = ["rt-multi-thread", "time"] }
+# Analytics parity with the Swift `CASAnalyticsDatabase`: the proxy writes
+# cas_analytics.db, read by the server's xcactivitylog NIF. `bundled` compiles
+# SQLite in, so the universal build has no system dependency.
+rusqlite = { version = "0.32", features = ["bundled"] }
+base64 = "0.22"
+# Formats `created_at` in the exact SQLite.swift `Date` text the shared
+# cas_analytics.db uses; `macros` gives a compile-time-checked format string.
+time = { version = "0.3", features = ["formatting", "macros"] }
+
+[profile.release]
+opt-level = 2
+lto = "thin"
