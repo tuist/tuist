@@ -1,5 +1,5 @@
 defmodule Tuist.Storage.Workers.ScheduleExpiredArtifactsWorkerTest do
-  use TuistTestSupport.Cases.DataCase, async: false
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   import Ecto.Query
