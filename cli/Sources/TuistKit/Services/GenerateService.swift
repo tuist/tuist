@@ -90,9 +90,16 @@ public struct GenerateService {
         let path = try await self.path(path)
 
         #if canImport(TuistCacheEE)
+            /// Byte budget for the LRU self-prune (spec #76). On a runner the
+            /// dispatch-poll sets this to ~80% of the mounted cache volume so an
+            /// oversized working set degrades to a hot tier instead of churning
+            /// at ENOSPC; unset elsewhere, so the prune stays age/count-only.
+            /// Read here (not inside the detached task) because Environment's
+            /// TaskLocal value does not propagate into a detached task.
+            let cacheMaxBytes = Environment.current.variables["TUIST_CACHE_MAX_BYTES"].flatMap { Int($0) }
             Task.detached(priority: .background) {
                 let cacheLocalStorage = CacheLocalStorage(cacheDirectoriesProvider: CacheDirectoriesProvider())
-                try? await cacheLocalStorage.clean()
+                try? await cacheLocalStorage.clean(maxBytes: cacheMaxBytes)
             }
         #endif
 
