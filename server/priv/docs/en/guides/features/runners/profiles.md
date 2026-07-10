@@ -34,13 +34,46 @@ Every account enabled for Runners starts with two profiles so you can use the fl
 
 These two are **protected**: they can't be deleted, so the labels your workflows depend on stay valid. You can create additional profiles for other sizes or Xcode versions.
 
+## Machine shapes {#machine-shapes}
+
+Runners are available on macOS (Apple silicon, virtualized on the Mac fleet) and Linux. Each profile pins one machine shape, a `(vCPUs, memory)` pair, from the catalog below.
+
+### Linux {#linux}
+
+| vCPUs | Memory |
+| ----- | ------ |
+| 1     | 2 GB   |
+| 2     | 4 GB   |
+| 2     | 8 GB (default) |
+| 4     | 8 GB   |
+| 4     | 16 GB  |
+| 8     | 16 GB  |
+| 8     | 32 GB  |
+| 16    | 32 GB  |
+
+### macOS {#macos}
+
+| vCPUs | Memory |
+| ----- | ------ |
+| 6     | 14 GB (default) |
+
+macOS profiles also pin an **Xcode version**. The version selects a runner image with that Xcode preinstalled, so jobs start with the toolchain already in place. Supported versions today:
+
+- `26.5` (default)
+- `26.4.1`
+- `26.3`
+- `26.0.1`
+
+> [!NOTE]
+> The catalog evolves as we add hardware and Xcode releases. The **New profile** form in the dashboard always shows the shapes and Xcode versions currently available to your account, so treat it as the source of truth.
+
 ## Fields {#fields}
 
 | Field           | Applies to     | Notes |
 | --------------- | -------------- | ----- |
 | **Name**        | all            | Lowercase letters, digits, and hyphens; must start with a letter; up to 32 characters. Unique within your account and **immutable after creation**, so the label your workflows use never changes underneath them. |
 | **Platform**    | all            | `linux` or `macos`. |
-| **vCPUs / Memory** | all         | A `(vCPUs, memory)` pair from the <.localized_link href="/guides/features/runners#platforms-and-machine-shapes">machine shape catalog</.localized_link> for the chosen platform. |
+| **vCPUs / Memory** | all         | A `(vCPUs, memory)` pair from the <.localized_link href="/guides/features/runners/profiles#machine-shapes">machine shape catalog</.localized_link> for the chosen platform. |
 | **Xcode version** | macOS        | The Xcode release preinstalled on the runner image. Required for macOS profiles, ignored for Linux. |
 
 > [!NOTE]

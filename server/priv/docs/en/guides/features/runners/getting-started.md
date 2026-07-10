@@ -42,4 +42,4 @@ That's it. No runner agent to install, no self-hosted infrastructure to maintain
 ## Next steps {#next-steps}
 
 - Create additional <.localized_link href="/guides/features/runners/profiles">profiles</.localized_link> for other sizes or Xcode versions.
-- Review the available platforms and machine shapes in the <.localized_link href="/guides/features/runners#platforms-and-machine-shapes">Runners overview</.localized_link>.
+- Review the available platforms and machine shapes on the <.localized_link href="/guides/features/runners/profiles#machine-shapes">Profiles page</.localized_link>.
