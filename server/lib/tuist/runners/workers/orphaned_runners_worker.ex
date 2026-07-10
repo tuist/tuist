@@ -73,10 +73,10 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
 
     * Both succeed → row in queued pool, PG slot freed.
     * CH ok, PG delete fails / crash → CH says queued, PG still
-      claimed. The next dispatch poll picks the row, hits a PG PK
-      conflict on `Claims.attempt`, returns `:lost_race` and bails
-      cleanly. The next worker run sees the same stale PG row and
-      retries the release.
+      claimed. Dispatch skips rows already claimed in PG before
+      selecting queued work, so later workflow_jobs can keep moving.
+      The next worker run sees the same stale PG row and retries the
+      release.
     * CH fails → leave PG alone; next worker tick retries the
       whole sequence.
 

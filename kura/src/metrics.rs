@@ -53,6 +53,7 @@ pub struct Metrics {
     replication_requests: Family<ReplicationLabels, Counter>,
     replication_request_duration: Family<ReplicationRouteLabels, Histogram>,
     replication_apply_results: Family<ReplicationApplyLabels, Counter>,
+    bootstrap_digest_buckets: Family<BootstrapDigestLabels, Counter>,
     replication_bandwidth_configured_limit_bytes_per_second: Gauge,
     replication_bandwidth_effective_limit_bytes_per_second: Gauge,
     replication_bandwidth_public_latency_target_ms: Gauge,
@@ -184,6 +185,7 @@ impl Metrics {
                 Histogram::new(exponential_buckets(0.001, 2.0, 16))
             });
         let replication_apply_results = Family::<ReplicationApplyLabels, Counter>::default();
+        let bootstrap_digest_buckets = Family::<BootstrapDigestLabels, Counter>::default();
         let replication_bandwidth_configured_limit_bytes_per_second = Gauge::default();
         let replication_bandwidth_effective_limit_bytes_per_second = Gauge::default();
         let replication_bandwidth_public_latency_target_ms = Gauge::default();
@@ -391,6 +393,11 @@ impl Metrics {
             "kura_replication_apply_results_total",
             "Receiver and bootstrap apply outcomes for replicated artifacts and namespace deletes",
             replication_apply_results.clone(),
+        );
+        registry.register(
+            "kura_bootstrap_digest_buckets_total",
+            "Manifest digest buckets classified during bootstrap range reconciliation, matched (skipped) vs walked",
+            bootstrap_digest_buckets.clone(),
         );
         registry.register(
             "kura_replication_bandwidth_configured_limit_bytes_per_second",
@@ -804,6 +811,7 @@ impl Metrics {
             replication_requests,
             replication_request_duration,
             replication_apply_results,
+            bootstrap_digest_buckets,
             replication_bandwidth_configured_limit_bytes_per_second,
             replication_bandwidth_effective_limit_bytes_per_second,
             replication_bandwidth_public_latency_target_ms,
@@ -1081,6 +1089,19 @@ impl Metrics {
                 outcome: outcome.to_owned(),
             })
             .inc();
+    }
+
+    pub fn record_bootstrap_digest_reconcile(&self, matched: u64, walked: u64) {
+        self.bootstrap_digest_buckets
+            .get_or_create(&BootstrapDigestLabels {
+                result: "matched".to_owned(),
+            })
+            .inc_by(matched);
+        self.bootstrap_digest_buckets
+            .get_or_create(&BootstrapDigestLabels {
+                result: "walked".to_owned(),
+            })
+            .inc_by(walked);
     }
 
     pub fn update_replication_bandwidth_limits(
@@ -1598,6 +1619,11 @@ struct ReplicationApplyLabels {
     source: String,
     item_type: String,
     outcome: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct BootstrapDigestLabels {
+    result: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
