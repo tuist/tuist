@@ -21,12 +21,9 @@ The label is the profile's name with the `tuist-` prefix. A profile named `macos
 
 Every account enabled for Runners starts with two profiles so you can use the fleet without configuring anything:
 
-| Profile | Label           | Default shape                 |
-| ------- | --------------- | ----------------------------- |
-| `linux` | `tuist-linux`   | 2 vCPU / 8 GB                 |
-| `macos` | `tuist-macos`   | 6 vCPU / 14 GB, Xcode 26.5    |
+{{runner_default_profiles_table}}
 
-Both point at the default <.localized_link href="/guides/features/runners/profiles#machine-shapes">shape</.localized_link> for their platform. They're **protected**, so they can't be deleted and the `tuist-linux` and `tuist-macos` labels your workflows depend on always resolve. You can still change their shape or Xcode version, and you can create additional profiles for other sizes or Xcode versions.
+Both point at the default <.localized_link href="/guides/features/runners/profiles#machine-shapes">shape</.localized_link> for their platform. They're **protected**, so they can't be deleted and the labels your workflows depend on always resolve. You can still change their shape or Xcode version, and you can create additional profiles for other sizes or Xcode versions.
 
 ## Machine shapes {#machine-shapes}
 
@@ -34,29 +31,15 @@ Runners are available on macOS (Apple silicon, virtualized on the Mac fleet) and
 
 ### Linux {#linux}
 
-| vCPUs | Memory |
-| ----- | ------ |
-| 1     | 2 GB   |
-| 2     | 4 GB   |
-| 2     | 8 GB (default) |
-| 4     | 8 GB   |
-| 4     | 16 GB  |
-| 8     | 16 GB  |
-| 8     | 32 GB  |
-| 16    | 32 GB  |
+{{runner_linux_shapes_table}}
 
 ### macOS {#macos}
 
-| vCPUs | Memory |
-| ----- | ------ |
-| 6     | 14 GB (default) |
+{{runner_macos_shapes_table}}
 
 macOS profiles also pin an **Xcode version**. The version selects a runner image with that Xcode preinstalled, so jobs start with the toolchain already in place. Supported versions today:
 
-- `26.5` (default)
-- `26.4.1`
-- `26.3`
-- `26.0.1`
+{{runner_macos_xcode_versions}}
 
 > [!NOTE]
 > The catalog evolves as we add hardware and Xcode releases. The **New profile** form in the dashboard always shows the shapes and Xcode versions currently available to your account, so treat it as the source of truth.
