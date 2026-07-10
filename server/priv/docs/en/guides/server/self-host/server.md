@@ -332,12 +332,6 @@ Restart the server after changing a retention variable. Every queued self-hosted
 
 The scheduled cleanup removes artifact blobs only. It preserves the corresponding PostgreSQL and ClickHouse rows, so build, test, run, preview, and shard metadata can remain visible in dashboards after their downloads expire. This configuration does not change ClickHouse table retention rules.
 
-Cache artifact cleanup scans the instance-managed cache buckets. It skips accounts configured with account-specific custom cache storage and does not scan those custom cache buckets. Matching cache objects whose prefix no longer resolves to a current account are cleaned with the configured window. Database-backed cleanup for app previews, current build archives, run artifacts, test attachments, and shard bundles follows the account's current storage configuration. Legacy build archive cleanup scans the instance-managed artifact bucket.
-
-Package registry mirror objects are not customer artifacts and are excluded. Runner log archives are also excluded because they have a separate 90-day cleanup policy. An unset or blank retention variable leaves only its corresponding artifact cleanup disabled.
-
-These variables apply only to self-hosted instances. Tuist Cloud continues to use the plan-based windows documented in the <.localized_link href="/guides/server/data-retention">data retention guide</.localized_link>.
-
 ### Email configuration {#email-configuration}
 
 Tuist requires email functionality for user authentication and transactional notifications (e.g., password resets, account notifications). Currently, **only Mailgun is supported** as the email provider.
