@@ -127,6 +127,7 @@ type ScalewayElasticMetalMachineReconciler struct {
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;delete
 
 func (r *ScalewayElasticMetalMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
+	log.FromContext(ctx).Info("reconcile entry", "name", req.Name)
 	machine := &infrav1.ScalewayElasticMetalMachine{}
 	if getErr := r.Get(ctx, req.NamespacedName, machine); getErr != nil {
 		if apierrors.IsNotFound(getErr) {

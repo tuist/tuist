@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -641,6 +642,13 @@ func shellSingleQuote(s string) string {
 // manager's cached client scopes its Services informer to the egress namespace
 // (see main.go), so a cached Get of kube-system/kube-dns never resolves.
 func discoverClusterDNS(ctx context.Context, r client.Reader) string {
+	// Bound the read: the reconcile context has no deadline of its own, so a
+	// slow/unreachable read here would block the controller's (single) worker
+	// indefinitely and silently stall every subsequent reconcile. On timeout we
+	// fall through to an unset clusterDNS, the same best-effort behaviour as any
+	// other read failure.
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
 	svc := &corev1.Service{}
 	if err := r.Get(ctx, types.NamespacedName{Namespace: "kube-system", Name: "kube-dns"}, svc); err != nil {
 		log.FromContext(ctx).Info("could not resolve kube-dns ClusterIP; kubelet clusterDNS will be unset", "err", err.Error())
