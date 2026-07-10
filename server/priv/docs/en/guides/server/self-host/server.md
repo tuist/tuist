@@ -291,6 +291,45 @@ For Azure Blob Storage, set `TUIST_OBJECT_STORAGE_PROVIDER=azure_blob` and confi
 
 When using the Helm chart, set `server.storage.provider=azure_blob` and fill `server.azureBlob.*`. The chart's top-level `objectStorage` settings remain S3-compatible because the optional cache and registry-mirror workloads still expect S3-compatible storage. If those workloads are disabled and the server uses Azure Blob, set `objectStorage.mode=external` and leave the external object-storage endpoint and credentials empty to avoid deploying the embedded MinIO service.
 
+#### Artifact retention {#artifact-retention}
+
+Artifact cleanup is disabled by default on self-hosted instances. Each supported artifact type has its own environment variable. Set a variable to a positive integer number of days to enable cleanup for that artifact type. Leaving a variable unset or blank disables cleanup only for its artifact type.
+
+```bash
+TUIST_CACHE_ARTIFACT_RETENTION_DAYS=30
+TUIST_BUILD_ARCHIVE_RETENTION_DAYS=60
+```
+
+With the Helm chart, configure the same windows as a map:
+
+```yaml
+server:
+  artifactRetentionDays:
+    cacheArtifacts: 30
+    buildArchives: 60
+```
+
+Only the configured artifact types are enabled. In this example, cache artifacts are deleted after 30 days and build archives after 60 days. The other artifact types are not cleaned. Self-hosted retention windows have no 30-day maximum. Configured values that are not positive integers cause the server to fail at startup.
+
+Restart the server after changing a retention variable. Every queued self-hosted cleanup batch checks the current configuration before deleting files, so unsetting or blanking a variable, or increasing its window, also protects files from pending jobs after the restart.
+
+| Environment variable | Artifact files removed from object storage |
+| --- | --- |
+| `TUIST_CACHE_ARTIFACT_RETENTION_DAYS` | Xcode cache, legacy content-addressable storage cache, module cache, and Gradle cache files |
+| `TUIST_APP_PREVIEW_RETENTION_DAYS` | App preview builds and icons |
+| `TUIST_BUILD_ARCHIVE_RETENTION_DAYS` | Current and legacy build archives |
+| `TUIST_RUN_ARTIFACT_RETENTION_DAYS` | All objects stored under an expired run's artifact prefix, including result bundles, invocation records, and session archives |
+| `TUIST_TEST_ATTACHMENT_RETENTION_DAYS` | Test run attachments |
+| `TUIST_SHARD_BUNDLE_RETENTION_DAYS` | Test shard bundles |
+
+The scheduled cleanup removes artifact blobs only. It preserves the corresponding PostgreSQL and ClickHouse rows, so build, test, run, preview, and shard metadata can remain visible in dashboards after their downloads expire. This configuration does not change ClickHouse table retention rules.
+
+Cache artifact cleanup scans the instance-managed cache buckets. It skips accounts configured with account-specific custom cache storage and does not scan those custom cache buckets. Matching cache objects whose prefix no longer resolves to a current account are cleaned with the configured window. Database-backed cleanup for app previews, current build archives, run artifacts, test attachments, and shard bundles follows the account's current storage configuration. Legacy build archive cleanup scans the instance-managed artifact bucket.
+
+Package registry mirror objects are not customer artifacts and are excluded. Runner log archives are also excluded because they have a separate 90-day cleanup policy. An unset or blank retention variable leaves only its corresponding artifact cleanup disabled.
+
+These variables apply only to self-hosted instances. Tuist Cloud continues to use the plan-based windows documented in the <.localized_link href="/guides/server/data-retention">data retention guide</.localized_link>.
+
 ### Email configuration {#email-configuration}
 
 Tuist requires email functionality for user authentication and transactional notifications (e.g., password resets, account notifications). Currently, **only Mailgun is supported** as the email provider.

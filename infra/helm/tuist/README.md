@@ -35,6 +35,19 @@ builds `DATABASE_URL` through Kubernetes env-var substitution, so the password
 does not appear in the rendered manifest. The Secret value for `password`
 should be URL-safe because it is interpolated into a database URL.
 
+## Artifact retention
+
+Artifact cleanup is disabled by default. Opt in by setting positive retention
+windows, in days, for the artifact families you want the server to clean from
+object storage. Omitted families remain untouched.
+
+```yaml
+server:
+  artifactRetentionDays:
+    cacheArtifacts: 30
+    buildArchives: 60
+```
+
 ## Local validation
 
 Render manifests:
