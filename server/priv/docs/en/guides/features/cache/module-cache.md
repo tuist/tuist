@@ -26,7 +26,7 @@ Tuist Module Cache provides a powerful way to optimize build times by caching yo
 > [!TIP]
 > **Fastest on Tuist Runners**
 >
-> On <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link>, the module cache is colocated on the runner's private network and shared with the same cache your developer machines use — so CI jobs pull prebuilt binaries with warm hits out of the box, with no separate CI cache to warm up.
+> On <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link>, the module cache is colocated on the runner's private network and shared with the same cache your developer machines use, so CI jobs pull prebuilt binaries with warm hits out of the box, with no separate CI cache to warm up.
 
 
 ## Warming {#warming}

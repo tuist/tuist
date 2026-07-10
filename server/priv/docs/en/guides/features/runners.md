@@ -13,7 +13,7 @@
 > Tuist Runners are currently invite-only while we scale capacity. [Reach out](mailto:contact@tuist.dev) or ping us in the [community Slack](https://slack.tuist.dev) to request access for your account.
 
 
-Tuist Runners are managed macOS and Linux runners for your GitHub Actions workflows. Instead of running jobs on GitHub-hosted runners, you point `runs-on` at a Tuist <.localized_link href="/guides/features/runners/profiles">profile</.localized_link> and your jobs run on Tuist's fleet, next to the same <.localized_link href="/guides/features/cache">cache</.localized_link> your team already uses — with no runner agent to install and no infrastructure to maintain.
+Tuist Runners are managed macOS and Linux runners for your GitHub Actions workflows. Instead of running jobs on GitHub-hosted runners, you point `runs-on` at a Tuist <.localized_link href="/guides/features/runners/profiles">profile</.localized_link> and your jobs run on Tuist's fleet, next to the same <.localized_link href="/guides/features/cache">cache</.localized_link> your team already uses, with no runner agent to install and no infrastructure to maintain.
 
 <HomeCards>
     <HomeCard
@@ -32,9 +32,9 @@ Tuist Runners are managed macOS and Linux runners for your GitHub Actions workfl
 
 ## Why Tuist Runners {#why-tuist-runners}
 
-Most CI runner providers make jobs faster by giving you beefier machines and a persistent cache — typically a shared volume mounted back into your CI runs. That helps, but a volume is just a disk: it carries whatever previous CI runs happened to leave on it. It isn't replicated to keep just the freshest artifacts close to where builds run, and it never reaches your developers' machines.
+Most CI runner providers make jobs faster by giving you beefier machines and a persistent cache, typically a shared volume mounted back into your CI runs. That helps, but a volume is just a disk: it carries whatever previous CI runs happened to leave on it. It isn't replicated to keep just the freshest artifacts close to where builds run, and it never reaches your developers' machines.
 
-Tuist Runners are different because the cache is the same cache your developers and every other environment already read from and write to. The <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link> and <.localized_link href="/guides/features/cache/xcode-cache">Xcode cache</.localized_link> that a teammate warms on their laptop, or that an earlier build produced, are a hit on the runner — and vice versa. There's no separate CI cache to warm up.
+Tuist Runners are different because the cache is the same cache your developers and every other environment already read from and write to. The <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link> and <.localized_link href="/guides/features/cache/xcode-cache">Xcode cache</.localized_link> that a teammate warms on their laptop, or that an earlier build produced, are a hit on the runner, and vice versa. There's no separate CI cache to warm up.
 
 On top of that, the cache runs on the same private network as the runner. When a job lands on a fleet colocated with your cache, Tuist hands it an in-cluster cache endpoint (`TUIST_CACHE_ENDPOINT`), so cache reads and writes stay on the internal network next to the compute instead of crossing the public internet.
 
@@ -46,7 +46,7 @@ Put together:
 
 ## Platforms and machine shapes {#platforms-and-machine-shapes}
 
-Runners are available on macOS (Apple silicon, virtualized on the Mac fleet) and Linux. Each <.localized_link href="/guides/features/runners/profiles">profile</.localized_link> pins a machine shape — a `(vCPUs, memory)` pair — from the catalog below.
+Runners are available on macOS (Apple silicon, virtualized on the Mac fleet) and Linux. Each <.localized_link href="/guides/features/runners/profiles">profile</.localized_link> pins a machine shape, a `(vCPUs, memory)` pair, from the catalog below.
 
 ### Linux {#linux}
 
@@ -83,6 +83,6 @@ Every job dispatched to the fleet shows up in the **Runners** section of your ac
 
 - **Live logs**, pulled from the GitHub Actions logs API and searchable after the run.
 - **Step timing**, so you can see which steps dominate a job.
-- **Machine metrics** — CPU, memory, and disk sampled over the job's lifetime — to right-size the <.localized_link href="/guides/features/runners/profiles">profile</.localized_link> you run on.
+- **Machine metrics** for CPU, memory, and disk sampled over the job's lifetime, so you can right-size the <.localized_link href="/guides/features/runners/profiles">profile</.localized_link> you run on.
 
 Because runs are attributed to the same project as the rest of your Tuist data, they sit alongside your <.localized_link href="/guides/features/build-insights">build insights</.localized_link> and <.localized_link href="/guides/features/test-insights">test insights</.localized_link> rather than in a separate tool.

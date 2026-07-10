@@ -13,7 +13,7 @@
 > Profiles are part of <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link>, which is currently invite-only. [Reach out](mailto:contact@tuist.dev) to request access.
 
 
-A **profile** is an account-scoped, named machine shape. You reference it from a workflow's `runs-on`, and Tuist routes the job to a runner that matches. Profiles keep infrastructure choices — platform, size, Xcode version — in one place instead of scattered across every workflow file, and give you a stable label to point CI at.
+A **profile** is an account-scoped, named machine shape. You reference it from a workflow's `runs-on`, and Tuist routes the job to a runner that matches. Profiles keep infrastructure choices (platform, size, Xcode version) in one place instead of scattered across every workflow file, and give you a stable label to point CI at.
 
 ```yaml
 jobs:
@@ -38,7 +38,7 @@ These two are **protected**: they can't be deleted, so the labels your workflows
 
 | Field           | Applies to     | Notes |
 | --------------- | -------------- | ----- |
-| **Name**        | all            | Lowercase letters, digits, and hyphens; must start with a letter; up to 32 characters. Unique within your account and **immutable after creation** — the label your workflows use never changes underneath them. |
+| **Name**        | all            | Lowercase letters, digits, and hyphens; must start with a letter; up to 32 characters. Unique within your account and **immutable after creation**, so the label your workflows use never changes underneath them. |
 | **Platform**    | all            | `linux` or `macos`. |
 | **vCPUs / Memory** | all         | A `(vCPUs, memory)` pair from the <.localized_link href="/guides/features/runners#platforms-and-machine-shapes">machine shape catalog</.localized_link> for the chosen platform. |
 | **Xcode version** | macOS        | The Xcode release preinstalled on the runner image. Required for macOS profiles, ignored for Linux. |

@@ -20,7 +20,7 @@ The Xcode cache was introduced in Xcode 26. You might also see it referred to as
 > [!TIP]
 > **Fastest on Tuist Runners**
 >
-> On <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link>, the Xcode cache is colocated on the runner's private network and shared with the same cache your developer machines use — so CI jobs get warm hits out of the box, with no separate CI cache to warm up.
+> On <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link>, the Xcode cache is colocated on the runner's private network and shared with the same cache your developer machines use, so CI jobs get warm hits out of the box, with no separate CI cache to warm up.
 
 
 ## Setup {#setup}
