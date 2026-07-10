@@ -361,9 +361,9 @@ defmodule TuistWeb.TestRunsLive do
   defp analytics_trend_label("custom"), do: dgettext("dashboard_tests", "since last period")
   defp analytics_trend_label(_), do: dgettext("dashboard_tests", "since last month")
 
-  defp analytics_environment_label("any"), do: dgettext("dashboard_tests", "Any")
   defp analytics_environment_label("local"), do: dgettext("dashboard_tests", "Local")
   defp analytics_environment_label("ci"), do: dgettext("dashboard_tests", "CI")
+  defp analytics_environment_label(_), do: dgettext("dashboard_tests", "Any")
 
   defp assign_test_runs(%{assigns: %{selected_project: project}} = socket, params) do
     filters =

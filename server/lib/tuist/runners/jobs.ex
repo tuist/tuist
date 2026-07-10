@@ -66,6 +66,22 @@ defmodule Tuist.Runners.Jobs do
 
   require Logger
 
+  # The dispatch hot path (`pick_queued/2`) and the autoscaler
+  # (`queued_count_by_fleet/1`) only care about jobs that could still
+  # be legitimately `queued`. `StaleQueuedJobsWorker` force-completes
+  # any row that stays queued past a 24h hard backstop, so a job can't
+  # remain claimable beyond that. Bounding these scans on `enqueued_at`
+  # — the column `runner_jobs` is partitioned by via `toYYYYMM` — lets
+  # ClickHouse prune to the recent partitions instead of running the
+  # `GROUP BY workflow_job_id` + argMax dedup over the fleet's full
+  # history. Without the floor that aggregation state grows with every
+  # completed job the fleet has ever run and eventually trips
+  # ClickHouse's per-query memory limit (Code 241 MEMORY_LIMIT_EXCEEDED)
+  # on the hot path. 7 days matches `StaleQueuedJobsWorker`'s lookback:
+  # far enough beyond the 24h backstop to survive worker downtime, so a
+  # still-claimable job is never pruned out of view.
+  @queued_lookback_seconds 7 * 86_400
+
   @doc """
   Latest `enqueued_at` per `requested_dispatch_label` for an account.
 
@@ -221,11 +237,17 @@ defmodule Tuist.Runners.Jobs do
   ASC)` — means two concurrent pollers see the SAME row as the
   next candidate. The actual claim race then collapses on
   Postgres uniqueness in `Claims.attempt/4`.
+
+  The scan is floored at `@queued_lookback_seconds` on `enqueued_at`
+  so ClickHouse prunes to recent partitions rather than aggregating
+  the fleet's full history — see the attribute's rationale.
   """
   def pick_queued(fleet_name, ineligible_account_ids \\ [], excluded_workflow_job_ids \\ [])
       when is_binary(fleet_name) and is_list(ineligible_account_ids) and is_list(excluded_workflow_job_ids) do
+    lookback_floor = queued_lookback_floor()
+
     from(j in Job,
-      where: j.fleet_name == ^fleet_name,
+      where: j.fleet_name == ^fleet_name and j.enqueued_at > ^lookback_floor,
       group_by: j.workflow_job_id,
       having: fragment("argMax(?, ?) = ?", j.status, j.updated_at, "queued"),
       select: %{
@@ -732,9 +754,11 @@ defmodule Tuist.Runners.Jobs do
   `queued` don't get double-counted.
   """
   def queued_count_by_fleet(fleet_name) when is_binary(fleet_name) do
+    lookback_floor = queued_lookback_floor()
+
     inner =
       from j in Job,
-        where: j.fleet_name == ^fleet_name,
+        where: j.fleet_name == ^fleet_name and j.enqueued_at > ^lookback_floor,
         group_by: j.workflow_job_id,
         having: fragment("argMax(?, ?) = ?", j.status, j.updated_at, "queued"),
         select: j.workflow_job_id
@@ -1186,6 +1210,10 @@ defmodule Tuist.Runners.Jobs do
   end
 
   # ----- internal -----
+
+  defp queued_lookback_floor do
+    DateTime.add(DateTime.utc_now(), -@queued_lookback_seconds, :second)
+  end
 
   defp latest_runner_runs_by_id(runs) do
     runs
