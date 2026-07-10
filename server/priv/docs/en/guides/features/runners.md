@@ -44,14 +44,14 @@ Adopting them is usually a one-line change to your workflow:
 
 ## Why Tuist Runners {#why-tuist-runners}
 
-Most CI runner providers make jobs faster by giving you beefier machines and a persistent cache, typically a shared volume mounted back into your CI runs. That helps, but a volume is just a disk: it carries whatever previous CI runs happened to leave on it. It isn't replicated to keep just the freshest artifacts close to where builds run, and it never reaches your developers' machines.
+Most CI runner providers make jobs faster by giving you beefier machines and a persistent cache, typically a shared volume mounted back into your CI runs. That helps, but a volume is just a disk: it carries whatever previous CI runs happened to leave on it. It isn't replicated to keep just the freshest artifacts close to where builds run, and it never reaches the other places your code gets built.
 
-Tuist Runners are different because the cache is the same cache your developers and every other environment already read from and write to. The <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link> and <.localized_link href="/guides/features/cache/xcode-cache">Xcode cache</.localized_link> that a teammate warms on their laptop, or that an earlier build produced, are a hit on the runner, and vice versa. There's no separate CI cache to warm up.
+Building doesn't happen in one place anymore. The same code is compiled on developer laptops, across CI, and increasingly by coding agents and other automated environments. Tuist Runners are different because they share the same <.localized_link href="/guides/features/cache">cache</.localized_link> all of those environments already read from and write to, whatever build system you use. Artifacts that a teammate warmed on their laptop, that an agent produced, or that an earlier build left behind are a hit on the runner, and vice versa. There's no separate CI cache to warm up, and the speedup isn't limited to CI.
 
 On top of that, the cache is colocated with the runner on the same private network, so cache reads and writes stay internal and close to the compute instead of crossing the public internet.
 
 Put together:
 
-- **Shared with local environments.** The runner reads and writes the same cache as `tuist` and Xcode on developer machines. Work done anywhere warms the cache everywhere.
+- **Shared across every environment.** The runner reads and writes the same cache as your developer machines, CI, and coding agents, so work done anywhere warms the cache everywhere.
 - **Colocated with the compute.** Cache traffic stays on the internal network next to the runner, not over a public ingress.
-- **One system, not bolted-on.** Cache, <.localized_link href="/guides/features/selective-testing">selective testing</.localized_link>, <.localized_link href="/guides/features/test-sharding">test sharding</.localized_link>, and <.localized_link href="/guides/features/build-insights">build insights</.localized_link> all run against the same project and account, so the runner isn't a separate silo of build data.
+- **One system, not bolted-on.** Caching, <.localized_link href="/guides/features/selective-testing">selective testing</.localized_link>, <.localized_link href="/guides/features/test-sharding">test sharding</.localized_link>, and <.localized_link href="/guides/features/build-insights">build insights</.localized_link> all run against the same project and account, so the runner isn't a separate silo of build data.
