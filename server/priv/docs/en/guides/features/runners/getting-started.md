@@ -36,10 +36,3 @@ Running a job on the fleet takes three changes: connect GitHub, point `runs-on` 
    ```
 
 4. **Push and watch.** The job is queued, claimed by a runner, and streamed back to the **Runners** section of your Tuist dashboard, where you can follow its logs, steps, and machine metrics.
-
-That's it. No runner agent to install, no self-hosted infrastructure to maintain. Tuist mints a short-lived, single-use [just-in-time runner token](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/configure-the-application) for each job, so nothing long-lived is registered with your repository.
-
-## Next steps {#next-steps}
-
-- Create additional <.localized_link href="/guides/features/runners/profiles">profiles</.localized_link> for other sizes or Xcode versions.
-- Review the available platforms and machine shapes on the <.localized_link href="/guides/features/runners/profiles#machine-shapes">Profiles page</.localized_link>.
