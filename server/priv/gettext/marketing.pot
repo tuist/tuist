@@ -432,7 +432,7 @@ msgid "Get help when you need it through various support channels."
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_components.ex:432
-#: lib/tuist_web/marketing/controllers/marketing_html.ex:108
+#: lib/tuist_web/marketing/controllers/marketing_html.ex:135
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:37
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:10
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:28
@@ -981,7 +981,7 @@ msgid "Tailored legal terms"
 msgstr ""
 
 #: lib/tuist_web/marketing/components/marketing_components.ex:437
-#: lib/tuist_web/marketing/controllers/marketing_html.ex:116
+#: lib/tuist_web/marketing/controllers/marketing_html.ex:143
 #: lib/tuist_web/marketing/controllers/marketing_html/home.html.heex:45
 #: lib/tuist_web/marketing/live/marketing_customers_live.html.heex:35
 #, elixir-autogen, elixir-format
@@ -1050,14 +1050,14 @@ msgstr ""
 msgid "Tuist"
 msgstr ""
 
-#: lib/tuist_web/marketing/layouts/root.html.heex:56
-#: lib/tuist_web/marketing/layouts/root.html.heex:62
+#: lib/tuist_web/marketing/layouts/root.html.heex:82
+#: lib/tuist_web/marketing/layouts/root.html.heex:88
 #, elixir-autogen, elixir-format
 msgid "Tuist Blog"
 msgstr ""
 
-#: lib/tuist_web/marketing/layouts/root.html.heex:71
-#: lib/tuist_web/marketing/layouts/root.html.heex:77
+#: lib/tuist_web/marketing/layouts/root.html.heex:97
+#: lib/tuist_web/marketing/layouts/root.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "Tuist Changelog"
 msgstr ""
