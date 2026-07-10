@@ -223,6 +223,13 @@ defmodule TuistWeb.RunnerJobLive do
 
   def path(_, _), do: nil
 
+  @doc """
+  Builds a deep link to a step in the job overview.
+
+  The `step` query parameter is LiveView state: it expands the step
+  and loads its logs. The `#runner-step-*` fragment is browser state:
+  it scrolls to the rendered step once the overview is shown.
+  """
   def step_path(account_name, job, %{number: number}) when is_integer(number) and number > 0 do
     case __MODULE__.path(account_name, job) do
       nil -> nil
