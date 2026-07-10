@@ -124,12 +124,12 @@
     }
 
     & .device-showcase .device::after {
-      content: "";
       position: absolute;
       left: 50%;
       transform: translateX(-50%);
       z-index: 2;
       background: #0a0a0c;
+      content: "";
     }
 
     & .device-showcase .device-iphone::after {
