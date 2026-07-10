@@ -2,7 +2,7 @@
 {
   "title": "Runners",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Run your GitHub Actions jobs on Tuist-managed macOS and Linux runners with a cache colocated next to the compute and shared with your local machines."
+  "description": "Tuist Runners are managed macOS and Linux GitHub Actions runners with a cache colocated next to the compute and shared with your local machines."
 }
 ---
 # Runners {#runners}
@@ -13,14 +13,22 @@
 > Tuist Runners are currently invite-only while we scale capacity. [Reach out](mailto:contact@tuist.dev) or ping us in the [community Slack](https://slack.tuist.dev) to request access for your account.
 
 
-Tuist Runners are managed macOS and Linux runners for your GitHub Actions workflows. Instead of running jobs on GitHub-hosted runners, you point `runs-on` at a Tuist <.localized_link href="/guides/features/runners/profiles">profile</.localized_link> and your jobs run on Tuist's fleet, next to the same <.localized_link href="/guides/features/cache">cache</.localized_link> your team already uses.
+Tuist Runners are managed macOS and Linux runners for your GitHub Actions workflows. Instead of running jobs on GitHub-hosted runners, you point `runs-on` at a Tuist <.localized_link href="/guides/features/runners/profiles">profile</.localized_link> and your jobs run on Tuist's fleet, next to the same <.localized_link href="/guides/features/cache">cache</.localized_link> your team already uses — with no runner agent to install and no infrastructure to maintain.
 
-> [!WARNING]
-> **Requirements**
->
-> - A <.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</.localized_link>
-> - Your project connected to a <.localized_link href="/guides/integrations/gitforge/github">GitHub</.localized_link> organization
-
+<HomeCards>
+    <HomeCard
+        icon="<img src='/images/logo.webp' alt='Tuist' width='32' height='32' />"
+        title="Getting started"
+        details="Connect GitHub, point runs-on at a Tuist profile, and run your first job on the fleet."
+        linkText="Get started"
+        link="/guides/features/runners/getting-started"/>
+    <HomeCard
+        icon="<img src='/images/logo.webp' alt='Tuist' width='32' height='32' />"
+        title="Profiles"
+        details="Choose a platform, size, and Xcode version with named machine profiles you reference from runs-on."
+        linkText="Manage profiles"
+        link="/guides/features/runners/profiles"/>
+</HomeCards>
 
 ## Why Tuist Runners {#why-tuist-runners}
 
@@ -35,25 +43,6 @@ Put together:
 - **Shared with local environments.** The runner reads and writes the same cache as `tuist` and Xcode on developer machines. Work done anywhere warms the cache everywhere. You can bring the same cache even closer to CI, offices, or regional compute by <.localized_link href="/guides/features/cache/self-hosting">self-hosting cache nodes</.localized_link>.
 - **Colocated with the compute.** Cache traffic stays on the internal network next to the runner, not over a public ingress.
 - **One system, not bolted-on.** Cache, <.localized_link href="/guides/features/selective-testing">selective testing</.localized_link>, <.localized_link href="/guides/features/test-sharding">test sharding</.localized_link>, and <.localized_link href="/guides/features/build-insights">build insights</.localized_link> all run against the same project and account, so the runner isn't a separate silo of build data.
-
-## Getting started {#getting-started}
-
-1. **Request access.** Runners are invite-only during the beta. [Reach out](mailto:contact@tuist.dev) with the account you want enabled.
-2. **Connect GitHub.** Make sure your <.localized_link href="/guides/server/accounts-and-projects">project</.localized_link> is connected to your <.localized_link href="/guides/integrations/gitforge/github">GitHub</.localized_link> organization. Tuist receives `workflow_job` events for that organization and dispatches matching jobs to the fleet.
-3. **Point `runs-on` at a Tuist profile.** Every enabled account starts with two ready-to-use <.localized_link href="/guides/features/runners/profiles">profiles</.localized_link>: `linux` and `macos`. Reference them with the `tuist-` prefix:
-
-   ```yaml
-   jobs:
-     build:
-       runs-on: tuist-macos # or tuist-linux
-       steps:
-         - uses: actions/checkout@v4
-         - run: tuist test
-   ```
-
-4. **Push and watch.** The job is queued, claimed by a runner, and streamed back to the **Runners** section of your Tuist dashboard, where you can follow its logs, steps, and machine metrics.
-
-That's it — no runner agent to install, no self-hosted infrastructure to maintain. Tuist mints a short-lived, single-use [just-in-time runner token](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/configure-the-application) for each job, so nothing long-lived is registered with your repository.
 
 ## Platforms and machine shapes {#platforms-and-machine-shapes}
 
@@ -97,9 +86,3 @@ Every job dispatched to the fleet shows up in the **Runners** section of your ac
 - **Machine metrics** — CPU, memory, and disk sampled over the job's lifetime — to right-size the <.localized_link href="/guides/features/runners/profiles">profile</.localized_link> you run on.
 
 Because runs are attributed to the same project as the rest of your Tuist data, they sit alongside your <.localized_link href="/guides/features/build-insights">build insights</.localized_link> and <.localized_link href="/guides/features/test-insights">test insights</.localized_link> rather than in a separate tool.
-
-## Profiles {#profiles}
-
-A **profile** is a named alias for a machine shape that you reference from `runs-on`. Profiles are how you choose Linux vs. macOS, pick a size, and pin an Xcode version — without hardcoding infrastructure details in every workflow file.
-
-<.localized_link href="/guides/features/runners/profiles">Learn how to create and manage profiles →</.localized_link>

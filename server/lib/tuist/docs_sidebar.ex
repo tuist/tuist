@@ -221,6 +221,7 @@ defmodule Tuist.Docs.Sidebar do
             label: "Runners",
             slug: "/en/guides/features/runners",
             items: [
+              %Item{label: "Getting started", slug: "/en/guides/features/runners/getting-started"},
               %Item{label: "Profiles", slug: "/en/guides/features/runners/profiles"}
             ]
           }
