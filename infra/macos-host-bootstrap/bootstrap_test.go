@@ -153,6 +153,60 @@ func TestRenderLaunchdPlist_RendersDisableVMGCWhenSet(t *testing.T) {
 	}
 }
 
+func TestRenderLaunchdPlist_OmitsRunnerCacheWhenDisabled(t *testing.T) {
+	out := renderLaunchdPlist(Config{NodeName: "n1", SSHUser: "m1"})
+	if strings.Contains(out, "--runner-cache-root") {
+		t.Fatalf("expected --runner-cache-root absent when RunnerCacheVolumeGiB is 0\n%s", out)
+	}
+}
+
+func TestRenderLaunchdPlist_RendersRunnerCacheRoot(t *testing.T) {
+	out := renderLaunchdPlist(Config{
+		NodeName:                "n1",
+		SSHUser:                 "m1",
+		RunnerCacheVolumeGiB:    400,
+		CacheVolumeMasterCapGiB: 25,
+	})
+	if !strings.Contains(out, "<string>--runner-cache-root="+runnerCacheMountPoint+"</string>") {
+		t.Fatalf("expected --runner-cache-root in plist\n%s", out)
+	}
+	if !strings.Contains(out, "<string>--cache-volume-cap-gib=25</string>") {
+		t.Fatalf("expected --cache-volume-cap-gib in plist\n%s", out)
+	}
+}
+
+func TestRenderLaunchdPlist_OmitsCapGiBWhenDefault(t *testing.T) {
+	out := renderLaunchdPlist(Config{NodeName: "n1", SSHUser: "m1", RunnerCacheVolumeGiB: 400})
+	if !strings.Contains(out, "--runner-cache-root=") {
+		t.Fatalf("expected --runner-cache-root when volume enabled\n%s", out)
+	}
+	if strings.Contains(out, "--cache-volume-cap-gib") {
+		t.Fatalf("expected --cache-volume-cap-gib omitted when cap is 0 (tart-kubelet default)\n%s", out)
+	}
+}
+
+func TestRenderRunnerCacheVolumeScript_CarriesQuotaAndVolume(t *testing.T) {
+	out := renderRunnerCacheVolumeScript(Config{RunnerCacheVolumeGiB: 400})
+	if !strings.Contains(out, "VOL="+runnerCacheVolumeName) {
+		t.Fatalf("expected volume name in script\n%s", out)
+	}
+	if !strings.Contains(out, "QUOTA_GIB=400") {
+		t.Fatalf("expected quota GiB in script\n%s", out)
+	}
+	if !strings.Contains(out, `-quota "${QUOTA_GIB}g"`) {
+		t.Fatalf("expected -quota flag in script\n%s", out)
+	}
+}
+
+func TestHostConfigHash_ChangesWithRunnerCacheVolume(t *testing.T) {
+	base := Config{NodeName: "n1", SSHUser: "m1", TartKubeletBinary: []byte("bin")}
+	changed := base
+	changed.RunnerCacheVolumeGiB = 400
+	if HostConfigHash(base) == HostConfigHash(changed) {
+		t.Fatalf("HostConfigHash must change when the runner-cache volume is enabled")
+	}
+}
+
 func TestRenderTartKubeletLaunchdScript_PreparesVNCControlDir(t *testing.T) {
 	out := renderTartKubeletLaunchdScript(Config{SSHUser: "m1"})
 	if !strings.Contains(out, "/var/lib/tart-vnc-control") {

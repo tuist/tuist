@@ -166,6 +166,15 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	TartKubeletHostMemoryMB int
 	TartKubeletMaxPods      int
 
+	// RunnerCacheVolumeGiB / CacheVolumeMasterCapGiB turn on per-account
+	// cache volumes (spec #76) on the Mac fleet: bootstrap provisions a
+	// quota-bounded APFS volume of RunnerCacheVolumeGiB and passes
+	// --runner-cache-root (+ optional per-master cap) to tart-kubelet. 0
+	// leaves the feature off. See the bootstrap.Config fields of the same
+	// names.
+	RunnerCacheVolumeGiB    int
+	CacheVolumeMasterCapGiB int
+
 	// TartKubeletMaxUpdateAttempts caps how many times the drift loop
 	// retries a failing UpdateTartKubelet before transitioning the CR
 	// to a terminal Failed state. Without a cap the operator
@@ -596,32 +605,34 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		vncRelayPort := r.dashboardVNCRelayPort()
 
 		fingerprint, err := bootstrap.Run(ctx, bootstrap.Config{
-			IP:                    ip,
-			SSHUser:               bootstrapCreds.SSHUsername,
-			UserPassword:          bootstrapCreds.SudoPassword,
-			SSHPrivateKey:         sshKey,
-			NodeName:              machine.Name,
-			ProviderID:            providerIDOf(machine),
-			Kubeconfig:            kubeconfigYAML,
-			TartKubeletBinary:     r.TartKubeletBinary,
-			TartTarball:           r.TartTarball,
-			TailscaleBinaries:     r.TailscaleBinaries,
-			TailscaleAuthKey:      tailscaleAuthKey,
-			TailscaleTags:         r.TailscaleTags,
-			TailscaleAcceptRoutes: r.TailscaleAcceptRoutes,
-			VMKuraEgressCIDR:      r.VMKuraEgressCIDR,
-			VMClusterDNSIP:        r.VMClusterDNSIP,
-			VMCachePNCIDR:         r.VMCachePNCIDR,
-			VMCachePNVLAN:         vmCachePNVLAN,
-			NodeExporterBinary:    r.NodeExporterBinary,
-			HostCPU:               hostCPUFor(machine, r.TartKubeletHostCPU),
-			HostMemoryMB:          hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
-			MaxPods:               r.TartKubeletMaxPods,
-			VNCRelayHost:          vncRelayHost,
-			VNCRelayPort:          vncRelayPort,
-			NodeLabels:            machineNodeLabels(machine),
-			KnownHostFingerprint:  bootstrapCreds.HostFingerprint,
-			GHActionsRunner:       ghRunner,
+			IP:                      ip,
+			SSHUser:                 bootstrapCreds.SSHUsername,
+			UserPassword:            bootstrapCreds.SudoPassword,
+			SSHPrivateKey:           sshKey,
+			NodeName:                machine.Name,
+			ProviderID:              providerIDOf(machine),
+			Kubeconfig:              kubeconfigYAML,
+			TartKubeletBinary:       r.TartKubeletBinary,
+			TartTarball:             r.TartTarball,
+			TailscaleBinaries:       r.TailscaleBinaries,
+			TailscaleAuthKey:        tailscaleAuthKey,
+			TailscaleTags:           r.TailscaleTags,
+			TailscaleAcceptRoutes:   r.TailscaleAcceptRoutes,
+			VMKuraEgressCIDR:        r.VMKuraEgressCIDR,
+			VMClusterDNSIP:          r.VMClusterDNSIP,
+			VMCachePNCIDR:           r.VMCachePNCIDR,
+			VMCachePNVLAN:           vmCachePNVLAN,
+			NodeExporterBinary:      r.NodeExporterBinary,
+			HostCPU:                 hostCPUFor(machine, r.TartKubeletHostCPU),
+			HostMemoryMB:            hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
+			MaxPods:                 r.TartKubeletMaxPods,
+			RunnerCacheVolumeGiB:    r.RunnerCacheVolumeGiB,
+			CacheVolumeMasterCapGiB: r.CacheVolumeMasterCapGiB,
+			VNCRelayHost:            vncRelayHost,
+			VNCRelayPort:            vncRelayPort,
+			NodeLabels:              machineNodeLabels(machine),
+			KnownHostFingerprint:    bootstrapCreds.HostFingerprint,
+			GHActionsRunner:         ghRunner,
 		})
 		// Persist whatever fingerprint Run captured even on the error
 		// path, so a transient bootstrap failure doesn't lose the

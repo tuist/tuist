@@ -12,8 +12,9 @@
 # Server contract:
 #   POST <url> with header `Authorization: Bearer <sa_token>`
 #     200 with body { encoded_jit_config: "...", pool: "...", owner: "...",
-#                      cache_endpoint_url?: "..." }
+#                      cache_endpoint_url?: "...", cache_signing_grant?: "..." }
 #       -> export TUIST_CACHE_ENDPOINT when cache_endpoint_url is present,
+#          export TUIST_CACHE_SIGNING_GRANT when cache_signing_grant is present,
 #          then exec ./run.sh --jitconfig <jit> --disableupdate
 #     204  -> no work yet, keep polling
 #     401  -> auth failed, abort (the SA was likely GCed already)
@@ -82,6 +83,100 @@ if [ -z "${SA_TOKEN}" ]; then
   exit 1
 fi
 
+# Per-account cache volume (spec #76). tart-kubelet attaches a CoW branch of an
+# account's cache master as a block device at boot and stages a volumes.json
+# manifest into the ro env share; the guest mounts it and points the Tuist
+# cache root at it. Absent manifest => no volume this boot => cold path,
+# unchanged. Set by mount_cache_volume, consumed by report_cache_dirty.
+CACHE_VOLUME_LABEL=""
+CACHE_MOUNT=""
+CACHE_INVENTORY_BEFORE=""
+STATUS_SHARE="/Volumes/My Shared Files/status"
+VOLUME_MANIFEST="/Volumes/My Shared Files/env/volumes.json"
+
+# cache_inventory hashes the SORTED ENTRY NAMES (not mtimes) under the cache
+# subtrees whose churn means the job actually changed the cache: binaries
+# added/evicted, manifests or ProjectDescriptionHelpers compiled. Pure cache
+# hits only bump mtimes (they don't add/remove entries), so they don't move
+# this hash — matching the reconciler's rule that mtime-only deltas are not
+# dirty and must not trigger a promote that could clobber a concurrent writer.
+cache_inventory() {
+  [ -n "${CACHE_MOUNT}" ] || { echo "none"; return 0; }
+  local root="${CACHE_MOUNT}/tuist"
+  {
+    for d in Binaries Manifests ProjectDescriptionHelpers Plugins; do
+      /bin/ls -1 "${root}/${d}" 2>/dev/null | sed "s|^|${d}/|"
+    done
+  } | sort | shasum | awk '{print $1}'
+}
+
+# mount_cache_volume waits (bounded) for the attached cache block device to
+# auto-mount by its APFS label, points TUIST_XDG_CACHE_HOME at it so the whole
+# Tuist cache directory (Binaries, Manifests, ProjectDescriptionHelpers,
+# Plugins, ...) is a local hit, and snapshots the pre-job inventory. A missing
+# manifest or a mount that never appears degrades silently to the cold path —
+# never blocks the job.
+mount_cache_volume() {
+  [ -f "${VOLUME_MANIFEST}" ] || return 0
+  CACHE_VOLUME_LABEL=$(sed -n 's/.*"label"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${VOLUME_MANIFEST}" | head -n1)
+  [ -n "${CACHE_VOLUME_LABEL}" ] || return 0
+  local mount="/Volumes/${CACHE_VOLUME_LABEL}"
+  # The attached volume auto-mounts a few seconds after boot; gate on it before
+  # the first tuist invocation. 30s is generous — validation saw it appear in a
+  # few seconds.
+  local waited=0
+  while [ "${waited}" -lt 30 ]; do
+    if [ -d "${mount}" ] && /usr/sbin/diskutil info "${mount}" >/dev/null 2>&1; then
+      CACHE_MOUNT="${mount}"
+      break
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+  if [ -z "${CACHE_MOUNT}" ]; then
+    echo "$(date -u +%FT%TZ) dispatch-poll: cache volume ${CACHE_VOLUME_LABEL} did not mount within 30s; cold path"
+    return 0
+  fi
+  # The volume root is root-owned from host formatting; hand it to the
+  # unprivileged runner user so the Tuist CLI (which runs the job) can write
+  # cache artifacts into it. Idempotent on a warm clone (already runner-owned).
+  sudo chown runner "${CACHE_MOUNT}" 2>/dev/null || true
+  mkdir -p "${CACHE_MOUNT}/tuist" 2>/dev/null || sudo mkdir -p "${CACHE_MOUNT}/tuist"
+  sudo chown runner "${CACHE_MOUNT}/tuist" 2>/dev/null || true
+  export TUIST_XDG_CACHE_HOME="${CACHE_MOUNT}"
+  # Byte budget for the CLI's per-generate LRU self-prune: ~80% of the volume's
+  # capacity, leaving one job's write headroom so a full working set degrades
+  # to a hot tier (LRU keeps the most-used artifacts local, the tail misses to
+  # the remote) instead of churning at ENOSPC. Self-derived from the mounted
+  # volume so it tracks the provisioned cap with no extra config.
+  local total_kb
+  total_kb=$(df -P -k "${CACHE_MOUNT}" 2>/dev/null | awk 'NR==2{print $2}')
+  if [ -n "${total_kb}" ] && [ "${total_kb}" -gt 0 ] 2>/dev/null; then
+    export TUIST_CACHE_MAX_BYTES=$(( total_kb * 1024 * 8 / 10 ))
+  fi
+  CACHE_INVENTORY_BEFORE=$(cache_inventory)
+  echo "$(date -u +%FT%TZ) dispatch-poll: cache volume mounted at ${CACHE_MOUNT}; TUIST_XDG_CACHE_HOME set (budget=${TUIST_CACHE_MAX_BYTES:-none})"
+}
+
+# report_cache_dirty writes the guest's dirty marker into the writable status
+# share so the reconciler can decide promote-vs-discard. "1" iff the cache
+# inventory changed during the job; "0" for a pure-hit / read-only job. The
+# marker's presence is itself the "job completed" signal — its absence
+# (crash) makes the reconciler discard the branch.
+report_cache_dirty() {
+  [ -n "${CACHE_MOUNT}" ] || return 0
+  [ -d "${STATUS_SHARE}" ] || return 0
+  local after dirty=0
+  after=$(cache_inventory)
+  [ "${after}" != "${CACHE_INVENTORY_BEFORE}" ] && dirty=1
+  printf '%s' "${dirty}" > "${STATUS_SHARE}/cache-dirty" 2>/dev/null || true
+  echo "$(date -u +%FT%TZ) dispatch-poll: cache dirty=${dirty} reported to host"
+}
+
+# Mount before polling: the volume is attached at boot, independent of which
+# account dispatch later assigns, so it is ready well before the first job.
+mount_cache_volume
+
 # 2 s polling interval is the practical floor for "feels live" to
 # a customer staring at their CI dashboard without burning the
 # dispatch endpoint. Average pickup latency is ~1 s after a
@@ -135,6 +230,17 @@ while true; do
         echo "$(date -u +%FT%TZ) dispatch-poll: routing cache to runner-local endpoint ${cache_endpoint}"
         export TUIST_CACHE_ENDPOINT="${cache_endpoint}"
       fi
+      # Server-signed cache grant (spec #76): a short-lived token scoping cache
+      # artifact signatures to this account instead of the machine MAC, so a
+      # warm volume's binaries validate as local hits across VMs. Same value-
+      # safety as the JIT (a base64url token, no embedded quotes). The Tuist EE
+      # CLI verifies it offline against a baked-in public key; absent/invalid/
+      # expired falls back to the MAC default, so this is purely additive.
+      cache_grant=$(sed -n 's/.*"cache_signing_grant"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
+      if [ -n "${cache_grant}" ]; then
+        echo "$(date -u +%FT%TZ) dispatch-poll: cache signing grant delivered"
+        export TUIST_CACHE_SIGNING_GRANT="${cache_grant}"
+      fi
       echo "$(date -u +%FT%TZ) dispatch-poll: dispatched, starting runner"
       # Force an NTP step before the job runs. A golden-base VM can be
       # handed a job within seconds of boot — before macOS `timed` has
@@ -177,6 +283,10 @@ while true; do
       # writes nothing to the ingest path.
       ./run.sh --jitconfig "${jit}" --disableupdate
       rc=$?
+      # Report whether the job changed the cache so the reconciler can promote
+      # the branch to the account's new master (or discard it). Before the
+      # metrics tail + VM halt, while the mounted volume is still readable.
+      report_cache_dirty
       # Final metrics sample before the EXIT trap halts the VM. The
       # looping sampler is killed mid-sleep by the shutdown, so the last
       # interval — including "Complete job" — otherwise has no data point

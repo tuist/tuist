@@ -33,6 +33,19 @@ runtime — no service, sudo entry, or auto-login targets it.
   `tart run` returns and tart-kubelet flips the Pod to
   Succeeded — the watcher's GC + warm-pool refill are gated on
   that transition.
+  On boot `dispatch-poll.sh` also runs the **per-account cache-volume**
+  gate (spec #76): when tart-kubelet staged a `volumes.json` manifest in
+  the env share, it waits (bounded) for the attached cache block device to
+  auto-mount by its APFS label (`tuist-cache`), points
+  `TUIST_XDG_CACHE_HOME` at the mount so the whole Tuist cache directory is
+  a local hit, and self-derives `TUIST_CACHE_MAX_BYTES` (~80% of the
+  volume) for the CLI's LRU self-prune. After the job it writes a
+  `cache-dirty` marker (entry-inventory changed vs. pre-job) into the
+  writable `status` share so the reconciler can promote the branch to the
+  account's new master or discard it. Absent manifest / mount ⇒ cold path,
+  unchanged. The server may also deliver a `cache_signing_grant` in the
+  dispatch 200, exported as `TUIST_CACHE_SIGNING_GRANT` so the EE CLI signs
+  artifacts with the account scope instead of the machine MAC.
 - `/opt/tuist/metrics-poll.sh` — the machine-metrics sampler.
   `dispatch-poll.sh` forks it into the background right before it
   starts `./run.sh`, so it samples whole-VM CPU/memory/network/disk

@@ -123,6 +123,42 @@ var vmProvisionWorkSeconds = prometheus.NewHistogramVec(
 	[]string{"pool", "path"},
 )
 
+// cacheVolumeOutcomeTotal counts how per-account cache-volume branches end
+// their lives (spec #76): promoted (became the account's new master),
+// discarded (read-only/clean/failed job), mispredicted (cloned from account A
+// but the job ran B; dropped to avoid contamination), or none (no volume was
+// attached — feature off or admission declined). promoted/(promoted+discarded)
+// is the warmth-capture rate; a climbing mispredicted rate means dispatch
+// affinity is landing the wrong account's jobs on warm hosts.
+var cacheVolumeOutcomeTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "tart_kubelet_cache_volume_outcome_total",
+		Help: "Terminal disposition of per-account cache-volume branches, by outcome.",
+	},
+	[]string{"outcome"},
+)
+
+// cacheVolumeResidentCount is the number of resident master images on this
+// host (all accounts, all volume names). Divided by the quota, it's the "how
+// many accounts does this host keep hot" signal.
+var cacheVolumeResidentCount = prometheus.NewGauge(
+	prometheus.GaugeOpts{
+		Name: "tart_kubelet_cache_volume_resident_count",
+		Help: "Resident per-account cache master images on this host.",
+	},
+)
+
+// cacheVolumeRootFreeBytes is statfs free space on the quota-bounded
+// runner-cache volume — the ground truth behind admission and watermark
+// eviction. A sustained decline toward the low watermark is the eviction-
+// pressure signal.
+var cacheVolumeRootFreeBytes = prometheus.NewGauge(
+	prometheus.GaugeOpts{
+		Name: "tart_kubelet_cache_volume_root_free_bytes",
+		Help: "Free bytes on the quota-bounded runner-cache root volume.",
+	},
+)
+
 func init() {
 	metrics.Registry.MustRegister(
 		vmBootDurationSeconds,
@@ -131,7 +167,26 @@ func init() {
 		goldenBaseMaterializedTotal,
 		goldenBaseReusedTotal,
 		vmProvisionWorkSeconds,
+		cacheVolumeOutcomeTotal,
+		cacheVolumeResidentCount,
+		cacheVolumeRootFreeBytes,
 	)
+}
+
+// RecordVolumeOutcome increments the per-outcome count of finalized cache
+// volume branches.
+func RecordVolumeOutcome(outcome string) {
+	if outcome == "" {
+		outcome = string(VolumeOutcomeNone)
+	}
+	cacheVolumeOutcomeTotal.WithLabelValues(outcome).Inc()
+}
+
+// RecordVolumeResident publishes the resident master count and root free
+// bytes, sampled on the reconcile tick.
+func RecordVolumeResident(count int, freeBytes uint64) {
+	cacheVolumeResidentCount.Set(float64(count))
+	cacheVolumeRootFreeBytes.Set(float64(freeBytes))
 }
 
 // RecordGoldenMaterialized increments the per-pool count of golden base

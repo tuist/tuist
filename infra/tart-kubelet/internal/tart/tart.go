@@ -257,6 +257,13 @@ type RunOptions struct {
 	// SharedDirs are Tart --dir mounts, for example env:/path:ro.
 	SharedDirs []string
 
+	// Disks are additional block devices attached via `tart run --disk
+	// <path>`, on top of the VM's root disk. The per-account cache volume
+	// (spec #76) attaches its per-VM branch image here. The list is plural
+	// from day one so generic user-declared volumes (spec #69) compose
+	// without a wrapper change; v1 passes at most one.
+	Disks []string
+
 	// VNC enables Tart's host-owned experimental VNC server while keeping
 	// the VM headless. Tart prints a one-time password; Run captures it
 	// into RunHandle and redacts it from the VM log.
@@ -328,6 +335,13 @@ func (c *Client) RunWithOptions(ctx context.Context, name string, opts RunOption
 	args = append(args, "--root-disk-opts", "caching=cached")
 	for _, dir := range opts.SharedDirs {
 		args = append(args, "--dir", dir)
+	}
+	// Additional block devices (the per-account cache volume branch). Host-
+	// cache the reads like the root disk: the branch is a CoW clone that is
+	// promoted or discarded on job end, so it is as ephemeral as the VM and
+	// there is no durability tradeoff.
+	for _, disk := range opts.Disks {
+		args = append(args, "--disk", disk+":caching=cached")
 	}
 
 	logPath := filepath.Join(c.LogDir, name+".log")
@@ -631,6 +645,38 @@ func (c *Client) StageServiceAccountToken(name, token string) error {
 		return fmt.Errorf("write sa_token: %w", err)
 	}
 	return nil
+}
+
+// StageVolumeManifest writes volumes.json into the VM's env dir so the guest
+// (which reads the ro `env` share) learns which attached block device carries
+// the Tuist cache and where to point the cache root. Absent file means "no
+// cache volume this boot" and the guest runs the cold path unchanged.
+func (c *Client) StageVolumeManifest(name, contents string) error {
+	dir := filepath.Join(c.UserDataDir, name)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return fmt.Errorf("mkdir userdata: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "volumes.json"), []byte(contents), 0o600); err != nil {
+		return fmt.Errorf("write volumes.json: %w", err)
+	}
+	return nil
+}
+
+// StatusDir creates and returns the per-VM writable status directory
+// (<UserDataDir>/<vm>/status), shared into the guest rw so the guest can
+// report the cache dirty marker back to the host. World-writable because the
+// virtiofs share is consumed by the guest's unprivileged `runner` user; it
+// holds only the guest's own tiny marker file and is torn down with the VM.
+func (c *Client) StatusDir(name string) (string, error) {
+	dir := filepath.Join(c.UserDataDir, name, "status")
+	if err := os.MkdirAll(dir, 0o777); err != nil {
+		return "", fmt.Errorf("mkdir status dir: %w", err)
+	}
+	// MkdirAll honours umask; force the mode so the guest can write.
+	if err := os.Chmod(dir, 0o777); err != nil {
+		return "", fmt.Errorf("chmod status dir: %w", err)
+	}
+	return dir, nil
 }
 
 // CleanupVMUserData removes <UserDataDir>/<vm>. Best-effort.
