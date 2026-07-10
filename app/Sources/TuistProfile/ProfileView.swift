@@ -10,6 +10,7 @@ public struct ProfileView: View {
     @EnvironmentObject private var authenticationService: AuthenticationService
     private let deleteAccountService: DeleteAccountServicing = DeleteAccountService()
     @State private var showDeleteConfirmation = false
+    @State private var isServerSettingsPresented = false
 
     private let account: Account
 
@@ -44,6 +45,27 @@ public struct ProfileView: View {
                     Text(account.email)
                         .font(.body)
                         .foregroundColor(Noora.Colors.surfaceLabelSecondary)
+                }
+            }
+
+            Section {
+                Button {
+                    isServerSettingsPresented = true
+                } label: {
+                    HStack {
+                        Text("Server")
+                            .font(.body)
+                            .foregroundColor(Noora.Colors.surfaceLabelPrimary)
+                        Spacer()
+                        Text(authenticationService.serverURL.absoluteString)
+                            .font(.body)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .foregroundColor(Noora.Colors.surfaceLabelSecondary)
+                        Image(systemName: "chevron.right")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundColor(Noora.Colors.surfaceLabelSecondary)
+                    }
                 }
             }
 
@@ -112,6 +134,9 @@ public struct ProfileView: View {
             }
         } message: {
             Text("Are you sure you want to delete your account? This action cannot be undone.")
+        }
+        .sheet(isPresented: $isServerSettingsPresented) {
+            ServerSettingsView(authenticationService: authenticationService)
         }
     }
 }

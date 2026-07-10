@@ -1,10 +1,21 @@
 import Foundation
 import SwiftUI
 import TuistAppStorage
+import TuistAuthentication
 import TuistServer
+
+struct SelectedProjectCache: Codable, Equatable {
+    let serverURL: URL
+    let fullHandle: String
+}
 
 struct SelectedProjectFullHandleKey: AppStorageKey {
     static let key = "selectedProjectFullHandle"
+    static let defaultValue: SelectedProjectCache? = nil
+}
+
+private struct LegacySelectedProjectFullHandleKey: AppStorageKey {
+    static let key = SelectedProjectFullHandleKey.key
     static let defaultValue: String? = nil
 }
 
@@ -12,7 +23,8 @@ struct SelectedProjectFullHandleKey: AppStorageKey {
 final class PreviewsViewModel: Sendable {
     private let listProjectsService: ListProjectsServicing
     private let listPreviewsService: ListPreviewsServicing
-    private let serverEnvironmentService: ServerEnvironmentServicing
+    private let serverURL: URL
+    private let isDefaultServerURL: Bool
     private let appStorage: AppStoring
 
     private(set) var projects: [ServerProject] = []
@@ -29,12 +41,15 @@ final class PreviewsViewModel: Sendable {
     init(
         listProjectsService: ListProjectsServicing = ListProjectsService(),
         listPreviewsService: ListPreviewsServicing = ListPreviewsService(),
-        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+        serverEnvironmentService: ServerEnvironmentServicing = AppServerEnvironmentService(),
         appStorage: AppStoring = AppStorage()
     ) {
         self.listProjectsService = listProjectsService
         self.listPreviewsService = listPreviewsService
-        self.serverEnvironmentService = serverEnvironmentService
+        serverURL = serverEnvironmentService.url()
+        let defaultServerURL = (serverEnvironmentService as? AppServerEnvironmentConfiguring)?.defaultURL() ??
+            ServerEnvironmentService().url()
+        isDefaultServerURL = Self.normalizedURLString(serverURL) == Self.normalizedURLString(defaultServerURL)
         self.appStorage = appStorage
     }
 
@@ -50,7 +65,10 @@ final class PreviewsViewModel: Sendable {
 
     func selectProject(_ project: ServerProject) async throws {
         selectedProject = project
-        try? appStorage.set(SelectedProjectFullHandleKey.self, value: selectedProject?.fullName)
+        try? appStorage.set(
+            SelectedProjectFullHandleKey.self,
+            value: SelectedProjectCache(serverURL: serverURL, fullHandle: project.fullName)
+        )
         try await loadPreviews(for: project)
     }
 
@@ -127,9 +145,9 @@ final class PreviewsViewModel: Sendable {
     }
 
     private func loadProjects() async throws {
-        projects = try await listProjectsService.listProjects(serverURL: serverEnvironmentService.url())
+        projects = try await listProjectsService.listProjects(serverURL: serverURL)
 
-        if let selectedProjectFullHandle = try? appStorage.get(SelectedProjectFullHandleKey.self),
+        if let selectedProjectFullHandle = storedSelectedProjectFullHandle(),
            let storedProject = projects.first(where: { $0.fullName == selectedProjectFullHandle })
         {
             selectedProject = storedProject
@@ -149,7 +167,7 @@ final class PreviewsViewModel: Sendable {
             pageSize: 20,
             distinctField: nil,
             fullHandle: project.fullName,
-            serverURL: serverEnvironmentService.url()
+            serverURL: serverURL
         )
 
         if previewsPage.paginationMetadata.currentPage == 1 {
@@ -160,5 +178,32 @@ final class PreviewsViewModel: Sendable {
 
         currentPage = previewsPage.paginationMetadata.currentPage ?? 1
         hasMorePreviews = previewsPage.paginationMetadata.hasNextPage
+    }
+
+    private func storedSelectedProjectFullHandle() -> String? {
+        do {
+            guard let selectedProject = try appStorage.get(SelectedProjectFullHandleKey.self),
+                  Self.normalizedURLString(selectedProject.serverURL) == Self.normalizedURLString(serverURL)
+            else {
+                return nil
+            }
+            return selectedProject.fullHandle
+        } catch {
+            guard isDefaultServerURL,
+                  let fullHandle = try? appStorage.get(LegacySelectedProjectFullHandleKey.self)
+            else {
+                return nil
+            }
+            try? appStorage.set(
+                SelectedProjectFullHandleKey.self,
+                value: SelectedProjectCache(serverURL: serverURL, fullHandle: fullHandle)
+            )
+            return fullHandle
+        }
+    }
+
+    private static func normalizedURLString(_ url: URL) -> String {
+        return (try? AppServerEnvironmentService.normalizedURL(from: url.absoluteString).absoluteString) ??
+            url.absoluteString
     }
 }

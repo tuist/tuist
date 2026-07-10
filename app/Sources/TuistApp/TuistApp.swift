@@ -24,7 +24,7 @@ import TuistServer
         var body: some Scene {
             appDelegate.menuBarExtra = FluidMenuBarExtra(title: "Tuist", image: "MenuBarIcon") {
                 ServerCredentialsStore.$current.withValue(
-                    ServerCredentialsStore(backend: .keychain)
+                    appDelegate.credentialsStore
                 ) {
                     CachedValueStore.$current.withValue(CachedValueStore(backend: .inSystemProcess)) {
                         MenuBarView(
@@ -62,13 +62,19 @@ import TuistServer
 
     @main
     struct TuistApp: App {
+        private let credentialsStore: ServerCredentialsStoring
+
+        init() {
+            credentialsStore = ServerCredentialsStore(backend: .keychain)
+        }
+
         var body: some Scene {
             WindowGroup {
                 ServerCredentialsStore.$current.withValue(
-                    ServerCredentialsStore(backend: .keychain)
+                    credentialsStore
                 ) {
                     CachedValueStore.$current.withValue(CachedValueStore(backend: .inSystemProcess)) {
-                        RootView()
+                        RootView(credentialsStore: credentialsStore)
                     }
                 }
             }
@@ -76,13 +82,23 @@ import TuistServer
     }
 
     private struct RootView: View {
-        @StateObject private var authenticationService = AuthenticationService()
+        @StateObject private var authenticationService: AuthenticationService
+        @StateObject private var errorHandling: ErrorHandling
         @State private var activeTab = TabIdentifier.previews
+
+        init(credentialsStore: ServerCredentialsStoring) {
+            _authenticationService = StateObject(
+                wrappedValue: AuthenticationService(credentialsStore: credentialsStore)
+            )
+            _errorHandling = StateObject(
+                wrappedValue: ErrorHandling(credentialsStore: credentialsStore)
+            )
+        }
 
         var body: some View {
             content
                 .environmentObject(authenticationService)
-                .withErrorHandling()
+                .withErrorHandling(errorHandling)
                 .task {
                     TuistSDK(
                         fullHandle: "tuist/tuist",
@@ -95,7 +111,7 @@ import TuistServer
         @ViewBuilder
         private var content: some View {
             switch authenticationService.authenticationState {
-            case let .loggedIn(account):
+            case let .loggedIn(account, serverURL):
                 TabView(selection: $activeTab) {
                     PreviewsView()
                         .tabItem {
@@ -112,6 +128,7 @@ import TuistServer
                         }
                         .tag(TabIdentifier.profile)
                 }
+                .id(serverURL)
                 .onOpenURL { _ in
                     activeTab = .previews
                 }
