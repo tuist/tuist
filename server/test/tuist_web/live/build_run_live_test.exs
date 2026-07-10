@@ -178,7 +178,7 @@ defmodule TuistWeb.BuildRunLiveTest do
 
     assert has_element?(
              lv,
-             ~s|[data-part='ci-context-card'] a[href="/#{organization.account.name}/runners/runs/313010/jobs/31301?tab=overview&step=2#runner-step-2"]|,
+             ~s|[data-part='ci-context-card'] a[href="/#{organization.account.name}/runners/runs/313010/jobs/31301?tab=overview&step=2"]|,
              "Build ·"
            )
 

@@ -394,6 +394,7 @@
         <div
           :for={step <- @steps}
           id={"runner-step-#{step.number}"}
+          phx-hook="ScrollIntoView"
           data-part="step"
           data-expanded={to_string(TuistWeb.RunnerJobLive.step_expanded?(@expanded_steps, step))}
         >

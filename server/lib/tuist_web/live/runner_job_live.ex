@@ -226,14 +226,14 @@ defmodule TuistWeb.RunnerJobLive do
   @doc """
   Builds a deep link to a step in the job overview.
 
-  The `step` query parameter is LiveView state: it expands the step
-  and loads its logs. The `#runner-step-*` fragment is browser state:
-  it scrolls to the rendered step once the overview is shown.
+  The `step` query parameter is the single source of truth: LiveView
+  uses it to expand the step, load its logs, and ask the client to
+  scroll to the rendered step.
   """
   def step_path(account_name, job, %{number: number}) when is_integer(number) and number > 0 do
     case __MODULE__.path(account_name, job) do
       nil -> nil
-      job_path -> "#{job_path}?tab=overview&step=#{number}#runner-step-#{number}"
+      job_path -> "#{job_path}?tab=overview&step=#{number}"
     end
   end
 
@@ -854,6 +854,7 @@ defmodule TuistWeb.RunnerJobLive do
           socket
           |> assign(:expanded_steps, MapSet.put(socket.assigns.expanded_steps, number))
           |> load_step_logs(number)
+          |> scroll_to_step(number)
         else
           socket
         end
@@ -864,6 +865,10 @@ defmodule TuistWeb.RunnerJobLive do
   end
 
   defp maybe_expand_step(socket, _), do: socket
+
+  defp scroll_to_step(socket, number) do
+    push_event(socket, "scroll-to-element", %{id: "runner-step-#{number}"})
+  end
 
   defp refresh_interactive_state(socket) do
     %{selected_account: selected_account, current_user: current_user, job: job} = socket.assigns

@@ -499,7 +499,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
       ])
 
     {:ok, lv, _html} =
-      live(conn, ~p"/#{account.name}/runners/runs/314020/jobs/31402?tab=overview&step=2#runner-step-2")
+      live(conn, ~p"/#{account.name}/runners/runs/314020/jobs/31402?tab=overview&step=2")
 
     assert has_element?(lv, ~s|#runner-step-1[data-expanded="false"]|, "Set up job")
     assert has_element?(lv, ~s|#runner-step-2[data-expanded="true"]|, "Run tests")
