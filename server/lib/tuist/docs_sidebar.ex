@@ -214,6 +214,19 @@ defmodule Tuist.Docs.Sidebar do
         ]
       },
       %Group{
+        label: "Runners",
+        weight: :medium,
+        items: [
+          %Item{
+            label: "Runners",
+            slug: "/en/guides/features/runners",
+            items: [
+              %Item{label: "Profiles", slug: "/en/guides/features/runners/profiles"}
+            ]
+          }
+        ]
+      },
+      %Group{
         label: "Artifacts",
         weight: :medium,
         items: [
