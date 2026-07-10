@@ -1,22 +1,27 @@
 # cluster-api-provider-tuist
 
-Cluster API infrastructure provider that joins Scaleway nodes as
+Cluster API infrastructure provider that joins Scaleway and OVH nodes as
 workers into the existing caph/Hetzner clusters, surfaced through
-CAPI's standard Machine/MachineDeployment shape. It manages two
+CAPI's standard Machine/MachineDeployment shape. It manages four
 machine kinds:
 
 - `ScalewayAppleSiliconMachine` — Mac minis (Tart), SSH-bootstrapped
   with tart-cri/tart-kubelet.
-- `ScalewayElasticMetalMachine` — Linux bare metal (e.g. the
+- `ScalewayElasticMetalMachine` — Scaleway Linux bare metal (e.g. the
   `kura-scw-fr-par` runner-cache node), SSH self-join (Elastic Metal
-  has no user-data channel).
+  has no user-data channel); adopts a pre-ordered box and
+  **reinstalls it (wipe) on release**.
+- `DediboxMachine` — Scaleway Dedibox bare metal (eu-central); adopts a
+  pre-prepped box, left installed on release.
+- `OVHDedicatedMachine` — OVHcloud US bare metal (us-east / us-west);
+  adopts a pre-prepped box, left installed on release.
 
-Both order/release via Scaleway's API and bootstrap with an
-operator-minted kubelet identity + SSH self-join, then wait for
-`Node.Ready`. The Elastic Metal kind binds that identity to
-`system:node`; Apple Silicon uses the `tart-kubelet` role. The Elastic
-Metal kind is designed in `docs/scaleway-elastic-metal-support.md`; the
-sections below detail the Apple Silicon kind.
+All bootstrap with an operator-minted kubelet identity + SSH self-join,
+then wait for `Node.Ready`. The three Linux kinds share the
+`controllers/linux` package and bind that identity to `system:node`;
+Apple Silicon uses the `tart-kubelet` role. The Elastic Metal kind is
+designed in `docs/scaleway-elastic-metal-support.md`; the sections below
+detail the Apple Silicon kind.
 
 ## CRDs
 
@@ -24,7 +29,9 @@ sections below detail the Apple Silicon kind.
 |---|---|
 | `ScalewayAppleSiliconMachine` | One Mac mini. Has the Scaleway server type, zone, OS, per-host pod CIDR, fleet name (ties Machines on the same fleet to one shared SSH key), and kubelet version. SSH and bootstrap material are operator-managed — no Secret refs in the spec. |
 | `ScalewayAppleSiliconMachineTemplate` | Template MachineDeployments / MachineSets clone from. |
-| `ScalewayElasticMetalMachine` (+ `…Template`) | One Scaleway Elastic Metal server (Linux bare metal): offer type, zone, OS, PN id, node taints. SSH self-join (no user-data channel); local-NVMe (`scw-local-nvme`) cache. |
+| `ScalewayElasticMetalMachine` (+ `…Template`) | One Scaleway Elastic Metal server (Linux bare metal): offer type, zone, OS, PN id, node taints, `fleetName`. SSH self-join (no user-data channel); local-NVMe (`scw-local-nvme`) cache. Reinstall-on-release. |
+| `DediboxMachine` (+ `…Template`) | One Scaleway Dedibox bare-metal server (eu-central): adopts a pre-prepped box by tag, `fleetName`. Left installed on release. |
+| `OVHDedicatedMachine` (+ `…Template`) | One OVHcloud US bare-metal server (us-east / us-west): adopts a pre-prepped box by displayName prefix, `fleetName`. Left installed on release. |
 | `TuistCluster` | Cluster-level stub (CAPI core requires it for the parent Cluster to validate). Sets `Status.Ready=true` once it exists. Shared by all machine kinds. |
 
 API group: `infrastructure.cluster.x-k8s.io/v1alpha1`. Short names:
@@ -106,18 +113,27 @@ Two auxiliary controllers run alongside it:
 infra/cluster-api-provider-tuist/
 ├── api/v1alpha1/
 │   ├── groupversion_info.go
-│   ├── scalewayapplesiliconmachine_types.go
-│   ├── scalewayapplesiliconmachinetemplate_types.go
+│   ├── scalewayapplesiliconmachine_types.go (+ …template)
+│   ├── scalewayelasticmetalmachine_types.go (+ …template)
+│   ├── dediboxmachine_types.go (+ …template)
+│   ├── ovhdedicatedmachine_types.go (+ …template)
 │   ├── tuistcluster_types.go
 │   └── zz_generated.deepcopy.go
 ├── controllers/
 │   ├── scalewayapplesiliconmachine_controller.go
 │   ├── tuistcluster_controller.go
 │   ├── fleetspread_controller.go
-│   └── orphan_reclaimer.go
+│   ├── orphan_reclaimer.go
+│   └── linux/      # the 3 Linux fleet kinds (Dedibox / OVH / Elastic Metal)
+│       ├── dediboxmachine_controller.go
+│       ├── ovhdedicatedmachine_controller.go
+│       ├── scalewayelasticmetalmachine_controller.go
+│       ├── linux_cloudinit.go       # shared self-join script + kubelet config (Layers 2+3)
+│       └── kubelet_config_drift.go  # zero-downtime re-push of kubelet config to Ready nodes
 ├── internal/
-│   ├── scaleway/   # Scaleway SDK wrapper
-│   └── bootstrap/  # SSH-driven kubelet/tart-cri install
+│   ├── scaleway/     # Scaleway SDK wrapper
+│   ├── credentials/  # fleet SSH keys + per-machine kubelet identities
+│   └── bootstrap/    # SSH-driven kubelet/tart-cri install
 ├── cmd/manager/    # controller-manager entry point
 ├── config/
 │   └── rbac/       # ClusterRole for the manager
@@ -366,6 +382,28 @@ re-creates + re-joins it on the current image, cache re-warms from the mesh
 ```bash
 kubectl delete machine <fleet-machine-name>
 ```
+
+**Two Elastic Metal re-provision gotchas** (from recovering the kura node):
+- The drift-loop re-push — and any re-provision — SSHes into the box with the fleet
+  key, so it only works if that key is authorized on the host. Reconcile showing
+  `ssh: unable to authenticate, attempted methods [none publickey]` means the box
+  doesn't hold the operator's current fleet key, so the drift loop **cannot**
+  self-heal it. On Elastic Metal the box is re-authorized only at (re)install, and
+  `kubectl delete machine` reinstalls it with the key of `machine.Spec.FleetName`
+  — so make sure the machine has `fleetName` set. A machine with an **empty**
+  `fleetName` uses a throwaway *per-machine* key (`<ns>-<machine>-ssh`) that churns
+  on every recreate and can leave the box holding a key that doesn't match the
+  shared fleet key the next machine presents. `kura-fleet.yaml` sets `fleetName`; a
+  live machine cloned before that was added keeps the empty value until recreated.
+- A freshly-reinstalled EM box can then fail to bootstrap at package install
+  (`run bootstrap … exited with status 100`) because DNS is broken: Scaleway's PN
+  DHCP writes `/etc/resolv.conf` with only `nameserver 169.254.169.254` (the
+  metadata/PN resolver), which the box firewalls off (`permission denied`), so apt
+  can't reach the mirror — even though public egress + public resolvers work.
+  Tactical unblock (SSH in as `ubuntu` with the fleet key): replace that line with
+  `nameserver 1.1.1.1`. Not durable (a DHCP renewal can revert it); the real fix
+  belongs in the EM bootstrap — after PN attach, ensure resolv.conf carries a
+  reachable resolver instead of only the blocked metadata address.
 
 Layer 1 is Cluster-CR config that **rolls declaratively — there is no separate
 workflow or manual trigger**. The apiserver flag comes from the
