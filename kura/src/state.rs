@@ -265,9 +265,15 @@ impl ReadinessState {
         }
     }
 
-    fn reset_bootstrap_progress(&mut self) {
+    fn reset_bootstrap_progress(&mut self, now: Instant) {
         self.bootstrapped_peers.clear();
         self.bootstrap_epoch = self.bootstrap_epoch.wrapping_add(1);
+        // Re-arm the settle window (like a generation change does) so
+        // maybe_mark_serving cannot re-mark the node before the gate is
+        // genuinely re-evaluated — e.g. while known_peers is momentarily
+        // empty, which would make "all known peers bootstrapped" trivially
+        // true.
+        self.settle_until = now + READINESS_SETTLE_WINDOW;
     }
 
     fn note_bootstrap_failed(&mut self, peer: &str) {
@@ -376,14 +382,24 @@ impl AppState {
     }
 
     /// Forgets all bootstrap progress so the membership loop re-pulls the full
-    /// dataset from every known peer. Called on a *recovery* re-enrollment —
-    /// the node was out of the mesh for an unknown window, and the writes it
-    /// missed were never enqueued for it (replication targets are computed at
-    /// write time), so only a full re-bootstrap can reconcile the gap,
-    /// including namespace delete tombstones. Bumps the bootstrap epoch so
-    /// passes already in flight cannot re-mark their peer bootstrapped.
+    /// dataset from every known peer, and takes the node out of serving until
+    /// the gate re-passes. Called on a *recovery* re-enrollment — the node was
+    /// out of the mesh for an unknown window, and the writes it missed were
+    /// never enqueued for it (replication targets are computed at write time),
+    /// so only a full re-bootstrap can reconcile the gap, including namespace
+    /// delete tombstones. Readiness implies complete data, so the node must
+    /// not keep advertising ready while it knows its data is incomplete —
+    /// every *other* node already re-enters the gate when this node rejoins
+    /// (their membership generation changes); this keeps the one node whose
+    /// data actually is incomplete from being the only one that skips it.
+    /// Bumps the bootstrap epoch so passes already in flight cannot re-mark
+    /// their peer bootstrapped.
     pub async fn reset_bootstrap_progress(&self) {
-        self.readiness.lock().await.reset_bootstrap_progress();
+        self.readiness
+            .lock()
+            .await
+            .reset_bootstrap_progress(Instant::now());
+        self.runtime.clear_serving();
     }
 
     /// Claims a bootstrap slot for `peer`, returning the epoch the pass runs
@@ -694,7 +710,7 @@ mod tests {
         // flight: the pass may straddle the absence window, so its completion
         // must not mark the peer bootstrapped.
         let stale_epoch = readiness.bootstrap_epoch;
-        readiness.reset_bootstrap_progress();
+        readiness.reset_bootstrap_progress(now);
         readiness.note_bootstrap_succeeded(&peer, stale_epoch);
 
         assert_eq!(readiness.peers_needing_bootstrap(), vec![peer.clone()]);

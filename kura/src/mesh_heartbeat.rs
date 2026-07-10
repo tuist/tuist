@@ -9,7 +9,8 @@
 //!   withheld; the node then performs a **recovery re-enrollment** (with
 //!   backoff), which restores its membership server-side and — because the
 //!   writes it missed while out of the mesh were never enqueued for it —
-//!   resets local bootstrap progress so the full dataset is re-pulled.
+//!   resets local bootstrap progress and leaves serving until the full
+//!   dataset has been re-pulled.
 //! - **Managed pods** don't enroll (Kubernetes owns their liveness), but they
 //!   consume the same dynamic peer view through a peers-only fetch, so a
 //!   self-hosted peer joining or leaving propagates at heartbeat cadence
@@ -258,8 +259,9 @@ async fn fetch_peers(
 // as stale, or its row was purged). Heartbeats never create membership —
 // enrollment is the only door — so recovery is a re-enrollment: the server's
 // enrollment upsert reactivates or recreates the row, and locally the node
-// must forget its bootstrap progress, because whatever was written while it
-// was out of the mesh was never enqueued for it.
+// must forget its bootstrap progress and step out of serving until the
+// re-pull completes, because whatever was written while it was out of the
+// mesh was never enqueued for it.
 async fn maybe_recover_membership(state: &SharedState, recovery: &mut RecoveryBackoff) {
     if !recovery.should_attempt(Instant::now()) {
         return;
@@ -441,10 +443,35 @@ mod tests {
         ctx.state
             .note_bootstrap_succeeded(&peer, ctx.state.current_bootstrap_epoch().await)
             .await;
+        ctx.state.expire_readiness_settle_window().await;
+        ctx.state.maybe_mark_serving().await;
+        assert!(ctx.state.runtime.is_serving());
         assert!(ctx.state.peers_needing_bootstrap().await.is_empty());
 
         ctx.state.reset_bootstrap_progress().await;
-        assert_eq!(ctx.state.peers_needing_bootstrap().await, vec![peer]);
+
+        // Readiness implies complete data: the node must leave serving for
+        // the whole re-bootstrap window, not just re-pull in the background.
+        assert!(!ctx.state.runtime.is_serving());
+        assert_eq!(
+            ctx.state.peers_needing_bootstrap().await,
+            vec![peer.clone()]
+        );
+        ctx.state.maybe_mark_serving().await;
+        assert!(
+            !ctx.state.runtime.is_serving(),
+            "serving must not resume before a clean pass under the new epoch"
+        );
+
+        let epoch = ctx
+            .state
+            .note_bootstrap_started(&peer)
+            .await
+            .expect("fresh pass should start");
+        ctx.state.note_bootstrap_succeeded(&peer, epoch).await;
+        ctx.state.expire_readiness_settle_window().await;
+        ctx.state.maybe_mark_serving().await;
+        assert!(ctx.state.runtime.is_serving());
     }
 
     #[test]
