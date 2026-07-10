@@ -4,6 +4,7 @@ defmodule Tuist.Release do
   installed.
   """
   alias Ecto.Adapters.SQL
+  alias Tuist.ClickHouseRetention
   alias Tuist.Environment
 
   require Logger
@@ -24,6 +25,7 @@ defmodule Tuist.Release do
         Ecto.Migrator.with_repo(repo, fn repo ->
           ensure_database_schema(repo)
           Ecto.Migrator.run(repo, :up, all: true)
+          apply_clickhouse_retention(repo)
           grant_runtime_role(repo)
           grant_processor_role(repo)
         end)
@@ -117,6 +119,12 @@ defmodule Tuist.Release do
   end
 
   defp ensure_database_schema(_repo), do: :ok
+
+  defp apply_clickhouse_retention(repo) when repo == Tuist.IngestRepo do
+    ClickHouseRetention.apply_configured_retention(repo)
+  end
+
+  defp apply_clickhouse_retention(_repo), do: :ok
 
   defp grant_runtime_role(repo) when repo == Tuist.Repo do
     case Environment.database_runtime_role() do

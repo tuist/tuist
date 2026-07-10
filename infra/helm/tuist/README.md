@@ -127,6 +127,11 @@ Some cluster-specific fixes are intentionally opt-in:
 - `cache.nginx.resources` is separate from `cache.resources` because the nginx sidecar is a distinct container. Set it explicitly in clusters with strict default LimitRanger policies.
 - `cache.nginx.proxyConnectTimeout`, `cache.nginx.proxyReadTimeout`, and `cache.nginx.proxySendTimeout` default to `60s`. Increase them for slower links or larger uploads.
 - `clickhouse.embedded.service.nativePort` defaults to ClickHouse's standard `9000` service port and can be overridden for mesh or port-allocation conflicts.
+- `clickhouse.embedded.systemLogs.ttlDays` applies a TTL to embedded ClickHouse `system.*` log tables such as `text_log`, `query_log`, `trace_log`, `metric_log`, and `part_log`. It defaults to `14`; set it to an empty value to keep ClickHouse's default unbounded retention.
+- `clickhouse.embedded.systemLogs.level` controls the embedded ClickHouse server logger and `system.text_log` level. It defaults to `information`; use verbose levels like `debug` or `trace` only while investigating ClickHouse itself.
+- `clickhouse.retention.defaultDays` optionally applies a fallback TTL to all known Tuist-owned ClickHouse product-data tables. It is empty by default so existing dashboard history retention is preserved.
+- `clickhouse.retention.<domain>Days` optionally applies a TTL to one product-data domain, such as `testsDays`, `buildsDays`, `commandEventsDays`, `xcodeDays`, `gradleDays`, `cacheDays`, `bundlesDays`, `shardsDays`, `runnersDays`, `webhooksDays`, `registryDays`, `automationsDays`, `kuraDays`, and `qaDays`.
+- `clickhouse.retention.tableDays` accepts known table-specific overrides, for example `{test_case_runs: 30}`. Use `0` to disable a table or domain when a broader TTL is configured.
 - `clickhouse.external.pingUrl` lets the migration job wait for an external ClickHouse instance through a dedicated `/ping` URL when `clickhouse.external.url` includes a database path.
 
 External ClickHouse example:
@@ -161,4 +166,7 @@ clickhouse:
   embedded:
     service:
       nativePort: 9100
+    systemLogs:
+      ttlDays: 7
+      level: warning
 ```

@@ -569,6 +569,81 @@ stay aligned without relying on the runtime secret bundle.
 {{- end -}}
 
 {{/*
+Self-hosted ClickHouse product-data TTL knobs. Managed Tuist-hosted
+environments intentionally do not render these values from the public chart
+defaults; their ClickHouse retention remains owned by the managed deployment
+configuration.
+*/}}
+{{- define "tuist.clickhouseRetentionEnv" -}}
+{{- if not .Values.server.hosted }}
+{{- with .Values.clickhouse.retention.defaultDays }}
+- name: TUIST_CLICKHOUSE_RETENTION_DEFAULT_DAYS
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.clickhouse.retention.tableDays }}
+- name: TUIST_CLICKHOUSE_RETENTION_TABLES_JSON
+  value: {{ toJson . | quote }}
+{{- end }}
+{{- with .Values.clickhouse.retention.automationsDays }}
+- name: TUIST_CLICKHOUSE_RETENTION_AUTOMATIONS_DAYS
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.clickhouse.retention.buildsDays }}
+- name: TUIST_CLICKHOUSE_RETENTION_BUILDS_DAYS
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.clickhouse.retention.bundlesDays }}
+- name: TUIST_CLICKHOUSE_RETENTION_BUNDLES_DAYS
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.clickhouse.retention.cacheDays }}
+- name: TUIST_CLICKHOUSE_RETENTION_CACHE_DAYS
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.clickhouse.retention.commandEventsDays }}
+- name: TUIST_CLICKHOUSE_RETENTION_COMMAND_EVENTS_DAYS
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.clickhouse.retention.gradleDays }}
+- name: TUIST_CLICKHOUSE_RETENTION_GRADLE_DAYS
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.clickhouse.retention.kuraDays }}
+- name: TUIST_CLICKHOUSE_RETENTION_KURA_DAYS
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.clickhouse.retention.qaDays }}
+- name: TUIST_CLICKHOUSE_RETENTION_QA_DAYS
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.clickhouse.retention.registryDays }}
+- name: TUIST_CLICKHOUSE_RETENTION_REGISTRY_DAYS
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.clickhouse.retention.runnersDays }}
+- name: TUIST_CLICKHOUSE_RETENTION_RUNNERS_DAYS
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.clickhouse.retention.shardsDays }}
+- name: TUIST_CLICKHOUSE_RETENTION_SHARDS_DAYS
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.clickhouse.retention.testsDays }}
+- name: TUIST_CLICKHOUSE_RETENTION_TESTS_DAYS
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.clickhouse.retention.webhooksDays }}
+- name: TUIST_CLICKHOUSE_RETENTION_WEBHOOKS_DAYS
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.clickhouse.retention.xcodeDays }}
+- name: TUIST_CLICKHOUSE_RETENTION_XCODE_DAYS
+  value: {{ . | quote }}
+{{- end }}
+{{- end }}
+{{- end -}}
+
+{{/*
 Stripe price IDs. These are not secrets (just identifiers for the products in
 Stripe), so they live in chart values as a readable plan -> category -> [ids]
 map instead of the secret store. `Tuist.Environment.stripe_prices/1` reads

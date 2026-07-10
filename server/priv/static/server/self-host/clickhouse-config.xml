@@ -2,6 +2,52 @@
   <listen_host>0.0.0.0</listen_host>
   <timezone>UTC</timezone>
 
+  <logger>
+    <level from_env="CLICKHOUSE_TEXT_LOG_LEVEL">information</level>
+  </logger>
+
+  <text_log>
+    <database>system</database>
+    <table>text_log</table>
+    <level from_env="CLICKHOUSE_TEXT_LOG_LEVEL">information</level>
+    <ttl from_env="CLICKHOUSE_SYSTEM_LOG_TTL">event_date + INTERVAL 14 DAY DELETE</ttl>
+  </text_log>
+  <query_log>
+    <database>system</database>
+    <table>query_log</table>
+    <ttl from_env="CLICKHOUSE_SYSTEM_LOG_TTL">event_date + INTERVAL 14 DAY DELETE</ttl>
+  </query_log>
+  <query_thread_log>
+    <database>system</database>
+    <table>query_thread_log</table>
+    <ttl from_env="CLICKHOUSE_SYSTEM_LOG_TTL">event_date + INTERVAL 14 DAY DELETE</ttl>
+  </query_thread_log>
+  <query_views_log>
+    <database>system</database>
+    <table>query_views_log</table>
+    <ttl from_env="CLICKHOUSE_SYSTEM_LOG_TTL">event_date + INTERVAL 14 DAY DELETE</ttl>
+  </query_views_log>
+  <trace_log>
+    <database>system</database>
+    <table>trace_log</table>
+    <ttl from_env="CLICKHOUSE_SYSTEM_LOG_TTL">event_date + INTERVAL 14 DAY DELETE</ttl>
+  </trace_log>
+  <metric_log>
+    <database>system</database>
+    <table>metric_log</table>
+    <ttl from_env="CLICKHOUSE_SYSTEM_LOG_TTL">event_date + INTERVAL 14 DAY DELETE</ttl>
+  </metric_log>
+  <asynchronous_metric_log>
+    <database>system</database>
+    <table>asynchronous_metric_log</table>
+    <ttl from_env="CLICKHOUSE_SYSTEM_LOG_TTL">event_date + INTERVAL 14 DAY DELETE</ttl>
+  </asynchronous_metric_log>
+  <part_log>
+    <database>system</database>
+    <table>part_log</table>
+    <ttl from_env="CLICKHOUSE_SYSTEM_LOG_TTL">event_date + INTERVAL 14 DAY DELETE</ttl>
+  </part_log>
+
   <zookeeper>
     <node>
       <host>clickhouse-keeper</host>

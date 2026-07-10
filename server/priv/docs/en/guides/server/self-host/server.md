@@ -89,6 +89,10 @@ Tuist uses [ClickHouse](https://clickhouse.com/) for storing and querying large 
 >
 > The Docker image's entrypoint automatically runs any pending ClickHouse schema migrations before starting the service.
 
+The bundled Docker Compose and Helm embedded ClickHouse configurations also cap ClickHouse's own `system.*` operational log tables. They retain tables such as `system.text_log`, `system.query_log`, `system.trace_log`, `system.metric_log`, and `system.part_log` for 14 days by default and lower the ClickHouse text log level to `information`. External ClickHouse deployments should configure these operational logs directly in their ClickHouse service.
+
+Tuist-owned ClickHouse product-data tables can also be given TTLs during the normal Tuist migration step. These TTLs are optional and apply to both embedded and external ClickHouse because they are table-level Tuist schema settings rather than ClickHouse server settings.
+
 
 ### Storage {#storage}
 
@@ -175,6 +179,22 @@ The following environment variables are used to configure the database connectio
 | `TUIST_CLICKHOUSE_FLUSH_INTERVAL_MS` | Time interval in milliseconds between ClickHouse buffer flushes | No | `5000` | `5000` |
 | `TUIST_CLICKHOUSE_MAX_BUFFER_SIZE` | Maximum ClickHouse buffer size in bytes before forcing a flush | No | `1000000` | `1000000` |
 | `TUIST_CLICKHOUSE_BUFFER_POOL_SIZE` | Number of ClickHouse buffer processes to run | No | `5` | `5` |
+| `TUIST_CLICKHOUSE_RETENTION_DEFAULT_DAYS` | Optional TTL, in days, for all known Tuist-owned ClickHouse product-data tables. Leave empty to preserve existing table behavior | No | | `90` |
+| `TUIST_CLICKHOUSE_RETENTION_COMMAND_EVENTS_DAYS` | Optional TTL, in days, for command-event ClickHouse tables and their sort-optimized materialized tables | No | | `90` |
+| `TUIST_CLICKHOUSE_RETENTION_BUILDS_DAYS` | Optional TTL, in days, for build-run, build-issue, build-file, build-target, build-metric, cacheable-task, and CAS-output tables | No | | `90` |
+| `TUIST_CLICKHOUSE_RETENTION_TESTS_DAYS` | Optional TTL, in days, for test-run, test-case, test-case-run, failure, attachment, error, and test analytics materialized tables | No | | `90` |
+| `TUIST_CLICKHOUSE_RETENTION_XCODE_DAYS` | Optional TTL, in days, for Xcode graph, project, target, and denormalized target tables | No | existing table default | `30` |
+| `TUIST_CLICKHOUSE_RETENTION_GRADLE_DAYS` | Optional TTL, in days, for Gradle build, task, and cache-event tables | No | existing table default | `90` |
+| `TUIST_CLICKHOUSE_RETENTION_CACHE_DAYS` | Optional TTL, in days, for CAS, CAS daily stats, and module-cache output tables | No | existing table default | `90` |
+| `TUIST_CLICKHOUSE_RETENTION_BUNDLES_DAYS` | Optional TTL, in days, for app bundle and bundle artifact metadata tables | No | | `180` |
+| `TUIST_CLICKHOUSE_RETENTION_SHARDS_DAYS` | Optional TTL, in days, for shard plan, shard assignment, and shard run tables | No | | `90` |
+| `TUIST_CLICKHOUSE_RETENTION_RUNNERS_DAYS` | Optional TTL, in days, for runner job, step, log, and machine-metric tables | No | existing log/metric table default | `90` |
+| `TUIST_CLICKHOUSE_RETENTION_WEBHOOKS_DAYS` | Optional TTL, in days, for outbound webhook delivery-attempt history | No | | `180` |
+| `TUIST_CLICKHOUSE_RETENTION_REGISTRY_DAYS` | Optional TTL, in days, for Swift registry download events | No | | `180` |
+| `TUIST_CLICKHOUSE_RETENTION_AUTOMATIONS_DAYS` | Optional TTL, in days, for automation alert event history | No | | `180` |
+| `TUIST_CLICKHOUSE_RETENTION_KURA_DAYS` | Optional TTL, in days, for Kura usage events | No | | `90` |
+| `TUIST_CLICKHOUSE_RETENTION_QA_DAYS` | Optional TTL, in days, for QA log rows | No | existing table default | `14` |
+| `TUIST_CLICKHOUSE_RETENTION_TABLES_JSON` | Optional JSON object of per-table TTL overrides for known Tuist-owned ClickHouse tables. Values are days; `0` disables that table when a default or domain TTL is set | No | | `{"test_case_runs":30}` |
 
 When `TUIST_DATABASE_SCHEMA` is not `public`, release migrations create the schema if it does not already exist before running the Ecto migration chain. If the migration role cannot create schemas, pre-create the schema and make the migration role its owner.
 
@@ -368,6 +388,15 @@ We provide a comprehensive Docker Compose configuration that includes all requir
    # Edit .env and add your TUIST_LICENSE, TUIST_SECRET_KEY_BASE, and authentication credentials
    ```
 
+   The bundled ClickHouse service accepts these optional operational log controls:
+
+   | Environment variable | Description | Default | Example |
+   | --- | --- | --- | --- |
+   | `CLICKHOUSE_SYSTEM_LOG_TTL_DAYS` | Retention window, in days, for ClickHouse `system.*` log tables such as `text_log`, `query_log`, `trace_log`, `metric_log`, and `part_log` | `14` | `7` |
+   | `CLICKHOUSE_TEXT_LOG_LEVEL` | ClickHouse server logger and `system.text_log` level | `information` | `warning` |
+
+   The Tuist container also accepts the `TUIST_CLICKHOUSE_RETENTION_*` variables from the database configuration table above. For example, set `TUIST_CLICKHOUSE_RETENTION_TESTS_DAYS=90` to cap test analytics tables or `TUIST_CLICKHOUSE_RETENTION_TABLES_JSON={"test_case_runs":30}` to override an individual table.
+
 3. Start all services:
    ```bash
    docker compose up -d
@@ -536,12 +565,19 @@ clickhouse:
   embedded:
     service:
       nativePort: 9100
+    systemLogs:
+      ttlDays: 7
+      level: warning
 ```
 
 Use these overrides only when your cluster requires them:
 
 - `cache.podSecurityContext` is empty by default. Set `fsGroup` if your storage class or CSI driver needs shared group ownership on mounted volumes.
 - `clickhouse.embedded.service.nativePort` defaults to ClickHouse's standard `9000` native service port and can be changed when a service mesh or platform reserve conflicts with that port.
+- `clickhouse.embedded.systemLogs.ttlDays` defaults to `14` and applies to embedded ClickHouse internal log tables such as `system.text_log`, `system.query_log`, `system.trace_log`, `system.metric_log`, and `system.part_log`. Set it to an empty value to leave ClickHouse's default unbounded retention.
+- `clickhouse.embedded.systemLogs.level` defaults to `information` for the embedded ClickHouse server logger and `system.text_log`.
+- `clickhouse.retention.*Days` configures optional Tuist-owned ClickHouse product-data TTLs by domain. For example, `clickhouse.retention.testsDays=90` applies a 90-day TTL to known test-run and test analytics tables, while `clickhouse.retention.buildsDays=90` applies to build analytics tables.
+- `clickhouse.retention.defaultDays` applies a fallback TTL to every known Tuist-owned ClickHouse product-data table. `clickhouse.retention.tableDays` accepts per-table overrides such as `{test_case_runs: 30}`; set a domain or table value to `0` to disable it when a broader TTL is configured.
 
 ### Observability {#helm-observability}
 

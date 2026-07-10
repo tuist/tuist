@@ -162,6 +162,15 @@ An export reflects the artifacts present at export time; binaries already
 purged under these windows are no longer available, though their metadata and
 the account-level cleanup cursor are still exported.
 
+Self-hosted deployments can also configure ClickHouse TTLs for Tuist-owned
+analytics tables through `TUIST_CLICKHOUSE_RETENTION_DEFAULT_DAYS`,
+domain-specific variables such as `TUIST_CLICKHOUSE_RETENTION_TESTS_DAYS`, and
+`TUIST_CLICKHOUSE_RETENTION_TABLES_JSON` for known table overrides. Those TTLs
+are applied by the Tuist migration step and remove expired ClickHouse rows at
+the database layer. Exports include the ClickHouse analytics rows present at
+export time; rows already removed by a configured ClickHouse TTL are no longer
+available for export.
+
 ## Export Process
 
 1. Verify user identity and account ownership
