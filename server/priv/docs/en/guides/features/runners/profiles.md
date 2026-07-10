@@ -61,23 +61,11 @@ macOS profiles also pin an **Xcode version**. The version selects a runner image
 > [!NOTE]
 > The catalog evolves as we add hardware and Xcode releases. The **New profile** form in the dashboard always shows the shapes and Xcode versions currently available to your account, so treat it as the source of truth.
 
-## Fields {#fields}
-
-| Field           | Applies to     | Notes |
-| --------------- | -------------- | ----- |
-| **Name**        | all            | Lowercase letters, digits, and hyphens; must start with a letter; up to 32 characters. Unique within your account and **immutable after creation**, so the label your workflows use never changes underneath them. |
-| **Platform**    | all            | `linux` or `macos`. |
-| **vCPUs / Memory** | all         | A `(vCPUs, memory)` pair from the <.localized_link href="/guides/features/runners/profiles#machine-shapes">machine shape catalog</.localized_link> for the chosen platform. |
-| **Xcode version** | macOS        | The Xcode release preinstalled on the runner image. Required for macOS profiles, ignored for Linux. |
-
-> [!NOTE]
-> `runner`, `runners`, and `tuist` are reserved and can't be used as profile names, so labels like `tuist-tuist` never appear.
-
 ## Creating a profile {#creating-a-profile}
 
 1. Open the **Runners → Profiles** section of your account dashboard.
 2. Choose **New profile**.
-3. Give it a name, pick a platform, and select a shape. For macOS, also choose an Xcode version. The form only offers shapes and Xcode versions currently available to your account.
+3. Give it a name, pick a platform, and select a shape. For macOS, also choose an Xcode version.
 4. Save, then reference it from a workflow with `runs-on: tuist-<name>`.
 
 For example, a profile named `linux-large` on the 8 vCPU / 32 GB shape:
@@ -95,9 +83,3 @@ jobs:
   build-legacy:
     runs-on: tuist-xcode-26-4
 ```
-
-## Limits {#limits}
-
-- Up to **10 profiles** per account.
-- A profile's **name can't be changed** once created. To "rename", create a new profile and update your workflows to point at it, then delete the old one.
-- **Protected** profiles (the default `linux` and `macos`) can't be deleted.
