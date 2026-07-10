@@ -1,7 +1,7 @@
 [tools]
     aube = "1.6.2"
     # Auto-bumped to the latest Tuist CLI release (incl. canary) by the update-tuist-cli workflow.
-    tuist = "4.203.0-canary.16"
+    tuist = "4.203.0-canary.19"
     swiftlint = "0.59.1"
     "elixir" = "1.20.2"
     "erlang" = "29.0.3"

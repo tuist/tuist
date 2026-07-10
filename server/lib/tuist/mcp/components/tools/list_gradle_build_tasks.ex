@@ -32,6 +32,43 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuildTasks do
         }
       },
       "required" => ["build_run_id"]
+    },
+    output_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "tasks" => %{
+          "type" => "array",
+          "items" => %{
+            "type" => "object",
+            "properties" => %{
+              "id" => %{"type" => "string"},
+              "task_path" => %{"type" => "string"},
+              "task_type" => %{"type" => "string"},
+              "outcome" => %{"type" => "string"},
+              "cacheable" => %{"type" => "boolean"},
+              "duration_ms" => %{"type" => "integer"},
+              "cache_key" => %{"type" => ["string", "null"]},
+              "cache_artifact_size" => %{"type" => ["integer", "null"]},
+              "started_at" => %{"type" => ["string", "null"]}
+            },
+            "required" => [
+              "id",
+              "task_path",
+              "task_type",
+              "outcome",
+              "cacheable",
+              "duration_ms",
+              "cache_key",
+              "cache_artifact_size",
+              "started_at"
+            ],
+            "additionalProperties" => false
+          }
+        },
+        "pagination_metadata" => Tuist.MCP.Tool.pagination_metadata_schema()
+      },
+      "required" => ["tasks", "pagination_metadata"],
+      "additionalProperties" => false
     }
 
   alias Tuist.Gradle

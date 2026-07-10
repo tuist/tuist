@@ -2,6 +2,10 @@
   padding-left: var(--noora-spacing-5);
 }
 
+.tuist-docs :is(ul, ol) > li + li {
+  margin-top: var(--noora-spacing-5);
+}
+
 .tuist-docs .noora-alert [data-part="description"] > * + * {
   margin-top: var(--noora-spacing-5);
 }

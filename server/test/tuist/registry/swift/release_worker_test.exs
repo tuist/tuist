@@ -117,6 +117,57 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
              })
   end
 
+  test "returns an error so Oban retries when release metadata is locked" do
+    expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
+      {:ok, :acquired}
+    end)
+
+    expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+      {:error, :not_found}
+    end)
+
+    expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
+      {:ok, [%{"path" => "Package.swift", "type" => "file"}]}
+    end)
+
+    expect(TuistCommon.GitHub, :get_file_content, 2, fn
+      "apple/swift-argument-parser", "token", "Package.swift", "v1.0.0", _ ->
+        {:ok, @default_manifest_content}
+
+      "apple/swift-argument-parser", "token", ".gitmodules", "v1.0.0", _ ->
+        {:error, :not_found}
+    end)
+
+    expect(TuistCommon.GitHub, :download_zipball, fn "apple/swift-argument-parser", "token", "v1.0.0", archive_path, _ ->
+      write_basic_zipball(archive_path)
+      :ok
+    end)
+
+    expect(Upload, :stream_file, fn path -> [File.read!(path)] end)
+
+    expect(ExAws.S3, :upload, fn _stream, "test-bucket", key, _opts ->
+      %S3{http_method: :put, bucket: "test-bucket", path: key}
+    end)
+
+    expect(ExAws, :request, 2, fn _operation ->
+      {:ok, %{status_code: 200, body: ""}}
+    end)
+
+    expect(Lock, :try_acquire, fn {:package, "apple", "swift-argument-parser"}, _ ->
+      {:error, :already_locked}
+    end)
+
+    assert {:error, {:release_metadata_locked, "apple", "swift-argument-parser", "1.0.0"}} =
+             ReleaseWorker.perform(%Oban.Job{
+               args: %{
+                 "scope" => "apple",
+                 "name" => "swift-argument-parser",
+                 "repository_full_handle" => "apple/swift-argument-parser",
+                 "tag" => "v1.0.0"
+               }
+             })
+  end
+
   test "deduplicates manifest metadata by Swift tools version" do
     expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
       {:ok, :acquired}

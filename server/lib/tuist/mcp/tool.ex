@@ -4,6 +4,8 @@ defmodule Tuist.MCP.Tool do
   alias Tuist.MCP.Authorization
   alias Tuist.Projects
 
+  require Logger
+
   # --- Macro ---
 
   defmacro __using__(opts) do
@@ -23,7 +25,8 @@ defmodule Tuist.MCP.Tool do
                 args,
                 unquote(action),
                 unquote(category),
-                &execute/3
+                &execute/3,
+                __MODULE__
               )
             end
           end
@@ -32,7 +35,7 @@ defmodule Tuist.MCP.Tool do
           quote do
             @impl EMCP.Tool
             def call(conn, args) do
-              Tuist.MCP.Tool.respond(execute(conn, args))
+              Tuist.MCP.Tool.respond(execute(conn, args), __MODULE__)
             end
           end
       end
@@ -42,6 +45,11 @@ defmodule Tuist.MCP.Tool do
 
       @mcp_tool_name Keyword.fetch!(unquote(opts), :name)
       @mcp_tool_schema Keyword.fetch!(unquote(opts), :schema)
+      @mcp_tool_output_schema Tuist.MCP.Tool.validate_output_schema!(
+                                @mcp_tool_name,
+                                Keyword.fetch!(unquote(opts), :output_schema)
+                              )
+      @mcp_tool_resolved_output_schema ExJsonSchema.Schema.resolve(@mcp_tool_output_schema)
       @mcp_tool_title Keyword.fetch!(unquote(opts), :title)
       @mcp_tool_read_only_hint Keyword.get(unquote(opts), :read_only_hint, true)
       @mcp_tool_open_world_hint Keyword.get(unquote(opts), :open_world_hint, false)
@@ -52,6 +60,10 @@ defmodule Tuist.MCP.Tool do
 
       @impl EMCP.Tool
       def input_schema, do: @mcp_tool_schema
+
+      def output_schema, do: @mcp_tool_output_schema
+
+      def resolved_output_schema, do: @mcp_tool_resolved_output_schema
 
       @impl EMCP.Tool
       def annotations do
@@ -71,13 +83,13 @@ defmodule Tuist.MCP.Tool do
 
   # --- Call dispatchers ---
 
-  def respond({:ok, data}), do: json_response(data)
-  def respond({:error, message}) when is_binary(message), do: EMCP.Tool.error(message)
-  def respond({:error, other}), do: EMCP.Tool.error(inspect(other))
+  def respond({:ok, data}, module), do: json_response(data, module)
+  def respond({:error, message}, _module) when is_binary(message), do: EMCP.Tool.error(message)
+  def respond({:error, other}, _module), do: EMCP.Tool.error(inspect(other))
 
-  def call_with_project(conn, args, action, category, execute_fn) do
+  def call_with_project(conn, args, action, category, execute_fn, module) do
     case resolve_and_authorize_project(args, conn.assigns, action, category) do
-      {:ok, project} -> respond(execute_fn.(conn, args, project))
+      {:ok, project} -> respond(execute_fn.(conn, args, project), module)
       {:error, message} -> EMCP.Tool.error(message)
     end
   end
@@ -121,8 +133,67 @@ defmodule Tuist.MCP.Tool do
 
   # --- Response helpers ---
 
-  def json_response(data) do
-    EMCP.Tool.response([%{"type" => "text", "text" => JSON.encode!(data)}])
+  def json_response(data, module) when is_map(data) do
+    encoded = JSON.encode!(data)
+    structured_content = JSON.decode!(encoded)
+
+    validate_structured_content(module, structured_content)
+
+    %{
+      "content" => [%{"type" => "text", "text" => encoded}],
+      "structuredContent" => structured_content
+    }
+  end
+
+  def json_response(data, module) do
+    raise ArgumentError,
+          "MCP tool #{module.name()} must return a map as structured content, got: #{inspect(data)}"
+  end
+
+  def descriptor(module) do
+    module
+    |> EMCP.Tool.to_map()
+    |> Map.put("outputSchema", module.output_schema())
+  end
+
+  @doc """
+  Asserts at compile time that a tool declares an object output schema. Tools that
+  violate this would otherwise only fail once a client requested `tools/list`, taking
+  down tool discovery for every other tool along with them.
+  """
+  def validate_output_schema!(name, schema) do
+    if not is_map(schema) or (schema["type"] not in ["object", :object] and schema[:type] not in ["object", :object]) do
+      raise ArgumentError, "MCP tool #{name} must provide an object output schema"
+    end
+
+    schema
+  end
+
+  @doc """
+  The output schema fragment describing `pagination_metadata/1`. Shared so the schema
+  and the payload it describes cannot drift apart.
+  """
+  def pagination_metadata_schema do
+    %{
+      "type" => "object",
+      "properties" => %{
+        "has_next_page" => %{"type" => "boolean"},
+        "has_previous_page" => %{"type" => "boolean"},
+        "total_count" => %{"type" => "integer"},
+        "total_pages" => %{"type" => "integer"},
+        "current_page" => %{"type" => "integer"},
+        "page_size" => %{"type" => "integer"}
+      },
+      "required" => [
+        "has_next_page",
+        "has_previous_page",
+        "total_count",
+        "total_pages",
+        "current_page",
+        "page_size"
+      ],
+      "additionalProperties" => false
+    }
   end
 
   @max_page_size 100
@@ -154,6 +225,27 @@ defmodule Tuist.MCP.Tool do
   end
 
   # --- Internal helpers ---
+
+  # Schema drift is a bug in the tool's declared output schema, not in the caller's
+  # request. Raise where a test or a developer will see it, but never turn a
+  # successful query into a 500 for a client that could have used the response.
+  # Logged at :error so the Sentry handler, which only captures :error, reports it.
+  defp validate_structured_content(module, structured_content) do
+    case ExJsonSchema.Validator.validate(module.resolved_output_schema(), structured_content) do
+      :ok ->
+        :ok
+
+      {:error, errors} ->
+        message = "MCP tool #{module.name()} returned invalid structured content: #{inspect(errors)}"
+
+        if Tuist.Environment.dev?() or Tuist.Environment.test?() do
+          raise message
+        else
+          Logger.error(message)
+          :ok
+        end
+    end
+  end
 
   defp load_resource({:ok, resource}, _message), do: {:ok, resource}
   defp load_resource({:error, :not_found}, message), do: {:error, message}

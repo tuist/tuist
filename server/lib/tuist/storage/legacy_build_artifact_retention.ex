@@ -15,6 +15,7 @@ defmodule Tuist.Storage.LegacyBuildArtifactRetention do
         bucket_name: bucket_name(storage_provider),
         object_matches?: &legacy_build_artifact?/1,
         orphaned_account_plan: @orphaned_account_plan,
+        retention_days: Keyword.get(opts, :retention_days),
         retention_artifact_type: :build_archive,
         storage_provider: storage_provider
       },

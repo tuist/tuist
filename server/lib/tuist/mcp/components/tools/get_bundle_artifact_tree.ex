@@ -15,6 +15,27 @@ defmodule Tuist.MCP.Components.Tools.GetBundleArtifactTree do
         }
       },
       "required" => ["bundle_id"]
+    },
+    output_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "bundle_id" => %{"type" => "string"},
+        "artifacts" => %{
+          "type" => "array",
+          "items" => %{
+            "type" => "object",
+            "properties" => %{
+              "artifact_type" => %{"type" => "string"},
+              "path" => %{"type" => "string"},
+              "size" => %{"type" => "integer"}
+            },
+            "required" => ["artifact_type", "path", "size"],
+            "additionalProperties" => false
+          }
+        }
+      },
+      "required" => ["bundle_id", "artifacts"],
+      "additionalProperties" => false
     }
 
   alias Tuist.Bundles

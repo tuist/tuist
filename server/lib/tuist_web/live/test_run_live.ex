@@ -9,6 +9,7 @@ defmodule TuistWeb.TestRunLive do
   import TuistWeb.Helpers.TestLabels
   import TuistWeb.Helpers.VCSLinks
   import TuistWeb.Previews.PlatformIcon
+  import TuistWeb.Runs.CIContextCard
   import TuistWeb.Runs.ModuleCacheTab
   import TuistWeb.Runs.RanByBadge
   import TuistWeb.Runs.SelectiveTestingTab
@@ -17,12 +18,16 @@ defmodule TuistWeb.TestRunLive do
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
   alias Tuist.Projects
+  alias Tuist.Runners.Jobs
+  alias Tuist.Runners.JobSteps
   alias Tuist.Shards.ShardPlan
   alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Xcode
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.RunnerJobLive
+  alias TuistWeb.RunnerWorkflowsLive
   alias TuistWeb.Utilities.Query
 
   @table_page_size 20
@@ -57,8 +62,6 @@ defmodule TuistWeb.TestRunLive do
 
     project = Tuist.Repo.preload(project, vcs_connection: :github_app_installation)
 
-    run = Map.put(run, :project, project)
-
     # A run that was processed across multiple retries (e.g. before a fix) can
     # carry duplicate identical destination rows, since create_run_destinations
     # inserts a fresh row per attempt. Collapse them to distinct devices.
@@ -66,6 +69,10 @@ defmodule TuistWeb.TestRunLive do
       run
       | run_destinations: Enum.uniq_by(run.run_destinations, &{&1.name, &1.platform, &1.os_version})
     }
+
+    ci_run_url = Tests.test_ci_run_url(run)
+    ci_context = test_ci_context(run, socket.assigns.selected_account, ci_run_url)
+    run = Map.put(run, :project, project)
 
     [command_event, test_metrics, failures_count] =
       Tuist.Tasks.parallel_tasks([
@@ -86,6 +93,8 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:selected_project, project)
       |> assign(:run, run)
       |> assign(:command_event, command_event)
+      |> assign(:ci_run_url, ci_run_url)
+      |> assign(:ci_context, ci_context)
       |> assign(:module_cache_metrics, command_event && CommandEvents.module_cache_output_metrics(command_event.id))
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Run")} · #{slug} · Tuist")
       |> assign(:test_metrics, test_metrics)
@@ -126,6 +135,61 @@ defmodule TuistWeb.TestRunLive do
       CommandEvents.has_result_bundle?(run.id, project) -> run.id
       true -> nil
     end
+  end
+
+  defp test_ci_context(run, selected_account, ci_run_url) when not is_nil(ci_run_url) do
+    with "github" <- normalize_ci_provider(Map.get(run, :ci_provider)),
+         repository when is_binary(repository) and repository != "" <- Map.get(run, :ci_project_handle),
+         workflow_run_id when is_integer(workflow_run_id) <- parse_workflow_run_id(Map.get(run, :ci_run_id)),
+         jobs when jobs != [] <- Jobs.list_for_workflow_run(selected_account.id, repository, workflow_run_id),
+         runner_job when not is_nil(runner_job) <- matching_test_job(jobs) do
+      steps = JobSteps.list_for_job(runner_job.workflow_job_id)
+      matched_step = matching_test_step(steps)
+
+      %{
+        matched_step: matched_step,
+        matched_step_path: RunnerJobLive.step_path(selected_account.name, runner_job, matched_step),
+        runner_job: runner_job,
+        runner_job_path: RunnerJobLive.path(selected_account.name, runner_job),
+        workflow_path: RunnerWorkflowsLive.workflow_path(selected_account.name, runner_job)
+      }
+    else
+      _ -> nil
+    end
+  end
+
+  defp test_ci_context(_, _, _), do: nil
+
+  defp normalize_ci_provider(provider) when is_binary(provider), do: provider
+  defp normalize_ci_provider(provider) when is_atom(provider), do: Atom.to_string(provider)
+  defp normalize_ci_provider(_), do: nil
+
+  defp parse_workflow_run_id(value) when is_integer(value) and value > 0, do: value
+
+  defp parse_workflow_run_id(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {workflow_run_id, ""} when workflow_run_id > 0 -> workflow_run_id
+      _ -> nil
+    end
+  end
+
+  defp parse_workflow_run_id(_), do: nil
+
+  defp matching_test_job(jobs), do: find_ci_job_by_name(jobs, ["test"])
+  defp matching_test_step(steps), do: find_ci_step_by_name(steps, ["test"])
+
+  defp find_ci_job_by_name(jobs, needles) do
+    Enum.find(jobs, fn job ->
+      name = job |> Map.get(:job_name, "") |> String.downcase()
+      Enum.any?(needles, &String.contains?(name, &1))
+    end)
+  end
+
+  defp find_ci_step_by_name(steps, needles) do
+    Enum.find(steps, fn step ->
+      name = step |> Map.get(:name, "") |> String.downcase()
+      Enum.any?(needles, &String.contains?(name, &1))
+    end)
   end
 
   def handle_params(_params, uri, socket) do
@@ -306,11 +370,15 @@ defmodule TuistWeb.TestRunLive do
   defp reload_run_state(%{assigns: %{run: run, selected_project: project, selected_tab: selected_tab, uri: uri}} = socket) do
     case Tests.get_test(run.id, preload: [:ran_by_account, :build_run, :gradle_build, :shard_plan, :run_destinations]) do
       {:ok, refreshed_run} ->
+        ci_run_url = Tests.test_ci_run_url(refreshed_run)
+        ci_context = test_ci_context(refreshed_run, socket.assigns.selected_account, ci_run_url)
         refreshed_run = Map.put(refreshed_run, :project, project)
         params = URI.decode_query(uri.query || "")
 
         socket
         |> assign(:run, refreshed_run)
+        |> assign(:ci_run_url, ci_run_url)
+        |> assign(:ci_context, ci_context)
         |> assign_initial_analytics_state()
         |> assign_initial_test_cases_state()
         |> assign_initial_failures_state()

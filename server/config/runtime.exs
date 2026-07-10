@@ -595,7 +595,20 @@ oban_queues =
 # lands in prod.
 mode = Tuist.Environment.mode()
 
-crontab = RuntimeConfig.crontab(mode, env, Tuist.Environment.tuist_hosted?())
+swift_registry_sync_enabled =
+  "SWIFT_REGISTRY_SYNC_ENABLED"
+  |> System.get_env("true")
+  |> String.downcase()
+  |> Kernel.in(["1", "true"])
+
+crontab =
+  RuntimeConfig.crontab(
+    mode,
+    env,
+    Tuist.Environment.tuist_hosted?(),
+    swift_registry_sync_enabled?: swift_registry_sync_enabled,
+    artifact_retention_days: Tuist.Environment.artifact_retention_days()
+  )
 
 config :tuist, Oban,
   queues: oban_queues,
@@ -642,8 +655,7 @@ swift_registry_sync_limit =
 config :tuist, :registry,
   bucket: System.get_env("S3_REGISTRY_BUCKET"),
   swift_github_token: System.get_env("SWIFT_REGISTRY_GITHUB_TOKEN"),
-  swift_sync_enabled:
-    "SWIFT_REGISTRY_SYNC_ENABLED" |> System.get_env("true") |> String.downcase() |> Kernel.in(["1", "true"]),
+  swift_sync_enabled: swift_registry_sync_enabled,
   swift_sync_allowlist: swift_registry_sync_allowlist,
   swift_sync_limit: swift_registry_sync_limit
 
