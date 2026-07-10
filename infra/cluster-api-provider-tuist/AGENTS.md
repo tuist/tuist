@@ -348,111 +348,43 @@ kubectl get events --field-selector involvedObject.kind=ScalewayAppleSiliconMach
 
 ### Make `kubectl logs`/`exec` work on a fleet node
 
-The apiserver reaches a node's kubelet on `:10250` directly, so `kubectl logs`,
-`exec`, `attach`, and `port-forward` against a fleet node (Dedibox / Scaleway
-Elastic Metal / OVH) depend on three things being right at once. They fail with a
-*different* symptom per layer — diagnose by the error, not by guessing:
+The apiserver dials the kubelet at the node's InternalIP:10250. When
+`logs`/`exec`/`attach`/`port-forward` fail against a fleet node (Dedibox / Elastic
+Metal / OVH), the error says which piece is off:
 
-| Symptom on `kubectl logs <fleet-pod>` | Layer | Fix |
-|---|---|---|
-| `dial tcp: lookup <node> … no such host` | 1. apiserver dials the unresolvable Hostname because its `--kubelet-preferred-address-types` lacks `InternalIP` | declarative: the Cluster-CR variable + mgmt-apply roll the CP (below) |
-| `remote error: tls: internal error` | 2. kubelet has no serving cert (`serverTLSBootstrap` + unapprovable SA-identity CSR) | converges automatically (drift loop); re-provision to force |
-| `401`/anonymous / `Unauthorized` | 3. kubelet has no `clientCAFile`, so the apiserver's client cert isn't trusted | converges automatically (drift loop); re-provision to force |
+| `kubectl logs <fleet-pod>` error | Fix |
+|---|---|
+| `dial tcp: lookup <node> … no such host` | apiserver's `--kubelet-preferred-address-types` is missing `InternalIP`. It comes from the `kubeletPreferredAddressTypes` variable in `infra/k8s/clusters/cluster-<env>.yaml`; applying that Cluster CR via `mgmt-cluster-apply` rolls the CP with it. If the running flag doesn't change, the KCP is stuck: `kubectl -n <ns> describe kcp <name>` (a roll blocked behind a CP Machine with no Node). |
+| `remote error: tls: internal error` | kubelet has no serving cert. |
+| `401` / `Unauthorized` | kubelet config is missing `clientCAFile`. |
 
-Layers 2 and 3 are fixed in `controllers/linux/linux_cloudinit.go` (self-signed
-serving cert + cluster CA on disk as `clientCAFile`) and **converge onto existing
-nodes automatically** via the kubelet-config drift loop
-(`controllers/linux/kubelet_config_drift.go`): each already-Ready node carries a
-`tuist.dev/kubelet-config-hash` annotation, and when the rendered config changes
-(new operator image) the controller SSHes a minimal, zero-downtime re-push
-(rewrite `/var/lib/kubelet/{ca.crt,config.yaml}` + `systemctl restart kubelet` —
-containerd, apt, and the `/data` mounts are untouched, so running pods survive).
-So after the provider image rolls, the fleet picks up the config on the next
-reconcile with **no manual step**. Confirm convergence:
+The kubelet-config rows converge on their own after a new operator image rolls;
+check the node picked it up (the stamped hash appears once the re-push ran):
 
 ```bash
-# The node's stamped hash appears once the re-push has run:
 kubectl get node <fleet-node> -o jsonpath='{.metadata.annotations.tuist\.dev/kubelet-config-hash}'
 ```
 
-To force it immediately (or if a node is stuck), re-provision — the MachineSet
-re-creates + re-joins it on the current image, cache re-warms from the mesh
-(non-disruptive, same as "Replace a wedged host"):
+`kubectl delete machine <name>` re-provisions to force it. On **Elastic Metal**,
+two things bite:
 
-```bash
-kubectl delete machine <fleet-machine-name>
-```
+- The re-push SSHes in with the fleet key, so the box must be authorized with it.
+  `ssh: unable to authenticate … [none publickey]` means it isn't, and the box is
+  re-keyed only at reinstall with the key of `machine.Spec.FleetName`. An empty
+  `fleetName` uses a per-machine key that mismatches, so make sure it's set.
+- A reinstalled box can fail apt (`exited with status 100`) when PN DHCP writes
+  `/etc/resolv.conf` with only `nameserver 169.254.169.254`, which the box
+  firewalls off. SSH in as `ubuntu` and swap it for `nameserver 1.1.1.1`.
 
-**Two Elastic Metal re-provision gotchas** (from recovering the kura node):
-- The drift-loop re-push — and any re-provision — SSHes into the box with the fleet
-  key, so it only works if that key is authorized on the host. Reconcile showing
-  `ssh: unable to authenticate, attempted methods [none publickey]` means the box
-  doesn't hold the operator's current fleet key, so the drift loop **cannot**
-  self-heal it. On Elastic Metal the box is re-authorized only at (re)install, and
-  `kubectl delete machine` reinstalls it with the key of `machine.Spec.FleetName`
-  — so make sure the machine has `fleetName` set. A machine with an **empty**
-  `fleetName` uses a throwaway *per-machine* key (`<ns>-<machine>-ssh`) that churns
-  on every recreate and can leave the box holding a key that doesn't match the
-  shared fleet key the next machine presents. `kura-fleet.yaml` sets `fleetName`; a
-  live machine cloned before that was added keeps the empty value until recreated.
-- A freshly-reinstalled EM box can then fail to bootstrap at package install
-  (`run bootstrap … exited with status 100`) because DNS is broken: Scaleway's PN
-  DHCP writes `/etc/resolv.conf` with only `nameserver 169.254.169.254` (the
-  metadata/PN resolver), which the box firewalls off (`permission denied`), so apt
-  can't reach the mirror — even though public egress + public resolvers work.
-  Tactical unblock (SSH in as `ubuntu` with the fleet key): replace that line with
-  `nameserver 1.1.1.1`. Not durable (a DHCP renewal can revert it); the real fix
-  belongs in the EM bootstrap — after PN attach, ensure resolv.conf carries a
-  reachable resolver instead of only the blocked metadata address.
-
-Layer 1 is Cluster-CR config that **rolls declaratively — there is no separate
-workflow or manual trigger**. The apiserver flag comes from the
-`kubeletPreferredAddressTypes` variable (already `ExternalIP,InternalIP,Hostname,…`
-per env in `infra/k8s/clusters/cluster-<env>.yaml`); a ClusterClass patch rebuilds
-the KCP's `apiServer.extraArgs` from it, and per that patch's own contract,
-**setting the variable regenerates the KubeadmControlPlane and rolls its CP**. So
-applying the Cluster CR through `mgmt-cluster-apply` (push to `main` touching
-`infra/k8s/clusters/**`) is the whole mechanism — kubeadm bakes the flag into the
-apiserver static-pod manifest as the new CP machine joins.
-
-If a fleet node still dials the Hostname after that apply, the roll didn't
-*complete* — almost always a **wedged/stuck KCP**, not a missing trigger. Diagnose:
-
-```bash
-# WORKLOAD cluster: is the running apiserver actually missing InternalIP?
-kubectl -n kube-system get pod -l component=kube-apiserver \
-  -o jsonpath='{.items[0].spec.containers[0].command}' | tr ',' '\n' | grep preferred-address
-
-# MGMT cluster: does the KCP's desired config already carry InternalIP?
-kubectl -n <cluster-ns> get kubeadmcontrolplane <kcp-name> \
-  -o jsonpath='{.spec.kubeadmConfigSpec.clusterConfiguration.apiServer.extraArgs}'
-
-# If yes but the CP never rolled, the KCP is stuck — look for a blocked roll
-# (RollingOut=True + ScalingUp blocked / MachinesReady=False behind a CP Machine
-# that has no Node). A `rolloutAfter` bump will NOT move a wedged KCP; fix the wedge
-# first (delete the dead CP Machine + orphaned infra so it can reconcile a healthy CP).
-kubectl -n <cluster-ns> describe kubeadmcontrolplane <kcp-name>
-```
-
-Do not reach for a manual `rolloutAfter` patch as the primary path: the variable
-apply already rolls a healthy KCP, and `rolloutAfter` can't roll a wedged one.
-`rolloutAfter` is only for forcing a roll with *no* config change (cert rotation,
-recovering a bad node), against a healthy KCP.
-
-Emergency Layer-1 bypass (a single wedged CP, e.g. staging): edit the running
-apiserver static pod directly — add `InternalIP` to
+Emergency bypass for a wedged CP: add `InternalIP` to
 `--kubelet-preferred-address-types` in
 `/etc/kubernetes/manifests/kube-apiserver.yaml` on the CP node (`kubectl debug
-node/<cp>` → `chroot /host`; back the file up *outside* `manifests/`, swap
-atomically, verify the apiserver returns on `:6443`). The KCP is external and never
-rewrites static-pod files on a running node, so the edit persists until the CP is
-rebuilt (which then carries `InternalIP` from the KCP config anyway).
-
-Verify end-to-end (Layers 1+2+3):
+node/<cp>` → `chroot /host`; back up outside `manifests/`, swap atomically). It
+persists until the CP is rebuilt.
 
 ```bash
-kubectl -n kube-system logs <pod-on-a-fleet-node> --tail=5   # streams (not a dial error)
-kubectl exec <pod-on-a-fleet-node> -- true                   # exec works
+kubectl -n kube-system logs <pod-on-a-fleet-node> --tail=5   # streams, no dial error
+kubectl exec <pod-on-a-fleet-node> -- true
 ```
 
 ### Unstick a host whose CAPI bootstrap is failing on sudo
