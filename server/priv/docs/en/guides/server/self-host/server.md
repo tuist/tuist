@@ -89,6 +89,8 @@ Tuist uses [ClickHouse](https://clickhouse.com/) for storing and querying large 
 >
 > The Docker image's entrypoint automatically runs any pending ClickHouse schema migrations before starting the service.
 
+The bundled Docker Compose and Helm embedded ClickHouse configurations also cap ClickHouse's own `system.*` operational log tables. They retain tables such as `system.text_log`, `system.query_log`, `system.trace_log`, `system.metric_log`, and `system.part_log` for 14 days by default and lower the ClickHouse text log level to `information`. External ClickHouse deployments should configure these operational logs directly in their ClickHouse service.
+
 
 ### Storage {#storage}
 
@@ -368,6 +370,13 @@ We provide a comprehensive Docker Compose configuration that includes all requir
    # Edit .env and add your TUIST_LICENSE, TUIST_SECRET_KEY_BASE, and authentication credentials
    ```
 
+   The bundled ClickHouse service accepts these optional operational log controls:
+
+   | Environment variable | Description | Default | Example |
+   | --- | --- | --- | --- |
+   | `CLICKHOUSE_SYSTEM_LOG_TTL_DAYS` | Retention window, in days, for ClickHouse `system.*` log tables such as `text_log`, `query_log`, `trace_log`, `metric_log`, and `part_log` | `14` | `7` |
+   | `CLICKHOUSE_TEXT_LOG_LEVEL` | ClickHouse server logger and `system.text_log` level | `information` | `warning` |
+
 3. Start all services:
    ```bash
    docker compose up -d
@@ -536,12 +545,17 @@ clickhouse:
   embedded:
     service:
       nativePort: 9100
+    systemLogs:
+      ttlDays: 7
+      level: warning
 ```
 
 Use these overrides only when your cluster requires them:
 
 - `cache.podSecurityContext` is empty by default. Set `fsGroup` if your storage class or CSI driver needs shared group ownership on mounted volumes.
 - `clickhouse.embedded.service.nativePort` defaults to ClickHouse's standard `9000` native service port and can be changed when a service mesh or platform reserve conflicts with that port.
+- `clickhouse.embedded.systemLogs.ttlDays` defaults to `14` and applies to embedded ClickHouse internal log tables such as `system.text_log`, `system.query_log`, `system.trace_log`, `system.metric_log`, and `system.part_log`. Set it to an empty value to leave ClickHouse's default unbounded retention.
+- `clickhouse.embedded.systemLogs.level` defaults to `information` for the embedded ClickHouse server logger and `system.text_log`.
 
 ### Observability {#helm-observability}
 

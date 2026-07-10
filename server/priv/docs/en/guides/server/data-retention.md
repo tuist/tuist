@@ -35,3 +35,5 @@ These windows define how long selected dashboard and activity data remains avail
 | Build machine metrics | 90 days |
 | Runner job logs, archived runner logs, and runner job machine metrics | 90 days |
 | Webhook delivery history | No fixed deletion schedule |
+
+ClickHouse's internal `system.*` operational log tables are configured at the ClickHouse layer rather than by Tuist's product data-retention policy. The bundled self-hosted Docker Compose and embedded Helm ClickHouse configurations retain those operational logs for 14 days by default.

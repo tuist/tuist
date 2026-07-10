@@ -2110,6 +2110,13 @@ clickhouse:
       # Exposed service port for ClickHouse's native protocol.
       # Override only if your service mesh or reserved ports require a different number.
       nativePort: 9000
+    systemLogs:
+      # Retention window for ClickHouse's internal system.* log tables.
+      # Set to an empty value to leave ClickHouse's default unbounded retention.
+      ttlDays: 14
+      # ClickHouse logger/text_log level. Lower this to debug/trace only while
+      # investigating ClickHouse itself; verbose levels can grow system.text_log quickly.
+      level: information
     database: tuist
     username: default
     password: ""
