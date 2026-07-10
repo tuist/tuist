@@ -30,11 +30,15 @@ The active account plan determines the Tuist Cloud retention window. If an accou
 
 Self-hosted artifact cleanup is opt-in and configured separately for each artifact type. Set an artifact type's environment variable to a positive integer number of days to enable its cleanup. Leaving a variable unset or blank disables cleanup only for that artifact type. Self-hosted windows are not capped at 30 days.
 
-For example, the following configuration deletes cache artifacts after 30 days and build archives after 60 days. It does not enable cleanup for the other artifact types.
+The following example enables every supported artifact type with an independent retention window. Omit a variable or leave it blank to keep cleanup disabled for that artifact type.
 
 ```bash
 TUIST_CACHE_ARTIFACT_RETENTION_DAYS=30
+TUIST_APP_PREVIEW_RETENTION_DAYS=30
 TUIST_BUILD_ARCHIVE_RETENTION_DAYS=60
+TUIST_RUN_ARTIFACT_RETENTION_DAYS=30
+TUIST_TEST_ATTACHMENT_RETENTION_DAYS=30
+TUIST_SHARD_BUNDLE_RETENTION_DAYS=14
 ```
 
 The supported variables and their object-storage scope are:

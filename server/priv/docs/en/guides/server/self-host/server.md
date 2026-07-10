@@ -297,7 +297,11 @@ Artifact cleanup is disabled by default on self-hosted instances. Each supported
 
 ```bash
 TUIST_CACHE_ARTIFACT_RETENTION_DAYS=30
+TUIST_APP_PREVIEW_RETENTION_DAYS=30
 TUIST_BUILD_ARCHIVE_RETENTION_DAYS=60
+TUIST_RUN_ARTIFACT_RETENTION_DAYS=30
+TUIST_TEST_ATTACHMENT_RETENTION_DAYS=30
+TUIST_SHARD_BUNDLE_RETENTION_DAYS=14
 ```
 
 With the Helm chart, configure the same windows as a map:
@@ -306,10 +310,14 @@ With the Helm chart, configure the same windows as a map:
 server:
   artifactRetentionDays:
     cacheArtifacts: 30
+    appPreviews: 30
     buildArchives: 60
+    runArtifacts: 30
+    testAttachments: 30
+    shardBundles: 14
 ```
 
-Only the configured artifact types are enabled. In this example, cache artifacts are deleted after 30 days and build archives after 60 days. The other artifact types are not cleaned. Self-hosted retention windows have no 30-day maximum. Configured values that are not positive integers cause the server to fail at startup.
+All six keys are optional. This example enables every supported artifact type with an independent retention window. Omit a key or leave its value blank to keep cleanup disabled for that artifact type. Self-hosted retention windows have no 30-day maximum. Configured values that are not positive integers cause the server to fail at startup.
 
 Restart the server after changing a retention variable. Every queued self-hosted cleanup batch checks the current configuration before deleting files, so unsetting or blanking a variable, or increasing its window, also protects files from pending jobs after the restart.
 

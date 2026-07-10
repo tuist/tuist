@@ -45,7 +45,11 @@ object storage. Omitted families remain untouched.
 server:
   artifactRetentionDays:
     cacheArtifacts: 30
+    appPreviews: 30
     buildArchives: 60
+    runArtifacts: 30
+    testAttachments: 30
+    shardBundles: 14
 ```
 
 ## Local validation
