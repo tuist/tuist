@@ -584,6 +584,11 @@ defmodule Tuist.Runners.Jobs do
   Lists the latest runner jobs that belong to a single GitHub workflow
   run. This powers reciprocal links from build/test insight pages back
   to the Tuist-owned runner job details for the same CI run.
+
+  The CI details card only needs enough job metadata to build dashboard
+  links, display profile/timing, and match a build/test step. Keep this
+  projection intentionally narrow while still collapsing lifecycle rows
+  with `argMax` because `runner_jobs` is a ReplacingMergeTree.
   """
   def list_for_workflow_run(account_id, repository, workflow_run_id, opts \\ [])
 
@@ -597,26 +602,16 @@ defmodule Tuist.Runners.Jobs do
     |> group_by([j], j.workflow_job_id)
     |> select([j], %{
       workflow_job_id: j.workflow_job_id,
-      account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at),
       fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
       repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
       workflow_run_id: fragment("argMax(?, ?)", j.workflow_run_id, j.updated_at),
       workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
-      run_attempt: fragment("argMax(?, ?)", j.run_attempt, j.updated_at),
       job_name: fragment("argMax(?, ?)", j.job_name, j.updated_at),
-      head_branch: fragment("argMax(?, ?)", j.head_branch, j.updated_at),
-      head_sha: fragment("argMax(?, ?)", j.head_sha, j.updated_at),
-      status: fragment("argMax(?, ?)", j.status, j.updated_at),
-      conclusion: fragment("argMax(?, ?)", j.conclusion, j.updated_at),
       enqueued_at: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at),
       claimed_at: fragment("argMax(?, ?)", j.claimed_at, j.updated_at),
       started_at: fragment("argMax(?, ?)", j.started_at, j.updated_at),
       completed_at: fragment("argMax(?, ?)", j.completed_at, j.updated_at),
-      pod_name: fragment("argMax(?, ?)", j.pod_name, j.updated_at),
-      runner_name: fragment("argMax(?, ?)", j.runner_name, j.updated_at),
-      log_archived_at: fragment("argMax(?, ?)", j.log_archived_at, j.updated_at),
-      requested_dispatch_label: fragment("argMax(?, ?)", j.requested_dispatch_label, j.updated_at),
-      updated_at: max(j.updated_at)
+      requested_dispatch_label: fragment("argMax(?, ?)", j.requested_dispatch_label, j.updated_at)
     })
     |> order_by([j],
       asc:
