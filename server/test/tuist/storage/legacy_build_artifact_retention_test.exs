@@ -44,6 +44,32 @@ defmodule Tuist.Storage.LegacyBuildArtifactRetentionTest do
       assert LegacyBuildArtifactRetention.delete_expired() == {:ok, "next-page"}
     end
 
+    test "uses an explicit retention window" do
+      expired_legacy_key = "tuist/app/builds/0123456789abcdef0123456789abcdef/App"
+      recent_legacy_key = "tuist/app/builds/fedcba9876543210fedcba9876543210/App"
+
+      expect(Environment, :s3_bucket_name, fn -> "storage-bucket" end)
+
+      expect(Storage, :list_objects_from_bucket, fn "storage-bucket",
+                                                    [prefix: "", max_keys: 1000, continuation_token: nil] ->
+        {:ok,
+         %{
+           body: %{
+             contents: [
+               %{key: expired_legacy_key, last_modified: DateTime.add(DateTime.utc_now(), -61, :day)},
+               %{key: recent_legacy_key, last_modified: DateTime.add(DateTime.utc_now(), -59, :day)}
+             ],
+             is_truncated: false
+           }
+         }}
+      end)
+
+      expect_accounts_and_plans([%Account{id: 1, name: "tuist"}])
+      expect_delete_objects([expired_legacy_key], "storage-bucket")
+
+      assert LegacyBuildArtifactRetention.delete_expired(retention_days: 60) == {:ok, nil}
+    end
+
     test "deletes legacy build artifacts older than 30 days for paid and free accounts" do
       pro_key = "pro-account/app/builds/0123456789abcdef0123456789abcdef/App"
       air_key = "air-account/app/builds/fedcba9876543210fedcba9876543210/App"

@@ -13,6 +13,7 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
   alias Tuist.AppBuilds.AppBuild
   alias Tuist.Builds
   alias Tuist.CommandEvents
+  alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Shards
   alias Tuist.Storage
@@ -25,10 +26,11 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
   alias Tuist.Tests
 
   describe "perform/1" do
-    test "the preview worker deletes expired previews according to the account plan" do
+    test "the preview worker uses an explicit retention window" do
       project = project_fixture()
       account = project.account
       subscription_fixture(account_id: account.id, plan: :air)
+      stub(Environment, :artifact_retention_days, fn -> %{app_previews: 60} end)
 
       expired_app_build =
         app_build_fixture(
@@ -36,10 +38,11 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
           inserted_at: DateTime.add(DateTime.utc_now(), -61, :day)
         )
 
-      app_build_fixture(
-        preview: preview_fixture(project: project),
-        inserted_at: DateTime.add(DateTime.utc_now(), -59, :day)
-      )
+      retained_app_build =
+        app_build_fixture(
+          preview: preview_fixture(project: project),
+          inserted_at: DateTime.add(DateTime.utc_now(), -59, :day)
+        )
 
       expired_app_build_key =
         AppBuilds.storage_key(%{account_handle: account.name, project_handle: project.name, app_build: expired_app_build})
@@ -51,6 +54,13 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
           preview_id: expired_app_build.preview_id
         })
 
+      retained_app_build_key =
+        AppBuilds.storage_key(%{
+          account_handle: account.name,
+          project_handle: project.name,
+          app_build: retained_app_build
+        })
+
       stub(Storage, :delete_objects, fn object_keys, %{id: account_id} ->
         assert account_id == account.id
         send(self(), {:deleted, object_keys})
@@ -60,12 +70,15 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
       assert :ok =
                perform_job(DeleteExpiredPreviewArtifactsWorker, %{
                  "account_id" => account.id,
-                 "batch_size" => 20
+                 "batch_size" => 20,
+                 "retention_days" => 30,
+                 "self_hosted" => true
                })
 
       assert_received {:deleted, object_keys}
       assert expired_app_build_key in object_keys
       assert expired_icon_key in object_keys
+      refute retained_app_build_key in object_keys
     end
 
     test "the preview worker persists progress across scheduled runs" do
@@ -114,7 +127,7 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
       assert second_keys == []
     end
 
-    test "a full batch self-enqueues the next page and the cursor advances past the oldest rows" do
+    test "a full batch reschedules the next page and the cursor advances past the oldest rows" do
       project = project_fixture()
       account = project.account
       subscription_fixture(account_id: account.id, plan: :air)
@@ -142,27 +155,33 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
         :ok
       end)
 
-      assert :ok =
-               perform_job(DeleteExpiredPreviewArtifactsWorker, %{"account_id" => account.id, "batch_size" => 1})
+      job =
+        insert_job(DeleteExpiredPreviewArtifactsWorker, %{
+          "account_id" => account.id,
+          "batch_size" => 1,
+          "retention_days" => 60
+        })
+
+      assert {:snooze, 0} = DeleteExpiredPreviewArtifactsWorker.perform(job)
 
       assert_received {:deleted, first_keys}
       assert older_key in first_keys
       refute newer_key in first_keys
 
-      assert_enqueued(
-        worker: DeleteExpiredPreviewArtifactsWorker,
-        args: %{"account_id" => account.id, "batch_size" => 1, "after_id" => older.id}
-      )
+      assert [continuation_job] = all_enqueued(worker: DeleteExpiredPreviewArtifactsWorker)
+
+      assert continuation_job.args == %{
+               "account_id" => account.id,
+               "batch_size" => 1,
+               "after_id" => older.id,
+               "after_inserted_at" => DateTime.to_iso8601(Repo.get(AppBuild, older.id).inserted_at),
+               "retention_days" => 60
+             }
 
       cursor_inserted_at = Repo.get(AppBuild, older.id).inserted_at
 
-      assert :ok =
-               perform_job(DeleteExpiredPreviewArtifactsWorker, %{
-                 "account_id" => account.id,
-                 "batch_size" => 1,
-                 "after_inserted_at" => DateTime.to_iso8601(cursor_inserted_at),
-                 "after_id" => older.id
-               })
+      assert continuation_job.args["after_inserted_at"] == DateTime.to_iso8601(cursor_inserted_at)
+      assert {:snooze, 0} = DeleteExpiredPreviewArtifactsWorker.perform(continuation_job)
 
       assert_received {:deleted, second_keys}
       assert newer_key in second_keys
@@ -203,13 +222,15 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
         :ok
       end)
 
-      assert :ok =
-               perform_job(DeleteExpiredPreviewArtifactsWorker, %{
-                 "account_id" => account.id,
-                 "batch_size" => 1,
-                 "after_inserted_at" => older_inserted_at |> DateTime.add(-1, :second) |> DateTime.to_iso8601(),
-                 "after_id" => "00000000-0000-0000-0000-000000000000"
-               })
+      job =
+        insert_job(DeleteExpiredPreviewArtifactsWorker, %{
+          "account_id" => account.id,
+          "batch_size" => 1,
+          "after_inserted_at" => older_inserted_at |> DateTime.add(-1, :second) |> DateTime.to_iso8601(),
+          "after_id" => "00000000-0000-0000-0000-000000000000"
+        })
+
+      assert {:snooze, 0} = DeleteExpiredPreviewArtifactsWorker.perform(job)
 
       assert_received {:deleted, _object_keys}
 
@@ -366,29 +387,23 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
         :ok
       end)
 
-      assert :ok =
-               perform_job(DeleteExpiredRunSessionsWorker, %{"account_id" => account.id, "batch_size" => 1})
+      job = insert_job(DeleteExpiredRunSessionsWorker, %{"account_id" => account.id, "batch_size" => 1})
+
+      assert {:snooze, 0} = DeleteExpiredRunSessionsWorker.perform(job)
 
       assert_received {:deleted, ^older_run_artifact_prefix}
       refute_received {:deleted, ^newer_run_artifact_prefix}
 
-      assert_enqueued(
-        worker: DeleteExpiredRunSessionsWorker,
-        args: %{
-          "account_id" => account.id,
-          "batch_size" => 1,
-          "after_inserted_at" => NaiveDateTime.to_iso8601(older_run.ran_at),
-          "after_id" => older_run.id
-        }
-      )
+      assert [continuation_job] = all_enqueued(worker: DeleteExpiredRunSessionsWorker)
 
-      assert :ok =
-               perform_job(DeleteExpiredRunSessionsWorker, %{
-                 "account_id" => account.id,
-                 "batch_size" => 1,
-                 "after_inserted_at" => NaiveDateTime.to_iso8601(older_run.ran_at),
-                 "after_id" => older_run.id
-               })
+      assert continuation_job.args == %{
+               "account_id" => account.id,
+               "batch_size" => 1,
+               "after_inserted_at" => NaiveDateTime.to_iso8601(older_run.ran_at),
+               "after_id" => older_run.id
+             }
+
+      assert {:snooze, 0} = DeleteExpiredRunSessionsWorker.perform(continuation_job)
 
       assert_received {:deleted, ^newer_run_artifact_prefix}
     end
@@ -529,5 +544,10 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
       assert_received {:deleted, object_keys}
       assert expired_shard_key in object_keys
     end
+  end
+
+  defp insert_job(worker, args) do
+    assert {:ok, job} = args |> worker.new() |> Oban.insert()
+    job
   end
 end

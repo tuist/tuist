@@ -595,7 +595,13 @@ oban_queues =
 # lands in prod.
 mode = Tuist.Environment.mode()
 
-crontab = RuntimeConfig.crontab(mode, env, Tuist.Environment.tuist_hosted?())
+crontab =
+  RuntimeConfig.crontab(
+    mode,
+    env,
+    Tuist.Environment.tuist_hosted?(),
+    Tuist.Environment.artifact_retention_days()
+  )
 
 config :tuist, Oban,
   queues: oban_queues,
