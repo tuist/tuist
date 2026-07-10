@@ -39,7 +39,7 @@ msgstr ""
 #: lib/tuist_web/live/flaky_tests_live.html.heex:10
 #: lib/tuist_web/live/test_cases_live.ex:390
 #: lib/tuist_web/live/test_cases_live.html.heex:10
-#: lib/tuist_web/live/test_runs_live.ex:364
+#: lib/tuist_web/live/test_runs_live.ex:366
 #: lib/tuist_web/live/tests_live.ex:421
 #: lib/tuist_web/live/tests_live.ex:430
 #: lib/tuist_web/live/tests_live.html.heex:17
@@ -159,7 +159,7 @@ msgstr ""
 #: lib/tuist_web/live/test_case_live.ex:135
 #: lib/tuist_web/live/test_cases_live.ex:392
 #: lib/tuist_web/live/test_cases_live.html.heex:26
-#: lib/tuist_web/live/test_runs_live.ex:366
+#: lib/tuist_web/live/test_runs_live.ex:365
 #: lib/tuist_web/live/tests_live.ex:423
 #: lib/tuist_web/live/tests_live.ex:424
 #: lib/tuist_web/live/tests_live.html.heex:48
@@ -622,7 +622,7 @@ msgstr ""
 #: lib/tuist_web/live/test_cases_live.ex:391
 #: lib/tuist_web/live/test_cases_live.html.heex:18
 #: lib/tuist_web/live/test_run_live.ex:1178
-#: lib/tuist_web/live/test_runs_live.ex:365
+#: lib/tuist_web/live/test_runs_live.ex:364
 #: lib/tuist_web/live/tests_live.ex:422
 #: lib/tuist_web/live/tests_live.ex:425
 #: lib/tuist_web/live/tests_live.html.heex:56
