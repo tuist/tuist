@@ -1,0 +1,101 @@
+name: Control Plane Roll
+
+# Rolls a workload cluster's KubeadmControlPlane so kubeadm regenerates the
+# apiserver static-pod manifest — the only way an apiserver flag change (e.g.
+# `--kubelet-preferred-address-types` gaining InternalIP, which is what makes
+# `kubectl logs`/`exec` reach the bare-metal Kura fleet kubelets) takes effect
+# on an already-running control plane.
+#
+# One env per invocation, workflow_dispatch only — a CP roll is deliberate, not
+# something that should ride an automatic push. Runs against the MGMT cluster
+# (that's where the Cluster/KCP CRs live), reusing the same 1Password-backed
+# kubeconfig as mgmt-cluster-apply.
+#
+# Safety: it only rolls when the KCP's *desired* apiServer config already
+# carries the intended `--kubelet-preferred-address-types` value (InternalIP
+# present). If the topology hasn't propagated that yet, it fails loudly instead
+# of rolling the CP to a stale config.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - canary
+          - production
+
+concurrency:
+  group: control-plane-roll-${{ inputs.environment }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  roll:
+    name: Roll ${{ inputs.environment }} control plane
+    runs-on: ubuntu-latest
+    environment:
+      name: mgmt-cluster-apply
+    timeout-minutes: 20
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+      CLUSTER_NS: org-tuist
+    steps:
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "--locked kubectl"
+          cache: "false"
+      - uses: 1password/install-cli-action@v2
+      - name: Load mgmt kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-mgmt" --vault tuist-k8s-mgmt --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Resolve cluster name
+        id: cluster
+        run: |
+          case "${{ inputs.environment }}" in
+            staging)    echo "name=tuist-staging" >> "$GITHUB_OUTPUT" ;;
+            canary)     echo "name=tuist-canary"  >> "$GITHUB_OUTPUT" ;;
+            production) echo "name=tuist"         >> "$GITHUB_OUTPUT" ;;
+            *) echo "unknown environment"; exit 1 ;;
+          esac
+      - name: Find the KubeadmControlPlane
+        id: kcp
+        run: |
+          set -euo pipefail
+          KCP=$(kubectl -n "$CLUSTER_NS" get kubeadmcontrolplane \
+            -l cluster.x-k8s.io/cluster-name=${{ steps.cluster.outputs.name }} \
+            -o jsonpath='{.items[0].metadata.name}')
+          if [ -z "$KCP" ]; then
+            echo "::error::no KubeadmControlPlane found for cluster ${{ steps.cluster.outputs.name }} in $CLUSTER_NS"
+            exit 1
+          fi
+          echo "name=$KCP" >> "$GITHUB_OUTPUT"
+          echo "Found KCP: $KCP"
+      - name: Safety gate — desired apiserver config carries InternalIP
+        run: |
+          set -euo pipefail
+          VAL=$(kubectl -n "$CLUSTER_NS" get kubeadmcontrolplane "${{ steps.kcp.outputs.name }}" \
+            -o jsonpath='{.spec.kubeadmConfigSpec.clusterConfiguration.apiServer.extraArgs[?(@.name=="kubelet-preferred-address-types")].value}')
+          echo "KCP desired kubelet-preferred-address-types: ${VAL:-<unset>}"
+          if ! echo "$VAL" | grep -q "InternalIP"; then
+            echo "::error::KCP desired apiServer config does not include InternalIP; the Cluster CR variable hasn't propagated. Refusing to roll to a stale config — fix the topology first (see infra/k8s/clusters/cluster-<env>.yaml + the ClusterClass patch)."
+            exit 1
+          fi
+      - name: Roll the control plane
+        run: |
+          set -euo pipefail
+          NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          echo "Patching rolloutAfter=$NOW on ${{ steps.kcp.outputs.name }}"
+          kubectl -n "$CLUSTER_NS" patch kubeadmcontrolplane "${{ steps.kcp.outputs.name }}" \
+            --type merge -p "{\"spec\":{\"rolloutAfter\":\"$NOW\"}}"
+          echo "Rollout requested. CAPI will replace the control-plane machine(s); watch with:"
+          echo "  kubectl -n $CLUSTER_NS get kubeadmcontrolplane ${{ steps.kcp.outputs.name }} -w"
