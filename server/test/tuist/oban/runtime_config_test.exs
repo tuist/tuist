@@ -132,5 +132,20 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         assert StaleQueuedJobsWorker in workers
       end
     end
+
+    test "omits registry sync without removing other crons when sync is disabled" do
+      for env <- [:prod, :stag, :can] do
+        workers =
+          :web
+          |> RuntimeConfig.crontab(env, true, false)
+          |> Enum.map(fn {_cron, worker} -> worker end)
+
+        refute SyncWorker in workers
+        assert AutomationScheduler in workers
+        assert UpdateAllAccountsUsageWorker in workers
+      end
+
+      assert RuntimeConfig.crontab(:web, :preview, true, false) == []
+    end
   end
 end
