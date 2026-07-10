@@ -59,6 +59,21 @@ defmodule TuistWeb.MembersLiveTest do
     end
   end
 
+  describe "authorization" do
+    test "does not allow a user from another organization to open the members page", %{
+      conn: conn,
+      account: account
+    } do
+      other_user = AccountsFixtures.user_fixture()
+
+      conn = log_in_user(conn, other_user)
+
+      assert_raise TuistWeb.Errors.UnauthorizedError, fn ->
+        live(conn, ~p"/#{account.name}/members")
+      end
+    end
+  end
+
   describe "resend_invite" do
     test "does not allow resending an invitation belonging to a different organization", %{
       conn: conn,

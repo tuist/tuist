@@ -11,6 +11,7 @@ defmodule TuistWeb.TestCaseLive do
 
   alias Noora.Filter
   alias Tuist.Accounts
+  alias Tuist.Authorization
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
   alias Tuist.Utilities.DateFormatter
@@ -258,8 +259,9 @@ defmodule TuistWeb.TestCaseLive do
   def handle_event(
         "unmark-as-flaky",
         _params,
-        %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
+        %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user, selected_project: project}} = socket
       ) do
+    :ok = Authorization.authorize(:test_update, current_user, project)
     {:ok, updated_test_case} =
       Tests.update_test_case(
         test_case_id,
@@ -276,8 +278,9 @@ defmodule TuistWeb.TestCaseLive do
   def handle_event(
         "mark-as-flaky",
         _params,
-        %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
+        %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user, selected_project: project}} = socket
       ) do
+    :ok = Authorization.authorize(:test_update, current_user, project)
     {:ok, updated_test_case} =
       Tests.update_test_case(
         test_case_id,
@@ -296,9 +299,10 @@ defmodule TuistWeb.TestCaseLive do
   def handle_event(
         "set-state",
         %{"data" => new_state},
-        %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
+        %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user, selected_project: project}} = socket
       )
       when new_state in ["enabled", "muted", "skipped"] do
+    :ok = Authorization.authorize(:test_update, current_user, project)
     {:ok, updated_test_case} =
       Tests.update_test_case(
         test_case_id,

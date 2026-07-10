@@ -100,6 +100,11 @@ defmodule Tuist.Authorization do
       allow([:authenticated_as_account, scopes_permit: "project:bundles:read"])
       allow([:authenticated_as_account, scopes_permit: "project:bundles:write"])
     end
+
+    action :delete do
+      desc("Allows the admin of a project to delete a bundle.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
   end
 
   object :account do

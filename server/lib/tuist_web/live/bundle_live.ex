@@ -11,6 +11,7 @@ defmodule TuistWeb.BundleLive do
 
   alias Noora.Filter
   alias Tuist.Bundles
+  alias Tuist.Authorization
   alias Tuist.Projects
   alias Tuist.Utilities.ByteFormatter
   alias TuistWeb.Errors.NotFoundError
@@ -19,7 +20,7 @@ defmodule TuistWeb.BundleLive do
   @table_page_size 20
 
   def mount(%{"bundle_id" => bundle_id}, _session, %{assigns: %{selected_project: selected_project}} = socket) do
-    bundle = get_selected_bundle(bundle_id)
+    bundle = get_selected_bundle(bundle_id, selected_project.id)
 
     all_artifacts = flatten_artifacts(bundle.artifacts)
 
@@ -551,7 +552,9 @@ defmodule TuistWeb.BundleLive do
     {:noreply, socket}
   end
 
-  def handle_event("delete_bundle", _params, %{assigns: %{bundle: bundle, selected_project: selected_project}} = socket) do
+  def handle_event("delete_bundle", _params, %{assigns: %{bundle: bundle, selected_project: selected_project, current_user: current_user}} = socket) do
+    :ok = Authorization.authorize(:bundle_delete, current_user, selected_project)
+
     Bundles.delete_bundle!(bundle)
 
     {
@@ -841,8 +844,8 @@ defmodule TuistWeb.BundleLive do
   defp to_atom(input) when is_binary(input), do: String.to_existing_atom(input)
   defp to_atom(input) when is_atom(input), do: input
 
-  defp get_selected_bundle(bundle_id) do
-    case Bundles.get_bundle(bundle_id, preload: :uploaded_by_account) do
+  defp get_selected_bundle(bundle_id, project_id) do
+    case Bundles.get_bundle(bundle_id, project_id: project_id, preload: :uploaded_by_account) do
       {:error, :not_found} ->
         raise NotFoundError, dgettext("dashboard_cache", "Bundle not found.")
 

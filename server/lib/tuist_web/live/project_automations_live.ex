@@ -395,6 +395,8 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   def handle_event("save_automation", _params, %{assigns: assigns} = socket) do
+    :ok = Authorization.authorize(:automation_alert_create, assigns.current_user, assigns.selected_project)
+
     attrs = build_automation_attrs(assigns.selected_project.id, assigns)
 
     result =
@@ -403,6 +405,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
           Automations.create_alert(attrs)
 
         id ->
+          :ok = Authorization.authorize(:automation_alert_update, assigns.current_user, assigns.selected_project)
           with {:ok, automation} <- Automations.get_alert(id) do
             Automations.update_alert(automation, attrs)
           end
@@ -424,6 +427,8 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   def handle_event("toggle_automation_enabled", %{"id" => id}, %{assigns: %{selected_project: project}} = socket) do
+    :ok = Authorization.authorize(:automation_alert_update, socket.assigns.current_user, project)
+
     with {:ok, automation} <- Automations.get_alert(id),
          true <- automation.project_id == project.id,
          {:ok, _} <- Automations.update_alert(automation, %{enabled: not automation.enabled}) do
@@ -434,6 +439,8 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   def handle_event("delete_automation", %{"id" => id}, %{assigns: %{selected_project: project}} = socket) do
+    :ok = Authorization.authorize(:automation_alert_delete, socket.assigns.current_user, project)
+
     with {:ok, automation} <- Automations.get_alert(id),
          true <- automation.project_id == project.id,
          {:ok, _} <- Automations.delete_alert(automation) do

@@ -11,6 +11,11 @@ defmodule TuistWeb.MembersLive do
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: account}} = socket) do
+    if Authorization.authorize(:organization_read, socket.assigns.current_user, account) != :ok do
+      raise TuistWeb.Errors.UnauthorizedError,
+        dgettext("dashboard_account", "You are not authorized to perform this action.")
+    end
+
     socket =
       socket
       |> assign(
@@ -578,6 +583,8 @@ defmodule TuistWeb.MembersLive do
   end
 
   def handle_event("save-member-role", %{"member-id" => member_id}, %{assigns: %{organization: organization}} = socket) do
+    :ok = Authorization.authorize(:member_update, socket.assigns.current_user, socket.assigns.selected_account)
+
     member_id_int = String.to_integer(member_id)
     {^member_id_int, new_role} = socket.assigns.managing_member
 
@@ -614,6 +621,8 @@ defmodule TuistWeb.MembersLive do
   # end
 
   def handle_event("invite-members", %{"invitation" => %{"invitee_email" => email}}, socket) do
+    :ok = Authorization.authorize(:invitation_create, socket.assigns.current_user, socket.assigns.selected_account)
+
     email = String.trim(email)
 
     # NOTE: Enable this when tag-input is used.
