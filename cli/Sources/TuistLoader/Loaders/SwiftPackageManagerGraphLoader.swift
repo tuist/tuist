@@ -306,7 +306,15 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         )
 
         let packageModuleAliases = mutablePackageModuleAliases
-        let mappedPackageInfos = try await packageInfos.concurrentMap { packageInfo in
+        // Mapping each package fans out again over its targets, and each target recursively globs its
+        // source tree for resources, headers, and module maps. Left unbounded, a large dependency graph
+        // spawns thousands of simultaneous filesystem walks whose per-operation cost is dominated by
+        // contention rather than real work. Capping the package-level concurrency to the core count keeps
+        // enough parallelism to overlap I/O while avoiding the thrash that inflates the mapping on
+        // resource-constrained machines.
+        let mappedPackageInfos = try await packageInfos.concurrentMap(
+            maxConcurrentTasks: ProcessInfo.processInfo.activeProcessorCount
+        ) { packageInfo in
             (
                 packageInfo: packageInfo,
                 hash: packageInfo.hash,
@@ -409,42 +417,6 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         }
     }
 
-    private static func resolvedEnabledTraits(
-        _ traitNames: some Collection<String>,
-        packageTraits: [PackageTrait]
-    ) -> Set<String> {
-        var resolvedTraitNames = Set(traitNames)
-
-        resolveEnabledTraitNames(
-            resolvedTraitNames,
-            packageTraits: packageTraits,
-            into: &resolvedTraitNames
-        )
-
-        return resolvedTraitNames
-    }
-
-    private static func resolveEnabledTraitNames(
-        _ traitNames: some Collection<String>,
-        packageTraits: [PackageTrait],
-        into resolvedTraitNames: inout Set<String>
-    ) {
-        for traitName in traitNames {
-            guard let trait = packageTraits.first(where: { $0.name == traitName }) else {
-                continue
-            }
-
-            for enabledTrait in trait.enabledTraits {
-                guard resolvedTraitNames.insert(enabledTrait).inserted else { continue }
-                resolveEnabledTraitNames(
-                    [enabledTrait],
-                    packageTraits: packageTraits,
-                    into: &resolvedTraitNames
-                )
-            }
-        }
-    }
-
     private func swiftPackageManagerScratchDirectory(
         packagePath: AbsolutePath,
         arguments: [String]
@@ -455,6 +427,42 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             environment: Environment.current.variables,
             workingDirectory: try await Environment.current.currentWorkingDirectory()
         )
+    }
+}
+
+private func resolvedEnabledTraits(
+    _ traitNames: some Collection<String>,
+    packageTraits: [PackageTrait]
+) -> Set<String> {
+    var resolvedTraitNames = Set(traitNames)
+
+    resolveEnabledTraitNames(
+        resolvedTraitNames,
+        packageTraits: packageTraits,
+        into: &resolvedTraitNames
+    )
+
+    return resolvedTraitNames
+}
+
+private func resolveEnabledTraitNames(
+    _ traitNames: some Collection<String>,
+    packageTraits: [PackageTrait],
+    into resolvedTraitNames: inout Set<String>
+) {
+    for traitName in traitNames {
+        guard let trait = packageTraits.first(where: { $0.name == traitName }) else {
+            continue
+        }
+
+        for enabledTrait in trait.enabledTraits {
+            guard resolvedTraitNames.insert(enabledTrait).inserted else { continue }
+            resolveEnabledTraitNames(
+                [enabledTrait],
+                packageTraits: packageTraits,
+                into: &resolvedTraitNames
+            )
+        }
     }
 }
 
