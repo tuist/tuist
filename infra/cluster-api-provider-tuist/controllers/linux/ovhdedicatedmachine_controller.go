@@ -92,7 +92,6 @@ type OVHDedicatedMachineReconciler struct {
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=ovhdedicatedmachines/finalizers,verbs=update
 
 func (r *OVHDedicatedMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
-	log.FromContext(ctx).Info("reconcile entry", "name", req.Name)
 	machine := &infrav1.OVHDedicatedMachine{}
 	if getErr := r.Get(ctx, req.NamespacedName, machine); getErr != nil {
 		if apierrors.IsNotFound(getErr) {
