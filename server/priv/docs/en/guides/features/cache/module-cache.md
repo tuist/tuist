@@ -23,12 +23,6 @@ Tuist Module Cache provides a powerful way to optimize build times by caching yo
 > The module cache and the <.localized_link href="/guides/features/cache/xcode-cache">Xcode cache</.localized_link> are complementary because they work at different granularity levels. The module cache replaces whole modules with prebuilt `.xcframework`s before the build runs, while the Xcode cache reuses compilation outputs during the build.
 
 
-> [!TIP]
-> **Fastest on Tuist Runners**
->
-> On <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link>, the module cache is colocated on the runner's private network and shared with the same cache your developer machines use, so CI jobs pull prebuilt binaries with warm hits out of the box, with no separate CI cache to warm up.
-
-
 ## Warming {#warming}
 
 Tuist efficiently <.localized_link href="/guides/features/projects/hashing">utilizes hashes</.localized_link> for each target in the dependency graph to detect changes. Utilizing this data, it builds and assigns unique identifiers to binaries derived from these targets. At the time of graph generation, Tuist then seamlessly substitutes the original targets with their corresponding binary versions.
