@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/cluster-api/util/patch"
@@ -14,6 +15,17 @@ import (
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/credentials"
 	bootstrap "github.com/tuist/tuist/infra/macos-host-bootstrap"
 )
+
+// KubeletConfigDriftResyncInterval is how often an already-Ready Linux node is
+// re-reconciled so the kubelet-config drift check runs. The Linux Ready path
+// otherwise returns without a requeue, so a converged machine would only
+// re-reconcile on an incidental Machine-CR watch event or the manager's ~10h
+// resync — which means a config change (like the serving-cert fix) rolled out
+// via a new operator image could sit unapplied on a node for hours until it
+// happened to be reconciled. A cheap periodic requeue (the drift check is one
+// annotation compare when converged) makes convergence reliable, matching how
+// the macOS fleet's drift loop already re-reconciles on a fixed cadence.
+const KubeletConfigDriftResyncInterval = 10 * time.Minute
 
 // kubeletConfigHashAnnotation records, on the Node, the hash of the kubelet
 // config the operator last pushed to that host. The drift loop re-pushes when

@@ -329,7 +329,7 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 				return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
 			}
 		}
-		return ctrl.Result{}, nil
+		return ctrl.Result{RequeueAfter: KubeletConfigDriftResyncInterval}, nil
 	}
 	machine.Status.Phase = "Bootstrapping"
 	return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
