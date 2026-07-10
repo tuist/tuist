@@ -1,7 +1,7 @@
 defmodule Tuist.Oban.RuntimeConfig do
   @moduledoc """
   Pure functions deriving Oban runtime config from pod role, deploy env,
-  and the `tuist_hosted?` flag.
+  the `tuist_hosted?` flag, and registry sync ownership.
 
   Lifted out of `config/runtime.exs` so they can be unit-tested against
   every value of `Tuist.Environment.modes/0`. Without this, a future
@@ -46,12 +46,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"* * * * *", Tuist.Runners.Workers.OrphanedStampedPodsWorker},
     {"* * * * *", Tuist.Runners.Workers.ExpireInteractiveSessionsWorker},
     {"*/5 * * * *", Tuist.Runners.Workers.WebhookRedeliveryWorker},
-    {"*/5 * * * *", Tuist.Runners.Workers.StaleQueuedJobsWorker},
-    # Cron fires on the :web leader; the resulting `:swift_registry_sync`
-    # job is consumed by the swift-registry-sync pod
-    # (`TUIST_MODE=swift_registry_sync`). Hosted-only because the
-    # registry mirror is a hosted-only feature.
-    @swift_registry_sync_cron
+    {"*/5 * * * *", Tuist.Runners.Workers.StaleQueuedJobsWorker}
   ]
 
   @prod_like_envs [:prod, :stag, :can]
@@ -64,17 +59,25 @@ defmodule Tuist.Oban.RuntimeConfig do
   sharded-test cleanup) — Tuist-hosted deployments additionally get the
   internal Slack ops reports, account-usage rollup, and Stripe
   metered-billing reconciler. Preview gets only the Swift registry sync
-  cron, regardless of hosted flag, so registry previews can exercise the
-  same queue path without running production housekeeping.
+  cron when registry sync is enabled, regardless of hosted flag, so
+  registry previews can exercise the same queue path without running
+  production housekeeping.
   """
-  def crontab(mode, env, tuist_hosted?) do
+  def crontab(mode, env, tuist_hosted?, swift_registry_sync_enabled? \\ true) do
     cond do
       mode == :web and env == :preview ->
-        @preview_crons
+        if swift_registry_sync_enabled?, do: @preview_crons, else: []
 
       mode == :web and env in @prod_like_envs ->
         if tuist_hosted? do
-          @hosted_only_crons ++ @shared_crons
+          hosted_crons =
+            if swift_registry_sync_enabled? do
+              @hosted_only_crons ++ [@swift_registry_sync_cron]
+            else
+              @hosted_only_crons
+            end
+
+          hosted_crons ++ @shared_crons
         else
           @shared_crons
         end
