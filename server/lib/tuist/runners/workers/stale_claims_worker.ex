@@ -48,6 +48,7 @@ defmodule Tuist.Runners.Workers.StaleClaimsWorker do
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Telemetry
+  alias Tuist.Runners.VolumeAffinities
 
   require Logger
 
@@ -74,6 +75,12 @@ defmodule Tuist.Runners.Workers.StaleClaimsWorker do
         %{kind: "stale_claim"}
       )
     end
+
+    # Opportunistically prune volume-affinity rows past their retention
+    # window (spec #76). Cheap indexed range delete, usually 0 rows;
+    # piggybacks on this periodic runner-maintenance sweep rather than
+    # adding a separate cron entry.
+    VolumeAffinities.prune()
 
     :ok
   end

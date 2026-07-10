@@ -498,6 +498,47 @@ defmodule Tuist.Environment do
     get([:ops, :reason_form_url], secrets, default_value: nil)
   end
 
+  @doc """
+  PEM-encoded Ed25519 PRIVATE key the server uses to sign per-account
+  cache-signing grants delivered to runner jobs (spec #76). The runner's
+  Tuist EE CLI verifies the grant OFFLINE with the matching public half
+  baked into the binary, then scopes cached-artifact signatures to the
+  account instead of the machine MAC so a warm cache volume's binaries
+  validate as local hits across VMs. nil (default) disables grant minting:
+  dispatch omits the grant, the CLI falls back to the MAC default, and the
+  manifest/helper cache warmth still applies — the volume just re-pulls its
+  binaries, exactly as without the EE change. Provisioned per environment
+  from 1Password via ESO; distinct from the artifact-signing key.
+  """
+  def cache_grant_private_key(secrets \\ secrets()) do
+    get([:cache_grant, :private_key], secrets)
+  end
+
+  @doc """
+  The `aud` claim stamped on cache-signing grants, pinned per environment
+  so a grant minted for one env can't be replayed in another. Must match
+  the audience the EE CLI enforces.
+  """
+  def cache_grant_audience(secrets \\ secrets()) do
+    get([:cache_grant, :audience], secrets, default_value: "tuist-runner-cache")
+  end
+
+  @doc """
+  Lifetime (seconds) of a cache-signing grant. Set to the job's maximum
+  lifetime plus a small margin: a leaked grant (runner jobs run arbitrary
+  user code that can read the environment) expires within the job's TTL,
+  so sustaining cross-machine reuse would require continuously harvesting
+  fresh grants from one's own live runner jobs — an authorized account
+  member who can already download the same artifacts with their account
+  token. Defaults to 7h (GitHub Actions' 6h job ceiling + margin).
+  """
+  def cache_grant_ttl_seconds(secrets \\ secrets()) do
+    case get([:cache_grant, :ttl_seconds], secrets, default_value: 25_200) do
+      value when is_integer(value) -> value
+      value when is_binary(value) -> String.to_integer(value)
+    end
+  end
+
   def posthog_api_key(secrets \\ secrets()) do
     get([:posthog, :api_key], secrets)
   end

@@ -244,6 +244,24 @@ defmodule Tuist.Runners.Jobs do
   """
   def pick_queued(fleet_name, ineligible_account_ids \\ [], excluded_workflow_job_ids \\ [])
       when is_binary(fleet_name) and is_list(ineligible_account_ids) and is_list(excluded_workflow_job_ids) do
+    case pick_queued_top_k(fleet_name, ineligible_account_ids, excluded_workflow_job_ids, 1) do
+      {:ok, [candidate | _]} -> {:ok, candidate}
+      {:error, :empty} -> {:error, :empty}
+    end
+  end
+
+  @doc """
+  Like `pick_queued/3` but returns up to `k` oldest queued candidates
+  (deterministically ordered), for dispatch-time volume-affinity scoring
+  (spec #76). The server prefers the oldest candidate whose account is
+  affine to the polling runner's node, within an age tolerance of the
+  head; the deterministic ordering keeps concurrent pollers converging on
+  the same set. Returns `{:ok, [candidate]}` (possibly one) or
+  `{:error, :empty}`.
+  """
+  def pick_queued_top_k(fleet_name, ineligible_account_ids \\ [], excluded_workflow_job_ids \\ [], k \\ 20)
+      when is_binary(fleet_name) and is_list(ineligible_account_ids) and is_list(excluded_workflow_job_ids) and
+             is_integer(k) and k > 0 do
     lookback_floor = queued_lookback_floor()
 
     from(j in Job,
@@ -268,11 +286,11 @@ defmodule Tuist.Runners.Jobs do
     |> exclude_accounts(ineligible_account_ids)
     |> exclude_workflow_jobs(excluded_workflow_job_ids)
     |> order_by([j], asc: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at), asc: j.workflow_job_id)
-    |> limit(1)
-    |> ClickHouseRepo.one()
+    |> limit(^k)
+    |> ClickHouseRepo.all()
     |> case do
-      nil -> {:error, :empty}
-      candidate -> {:ok, candidate}
+      [] -> {:error, :empty}
+      candidates -> {:ok, candidates}
     end
   end
 

@@ -53,12 +53,14 @@ defmodule Tuist.Runners do
   alias Tuist.Accounts
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Runners.CacheGrant
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
+  alias Tuist.Runners.VolumeAffinities
   alias Tuist.VCS
 
   require Logger
@@ -89,6 +91,28 @@ defmodule Tuist.Runners do
   # cadence that was far shorter than a multi-minute image pull.
   @drain_eligible_label "tuist.dev/drain-eligible"
   @max_claim_attempts_per_dispatch 16
+
+  # Dispatch-time volume affinity (spec #76). `pick_queued` fetches the K
+  # oldest queued jobs; the server hands the polling runner the oldest one
+  # affine to its node only if that job's enqueue time is within the age
+  # tolerance of the queue head, else the head. Both are configuration,
+  # tuned from the affinity hit rate and queue-latency telemetry rather
+  # than re-litigated here; the age tolerance is the precise operational
+  # meaning of the hard rule that affinity never delays a job.
+  @volume_affinity_top_k 20
+  @volume_affinity_age_tolerance_seconds 30
+
+  defp volume_affinity_top_k do
+    Application.get_env(:tuist, :runner_volume_affinity_top_k, @volume_affinity_top_k)
+  end
+
+  defp volume_affinity_age_tolerance_seconds do
+    Application.get_env(
+      :tuist,
+      :runner_volume_affinity_age_tolerance_seconds,
+      @volume_affinity_age_tolerance_seconds
+    )
+  end
 
   @doc """
   Returns the raw load signals the runners-controller's autoscaler
@@ -161,7 +185,7 @@ defmodule Tuist.Runners do
     with {:ok, sa} <- K8sClient.get_service_account(namespace, sa_name),
          {:ok, fleet_name} <- pool_label(sa) do
       case check_not_stale(namespace, sa_name, fleet_name) do
-        :ok -> {claim_and_serve(namespace, sa_name, fleet_name), fleet_name}
+        {:ok, node_name} -> {claim_and_serve(namespace, sa_name, fleet_name, node_name), fleet_name}
         {:error, reason} -> {{:error, reason}, fleet_name}
       end
     else
@@ -169,12 +193,20 @@ defmodule Tuist.Runners do
     end
   end
 
-  defp claim_and_serve(namespace, sa_name, fleet_name) do
+  defp claim_and_serve(namespace, sa_name, fleet_name, node_name) do
     excluded_workflow_job_ids = Claims.workflow_job_ids_for_fleet(fleet_name)
-    claim_and_serve(namespace, sa_name, fleet_name, excluded_workflow_job_ids, @max_claim_attempts_per_dispatch)
+
+    claim_and_serve(
+      namespace,
+      sa_name,
+      fleet_name,
+      node_name,
+      excluded_workflow_job_ids,
+      @max_claim_attempts_per_dispatch
+    )
   end
 
-  defp claim_and_serve(_namespace, sa_name, fleet_name, _excluded_workflow_job_ids, 0) do
+  defp claim_and_serve(_namespace, sa_name, fleet_name, _node_name, _excluded_workflow_job_ids, 0) do
     Logger.debug("runners: claim attempts exhausted",
       fleet: fleet_name,
       sa: sa_name
@@ -183,11 +215,15 @@ defmodule Tuist.Runners do
     {:error, :lost_race}
   end
 
-  defp claim_and_serve(namespace, sa_name, fleet_name, excluded_workflow_job_ids, attempts_left) do
-    case Jobs.pick_queued(fleet_name, [], excluded_workflow_job_ids) do
+  defp claim_and_serve(namespace, sa_name, fleet_name, node_name, excluded_workflow_job_ids, attempts_left) do
+    case pick_affine_candidate(fleet_name, node_name, excluded_workflow_job_ids) do
       {:ok, candidate} ->
         case Claims.attempt(candidate.workflow_job_id, candidate.account_id, fleet_name, sa_name) do
           {:ok, claim} ->
+            # Record the affinity signal on every claim win: a volume for
+            # this account exists (or is about to) where its jobs ran, so
+            # future jobs of this account prefer this node.
+            VolumeAffinities.record(node_name, candidate.account_id)
             Jobs.record_claimed(candidate, sa_name, claim.claimed_at)
             serve_claim(namespace, sa_name, fleet_name, candidate, claim)
 
@@ -202,6 +238,7 @@ defmodule Tuist.Runners do
               namespace,
               sa_name,
               fleet_name,
+              node_name,
               [candidate.workflow_job_id | excluded_workflow_job_ids],
               attempts_left - 1
             )
@@ -223,6 +260,25 @@ defmodule Tuist.Runners do
 
             {:error, reason}
         end
+
+      {:error, :empty} ->
+        {:error, :empty}
+    end
+  end
+
+  # Fetch the K oldest queued candidates and let the volume-affinity policy
+  # pick the one to hand this node: the oldest affine candidate within the
+  # age tolerance of the head, else the head. With no node identity or no
+  # affinity, this is exactly today's "oldest queued job".
+  defp pick_affine_candidate(fleet_name, node_name, excluded_workflow_job_ids) do
+    case Jobs.pick_queued_top_k(fleet_name, [], excluded_workflow_job_ids, volume_affinity_top_k()) do
+      {:ok, candidates} ->
+        {:ok,
+         VolumeAffinities.select_candidate(
+           candidates,
+           node_name,
+           volume_affinity_age_tolerance_seconds()
+         )}
 
       {:error, :empty} ->
         {:error, :empty}
@@ -288,7 +344,11 @@ defmodule Tuist.Runners do
              runner_name: runner_name,
              workflow_job_id: candidate.workflow_job_id,
              fleet_on_cluster_network: Catalog.fleet_on_cluster_network?(fleet_name),
-             fleet_platform: Catalog.fleet_platform(fleet_name)
+             fleet_platform: Catalog.fleet_platform(fleet_name),
+             # Per-account cache-signing grant (spec #76). nil when grant
+             # minting is unconfigured; the runner then falls back to the
+             # MAC default and only the binaries cache re-pulls.
+             cache_signing_grant: CacheGrant.mint(candidate.account_id)
            }}
         else
           {:error, reason} = err ->
@@ -544,6 +604,12 @@ defmodule Tuist.Runners do
   # would stall the whole pool. The drain check is opportunistic
   # cleanup, not a correctness gate; the reconciler's
   # Pending-stale path catches the unhappy long-tail.
+  # Returns {:ok, node_name} — the Node the polling Pod is running on, read
+  # from the same Pod object the staleness check already fetches (no extra
+  # API call) — so the caller can score volume affinity for this node.
+  # node_name is nil when the Pod/pool lookup fails or spec.nodeName isn't
+  # set yet; affinity then degrades to "no preference". {:error, :drain}
+  # still short-circuits a stale Pod.
   defp check_not_stale(namespace, sa_name, fleet_name) do
     pod_name = pod_name_from_sa(sa_name)
 
@@ -553,14 +619,14 @@ defmodule Tuist.Runners do
          {:ok, pod_image} <- pod_image(pod) do
       cond do
         pod_image == pool_image ->
-          :ok
+          {:ok, node_name_of(pod)}
 
         not drain_eligible?(pod) ->
           # Stale, but the controller hasn't marked this Pod
           # drain-eligible yet — it paces the rollout by labeling only a
           # capped number of stale Pods at a time. Keep polling; we'll
           # 410 once the controller labels it.
-          :ok
+          {:ok, node_name_of(pod)}
 
         true ->
           Logger.info("runners: draining stale pod",
@@ -573,9 +639,13 @@ defmodule Tuist.Runners do
           {:error, :drain}
       end
     else
-      _ -> :ok
+      _ -> {:ok, nil}
     end
   end
+
+  defp node_name_of(%{"spec" => %{"nodeName" => node_name}}) when is_binary(node_name) and node_name != "", do: node_name
+
+  defp node_name_of(_), do: nil
 
   defp pool_image(%{"spec" => %{"image" => image}}) when is_binary(image) and image != "", do: {:ok, image}
   defp pool_image(_), do: :error

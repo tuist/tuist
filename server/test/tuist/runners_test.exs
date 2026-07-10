@@ -7,9 +7,11 @@ defmodule Tuist.RunnersTest do
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners
+  alias Tuist.Runners.CacheGrant
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.VolumeAffinities
   alias Tuist.VCS
 
   setup :verify_on_exit!
@@ -35,9 +37,17 @@ defmodule Tuist.RunnersTest do
         %{}
       end
 
+    spec =
+      then(%{"containers" => [%{"name" => "runner", "image" => image}]}, fn spec ->
+        case Keyword.get(opts, :node_name) do
+          node when is_binary(node) -> Map.put(spec, "nodeName", node)
+          _ -> spec
+        end
+      end)
+
     %{
       "metadata" => %{"name" => pod_name, "namespace" => "tuist-runners", "labels" => labels},
-      "spec" => %{"containers" => [%{"name" => "runner", "image" => image}]}
+      "spec" => spec
     }
   end
 
@@ -179,18 +189,34 @@ defmodule Tuist.RunnersTest do
       excluded_workflow_job_ids = Keyword.get(opts, :excluded_workflow_job_ids, [])
       workflow_job_id = candidate.workflow_job_id
 
+      node_name = Keyword.get(opts, :node_name)
+
       expect(K8sClient, :get_service_account, fn "tuist-runners", ^pod_name ->
         {:ok, sa_with_pool_label(pod_name, "fleet-a")}
       end)
 
-      # Missing RunnerPool downgrades the stale-image check to :ok.
-      expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" ->
-        {:error, :not_found}
-      end)
+      if node_name do
+        # Image-match path so check_not_stale reads the Pod's spec.nodeName
+        # and threads it into the affinity scoring.
+        image = "ghcr.io/tuist/tuist-runner@sha256:current"
+
+        expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" ->
+          {:ok, pool_with_image(image)}
+        end)
+
+        expect(K8sClient, :get_pod, fn "tuist-runners", ^pod_name ->
+          {:ok, pod_with_image(pod_name, image, node_name: node_name)}
+        end)
+      else
+        # Missing RunnerPool downgrades the stale-image check to {:ok, nil}.
+        expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" ->
+          {:error, :not_found}
+        end)
+      end
 
       expect(Claims, :workflow_job_ids_for_fleet, fn "fleet-a" -> excluded_workflow_job_ids end)
 
-      expect(Jobs, :pick_queued, fn "fleet-a", [], ^excluded_workflow_job_ids -> {:ok, candidate} end)
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], ^excluded_workflow_job_ids, _k -> {:ok, [candidate]} end)
 
       expect(Claims, :attempt, fn ^workflow_job_id, _account_id, "fleet-a", ^pod_name ->
         {:ok, %{claimed_at: DateTime.utc_now()}}
@@ -245,6 +271,41 @@ defmodule Tuist.RunnersTest do
       refute "shape-linux-4vcpu-16gb" in labels
     end
 
+    test "includes the minted cache signing grant in the dispatch result (spec #76)" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default")
+      stub_dispatch_path(account, candidate, self())
+
+      expect(CacheGrant, :mint, fn account_id ->
+        assert account_id == account.id
+        "signed-grant-token"
+      end)
+
+      assert {:ok, %{cache_signing_grant: "signed-grant-token"}} =
+               Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
+    test "records volume affinity for the polling node on a successful claim (spec #76)" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default")
+      test_pid = self()
+      stub_dispatch_path(account, candidate, test_pid, node_name: "mac-07")
+
+      expect(VolumeAffinities, :record, fn "mac-07", account_id ->
+        send(test_pid, {:affinity_recorded, account_id})
+        :ok
+      end)
+
+      # With a single candidate the affinity scoring returns the head; the
+      # point here is that node identity is threaded through and the claim
+      # records affinity for that node.
+      expect(VolumeAffinities, :select_candidate, fn [^candidate], "mac-07", _tolerance -> candidate end)
+
+      assert {:ok, _} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert_receive {:affinity_recorded, recorded_account_id}
+      assert recorded_account_id == account.id
+    end
+
     test "keeps generated GitHub runner names within the API limit" do
       account = account_fixture()
       candidate = candidate_with_label(account, "tuist-default")
@@ -296,13 +357,13 @@ defmodule Tuist.RunnersTest do
 
       expect(Claims, :workflow_job_ids_for_fleet, fn "fleet-a" -> [] end)
 
-      expect(Jobs, :pick_queued, fn "fleet-a", [], [] -> {:ok, stale_candidate} end)
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], _k -> {:ok, [stale_candidate]} end)
 
       expect(Claims, :attempt, fn 90_001, _account_id, "fleet-a", ^pod_name ->
         {:error, :lost_race}
       end)
 
-      expect(Jobs, :pick_queued, fn "fleet-a", [], [90_001] -> {:ok, candidate} end)
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [90_001], _k -> {:ok, [candidate]} end)
 
       expect(Claims, :attempt, fn 90_002, _account_id, "fleet-a", ^pod_name ->
         {:ok, %{claimed_at: DateTime.utc_now()}}

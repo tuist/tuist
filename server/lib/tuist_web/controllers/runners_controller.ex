@@ -34,9 +34,19 @@ defmodule TuistWeb.RunnersController do
             workflow_job_id: workflow_job_id,
             fleet_on_cluster_network: on_cluster_network,
             fleet_platform: fleet_platform
-          }} <-
+          } = dispatched} <-
            Runners.dispatch_for_sa(ns, sa_name) do
-      json(conn, dispatch_response(jit, account, workflow_job_id, on_cluster_network, fleet_platform))
+      json(
+        conn,
+        dispatch_response(
+          jit,
+          account,
+          workflow_job_id,
+          on_cluster_network,
+          fleet_platform,
+          Map.get(dispatched, :cache_signing_grant)
+        )
+      )
     else
       {:error, :no_work_yet} ->
         send_resp(conn, :no_content, "")
@@ -155,12 +165,18 @@ defmodule TuistWeb.RunnersController do
   #     `runner_cache_endpoint_url/2` matches against the private
   #     region's `runner_platforms`, so a node co-located with one
   #     fleet never serves a fleet on the wrong side of a WAN.
-  defp dispatch_response(jit, account, workflow_job_id, fleet_on_cluster_network, fleet_platform) do
+  defp dispatch_response(jit, account, workflow_job_id, fleet_on_cluster_network, fleet_platform, cache_signing_grant) do
     base = %{
       encoded_jit_config: jit,
       owner: account.name,
       workflow_job_id: workflow_job_id
     }
+
+    base =
+      case cache_signing_grant do
+        grant when is_binary(grant) and grant != "" -> Map.put(base, :cache_signing_grant, grant)
+        _ -> base
+      end
 
     with true <- fleet_on_cluster_network,
          true <- fleet_platform in [:linux, :macos],
