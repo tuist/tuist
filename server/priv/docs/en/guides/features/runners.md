@@ -20,7 +20,6 @@ Tuist Runners are managed macOS and Linux runners for your GitHub Actions workfl
 >
 > - A <.localized_link href="/guides/server/accounts-and-projects">Tuist account and project</.localized_link>
 > - Your project connected to a <.localized_link href="/guides/integrations/gitforge/github">GitHub</.localized_link> organization
-> - An invite to the Runners beta (see above)
 
 
 ## Why Tuist Runners {#why-tuist-runners}
