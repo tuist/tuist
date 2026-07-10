@@ -464,13 +464,27 @@ defmodule Tuist.Runners.JobsTest do
 
     test "skips excluded workflow_job IDs" do
       account = account_fixture()
-      older = ~U[2026-07-09 10:00:00.000000Z]
-      newer = ~U[2026-07-09 10:01:00.000000Z]
+      older = DateTime.add(DateTime.utc_now(), -120, :second)
+      newer = DateTime.add(DateTime.utc_now(), -60, :second)
 
       :ok = enqueue_fixture(account, 3101, fleet: "fleet-skip", enqueued_at: older)
       :ok = enqueue_fixture(account, 3102, fleet: "fleet-skip", enqueued_at: newer)
 
       assert {:ok, %{workflow_job_id: 3102}} = Jobs.pick_queued("fleet-skip", [], [3101])
+    end
+
+    test "ignores queued rows enqueued beyond the lookback window" do
+      account = account_fixture()
+      recent = DateTime.add(DateTime.utc_now(), -60, :second)
+      stale = DateTime.add(DateTime.utc_now(), -8 * 86_400, :second)
+
+      :ok = enqueue_fixture(account, 3201, fleet: "fleet-lookback", enqueued_at: stale)
+
+      assert {:error, :empty} = Jobs.pick_queued("fleet-lookback", [])
+
+      :ok = enqueue_fixture(account, 3202, fleet: "fleet-lookback", enqueued_at: recent)
+
+      assert {:ok, %{workflow_job_id: 3202}} = Jobs.pick_queued("fleet-lookback", [])
     end
   end
 
@@ -1016,7 +1030,19 @@ defmodule Tuist.Runners.JobsTest do
       account = account_fixture()
       old = ~U[2026-05-01 10:00:00.000000Z]
       :ok = enqueue_fixture(account, 8511, fleet: "fleet-sq-trans", enqueued_at: old)
-      {:ok, candidate} = Jobs.pick_queued("fleet-sq-trans", [])
+
+      # Transition it out of queued directly — `pick_queued/2` only
+      # surfaces jobs enqueued within its lookback window, and this
+      # row is intentionally old to sit inside the fixed
+      # `list_stale_queued/2` floor/threshold below.
+      candidate = %{
+        workflow_job_id: 8511,
+        account_id: account.id,
+        fleet_name: "fleet-sq-trans",
+        repository: "acme/cli",
+        enqueued_at: old
+      }
+
       :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
 
       floor = ~U[2026-04-01 00:00:00.000000Z]
@@ -1052,6 +1078,17 @@ defmodule Tuist.Runners.JobsTest do
 
     test "returns 0 for an unknown fleet" do
       assert Jobs.queued_count_by_fleet("fleet-no-such") == 0
+    end
+
+    test "ignores queued rows enqueued beyond the lookback window" do
+      account = account_fixture()
+      recent = DateTime.add(DateTime.utc_now(), -60, :second)
+      stale = DateTime.add(DateTime.utc_now(), -8 * 86_400, :second)
+
+      :ok = enqueue_fixture(account, 8201, fleet: "fleet-qc-lookback", enqueued_at: recent)
+      :ok = enqueue_fixture(account, 8202, fleet: "fleet-qc-lookback", enqueued_at: stale)
+
+      assert Jobs.queued_count_by_fleet("fleet-qc-lookback") == 1
     end
   end
 
