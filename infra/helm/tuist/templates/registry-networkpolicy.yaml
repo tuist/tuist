@@ -19,6 +19,14 @@ spec:
           podSelector:
             matchLabels:
               {{- toYaml .Values.registry.networkPolicy.ingressControllerPodLabels | nindent 14 }}
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "tuist.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: registry-smoke
+      ports:
+        - protocol: TCP
+          port: http
     {{- if and .Values.registry.metrics.enabled .Values.registry.networkPolicy.observabilityNamespace }}
     - from:
         - namespaceSelector:
