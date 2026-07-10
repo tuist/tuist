@@ -339,7 +339,7 @@ Elastic Metal / OVH) depend on three things being right at once. They fail with 
 
 | Symptom on `kubectl logs <fleet-pod>` | Layer | Fix |
 |---|---|---|
-| `dial tcp: lookup <node> … no such host` | 1. apiserver dials the unresolvable Hostname because its `--kubelet-preferred-address-types` lacks `InternalIP` | roll the control plane (below) |
+| `dial tcp: lookup <node> … no such host` | 1. apiserver dials the unresolvable Hostname because its `--kubelet-preferred-address-types` lacks `InternalIP` | declarative: the Cluster-CR variable + mgmt-apply roll the CP (below) |
 | `remote error: tls: internal error` | 2. kubelet has no serving cert (`serverTLSBootstrap` + unapprovable SA-identity CSR) | converges automatically (drift loop); re-provision to force |
 | `401`/anonymous / `Unauthorized` | 3. kubelet has no `clientCAFile`, so the apiserver's client cert isn't trusted | converges automatically (drift loop); re-provision to force |
 
@@ -367,40 +367,54 @@ re-creates + re-joins it on the current image, cache re-warms from the mesh
 kubectl delete machine <fleet-machine-name>
 ```
 
-Layer 1 is Cluster-CR config (`kubeletPreferredAddressTypes:
-ExternalIP,InternalIP,Hostname,…`, already set per env in
-`infra/k8s/clusters/cluster-<env>.yaml`) **plus a control-plane rollout** —
-kubeadm bakes the apiserver flag into the static-pod manifest at CP init/join, so
-a running CP that predates the variable keeps the old flag. Confirm and roll from
-the mgmt cluster (operator, admin kubeconfig):
+Layer 1 is Cluster-CR config that **rolls declaratively — there is no separate
+workflow or manual trigger**. The apiserver flag comes from the
+`kubeletPreferredAddressTypes` variable (already `ExternalIP,InternalIP,Hostname,…`
+per env in `infra/k8s/clusters/cluster-<env>.yaml`); a ClusterClass patch rebuilds
+the KCP's `apiServer.extraArgs` from it, and per that patch's own contract,
+**setting the variable regenerates the KubeadmControlPlane and rolls its CP**. So
+applying the Cluster CR through `mgmt-cluster-apply` (push to `main` touching
+`infra/k8s/clusters/**`) is the whole mechanism — kubeadm bakes the flag into the
+apiserver static-pod manifest as the new CP machine joins.
+
+If a fleet node still dials the Hostname after that apply, the roll didn't
+*complete* — almost always a **wedged/stuck KCP**, not a missing trigger. Diagnose:
 
 ```bash
-# On the WORKLOAD cluster: is the running apiserver actually missing InternalIP?
-# (a running flag without InternalIP is why logs dial Hostname)
+# WORKLOAD cluster: is the running apiserver actually missing InternalIP?
 kubectl -n kube-system get pod -l component=kube-apiserver \
   -o jsonpath='{.items[0].spec.containers[0].command}' | tr ',' '\n' | grep preferred-address
 
-# On the MGMT cluster: confirm the topology already propagated InternalIP into the
-# KCP's desired clusterConfiguration. If this shows InternalIP, it's purely a
-# not-yet-rolled CP → roll it. If it does NOT, the Cluster CR variable didn't
-# reconcile (check `kubectl get cluster <env> -o yaml` variables + the ClusterClass
-# patch) — rolling won't help until the KCP carries it.
+# MGMT cluster: does the KCP's desired config already carry InternalIP?
 kubectl -n <cluster-ns> get kubeadmcontrolplane <kcp-name> \
   -o jsonpath='{.spec.kubeadmConfigSpec.clusterConfiguration.apiServer.extraArgs}'
 
-# Roll the control plane so kubeadm regenerates the apiserver static-pod manifest
-# with the new flag:
-kubectl -n <cluster-ns> patch kubeadmcontrolplane <kcp-name> \
-  --type merge -p "{\"spec\":{\"rolloutAfter\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}}"
+# If yes but the CP never rolled, the KCP is stuck — look for a blocked roll
+# (RollingOut=True + ScalingUp blocked / MachinesReady=False behind a CP Machine
+# that has no Node). A `rolloutAfter` bump will NOT move a wedged KCP; fix the wedge
+# first (delete the dead CP Machine + orphaned infra so it can reconcile a healthy CP).
+kubectl -n <cluster-ns> describe kubeadmcontrolplane <kcp-name>
 ```
 
-A KCP rollout replaces the CP machine(s) — HA control plane tolerates it, but
-it's a real rollout; do it deliberately, not casually. Verify end-to-end once the
-new CP is Ready and at least one fleet node has been re-provisioned:
+Do not reach for a manual `rolloutAfter` patch as the primary path: the variable
+apply already rolls a healthy KCP, and `rolloutAfter` can't roll a wedged one.
+`rolloutAfter` is only for forcing a roll with *no* config change (cert rotation,
+recovering a bad node), against a healthy KCP.
+
+Emergency Layer-1 bypass (a single wedged CP, e.g. staging): edit the running
+apiserver static pod directly — add `InternalIP` to
+`--kubelet-preferred-address-types` in
+`/etc/kubernetes/manifests/kube-apiserver.yaml` on the CP node (`kubectl debug
+node/<cp>` → `chroot /host`; back the file up *outside* `manifests/`, swap
+atomically, verify the apiserver returns on `:6443`). The KCP is external and never
+rewrites static-pod files on a running node, so the edit persists until the CP is
+rebuilt (which then carries `InternalIP` from the KCP config anyway).
+
+Verify end-to-end (Layers 1+2+3):
 
 ```bash
-kubectl -n kura logs <pod-on-a-dedibox-or-scw-em-fleet-node> --tail=5   # streams
-kubectl top node <fleet-node>                                           # not <unknown>
+kubectl -n kube-system logs <pod-on-a-fleet-node> --tail=5   # streams (not a dial error)
+kubectl exec <pod-on-a-fleet-node> -- true                   # exec works
 ```
 
 ### Unstick a host whose CAPI bootstrap is failing on sudo
