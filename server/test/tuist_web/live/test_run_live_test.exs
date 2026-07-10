@@ -97,6 +97,63 @@ defmodule TuistWeb.TestRunLiveTest do
     assert has_element?(lv, "#test-cases-table")
   end
 
+  test "renders the test cases table when the sort order query param is invalid", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
+
+    # When - a fuzzed sort order that is not a valid Flop direction
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?test-cases-sort-order=381719201"
+      )
+
+    # Then - the page renders instead of raising Flop.InvalidParamsError
+    assert has_element?(lv, "#test-cases-table")
+  end
+
+  test "renders the test suites table when the sort order query param is invalid", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
+
+    # When
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?test-tab=test-suites&test-suites-sort-order=381719201"
+      )
+
+    # Then
+    assert has_element?(lv, "#test-suites-table")
+  end
+
+  test "renders the test modules table when the sort order query param is invalid", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
+
+    # When
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?test-tab=test-modules&test-modules-sort-order=381719201"
+      )
+
+    # Then
+    assert has_element?(lv, "#test-modules-table")
+  end
+
   test "shows download button with command event ID when test run has result bundle", %{
     conn: conn,
     organization: organization,
