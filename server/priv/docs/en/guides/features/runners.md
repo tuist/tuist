@@ -36,7 +36,7 @@ Most CI runner providers make jobs faster by giving you beefier machines and a p
 
 Tuist Runners are different because the cache is the same cache your developers and every other environment already read from and write to. The <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link> and <.localized_link href="/guides/features/cache/xcode-cache">Xcode cache</.localized_link> that a teammate warms on their laptop, or that an earlier build produced, are a hit on the runner, and vice versa. There's no separate CI cache to warm up.
 
-On top of that, the cache runs on the same private network as the runner. When a job lands on a fleet colocated with your cache, Tuist hands it an in-cluster cache endpoint (`TUIST_CACHE_ENDPOINT`), so cache reads and writes stay on the internal network next to the compute instead of crossing the public internet.
+On top of that, the cache is colocated with the runner on the same private network, so cache reads and writes stay internal and close to the compute instead of crossing the public internet.
 
 Put together:
 
