@@ -7,12 +7,6 @@
 ---
 # Profiles {#profiles}
 
-> [!IMPORTANT]
-> **Invite-only**
->
-> Profiles are part of <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link>, which is currently invite-only. [Reach out](mailto:contact@tuist.dev) to request access.
-
-
 A **profile** is an account-scoped, named machine shape. You reference it from a workflow's `runs-on`, and Tuist routes the job to a runner that matches. Profiles keep infrastructure choices (platform, size, Xcode version) in one place instead of scattered across every workflow file, and give you a stable label to point CI at.
 
 ```yaml
@@ -27,12 +21,12 @@ The label is the profile's name with the `tuist-` prefix. A profile named `macos
 
 Every account enabled for Runners starts with two profiles so you can use the fleet without configuring anything:
 
-| Profile | Label           | Shape                        |
-| ------- | --------------- | ---------------------------- |
-| `linux` | `tuist-linux`   | Default Linux shape          |
-| `macos` | `tuist-macos`   | Default macOS shape + Xcode  |
+| Profile | Label           | Default shape                 |
+| ------- | --------------- | ----------------------------- |
+| `linux` | `tuist-linux`   | 2 vCPU / 8 GB                 |
+| `macos` | `tuist-macos`   | 6 vCPU / 14 GB, Xcode 26.5    |
 
-These two are **protected**: they can't be deleted, so the labels your workflows depend on stay valid. You can create additional profiles for other sizes or Xcode versions.
+Both point at the default <.localized_link href="/guides/features/runners/profiles#machine-shapes">shape</.localized_link> for their platform. They're **protected**, so they can't be deleted and the `tuist-linux` and `tuist-macos` labels your workflows depend on always resolve. You can still change their shape or Xcode version, and you can create additional profiles for other sizes or Xcode versions.
 
 ## Machine shapes {#machine-shapes}
 
