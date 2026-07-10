@@ -1169,30 +1169,43 @@ public struct TestService { // swiftlint:disable:this type_body_length
             uploadCacheStorage = cacheStorage
         }
 
-        do {
-            var didRunTests = false
-            for testScheme in schemes {
-                let testSchemeTargetNames = Set(
-                    testActionTargetReferences(
-                        scheme: testScheme,
-                        testPlanConfiguration: testPlanConfiguration,
-                        action: action
-                    )
-                    .map(\.name)
+        let testSchemeRuns = schemes.compactMap { testScheme -> (scheme: Scheme, testTargets: [TestIdentifier])? in
+            let testSchemeTargetNames = Set(
+                testActionTargetReferences(
+                    scheme: testScheme,
+                    testPlanConfiguration: testPlanConfiguration,
+                    action: action
                 )
-                if testSchemeTargetNames.isEmpty {
-                    continue
-                }
+                .map(\.name)
+            )
+            if testSchemeTargetNames.isEmpty {
+                return nil
+            }
 
-                let testSchemeTestTargets = testTargets.filter {
-                    testSchemeTargetNames.contains($0.target)
-                }
+            let testSchemeTestTargets = testTargets.filter {
+                testSchemeTargetNames.contains($0.target)
+            }
 
-                if !testTargets.isEmpty, testSchemeTestTargets.isEmpty {
-                    continue
-                }
+            if !testTargets.isEmpty, testSchemeTestTargets.isEmpty {
+                return nil
+            }
 
-                didRunTests = true
+            return (scheme: testScheme, testTargets: testSchemeTestTargets)
+        }
+
+        guard !testSchemeRuns.isEmpty else {
+            return false
+        }
+
+        for testSchemeRun in testSchemeRuns {
+            let testScheme = testSchemeRun.scheme
+            let testSchemeResultBundlePath = schemeResultBundlePath(
+                resultBundlePath,
+                schemeName: testScheme.name,
+                runningMultipleSchemes: testSchemeRuns.count > 1
+            )
+
+            do {
                 try await self.testScheme(
                     scheme: testScheme,
                     graphTraverser: graphTraverser,
@@ -1203,10 +1216,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     platform: platform,
                     action: action,
                     rosetta: rosetta,
-                    resultBundlePath: resultBundlePath,
+                    resultBundlePath: testSchemeResultBundlePath,
                     derivedDataPath: derivedDataPath,
                     retryCount: retryCount,
-                    testTargets: testSchemeTestTargets,
+                    testTargets: testSchemeRun.testTargets,
                     skipTestTargets: skipTestTargets,
                     testPlanConfiguration: testPlanConfiguration,
                     passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
@@ -1214,49 +1227,33 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     quarantinedTests: quarantinedTests,
                     mode: mode
                 )
-            }
-            guard didRunTests else {
-                return false
-            }
-        } catch {
-            guard action != .build, let resultBundlePath else { throw error }
-
-            guard try await fileSystem.exists(resultBundlePath) else { throw error }
-
-            let testStatuses = try await xcResultService.parseTestStatuses(path: resultBundlePath)
-            guard !testStatuses.testCases.isEmpty else { throw error }
-
-            let testTargets = testActionTargets(
-                for: schemes, testPlanConfiguration: testPlanConfiguration, graph: graph, action: action
-            )
-
-            let passingTestTargets = testTargets.filter {
-                testStatuses.passingModuleNames().contains($0.target.name)
+            } catch {
+                if try await handleTestSchemeFailure(
+                    error,
+                    scheme: testScheme,
+                    resultBundlePath: testSchemeResultBundlePath,
+                    graph: graph,
+                    mapperEnvironment: mapperEnvironment,
+                    cacheStorage: uploadCacheStorage,
+                    testPlanConfiguration: testPlanConfiguration,
+                    action: action,
+                    quarantinedTests: quarantinedTests
+                ) {
+                    continue
+                }
+                throw error
             }
 
-            try await storeSuccessfulTestHashes(
-                for: passingTestTargets,
-                graph: graph,
-                mapperEnvironment: mapperEnvironment,
-                cacheStorage: uploadCacheStorage
-            )
-
-            if testQuarantineService.onlyQuarantinedTestsFailed(testStatuses: testStatuses, quarantinedTests: quarantinedTests) {
-                return true
+            if action != .build {
+                try await storeSuccessfulTestHashes(
+                    for: testActionTargets(
+                        for: [testScheme], testPlanConfiguration: testPlanConfiguration, graph: graph, action: action
+                    ),
+                    graph: graph,
+                    mapperEnvironment: mapperEnvironment,
+                    cacheStorage: uploadCacheStorage
+                )
             }
-
-            throw error
-        }
-
-        if action != .build {
-            try await storeSuccessfulTestHashes(
-                for: testActionTargets(
-                    for: schemes, testPlanConfiguration: testPlanConfiguration, graph: graph, action: action
-                ),
-                graph: graph,
-                mapperEnvironment: mapperEnvironment,
-                cacheStorage: uploadCacheStorage
-            )
         }
 
         let verb =
@@ -1276,6 +1273,46 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         return true
+    }
+
+    private func handleTestSchemeFailure(
+        _ error: Error,
+        scheme: Scheme,
+        resultBundlePath: AbsolutePath?,
+        graph: Graph,
+        mapperEnvironment: MapperEnvironment,
+        cacheStorage: CacheStoring,
+        testPlanConfiguration: TestPlanConfiguration?,
+        action: XcodeBuildTestAction,
+        quarantinedTests: [TestIdentifier]
+    ) async throws -> Bool {
+        guard action != .build, let resultBundlePath else { throw error }
+
+        guard try await fileSystem.exists(resultBundlePath) else { throw error }
+
+        let testStatuses = try await xcResultService.parseTestStatuses(path: resultBundlePath)
+        guard !testStatuses.testCases.isEmpty else { throw error }
+
+        let testTargets = testActionTargets(
+            for: [scheme], testPlanConfiguration: testPlanConfiguration, graph: graph, action: action
+        )
+
+        let passingTestTargets = testTargets.filter {
+            testStatuses.passingModuleNames().contains($0.target.name)
+        }
+
+        try await storeSuccessfulTestHashes(
+            for: passingTestTargets,
+            graph: graph,
+            mapperEnvironment: mapperEnvironment,
+            cacheStorage: cacheStorage
+        )
+
+        if testQuarantineService.onlyQuarantinedTestsFailed(testStatuses: testStatuses, quarantinedTests: quarantinedTests) {
+            return true
+        }
+
+        throw error
     }
 
     private func updateTestServiceAnalytics(
@@ -1645,6 +1682,26 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
     }
 
+    private func schemeResultBundlePath(
+        _ resultBundlePath: AbsolutePath?,
+        schemeName: String,
+        runningMultipleSchemes: Bool
+    ) -> AbsolutePath? {
+        guard runningMultipleSchemes, let resultBundlePath else {
+            return resultBundlePath
+        }
+
+        let schemePathComponent = schemeName.toValidInBundleIdentifier()
+        let pathComponent: String
+        if let pathExtension = resultBundlePath.extension {
+            pathComponent = "\(resultBundlePath.basenameWithoutExt)-\(schemePathComponent).\(pathExtension)"
+        } else {
+            pathComponent = "\(resultBundlePath.basename)-\(schemePathComponent)"
+        }
+
+        return resultBundlePath.parentDirectory.appending(component: pathComponent)
+    }
+
     // swiftlint:disable:next function_body_length
     private func testScheme(
         scheme: Scheme,
@@ -1807,6 +1864,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             projectDerivedDataDirectory: projectDerivedDataDirectory,
             config: config,
             action: action,
+            scheme: scheme.name,
             quarantinedTests: quarantinedTests,
             mode: mode
         )
