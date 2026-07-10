@@ -189,7 +189,7 @@ defmodule TuistWeb.BuildRunLive do
 
   defp parse_workflow_run_id(_), do: nil
 
-  defp matching_build_job(jobs), do: find_ci_job_by_name(jobs, ["build"]) || List.first(jobs)
+  defp matching_build_job(jobs), do: find_ci_job_by_name(jobs, ["build"])
   defp matching_build_step(steps), do: find_ci_step_by_name(steps, ["build"])
 
   defp find_ci_job_by_name(jobs, needles) do

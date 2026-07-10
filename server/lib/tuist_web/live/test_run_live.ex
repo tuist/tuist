@@ -175,8 +175,8 @@ defmodule TuistWeb.TestRunLive do
 
   defp parse_workflow_run_id(_), do: nil
 
-  defp matching_test_job(jobs), do: find_ci_job_by_name(jobs, ["test", "tests"]) || List.first(jobs)
-  defp matching_test_step(steps), do: find_ci_step_by_name(steps, ["test", "tests"])
+  defp matching_test_job(jobs), do: find_ci_job_by_name(jobs, ["test"])
+  defp matching_test_step(steps), do: find_ci_step_by_name(steps, ["test"])
 
   defp find_ci_job_by_name(jobs, needles) do
     Enum.find(jobs, fn job ->

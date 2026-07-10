@@ -503,6 +503,8 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
     assert has_element?(lv, ~s|#runner-step-1[data-expanded="false"]|, "Set up job")
     assert has_element?(lv, ~s|#runner-step-2[data-expanded="true"]|, "Run tests")
+    assert has_element?(lv, ~s|a[href="?tab=metrics"]|, "Metrics")
+    refute render(lv) =~ "step=2"
   end
 
   test "renders the steps empty state for a job without captured steps", %{

@@ -195,6 +195,29 @@ defmodule TuistWeb.BuildRunLiveTest do
     assert render(lv) =~ "Build ·"
   end
 
+  test "hides linked runner CI context when no runner job matches the build", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    seed_runner_job(organization.account, 31_302, 313_020, "Deploy", job_name: "Deploy")
+
+    {:ok, build_run} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        user_id: organization.account.id,
+        scheme: "App",
+        ci_provider: "github",
+        ci_run_id: "313020",
+        ci_project_handle: "tuist/tuist",
+        is_ci: true
+      )
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_run.id}")
+
+    refute has_element?(lv, "[data-part='ci-context-card']")
+  end
+
   test "hides CI Run button when build run has no CI metadata", %{
     conn: conn,
     organization: organization,
@@ -384,7 +407,7 @@ defmodule TuistWeb.BuildRunLiveTest do
     refute has_element?(lv, ".noora-tab-menu-horizontal-item", "Module Cache")
   end
 
-  defp seed_runner_job(account, workflow_job_id, workflow_run_id, matched_step_name) do
+  defp seed_runner_job(account, workflow_job_id, workflow_run_id, matched_step_name, opts \\ []) do
     enqueued_at = ~U[2026-05-28 10:00:00.000000Z]
     claimed_at = ~U[2026-05-28 10:00:08.000000Z]
     started_at = ~U[2026-05-28 10:00:12.000000Z]
@@ -399,7 +422,7 @@ defmodule TuistWeb.BuildRunLiveTest do
         workflow_run_id: workflow_run_id,
         workflow_name: "Server",
         run_attempt: 1,
-        job_name: "Build and test",
+        job_name: Keyword.get(opts, :job_name, "Build and test"),
         head_branch: "main",
         head_sha: "abcdef1234567890",
         status: "completed",

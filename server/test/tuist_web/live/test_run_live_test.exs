@@ -96,6 +96,29 @@ defmodule TuistWeb.TestRunLiveTest do
     assert render(lv) =~ "Run tests ·"
   end
 
+  test "hides linked runner CI context when no runner job matches the test", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    seed_runner_job(organization.account, 31_402, 314_020, "Deploy", job_name: "Deploy")
+
+    {:ok, test_run} =
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        account_id: organization.account.id,
+        scheme: "AppTests",
+        ci_provider: "github",
+        ci_run_id: "314020",
+        ci_project_handle: "tuist/tuist",
+        is_ci: true
+      )
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+    refute has_element?(lv, "[data-part='ci-context-card']")
+  end
+
   test "renders the run destinations metadata block when destinations exist", %{
     conn: conn,
     organization: organization,
@@ -622,7 +645,7 @@ defmodule TuistWeb.TestRunLiveTest do
     end
   end
 
-  defp seed_runner_job(account, workflow_job_id, workflow_run_id, matched_step_name) do
+  defp seed_runner_job(account, workflow_job_id, workflow_run_id, matched_step_name, opts \\ []) do
     enqueued_at = ~U[2026-05-28 10:00:00.000000Z]
     claimed_at = ~U[2026-05-28 10:00:08.000000Z]
     started_at = ~U[2026-05-28 10:00:12.000000Z]
@@ -637,7 +660,7 @@ defmodule TuistWeb.TestRunLiveTest do
         workflow_run_id: workflow_run_id,
         workflow_name: "Server",
         run_attempt: 1,
-        job_name: "Build and test",
+        job_name: Keyword.get(opts, :job_name, "Build and test"),
         head_branch: "main",
         head_sha: "abcdef1234567890",
         status: "completed",
