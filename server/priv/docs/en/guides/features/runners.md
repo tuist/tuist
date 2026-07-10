@@ -15,6 +15,18 @@
 
 Tuist Runners are managed macOS and Linux runners for your GitHub Actions workflows. Instead of running jobs on GitHub-hosted runners, you point `runs-on` at a Tuist <.localized_link href="/guides/features/runners/profiles">profile</.localized_link> and your jobs run on Tuist's fleet, next to the same <.localized_link href="/guides/features/cache">cache</.localized_link> your team already uses, with no runner agent to install and no infrastructure to maintain.
 
+Adopting them is usually a one-line change to your workflow:
+
+```diff
+ jobs:
+   build:
+-    runs-on: macos-latest
++    runs-on: tuist-macos
+     steps:
+       - uses: actions/checkout@v4
+       - run: tuist test
+```
+
 <HomeCards>
     <HomeCard
         icon="<img src='/images/logo.webp' alt='Tuist' width='32' height='32' />"
