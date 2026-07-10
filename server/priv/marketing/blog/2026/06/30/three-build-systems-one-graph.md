@@ -182,9 +182,6 @@ cp apple/Info.plist "$app/Info.plist"
 
 Now the Apple chain is three nodes, core to binary to bundle, and each `needs` line is an edge. Change the Rust and all three rebuild. Change `Info.plist` and only the bundle reassembles, because the binary it needs is untouched. **Nobody wrote a graph.** It fell out of three scripts saying what they read, what they write, and what they depend on.
 
-> [!NOTE]
-> Even here, with three real scripts, the only new thing a coding agent had to learn is the handful of `# once` comments. Everything under them is the bash it already knows how to write, and it needs the comments only when it writes or maintains one of these scripts, nowhere else.
-
 The Android app is Kotlin and calls into Rust over JNI. The usual way to build it is Gradle, but Gradle is a build system of its own, and handing the work to it would make the whole thing one opaque node again. So we drive the underlying tools ourselves, the same way we did on Apple. It just takes more tools, because no single compiler goes from Kotlin to an installable app. `kotlinc` compiles the Kotlin and `d8` turns it into a `dex`, `aapt2` links the manifest into a resource APK, the `dex` and the Rust `.so` are packed into it, and `zipalign` and `apksigner` align and sign the result. Each of those is a script with the same handful of annotations, and each one `needs` the ones before it, so the graph is a chain: the core, the dex, and the resources feed the package, and the package feeds the signed APK.
 
 It behaves the same way as Apple. Change the Kotlin and the dex rebuilds. Change the manifest and only resources, packaging, and signing rerun, while the dex stays cached. Change the Rust and it all reruns. Nothing here is special to a build system. `kotlinc`, `d8`, `aapt2`, `zipalign`, and `apksigner` are the steps Gradle would run for you, and once they're scripts that declare what they read and write, they're a graph. Rather than walk through all five scripts here, they're in the [example repo](https://github.com/tuist/once-example), next to the `mise.toml` that pins the toolchain and Once itself.
@@ -197,6 +194,12 @@ And it runs. The same greeting, computed once in Rust, shows up in both apps:
 </div>
 
 The moment that made the point for us came while editing the Rust. We changed something cosmetic, the source hashed differently, and the core recompiled, as it should. But the compiled library came out byte for byte identical, so the Android app build, keyed on the library and not on the source that produced it, never ran. That's early cutoff, the trait from the first half of this post, and we didn't build it. It came from the store being content addressed and the scripts declaring the right inputs.
+
+## What this means for a harness
+
+It's worth coming back to the thing that set this off. We went into build systems because a coding harness needs a way to close its own loop, and the real test for whatever interface we landed on was whether an agent could work in it without a lot of ceremony. Looking at the finished example, three scripts building a Rust core and two apps, we think it holds up. The only vocabulary that isn't already bash is the `# once` comments, and an agent reaches for them only when it writes or changes a script.
+
+That's most of what we were after. An agent can produce these scripts, which is squarely in what the models are good at, and it can keep the annotations honest without leaving the file, since they sit right next to the command they describe. Running the graph, as we said, is just running scripts, so the caching and the remote execution stay off to the side, not something it has to reason about while it works. The automation layer a harness can drive directly ended up looking a lot like the scripts already in the repo, with a few comments on top.
 
 ## The tools the graph depends on
 
@@ -214,7 +217,7 @@ The whole thing, the Rust core, both apps, and the scripts that build them, is a
 
 ## Where this goes next
 
-What the example convinced us of is that a pile of annotated shell scripts is enough to describe a real build graph, and that a coding agent can read and write that description without learning a new language. We stayed low, at the level of invoking a compiler, because that's the hardest case to make convincing. The annotations work just as well higher up. A script that installs dependencies or runs a test suite in a JavaScript workspace is a node like any other, and skipping it when nothing changed is the sort of thing you'd reach for [Nx](https://nx.dev) to do. [Once](https://github.com/tuist/once) doesn't care whether the command is `rustc` or `npm test`.
+None of this is specific to compilers. We stayed low, at the level of invoking `rustc`, because that's the hardest case to make convincing, but a script that installs dependencies or runs a test suite in a JavaScript workspace is a node like any other, and skipping it when nothing changed is the sort of thing you'd reach for [Nx](https://nx.dev) to do. [Once](https://github.com/tuist/once) doesn't care whether the command is `rustc` or `npm test`.
 
 Where the work runs is a separate concern on purpose. Once talks to infrastructure through a [provider interface](https://docs.buildonce.dev/guide/infrastructure/), so the graph doesn't know who's underneath it. Tuist is one provider, the one we're building, so you can point Once at it and get low-latency remote caching without standing up anything yourself. **The graph stays yours, and the infrastructure is swappable.**
 
@@ -225,4 +228,4 @@ The one we think about most is reusability. Bazel and Buck2 built communities ar
 The layer we've barely touched is the client itself, the thing sitting between a harness and the infrastructure, and it's the one we're poking at most right now. Once you assume the client is usually an agent acting on someone's behalf, and not a person at a terminal, even the plumbing questions change shape. What's the right way for it to authenticate, when the thing holding the credential is a harness closing a loop and not the developer who kicked it off? And how should the work be attributed, when a cached result or a passing check was produced and verified by agents, so you can still trace what happened back to who, and what, actually did it? We don't have those answers, but they feel like decisions to make on purpose, not defaults to inherit from a world where the client was always a human.
 
 > [!NOTE]
-> Once is an experiment, not a finished product. It's our way of poking at what a build system designed for coding harnesses could look like, and we're sharing it this early on purpose. If any of this resonates, or if you think we have it wrong, I'd like to hear it. Email me at [pedro@tuist.dev](mailto:pedro@tuist.dev) and let's trade notes.
+> Once is an experiment for now, not a finished product, though it may grow into one if the ideas hold up as they meet real projects. It's our way of poking at what a build system designed for coding harnesses could look like, and we're sharing it this early on purpose. If any of this resonates, or if you think we have it wrong, I'd like to hear it. Email me at [pedro@tuist.dev](mailto:pedro@tuist.dev) and let's trade notes.
