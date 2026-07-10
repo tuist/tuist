@@ -28,35 +28,7 @@ The active account plan determines the Tuist Cloud retention window. If an accou
 
 ### Self-hosted instances {#self-hosted-artifact-files}
 
-Self-hosted artifact cleanup is opt-in and configured separately for each artifact type. Set an artifact type's environment variable to a positive integer number of days to enable its cleanup. Leaving a variable unset or blank disables cleanup only for that artifact type. Self-hosted windows are not capped at 30 days.
-
-The following example enables every supported artifact type with an independent retention window. Omit a variable or leave it blank to keep cleanup disabled for that artifact type.
-
-```bash
-TUIST_CACHE_ARTIFACT_RETENTION_DAYS=30
-TUIST_APP_PREVIEW_RETENTION_DAYS=30
-TUIST_BUILD_ARCHIVE_RETENTION_DAYS=60
-TUIST_RUN_ARTIFACT_RETENTION_DAYS=30
-TUIST_TEST_ATTACHMENT_RETENTION_DAYS=30
-TUIST_SHARD_BUNDLE_RETENTION_DAYS=14
-```
-
-The supported variables and their object-storage scope are:
-
-| Environment variable | Artifact files |
-| --- | --- |
-| `TUIST_CACHE_ARTIFACT_RETENTION_DAYS` | Xcode cache, legacy content-addressable storage cache, module cache, and Gradle cache files |
-| `TUIST_APP_PREVIEW_RETENTION_DAYS` | App preview builds and icons |
-| `TUIST_BUILD_ARCHIVE_RETENTION_DAYS` | Current and legacy build archives |
-| `TUIST_RUN_ARTIFACT_RETENTION_DAYS` | All objects stored under an expired run's artifact prefix, including result bundles, invocation records, and session archives |
-| `TUIST_TEST_ATTACHMENT_RETENTION_DAYS` | Test run attachments |
-| `TUIST_SHARD_BUNDLE_RETENTION_DAYS` | Test shard bundles |
-
-The cleanup jobs remove artifact blobs from object storage only. Associated PostgreSQL and ClickHouse metadata remains available for analytics and dashboards. The setting does not change database retention rules.
-
-Cache artifact cleanup scans the instance-managed cache buckets and skips accounts configured with account-specific custom cache storage. Matching cache objects whose prefix no longer resolves to a current account are cleaned with the configured window. Database-backed cleanup for app previews, current build archives, run artifacts, test attachments, and shard bundles uses the account's current storage configuration. Legacy build archive cleanup scans the instance-managed artifact bucket. Package registry mirror objects and runner log archives are outside this configurable policy. Runner log archives keep their separate 90-day retention window.
-
-See the <.localized_link href="/guides/server/self-host/server#artifact-retention">self-hosted artifact retention configuration</.localized_link> for deployment details. These variables do not override the Tuist Cloud plan-based windows.
+Self-hosted artifact cleanup is opt-in, configurable separately for each artifact type, and not capped at 30 days. See the <.localized_link href="/guides/server/self-host/server#artifact-retention">self-hosted artifact retention configuration</.localized_link> for the supported artifact types and deployment options.
 
 ## Dashboard and activity data {#dashboard-and-activity-data}
 
