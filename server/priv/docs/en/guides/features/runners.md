@@ -40,7 +40,7 @@ On top of that, the cache is colocated with the runner on the same private netwo
 
 Put together:
 
-- **Shared with local environments.** The runner reads and writes the same cache as `tuist` and Xcode on developer machines. Work done anywhere warms the cache everywhere. You can bring the same cache even closer to CI, offices, or regional compute by <.localized_link href="/guides/features/cache/self-hosting">self-hosting cache nodes</.localized_link>.
+- **Shared with local environments.** The runner reads and writes the same cache as `tuist` and Xcode on developer machines. Work done anywhere warms the cache everywhere.
 - **Colocated with the compute.** Cache traffic stays on the internal network next to the runner, not over a public ingress.
 - **One system, not bolted-on.** Cache, <.localized_link href="/guides/features/selective-testing">selective testing</.localized_link>, <.localized_link href="/guides/features/test-sharding">test sharding</.localized_link>, and <.localized_link href="/guides/features/build-insights">build insights</.localized_link> all run against the same project and account, so the runner isn't a separate silo of build data.
 
