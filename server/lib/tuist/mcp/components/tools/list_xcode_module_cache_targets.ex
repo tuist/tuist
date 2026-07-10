@@ -27,6 +27,59 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeModuleCacheTargets do
         }
       },
       "required" => ["run_id"]
+    },
+    output_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "targets" => %{
+          "type" => "array",
+          "items" => %{
+            "type" => "object",
+            "properties" => %{
+              "name" => %{"type" => "string"},
+              "cache_status" => %{"type" => "string"},
+              "cache_hash" => %{"type" => "string"},
+              "product" => %{"type" => ["string", "null"]},
+              "bundle_id" => %{"type" => ["string", "null"]},
+              "product_name" => %{"type" => ["string", "null"]},
+              "subhashes" => %{
+                "type" => "object",
+                "properties" => %{
+                  "sources" => %{"type" => "string"},
+                  "resources" => %{"type" => "string"},
+                  "copy_files" => %{"type" => "string"},
+                  "core_data_models" => %{"type" => "string"},
+                  "target_scripts" => %{"type" => "string"},
+                  "environment" => %{"type" => "string"},
+                  "headers" => %{"type" => "string"},
+                  "deployment_target" => %{"type" => "string"},
+                  "info_plist" => %{"type" => "string"},
+                  "entitlements" => %{"type" => "string"},
+                  "dependencies" => %{"type" => "string"},
+                  "project_settings" => %{"type" => "string"},
+                  "target_settings" => %{"type" => "string"},
+                  "buildable_folders" => %{"type" => "string"},
+                  "external" => %{"type" => "string"}
+                },
+                "additionalProperties" => false
+              }
+            },
+            "required" => [
+              "name",
+              "cache_status",
+              "cache_hash",
+              "product",
+              "bundle_id",
+              "product_name",
+              "subhashes"
+            ],
+            "additionalProperties" => false
+          }
+        },
+        "pagination_metadata" => Tuist.MCP.Tool.pagination_metadata_schema()
+      },
+      "required" => ["targets", "pagination_metadata"],
+      "additionalProperties" => false
     }
 
   alias Tuist.CommandEvents

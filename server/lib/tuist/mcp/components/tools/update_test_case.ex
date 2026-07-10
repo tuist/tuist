@@ -38,6 +38,19 @@ defmodule Tuist.MCP.Components.Tools.UpdateTestCase do
           "description" => "Whether to mark the test case as flaky."
         }
       }
+    },
+    output_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "id" => %{"type" => "string"},
+        "name" => %{"type" => "string"},
+        "module_name" => %{"type" => "string"},
+        "suite_name" => %{"type" => "string"},
+        "is_flaky" => %{"type" => "boolean"},
+        "state" => %{"type" => "string"}
+      },
+      "required" => ["id", "name", "module_name", "suite_name", "is_flaky", "state"],
+      "additionalProperties" => false
     }
 
   alias Tuist.Accounts.AuthenticatedAccount
@@ -100,7 +113,7 @@ defmodule Tuist.MCP.Components.Tools.UpdateTestCase do
     actor_id = conn.assigns |> Authorization.authenticated_subject() |> subject_account_id()
 
     case Tests.update_test_case(test_case_id, attrs, actor_id: actor_id) do
-      {:ok, updated} -> MCPTool.json_response(reply_payload(updated))
+      {:ok, updated} -> MCPTool.json_response(reply_payload(updated), __MODULE__)
       {:error, :not_found} -> EMCP.Tool.error("Test case not found: #{test_case_id}")
     end
   end
