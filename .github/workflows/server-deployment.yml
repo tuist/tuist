@@ -1034,6 +1034,7 @@ jobs:
           if [ "${REGISTRY_ENABLED:-false}" = "true" ]; then
             kubectl -n "$NAMESPACE" rollout status deploy/tuist-tuist-registry --timeout=10m
             kubectl -n "$NAMESPACE" run registry-smoke-$RANDOM --rm -i --restart=Never --image=curlimages/curl \
+              --labels=app.kubernetes.io/name=tuist,app.kubernetes.io/instance=tuist,app.kubernetes.io/component=registry-smoke \
               --command -- curl -fsS "http://tuist-tuist-registry/up"
           else
             echo "Swift registry component disabled; skipping registry smoke test."
