@@ -3,28 +3,25 @@ defmodule Tuist.Storage.Workers.DeleteExpiredLegacyBuildArtifactsWorker do
   use Oban.Worker,
     queue: :storage_retention,
     max_attempts: 3,
-    unique: [keys: [:continuation_token], states: [:available, :scheduled, :executing, :retryable]]
+    unique: [
+      fields: [:queue, :worker],
+      period: :infinity,
+      states: [:available, :scheduled, :executing, :retryable]
+    ]
+
+  import Tuist.Storage.Workers.ArtifactRetentionWorker
+  import Tuist.Storage.Workers.BucketArtifactWorker
 
   alias Tuist.Storage.LegacyBuildArtifactRetention
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: args}) do
-    continuation_token = Map.get(args, "continuation_token")
-
-    with {:ok, next_continuation_token} <-
-           LegacyBuildArtifactRetention.delete_expired(continuation_token: continuation_token) do
-      maybe_enqueue_next_page(next_continuation_token)
-    end
-  end
-
-  defp maybe_enqueue_next_page(nil), do: :ok
-
-  defp maybe_enqueue_next_page(continuation_token) do
-    %{"continuation_token" => continuation_token}
-    |> __MODULE__.new()
-    |> Oban.insert()
-    |> case do
-      {:ok, _job} -> :ok
+  def perform(%Oban.Job{args: args} = job) do
+    with {:enabled, retention_days} <- effective_retention_days(args, :build_archives),
+         {:ok, next_continuation_token} <-
+           LegacyBuildArtifactRetention.delete_expired(options_from_args(args, retention_days)) do
+      continue(next_continuation_token, job, retention_days, Map.get(args, "self_hosted", false))
+    else
+      :disabled -> :ok
       error -> error
     end
   end

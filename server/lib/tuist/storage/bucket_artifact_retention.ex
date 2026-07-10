@@ -60,19 +60,32 @@ defmodule Tuist.Storage.BucketArtifactRetention do
   defp expired_objects(objects, target) do
     plans_by_account_handle = managed_plans_by_account_handle(objects, target)
     retention_artifact_type = Map.fetch!(target, :retention_artifact_type)
+    retention_days = Map.get(target, :retention_days)
     orphaned_account_plan = Map.get(target, :orphaned_account_plan)
 
     Enum.filter(objects, fn object ->
       plan = plan_for_object(object, plans_by_account_handle) || orphaned_account_plan
 
-      if is_nil(plan) do
-        false
-      else
-        cutoff = RetentionPolicy.cutoff(retention_artifact_type, plan)
+      cond do
+        plan == :skip ->
+          false
 
-        object
-        |> last_modified()
-        |> expired?(cutoff)
+        not is_nil(retention_days) ->
+          cutoff = RetentionPolicy.cutoff(retention_artifact_type, plan || :air, retention_days)
+
+          object
+          |> last_modified()
+          |> expired?(cutoff)
+
+        is_nil(plan) ->
+          false
+
+        true ->
+          cutoff = RetentionPolicy.cutoff(retention_artifact_type, plan)
+
+          object
+          |> last_modified()
+          |> expired?(cutoff)
       end
     end)
   end
@@ -85,31 +98,33 @@ defmodule Tuist.Storage.BucketArtifactRetention do
       |> Enum.flat_map(fn account_handle -> [account_handle, normalize_account_handle(account_handle)] end)
       |> Enum.uniq()
 
-    Account
-    |> where([account], account.name in ^account_handles)
-    |> Repo.all()
-    |> maybe_reject_custom_storage_accounts(target)
-    |> then(fn accounts ->
-      plans_by_account_id = RetentionPolicy.current_plans(accounts)
+    accounts =
+      Account
+      |> where([account], account.name in ^account_handles)
+      |> Repo.all()
 
-      exact_plans_by_account_handle =
-        Map.new(accounts, fn account -> {account.name, Map.fetch!(plans_by_account_id, account.id)} end)
+    {skipped_accounts, managed_accounts} =
+      if Map.get(target, :skip_custom_storage_accounts?, false) do
+        Enum.split_with(accounts, &Account.custom_s3_storage_configured?/1)
+      else
+        {[], accounts}
+      end
 
-      normalized_plans_by_account_handle =
-        Map.new(accounts, fn account ->
-          {normalize_account_handle(account.name), Map.fetch!(plans_by_account_id, account.id)}
-        end)
+    plans_by_account_id = RetentionPolicy.current_plans(managed_accounts)
 
-      Map.merge(normalized_plans_by_account_handle, exact_plans_by_account_handle)
-    end)
+    managed_plans =
+      account_values_by_handle(managed_accounts, fn account -> Map.fetch!(plans_by_account_id, account.id) end)
+
+    skipped_plans = account_values_by_handle(skipped_accounts, fn _account -> :skip end)
+
+    Map.merge(managed_plans, skipped_plans)
   end
 
-  defp maybe_reject_custom_storage_accounts(accounts, target) do
-    if Map.get(target, :skip_custom_storage_accounts?, false) do
-      Enum.reject(accounts, &Account.custom_s3_storage_configured?/1)
-    else
-      accounts
-    end
+  defp account_values_by_handle(accounts, value) do
+    exact_values = Map.new(accounts, fn account -> {account.name, value.(account)} end)
+    normalized_values = Map.new(accounts, fn account -> {normalize_account_handle(account.name), value.(account)} end)
+
+    Map.merge(normalized_values, exact_values)
   end
 
   defp plan_for_object(object, plans_by_account_handle) do

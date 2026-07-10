@@ -23,6 +23,13 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   alias Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker
   alias Tuist.Tests.Workers.ExpireStaleTestRunsWorker
 
+  @cache_retention_workers [
+    DeleteExpiredCasCacheArtifactsWorker,
+    DeleteExpiredGradleCacheArtifactsWorker,
+    DeleteExpiredXcodeCacheArtifactsWorker,
+    DeleteExpiredXcodeModuleCacheArtifactsWorker
+  ]
+
   describe "peer_eligible?/1" do
     test ":web is leader-eligible" do
       assert RuntimeConfig.peer_eligible?(:web)
@@ -38,13 +45,14 @@ defmodule Tuist.Oban.RuntimeConfigTest do
     end
   end
 
-  describe "crontab/3" do
+  describe "crontab/4" do
     test "empty for every non-web mode in every prod-like env, regardless of hosted state" do
       for mode <- Environment.modes(),
           mode != :web,
           env <- [:prod, :stag, :can],
-          tuist_hosted? <- [true, false] do
-        assert RuntimeConfig.crontab(mode, env, tuist_hosted?) == [],
+          tuist_hosted? <- [true, false],
+          artifact_retention_days <- [%{}, %{cache_artifacts: 30, app_previews: 30}] do
+        assert RuntimeConfig.crontab(mode, env, tuist_hosted?, artifact_retention_days: artifact_retention_days) == [],
                "expected empty crontab for mode=#{inspect(mode)} env=#{inspect(env)} hosted=#{inspect(tuist_hosted?)}"
       end
     end
@@ -52,30 +60,33 @@ defmodule Tuist.Oban.RuntimeConfigTest do
     test "empty for :web in non-prod-like envs, except previews" do
       for env <- [:dev, :test, :preview], tuist_hosted? <- [true, false] do
         if env == :preview do
-          assert [{"* * * * *", SyncWorker}] = RuntimeConfig.crontab(:web, env, tuist_hosted?)
+          assert [{"* * * * *", SyncWorker}] =
+                   RuntimeConfig.crontab(:web, env, tuist_hosted?, artifact_retention_days: %{cache_artifacts: 30})
         else
-          assert RuntimeConfig.crontab(:web, env, tuist_hosted?) == []
+          assert RuntimeConfig.crontab(:web, env, tuist_hosted?, artifact_retention_days: %{cache_artifacts: 30}) == []
         end
       end
     end
 
     test ":web + preview only runs the Swift registry sync cron" do
       for tuist_hosted? <- [true, false] do
-        assert RuntimeConfig.crontab(:web, :preview, tuist_hosted?) == [{"* * * * *", SyncWorker}]
+        assert RuntimeConfig.crontab(:web, :preview, tuist_hosted?, artifact_retention_days: %{cache_artifacts: 30}) == [
+                 {"* * * * *", SyncWorker}
+               ]
       end
 
       for mode <- Environment.modes(), mode != :web do
-        assert RuntimeConfig.crontab(mode, :preview, true) == []
+        assert RuntimeConfig.crontab(mode, :preview, true, artifact_retention_days: %{cache_artifacts: 30}) == []
       end
     end
 
     test ":web + non-preview non-prod-like envs stay empty" do
       for env <- [:dev, :test], tuist_hosted? <- [true, false] do
-        assert RuntimeConfig.crontab(:web, env, tuist_hosted?) == []
+        assert RuntimeConfig.crontab(:web, env, tuist_hosted?, artifact_retention_days: %{cache_artifacts: 30}) == []
       end
     end
 
-    test ":web + prod-like env, self-hosted: shared crons only, no hosted-only entries" do
+    test ":web + prod-like env, self-hosted without retention configuration: shared crons only" do
       for env <- [:prod, :stag, :can] do
         workers =
           :web
@@ -104,11 +115,106 @@ defmodule Tuist.Oban.RuntimeConfigTest do
       end
     end
 
+    test ":web + prod-like env, self-hosted: each configured family enables only its retention workers" do
+      cases = [
+        {%{cache_artifacts: 14},
+         [
+           DeleteExpiredCasCacheArtifactsWorker,
+           DeleteExpiredGradleCacheArtifactsWorker,
+           DeleteExpiredXcodeCacheArtifactsWorker,
+           DeleteExpiredXcodeModuleCacheArtifactsWorker
+         ]},
+        {%{app_previews: 30}, [ScheduleExpiredArtifactsWorker]},
+        {%{build_archives: 45}, [ScheduleExpiredArtifactsWorker, DeleteExpiredLegacyBuildArtifactsWorker]},
+        {%{run_artifacts: 60}, [ScheduleExpiredArtifactsWorker]},
+        {%{test_attachments: 75}, [ScheduleExpiredArtifactsWorker]},
+        {%{shard_bundles: 90}, [ScheduleExpiredArtifactsWorker]}
+      ]
+
+      retention_workers = [
+        ScheduleExpiredArtifactsWorker,
+        DeleteExpiredCasCacheArtifactsWorker,
+        DeleteExpiredGradleCacheArtifactsWorker,
+        DeleteExpiredLegacyBuildArtifactsWorker,
+        DeleteExpiredXcodeCacheArtifactsWorker,
+        DeleteExpiredXcodeModuleCacheArtifactsWorker
+      ]
+
+      for {artifact_retention_days, expected_workers} <- cases do
+        configured_workers =
+          :web
+          |> RuntimeConfig.crontab(:prod, false, artifact_retention_days: artifact_retention_days)
+          |> Enum.map(&cron_worker/1)
+          |> Enum.filter(&(&1 in retention_workers))
+
+        assert Enum.sort(configured_workers) == Enum.sort(expected_workers)
+      end
+    end
+
+    test ":web + prod-like env, self-hosted: database-backed families share one scheduler" do
+      artifact_retention_days = %{
+        app_previews: 30,
+        build_archives: 45,
+        run_artifacts: 60,
+        test_attachments: 75,
+        shard_bundles: 90
+      }
+
+      crontab = RuntimeConfig.crontab(:web, :prod, false, artifact_retention_days: artifact_retention_days)
+
+      assert {"30 2 * * *", ScheduleExpiredArtifactsWorker, args: %{"self_hosted" => true}} in crontab
+
+      assert Enum.count(crontab, &(cron_worker(&1) == ScheduleExpiredArtifactsWorker)) == 1
+
+      assert {"0 4 * * *", DeleteExpiredLegacyBuildArtifactsWorker, args: %{"self_hosted" => true}} in crontab
+    end
+
+    test ":web + prod-like env, self-hosted: cron args carry no retention window" do
+      artifact_retention_days = %{app_previews: 30, build_archives: 45, cache_artifacts: 21}
+
+      for {_schedule, _worker, opts} <-
+            RuntimeConfig.crontab(:web, :prod, false, artifact_retention_days: artifact_retention_days) do
+        refute Map.has_key?(opts[:args], "retention_days"),
+               "self-hosted retention workers read their window from the environment on every " <>
+                 "run, so a window in the job args is dead payload that shadows the real source"
+      end
+    end
+
+    test ":web + prod-like env, self-hosted: cache retention configures all cache workers" do
+      crontab = RuntimeConfig.crontab(:web, :prod, false, artifact_retention_days: %{cache_artifacts: 21})
+
+      assert {"0 3 * * *", DeleteExpiredXcodeCacheArtifactsWorker, args: %{"self_hosted" => true}} in crontab
+      assert {"15 3 * * *", DeleteExpiredXcodeModuleCacheArtifactsWorker, args: %{"self_hosted" => true}} in crontab
+      assert {"30 3 * * *", DeleteExpiredGradleCacheArtifactsWorker, args: %{"self_hosted" => true}} in crontab
+      assert {"45 3 * * *", DeleteExpiredCasCacheArtifactsWorker, args: %{"self_hosted" => true}} in crontab
+
+      refute Enum.any?(crontab, &(cron_worker(&1) == ScheduleExpiredArtifactsWorker))
+      refute Enum.any?(crontab, &(cron_worker(&1) == DeleteExpiredLegacyBuildArtifactsWorker))
+    end
+
+    test ":web + prod-like env, Tuist-hosted and self-hosted share the cache retention schedules" do
+      hosted_cache_crons =
+        :web
+        |> RuntimeConfig.crontab(:prod, true)
+        |> Enum.filter(&(cron_worker(&1) in @cache_retention_workers))
+        |> Enum.map(fn {schedule, worker} -> {schedule, worker} end)
+        |> Enum.sort()
+
+      self_hosted_cache_crons =
+        :web
+        |> RuntimeConfig.crontab(:prod, false, artifact_retention_days: %{cache_artifacts: 21})
+        |> Enum.filter(&(cron_worker(&1) in @cache_retention_workers))
+        |> Enum.map(fn {schedule, worker, _opts} -> {schedule, worker} end)
+        |> Enum.sort()
+
+      assert hosted_cache_crons == self_hosted_cache_crons
+    end
+
     test ":web + prod-like env, Tuist-hosted: hosted-only entries plus shared crons" do
-      for env <- [:prod, :stag, :can] do
+      for env <- [:prod, :stag, :can], artifact_retention_days <- [%{}, %{cache_artifacts: 21}] do
         workers =
           :web
-          |> RuntimeConfig.crontab(env, true)
+          |> RuntimeConfig.crontab(env, true, artifact_retention_days: artifact_retention_days)
           |> Enum.map(fn {_cron, worker} -> worker end)
 
         assert AutomationScheduler in workers
@@ -137,7 +243,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
       for env <- [:prod, :stag, :can] do
         workers =
           :web
-          |> RuntimeConfig.crontab(env, true, false)
+          |> RuntimeConfig.crontab(env, true, swift_registry_sync_enabled?: false)
           |> Enum.map(fn {_cron, worker} -> worker end)
 
         refute SyncWorker in workers
@@ -145,7 +251,10 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         assert UpdateAllAccountsUsageWorker in workers
       end
 
-      assert RuntimeConfig.crontab(:web, :preview, true, false) == []
+      assert RuntimeConfig.crontab(:web, :preview, true, swift_registry_sync_enabled?: false) == []
     end
   end
+
+  defp cron_worker({_schedule, worker}), do: worker
+  defp cron_worker({_schedule, worker, _opts}), do: worker
 end

@@ -280,6 +280,51 @@ defmodule Tuist.EnvironmentTest do
     end
   end
 
+  describe "artifact_retention_days/1" do
+    test "returns an empty map when artifact retention is not configured" do
+      assert Environment.artifact_retention_days(%{}) == %{}
+
+      assert Environment.artifact_retention_days(%{
+               "TUIST_CACHE_ARTIFACT_RETENTION_DAYS" => "",
+               "TUIST_BUILD_ARCHIVE_RETENTION_DAYS" => "  \n\t"
+             }) == %{}
+    end
+
+    test "parses retention days for every supported artifact resource type" do
+      environment = %{
+        "TUIST_CACHE_ARTIFACT_RETENTION_DAYS" => "14",
+        "TUIST_APP_PREVIEW_RETENTION_DAYS" => "30",
+        "TUIST_BUILD_ARCHIVE_RETENTION_DAYS" => "45",
+        "TUIST_RUN_ARTIFACT_RETENTION_DAYS" => "60",
+        "TUIST_TEST_ATTACHMENT_RETENTION_DAYS" => "75",
+        "TUIST_SHARD_BUNDLE_RETENTION_DAYS" => "90"
+      }
+
+      assert Environment.artifact_retention_days(environment) == %{
+               cache_artifacts: 14,
+               app_previews: 30,
+               build_archives: 45,
+               run_artifacts: 60,
+               test_attachments: 75,
+               shard_bundles: 90
+             }
+    end
+
+    test "accepts a partial artifact retention configuration" do
+      assert Environment.artifact_retention_days(%{"TUIST_BUILD_ARCHIVE_RETENTION_DAYS" => " 45 "}) == %{
+               build_archives: 45
+             }
+    end
+
+    test "rejects non-positive and non-integer retention days" do
+      for value <- ["0", "-1", "1.5", "30 days", 30] do
+        assert_raise RuntimeError, ~r/TUIST_CACHE_ARTIFACT_RETENTION_DAYS must be a positive integer/, fn ->
+          Environment.artifact_retention_days(%{"TUIST_CACHE_ARTIFACT_RETENTION_DAYS" => value})
+        end
+      end
+    end
+  end
+
   describe "quote_postgres_identifier/1" do
     test "quotes identifiers used in SQL and startup parameters" do
       assert Environment.quote_postgres_identifier("tuist") == ~s("tuist")

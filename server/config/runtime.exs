@@ -606,7 +606,8 @@ crontab =
     mode,
     env,
     Tuist.Environment.tuist_hosted?(),
-    swift_registry_sync_enabled
+    swift_registry_sync_enabled?: swift_registry_sync_enabled,
+    artifact_retention_days: Tuist.Environment.artifact_retention_days()
   )
 
 config :tuist, Oban,

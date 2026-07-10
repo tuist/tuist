@@ -18,6 +18,14 @@ defmodule Tuist.Environment do
       "jwks_uri" => "https://auth.openai.com/.well-known/jwks.json"
     }
   ]
+  @artifact_retention_environment_variables %{
+    cache_artifacts: "TUIST_CACHE_ARTIFACT_RETENTION_DAYS",
+    app_previews: "TUIST_APP_PREVIEW_RETENTION_DAYS",
+    build_archives: "TUIST_BUILD_ARCHIVE_RETENTION_DAYS",
+    run_artifacts: "TUIST_RUN_ARTIFACT_RETENTION_DAYS",
+    test_attachments: "TUIST_TEST_ATTACHMENT_RETENTION_DAYS",
+    shard_bundles: "TUIST_SHARD_BUNDLE_RETENTION_DAYS"
+  }
 
   # Every supported pod role. `mode/0` raises on any other value of
   # TUIST_MODE so a deployment-manifest typo (`processsor`, `ingest`,
@@ -235,6 +243,35 @@ defmodule Tuist.Environment do
   def tuist_hosted? do
     truthy?(System.get_env("TUIST_CLOUD_HOSTED", "0")) or
       truthy?(System.get_env("TUIST_HOSTED", "0"))
+  end
+
+  def artifact_retention_days(environment \\ System.get_env()) when is_map(environment) do
+    Enum.reduce(@artifact_retention_environment_variables, %{}, fn {resource_type, environment_variable}, acc ->
+      case parse_artifact_retention_days(Map.get(environment, environment_variable), environment_variable) do
+        nil -> acc
+        days -> Map.put(acc, resource_type, days)
+      end
+    end)
+  end
+
+  defp parse_artifact_retention_days(nil, _environment_variable), do: nil
+
+  defp parse_artifact_retention_days(value, environment_variable) when is_binary(value) do
+    value = String.trim(value)
+
+    case Integer.parse(value) do
+      _ when value == "" -> nil
+      {days, ""} when days > 0 -> days
+      _ -> raise_invalid_artifact_retention_days(environment_variable, value)
+    end
+  end
+
+  defp parse_artifact_retention_days(value, environment_variable) do
+    raise_invalid_artifact_retention_days(environment_variable, value)
+  end
+
+  defp raise_invalid_artifact_retention_days(environment_variable, value) do
+    raise "#{environment_variable} must be a positive integer number of days, got: #{inspect(value)}"
   end
 
   def test_user_login_enabled? do
