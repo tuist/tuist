@@ -52,7 +52,7 @@ defmodule TuistWeb.API.RunnerInteractiveShellSessionControllerTest do
     account = user.account
     running_job(account, 72_002, 720_020, "pod-api-shell-url")
 
-    job_url = "https://tuist.dev/#{account.name}/runners/runs/720020/jobs/72002?tab=interactive"
+    job_url = "https://tuist.dev/#{account.name}/runners/runs/720020/jobs/72002?tab=terminal"
 
     conn =
       conn

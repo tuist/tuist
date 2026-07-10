@@ -3786,7 +3786,14 @@ end)
 # Running jobs — currently being executed
 running_jobs = [
   %{workflow: "CLI", job_name: "Build Acceptance Tests", run_attempt: 1, started_seconds_ago: 124, repo_idx: 2},
-  %{workflow: "Server", job_name: "esbuild", run_attempt: 1, started_seconds_ago: 39, repo_idx: 0}
+  %{workflow: "Server", job_name: "esbuild", run_attempt: 1, started_seconds_ago: 39, repo_idx: 0},
+  %{
+    workflow: "Linux Runners Local Smoke Test",
+    job_name: "terminal",
+    run_attempt: 1,
+    started_seconds_ago: 18,
+    repo_idx: 0
+  }
 ]
 
 running_jobs

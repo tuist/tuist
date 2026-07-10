@@ -94,10 +94,12 @@ defmodule TuistWeb.RunnerJobLive do
   @impl true
   def handle_params(_params, uri, socket) do
     params = Query.query_params(uri)
-    selected_tab = selected_tab(params["tab"] || "overview", socket.assigns.interactive)
+    terminal_simulation? = terminal_simulation?(params)
+    selected_tab = selected_tab(params["tab"] || "overview", socket.assigns.interactive, terminal_simulation?)
 
     socket =
       socket
+      |> assign(:terminal_simulation?, terminal_simulation?)
       |> assign(:selected_tab, selected_tab)
       |> assign(:uri, URI.new!("?" <> URI.encode_query(params)))
       |> maybe_auto_request_interactive_sessions()
@@ -293,10 +295,21 @@ defmodule TuistWeb.RunnerJobLive do
   """
   def has_machine_metrics?(metrics), do: metrics != []
 
-  def interactive_tab_visible?(%{can_read?: true, running?: true, pod_available?: true, shell_requestable?: true}),
+  def terminal_tab_visible?(_interactive, true), do: true
+
+  def terminal_tab_visible?(%{can_read?: true, running?: true, pod_available?: true, shell_requestable?: true}, _),
     do: true
 
-  def interactive_tab_visible?(_), do: false
+  def terminal_tab_visible?(_, _), do: false
+
+  def vnc_tab_visible?(%{can_read?: true, macos?: true, running?: true, pod_available?: true, vnc_requestable?: true}),
+    do: true
+
+  def vnc_tab_visible?(_), do: false
+
+  def interactive_tab_visible?(interactive) do
+    terminal_tab_visible?(interactive, false) or vnc_tab_visible?(interactive)
+  end
 
   def interactive_vnc_unavailable_reason(%{can_read?: false}),
     do: dgettext("dashboard_runners", "You are not authorized to request interactive access.")
@@ -469,11 +482,21 @@ defmodule TuistWeb.RunnerJobLive do
     end
   end
 
-  defp maybe_auto_request_interactive_sessions(%{assigns: %{selected_tab: "interactive"}} = socket) do
+  defp maybe_auto_request_interactive_sessions(
+         %{assigns: %{selected_tab: "terminal", terminal_simulation?: true}} = socket
+       ), do: socket
+
+  defp maybe_auto_request_interactive_sessions(%{assigns: %{selected_tab: "terminal"}} = socket) do
     if connected?(socket) do
+      request_shell_session(socket)
+    else
       socket
-      |> request_vnc_session()
-      |> request_shell_session()
+    end
+  end
+
+  defp maybe_auto_request_interactive_sessions(%{assigns: %{selected_tab: "vnc"}} = socket) do
+    if connected?(socket) do
+      request_vnc_session(socket)
     else
       socket
     end
@@ -489,7 +512,7 @@ defmodule TuistWeb.RunnerJobLive do
     InteractiveSessions.request_vnc_relay(session)
   end
 
-  defp schedule_interactive_refresh(%{assigns: %{selected_tab: "interactive", interactive: interactive}} = socket) do
+  defp schedule_interactive_refresh(%{assigns: %{selected_tab: "vnc", interactive: interactive}} = socket) do
     if connected?(socket) and match?(%{state: :requested}, interactive.vnc_session) do
       Process.send_after(self(), :refresh_interactive_access, @interactive_refresh_ms)
     end
@@ -621,13 +644,25 @@ defmodule TuistWeb.RunnerJobLive do
   defp oldest_line_number([]), do: nil
   defp oldest_line_number([first | _]), do: first.line_number
 
-  defp selected_tab("interactive", interactive) do
-    if interactive_tab_visible?(interactive), do: "interactive", else: "overview"
+  defp selected_tab("interactive", interactive, terminal_simulation?) do
+    selected_tab("terminal", interactive, terminal_simulation?)
   end
 
-  defp selected_tab("logs", _interactive), do: "logs"
-  defp selected_tab("metrics", _interactive), do: "metrics"
-  defp selected_tab(_, _interactive), do: "overview"
+  defp selected_tab("terminal", interactive, terminal_simulation?) do
+    if terminal_tab_visible?(interactive, terminal_simulation?), do: "terminal", else: "overview"
+  end
+
+  defp selected_tab("vnc", interactive, _terminal_simulation?) do
+    if vnc_tab_visible?(interactive), do: "vnc", else: "overview"
+  end
+
+  defp selected_tab("logs", _interactive, _terminal_simulation?), do: "logs"
+  defp selected_tab("metrics", _interactive, _terminal_simulation?), do: "metrics"
+  defp selected_tab(_, _interactive, _terminal_simulation?), do: "overview"
+
+  defp terminal_simulation?(params) do
+    Environment.dev?() and Environment.truthy?(params["terminal_simulation"])
+  end
 
   defp refresh_interactive_state(socket) do
     %{selected_account: selected_account, current_user: current_user, job: job} = socket.assigns

@@ -424,7 +424,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     refute has_element?(lv2, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Overview")
   end
 
-  test "automatically requests a VNC session from the Interactive tab", %{
+  test "automatically requests a VNC session from the VNC tab", %{
     conn: conn,
     account: account
   } do
@@ -449,9 +449,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
     :ok = Jobs.record_running(31_750, "tuist-runner-vnc")
 
     {:ok, lv, html} =
-      live(conn, ~p"/#{account.name}/runners/runs/317500/jobs/31750?tab=interactive")
+      live(conn, ~p"/#{account.name}/runners/runs/317500/jobs/31750?tab=vnc")
 
-    assert html =~ "Interactive access"
+    assert html =~ "VNC"
     assert html =~ "Waiting for runner relay"
     refute html =~ "macOS desktop"
     refute html =~ "VNC session for the live runner desktop."
@@ -505,7 +505,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     |> Repo.update!()
 
     {:ok, lv, html} =
-      live(conn, ~p"/#{account.name}/runners/runs/317520/jobs/31752?tab=interactive")
+      live(conn, ~p"/#{account.name}/runners/runs/317520/jobs/31752?tab=vnc")
 
     refute html =~ "VNC session ready"
 
@@ -550,9 +550,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
     :ok = Jobs.record_running(31_753, "tuist-runner-dev-vnc")
 
     {:ok, lv, html} =
-      live(conn, ~p"/#{account.name}/runners/runs/317530/jobs/31753?tab=interactive")
+      live(conn, ~p"/#{account.name}/runners/runs/317530/jobs/31753?tab=vnc")
 
-    assert html =~ "Interactive access"
+    assert html =~ "VNC"
     refute has_element?(lv, ~s{[data-part="interactive-dev-preview"]})
     assert has_element?(lv, ~s{[data-part="interactive-viewport-frame"]})
     assert html =~ "VNC session ready"
@@ -567,7 +567,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert session.relay_ready_at
   end
 
-  test "does not show the Interactive tab for queued macOS jobs", %{conn: conn, account: account} do
+  test "does not show interactive access tabs for queued macOS jobs", %{conn: conn, account: account} do
     :ok =
       Jobs.enqueue(%{
         workflow_job_id: 31_751,
@@ -585,11 +585,12 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, lv, _html} =
       live(conn, ~p"/#{account.name}/runners/runs/317510/jobs/31751?tab=interactive")
 
-    refute has_element?(lv, ~s{.noora-tab-menu-horizontal-item}, "Interactive")
+    refute has_element?(lv, ~s{.noora-tab-menu-horizontal-item}, "Terminal")
+    refute has_element?(lv, ~s{.noora-tab-menu-horizontal-item}, "VNC")
     assert has_element?(lv, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Overview")
   end
 
-  test "automatically requests a shell session from the Interactive tab for Linux jobs", %{
+  test "automatically requests a shell session from the Terminal tab for Linux jobs", %{
     conn: conn,
     account: account
   } do
@@ -612,9 +613,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
     :ok = Jobs.record_running(31_754, "tuist-runner-linux-shell")
 
     {:ok, lv, html} =
-      live(conn, ~p"/#{account.name}/runners/runs/317540/jobs/31754?tab=interactive")
+      live(conn, ~p"/#{account.name}/runners/runs/317540/jobs/31754?tab=terminal")
 
-    assert html =~ "Interactive access"
+    assert html =~ "Terminal"
     assert has_element?(lv, ~s{#runner-shell-session})
 
     assert has_element?(
@@ -629,6 +630,38 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert session.state == :requested
     assert session.pod_name == "linux-pod-shell"
     assert session.requested_by_user_id
+  end
+
+  test "renders a local terminal simulation without requesting a shell session", %{
+    conn: conn,
+    account: account
+  } do
+    stub(Environment, :dev?, fn -> true end)
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_755,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 317_550,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Local shell simulation",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, lv, html} =
+      live(
+        conn,
+        ~p"/#{account.name}/runners/runs/317550/jobs/31755?tab=terminal&terminal_simulation=1"
+      )
+
+    assert html =~ "Terminal"
+    assert has_element?(lv, ~s{#runner-shell-terminal[data-shell-simulation="true"]})
+    refute has_element?(lv, ~s{#request-shell-session-button})
+    refute Repo.get_by(InteractiveSession, workflow_job_id: 31_755, kind: :shell)
   end
 
   test "renders the machine metrics charts on the Metrics tab", %{conn: conn, account: account} do

@@ -64,10 +64,16 @@
       patch={"?#{Query.put(@uri.query, "tab", "metrics")}"}
     />
     <.tab_menu_horizontal_item
-      :if={TuistWeb.RunnerJobLive.interactive_tab_visible?(@interactive)}
-      label={dgettext("dashboard_runners", "Interactive")}
-      selected={@selected_tab == "interactive"}
-      patch={"?#{Query.put(@uri.query, "tab", "interactive")}"}
+      :if={TuistWeb.RunnerJobLive.terminal_tab_visible?(@interactive, @terminal_simulation?)}
+      label={dgettext("dashboard_runners", "Terminal")}
+      selected={@selected_tab == "terminal"}
+      patch={"?#{Query.put(@uri.query, "tab", "terminal")}"}
+    />
+    <.tab_menu_horizontal_item
+      :if={TuistWeb.RunnerJobLive.vnc_tab_visible?(@interactive)}
+      label={dgettext("dashboard_runners", "VNC")}
+      selected={@selected_tab == "vnc"}
+      patch={"?#{Query.put(@uri.query, "tab", "vnc")}"}
     />
   </.tab_menu_horizontal>
 
@@ -370,12 +376,88 @@
     </.card>
   </div>
 
-  <div :if={@selected_tab == "interactive"} data-part="tab-panel">
+  <div :if={@selected_tab == "terminal"} data-part="tab-panel">
+    <.card
+      id="runner-terminal-card"
+      title={dgettext("dashboard_runners", "Terminal")}
+      icon="devices_code"
+      data-part="interactive-card"
+    >
+      <:actions>
+        <.button
+          :if={!@terminal_simulation? and is_nil(@interactive.shell_session)}
+          id="request-shell-session-button"
+          phx-click="request_shell_session"
+          variant="secondary"
+          size="medium"
+          label={dgettext("dashboard_runners", "Start terminal")}
+          disabled={!@interactive.shell_requestable?}
+        >
+          <:icon_left><.terminal_square_icon /></:icon_left>
+        </.button>
+      </:actions>
+      <div data-part="interactive-section">
+        <div id="runner-shell-session" data-part="interactive-session">
+          <div
+            :if={@terminal_simulation? or not is_nil(@interactive.shell_websocket_path)}
+            id="runner-shell-terminal"
+            phx-hook="RunnerShellTerminal"
+            phx-update="ignore"
+            data-part="interactive-terminal"
+            data-shell-path={@interactive.shell_websocket_path}
+            data-shell-token={@interactive.shell_websocket_token}
+            data-shell-simulation={to_string(@terminal_simulation?)}
+            data-state={
+              cond do
+                @terminal_simulation? ->
+                  "active"
+
+                @interactive.shell_session ->
+                  Atom.to_string(@interactive.shell_session.state)
+
+                true ->
+                  "idle"
+              end
+            }
+            tabindex="0"
+          >
+            <div data-part="interactive-terminal-output"></div>
+          </div>
+          <div
+            :if={!@terminal_simulation? and is_nil(@interactive.shell_websocket_path)}
+            data-part="interactive-terminal-frame"
+          >
+            <div data-part="interactive-viewport-icon"><.terminal_square_icon /></div>
+            <div data-part="interactive-viewport-title">
+              {case @interactive.shell_session do
+                nil ->
+                  dgettext("dashboard_runners", "Terminal session idle")
+
+                %{state: :requested} ->
+                  dgettext("dashboard_runners", "Waiting for runner shell")
+
+                %{state: :ready} ->
+                  dgettext("dashboard_runners", "Terminal session ready")
+
+                %{state: :active} ->
+                  dgettext("dashboard_runners", "Terminal session active")
+
+                _ ->
+                  dgettext("dashboard_runners", "Terminal session unavailable")
+              end}
+            </div>
+          </div>
+        </div>
+      </div>
+    </.card>
+  </div>
+
+  <div :if={@selected_tab == "vnc"} data-part="tab-panel">
     <% unavailable_reason =
       TuistWeb.RunnerJobLive.interactive_vnc_unavailable_reason(@interactive) %>
     <.card
       id="runner-vnc-card"
-      title={dgettext("dashboard_runners", "Interactive access")}
+      title={dgettext("dashboard_runners", "VNC")}
       icon="screen_share"
       data-part="interactive-card"
     >
@@ -408,17 +490,6 @@
           disabled={!@interactive.vnc_requestable?}
         >
           <:icon_left><.player_play /></:icon_left>
-        </.button>
-        <.button
-          :if={is_nil(@interactive.shell_session)}
-          id="request-shell-session-button"
-          phx-click="request_shell_session"
-          variant="secondary"
-          size="medium"
-          label={dgettext("dashboard_runners", "Start terminal")}
-          disabled={!@interactive.shell_requestable?}
-        >
-          <:icon_left><.terminal_square_icon /></:icon_left>
         </.button>
       </:actions>
       <.card_section data-part="interactive-section">
@@ -471,50 +542,6 @@
                     dgettext("dashboard_runners", "VNC session unavailable")
                 end}
               </div>
-            </div>
-          </div>
-        </div>
-
-        <div id="runner-shell-session" data-part="interactive-session">
-          <div
-            id="runner-shell-terminal"
-            phx-hook="RunnerShellTerminal"
-            phx-update="ignore"
-            data-part="interactive-terminal"
-            data-shell-path={@interactive.shell_websocket_path}
-            data-shell-token={@interactive.shell_websocket_token}
-            data-state={
-              if(@interactive.shell_session,
-                do: Atom.to_string(@interactive.shell_session.state),
-                else: "idle"
-              )
-            }
-            tabindex="0"
-          >
-            <pre data-part="interactive-terminal-output"></pre>
-          </div>
-          <div
-            :if={is_nil(@interactive.shell_websocket_path)}
-            data-part="interactive-terminal-frame"
-          >
-            <div data-part="interactive-viewport-icon"><.terminal_square_icon /></div>
-            <div data-part="interactive-viewport-title">
-              {case @interactive.shell_session do
-                nil ->
-                  dgettext("dashboard_runners", "Terminal session idle")
-
-                %{state: :requested} ->
-                  dgettext("dashboard_runners", "Waiting for runner shell")
-
-                %{state: :ready} ->
-                  dgettext("dashboard_runners", "Terminal session ready")
-
-                %{state: :active} ->
-                  dgettext("dashboard_runners", "Terminal session active")
-
-                _ ->
-                  dgettext("dashboard_runners", "Terminal session unavailable")
-              end}
             </div>
           </div>
         </div>
