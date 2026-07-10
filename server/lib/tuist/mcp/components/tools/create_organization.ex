@@ -16,6 +16,16 @@ defmodule Tuist.MCP.Components.Tools.CreateOrganization do
         }
       },
       "required" => ["handle"]
+    },
+    output_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "id" => %{"type" => "integer"},
+        "name" => %{"type" => "string"},
+        "account_handle" => %{"type" => "string"}
+      },
+      "required" => ["id", "name", "account_handle"],
+      "additionalProperties" => false
     }
 
   alias Tuist.Accounts
