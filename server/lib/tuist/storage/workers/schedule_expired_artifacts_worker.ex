@@ -32,12 +32,6 @@ defmodule Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker do
 
   def deletion_workers, do: Enum.map(@deletion_workers, fn {_resource_type, worker} -> worker end)
 
-  def deletion_workers(retention_days) when is_map(retention_days) do
-    @deletion_workers
-    |> Enum.filter(fn {resource_type, _worker} -> Map.has_key?(retention_days, resource_type) end)
-    |> Enum.map(fn {_resource_type, worker} -> worker end)
-  end
-
   @impl Oban.Worker
   def perform(%Oban.Job{args: args} = job) do
     batch_size = Map.get(args, "batch_size")
@@ -46,7 +40,7 @@ defmodule Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker do
     self_hosted = Map.get(args, "self_hosted", false)
     retention_days = effective_retention_days(Map.get(args, "retention_days"), self_hosted)
 
-    if self_hosted and deletion_workers(retention_days) == [] do
+    if configured_deletion_workers(retention_days) == [] do
       :ok
     else
       schedule_account_page(%{
@@ -83,26 +77,22 @@ defmodule Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker do
         Enum.map(configured_deletion_workers(retention_days), fn {deletion_worker, days} ->
           %{"account_id" => account_id}
           |> maybe_put_batch_size(batch_size)
-          |> maybe_put_retention_days(days)
-          |> maybe_put_self_hosted(self_hosted)
+          |> ArtifactRetentionWorker.put_retention_days(job_retention_days(days, self_hosted))
+          |> ArtifactRetentionWorker.put_self_hosted(self_hosted)
           |> deletion_worker.new()
         end)
       end)
 
-    with :ok <- insert_deletion_jobs(deletion_jobs, self_hosted) do
+    with :ok <- insert_deletion_jobs(deletion_jobs) do
       schedule_next_account_page(next_account_ids, account_ids, page_size, batch_size, retention_days, self_hosted, job)
     end
   end
 
-  defp insert_deletion_jobs([], _self_hosted), do: :ok
-
-  defp insert_deletion_jobs(jobs, false) do
-    Oban.insert_all(jobs)
-    :ok
-  end
-
-  defp insert_deletion_jobs(jobs, true) do
-    # Oban's basic engine doesn't enforce worker uniqueness for bulk inserts.
+  # Oban's basic engine drops each worker's `unique:` configuration on bulk inserts,
+  # so `Oban.insert_all/1` would enqueue a second chain for an account whose deletion
+  # job from an earlier run is still walking its backlog. Uniqueness only holds when
+  # jobs are inserted one at a time.
+  defp insert_deletion_jobs(jobs) do
     Enum.reduce_while(jobs, :ok, fn job, :ok ->
       case Oban.insert(job) do
         {:ok, _job} -> {:cont, :ok}
@@ -117,23 +107,21 @@ defmodule Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker do
     args =
       %{"after_id" => List.last(account_ids), "page_size" => page_size}
       |> maybe_put_batch_size(batch_size)
-      |> maybe_put_retention_config(retention_days)
-      |> maybe_put_self_hosted(self_hosted)
+      |> ArtifactRetentionWorker.put_retention_days(job_retention_days(retention_days, self_hosted))
+      |> ArtifactRetentionWorker.put_self_hosted(self_hosted)
 
     ArtifactRetentionWorker.reschedule_with_args(job, args)
   end
 
+  # Self-hosted retention workers read their window from the environment on every run,
+  # so the jobs this scheduler enqueues carry only the `self_hosted` flag. Tuist-hosted
+  # jobs carry a window only when one was passed in as a job argument; otherwise the
+  # account's plan decides.
+  defp job_retention_days(_retention_days, true), do: nil
+  defp job_retention_days(retention_days, false), do: retention_days
+
   defp maybe_put_batch_size(args, nil), do: args
   defp maybe_put_batch_size(args, batch_size), do: Map.put(args, "batch_size", batch_size)
-
-  defp maybe_put_retention_days(args, nil), do: args
-  defp maybe_put_retention_days(args, retention_days), do: Map.put(args, "retention_days", retention_days)
-
-  defp maybe_put_retention_config(args, nil), do: args
-  defp maybe_put_retention_config(args, retention_days), do: Map.put(args, "retention_days", retention_days)
-
-  defp maybe_put_self_hosted(args, false), do: args
-  defp maybe_put_self_hosted(args, true), do: Map.put(args, "self_hosted", true)
 
   defp configured_deletion_workers(nil) do
     Enum.map(@deletion_workers, fn {_resource_type, worker} -> {worker, nil} end)

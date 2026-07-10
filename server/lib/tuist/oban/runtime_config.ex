@@ -54,15 +54,6 @@ defmodule Tuist.Oban.RuntimeConfig do
     @swift_registry_sync_cron
   ]
 
-  @hosted_artifact_retention_crons [
-    {"30 2 * * *", ScheduleExpiredArtifactsWorker},
-    {"0 4 * * *", DeleteExpiredLegacyBuildArtifactsWorker},
-    {"0 3 * * *", DeleteExpiredXcodeCacheArtifactsWorker},
-    {"15 3 * * *", DeleteExpiredXcodeModuleCacheArtifactsWorker},
-    {"30 3 * * *", DeleteExpiredGradleCacheArtifactsWorker},
-    {"45 3 * * *", DeleteExpiredCasCacheArtifactsWorker}
-  ]
-
   @database_artifact_retention_resource_types [
     :app_previews,
     :build_archives,
@@ -71,12 +62,25 @@ defmodule Tuist.Oban.RuntimeConfig do
     :shard_bundles
   ]
 
+  @schedule_expired_artifacts_cron {"30 2 * * *", ScheduleExpiredArtifactsWorker}
+  @legacy_build_artifact_retention_cron {"0 4 * * *", DeleteExpiredLegacyBuildArtifactsWorker}
+
   @cache_artifact_retention_crons [
     {"0 3 * * *", DeleteExpiredXcodeCacheArtifactsWorker},
     {"15 3 * * *", DeleteExpiredXcodeModuleCacheArtifactsWorker},
     {"30 3 * * *", DeleteExpiredGradleCacheArtifactsWorker},
     {"45 3 * * *", DeleteExpiredCasCacheArtifactsWorker}
   ]
+
+  @hosted_artifact_retention_crons [
+                                     @schedule_expired_artifacts_cron,
+                                     @legacy_build_artifact_retention_cron
+                                   ] ++ @cache_artifact_retention_crons
+
+  # Self-hosted retention workers read their window from the environment on every run.
+  # The environment is what decides *whether* a cron is installed at boot; the days
+  # themselves are never carried in the job args.
+  @self_hosted_args %{"self_hosted" => true}
 
   @prod_like_envs [:prod, :stag, :can]
 
@@ -125,44 +129,29 @@ defmodule Tuist.Oban.RuntimeConfig do
   def peer_eligible?(_), do: false
 
   defp self_hosted_artifact_retention_crons(artifact_retention_days) do
-    database_retention_days =
-      artifact_retention_days
-      |> Map.take(@database_artifact_retention_resource_types)
-      |> Map.new(fn {resource_type, days} -> {Atom.to_string(resource_type), days} end)
-
     database_crons =
-      if map_size(database_retention_days) == 0 do
-        []
+      if Enum.any?(@database_artifact_retention_resource_types, &Map.has_key?(artifact_retention_days, &1)) do
+        [self_hosted_cron(@schedule_expired_artifacts_cron)]
       else
-        [
-          {"30 2 * * *", ScheduleExpiredArtifactsWorker,
-           args: %{"retention_days" => database_retention_days, "self_hosted" => true}}
-        ]
+        []
       end
 
     legacy_build_crons =
-      case Map.fetch(artifact_retention_days, :build_archives) do
-        {:ok, days} ->
-          [
-            {"0 4 * * *", DeleteExpiredLegacyBuildArtifactsWorker,
-             args: %{"retention_days" => days, "self_hosted" => true}}
-          ]
-
-        :error ->
-          []
+      if Map.has_key?(artifact_retention_days, :build_archives) do
+        [self_hosted_cron(@legacy_build_artifact_retention_cron)]
+      else
+        []
       end
 
     cache_crons =
-      case Map.fetch(artifact_retention_days, :cache_artifacts) do
-        {:ok, days} ->
-          Enum.map(@cache_artifact_retention_crons, fn {schedule, worker} ->
-            {schedule, worker, args: %{"retention_days" => days, "self_hosted" => true}}
-          end)
-
-        :error ->
-          []
+      if Map.has_key?(artifact_retention_days, :cache_artifacts) do
+        Enum.map(@cache_artifact_retention_crons, &self_hosted_cron/1)
+      else
+        []
       end
 
     database_crons ++ legacy_build_crons ++ cache_crons
   end
+
+  defp self_hosted_cron({schedule, worker}), do: {schedule, worker, args: @self_hosted_args}
 end

@@ -16,6 +16,12 @@ defmodule Tuist.Storage.Workers.ArtifactRetentionWorker do
     end
   end
 
+  def put_retention_days(args, nil), do: args
+  def put_retention_days(args, retention_days), do: Map.put(args, "retention_days", retention_days)
+
+  def put_self_hosted(args, false), do: args
+  def put_self_hosted(args, true), do: Map.put(args, "self_hosted", true)
+
   def reschedule_with_args(%Oban.Job{} = job, args) do
     # Oban increments max_attempts when it snoozes a job. Setting it one below
     # the next page's budget gives every page three attempts, even when an

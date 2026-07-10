@@ -26,17 +26,11 @@ defmodule Tuist.Storage.Workers.ExpiredArtifactWorker do
     args =
       %{"account_id" => account_id, "batch_size" => batch_size}
       |> Map.merge(cursor)
-      |> maybe_put_retention_days(retention_days)
-      |> maybe_put_self_hosted(self_hosted)
+      |> ArtifactRetentionWorker.put_retention_days(retention_days)
+      |> ArtifactRetentionWorker.put_self_hosted(self_hosted)
 
     ArtifactRetentionWorker.reschedule_with_args(job, args)
   end
 
   def continue({:error, _reason} = error, _job, _account_id, _batch_size, _retention_days, _self_hosted), do: error
-
-  defp maybe_put_retention_days(args, nil), do: args
-  defp maybe_put_retention_days(args, retention_days), do: Map.put(args, "retention_days", retention_days)
-
-  defp maybe_put_self_hosted(args, false), do: args
-  defp maybe_put_self_hosted(args, true), do: Map.put(args, "self_hosted", true)
 end
