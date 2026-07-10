@@ -127,10 +127,14 @@ func reconcileLinuxKubeletConfigDrift(
 	machineName, fleet, bootstrapUser string,
 	node *corev1.Node,
 ) (requeue bool, err error) {
+	logger := log.FromContext(ctx)
+	logger.Info("kubelet config drift check",
+		"node", node.Name,
+		"stampedLen", len(node.Annotations[kubeletConfigHashAnnotation]),
+		"matches", node.Annotations[kubeletConfigHashAnnotation] == desiredKubeletConfigHash())
 	if node.Annotations[kubeletConfigHashAnnotation] == desiredKubeletConfigHash() {
 		return false, nil
 	}
-	logger := log.FromContext(ctx)
 
 	// The re-push rewrites config.yaml wholesale, so it must carry the current
 	// clusterDNS — never drop a node's in-cluster DNS because of a transient
