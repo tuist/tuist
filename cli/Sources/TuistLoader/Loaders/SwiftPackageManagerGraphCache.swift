@@ -52,10 +52,10 @@ private struct CachedSwiftPackageManagerGraph: Codable {
 /// from `workspace-state.json` and the per-package `PackageInfo`s, so repeated generations with
 /// unchanged inputs skip the mapping entirely (the same pattern as `CachedManifestLoader`).
 ///
-/// Besides producing the graph, mapping also writes derived files (generated module maps and
-/// synthesized XCFrameworks for static-library artifact bundles). Their paths are recorded in the
-/// cache entry, and a hit is only served while all of them still exist, so wiping the derived
-/// directories falls back to re-mapping, which recreates them.
+/// A hit is only served while the graph's external package folders and the derived files it wrote
+/// as a side effect (generated module maps and synthesized XCFrameworks for static-library artifact
+/// bundles) all still exist. Pruning a checkout, registry download, or derived directory therefore
+/// falls back to re-mapping rather than serving a graph with missing source or binary paths.
 ///
 /// Every failure in this cache degrades to re-mapping; it never fails the load.
 struct SwiftPackageManagerGraphCache {
@@ -125,8 +125,8 @@ struct SwiftPackageManagerGraphCache {
     }
 
     /// Returns the cached dependencies graph for the given key and package settings, or `nil` on
-    /// any mismatch: absent entry, different key or settings, missing derived files, or an
-    /// undecodable payload.
+    /// any mismatch: absent entry, different key or settings, missing external package roots,
+    /// missing derived files, or an undecodable payload.
     func cachedGraph(
         for key: SwiftPackageManagerGraphCacheKey,
         packageSettings: TuistCore.PackageSettings
@@ -150,29 +150,46 @@ struct SwiftPackageManagerGraphCache {
                 Logger.current.debug("The cached Swift Package Manager graph is stale: the package settings changed")
                 return nil
             }
-
-            let missingDerivedFiles = try await cached.derivedFiles.concurrentMap { derivedFile -> String? in
-                guard let path = try? AbsolutePath(validating: derivedFile),
-                      try await fileSystem.exists(path)
-                else {
-                    return derivedFile
-                }
+            guard let graph = try? decoder.decode(TuistLoader.DependenciesGraph.self, from: cached.graph) else {
+                Logger.current.debug("Ignoring an undecodable Swift Package Manager graph cache entry")
                 return nil
             }
-            .compactMap { $0 }
-            guard missingDerivedFiles.isEmpty else {
+
+            // The key pins remote and registry packages only through `workspace-state.json`, and the
+            // recorded derived files live under the derived directories. A checkout, registry download,
+            // or local package folder can be pruned while `workspace-state.json` survives (e.g. a partial
+            // `.build` restore), which would make the cached graph reference missing source roots. Serving
+            // it would produce a broken project instead of re-mapping, so verify the package roots exist.
+            let externalRoots = graph.externalProjects.keys.compactMap { try? AbsolutePath(validating: $0.pathString) }
+            if let missingRoot = try await firstMissingPath(in: externalRoots) {
+                Logger.current
+                    .debug("The cached Swift Package Manager graph is stale: a package folder is missing, such as \(missingRoot)")
+                return nil
+            }
+
+            let recordedDerivedFiles = cached.derivedFiles.compactMap { try? AbsolutePath(validating: $0) }
+            if let missingDerivedFile = try await firstMissingPath(in: recordedDerivedFiles) {
                 Logger.current
                     .debug(
-                        "The cached Swift Package Manager graph is stale: derived files are missing, such as \(missingDerivedFiles[0])"
+                        "The cached Swift Package Manager graph is stale: derived files are missing, such as \(missingDerivedFile)"
                     )
                 return nil
             }
 
-            return try? decoder.decode(TuistLoader.DependenciesGraph.self, from: cached.graph)
+            return graph
         } catch {
             Logger.current.debug("Skipping the Swift Package Manager graph cache because it could not be read: \(error)")
             return nil
         }
+    }
+
+    private func firstMissingPath(in paths: [AbsolutePath]) async throws -> AbsolutePath? {
+        try await paths
+            .concurrentMap { path -> AbsolutePath? in
+                try await fileSystem.exists(path) ? nil : path
+            }
+            .compactMap { $0 }
+            .first
     }
 
     func store(

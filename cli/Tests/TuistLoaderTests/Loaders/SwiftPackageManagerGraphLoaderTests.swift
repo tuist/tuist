@@ -1317,6 +1317,43 @@ struct SwiftPackageManagerGraphLoaderTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies(), .withMockedSwiftVersionProvider)
+    func load_mapsAgain_whenAnExternalPackageFolderIsRemoved() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let scratchDirectory = temporaryDirectory.appending(component: ".build")
+        let packagePath = temporaryDirectory.appending(component: "Package.swift")
+        let dependencyPackagePath = scratchDirectory.appending(
+            components: "registry", "downloads", "Alamofire", "Alamofire", "5.10.2"
+        )
+
+        // Given
+        given(try #require(SwiftVersionProvider.mocked)).swiftVersion().willReturn("6.1.0")
+        try await writeRegistryWorkspaceState(
+            scratchDirectory: scratchDirectory,
+            dependencySubpath: "Alamofire/Alamofire/5.10.2"
+        )
+        try await writeSwiftPackageManifest(at: temporaryDirectory)
+        try await writeSwiftPackageManifest(at: dependencyPackagePath)
+
+        let packageInfoMapper = PackageInfoMapperPrebuiltSpy(packageIdentity: "unused", productName: "unused")
+        let subject = cachingSubject(
+            packageInfoMapper: packageInfoMapper,
+            cacheDirectory: temporaryDirectory.appending(component: "GraphCache")
+        )
+
+        // When: pruning the registry download folder (workspace-state.json still present) invalidates
+        // the entry, so the loader re-maps instead of returning a graph with missing source roots.
+        _ = try await subject.load(packagePath: packagePath, packageSettings: .test(), disableSandbox: true)
+        _ = try await subject.load(packagePath: packagePath, packageSettings: .test(), disableSandbox: true)
+        #expect(packageInfoMapper.mapCallCount == 1)
+
+        try await fileSystem.remove(dependencyPackagePath)
+        _ = try await subject.load(packagePath: packagePath, packageSettings: .test(), disableSandbox: true)
+
+        // Then
+        #expect(packageInfoMapper.mapCallCount == 2)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), .withMockedSwiftVersionProvider)
     func load_mapsAgain_whenDerivedFilesAreRemoved() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let scratchDirectory = temporaryDirectory.appending(component: ".build")
