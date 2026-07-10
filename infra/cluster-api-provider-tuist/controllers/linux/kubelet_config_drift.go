@@ -153,14 +153,17 @@ func reconcileLinuxKubeletConfigDrift(
 
 	identity, err := cm.EnsureNodeIdentity(ctx, machineName, linuxNodeIdentityClusterRole)
 	if err != nil {
+		logger.Info("re-push failed: EnsureNodeIdentity", "node", node.Name, "err", err.Error())
 		return false, fmt.Errorf("mint node identity for re-push: %w", err)
 	}
 	privateKey, err := cm.EnsureFleetSSHKey(ctx, fleet)
 	if err != nil {
+		logger.Info("re-push failed: EnsureFleetSSHKey", "node", node.Name, "fleet", fleet, "err", err.Error())
 		return false, fmt.Errorf("fleet ssh key for re-push: %w", err)
 	}
 	known := ""
 	if creds, fpErr := cm.GetMachineBootstrap(ctx, machineName); fpErr != nil {
+		logger.Info("re-push failed: GetMachineBootstrap", "node", node.Name, "err", fpErr.Error())
 		return false, fmt.Errorf("read host fingerprint for re-push: %w", fpErr)
 	} else if creds != nil {
 		known = creds.HostFingerprint
@@ -172,10 +175,13 @@ func reconcileLinuxKubeletConfigDrift(
 		ClusterCAPEM:  identity.CA,
 		BootstrapUser: bootstrapUser,
 	})
+	logger.Info("re-push: dialing ssh", "node", node.Name, "user", bootstrapUser, "host", host, "hasPinnedFP", known != "")
 	if sshErr := bootstrapOverSSH(ctx, bootstrapUser, host, privateKey, script, hk); sshErr != nil {
+		logger.Info("re-push failed: ssh", "node", node.Name, "host", host, "err", sshErr.Error())
 		return false, fmt.Errorf("re-push kubelet config over ssh to %s: %w", host, sshErr)
 	}
 	if stampErr := stampKubeletConfigHash(ctx, c, node, desiredKubeletConfigHash()); stampErr != nil {
+		logger.Info("re-push failed: stamp", "node", node.Name, "err", stampErr.Error())
 		return false, fmt.Errorf("stamp kubelet config hash: %w", stampErr)
 	}
 	logger.Info("re-pushed kubelet config and restarted kubelet", "node", node.Name, "host", host)
