@@ -116,15 +116,22 @@ struct SwiftPackageManagerGraphLoaderTests {
     private let manifestLoader = MockManifestLoading()
     private let fileSystem = FileSystem()
     private let contentHasher = MockContentHashing()
+    private let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
     private let subject: SwiftPackageManagerGraphLoader
 
     init() {
+        // An unavailable cache directory disables the graph cache, keeping the tests that
+        // don't exercise caching hermetic.
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .any)
+            .willThrow(TestError("The graph cache is disabled in tests"))
         subject = SwiftPackageManagerGraphLoader(
             swiftPackageManagerController: swiftPackageManagerController,
             packageInfoMapper: packageInfoMapper,
             manifestLoader: manifestLoader,
             fileSystem: fileSystem,
-            contentHasher: contentHasher
+            contentHasher: contentHasher,
+            cacheDirectoriesProvider: cacheDirectoriesProvider
         )
 
         given(contentHasher)
@@ -285,7 +292,8 @@ struct SwiftPackageManagerGraphLoaderTests {
             packageInfoMapper: packageInfoMapper,
             manifestLoader: manifestLoader,
             fileSystem: fileSystem,
-            contentHasher: contentHasher
+            contentHasher: contentHasher,
+            cacheDirectoriesProvider: cacheDirectoriesProvider
         )
 
         // When
@@ -772,7 +780,8 @@ struct SwiftPackageManagerGraphLoaderTests {
                     packageInfoMapper: packageInfoMapper,
                     manifestLoader: manifestLoader,
                     fileSystem: fileSystem,
-                    contentHasher: contentHasher
+                    contentHasher: contentHasher,
+                    cacheDirectoriesProvider: cacheDirectoriesProvider
                 )
 
                 // When
@@ -1155,9 +1164,224 @@ struct SwiftPackageManagerGraphLoaderTests {
         )
     }
 
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), .withMockedSwiftVersionProvider)
+    func load_reusesTheCachedGraph_whenInputsAreUnchanged() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let scratchDirectory = temporaryDirectory.appending(component: ".build")
+        let packagePath = temporaryDirectory.appending(component: "Package.swift")
+        let dependencyPackagePath = scratchDirectory.appending(
+            components: "registry", "downloads", "Alamofire", "Alamofire", "5.10.2"
+        )
+
+        // Given
+        given(try #require(SwiftVersionProvider.mocked)).swiftVersion().willReturn("6.1.0")
+        try await writeRegistryWorkspaceState(
+            scratchDirectory: scratchDirectory,
+            dependencySubpath: "Alamofire/Alamofire/5.10.2"
+        )
+        try await writeSwiftPackageManifest(at: temporaryDirectory)
+        try await writeSwiftPackageManifest(at: dependencyPackagePath)
+
+        let packageInfoMapper = PackageInfoMapperPrebuiltSpy(packageIdentity: "unused", productName: "unused")
+        let subject = cachingSubject(
+            packageInfoMapper: packageInfoMapper,
+            cacheDirectory: temporaryDirectory.appending(component: "GraphCache")
+        )
+
+        // When
+        let (firstGraph, _) = try await subject.load(
+            packagePath: packagePath,
+            packageSettings: .test(),
+            disableSandbox: true
+        )
+        let (secondGraph, _) = try await subject.load(
+            packagePath: packagePath,
+            packageSettings: .test(),
+            disableSandbox: true
+        )
+
+        // Then
+        #expect(packageInfoMapper.mapCallCount == 1)
+        #expect(secondGraph == firstGraph)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), .withMockedSwiftVersionProvider)
+    func load_mapsAgain_whenTheWorkspaceStateChanges() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let scratchDirectory = temporaryDirectory.appending(component: ".build")
+        let packagePath = temporaryDirectory.appending(component: "Package.swift")
+        let dependencyPackagePath = scratchDirectory.appending(
+            components: "registry", "downloads", "Alamofire", "Alamofire", "5.10.2"
+        )
+
+        // Given
+        given(try #require(SwiftVersionProvider.mocked)).swiftVersion().willReturn("6.1.0")
+        try await writeRegistryWorkspaceState(
+            scratchDirectory: scratchDirectory,
+            dependencySubpath: "Alamofire/Alamofire/5.10.2"
+        )
+        try await writeSwiftPackageManifest(at: temporaryDirectory)
+        try await writeSwiftPackageManifest(at: dependencyPackagePath)
+
+        let packageInfoMapper = PackageInfoMapperPrebuiltSpy(packageIdentity: "unused", productName: "unused")
+        let subject = cachingSubject(
+            packageInfoMapper: packageInfoMapper,
+            cacheDirectory: temporaryDirectory.appending(component: "GraphCache")
+        )
+
+        // When
+        _ = try await subject.load(packagePath: packagePath, packageSettings: .test(), disableSandbox: true)
+        try await writeRegistryWorkspaceState(
+            scratchDirectory: scratchDirectory,
+            dependencySubpath: "Alamofire/Alamofire/5.10.2",
+            version: "5.10.3"
+        )
+        _ = try await subject.load(packagePath: packagePath, packageSettings: .test(), disableSandbox: true)
+
+        // Then
+        #expect(packageInfoMapper.mapCallCount == 2)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), .withMockedSwiftVersionProvider)
+    func load_mapsAgain_whenThePackageSettingsChange() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let scratchDirectory = temporaryDirectory.appending(component: ".build")
+        let packagePath = temporaryDirectory.appending(component: "Package.swift")
+        let dependencyPackagePath = scratchDirectory.appending(
+            components: "registry", "downloads", "Alamofire", "Alamofire", "5.10.2"
+        )
+
+        // Given
+        given(try #require(SwiftVersionProvider.mocked)).swiftVersion().willReturn("6.1.0")
+        try await writeRegistryWorkspaceState(
+            scratchDirectory: scratchDirectory,
+            dependencySubpath: "Alamofire/Alamofire/5.10.2"
+        )
+        try await writeSwiftPackageManifest(at: temporaryDirectory)
+        try await writeSwiftPackageManifest(at: dependencyPackagePath)
+
+        let packageInfoMapper = PackageInfoMapperPrebuiltSpy(packageIdentity: "unused", productName: "unused")
+        let subject = cachingSubject(
+            packageInfoMapper: packageInfoMapper,
+            cacheDirectory: temporaryDirectory.appending(component: "GraphCache")
+        )
+
+        // When
+        _ = try await subject.load(packagePath: packagePath, packageSettings: .test(), disableSandbox: true)
+        _ = try await subject.load(
+            packagePath: packagePath,
+            packageSettings: .test(productTypes: ["Alamofire": .framework]),
+            disableSandbox: true
+        )
+
+        // Then
+        #expect(packageInfoMapper.mapCallCount == 2)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), .withMockedSwiftVersionProvider)
+    func load_mapsAgain_whenALocalPackageChanges() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let scratchDirectory = temporaryDirectory.appending(component: ".build")
+        let packagePath = temporaryDirectory.appending(component: "Package.swift")
+        let localPackagePath = temporaryDirectory.appending(component: "LocalDep")
+
+        // Given
+        given(try #require(SwiftVersionProvider.mocked)).swiftVersion().willReturn("6.1.0")
+        try await writeLocalDependencyWorkspaceState(
+            scratchDirectory: scratchDirectory,
+            localPackagePath: localPackagePath
+        )
+        try await writeSwiftPackageManifest(at: temporaryDirectory)
+        try await writeSwiftPackageManifest(at: localPackagePath)
+
+        let packageInfoMapper = PackageInfoMapperPrebuiltSpy(packageIdentity: "unused", productName: "unused")
+        let subject = cachingSubject(
+            packageInfoMapper: packageInfoMapper,
+            cacheDirectory: temporaryDirectory.appending(component: "GraphCache")
+        )
+
+        // When: an unchanged local package hits the cache, a content change invalidates it.
+        _ = try await subject.load(packagePath: packagePath, packageSettings: .test(), disableSandbox: true)
+        _ = try await subject.load(packagePath: packagePath, packageSettings: .test(), disableSandbox: true)
+        #expect(packageInfoMapper.mapCallCount == 1)
+
+        try await fileSystem.makeDirectory(at: localPackagePath.appending(component: "Sources"))
+        try await fileSystem.writeText(
+            "public let localDep = 1",
+            at: localPackagePath.appending(components: "Sources", "LocalDep.swift")
+        )
+        _ = try await subject.load(packagePath: packagePath, packageSettings: .test(), disableSandbox: true)
+
+        // Then
+        #expect(packageInfoMapper.mapCallCount == 2)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), .withMockedSwiftVersionProvider)
+    func load_mapsAgain_whenDerivedFilesAreRemoved() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let scratchDirectory = temporaryDirectory.appending(component: ".build")
+        let packagePath = temporaryDirectory.appending(component: "Package.swift")
+        let dependencyPackagePath = scratchDirectory.appending(
+            components: "registry", "downloads", "Alamofire", "Alamofire", "5.10.2"
+        )
+
+        // Given: a module map that mapping would have written as a side effect.
+        given(try #require(SwiftVersionProvider.mocked)).swiftVersion().willReturn("6.1.0")
+        try await writeRegistryWorkspaceState(
+            scratchDirectory: scratchDirectory,
+            dependencySubpath: "Alamofire/Alamofire/5.10.2"
+        )
+        try await writeSwiftPackageManifest(at: temporaryDirectory)
+        try await writeSwiftPackageManifest(at: dependencyPackagePath)
+        let derivedModuleMapPath = scratchDirectory.appending(
+            components: Constants.DerivedDirectory.dependenciesDerivedDirectory,
+            Constants.DerivedDirectory.dependenciesModuleMapsDirectory,
+            "Alamofire",
+            "Alamofire.modulemap"
+        )
+        try await fileSystem.makeDirectory(at: derivedModuleMapPath.parentDirectory)
+        try await fileSystem.writeText("module Alamofire {}", at: derivedModuleMapPath)
+
+        let packageInfoMapper = PackageInfoMapperPrebuiltSpy(packageIdentity: "unused", productName: "unused")
+        let subject = cachingSubject(
+            packageInfoMapper: packageInfoMapper,
+            cacheDirectory: temporaryDirectory.appending(component: "GraphCache")
+        )
+
+        // When: removing a recorded derived file invalidates the entry, so mapping recreates it.
+        _ = try await subject.load(packagePath: packagePath, packageSettings: .test(), disableSandbox: true)
+        _ = try await subject.load(packagePath: packagePath, packageSettings: .test(), disableSandbox: true)
+        #expect(packageInfoMapper.mapCallCount == 1)
+
+        try await fileSystem.remove(derivedModuleMapPath)
+        _ = try await subject.load(packagePath: packagePath, packageSettings: .test(), disableSandbox: true)
+
+        // Then
+        #expect(packageInfoMapper.mapCallCount == 2)
+    }
+
+    private func cachingSubject(
+        packageInfoMapper: PackageInfoMapping,
+        cacheDirectory: Path.AbsolutePath
+    ) -> SwiftPackageManagerGraphLoader {
+        let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .any)
+            .willReturn(cacheDirectory)
+        return SwiftPackageManagerGraphLoader(
+            swiftPackageManagerController: swiftPackageManagerController,
+            packageInfoMapper: packageInfoMapper,
+            manifestLoader: manifestLoader,
+            fileSystem: fileSystem,
+            contentHasher: contentHasher,
+            cacheDirectoriesProvider: cacheDirectoriesProvider
+        )
+    }
+
     private func writeRegistryWorkspaceState(
         scratchDirectory: Path.AbsolutePath,
-        dependencySubpath: String
+        dependencySubpath: String,
+        version: String = "5.10.2"
     ) async throws {
         let workspacePath = scratchDirectory.appending(component: "workspace-state.json")
         try await fileSystem.makeDirectory(at: workspacePath.parentDirectory)
@@ -1177,9 +1401,43 @@ struct SwiftPackageManagerGraphLoaderTests {
                     },
                     "state" : {
                       "name" : "registryDownload",
-                      "version" : "5.10.2"
+                      "version" : "\(version)"
                     },
                     "subpath" : "\(dependencySubpath)"
+                  }
+                ]
+              }
+            }
+            """,
+            at: workspacePath
+        )
+    }
+
+    private func writeLocalDependencyWorkspaceState(
+        scratchDirectory: Path.AbsolutePath,
+        localPackagePath: Path.AbsolutePath
+    ) async throws {
+        let workspacePath = scratchDirectory.appending(component: "workspace-state.json")
+        try await fileSystem.makeDirectory(at: workspacePath.parentDirectory)
+        try await fileSystem.writeText(
+            """
+            {
+              "object" : {
+                "artifacts" : [],
+                "dependencies" : [
+                  {
+                    "basedOn" : null,
+                    "packageRef" : {
+                      "identity" : "local-dep",
+                      "kind" : "fileSystem",
+                      "path" : "\(localPackagePath.pathString)",
+                      "name" : "LocalDep"
+                    },
+                    "state" : {
+                      "name" : "fileSystem",
+                      "path" : "\(localPackagePath.pathString)"
+                    },
+                    "subpath" : "local-dep"
                   }
                 ]
               }

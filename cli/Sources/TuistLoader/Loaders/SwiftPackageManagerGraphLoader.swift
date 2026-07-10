@@ -63,6 +63,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
     private let contentHasher: ContentHashing
     private let swiftPackageManagerLock: SwiftPackageManagerLock
     private let swiftPackageManagerScratchDirectoryLocator: SwiftPackageManagerScratchDirectoryLocator
+    private let graphCache: SwiftPackageManagerGraphCache
 
     public init(
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
@@ -72,7 +73,8 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         contentHasher: ContentHashing = ContentHasher(),
         swiftPackageManagerLock: SwiftPackageManagerLock = SwiftPackageManagerLock(),
         swiftPackageManagerScratchDirectoryLocator: SwiftPackageManagerScratchDirectoryLocator =
-            SwiftPackageManagerScratchDirectoryLocator()
+            SwiftPackageManagerScratchDirectoryLocator(),
+        cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider()
     ) {
         self.swiftPackageManagerController = swiftPackageManagerController
         self.packageInfoMapper = packageInfoMapper
@@ -81,6 +83,10 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         self.contentHasher = contentHasher
         self.swiftPackageManagerLock = swiftPackageManagerLock
         self.swiftPackageManagerScratchDirectoryLocator = swiftPackageManagerScratchDirectoryLocator
+        graphCache = SwiftPackageManagerGraphCache(
+            fileSystem: fileSystem,
+            cacheDirectoriesProvider: cacheDirectoriesProvider
+        )
     }
 
     public func load(
@@ -97,22 +103,51 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         // Subprocess invocations of `swift package` happen outside the lock, since each
         // subprocess acquires its own scratch-directory lock — holding our lock around
         // a `swift package` invocation on the same scratch directory deadlocks.
-        let workspaceState = try await swiftPackageManagerLock
+        let workspaceStateData = try await swiftPackageManagerLock
             .withLock(scratchDirectory: scratchDirectory) {
                 let workspacePath = scratchDirectory.appending(component: "workspace-state.json")
                 if try await !fileSystem.exists(workspacePath) {
                     throw SwiftPackageManagerGraphGeneratorError.installRequired
                 }
-                return try JSONDecoder()
-                    .decode(SwiftPackageManagerWorkspaceState.self, from: try await fileSystem.readFile(at: workspacePath))
+                return try await fileSystem.readFile(at: workspacePath)
             }
-        return try await loadUnsafe(
+        let workspaceState = try JSONDecoder().decode(SwiftPackageManagerWorkspaceState.self, from: workspaceStateData)
+
+        let cacheKey: SwiftPackageManagerGraphCacheKey?
+        if let localPackageFolders = try? workspaceState.object.dependencies
+            .filter({ isLocalDependencyKind($0.packageRef.kind) })
+            .map({ try localPackageFolder(for: $0, scratchDirectory: scratchDirectory) })
+        {
+            cacheKey = await graphCache.cacheKey(
+                packagePath: packagePath,
+                scratchDirectory: scratchDirectory,
+                workspaceStateData: workspaceStateData,
+                localPackageFolders: localPackageFolders,
+                disableSandbox: disableSandbox
+            )
+        } else {
+            cacheKey = nil
+        }
+
+        if let cacheKey,
+           let cachedGraph = await graphCache.cachedGraph(for: cacheKey, packageSettings: packageSettings)
+        {
+            Logger.current.debug("Reusing the cached Swift Package Manager dependency graph, skipping the package mapping")
+            return (cachedGraph, [])
+        }
+
+        let (graph, lintingIssues) = try await loadUnsafe(
             packagePath: packagePath,
             packageSettings: packageSettings,
             disableSandbox: disableSandbox,
             scratchDirectory: scratchDirectory,
             workspaceState: workspaceState
         )
+        // A cache hit returns no linting issues, so only issue-free graphs are cached.
+        if let cacheKey, lintingIssues.isEmpty {
+            await graphCache.store(graph, for: cacheKey, packageSettings: packageSettings, scratchDirectory: scratchDirectory)
+        }
+        return (graph, lintingIssues)
     }
 
     // swiftlint:disable:next function_body_length
@@ -148,19 +183,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                     packageFolder = checkoutsFolder.appending(component: sanitizedSwiftPackageManagerPath(dependency.subpath))
                     hash = dependency.state?.checkoutState?.revision
                 case "local", "fileSystem", "localSourceControl":
-                    // Depending on the swift version, the information is available either in `path` or in `location`
-                    guard let path = dependency.packageRef.path ?? dependency.packageRef.location else {
-                        throw SwiftPackageManagerGraphGeneratorError.missingPathInLocalSwiftPackage(name)
-                    }
-                    // There's a bug in the `relative` implementation that produces the wrong path when using a symbolic link.
-                    // This leads to nonexisting path in the `ModuleMapMapper` that relies on that method.
-                    // To get around this, we're aligning paths from `workspace-state.json` with the /var temporary directory.
-                    // Anchor against `scratchDirectory` so swifterpm's relative-path encoding resolves correctly;
-                    // absolute paths from older swifterpm output pass through unchanged.
-                    packageFolder = try AbsolutePath(
-                        validating: sanitizedSwiftPackageManagerPath(path),
-                        relativeTo: scratchDirectory
-                    )
+                    packageFolder = try localPackageFolder(for: dependency, scratchDirectory: scratchDirectory)
                     hash = nil
                 case "registry":
                     let registryFolder = path.appending(try RelativePath(validating: "registry/downloads"))
@@ -221,7 +244,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         })
         .compactMap { _, groupedPackageInfos in
             if let localPackage = groupedPackageInfos.first(where: {
-                Self.isLocalDependencyKind($0.kind)
+                isLocalDependencyKind($0.kind)
             }) {
                 return localPackage
             } else if let registryPackage = groupedPackageInfos.first(where: { $0.kind == "registry" }) {
@@ -291,7 +314,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                     packageInfo: packageInfo.info,
                     path: packageInfo.folder,
                     packageType: .external(
-                        origin: Self.packageOrigin(for: packageInfo.kind),
+                        origin: packageOrigin(for: packageInfo.kind),
                         artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:],
                         packagePrebuilts: packagePrebuilts,
                         derivedXCFrameworksPath: scratchDirectory.appending(
@@ -309,7 +332,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             .reduce(into: [:]) { result, item in
                 let (packageInfo, hash, projectManifest) = item
                 if let projectManifest {
-                    let swiftPackageManagerScratchDirectory: Path? = if Self.isLocalDependencyKind(packageInfo.kind) {
+                    let swiftPackageManagerScratchDirectory: Path? = if isLocalDependencyKind(packageInfo.kind) {
                         nil
                     } else {
                         SwiftPackageManagerPaths
@@ -331,14 +354,6 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             ),
             []
         )
-    }
-
-    private static func isLocalDependencyKind(_ kind: String) -> Bool {
-        ["local", "fileSystem", "localSourceControl"].contains(kind)
-    }
-
-    private static func packageOrigin(for kind: String) -> PackageType.ExternalOrigin {
-        isLocalDependencyKind(kind) ? .local : .remote
     }
 
     static func enabledTraits(
@@ -649,6 +664,33 @@ private struct SwifterPMPackageInfoCache {
     private static func normalizedPackagePath(_ path: String) -> String {
         sanitizedSwiftPackageManagerPath(path)
     }
+}
+
+private func isLocalDependencyKind(_ kind: String) -> Bool {
+    ["local", "fileSystem", "localSourceControl"].contains(kind)
+}
+
+private func packageOrigin(for kind: String) -> PackageType.ExternalOrigin {
+    isLocalDependencyKind(kind) ? .local : .remote
+}
+
+private func localPackageFolder(
+    for dependency: SwiftPackageManagerWorkspaceState.Dependency,
+    scratchDirectory: AbsolutePath
+) throws -> AbsolutePath {
+    // Depending on the swift version, the information is available either in `path` or in `location`
+    guard let path = dependency.packageRef.path ?? dependency.packageRef.location else {
+        throw SwiftPackageManagerGraphGeneratorError.missingPathInLocalSwiftPackage(dependency.packageRef.name)
+    }
+    // There's a bug in the `relative` implementation that produces the wrong path when using a symbolic link.
+    // This leads to nonexisting path in the `ModuleMapMapper` that relies on that method.
+    // To get around this, we're aligning paths from `workspace-state.json` with the /var temporary directory.
+    // Anchor against `scratchDirectory` so swifterpm's relative-path encoding resolves correctly;
+    // absolute paths from older swifterpm output pass through unchanged.
+    return try AbsolutePath(
+        validating: sanitizedSwiftPackageManagerPath(path),
+        relativeTo: scratchDirectory
+    )
 }
 
 private func sanitizedSwiftPackageManagerPath(_ path: String) -> String {
