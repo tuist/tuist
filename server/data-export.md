@@ -129,8 +129,8 @@ All uploaded files associated with the account are included:
 The customer-facing summary of these windows lives in the public data retention
 guide at `server/priv/docs/en/guides/server/data-retention.md`.
 
-On Tuist Cloud, stored artifact blobs are subject to plan-based retention capped
-at 30 days. The active account plan determines the applicable window, with Air
+On the hosted Tuist server, stored artifact blobs are subject to plan-based
+retention capped at 30 days. The active account plan determines the applicable window, with Air
 used when an account has no active subscription. Retention windows, in days, by
 plan:
 
@@ -157,8 +157,8 @@ family:
 
 Each variable accepts a positive integer day window. Leaving a variable unset
 or blank disables cleanup only for that artifact family. Self-hosted windows do
-not have the Tuist Cloud 30-day cap, and these variables do not override the
-Tuist Cloud policy.
+not have the hosted 30-day cap, and these variables do not override the hosted
+policy.
 
 Once an artifact is older than the applicable window, the cleanup process
 removes its binary from object storage only. The associated PostgreSQL and
@@ -170,9 +170,9 @@ Retention status is computed when cleanup runs. Cache artifacts use the object
 storage `last_modified` timestamp, while previews, current build archives, test
 attachments, and shard bundles use their database `inserted_at` timestamp. Run
 artifacts use the command event `ran_at` timestamp. Legacy build artifacts use
-the object storage `last_modified` timestamp. On Tuist Cloud, legacy build
-artifacts whose account prefix no longer resolves to a live account use the Air
-build archive window.
+the object storage `last_modified` timestamp. On the hosted Tuist server, legacy
+build artifacts whose account prefix no longer resolves to a live account use the
+Air build archive window.
 
 Cache artifact cleanup scans instance-managed cache buckets and skips
 accounts configured with account-specific custom cache storage. Matching cache
@@ -189,7 +189,7 @@ Tuist stores per-account cleanup progress for database-backed artifact families 
 daily retention jobs can resume after previously-purged metadata rows without
 issuing repeated object-storage deletes. This is not a per-artifact purge
 ledger; retention is still derived from the timestamps and the applicable
-Tuist Cloud or self-hosted policy above. An export reflects the artifacts
+hosted or self-hosted policy above. An export reflects the artifacts
 present at export time; binaries already purged under these windows are no
 longer available, though their metadata and the account-level cleanup cursor
 are still exported.

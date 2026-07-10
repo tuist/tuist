@@ -7,13 +7,13 @@
 ---
 # Data retention {#data-retention}
 
-Tuist Cloud and self-hosted Tuist instances apply different artifact-retention policies. Tuist Cloud uses plan-based windows capped at 30 days. Artifact cleanup is disabled by default on self-hosted instances, where operators can opt in and configure a separate window for each supported artifact type.
+The hosted Tuist server and self-hosted Tuist instances apply different artifact-retention policies. The hosted server uses plan-based windows capped at 30 days. Artifact cleanup is disabled by default on self-hosted instances, where operators can opt in and configure a separate window for each supported artifact type.
 
 ## Artifact files {#artifact-files}
 
-### Tuist Cloud {#tuist-cloud-artifact-files}
+### Hosted Tuist server {#hosted-artifact-files}
 
-These windows define how long artifact files remain available in Tuist Cloud.
+These windows define how long artifact files remain available on the hosted Tuist server.
 
 | Artifact | Air and Open Source | Pro | Enterprise |
 | --- | --- | --- | --- |
@@ -24,7 +24,7 @@ These windows define how long artifact files remain available in Tuist Cloud.
 | Test run attachments | 30 days | 30 days | 30 days |
 | Shard bundles | 7 days | 14 days | 30 days |
 
-The active account plan determines the Tuist Cloud retention window. If an account does not have an active subscription, Tuist uses the Air retention window. Some artifact types use shorter windows because they are expected to be regenerated.
+The active account plan determines the hosted retention window. If an account does not have an active subscription, Tuist uses the Air retention window. Some artifact types use shorter windows because they are expected to be regenerated.
 
 ### Self-hosted instances {#self-hosted-artifact-files}
 
