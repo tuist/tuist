@@ -7,9 +7,12 @@
 #     --set server.image.tag=$GIT_SHA
 
 registry:
-  # Keep production disabled until the registry cutover. Staging and
-  # canary exercise the component through values-managed-common.yaml.
-  enabled: false
+  # Brings up the read frontend, its ingress, and the DNS-01 cert. It
+  # serves no user traffic until registry.tuist.dev's Cloudflare origin
+  # is repointed at this ingress, which is a separate, revertible step.
+  # The sync writer stays disabled below: cache remains the sole writer
+  # until the cutover.
+  enabled: true
   publicHost: registry.tuist.dev
   serverUrl: https://tuist.dev
   deployEnv: prod
