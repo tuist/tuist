@@ -604,7 +604,7 @@ msgstr ""
 #: lib/tuist_web/live/build_run_live.html.heex:1224
 #: lib/tuist_web/live/run_detail_live.ex:336
 #: lib/tuist_web/live/run_detail_live.ex:369
-#: lib/tuist_web/live/test_run_live.ex:1154
+#: lib/tuist_web/live/test_run_live.ex:1157
 #, elixir-autogen, elixir-format
 msgid "Hit"
 msgstr ""
@@ -643,7 +643,7 @@ msgstr ""
 #: lib/tuist_web/live/build_run_live.html.heex:1227
 #: lib/tuist_web/live/run_detail_live.ex:341
 #: lib/tuist_web/live/run_detail_live.ex:374
-#: lib/tuist_web/live/test_run_live.ex:1159
+#: lib/tuist_web/live/test_run_live.ex:1162
 #: lib/tuist_web/live/xcode_builds_live.ex:387
 #: lib/tuist_web/live/xcode_builds_live.ex:390
 #: lib/tuist_web/live/xcode_builds_live.html.heex:127
@@ -670,7 +670,7 @@ msgstr ""
 #: lib/tuist_web/live/build_run_live.html.heex:1239
 #: lib/tuist_web/live/run_detail_live.ex:342
 #: lib/tuist_web/live/run_detail_live.ex:375
-#: lib/tuist_web/live/test_run_live.ex:1160
+#: lib/tuist_web/live/test_run_live.ex:1163
 #, elixir-autogen, elixir-format
 msgid "Missed"
 msgstr ""
@@ -838,7 +838,7 @@ msgstr ""
 #: lib/tuist_web/live/build_run_live.html.heex:1233
 #: lib/tuist_web/live/run_detail_live.ex:340
 #: lib/tuist_web/live/run_detail_live.ex:373
-#: lib/tuist_web/live/test_run_live.ex:1158
+#: lib/tuist_web/live/test_run_live.ex:1161
 #, elixir-autogen, elixir-format
 msgid "Remote"
 msgstr ""
