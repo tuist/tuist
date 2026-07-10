@@ -166,11 +166,19 @@ attached to the caph cluster, not a ClusterClass topology entry.
      `authentication.x509.clientCAFile`, so the apiserver's
      `--kubelet-client-certificate` authenticates for the streaming endpoints
      instead of the request landing as anonymous and (anonymous disabled) `401`.
-  (2) and (3) live in `controllers/linux/linux_cloudinit.go` and reach existing
-  nodes only on re-provision (the Linux kinds have no config re-push). (1) is
-  Cluster-CR config plus a CP rollout. `kubectl top` (metrics-server) needs (1) +
-  (2) only — it auths with a bearer token via the kubelet webhook, not a client
-  cert, so it doesn't hit (3).
+  (2) and (3) live in `controllers/linux/linux_cloudinit.go`. They reach
+  **existing** nodes automatically via the kubelet-config drift loop
+  (`controllers/linux/kubelet_config_drift.go`): each already-Ready node carries a
+  `tuist.dev/kubelet-config-hash` annotation, and when it doesn't match the
+  current rendered config the controller SSHes a minimal re-push (rewrite
+  `/var/lib/kubelet/{ca.crt,config.yaml}` + `systemctl restart kubelet`) — the
+  zero-downtime subset of the self-join (containerd, apt, and the `/data` mounts
+  are untouched, so running pods survive). So a config change like (2)/(3)
+  converges onto the fleet on the next reconcile after the operator image rolls,
+  with no `kubectl delete machine`. (1) is Cluster-CR config plus a one-time
+  control-plane rollout (kubeadm bakes the apiserver flag at CP init/join).
+  `kubectl top` (metrics-server) needs (1) + (2) only — it auths with a bearer
+  token via the kubelet webhook, not a client cert, so it doesn't hit (3).
 - **Node replacement**: on Machine delete the provider deletes the Node object
   and reaps the PVCs bound to node-local PVs pinned to the departing box's
   hostname (`deleteNodeLocalPVCs`, called from each Linux provider's

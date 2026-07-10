@@ -340,20 +340,32 @@ Elastic Metal / OVH) depend on three things being right at once. They fail with 
 | Symptom on `kubectl logs <fleet-pod>` | Layer | Fix |
 |---|---|---|
 | `dial tcp: lookup <node> … no such host` | 1. apiserver dials the unresolvable Hostname because its `--kubelet-preferred-address-types` lacks `InternalIP` | roll the control plane (below) |
-| `remote error: tls: internal error` | 2. kubelet has no serving cert (`serverTLSBootstrap` + unapprovable SA-identity CSR) | re-provision the node onto the current provider image |
-| `401`/anonymous / `Unauthorized` | 3. kubelet has no `clientCAFile`, so the apiserver's client cert isn't trusted | re-provision the node onto the current provider image |
+| `remote error: tls: internal error` | 2. kubelet has no serving cert (`serverTLSBootstrap` + unapprovable SA-identity CSR) | converges automatically (drift loop); re-provision to force |
+| `401`/anonymous / `Unauthorized` | 3. kubelet has no `clientCAFile`, so the apiserver's client cert isn't trusted | converges automatically (drift loop); re-provision to force |
 
 Layers 2 and 3 are fixed in `controllers/linux/linux_cloudinit.go` (self-signed
-serving cert + cluster CA on disk as `clientCAFile`). Because the Linux kinds
-have **no config re-push** to already-Ready hosts, an existing node picks the fix
-up only on re-provision:
+serving cert + cluster CA on disk as `clientCAFile`) and **converge onto existing
+nodes automatically** via the kubelet-config drift loop
+(`controllers/linux/kubelet_config_drift.go`): each already-Ready node carries a
+`tuist.dev/kubelet-config-hash` annotation, and when the rendered config changes
+(new operator image) the controller SSHes a minimal, zero-downtime re-push
+(rewrite `/var/lib/kubelet/{ca.crt,config.yaml}` + `systemctl restart kubelet` —
+containerd, apt, and the `/data` mounts are untouched, so running pods survive).
+So after the provider image rolls, the fleet picks up the config on the next
+reconcile with **no manual step**. Confirm convergence:
 
 ```bash
-kubectl delete machine <fleet-machine-name>   # MachineSet re-creates + re-joins
+# The node's stamped hash appears once the re-push has run:
+kubectl get node <fleet-node> -o jsonpath='{.metadata.annotations.tuist\.dev/kubelet-config-hash}'
 ```
 
-The cache re-warms from the per-account mesh, so this is non-disruptive (same as
-"Replace a wedged host").
+To force it immediately (or if a node is stuck), re-provision — the MachineSet
+re-creates + re-joins it on the current image, cache re-warms from the mesh
+(non-disruptive, same as "Replace a wedged host"):
+
+```bash
+kubectl delete machine <fleet-machine-name>
+```
 
 Layer 1 is Cluster-CR config (`kubeletPreferredAddressTypes:
 ExternalIP,InternalIP,Hostname,…`, already set per env in
