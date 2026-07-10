@@ -102,60 +102,30 @@ defmodule Tuist.Authorization do
     end
   end
 
-  object :cache do
-    action :create do
-      desc("Allows users of a project's account to create entries in the project cache.")
-      allow([:authenticated_as_user, user_role: :user])
-
-      desc("Allows the admin of a project's account to create entries in the project cache.")
-      allow([:authenticated_as_user, user_role: :admin])
-
-      desc("Allows the authenticated project to read the cache if it matches the project whose cache is being read.")
-
-      allow([:authenticated_as_project, :projects_match])
-
-      desc("Allows an account token with project:cache:write scope to create cache entries.")
-      allow([:authenticated_as_account, scopes_permit: "project:cache:write"])
-    end
-
-    action :read do
-      desc("Allows the authenticated subject to read a project's cache if the project is public.")
-      allow(:public_project)
-
-      desc("Allows users of a project's account to read the project cache.")
-      allow([:authenticated_as_user, user_role: :user])
-
-      desc("Allows the admin of a project's account to read the project cache.")
-      allow([:authenticated_as_user, user_role: :admin])
-
-      desc("Allows the authenticated project to read the cache if it matches the project whose cache is being read.")
-
-      allow([:authenticated_as_project, :projects_match])
-
-      desc("Allows users with ops access to read any cache.")
-      allow([:authenticated_as_user, :ops_access])
-
-      desc("Allows an account token with project:cache:read or project:cache:write scope to read cache.")
-      allow([:authenticated_as_account, scopes_permit: "project:cache:read"])
-      allow([:authenticated_as_account, scopes_permit: "project:cache:write"])
-    end
-
-    action :update do
-      desc("Allows users of a project to update cache.")
-      allow([:authenticated_as_user, user_role: :user])
-
-      desc("Allows the admin of a project to update cache.")
-      allow([:authenticated_as_user, user_role: :admin])
-
-      desc("Allows the authenticated project to update cache if it matches the project.")
-      allow([:authenticated_as_project, :projects_match])
-
-      desc("Allows an account token with project:cache:write scope to update cache.")
-      allow([:authenticated_as_account, scopes_permit: "project:cache:write"])
-    end
-  end
-
   object :account do
+    action :cache_create do
+      desc("Allows users of an account to create entries in the account cache.")
+      allow([:authenticated_as_user, :cache_write_policy_permits_subject, user_role: :user])
+
+      desc("Allows the admin of an account to create entries in the account cache.")
+      allow([:authenticated_as_user, :cache_write_policy_permits_subject, user_role: :admin])
+
+      desc("Allows an account token with account:cache:write scope to create account cache entries.")
+      allow([:authenticated_as_account, :cache_write_policy_permits_subject, scopes_permit: "account:cache:write"])
+    end
+
+    action :cache_read do
+      desc("Allows users of an account to read the account cache.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of an account to read the account cache.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows an account token with account:cache:read or account:cache:write scope to read account cache.")
+      allow([:authenticated_as_account, scopes_permit: "account:cache:read"])
+      allow([:authenticated_as_account, scopes_permit: "account:cache:write"])
+    end
+
     action :update do
       desc("Allows the admin of an account to update its settings.")
       allow([:authenticated_as_user, user_role: :admin])
@@ -253,6 +223,59 @@ defmodule Tuist.Authorization do
   end
 
   object :project do
+    action :cache_create do
+      desc("Allows users of a project's account to create entries in the project cache.")
+      allow([:authenticated_as_user, :cache_write_policy_permits_subject, user_role: :user])
+
+      desc("Allows the admin of a project's account to create entries in the project cache.")
+      allow([:authenticated_as_user, :cache_write_policy_permits_subject, user_role: :admin])
+
+      desc(
+        "Allows the authenticated project to create cache entries if it matches the project whose cache is being written."
+      )
+
+      allow([:authenticated_as_project, :projects_match])
+
+      desc("Allows an account token with project:cache:write scope to create project cache entries.")
+      allow([:authenticated_as_account, :cache_write_policy_permits_subject, scopes_permit: "project:cache:write"])
+    end
+
+    action :cache_read do
+      desc("Allows the authenticated subject to read a project's cache if the project is public.")
+      allow(:public_project)
+
+      desc("Allows users of a project's account to read the project cache.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of a project's account to read the project cache.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows the authenticated project to read the cache if it matches the project whose cache is being read.")
+
+      allow([:authenticated_as_project, :projects_match])
+
+      desc("Allows users with ops access to read any project cache.")
+      allow([:authenticated_as_user, :ops_access])
+
+      desc("Allows an account token with project:cache:read or project:cache:write scope to read project cache.")
+      allow([:authenticated_as_account, scopes_permit: "project:cache:read"])
+      allow([:authenticated_as_account, scopes_permit: "project:cache:write"])
+    end
+
+    action :cache_update do
+      desc("Allows users of a project's account to update project cache.")
+      allow([:authenticated_as_user, :cache_write_policy_permits_subject, user_role: :user])
+
+      desc("Allows the admin of a project's account to update project cache.")
+      allow([:authenticated_as_user, :cache_write_policy_permits_subject, user_role: :admin])
+
+      desc("Allows the authenticated project to update project cache if it matches the project.")
+      allow([:authenticated_as_project, :projects_match])
+
+      desc("Allows an account token with project:cache:write scope to update project cache.")
+      allow([:authenticated_as_account, :cache_write_policy_permits_subject, scopes_permit: "project:cache:write"])
+    end
+
     action :create do
       desc("Allows users of an account to create a project.")
       allow([:authenticated_as_user, user_role: :user])
@@ -344,6 +367,20 @@ defmodule Tuist.Authorization do
     end
   end
 
+  object :runners do
+    action :read do
+      desc("Allows users of an account to read runner jobs, workflows, and live runner state.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of an account to read runner jobs, workflows, and live runner state.")
+
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows users with ops access to read runner jobs, workflows, and live runner state.")
+      allow([:authenticated_as_user, :ops_access])
+    end
+  end
+
   object :organization do
     action :read do
       desc("Allows users of an account to read organization info.")
@@ -354,6 +391,13 @@ defmodule Tuist.Authorization do
 
       desc("Allows users with ops access to read any organization info.")
       allow([:authenticated_as_user, :ops_access])
+
+      desc(
+        "Allows an account token with account:members:read or account:members:write scope to read organization members."
+      )
+
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:members:read"])
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:members:write"])
     end
 
     action :update do
@@ -371,6 +415,9 @@ defmodule Tuist.Authorization do
     action :create do
       desc("Allows the admin of an account to create invitations.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows an account token with account:members:write scope to create invitations.")
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:members:write"])
     end
 
     action :read do
@@ -379,11 +426,18 @@ defmodule Tuist.Authorization do
 
       desc("Allows users with ops access to read any invitations.")
       allow([:authenticated_as_user, :ops_access])
+
+      desc("Allows an account token with account:members:read or account:members:write scope to read invitations.")
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:members:read"])
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:members:write"])
     end
 
     action :delete do
       desc("Allows the admin of an account to delete invitations.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows an account token with account:members:write scope to delete invitations.")
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:members:write"])
     end
   end
 
@@ -391,11 +445,17 @@ defmodule Tuist.Authorization do
     action :update do
       desc("Allows the admin of an account to update members.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows an account token with account:members:write scope to update members.")
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:members:write"])
     end
 
     action :delete do
       desc("Allows the admin of an account to delete members.")
       allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows an account token with account:members:write scope to delete members.")
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:members:write"])
     end
   end
 

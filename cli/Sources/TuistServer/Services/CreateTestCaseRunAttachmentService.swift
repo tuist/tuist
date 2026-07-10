@@ -98,6 +98,7 @@ public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentSer
                 request.httpMethod = "PUT"
                 request.setValue(Self.contentType(for: fileName), forHTTPHeaderField: "Content-Type")
                 request.httpBody = try await fileSystem.readFile(at: filePath)
+                request.addAzureBlobTypeHeaderIfNeeded()
 
                 let urlSession = urlSession ?? .tuistShared
                 let (_, uploadResponse) = try await urlSession.data(for: request)

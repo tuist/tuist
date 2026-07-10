@@ -90,6 +90,8 @@ server:
     limits:
       memory: 1Gi
   extraEnv:
+    - name: TUIST_DEPLOY_ENV
+      value: preview
     - name: TUIST_TEST_USER_LOGIN_ENABLED
       value: "1"
 
@@ -141,6 +143,43 @@ objectStorage:
   embedded:
     persistence:
       create: false
+
+registry:
+  enabled: true
+  managedSecrets: false
+  deployEnv: preview
+  sentryEnv: preview
+  poolSize: "2"
+  metrics:
+    enabled: false
+  ingress:
+    enabled: false
+    className: nginx
+    host: ""
+    tlsSecretName: ""
+    annotations: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
+swiftRegistrySync:
+  enabled: true
+  managedSecrets: false
+  syncAllowlist: alamofire/alamofire
+  syncLimit: "1"
+  extraEnv:
+    - name: TUIST_DEPLOY_ENV
+      value: preview
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+  tmpSizeLimit: 4Gi
 
 observability:
   enabled: false

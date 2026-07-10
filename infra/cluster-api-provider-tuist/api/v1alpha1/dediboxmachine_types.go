@@ -8,8 +8,8 @@ import (
 
 // DediboxMachineSpec is the desired state of one Scaleway Dedibox dedicated
 // server. Structurally it mirrors the OVH kind — a customer-facing public box
-// that adopts a pre-ordered server, installs on claim, self-joins over its
-// public IP, and (monthly contract) is not terminated on delete. It is driven
+// that adopts a pre-ordered, installed server, self-joins over its public IP,
+// and is reinstalled back to a clean, claimable state on delete. It is driven
 // through the Scaleway Dedibox API with a default-project IAM key (every Dedibox
 // in the org shares the default project — a Dedibox cannot be assigned to
 // another one — so the project can't isolate environments; a per-fleet tag

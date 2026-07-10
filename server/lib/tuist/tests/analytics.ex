@@ -1324,7 +1324,7 @@ defmodule Tuist.Tests.Analytics do
   defp normalize_duration(nil), do: 0
   defp normalize_duration(value) when is_float(value), do: round(value)
   defp normalize_duration(value) when is_integer(value), do: value
-  defp normalize_duration(value), do: round(value * 1.0)
+  defp normalize_duration(%Decimal{} = value), do: value |> Decimal.round() |> Decimal.to_integer()
 
   @doc """
   Gets a single test duration metric for the last N tests.

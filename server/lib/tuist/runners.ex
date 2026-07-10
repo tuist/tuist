@@ -76,6 +76,7 @@ defmodule Tuist.Runners do
   # falling back to best-effort.
   @owner_label_stamp_attempts 3
   @owner_label_stamp_retry_backoff_ms 100
+  @github_runner_name_max_length 64
 
   # The runners-controller stamps `tuist.dev/drain-eligible=true` on the
   # stale Pods it has selected to retire in the current roll wave, up to
@@ -87,6 +88,7 @@ defmodule Tuist.Runners do
   # the open-loop time stagger this replaced drained on a fixed 30s
   # cadence that was far shorter than a multi-minute image pull.
   @drain_eligible_label "tuist.dev/drain-eligible"
+  @max_claim_attempts_per_dispatch 16
 
   @doc """
   Returns the raw load signals the runners-controller's autoscaler
@@ -168,38 +170,62 @@ defmodule Tuist.Runners do
   end
 
   defp claim_and_serve(namespace, sa_name, fleet_name) do
-    with {:ok, candidate} <- Jobs.pick_queued(fleet_name, []),
-         {:ok, claim} <-
-           Claims.attempt(
-             candidate.workflow_job_id,
-             candidate.account_id,
-             fleet_name,
-             sa_name
-           ) do
-      Jobs.record_claimed(candidate, sa_name, claim.claimed_at)
-      serve_claim(namespace, sa_name, fleet_name, candidate, claim)
-    else
+    excluded_workflow_job_ids = Claims.workflow_job_ids_for_fleet(fleet_name)
+    claim_and_serve(namespace, sa_name, fleet_name, excluded_workflow_job_ids, @max_claim_attempts_per_dispatch)
+  end
+
+  defp claim_and_serve(_namespace, sa_name, fleet_name, _excluded_workflow_job_ids, 0) do
+    Logger.debug("runners: claim attempts exhausted",
+      fleet: fleet_name,
+      sa: sa_name
+    )
+
+    {:error, :lost_race}
+  end
+
+  defp claim_and_serve(namespace, sa_name, fleet_name, excluded_workflow_job_ids, attempts_left) do
+    case Jobs.pick_queued(fleet_name, [], excluded_workflow_job_ids) do
+      {:ok, candidate} ->
+        case Claims.attempt(candidate.workflow_job_id, candidate.account_id, fleet_name, sa_name) do
+          {:ok, claim} ->
+            Jobs.record_claimed(candidate, sa_name, claim.claimed_at)
+            serve_claim(namespace, sa_name, fleet_name, candidate, claim)
+
+          {:error, :lost_race} ->
+            Logger.debug("runners: claim attempt lost race; trying next queued job",
+              fleet: fleet_name,
+              sa: sa_name,
+              workflow_job_id: candidate.workflow_job_id
+            )
+
+            claim_and_serve(
+              namespace,
+              sa_name,
+              fleet_name,
+              [candidate.workflow_job_id | excluded_workflow_job_ids],
+              attempts_left - 1
+            )
+
+          {:error, :pod_in_use} ->
+            Logger.debug("runners: claim attempt declined",
+              reason: :pod_in_use,
+              fleet: fleet_name,
+              sa: sa_name
+            )
+
+            {:error, :pod_in_use}
+
+          {:error, reason} ->
+            Logger.warning("runners: dispatch_for_sa failed",
+              reason: inspect(reason),
+              fleet: fleet_name
+            )
+
+            {:error, reason}
+        end
+
       {:error, :empty} ->
         {:error, :empty}
-
-      {:error, reason} when reason in [:lost_race, :pod_in_use] ->
-        # Lost the Postgres claim race (or the Pod already holds a
-        # claim). The candidate stays queued in CH for the next poll.
-        Logger.debug("runners: claim attempt declined",
-          reason: reason,
-          fleet: fleet_name,
-          sa: sa_name
-        )
-
-        {:error, reason}
-
-      {:error, reason} ->
-        Logger.warning("runners: dispatch_for_sa failed",
-          reason: inspect(reason),
-          fleet: fleet_name
-        )
-
-        {:error, reason}
     end
   end
 
@@ -314,11 +340,10 @@ defmodule Tuist.Runners do
   #
   #   * Both succeed → row back in the queued pool immediately.
   #   * CH ok, PG delete fails / crash → CH says queued, PG
-  #     still claimed. The next poll picks the row, hits a PG
-  #     PK conflict on `Claims.attempt`, returns :lost_race
-  #     and bails — no double-mint. `StaleClaimsWorker` later
-  #     deletes the stale PG row (after 5 min) and the next
-  #     poll claims cleanly.
+  #     still claimed. The next poll skips rows already claimed
+  #     in PG (or loses the claim race once and tries the next
+  #     queued row), so later workflow_jobs can still dispatch
+  #     while `StaleClaimsWorker` cleans up the stale PG row.
   #   * CH fails → leave PG alone; the stale-worker will both
   #     drop the PG row AND re-INSERT `queued` to CH on its
   #     normal recovery path.
@@ -399,12 +424,13 @@ defmodule Tuist.Runners do
     # Earlier versions prefixed `tuist-<account.name>-` — for macOS
     # pools that fit, but the Linux pool name is longer
     # (`<release>-tuist-runner-pool-linux-ubuntu-22-04`), so the
-    # combined string overshoots and GitHub returns 422. The SA
-    # name is already unique within the cluster and contains the
-    # chart's release + pool prefix, and the runner is registered
-    # under `account.name` via the API URL — so dropping the
-    # redundant prefix is safe.
-    runner_name = sa_name
+    # combined string overshoots and GitHub returns 422. Use the
+    # polling Pod's SA name as the stable prefix, but add a fresh
+    # per-mint suffix. GitHub reserves the runner name as soon as it
+    # creates the JIT config; if the HTTP response or a later local
+    # state write fails before the Pod receives that JIT, retrying
+    # the same name loops forever on 409 "Already exists".
+    runner_name = github_runner_name(sa_name)
 
     # Resolve the full installation row (carries `installation_id`
     # AND `client_url`) instead of just the integer id. The JIT
@@ -456,11 +482,19 @@ defmodule Tuist.Runners do
       {:error, reason} ->
         Logger.error("runners: GitHub jit mint failed",
           account: account.name,
+          runner: runner_name,
           reason: inspect(reason)
         )
 
         {:error, :github_mint_failed}
     end
+  end
+
+  defp github_runner_name(sa_name) do
+    suffix = "-" <> (4 |> :crypto.strong_rand_bytes() |> Base.encode16(case: :lower))
+    prefix = String.slice(sa_name, 0, @github_runner_name_max_length - byte_size(suffix))
+
+    prefix <> suffix
   end
 
   defp pool_label(%{"metadata" => %{"labels" => labels}}) when is_map(labels) do

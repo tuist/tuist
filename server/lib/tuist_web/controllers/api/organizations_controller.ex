@@ -123,7 +123,7 @@ defmodule TuistWeb.API.OrganizationsController do
       is_nil(existing_account) ->
         create_organization(conn, organization_name, user)
 
-      !is_nil(existing_account) ->
+      true ->
         conn
         |> put_status(:bad_request)
         |> json(%{
@@ -199,7 +199,7 @@ defmodule TuistWeb.API.OrganizationsController do
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
 
-      !is_nil(organization) ->
+      true ->
         Accounts.delete_organization!(organization)
 
         conn
@@ -232,7 +232,7 @@ defmodule TuistWeb.API.OrganizationsController do
     organization =
       Accounts.get_organization_by_handle(organization_name)
 
-    user = Authentication.current_user(conn)
+    subject = Authentication.authenticated_subject(conn)
 
     cond do
       is_nil(organization) ->
@@ -240,12 +240,12 @@ defmodule TuistWeb.API.OrganizationsController do
         |> put_status(:not_found)
         |> json(%{message: "Organization not found"})
 
-      Authorization.authorize(:organization_read, user, organization.account) != :ok ->
+      Authorization.authorize(:organization_read, subject, organization.account) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
 
-      !is_nil(organization) ->
+      true ->
         admins =
           organization
           |> Accounts.get_organization_members(:admin)
@@ -339,7 +339,7 @@ defmodule TuistWeb.API.OrganizationsController do
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
 
-      !is_nil(organization) ->
+      true ->
         json(conn, %{
           current_month_remote_cache_hits: organization.account.current_month_remote_cache_hits_count
         })
@@ -442,7 +442,7 @@ defmodule TuistWeb.API.OrganizationsController do
           message: "Your SSO organization must be the same as the one you are trying to update your organization to."
         })
 
-      !is_nil(organization) ->
+      true ->
         update_organization(%{
           organization: organization,
           sso_provider: sso_provider,
@@ -519,7 +519,7 @@ defmodule TuistWeb.API.OrganizationsController do
 
   def remove_member(%{path_params: %{"organization_name" => organization_name, "user_name" => user_name}} = conn, _params) do
     organization = Accounts.get_organization_by_handle(organization_name)
-    user = Authentication.current_user(conn)
+    subject = Authentication.authenticated_subject(conn)
     member_account = Accounts.get_account_by_handle(user_name)
 
     cond do
@@ -533,7 +533,7 @@ defmodule TuistWeb.API.OrganizationsController do
         |> put_status(:not_found)
         |> json(%{message: "User #{user_name} not found."})
 
-      Authorization.authorize(:member_delete, user, organization.account) != :ok ->
+      Authorization.authorize(:member_delete, subject, organization.account) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
@@ -603,7 +603,7 @@ defmodule TuistWeb.API.OrganizationsController do
         _params
       ) do
     organization = Accounts.get_organization_by_handle(organization_name)
-    user = Authentication.current_user(conn)
+    subject = Authentication.authenticated_subject(conn)
     member_account = Accounts.get_account_by_handle(user_name)
 
     cond do
@@ -617,7 +617,7 @@ defmodule TuistWeb.API.OrganizationsController do
         |> put_status(:not_found)
         |> json(%{message: "User #{user_name} not found."})
 
-      Authorization.authorize(:member_update, user, organization.account) != :ok ->
+      Authorization.authorize(:member_update, subject, organization.account) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})

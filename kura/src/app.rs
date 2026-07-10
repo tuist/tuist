@@ -197,6 +197,7 @@ async fn run_with_config(
     spawn_multipart_janitor_task(state.clone());
     spawn_tmp_dir_metrics_task(state.clone());
     spawn_geoip_refresh_task(state.clone());
+    spawn_segment_promotion_task(state.clone());
 
     // When the node enrolled on boot, keep its peer certificate fresh in-process
     // so a short leaf does not require a restart.
@@ -453,6 +454,42 @@ async fn shutdown_signal() {
     wait_for_shutdown_signal(ctrl_c, terminate).await;
 }
 
+// Drains the store's read-path promotion queue: artifacts served from an
+// Old-generation segment are rewritten into the current segment here instead
+// of inline on the read path (see Store::run_promotion_worker).
+//
+// Unlike the other background tasks, this one has a producer queue behind it:
+// if the worker dies, enqueue_promotion keeps filling the queue and promotion
+// silently stops for the life of the process, so Old-segment artifacts age out
+// wholesale with hit-rate decay as the only symptom. The worker itself only
+// returns by panicking (invariant `expect`s deep in the refresh path that
+// pre-dated backgrounding killed a single request when they ran inline), so
+// supervise it: respawn on panic instead of losing the subsystem.
+fn spawn_segment_promotion_task(state: Arc<AppState>) {
+    tokio::spawn(
+        async move {
+            loop {
+                let worker_state = state.clone();
+                let worker = tokio::spawn(
+                    async move {
+                        worker_state.store.run_promotion_worker().await;
+                    }
+                    .in_current_span(),
+                );
+                if worker.await.is_ok() {
+                    // run_promotion_worker loops forever; a clean return means
+                    // the runtime is shutting down.
+                    return;
+                }
+                state.metrics.record_promotion_failure();
+                tracing::warn!("segment promotion worker panicked; respawning");
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+        }
+        .in_current_span(),
+    );
+}
+
 fn spawn_snapshot_task(state: Arc<AppState>) {
     tokio::spawn(
         async move {
@@ -473,6 +510,9 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                         state
                             .metrics
                             .update_multipart_uploads(snapshot.multipart_uploads);
+                        state
+                            .metrics
+                            .update_promotion_queue_depth(snapshot.promotion_queue_depth);
                         state
                             .metrics
                             .update_segment_fsyncs(snapshot.segment_fsync_count);

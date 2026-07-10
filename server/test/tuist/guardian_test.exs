@@ -13,6 +13,13 @@ defmodule Tuist.GuardianTest do
 
       assert {:ok, to_string(account.id)} == Guardian.subject_for_token(account, %{})
     end
+
+    test "returns subject for authenticated account with claims" do
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+
+      assert {:ok, to_string(account.id)} ==
+               Guardian.subject_for_token(%AuthenticatedAccount{account: account, scopes: []}, %{})
+    end
   end
 
   describe "resource_from_claims/1" do

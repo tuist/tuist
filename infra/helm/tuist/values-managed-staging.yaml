@@ -12,6 +12,15 @@ kuraController:
   telemetry:
     deploymentEnvironment: staging
 
+registry:
+  publicHost: registry-staging.tuist.dev
+  serverUrl: https://staging.tuist.dev
+  deployEnv: stag
+  sentryEnv: stag
+  ingress:
+    host: registry-staging.tuist.dev
+    tlsSecretName: registry-staging-tls
+
 server:
   replicaCount: 1
 
@@ -295,6 +304,13 @@ processor:
       cpu: "500m"
       memory: "1536Mi"
 
+swiftRegistrySync:
+  extraEnv:
+    - name: TUIST_DEPLOY_ENV
+      value: stag
+    - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+
 xcresultProcessor:
   # Single replica in staging, matching macosFleet.replicas=1.
   enabled: true
@@ -547,13 +563,6 @@ runnersFleet:
   # don't double-book the cluster.
   xcodeOverrides:
     "26.5":
-      # Pinned to the feat/kura-macos-runner-cache branch bake whose
-      # dispatch-poll exports TUIST_CACHE_ENDPOINT from the claim
-      # response and installs the in-VM /etc/resolver cluster-DNS
-      # entry — the in-VM halves of the runner-cache path. Drop this
-      # pin (back to the semver-derived tag) once a runner-image
-      # release containing those changes is cut.
-      imageTag: macos-26-5-8ab1924e
       autoscaling:
         enabled: true
         minWarmPoolFloor: 1

@@ -11,7 +11,7 @@
 msgid ""
 msgstr ""
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:1000
+#: lib/tuist_web/live/xcode_overview_live.html.heex:999
 #, elixir-autogen, elixir-format
 msgid "%{average_build_time}s"
 msgstr ""
@@ -73,8 +73,8 @@ msgid "Are you sure you want to delete this?"
 msgstr ""
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:154
-#: lib/tuist_web/live/xcode_overview_live.html.heex:998
-#: lib/tuist_web/live/xcode_overview_live.html.heex:1067
+#: lib/tuist_web/live/xcode_overview_live.html.heex:997
+#: lib/tuist_web/live/xcode_overview_live.html.heex:1066
 #, elixir-autogen, elixir-format
 msgid "Average build time"
 msgstr ""
@@ -210,7 +210,7 @@ msgstr ""
 msgid "Environment:"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:895
+#: lib/tuist_web/live/xcode_overview_live.html.heex:894
 #, elixir-autogen, elixir-format
 msgid "Failed builds"
 msgstr ""
@@ -241,7 +241,7 @@ msgstr ""
 msgid "Install size"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:947
+#: lib/tuist_web/live/xcode_overview_live.html.heex:946
 #, elixir-autogen, elixir-format
 msgid "Last 30 runs"
 msgstr ""
@@ -289,7 +289,7 @@ msgstr ""
 msgid "Name"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:1082
+#: lib/tuist_web/live/xcode_overview_live.html.heex:1081
 #, elixir-autogen, elixir-format
 msgid "No builds yet"
 msgstr ""
@@ -304,7 +304,7 @@ msgstr ""
 msgid "No previews yet"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:952
+#: lib/tuist_web/live/xcode_overview_live.html.heex:951
 #, elixir-autogen, elixir-format
 msgid "No recent builds yet"
 msgstr ""
@@ -320,7 +320,7 @@ msgstr ""
 msgid "Overview"
 msgstr ""
 
-#: lib/tuist_web/live/xcode_overview_live.html.heex:890
+#: lib/tuist_web/live/xcode_overview_live.html.heex:889
 #, elixir-autogen, elixir-format
 msgid "Passed builds"
 msgstr ""
@@ -447,7 +447,7 @@ msgstr ""
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:463
 #: lib/tuist_web/live/xcode_overview_live.html.heex:568
-#: lib/tuist_web/live/xcode_overview_live.html.heex:991
+#: lib/tuist_web/live/xcode_overview_live.html.heex:990
 #, elixir-autogen, elixir-format
 msgid "View more"
 msgstr ""

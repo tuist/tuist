@@ -106,6 +106,26 @@ defmodule Tuist.Runners.DispatchTest do
       assert {:ignored, :no_matching_pool} = Dispatch.handle_webhook(payload, 1)
     end
 
+    test "enqueues waiting self-hosted jobs as queued work" do
+      account = enabled_account()
+
+      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+
+      stub(Client, :list_runner_pools, fn _ns ->
+        {:ok, [pool_cr(name: "macos-pool", label: "tuist-macos")]}
+      end)
+
+      payload =
+        [owner: account.name, labels: ["self-hosted", "tuist-macos"]]
+        |> queued_payload()
+        |> Map.put("action", "waiting")
+
+      assert {:ok, :queued} = Dispatch.handle_webhook(payload, 1)
+
+      counts = Jobs.status_counts(account.id)
+      assert Map.get(counts, "queued", 0) == 1
+    end
+
     test "returns {:ignored, :no_pools} when the cluster has no RunnerPool CRs" do
       account = enabled_account()
 

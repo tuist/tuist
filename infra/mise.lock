@@ -4,13 +4,65 @@
 version = "4.1.3"
 backend = "aqua:helm/helm"
 
+[tools.helm."platforms.linux-arm64"]
+checksum = "sha256:5db45e027cc8de4677ec869e5d803fc7631b0bab1c1eb62ac603a62d22359a43"
+url = "https://get.helm.sh/helm-v4.1.3-linux-arm64.tar.gz"
+
+[tools.helm."platforms.linux-arm64-musl"]
+checksum = "sha256:5db45e027cc8de4677ec869e5d803fc7631b0bab1c1eb62ac603a62d22359a43"
+url = "https://get.helm.sh/helm-v4.1.3-linux-arm64.tar.gz"
+
 [tools.helm."platforms.linux-x64"]
+checksum = "sha256:02ce9722d541238f81459938b84cf47df2fdf1187493b4bfb2346754d82a4700"
+url = "https://get.helm.sh/helm-v4.1.3-linux-amd64.tar.gz"
+
+[tools.helm."platforms.linux-x64-musl"]
 checksum = "sha256:02ce9722d541238f81459938b84cf47df2fdf1187493b4bfb2346754d82a4700"
 url = "https://get.helm.sh/helm-v4.1.3-linux-amd64.tar.gz"
 
 [tools.helm."platforms.macos-arm64"]
 checksum = "sha256:21c02fe2f7e27d08e24a6bf93103f9d2b25aab6f13f91814b2cfabc99b108a5e"
 url = "https://get.helm.sh/helm-v4.1.3-darwin-arm64.tar.gz"
+
+[tools.helm."platforms.macos-x64"]
+checksum = "sha256:742132e11cc08a81c97f70180cd714ae8376f8c896247a7b14ae1f51838b5a0b"
+url = "https://get.helm.sh/helm-v4.1.3-darwin-amd64.tar.gz"
+
+[tools.helm."platforms.windows-x64"]
+checksum = "sha256:fb8dc9b5c2f74456443a6a1bb431fe109d744151423133d921ec8a43b63cab90"
+url = "https://get.helm.sh/helm-v4.1.3-windows-amd64.tar.gz"
+
+[[tools.k3d]]
+version = "5.9.0"
+backend = "aqua:k3d-io/k3d"
+
+[tools.k3d."platforms.linux-arm64"]
+checksum = "sha256:03cde5cf23e6e8e67de5a039ecf26e5b85aca82fba3e5d13dadf904cd218a250"
+url = "https://github.com/k3d-io/k3d/releases/download/v5.9.0/k3d-linux-arm64"
+
+[tools.k3d."platforms.linux-arm64-musl"]
+checksum = "sha256:03cde5cf23e6e8e67de5a039ecf26e5b85aca82fba3e5d13dadf904cd218a250"
+url = "https://github.com/k3d-io/k3d/releases/download/v5.9.0/k3d-linux-arm64"
+
+[tools.k3d."platforms.linux-x64"]
+checksum = "sha256:06d8f25bc3a971c4eb29e0ff08429b180402db0f4dec838c9eac427e296800a0"
+url = "https://github.com/k3d-io/k3d/releases/download/v5.9.0/k3d-linux-amd64"
+
+[tools.k3d."platforms.linux-x64-musl"]
+checksum = "sha256:06d8f25bc3a971c4eb29e0ff08429b180402db0f4dec838c9eac427e296800a0"
+url = "https://github.com/k3d-io/k3d/releases/download/v5.9.0/k3d-linux-amd64"
+
+[tools.k3d."platforms.macos-arm64"]
+checksum = "sha256:fe106541d5d0a3f18debcd4d432a16f8c0ce3e6ddc06f8fbb6f696a122313e00"
+url = "https://github.com/k3d-io/k3d/releases/download/v5.9.0/k3d-darwin-arm64"
+
+[tools.k3d."platforms.macos-x64"]
+checksum = "sha256:b4aabc37534f95b9c764e7823f2df923f50d57600837aa60a06266cce47db732"
+url = "https://github.com/k3d-io/k3d/releases/download/v5.9.0/k3d-darwin-amd64"
+
+[tools.k3d."platforms.windows-x64"]
+checksum = "sha256:49d0b9c796f5b8ba6f58a1dd5469e8b7b34bf9b6ce9078633eedb2789680a034"
+url = "https://github.com/k3d-io/k3d/releases/download/v5.9.0/k3d-windows-amd64.exe"
 
 [[tools.kind]]
 version = "0.31.0"
@@ -23,3 +75,35 @@ url = "https://github.com/kubernetes-sigs/kind/releases/download/v0.31.0/kind-li
 [tools.kind."platforms.macos-arm64"]
 checksum = "sha256:88bf554fe9da6311c9f8c2d082613c002911a476f6b5090e9420b35d84e70c5c"
 url = "https://github.com/kubernetes-sigs/kind/releases/download/v0.31.0/kind-darwin-arm64"
+
+[[tools.kubectl]]
+version = "1.36.1"
+backend = "aqua:kubernetes/kubernetes/kubectl"
+
+[tools.kubectl."platforms.linux-arm64"]
+checksum = "sha256:59f7ee8e477fae658447607dc3c8790ac17a1b016c01c622c12070e969e2d4e7"
+url = "https://dl.k8s.io/v1.36.1/bin/linux/arm64/kubectl"
+
+[tools.kubectl."platforms.linux-arm64-musl"]
+checksum = "sha256:59f7ee8e477fae658447607dc3c8790ac17a1b016c01c622c12070e969e2d4e7"
+url = "https://dl.k8s.io/v1.36.1/bin/linux/arm64/kubectl"
+
+[tools.kubectl."platforms.linux-x64"]
+checksum = "sha256:629d3f410e09bf49b64ae7079f7f0bda1191efed311f7d37fdbab0ad5b0ec2b7"
+url = "https://dl.k8s.io/v1.36.1/bin/linux/amd64/kubectl"
+
+[tools.kubectl."platforms.linux-x64-musl"]
+checksum = "sha256:629d3f410e09bf49b64ae7079f7f0bda1191efed311f7d37fdbab0ad5b0ec2b7"
+url = "https://dl.k8s.io/v1.36.1/bin/linux/amd64/kubectl"
+
+[tools.kubectl."platforms.macos-arm64"]
+checksum = "sha256:9092778abaef3079449da4cd70ded0e4be112480c93efcdeace3155968d1d133"
+url = "https://dl.k8s.io/v1.36.1/bin/darwin/arm64/kubectl"
+
+[tools.kubectl."platforms.macos-x64"]
+checksum = "sha256:b4973e90ebb00537d735b63d6f8293c1959156e6ff435f6a43c08aeaa1a2e7d7"
+url = "https://dl.k8s.io/v1.36.1/bin/darwin/amd64/kubectl"
+
+[tools.kubectl."platforms.windows-x64"]
+checksum = "sha256:538f4229eee91a17b34724da7daade7687393d6988e33b723c6c306572c13900"
+url = "https://dl.k8s.io/v1.36.1/bin/windows/amd64/kubectl.exe"

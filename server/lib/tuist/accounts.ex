@@ -866,8 +866,7 @@ defmodule Tuist.Accounts do
         user
 
       error ->
-        # Re-raise any other errors
-        {:ok, _} = error
+        raise "Unexpected result from create_user/2 while creating OAuth2 user: #{inspect(error)}"
     end
   end
 
@@ -1141,6 +1140,29 @@ defmodule Tuist.Accounts do
     invitation
   end
 
+  def resend_invitation(%Invitation{} = invitation, %{url: url_fun}, opts \\ []) when is_function(url_fun, 1) do
+    token = Keyword.get(opts, :token, Tuist.Tokens.generate_token(16))
+    invitation = Repo.preload(invitation, [:inviter, :organization])
+    account = get_account_from_organization(invitation.organization)
+
+    result =
+      invitation
+      |> Invitation.resend_changeset(%{token: token})
+      |> Repo.update()
+
+    if match?({:ok, _invitation}, result) and Environment.mail_configured?() do
+      UserNotifier.deliver_invitation(invitation.invitee_email, %{
+        inviter: invitation.inviter,
+        to: %{organization: invitation.organization, account: account},
+        url: url_fun.(token)
+      })
+    end
+
+    result
+  end
+
+  def invitation_expired?(%Invitation{} = invitation), do: Invitation.expired?(invitation)
+
   def invite_users_to_organization(emails, %{
         inviter: %User{id: user_id} = inviter,
         to: %Organization{id: organization_id} = organization,
@@ -1193,8 +1215,21 @@ defmodule Tuist.Accounts do
         invitee: %User{} = invitee,
         organization: %Organization{} = organization
       }) do
-    add_user_to_organization(invitee, organization)
-    Repo.delete(invitation)
+    case Repo.get(Invitation, invitation.id) do
+      nil ->
+        {:error, :not_found}
+
+      %Invitation{token: token} when token != invitation.token ->
+        {:error, :not_found}
+
+      %Invitation{} = invitation ->
+        if Invitation.expired?(invitation) do
+          {:error, :expired}
+        else
+          add_user_to_organization(invitee, organization)
+          Repo.delete(invitation)
+        end
+    end
   end
 
   def delete_invitation(%{invitation: %Invitation{} = invitation}) do
@@ -1207,13 +1242,7 @@ defmodule Tuist.Accounts do
       |> Repo.get_by(token: token, invitee_email: invitee.email)
       |> Repo.preload(inviter: :account)
 
-    cond do
-      is_nil(invitation) ->
-        {:error, :not_found}
-
-      !is_nil(invitation) ->
-        {:ok, invitation}
-    end
+    invitation_result(invitation)
   end
 
   def get_invitation_by_token(token) do
@@ -1222,9 +1251,16 @@ defmodule Tuist.Accounts do
       |> Repo.get_by(token: token)
       |> Repo.preload(inviter: :account)
 
-    case invitation do
-      nil -> {:error, :not_found}
-      invitation -> {:ok, invitation}
+    invitation_result(invitation)
+  end
+
+  defp invitation_result(nil), do: {:error, :not_found}
+
+  defp invitation_result(%Invitation{} = invitation) do
+    if Invitation.expired?(invitation) do
+      {:error, :expired}
+    else
+      {:ok, invitation}
     end
   end
 
@@ -1399,9 +1435,12 @@ defmodule Tuist.Accounts do
   end
 
   def get_pending_invitations_by_email(invitee_email) do
+    validity_days = Invitation.validity_days()
+
     Repo.all(
       from(i in Invitation,
         where: i.invitee_email == ^invitee_email,
+        where: i.updated_at > ago(^validity_days, "day"),
         order_by: [desc: i.created_at]
       )
     )
@@ -2068,8 +2107,6 @@ defmodule Tuist.Accounts do
       []
     end
   end
-
-  defp kura_cache_endpoints(_), do: []
 
   defp kura_cache_endpoint_urls(%Account{} = account) do
     static_urls = account |> kura_cache_endpoints() |> Enum.map(& &1.url)

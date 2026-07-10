@@ -337,8 +337,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     end
   end
 
-  defp mesh_public_peer_lb_annotations(_region), do: nil
-
   # The peer plane is host-network exactly when the regional gateway is: on
   # bare metal there is no cloud LB, so the public peer endpoint is served by a
   # host-network SNI-passthrough demux on the box NIC instead of a per-instance

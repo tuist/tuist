@@ -164,7 +164,7 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
         let casAnalyticsDatabasePath = Environment.current.stateDirectory
             .appending(component: CASAnalyticsDatabase.databaseName)
         if try await fileSystem.exists(casAnalyticsDatabasePath) {
-            // The daemon batches analytics writes into the WAL; fold it into the
+            // The proxy batches analytics writes into the WAL; fold it into the
             // main db file so this plain file copy observes every flushed row.
             try? CASAnalyticsDatabase.checkpoint(at: casAnalyticsDatabasePath)
             try await fileSystem.copy(

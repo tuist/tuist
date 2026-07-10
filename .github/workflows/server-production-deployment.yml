@@ -55,6 +55,7 @@ env:
   # Used by the production deploy cascade's build job.
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist
+  REGISTRY_IMAGE_NAME: tuist/registry
   KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
 
 jobs:
@@ -155,7 +156,7 @@ jobs:
             exit 0
           fi
           if git diff --name-only "$base" "${{ github.sha }}" \
-            | grep -qE '^(server/|tuist_common/|noora/|infra/kura-controller/|infra/helm/tuist/|infra/helm/platform/|infra/helm/k8s-monitoring/|\.github/workflows/(server-deployment|server-production-deployment)\.yml)'; then
+            | grep -qE '^(server/|registry/|tuist_common/|noora/|infra/kura-controller/|infra/helm/tuist/|infra/helm/platform/|infra/helm/k8s-monitoring/|\.github/workflows/(server-deployment|server-production-deployment)\.yml)'; then
             echo "deployable-changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "deployable-changed=false" >> "$GITHUB_OUTPUT"
@@ -170,7 +171,7 @@ jobs:
     # runner mid-build ("lost communication"). Mirrors server.yml's
     # docker_build job.
     runs-on: tuist-linux-large
-    timeout-minutes: 30
+    timeout-minutes: 75
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     outputs:
@@ -248,7 +249,7 @@ jobs:
     needs: check-releases
     if: needs.check-releases.outputs.server-should-release == 'true'
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 60
+    timeout-minutes: 75
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     outputs:
@@ -1839,7 +1840,7 @@ jobs:
   # its own.
   # --------------------------------------------------------------------------
   build:
-    name: Build server image
+    name: Build deployment images
     needs: [check-releases, tag-infra-releases]
     if: >-
       always() &&
@@ -1860,9 +1861,10 @@ jobs:
     # runner mid-build ("lost communication"). Mirrors server.yml's
     # docker_build job.
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 75
     outputs:
       image_tag: ${{ steps.tag.outputs.image_tag }}
+      registry_image_tag: ${{ steps.tag.outputs.image_tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -1935,6 +1937,16 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+      - uses: docker/build-push-action@v6
+        name: Build and push Swift registry image
+        with:
+          context: .
+          file: ./registry/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.REGISTRY_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          build-args: |
+            MIX_ENV=prod
   # --------------------------------------------------------------------------
   # Canary leg - deploys the pre-built image. Skipped on a hotfix: the
   # fast-path ships straight to production without waiting on the canary
@@ -1958,6 +1970,7 @@ jobs:
       environment: canary
       commit_sha: ${{ github.sha }}
       image_tag: ${{ needs.build.outputs.image_tag }}
+      registry_image_tag: ${{ needs.build.outputs.registry_image_tag }}
     secrets: inherit
 
   acceptance-tests:
@@ -1965,7 +1978,7 @@ jobs:
     needs: canary
     if: ${{ always() && needs.canary.result == 'success' }}
     runs-on: tuist-macos
-    timeout-minutes: 15
+    timeout-minutes: 25
     environment: server-k8s-canary
     permissions:
       contents: read
@@ -1989,6 +2002,27 @@ jobs:
         env:
           TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
         run: mise run cli:ee
+      # The Xcode compilation-cache acceptance test loads the cas-plugin dylib
+      # inside xcodebuild's compilers and routes it to the proxy over a unix
+      # socket. Build both from source and hand their paths to the test via the
+      # TUIST_CAS_PLUGIN_PATH / TUIST_CAS_PROXY_PATH overrides ResourceLocator
+      # honours.
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          github_token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+          install_args: rust
+          working_directory: cas-plugin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: cas-plugin-rust-${{ runner.os }}
+          workspaces: |
+            cas-plugin -> target
+      - name: Build the cas-plugin
+        working-directory: cas-plugin
+        run: |
+          mise run build
+          echo "TUIST_CAS_PLUGIN_PATH=$(pwd)/target/release/libtuist_cas_plugin.dylib" >> "$GITHUB_ENV"
+          echo "TUIST_CAS_PROXY_PATH=$(pwd)/target/release/tuist-cas-proxy" >> "$GITHUB_ENV"
       - name: Test
         env:
           TUIST_EE: 1
@@ -2107,6 +2141,7 @@ jobs:
       environment: production
       commit_sha: ${{ github.sha }}
       image_tag: ${{ needs.build.outputs.image_tag }}
+      registry_image_tag: ${{ needs.build.outputs.registry_image_tag }}
     secrets: inherit
 
   # Hotfix fast-path: "(hotfix)" in the commit subject ships production without
@@ -2128,4 +2163,5 @@ jobs:
       environment: production
       commit_sha: ${{ github.sha }}
       image_tag: ${{ needs.build.outputs.image_tag }}
+      registry_image_tag: ${{ needs.build.outputs.registry_image_tag }}
     secrets: inherit

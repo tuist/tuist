@@ -53,3 +53,9 @@ metrics-server:
 previewJanitor:
   enabled: true
   tolerations: *previewTolerations
+
+cloudnative-pg:
+  tolerations: *previewTolerations
+
+plugin-barman-cloud:
+  tolerations: *previewTolerations

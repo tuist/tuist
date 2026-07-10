@@ -133,6 +133,36 @@ defmodule Tuist.Storage.LegacyBuildArtifactRetentionTest do
 
       assert LegacyBuildArtifactRetention.delete_expired() == :ok
     end
+
+    test "uses the Azure Blob container when Azure Blob is the server artifact provider" do
+      expired_legacy_key = "tuist/app/builds/0123456789abcdef0123456789abcdef/App"
+
+      expect(Environment, :object_storage_provider, fn -> :azure_blob end)
+      expect(Environment, :azure_blob_container_name, fn -> "azure-artifacts" end)
+
+      expect(Storage, :list_objects_from_bucket, fn "azure-artifacts", opts ->
+        assert opts[:prefix] == ""
+        assert opts[:max_keys] == 1000
+        assert opts[:continuation_token] == nil
+        assert opts[:storage_provider] == :azure_blob
+
+        {:ok,
+         %{
+           body: %{
+             contents: [
+               %{key: expired_legacy_key, last_modified: DateTime.add(DateTime.utc_now(), -31, :day)}
+             ],
+             is_truncated: false
+           }
+         }}
+      end)
+
+      expect_accounts_and_plans([%Account{id: 1, name: "tuist"}])
+
+      expect_delete_objects([expired_legacy_key], "azure-artifacts", :azure_blob)
+
+      assert LegacyBuildArtifactRetention.delete_expired() == {:ok, nil}
+    end
   end
 
   defp expect_accounts_and_plans(accounts, plans_by_account_id \\ %{}) do
@@ -145,10 +175,17 @@ defmodule Tuist.Storage.LegacyBuildArtifactRetentionTest do
     end)
   end
 
-  defp expect_delete_objects(keys, bucket_name) do
+  defp expect_delete_objects(keys, bucket_name, storage_provider \\ :s3) do
     expect(Storage, :delete_objects_from_bucket, fn ^keys, ^bucket_name, opts ->
       assert opts[:receive_timeout] == 60_000
       assert opts[:task_timeout] == 65_000
+
+      if storage_provider == :s3 do
+        refute Keyword.has_key?(opts, :storage_provider)
+      else
+        assert opts[:storage_provider] == storage_provider
+      end
+
       :ok
     end)
   end

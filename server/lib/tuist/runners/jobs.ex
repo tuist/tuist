@@ -36,7 +36,10 @@ defmodule Tuist.Runners.Jobs do
   Webhook retries of `workflow_job.queued` INSERT another row
   with the same `workflow_job_id`. RMT merge collapses them; both
   rows carry the same `queued` state so the merge is a no-op
-  visible to clients.
+  visible to clients. `workflow_job.waiting` uses `enqueue_if_missing/1`
+  because GitHub can emit it while waiting for self-hosted capacity;
+  it should create a missing row without regressing an already-claimed
+  job back to queued.
 
   ## Read pattern (no `FINAL`)
 
@@ -51,11 +54,15 @@ defmodule Tuist.Runners.Jobs do
 
   import Ecto.Query
 
+  alias Tuist.Builds.Build, as: BuildRun
   alias Tuist.ClickHouseRepo
+  alias Tuist.CommandEvents.Event
   alias Tuist.IngestRepo
+  alias Tuist.Projects
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Job
   alias Tuist.Runners.Telemetry
+  alias Tuist.Tests.Test, as: TestRun
 
   require Logger
 
@@ -79,6 +86,83 @@ defmodule Tuist.Runners.Jobs do
     |> ClickHouseRepo.all()
     |> Map.new()
   end
+
+  def projects_for_runner_job(%{id: account_id}, %{repository: repository}) when is_binary(repository) do
+    projects =
+      repository
+      |> Projects.projects_by_vcs_repository_full_handle(preload: [:vcs_connection])
+      |> Enum.filter(&(&1.account_id == account_id and &1.vcs_connection.provider == :github))
+
+    case projects do
+      [] -> {:error, :not_found}
+      projects -> {:ok, projects}
+    end
+  end
+
+  def projects_for_runner_job(_, _), do: {:error, :not_found}
+
+  def list_runner_build_runs(projects, workflow_run_id) do
+    project_ids = project_ids(projects)
+    workflow_run_id = Integer.to_string(workflow_run_id)
+
+    BuildRun
+    |> where([build], build.project_id in ^project_ids)
+    |> where([build], build.ci_provider == "github")
+    |> where([build], build.ci_run_id == ^workflow_run_id)
+    |> order_by([build], desc: build.inserted_at)
+    |> ClickHouseRepo.all()
+    |> latest_runner_runs_by_id()
+  end
+
+  def list_runner_test_runs(projects, workflow_run_id) do
+    project_ids = project_ids(projects)
+    workflow_run_id = Integer.to_string(workflow_run_id)
+
+    TestRun
+    |> where([test], test.project_id in ^project_ids)
+    |> where([test], test.status != "in_progress")
+    |> where([test], test.ci_provider == "github")
+    |> where([test], test.ci_run_id == ^workflow_run_id)
+    |> order_by([test], desc: test.inserted_at, desc: test.ran_at)
+    |> ClickHouseRepo.all()
+    |> latest_runner_runs_by_id()
+    |> Enum.sort_by(&datetime_sort_key(&1.ran_at), :desc)
+  end
+
+  def command_events_for_runs([], _kind), do: []
+
+  def command_events_for_runs(runs, kind) do
+    events_by_run_id =
+      case kind do
+        :build -> command_events_by_run_id(runs, :build_run_id)
+        :test -> command_events_by_run_id(runs, :test_run_id)
+      end
+
+    Enum.map(runs, &Map.get(events_by_run_id, &1.id))
+  end
+
+  defp command_events_by_run_id(runs, run_id_field) do
+    run_ids = runs |> Enum.map(& &1.id) |> Enum.uniq()
+    project_ids = runs |> Enum.map(& &1.project_id) |> Enum.uniq()
+
+    Event
+    |> where([event], event.project_id in ^project_ids)
+    |> where([event], field(event, ^run_id_field) in ^run_ids)
+    |> order_by([event], desc: event.ran_at, desc: event.created_at)
+    |> ClickHouseRepo.all()
+    |> Enum.map(&Event.normalize_enums/1)
+    |> Enum.reduce(%{}, fn event, acc ->
+      Map.put_new(acc, Map.fetch!(event, run_id_field), event)
+    end)
+  end
+
+  defp project_ids(projects) when is_list(projects) do
+    projects
+    |> Enum.map(& &1.id)
+    |> Enum.uniq()
+  end
+
+  defp project_ids(project), do: project_ids([project])
 
   @doc """
   Idempotent enqueue. Inserts a `status='queued'` row for the
@@ -106,21 +190,40 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
+  Enqueues a job only when no lifecycle row exists yet.
+
+  Used for GitHub's `workflow_job.waiting` webhook, which represents a
+  self-hosted job waiting for runner capacity. It fills the gap when
+  GitHub does not deliver a normal `queued` event, while avoiding a
+  late `waiting` delivery from moving an existing claimed/running job
+  back to queued.
+  """
+  def enqueue_if_missing(%{workflow_job_id: workflow_job_id} = attrs) when is_integer(workflow_job_id) do
+    case current(workflow_job_id) do
+      nil -> enqueue(attrs)
+      %Job{} -> :ok
+    end
+  end
+
+  @doc """
   Picks the oldest queued candidate on `fleet_name`. The
   caller's responsibility to then atomically claim it via
   `Tuist.Runners.Claims.attempt/4`.
 
   `ineligible_account_ids` is an optional set of account_ids to
-  exclude from candidate selection. Returns the candidate's full
-  metadata so we can carry it forward on the `claimed` INSERT.
+  exclude from candidate selection. `excluded_workflow_job_ids`
+  skips specific queued rows that are already claimed in Postgres or
+  that this dispatch poll already lost a claim race for. Returns the
+  candidate's full metadata so we can carry it forward on the
+  `claimed` INSERT.
 
   Deterministic ordering — `(enqueued_at ASC, workflow_job_id
   ASC)` — means two concurrent pollers see the SAME row as the
   next candidate. The actual claim race then collapses on
   Postgres uniqueness in `Claims.attempt/4`.
   """
-  def pick_queued(fleet_name, ineligible_account_ids \\ [])
-      when is_binary(fleet_name) and is_list(ineligible_account_ids) do
+  def pick_queued(fleet_name, ineligible_account_ids \\ [], excluded_workflow_job_ids \\ [])
+      when is_binary(fleet_name) and is_list(ineligible_account_ids) and is_list(excluded_workflow_job_ids) do
     from(j in Job,
       where: j.fleet_name == ^fleet_name,
       group_by: j.workflow_job_id,
@@ -141,6 +244,7 @@ defmodule Tuist.Runners.Jobs do
       }
     )
     |> exclude_accounts(ineligible_account_ids)
+    |> exclude_workflow_jobs(excluded_workflow_job_ids)
     |> order_by([j], asc: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at), asc: j.workflow_job_id)
     |> limit(1)
     |> ClickHouseRepo.one()
@@ -154,6 +258,12 @@ defmodule Tuist.Runners.Jobs do
 
   defp exclude_accounts(query, account_ids) when is_list(account_ids) do
     having(query, [j], fragment("argMax(?, ?)", j.account_id, j.updated_at) not in ^account_ids)
+  end
+
+  defp exclude_workflow_jobs(query, []), do: query
+
+  defp exclude_workflow_jobs(query, workflow_job_ids) when is_list(workflow_job_ids) do
+    where(query, [j], j.workflow_job_id not in ^workflow_job_ids)
   end
 
   @doc """
@@ -1077,6 +1187,16 @@ defmodule Tuist.Runners.Jobs do
 
   # ----- internal -----
 
+  defp latest_runner_runs_by_id(runs) do
+    runs
+    |> Enum.sort_by(&datetime_sort_key(&1.inserted_at), :desc)
+    |> Enum.uniq_by(& &1.id)
+  end
+
+  defp datetime_sort_key(%NaiveDateTime{} = datetime), do: NaiveDateTime.to_iso8601(datetime)
+  defp datetime_sort_key(%DateTime{} = datetime), do: DateTime.to_iso8601(datetime)
+  defp datetime_sort_key(_), do: ""
+
   # Fetch the current state of a workflow_job. Single-row lookup
   # by primary key — `ORDER BY updated_at DESC LIMIT 1` returns
   # the latest INSERT without forcing a part-merge.
@@ -1115,7 +1235,6 @@ defmodule Tuist.Runners.Jobs do
   # recovery path.
   defp normalise_conclusion(c) when c in [nil, ""], do: "unknown"
   defp normalise_conclusion(c) when is_binary(c), do: c
-  defp normalise_conclusion(_), do: "unknown"
 
   @doc """
   Pub/Sub topic for an account's runner-job lifecycle events.

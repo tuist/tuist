@@ -529,6 +529,39 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         XCTAssertEmpty(gotSideEffects)
     }
 
+    func test_map_when_all_included_targets_were_pruned_by_selective_testing_does_not_throw() throws {
+        // Given
+        let appTarget = Target.test(name: "App", product: .app)
+        let appTests = Target.test(name: "AppTests", product: .unitTests)
+        let libTests = Target.test(name: "LibTests", product: .unitTests)
+        let subject = FocusTargetsGraphMappers(
+            includedTargets: [.named("AppTests"), .named("LibTests")]
+        )
+        let path = try temporaryPath()
+        let initialProject = Project.test(path: path, targets: [appTarget, appTests, libTests])
+        let initialGraph = Graph.test(
+            projects: [initialProject.path: initialProject],
+            dependencies: [
+                .target(name: appTests.name, path: path): [
+                    .target(name: appTarget.name, path: path),
+                ],
+            ]
+        )
+        let project = Project.test(path: path, targets: [appTarget])
+        let graph = Graph.test(projects: [project.path: project])
+        var environment = MapperEnvironment()
+        environment.initialGraph = initialGraph
+
+        // When
+        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: environment)
+        let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted()
+            .filter { $0.metadata.tags.contains("tuist:prunable") }
+
+        // Then
+        XCTAssertEmpty(gotSideEffects)
+        XCTAssertEqual(pruningTargets.map(\.name), [appTarget.name])
+    }
+
     func test_map_when_some_included_targets_were_pruned_and_others_do_not_exist_throws() throws {
         // Given
         let aTarget = Target.test(name: "App", product: .app)

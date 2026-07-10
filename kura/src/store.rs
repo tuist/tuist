@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet, VecDeque},
     path::{Path, PathBuf},
     pin::Pin,
     sync::{
@@ -16,9 +16,10 @@ use rocksdb::{
     WriteBatch, WriteBufferManager, WriteOptions,
 };
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use tokio::{
     io::{AsyncRead, AsyncWriteExt, ReadBuf},
-    sync::Mutex,
+    sync::{Mutex, Notify},
 };
 use uuid::Uuid;
 
@@ -95,19 +96,43 @@ pub struct Store {
     segment_state_cache: StdMutex<Arc<SegmentStateSnapshot>>,
     segment_handles: Mutex<SegmentHandleCache>,
     manifest_cache: StdMutex<ManifestCache>,
-    existence_cache: StdMutex<ExistenceCache>,
+    existence_cache: ShardedExistenceCache,
     multipart_locks: [Mutex<()>; MULTIPART_LOCK_STRIPES],
     // Serializes writers for the same artifact so concurrent applies of one key
     // (e.g. a fresh node bootstrapping the same artifact from several peers at
     // once) can't each append their own copy to a segment and orphan all but the
     // last. Striped by artifact id so different keys still write concurrently.
     artifact_write_locks: [Mutex<()>; ARTIFACT_WRITE_LOCK_STRIPES],
+    // Artifacts served from an Old-generation segment queue here for background
+    // promotion into the current segment instead of refreshing inline on the
+    // read path: one value-graph read can touch thousands of tiny old
+    // artifacts, and per-read refreshes serialize them all on
+    // `segment_refresh_lock` (measured 3.9ms per 200-byte artifact, turning an
+    // 800KB batch read into 15s). Promotion stays best-effort: a dropped entry
+    // only means the artifact may be reclaimed with its segment later, the same
+    // outcome as the pre-existing memory-pressure skip.
+    promotion_queue: StdMutex<PromotionQueue>,
+    promotion_notify: Notify,
     failpoints: Arc<FailpointSet>,
 }
+
+/// Pending read-path promotions: FIFO order plus a membership set so a hot
+/// old artifact read thousands of times enqueues once.
+#[derive(Default)]
+struct PromotionQueue {
+    order: VecDeque<String>,
+    pending: HashSet<String>,
+}
+
+/// Backstop so an unbounded burst of old-artifact reads cannot grow the
+/// promotion queue without limit; far above what one build's value graphs
+/// enqueue (tens of thousands of artifacts).
+const MAX_PENDING_PROMOTIONS: usize = 262_144;
 
 pub struct StoreSnapshot {
     pub outbox_messages: usize,
     pub multipart_uploads: usize,
+    pub promotion_queue_depth: usize,
     pub segment_counts: Vec<(&'static str, usize)>,
     pub segment_fsync_count: u64,
     pub rocksdb_block_cache_usage_bytes: u64,
@@ -156,6 +181,19 @@ impl AsyncRead for ArtifactReader {
 pub struct ManifestPage {
     pub manifests: Vec<ArtifactManifest>,
     pub next_after: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ManifestBucketDigest {
+    pub prefix: String,
+    pub count: u64,
+    pub hash: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ManifestDigest {
+    pub prefix_len: usize,
+    pub buckets: Vec<ManifestBucketDigest>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -227,12 +265,46 @@ enum PersistArtifactOutcome {
     IgnoredTombstone,
 }
 
+// Result of a client-facing persist. `already_present` reports whether a live
+// copy of the artifact (manifest + backing storage) existed before this call,
+// evaluated under the per-artifact write lock — so concurrent persists of the
+// same key resolve it consistently: exactly one observes `false`. Billing uses
+// it to charge only newly-stored bytes; it is deliberately not derived from the
+// Applied/IgnoredStale version outcome, because a re-upload with a newer
+// version still applies over an already-present artifact.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PersistedArtifact {
+    pub manifest: ArtifactManifest,
+    pub already_present: bool,
+}
+
 impl PersistArtifactOutcome {
     fn apply_outcome(&self) -> ArtifactApplyOutcome {
         match self {
             Self::Applied(_) => ArtifactApplyOutcome::Applied,
             Self::IgnoredStale(_) => ArtifactApplyOutcome::IgnoredStale,
             Self::IgnoredTombstone => ArtifactApplyOutcome::IgnoredTombstone,
+        }
+    }
+
+    // Converts a client-facing persist outcome into the public result: both
+    // Applied and IgnoredStale surface their manifest, while a tombstone
+    // rejection is an error (client writes must not be silently dropped).
+    fn into_persisted(
+        self,
+        already_present: bool,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        key: &str,
+    ) -> Result<PersistedArtifact, String> {
+        match self {
+            Self::Applied(manifest) | Self::IgnoredStale(manifest) => Ok(PersistedArtifact {
+                manifest,
+                already_present,
+            }),
+            Self::IgnoredTombstone => Err(format!(
+                "artifact write for {producer:?}/{namespace_id}/{key} was rejected by a newer tombstone"
+            )),
         }
     }
 }
@@ -389,12 +461,14 @@ impl Store {
             segment_state_cache: StdMutex::new(Arc::new(SegmentStateSnapshot::default())),
             segment_handles: Mutex::new(SegmentHandleCache::new(config.segment_handle_cache_size)),
             manifest_cache: StdMutex::new(ManifestCache::new(config.manifest_cache_max_bytes)),
-            existence_cache: StdMutex::new(ExistenceCache::new(
+            existence_cache: ShardedExistenceCache::new(
                 EXISTENCE_CACHE_CAPACITY,
                 EXISTENCE_CACHE_TTL,
-            )),
+            ),
             multipart_locks: std::array::from_fn(|_| Mutex::new(())),
             artifact_write_locks: std::array::from_fn(|_| Mutex::new(())),
+            promotion_queue: StdMutex::new(PromotionQueue::default()),
+            promotion_notify: Notify::new(),
             failpoints: Arc::new(FailpointSet::default()),
         };
         // `load_segment_state_from_db` needs `&self`, so the store must be fully
@@ -515,7 +589,7 @@ impl Store {
         content_type: &str,
         source_path: &Path,
         replication_targets: &[String],
-    ) -> Result<ArtifactManifest, String> {
+    ) -> Result<PersistedArtifact, String> {
         let spec = PersistArtifactSpec {
             producer,
             namespace_id,
@@ -524,16 +598,10 @@ impl Store {
             version_ms: now_ms(),
             replication_targets,
         };
-        match self
+        let (outcome, already_present) = self
             .persist_artifact_from_path_with_version(spec, source_path)
-            .await?
-        {
-            PersistArtifactOutcome::Applied(manifest)
-            | PersistArtifactOutcome::IgnoredStale(manifest) => Ok(manifest),
-            PersistArtifactOutcome::IgnoredTombstone => Err(format!(
-                "artifact write for {producer:?}/{namespace_id}/{key} was rejected by a newer tombstone"
-            )),
-        }
+            .await?;
+        outcome.into_persisted(already_present, producer, namespace_id, key)
     }
 
     pub async fn apply_replicated_artifact_from_path(
@@ -556,14 +624,17 @@ impl Store {
         Ok(self
             .persist_artifact_from_path_with_version(spec, source_path)
             .await?
+            .0
             .apply_outcome())
     }
 
+    // The second element of the returned pair is `already_present` (see
+    // [`PersistedArtifact`]), evaluated under the write lock below.
     async fn persist_artifact_from_path_with_version(
         &self,
         spec: PersistArtifactSpec<'_>,
         source_path: &Path,
-    ) -> Result<PersistArtifactOutcome, String> {
+    ) -> Result<(PersistArtifactOutcome, bool), String> {
         let artifact_id =
             artifact_storage_id(spec.producer, &self.tenant_id, spec.namespace_id, spec.key);
         // Hold the per-artifact write lock across the read-check, segment append,
@@ -577,17 +648,24 @@ impl Store {
         let size = self.io.metadata_len(source_path).await?;
 
         let existing = self.manifest_from_db(&artifact_id)?;
+        let already_present = match &existing {
+            Some(existing) => self.storage_exists(existing).await?,
+            None => false,
+        };
         if let Some(existing) = &existing
-            && self.storage_exists(existing).await?
+            && already_present
             && (manifest_version_ms(existing) >= spec.version_ms || spec.version_ms == 0)
         {
             self.note_artifact_exists(&artifact_id);
             self.io.remove_file_if_exists(source_path).await;
-            return Ok(PersistArtifactOutcome::IgnoredStale(existing.clone()));
+            return Ok((
+                PersistArtifactOutcome::IgnoredStale(existing.clone()),
+                already_present,
+            ));
         }
         if self.namespace_tombstone_blocks(spec.namespace_id, spec.version_ms)? {
             self.io.remove_file_if_exists(source_path).await;
-            return Ok(PersistArtifactOutcome::IgnoredTombstone);
+            return Ok((PersistArtifactOutcome::IgnoredTombstone, already_present));
         }
 
         let persisted_version_ms = persisted_version_ms(spec.version_ms);
@@ -650,7 +728,7 @@ impl Store {
 
         self.evict_segments(evicted_segments).await?;
 
-        Ok(PersistArtifactOutcome::Applied(manifest))
+        Ok((PersistArtifactOutcome::Applied(manifest), already_present))
     }
 
     pub async fn open_artifact_reader(
@@ -799,14 +877,64 @@ impl Store {
         Err("manifest does not have a readable storage location".to_string())
     }
 
-    pub async fn open_artifact_reader_range(
+    /// Reads a served artifact's bytes, tolerating a concurrent background
+    /// promotion (see [`Store::enqueue_promotion`]). A promotion can rewrite the
+    /// artifact into the current segment and evict the old one between the
+    /// caller's manifest read and the file open in `read_artifact_bytes`, so a
+    /// stale manifest's open loses the race to the unlink. On the first read
+    /// failure, re-resolve the manifest once against the DB: if the artifact
+    /// moved (promoted), read from its new, live location; if it is genuinely
+    /// gone, report a miss (`Ok(None)`) rather than an error; otherwise the
+    /// failure was not a relocation and the original error stands.
+    ///
+    /// Only one retry is needed: the promoted copy lands in the current
+    /// generation, which is not itself eligible for eviction, so it cannot be
+    /// unlinked out from under the retried read.
+    pub async fn read_artifact_bytes_tolerating_promotion(
+        &self,
+        manifest: &ArtifactManifest,
+    ) -> Result<Option<Vec<u8>>, String> {
+        match self.read_artifact_bytes(manifest).await {
+            Ok(bytes) => Ok(Some(bytes)),
+            Err(first_error) => match self.manifest_from_db(&manifest.artifact_id)? {
+                Some(fresh) if fresh.segment_id != manifest.segment_id => {
+                    self.read_artifact_bytes(&fresh).await.map(Some)
+                }
+                Some(_) => Err(first_error),
+                None => Ok(None),
+            },
+        }
+    }
+
+    /// Opens a served artifact's reader, tolerating a concurrent background
+    /// promotion — the streaming-read counterpart of
+    /// [`Store::read_artifact_bytes_tolerating_promotion`], with the same
+    /// resolution rules: on the first open failure, re-resolve the manifest
+    /// once; if the artifact moved (promoted), open at its new, live location;
+    /// if it is genuinely gone, report a miss (`Ok(None)`); otherwise the
+    /// original error stands. Returns the manifest that was actually opened so
+    /// callers derive response metadata (size, content type) from the copy the
+    /// bytes come from.
+    pub async fn open_artifact_reader_range_tolerating_promotion(
         &self,
         manifest: &ArtifactManifest,
         read_offset: u64,
         read_limit: Option<u64>,
-    ) -> Result<ArtifactReader, String> {
-        self.open_manifest_reader_with_range(manifest, read_offset, read_limit)
+    ) -> Result<Option<(ArtifactManifest, ArtifactReader)>, String> {
+        match self
+            .open_manifest_reader_with_range(manifest, read_offset, read_limit)
             .await
+        {
+            Ok(reader) => Ok(Some((manifest.clone(), reader))),
+            Err(first_error) => match self.manifest_from_db(&manifest.artifact_id)? {
+                Some(fresh) if fresh.segment_id != manifest.segment_id => self
+                    .open_manifest_reader_with_range(&fresh, read_offset, read_limit)
+                    .await
+                    .map(|reader| Some((fresh, reader))),
+                Some(_) => Err(first_error),
+                None => Ok(None),
+            },
+        }
     }
 
     async fn open_manifest_reader(
@@ -912,7 +1040,76 @@ impl Store {
         if self.segment_generation(segment_id)? != Some(SegmentGeneration::Old) {
             return Ok(Some(manifest));
         }
-        self.maybe_refresh_manifest(manifest).await
+        // Serve straight from the Old segment and promote in the background.
+        // Refreshing inline here serialized every reader of old data on
+        // `segment_refresh_lock`, one artifact at a time; serving without the
+        // refresh is already the store's behavior under memory pressure (see
+        // maybe_refresh_manifest), so the only change is when the promotion
+        // happens, not whether serving old data is allowed. The read itself is
+        // safe against a concurrent reclaim: segments are unlinked, never
+        // truncated, so an open handle stays readable, and a lost race simply
+        // degrades that lookup to a miss as before.
+        self.enqueue_promotion(&manifest.artifact_id);
+        Ok(Some(manifest))
+    }
+
+    /// Queues an artifact served from an Old segment for background promotion
+    /// (see [`Store::run_promotion_worker`]). Deduplicated and bounded;
+    /// dropping an entry is safe because promotion is a best-effort keep-alive.
+    fn enqueue_promotion(&self, artifact_id: &str) {
+        {
+            let mut queue = self.promotion_queue.lock().expect("promotion queue lock");
+            if queue.pending.len() >= MAX_PENDING_PROMOTIONS
+                || !queue.pending.insert(artifact_id.to_owned())
+            {
+                return;
+            }
+            queue.order.push_back(artifact_id.to_owned());
+        }
+        self.promotion_notify.notify_one();
+    }
+
+    /// Drains the read-path promotion queue, rewriting each artifact from its
+    /// Old segment into the current one (the same refresh the serving path
+    /// used to run inline). Runs for the life of the process; spawned once at
+    /// boot.
+    pub async fn run_promotion_worker(&self) {
+        loop {
+            let next = {
+                let mut queue = self.promotion_queue.lock().expect("promotion queue lock");
+                match queue.order.pop_front() {
+                    Some(artifact_id) => {
+                        queue.pending.remove(&artifact_id);
+                        Some(artifact_id)
+                    }
+                    None => None,
+                }
+            };
+            let Some(artifact_id) = next else {
+                self.promotion_notify.notified().await;
+                continue;
+            };
+            if let Err(error) = self.promote_artifact(&artifact_id).await {
+                self.io.metrics().record_promotion_failure();
+                tracing::warn!(artifact_id, error, "segment promotion failed");
+            }
+        }
+    }
+
+    /// Promotes one artifact out of an Old segment, re-validating that the
+    /// manifest still exists and still lives in an Old segment (it may have
+    /// been promoted by a writer, replaced, or reclaimed since it was queued).
+    async fn promote_artifact(&self, artifact_id: &str) -> Result<(), String> {
+        let Some(manifest) = self.manifest(artifact_id)? else {
+            return Ok(());
+        };
+        let Some(segment_id) = manifest.segment_id.as_deref() else {
+            return Ok(());
+        };
+        if self.segment_generation(segment_id)? != Some(SegmentGeneration::Old) {
+            return Ok(());
+        }
+        self.maybe_refresh_manifest(manifest).await.map(|_| ())
     }
 
     async fn maybe_refresh_manifest(
@@ -1583,16 +1780,12 @@ impl Store {
             version_ms: now_ms(),
             replication_targets: &[],
         };
-        match self
+        let (outcome, already_present) = self
             .persist_artifact_from_bytes_with_version(spec, bytes)
-            .await?
-        {
-            PersistArtifactOutcome::Applied(manifest)
-            | PersistArtifactOutcome::IgnoredStale(manifest) => Ok(manifest),
-            PersistArtifactOutcome::IgnoredTombstone => Err(format!(
-                "artifact write for {producer:?}/{namespace_id}/{key} was rejected by a newer tombstone"
-            )),
-        }
+            .await?;
+        outcome
+            .into_persisted(already_present, producer, namespace_id, key)
+            .map(|persisted| persisted.manifest)
     }
 
     pub async fn persist_artifact_from_bytes_and_enqueue(
@@ -1603,7 +1796,7 @@ impl Store {
         content_type: &str,
         bytes: &[u8],
         replication_targets: &[String],
-    ) -> Result<ArtifactManifest, String> {
+    ) -> Result<PersistedArtifact, String> {
         let spec = PersistArtifactSpec {
             producer,
             namespace_id,
@@ -1612,16 +1805,10 @@ impl Store {
             version_ms: now_ms(),
             replication_targets,
         };
-        match self
+        let (outcome, already_present) = self
             .persist_artifact_from_bytes_with_version(spec, bytes)
-            .await?
-        {
-            PersistArtifactOutcome::Applied(manifest)
-            | PersistArtifactOutcome::IgnoredStale(manifest) => Ok(manifest),
-            PersistArtifactOutcome::IgnoredTombstone => Err(format!(
-                "artifact write for {producer:?}/{namespace_id}/{key} was rejected by a newer tombstone"
-            )),
-        }
+            .await?;
+        outcome.into_persisted(already_present, producer, namespace_id, key)
     }
 
     #[cfg(test)]
@@ -1703,6 +1890,7 @@ impl Store {
         Ok(self
             .persist_artifact_from_bytes_with_version(spec, bytes)
             .await?
+            .0
             .apply_outcome())
     }
 
@@ -1733,7 +1921,7 @@ impl Store {
         &self,
         spec: PersistArtifactSpec<'_>,
         bytes: &[u8],
-    ) -> Result<PersistArtifactOutcome, String> {
+    ) -> Result<(PersistArtifactOutcome, bool), String> {
         let temp_path = temp_file_path(&self.tmp_dir.join("uploads"), "replication");
         self.io.write(&temp_path, bytes).await?;
         self.persist_artifact_from_path_with_version(spec, &temp_path)
@@ -2062,7 +2250,8 @@ impl Store {
                 replication_targets,
             )
             .await
-            .map_err(MultipartError::Other)?;
+            .map_err(MultipartError::Other)?
+            .manifest;
 
         self.abort_multipart_upload_locked(upload_id)
             .await
@@ -2202,6 +2391,12 @@ impl Store {
     pub fn snapshot(&self) -> Result<StoreSnapshot, String> {
         let outbox_messages = self.outbox_message_count()?;
         let multipart_uploads = self.count_cf_entries(ROCKSDB_CF_MULTIPART_UPLOADS)?;
+        let promotion_queue_depth = self
+            .promotion_queue
+            .lock()
+            .expect("promotion queue lock")
+            .order
+            .len();
         let segment_state = self.segment_state_snapshot();
         let segment_counts = vec![
             ("old", segment_state.state.old.len()),
@@ -2211,6 +2406,7 @@ impl Store {
         Ok(StoreSnapshot {
             outbox_messages,
             multipart_uploads,
+            promotion_queue_depth,
             segment_counts,
             segment_fsync_count: self.segment_fsync_count.load(Ordering::Relaxed),
             rocksdb_block_cache_usage_bytes: self.rocksdb_block_cache.get_usage() as u64,
@@ -2223,14 +2419,20 @@ impl Store {
         })
     }
 
-    pub fn manifests_page(
+    /// Walk the manifest keyspace, optionally restricted to an `artifact_id`
+    /// prefix. When `prefix` is set the walk starts at the prefix's lower bound
+    /// (unless a later `after` cursor is supplied) and stops as soon as it
+    /// leaves the prefix, so callers can enumerate a single digest bucket's
+    /// range without scanning the rest of the keyspace.
+    pub fn manifests_page_scoped(
         &self,
         after: Option<&str>,
+        prefix: Option<&str>,
         limit: usize,
     ) -> Result<ManifestPage, String> {
         let mut manifests = Vec::new();
         let mut next_after = None;
-        let start_key = after.unwrap_or_default();
+        let start_key = after.or(prefix).unwrap_or_default();
         let iter = self.db.iterator_cf(
             self.cf(ROCKSDB_CF_MANIFESTS),
             IteratorMode::From(start_key.as_bytes(), rocksdb::Direction::Forward),
@@ -2243,6 +2445,11 @@ impl Store {
                 .map_err(|error| format!("invalid manifest key: {error}"))?;
             if after == Some(artifact_id) {
                 continue;
+            }
+            if let Some(prefix) = prefix
+                && !artifact_id.starts_with(prefix)
+            {
+                break;
             }
             if manifests.len() == limit {
                 next_after = manifests
@@ -2257,6 +2464,62 @@ impl Store {
             manifests,
             next_after,
         })
+    }
+
+    /// Summarize the manifest keyspace as per-prefix-bucket digests for
+    /// range-based anti-entropy during bootstrap. Buckets partition the sorted
+    /// `artifact_id` space by their first `prefix_len` hex characters; each
+    /// bucket folds the ordered `(artifact_id, version_ms)` pairs it contains
+    /// into a hash so that adds, removes, and version bumps all flip the bucket.
+    /// One ordered scan builds every non-empty bucket; empty buckets are
+    /// omitted (a bucket present on only one side simply mismatches).
+    pub fn manifests_digest(&self, prefix_len: usize) -> Result<Vec<ManifestBucketDigest>, String> {
+        let iter = self
+            .db
+            .iterator_cf(self.cf(ROCKSDB_CF_MANIFESTS), IteratorMode::Start);
+
+        let mut buckets = Vec::new();
+        let mut current: Option<(String, u64, Sha256)> = None;
+
+        for item in iter {
+            let (artifact_id, payload) =
+                item.map_err(|error| format!("failed to iterate manifests: {error}"))?;
+            let artifact_id = std::str::from_utf8(&artifact_id)
+                .map_err(|error| format!("invalid manifest key: {error}"))?;
+            let prefix: String = artifact_id.chars().take(prefix_len).collect();
+            let manifest = decode_manifest_record(artifact_id, &payload)?;
+
+            match current.as_mut() {
+                Some((bucket_prefix, count, hasher)) if *bucket_prefix == prefix => {
+                    hasher.update(artifact_id.as_bytes());
+                    hasher.update(manifest.version_ms.to_le_bytes());
+                    *count += 1;
+                }
+                _ => {
+                    if let Some((bucket_prefix, count, hasher)) = current.take() {
+                        buckets.push(ManifestBucketDigest {
+                            prefix: bucket_prefix,
+                            count,
+                            hash: hex::encode(hasher.finalize()),
+                        });
+                    }
+                    let mut hasher = Sha256::new();
+                    hasher.update(artifact_id.as_bytes());
+                    hasher.update(manifest.version_ms.to_le_bytes());
+                    current = Some((prefix, 1, hasher));
+                }
+            }
+        }
+
+        if let Some((bucket_prefix, count, hasher)) = current.take() {
+            buckets.push(ManifestBucketDigest {
+                prefix: bucket_prefix,
+                count,
+                hash: hex::encode(hasher.finalize()),
+            });
+        }
+
+        Ok(buckets)
     }
 
     pub fn namespace_tombstones_page(
@@ -2502,11 +2765,7 @@ impl Store {
     }
 
     pub fn trim_existence_cache_to(&self, target_entries: usize) -> usize {
-        let mut cache = self
-            .existence_cache
-            .lock()
-            .expect("existence cache lock poisoned");
-        cache.trim_to(target_entries)
+        self.existence_cache.trim_to(target_entries)
     }
 
     fn manifest_from_db(&self, artifact_id: &str) -> Result<Option<ArtifactManifest>, String> {
@@ -2580,11 +2839,7 @@ impl Store {
         self.record_manifest_cache_state(&cache);
         drop(cache);
 
-        let mut existence_cache = self
-            .existence_cache
-            .lock()
-            .expect("existence cache lock poisoned");
-        existence_cache.remove_many(artifact_ids);
+        self.existence_cache.remove_many(artifact_ids);
     }
 
     fn record_manifest_cache_state(&self, cache: &ManifestCache) {
@@ -2595,19 +2850,11 @@ impl Store {
     }
 
     fn existence_cache_contains(&self, artifact_id: &str) -> bool {
-        let mut cache = self
-            .existence_cache
-            .lock()
-            .expect("existence cache lock poisoned");
-        cache.contains(artifact_id)
+        self.existence_cache.contains(artifact_id)
     }
 
     fn note_artifact_exists(&self, artifact_id: &str) {
-        let mut cache = self
-            .existence_cache
-            .lock()
-            .expect("existence cache lock poisoned");
-        cache.insert(artifact_id.to_owned());
+        self.existence_cache.insert(artifact_id);
     }
 }
 
@@ -2625,16 +2872,121 @@ fn validate_total_size(next_total: u64, max_total: u64) -> Result<(), MultipartE
     }
 }
 
+/// Least-recently-used ordering shared by the in-memory caches. It mirrors the
+/// owning cache's keys in a map from a monotonic access counter to key, so the
+/// least-recently-used entry is `pop_lru()` in O(log n) instead of the O(n)
+/// scan of the whole cache that eviction otherwise runs on every insert. Each
+/// cache entry stores the order returned by `touch` and passes it back on the
+/// next touch or removal so the mirror stays in sync with the entry map.
+struct AccessOrder {
+    order: BTreeMap<u64, String>,
+    next: u64,
+}
+
+impl AccessOrder {
+    fn new() -> Self {
+        Self {
+            order: BTreeMap::new(),
+            next: 0,
+        }
+    }
+
+    /// Assigns a fresh access order to `key`, dropping its previous order (from
+    /// an earlier touch or insert) when supplied. Returns the new order to
+    /// store on the entry.
+    fn touch(&mut self, key: &str, previous: Option<u64>) -> u64 {
+        if let Some(previous) = previous {
+            self.order.remove(&previous);
+        }
+        self.next = self.next.wrapping_add(1);
+        self.order.insert(self.next, key.to_owned());
+        self.next
+    }
+
+    fn forget(&mut self, access_order: u64) {
+        self.order.remove(&access_order);
+    }
+
+    /// Removes and returns the least-recently-used key.
+    fn pop_lru(&mut self) -> Option<String> {
+        self.order.pop_first().map(|(_, key)| key)
+    }
+}
+
 struct ManifestCache {
     entries: HashMap<String, CachedManifest>,
     total_bytes: usize,
-    next_access_order: u64,
+    access: AccessOrder,
     max_bytes: usize,
+}
+
+/// The existence cache is touched on every artifact read and existence
+/// check; a single lock around it convoys under concurrent serving
+/// (profiled: read-heavy REAPI batches capped near 1k blobs/s with readers
+/// queued on this mutex). Sharding bounds contention; LRU order and TTL are
+/// preserved per shard.
+struct ShardedExistenceCache {
+    shards: [StdMutex<ExistenceCache>; EXISTENCE_CACHE_SHARDS],
+}
+
+const EXISTENCE_CACHE_SHARDS: usize = 32;
+
+impl ShardedExistenceCache {
+    fn new(capacity: usize, ttl: Duration) -> Self {
+        let per_shard = (capacity / EXISTENCE_CACHE_SHARDS).max(1);
+        Self {
+            shards: std::array::from_fn(|_| StdMutex::new(ExistenceCache::new(per_shard, ttl))),
+        }
+    }
+
+    fn shard(&self, artifact_id: &str) -> &StdMutex<ExistenceCache> {
+        let mut hash = 0xcbf29ce484222325u64;
+        for byte in artifact_id.as_bytes() {
+            hash ^= u64::from(*byte);
+            hash = hash.wrapping_mul(0x100000001b3);
+        }
+        &self.shards[(hash % EXISTENCE_CACHE_SHARDS as u64) as usize]
+    }
+
+    fn contains(&self, artifact_id: &str) -> bool {
+        self.shard(artifact_id)
+            .lock()
+            .expect("existence cache lock poisoned")
+            .contains(artifact_id)
+    }
+
+    fn insert(&self, artifact_id: &str) {
+        self.shard(artifact_id)
+            .lock()
+            .expect("existence cache lock poisoned")
+            .insert(artifact_id.to_owned());
+    }
+
+    fn remove_many(&self, artifact_ids: &[String]) {
+        for artifact_id in artifact_ids {
+            self.shard(artifact_id)
+                .lock()
+                .expect("existence cache lock poisoned")
+                .remove_many(std::slice::from_ref(artifact_id));
+        }
+    }
+
+    fn trim_to(&self, target_entries: usize) -> usize {
+        let per_shard = target_entries / EXISTENCE_CACHE_SHARDS;
+        let mut evicted = 0;
+        for shard in &self.shards {
+            evicted += shard
+                .lock()
+                .expect("existence cache lock poisoned")
+                .trim_to(per_shard);
+        }
+        evicted
+    }
 }
 
 struct ExistenceCache {
     entries: HashMap<String, CachedExistence>,
-    next_access_order: u64,
+    access: AccessOrder,
     capacity: usize,
     ttl: Duration,
 }
@@ -2661,7 +3013,7 @@ impl ManifestCache {
         Self {
             entries: HashMap::new(),
             total_bytes: 0,
-            next_access_order: 0,
+            access: AccessOrder::new(),
             max_bytes,
         }
     }
@@ -2675,11 +3027,11 @@ impl ManifestCache {
     }
 
     fn get(&mut self, artifact_id: &str) -> Option<ArtifactManifest> {
-        let access_order = self.next_access_order();
-        self.entries.get_mut(artifact_id).map(|cached| {
-            cached.access_order = access_order;
-            cached.manifest.clone()
-        })
+        let previous_order = self.entries.get(artifact_id)?.access_order;
+        let access_order = self.access.touch(artifact_id, Some(previous_order));
+        let cached = self.entries.get_mut(artifact_id)?;
+        cached.access_order = access_order;
+        Some(cached.manifest.clone())
     }
 
     fn insert(&mut self, manifest: ArtifactManifest) -> ManifestCacheInsertResult {
@@ -2688,15 +3040,17 @@ impl ManifestCache {
         if size_bytes > self.max_bytes {
             if let Some(removed) = self.entries.remove(&artifact_id) {
                 self.total_bytes = self.total_bytes.saturating_sub(removed.size_bytes);
+                self.access.forget(removed.access_order);
             }
             return ManifestCacheInsertResult::Oversized;
         }
 
         let existed = self.entries.remove(&artifact_id);
-        if let Some(removed) = &existed {
+        let previous_order = existed.as_ref().map(|removed| {
             self.total_bytes = self.total_bytes.saturating_sub(removed.size_bytes);
-        }
-        let access_order = self.next_access_order();
+            removed.access_order
+        });
+        let access_order = self.access.touch(&artifact_id, previous_order);
         self.entries.insert(
             artifact_id,
             CachedManifest {
@@ -2719,6 +3073,7 @@ impl ManifestCache {
         for artifact_id in artifact_ids {
             if let Some(removed) = self.entries.remove(artifact_id) {
                 self.total_bytes = self.total_bytes.saturating_sub(removed.size_bytes);
+                self.access.forget(removed.access_order);
             }
         }
     }
@@ -2726,12 +3081,7 @@ impl ManifestCache {
     fn trim_to(&mut self, target_bytes: usize) -> usize {
         let mut evicted = 0_usize;
         while self.total_bytes > target_bytes {
-            let Some(oldest_key) = self
-                .entries
-                .iter()
-                .min_by_key(|(_, cached)| cached.access_order)
-                .map(|(artifact_id, _)| artifact_id.clone())
-            else {
+            let Some(oldest_key) = self.access.pop_lru() else {
                 break;
             };
             if let Some(removed) = self.entries.remove(&oldest_key) {
@@ -2741,44 +3091,44 @@ impl ManifestCache {
         }
         evicted
     }
-
-    fn next_access_order(&mut self) -> u64 {
-        self.next_access_order = self.next_access_order.wrapping_add(1);
-        self.next_access_order
-    }
 }
 
 impl ExistenceCache {
     fn new(capacity: usize, ttl: Duration) -> Self {
         Self {
             entries: HashMap::new(),
-            next_access_order: 0,
+            access: AccessOrder::new(),
             capacity,
             ttl,
         }
     }
 
     fn contains(&mut self, artifact_id: &str) -> bool {
-        let now = Instant::now();
-        if self
+        let Some((inserted_at, previous_order)) = self
             .entries
             .get(artifact_id)
-            .is_some_and(|entry| now.duration_since(entry.inserted_at) > self.ttl)
-        {
+            .map(|entry| (entry.inserted_at, entry.access_order))
+        else {
+            return false;
+        };
+        if Instant::now().duration_since(inserted_at) > self.ttl {
             self.entries.remove(artifact_id);
+            self.access.forget(previous_order);
             return false;
         }
-        let access_order = self.next_access_order();
-        self.entries
-            .get_mut(artifact_id)
-            .map(|entry| {
-                entry.access_order = access_order;
-            })
-            .is_some()
+        let access_order = self.access.touch(artifact_id, Some(previous_order));
+        if let Some(entry) = self.entries.get_mut(artifact_id) {
+            entry.access_order = access_order;
+        }
+        true
     }
 
     fn insert(&mut self, artifact_id: String) {
-        let access_order = self.next_access_order();
+        let previous_order = self
+            .entries
+            .get(&artifact_id)
+            .map(|entry| entry.access_order);
+        let access_order = self.access.touch(&artifact_id, previous_order);
         self.entries.insert(
             artifact_id,
             CachedExistence {
@@ -2791,19 +3141,16 @@ impl ExistenceCache {
 
     fn remove_many(&mut self, artifact_ids: &[String]) {
         for artifact_id in artifact_ids {
-            self.entries.remove(artifact_id);
+            if let Some(removed) = self.entries.remove(artifact_id) {
+                self.access.forget(removed.access_order);
+            }
         }
     }
 
     fn trim_to(&mut self, target_entries: usize) -> usize {
         let mut evicted = 0_usize;
         while self.entries.len() > target_entries {
-            let Some(oldest_key) = self
-                .entries
-                .iter()
-                .min_by_key(|(_, entry)| entry.access_order)
-                .map(|(artifact_id, _)| artifact_id.clone())
-            else {
+            let Some(oldest_key) = self.access.pop_lru() else {
                 break;
             };
             self.entries.remove(&oldest_key);
@@ -2814,21 +3161,11 @@ impl ExistenceCache {
 
     fn evict_over_capacity(&mut self) {
         while self.entries.len() > self.capacity {
-            let Some(oldest_key) = self
-                .entries
-                .iter()
-                .min_by_key(|(_, entry)| entry.access_order)
-                .map(|(artifact_id, _)| artifact_id.clone())
-            else {
+            let Some(oldest_key) = self.access.pop_lru() else {
                 break;
             };
             self.entries.remove(&oldest_key);
         }
-    }
-
-    fn next_access_order(&mut self) -> u64 {
-        self.next_access_order = self.next_access_order.wrapping_add(1);
-        self.next_access_order
     }
 }
 
@@ -3039,7 +3376,7 @@ struct SegmentLocation {
 
 struct SegmentHandleCache {
     entries: HashMap<String, CachedSegmentHandle>,
-    next_access_order: u64,
+    access: AccessOrder,
     capacity: usize,
 }
 
@@ -3052,7 +3389,7 @@ impl SegmentHandleCache {
     fn new(capacity: usize) -> Self {
         Self {
             entries: HashMap::new(),
-            next_access_order: 0,
+            access: AccessOrder::new(),
             capacity,
         }
     }
@@ -3062,15 +3399,16 @@ impl SegmentHandleCache {
     }
 
     fn touch(&mut self, cache_key: &str) -> Option<Arc<PersistentFile>> {
-        let access_order = self.next_access_order();
-        self.entries.get_mut(cache_key).map(|entry| {
-            entry.access_order = access_order;
-            entry.handle.clone()
-        })
+        let previous_order = self.entries.get(cache_key)?.access_order;
+        let access_order = self.access.touch(cache_key, Some(previous_order));
+        let entry = self.entries.get_mut(cache_key)?;
+        entry.access_order = access_order;
+        Some(entry.handle.clone())
     }
 
     fn insert(&mut self, cache_key: String, handle: Arc<PersistentFile>) -> usize {
-        let access_order = self.next_access_order();
+        let previous_order = self.entries.get(&cache_key).map(|entry| entry.access_order);
+        let access_order = self.access.touch(&cache_key, previous_order);
         self.entries.insert(
             cache_key,
             CachedSegmentHandle {
@@ -3082,7 +3420,12 @@ impl SegmentHandleCache {
     }
 
     fn remove(&mut self, cache_key: &str) -> bool {
-        self.entries.remove(cache_key).is_some()
+        if let Some(removed) = self.entries.remove(cache_key) {
+            self.access.forget(removed.access_order);
+            true
+        } else {
+            false
+        }
     }
 
     fn trim_to(&mut self, target_entries: usize) -> usize {
@@ -3096,23 +3439,13 @@ impl SegmentHandleCache {
     fn evict_over_capacity(&mut self) -> usize {
         let mut evicted = 0;
         while self.entries.len() > self.capacity {
-            let Some(lru_key) = self
-                .entries
-                .iter()
-                .min_by_key(|(_, entry)| entry.access_order)
-                .map(|(key, _)| key.clone())
-            else {
+            let Some(lru_key) = self.access.pop_lru() else {
                 break;
             };
             self.entries.remove(&lru_key);
             evicted += 1;
         }
         evicted
-    }
-
-    fn next_access_order(&mut self) -> u64 {
-        self.next_access_order = self.next_access_order.wrapping_add(1);
-        self.next_access_order
     }
 }
 
@@ -3427,6 +3760,82 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn persist_reports_already_present_across_re_uploads() {
+        // `already_present` must reflect presence, not the Applied/IgnoredStale
+        // version outcome: a re-upload takes a newer version and still applies,
+        // yet billing must see it as already present.
+        let (_temp_dir, _config, store) = temp_store();
+
+        let persisted = store
+            .persist_artifact_from_bytes_and_enqueue(
+                ArtifactProducer::Reapi,
+                "ios",
+                "blob/abc",
+                "application/octet-stream",
+                b"payload",
+                &[],
+            )
+            .await
+            .expect("first persist should succeed");
+        assert!(
+            !persisted.already_present,
+            "first persist of a key should report the artifact as newly stored"
+        );
+
+        let re_persisted = store
+            .persist_artifact_from_bytes_and_enqueue(
+                ArtifactProducer::Reapi,
+                "ios",
+                "blob/abc",
+                "application/octet-stream",
+                b"payload",
+                &[],
+            )
+            .await
+            .expect("re-persist should succeed");
+        assert!(
+            re_persisted.already_present,
+            "a re-upload of a stored key should report the artifact as already present"
+        );
+    }
+
+    #[tokio::test]
+    async fn concurrent_persists_of_same_missing_key_report_one_not_present() {
+        // `already_present` is evaluated under the per-artifact write lock, so
+        // concurrent uploads of the same missing key must resolve to exactly one
+        // "newly stored" — the signal billing uses to avoid double-charging the
+        // losers of the race. The sleep failpoint holds the first writer between
+        // its durable append and metadata commit so the others genuinely overlap.
+        let (_temp_dir, _config, store) = temp_store();
+        store.failpoints().set_always(
+            FailpointName::AfterArtifactBytesDurableBeforeMetadata,
+            FailpointAction::Sleep(std::time::Duration::from_millis(150)),
+        );
+
+        let persists = (0..4).map(|_| {
+            store.persist_artifact_from_bytes_and_enqueue(
+                ArtifactProducer::Reapi,
+                "ios",
+                "blob/raced",
+                "application/octet-stream",
+                b"payload",
+                &[],
+            )
+        });
+        let outcomes = futures_util::future::join_all(persists).await;
+
+        let newly_stored = outcomes
+            .into_iter()
+            .map(|outcome| outcome.expect("persist should succeed"))
+            .filter(|persisted| !persisted.already_present)
+            .count();
+        assert_eq!(
+            newly_stored, 1,
+            "exactly one concurrent persist of a missing key should report it as newly stored"
+        );
+    }
+
+    #[tokio::test]
     async fn persist_and_fetch_segment_backed_artifact_round_trip() {
         let (_temp_dir, _config, store) = temp_store();
 
@@ -3630,6 +4039,41 @@ mod tests {
         assert!(!cache.contains("artifact-1"));
     }
 
+    #[test]
+    fn existence_cache_evicts_least_recently_used() {
+        let mut cache = ExistenceCache::new(3, Duration::from_secs(60));
+        for id in ["a", "b", "c"] {
+            cache.insert(id.into());
+        }
+        // Touch "a" so "b" becomes the least-recently-used entry.
+        assert!(cache.contains("a"));
+        cache.insert("d".into());
+
+        assert!(!cache.contains("b"), "LRU entry should have been evicted");
+        for id in ["a", "c", "d"] {
+            assert!(cache.contains(id), "{id} should still be present");
+        }
+    }
+
+    #[test]
+    fn existence_cache_bounds_size_and_mirrors_index_past_capacity() {
+        let capacity = 64;
+        let mut cache = ExistenceCache::new(capacity, Duration::from_secs(60));
+        // Insert far past capacity: O(log n) eviction must keep the entry map
+        // and its access-order mirror bounded and equal in size.
+        for index in 0..capacity * 20 {
+            cache.insert(format!("artifact-{index}"));
+        }
+        assert_eq!(cache.entries.len(), capacity);
+        assert_eq!(
+            cache.access.order.len(),
+            cache.entries.len(),
+            "access-order index must mirror the entry map exactly"
+        );
+        // The most recently inserted entry survives.
+        assert!(cache.contains(&format!("artifact-{}", capacity * 20 - 1)));
+    }
+
     #[tokio::test]
     async fn persist_and_fetch_rocksdb_backed_keyvalue_round_trip() {
         let (_temp_dir, _config, store) = temp_store();
@@ -3749,7 +4193,7 @@ mod tests {
             .expect("failed to persist second artifact");
 
         let first_page = store
-            .manifests_page(None, 1)
+            .manifests_page_scoped(None, None, 1)
             .expect("failed to load first manifest page");
         assert_eq!(first_page.manifests.len(), 1);
         assert!(
@@ -3762,7 +4206,7 @@ mod tests {
         );
 
         let second_page = store
-            .manifests_page(first_page.next_after.as_deref(), 1)
+            .manifests_page_scoped(first_page.next_after.as_deref(), None, 1)
             .expect("failed to load second manifest page");
         assert_eq!(second_page.manifests.len(), 1);
         assert_ne!(
@@ -3772,6 +4216,144 @@ mod tests {
         assert!(
             second_page.manifests[0].artifact_id == first.artifact_id
                 || second_page.manifests[0].artifact_id == second.artifact_id
+        );
+    }
+
+    async fn apply_inline(store: &Store, key: &str, version_ms: u64, bytes: &[u8]) {
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                key,
+                "application/octet-stream",
+                bytes,
+                version_ms,
+            )
+            .await
+            .expect("failed to apply replicated inline artifact");
+    }
+
+    #[tokio::test]
+    async fn manifests_digest_partitions_keyspace_and_matches_identical_stores() {
+        let (_temp_dir_a, _config_a, store_a) = temp_store();
+        let (_temp_dir_b, _config_b, store_b) = temp_store();
+
+        // Same replicated artifacts (identical id + version_ms) on both stores,
+        // mirroring how a peer holds the same version of a replicated artifact.
+        for key in ["alpha", "beta", "gamma", "delta", "epsilon"] {
+            apply_inline(&store_a, key, 100, b"payload").await;
+            apply_inline(&store_b, key, 100, b"payload").await;
+        }
+
+        let digest_a = store_a.manifests_digest(3).expect("digest a");
+        let digest_b = store_b.manifests_digest(3).expect("digest b");
+
+        assert_eq!(
+            digest_a, digest_b,
+            "identical content must yield identical digests across nodes"
+        );
+        assert_eq!(
+            digest_a.iter().map(|bucket| bucket.count).sum::<u64>(),
+            5,
+            "bucket counts must sum to the total manifest count"
+        );
+        for bucket in &digest_a {
+            assert_eq!(bucket.prefix.len(), 3, "prefix_len must be honored");
+        }
+        let mut prefixes: Vec<&str> = digest_a.iter().map(|b| b.prefix.as_str()).collect();
+        let sorted = {
+            let mut copy = prefixes.clone();
+            copy.sort_unstable();
+            copy
+        };
+        assert_eq!(prefixes, sorted, "buckets must be emitted in sorted order");
+        prefixes.dedup();
+        assert_eq!(prefixes.len(), digest_a.len(), "bucket prefixes are unique");
+    }
+
+    #[tokio::test]
+    async fn manifests_digest_flips_only_the_changed_bucket_on_version_bump() {
+        let (_temp_dir, _config, store) = temp_store();
+        for key in ["alpha", "beta", "gamma", "delta"] {
+            apply_inline(&store, key, 100, b"payload").await;
+        }
+
+        let before = store.manifests_digest(3).expect("digest before");
+
+        // Locate the artifact_id (hence bucket prefix) for "alpha".
+        let manifests = store
+            .manifests_page_scoped(None, None, 256)
+            .expect("list manifests")
+            .manifests;
+        let alpha_id = manifests
+            .iter()
+            .find(|m| m.key == "alpha")
+            .expect("alpha manifest")
+            .artifact_id
+            .clone();
+        let alpha_prefix: String = alpha_id.chars().take(3).collect();
+
+        // A version bump on the same key keeps the id (and bucket) but must flip
+        // the bucket's hash so the peer detects the newer version.
+        apply_inline(&store, "alpha", 200, b"payload-v2").await;
+        let after = store.manifests_digest(3).expect("digest after");
+
+        for bucket_before in &before {
+            let bucket_after = after
+                .iter()
+                .find(|b| b.prefix == bucket_before.prefix)
+                .expect("bucket present after");
+            if bucket_before.prefix == alpha_prefix {
+                assert_eq!(
+                    bucket_before.count, bucket_after.count,
+                    "a version bump must not change the bucket count"
+                );
+                assert_ne!(
+                    bucket_before.hash, bucket_after.hash,
+                    "a version bump must flip the bucket hash"
+                );
+            } else {
+                assert_eq!(
+                    bucket_before, bucket_after,
+                    "unrelated buckets must be untouched"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn manifests_page_scoped_restricts_to_prefix() {
+        let (_temp_dir, _config, store) = temp_store();
+        for key in ["alpha", "beta", "gamma", "delta", "epsilon", "zeta"] {
+            apply_inline(&store, key, 100, b"payload").await;
+        }
+
+        let all = store
+            .manifests_page_scoped(None, None, 256)
+            .expect("list all")
+            .manifests;
+        let target_prefix: String = all[0].artifact_id.chars().take(2).collect();
+        let expected: Vec<String> = all
+            .iter()
+            .filter(|m| m.artifact_id.starts_with(&target_prefix))
+            .map(|m| m.artifact_id.clone())
+            .collect();
+
+        let scoped = store
+            .manifests_page_scoped(None, Some(&target_prefix), 256)
+            .expect("scoped walk")
+            .manifests;
+        let scoped_ids: Vec<String> = scoped.iter().map(|m| m.artifact_id.clone()).collect();
+
+        assert_eq!(
+            scoped_ids, expected,
+            "scoped walk must return exactly the artifacts in the prefix range"
+        );
+        assert!(
+            scoped
+                .iter()
+                .all(|m| m.artifact_id.starts_with(&target_prefix)),
+            "scoped walk must not leak artifacts outside the prefix"
         );
     }
 
@@ -4038,6 +4620,326 @@ mod tests {
             fetched
         );
         assert_eq!(store.segment_handles.lock().await.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn serving_defers_old_segment_promotion_off_the_read_path() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        let manifest = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-1",
+                "application/octet-stream",
+                b"hello",
+            )
+            .await
+            .expect("failed to persist artifact");
+        let original_segment_id = manifest
+            .segment_id
+            .clone()
+            .expect("segment-backed artifact should have a segment id");
+        store
+            .save_segment_state(&SegmentState {
+                old: vec![SegmentReference::new(original_segment_id.clone(), 1)],
+                current: Vec::new(),
+                new: vec![SegmentReference::new("fresh-segment".into(), 2)],
+            })
+            .expect("failed to seed segment state");
+
+        // The serving path answers straight from the Old segment (no inline
+        // refresh) and queues the artifact for background promotion.
+        let served = store
+            .fetch_artifact_for_serving(ArtifactProducer::Xcode, "ios", "artifact-1")
+            .await
+            .expect("failed to fetch artifact for serving")
+            .expect("artifact should still exist");
+        assert_eq!(served.segment_id, Some(original_segment_id.clone()));
+        assert_eq!(read_manifest_bytes(&store, &served).await, b"hello");
+        {
+            let queue = store.promotion_queue.lock().expect("queue lock");
+            assert_eq!(queue.order.len(), 1);
+            assert!(queue.pending.contains(&served.artifact_id));
+        }
+
+        // A second read of the same artifact does not enqueue it twice.
+        store
+            .fetch_artifact_for_serving(ArtifactProducer::Xcode, "ios", "artifact-1")
+            .await
+            .expect("failed to fetch artifact for serving")
+            .expect("artifact should still exist");
+        assert_eq!(
+            store
+                .promotion_queue
+                .lock()
+                .expect("queue lock")
+                .order
+                .len(),
+            1
+        );
+
+        // Applying the queued promotion rewrites the artifact into the current
+        // segment, exactly like the refresh the read path used to run inline.
+        store
+            .promote_artifact(&served.artifact_id)
+            .await
+            .expect("promotion should succeed");
+        let promoted = store
+            .manifest(&served.artifact_id)
+            .expect("failed to load manifest")
+            .expect("promoted manifest should exist");
+        assert_ne!(promoted.segment_id, Some(original_segment_id));
+        assert_eq!(read_manifest_bytes(&store, &promoted).await, b"hello");
+    }
+
+    #[tokio::test]
+    async fn tolerant_read_reresolves_when_a_concurrent_promotion_evicted_the_old_segment() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        // Persist, then promote so the live manifest points at a new segment,
+        // then evict the original segment out from under the pre-promotion
+        // manifest -- the exact race a background promotion opens against a
+        // serving read that already captured the old manifest.
+        let stale = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-1",
+                "application/octet-stream",
+                b"hello",
+            )
+            .await
+            .expect("failed to persist artifact");
+        let old_segment = stale
+            .segment_id
+            .clone()
+            .expect("segment-backed artifact should have a segment id");
+        store
+            .save_segment_state(&SegmentState {
+                old: vec![SegmentReference::new(old_segment.clone(), 1)],
+                current: Vec::new(),
+                new: vec![SegmentReference::new("fresh-segment".into(), 2)],
+            })
+            .expect("failed to seed segment state");
+        store
+            .promote_artifact(&stale.artifact_id)
+            .await
+            .expect("promotion should succeed");
+        assert_ne!(
+            store
+                .manifest(&stale.artifact_id)
+                .expect("lookup")
+                .expect("manifest")
+                .segment_id,
+            stale.segment_id,
+            "promotion should have relocated the artifact"
+        );
+        store
+            .evict_segment(&old_segment)
+            .await
+            .expect("eviction should succeed");
+
+        // The pre-promotion manifest can no longer be read directly...
+        assert!(store.read_artifact_bytes(&stale).await.is_err());
+        // ...but the tolerant read re-resolves to the promoted location.
+        assert_eq!(
+            store
+                .read_artifact_bytes_tolerating_promotion(&stale)
+                .await
+                .expect("tolerant read should succeed"),
+            Some(b"hello".to_vec())
+        );
+    }
+
+    #[tokio::test]
+    async fn tolerant_read_reports_a_miss_when_the_artifact_was_actually_evicted() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        let stale = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-1",
+                "application/octet-stream",
+                b"hello",
+            )
+            .await
+            .expect("failed to persist artifact");
+        let old_segment = stale
+            .segment_id
+            .clone()
+            .expect("segment-backed artifact should have a segment id");
+        // Evict while the artifact still lives in the old segment (not promoted)
+        // so its manifest is deleted and the file unlinked: a genuine miss.
+        store
+            .save_segment_state(&SegmentState {
+                old: vec![SegmentReference::new(old_segment.clone(), 1)],
+                current: Vec::new(),
+                new: vec![SegmentReference::new("fresh-segment".into(), 2)],
+            })
+            .expect("failed to seed segment state");
+        store
+            .evict_segment(&old_segment)
+            .await
+            .expect("eviction should succeed");
+
+        assert_eq!(
+            store
+                .read_artifact_bytes_tolerating_promotion(&stale)
+                .await
+                .expect("tolerant read should not error on a miss"),
+            None
+        );
+    }
+
+    async fn drain_reader(mut reader: ArtifactReader) -> Vec<u8> {
+        use tokio::io::AsyncReadExt;
+        let mut bytes = Vec::new();
+        reader
+            .read_to_end(&mut bytes)
+            .await
+            .expect("reader should drain");
+        bytes
+    }
+
+    #[tokio::test]
+    async fn tolerant_reader_reresolves_when_a_concurrent_promotion_evicted_the_old_segment() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        let stale = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-1",
+                "application/octet-stream",
+                b"hello",
+            )
+            .await
+            .expect("failed to persist artifact");
+        let old_segment = stale
+            .segment_id
+            .clone()
+            .expect("segment-backed artifact should have a segment id");
+        store
+            .save_segment_state(&SegmentState {
+                old: vec![SegmentReference::new(old_segment.clone(), 1)],
+                current: Vec::new(),
+                new: vec![SegmentReference::new("fresh-segment".into(), 2)],
+            })
+            .expect("failed to seed segment state");
+        store
+            .promote_artifact(&stale.artifact_id)
+            .await
+            .expect("promotion should succeed");
+        store
+            .evict_segment(&old_segment)
+            .await
+            .expect("eviction should succeed");
+
+        // The stale manifest can no longer be opened directly...
+        assert!(store.open_artifact_reader(&stale).await.is_err());
+        // ...but the tolerant open re-resolves to the promoted location and
+        // hands back the manifest the bytes actually come from.
+        let (fresh, reader) = store
+            .open_artifact_reader_range_tolerating_promotion(&stale, 0, None)
+            .await
+            .expect("tolerant open should succeed")
+            .expect("artifact should still be served");
+        assert_ne!(fresh.segment_id, stale.segment_id);
+        assert_eq!(drain_reader(reader).await, b"hello");
+    }
+
+    #[tokio::test]
+    async fn tolerant_reader_reports_a_miss_when_the_artifact_was_actually_evicted() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        let stale = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-1",
+                "application/octet-stream",
+                b"hello",
+            )
+            .await
+            .expect("failed to persist artifact");
+        let old_segment = stale
+            .segment_id
+            .clone()
+            .expect("segment-backed artifact should have a segment id");
+        store
+            .save_segment_state(&SegmentState {
+                old: vec![SegmentReference::new(old_segment.clone(), 1)],
+                current: Vec::new(),
+                new: vec![SegmentReference::new("fresh-segment".into(), 2)],
+            })
+            .expect("failed to seed segment state");
+        store
+            .evict_segment(&old_segment)
+            .await
+            .expect("eviction should succeed");
+
+        assert!(
+            store
+                .open_artifact_reader_range_tolerating_promotion(&stale, 0, None)
+                .await
+                .expect("tolerant open should not error on a miss")
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn promotion_worker_drains_reads_queued_from_old_segments() {
+        let (_temp_dir, _config, store) = temp_store();
+        let store = Arc::new(store);
+
+        let manifest = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-1",
+                "application/octet-stream",
+                b"hello",
+            )
+            .await
+            .expect("failed to persist artifact");
+        let original_segment_id = manifest
+            .segment_id
+            .clone()
+            .expect("segment-backed artifact should have a segment id");
+        store
+            .save_segment_state(&SegmentState {
+                old: vec![SegmentReference::new(original_segment_id.clone(), 1)],
+                current: Vec::new(),
+                new: vec![SegmentReference::new("fresh-segment".into(), 2)],
+            })
+            .expect("failed to seed segment state");
+
+        let worker_store = Arc::clone(&store);
+        tokio::spawn(async move { worker_store.run_promotion_worker().await });
+
+        store
+            .fetch_artifact_for_serving(ArtifactProducer::Xcode, "ios", "artifact-1")
+            .await
+            .expect("failed to fetch artifact for serving")
+            .expect("artifact should still exist");
+
+        let promoted = tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                let manifest = store
+                    .manifest(&manifest.artifact_id)
+                    .expect("failed to load manifest")
+                    .expect("manifest should exist");
+                if manifest.segment_id != Some(original_segment_id.clone()) {
+                    return manifest;
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .expect("worker should promote the artifact");
+        assert_eq!(read_manifest_bytes(&store, &promoted).await, b"hello");
     }
 
     #[tokio::test]

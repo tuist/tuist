@@ -20,6 +20,10 @@ on:
       # swifterpm/Sources/swifterpm is compiled into the CLI binary (SwifterPMCore
       # -> TuistSupport), so its changes must cut a canary just like cli/** does.
       - swifterpm/**
+      # cas-plugin (the Xcode CAS dylib + tuist-cas-proxy) is built by
+      # cli-build-publish and shipped inside the CLI release, so its changes must
+      # cut a canary just like cli/** does.
+      - cas-plugin/**
       - mise/tasks/cli/**
       - mise/tasks/release/components.json
       - .github/workflows/cli-release.yml

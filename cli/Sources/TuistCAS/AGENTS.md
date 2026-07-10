@@ -1,10 +1,19 @@
 # TuistCAS (CLI Module)
 
-This module provides content-addressable storage (CAS) protobuf and gRPC stubs used by cache features.
+This module resolves the cache (CAS) endpoint the CLI and the compilation-cache
+proxy talk to, and hosts the legacy per-project Swift CAS daemon
+(`CASService`/`KeyValueService`) served on the non-kura path.
 
 ## Responsibilities
-- Define gRPC/protobuf types for CAS and key-value operations (`cas.pb.swift`, `keyvalue.pb.swift`).
-- Expose generated gRPC clients used by cache integrations.
+- Resolve the cache URL for a server/account (`CacheURLStore`), honoring the
+  `TUIST_CACHE_ENDPOINT` override and the kura (REAPI) endpoints.
+- Pick the lowest-latency endpoint when several are returned (`EndpointLatencyService`).
+- Serve Xcode's compilation-cache gRPC protocol (`cas.proto`/`keyvalue.proto`
+  stubs, `CASService`/`KeyValueService`) from the per-project daemon for accounts
+  not yet on kura. On the kura path this transport instead lives in the Rust
+  `cas-plugin/` crate and its `tuist-cas-proxy`; the CLI picks between them on
+  the `kura` client feature flag.
+
 
 ## Boundaries
 - Keep CLI command wiring in `cli/Sources/TuistKit`.

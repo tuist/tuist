@@ -123,6 +123,8 @@ Kura exposes multiple cache protocols behind one service. Public HTTPS supports 
 
 For those HTTP cache routes, `tenant_id` is always required and `namespace_id` is optional. When `namespace_id` is present, the request is namespace-scoped. When it is omitted, the request is tenant-scoped and Kura stores it under an internal empty namespace key. REAPI requests carry their namespace explicitly through the gRPC `instance_name`/`resource_name`, and may declare the account with the `x-kura-tenant-id` metadata header (the gRPC analog of the `tenant_id` query param above).
 
+Kura extends the REAPI ActionCache with a wildcard form of the standard `GetActionResult.inline_output_files` hint: a literal `"*"` entry asks Kura to inline the contents of **every** output file the response budget affords (the per-request REAPI materialization budget, 8–64MB depending on the node's memory limits). It exists for clients whose output-file paths are digests unknown before the response — the Xcode CAS plugin — collapsing the action lookup and the blob fetch into one round-trip. Semantics: wildcard-matched files inline best-effort (a file the budget cannot afford stays un-inlined and the client falls back to `BatchReadBlobs`); explicitly listed paths keep the standard hard `RESOURCE_EXHAUSTED` error on budget exhaustion; servers without the extension match no literal `"*"` path and inline nothing, so mixed client/server versions interoperate unchanged. Note the trade-off: inlining happens before the server can know which blobs the client already holds, so every inlined byte counts as metered download egress even when a warm client discards it.
+
 Kura also exposes compatibility endpoints that are not a primary focus today:
 
 - 🧱 `Nx`: `PUT/GET /v1/cache/{hash}`
@@ -180,7 +182,7 @@ Kura splits storage into two planes:
 Replication is leaderless and eventually consistent:
 
 - 🔁 local writes become durable together with their outbox work
-- 🌍 peers bootstrap by pulling manifests, tombstones, and artifact bodies
+- 🌍 peers bootstrap by pulling manifests, tombstones, and artifact bodies, reconciling only the diverging ranges via a per-bucket manifest digest exchange
 - 🔎 DNS discovery can expand the peer set automatically
 - 🧠 the outbox is processed incrementally so queue depth does not blow up heap usage during backlog
 
@@ -273,7 +275,7 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 
 Kura also enforces a few hard-coded budgets that are not configurable:
 
-- Replication ingest bodies on `/_internal/replicate/artifact` are capped at four times `MAX_SEGMENT_BYTES` (2 GiB) so a misbehaving peer cannot fill the data PVC. Bootstrap-from-peer fetches enforce the same ceiling for segment-backed artifacts and a 4 MiB ceiling for inline artifacts; bootstrap manifest and tombstone pages are capped at 32 MiB each. When `KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND` is positive, Kura also applies a shared per-node bandwidth ceiling to peer artifact body traffic. The effective rate shrinks as public HTTP and gRPC requests are in flight or recent public latency rises above `KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS`, so background sync yields network capacity to public cache reads.
+- Replication ingest bodies on `/_internal/replicate/artifact` are capped at four times `MAX_SEGMENT_BYTES` (2 GiB) so a misbehaving peer cannot fill the data PVC. Bootstrap-from-peer fetches enforce the same ceiling for segment-backed artifacts and a 4 MiB ceiling for inline artifacts; bootstrap manifest and tombstone pages, and the manifest digest response, are capped at 32 MiB each. When `KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND` is positive, Kura also applies a shared per-node bandwidth ceiling to peer artifact body traffic. The effective rate shrinks as public HTTP and gRPC requests are in flight or recent public latency rises above `KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS`, so background sync yields network capacity to public cache reads.
 - Public writes are rejected with `503 Service Unavailable` and a short `Retry-After` header when memory pressure reaches `Critical`, when the outbox is at `KURA_OUTBOX_MAX_DEPTH`, when the FD pool is exhausted, or when the data PVC has insufficient free space for a new segment.
 - Public plaintext HTTP/1 artifact downloads can use the same-port Linux accelerator after the request has been parsed, matched to a known artifact route, authorized through the extension hook, and resolved to a local file. The accelerator owns only a bounded pool of blocking transfer workers and falls back to the normal Axum/Hyper serving path whenever classification is incomplete or unsafe.
 - RocksDB column families are configured with explicit level-0 slowdown/stop triggers and pending compaction limits so backlog turns into write-side backpressure instead of unbounded write-buffer growth.
@@ -416,6 +418,8 @@ When `KURA_CONTROL_PLANE_URL`, `KURA_CONTROL_PLANE_CLIENT_ID`, and `KURA_CONTROL
 ```text
 POST {KURA_CONTROL_PLANE_URL}/_internal/kura/usage
 ```
+
+Both surfaces are metered: the HTTP cache path records rollups with `protocol = "http"`, and the REAPI (gRPC) path — `ByteStream` read/write, CAS `BatchReadBlobs`/`BatchUpdateBlobs`, and ActionCache `GetActionResult` (including inlined stdout/stderr/output files) / `UpdateActionResult` — records them with `protocol = "grpc"` and `artifact_kind = "reapi"`, so Bazel and other REAPI clients count toward the same usage surface.
 
 The hot path increments bounded in-memory counters keyed by tenant, namespace, node, region, traffic plane, direction, operation, protocol, artifact kind, and fixed time window. Closed windows are persisted to a dedicated RocksDB usage outbox, then delivered in bounded batches with HTTP Basic client credentials. Delivery is at least once; the control plane deduplicates by deterministic `event_id`.
 

@@ -168,7 +168,7 @@ defmodule Tuist.Accounts.Organization do
     end
   end
 
-  defp valid_oauth2_url?(url), do: Tuist.URL.public_url?(url)
+  defp valid_oauth2_url?(url), do: Tuist.URL.sso_url?(url)
 
   defp normalize_oauth2_endpoint_urls(changeset) do
     Enum.reduce(@oauth2_endpoint_fields, changeset, fn field, changeset ->

@@ -15,6 +15,7 @@ Mimic.copy(ExAws)
 Mimic.copy(ExAws.Config)
 Mimic.copy(ExAws.S3)
 Mimic.copy(File)
+Mimic.copy(Finch)
 Mimic.copy(FunWithFlags)
 Mimic.copy(Hammer)
 Mimic.copy(Hammer.ETS.FixWindow)
@@ -73,6 +74,7 @@ Mimic.copy(Tuist.OAuth.Clients)
 Mimic.copy(Tuist.OAuth2.SSRFGuard)
 Mimic.copy(Tuist.OIDC)
 Mimic.copy(Tuist.Projects)
+Mimic.copy(Tuist.Registry.S3)
 Mimic.copy(Tuist.Repo)
 Mimic.copy(Tuist.Builds)
 Mimic.copy(Tuist.Builds.Analytics)
@@ -88,6 +90,7 @@ Mimic.copy(Tuist.SSHClient)
 Mimic.copy(Tuist.Shards)
 Mimic.copy(Tuist.Shards.Analytics)
 Mimic.copy(Tuist.Storage)
+Mimic.copy(Tuist.Storage.AzureBlob)
 Mimic.copy(Tuist.Storage.CacheArtifactRetention)
 Mimic.copy(Tuist.Storage.LegacyBuildArtifactRetention)
 Mimic.copy(Tuist.Time)
@@ -95,6 +98,11 @@ Mimic.copy(Tuist.Cache)
 Mimic.copy(Tuist.Cache.Analytics)
 Mimic.copy(Tuist.CacheEndpoints)
 Mimic.copy(Tuist.CommandEvents)
+Mimic.copy(Tuist.Registry)
+Mimic.copy(Tuist.Registry.Swift.Lock)
+Mimic.copy(Tuist.Registry.Swift.Metadata)
+Mimic.copy(Tuist.Registry.Swift.SwiftPackageIndex)
+Mimic.copy(Tuist.Registry.Swift.SyncCursor)
 Mimic.copy(Tuist.VCS)
 Mimic.copy(Tuist.Xcode)
 Mimic.copy(Tuist.Zip)
@@ -131,6 +139,8 @@ Mimic.copy(UeberauthApple)
 Mimic.copy(Zstream)
 Mimic.copy(Slipstream)
 Mimic.copy(Port)
+Mimic.copy(ExAws.S3.Upload)
+Mimic.copy(TuistCommon.GitHub)
 Mimic.copy(Tuist.Processor.BuildProcessor)
 Mimic.copy(Tuist.Processor.XCResultProcessor)
 Mimic.copy(Tuist.Processor.XCResultNIF)
@@ -182,9 +192,9 @@ end
 
 # The :test env compiles only the "en" locale by default (see
 # Tuist.Environment.single_locale?/0) to keep cold compiles fast. Tests tagged
-# `:locale` assert behaviour of the other locales' ex_cldr/Gettext data, which
-# isn't compiled in that mode, so exclude them unless TUIST_DEV_ALL_LOCALES=1
-# built the full locale set.
+# `:locale` assert behaviour of other Gettext locales, which aren't compiled
+# in that mode, so exclude them unless TUIST_DEV_ALL_LOCALES=1 built the full
+# locale set.
 locale_exclude = if Tuist.Environment.dev_all_locales?(), do: [], else: [:locale]
 
 ExUnit.start(capture_log: true, exclude: [:skip] ++ locale_exclude)

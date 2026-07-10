@@ -152,24 +152,6 @@ public struct LaunchAgentService: LaunchAgentServicing {
             throw LaunchAgentServiceError.missingExecutablePath
         }
 
-        if currentPath.pathString.contains("/.local/share/mise/installs/tuist/") {
-            let homeDir = Environment.current.homeDirectory
-
-            let misePath = homeDir.appending(
-                components: ".local", "share", "mise", "installs", "tuist", "latest", "tuist"
-            )
-            if try await fileSystem.exists(misePath) {
-                return misePath
-            }
-
-            let oldMisePath = homeDir.appending(
-                components: ".local", "share", "mise", "installs", "tuist", "latest", "bin", "tuist"
-            )
-            if try await fileSystem.exists(oldMisePath) {
-                return oldMisePath
-            }
-        }
-
         return currentPath
     }
 

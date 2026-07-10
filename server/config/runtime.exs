@@ -95,7 +95,7 @@ if env != :test do
   config :tuist, TuistWeb.Endpoint, secret_key_base: secret_key_base
 end
 
-if Enum.member?([:prod, :stag, :can], env) do
+if Enum.member?([:prod, :stag, :can, :preview], env) do
   database_url =
     Tuist.Environment.database_url(secrets) ||
       raise """
@@ -359,7 +359,7 @@ if env == :test do
   config :tuist, TuistWeb.Endpoint, http: [ip: {127, 0, 0, 1}, port: test_port]
 end
 
-if Enum.member?([:prod, :stag, :can, :dev], env) do
+if Enum.member?([:prod, :stag, :can, :preview, :dev], env) do
   port =
     if env == :dev do
       String.to_integer(System.get_env("TUIST_SERVER_PORT") || "8080")
@@ -424,22 +424,26 @@ if Tuist.Environment.error_tracking_enabled?() do
     before_send: {Tuist.SentryEventFilter, :before_send}
 end
 
-# Ex.AWS
 if Tuist.Environment.env() not in [:test] do
-  %{host: s3_endpoint_host, scheme: s3_scheme, port: s3_port} =
-    secrets |> Tuist.Environment.s3_endpoint() |> URI.parse()
+  s3_endpoint =
+    if Tuist.Environment.swift_registry_sync_mode?() do
+      case {System.get_env("S3_ENDPOINT"), System.get_env("S3_HOST")} do
+        {endpoint, _host} when endpoint not in [nil, ""] -> endpoint
+        {_endpoint, host} when host not in [nil, ""] -> "https://#{host}"
+        _ -> nil
+      end
+    else
+      Tuist.Environment.s3_endpoint(secrets)
+    end
 
-  s3_config =
-    then(
-      [
-        scheme: "#{s3_scheme}://",
-        host: s3_endpoint_host,
-        region: Tuist.Environment.s3_region(secrets),
-        virtual_host: Tuist.Environment.s3_virtual_host(secrets),
-        bucket_as_host: Tuist.Environment.s3_bucket_as_host(secrets)
-      ],
-      &if(is_nil(s3_port), do: &1, else: Keyword.put(&1, :port, s3_port))
-    )
+  s3_runtime_configured? =
+    Tuist.Environment.object_storage_provider(secrets) == :s3 or
+      (is_binary(s3_endpoint) and s3_endpoint != "") or
+      (not is_binary(s3_endpoint) and not is_nil(s3_endpoint))
+
+  if s3_runtime_configured? and s3_endpoint in [nil, ""] do
+    raise "S3 endpoint is required; set TUIST_S3_ENDPOINT, S3_ENDPOINT, or S3_HOST"
+  end
 
   config :ex_aws, :req_opts,
     # Note: connect_options cannot be used with Finch
@@ -460,18 +464,35 @@ if Tuist.Environment.env() not in [:test] do
     # become available before timing out
     pool_timeout: Tuist.Environment.s3_pool_timeout(secrets)
 
-  config :ex_aws, :s3, s3_config
-
-  config :ex_aws,
-         Tuist.AWS.S3AuthenticationConfig.ex_aws_config(
-           Tuist.Environment.s3_authentication_method(secrets),
-           secrets
-         )
-
   config :ex_aws,
     http_client: TuistCommon.AWS.Client
 
   config :tuist_common, finch_name: Tuist.Finch
+
+  if s3_runtime_configured? do
+    %{host: s3_endpoint_host, scheme: s3_scheme, port: s3_port} =
+      URI.parse(s3_endpoint)
+
+    s3_config =
+      then(
+        [
+          scheme: "#{s3_scheme}://",
+          host: s3_endpoint_host,
+          region: Tuist.Environment.s3_region(secrets),
+          virtual_host: Tuist.Environment.s3_virtual_host(secrets),
+          bucket_as_host: Tuist.Environment.s3_bucket_as_host(secrets)
+        ],
+        &if(is_nil(s3_port), do: &1, else: Keyword.put(&1, :port, s3_port))
+      )
+
+    config :ex_aws, :s3, s3_config
+
+    config :ex_aws,
+           Tuist.AWS.S3AuthenticationConfig.ex_aws_config(
+             Tuist.Environment.s3_authentication_method(secrets),
+             secrets
+           )
+  end
 end
 
 # Stripe config
@@ -537,6 +558,13 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 base_queues = [default: 10, vcs_comments: 20, webhooks: 20, storage_retention: 1]
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
 process_xcresult_queue = {:process_xcresult, Tuist.Environment.process_xcresult_queue_concurrency()}
+# Swift registry sync queues. Consumed only by
+# `TUIST_MODE=swift_registry_sync` pods so the web tier doesn't
+# accidentally pull catalog-sync work and starve request-path workers;
+# the web tier still ENQUEUES via the leader-only cron entry registered
+# in `Tuist.Oban.RuntimeConfig.@hosted_only_crons`. Future ecosystems
+# get their own mode + queues (e.g. `:maven_registry_sync`).
+swift_registry_sync_queues = [swift_registry_sync: 1, swift_registry_release: 5]
 
 oban_queues =
   cond do
@@ -545,6 +573,9 @@ oban_queues =
 
     Tuist.Environment.xcresult_processor_mode?() ->
       [process_xcresult_queue]
+
+    Tuist.Environment.swift_registry_sync_mode?() ->
+      swift_registry_sync_queues
 
     true ->
       base = base_queues
@@ -585,11 +616,112 @@ if !RuntimeConfig.peer_eligible?(mode) do
   config :tuist, Oban, peer: false
 end
 
+# Registry config.
+#
+# The bucket name is shared across ecosystems (one Tigris bucket).
+# `swift_*` keys are scoped to the Swift Package Registry sync workers.
+# `Tuist.Registry.Swift.SyncWorker` is cron-fired by the :web leader
+# and inserts jobs into the `:swift_registry_sync` queue. The
+# swift-registry-sync pod (`TUIST_MODE=swift_registry_sync`) consumes
+# them plus the `:swift_registry_release` jobs each SyncWorker enqueues
+# per missing tag. Reads from the bucket happen on the standalone
+# `registry` Phoenix app, not here.
+swift_registry_sync_allowlist =
+  case System.get_env("SWIFT_REGISTRY_SYNC_ALLOWLIST") do
+    nil -> nil
+    "" -> nil
+    value -> value |> String.split(",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
+  end
+
+swift_registry_sync_limit =
+  case System.get_env("SWIFT_REGISTRY_SYNC_LIMIT") do
+    nil -> 1_000
+    value -> String.to_integer(value)
+  end
+
+config :tuist, :registry,
+  bucket: System.get_env("S3_REGISTRY_BUCKET"),
+  swift_github_token: System.get_env("SWIFT_REGISTRY_GITHUB_TOKEN"),
+  swift_sync_enabled:
+    "SWIFT_REGISTRY_SYNC_ENABLED" |> System.get_env("true") |> String.downcase() |> Kernel.in(["1", "true"]),
+  swift_sync_allowlist: swift_registry_sync_allowlist,
+  swift_sync_limit: swift_registry_sync_limit
+
+# In swift-registry-sync mode the BEAM only talks to the registry S3
+# bucket, so override ex_aws to the registry's Tigris key set. No other
+# queue runs in this pod, so the override never reaches a Storage call.
+# We fail fast if any required env is blank: silently falling back to the
+# account-storage credentials would write to the registry bucket with the
+# wrong principal and 403 every upload while the cursor still advances.
+if Tuist.Environment.swift_registry_sync_mode?() do
+  registry_s3_endpoint = System.get_env("S3_ENDPOINT")
+
+  {registry_s3_scheme, registry_s3_host, registry_s3_port} =
+    case registry_s3_endpoint do
+      endpoint when endpoint in [nil, ""] ->
+        {"https://", System.get_env("S3_HOST"), nil}
+
+      endpoint ->
+        uri = URI.parse(endpoint)
+
+        {host, port} =
+          case {uri.host, uri.port} do
+            {nil, _} -> {System.get_env("S3_HOST"), nil}
+            {host, nil} -> {host, nil}
+            {host, port} -> {host, port}
+          end
+
+        scheme = (uri.scheme || "https") <> "://"
+        {scheme, host, port}
+    end
+
+  registry_s3_region = System.get_env("S3_REGION") || "auto"
+  registry_s3_access_key_id = System.get_env("S3_ACCESS_KEY_ID")
+  registry_s3_secret_access_key = System.get_env("S3_SECRET_ACCESS_KEY")
+  registry_bucket = System.get_env("S3_REGISTRY_BUCKET")
+
+  missing =
+    Enum.filter(
+      [
+        {"S3_REGISTRY_BUCKET", registry_bucket},
+        {"S3_ENDPOINT or S3_HOST", registry_s3_host},
+        {"S3_ACCESS_KEY_ID", registry_s3_access_key_id},
+        {"S3_SECRET_ACCESS_KEY", registry_s3_secret_access_key}
+      ],
+      fn {_name, value} -> value in [nil, ""] end
+    )
+
+  if missing != [] do
+    names = Enum.map_join(missing, ", ", fn {name, _} -> name end)
+    raise "TUIST_MODE=swift_registry_sync requires #{names} to be set; refusing to boot"
+  end
+
+  registry_s3_config =
+    then(
+      [
+        scheme: registry_s3_scheme,
+        host: registry_s3_host,
+        region: registry_s3_region,
+        virtual_host: false
+      ],
+      fn config ->
+        if is_nil(registry_s3_port), do: config, else: Keyword.put(config, :port, registry_s3_port)
+      end
+    )
+
+  config :ex_aws, :s3, registry_s3_config
+
+  config :ex_aws,
+    access_key_id: registry_s3_access_key_id,
+    secret_access_key: registry_s3_secret_access_key,
+    region: registry_s3_region
+end
+
 # Kura controller rollout assets. Each env is enumerated explicitly so a
 # new one fails loudly rather than silently picking the wrong hook path.
 kura_hook_path =
   case env do
-    e when e in [:prod, :stag, :can] -> Application.app_dir(:tuist, "priv/kura/hooks/tuist.lua")
+    e when e in [:prod, :stag, :can, :preview] -> Application.app_dir(:tuist, "priv/kura/hooks/tuist.lua")
     e when e in [:dev, :test] -> Path.expand("../kura/ops/helm/kura/hooks/tuist.lua", File.cwd!())
     other -> raise "unknown env #{inspect(other)} for :kura_hook_path; add it to runtime.exs"
   end

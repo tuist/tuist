@@ -996,6 +996,7 @@ var targets: [Target] = [
             "TuistHTTP",
             "TuistEnvironment",
             "TuistEnvironmentTesting",
+            fileSystemDependency,
             mockableDependency,
         ],
         path: "cli/Tests/TuistHTTPTests"
@@ -1841,7 +1842,7 @@ let package = Package(
         .package(id: "grpc.grpc-swift-nio-transport", from: "2.0.0"),
         .package(id: "facebook.zstd", from: "1.5.0"),
         .package(id: "chrisaljoudi.swift-log-oslog", .upToNextMajor(from: "0.2.2")),
-        .package(id: "MobileNativeFoundation.XCLogParser", .upToNextMajor(from: "0.2.48")),
+        .package(id: "MobileNativeFoundation.XCLogParser", .upToNextMajor(from: "0.2.49")),
         .package(path: "server/native/xcactivitylog_nif"),
         .package(id: "swiftyJSON.SwiftyJSON", .upToNextMajor(from: "5.0.2")),
         .package(id: "tuist.Rosalind", .upToNextMajor(from: "0.7.22")),

@@ -444,7 +444,7 @@ msgstr ""
 msgid "No SSO organization is configured for this email. Check the address and ask your organization admin to verify the SSO domain setup."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:338
+#: lib/tuist_web/controllers/auth_controller.ex:335
 #, elixir-autogen, elixir-format
 msgid "An account with this email already exists. Please log in instead."
 msgstr ""
