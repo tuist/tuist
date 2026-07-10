@@ -86,6 +86,7 @@ fn main() {
         proxy.sweep();
         proxy.enforce_cache_bounds();
         proxy.reclaim_idle();
+        proxy.flush_keylogs();
         proxy.maintain_token(TOKEN_REFRESH_LEAD);
         let stats = proxy.stats_line();
         if !stats.is_empty() {

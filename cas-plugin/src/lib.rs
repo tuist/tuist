@@ -274,6 +274,19 @@ struct CasState {
     // the `tuist-upload` plugin option (so it reaches every frontend, including a
     // ⌘B build) with the `TUIST_CAS_UPLOAD` env as a fallback; see resolve_upload.
     upload: bool,
+    // Experimental machinery gating (TUIST_CAS_MACHINERY, see llcas_cas_create):
+    // a compiler-frontend instance in a machinery build answers reads
+    // local-only, leaving the remote round trips to the build service's
+    // instances. Instances that received the `remote-service-path` option
+    // (the build service's scanner/planning CAS) always read through — their
+    // remote scan-cache hits are what keeps downstream driver planning from
+    // depending on sibling targets' on-disk products (a dependency this
+    // workspace's schedule does not reliably order; gating those reads
+    // reproducibly loses targets to `unable to resolve module dependency`).
+    // Off by default; publications are unaffected either way. The parallelism
+    // for warm builds comes from the proxy's read-ahead, not from gating.
+    machinery: bool,
+    remote_capable: bool,
     created_at: std::time::Instant,
     cas_dir: Option<std::path::PathBuf>,
     sweeper: Mutex<Option<std::thread::JoinHandle<()>>>,
@@ -482,9 +495,14 @@ pub unsafe extern "C" fn llcas_cas_create(
         (up.llcas_cas_options_set_ondisk_path)(upstream_options, path.as_ptr());
     }
     for (name, value) in &state.options {
+        let name_str = name.to_string_lossy();
         // Tuist-specific options are consumed here; everything else is
-        // forwarded to the wrapped plugin.
-        if name.to_string_lossy().starts_with("tuist-") {
+        // forwarded to the wrapped plugin. `remote-service-path` is also
+        // consumed, never forwarded: in the remote-cache configuration the
+        // build system passes it to the plugin, but this plugin serves remote
+        // reads itself (kura read/write-through) and must not let the wrapped
+        // Apple plugin run its own remote choreography against that socket.
+        if name_str.starts_with("tuist-") || name_str == "remote-service-path" {
             continue;
         }
         let mut option_error: *mut c_char = std::ptr::null_mut();
@@ -534,6 +552,16 @@ pub unsafe extern "C" fn llcas_cas_create(
         RemoteConfig::from_env().map(|config| Remote::new(config, TokenProvider::from_env()))
     };
     let has_remote = remote.is_some();
+    // Machinery mode: the build system's remote-cache task actions (KeyQuery/
+    // Materialize) own the remote round trips, in parallel, off the compile
+    // path. An instance that received the `remote-service-path` option is
+    // machinery-side (the build service's scanner/planning CAS); one without
+    // it inside a machinery build (TUIST_CAS_MACHINERY) is a compiler
+    // frontend. See CasState.machinery for how these gate reads per query.
+    // Without either signal (classic plugin mode) the frontends are the only
+    // lookers, so read-through stays on for any miss.
+    let remote_capable = option_value(state, "remote-service-path").is_some();
+    let machinery = remote_capable || env_bool("TUIST_CAS_MACHINERY", false);
     let cas_dir = state
         .ondisk_path
         .as_ref()
@@ -546,6 +574,8 @@ pub unsafe extern "C" fn llcas_cas_create(
         proxy,
         proxy_instance,
         upload: resolve_upload(state),
+        machinery,
+        remote_capable,
         created_at: std::time::Instant::now(),
         cas_dir,
         sweeper: Mutex::new(None),
@@ -1123,6 +1153,7 @@ unsafe fn actioncache_get_impl(
         (state.up.llcas_actioncache_get_for_digest)(state.cas, key_digest, p_value, globally, &mut upstream_error);
     if result != LLCAS_LOOKUP_RESULT_NOTFOUND
         || (state.remote.is_none() && state.proxy.is_none())
+        || (state.machinery && !state.remote_capable)
     {
         adopt_error(state.up, upstream_error, error);
         return result;
@@ -1341,6 +1372,7 @@ pub unsafe extern "C" fn llcas_actioncache_get_for_digest_async(
         (state.up.llcas_actioncache_get_for_digest)(state.cas, key_digest, &mut value, globally, &mut probe_error);
     if result != LLCAS_LOOKUP_RESULT_NOTFOUND
         || (state.remote.is_none() && state.proxy.is_none())
+        || (state.machinery && !state.remote_capable)
     {
         let _ = ours_cancel_token(cancel_tok);
         let error = adopt_upstream_string(state.up, probe_error);

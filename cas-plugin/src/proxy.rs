@@ -38,6 +38,34 @@ const MAX_RESOLVED: usize = 1_000_000;
 const MAX_KNOWN_LOCAL_PER_SHARD: usize = 250_000;
 const MAX_PUBLISH_CACHE: usize = 500_000;
 
+/// Read-ahead bounds: a warm CLI-sized build demands ~11k action keys, so the
+/// key cap sits well above one build's set while bounding the on-disk log; the
+/// error cap stops the wavefront early when the remote is unreachable.
+const MAX_KEYLOG_KEYS: usize = 200_000;
+const MAX_READAHEAD_ERRORS: u64 = 32;
+
+/// Read-ahead wavefront width. RTT-bound work: at ~60ms per resolve, 32 workers
+/// replay ~11k keys in ~20s, against a multiplexed h2 channel the server side
+/// parallelizes. `TUIST_CAS_READAHEAD=0` disables read-ahead entirely.
+fn readahead_workers() -> usize {
+    std::env::var("TUIST_CAS_READAHEAD")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(64)
+}
+
+/// Parses one lowercase-hex keylog line back into raw key bytes.
+fn unhex_line(line: &str) -> Option<Vec<u8>> {
+    let line = line.trim();
+    if line.is_empty() || line.len() % 2 != 0 {
+        return None;
+    }
+    (0..line.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&line[i..i + 2], 16).ok())
+        .collect()
+}
+
 /// How long a cached miss is served before it is re-resolved. Positive results
 /// are content-addressed and kept forever; only negatives expire, so a key
 /// published by another machine after our miss becomes visible on the next
@@ -179,6 +207,22 @@ pub struct PathState {
     // idle reclamation. Bumped once per resolve/publish (per action key, not per
     // node), so the maintenance loop can free caches of projects nobody builds.
     last_used: AtomicU64,
+    // Read-ahead: action keys requested against this path, persisted by the
+    // maintenance loop and speculatively re-resolved (in parallel, off the
+    // build's critical path) at the start of the next build. The demand path
+    // is serial — the build system and compilers ask one key at a time — so on
+    // a real-RTT link a warm build otherwise degenerates into a chain of
+    // round trips (measured 702s vs a 176s local floor at ~59ms RTT).
+    // Order matters: the log preserves DEMAND order, so the next build's
+    // wavefront replays keys in the order the build will ask for them and
+    // stays ahead of the serial demand path (a hash-ordered replay left ~65%
+    // of demand lookups paying their own round trip; measured 411s vs the
+    // ordered target near the local floor).
+    keylog: Mutex<(Vec<Vec<u8>>, HashSet<Vec<u8>>)>,
+    keylog_dirty: std::sync::atomic::AtomicBool,
+    // Whether the read-ahead wavefront was already started for this path (one
+    // per build: re-armed when the on-disk CAS is wiped or the path idles out).
+    readahead_armed: std::sync::atomic::AtomicBool,
     pub stats_resolves: AtomicU64,
     pub stats_remote_hits: AtomicU64,
     pub stats_misses: AtomicU64,
@@ -216,10 +260,23 @@ impl PathState {
     /// stale mark that survives the clear.
     fn invalidate(&self) {
         self.gen_counter.fetch_add(1, Ordering::SeqCst);
-        self.resolved.lock().unwrap().clear();
+        // Only the known-local marks are cleared. They are trusted WITHOUT an
+        // on-disk probe (they make resolve skip fetching manifest nodes), so a
+        // stale mark hands a consumer a graph with missing objects. The
+        // `resolved` key->value map is deliberately KEPT: every cached Hit is
+        // re-verified on disk before it is served (see `fast_path`'s
+        // `load_present` guard), so pruned or wiped values self-heal per key.
+        // Clearing it wholesale meant one mid-build prune signal threw away
+        // the read-ahead wavefront's work and sent every later lookup back to
+        // the remote (measured: ~2x the remote round trips of the key set).
         for shard in &self.known_local {
             shard.lock().unwrap().clear();
         }
+        // The local store may have lost objects: re-run the read-ahead
+        // wavefront so they are re-materialized off the critical path (keys
+        // still resolved in the map turn into cheap local presence probes).
+        self.readahead_armed
+            .store(false, std::sync::atomic::Ordering::SeqCst);
     }
 }
 
@@ -254,6 +311,15 @@ pub struct Proxy {
     registry_path: Option<PathBuf>,
     paths: Mutex<HashMap<String, &'static PathState>>,
     publisher: Prefetcher,
+    // Read-ahead pool: replays the previous build's key set through `resolve`
+    // in parallel at the start of a build, so the serial demand path finds its
+    // keys already resolved and its graphs already materialized. Items encode
+    // (instance, cas_path, key) like publisher items. Damped on transport
+    // errors so an unreachable remote cannot turn the wavefront into a storm.
+    readahead: Prefetcher,
+    readahead_errors: AtomicU64,
+    readahead_done: AtomicU64,
+    keylog_dir: Option<PathBuf>,
     // Per-node transfer analytics, written to cas_analytics.db for parity with
     // the Swift `CASAnalyticsDatabase`. `None` when no analytics path was configured.
     analytics: Option<crate::analytics::Analytics>,
@@ -268,6 +334,10 @@ impl Proxy {
         analytics: Option<crate::analytics::Analytics>,
     ) -> &'static Proxy {
         let path_instance = registry_path.as_deref().map(load_registry).unwrap_or_default();
+        let keylog_dir = registry_path
+            .as_deref()
+            .and_then(Path::parent)
+            .map(|parent| parent.join("cas-keylogs"));
         let proxy: &'static Proxy = Box::leak(Box::new(Proxy {
             grpc_url,
             tokens,
@@ -278,12 +348,20 @@ impl Proxy {
             registry_path,
             paths: Mutex::new(HashMap::new()),
             publisher: Prefetcher::new(),
+            readahead: Prefetcher::new(),
+            readahead_errors: AtomicU64::new(0),
+            readahead_done: AtomicU64::new(0),
+            keylog_dir,
             analytics,
         }));
         let proxy_addr = proxy as *const Proxy as usize;
         proxy.publisher.configure(8, move |item| {
             let proxy = unsafe { &*(proxy_addr as *const Proxy) };
             proxy.publish_item(&item);
+        });
+        proxy.readahead.configure(readahead_workers(), move |item| {
+            let proxy = unsafe { &*(proxy_addr as *const Proxy) };
+            proxy.readahead_item(&item);
         });
         proxy
     }
@@ -362,6 +440,9 @@ impl Proxy {
             known_local: std::array::from_fn(|_| Mutex::new(HashSet::new())),
             publish_cache: Mutex::new(HashMap::new()),
             last_used: AtomicU64::new(self.epoch.elapsed().as_millis() as u64),
+            keylog: Mutex::new((Vec::new(), HashSet::new())),
+            keylog_dirty: std::sync::atomic::AtomicBool::new(false),
+            readahead_armed: std::sync::atomic::AtomicBool::new(false),
             stats_resolves: AtomicU64::new(0),
             stats_remote_hits: AtomicU64::new(0),
             stats_misses: AtomicU64::new(0),
@@ -419,18 +500,27 @@ impl Proxy {
         {
             let mut inflight = state.inflight.lock().unwrap();
             loop {
-                // Re-peek under the lock. A Hit that appears here was just
-                // materialized by the winning resolver (or a local publish), so
-                // its graph is on disk; serve it without another presence load.
-                match state.resolved.lock().unwrap().get(key) {
-                    Some(Resolution::Hit(value)) => return Ok(Some(value.clone())),
+                // Re-peek: clone under the map lock, probe outside it. A Hit
+                // here was usually just materialized by the winning resolver
+                // (or a local publish) — but `resolved` also survives
+                // invalidation now (see `invalidate`), so a waiter can wake
+                // across a prune/wipe and find a pre-invalidation entry.
+                // Verify presence before serving; on absence fall through and
+                // resolve it ourselves.
+                let peeked = match state.resolved.lock().unwrap().get(key) {
+                    Some(Resolution::Hit(value)) => Some(value.clone()),
                     // A fresh miss answers without a round-trip; a stale one
                     // falls through to re-resolve so a key published later
                     // (by another machine) can still land.
                     Some(Resolution::Miss(at)) if at.elapsed() < NEGATIVE_TTL => {
                         return Ok(None)
                     }
-                    _ => {}
+                    _ => None,
+                };
+                if let Some(value) = peeked {
+                    if self.load_present(state, &value) {
+                        return Ok(Some(value));
+                    }
                 }
                 if !inflight.contains(key) {
                     inflight.insert(key.to_vec());
@@ -700,6 +790,119 @@ impl Proxy {
                 (state.up.llcas_string_dispose)(load_error);
             }
             result == LLCAS_LOOKUP_RESULT_SUCCESS
+        }
+    }
+
+    /// Records a demanded key into the path's keylog and, on the first resolve
+    /// of a build (or the first after a wipe), starts the read-ahead wavefront:
+    /// the previous build's keys are replayed through `resolve` in parallel so
+    /// the serial demand path behind it finds local hits instead of paying one
+    /// WAN round trip per key.
+    fn record_and_arm_readahead(&self, state: &'static PathState, cas_path: &str, key: &[u8]) {
+        {
+            let mut keylog = state.keylog.lock().unwrap();
+            let (order, seen) = &mut *keylog;
+            if order.len() < MAX_KEYLOG_KEYS && seen.insert(key.to_vec()) {
+                order.push(key.to_vec());
+                state
+                    .keylog_dirty
+                    .store(true, std::sync::atomic::Ordering::Relaxed);
+            }
+        }
+        if state
+            .readahead_armed
+            .swap(true, std::sync::atomic::Ordering::SeqCst)
+        {
+            return;
+        }
+        let Some(keys) = self.load_keylog(cas_path) else { return };
+        crate::log_line(&format!(
+            "readahead: enqueuing {} keys for {}",
+            keys.len(),
+            cas_path
+        ));
+        for key in keys {
+            let mut item = Vec::with_capacity(2 + cas_path.len() + key.len());
+            item.extend_from_slice(&(cas_path.len() as u16).to_be_bytes());
+            item.extend_from_slice(cas_path.as_bytes());
+            item.extend_from_slice(&key);
+            self.readahead.enqueue(item);
+        }
+    }
+
+    fn readahead_item(&self, item: &[u8]) {
+        // Damp on repeated transport errors: an unreachable remote must not
+        // turn the wavefront into a retry storm.
+        if self.readahead_errors.load(Ordering::Relaxed) > MAX_READAHEAD_ERRORS {
+            return;
+        }
+        let Some((cas_path, key)) = take_u16_field(item) else { return };
+        let cas_path = String::from_utf8_lossy(cas_path).into_owned();
+        let Some(instance) = self.path_instance.lock().unwrap().get(&cas_path).cloned() else {
+            return;
+        };
+        let remote = self.remote_for(&instance);
+        let Ok(state) = self.path_state(&cas_path) else { return };
+        match self.resolve(&remote, state, key) {
+            Ok(_) => {
+                let done = self.readahead_done.fetch_add(1, Ordering::Relaxed) + 1;
+                if done % 1000 == 0 {
+                    crate::log_line(&format!("readahead: {done} keys done"));
+                }
+            }
+            Err(_reason) => {
+                self.readahead_errors.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+    }
+
+    fn keylog_path(&self, cas_path: &str) -> Option<PathBuf> {
+        use sha2::{Digest, Sha256};
+        let dir = self.keylog_dir.as_ref()?;
+        let mut hex = String::with_capacity(32);
+        for byte in &Sha256::digest(cas_path.as_bytes())[..16] {
+            hex.push_str(&format!("{byte:02x}"));
+        }
+        Some(dir.join(format!("{hex}.keys")))
+    }
+
+    fn load_keylog(&self, cas_path: &str) -> Option<Vec<Vec<u8>>> {
+        let body = std::fs::read_to_string(self.keylog_path(cas_path)?).ok()?;
+        let keys: Vec<Vec<u8>> = body.lines().filter_map(unhex_line).collect();
+        (!keys.is_empty()).then_some(keys)
+    }
+
+    /// Persists dirty keylogs. Called from the maintenance loop, so a build's
+    /// keys survive the proxy for the next build (and the next proxy).
+    pub fn flush_keylogs(&self) {
+        let paths: Vec<(String, &'static PathState)> = self
+            .paths
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(cas_path, state)| (cas_path.clone(), *state))
+            .collect();
+        for (cas_path, state) in paths {
+            if !state
+                .keylog_dirty
+                .swap(false, std::sync::atomic::Ordering::Relaxed)
+            {
+                continue;
+            }
+            let Some(path) = self.keylog_path(&cas_path) else { continue };
+            if let Some(parent) = path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let keylog = state.keylog.lock().unwrap();
+            let mut body = String::with_capacity(keylog.0.len() * 65);
+            for key in keylog.0.iter() {
+                for byte in key {
+                    body.push_str(&format!("{byte:02x}"));
+                }
+                body.push('\n');
+            }
+            drop(keylog);
+            let _ = std::fs::write(path, body);
         }
     }
 
@@ -982,7 +1185,10 @@ impl Proxy {
                 let remote = self.remote_for(&instance);
                 let outcome = self
                     .path_state(&request.cas_path)
-                    .and_then(|state| self.resolve(&remote, state, &request.payload));
+                    .and_then(|state| {
+                        self.record_and_arm_readahead(state, &request.cas_path, &request.payload);
+                        self.resolve(&remote, state, &request.payload)
+                    });
                 match outcome {
                     Ok(Some(value)) => write_response(&mut stream, STATUS_HIT, &value),
                     Ok(None) => write_response(&mut stream, STATUS_MISS, &[]),
@@ -1298,6 +1504,17 @@ mod tests {
     fn writes_commit_only_on_the_observed_generation() {
         assert!(committable(7, 7));
         assert!(!committable(7, 8), "an advanced generation must drop stale writes");
+    }
+
+    // Keylog lines round-trip: lowercase hex parses back to the raw key; blank
+    // and malformed lines are dropped rather than corrupting the wavefront.
+    #[test]
+    fn keylog_lines_round_trip_and_reject_garbage() {
+        assert_eq!(unhex_line("00ff10"), Some(vec![0x00, 0xff, 0x10]));
+        assert_eq!(unhex_line("  00ff10\n"), Some(vec![0x00, 0xff, 0x10]));
+        assert_eq!(unhex_line(""), None);
+        assert_eq!(unhex_line("abc"), None, "odd length is malformed");
+        assert_eq!(unhex_line("zz"), None, "non-hex is malformed");
     }
 
     // Deleting and recreating a directory at the same path yields a different
