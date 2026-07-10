@@ -214,7 +214,7 @@ defmodule Tuist.Docs.Sidebar do
         ]
       },
       %Group{
-        label: "Runners",
+        label: "Compute",
         weight: :medium,
         items: [
           %Item{

@@ -17,6 +17,12 @@ The Xcode cache was introduced in Xcode 26. You might also see it referred to as
 > The Xcode cache and the <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link> work at different granularity levels and complement each other. The module cache replaces whole modules with prebuilt `.xcframework`s before the build runs, while the Xcode cache reuses compilation outputs during the build.
 
 
+> [!TIP]
+> **Fastest on Tuist Runners**
+>
+> On <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link>, the Xcode cache is colocated on the runner's private network and shared with the same cache your developer machines use — so CI jobs get warm hits out of the box, with no separate CI cache to warm up.
+
+
 ## Setup {#setup}
 
 > [!WARNING]
