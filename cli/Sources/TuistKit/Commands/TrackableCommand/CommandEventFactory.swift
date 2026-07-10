@@ -92,7 +92,6 @@ public struct CommandEventFactory {
                         binaryCacheMetadata = RunCacheTargetMetadata(
                             hash: cacheItem.hash,
                             hit: hit,
-                            buildDuration: cacheItem.buildDuration,
                             subhashes: targetContentHashSubhashes[cacheItem.hash]
                         )
                     } else {
