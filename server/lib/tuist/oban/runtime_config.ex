@@ -1,7 +1,8 @@
 defmodule Tuist.Oban.RuntimeConfig do
   @moduledoc """
   Pure functions deriving Oban runtime config from pod role, deploy env,
-  the `tuist_hosted?` flag, and self-hosted artifact-retention settings.
+  the `tuist_hosted?` flag, registry sync ownership, and self-hosted
+  artifact-retention settings.
 
   Lifted out of `config/runtime.exs` so they can be unit-tested against
   every value of `Tuist.Environment.modes/0`. Without this, a future
@@ -46,12 +47,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"* * * * *", Tuist.Runners.Workers.OrphanedStampedPodsWorker},
     {"* * * * *", Tuist.Runners.Workers.ExpireInteractiveSessionsWorker},
     {"*/5 * * * *", Tuist.Runners.Workers.WebhookRedeliveryWorker},
-    {"*/5 * * * *", Tuist.Runners.Workers.StaleQueuedJobsWorker},
-    # Cron fires on the :web leader; the resulting `:swift_registry_sync`
-    # job is consumed by the swift-registry-sync pod
-    # (`TUIST_MODE=swift_registry_sync`). Hosted-only because the
-    # registry mirror is a hosted-only feature.
-    @swift_registry_sync_cron
+    {"*/5 * * * *", Tuist.Runners.Workers.StaleQueuedJobsWorker}
   ]
 
   @database_artifact_retention_resource_types [
@@ -85,8 +81,14 @@ defmodule Tuist.Oban.RuntimeConfig do
   @prod_like_envs [:prod, :stag, :can]
 
   @doc """
-  Crontab for the given pod mode, deploy env, hosted state, and optional
-  self-hosted artifact-retention windows.
+  Crontab for the given pod mode, deploy env, and hosted state.
+
+  Options:
+
+    * `:swift_registry_sync_enabled?` (default `true`) — whether this
+      deployment owns the Swift registry mirror sync.
+    * `:artifact_retention_days` (default `%{}`) — self-hosted retention
+      windows, keyed by resource type.
 
   Empty for any non-`:web` pod. On `:web` + prod-like env, returns
   project-level crons (alerts, automations, per-project Slack reports,
@@ -94,18 +96,28 @@ defmodule Tuist.Oban.RuntimeConfig do
   internal Slack ops reports, account-usage rollup, Stripe metered-billing
   reconciliation, and plan-based artifact retention. Self-hosted deployments
   add only the artifact-retention jobs explicitly configured by resource type.
-  Preview gets only the Swift registry sync cron, regardless of hosted flag,
-  so registry previews can exercise the same queue path without running
-  production housekeeping.
+  Preview gets only the Swift registry sync cron when registry sync is
+  enabled, regardless of hosted flag, so registry previews can exercise the
+  same queue path without running production housekeeping.
   """
-  def crontab(mode, env, tuist_hosted?, artifact_retention_days \\ %{}) do
+  def crontab(mode, env, tuist_hosted?, opts \\ []) do
+    swift_registry_sync_enabled? = Keyword.get(opts, :swift_registry_sync_enabled?, true)
+    artifact_retention_days = Keyword.get(opts, :artifact_retention_days, %{})
+
     cond do
       mode == :web and env == :preview ->
-        @preview_crons
+        if swift_registry_sync_enabled?, do: @preview_crons, else: []
 
       mode == :web and env in @prod_like_envs ->
         if tuist_hosted? do
-          @hosted_only_crons ++ @hosted_artifact_retention_crons ++ @shared_crons
+          hosted_crons =
+            if swift_registry_sync_enabled? do
+              @hosted_only_crons ++ [@swift_registry_sync_cron]
+            else
+              @hosted_only_crons
+            end
+
+          hosted_crons ++ @hosted_artifact_retention_crons ++ @shared_crons
         else
           self_hosted_artifact_retention_crons(artifact_retention_days) ++ @shared_crons
         end
