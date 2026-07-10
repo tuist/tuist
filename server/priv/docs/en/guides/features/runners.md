@@ -24,7 +24,7 @@ Tuist Runners are managed macOS and Linux runners for your GitHub Actions workfl
 
 ## Why Tuist Runners {#why-tuist-runners}
 
-Most CI runner providers make jobs faster by giving you beefier machines and a persistent, colocated cache for that CI provider. That helps, but the cache is an island: it only ever warms up from other CI runs.
+Most CI runner providers make jobs faster by giving you beefier machines and a persistent cache — typically a shared volume mounted back into your CI runs. That helps, but a volume is just a disk: it carries whatever previous CI runs happened to leave on it. It isn't replicated to keep just the freshest artifacts close to where builds run, and it never reaches your developers' machines.
 
 Tuist Runners are different because the cache is the same cache your developers and every other environment already read from and write to. The <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link> and <.localized_link href="/guides/features/cache/xcode-cache">Xcode cache</.localized_link> that a teammate warms on their laptop, or that an earlier build produced, are a hit on the runner — and vice versa. There's no separate CI cache to warm up.
 
