@@ -1,0 +1,274 @@
+name: CLI Build & Publish
+
+# Reusable build+publish pipeline for the CLI, shared by the normal release
+# (cli-release.yml) and the backport release (cli-backport.yml). The caller
+# computes the version and the exact commit to build; this workflow only builds,
+# packages, and publishes.
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Version string to stamp into the binary and tag (e.g. 4.192.1)"
+        required: true
+        type: string
+      ref:
+        description: "Resolved commit SHA to check out, build, and tag (not a branch name)"
+        required: true
+        type: string
+      changelog_from:
+        description: "Tag to diff release notes from; empty falls back to the latest CLI semver tag"
+        required: false
+        type: string
+        default: ""
+      make_latest:
+        description: "Whether GitHub marks this release as 'Latest'"
+        required: false
+        type: boolean
+        default: true
+      prerelease:
+        description: "Whether GitHub marks this release as a prerelease (canary/RC)"
+        required: false
+        type: boolean
+        default: false
+      update_homebrew:
+        description: "Whether to trigger the Homebrew formula update"
+        required: false
+        type: boolean
+        default: true
+
+# Top-level env does not cross the workflow_call boundary, so it is redeclared
+# here rather than inherited from the caller.
+env:
+  MISE_VERSION: "2026.5.15"
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  TUIST_ENABLE_CACHING: "true"
+  MISE_GITHUB_ATTESTATIONS: 0
+
+jobs:
+  release-cli:
+    name: Release CLI
+    runs-on: macos-26
+    timeout-minutes: 75
+    permissions:
+      contents: write
+      id-token: write
+      pull-requests: read
+      statuses: write
+      packages: write
+    env:
+      GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+    outputs:
+      release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version-releases).app
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "--locked tuist git-cliff 1password-cli"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Setup Tuist
+        run: tuist setup
+      - name: Install Tuist dependencies
+        run: tuist install --force-resolved-versions
+      - name: Initialize TuistCacheEE submodule
+        env:
+          TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+        run: mise run --no-deps cli:ee
+      - name: Get release notes
+        id: release-notes
+        working-directory: cli
+        run: |
+          # Use the explicit changelog base when provided (backports pass the
+          # base tag); otherwise fall back to the latest CLI semver tag.
+          LATEST_VERSION="${{ inputs.changelog_from }}"
+          if [ -z "$LATEST_VERSION" ]; then
+            LATEST_VERSION=$(git tag -l | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || echo "0.0.0")
+          fi
+          INCLUDE_PATHS=(
+            --include-path "cli/**/*"
+            --include-path "mise/tasks/cli/**/*"
+            --include-path "mise/tasks/release/components.json"
+            --include-path ".github/workflows/cli-release.yml"
+            --include-path ".github/workflows/cli-build-publish.yml"
+            --include-path ".github/workflows/cli-rc.yml"
+            --include-path ".github/workflows/cli-promote.yml"
+            --include-path ".xcode-version-releases"
+            --include-path "Package.swift"
+            --include-path "Package.resolved"
+          )
+          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
+          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../" 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Update version in Constants.swift
+        run: |
+          sed -i '' -e "s/@TaskLocal public static var version: String! = \".*\"/@TaskLocal public static var version: String! = \"${{ inputs.version }}\"/" "cli/Sources/TuistConstants/Constants.swift"
+
+      - name: Update CHANGELOG.md
+        working-directory: cli
+        # Use the authoritative version from the caller via --tag instead of
+        # --bump. Full-history --bump can't anchor on CLI tags that landed on
+        # non-cli commits (it filters them out), so it froze the top heading at
+        # an old version while real releases advanced.
+        run: |
+          INCLUDE_PATHS=(
+            --include-path "cli/**/*"
+            --include-path "mise/tasks/cli/**/*"
+            --include-path "mise/tasks/release/components.json"
+            --include-path ".github/workflows/cli-release.yml"
+            --include-path ".github/workflows/cli-build-publish.yml"
+            --include-path ".github/workflows/cli-rc.yml"
+            --include-path ".github/workflows/cli-promote.yml"
+            --include-path ".xcode-version-releases"
+            --include-path "Package.swift"
+            --include-path "Package.resolved"
+          )
+          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../" --tag "${{ inputs.version }}" -o CHANGELOG.md 2>/dev/null
+
+      - name: Bundle CLI
+        run: mise run --no-deps cli:bundle
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+
+      - name: Upload CLI artifacts
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-artifacts
+          path: |
+            cli/CHANGELOG.md
+            cli/Sources/TuistConstants/Constants.swift
+            mise.toml
+            build/ProjectDescription.xcframework.zip
+            build/tuist.zip
+            build/tuist.spec.json
+            build/SHASUMS256.txt
+            build/SHASUMS512.txt
+          retention-days: 1
+
+  release-cli-linux:
+    name: Release CLI (Linux ${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    container:
+      image: swift:6.2
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+
+      - name: Update version in Constants.swift
+        run: |
+          sed -i "s/@TaskLocal public static var version: String! = \".*\"/@TaskLocal public static var version: String! = \"${{ inputs.version }}\"/" "cli/Sources/TuistConstants/Constants.swift"
+
+      - name: Bundle CLI
+        run: ./mise/tasks/cli/bundle-linux.sh
+
+      - name: Upload CLI Linux artifacts
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-linux-${{ matrix.arch }}-artifacts
+          path: |
+            build/tuist-linux-${{ matrix.arch }}.tar.gz
+            build/SHASUMS256.txt
+            build/SHASUMS512.txt
+          retention-days: 1
+
+  publish-cli:
+    name: Publish CLI release
+    needs: [release-cli, release-cli-linux]
+    if: needs.release-cli.result == 'success' && needs.release-cli-linux.result == 'success'
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    env:
+      GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "--locked git-cliff"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Download CLI artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-artifacts
+      - name: Download CLI Linux x86_64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-linux-x86_64-artifacts
+          path: build-linux-x86_64
+      - name: Download CLI Linux aarch64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-linux-aarch64-artifacts
+          path: build-linux-aarch64
+      - name: Merge Linux artifacts into build directory
+        run: |
+          # Append Linux checksums to main checksum files
+          cat build-linux-x86_64/SHASUMS256.txt >> build/SHASUMS256.txt
+          cat build-linux-x86_64/SHASUMS512.txt >> build/SHASUMS512.txt
+          cat build-linux-aarch64/SHASUMS256.txt >> build/SHASUMS256.txt
+          cat build-linux-aarch64/SHASUMS512.txt >> build/SHASUMS512.txt
+          # Move Linux tarballs to build directory
+          mv build-linux-x86_64/tuist-linux-x86_64.tar.gz build/
+          mv build-linux-aarch64/tuist-linux-aarch64.tar.gz build/
+      - name: Create CLI GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          repository: tuist/tuist
+          # Pin the tag to the exact commit that was built, passed in as a
+          # resolved SHA. github.sha would resolve to the caller's triggering
+          # commit under workflow_call (main HEAD for a backport), not the
+          # release branch we actually built.
+          target_commitish: ${{ inputs.ref }}
+          # Backports publish off an older line and must not move GitHub's
+          # "Latest" pointer; the caller passes "false" for those.
+          make_latest: ${{ inputs.make_latest }}
+          # Canary and RC builds are prereleases: this is what makes package
+          # managers (mise, Homebrew) exclude them from default resolution.
+          # make_latest alone only suppresses the "Latest" badge.
+          prerelease: ${{ inputs.prerelease }}
+          name: CLI ${{ inputs.version }}
+          tag_name: ${{ inputs.version }}
+          body: ${{ needs.release-cli.outputs.release-notes }}
+          files: |
+            build/tuist.zip
+            build/tuist-linux-x86_64.tar.gz
+            build/tuist-linux-aarch64.tar.gz
+            build/SHASUMS256.txt
+            build/SHASUMS512.txt
+            build/ProjectDescription.xcframework.zip
+            build/tuist.spec.json
+      - name: Trigger Homebrew Formula Update
+        # Skipped for backports: brew install tuist must keep pointing at the
+        # true latest version, never an older patched line.
+        if: ${{ inputs.update_homebrew }}
+        run: |
+          SHA256=$(cat build/SHASUMS256.txt | grep tuist.zip | awk '{print $1}')
+          mise run --no-deps cli:release:homebrew-formula --version "${{ inputs.version }}" --github-token "${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}" --sha256 "$SHA256"
