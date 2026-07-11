@@ -127,8 +127,13 @@ jobs:
 
       - name: Benchmark — tuist generate tuist (spec #76)
         if: ${{ inputs.mode == 'benchmark' }}
+        shell: bash --noprofile --norc {0}
         run: |
-          set -uo pipefail
+          # No errexit: this step captures rc explicitly and tolerates
+          # missing dirs (cold volume) in its count() helper. GitHub's
+          # default `bash -eo pipefail` would abort on the first `ls` of a
+          # not-yet-existing Manifests/ dir.
+          set +e -o pipefail
           root="${TUIST_XDG_CACHE_HOME:-$HOME/.cache}"
           man="${root}/tuist/Manifests"; bin="${root}/tuist/Binaries"
           count() { ls -1 "$1" 2>/dev/null | wc -l | tr -d ' '; }
