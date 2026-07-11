@@ -1608,10 +1608,16 @@ if /usr/sbin/diskutil info "$MOUNT" >/dev/null 2>&1; then
   exit 0
 fi
 # Resolve the APFS container backing the boot volume; the cache volume shares
-# that container's free space but is capped by its own quota.
-CONTAINER=$(/usr/sbin/diskutil info / | awk -F'[[:space:]]*:[[:space:]]*' '/APFS Container Reference/{print $2; exit}')
+# that container's free space but is capped by its own quota. On modern macOS
+# "/" is a sealed snapshot whose diskutil info labels the container "APFS
+# Container:" (not "... Reference:"), so read the machine-readable plist key
+# off the always-real Data volume; fall back to a text parse for older macOS.
+CONTAINER=$(/usr/sbin/diskutil info -plist /System/Volumes/Data 2>/dev/null | /usr/bin/plutil -extract APFSContainerReference raw -o - - 2>/dev/null || true)
 if [ -z "${CONTAINER:-}" ]; then
-  echo "could not determine APFS container for /" >&2
+  CONTAINER=$(/usr/sbin/diskutil info / | awk -F'[[:space:]]*:[[:space:]]*' '/APFS Container:/{print $2; exit}')
+fi
+if [ -z "${CONTAINER:-}" ]; then
+  echo "could not determine APFS container for /System/Volumes/Data" >&2
   exit 1
 fi
 sudo /usr/sbin/diskutil apfs addVolume "$CONTAINER" APFS "$VOL" -quota "${QUOTA_GIB}GiB"
