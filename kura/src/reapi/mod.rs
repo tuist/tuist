@@ -498,6 +498,7 @@ impl ReapiService {
         let entries: Vec<Option<(Vec<u8>, reapi::ActionResult)>> =
             futures_util::stream::iter(manifests.into_iter().map(|manifest| {
                 let state = self.state.clone();
+                let namespace = namespace_id.to_owned();
                 async move {
                     // manifest.key = "action_cache/{sha256hex}/{size}".
                     let action_hash = manifest
@@ -508,6 +509,24 @@ impl ReapiService {
                         .filter(|hash| hash.len() == 32)?;
                     let bytes = read_manifest_bytes(&state, &manifest).await.ok()?;
                     let action_result = reapi::ActionResult::decode(bytes.as_slice()).ok()?;
+                    // A key only enters the snapshot with its whole graph
+                    // present: CAS eviction outlives action-cache entries,
+                    // and advertising a key whose blobs are gone turns a
+                    // cold client's replay into a hard compiler failure
+                    // (clang does not recompile on a missing object). A
+                    // dropped key simply resolves through the per-key path.
+                    for file in &action_result.output_files {
+                        let digest = file.digest.as_ref()?;
+                        let key = blob_key(&digest_key(digest).ok()?);
+                        match state
+                            .store
+                            .artifact_exists(ArtifactProducer::Reapi, &namespace, &key)
+                            .await
+                        {
+                            Ok(true) => {}
+                            _ => return None,
+                        }
+                    }
                     Some((action_hash, action_result))
                 }
             }))
