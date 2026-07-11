@@ -62,6 +62,10 @@ type GrpcAccountingBody = UnsyncBoxBody<Bytes, BoxError>;
 #[derive(Clone)]
 pub struct ReapiService {
     state: SharedState,
+    // namespace -> incrementally maintained action-cache snapshot index,
+    // shared across the service clones tonic hands each server. Bounded by
+    // SNAPSHOT_CACHE_MAX_NAMESPACES (LRU by last use).
+    snapshot_cache: std::sync::Arc<std::sync::Mutex<BTreeMap<String, NamespaceSnapshotIndex>>>,
 }
 
 #[derive(Clone)]
@@ -85,7 +89,10 @@ type ReapiServers = (
 
 // The four REAPI gRPC services with their shared decoding limits.
 fn reapi_servers(state: SharedState) -> ReapiServers {
-    let service = ReapiService { state };
+    let service = ReapiService {
+        state,
+        snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
+    };
     (
         CapabilitiesServer::new(service.clone())
             .max_decoding_message_size(REAPI_MAX_DECODING_MESSAGE_SIZE),
@@ -483,63 +490,144 @@ impl ReapiService {
         Ok(response)
     }
 
-    /// Builds the namespace's action-cache snapshot: enumerate every
-    /// action-cache manifest, read + decode the stored ActionResults
-    /// concurrently (a sequential await per artifact caps this at per-read
-    /// latency times entry count), and encode them with a shared node table.
-    ///
-    /// Entries are ordered newest-first before encoding, so when the size
-    /// ceiling bites, truncation sheds the OLDEST keys — the snapshot
-    /// degrades into a recency window over the namespace (the working set a
-    /// warm build needs) instead of an arbitrary storage-order subset.
-    async fn build_actioncache_snapshot(&self, namespace_id: &str) -> Result<Vec<u8>, Status> {
-        let mut manifests = self
+    /// Serves the namespace's action-cache snapshot from the cached index:
+    /// reconcile against the manifest keyspace (one index scan, no stored
+    /// ActionResult reads), load only entries that are new or changed,
+    /// presence-gate every referenced blob (manifest presence — eviction
+    /// removes manifests, so this tracks it exactly), then encode in memory.
+    /// `after` > 0 returns a delta of entries written after that watermark.
+    async fn serve_actioncache_snapshot(
+        &self,
+        namespace_id: &str,
+        after: u64,
+    ) -> Result<Vec<u8>, Status> {
+        // Own the index across the awaits below (a std mutex cannot be held
+        // there); concurrent requests for the same namespace just build
+        // independently and the last insert wins.
+        let mut index = self
+            .snapshot_cache
+            .lock()
+            .expect("snapshot cache lock poisoned")
+            .remove(namespace_id)
+            .unwrap_or_else(NamespaceSnapshotIndex::new);
+
+        let manifests = self
             .state
             .store
             .action_cache_manifests(namespace_id)
             .map_err(|error| {
                 Status::internal(format!("failed to enumerate the action cache: {error}"))
             })?;
-        manifests.sort_by(|a, b| b.version_ms.cmp(&a.version_ms));
-        let entries: Vec<Option<(Vec<u8>, reapi::ActionResult)>> =
-            futures_util::stream::iter(manifests.into_iter().map(|manifest| {
+        // Diff the cached entries against the manifest keyspace: load only
+        // new-or-changed entries, drop entries whose artifacts are gone.
+        let mut current: BTreeMap<[u8; 32], (u64, ArtifactManifest)> = BTreeMap::new();
+        for manifest in manifests {
+            let Some(hash) = manifest
+                .key
+                .strip_prefix("action_cache/")
+                .and_then(|rest| rest.split('/').next())
+                .and_then(|hash| hex::decode(hash).ok())
+                .and_then(|hash| <[u8; 32]>::try_from(hash.as_slice()).ok())
+            else {
+                continue;
+            };
+            let version = manifest.version_ms;
+            current.insert(hash, (version, manifest));
+        }
+        index.entries.retain(|hash, _| current.contains_key(hash));
+        let to_load: Vec<([u8; 32], ArtifactManifest)> = current
+            .into_iter()
+            .filter(|(hash, (version, _))| {
+                index
+                    .entries
+                    .get(hash)
+                    .is_none_or(|entry| entry.version_ms != *version)
+            })
+            .map(|(hash, (_, manifest))| (hash, manifest))
+            .collect();
+        let loaded: Vec<Option<([u8; 32], u64, reapi::ActionResult)>> =
+            futures_util::stream::iter(to_load.into_iter().map(|(hash, manifest)| {
                 let state = self.state.clone();
-                let namespace = namespace_id.to_owned();
                 async move {
-                    // manifest.key = "action_cache/{sha256hex}/{size}".
-                    let action_hash = manifest
-                        .key
-                        .strip_prefix("action_cache/")
-                        .and_then(|rest| rest.split('/').next())
-                        .and_then(|hash| hex::decode(hash).ok())
-                        .filter(|hash| hash.len() == 32)?;
                     let bytes = read_manifest_bytes(&state, &manifest).await.ok()?;
                     let action_result = reapi::ActionResult::decode(bytes.as_slice()).ok()?;
-                    // A key only enters the snapshot with its whole graph
-                    // present: CAS eviction outlives action-cache entries,
-                    // and advertising a key whose blobs are gone turns a
-                    // cold client's replay into a hard compiler failure
-                    // (clang does not recompile on a missing object). A
-                    // dropped key simply resolves through the per-key path.
-                    for file in &action_result.output_files {
-                        let digest = file.digest.as_ref()?;
-                        let key = blob_key(&digest_key(digest).ok()?);
-                        match state
-                            .store
-                            .artifact_exists(ArtifactProducer::Reapi, &namespace, &key)
-                            .await
-                        {
-                            Ok(true) => {}
-                            _ => return None,
-                        }
-                    }
-                    Some((action_hash, action_result))
+                    Some((hash, manifest.version_ms, action_result))
                 }
             }))
             .buffered(32)
             .collect()
             .await;
-        Ok(encode_actioncache_snapshot(entries.into_iter().flatten()))
+        for (hash, version_ms, action_result) in loaded.into_iter().flatten() {
+            let mut nodes = Vec::with_capacity(action_result.output_files.len());
+            let mut valid = !action_result.output_files.is_empty();
+            for file in &action_result.output_files {
+                let (Ok(llcas), Some(digest)) = (hex::decode(&file.path), file.digest.as_ref())
+                else {
+                    valid = false;
+                    break;
+                };
+                let (Ok(blob_hash), true) = (
+                    hex::decode(&digest.hash)
+                        .map_err(|_| ())
+                        .and_then(|hash| <[u8; 32]>::try_from(hash.as_slice()).map_err(|_| ())),
+                    digest.size_bytes >= 0,
+                ) else {
+                    valid = false;
+                    break;
+                };
+                nodes.push(index.intern_node(llcas, blob_hash, digest.size_bytes as u64));
+            }
+            if valid {
+                index
+                    .entries
+                    .insert(hash, SnapshotIndexEntry { version_ms, nodes });
+            }
+        }
+
+        // Presence gate: an entry only stays advertised while every node's
+        // blob manifest exists (CAS eviction outlives action-cache entries,
+        // and clang fails the build on a missing object). Mostly
+        // existence-cache hits; a dead entry is dropped from the cache too —
+        // a republish bumps its version and reloads it.
+        let mut dead: Vec<[u8; 32]> = Vec::new();
+        for (hash, entry) in &index.entries {
+            let missing = entry.nodes.iter().any(|&node| {
+                !self
+                    .state
+                    .store
+                    .artifact_manifest_exists(
+                        ArtifactProducer::Reapi,
+                        namespace_id,
+                        &index.nodes[node as usize].blob_key,
+                    )
+                    .unwrap_or(false)
+            });
+            if missing {
+                dead.push(*hash);
+            }
+        }
+        for hash in dead {
+            index.entries.remove(&hash);
+        }
+
+        let bytes = index.encode(after);
+        index.last_used = Instant::now();
+        {
+            let mut cache = self
+                .snapshot_cache
+                .lock()
+                .expect("snapshot cache lock poisoned");
+            cache.insert(namespace_id.to_owned(), index);
+            while cache.len() > SNAPSHOT_CACHE_MAX_NAMESPACES {
+                let oldest = cache
+                    .iter()
+                    .min_by_key(|(_, index)| index.last_used)
+                    .map(|(namespace, _)| namespace.clone());
+                let Some(oldest) = oldest else { break };
+                cache.remove(&oldest);
+            }
+        }
+        Ok(bytes)
     }
 }
 
@@ -632,7 +720,13 @@ impl ActionCache for ReapiService {
         if digest.hash == snapshot_action_hash()
             && digest.size_bytes == SNAPSHOT_ACTION_KEY.len() as i64
         {
-            let snapshot = self.build_actioncache_snapshot(namespace_id).await?;
+            let after = request
+                .get_ref()
+                .inline_output_files
+                .iter()
+                .find_map(|hint| hint.strip_prefix(SNAPSHOT_AFTER_HINT)?.parse::<u64>().ok())
+                .unwrap_or(0);
+            let snapshot = self.serve_actioncache_snapshot(namespace_id, after).await?;
             let served = snapshot.len() as u64;
             let action_result = reapi::ActionResult {
                 output_files: vec![reapi::OutputFile {
@@ -1508,95 +1602,159 @@ fn validate_digest_bytes(digest: &reapi::Digest, bytes: &[u8]) -> Result<(), Str
 /// Reserved action key whose lookup returns the namespace's action-cache
 /// snapshot instead of a stored result. Clients hash these exact bytes the
 /// way they hash a real llcas key, so serving it needs no new RPC surface.
-/// Bump the version suffix on any change to the snapshot encoding.
-pub const SNAPSHOT_ACTION_KEY: &[u8] = b"tuist-actioncache-snapshot/v1";
+/// Bump the version suffix on any change to the snapshot encoding (v2 added
+/// the write-time watermark header and delta responses).
+pub const SNAPSHOT_ACTION_KEY: &[u8] = b"tuist-actioncache-snapshot/v2";
 const SNAPSHOT_OUTPUT_PATH: &str = "tuist-actioncache-snapshot";
 /// Hard ceiling on the encoded snapshot, with headroom under the 64MB
-/// message limit REAPI clients configure. Keys beyond it are dropped (and
-/// logged): a truncated snapshot only means those keys resolve through the
-/// ordinary per-key path.
+/// message limit REAPI clients configure. Entries are encoded newest-first,
+/// so the ceiling sheds the OLDEST keys — the snapshot degrades into a
+/// recency window; dropped keys resolve through the per-key path.
 const SNAPSHOT_MAX_BYTES: usize = 48 << 20;
+/// `inline_output_files` hint carrying the client's write-time watermark:
+/// when present, the response includes only entries written after it (a
+/// delta), letting a long-lived client refresh without refetching the world.
+pub const SNAPSHOT_AFTER_HINT: &str = "tuist-snapshot-after:";
+/// Bound on cached per-namespace snapshot indexes (LRU by last use). A kura
+/// node serves one tenant, so this comfortably covers every namespace that
+/// actually requests snapshots.
+const SNAPSHOT_CACHE_MAX_NAMESPACES: usize = 32;
 
 fn snapshot_action_hash() -> &'static str {
     static HASH: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     HASH.get_or_init(|| hex::encode(Sha256::digest(SNAPSHOT_ACTION_KEY)))
 }
 
-/// Encodes action-cache entries as the snapshot wire format (little-endian):
-/// `"TSNP"` + version byte, a deduplicated node table (u32 count, then per
-/// node: u8 llcas-digest length, llcas digest, 32-byte blob sha256, u64 blob
-/// size), and per-key entries (u32 count, then per key: 32-byte action-key
-/// sha256, u32 node count, u32 node index each — ActionResult output-file
-/// order preserved, so a key's first node is its value root).
-fn encode_actioncache_snapshot(
-    entries: impl Iterator<Item = (Vec<u8>, reapi::ActionResult)>,
-) -> Vec<u8> {
-    let mut nodes: Vec<(Vec<u8>, [u8; 32], u64)> = Vec::new();
-    let mut node_index: BTreeMap<Vec<u8>, u32> = BTreeMap::new();
-    let mut keys: Vec<([u8; 32], Vec<u32>)> = Vec::new();
-    let mut estimated = 0usize;
-    let mut dropped = 0usize;
-    for (action_hash, action_result) in entries {
-        let Ok(action_hash) = <[u8; 32]>::try_from(action_hash.as_slice()) else {
-            continue;
-        };
-        let mut indexes = Vec::with_capacity(action_result.output_files.len());
-        let mut valid = !action_result.output_files.is_empty();
-        for file in &action_result.output_files {
-            let (Ok(llcas), Some(digest)) = (hex::decode(&file.path), file.digest.as_ref()) else {
-                valid = false;
-                break;
-            };
-            let (Ok(blob_hash), true) = (
-                hex::decode(&digest.hash).map(|hash| <[u8; 32]>::try_from(hash.as_slice())),
-                digest.size_bytes >= 0,
-            ) else {
-                valid = false;
-                break;
-            };
-            let Ok(blob_hash) = blob_hash else {
-                valid = false;
-                break;
-            };
-            let index = *node_index.entry(llcas.clone()).or_insert_with(|| {
-                estimated += 1 + llcas.len() + 32 + 8;
-                nodes.push((llcas.clone(), blob_hash, digest.size_bytes as u64));
-                (nodes.len() - 1) as u32
-            });
-            indexes.push(index);
-        }
-        if !valid {
-            continue;
-        }
-        estimated += 32 + 4 + indexes.len() * 4;
-        if estimated > SNAPSHOT_MAX_BYTES {
-            dropped += 1;
-            continue;
-        }
-        keys.push((action_hash, indexes));
-    }
-    if dropped > 0 {
-        tracing::warn!("action-cache snapshot truncated: {dropped} keys over the size ceiling");
-    }
-    let mut out = Vec::with_capacity(estimated + 16);
-    out.extend_from_slice(b"TSNP");
-    out.push(1);
-    out.extend_from_slice(&(nodes.len() as u32).to_le_bytes());
-    for (llcas, blob_hash, size) in &nodes {
-        out.push(llcas.len() as u8);
-        out.extend_from_slice(llcas);
-        out.extend_from_slice(blob_hash);
-        out.extend_from_slice(&size.to_le_bytes());
-    }
-    out.extend_from_slice(&(keys.len() as u32).to_le_bytes());
-    for (action_hash, indexes) in &keys {
-        out.extend_from_slice(action_hash);
-        out.extend_from_slice(&(indexes.len() as u32).to_le_bytes());
-        for index in indexes {
-            out.extend_from_slice(&index.to_le_bytes());
+struct SnapshotNode {
+    llcas: Vec<u8>,
+    blob_hash: [u8; 32],
+    blob_size: u64,
+    /// The blob's keyvalue artifact key, precomputed for the per-serve
+    /// presence gate.
+    blob_key: String,
+}
+
+struct SnapshotIndexEntry {
+    version_ms: u64,
+    nodes: Vec<u32>,
+}
+
+/// Incrementally maintained view of one namespace's action cache, so serving
+/// a snapshot is a manifest-index reconcile plus an in-memory encode instead
+/// of re-reading every stored ActionResult. Reconciliation (rather than
+/// write-path hooks) keeps it correct under peer replication and eviction:
+/// whatever wrote or removed an entry, the manifest keyspace is the truth
+/// this diffs against.
+struct NamespaceSnapshotIndex {
+    nodes: Vec<SnapshotNode>,
+    node_index: BTreeMap<Vec<u8>, u32>,
+    entries: BTreeMap<[u8; 32], SnapshotIndexEntry>,
+    last_used: Instant,
+}
+
+impl NamespaceSnapshotIndex {
+    fn new() -> Self {
+        Self {
+            nodes: Vec::new(),
+            node_index: BTreeMap::new(),
+            entries: BTreeMap::new(),
+            last_used: Instant::now(),
         }
     }
-    out
+
+    fn intern_node(&mut self, llcas: Vec<u8>, blob_hash: [u8; 32], blob_size: u64) -> u32 {
+        if let Some(&index) = self.node_index.get(&llcas) {
+            return index;
+        }
+        let blob_key = blob_key(&format!("{}/{}", hex::encode(blob_hash), blob_size));
+        let index = self.nodes.len() as u32;
+        self.nodes.push(SnapshotNode {
+            llcas: llcas.clone(),
+            blob_hash,
+            blob_size,
+            blob_key,
+        });
+        self.node_index.insert(llcas, index);
+        index
+    }
+
+    /// Encodes entries written after `after` (0 = everything), newest-first
+    /// under the size ceiling, with a response-local node table so deltas are
+    /// self-contained. Returns the bytes; the header watermark is the newest
+    /// version this index knows (clients pass it back for the next delta).
+    fn encode(&self, after: u64) -> Vec<u8> {
+        let watermark = self
+            .entries
+            .values()
+            .map(|entry| entry.version_ms)
+            .max()
+            .unwrap_or(0)
+            .max(after);
+        let mut included: Vec<(&[u8; 32], &SnapshotIndexEntry)> = self
+            .entries
+            .iter()
+            .filter(|(_, entry)| entry.version_ms > after)
+            .collect();
+        included.sort_by(|a, b| b.1.version_ms.cmp(&a.1.version_ms));
+
+        // Response-local node remap: only nodes the included keys reference.
+        let mut remap: BTreeMap<u32, u32> = BTreeMap::new();
+        let mut response_nodes: Vec<u32> = Vec::new();
+        let mut keys: Vec<(&[u8; 32], Vec<u32>)> = Vec::new();
+        let mut estimated = 0usize;
+        let mut dropped = 0usize;
+        for (hash, entry) in included {
+            let mut key_cost = 32 + 4 + entry.nodes.len() * 4;
+            for &node in &entry.nodes {
+                if !remap.contains_key(&node) {
+                    key_cost += 1 + self.nodes[node as usize].llcas.len() + 32 + 8;
+                }
+            }
+            if estimated + key_cost > SNAPSHOT_MAX_BYTES {
+                dropped += 1;
+                continue;
+            }
+            estimated += key_cost;
+            let indexes = entry
+                .nodes
+                .iter()
+                .map(|&node| {
+                    *remap.entry(node).or_insert_with(|| {
+                        response_nodes.push(node);
+                        (response_nodes.len() - 1) as u32
+                    })
+                })
+                .collect();
+            keys.push((hash, indexes));
+        }
+        if dropped > 0 {
+            tracing::warn!(
+                "action-cache snapshot truncated: {dropped} oldest keys over the size ceiling"
+            );
+        }
+
+        let mut out = Vec::with_capacity(estimated + 32);
+        out.extend_from_slice(b"TSNP");
+        out.push(2);
+        out.extend_from_slice(&watermark.to_le_bytes());
+        out.extend_from_slice(&(response_nodes.len() as u32).to_le_bytes());
+        for &node in &response_nodes {
+            let node = &self.nodes[node as usize];
+            out.push(node.llcas.len() as u8);
+            out.extend_from_slice(&node.llcas);
+            out.extend_from_slice(&node.blob_hash);
+            out.extend_from_slice(&node.blob_size.to_le_bytes());
+        }
+        out.extend_from_slice(&(keys.len() as u32).to_le_bytes());
+        for (hash, indexes) in &keys {
+            out.extend_from_slice(*hash);
+            out.extend_from_slice(&(indexes.len() as u32).to_le_bytes());
+            for index in indexes {
+                out.extend_from_slice(&index.to_le_bytes());
+            }
+        }
+        out
+    }
 }
 
 fn digest_key(digest: &reapi::Digest) -> Result<String, Status> {
@@ -1799,72 +1957,58 @@ mod tests {
     use std::{convert::Infallible, time::Duration};
 
     #[test]
-    fn actioncache_snapshot_dedups_nodes_and_preserves_key_order() {
-        let output = |llcas: &str, blob: [u8; 32], size: i64| reapi::OutputFile {
-            path: llcas.to_owned(),
-            digest: Some(reapi::Digest {
-                hash: hex::encode(blob),
-                size_bytes: size,
-            }),
-            ..Default::default()
-        };
-        // Two keys sharing one node; a third key with a malformed path is dropped.
-        let entries = vec![
-            (
-                vec![1u8; 32],
-                reapi::ActionResult {
-                    output_files: vec![output("aa", [7; 32], 10), output("bb", [8; 32], 20)],
-                    ..Default::default()
-                },
-            ),
-            (
-                vec![2u8; 32],
-                reapi::ActionResult {
-                    output_files: vec![output("cc", [9; 32], 30), output("bb", [8; 32], 20)],
-                    ..Default::default()
-                },
-            ),
-            (
-                vec![3u8; 32],
-                reapi::ActionResult {
-                    output_files: vec![output("not-hex!", [1; 32], 1)],
-                    ..Default::default()
-                },
-            ),
-        ];
-        let bytes = encode_actioncache_snapshot(entries.into_iter());
+    fn actioncache_snapshot_index_encodes_full_and_delta_views() {
+        let mut index = NamespaceSnapshotIndex::new();
+        let shared = index.intern_node(vec![0xBB], [8; 32], 20);
+        let a_root = index.intern_node(vec![0xAA, 0xAA], [7; 32], 10);
+        let b_root = index.intern_node(vec![0xCC], [9; 32], 30);
+        assert_eq!(index.intern_node(vec![0xBB], [8; 32], 20), shared, "dedup");
+        index.entries.insert(
+            [1; 32],
+            SnapshotIndexEntry {
+                version_ms: 100,
+                nodes: vec![a_root, shared],
+            },
+        );
+        index.entries.insert(
+            [2; 32],
+            SnapshotIndexEntry {
+                version_ms: 200,
+                nodes: vec![b_root, shared],
+            },
+        );
 
-        assert_eq!(&bytes[..4], b"TSNP");
-        assert_eq!(bytes[4], 1);
-        let mut at = 5;
         let read_u32 = |bytes: &[u8], at: usize| {
             u32::from_le_bytes(bytes[at..at + 4].try_into().unwrap()) as usize
         };
-        let node_count = read_u32(&bytes, at);
-        at += 4;
-        assert_eq!(node_count, 3); // aa, bb, cc — bb deduplicated
-        let mut nodes = Vec::new();
+
+        // Full view: both keys, watermark = newest version, node table deduped.
+        let full = index.encode(0);
+        assert_eq!(&full[..4], b"TSNP");
+        assert_eq!(full[4], 2);
+        assert_eq!(u64::from_le_bytes(full[5..13].try_into().unwrap()), 200);
+        assert_eq!(read_u32(&full, 13), 3, "three unique nodes");
+
+        // Delta view: only the key written after the watermark, with a
+        // self-contained node table (root + the shared node).
+        let delta = index.encode(100);
+        assert_eq!(u64::from_le_bytes(delta[5..13].try_into().unwrap()), 200);
+        let node_count = read_u32(&delta, 13);
+        assert_eq!(node_count, 2);
+        // Walk past the node table to the key section.
+        let mut at = 17;
         for _ in 0..node_count {
-            let len = bytes[at] as usize;
-            at += 1;
-            let llcas = bytes[at..at + len].to_vec();
-            at += len + 32; // skip blob hash
-            let size = u64::from_le_bytes(bytes[at..at + 8].try_into().unwrap());
-            at += 8;
-            nodes.push((llcas, size));
+            let len = delta[at] as usize;
+            at += 1 + len + 32 + 8;
         }
-        let key_count = read_u32(&bytes, at);
-        at += 4;
-        assert_eq!(key_count, 2); // malformed key dropped
-        // First key: root node is "aa" (output order preserved).
-        assert_eq!(&bytes[at..at + 32], &[1u8; 32]);
-        at += 32;
-        let entry_count = read_u32(&bytes, at);
-        at += 4;
-        assert_eq!(entry_count, 2);
-        let root_index = read_u32(&bytes, at);
-        assert_eq!(nodes[root_index].0, hex::decode("aa").unwrap());
-        assert_eq!(nodes[root_index].1, 10);
+        assert_eq!(read_u32(&delta, at), 1, "one delta key");
+        assert_eq!(&delta[at + 4..at + 36], &[2u8; 32]);
+
+        // Nothing newer than the watermark: an empty delta echoes it.
+        let empty = index.encode(300);
+        assert_eq!(u64::from_le_bytes(empty[5..13].try_into().unwrap()), 300);
+        let node_count = read_u32(&empty, 13);
+        assert_eq!(node_count, 0);
     }
 
     use tokio::net::TcpListener;
@@ -2227,6 +2371,7 @@ end
         let extension = namespace_policy_extension().await;
         let context = test_context_with_extension(|_| {}, Some(extension)).await;
         let service = ReapiService {
+            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
             state: context.state.clone(),
         };
 
@@ -2320,6 +2465,7 @@ end
     async fn action_cache_reads_emit_keyvalue_metrics() {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
+            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
             state: context.state.clone(),
         };
         let action_result = reapi::ActionResult::default();
@@ -2363,6 +2509,7 @@ end
     async fn cas_batch_reads_emit_module_metrics() {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
+            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
             state: context.state.clone(),
         };
         let bytes = b"blob-bytes";
@@ -2412,6 +2559,7 @@ end
         })
         .await;
         let service = ReapiService {
+            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
             state: context.state.clone(),
         };
         let oversized_bytes = vec![b'x'; 9 * 1024 * 1024];
@@ -2490,12 +2638,15 @@ end
         })
         .await;
         let first_service = ReapiService {
+            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
             state: context.state.clone(),
         };
         let second_service = ReapiService {
+            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
             state: context.state.clone(),
         };
         let third_service = ReapiService {
+            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
             state: context.state.clone(),
         };
         let bytes = vec![b'b'; 16 * 1024 * 1024];
@@ -2594,6 +2745,7 @@ end
     async fn cas_batch_reads_shed_under_critical_memory_pressure() {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
+            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
             state: context.state.clone(),
         };
         let bytes = b"blob-bytes";
@@ -2647,6 +2799,7 @@ end
         })
         .await;
         let service = ReapiService {
+            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
             state: context.state.clone(),
         };
         let stdout_bytes = vec![b's'; 9 * 1024 * 1024];
@@ -2761,6 +2914,7 @@ end
     async fn action_cache_wildcard_inlines_every_output_file() {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
+            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
             state: context.state.clone(),
         };
         let first_bytes = b"first output".to_vec();
@@ -2808,6 +2962,7 @@ end
         })
         .await;
         let service = ReapiService {
+            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
             state: context.state.clone(),
         };
         // Larger than the response budget under this memory config (the same
@@ -2858,6 +3013,7 @@ end
         })
         .await;
         let service = ReapiService {
+            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
             state: context.state.clone(),
         };
         // Larger than the response budget; listed BOTH via "*" and explicitly.
@@ -2893,6 +3049,7 @@ end
     async fn draining_rejects_new_grpc_requests() {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
+            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
             state: context.state.clone(),
         };
         context.state.enter_draining();
@@ -2973,6 +3130,7 @@ end
         })
         .await;
         let service = ReapiService {
+            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
             state: context.state.clone(),
         };
 
@@ -3091,6 +3249,7 @@ end
         })
         .await;
         let service = ReapiService {
+            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
             state: context.state.clone(),
         };
 

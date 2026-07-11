@@ -513,6 +513,24 @@ impl Store {
         }
     }
 
+    /// Whether an artifact's manifest exists, without probing backing storage.
+    /// Manifest presence is the right gate for advertising content (eviction
+    /// removes the manifest together with the data), and skipping
+    /// `storage_exists` keeps it cheap enough to run per snapshot node and
+    /// immune to transient mid-promotion states.
+    pub fn artifact_manifest_exists(
+        &self,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        key: &str,
+    ) -> Result<bool, String> {
+        let artifact_id = artifact_storage_id(producer, &self.tenant_id, namespace_id, key);
+        if self.existence_cache_contains(&artifact_id) {
+            return Ok(true);
+        }
+        Ok(self.manifest(&artifact_id)?.is_some())
+    }
+
     pub fn manifest(&self, artifact_id: &str) -> Result<Option<ArtifactManifest>, String> {
         if let Some(manifest) = self.manifest_cache_get(artifact_id) {
             self.io.metrics().record_manifest_cache_lookup("hit");
