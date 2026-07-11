@@ -609,6 +609,7 @@ impl ReapiService {
         for hash in dead {
             index.entries.remove(&hash);
         }
+        index.compact_nodes();
 
         let bytes = index.encode(after);
         index.last_used = Instant::now();
@@ -1630,6 +1631,10 @@ pub const SNAPSHOT_AFTER_HINT: &str = "tuist-snapshot-after:";
 /// actually requests snapshots.
 const SNAPSHOT_CACHE_MAX_NAMESPACES: usize = 32;
 
+/// Stranded-node floor below which a cached snapshot index skips compacting
+/// its node table (the sweep rewrites every entry's index list).
+const SNAPSHOT_COMPACT_MIN_GARBAGE: usize = 1024;
+
 fn snapshot_action_hash() -> &'static str {
     static HASH: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     HASH.get_or_init(|| hex::encode(Sha256::digest(SNAPSHOT_ACTION_KEY)))
@@ -1688,31 +1693,82 @@ impl NamespaceSnapshotIndex {
         index
     }
 
-    /// Encodes entries written after `after` (0 = everything), newest-first
-    /// under the size ceiling, with a response-local node table so deltas are
-    /// self-contained. Returns the bytes; the header watermark is the newest
-    /// version this index knows (clients pass it back for the next delta).
+    /// Rebuilds the node table around the nodes that live entries still
+    /// reference. Entry churn (republished keys, evicted action results)
+    /// strands nodes nothing references anymore; `intern_node` only ever
+    /// appends, so without this sweep a long-cached index for an actively
+    /// written namespace would grow its node table for the life of the
+    /// process. Skipped while the garbage share is too small to be worth
+    /// rewriting every entry's index list.
+    fn compact_nodes(&mut self) {
+        let mut remap: Vec<Option<u32>> = vec![None; self.nodes.len()];
+        let mut live: u32 = 0;
+        for entry in self.entries.values() {
+            for &node in &entry.nodes {
+                if remap[node as usize].is_none() {
+                    remap[node as usize] = Some(live);
+                    live += 1;
+                }
+            }
+        }
+        let garbage = self.nodes.len() - live as usize;
+        if garbage < SNAPSHOT_COMPACT_MIN_GARBAGE || garbage * 2 < self.nodes.len() {
+            return;
+        }
+        let old_nodes = std::mem::take(&mut self.nodes);
+        let mut new_nodes: Vec<Option<SnapshotNode>> = Vec::new();
+        new_nodes.resize_with(live as usize, || None);
+        for (old_index, node) in old_nodes.into_iter().enumerate() {
+            if let Some(new_index) = remap[old_index] {
+                new_nodes[new_index as usize] = Some(node);
+            }
+        }
+        self.nodes = new_nodes.into_iter().flatten().collect();
+        self.node_index = self
+            .nodes
+            .iter()
+            .enumerate()
+            .map(|(index, node)| (node.llcas.clone(), index as u32))
+            .collect();
+        for entry in self.entries.values_mut() {
+            for node in &mut entry.nodes {
+                *node = remap[*node as usize].expect("live entry references a swept node");
+            }
+        }
+    }
+
+    /// Encodes a view of the index, with a response-local node table so every
+    /// view is self-contained. A full view (`after == 0`) is newest-first
+    /// under the size ceiling — a recency window, so an oversized namespace
+    /// degrades to "the most recent keys, the rest per-key". A delta view
+    /// (`after > 0`) includes entries with `version_ms >= after`: inclusive,
+    /// because millisecond timestamps are not unique and a write landing in
+    /// an already-served millisecond must still reappear (re-sent boundary
+    /// entries merge idempotently client-side). Deltas are assembled
+    /// OLDEST-first and the header watermark is the newest version actually
+    /// included, so a delta that overflows the ceiling paginates — the next
+    /// request resumes where this one stopped — instead of the watermark
+    /// skipping past entries that were never sent.
     fn encode(&self, after: u64) -> Vec<u8> {
-        let watermark = self
-            .entries
-            .values()
-            .map(|entry| entry.version_ms)
-            .max()
-            .unwrap_or(0)
-            .max(after);
+        let full = after == 0;
         let mut included: Vec<(&[u8; 32], &SnapshotIndexEntry)> = self
             .entries
             .iter()
-            .filter(|(_, entry)| entry.version_ms > after)
+            .filter(|(_, entry)| full || entry.version_ms >= after)
             .collect();
-        included.sort_by(|a, b| b.1.version_ms.cmp(&a.1.version_ms));
+        if full {
+            included.sort_by(|a, b| b.1.version_ms.cmp(&a.1.version_ms));
+        } else {
+            included.sort_by(|a, b| a.1.version_ms.cmp(&b.1.version_ms));
+        }
 
         // Response-local node remap: only nodes the included keys reference.
+        let total = included.len();
         let mut remap: BTreeMap<u32, u32> = BTreeMap::new();
         let mut response_nodes: Vec<u32> = Vec::new();
         let mut keys: Vec<(&[u8; 32], Vec<u32>)> = Vec::new();
         let mut estimated = 0usize;
-        let mut dropped = 0usize;
+        let mut watermark = after;
         for (hash, entry) in included {
             let mut key_cost = 32 + 4 + entry.nodes.len() * 4;
             for &node in &entry.nodes {
@@ -1721,10 +1777,16 @@ impl NamespaceSnapshotIndex {
                 }
             }
             if estimated + key_cost > SNAPSHOT_MAX_BYTES {
-                dropped += 1;
-                continue;
+                if full {
+                    // Recency window: this key is out, smaller older ones may fit.
+                    continue;
+                }
+                // Pagination: everything from here on is newer than the
+                // watermark being returned, so it arrives on the next delta.
+                break;
             }
             estimated += key_cost;
+            watermark = watermark.max(entry.version_ms);
             let indexes = entry
                 .nodes
                 .iter()
@@ -1737,10 +1799,17 @@ impl NamespaceSnapshotIndex {
                 .collect();
             keys.push((hash, indexes));
         }
+        let dropped = total - keys.len();
         if dropped > 0 {
-            tracing::warn!(
-                "action-cache snapshot truncated: {dropped} oldest keys over the size ceiling"
-            );
+            if full {
+                tracing::warn!(
+                    "action-cache snapshot truncated: {dropped} oldest keys over the size ceiling"
+                );
+            } else {
+                tracing::info!(
+                    "action-cache snapshot delta paginated: {dropped} newest keys deferred to the next delta"
+                );
+            }
         }
 
         let mut out = Vec::with_capacity(estimated + 32);
@@ -1999,9 +2068,9 @@ mod tests {
         assert_eq!(u64::from_le_bytes(full[5..13].try_into().unwrap()), 200);
         assert_eq!(read_u32(&full, 13), 3, "three unique nodes");
 
-        // Delta view: only the key written after the watermark, with a
+        // Delta view: only the key strictly newer than the cursor, with a
         // self-contained node table (root + the shared node).
-        let delta = index.encode(100);
+        let delta = index.encode(150);
         assert_eq!(u64::from_le_bytes(delta[5..13].try_into().unwrap()), 200);
         let node_count = read_u32(&delta, 13);
         assert_eq!(node_count, 2);
@@ -2014,11 +2083,49 @@ mod tests {
         assert_eq!(read_u32(&delta, at), 1, "one delta key");
         assert_eq!(&delta[at + 4..at + 36], &[2u8; 32]);
 
-        // Nothing newer than the watermark: an empty delta echoes it.
+        // The cursor is INCLUSIVE: millisecond versions are not unique, so a
+        // write landing in an already-served millisecond must reappear on the
+        // next delta rather than being skipped until the full refresh. The
+        // boundary key is re-sent (merge is idempotent client-side).
+        let boundary = index.encode(200);
+        assert_eq!(u64::from_le_bytes(boundary[5..13].try_into().unwrap()), 200);
+        let node_count = read_u32(&boundary, 13);
+        assert_eq!(node_count, 2, "boundary key re-sent");
+
+        // Nothing at or past the cursor: an empty delta echoes it.
         let empty = index.encode(300);
         assert_eq!(u64::from_le_bytes(empty[5..13].try_into().unwrap()), 300);
         let node_count = read_u32(&empty, 13);
         assert_eq!(node_count, 0);
+    }
+
+    #[test]
+    fn actioncache_snapshot_index_compacts_stranded_nodes() {
+        let mut index = NamespaceSnapshotIndex::new();
+        // A churned namespace: interned nodes whose entries are gone.
+        for stranded in 0..SNAPSHOT_COMPACT_MIN_GARBAGE as u64 {
+            index.intern_node(stranded.to_le_bytes().to_vec(), [3; 32], stranded);
+        }
+        let live = index.intern_node(vec![0xAA], [7; 32], 10);
+        index.entries.insert(
+            [1; 32],
+            SnapshotIndexEntry {
+                version_ms: 100,
+                nodes: vec![live],
+            },
+        );
+
+        index.compact_nodes();
+
+        assert_eq!(index.nodes.len(), 1, "stranded nodes swept");
+        assert_eq!(index.node_index.len(), 1);
+        let entry = index.entries.get(&[1; 32]).unwrap();
+        assert_eq!(entry.nodes, vec![0], "entry remapped onto the new table");
+        assert_eq!(index.nodes[0].llcas, vec![0xAA]);
+        assert_eq!(index.node_index.get(&vec![0xAA]).copied(), Some(0));
+        // The rebuilt table keeps serving: the full view carries the live key.
+        let full = index.encode(0);
+        assert_eq!(u64::from_le_bytes(full[5..13].try_into().unwrap()), 100);
     }
 
     use tokio::net::TcpListener;
