@@ -76,6 +76,18 @@ jobs:
           # set by Tart and the host CPU model leaks via sysctl.
           sysctl -n machdep.cpu.brand_string
 
+      - name: Cache volume — host/guest diagnostics (spec #76)
+        run: |
+          set -uo pipefail
+          echo "=== dispatch-poll.sh mount-gate log (guest side) ==="
+          sudo cat /var/log/tuist-runner/poll.log 2>/dev/null | grep -iE "cache|volume|mount|xdg|dirty|budget" || echo "(no cache lines in poll.log)"
+          echo "=== volumes.json staged by host? (env share) ==="
+          cat "/Volumes/My Shared Files/env/volumes.json" 2>/dev/null || echo "(no volumes.json — host did not stage a cache volume this boot)"
+          echo "=== attached block devices (diskutil list) ==="
+          diskutil list 2>/dev/null | head -50 || true
+          echo "=== APFS volumes by label ==="
+          diskutil list 2>/dev/null | grep -i "tuist" || echo "(no tuist-* APFS volume visible in the guest)"
+
       - name: Cache volume — state + marker persistence (spec #76)
         run: |
           set -uo pipefail
