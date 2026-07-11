@@ -287,6 +287,10 @@ struct CasState {
     // for warm builds comes from the proxy's read-ahead, not from gating.
     machinery: bool,
     remote_capable: bool,
+    // (key -> value digest) associations served FROM the remote by this
+    // process, so the client's end-of-job re-puts of replayed results skip
+    // the publish path entirely (see actioncache_put_remote).
+    remote_hits: Mutex<std::collections::HashMap<Vec<u8>, Vec<u8>>>,
     created_at: std::time::Instant,
     cas_dir: Option<std::path::PathBuf>,
     sweeper: Mutex<Option<std::thread::JoinHandle<()>>>,
@@ -581,6 +585,7 @@ pub unsafe extern "C" fn llcas_cas_create(
         sweeper: Mutex::new(None),
         uploader: Prefetcher::new(),
         published: Mutex::new(std::collections::HashSet::new()),
+        remote_hits: Mutex::new(std::collections::HashMap::new()),
         known_local: Mutex::new(std::collections::HashSet::new()),
         publish_cache: Mutex::new(std::collections::HashMap::new()),
         stats_remote_entry_hits: AtomicU64::new(0),
@@ -1172,6 +1177,17 @@ unsafe fn actioncache_get_impl(
         match client.resolve(&cas_path, &state.proxy_instance, key) {
             Ok(Resolution::Hit(value_digest)) => {
                 state.stats_remote_entry_hits.fetch_add(1, Ordering::Relaxed);
+                // Remember the association: the client re-puts replayed results
+                // at the end of its job, and re-publishing a (key, value) that
+                // just came FROM the remote is pure churn — a spool write on
+                // the compile path plus a proxy publish check per key
+                // (thousands per warm build). actioncache_put_remote skips
+                // puts that match this map.
+                state
+                    .remote_hits
+                    .lock()
+                    .unwrap()
+                    .insert(key.to_vec(), value_digest.clone());
                 let value_digest_t =
                     llcas_digest_t { data: value_digest.as_ptr(), size: value_digest.len() };
                 let mut value_id = llcas_objectid_t { opaque: 0 };
@@ -1400,6 +1416,12 @@ pub unsafe extern "C" fn llcas_actioncache_get_for_digest_async(
 unsafe fn actioncache_put_remote(state: &CasState, key: &[u8], value: llcas_objectid_t) {
     if state.proxy.is_some() && state.upload {
         let value_digest = digest_bytes(state, value);
+        // This exact association was served FROM the remote earlier in this
+        // process (see actioncache_get_impl): publishing it back is pure churn.
+        // A put with a DIFFERENT value for the same key still goes through.
+        if state.remote_hits.lock().unwrap().get(key) == Some(&value_digest) {
+            return;
+        }
         if !state
             .published
             .lock()

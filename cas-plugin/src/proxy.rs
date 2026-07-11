@@ -783,11 +783,16 @@ impl Proxy {
                 }
                 return false;
             }
-            let mut loaded = llcas_loaded_object_t { opaque: 0 };
-            let mut load_error: *mut std::ffi::c_char = std::ptr::null_mut();
-            let result = (state.up.llcas_cas_load_object)(state.cas, id, &mut loaded, &mut load_error);
-            if !load_error.is_null() {
-                (state.up.llcas_string_dispose)(load_error);
+            // Existence check, not a data load: this runs once per served hit
+            // and once per manifest-entry probe, so loading object bytes here
+            // put real I/O on the resolve path (thousands of loads per warm
+            // build). A wiped or pruned store answers NOTFOUND either way,
+            // which is all the stale-hit guard needs.
+            let mut contains_error: *mut std::ffi::c_char = std::ptr::null_mut();
+            let result =
+                (state.up.llcas_cas_contains_object)(state.cas, id, false, &mut contains_error);
+            if !contains_error.is_null() {
+                (state.up.llcas_string_dispose)(contains_error);
             }
             result == LLCAS_LOOKUP_RESULT_SUCCESS
         }
@@ -936,6 +941,18 @@ impl Proxy {
             let _ = std::fs::remove_file(&record_path);
             return;
         };
+        // The client re-puts replayed results at the end of its job, so a warm
+        // build spools thousands of records whose (key, value) this proxy
+        // resolved FROM the remote minutes earlier. `publish` would discover
+        // that with a get_action round trip per record; the resolved map
+        // already knows, so drop those records here for free. A Hit with a
+        // DIFFERENT value (a genuine local recompute) still publishes.
+        if let Some(Resolution::Hit(value)) = state.resolved.lock().unwrap().get(&record.key) {
+            if value == &record.value_digest {
+                let _ = std::fs::remove_file(&record_path);
+                return;
+            }
+        }
         match self.publish(&remote, state, &record) {
             Ok(()) => {
                 let _ = std::fs::remove_file(&record_path);
