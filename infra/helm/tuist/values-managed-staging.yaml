@@ -443,6 +443,12 @@ ovhFleet:
 macosFleet:
   enabled: true
   replicas: 1
+  # Per-account cache volumes (spec #76), validated on staging first.
+  # 40 GiB quota holds ~2 masters at the 20 GiB default cap — enough for
+  # the 1-2 accounts staging runs. Operator-wide, so it also provisions a
+  # (harmless, unused) volume on the xcresult host.
+  runnerCacheVolume:
+    gib: 40
   # Share the pre-ordered pool with runnersFleet (same prefix
   # below). Both MachineDeployments draw from one Scaleway-side
   # pool of `tuist-pool-*` hosts; the controller claims the first

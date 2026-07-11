@@ -335,6 +335,20 @@ spec:
             - --tartkubelet-host-cpu={{ .Values.macosFleet.tartKubelet.hostCPU | default 8 }}
             - --tartkubelet-host-memory-mb={{ .Values.macosFleet.tartKubelet.hostMemoryMB | default 16384 }}
             - --tartkubelet-max-pods={{ .Values.macosFleet.tartKubelet.maxPods | default 3 }}
+            {{- with .Values.macosFleet.runnerCacheVolume }}
+            {{- if .gib }}
+            # Per-account cache volumes (spec #76): bootstrap provisions a
+            # quota-bounded APFS volume of this many GiB on each Mac mini
+            # (the aggregate ceiling that keeps cache volumes from ever
+            # starving the VM image path) and turns the feature on in
+            # tart-kubelet. Operator-wide, like the other fleet flags;
+            # 0/unset leaves the feature off and every VM boots cold.
+            - --runner-cache-volume-gib={{ .gib }}
+            {{- with .masterCapGib }}
+            - --cache-volume-master-cap-gib={{ . }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
             {{- if .Values.macosFleet.tailscale.enabled }}
             # Tailscale + node_exporter artifact paths. Both are
             # baked into the operator image at the Dockerfile-pinned
