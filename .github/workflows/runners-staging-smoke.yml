@@ -24,6 +24,19 @@ name: Runners Staging Smoke Test
 
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "validate (marker persistence) or benchmark (tuist generate timing)"
+        required: false
+        default: "validate"
+        type: choice
+        options:
+          - validate
+          - benchmark
+      run_label:
+        description: "Short label for this run's cache-volume marker (e.g. a, b)"
+        required: false
+        default: "a"
   # Also fires when this workflow file itself changes on the
   # feat/runners-shape-2 branch. The smoke isn't a default CI
   # hook (would burn a runner slot on every PR), but during the
@@ -51,7 +64,7 @@ jobs:
     # to also list `self-hosted` (which is advertised on the
     # runner but isn't an authorization boundary).
     runs-on: tuist-staging-macos
-    timeout-minutes: 10
+    timeout-minutes: 45
     steps:
       - name: Show environment
         run: |
@@ -62,6 +75,66 @@ jobs:
           # Confirm we're inside a Tart VM. The VM's hostname is
           # set by Tart and the host CPU model leaks via sysctl.
           sysctl -n machdep.cpu.brand_string
+
+      - name: Cache volume — state + marker persistence (spec #76)
+        run: |
+          set -uo pipefail
+          echo "=== per-account cache volume (spec #76) — guest-side state ==="
+          echo "TUIST_XDG_CACHE_HOME  = ${TUIST_XDG_CACHE_HOME:-<unset>}"
+          echo "TUIST_CACHE_MAX_BYTES = ${TUIST_CACHE_MAX_BYTES:-<unset>}"
+          if [ -n "${TUIST_CACHE_SIGNING_GRANT:-}" ]; then
+            echo "TUIST_CACHE_SIGNING_GRANT = present (len ${#TUIST_CACHE_SIGNING_GRANT})"
+          else
+            echo "TUIST_CACHE_SIGNING_GRANT = absent (grant off / MAC fallback)"
+          fi
+          echo "=== mounts ==="; /sbin/mount | grep -i "tuist-cache" || echo "(no tuist-cache mount)"
+          ls -la /Volumes/ 2>/dev/null || true
+
+          root="${TUIST_XDG_CACHE_HOME:-}"
+          if [ -z "${root}" ]; then
+            echo "::warning::VOLUME NOT MOUNTED — job is on the cold path (no cache volume this boot)."
+            exit 0
+          fi
+          echo "=== df of the cache volume ==="; df -h "${root}" || true
+
+          bindir="${root}/tuist/Binaries"
+          echo "=== markers present BEFORE this run (persisted from a prior run) ==="
+          if ls -1 "${bindir}" 2>/dev/null | grep -q "validation-marker"; then
+            ls -1 "${bindir}" | grep "validation-marker" | sed 's/^/  found: /'
+            echo "RESULT: a prior run's marker PERSISTED -> attach + mount + dirty-gate + promote + clone-from-master WORKS."
+          else
+            echo "  (none — expected on the first run / cold volume)"
+          fi
+
+          echo "=== writing this run's marker (adds a Binaries entry -> dirty=1 -> promote) ==="
+          mkdir -p "${bindir}"
+          marker="${bindir}/validation-marker-${{ inputs.run_label }}-${{ github.run_id }}"
+          printf 'run %s at %s\n' "${{ github.run_id }}" "$(date -u +%FT%TZ)" > "${marker}"
+          echo "  wrote ${marker}"
+          du -sh "${root}/tuist/"* 2>/dev/null | sed 's/^/  /' || true
+
+      - name: Benchmark — tuist generate tuist (spec #76)
+        if: ${{ inputs.mode == 'benchmark' }}
+        run: |
+          set -euo pipefail
+          if ! command -v mise >/dev/null 2>&1; then
+            curl -fsSL https://mise.run | sh
+            export PATH="${HOME}/.local/bin:${PATH}"
+          fi
+          echo "mise $(mise --version)"
+          rm -rf tuist-bench
+          git clone --filter=blob:none https://github.com/tuist/tuist tuist-bench
+          cd tuist-bench
+          mise install
+          echo "=== tuist install (package resolution) ==="
+          mise exec -- tuist install || true
+          echo "=== TIMED: tuist generate tuist ProjectDescription --no-open ==="
+          start=$(date +%s)
+          mise exec -- tuist generate tuist ProjectDescription --no-open
+          end=$(date +%s)
+          echo "GENERATE_SECONDS=$((end - start))"
+          root="${TUIST_XDG_CACHE_HOME:-}"
+          [ -n "${root}" ] && { echo "=== cache warmth captured ==="; du -sh "${root}/tuist/"* 2>/dev/null | sed 's/^/  /'; ls -1 "${root}/tuist/Manifests/" 2>/dev/null | head -3 | sed 's/^/  manifest: /'; } || true
 
       - name: Public reachability check
         run: |
