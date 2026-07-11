@@ -360,6 +360,13 @@ pub struct Proxy {
     readahead: Prefetcher,
     readahead_errors: AtomicU64,
     readahead_done: AtomicU64,
+    // Resolves/publishes that arrived with no declared instance and no primed
+    // registry mapping. They answer a silent miss by design (an unprimed ⌘B
+    // build must degrade, not fail) — but a MISCONFIGURED build looks exactly
+    // the same, so the count is logged (first occurrence, then every 1000th)
+    // and surfaced in the stats line. A whole benchmark ran cache-less for a
+    // day because this path had no visibility.
+    unprimed: AtomicU64,
     // Background materializer for demand-path resolves: a RESOLVE from a
     // compiler answers with the value digest right after the action lookup
     // and this pool fetches + stores the graph. Kept OFF the wavefront path —
@@ -404,6 +411,7 @@ impl Proxy {
             materializer: Prefetcher::new(),
             materialize_jobs: Mutex::new(HashMap::new()),
             job_counter: AtomicU64::new(0),
+            unprimed: AtomicU64::new(0),
             keylog_dir,
             analytics,
         }));
@@ -1360,6 +1368,19 @@ impl Proxy {
         self.tokens.refresh_if_expiring(lead);
     }
 
+    /// Counts (and occasionally logs) a request that could not be routed to an
+    /// instance. Logged on the first occurrence and every 1000th after.
+    fn note_unprimed(&self, cas_path: &str) {
+        let count = self.unprimed.fetch_add(1, Ordering::Relaxed) + 1;
+        if count == 1 || count % 1000 == 0 {
+            crate::log_line(&format!(
+                "unprimed request #{count} for {cas_path}: no instance declared and none registered — \
+                 answering local-only misses (is the build carrying its tuist-instance option or \
+                 TUIST_CAS_ACCOUNT/TUIST_CAS_PROJECT?)"
+            ));
+        }
+    }
+
     pub fn stats_line(&self) -> String {
         let paths = self.paths.lock().unwrap();
         let mut parts = Vec::new();
@@ -1406,7 +1427,10 @@ impl Proxy {
                 let Some(instance) = self.resolve_instance(&request.cas_path, &request.instance)
                 else {
                     // Unprimed ⌘B build: no instance to route to. Degrade to a
-                    // miss so the compiler proceeds on the local CAS.
+                    // miss so the compiler proceeds on the local CAS — but say
+                    // so, since a build that lost its instance configuration
+                    // looks identical and silently runs cache-less.
+                    self.note_unprimed(&request.cas_path);
                     return write_response(&mut stream, STATUS_MISS, &[]);
                 };
                 let remote = self.remote_for(&instance);
@@ -1431,6 +1455,8 @@ impl Proxy {
                 if let Some(instance) = self.resolve_instance(&request.cas_path, &request.instance) {
                     let record_path = String::from_utf8_lossy(&request.payload).into_owned();
                     self.enqueue_publish(&request.cas_path, &instance, &record_path);
+                } else {
+                    self.note_unprimed(&request.cas_path);
                 }
                 write_response(&mut stream, STATUS_HIT, &[])
             }
