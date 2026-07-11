@@ -1,5 +1,6 @@
 import FileSystem
 import Foundation
+import Path
 import struct TSCUtility.Version
 import TuistConfig
 import TuistCore
@@ -69,12 +70,28 @@ public struct GraphLinter: GraphLinting {
 
     private func lintSchemesUnknownTargets(graphTraverser: GraphTraversing) -> [LintingIssue] {
         let targets = graphTraverser.targets()
+        let localPackagePaths = Set(
+            graphTraverser.projects.values
+                .flatMap(\.packages)
+                .compactMap { package -> AbsolutePath? in
+                    guard case let .local(path) = package else { return nil }
+                    return path
+                }
+        )
         return graphTraverser.schemes().compactMap { scheme in
+            let codeCoverageTargets = Set(scheme.testAction?.codeCoverageTargets ?? [])
             let unknownTargets = scheme
                 .targetDependencies()
                 .filter { targetReference in
                     if let target = targets[targetReference.projectPath],
                        target.keys.contains(targetReference.name)
+                    {
+                        return false
+                    }
+                    // Code coverage targets can reference targets of local Swift packages,
+                    // which are not part of the graph but are resolvable by Xcode.
+                    if codeCoverageTargets.contains(targetReference),
+                       localPackagePaths.contains(targetReference.projectPath)
                     {
                         return false
                     }

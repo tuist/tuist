@@ -420,18 +420,26 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             environments = environmentVariables(arguments.environmentVariables)
         }
 
+        let localPackagePaths = localPackagePaths(graphTraverser: graphTraverser)
         let codeCoverageTargets = try testAction.codeCoverageTargets
             .compactMap { (target: TargetReference) -> XCScheme.BuildableReference? in
-                guard let graphTarget = graphTraverser.target(
+                if let graphTarget = graphTraverser.target(
                     path: target.projectPath, name: target.name
-                )
-                else { return nil }
-                return try testCoverageTargetReferences(
-                    graphTarget: graphTarget,
-                    graphTraverser: graphTraverser,
-                    generatedProjects: generatedProjects,
-                    rootPath: rootPath
-                )
+                ) {
+                    return try testCoverageTargetReferences(
+                        graphTarget: graphTarget,
+                        graphTraverser: graphTraverser,
+                        generatedProjects: generatedProjects,
+                        rootPath: rootPath
+                    )
+                }
+                // Coverage targets can reference targets of local Swift packages, which are
+                // not part of the graph. Xcode resolves them through the package directory
+                // used as the referenced container.
+                if localPackagePaths.contains(target.projectPath) {
+                    return packageTargetBuildableReference(target: target, rootPath: rootPath)
+                }
+                return nil
             }
 
         var macroExpansion: XCScheme.BuildableReference?
@@ -1092,6 +1100,40 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             buildableName: target.productNameWithExtension,
             blueprintName: target.name,
             buildableIdentifier: "primary"
+        )
+    }
+
+    /// Returns the paths of the local Swift packages declared by the graph projects.
+    ///
+    /// - Parameter graphTraverser: Tuist graph traverser.
+    /// - Returns: Set of local package directories.
+    private func localPackagePaths(graphTraverser: GraphTraversing) -> Set<AbsolutePath> {
+        Set(
+            graphTraverser.projects.values
+                .flatMap(\.packages)
+                .compactMap { package -> AbsolutePath? in
+                    guard case let .local(path) = package else { return nil }
+                    return path
+                }
+        )
+    }
+
+    /// Creates a buildable reference for a target that belongs to a local Swift package.
+    /// Package targets are not part of the generated projects, so the reference points to
+    /// the package directory the same way Xcode does when the target is selected manually.
+    ///
+    /// - Parameters:
+    ///     - target: The target reference, with the package directory as its project path.
+    ///     - rootPath: Path to the project or workspace.
+    private func packageTargetBuildableReference(
+        target: TargetReference,
+        rootPath: AbsolutePath
+    ) -> XCScheme.BuildableReference {
+        XCScheme.BuildableReference(
+            referencedContainer: "container:\(target.projectPath.relative(to: rootPath).pathString)",
+            blueprintIdentifier: target.name,
+            buildableName: target.name,
+            blueprintName: target.name
         )
     }
 
