@@ -764,9 +764,18 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			HostCPU:            hostCPUFor(machine, r.TartKubeletHostCPU),
 			HostMemoryMB:       hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
 			MaxPods:            r.TartKubeletMaxPods,
-			VNCRelayHost:       vncRelayHost,
-			VNCRelayPort:       vncRelayPort,
-			NodeLabels:         machineNodeLabels(machine),
+			// Per-account cache volumes (spec #76) must ride the drift loop
+			// too: the volume flag + provisioning land on already-bootstrapped
+			// minis via UpdateTartKubelet, not first-boot Run. Omitting these
+			// left the plist without --runner-cache-root (tart-kubelet booted
+			// every VM cold) and skipped installRunnerCacheVolume, while the
+			// operator's canonical HostConfigHash still reflected the enabled
+			// config — so the roll looked applied but the feature was off.
+			RunnerCacheVolumeGiB:    r.RunnerCacheVolumeGiB,
+			CacheVolumeMasterCapGiB: r.CacheVolumeMasterCapGiB,
+			VNCRelayHost:            vncRelayHost,
+			VNCRelayPort:            vncRelayPort,
+			NodeLabels:              machineNodeLabels(machine),
 			// Builder hosts must keep `--disable-vm-gc` across binary
 			// rolls. This path re-renders the plist but doesn't re-resolve
 			// GHActionsRunner (which renderLaunchdPlist otherwise keys the
