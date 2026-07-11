@@ -684,6 +684,20 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	// without operator action. Recovery: clear FailureReason +
 	// reset TartKubeletUpdateAttempts to resume the loop.
 	terminalFailure := machine.Status.FailureReason != nil
+	// Self-heal on config drift: a terminal failure is a verdict on the
+	// config the operator was trying to push when it exhausted its
+	// retries. If the desired host config has drifted since (configDrift
+	// is true against the stored hash the failure was recorded at), a new
+	// — typically fixed — config has landed, and it deserves its own retry
+	// budget rather than inheriting the old config's verdict. Clearing the
+	// terminal state here makes pushing a corrected operator image
+	// self-heal every host a bad rollout bricked, instead of requiring a
+	// manual status patch per host. A config that is still broken simply
+	// re-exhausts its retries and re-enters the terminal state.
+	if configDrift && terminalFailure {
+		clearUpdateFailure(machine, logger, r.Recorder)
+		terminalFailure = false
+	}
 	if configDrift && !terminalFailure {
 		ip := machineIP(machine)
 		if ip == "" {
@@ -1055,9 +1069,11 @@ func hostConfigDrift(operatorHash, machineHash string) bool {
 // state. The counter is reset on successful UpdateTartKubelet. We
 // don't try to be clever about which step in the loop failed; from
 // the CR's perspective, any failure that prevents the kubeconfig
-// landing on the host counts the same. Recovery is operator-driven:
-// `kubectl patch` to clear status.failureReason + zero
-// status.tartKubeletUpdateAttempts and the loop resumes.
+// landing on the host counts the same. Recovery is automatic once the
+// operator's desired host config drifts (a new/fixed config is pushed —
+// see clearUpdateFailure), or operator-driven before then: `kubectl patch`
+// to clear status.failureReason + zero status.tartKubeletUpdateAttempts and
+// the loop resumes.
 func recordUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, err error, maxAttempts int32, logger logr.Logger, recorder record.EventRecorder) {
 	machine.Status.TartKubeletUpdateAttempts++
 	logger.Error(err, "tart-kubelet update step failed",
@@ -1078,6 +1094,29 @@ func recordUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, err error
 	recorder.Eventf(machine, corev1.EventTypeWarning, "AgentRollFailed",
 		"tart-kubelet update attempt %d/%d: %v",
 		machine.Status.TartKubeletUpdateAttempts, maxAttempts, err)
+}
+
+// clearUpdateFailure resets the drift-loop retry counter and lifts the
+// terminal Failed state so the loop resumes. Called when the operator's
+// desired host config has drifted since the failure was recorded: the new
+// config is a fresh target (typically a fix) that deserves its own retry
+// budget rather than the old config's terminal verdict, so a bad rollout
+// self-heals on the next config push instead of stranding every affected
+// host on a manual `kubectl patch`. No-op when there is nothing to clear.
+func clearUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, logger logr.Logger, recorder record.EventRecorder) {
+	if machine.Status.FailureReason == nil && machine.Status.FailureMessage == nil && machine.Status.TartKubeletUpdateAttempts == 0 {
+		return
+	}
+	logger.Info("clearing terminal tart-kubelet-update failure; host config drifted since it was recorded — retrying against the new config",
+		"previousAttempts", machine.Status.TartKubeletUpdateAttempts)
+	machine.Status.FailureReason = nil
+	machine.Status.FailureMessage = nil
+	machine.Status.TartKubeletUpdateAttempts = 0
+	if machine.Status.Phase == "Failed" {
+		machine.Status.Phase = ""
+	}
+	recorder.Eventf(machine, corev1.EventTypeNormal, "AgentRollRetried",
+		"host config drifted since the terminal tart-kubelet update failure; cleared it and retrying against the new config")
 }
 
 // bootstrapRecoveryClient is the narrow Scaleway surface

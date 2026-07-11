@@ -102,6 +102,45 @@ func TestRecordUpdateFailure_TransitionsToFailedAtCap(t *testing.T) {
 	}
 }
 
+func TestClearUpdateFailure_ResetsTerminalState(t *testing.T) {
+	machine := &infrav1.ScalewayAppleSiliconMachine{}
+	for i := 0; i < 5; i++ {
+		recordUpdateFailure(machine, errors.New("boom"), 5, logr.Discard(), fakeRecorder())
+	}
+	if machine.Status.FailureReason == nil {
+		t.Fatal("precondition: expected terminal failure before clearing")
+	}
+
+	clearUpdateFailure(machine, logr.Discard(), fakeRecorder())
+
+	if machine.Status.FailureReason != nil {
+		t.Fatalf("FailureReason: got %q, want nil", *machine.Status.FailureReason)
+	}
+	if machine.Status.FailureMessage != nil {
+		t.Fatalf("FailureMessage: got %q, want nil", *machine.Status.FailureMessage)
+	}
+	if machine.Status.TartKubeletUpdateAttempts != 0 {
+		t.Fatalf("attempts: got %d, want 0", machine.Status.TartKubeletUpdateAttempts)
+	}
+	if machine.Status.Phase == "Failed" {
+		t.Fatal("Phase: still Failed after clear")
+	}
+}
+
+func TestClearUpdateFailure_NoOpWhenClean(t *testing.T) {
+	machine := &infrav1.ScalewayAppleSiliconMachine{}
+	rec := record.NewFakeRecorder(10)
+	clearUpdateFailure(machine, logr.Discard(), rec)
+	select {
+	case ev := <-rec.Events:
+		t.Fatalf("expected no event on a clean machine; got %q", ev)
+	default:
+	}
+	if machine.Status.TartKubeletUpdateAttempts != 0 || machine.Status.FailureReason != nil {
+		t.Fatal("clean machine mutated by clearUpdateFailure")
+	}
+}
+
 func TestRecordUpdateFailure_DoesNotTransitionBeforeCap(t *testing.T) {
 	machine := &infrav1.ScalewayAppleSiliconMachine{}
 	for i := 0; i < 4; i++ {
