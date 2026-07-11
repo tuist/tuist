@@ -1,0 +1,82 @@
+name: Runner Cache Volume Validation
+
+# Staging e2e validation for per-account cache volumes (spec #76).
+# Manual only. Targets the staging runners pool (runs-on:
+# tuist-staging-macos), so a warm Pod on the runner Mac mini picks it up.
+#
+# Correctness proof (run this workflow twice, back to back):
+#   Run 1 writes a unique marker into the mounted cache volume's Binaries/
+#   subtree. Adding a Binaries entry makes the guest's dirty-inventory diff
+#   report dirty=1, so on a clean job exit tart-kubelet promotes the branch
+#   to the account's new master.
+#   Run 2 boots a fresh VM whose cache volume is a CoW clone of that
+#   promoted master, so it must SEE run 1's marker in the pre-existing list.
+#   Seeing it proves, end to end: block-device attach + auto-mount by APFS
+#   label, cache-root pointing (TUIST_XDG_CACHE_HOME), the dirty gate, the
+#   promote, and clone-from-master on the next boot.
+#
+# A cold path (no volume mounted) prints VOLUME NOT MOUNTED and the marker
+# never persists across runs — the negative signal.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_label:
+        description: "Short label to tag this run's marker (e.g. a, b)"
+        required: false
+        default: "run"
+
+permissions: {}
+
+jobs:
+  validate:
+    runs-on: tuist-staging-macos
+    timeout-minutes: 10
+    steps:
+      - name: Report cache-volume state and marker persistence
+        run: |
+          set -uo pipefail
+          echo "=== Runner cache volume (spec #76) — guest-side state ==="
+          echo "TUIST_XDG_CACHE_HOME = ${TUIST_XDG_CACHE_HOME:-<unset>}"
+          echo "TUIST_CACHE_MAX_BYTES = ${TUIST_CACHE_MAX_BYTES:-<unset>}"
+          if [ -n "${TUIST_CACHE_SIGNING_GRANT:-}" ]; then
+            echo "TUIST_CACHE_SIGNING_GRANT = present (len ${#TUIST_CACHE_SIGNING_GRANT})"
+          else
+            echo "TUIST_CACHE_SIGNING_GRANT = absent (grant minting off or MAC fallback)"
+          fi
+          echo
+          echo "=== mounts / volumes ==="
+          /sbin/mount | grep -i "tuist-cache" || echo "(no tuist-cache mount)"
+          ls -la /Volumes/ 2>/dev/null || true
+          echo
+
+          root="${TUIST_XDG_CACHE_HOME:-}"
+          if [ -z "${root}" ]; then
+            echo "RESULT: VOLUME NOT MOUNTED — job is on the cold path."
+            echo "(If this persists after the roll, the guest mount gate did not find the attached volume.)"
+            exit 0
+          fi
+
+          echo "=== df of the cache volume ==="
+          df -h "${root}" || true
+          echo
+          echo "=== markers present BEFORE this run (persisted from prior runs) ==="
+          bindir="${root}/tuist/Binaries"
+          if ls -1 "${bindir}" 2>/dev/null | grep -q "validation-marker"; then
+            ls -1 "${bindir}" | grep "validation-marker" | sed 's/^/  found: /'
+            echo "RESULT: a prior run's marker PERSISTED — promote + clone-from-master WORKS."
+          else
+            echo "  (none)"
+            echo "RESULT: no prior marker — this is the first run on a cold/empty volume (expected for run 1)."
+          fi
+          echo
+
+          echo "=== writing this run's marker (adds a Binaries entry -> dirty=1 -> promote) ==="
+          mkdir -p "${bindir}"
+          marker="${bindir}/validation-marker-${{ inputs.run_label }}-${{ github.run_id }}"
+          printf 'written by GitHub run %s at %s\n' "${{ github.run_id }}" "$(date -u +%FT%TZ)" > "${marker}"
+          echo "  wrote: ${marker}"
+          ls -la "${bindir}" | sed 's/^/  /'
+          echo
+          echo "=== cache directory subtree sizes (warmth captured so far) ==="
+          du -sh "${root}/tuist/"* 2>/dev/null | sed 's/^/  /' || echo "  (empty)"
