@@ -39,6 +39,13 @@ const MAX_RESOLVED: usize = 1_000_000;
 const MAX_KNOWN_LOCAL_PER_SHARD: usize = 250_000;
 const MAX_PUBLISH_CACHE: usize = 500_000;
 
+// Snapshot refresh cadence and cache bounds (see `refresh_snapshots`).
+const SNAPSHOT_DELTA_INTERVAL: Duration = Duration::from_secs(120);
+const SNAPSHOT_FULL_INTERVAL: Duration = Duration::from_secs(30 * 60);
+const SNAPSHOT_RETRY_INTERVAL: Duration = Duration::from_secs(60 * 60);
+const SNAPSHOT_IDLE_EVICT: Duration = Duration::from_secs(60 * 60);
+const SNAPSHOT_MAX_INSTANCES: usize = 8;
+
 /// How long a cached miss is served before it is re-resolved. Positive results
 /// are content-addressed and kept forever; only negatives expire, so a key
 /// published by another machine after our miss becomes visible on the next
@@ -238,25 +245,44 @@ struct MaterializeJob {
 /// index order preserves the ActionResult's output order, so a key's first
 /// node is its value root. Makes a completely cold machine — no keylog, no
 /// prior build, an agentic sandbox — resolve like a warm one.
+#[derive(Clone)]
 pub struct Snapshot {
     nodes: Vec<(Vec<u8>, reapi::Digest)>,
+    // llcas digest -> index into `nodes`, kept so delta responses (which carry
+    // self-contained node tables) can be merged without duplicating nodes.
+    node_index: HashMap<Vec<u8>, u32>,
     keys: HashMap<[u8; 32], Vec<u32>>,
+    /// Newest write time the server knew when this view was produced; passed
+    /// back as the delta watermark on refresh.
+    watermark: u64,
 }
 
-/// Per-instance snapshot lifecycle: fetched once, in the background, off every
-/// resolve path. While `Fetching` (or after `Absent`), resolves use the
+/// Per-instance snapshot lifecycle. The initial fetch happens in the
+/// background off every resolve path; the maintenance loop then keeps a Ready
+/// snapshot fresh with deltas, replaces it wholesale on a longer cadence
+/// (deltas only ADD — the periodic full fetch is what re-applies the server's
+/// presence gate after evictions), retries Absent occasionally (the server
+/// may have been upgraded under a long-lived proxy), and bounds the cache by
+/// evicting idle instances. While `Fetching` or `Absent`, resolves use the
 /// ordinary per-key path.
 enum SnapshotState {
     Fetching,
-    Ready(Arc<Snapshot>),
-    Absent,
+    Ready {
+        snapshot: Arc<Snapshot>,
+        full_at: Instant,
+        refreshed_at: Instant,
+        last_used: Instant,
+    },
+    Absent {
+        checked: Instant,
+    },
 }
 
 impl Snapshot {
-    /// Decodes the server's snapshot wire format (see kura's
-    /// `encode_actioncache_snapshot`): `"TSNP"` + version byte, node table,
-    /// per-key node-index lists. `None` on any structural violation — the
-    /// caller stays on the per-key path rather than trusting a torn payload.
+    /// Decodes the server's snapshot wire format: `"TSNP"` + version byte,
+    /// u64 write-time watermark, node table, per-key node-index lists. `None`
+    /// on any structural violation — the caller stays on the per-key path
+    /// rather than trusting a torn payload.
     fn decode(bytes: &[u8]) -> Option<Snapshot> {
         fn take<'a>(bytes: &mut &'a [u8], n: usize) -> Option<&'a [u8]> {
             if bytes.len() < n {
@@ -270,9 +296,10 @@ impl Snapshot {
             Some(u32::from_le_bytes(take(bytes, 4)?.try_into().ok()?))
         }
         let mut bytes = bytes;
-        if take(&mut bytes, 4)? != b"TSNP" || take(&mut bytes, 1)? != [1] {
+        if take(&mut bytes, 4)? != b"TSNP" || take(&mut bytes, 1)? != [2] {
             return None;
         }
+        let watermark = u64::from_le_bytes(take(&mut bytes, 8)?.try_into().ok()?);
         let node_count = take_u32(&mut bytes)? as usize;
         let mut nodes = Vec::with_capacity(node_count);
         for _ in 0..node_count {
@@ -306,7 +333,39 @@ impl Snapshot {
             }
             keys.insert(action_hash, indexes);
         }
-        Some(Snapshot { nodes, keys })
+        let node_index = nodes
+            .iter()
+            .enumerate()
+            .map(|(index, (llcas, _))| (llcas.clone(), index as u32))
+            .collect();
+        Some(Snapshot {
+            nodes,
+            node_index,
+            keys,
+            watermark,
+        })
+    }
+
+    /// Merges a delta view into this one: delta node tables are
+    /// self-contained, so nodes are interned by llcas digest and the delta's
+    /// keys are remapped onto this snapshot's table. Deltas only add or
+    /// replace keys — retraction happens through the periodic full refresh.
+    fn merge(&mut self, delta: &Snapshot) {
+        let mut remap = Vec::with_capacity(delta.nodes.len());
+        for (llcas, blob) in &delta.nodes {
+            let index = *self.node_index.entry(llcas.clone()).or_insert_with(|| {
+                self.nodes.push((llcas.clone(), blob.clone()));
+                (self.nodes.len() - 1) as u32
+            });
+            remap.push(index);
+        }
+        for (hash, indexes) in &delta.keys {
+            self.keys.insert(
+                *hash,
+                indexes.iter().map(|&index| remap[index as usize]).collect(),
+            );
+        }
+        self.watermark = self.watermark.max(delta.watermark);
     }
 
     /// The manifest for an action key's sha256, if the snapshot holds it.
@@ -1363,34 +1422,165 @@ impl Proxy {
         let instance = instance.to_string();
         let remote = remote.clone();
         std::thread::spawn(move || {
-            let outcome = match remote.get_snapshot() {
-                Ok(Some(bytes)) => match Snapshot::decode(&bytes) {
-                    Some(snapshot) => {
-                        crate::log_line(&format!(
-                            "snapshot: {} keys / {} nodes ({} bytes) for {instance}",
-                            snapshot.keys.len(),
-                            snapshot.nodes.len(),
-                            bytes.len(),
-                        ));
-                        let snapshot = Arc::new(snapshot);
-                        proxy.prematerialize_snapshot(&instance, &snapshot);
-                        SnapshotState::Ready(snapshot)
-                    }
-                    None => {
-                        crate::log_line(&format!(
-                            "snapshot: undecodable payload for {instance}; staying on the per-key path"
-                        ));
-                        SnapshotState::Absent
-                    }
-                },
-                Ok(None) => SnapshotState::Absent,
-                Err(message) => {
-                    crate::log_line(&format!("snapshot fetch failed for {instance}: {message}"));
-                    SnapshotState::Absent
-                }
-            };
+            let outcome = proxy.fetch_full_snapshot(&instance, &remote);
             proxy.snapshots.lock().unwrap().insert(instance, outcome);
         });
+    }
+
+    /// One full snapshot fetch + decode, returning the resulting state.
+    fn fetch_full_snapshot(&self, instance: &str, remote: &Arc<Remote>) -> SnapshotState {
+        match remote.get_snapshot(None) {
+            Ok(Some(bytes)) => match Snapshot::decode(&bytes) {
+                Some(snapshot) => {
+                    crate::log_line(&format!(
+                        "snapshot: {} keys / {} nodes ({} bytes, watermark {}) for {instance}",
+                        snapshot.keys.len(),
+                        snapshot.nodes.len(),
+                        bytes.len(),
+                        snapshot.watermark,
+                    ));
+                    let snapshot = Arc::new(snapshot);
+                    self.prematerialize_snapshot(instance, &snapshot);
+                    SnapshotState::Ready {
+                        snapshot,
+                        full_at: Instant::now(),
+                        refreshed_at: Instant::now(),
+                        last_used: Instant::now(),
+                    }
+                }
+                None => {
+                    crate::log_line(&format!(
+                        "snapshot: undecodable payload for {instance}; staying on the per-key path"
+                    ));
+                    SnapshotState::Absent { checked: Instant::now() }
+                }
+            },
+            Ok(None) => SnapshotState::Absent { checked: Instant::now() },
+            Err(message) => {
+                crate::log_line(&format!("snapshot fetch failed for {instance}: {message}"));
+                SnapshotState::Absent { checked: Instant::now() }
+            }
+        }
+    }
+
+    /// Called from the maintenance loop: keeps Ready snapshots fresh with
+    /// deltas (SNAPSHOT_DELTA_INTERVAL), replaces them wholesale on
+    /// SNAPSHOT_FULL_INTERVAL (deltas only ADD; the full fetch re-applies the
+    /// server's blob-presence gate after evictions), retries Absent after
+    /// SNAPSHOT_RETRY_INTERVAL (the server may have been upgraded under this
+    /// long-lived proxy), and BOUNDS the cache: instances idle past
+    /// SNAPSHOT_IDLE_EVICT are dropped and the map is capped at
+    /// SNAPSHOT_MAX_INSTANCES by evicting the least recently used.
+    pub fn refresh_snapshots(&self) {
+        let now = Instant::now();
+        enum Plan {
+            Delta { instance: String, watermark: u64 },
+            Full { instance: String },
+        }
+        // Plan under the lock, fetch outside it.
+        let mut plans: Vec<Plan> = Vec::new();
+        {
+            let mut snapshots = self.snapshots.lock().unwrap();
+            snapshots.retain(|_, state| match state {
+                SnapshotState::Ready { last_used, .. } => {
+                    now.duration_since(*last_used) < SNAPSHOT_IDLE_EVICT
+                }
+                _ => true,
+            });
+            while snapshots.len() > SNAPSHOT_MAX_INSTANCES {
+                let oldest = snapshots
+                    .iter()
+                    .filter_map(|(instance, state)| match state {
+                        SnapshotState::Ready { last_used, .. } => {
+                            Some((instance.clone(), *last_used))
+                        }
+                        _ => None,
+                    })
+                    .min_by_key(|(_, last_used)| *last_used)
+                    .map(|(instance, _)| instance);
+                let Some(oldest) = oldest else { break };
+                snapshots.remove(&oldest);
+            }
+            for (instance, state) in snapshots.iter() {
+                match state {
+                    SnapshotState::Ready {
+                        snapshot,
+                        full_at,
+                        refreshed_at,
+                        ..
+                    } => {
+                        if now.duration_since(*full_at) > SNAPSHOT_FULL_INTERVAL {
+                            plans.push(Plan::Full { instance: instance.clone() });
+                        } else if now.duration_since(*refreshed_at) > SNAPSHOT_DELTA_INTERVAL {
+                            plans.push(Plan::Delta {
+                                instance: instance.clone(),
+                                watermark: snapshot.watermark,
+                            });
+                        }
+                    }
+                    SnapshotState::Absent { checked }
+                        if now.duration_since(*checked) > SNAPSHOT_RETRY_INTERVAL =>
+                    {
+                        plans.push(Plan::Full { instance: instance.clone() });
+                    }
+                    _ => {}
+                }
+            }
+        }
+        for plan in plans {
+            match plan {
+                Plan::Full { instance } => {
+                    let remote = self.remote_for(&instance);
+                    let outcome = self.fetch_full_snapshot(&instance, &remote);
+                    self.snapshots.lock().unwrap().insert(instance, outcome);
+                }
+                Plan::Delta { instance, watermark } => {
+                    let remote = self.remote_for(&instance);
+                    match remote.get_snapshot(Some(watermark)) {
+                        Ok(Some(bytes)) => {
+                            let Some(delta) = Snapshot::decode(&bytes) else { continue };
+                            let warm = {
+                                let mut snapshots = self.snapshots.lock().unwrap();
+                                let Some(SnapshotState::Ready {
+                                    snapshot,
+                                    refreshed_at,
+                                    ..
+                                }) = snapshots.get_mut(&instance)
+                                else {
+                                    continue;
+                                };
+                                *refreshed_at = now;
+                                let mut updated = (**snapshot).clone();
+                                if delta.keys.is_empty() {
+                                    // Still advance the echoed watermark.
+                                    updated.watermark = updated.watermark.max(delta.watermark);
+                                    *snapshot = Arc::new(updated);
+                                    None
+                                } else {
+                                    crate::log_line(&format!(
+                                        "snapshot delta: {} keys for {instance}",
+                                        delta.keys.len()
+                                    ));
+                                    updated.merge(&delta);
+                                    *snapshot = Arc::new(updated);
+                                    Some(Arc::new(delta))
+                                }
+                            };
+                            // Warm the new keys' content like the initial fetch.
+                            if let Some(delta) = warm {
+                                self.prematerialize_snapshot(&instance, &delta);
+                            }
+                        }
+                        Ok(None) => {}
+                        Err(message) => {
+                            crate::log_line(&format!(
+                                "snapshot delta fetch failed for {instance}: {message}"
+                            ));
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// Queues materialization of every graph the snapshot describes: bulk
@@ -1431,8 +1621,11 @@ impl Proxy {
     }
 
     fn snapshot_ready(&self, instance: &str) -> Option<Arc<Snapshot>> {
-        match self.snapshots.lock().unwrap().get(instance) {
-            Some(SnapshotState::Ready(snapshot)) => Some(snapshot.clone()),
+        match self.snapshots.lock().unwrap().get_mut(instance) {
+            Some(SnapshotState::Ready { snapshot, last_used, .. }) => {
+                *last_used = Instant::now();
+                Some(snapshot.clone())
+            }
             _ => None,
         }
     }
@@ -1705,7 +1898,8 @@ mod tests {
         // (root first).
         let mut bytes = Vec::new();
         bytes.extend_from_slice(b"TSNP");
-        bytes.push(1);
+        bytes.push(2);
+        bytes.extend_from_slice(&777u64.to_le_bytes());
         bytes.extend_from_slice(&2u32.to_le_bytes());
         for (llcas, blob_byte, size) in [(vec![0xAAu8, 0xBB], 7u8, 10u64), (vec![0xCC], 8, 20)] {
             bytes.push(llcas.len() as u8);
@@ -1720,6 +1914,7 @@ mod tests {
         bytes.extend_from_slice(&0u32.to_le_bytes());
 
         let snapshot = Snapshot::decode(&bytes).expect("decodes");
+        assert_eq!(snapshot.watermark, 777);
         let manifest = snapshot.manifest(&[5u8; 32]).expect("key present");
         assert_eq!(manifest.len(), 2);
         // Root = the key's first node (index 1 = the [0xCC] node).
@@ -1735,6 +1930,34 @@ mod tests {
         let at = bad_index.len() - 4;
         bad_index[at..].copy_from_slice(&9u32.to_le_bytes());
         assert!(Snapshot::decode(&bad_index).is_none());
+
+        // A delta merges by llcas digest: shared nodes dedup, new keys land,
+        // the watermark advances.
+        let mut delta_bytes = Vec::new();
+        delta_bytes.extend_from_slice(b"TSNP");
+        delta_bytes.push(2);
+        delta_bytes.extend_from_slice(&900u64.to_le_bytes());
+        delta_bytes.extend_from_slice(&2u32.to_le_bytes());
+        for (llcas, blob_byte, size) in [(vec![0xEEu8], 3u8, 40u64), (vec![0xCC], 8, 20)] {
+            delta_bytes.push(llcas.len() as u8);
+            delta_bytes.extend_from_slice(&llcas);
+            delta_bytes.extend_from_slice(&[blob_byte; 32]);
+            delta_bytes.extend_from_slice(&size.to_le_bytes());
+        }
+        delta_bytes.extend_from_slice(&1u32.to_le_bytes());
+        delta_bytes.extend_from_slice(&[9u8; 32]);
+        delta_bytes.extend_from_slice(&2u32.to_le_bytes());
+        delta_bytes.extend_from_slice(&0u32.to_le_bytes());
+        delta_bytes.extend_from_slice(&1u32.to_le_bytes());
+        let delta = Snapshot::decode(&delta_bytes).expect("delta decodes");
+        let mut merged = snapshot.clone();
+        merged.merge(&delta);
+        assert_eq!(merged.watermark, 900);
+        assert_eq!(merged.nodes.len(), 3, "shared [0xCC] node deduplicated");
+        let new_key = merged.manifest(&[9u8; 32]).expect("delta key present");
+        assert_eq!(new_key[0].llcas_digest, vec![0xEE]);
+        assert_eq!(new_key[1].llcas_digest, vec![0xCC]);
+        assert!(merged.manifest(&[5u8; 32]).is_some(), "existing key kept");
     }
 
     fn resolved_with(entries: Vec<(Vec<u8>, Resolution)>) -> Mutex<HashMap<Vec<u8>, Resolution>> {

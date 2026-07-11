@@ -163,8 +163,13 @@ fn unhex(s: &str) -> Option<Vec<u8>> {
 
 /// Reserved action key kura answers with the instance-wide action-cache
 /// snapshot. Must byte-match the server constant; the version suffix bumps on
-/// any encoding change so a mixed deployment degrades to a plain not-found.
-pub const SNAPSHOT_ACTION_KEY: &[u8] = b"tuist-actioncache-snapshot/v1";
+/// any encoding change so a mixed deployment degrades to a plain not-found
+/// (v2 added the write-time watermark header and delta responses).
+pub const SNAPSHOT_ACTION_KEY: &[u8] = b"tuist-actioncache-snapshot/v2";
+/// `inline_output_files` hint carrying our watermark: the server then returns
+/// only entries written after it (a delta), so a long-lived proxy refreshes
+/// without refetching the world.
+const SNAPSHOT_AFTER_HINT: &str = "tuist-snapshot-after:";
 
 pub fn blob_digest(content: &[u8]) -> reapi::Digest {
     reapi::Digest {
@@ -360,12 +365,17 @@ impl Remote {
     /// single output file (see `SNAPSHOT_ACTION_KEY`). `Ok(None)` means the
     /// server has no snapshot support (an ordinary not-found), and the caller
     /// stays on the per-key path.
-    pub fn get_snapshot(&self) -> Result<Option<Vec<u8>>, String> {
+    /// `after` asks for a delta: only entries written after that watermark.
+    pub fn get_snapshot(&self, after: Option<u64>) -> Result<Option<Vec<u8>>, String> {
         let mut client = self.ac_client()?;
+        let mut inline_output_files = vec!["*".to_string()];
+        if let Some(after) = after {
+            inline_output_files.push(format!("{SNAPSHOT_AFTER_HINT}{after}"));
+        }
         let request = reapi::GetActionResultRequest {
             instance_name: self.config.instance.clone(),
             action_digest: Some(action_digest(SNAPSHOT_ACTION_KEY)),
-            inline_output_files: vec!["*".into()],
+            inline_output_files,
             ..Default::default()
         };
         let response = retry_call(|| {
