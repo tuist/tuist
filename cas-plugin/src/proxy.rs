@@ -38,9 +38,18 @@ use crate::PublishRecord;
 const MAX_RESOLVED: usize = 1_000_000;
 const MAX_KNOWN_LOCAL_PER_SHARD: usize = 250_000;
 const MAX_PUBLISH_CACHE: usize = 500_000;
+// Retained fetch instructions are ~100B each, so the cap is a ~100MB memory
+// backstop a real workload never reaches (the CLI fixture peaks at ~37k). A
+// cleared map self-heals per object through the snapshot fallback in
+// `fetch_object`.
+const MAX_PENDING_OBJECTS: usize = 1_000_000;
 
 // Snapshot refresh cadence and cache bounds (see `refresh_snapshots`).
 const SNAPSHOT_DELTA_INTERVAL: Duration = Duration::from_secs(120);
+// How long a FETCH_OBJECT with no registered instruction waits for the
+// instance's snapshot to arrive before answering not-found (it runs on a
+// compiler worker thread, which demand fetches already block on network I/O).
+const SNAPSHOT_FETCH_WAIT: Duration = Duration::from_secs(20);
 const SNAPSHOT_FULL_INTERVAL: Duration = Duration::from_secs(30 * 60);
 const SNAPSHOT_RETRY_INTERVAL: Duration = Duration::from_secs(60 * 60);
 const SNAPSHOT_IDLE_EVICT: Duration = Duration::from_secs(60 * 60);
@@ -193,9 +202,11 @@ pub struct PathState {
     // bytes are dropped but the digest-only instruction is RETAINED — the
     // build system prunes the on-disk CAS mid-build, and a pruned object
     // under an already-served Hit must stay producible through
-    // OP_FETCH_OBJECT (clang fails the build on a missing object). Bounded by
-    // the namespace's unique node count at ~100B per entry; content-addressed,
-    // so entries stay valid across invalidations and wipes.
+    // OP_FETCH_OBJECT (clang fails the build on a missing object). Entries
+    // are content-addressed (valid across invalidations and wipes), ~100B
+    // each, and capped at MAX_PENDING_OBJECTS by `enforce_cache_bounds`;
+    // anything dropped is reconstructible from the instance snapshot in
+    // `fetch_object`.
     pending_objects: Mutex<HashMap<Vec<u8>, PendingFetch>>,
     pub stats_resolves: AtomicU64,
     pub stats_remote_hits: AtomicU64,
@@ -1070,7 +1081,17 @@ impl Proxy {
                 .get(digest)
                 .map(|(blob, _refs)| PendingFetch { blob: blob.clone(), contents: None })
         });
+        // Third source: the instance's snapshot node table. A restarted proxy
+        // has empty maps while Apple's persistent local action cache keeps
+        // serving associations that never pass through RESOLVE, so a prune of
+        // their objects lands here with no instruction anywhere — but the
+        // snapshot knows every advertised node's blob.
+        let pending = match pending {
+            Some(pending) => Some(pending),
+            None => self.snapshot_fetch_instruction(cas_path, declared_instance, digest),
+        };
         let Some(pending) = pending else { return Ok(false) };
+        let blob = pending.blob.clone();
         let blob_bytes = match pending.contents {
             Some(bytes) => bytes,
             None => {
@@ -1078,8 +1099,8 @@ impl Proxy {
                     return Ok(false);
                 };
                 let remote = self.remote_for(&instance);
-                let contents = remote.batch_read(&[pending.blob.clone()])?;
-                match contents.get(&pending.blob.hash) {
+                let contents = remote.batch_read(&[blob.clone()])?;
+                match contents.get(&blob.hash) {
                     Some(bytes) => bytes.clone(),
                     None => return Ok(false),
                 }
@@ -1092,11 +1113,51 @@ impl Proxy {
             return Ok(false);
         };
         unsafe { store_node(state, &node)? };
-        if let Some(instruction) = state.pending_objects.lock().unwrap().get_mut(digest) {
-            instruction.contents = None;
-        }
+        // Retain the digest-only instruction — including one the snapshot
+        // fallback just reconstructed — so the next prune of this object is
+        // produced without another snapshot wait.
+        state
+            .pending_objects
+            .lock()
+            .unwrap()
+            .entry(digest.to_vec())
+            .and_modify(|instruction| instruction.contents = None)
+            .or_insert(PendingFetch { blob, contents: None });
         state.stats_demand_fetched.fetch_add(1, Ordering::Relaxed);
         Ok(true)
+    }
+
+    /// Fetch instructions reconstructed from the instance's snapshot, for a
+    /// digest neither `pending_objects` nor `publish_cache` knows. Kicks off
+    /// the snapshot fetch when the instance has none yet (after a restart,
+    /// FETCH_OBJECT can arrive before any RESOLVE) and waits briefly for it —
+    /// this path already blocks a compiler worker thread on network I/O.
+    fn snapshot_fetch_instruction(
+        &self,
+        cas_path: &str,
+        declared_instance: &str,
+        digest: &[u8],
+    ) -> Option<PendingFetch> {
+        let instance = self.resolve_instance(cas_path, declared_instance)?;
+        let remote = self.remote_for(&instance);
+        self.ensure_snapshot(&instance, &remote);
+        let deadline = Instant::now() + SNAPSHOT_FETCH_WAIT;
+        let snapshot = loop {
+            if let Some(snapshot) = self.snapshot_ready(&instance) {
+                break snapshot;
+            }
+            let fetching = matches!(
+                self.snapshots.lock().unwrap().get(&instance),
+                Some(SnapshotState::Fetching)
+            );
+            if !fetching || Instant::now() >= deadline {
+                return None;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        };
+        let index = *snapshot.node_index.get(digest)?;
+        let (_, blob) = &snapshot.nodes[index as usize];
+        Some(PendingFetch { blob: blob.clone(), contents: None })
     }
 
     /// Detects a wiped-and-recreated on-disk CAS (a deleted DerivedData under
@@ -1339,6 +1400,9 @@ impl Proxy {
                     shard.lock().unwrap().clear();
                 }
             }
+            if state.pending_objects.lock().unwrap().len() > MAX_PENDING_OBJECTS {
+                state.pending_objects.lock().unwrap().clear();
+            }
         }
     }
 
@@ -1553,7 +1617,18 @@ impl Proxy {
                                 };
                                 *refreshed_at = now;
                                 let mut updated = (**snapshot).clone();
-                                if delta.keys.is_empty() {
+                                // The server's delta cursor is inclusive (its
+                                // millisecond versions are not unique), so
+                                // boundary entries are re-sent every tick;
+                                // only keys we do not already hold with the
+                                // same manifest are new work.
+                                let fresh: Vec<[u8; 32]> = delta
+                                    .keys
+                                    .keys()
+                                    .filter(|hash| updated.manifest(hash) != delta.manifest(hash))
+                                    .copied()
+                                    .collect();
+                                if fresh.is_empty() {
                                     // Still advance the echoed watermark.
                                     updated.watermark = updated.watermark.max(delta.watermark);
                                     *snapshot = Arc::new(updated);
@@ -1561,11 +1636,13 @@ impl Proxy {
                                 } else {
                                     crate::log_line(&format!(
                                         "snapshot delta: {} keys for {instance}",
-                                        delta.keys.len()
+                                        fresh.len()
                                     ));
                                     updated.merge(&delta);
                                     *snapshot = Arc::new(updated);
-                                    Some(Arc::new(delta))
+                                    let mut warm = delta;
+                                    warm.keys.retain(|hash, _| fresh.contains(hash));
+                                    Some(warm)
                                 }
                             };
                             // Warm the new keys' content like the initial fetch.
@@ -1740,11 +1817,22 @@ impl Proxy {
                 write_response(&mut stream, STATUS_HIT, &[])
             }
             OP_FETCH_OBJECT => {
-                // Only for a path we already track: a proxy that restarted
-                // mid-build has no pending fetches, so there is nothing to
-                // produce (and no reason to open a CAS handle).
-                let state = self.paths.lock().unwrap().get(&request.cas_path).copied();
-                let outcome = match state {
+                // Bind the path when the request is routable: a proxy that
+                // restarted under a persistent local action cache must still
+                // produce pruned objects (fetch_object reconstructs the
+                // instruction from the instance snapshot). An unroutable
+                // request stays a miss without opening a CAS handle.
+                let state = match self.paths.lock().unwrap().get(&request.cas_path).copied() {
+                    Some(state) => Ok(Some(state)),
+                    None if self
+                        .resolve_instance(&request.cas_path, &request.instance)
+                        .is_some() =>
+                    {
+                        self.path_state(&request.cas_path).map(Some)
+                    }
+                    None => Ok(None),
+                };
+                let outcome = state.and_then(|state| match state {
                     Some(state) => self.fetch_object(
                         state,
                         &request.cas_path,
@@ -1752,7 +1840,7 @@ impl Proxy {
                         &request.payload,
                     ),
                     None => Ok(false),
-                };
+                });
                 match outcome {
                     Ok(true) => write_response(&mut stream, STATUS_HIT, &[]),
                     Ok(false) => write_response(&mut stream, STATUS_MISS, &[]),
@@ -1925,6 +2013,11 @@ mod tests {
         assert_eq!(manifest[1].llcas_digest, vec![0xAA, 0xBB]);
         assert!(manifest.iter().all(|entry| entry.contents.is_none()));
         assert!(snapshot.manifest(&[6u8; 32]).is_none());
+        // The per-node lookup fetch_object's snapshot fallback uses: llcas
+        // digest -> the node's blob digest.
+        let index = *snapshot.node_index.get(&vec![0xCCu8]).expect("node indexed");
+        assert_eq!(snapshot.nodes[index as usize].1.size_bytes, 20);
+        assert!(!snapshot.node_index.contains_key(&vec![0xFFu8]));
 
         // Structural violations refuse to decode rather than misparse.
         assert!(Snapshot::decode(&bytes[..bytes.len() - 1]).is_none());
