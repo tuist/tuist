@@ -419,6 +419,14 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	if err := installTartKubelet(ctx, client, cfg.TartKubeletBinary); err != nil {
 		return hk.Observed(), fmt.Errorf("install tart-kubelet: %w", err)
 	}
+	// Re-run on the drift path so an already-bootstrapped host provisions the
+	// runner-cache volume when a fleet-config change first enables it (spec
+	// #76). Idempotent: the provisioning script skips when the volume is
+	// already mounted, so this never resizes a live volume and no-ops on
+	// every subsequent roll.
+	if err := installRunnerCacheVolume(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install runner cache volume: %w", err)
+	}
 	if err := installVMCachePNInterface(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("refresh vm cache pn interface: %w", err)
 	}
