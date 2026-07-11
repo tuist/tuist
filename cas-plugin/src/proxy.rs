@@ -39,34 +39,6 @@ const MAX_RESOLVED: usize = 1_000_000;
 const MAX_KNOWN_LOCAL_PER_SHARD: usize = 250_000;
 const MAX_PUBLISH_CACHE: usize = 500_000;
 
-/// Read-ahead bounds: a warm CLI-sized build demands ~11k action keys, so the
-/// key cap sits well above one build's set while bounding the on-disk log; the
-/// error cap stops the wavefront early when the remote is unreachable.
-const MAX_KEYLOG_KEYS: usize = 200_000;
-const MAX_READAHEAD_ERRORS: u64 = 32;
-
-/// Read-ahead wavefront width. RTT-bound work: at ~60ms per resolve, 32 workers
-/// replay ~11k keys in ~20s, against a multiplexed h2 channel the server side
-/// parallelizes. `TUIST_CAS_READAHEAD=0` disables read-ahead entirely.
-fn readahead_workers() -> usize {
-    std::env::var("TUIST_CAS_READAHEAD")
-        .ok()
-        .and_then(|value| value.parse().ok())
-        .unwrap_or(64)
-}
-
-/// Parses one lowercase-hex keylog line back into raw key bytes.
-fn unhex_line(line: &str) -> Option<Vec<u8>> {
-    let line = line.trim();
-    if line.is_empty() || line.len() % 2 != 0 {
-        return None;
-    }
-    (0..line.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&line[i..i + 2], 16).ok())
-        .collect()
-}
-
 /// How long a cached miss is served before it is re-resolved. Positive results
 /// are content-addressed and kept forever; only negatives expire, so a key
 /// published by another machine after our miss becomes visible on the next
@@ -208,22 +180,6 @@ pub struct PathState {
     // idle reclamation. Bumped once per resolve/publish (per action key, not per
     // node), so the maintenance loop can free caches of projects nobody builds.
     last_used: AtomicU64,
-    // Read-ahead: action keys requested against this path, persisted by the
-    // maintenance loop and speculatively re-resolved (in parallel, off the
-    // build's critical path) at the start of the next build. The demand path
-    // is serial — the build system and compilers ask one key at a time — so on
-    // a real-RTT link a warm build otherwise degenerates into a chain of
-    // round trips (measured 702s vs a 176s local floor at ~59ms RTT).
-    // Order matters: the log preserves DEMAND order, so the next build's
-    // wavefront replays keys in the order the build will ask for them and
-    // stays ahead of the serial demand path (a hash-ordered replay left ~65%
-    // of demand lookups paying their own round trip; measured 411s vs the
-    // ordered target near the local floor).
-    keylog: Mutex<(Vec<Vec<u8>>, HashSet<Vec<u8>>)>,
-    keylog_dirty: std::sync::atomic::AtomicBool,
-    // Whether the read-ahead wavefront was already started for this path (one
-    // per build: re-armed when the on-disk CAS is wiped or the path idles out).
-    readahead_armed: std::sync::atomic::AtomicBool,
     // llcas digest -> how to fetch its frame blob, for every node of every
     // value graph this proxy has answered. Inserted right after get_action
     // (before the resolve replies); once a node is stored locally its inlined
@@ -412,11 +368,6 @@ impl PathState {
         for shard in &self.known_local {
             shard.lock().unwrap().clear();
         }
-        // The local store may have lost objects: re-run the read-ahead
-        // wavefront so they are re-materialized off the critical path (keys
-        // still resolved in the map turn into cheap local presence probes).
-        self.readahead_armed
-            .store(false, std::sync::atomic::Ordering::SeqCst);
         // `pending_objects` is also KEPT: entries are content-addressed fetch
         // instructions, valid for any incarnation of the store — after a wipe
         // they let demand loads refill exactly what is asked for.
@@ -454,14 +405,6 @@ pub struct Proxy {
     registry_path: Option<PathBuf>,
     paths: Mutex<HashMap<String, &'static PathState>>,
     publisher: Prefetcher,
-    // Read-ahead pool: replays the previous build's key set through `resolve`
-    // in parallel at the start of a build, so the serial demand path finds its
-    // keys already resolved and its graphs already materialized. Items encode
-    // (instance, cas_path, key) like publisher items. Damped on transport
-    // errors so an unreachable remote cannot turn the wavefront into a storm.
-    readahead: Prefetcher,
-    readahead_errors: AtomicU64,
-    readahead_done: AtomicU64,
     // Resolves/publishes that arrived with no declared instance and no primed
     // registry mapping. They answer a silent miss by design (an unprimed ⌘B
     // build must degrade, not fail) — but a MISCONFIGURED build looks exactly
@@ -476,13 +419,18 @@ pub struct Proxy {
     // fetched-but-unstored data sits in memory. Items are 8-byte job ids into
     // `materialize_jobs`.
     materializer: Prefetcher,
+    // Bulk content warming straight from a freshly fetched snapshot, on its
+    // own small pool so demand-priority materialization is never queued
+    // behind it. Purely opportunistic: demand resolves answer from the
+    // snapshot regardless and their loads self-heal per object.
+    prematerializer: Prefetcher,
     materialize_jobs: Mutex<HashMap<u64, MaterializeJob>>,
     job_counter: AtomicU64,
     // instance -> action-cache snapshot lifecycle. Kicked off in the
     // background on an instance's first resolve; while it is in flight (or
     // when the server has none) resolves use the per-key path.
     snapshots: Mutex<HashMap<String, SnapshotState>>,
-    keylog_dir: Option<PathBuf>,
+
     // Per-node transfer analytics, written to cas_analytics.db for parity with
     // the Swift `CASAnalyticsDatabase`. `None` when no analytics path was configured.
     analytics: Option<crate::analytics::Analytics>,
@@ -497,10 +445,6 @@ impl Proxy {
         analytics: Option<crate::analytics::Analytics>,
     ) -> &'static Proxy {
         let path_instance = registry_path.as_deref().map(load_registry).unwrap_or_default();
-        let keylog_dir = registry_path
-            .as_deref()
-            .and_then(Path::parent)
-            .map(|parent| parent.join("cas-keylogs"));
         let proxy: &'static Proxy = Box::leak(Box::new(Proxy {
             grpc_url,
             tokens,
@@ -511,15 +455,13 @@ impl Proxy {
             registry_path,
             paths: Mutex::new(HashMap::new()),
             publisher: Prefetcher::new(),
-            readahead: Prefetcher::new(),
-            readahead_errors: AtomicU64::new(0),
-            readahead_done: AtomicU64::new(0),
             materializer: Prefetcher::new(),
+            prematerializer: Prefetcher::new(),
             materialize_jobs: Mutex::new(HashMap::new()),
             job_counter: AtomicU64::new(0),
             snapshots: Mutex::new(HashMap::new()),
             unprimed: AtomicU64::new(0),
-            keylog_dir,
+
             analytics,
         }));
         let proxy_addr = proxy as *const Proxy as usize;
@@ -527,13 +469,13 @@ impl Proxy {
             let proxy = unsafe { &*(proxy_addr as *const Proxy) };
             proxy.publish_item(&item);
         });
-        proxy.readahead.configure(readahead_workers(), move |item| {
-            let proxy = unsafe { &*(proxy_addr as *const Proxy) };
-            proxy.readahead_item(&item);
-        });
         // Demand jobs arrive at the build engine's serial rate, so a small
         // pool keeps up; the wavefront's bulk work does not flow through here.
         proxy.materializer.configure(16, move |item| {
+            let proxy = unsafe { &*(proxy_addr as *const Proxy) };
+            proxy.materialize_job(&item);
+        });
+        proxy.prematerializer.configure(8, move |item| {
             let proxy = unsafe { &*(proxy_addr as *const Proxy) };
             proxy.materialize_job(&item);
         });
@@ -614,9 +556,6 @@ impl Proxy {
             known_local: std::array::from_fn(|_| Mutex::new(HashSet::new())),
             publish_cache: Mutex::new(HashMap::new()),
             last_used: AtomicU64::new(self.epoch.elapsed().as_millis() as u64),
-            keylog: Mutex::new((Vec::new(), HashSet::new())),
-            keylog_dirty: std::sync::atomic::AtomicBool::new(false),
-            readahead_armed: std::sync::atomic::AtomicBool::new(false),
             pending_objects: Mutex::new(HashMap::new()),
             stats_resolves: AtomicU64::new(0),
             stats_remote_hits: AtomicU64::new(0),
@@ -642,20 +581,17 @@ impl Proxy {
     /// Serves one RESOLVE: answer from the resolved map, else read-through
     /// (manifest + batched fetch of globally-missing blobs + local store).
     ///
-    /// `demand` marks a resolve issued by a compiler over the unix socket.
-    /// Those run on swift-build's SERIAL task-setup path — the llbuild engine
-    /// thread that schedules every task in the build — so they answer right
-    /// after the action lookup and leave graph materialization to the
-    /// background pool (a demand load that outruns it self-heals through
-    /// OP_FETCH_OBJECT). Wavefront resolves (`demand = false`) materialize
-    /// inline: they run on the read-ahead pool where blocking is free, and
-    /// inline work bounds how much fetched-but-unstored data sits in memory.
+    /// Every resolve is issued by a compiler over the unix socket and runs on
+    /// swift-build's SERIAL task-setup path — the llbuild engine thread that
+    /// schedules every task in the build — so it answers right after the
+    /// action lookup (or straight from the snapshot) and leaves graph
+    /// materialization to the background pools; a demand load that outruns
+    /// them self-heals through OP_FETCH_OBJECT.
     fn resolve(
         &self,
         remote: &Arc<Remote>,
         state: &'static PathState,
         key: &[u8],
-        demand: bool,
         snapshot: Option<&Snapshot>,
     ) -> Result<Option<Vec<u8>>, String> {
         state.stats_resolves.fetch_add(1, Ordering::Relaxed);
@@ -674,19 +610,14 @@ impl Proxy {
         // across builds, but a wiped DerivedData removes the value graph; serving
         // the stale Hit then fails the compiler with `missing object`. On absence
         // the path's stale caches are dropped and we re-resolve below.
-        // For a DEMAND caller, a value that is not on disk but has registered
-        // fetch instructions is as good as present: the materializer is
-        // filling it in and demand loads self-heal through OP_FETCH_OBJECT,
-        // so don't force a re-resolve (a duplicate action lookup on the
-        // engine thread). The WAVEFRONT must not take that shortcut:
-        // instructions are retained after materialization, so post-wipe they
-        // exist for everything, and accepting them would skip the bulk
-        // re-materialization that is the wavefront's whole job (leaving every
-        // object to a serial per-load demand fetch).
+        // A value that is not on disk but has registered fetch instructions is
+        // as good as present: the materializer is filling it in and demand
+        // loads self-heal through OP_FETCH_OBJECT, so don't force a re-resolve
+        // (a duplicate action lookup on the engine thread).
         match fast_path(
             &state.resolved,
             key,
-            |value| self.load_present(state, value) || (demand && state.fetchable(value)),
+            |value| self.load_present(state, value) || state.fetchable(value),
             || state.invalidate(),
         ) {
             FastPath::Hit(value) => return Ok(Some(value)),
@@ -706,8 +637,7 @@ impl Proxy {
             if let Some(manifest) = snapshot.manifest(&key_hash) {
                 state.stats_snapshot_hits.fetch_add(1, Ordering::Relaxed);
                 let observed = state.gen_counter.load(Ordering::SeqCst);
-                return self
-                    .commit_and_materialize(remote, state, key, manifest, observed, demand);
+                return self.commit_and_materialize(remote, state, key, manifest, observed);
             }
         }
         // Single-flight: wait out a concurrent resolve of the same key.
@@ -732,7 +662,7 @@ impl Proxy {
                     _ => None,
                 };
                 if let Some(value) = peeked {
-                    if self.load_present(state, &value) || (demand && state.fetchable(&value)) {
+                    if self.load_present(state, &value) || state.fetchable(&value) {
                         return Ok(Some(value));
                     }
                 }
@@ -749,7 +679,7 @@ impl Proxy {
         // this resolve's marks if a wipe/prune advances the counter mid-resolve.
         self.check_generation(state);
         let observed = state.gen_counter.load(Ordering::SeqCst);
-        let outcome = self.resolve_uncached(remote, state, key, observed, demand);
+        let outcome = self.resolve_uncached(remote, state, key, observed);
         {
             let mut inflight = state.inflight.lock().unwrap();
             inflight.remove(key);
@@ -764,7 +694,6 @@ impl Proxy {
         state: &'static PathState,
         key: &[u8],
         observed: u64,
-        demand: bool,
     ) -> Result<Option<Vec<u8>>, String> {
         let op_start = Instant::now();
         let phase = Instant::now();
@@ -798,15 +727,15 @@ impl Proxy {
         if let Some(analytics) = &self.analytics {
             analytics.record_keyvalue(key, "read", op_start.elapsed().as_secs_f64());
         }
-        self.commit_and_materialize(remote, state, key, manifest, observed, demand)
+        self.commit_and_materialize(remote, state, key, manifest, observed)
     }
 
     /// Answers a resolve from a known manifest: commit the Hit, register every
     /// node's fetch instructions, then materialize — in the background for a
-    /// demand caller (the build engine's serial task-setup thread, where every
-    /// millisecond spent here is a millisecond no other task gets scheduled),
-    /// inline for the wavefront. Shared by the action-lookup path and the
-    /// snapshot path.
+    /// the background — the caller is the build engine's serial task-setup
+    /// thread, where every millisecond spent here is a millisecond no other
+    /// task gets scheduled. Shared by the action-lookup path and the snapshot
+    /// path.
     fn commit_and_materialize(
         &self,
         remote: &Arc<Remote>,
@@ -814,7 +743,6 @@ impl Proxy {
         key: &[u8],
         manifest: Vec<ManifestEntry>,
         observed: u64,
-        demand: bool,
     ) -> Result<Option<Vec<u8>>, String> {
         let value = manifest[0].llcas_digest.clone();
         // Commit BEFORE materialization; only if no wipe/prune advanced the
@@ -846,14 +774,7 @@ impl Proxy {
                     });
             }
         }
-        if demand {
-            self.enqueue_materialize(state, remote, manifest, observed);
-        } else {
-            // Wavefront path: materialize inline. The Hit is already committed
-            // and every node has fetch instructions, so an error here only
-            // dampens the wavefront — demand loads self-heal per object.
-            self.materialize_manifest(remote, state, &manifest, observed)?;
-        }
+        self.enqueue_materialize(state, remote, manifest, observed);
         Ok(Some(value))
     }
 
@@ -1186,120 +1107,6 @@ impl Proxy {
         }
     }
 
-    /// Records a demanded key into the path's keylog and, on the first resolve
-    /// of a build (or the first after a wipe), starts the read-ahead wavefront:
-    /// the previous build's keys are replayed through `resolve` in parallel so
-    /// the serial demand path behind it finds local hits instead of paying one
-    /// WAN round trip per key.
-    fn record_and_arm_readahead(&self, state: &'static PathState, cas_path: &str, key: &[u8]) {
-        {
-            let mut keylog = state.keylog.lock().unwrap();
-            let (order, seen) = &mut *keylog;
-            if order.len() < MAX_KEYLOG_KEYS && seen.insert(key.to_vec()) {
-                order.push(key.to_vec());
-                state
-                    .keylog_dirty
-                    .store(true, std::sync::atomic::Ordering::Relaxed);
-            }
-        }
-        if state
-            .readahead_armed
-            .swap(true, std::sync::atomic::Ordering::SeqCst)
-        {
-            return;
-        }
-        let Some(keys) = self.load_keylog(cas_path) else { return };
-        crate::log_line(&format!(
-            "readahead: enqueuing {} keys for {}",
-            keys.len(),
-            cas_path
-        ));
-        for key in keys {
-            let mut item = Vec::with_capacity(2 + cas_path.len() + key.len());
-            item.extend_from_slice(&(cas_path.len() as u16).to_be_bytes());
-            item.extend_from_slice(cas_path.as_bytes());
-            item.extend_from_slice(&key);
-            self.readahead.enqueue(item);
-        }
-    }
-
-    fn readahead_item(&self, item: &[u8]) {
-        // Damp on repeated transport errors: an unreachable remote must not
-        // turn the wavefront into a retry storm.
-        if self.readahead_errors.load(Ordering::Relaxed) > MAX_READAHEAD_ERRORS {
-            return;
-        }
-        let Some((cas_path, key)) = take_u16_field(item) else { return };
-        let cas_path = String::from_utf8_lossy(cas_path).into_owned();
-        let Some(instance) = self.path_instance.lock().unwrap().get(&cas_path).cloned() else {
-            return;
-        };
-        let remote = self.remote_for(&instance);
-        let Ok(state) = self.path_state(&cas_path) else { return };
-        let snapshot = self.snapshot_ready(&instance);
-        match self.resolve(&remote, state, key, false, snapshot.as_deref()) {
-            Ok(_) => {
-                let done = self.readahead_done.fetch_add(1, Ordering::Relaxed) + 1;
-                if done % 1000 == 0 {
-                    crate::log_line(&format!("readahead: {done} keys done"));
-                }
-            }
-            Err(_reason) => {
-                self.readahead_errors.fetch_add(1, Ordering::Relaxed);
-            }
-        }
-    }
-
-    fn keylog_path(&self, cas_path: &str) -> Option<PathBuf> {
-        use sha2::{Digest, Sha256};
-        let dir = self.keylog_dir.as_ref()?;
-        let mut hex = String::with_capacity(32);
-        for byte in &Sha256::digest(cas_path.as_bytes())[..16] {
-            hex.push_str(&format!("{byte:02x}"));
-        }
-        Some(dir.join(format!("{hex}.keys")))
-    }
-
-    fn load_keylog(&self, cas_path: &str) -> Option<Vec<Vec<u8>>> {
-        let body = std::fs::read_to_string(self.keylog_path(cas_path)?).ok()?;
-        let keys: Vec<Vec<u8>> = body.lines().filter_map(unhex_line).collect();
-        (!keys.is_empty()).then_some(keys)
-    }
-
-    /// Persists dirty keylogs. Called from the maintenance loop, so a build's
-    /// keys survive the proxy for the next build (and the next proxy).
-    pub fn flush_keylogs(&self) {
-        let paths: Vec<(String, &'static PathState)> = self
-            .paths
-            .lock()
-            .unwrap()
-            .iter()
-            .map(|(cas_path, state)| (cas_path.clone(), *state))
-            .collect();
-        for (cas_path, state) in paths {
-            if !state
-                .keylog_dirty
-                .swap(false, std::sync::atomic::Ordering::Relaxed)
-            {
-                continue;
-            }
-            let Some(path) = self.keylog_path(&cas_path) else { continue };
-            if let Some(parent) = path.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            let keylog = state.keylog.lock().unwrap();
-            let mut body = String::with_capacity(keylog.0.len() * 65);
-            for key in keylog.0.iter() {
-                for byte in key {
-                    body.push_str(&format!("{byte:02x}"));
-                }
-                body.push('\n');
-            }
-            drop(keylog);
-            let _ = std::fs::write(path, body);
-        }
-    }
-
     /// PUBLISH notify: queue the record for the publisher pool. Items encode
     /// instance + cas_path + record path.
     fn enqueue_publish(&self, cas_path: &str, instance: &str, record_path: &str) {
@@ -1565,7 +1372,9 @@ impl Proxy {
                             snapshot.nodes.len(),
                             bytes.len(),
                         ));
-                        SnapshotState::Ready(Arc::new(snapshot))
+                        let snapshot = Arc::new(snapshot);
+                        proxy.prematerialize_snapshot(&instance, &snapshot);
+                        SnapshotState::Ready(snapshot)
                     }
                     None => {
                         crate::log_line(&format!(
@@ -1582,6 +1391,43 @@ impl Proxy {
             };
             proxy.snapshots.lock().unwrap().insert(instance, outcome);
         });
+    }
+
+    /// Queues materialization of every graph the snapshot describes: bulk
+    /// content warming with no keylog and no demand ordering — resolves
+    /// answer from the snapshot regardless and loads self-heal per object,
+    /// so this only keeps the link busy so most loads find bytes already
+    /// local. Once per snapshot fetch (i.e. per proxy lifetime per
+    /// instance); after a mid-day wipe, demand-driven jobs and per-object
+    /// self-heals carry re-materialization.
+    fn prematerialize_snapshot(&self, instance: &str, snapshot: &Snapshot) {
+        let cas_paths: Vec<String> = self
+            .path_instance
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(_, mapped)| mapped.as_str() == instance)
+            .map(|(cas_path, _)| cas_path.clone())
+            .collect();
+        let remote = self.remote_for(instance);
+        for cas_path in cas_paths {
+            let Ok(state) = self.path_state(&cas_path) else { continue };
+            let observed = state.gen_counter.load(Ordering::SeqCst);
+            for key_hash in snapshot.keys.keys() {
+                let Some(manifest) = snapshot.manifest(key_hash) else { continue };
+                let id = self.job_counter.fetch_add(1, Ordering::Relaxed);
+                self.materialize_jobs.lock().unwrap().insert(
+                    id,
+                    MaterializeJob {
+                        cas_path: cas_path.clone(),
+                        remote: remote.clone(),
+                        manifest,
+                        observed,
+                    },
+                );
+                self.prematerializer.enqueue(id.to_be_bytes().to_vec());
+            }
+        }
     }
 
     fn snapshot_ready(&self, instance: &str) -> Option<Arc<Snapshot>> {
@@ -1663,8 +1509,7 @@ impl Proxy {
                 let outcome = self
                     .path_state(&request.cas_path)
                     .and_then(|state| {
-                        self.record_and_arm_readahead(state, &request.cas_path, &request.payload);
-                        self.resolve(&remote, state, &request.payload, true, snapshot.as_deref())
+                        self.resolve(&remote, state, &request.payload, snapshot.as_deref())
                     });
                 match outcome {
                     Ok(Some(value)) => write_response(&mut stream, STATUS_HIT, &value),
@@ -2048,14 +1893,6 @@ mod tests {
 
     // Keylog lines round-trip: lowercase hex parses back to the raw key; blank
     // and malformed lines are dropped rather than corrupting the wavefront.
-    #[test]
-    fn keylog_lines_round_trip_and_reject_garbage() {
-        assert_eq!(unhex_line("00ff10"), Some(vec![0x00, 0xff, 0x10]));
-        assert_eq!(unhex_line("  00ff10\n"), Some(vec![0x00, 0xff, 0x10]));
-        assert_eq!(unhex_line(""), None);
-        assert_eq!(unhex_line("abc"), None, "odd length is malformed");
-        assert_eq!(unhex_line("zz"), None, "non-hex is malformed");
-    }
 
     // Deleting and recreating a directory at the same path yields a different
     // generation, which is the signal check_generation invalidates on. This is
