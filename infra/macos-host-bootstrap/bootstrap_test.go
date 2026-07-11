@@ -193,7 +193,7 @@ func TestRenderRunnerCacheVolumeScript_CarriesQuotaAndVolume(t *testing.T) {
 	if !strings.Contains(out, "QUOTA_GIB=400") {
 		t.Fatalf("expected quota GiB in script\n%s", out)
 	}
-	if !strings.Contains(out, `-quota "${QUOTA_GIB}g"`) {
+	if !strings.Contains(out, `-quota "${QUOTA_GIB}GiB"`) {
 		t.Fatalf("expected -quota flag in script\n%s", out)
 	}
 }

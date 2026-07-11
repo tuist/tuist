@@ -1579,9 +1579,12 @@ const runnerCacheMountPoint = "/Volumes/" + runnerCacheVolumeName
 // opted in (RunnerCacheVolumeGiB == 0). Idempotent: it skips when the volume
 // is already mounted, so re-provisioning never grows/shrinks a live volume.
 //
-// Bootstrap-only (not re-run on the drift-update path): the volume is a
-// one-time host-shaping step like the Tart install, and resizing it under
-// live jobs would be unsafe. A cap change ships via host replacement.
+// Runs on both the first-boot (Run) and drift-update (UpdateTartKubelet)
+// paths so a fleet that opts into cache volumes after its minis are already
+// bootstrapped gets the volume on the next drift roll rather than only via
+// host replacement. The mounted-check keeps it a one-time host-shaping step:
+// an existing volume is never resized under live jobs (a cap change ships
+// via host replacement).
 func installRunnerCacheVolume(ctx context.Context, client *ssh.Client, cfg Config) error {
 	if cfg.RunnerCacheVolumeGiB <= 0 {
 		return nil
@@ -1611,7 +1614,7 @@ if [ -z "${CONTAINER:-}" ]; then
   echo "could not determine APFS container for /" >&2
   exit 1
 fi
-sudo /usr/sbin/diskutil apfs addVolume "$CONTAINER" APFS "$VOL" -quota "${QUOTA_GIB}g"
+sudo /usr/sbin/diskutil apfs addVolume "$CONTAINER" APFS "$VOL" -quota "${QUOTA_GIB}GiB"
 # addVolume auto-mounts at /Volumes/<name>; confirm before returning so a
 # failed mount fails the bootstrap loudly rather than leaving tart-kubelet to
 # ENOENT on its --runner-cache-root.
