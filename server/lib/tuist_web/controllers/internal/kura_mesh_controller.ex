@@ -27,7 +27,8 @@ defmodule TuistWeb.Internal.KuraMeshController do
               ca_certificate: enrollment.ca_certificate_pem,
               not_after: enrollment.not_after,
               renew_after_seconds: enrollment.renew_after_seconds,
-              peers: enrollment.peers
+              peers: enrollment.peers,
+              managed_peers: enrollment.managed_peers
             })
 
           {:error, reason} when reason in [:invalid_csr, :invalid_node_url] ->
@@ -52,6 +53,59 @@ defmodule TuistWeb.Internal.KuraMeshController do
     conn
     |> put_status(:bad_request)
     |> json(%{error: "invalid_payload"})
+  end
+
+  # Mesh heartbeat: an enrolled node periodically proves it is still a live
+  # mesh member. Independent from the registration heartbeat (which advertises
+  # the node's client-facing endpoint): this one keeps the node's mesh
+  # membership from being swept as stale and returns the current peer list, so
+  # peers refresh at heartbeat cadence rather than at certificate renewal. A
+  # withheld node is answered `mesh_member: false` and recovers by
+  # re-enrolling.
+  def heartbeat(conn, %{"node_url" => node_url}) when is_binary(node_url) do
+    case authorize(conn) do
+      {:ok, account} ->
+        view = Mesh.heartbeat_node(account, node_url)
+
+        json(conn, %{
+          mesh_member: view.mesh_member,
+          peers: view.peers,
+          heartbeat_interval_seconds: Mesh.mesh_heartbeat_interval_seconds()
+        })
+
+      {:error, :unauthorized} ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{error: "unauthorized"})
+    end
+  end
+
+  def heartbeat(conn, _params) do
+    conn
+    |> put_status(:bad_request)
+    |> json(%{error: "invalid_payload"})
+  end
+
+  # Peers-only read for managed pods: they don't enroll (Kubernetes owns their
+  # liveness and their identity is controller-minted), so they must not enter
+  # the membership/reactivation state machine — but they consume the same
+  # dynamic peer view so a self-hosted peer joining or leaving propagates at
+  # heartbeat cadence instead of through a fleet roll. Accepts the
+  # deployment-level control-plane credential (with a tenant) or a self-hosted
+  # client credential, like registration.
+  def peers(conn, params) do
+    case authorize_registration(conn, params) do
+      {:ok, account} ->
+        json(conn, %{
+          peers: Mesh.self_hosted_peer_urls(account),
+          refresh_interval_seconds: Mesh.mesh_heartbeat_interval_seconds()
+        })
+
+      {:error, :unauthorized} ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{error: "unauthorized"})
+    end
   end
 
   # Registration heartbeat: a self-hosted node periodically reports its
