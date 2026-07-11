@@ -143,7 +143,7 @@ where
     Err(last.unwrap_or_else(|| tonic::Status::unknown("retry attempts exhausted")))
 }
 
-fn hex(bytes: &[u8]) -> String {
+pub(crate) fn hex(bytes: &[u8]) -> String {
     let mut s = String::with_capacity(bytes.len() * 2);
     for b in bytes {
         s.push_str(&format!("{b:02x}"));
@@ -160,6 +160,11 @@ fn unhex(s: &str) -> Option<Vec<u8>> {
         .map(|i| u8::from_str_radix(&s[i..i + 2], 16).ok())
         .collect()
 }
+
+/// Reserved action key kura answers with the instance-wide action-cache
+/// snapshot. Must byte-match the server constant; the version suffix bumps on
+/// any encoding change so a mixed deployment degrades to a plain not-found.
+pub const SNAPSHOT_ACTION_KEY: &[u8] = b"tuist-actioncache-snapshot/v1";
 
 pub fn blob_digest(content: &[u8]) -> reapi::Digest {
     reapi::Digest {
@@ -348,6 +353,35 @@ impl Remote {
         })();
         self.get_stats.record(started.elapsed());
         result
+    }
+
+    /// Fetches the instance's action-cache snapshot: kura answers the reserved
+    /// snapshot key with the namespace's complete key→value map inlined into a
+    /// single output file (see `SNAPSHOT_ACTION_KEY`). `Ok(None)` means the
+    /// server has no snapshot support (an ordinary not-found), and the caller
+    /// stays on the per-key path.
+    pub fn get_snapshot(&self) -> Result<Option<Vec<u8>>, String> {
+        let mut client = self.ac_client()?;
+        let request = reapi::GetActionResultRequest {
+            instance_name: self.config.instance.clone(),
+            action_digest: Some(action_digest(SNAPSHOT_ACTION_KEY)),
+            inline_output_files: vec!["*".into()],
+            ..Default::default()
+        };
+        let response = retry_call(|| {
+            runtime().block_on(client.get_action_result(self.authed(request.clone())))
+        });
+        match response {
+            Ok(response) => Ok(response
+                .into_inner()
+                .output_files
+                .into_iter()
+                .next()
+                .map(|file| file.contents)
+                .filter(|contents| !contents.is_empty())),
+            Err(status) if status.code() == tonic::Code::NotFound => Ok(None),
+            Err(status) => Err(format!("get_snapshot: {status}")),
+        }
     }
 
     /// Reads blobs in size-bounded batches. Chunks are fetched concurrently

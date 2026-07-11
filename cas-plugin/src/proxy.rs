@@ -237,6 +237,9 @@ pub struct PathState {
     pub stats_resolves: AtomicU64,
     pub stats_remote_hits: AtomicU64,
     pub stats_misses: AtomicU64,
+    // Keys answered from the instance's action-cache snapshot (no remote
+    // lookup at all).
+    pub stats_snapshot_hits: AtomicU64,
     // Objects served through OP_FETCH_OBJECT because a demand load outran the
     // background materializer (or a prune removed a node under a served Hit).
     pub stats_demand_fetched: AtomicU64,
@@ -270,6 +273,103 @@ struct MaterializeJob {
     remote: Arc<Remote>,
     manifest: Vec<ManifestEntry>,
     observed: u64,
+}
+
+/// The instance's complete action-cache map, fetched from the remote in ONE
+/// round trip (the Bazel move — complete metadata up front — taken further:
+/// Bazel still pays a GetActionResult per action, this answers every one
+/// locally). Keys map to node-index lists into a deduplicated node table;
+/// index order preserves the ActionResult's output order, so a key's first
+/// node is its value root. Makes a completely cold machine — no keylog, no
+/// prior build, an agentic sandbox — resolve like a warm one.
+pub struct Snapshot {
+    nodes: Vec<(Vec<u8>, reapi::Digest)>,
+    keys: HashMap<[u8; 32], Vec<u32>>,
+}
+
+/// Per-instance snapshot lifecycle: fetched once, in the background, off every
+/// resolve path. While `Fetching` (or after `Absent`), resolves use the
+/// ordinary per-key path.
+enum SnapshotState {
+    Fetching,
+    Ready(Arc<Snapshot>),
+    Absent,
+}
+
+impl Snapshot {
+    /// Decodes the server's snapshot wire format (see kura's
+    /// `encode_actioncache_snapshot`): `"TSNP"` + version byte, node table,
+    /// per-key node-index lists. `None` on any structural violation — the
+    /// caller stays on the per-key path rather than trusting a torn payload.
+    fn decode(bytes: &[u8]) -> Option<Snapshot> {
+        fn take<'a>(bytes: &mut &'a [u8], n: usize) -> Option<&'a [u8]> {
+            if bytes.len() < n {
+                return None;
+            }
+            let (head, tail) = bytes.split_at(n);
+            *bytes = tail;
+            Some(head)
+        }
+        fn take_u32(bytes: &mut &[u8]) -> Option<u32> {
+            Some(u32::from_le_bytes(take(bytes, 4)?.try_into().ok()?))
+        }
+        let mut bytes = bytes;
+        if take(&mut bytes, 4)? != b"TSNP" || take(&mut bytes, 1)? != [1] {
+            return None;
+        }
+        let node_count = take_u32(&mut bytes)? as usize;
+        let mut nodes = Vec::with_capacity(node_count);
+        for _ in 0..node_count {
+            let len = take(&mut bytes, 1)?[0] as usize;
+            let llcas = take(&mut bytes, len)?.to_vec();
+            let blob_hash = take(&mut bytes, 32)?;
+            let size = u64::from_le_bytes(take(&mut bytes, 8)?.try_into().ok()?);
+            nodes.push((
+                llcas,
+                reapi::Digest {
+                    hash: reapi::hex(blob_hash),
+                    size_bytes: size as i64,
+                },
+            ));
+        }
+        let key_count = take_u32(&mut bytes)? as usize;
+        let mut keys = HashMap::with_capacity(key_count);
+        for _ in 0..key_count {
+            let action_hash: [u8; 32] = take(&mut bytes, 32)?.try_into().ok()?;
+            let entry_count = take_u32(&mut bytes)? as usize;
+            let mut indexes = Vec::with_capacity(entry_count);
+            for _ in 0..entry_count {
+                let index = take_u32(&mut bytes)?;
+                if index as usize >= nodes.len() {
+                    return None;
+                }
+                indexes.push(index);
+            }
+            if indexes.is_empty() {
+                return None;
+            }
+            keys.insert(action_hash, indexes);
+        }
+        Some(Snapshot { nodes, keys })
+    }
+
+    /// The manifest for an action key's sha256, if the snapshot holds it.
+    fn manifest(&self, key_hash: &[u8; 32]) -> Option<Vec<ManifestEntry>> {
+        let indexes = self.keys.get(key_hash)?;
+        Some(
+            indexes
+                .iter()
+                .map(|&index| {
+                    let (llcas, blob) = &self.nodes[index as usize];
+                    ManifestEntry {
+                        llcas_digest: llcas.clone(),
+                        blob: blob.clone(),
+                        contents: None,
+                    }
+                })
+                .collect(),
+        )
+    }
 }
 
 impl PathState {
@@ -378,6 +478,10 @@ pub struct Proxy {
     materializer: Prefetcher,
     materialize_jobs: Mutex<HashMap<u64, MaterializeJob>>,
     job_counter: AtomicU64,
+    // instance -> action-cache snapshot lifecycle. Kicked off in the
+    // background on an instance's first resolve; while it is in flight (or
+    // when the server has none) resolves use the per-key path.
+    snapshots: Mutex<HashMap<String, SnapshotState>>,
     keylog_dir: Option<PathBuf>,
     // Per-node transfer analytics, written to cas_analytics.db for parity with
     // the Swift `CASAnalyticsDatabase`. `None` when no analytics path was configured.
@@ -413,6 +517,7 @@ impl Proxy {
             materializer: Prefetcher::new(),
             materialize_jobs: Mutex::new(HashMap::new()),
             job_counter: AtomicU64::new(0),
+            snapshots: Mutex::new(HashMap::new()),
             unprimed: AtomicU64::new(0),
             keylog_dir,
             analytics,
@@ -516,6 +621,7 @@ impl Proxy {
             stats_resolves: AtomicU64::new(0),
             stats_remote_hits: AtomicU64::new(0),
             stats_misses: AtomicU64::new(0),
+            stats_snapshot_hits: AtomicU64::new(0),
             stats_demand_fetched: AtomicU64::new(0),
             stats_blobs_fetched: AtomicU64::new(0),
             stats_blobs_inlined: AtomicU64::new(0),
@@ -550,6 +656,7 @@ impl Proxy {
         state: &'static PathState,
         key: &[u8],
         demand: bool,
+        snapshot: Option<&Snapshot>,
     ) -> Result<Option<Vec<u8>>, String> {
         state.stats_resolves.fetch_add(1, Ordering::Relaxed);
         state
@@ -585,6 +692,23 @@ impl Proxy {
             FastPath::Hit(value) => return Ok(Some(value)),
             FastPath::Miss => return Ok(None),
             FastPath::Resolve => {}
+        }
+        // Snapshot path: the instance's complete action-cache map answers the
+        // key with its full manifest locally — no remote lookup at all, cold
+        // machine or not. Deliberately outside single-flight: there is no
+        // remote call to deduplicate, commit/pending registration are
+        // idempotent, and a raced duplicate materialize job no-ops against
+        // `is_local`. Keys the snapshot lacks (published after it was taken,
+        // or genuinely absent) fall through to the per-key path below.
+        if let Some(snapshot) = snapshot {
+            use sha2::{Digest, Sha256};
+            let key_hash: [u8; 32] = Sha256::digest(key).into();
+            if let Some(manifest) = snapshot.manifest(&key_hash) {
+                state.stats_snapshot_hits.fetch_add(1, Ordering::Relaxed);
+                let observed = state.gen_counter.load(Ordering::SeqCst);
+                return self
+                    .commit_and_materialize(remote, state, key, manifest, observed, demand);
+            }
         }
         // Single-flight: wait out a concurrent resolve of the same key.
         {
@@ -671,12 +795,30 @@ impl Proxy {
         let action_ms = phase.elapsed().as_millis() as u64;
         state.ms_action.fetch_add(action_ms, Ordering::Relaxed);
 
+        if let Some(analytics) = &self.analytics {
+            analytics.record_keyvalue(key, "read", op_start.elapsed().as_secs_f64());
+        }
+        self.commit_and_materialize(remote, state, key, manifest, observed, demand)
+    }
+
+    /// Answers a resolve from a known manifest: commit the Hit, register every
+    /// node's fetch instructions, then materialize — in the background for a
+    /// demand caller (the build engine's serial task-setup thread, where every
+    /// millisecond spent here is a millisecond no other task gets scheduled),
+    /// inline for the wavefront. Shared by the action-lookup path and the
+    /// snapshot path.
+    fn commit_and_materialize(
+        &self,
+        remote: &Arc<Remote>,
+        state: &'static PathState,
+        key: &[u8],
+        manifest: Vec<ManifestEntry>,
+        observed: u64,
+        demand: bool,
+    ) -> Result<Option<Vec<u8>>, String> {
         let value = manifest[0].llcas_digest.clone();
-        // Commit the Hit BEFORE materialization — the whole point of the split:
-        // a demand caller is the build engine's serial task-setup thread, and
-        // every millisecond it spends here is a millisecond no other task in
-        // the build gets scheduled. Only commit if no wipe/prune advanced the
-        // generation while the action lookup ran.
+        // Commit BEFORE materialization; only if no wipe/prune advanced the
+        // generation while the answer was being produced.
         let committed = {
             let mut resolved = state.resolved.lock().unwrap();
             if committable(observed, state.gen_counter.load(Ordering::SeqCst)) {
@@ -703,9 +845,6 @@ impl Proxy {
                         contents: entry.contents.clone(),
                     });
             }
-        }
-        if let Some(analytics) = &self.analytics {
-            analytics.record_keyvalue(key, "read", op_start.elapsed().as_secs_f64());
         }
         if demand {
             self.enqueue_materialize(state, remote, manifest, observed);
@@ -1097,7 +1236,8 @@ impl Proxy {
         };
         let remote = self.remote_for(&instance);
         let Ok(state) = self.path_state(&cas_path) else { return };
-        match self.resolve(&remote, state, key, false) {
+        let snapshot = self.snapshot_ready(&instance);
+        match self.resolve(&remote, state, key, false, snapshot.as_deref()) {
             Ok(_) => {
                 let done = self.readahead_done.fetch_add(1, Ordering::Relaxed) + 1;
                 if done % 1000 == 0 {
@@ -1401,6 +1541,56 @@ impl Proxy {
         self.tokens.refresh_if_expiring(lead);
     }
 
+    /// Kicks off the instance's snapshot fetch on first sight, in the
+    /// background — never on a resolve path. One fetch per proxy lifetime:
+    /// entries published later resolve through the ordinary per-key path.
+    fn ensure_snapshot(&self, instance: &str, remote: &Arc<Remote>) {
+        {
+            let mut snapshots = self.snapshots.lock().unwrap();
+            if snapshots.contains_key(instance) {
+                return;
+            }
+            snapshots.insert(instance.to_string(), SnapshotState::Fetching);
+        }
+        let proxy: &'static Proxy = unsafe { &*(self as *const Proxy) };
+        let instance = instance.to_string();
+        let remote = remote.clone();
+        std::thread::spawn(move || {
+            let outcome = match remote.get_snapshot() {
+                Ok(Some(bytes)) => match Snapshot::decode(&bytes) {
+                    Some(snapshot) => {
+                        crate::log_line(&format!(
+                            "snapshot: {} keys / {} nodes ({} bytes) for {instance}",
+                            snapshot.keys.len(),
+                            snapshot.nodes.len(),
+                            bytes.len(),
+                        ));
+                        SnapshotState::Ready(Arc::new(snapshot))
+                    }
+                    None => {
+                        crate::log_line(&format!(
+                            "snapshot: undecodable payload for {instance}; staying on the per-key path"
+                        ));
+                        SnapshotState::Absent
+                    }
+                },
+                Ok(None) => SnapshotState::Absent,
+                Err(message) => {
+                    crate::log_line(&format!("snapshot fetch failed for {instance}: {message}"));
+                    SnapshotState::Absent
+                }
+            };
+            proxy.snapshots.lock().unwrap().insert(instance, outcome);
+        });
+    }
+
+    fn snapshot_ready(&self, instance: &str) -> Option<Arc<Snapshot>> {
+        match self.snapshots.lock().unwrap().get(instance) {
+            Some(SnapshotState::Ready(snapshot)) => Some(snapshot.clone()),
+            _ => None,
+        }
+    }
+
     /// Counts (and occasionally logs) a request that could not be routed to an
     /// instance. Logged on the first occurrence and every 1000th after.
     fn note_unprimed(&self, cas_path: &str) {
@@ -1419,10 +1609,11 @@ impl Proxy {
         let mut parts = Vec::new();
         for (path, state) in paths.iter() {
             parts.push(format!(
-                "{}: resolves={} remote_hits={} misses={} demand_fetched={} pending={} blobs={} inlined={} published={} | ms action={} filter={} fetch={} decode={} store={}",
+                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} demand_fetched={} pending={} blobs={} inlined={} published={} | ms action={} filter={} fetch={} decode={} store={}",
                 path,
                 state.stats_resolves.load(Ordering::Relaxed),
                 state.stats_remote_hits.load(Ordering::Relaxed),
+                state.stats_snapshot_hits.load(Ordering::Relaxed),
                 state.stats_misses.load(Ordering::Relaxed),
                 state.stats_demand_fetched.load(Ordering::Relaxed),
                 state.pending_objects.lock().unwrap().len(),
@@ -1467,11 +1658,13 @@ impl Proxy {
                     return write_response(&mut stream, STATUS_MISS, &[]);
                 };
                 let remote = self.remote_for(&instance);
+                self.ensure_snapshot(&instance, &remote);
+                let snapshot = self.snapshot_ready(&instance);
                 let outcome = self
                     .path_state(&request.cas_path)
                     .and_then(|state| {
                         self.record_and_arm_readahead(state, &request.cas_path, &request.payload);
-                        self.resolve(&remote, state, &request.payload, true)
+                        self.resolve(&remote, state, &request.payload, true, snapshot.as_deref())
                     });
                 match outcome {
                     Ok(Some(value)) => write_response(&mut stream, STATUS_HIT, &value),
@@ -1660,6 +1853,44 @@ unsafe fn encode_node_blob(
 mod tests {
     use super::*;
     use std::cell::Cell;
+
+    #[test]
+    fn snapshot_decodes_the_server_wire_format() {
+        // Hand-encode kura's format: two nodes, one key referencing both
+        // (root first).
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(b"TSNP");
+        bytes.push(1);
+        bytes.extend_from_slice(&2u32.to_le_bytes());
+        for (llcas, blob_byte, size) in [(vec![0xAAu8, 0xBB], 7u8, 10u64), (vec![0xCC], 8, 20)] {
+            bytes.push(llcas.len() as u8);
+            bytes.extend_from_slice(&llcas);
+            bytes.extend_from_slice(&[blob_byte; 32]);
+            bytes.extend_from_slice(&size.to_le_bytes());
+        }
+        bytes.extend_from_slice(&1u32.to_le_bytes());
+        bytes.extend_from_slice(&[5u8; 32]);
+        bytes.extend_from_slice(&2u32.to_le_bytes());
+        bytes.extend_from_slice(&1u32.to_le_bytes());
+        bytes.extend_from_slice(&0u32.to_le_bytes());
+
+        let snapshot = Snapshot::decode(&bytes).expect("decodes");
+        let manifest = snapshot.manifest(&[5u8; 32]).expect("key present");
+        assert_eq!(manifest.len(), 2);
+        // Root = the key's first node (index 1 = the [0xCC] node).
+        assert_eq!(manifest[0].llcas_digest, vec![0xCC]);
+        assert_eq!(manifest[0].blob.size_bytes, 20);
+        assert_eq!(manifest[1].llcas_digest, vec![0xAA, 0xBB]);
+        assert!(manifest.iter().all(|entry| entry.contents.is_none()));
+        assert!(snapshot.manifest(&[6u8; 32]).is_none());
+
+        // Structural violations refuse to decode rather than misparse.
+        assert!(Snapshot::decode(&bytes[..bytes.len() - 1]).is_none());
+        let mut bad_index = bytes.clone();
+        let at = bad_index.len() - 4;
+        bad_index[at..].copy_from_slice(&9u32.to_le_bytes());
+        assert!(Snapshot::decode(&bad_index).is_none());
+    }
 
     fn resolved_with(entries: Vec<(Vec<u8>, Resolution)>) -> Mutex<HashMap<Vec<u8>, Resolution>> {
         let mut map = HashMap::new();
