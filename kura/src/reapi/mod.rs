@@ -487,14 +487,20 @@ impl ReapiService {
     /// action-cache manifest, read + decode the stored ActionResults
     /// concurrently (a sequential await per artifact caps this at per-read
     /// latency times entry count), and encode them with a shared node table.
+    ///
+    /// Entries are ordered newest-first before encoding, so when the size
+    /// ceiling bites, truncation sheds the OLDEST keys — the snapshot
+    /// degrades into a recency window over the namespace (the working set a
+    /// warm build needs) instead of an arbitrary storage-order subset.
     async fn build_actioncache_snapshot(&self, namespace_id: &str) -> Result<Vec<u8>, Status> {
-        let manifests = self
+        let mut manifests = self
             .state
             .store
             .action_cache_manifests(namespace_id)
             .map_err(|error| {
                 Status::internal(format!("failed to enumerate the action cache: {error}"))
             })?;
+        manifests.sort_by(|a, b| b.version_ms.cmp(&a.version_ms));
         let entries: Vec<Option<(Vec<u8>, reapi::ActionResult)>> =
             futures_util::stream::iter(manifests.into_iter().map(|manifest| {
                 let state = self.state.clone();
