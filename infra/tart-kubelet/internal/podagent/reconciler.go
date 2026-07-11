@@ -469,7 +469,12 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	if att.Attached {
 		runDisks = append(runDisks, att.BranchPath)
 		if statusDir, err = r.Tart.StatusDir(vmName); err == nil {
-			sharedDirs = append(sharedDirs, "status:"+statusDir+":rw")
+			// tart's --dir mounts read-write by default and only accepts a
+			// `:ro` modifier; a `:rw` suffix is parsed as part of the path
+			// and fails the VM config with "directory sharing device
+			// configuration is invalid". Omit it — the guest needs rw to
+			// write the dirty marker, which is the default.
+			sharedDirs = append(sharedDirs, "status:"+statusDir)
 			if err := r.Tart.StageVolumeManifest(vmName, volumeManifestJSON(att.VolumeName)); err != nil {
 				statusDir = ""
 			}
