@@ -274,19 +274,6 @@ struct CasState {
     // the `tuist-upload` plugin option (so it reaches every frontend, including a
     // ⌘B build) with the `TUIST_CAS_UPLOAD` env as a fallback; see resolve_upload.
     upload: bool,
-    // Experimental machinery gating (TUIST_CAS_MACHINERY, see llcas_cas_create):
-    // a compiler-frontend instance in a machinery build answers reads
-    // local-only, leaving the remote round trips to the build service's
-    // instances. Instances that received the `remote-service-path` option
-    // (the build service's scanner/planning CAS) always read through — their
-    // remote scan-cache hits are what keeps downstream driver planning from
-    // depending on sibling targets' on-disk products (a dependency this
-    // workspace's schedule does not reliably order; gating those reads
-    // reproducibly loses targets to `unable to resolve module dependency`).
-    // Off by default; publications are unaffected either way. The parallelism
-    // for warm builds comes from the proxy's read-ahead, not from gating.
-    machinery: bool,
-    remote_capable: bool,
     // (key -> value digest) associations served FROM the remote by this
     // process, so the client's end-of-job re-puts of replayed results skip
     // the publish path entirely (see actioncache_put_remote).
@@ -556,16 +543,6 @@ pub unsafe extern "C" fn llcas_cas_create(
         RemoteConfig::from_env().map(|config| Remote::new(config, TokenProvider::from_env()))
     };
     let has_remote = remote.is_some();
-    // Machinery mode: the build system's remote-cache task actions (KeyQuery/
-    // Materialize) own the remote round trips, in parallel, off the compile
-    // path. An instance that received the `remote-service-path` option is
-    // machinery-side (the build service's scanner/planning CAS); one without
-    // it inside a machinery build (TUIST_CAS_MACHINERY) is a compiler
-    // frontend. See CasState.machinery for how these gate reads per query.
-    // Without either signal (classic plugin mode) the frontends are the only
-    // lookers, so read-through stays on for any miss.
-    let remote_capable = option_value(state, "remote-service-path").is_some();
-    let machinery = remote_capable || env_bool("TUIST_CAS_MACHINERY", false);
     let cas_dir = state
         .ondisk_path
         .as_ref()
@@ -578,8 +555,6 @@ pub unsafe extern "C" fn llcas_cas_create(
         proxy,
         proxy_instance,
         upload: resolve_upload(state),
-        machinery,
-        remote_capable,
         created_at: std::time::Instant::now(),
         cas_dir,
         sweeper: Mutex::new(None),
@@ -1038,33 +1013,31 @@ unsafe fn load_object_impl(
     // mid-materialization, or fetched on demand), then the local load retries.
     if result == LLCAS_LOOKUP_RESULT_NOTFOUND {
         if let Some(client) = &state.proxy {
-            if !(state.machinery && !state.remote_capable) {
-                let digest = (state.up.llcas_objectid_get_digest)(state.cas, id);
-                let digest = std::slice::from_raw_parts(digest.data, digest.size);
-                let cas_path = state
-                    .cas_dir
-                    .as_ref()
-                    .map(|dir| dir.to_string_lossy().into_owned())
-                    .unwrap_or_default();
-                match client.fetch_object(&cas_path, &state.proxy_instance, digest) {
-                    Ok(true) => {
-                        if !upstream_error.is_null() {
-                            (state.up.llcas_string_dispose)(upstream_error);
-                        }
-                        upstream_error = std::ptr::null_mut();
-                        let retried = (state.up.llcas_cas_load_object)(
-                            state.cas,
-                            id,
-                            loaded,
-                            &mut upstream_error,
-                        );
-                        adopt_error(state.up, upstream_error, error);
-                        return retried;
+            let digest = (state.up.llcas_objectid_get_digest)(state.cas, id);
+            let digest = std::slice::from_raw_parts(digest.data, digest.size);
+            let cas_path = state
+                .cas_dir
+                .as_ref()
+                .map(|dir| dir.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            match client.fetch_object(&cas_path, &state.proxy_instance, digest) {
+                Ok(true) => {
+                    if !upstream_error.is_null() {
+                        (state.up.llcas_string_dispose)(upstream_error);
                     }
-                    Ok(false) => {}
-                    Err(message) => {
-                        log_line(&format!("proxy fetch_object error: {message}"));
-                    }
+                    upstream_error = std::ptr::null_mut();
+                    let retried = (state.up.llcas_cas_load_object)(
+                        state.cas,
+                        id,
+                        loaded,
+                        &mut upstream_error,
+                    );
+                    adopt_error(state.up, upstream_error, error);
+                    return retried;
+                }
+                Ok(false) => {}
+                Err(message) => {
+                    log_line(&format!("proxy fetch_object error: {message}"));
                 }
             }
         }
@@ -1194,19 +1167,7 @@ unsafe fn actioncache_get_impl(
     let mut upstream_error: *mut c_char = std::ptr::null_mut();
     let result =
         (state.up.llcas_actioncache_get_for_digest)(state.cas, key_digest, p_value, globally, &mut upstream_error);
-    // In machinery mode, honor swift-build's `globally` contract on the
-    // remote-capable instances too: `globally == false` means "local CAS only,
-    // even if remote caching is enabled" (it is issued from the build engine's
-    // serial task-setup path), and the remote lookup then arrives as a
-    // detached, parallel KeyQuery with `globally == true`. Read-through on the
-    // local probe both blocks the engine and preempts the KeyQuery flow.
-    // Outside machinery mode there is no remote task graph, so the local probe
-    // is the only read path and must keep its read-through.
-    if result != LLCAS_LOOKUP_RESULT_NOTFOUND
-        || (state.remote.is_none() && state.proxy.is_none())
-        || (state.machinery && !state.remote_capable)
-        || (state.machinery && state.remote_capable && !globally)
-    {
+    if result != LLCAS_LOOKUP_RESULT_NOTFOUND || (state.remote.is_none() && state.proxy.is_none()) {
         adopt_error(state.up, upstream_error, error);
         return result;
     }
@@ -1441,10 +1402,7 @@ pub unsafe extern "C" fn llcas_actioncache_get_for_digest_async(
     let mut probe_error: *mut c_char = std::ptr::null_mut();
     let result =
         (state.up.llcas_actioncache_get_for_digest)(state.cas, key_digest, &mut value, globally, &mut probe_error);
-    if result != LLCAS_LOOKUP_RESULT_NOTFOUND
-        || (state.remote.is_none() && state.proxy.is_none())
-        || (state.machinery && !state.remote_capable)
-    {
+    if result != LLCAS_LOOKUP_RESULT_NOTFOUND || (state.remote.is_none() && state.proxy.is_none()) {
         let _ = ours_cancel_token(cancel_tok);
         let error = adopt_upstream_string(state.up, probe_error);
         callback(ctx_cb, result, value, error);
