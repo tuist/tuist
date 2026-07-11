@@ -79,7 +79,7 @@ public struct GraphLinter: GraphLinting {
                 }
         )
         return graphTraverser.schemes().compactMap { scheme in
-            let codeCoverageTargets = Set(scheme.testAction?.codeCoverageTargets ?? [])
+            let nonCodeCoverageDependencies = Set(scheme.nonCodeCoverageTargetDependencies())
             let unknownTargets = scheme
                 .targetDependencies()
                 .filter { targetReference in
@@ -88,10 +88,11 @@ public struct GraphLinter: GraphLinting {
                     {
                         return false
                     }
-                    // Code coverage targets can reference targets of local Swift packages,
-                    // which are not part of the graph but are resolvable by Xcode.
-                    if codeCoverageTargets.contains(targetReference),
-                       localPackagePaths.contains(targetReference.projectPath)
+                    // References used exclusively as code coverage targets can point to
+                    // targets of local Swift packages, which are not part of the graph
+                    // but are resolvable by Xcode.
+                    if localPackagePaths.contains(targetReference.projectPath),
+                       !nonCodeCoverageDependencies.contains(targetReference)
                     {
                         return false
                     }
