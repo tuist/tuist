@@ -224,13 +224,15 @@ pub struct PathState {
     // Whether the read-ahead wavefront was already started for this path (one
     // per build: re-armed when the on-disk CAS is wiped or the path idles out).
     readahead_armed: std::sync::atomic::AtomicBool,
-    // llcas digest -> how to fetch its frame blob, for every node of a value
-    // graph that was answered before its materialization finished. Inserted
-    // right after get_action (before the resolve replies), removed as the
-    // materializer stores each node; a demand load that outruns the
-    // materializer self-heals through OP_FETCH_OBJECT using these
-    // instructions. Content-addressed, so entries stay valid across
-    // invalidations (a wipe only means the store must be refilled).
+    // llcas digest -> how to fetch its frame blob, for every node of every
+    // value graph this proxy has answered. Inserted right after get_action
+    // (before the resolve replies); once a node is stored locally its inlined
+    // bytes are dropped but the digest-only instruction is RETAINED — the
+    // build system prunes the on-disk CAS mid-build, and a pruned object
+    // under an already-served Hit must stay producible through
+    // OP_FETCH_OBJECT (clang fails the build on a missing object). Bounded by
+    // the namespace's unique node count at ~100B per entry; content-addressed,
+    // so entries stay valid across invalidations and wipes.
     pending_objects: Mutex<HashMap<Vec<u8>, PendingFetch>>,
     pub stats_resolves: AtomicU64,
     pub stats_remote_hits: AtomicU64,
@@ -565,14 +567,19 @@ impl Proxy {
         // across builds, but a wiped DerivedData removes the value graph; serving
         // the stale Hit then fails the compiler with `missing object`. On absence
         // the path's stale caches are dropped and we re-resolve below.
-        // A value that is not on disk but has registered fetch instructions is
-        // as good as present: the materializer is filling it in and demand
-        // loads self-heal through OP_FETCH_OBJECT, so don't force a re-resolve
-        // (which would put a duplicate action lookup on the engine thread).
+        // For a DEMAND caller, a value that is not on disk but has registered
+        // fetch instructions is as good as present: the materializer is
+        // filling it in and demand loads self-heal through OP_FETCH_OBJECT,
+        // so don't force a re-resolve (a duplicate action lookup on the
+        // engine thread). The WAVEFRONT must not take that shortcut:
+        // instructions are retained after materialization, so post-wipe they
+        // exist for everything, and accepting them would skip the bulk
+        // re-materialization that is the wavefront's whole job (leaving every
+        // object to a serial per-load demand fetch).
         match fast_path(
             &state.resolved,
             key,
-            |value| self.load_present(state, value) || state.fetchable(value),
+            |value| self.load_present(state, value) || (demand && state.fetchable(value)),
             || state.invalidate(),
         ) {
             FastPath::Hit(value) => return Ok(Some(value)),
@@ -601,7 +608,7 @@ impl Proxy {
                     _ => None,
                 };
                 if let Some(value) = peeked {
-                    if self.load_present(state, &value) || state.fetchable(&value) {
+                    if self.load_present(state, &value) || (demand && state.fetchable(&value)) {
                         return Ok(Some(value));
                     }
                 }
@@ -712,11 +719,13 @@ impl Proxy {
     }
 
     /// Fetches and locally stores every node of `manifest` the on-disk CAS is
-    /// missing, clearing each node's `pending_objects` entry as it lands.
-    /// Blob-level problems (a node absent on the server, a decode failure)
-    /// skip that node — its fetch instructions stay registered and the demand
-    /// load that needs it surfaces the failure per object. Transport errors
-    /// abort and leave the remaining instructions for demand self-healing.
+    /// missing. Each node's fetch instructions stay registered afterwards with
+    /// their inlined bytes dropped (blob digest only): the build system prunes
+    /// the on-disk CAS several times per build, and a pruned object under an
+    /// already-served Hit must remain producible on demand — clang FAILS THE
+    /// BUILD on a missing object, it does not recompile. Blob-level problems
+    /// (a node absent on the server, a decode failure) skip that node; a
+    /// transport error aborts and leaves the remaining instructions intact.
     fn materialize_manifest(
         &self,
         remote: &Remote,
@@ -732,7 +741,10 @@ impl Proxy {
         state
             .ms_filter
             .fetch_add(phase.elapsed().as_millis() as u64, Ordering::Relaxed);
-        // Nodes already on disk need no fetch instructions.
+        // Nodes already on disk keep their instructions too, but shed any
+        // inlined bytes — the digest-only form is what bounds this map's
+        // memory (the bytes live in the local CAS now; a re-fetch after a
+        // prune goes to the remote by blob digest).
         {
             let missing_set: HashSet<&[u8]> = missing
                 .iter()
@@ -741,7 +753,9 @@ impl Proxy {
             let mut pending = state.pending_objects.lock().unwrap();
             for entry in manifest {
                 if !missing_set.contains(entry.llcas_digest.as_slice()) {
-                    pending.remove(&entry.llcas_digest);
+                    if let Some(instruction) = pending.get_mut(&entry.llcas_digest) {
+                        instruction.contents = None;
+                    }
                 }
             }
         }
@@ -861,7 +875,11 @@ impl Proxy {
                 } else {
                     state.stats_blobs_fetched.fetch_add(1, Ordering::Relaxed);
                 }
-                state.pending_objects.lock().unwrap().remove(&entry.llcas_digest);
+                if let Some(instruction) =
+                    state.pending_objects.lock().unwrap().get_mut(&entry.llcas_digest)
+                {
+                    instruction.contents = None;
+                }
             }
         }
         Ok(())
@@ -920,6 +938,19 @@ impl Proxy {
             return Ok(true);
         }
         let pending = state.pending_objects.lock().unwrap().get(digest).cloned();
+        // Second source of fetch instructions: nodes this machine PUBLISHED.
+        // A Hit served for a locally-published entry never fetched a manifest
+        // (its objects were local), so a prune that removes them leaves no
+        // pending entry — but the publisher's node cache knows the uploaded
+        // blob digest, and the blob is on the remote by publish order.
+        let pending = pending.or_else(|| {
+            state
+                .publish_cache
+                .lock()
+                .unwrap()
+                .get(digest)
+                .map(|(blob, _refs)| PendingFetch { blob: blob.clone(), contents: None })
+        });
         let Some(pending) = pending else { return Ok(false) };
         let blob_bytes = match pending.contents {
             Some(bytes) => bytes,
@@ -942,7 +973,9 @@ impl Proxy {
             return Ok(false);
         };
         unsafe { store_node(state, &node)? };
-        state.pending_objects.lock().unwrap().remove(digest);
+        if let Some(instruction) = state.pending_objects.lock().unwrap().get_mut(digest) {
+            instruction.contents = None;
+        }
         state.stats_demand_fetched.fetch_add(1, Ordering::Relaxed);
         Ok(true)
     }

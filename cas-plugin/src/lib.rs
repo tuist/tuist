@@ -1243,6 +1243,14 @@ unsafe fn actioncache_get_impl(
                     adopt_error(state.up, id_error, error);
                     return LLCAS_LOOKUP_RESULT_ERROR;
                 }
+                // The local association outlives the value graph (the build
+                // system prunes the store several times per build), so a later
+                // get can hit it locally with the objects gone. That is safe
+                // ONLY because the load path self-heals: a local load miss
+                // consults the proxy (FETCH_OBJECT), whose fetch instructions
+                // are retained after materialization and also cover locally
+                // published nodes — clang fails the build outright on a
+                // missing object, it does not recompile.
                 let mut put_error: *mut c_char = std::ptr::null_mut();
                 if (state.up.llcas_actioncache_put_for_digest)(state.cas, key_digest, value_id, false, &mut put_error) {
                     adopt_error(state.up, put_error, error);
