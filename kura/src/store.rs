@@ -2389,6 +2389,40 @@ impl Store {
         })
     }
 
+    /// Every REAPI action-cache manifest in a namespace, for the instance-wide
+    /// snapshot the REAPI layer serves (one round trip primes a cold client
+    /// with every key→value association). One ordered namespace-index scan
+    /// plus a manifest point-read per artifact.
+    pub fn action_cache_manifests(
+        &self,
+        namespace_id: &str,
+    ) -> Result<Vec<ArtifactManifest>, String> {
+        let prefix = format!("{namespace_id}\0");
+        let iter = self.db.iterator_cf(
+            self.cf(ROCKSDB_CF_NAMESPACE_ARTIFACTS),
+            IteratorMode::From(prefix.as_bytes(), rocksdb::Direction::Forward),
+        );
+        let mut manifests = Vec::new();
+        for item in iter {
+            let (index_key, _) =
+                item.map_err(|error| format!("failed to iterate namespace index: {error}"))?;
+            if !index_key.starts_with(prefix.as_bytes()) {
+                break;
+            }
+            let artifact_id = std::str::from_utf8(&index_key[prefix.len()..])
+                .map_err(|error| format!("invalid namespace index key: {error}"))?;
+            let Some(manifest) = self.manifest_from_db(artifact_id)? else {
+                continue;
+            };
+            if manifest.producer == ArtifactProducer::Reapi
+                && manifest.key.starts_with("action_cache/")
+            {
+                manifests.push(manifest);
+            }
+        }
+        Ok(manifests)
+    }
+
     /// Walk the manifest keyspace, optionally restricted to an `artifact_id`
     /// prefix. When `prefix` is set the walk starts at the prefix's lower bound
     /// (unless a later `after` cursor is supplied) and stops as soon as it

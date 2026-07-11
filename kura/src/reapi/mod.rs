@@ -482,6 +482,40 @@ impl ReapiService {
         }
         Ok(response)
     }
+
+    /// Builds the namespace's action-cache snapshot: enumerate every
+    /// action-cache manifest, read + decode the stored ActionResults
+    /// concurrently (a sequential await per artifact caps this at per-read
+    /// latency times entry count), and encode them with a shared node table.
+    async fn build_actioncache_snapshot(&self, namespace_id: &str) -> Result<Vec<u8>, Status> {
+        let manifests = self
+            .state
+            .store
+            .action_cache_manifests(namespace_id)
+            .map_err(|error| {
+                Status::internal(format!("failed to enumerate the action cache: {error}"))
+            })?;
+        let entries: Vec<Option<(Vec<u8>, reapi::ActionResult)>> =
+            futures_util::stream::iter(manifests.into_iter().map(|manifest| {
+                let state = self.state.clone();
+                async move {
+                    // manifest.key = "action_cache/{sha256hex}/{size}".
+                    let action_hash = manifest
+                        .key
+                        .strip_prefix("action_cache/")
+                        .and_then(|rest| rest.split('/').next())
+                        .and_then(|hash| hex::decode(hash).ok())
+                        .filter(|hash| hash.len() == 32)?;
+                    let bytes = read_manifest_bytes(&state, &manifest).await.ok()?;
+                    let action_result = reapi::ActionResult::decode(bytes.as_slice()).ok()?;
+                    Some((action_hash, action_result))
+                }
+            }))
+            .buffered(32)
+            .collect()
+            .await;
+        Ok(encode_actioncache_snapshot(entries.into_iter().flatten()))
+    }
 }
 
 #[tonic::async_trait]
@@ -561,6 +595,41 @@ impl ActionCache for ReapiService {
             artifact_hash: Some(digest.hash.clone()),
         };
         let principal = self.authorize_request(&request, extension.clone()).await?;
+        // Instance-wide action-cache snapshot: a reserved action key whose
+        // "result" is the namespace's complete key→value map (deduplicated
+        // node table + per-key node lists), inlined into a single output
+        // file. One round trip primes a completely cold client — no per-key
+        // lookups and no client-side memoization — after which content flows
+        // through ordinary batched blob reads. The client hashes the reserved
+        // key bytes exactly like a real key, so interception is a digest
+        // comparison, and against an old server the lookup is a plain
+        // not-found the client degrades from.
+        if digest.hash == snapshot_action_hash()
+            && digest.size_bytes == SNAPSHOT_ACTION_KEY.len() as i64
+        {
+            let snapshot = self.build_actioncache_snapshot(namespace_id).await?;
+            let served = snapshot.len() as u64;
+            let action_result = reapi::ActionResult {
+                output_files: vec![reapi::OutputFile {
+                    path: SNAPSHOT_OUTPUT_PATH.to_owned(),
+                    digest: Some(reapi::Digest {
+                        hash: hex::encode(Sha256::digest(&snapshot)),
+                        size_bytes: snapshot.len() as i64,
+                    }),
+                    contents: snapshot,
+                    ..Default::default()
+                }],
+                ..Default::default()
+            };
+            let mut response = Response::new(action_result);
+            self.apply_response_headers(&mut response, extension, principal.as_ref())
+                .await?;
+            self.state
+                .metrics
+                .record_artifact_read(ArtifactProducer::Reapi, "ok", served);
+            self.record_reapi_download(request.metadata(), namespace_id, served);
+            return Ok(response);
+        }
         let mut materialization_budget = MaterializationBudget::new(&self.state);
         let (size_bytes, mut action_result) = fetch_keyvalue_proto::<reapi::ActionResult>(
             &self.state,
@@ -1411,6 +1480,100 @@ fn validate_digest_bytes(digest: &reapi::Digest, bytes: &[u8]) -> Result<(), Str
     Ok(())
 }
 
+/// Reserved action key whose lookup returns the namespace's action-cache
+/// snapshot instead of a stored result. Clients hash these exact bytes the
+/// way they hash a real llcas key, so serving it needs no new RPC surface.
+/// Bump the version suffix on any change to the snapshot encoding.
+pub const SNAPSHOT_ACTION_KEY: &[u8] = b"tuist-actioncache-snapshot/v1";
+const SNAPSHOT_OUTPUT_PATH: &str = "tuist-actioncache-snapshot";
+/// Hard ceiling on the encoded snapshot, with headroom under the 64MB
+/// message limit REAPI clients configure. Keys beyond it are dropped (and
+/// logged): a truncated snapshot only means those keys resolve through the
+/// ordinary per-key path.
+const SNAPSHOT_MAX_BYTES: usize = 48 << 20;
+
+fn snapshot_action_hash() -> &'static str {
+    static HASH: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    HASH.get_or_init(|| hex::encode(Sha256::digest(SNAPSHOT_ACTION_KEY)))
+}
+
+/// Encodes action-cache entries as the snapshot wire format (little-endian):
+/// `"TSNP"` + version byte, a deduplicated node table (u32 count, then per
+/// node: u8 llcas-digest length, llcas digest, 32-byte blob sha256, u64 blob
+/// size), and per-key entries (u32 count, then per key: 32-byte action-key
+/// sha256, u32 node count, u32 node index each — ActionResult output-file
+/// order preserved, so a key's first node is its value root).
+fn encode_actioncache_snapshot(
+    entries: impl Iterator<Item = (Vec<u8>, reapi::ActionResult)>,
+) -> Vec<u8> {
+    let mut nodes: Vec<(Vec<u8>, [u8; 32], u64)> = Vec::new();
+    let mut node_index: BTreeMap<Vec<u8>, u32> = BTreeMap::new();
+    let mut keys: Vec<([u8; 32], Vec<u32>)> = Vec::new();
+    let mut estimated = 0usize;
+    let mut dropped = 0usize;
+    for (action_hash, action_result) in entries {
+        let Ok(action_hash) = <[u8; 32]>::try_from(action_hash.as_slice()) else {
+            continue;
+        };
+        let mut indexes = Vec::with_capacity(action_result.output_files.len());
+        let mut valid = !action_result.output_files.is_empty();
+        for file in &action_result.output_files {
+            let (Ok(llcas), Some(digest)) = (hex::decode(&file.path), file.digest.as_ref()) else {
+                valid = false;
+                break;
+            };
+            let (Ok(blob_hash), true) = (
+                hex::decode(&digest.hash).map(|hash| <[u8; 32]>::try_from(hash.as_slice())),
+                digest.size_bytes >= 0,
+            ) else {
+                valid = false;
+                break;
+            };
+            let Ok(blob_hash) = blob_hash else {
+                valid = false;
+                break;
+            };
+            let index = *node_index.entry(llcas.clone()).or_insert_with(|| {
+                estimated += 1 + llcas.len() + 32 + 8;
+                nodes.push((llcas.clone(), blob_hash, digest.size_bytes as u64));
+                (nodes.len() - 1) as u32
+            });
+            indexes.push(index);
+        }
+        if !valid {
+            continue;
+        }
+        estimated += 32 + 4 + indexes.len() * 4;
+        if estimated > SNAPSHOT_MAX_BYTES {
+            dropped += 1;
+            continue;
+        }
+        keys.push((action_hash, indexes));
+    }
+    if dropped > 0 {
+        tracing::warn!("action-cache snapshot truncated: {dropped} keys over the size ceiling");
+    }
+    let mut out = Vec::with_capacity(estimated + 16);
+    out.extend_from_slice(b"TSNP");
+    out.push(1);
+    out.extend_from_slice(&(nodes.len() as u32).to_le_bytes());
+    for (llcas, blob_hash, size) in &nodes {
+        out.push(llcas.len() as u8);
+        out.extend_from_slice(llcas);
+        out.extend_from_slice(blob_hash);
+        out.extend_from_slice(&size.to_le_bytes());
+    }
+    out.extend_from_slice(&(keys.len() as u32).to_le_bytes());
+    for (action_hash, indexes) in &keys {
+        out.extend_from_slice(action_hash);
+        out.extend_from_slice(&(indexes.len() as u32).to_le_bytes());
+        for index in indexes {
+            out.extend_from_slice(&index.to_le_bytes());
+        }
+    }
+    out
+}
+
 fn digest_key(digest: &reapi::Digest) -> Result<String, Status> {
     if digest.size_bytes < 0 {
         return Err(Status::invalid_argument("digest size must be non-negative"));
@@ -1609,6 +1772,75 @@ fn parse_blob_resource_name(
 mod tests {
     use super::*;
     use std::{convert::Infallible, time::Duration};
+
+    #[test]
+    fn actioncache_snapshot_dedups_nodes_and_preserves_key_order() {
+        let output = |llcas: &str, blob: [u8; 32], size: i64| reapi::OutputFile {
+            path: llcas.to_owned(),
+            digest: Some(reapi::Digest {
+                hash: hex::encode(blob),
+                size_bytes: size,
+            }),
+            ..Default::default()
+        };
+        // Two keys sharing one node; a third key with a malformed path is dropped.
+        let entries = vec![
+            (
+                vec![1u8; 32],
+                reapi::ActionResult {
+                    output_files: vec![output("aa", [7; 32], 10), output("bb", [8; 32], 20)],
+                    ..Default::default()
+                },
+            ),
+            (
+                vec![2u8; 32],
+                reapi::ActionResult {
+                    output_files: vec![output("cc", [9; 32], 30), output("bb", [8; 32], 20)],
+                    ..Default::default()
+                },
+            ),
+            (
+                vec![3u8; 32],
+                reapi::ActionResult {
+                    output_files: vec![output("not-hex!", [1; 32], 1)],
+                    ..Default::default()
+                },
+            ),
+        ];
+        let bytes = encode_actioncache_snapshot(entries.into_iter());
+
+        assert_eq!(&bytes[..4], b"TSNP");
+        assert_eq!(bytes[4], 1);
+        let mut at = 5;
+        let read_u32 = |bytes: &[u8], at: usize| {
+            u32::from_le_bytes(bytes[at..at + 4].try_into().unwrap()) as usize
+        };
+        let node_count = read_u32(&bytes, at);
+        at += 4;
+        assert_eq!(node_count, 3); // aa, bb, cc — bb deduplicated
+        let mut nodes = Vec::new();
+        for _ in 0..node_count {
+            let len = bytes[at] as usize;
+            at += 1;
+            let llcas = bytes[at..at + len].to_vec();
+            at += len + 32; // skip blob hash
+            let size = u64::from_le_bytes(bytes[at..at + 8].try_into().unwrap());
+            at += 8;
+            nodes.push((llcas, size));
+        }
+        let key_count = read_u32(&bytes, at);
+        at += 4;
+        assert_eq!(key_count, 2); // malformed key dropped
+        // First key: root node is "aa" (output order preserved).
+        assert_eq!(&bytes[at..at + 32], &[1u8; 32]);
+        at += 32;
+        let entry_count = read_u32(&bytes, at);
+        at += 4;
+        assert_eq!(entry_count, 2);
+        let root_index = read_u32(&bytes, at);
+        assert_eq!(nodes[root_index].0, hex::decode("aa").unwrap());
+        assert_eq!(nodes[root_index].1, 10);
+    }
 
     use tokio::net::TcpListener;
     use tonic::body::Body as TonicBody;
