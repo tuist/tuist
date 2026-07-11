@@ -1194,9 +1194,18 @@ unsafe fn actioncache_get_impl(
     let mut upstream_error: *mut c_char = std::ptr::null_mut();
     let result =
         (state.up.llcas_actioncache_get_for_digest)(state.cas, key_digest, p_value, globally, &mut upstream_error);
+    // In machinery mode, honor swift-build's `globally` contract on the
+    // remote-capable instances too: `globally == false` means "local CAS only,
+    // even if remote caching is enabled" (it is issued from the build engine's
+    // serial task-setup path), and the remote lookup then arrives as a
+    // detached, parallel KeyQuery with `globally == true`. Read-through on the
+    // local probe both blocks the engine and preempts the KeyQuery flow.
+    // Outside machinery mode there is no remote task graph, so the local probe
+    // is the only read path and must keep its read-through.
     if result != LLCAS_LOOKUP_RESULT_NOTFOUND
         || (state.remote.is_none() && state.proxy.is_none())
         || (state.machinery && !state.remote_capable)
+        || (state.machinery && state.remote_capable && !globally)
     {
         adopt_error(state.up, upstream_error, error);
         return result;
