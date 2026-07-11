@@ -93,6 +93,7 @@ pub struct Node {
 
 /// One node of a value graph as it travels: the llcas digest identifies it to
 /// the local CAS, the REAPI digest identifies its frame blob remotely.
+#[derive(Clone)]
 pub struct ManifestEntry {
     pub llcas_digest: Vec<u8>,
     pub blob: reapi::Digest,

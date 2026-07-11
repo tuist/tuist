@@ -1028,11 +1028,47 @@ unsafe fn load_object_impl(
     loaded: *mut llcas_loaded_object_t,
     error: *mut *mut c_char,
 ) -> llcas_lookup_result_t {
-    // Local-only: the manifest-driven action-cache read-through materializes
-    // the entire value graph before answering, so demand loads always find
-    // their bytes locally.
     let mut upstream_error: *mut c_char = std::ptr::null_mut();
     let result = (state.up.llcas_cas_load_object)(state.cas, id, loaded, &mut upstream_error);
+    // Proxy mode answers action-cache gets BEFORE the value graph finishes
+    // materializing (the caller of a get is swift-build's serial task-setup
+    // path, which must never wait on a graph fetch). The load path — which
+    // runs on parallel compiler worker threads — is where a not-yet-stored
+    // node is produced: FETCH_OBJECT blocks until the proxy has it (present,
+    // mid-materialization, or fetched on demand), then the local load retries.
+    if result == LLCAS_LOOKUP_RESULT_NOTFOUND {
+        if let Some(client) = &state.proxy {
+            if !(state.machinery && !state.remote_capable) {
+                let digest = (state.up.llcas_objectid_get_digest)(state.cas, id);
+                let digest = std::slice::from_raw_parts(digest.data, digest.size);
+                let cas_path = state
+                    .cas_dir
+                    .as_ref()
+                    .map(|dir| dir.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                match client.fetch_object(&cas_path, &state.proxy_instance, digest) {
+                    Ok(true) => {
+                        if !upstream_error.is_null() {
+                            (state.up.llcas_string_dispose)(upstream_error);
+                        }
+                        upstream_error = std::ptr::null_mut();
+                        let retried = (state.up.llcas_cas_load_object)(
+                            state.cas,
+                            id,
+                            loaded,
+                            &mut upstream_error,
+                        );
+                        adopt_error(state.up, upstream_error, error);
+                        return retried;
+                    }
+                    Ok(false) => {}
+                    Err(message) => {
+                        log_line(&format!("proxy fetch_object error: {message}"));
+                    }
+                }
+            }
+        }
+    }
     adopt_error(state.up, upstream_error, error);
     result
 }
@@ -1064,7 +1100,9 @@ pub unsafe extern "C" fn llcas_cas_load_object_async(
     let mut loaded = llcas_loaded_object_t { opaque: 0 };
     let mut probe_error: *mut c_char = std::ptr::null_mut();
     let result = (state.up.llcas_cas_load_object)(state.cas, id, &mut loaded, &mut probe_error);
-    if result != LLCAS_LOOKUP_RESULT_NOTFOUND || state.remote.is_none() {
+    if result != LLCAS_LOOKUP_RESULT_NOTFOUND
+        || (state.remote.is_none() && state.proxy.is_none())
+    {
         let _ = ours_cancel_token(cancel_tok);
         let error = adopt_upstream_string(state.up, probe_error);
         callback(ctx_cb, result, loaded, error);

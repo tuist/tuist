@@ -17,7 +17,8 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use crate::proxy_proto::{
-    read_request, write_response, Request, OP_INVALIDATE, OP_PUBLISH, OP_RESOLVE, STATUS_ERROR,
+    read_request, write_response, Request, OP_FETCH_OBJECT, OP_INVALIDATE, OP_PUBLISH, OP_RESOLVE,
+    STATUS_ERROR,
     STATUS_HIT, STATUS_MISS,
 };
 use crate::prefetch::Prefetcher;
@@ -223,9 +224,20 @@ pub struct PathState {
     // Whether the read-ahead wavefront was already started for this path (one
     // per build: re-armed when the on-disk CAS is wiped or the path idles out).
     readahead_armed: std::sync::atomic::AtomicBool,
+    // llcas digest -> how to fetch its frame blob, for every node of a value
+    // graph that was answered before its materialization finished. Inserted
+    // right after get_action (before the resolve replies), removed as the
+    // materializer stores each node; a demand load that outruns the
+    // materializer self-heals through OP_FETCH_OBJECT using these
+    // instructions. Content-addressed, so entries stay valid across
+    // invalidations (a wipe only means the store must be refilled).
+    pending_objects: Mutex<HashMap<Vec<u8>, PendingFetch>>,
     pub stats_resolves: AtomicU64,
     pub stats_remote_hits: AtomicU64,
     pub stats_misses: AtomicU64,
+    // Objects served through OP_FETCH_OBJECT because a demand load outran the
+    // background materializer (or a prune removed a node under a served Hit).
+    pub stats_demand_fetched: AtomicU64,
     pub stats_blobs_fetched: AtomicU64,
     // Blobs that arrived inlined in the GetActionResult response instead of
     // through a separate BatchReadBlobs round-trip (kura's
@@ -239,9 +251,35 @@ pub struct PathState {
     pub ms_store: AtomicU64,
 }
 
+/// Fetch instructions for one value-graph node: enough to produce the object
+/// on demand without re-resolving its action key.
+#[derive(Clone)]
+struct PendingFetch {
+    blob: reapi::Digest,
+    /// Frame bytes the server inlined into the action response; `None` means
+    /// the blob must be batch-read.
+    contents: Option<Vec<u8>>,
+}
+
+/// A value graph whose Hit was already answered; the fetch+store work runs on
+/// the materializer pool.
+struct MaterializeJob {
+    cas_path: String,
+    remote: Arc<Remote>,
+    manifest: Vec<ManifestEntry>,
+    observed: u64,
+}
+
 impl PathState {
     fn shard(&self, digest: &[u8]) -> &Mutex<HashSet<Vec<u8>>> {
         &self.known_local[digest.first().copied().unwrap_or(0) as usize % 32]
+    }
+
+    /// Whether a demand load could still produce this digest even though it is
+    /// not (yet) on disk: its fetch instructions are registered, so serving a
+    /// Hit that references it is safe.
+    fn fetchable(&self, digest: &[u8]) -> bool {
+        self.pending_objects.lock().unwrap().contains_key(digest)
     }
 
     /// Drops all cached knowledge of the on-disk CAS for this path: the
@@ -277,6 +315,9 @@ impl PathState {
         // still resolved in the map turn into cheap local presence probes).
         self.readahead_armed
             .store(false, std::sync::atomic::Ordering::SeqCst);
+        // `pending_objects` is also KEPT: entries are content-addressed fetch
+        // instructions, valid for any incarnation of the store — after a wipe
+        // they let demand loads refill exactly what is asked for.
     }
 }
 
@@ -319,6 +360,15 @@ pub struct Proxy {
     readahead: Prefetcher,
     readahead_errors: AtomicU64,
     readahead_done: AtomicU64,
+    // Background materializer for demand-path resolves: a RESOLVE from a
+    // compiler answers with the value digest right after the action lookup
+    // and this pool fetches + stores the graph. Kept OFF the wavefront path —
+    // read-ahead workers materialize inline, which naturally bounds how much
+    // fetched-but-unstored data sits in memory. Items are 8-byte job ids into
+    // `materialize_jobs`.
+    materializer: Prefetcher,
+    materialize_jobs: Mutex<HashMap<u64, MaterializeJob>>,
+    job_counter: AtomicU64,
     keylog_dir: Option<PathBuf>,
     // Per-node transfer analytics, written to cas_analytics.db for parity with
     // the Swift `CASAnalyticsDatabase`. `None` when no analytics path was configured.
@@ -351,6 +401,9 @@ impl Proxy {
             readahead: Prefetcher::new(),
             readahead_errors: AtomicU64::new(0),
             readahead_done: AtomicU64::new(0),
+            materializer: Prefetcher::new(),
+            materialize_jobs: Mutex::new(HashMap::new()),
+            job_counter: AtomicU64::new(0),
             keylog_dir,
             analytics,
         }));
@@ -362,6 +415,12 @@ impl Proxy {
         proxy.readahead.configure(readahead_workers(), move |item| {
             let proxy = unsafe { &*(proxy_addr as *const Proxy) };
             proxy.readahead_item(&item);
+        });
+        // Demand jobs arrive at the build engine's serial rate, so a small
+        // pool keeps up; the wavefront's bulk work does not flow through here.
+        proxy.materializer.configure(16, move |item| {
+            let proxy = unsafe { &*(proxy_addr as *const Proxy) };
+            proxy.materialize_job(&item);
         });
         proxy
     }
@@ -443,9 +502,11 @@ impl Proxy {
             keylog: Mutex::new((Vec::new(), HashSet::new())),
             keylog_dirty: std::sync::atomic::AtomicBool::new(false),
             readahead_armed: std::sync::atomic::AtomicBool::new(false),
+            pending_objects: Mutex::new(HashMap::new()),
             stats_resolves: AtomicU64::new(0),
             stats_remote_hits: AtomicU64::new(0),
             stats_misses: AtomicU64::new(0),
+            stats_demand_fetched: AtomicU64::new(0),
             stats_blobs_fetched: AtomicU64::new(0),
             stats_blobs_inlined: AtomicU64::new(0),
             stats_published: AtomicU64::new(0),
@@ -464,11 +525,21 @@ impl Proxy {
 
     /// Serves one RESOLVE: answer from the resolved map, else read-through
     /// (manifest + batched fetch of globally-missing blobs + local store).
+    ///
+    /// `demand` marks a resolve issued by a compiler over the unix socket.
+    /// Those run on swift-build's SERIAL task-setup path — the llbuild engine
+    /// thread that schedules every task in the build — so they answer right
+    /// after the action lookup and leave graph materialization to the
+    /// background pool (a demand load that outruns it self-heals through
+    /// OP_FETCH_OBJECT). Wavefront resolves (`demand = false`) materialize
+    /// inline: they run on the read-ahead pool where blocking is free, and
+    /// inline work bounds how much fetched-but-unstored data sits in memory.
     fn resolve(
         &self,
-        remote: &Remote,
+        remote: &Arc<Remote>,
         state: &'static PathState,
         key: &[u8],
+        demand: bool,
     ) -> Result<Option<Vec<u8>>, String> {
         state.stats_resolves.fetch_add(1, Ordering::Relaxed);
         state
@@ -486,10 +557,14 @@ impl Proxy {
         // across builds, but a wiped DerivedData removes the value graph; serving
         // the stale Hit then fails the compiler with `missing object`. On absence
         // the path's stale caches are dropped and we re-resolve below.
+        // A value that is not on disk but has registered fetch instructions is
+        // as good as present: the materializer is filling it in and demand
+        // loads self-heal through OP_FETCH_OBJECT, so don't force a re-resolve
+        // (which would put a duplicate action lookup on the engine thread).
         match fast_path(
             &state.resolved,
             key,
-            |value| self.load_present(state, value),
+            |value| self.load_present(state, value) || state.fetchable(value),
             || state.invalidate(),
         ) {
             FastPath::Hit(value) => return Ok(Some(value)),
@@ -518,7 +593,7 @@ impl Proxy {
                     _ => None,
                 };
                 if let Some(value) = peeked {
-                    if self.load_present(state, &value) {
+                    if self.load_present(state, &value) || state.fetchable(&value) {
                         return Ok(Some(value));
                     }
                 }
@@ -535,7 +610,7 @@ impl Proxy {
         // this resolve's marks if a wipe/prune advances the counter mid-resolve.
         self.check_generation(state);
         let observed = state.gen_counter.load(Ordering::SeqCst);
-        let outcome = self.resolve_uncached(remote, state, key, observed);
+        let outcome = self.resolve_uncached(remote, state, key, observed, demand);
         {
             let mut inflight = state.inflight.lock().unwrap();
             inflight.remove(key);
@@ -546,10 +621,11 @@ impl Proxy {
 
     fn resolve_uncached(
         &self,
-        remote: &Remote,
+        remote: &Arc<Remote>,
         state: &'static PathState,
         key: &[u8],
         observed: u64,
+        demand: bool,
     ) -> Result<Option<Vec<u8>>, String> {
         let op_start = Instant::now();
         let phase = Instant::now();
@@ -580,6 +656,66 @@ impl Proxy {
         let action_ms = phase.elapsed().as_millis() as u64;
         state.ms_action.fetch_add(action_ms, Ordering::Relaxed);
 
+        let value = manifest[0].llcas_digest.clone();
+        // Commit the Hit BEFORE materialization — the whole point of the split:
+        // a demand caller is the build engine's serial task-setup thread, and
+        // every millisecond it spends here is a millisecond no other task in
+        // the build gets scheduled. Only commit if no wipe/prune advanced the
+        // generation while the action lookup ran.
+        let committed = {
+            let mut resolved = state.resolved.lock().unwrap();
+            if committable(observed, state.gen_counter.load(Ordering::SeqCst)) {
+                resolved.insert(key.to_vec(), Resolution::Hit(value.clone()));
+                true
+            } else {
+                false
+            }
+        };
+        if !committed {
+            return Ok(None);
+        }
+        // Register fetch instructions for every graph node BEFORE answering, so
+        // a consumer can never observe a served Hit without a way to produce
+        // its objects: a demand load that runs ahead of the materializer
+        // fetches per object through OP_FETCH_OBJECT using these.
+        {
+            let mut pending = state.pending_objects.lock().unwrap();
+            for entry in &manifest {
+                pending
+                    .entry(entry.llcas_digest.clone())
+                    .or_insert_with(|| PendingFetch {
+                        blob: entry.blob.clone(),
+                        contents: entry.contents.clone(),
+                    });
+            }
+        }
+        if let Some(analytics) = &self.analytics {
+            analytics.record_keyvalue(key, "read", op_start.elapsed().as_secs_f64());
+        }
+        if demand {
+            self.enqueue_materialize(state, remote, manifest, observed);
+        } else {
+            // Wavefront path: materialize inline. The Hit is already committed
+            // and every node has fetch instructions, so an error here only
+            // dampens the wavefront — demand loads self-heal per object.
+            self.materialize_manifest(remote, state, &manifest, observed)?;
+        }
+        Ok(Some(value))
+    }
+
+    /// Fetches and locally stores every node of `manifest` the on-disk CAS is
+    /// missing, clearing each node's `pending_objects` entry as it lands.
+    /// Blob-level problems (a node absent on the server, a decode failure)
+    /// skip that node — its fetch instructions stay registered and the demand
+    /// load that needs it surfaces the failure per object. Transport errors
+    /// abort and leave the remaining instructions for demand self-healing.
+    fn materialize_manifest(
+        &self,
+        remote: &Remote,
+        state: &'static PathState,
+        manifest: &[ManifestEntry],
+        observed: u64,
+    ) -> Result<(), String> {
         let phase = Instant::now();
         let missing: Vec<&ManifestEntry> = manifest
             .iter()
@@ -588,6 +724,19 @@ impl Proxy {
         state
             .ms_filter
             .fetch_add(phase.elapsed().as_millis() as u64, Ordering::Relaxed);
+        // Nodes already on disk need no fetch instructions.
+        {
+            let missing_set: HashSet<&[u8]> = missing
+                .iter()
+                .map(|entry| entry.llcas_digest.as_slice())
+                .collect();
+            let mut pending = state.pending_objects.lock().unwrap();
+            for entry in manifest {
+                if !missing_set.contains(entry.llcas_digest.as_slice()) {
+                    pending.remove(&entry.llcas_digest);
+                }
+            }
+        }
         if !missing.is_empty() {
             // Blobs the server inlined into the GetActionResult response (see
             // reapi::ManifestEntry::contents) need no second round-trip;
@@ -618,11 +767,10 @@ impl Proxy {
             if std::env::var_os("TUIST_CAS_LOG_RESOLVES").is_some() {
                 let bytes: i64 = digests.iter().map(|digest| digest.size_bytes).sum();
                 crate::log_line(&format!(
-                    "resolve manifest={} fetched={} bytes={} action_ms={} fetch_ms={}",
+                    "materialize manifest={} fetched={} bytes={} fetch_ms={}",
                     manifest.len(),
                     digests.len(),
                     bytes,
-                    action_ms,
                     fetch_elapsed.as_millis()
                 ));
             }
@@ -641,18 +789,20 @@ impl Proxy {
                     Some(bytes) => (bytes, true),
                     None => match contents.get(&entry.blob.hash) {
                         Some(bytes) => (bytes, false),
-                        // Incomplete graph on the server: degrade to a miss
-                        // (do not negative-cache; the writer may still be
-                        // uploading).
-                        None => return Ok(None),
+                        // Incomplete graph on the server (the writer may still
+                        // be uploading): skip the node, keeping its fetch
+                        // instructions registered so the demand load that
+                        // needs it retries — and surfaces the failure —
+                        // per object.
+                        None => continue,
                     },
                 };
                 let phase = Instant::now();
                 let Some(frame) = reapi::decompress_frame(blob) else {
-                    return Ok(None);
+                    continue;
                 };
                 let Some(node) = reapi::decode_frame(&frame) else {
-                    return Ok(None);
+                    continue;
                 };
                 let codec_elapsed = phase.elapsed();
                 state
@@ -703,32 +853,90 @@ impl Proxy {
                 } else {
                     state.stats_blobs_fetched.fetch_add(1, Ordering::Relaxed);
                 }
+                state.pending_objects.lock().unwrap().remove(&entry.llcas_digest);
             }
         }
-        let value = manifest[0].llcas_digest.clone();
-        // Commit the Hit only if no wipe/prune advanced the generation while we
-        // were fetching. If it did, the graph we just materialized targets a
-        // store that has been replaced, so caching this value (or returning it)
-        // could hand back a graph that is not on the current disk. Drop the write
-        // and answer a miss; the next resolve re-materializes against the new
-        // store. Checked under the resolved lock, against which invalidate's
-        // clear is serialized.
-        let committed = {
-            let mut resolved = state.resolved.lock().unwrap();
-            if committable(observed, state.gen_counter.load(Ordering::SeqCst)) {
-                resolved.insert(key.to_vec(), Resolution::Hit(value.clone()));
-                true
-            } else {
-                false
+        Ok(())
+    }
+
+    /// Queues a demand-path value graph for the materializer pool.
+    fn enqueue_materialize(
+        &self,
+        state: &PathState,
+        remote: &Arc<Remote>,
+        manifest: Vec<ManifestEntry>,
+        observed: u64,
+    ) {
+        let id = self.job_counter.fetch_add(1, Ordering::Relaxed);
+        self.materialize_jobs.lock().unwrap().insert(
+            id,
+            MaterializeJob {
+                cas_path: state.cas_path.clone(),
+                remote: remote.clone(),
+                manifest,
+                observed,
+            },
+        );
+        self.materializer.enqueue(id.to_be_bytes().to_vec());
+    }
+
+    fn materialize_job(&self, item: &[u8]) {
+        let Ok(id_bytes) = <[u8; 8]>::try_from(item) else { return };
+        let job = self
+            .materialize_jobs
+            .lock()
+            .unwrap()
+            .remove(&u64::from_be_bytes(id_bytes));
+        let Some(job) = job else { return };
+        let Ok(state) = self.path_state(&job.cas_path) else { return };
+        if let Err(message) =
+            self.materialize_manifest(&job.remote, state, &job.manifest, job.observed)
+        {
+            crate::log_line(&format!("background materialize failed: {message}"));
+        }
+    }
+
+    /// Serves one FETCH_OBJECT: a demand load found `digest` missing from the
+    /// local CAS. Present now (the materializer won the race) answers
+    /// immediately; a registered pending fetch is executed inline (this runs
+    /// on a compiler worker thread, never the build engine's serial path);
+    /// anything else is a genuine not-found.
+    fn fetch_object(
+        &self,
+        state: &'static PathState,
+        cas_path: &str,
+        declared_instance: &str,
+        digest: &[u8],
+    ) -> Result<bool, String> {
+        if self.load_present(state, digest) {
+            return Ok(true);
+        }
+        let pending = state.pending_objects.lock().unwrap().get(digest).cloned();
+        let Some(pending) = pending else { return Ok(false) };
+        let blob_bytes = match pending.contents {
+            Some(bytes) => bytes,
+            None => {
+                let Some(instance) = self.resolve_instance(cas_path, declared_instance) else {
+                    return Ok(false);
+                };
+                let remote = self.remote_for(&instance);
+                let contents = remote.batch_read(&[pending.blob.clone()])?;
+                match contents.get(&pending.blob.hash) {
+                    Some(bytes) => bytes.clone(),
+                    None => return Ok(false),
+                }
             }
         };
-        if !committed {
-            return Ok(None);
-        }
-        if let Some(analytics) = &self.analytics {
-            analytics.record_keyvalue(key, "read", op_start.elapsed().as_secs_f64());
-        }
-        Ok(Some(value))
+        let Some(frame) = reapi::decompress_frame(&blob_bytes) else {
+            return Ok(false);
+        };
+        let Some(node) = reapi::decode_frame(&frame) else {
+            return Ok(false);
+        };
+        unsafe { store_node(state, &node)? };
+        state.pending_objects.lock().unwrap().remove(digest);
+        state.stats_demand_fetched.fetch_add(1, Ordering::Relaxed);
+        Ok(true)
     }
 
     /// Detects a wiped-and-recreated on-disk CAS (a deleted DerivedData under
@@ -848,7 +1056,7 @@ impl Proxy {
         };
         let remote = self.remote_for(&instance);
         let Ok(state) = self.path_state(&cas_path) else { return };
-        match self.resolve(&remote, state, key) {
+        match self.resolve(&remote, state, key, false) {
             Ok(_) => {
                 let done = self.readahead_done.fetch_add(1, Ordering::Relaxed) + 1;
                 if done % 1000 == 0 {
@@ -1157,11 +1365,13 @@ impl Proxy {
         let mut parts = Vec::new();
         for (path, state) in paths.iter() {
             parts.push(format!(
-                "{}: resolves={} remote_hits={} misses={} blobs={} inlined={} published={} | ms action={} filter={} fetch={} decode={} store={}",
+                "{}: resolves={} remote_hits={} misses={} demand_fetched={} pending={} blobs={} inlined={} published={} | ms action={} filter={} fetch={} decode={} store={}",
                 path,
                 state.stats_resolves.load(Ordering::Relaxed),
                 state.stats_remote_hits.load(Ordering::Relaxed),
                 state.stats_misses.load(Ordering::Relaxed),
+                state.stats_demand_fetched.load(Ordering::Relaxed),
+                state.pending_objects.lock().unwrap().len(),
                 state.stats_blobs_fetched.load(Ordering::Relaxed),
                 state.stats_blobs_inlined.load(Ordering::Relaxed),
                 state.stats_published.load(Ordering::Relaxed),
@@ -1204,7 +1414,7 @@ impl Proxy {
                     .path_state(&request.cas_path)
                     .and_then(|state| {
                         self.record_and_arm_readahead(state, &request.cas_path, &request.payload);
-                        self.resolve(&remote, state, &request.payload)
+                        self.resolve(&remote, state, &request.payload, true)
                     });
                 match outcome {
                     Ok(Some(value)) => write_response(&mut stream, STATUS_HIT, &value),
@@ -1236,6 +1446,29 @@ impl Proxy {
                     state.publish_cache.lock().unwrap().clear();
                 }
                 write_response(&mut stream, STATUS_HIT, &[])
+            }
+            OP_FETCH_OBJECT => {
+                // Only for a path we already track: a proxy that restarted
+                // mid-build has no pending fetches, so there is nothing to
+                // produce (and no reason to open a CAS handle).
+                let state = self.paths.lock().unwrap().get(&request.cas_path).copied();
+                let outcome = match state {
+                    Some(state) => self.fetch_object(
+                        state,
+                        &request.cas_path,
+                        &request.instance,
+                        &request.payload,
+                    ),
+                    None => Ok(false),
+                };
+                match outcome {
+                    Ok(true) => write_response(&mut stream, STATUS_HIT, &[]),
+                    Ok(false) => write_response(&mut stream, STATUS_MISS, &[]),
+                    Err(message) => {
+                        crate::log_line(&format!("proxy fetch_object failed: {message}"));
+                        write_response(&mut stream, STATUS_ERROR, message.as_bytes())
+                    }
+                }
             }
             _ => write_response(&mut stream, STATUS_ERROR, b"bad op"),
         }
