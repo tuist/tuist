@@ -474,7 +474,7 @@ defmodule TuistWeb.Router do
   scope "/" do
     pipe_through [:mcp]
 
-    forward "/mcp", EMCP.Transport.StreamableHTTP, server: Tuist.MCP.Server
+    forward "/mcp", Tuist.MCP.Transport.StreamableHTTP, server: Tuist.MCP.Server
   end
 
   scope "/scim/v2", TuistWeb.SCIM do
@@ -764,6 +764,8 @@ defmodule TuistWeb.Router do
 
     post "/kura/usage", KuraUsageController, :create
     post "/kura/mesh/enroll", KuraMeshController, :enroll
+    post "/kura/mesh/heartbeat", KuraMeshController, :heartbeat
+    get "/kura/mesh/peers", KuraMeshController, :peers
     post "/kura/mesh/registrations", KuraMeshController, :register
   end
 

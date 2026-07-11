@@ -114,6 +114,15 @@ server:
   appUrl: http://tuist.local
   logLevel: info
   hosted: false
+  # Opt-in object-storage cleanup windows by artifact family, in days.
+  # An empty value disables cleanup only for that artifact family.
+  artifactRetentionDays:
+    cacheArtifacts: ""
+    appPreviews: ""
+    buildArchives: ""
+    runArtifacts: ""
+    testAttachments: ""
+    shardBundles: ""
   skipEmailConfirmation: true
   secretKeyBase: ""
   # When true, the chart skips emitting DATABASE_URL / TUIST_CLICKHOUSE_URL /

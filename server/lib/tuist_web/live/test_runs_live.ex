@@ -361,9 +361,9 @@ defmodule TuistWeb.TestRunsLive do
   defp analytics_trend_label("custom"), do: dgettext("dashboard_tests", "since last period")
   defp analytics_trend_label(_), do: dgettext("dashboard_tests", "since last month")
 
-  defp analytics_environment_label("any"), do: dgettext("dashboard_tests", "Any")
   defp analytics_environment_label("local"), do: dgettext("dashboard_tests", "Local")
   defp analytics_environment_label("ci"), do: dgettext("dashboard_tests", "CI")
+  defp analytics_environment_label(_), do: dgettext("dashboard_tests", "Any")
 
   defp assign_test_runs(%{assigns: %{selected_project: project}} = socket, params) do
     filters =
@@ -415,10 +415,7 @@ defmodule TuistWeb.TestRunsLive do
   defp build_flop_filters(filters, search) do
     {ran_by, filters} = Enum.split_with(filters, &(&1.id == "ran_by"))
 
-    flop_filters =
-      filters
-      |> Enum.map(&normalize_text_filter_operator/1)
-      |> Filter.Operations.convert_filters_to_flop()
+    flop_filters = Filter.Operations.convert_filters_to_flop(filters)
 
     ran_by_flop_filters =
       Enum.flat_map(ran_by, fn
@@ -451,8 +448,4 @@ defmodule TuistWeb.TestRunsLive do
   defp page_level_environment_filters(%{analytics_environment: "ci"}), do: [%{field: :is_ci, op: :==, value: true}]
   defp page_level_environment_filters(%{analytics_environment: "local"}), do: [%{field: :is_ci, op: :==, value: false}]
   defp page_level_environment_filters(_), do: []
-
-  defp normalize_text_filter_operator(%Filter.Filter{operator: :"!=~"} = filter), do: %{filter | operator: :not_ilike}
-
-  defp normalize_text_filter_operator(filter), do: filter
 end

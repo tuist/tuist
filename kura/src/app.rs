@@ -200,7 +200,12 @@ async fn run_with_config(
     spawn_segment_promotion_task(state.clone());
 
     // When the node enrolled on boot, keep its peer certificate fresh in-process
-    // so a short leaf does not require a restart.
+    // so a short leaf does not require a restart, and prove mesh-membership
+    // liveness to the control plane (which also refreshes the peer list at
+    // heartbeat cadence instead of at certificate renewal). Managed pods don't
+    // enroll; they sync the peer view read-only, with serving gated on the
+    // first successful fetch so a pod booting blind never accepts writes
+    // without enqueuing replication for peers it cannot see.
     if let Some(enrollment) = enrollment
         && state.config.peer_tls.is_some()
     {
@@ -208,6 +213,15 @@ async fn run_with_config(
             .dynamic_peers
             .store(std::sync::Arc::new(enrollment.peers.clone()));
         spawn_cert_renewal_task(state.clone(), enrollment.renew_after_seconds);
+        crate::mesh_heartbeat::spawn(
+            state.clone(),
+            crate::mesh_heartbeat::MeshHeartbeatConfig::from_enrollment(&enrollment),
+        );
+    } else if state.config.peer_tls.is_some()
+        && let Some(config) = crate::mesh_heartbeat::MeshPeersSyncConfig::from_config(&state.config)
+    {
+        state.runtime.require_peer_view();
+        crate::mesh_heartbeat::spawn_peers_sync(state.clone(), config);
     }
 
     let address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.port));
@@ -457,10 +471,34 @@ async fn shutdown_signal() {
 // Drains the store's read-path promotion queue: artifacts served from an
 // Old-generation segment are rewritten into the current segment here instead
 // of inline on the read path (see Store::run_promotion_worker).
+//
+// Unlike the other background tasks, this one has a producer queue behind it:
+// if the worker dies, enqueue_promotion keeps filling the queue and promotion
+// silently stops for the life of the process, so Old-segment artifacts age out
+// wholesale with hit-rate decay as the only symptom. The worker itself only
+// returns by panicking (invariant `expect`s deep in the refresh path that
+// pre-dated backgrounding killed a single request when they ran inline), so
+// supervise it: respawn on panic instead of losing the subsystem.
 fn spawn_segment_promotion_task(state: Arc<AppState>) {
     tokio::spawn(
         async move {
-            state.store.run_promotion_worker().await;
+            loop {
+                let worker_state = state.clone();
+                let worker = tokio::spawn(
+                    async move {
+                        worker_state.store.run_promotion_worker().await;
+                    }
+                    .in_current_span(),
+                );
+                if worker.await.is_ok() {
+                    // run_promotion_worker loops forever; a clean return means
+                    // the runtime is shutting down.
+                    return;
+                }
+                state.metrics.record_promotion_failure();
+                tracing::warn!("segment promotion worker panicked; respawning");
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
         }
         .in_current_span(),
     );
@@ -486,6 +524,9 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                         state
                             .metrics
                             .update_multipart_uploads(snapshot.multipart_uploads);
+                        state
+                            .metrics
+                            .update_promotion_queue_depth(snapshot.promotion_queue_depth);
                         state
                             .metrics
                             .update_segment_fsyncs(snapshot.segment_fsync_count);
@@ -688,7 +729,7 @@ fn spawn_cert_renewal_task(state: Arc<AppState>, initial_renew_after_seconds: u6
             loop {
                 tokio::time::sleep(Duration::from_secs(renew_after)).await;
                 match crate::enrollment::renew().await {
-                    Ok(outcome) => match apply_renewed_certs(&state, &outcome).await {
+                    Ok(outcome) => match apply_renewed_enrollment(&state, &outcome).await {
                         Ok(()) => {
                             info!("renewed peer certificate");
                             renew_after = outcome.renew_after_seconds.max(60);
@@ -709,7 +750,7 @@ fn spawn_cert_renewal_task(state: Arc<AppState>, initial_renew_after_seconds: u6
     );
 }
 
-async fn apply_renewed_certs(
+pub(crate) async fn apply_renewed_enrollment(
     state: &Arc<AppState>,
     outcome: &crate::enrollment::EnrollmentOutcome,
 ) -> Result<(), String> {

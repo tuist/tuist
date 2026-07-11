@@ -1231,7 +1231,9 @@ impl Proxy {
         record: &PublishRecord,
     ) -> Result<(), String> {
         let op_start = Instant::now();
-        if let Ok(Some(manifest)) = remote.get_action(&record.key) {
+        // Existence probe: only the first entry's digest is compared, so skip
+        // the wildcard inline hint the resolve path uses.
+        if let Ok(Some(manifest)) = remote.probe_action(&record.key) {
             if manifest.first().map(|entry| entry.llcas_digest.as_slice())
                 == Some(record.value_digest.as_slice())
             {

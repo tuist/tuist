@@ -123,8 +123,8 @@
           <:icon_left><.download /></:icon_left>
         </.button>
         <.button
-          :if={@run.status != "processing" && Tuist.Builds.build_ci_run_url(@run)}
-          href={Tuist.Builds.build_ci_run_url(@run)}
+          :if={@run.status != "processing" && @ci_run_url}
+          href={@ci_run_url}
           label={dgettext("dashboard_builds", "CI Run")}
           variant="secondary"
           size="medium"
@@ -357,6 +357,10 @@
           </div>
         </.card_section>
       </.card>
+      <.ci_context_card
+        :if={@ci_context}
+        context={@ci_context}
+      />
       <.card
         :if={
           not Enum.empty?(@errors_grouped_by_path) or not Enum.empty?(@warnings_grouped_by_path)

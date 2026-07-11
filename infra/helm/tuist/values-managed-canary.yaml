@@ -93,6 +93,9 @@ server:
     # env's config the release runs as.
     - name: TUIST_DEPLOY_ENV
       value: can
+    # Cache remains the sole registry writer until the managed cutover.
+    - name: SWIFT_REGISTRY_SYNC_ENABLED
+      value: "false"
     # Single web replica shares this pool between request handling and the
     # in-node Oban queues (default: 10). Sized well above the default-queue
     # concurrency so the steady AlertEvaluationWorker load can't starve web
@@ -114,8 +117,9 @@ server:
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
     # resolves to the node-port form (http://<node PN address>:<NodePort>
     # on scw-fr-par-runners), reached over the PN the minis attach to
-    # (macosFleet.vmCachePrivateNetwork below). linux is the default and
-    # stays inert here (canary advertises no Linux private cache region).
+    # (macosFleet.vmCachePrivateNetwork below). linux resolves through
+    # the public-region fallback — no Linux private cache region here
+    # (see values-managed-production.yaml).
     - name: TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS
       value: linux,macos
 
@@ -253,10 +257,11 @@ processor:
       cpu: "1000m"
       memory: "1Gi"
 
-# Scope sync to a single package on canary so we can bake the pod
-# end-to-end without spending the GitHub-PAT rate-limit budget on the
-# full SwiftPackageIndex catalog. Remove this to mirror production.
+# Cache remains the sole registry writer until the managed cutover. The
+# standalone registry continues exercising the read path against the
+# same bucket.
 swiftRegistrySync:
+  enabled: false
   syncAllowlist: alamofire/alamofire
   extraEnv:
     - name: TUIST_DEPLOY_ENV

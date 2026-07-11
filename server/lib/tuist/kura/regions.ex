@@ -51,6 +51,11 @@ defmodule Tuist.Kura.Regions do
   # controller's peerPort). Self-hosted nodes dial the public peer host here.
   @peer_port 7443
   @managed_region_storage_class "hcloud-volumes"
+  # In-cluster Service DNS form of a region's per-account instance.
+  # Port 4000 co-hosts the HTTP cache API and REAPI gRPC (h2c) on one
+  # listener. Never CLI-facing — only runner dispatch hands it out
+  # (`Tuist.Kura.runner_cache_endpoint_url/2`).
+  @in_cluster_url_template "http://{instance}.kura.svc.cluster.local:4000"
   # The guaranteed egress floor an enterprise tenant reserves on a shared
   # bare-metal box, requested as the tuist.dev/egress-mbps extended resource the
   # scheduler bin-packs against the node's budget. Uniform across regions — a
@@ -366,6 +371,7 @@ defmodule Tuist.Kura.Regions do
         cluster_id: spec.cluster_id,
         hetzner_location: Map.get(spec, :hetzner_location),
         public_host_template: String.replace(@managed_region_public_host_template, "{env_suffix}", host_suffix),
+        private_url_template: @in_cluster_url_template,
         grpc_public_host_template: String.replace(@managed_region_grpc_public_host_template, "{env_suffix}", host_suffix),
         peer_public_host_template: String.replace(@managed_region_peer_public_host_template, "{env_suffix}", host_suffix),
         ingress_class_name: spec.ingress_class_name,
@@ -441,7 +447,7 @@ defmodule Tuist.Kura.Regions do
         # interpolates to `instance_name(handle, region)`. Node-port
         # regions don't use it for dispatch but keep it as the
         # in-cluster debugging path.
-        private_url_template: "http://{instance}.kura.svc.cluster.local:4000",
+        private_url_template: @in_cluster_url_template,
         data_plane: Map.get(spec, :data_plane, :cluster_dns),
         client_cidrs: Map.get(spec, :client_cidrs, []),
         pod_annotations: Map.get(spec, :pod_annotations, %{}),

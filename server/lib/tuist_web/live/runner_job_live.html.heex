@@ -165,9 +165,203 @@
           </div>
         </div>
       </.card_section>
+    </.card>
 
+    <.card
+      title={dgettext("dashboard_runners", "Insights")}
+      icon="chart_arcs"
+      data-part="insights-card"
+    >
+      <div data-part="insights-grid">
+        <div data-part="runner-build-insights">
+          <div data-part="insights-panel-header">
+            <span data-part="insights-panel-title">
+              {dgettext("dashboard_runners", "Builds")}
+            </span>
+          </div>
+          <div data-part="insights-section">
+            <div :if={is_nil(@insights_project)} data-part="insights-empty">
+              {dgettext(
+                "dashboard_runners",
+                "No matching project was found for this runner repository."
+              )}
+            </div>
+            <div :if={@insights_project && @linked_build_runs == []} data-part="insights-empty">
+              {dgettext(
+                "dashboard_runners",
+                "No build runs have reported insights for this runner job yet."
+              )}
+            </div>
+            <%= if @linked_build_runs != [] do %>
+              <% xcode_cache_summary =
+                TuistWeb.RunnerJobLive.xcode_cache_summary(@linked_build_runs) %>
+              <% module_cache_summary = @linked_build_module_cache_summary %>
+              <div data-part="insights-summary">
+                <div data-part="insights-metric">
+                  <span data-part="title">
+                    {dgettext("dashboard_runners", "Total duration")}
+                  </span>
+                  <span data-part="value">
+                    {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                      TuistWeb.RunnerJobLive.build_runs_duration_ms(@linked_build_runs)
+                    )}
+                  </span>
+                </div>
+                <div
+                  :if={TuistWeb.RunnerJobLive.hit_rate_summary?(xcode_cache_summary)}
+                  data-part="insights-metric"
+                >
+                  <span data-part="title">{dgettext("dashboard_runners", "Xcode cache")}</span>
+                  <span data-part="value">
+                    {TuistWeb.RunnerJobLive.hit_rate_label(xcode_cache_summary)}
+                  </span>
+                </div>
+                <div
+                  :if={TuistWeb.RunnerJobLive.hit_rate_summary?(module_cache_summary)}
+                  data-part="insights-metric"
+                >
+                  <span data-part="title">{dgettext("dashboard_runners", "Module cache")}</span>
+                  <span data-part="value">
+                    {TuistWeb.RunnerJobLive.hit_rate_label(module_cache_summary)}
+                  </span>
+                </div>
+              </div>
+              <div data-part="insights-run-list">
+                <%= for build <- @linked_build_runs do %>
+                  <% build_project = Map.get(@insights_projects_by_id, build.project_id) %>
+                  <% row_status_props = TuistWeb.RunnerJobLive.build_status_badge_props(build) %>
+                  <% build_step_window =
+                    TuistWeb.RunnerJobLive.insight_step_window(@steps, [build], :build) %>
+                  <.link
+                    :if={build_project}
+                    navigate={
+                      ~p"/#{@selected_account.name}/#{build_project.name}/builds/build-runs/#{build.id}"
+                    }
+                    data-part="insights-run-row"
+                    data-step-start={build_step_window && build_step_window.min}
+                    data-step-end={build_step_window && build_step_window.max}
+                  >
+                    <span data-part="insights-run-main">
+                      <span data-part="insights-run-title">
+                        {TuistWeb.RunnerJobLive.insight_scheme_label(build)}
+                      </span>
+                      <span data-part="insights-run-subtitle">
+                        {build.configuration}
+                      </span>
+                    </span>
+                    <span data-part="insights-run-meta">
+                      <span>
+                        {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                          build.duration
+                        )}
+                      </span>
+                      <.badge
+                        label={row_status_props.label}
+                        color={row_status_props.color}
+                        style="fill"
+                        size="large"
+                      />
+                    </span>
+                  </.link>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+        </div>
+
+        <div data-part="runner-test-insights">
+          <div data-part="insights-panel-header">
+            <span data-part="insights-panel-title">
+              {dgettext("dashboard_runners", "Tests")}
+            </span>
+          </div>
+          <div data-part="insights-section">
+            <div :if={is_nil(@insights_project)} data-part="insights-empty">
+              {dgettext(
+                "dashboard_runners",
+                "No matching project was found for this runner repository."
+              )}
+            </div>
+            <div :if={@insights_project && @linked_test_runs == []} data-part="insights-empty">
+              {dgettext(
+                "dashboard_runners",
+                "No test runs have reported insights for this runner job yet."
+              )}
+            </div>
+            <%= if @linked_test_runs != [] do %>
+              <% selective_testing_summary = @linked_test_selective_testing_summary %>
+              <div data-part="insights-summary">
+                <div data-part="insights-metric">
+                  <span data-part="title">
+                    {dgettext("dashboard_runners", "Total duration")}
+                  </span>
+                  <span data-part="value">
+                    {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                      TuistWeb.RunnerJobLive.step_test_duration_ms(@linked_test_runs)
+                    )}
+                  </span>
+                </div>
+                <div
+                  :if={TuistWeb.RunnerJobLive.hit_rate_summary?(selective_testing_summary)}
+                  data-part="insights-metric"
+                >
+                  <span data-part="title">
+                    {dgettext("dashboard_runners", "Selective testing")}
+                  </span>
+                  <span data-part="value">
+                    {TuistWeb.RunnerJobLive.hit_rate_label(selective_testing_summary)}
+                  </span>
+                </div>
+              </div>
+              <div data-part="insights-run-list">
+                <%= for test <- @linked_test_runs do %>
+                  <% test_project = Map.get(@insights_projects_by_id, test.project_id) %>
+                  <% row_status_props = TuistWeb.RunnerJobLive.test_status_badge_props(test) %>
+                  <% test_step_window =
+                    TuistWeb.RunnerJobLive.insight_step_window(@steps, [test], :test) %>
+                  <.link
+                    :if={test_project}
+                    navigate={
+                      ~p"/#{@selected_account.name}/#{test_project.name}/tests/test-runs/#{test.id}"
+                    }
+                    data-part="insights-run-row"
+                    data-step-start={test_step_window && test_step_window.min}
+                    data-step-end={test_step_window && test_step_window.max}
+                  >
+                    <span data-part="insights-run-main">
+                      <span data-part="insights-run-title">
+                        {TuistWeb.RunnerJobLive.insight_scheme_label(test)}
+                      </span>
+                    </span>
+                    <span data-part="insights-run-meta">
+                      <span>
+                        {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                          test.duration
+                        )}
+                      </span>
+                      <.badge
+                        label={row_status_props.label}
+                        color={row_status_props.color}
+                        style="fill"
+                        size="large"
+                      />
+                    </span>
+                  </.link>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </.card>
+
+    <.card
+      :if={TuistWeb.RunnerJobLive.has_machine_metrics?(@machine_metrics)}
+      title={dgettext("dashboard_runners", "Metrics")}
+      icon="chart_dots"
+      data-part="overview-metrics-card"
+    >
       <.runner_job_metrics_overview
-        :if={TuistWeb.RunnerJobLive.has_machine_metrics?(@machine_metrics)}
         metrics={@machine_metrics}
         window={TuistWeb.RunnerJobLive.step_window(@steps)}
       />
@@ -199,12 +393,18 @@
         </div>
         <div
           :for={step <- @steps}
+          id={"runner-step-#{step.number}"}
+          phx-hook="ScrollIntoView"
           data-part="step"
           data-expanded={to_string(TuistWeb.RunnerJobLive.step_expanded?(@expanded_steps, step))}
         >
           <% step_kind = TuistWeb.RunnerJobLive.step_status(step) %>
           <% step_duration = TuistWeb.RunnerJobLive.step_duration_ms(step) %>
           <% expanded = TuistWeb.RunnerJobLive.step_expanded?(@expanded_steps, step) %>
+          <% step_insights =
+            TuistWeb.RunnerJobLive.step_insights(step, @linked_build_runs, @linked_test_runs) %>
+          <% latest_step_build = List.first(step_insights.build_runs) %>
+          <% latest_step_test = List.first(step_insights.test_runs) %>
           <div
             data-part="step-header"
             data-step-start={TuistWeb.RunnerJobLive.step_epoch_ms(step.started_at)}
@@ -212,14 +412,82 @@
             phx-click="toggle_step"
             phx-value-number={step.number}
           >
-            <div data-part="step-info">
+            <div
+              data-part="step-info"
+              data-has-insights={
+                to_string(TuistWeb.RunnerJobLive.step_has_insights?(step_insights))
+              }
+            >
               <div data-part={"step-icon-#{step_kind}"}>
                 <.circle_check :if={step_kind == :success} />
                 <.alert_circle :if={step_kind == :failure} />
                 <.alert_hexagon :if={step_kind == :warning} />
                 <.circle_dashed :if={step_kind == :processing} />
               </div>
-              <span data-part="step-name">{step.name}</span>
+              <div data-part="step-label">
+                <span data-part="step-name">{step.name}</span>
+                <div
+                  :if={TuistWeb.RunnerJobLive.step_has_insights?(step_insights)}
+                  data-part="step-insight-chips"
+                >
+                  <%= if latest_step_build do %>
+                    <% latest_step_build_project =
+                      Map.get(@insights_projects_by_id, latest_step_build.project_id) %>
+                    <.link
+                      :if={latest_step_build_project}
+                      navigate={
+                        ~p"/#{@selected_account.name}/#{latest_step_build_project.name}/builds/build-runs/#{latest_step_build.id}"
+                      }
+                      data-part="step-insight-chip"
+                      data-kind="build"
+                      phx-click={JS.exec("event.stopPropagation()", to: "window")}
+                    >
+                      <span data-part="step-insight-chip-kind">
+                        {dgettext("dashboard_runners", "Build")}
+                      </span>
+                      <span data-part="step-insight-chip-label">
+                        {TuistWeb.RunnerJobLive.insight_scheme_label(latest_step_build)}
+                      </span>
+                      <span data-part="step-insight-chip-meta">
+                        <span>
+                          {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                            latest_step_build.duration,
+                            fractional_seconds: false
+                          )}
+                        </span>
+                      </span>
+                    </.link>
+                  <% end %>
+                  <%= if latest_step_test do %>
+                    <% latest_step_test_project =
+                      Map.get(@insights_projects_by_id, latest_step_test.project_id) %>
+                    <.link
+                      :if={latest_step_test_project}
+                      navigate={
+                        ~p"/#{@selected_account.name}/#{latest_step_test_project.name}/tests/test-runs/#{latest_step_test.id}"
+                      }
+                      data-part="step-insight-chip"
+                      data-kind="test"
+                      phx-click={JS.exec("event.stopPropagation()", to: "window")}
+                    >
+                      <span data-part="step-insight-chip-kind">
+                        {dgettext("dashboard_runners", "Test")}
+                      </span>
+                      <span data-part="step-insight-chip-label">
+                        {TuistWeb.RunnerJobLive.insight_scheme_label(latest_step_test)}
+                      </span>
+                      <span data-part="step-insight-chip-meta">
+                        <span>
+                          {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                            latest_step_test.duration,
+                            fractional_seconds: false
+                          )}
+                        </span>
+                      </span>
+                    </.link>
+                  <% end %>
+                </div>
+              </div>
             </div>
             <div data-part="step-meta">
               <.badge
@@ -239,15 +507,17 @@
               </span>
             </div>
           </div>
-          <div :if={expanded} data-part="step-logs">
-            <% step_lines = Map.get(@step_logs, step.number, []) %>
-            <div :if={step_lines == []} data-part="log-empty">
-              {dgettext("dashboard_runners", "No logs were captured for this step.")}
+          <div :if={expanded} data-part="step-expanded">
+            <div data-part="step-logs">
+              <% step_lines = Map.get(@step_logs, step.number, []) %>
+              <div :if={step_lines == []} data-part="log-empty">
+                {dgettext("dashboard_runners", "No logs were captured for this step.")}
+              </div>
+              <TuistWeb.RunnerJobLive.log_tree
+                :if={step_lines != []}
+                tree={Tuist.Runners.LogFormatter.group_lines(step_lines)}
+              />
             </div>
-            <TuistWeb.RunnerJobLive.log_tree
-              :if={step_lines != []}
-              tree={Tuist.Runners.LogFormatter.group_lines(step_lines)}
-            />
           </div>
         </div>
       </.card_section>

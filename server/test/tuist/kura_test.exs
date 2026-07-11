@@ -803,6 +803,153 @@ defmodule Tuist.KuraTest do
     end
   end
 
+  describe "runner_cache_endpoint_url/2 public in-cluster fallback" do
+    setup do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["eu-central", "us-east", "us-west", "scw-fr-par-runners"]
+      end)
+
+      stub(Tuist.FeatureFlags, :kura_cache_enabled?, fn _account -> true end)
+
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      %{account: account}
+    end
+
+    test "hands linux fleets the in-cluster form of the instance the CLI resolves",
+         %{account: account} do
+      activate_public_server!(account, "eu-central")
+
+      handle = String.downcase(account.name)
+
+      assert Kura.runner_cache_endpoint_url(account, :linux) ==
+               "http://kura-#{handle}-eu-central-1.kura.svc.cluster.local:4000"
+    end
+
+    test "prefers the account's eu-central instance among the CLI's candidates", %{account: account} do
+      activate_public_server!(account, "us-east")
+      activate_public_server!(account, "eu-central")
+
+      handle = String.downcase(account.name)
+
+      assert Kura.runner_cache_endpoint_url(account, :linux) ==
+               "http://kura-#{handle}-eu-central-1.kura.svc.cluster.local:4000"
+    end
+
+    test "falls back to the account's first instance when it has none in eu-central",
+         %{account: account} do
+      activate_public_server!(account, "us-west")
+      activate_public_server!(account, "us-east")
+
+      handle = String.downcase(account.name)
+
+      # "First" is stable region order: us-east sorts before us-west.
+      assert Kura.runner_cache_endpoint_url(account, :linux) ==
+               "http://kura-#{handle}-us-east-1.kura.svc.cluster.local:4000"
+    end
+
+    test "stages nothing when the CLI would not resolve Kura endpoints", %{account: account} do
+      stub(Tuist.FeatureFlags, :kura_cache_enabled?, fn _account -> false end)
+
+      activate_public_server!(account, "eu-central")
+
+      assert Kura.runner_cache_endpoint_url(account, :linux) == nil
+    end
+
+    test "never stages registered self-hosted endpoints", %{account: account} do
+      stub(Accounts, :kura_cache_endpoint_urls, fn _account ->
+        ["https://kura.customer.example.com"]
+      end)
+
+      # Externally reachable — the CLI's own selection handles them.
+      assert Kura.runner_cache_endpoint_url(account, :linux) == nil
+    end
+
+    test "excludes mirrored URLs whose server is no longer active", %{account: account} do
+      server = activate_public_server!(account, "eu-central")
+
+      Server |> Repo.get!(server.id) |> Ecto.Changeset.change(status: :failed) |> Repo.update!()
+
+      assert Kura.runner_cache_endpoint_url(account, :linux) == nil
+    end
+
+    test "keeps a moved server's -m instance name", %{account: account} do
+      server = activate_public_server!(account, "eu-central")
+
+      handle = String.downcase(account.name)
+
+      # After a warm-handoff move the Service is named after the -m ref
+      # while the mirrored customer URL — what the candidate match keys
+      # on — is unchanged.
+      Server
+      |> Repo.get!(server.id)
+      |> Ecto.Changeset.change(provisioner_node_ref: "kura-#{handle}-eu-central-1-m")
+      |> Repo.update!()
+
+      assert Kura.runner_cache_endpoint_url(account, :linux) ==
+               "http://kura-#{handle}-eu-central-1-m.kura.svc.cluster.local:4000"
+    end
+
+    test "never hands macOS fleets a cluster-DNS URL", %{account: account} do
+      activate_public_server!(account, "eu-central")
+
+      assert Kura.runner_cache_endpoint_url(account, :macos) == nil
+    end
+
+    test "macOS stays on default resolution when its private node's heartbeat is stale, despite an active public server",
+         %{account: account} do
+      {:ok, private} =
+        Kura.create_server(%{account_id: account.id, region: "scw-fr-par-runners", image_tag: "0.5.2"})
+
+      expect(Provisioner, :external_endpoint, fn %Server{} -> {:ok, "http://172.16.0.2:30815"} end)
+      {:ok, active_private} = Kura.activate_server(private, "0.5.2")
+
+      stale = ~U[2020-01-01 00:00:00Z]
+      Server |> Repo.get!(active_private.id) |> Ecto.Changeset.change(last_ready_at: stale) |> Repo.update!()
+
+      activate_public_server!(account, "eu-central")
+
+      # The Tart VMs can't resolve cluster Service DNS, so a stale private
+      # node must fail macOS over to the public cache (nil), never to the
+      # in-cluster fallback URL.
+      assert Kura.runner_cache_endpoint_url(account, :macos) == nil
+    end
+
+    test "prefers a serving private runner-cache node over the public fallback", %{account: account} do
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["eu-central", "hetzner-staging-runners"]
+      end)
+
+      activate_public_server!(account, "eu-central")
+
+      {:ok, private} =
+        Kura.create_server(%{account_id: account.id, region: "hetzner-staging-runners", image_tag: "0.5.2"})
+
+      stub(Provisioner, :public_url, fn _account, %Server{} ->
+        "http://kura-private.kura.svc.cluster.local"
+      end)
+
+      {:ok, active_private} = Kura.activate_server(private, "0.5.2")
+
+      assert Kura.runner_cache_endpoint_url(account, :linux) == active_private.url
+    end
+
+    test "requires an active, CLI-visible public server", %{account: account} do
+      {:ok, _server} =
+        Kura.create_server(%{account_id: account.id, region: "eu-central", image_tag: "0.5.2"})
+
+      assert Kura.runner_cache_endpoint_url(account, :linux) == nil
+    end
+
+    test "is nil for accounts without any server", %{account: account} do
+      assert Kura.runner_cache_endpoint_url(account, :linux) == nil
+    end
+  end
+
   describe "destroy_server/1" do
     test "marks destroying and removes the cache endpoint" do
       user = AccountsFixtures.user_fixture()
@@ -959,5 +1106,28 @@ defmodule Tuist.KuraTest do
       {:ok, _} = Kura.destroy_server(server)
       assert_receive {:kura_server, :updated, %{status: :destroying}}
     end
+  end
+
+  # A public server as `activate_server/2` leaves it: active, public
+  # `url`, and the URL mirrored into `account_cache_endpoints`. The
+  # fallback intersects mirror and active servers, so tests need both.
+  defp activate_public_server!(account, region) do
+    handle = String.downcase(account.name)
+    url = "https://#{handle}-#{region}-1.kura.tuist.dev"
+
+    {:ok, server} = Kura.create_server(%{account_id: account.id, region: region, image_tag: "0.5.2"})
+
+    server =
+      Server
+      |> Repo.get!(server.id)
+      |> Ecto.Changeset.change(status: :active, url: url)
+      |> Repo.update!()
+
+    {:ok, _} =
+      %AccountCacheEndpoint{}
+      |> AccountCacheEndpoint.create_changeset(%{account_id: account.id, url: url, technology: :kura})
+      |> Repo.insert()
+
+    server
   end
 end

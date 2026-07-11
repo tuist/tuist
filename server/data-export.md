@@ -21,7 +21,7 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - Account-level cache settings, including storage region, custom cache endpoint enablement, and cache write policy (`members_and_tokens` or `tokens_only`)
 - API tokens, SCIM-scoped account tokens, and project tokens (existence, scopes, names, timestamps, and last-used metadata only; token values and hashes are excluded)
 - Agent registration audit records (`agent_registrations`, `agent_registration_events`, and `agent_auth_jtis` tables): registration type/status, requested credential type, verified email address, claim attempt id, claim and OTP expiry timestamps, claim request / completion IP metadata, claimed user relationship, linked account-token id or JWT id, ID-JAG issuer/subject/audience/client metadata, replay-protection `jti` records, append-only state-change events (`created`, `claim_resent`, `otp_failed`, `claimed`, `expired`, `revoked`), event IP metadata, event metadata, and timestamps. The claim token hash, claim-view token hash, OTP hash, issued API key value, and signed JWT value are excluded from exports as authentication secrets.
-- Custom cache endpoint configurations (`account_cache_endpoints` table): account-specific custom cache endpoints, active regional Kura endpoint mirrors, and the internal peer (mTLS) addresses of enrolled self-hosted Kura nodes (rows with `technology = :kura_self_hosted_peer`, written at enrollment from each node's `KURA_NODE_URL`). These peer addresses are customer infrastructure hostnames used only for mesh peering and are never returned to the CLI as cache endpoints. Legacy account-level Kura global endpoint rows matching `https://<lowercase-account-handle>.kura.tuist.dev` are no longer stored separately; they are removed by the Kura global-endpoint cleanup migration.
+- Custom cache endpoint configurations (`account_cache_endpoints` table): account-specific custom cache endpoints, active regional Kura endpoint mirrors, and the internal peer (mTLS) addresses of enrolled self-hosted Kura nodes (rows with `technology = :kura_self_hosted_peer`, written at enrollment from each node's `KURA_NODE_URL`). These peer addresses are customer infrastructure hostnames used only for mesh peering and are never returned to the CLI as cache endpoints. Self-hosted peer rows whose node stops sending mesh heartbeats carry a `deactivated_at` timestamp (the peer is withheld from the mesh but kept; the node's recovery re-enrollment reactivates it) and are deleted once deactivated past the peer-certificate lifetime (30 days). Legacy account-level Kura global endpoint rows matching `https://<lowercase-account-handle>.kura.tuist.dev` are no longer stored separately; they are removed by the Kura global-endpoint cleanup migration.
 - Organization SSO configuration metadata, including the configured SSO provider, provider URL, and full OAuth2 endpoint URLs
 - Kura server records (`kura_servers` table): per-account Kura server configuration including region, image tag, public URL, status, the warm-handoff move state (`move_phase`, `target_node`) recording whether the server is a steady-state instance or a transient move source/target and which box a move target is pinned to, and the observed-state projection (`observed_image_tag`, `last_observed_at`, `last_ready_at`) recording which image the backing cluster reports running, when it was last observed, and when its private endpoint was last observed ready
 - Kura deployment history (`kura_deployments` table): rollout attempts for the account's Kura servers including image tag, status, error messages, and start/finish timestamps
@@ -129,12 +129,10 @@ All uploaded files associated with the account are included:
 The customer-facing summary of these windows lives in the public data retention
 guide at `server/priv/docs/en/guides/server/data-retention.md`.
 
-Stored artifact blobs are subject to plan-based retention, capped at 30 days.
-Once an artifact is
-older than its retention window, its binary is removed from object storage by a
-daily cleanup process; the associated metadata rows (build runs, test runs,
-command events, preview records, shard plans) are kept so analytics and
-dashboards remain intact. Retention windows, in days, by plan:
+On the hosted Tuist server, stored artifact blobs are subject to plan-based
+retention capped at 30 days. The active account plan determines the applicable window, with Air
+used when an account has no active subscription. Retention windows, in days, by
+plan:
 
 | Artifact | Air / Open Source | Pro | Enterprise |
 | --- | --- | --- | --- |
@@ -145,22 +143,56 @@ dashboards remain intact. Retention windows, in days, by plan:
 | Test run attachments | 30 | 30 | 30 |
 | Shard bundles | 7 | 14 | 30 |
 
+Self-hosted artifact cleanup is configured independently for each artifact
+family:
+
+| Artifact family | Environment variable |
+| --- | --- |
+| Cache artifacts, including Xcode compilation, legacy content-addressable storage, module, and Gradle files | `TUIST_CACHE_ARTIFACT_RETENTION_DAYS` |
+| App preview builds and icons | `TUIST_APP_PREVIEW_RETENTION_DAYS` |
+| Current and legacy build archives | `TUIST_BUILD_ARCHIVE_RETENTION_DAYS` |
+| Run artifacts | `TUIST_RUN_ARTIFACT_RETENTION_DAYS` |
+| Test run attachments | `TUIST_TEST_ATTACHMENT_RETENTION_DAYS` |
+| Shard bundles | `TUIST_SHARD_BUNDLE_RETENTION_DAYS` |
+
+Each variable accepts a positive integer day window. Leaving a variable unset
+or blank disables cleanup only for that artifact family. Self-hosted windows do
+not have the hosted 30-day cap, and these variables do not override the hosted
+policy.
+
+Once an artifact is older than the applicable window, the cleanup process
+removes its binary from object storage only. The associated PostgreSQL and
+ClickHouse metadata rows, including build runs, test runs, command events,
+preview records, and shard plans, are kept so analytics and dashboards remain
+intact. The configurable policy does not change database retention rules.
+
 Retention status is computed when cleanup runs. Cache artifacts use the object
 storage `last_modified` timestamp, while previews, current build archives, test
 attachments, and shard bundles use their database `inserted_at` timestamp. Run
 artifacts use the command event `ran_at` timestamp. Legacy build artifacts use
-the object storage `last_modified` timestamp; legacy build artifacts whose
-account prefix no longer resolves to a live account use the Air build archive
-window. The active account plan determines the applicable window, with Air used
-when an account has no active subscription.
+the object storage `last_modified` timestamp. On the hosted Tuist server, legacy
+build artifacts whose account prefix no longer resolves to a live account use the
+Air build archive window.
+
+Cache artifact cleanup scans instance-managed cache buckets and skips
+accounts configured with account-specific custom cache storage. Matching cache
+objects whose prefix no longer resolves to a current account are
+cleaned with the configured window. Database-backed cleanup for app previews,
+current build archives, run artifacts, test attachments, and shard bundles
+follows the account's current storage configuration. Legacy build archive
+cleanup scans the instance-managed artifact bucket. Package registry mirror
+objects and runner log archives are not covered by these configurable
+self-hosted retention variables. Runner log archives retain their separate
+90-day policy.
 
 Tuist stores per-account cleanup progress for database-backed artifact families so
 daily retention jobs can resume after previously-purged metadata rows without
 issuing repeated object-storage deletes. This is not a per-artifact purge
-ledger; retention is still derived from the timestamps and account plan above.
-An export reflects the artifacts present at export time; binaries already
-purged under these windows are no longer available, though their metadata and
-the account-level cleanup cursor are still exported.
+ledger; retention is still derived from the timestamps and the applicable
+hosted or self-hosted policy above. An export reflects the artifacts
+present at export time; binaries already purged under these windows are no
+longer available, though their metadata and the account-level cleanup cursor
+are still exported.
 
 ## Export Process
 

@@ -128,6 +128,8 @@ pub struct Metrics {
     writer_lock_owned: Gauge,
     writer_lock_acquire_failures: Counter,
     mmap_partial_page_exemptions: Counter,
+    promotion_queue_depth: Gauge,
+    promotion_failures: Counter,
 }
 
 #[derive(Default)]
@@ -277,6 +279,8 @@ impl Metrics {
         let writer_lock_owned = Gauge::default();
         let writer_lock_acquire_failures = Counter::default();
         let mmap_partial_page_exemptions = Counter::default();
+        let promotion_queue_depth = Gauge::default();
+        let promotion_failures = Counter::default();
         let process_start_time_seconds = Gauge::<i64>::default();
         process_start_time_seconds.set(
             SystemTime::now()
@@ -761,6 +765,16 @@ impl Metrics {
             writer_lock_acquire_failures.clone(),
         );
         registry.register(
+            "kura_promotion_queue_depth",
+            "Artifacts queued for background promotion out of Old segments",
+            promotion_queue_depth.clone(),
+        );
+        registry.register(
+            "kura_promotion_failures_total",
+            "Background segment promotions that failed (the artifact stays in its Old segment and may be reclaimed with it)",
+            promotion_failures.clone(),
+        );
+        registry.register(
             "kura_mmap_partial_page_exemptions_total",
             "Times an artifact was served via mmap only because the file's final partial page was exempted from the residency gate while its mincore bit was clear (the path that may fault one cold page on a worker)",
             mmap_partial_page_exemptions.clone(),
@@ -872,6 +886,8 @@ impl Metrics {
             writer_lock_owned,
             writer_lock_acquire_failures,
             mmap_partial_page_exemptions,
+            promotion_queue_depth,
+            promotion_failures,
         };
 
         metrics
@@ -1514,6 +1530,14 @@ impl Metrics {
 
     pub fn record_mmap_partial_page_exemption(&self) {
         self.mmap_partial_page_exemptions.inc();
+    }
+
+    pub fn update_promotion_queue_depth(&self, depth: usize) {
+        self.promotion_queue_depth.set(depth as i64);
+    }
+
+    pub fn record_promotion_failure(&self) {
+        self.promotion_failures.inc();
     }
 
     pub fn rollout_metrics_snapshot(&self) -> RolloutMetricsSnapshot {

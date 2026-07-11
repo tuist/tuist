@@ -2300,16 +2300,29 @@ async fn serve_file_reader(
     bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
     hold_public_inflight: bool,
 ) -> Response {
-    match state.store.open_artifact_reader(manifest).await {
-        Ok(reader) => {
+    // Tolerates a concurrent background promotion relocating the artifact
+    // between the caller's manifest fetch and this open (see
+    // `Store::open_artifact_reader_range_tolerating_promotion`); response
+    // metadata comes from the manifest that was actually opened so headers
+    // always describe the bytes being streamed.
+    match state
+        .store
+        .open_artifact_reader_range_tolerating_promotion(manifest, 0, None)
+        .await
+    {
+        Ok(Some((manifest, reader))) => {
             let stream = ReaderStream::with_capacity(reader, READER_RESPONSE_CHUNK_BYTES);
             let stream = throttle_body_stream(stream, bandwidth_limiter);
-            let stream = instrument_artifact_stream(state, manifest, stream, hold_public_inflight);
+            let stream = instrument_artifact_stream(state, &manifest, stream, hold_public_inflight);
             let mut response = Response::new(Body::from_stream(stream));
             *response.status_mut() = status;
-            apply_artifact_response_headers(&mut response, manifest);
+            apply_artifact_response_headers(&mut response, &manifest);
             response
         }
+        Ok(None) => error_response(
+            StatusCode::NOT_FOUND,
+            "Artifact bytes are missing from local storage".to_string(),
+        ),
         Err(error) => error_response(
             StatusCode::NOT_FOUND,
             format!("Artifact bytes are missing from local storage: {error}"),
@@ -2727,7 +2740,7 @@ mod tests {
                 true,
             )
             .await;
-        assert!(context.state.note_bootstrap_started(&peer).await);
+        assert!(context.state.note_bootstrap_started(&peer).await.is_some());
 
         let response = public_router(context.state.clone())
             .oneshot(
@@ -2749,7 +2762,10 @@ mod tests {
                 .contains("bootstrap in progress")
         );
 
-        context.state.note_bootstrap_succeeded(&peer).await;
+        context
+            .state
+            .note_bootstrap_succeeded(&peer, context.state.current_bootstrap_epoch().await)
+            .await;
         context.state.maybe_mark_serving().await;
 
         let response = public_router(context.state.clone())
@@ -2799,7 +2815,10 @@ mod tests {
                 true,
             )
             .await;
-        context.state.note_bootstrap_succeeded(&peer).await;
+        context
+            .state
+            .note_bootstrap_succeeded(&peer, context.state.current_bootstrap_epoch().await)
+            .await;
         context.state.expire_readiness_settle_window().await;
         context.state.maybe_mark_serving().await;
 
@@ -2874,7 +2893,10 @@ mod tests {
                 true,
             )
             .await;
-        context.state.note_bootstrap_succeeded(&peer).await;
+        context
+            .state
+            .note_bootstrap_succeeded(&peer, context.state.current_bootstrap_epoch().await)
+            .await;
         context.state.expire_readiness_settle_window().await;
         context.state.maybe_mark_serving().await;
         context.state.metrics.update_outbox_messages(7);

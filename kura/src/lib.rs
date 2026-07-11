@@ -12,6 +12,7 @@ mod geoip;
 mod http;
 mod io;
 mod memory;
+mod mesh_heartbeat;
 mod metrics;
 mod mmap;
 mod multipart;

@@ -11,6 +11,7 @@ defmodule Tuist.Storage.CacheArtifactRetention do
   def delete_expired(artifact_type, opts \\ []) when artifact_type in @artifact_types do
     artifact_type
     |> retention_target()
+    |> Map.put(:retention_days, Keyword.get(opts, :retention_days))
     |> BucketArtifactRetention.delete_expired(opts)
   end
 
