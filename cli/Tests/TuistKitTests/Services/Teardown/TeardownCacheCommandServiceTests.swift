@@ -39,7 +39,13 @@ struct TeardownCacheCommandServiceTests {
         // When
         try await subject.run(path: nil)
 
-        // Then
+        // Then: both the machine-wide proxy and the per-project daemon agents are torn down.
+        verify(launchAgentService)
+            .teardownLaunchAgent(
+                label: .value("tuist.cas-proxy"),
+                plistFileName: .value("tuist.cas-proxy.plist")
+            )
+            .called(1)
         verify(launchAgentService)
             .teardownLaunchAgent(
                 label: .value("tuist.cache.organization_project"),
@@ -71,20 +77,39 @@ struct TeardownCacheCommandServiceTests {
         try await subject.run(path: nil)
 
         verify(launchAgentService)
-            .teardownLaunchAgent(label: .any, plistFileName: .any)
+            .teardownLaunchAgent(
+                label: .value("tuist.cas-proxy"),
+                plistFileName: .value("tuist.cas-proxy.plist")
+            )
+            .called(1)
+        verify(launchAgentService)
+            .teardownLaunchAgent(
+                label: .value("tuist.cache.organization_project"),
+                plistFileName: .value("tuist.cache.organization_project.plist")
+            )
             .called(1)
     }
 
-    @Test(.withMockedEnvironment()) func teardownCache_missingFullHandle() async throws {
+    @Test(.withMockedEnvironment(), .withMockedLogger()) func teardownCache_tearsDownProxyWhenFullHandleMissing() async throws {
         // Given
         configLoader.reset()
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(Tuist.test(fullHandle: nil))
 
-        // When/Then
-        await #expect(throws: TeardownCacheCommandServiceError.missingFullHandle) {
-            try await subject.run(path: nil)
-        }
+        // When: the machine-wide proxy is torn down regardless of fullHandle;
+        // only the per-project daemon teardown needs one, so it is skipped here.
+        try await subject.run(path: nil)
+
+        // Then: exactly one teardown (the proxy), no per-project daemon teardown.
+        verify(launchAgentService)
+            .teardownLaunchAgent(
+                label: .value("tuist.cas-proxy"),
+                plistFileName: .value("tuist.cas-proxy.plist")
+            )
+            .called(1)
+        verify(launchAgentService)
+            .teardownLaunchAgent(label: .any, plistFileName: .any)
+            .called(1)
     }
 }

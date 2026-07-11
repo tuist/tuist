@@ -80,10 +80,15 @@ public protocol Environmenting: Sendable {
     /// A cache socket path string for a given full handle with $HOME prefix to be environment-independent
     func cacheSocketPathString(for fullHandle: String) -> String
 
-    /// Returns the LaunchAgent label for the Xcode cache daemon of the given full handle.
-    /// This label is shared between `tuist setup cache` (which registers the LaunchAgent)
-    /// and `tuist teardown cache` (which boots it out).
+    /// Returns the LaunchAgent label for the per-project Xcode cache daemon (the
+    /// non-kura path) of the given full handle. Shared between `tuist setup cache`
+    /// (which registers the LaunchAgent) and `tuist teardown cache` (which boots it out).
     func cacheLaunchAgentLabel(for fullHandle: String) -> String
+
+    /// Returns the machine-wide LaunchAgent label for the Xcode compilation-cache
+    /// proxy. Unlike `cacheLaunchAgentLabel(for:)`, this is not per-project: one
+    /// proxy serves every project on the machine, multiplexing by instance.
+    func casProxyLaunchAgentLabel() -> String
 
     /// Returns the current architecture of the machine
     func architecture() async throws -> MacArchitecture
@@ -400,6 +405,10 @@ public struct Environment: Environmenting {
 
     public func cacheLaunchAgentLabel(for fullHandle: String) -> String {
         "tuist.cache.\(fullHandle.replacingOccurrences(of: "/", with: "_"))"
+    }
+
+    public func casProxyLaunchAgentLabel() -> String {
+        "tuist.cas-proxy"
     }
 
     #if os(macOS)

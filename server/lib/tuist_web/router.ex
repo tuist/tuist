@@ -381,6 +381,12 @@ defmodule TuistWeb.Router do
           metadata: @marketing_route_metadata,
           private: private
 
+      post Path.join(locale_path_prefix, "/newsletter/verify"),
+           MarketingController,
+           :newsletter_confirm,
+           metadata: @marketing_route_metadata,
+           private: private
+
       get Path.join(locale_path_prefix, "/newsletter/issues/:issue_number"),
           MarketingController,
           :newsletter_issue,
@@ -468,7 +474,7 @@ defmodule TuistWeb.Router do
   scope "/" do
     pipe_through [:mcp]
 
-    forward "/mcp", EMCP.Transport.StreamableHTTP, server: Tuist.MCP.Server
+    forward "/mcp", Tuist.MCP.Transport.StreamableHTTP, server: Tuist.MCP.Server
   end
 
   scope "/scim/v2", TuistWeb.SCIM do
@@ -758,6 +764,8 @@ defmodule TuistWeb.Router do
 
     post "/kura/usage", KuraUsageController, :create
     post "/kura/mesh/enroll", KuraMeshController, :enroll
+    post "/kura/mesh/heartbeat", KuraMeshController, :heartbeat
+    get "/kura/mesh/peers", KuraMeshController, :peers
     post "/kura/mesh/registrations", KuraMeshController, :register
   end
 
@@ -1008,6 +1016,10 @@ defmodule TuistWeb.Router do
 
     get "/billing/manage", BillingController, :manage
     get "/billing/upgrade", BillingController, :upgrade
+
+    get "/runners/interactive/vnc",
+        RunnerInteractiveVNCController,
+        :connect
 
     get "/runners/runs/:workflow_run_id/jobs/:workflow_job_id/logs/download",
         RunnerJobLogsController,

@@ -13,6 +13,8 @@ Noora Storybook ships from the standalone `infra/helm/noora-storybook/` chart so
 
 Each dependency defaults to `embedded` (deployed within the chart). To use an external provider instead, set its `mode` to `external` and configure the connection details under the corresponding section in `values.yaml`.
 
+The Tuist server can use Azure Blob Storage for server-owned artifacts by setting `server.storage.provider: azure_blob` and filling `server.azureBlob.*`. The top-level `objectStorage` dependency remains S3-compatible because optional workloads such as the cache service and registry mirror still use S3-compatible APIs. For Azure-only deployments with those workloads disabled, set `objectStorage.mode: external` and leave the external object-storage endpoint and credentials empty to avoid deploying the embedded MinIO StatefulSet.
+
 External PostgreSQL with an existing Secret:
 
 ```yaml
@@ -33,6 +35,23 @@ builds `DATABASE_URL` through Kubernetes env-var substitution, so the password
 does not appear in the rendered manifest. The Secret value for `password`
 should be URL-safe because it is interpolated into a database URL.
 
+## Artifact retention
+
+Artifact cleanup is disabled by default. Opt in by setting positive retention
+windows, in days, for the artifact families you want the server to clean from
+object storage. Omitted families remain untouched.
+
+```yaml
+server:
+  artifactRetentionDays:
+    cacheArtifacts: 30
+    appPreviews: 30
+    buildArchives: 60
+    runArtifacts: 30
+    testAttachments: 30
+    shardBundles: 14
+```
+
 ## Local validation
 
 Render manifests:
@@ -46,6 +65,23 @@ Install into a local kind cluster:
 ```bash
 kind create cluster --name tuist
 helm install tuist infra/helm/tuist
+```
+
+Run the same [K3s](https://k3s.io/) smoke profile used by the Helm workflow. The task creates a disposable [k3d](https://k3d.io/) cluster, renders the chart, runs a server-side dry run, installs the chart, and waits for the embedded dependencies:
+
+```bash
+mise -C infra run helm:k3s-smoke
+```
+
+This profile keeps the server Deployment rendered, but scales it to zero
+because booting the production server image requires a Tuist license. It
+validates that K3s accepts the chart resources and can run the embedded
+PostgreSQL, ClickHouse, and MinIO dependencies with its default storage class.
+
+To validate only the Helm render without creating a cluster:
+
+```bash
+mise -C infra run helm:k3s-smoke --render-only
 ```
 
 Lint the chart:
@@ -105,6 +141,8 @@ Some cluster-specific fixes are intentionally opt-in:
 
 - `cache.podSecurityContext` is empty by default. Set `fsGroup` only if your storage class needs it.
 - `cache.nginx.clientMaxBodySize` defaults to `10m`, matching the cache application's module part size limit. Raise it only when the application limit is raised too.
+- `cache.nginx.resources` is separate from `cache.resources` because the nginx sidecar is a distinct container. Set it explicitly in clusters with strict default LimitRanger policies.
+- `cache.nginx.proxyConnectTimeout`, `cache.nginx.proxyReadTimeout`, and `cache.nginx.proxySendTimeout` default to `60s`. Increase them for slower links or larger uploads.
 - `clickhouse.embedded.service.nativePort` defaults to ClickHouse's standard `9000` service port and can be overridden for mesh or port-allocation conflicts.
 - `clickhouse.external.pingUrl` lets the migration job wait for an external ClickHouse instance through a dedicated `/ping` URL when `clickhouse.external.url` includes a database path.
 
@@ -124,6 +162,15 @@ Embedded compatibility override example:
 cache:
   nginx:
     clientMaxBodySize: 10m
+    proxyReadTimeout: 300s
+    proxySendTimeout: 300s
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 1
+        memory: 512Mi
   podSecurityContext:
     fsGroup: 990
 

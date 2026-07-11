@@ -202,12 +202,14 @@ type AdoptParams struct {
 	HostnamePrefix string
 }
 
-// FindAdoptableServer claims a pre-ordered server for the fleet: the first
-// server in the project matching Tag + Offer + Datacenter that no sibling
-// Machine has already claimed (claimed = the IDs on sibling CR statuses). The
-// server-list summary omits tags, so a candidate matching offer + datacenter is
-// confirmed against its tags via GetServer. Returns nil when the pool is
-// exhausted so the caller requeues and the operator pre-orders more capacity.
+// FindAdoptableServer claims a pre-ordered, already-installed server for the
+// fleet: the first server in the project matching Tag + Offer + Datacenter that
+// no sibling Machine has already claimed (claimed = the IDs on sibling CR
+// statuses). The server-list summary omits tags, so a candidate matching offer +
+// datacenter is confirmed against its tags via GetServer. Servers with a
+// pending/running install are skipped so release reinstalls can't be re-adopted
+// mid-wipe. Returns nil when the pool is exhausted so the caller requeues and
+// the operator pre-orders more capacity.
 func (c *Client) FindAdoptableServer(ctx context.Context, p AdoptParams, claimed map[uint64]bool) (*Server, error) {
 	for _, zone := range dediboxZones {
 		summaries, err := c.listServers(ctx, zone)
@@ -236,7 +238,14 @@ func (c *Client) FindAdoptableServer(ctx context.Context, p AdoptParams, claimed
 				if !hasTag(full.Tags, p.Tag) {
 					continue
 				}
-				return full, nil
+				server = full
+			}
+			state, stateErr := c.InstallState(ctx, zone, summary.ID)
+			if stateErr != nil {
+				return nil, fmt.Errorf("check install state for dedibox server %d: %w", summary.ID, stateErr)
+			}
+			if state != InstallDone {
+				continue
 			}
 			return server, nil
 		}
@@ -508,6 +517,21 @@ const (
 	// InstallFailed means the install errored terminally.
 	InstallFailed
 )
+
+func (s InstallState) String() string {
+	switch s {
+	case InstallPending:
+		return "pending"
+	case InstallRunning:
+		return "running"
+	case InstallDone:
+		return "done"
+	case InstallFailed:
+		return "failed"
+	default:
+		return fmt.Sprintf("unknown(%d)", int(s))
+	}
+}
 
 // InstallState polls the server's install resource and maps it to the coarse
 // lifecycle. `installed` is done; a missing install resource or `unknown` status

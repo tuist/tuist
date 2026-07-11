@@ -189,6 +189,48 @@ defmodule Tuist.EnvironmentTest do
     end
   end
 
+  describe "object_storage_provider/1" do
+    test "defaults to S3" do
+      assert Environment.object_storage_provider(%{}) == :s3
+    end
+
+    test "returns azure_blob when configured in secrets" do
+      assert Environment.object_storage_provider(%{"object_storage" => %{"provider" => "azure_blob"}}) == :azure_blob
+    end
+
+    test "raises for unsupported providers" do
+      assert_raise RuntimeError, ~r/Unsupported TUIST_OBJECT_STORAGE_PROVIDER/, fn ->
+        Environment.object_storage_provider(%{"object_storage" => %{"provider" => "gcs"}})
+      end
+    end
+  end
+
+  describe "azure blob storage configuration" do
+    test "reads account configuration from secrets" do
+      secrets = %{
+        "azure_blob" => %{
+          "account_name" => "tuiststorage",
+          "account_key" => "account-key",
+          "container_name" => "tuist",
+          "endpoint" => "https://blob.internal",
+          "service_version" => "2020-12-06"
+        }
+      }
+
+      assert Environment.azure_storage_account_name(secrets) == "tuiststorage"
+      assert Environment.azure_storage_account_key(secrets) == "account-key"
+      assert Environment.azure_blob_container_name(secrets) == "tuist"
+      assert Environment.azure_blob_endpoint(secrets) == "https://blob.internal"
+      assert Environment.azure_blob_service_version(secrets) == "2020-12-06"
+    end
+
+    test "derives the public blob endpoint from the account name when endpoint is omitted" do
+      secrets = %{"azure_blob" => %{"account_name" => "tuiststorage"}}
+
+      assert Environment.azure_blob_endpoint(secrets) == "https://tuiststorage.blob.core.windows.net"
+    end
+  end
+
   describe "mode/1" do
     test "defaults to :web when TUIST_MODE is unset or empty" do
       assert Environment.mode(nil) == :web
@@ -238,6 +280,51 @@ defmodule Tuist.EnvironmentTest do
     end
   end
 
+  describe "artifact_retention_days/1" do
+    test "returns an empty map when artifact retention is not configured" do
+      assert Environment.artifact_retention_days(%{}) == %{}
+
+      assert Environment.artifact_retention_days(%{
+               "TUIST_CACHE_ARTIFACT_RETENTION_DAYS" => "",
+               "TUIST_BUILD_ARCHIVE_RETENTION_DAYS" => "  \n\t"
+             }) == %{}
+    end
+
+    test "parses retention days for every supported artifact resource type" do
+      environment = %{
+        "TUIST_CACHE_ARTIFACT_RETENTION_DAYS" => "14",
+        "TUIST_APP_PREVIEW_RETENTION_DAYS" => "30",
+        "TUIST_BUILD_ARCHIVE_RETENTION_DAYS" => "45",
+        "TUIST_RUN_ARTIFACT_RETENTION_DAYS" => "60",
+        "TUIST_TEST_ATTACHMENT_RETENTION_DAYS" => "75",
+        "TUIST_SHARD_BUNDLE_RETENTION_DAYS" => "90"
+      }
+
+      assert Environment.artifact_retention_days(environment) == %{
+               cache_artifacts: 14,
+               app_previews: 30,
+               build_archives: 45,
+               run_artifacts: 60,
+               test_attachments: 75,
+               shard_bundles: 90
+             }
+    end
+
+    test "accepts a partial artifact retention configuration" do
+      assert Environment.artifact_retention_days(%{"TUIST_BUILD_ARCHIVE_RETENTION_DAYS" => " 45 "}) == %{
+               build_archives: 45
+             }
+    end
+
+    test "rejects non-positive and non-integer retention days" do
+      for value <- ["0", "-1", "1.5", "30 days", 30] do
+        assert_raise RuntimeError, ~r/TUIST_CACHE_ARTIFACT_RETENTION_DAYS must be a positive integer/, fn ->
+          Environment.artifact_retention_days(%{"TUIST_CACHE_ARTIFACT_RETENTION_DAYS" => value})
+        end
+      end
+    end
+  end
+
   describe "quote_postgres_identifier/1" do
     test "quotes identifiers used in SQL and startup parameters" do
       assert Environment.quote_postgres_identifier("tuist") == ~s("tuist")
@@ -250,6 +337,12 @@ defmodule Tuist.EnvironmentTest do
       for mode <- Environment.modes() do
         assert Environment.mode(Atom.to_string(mode)) == mode
       end
+    end
+  end
+
+  describe "all_envs/0" do
+    test "includes preview as a runtime deployment environment" do
+      assert :preview in Environment.all_envs()
     end
   end
 

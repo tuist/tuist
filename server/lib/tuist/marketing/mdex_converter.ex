@@ -10,6 +10,7 @@ defmodule Tuist.Marketing.MDExConverter do
   use Noora
 
   alias Phoenix.HTML.Safe
+  alias Tuist.Markdown
 
   @copy_icon %{__changed__: nil} |> Noora.Icon.copy() |> Safe.to_iodata() |> IO.iodata_to_binary()
   @copy_check_icon %{__changed__: nil} |> Noora.Icon.copy_check() |> Safe.to_iodata() |> IO.iodata_to_binary()
@@ -75,12 +76,12 @@ defmodule Tuist.Marketing.MDExConverter do
     MDEx.traverse_and_update(document, fn
       %MDEx.CodeBlock{info: info, literal: literal} ->
         highlighted_html =
-          MDEx.to_html!(
-            "```#{info}\n#{literal}```",
-            @mdex_options
-          )
+          "```#{info}\n#{literal}```"
+          |> MDEx.to_html!(@mdex_options)
+          |> protect_highlight_whitespace()
 
         language = info |> String.split(~r/\s/, parts: 2) |> List.first() || ""
+        copy_source = literal |> String.trim() |> Markdown.html_escape()
 
         %MDEx.HtmlBlock{
           literal: """
@@ -89,6 +90,7 @@ defmodule Tuist.Marketing.MDExConverter do
           <div data-part="language">#{language}</div>\
           <div data-part="copy"><span data-part="copy-icon">#{@copy_icon}</span><span data-part="copy-check-icon">#{@copy_check_icon}</span></div>\
           </div>\
+          <template data-part="copy-source">#{copy_source}</template>\
           <div data-part="code">#{highlighted_html}</div>\
           </div>
           """
@@ -98,4 +100,15 @@ defmodule Tuist.Marketing.MDExConverter do
         node
     end)
   end
+
+  defp protect_highlight_whitespace(html) do
+    Regex.replace(~r/(?<=>)([ \t]+)(?=<)/, html, fn _match, whitespace ->
+      whitespace
+      |> String.graphemes()
+      |> Enum.map_join(&highlight_whitespace/1)
+    end)
+  end
+
+  defp highlight_whitespace(" "), do: ~s(<span data-code-whitespace="true">&nbsp;</span>)
+  defp highlight_whitespace("\t"), do: ~s(<span data-code-whitespace="true">\t</span>)
 end

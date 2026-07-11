@@ -1,0 +1,72 @@
+.tuist-ci-context-card {
+  & [data-part="ci-context-section"] {
+    padding: var(--noora-spacing-8);
+  }
+
+  & [data-part="ci-context-grid"] {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--noora-spacing-8) var(--noora-spacing-7);
+
+    @media (max-width: 980px) {
+      & {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 640px) {
+      & {
+        grid-template-columns: 1fr;
+      }
+    }
+  }
+
+  & [data-part="ci-context-metadata"] {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--noora-spacing-4);
+    min-width: 0;
+
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+
+    & > [data-part="label"] {
+      display: flex;
+      align-items: center;
+      gap: var(--noora-spacing-2);
+      max-width: 100%;
+      overflow: hidden;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+
+      & > svg {
+        flex-shrink: 0;
+        width: var(--noora-icon-size-medium);
+        height: var(--noora-icon-size-medium);
+        color: var(--noora-surface-label-secondary);
+      }
+    }
+
+    & [data-part="label-link"] {
+      overflow: hidden;
+      color: var(--noora-surface-label-primary);
+      text-decoration: underline;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    & > [data-part="command-label"] {
+      max-width: 100%;
+      overflow: hidden;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+}

@@ -13,6 +13,7 @@ public struct AuthCommand: ParsableCommand {
                 LogoutCommand.self,
                 WhoamiCommand.self,
                 RefreshTokenCommand.self,
+                TokenCommand.self,
             ]
         )
     }

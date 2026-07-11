@@ -1,6 +1,6 @@
 defmodule Tuist.MCP.Components.Tools.AddOrganizationMember do
   @moduledoc """
-  Add an existing Tuist user to an organization.
+  Add an existing Tuist user to an organization or update an existing member's role.
   """
 
   use Tuist.MCP.Tool,
@@ -17,22 +17,34 @@ defmodule Tuist.MCP.Components.Tools.AddOrganizationMember do
         },
         "email" => %{
           "type" => "string",
-          "description" => "The email of an existing Tuist user to add."
+          "description" => "The email of the existing Tuist user to add or update."
         },
         "role" => %{
           "type" => "string",
           "enum" => ["user", "admin"],
-          "description" => "The member role. Defaults to user."
+          "description" => "The role to assign to the new or existing member. Defaults to user."
         }
       },
       "required" => ["organization_handle", "email"]
+    },
+    output_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "id" => %{"type" => "integer"},
+        "email" => %{"type" => "string"},
+        "name" => %{"type" => "string"},
+        "organization_handle" => %{"type" => "string"},
+        "role" => %{"type" => "string", "enum" => ["user", "admin"]}
+      },
+      "required" => ["id", "email", "name", "organization_handle", "role"],
+      "additionalProperties" => false
     }
 
   alias Tuist.Accounts
   alias Tuist.Authorization
 
   @impl EMCP.Tool
-  def description, do: "Add an existing Tuist user to an organization."
+  def description, do: "Add an existing Tuist user to an organization or update an existing member's role."
 
   def execute(%{assigns: %{current_user: user}}, %{"organization_handle" => organization_handle, "email" => email} = args)
       when is_binary(organization_handle) and is_binary(email) do

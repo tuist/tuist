@@ -62,6 +62,7 @@ defmodule TuistWeb.Endpoint do
   plug TuistCommon.OtelRequestIdPlug
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
   plug TuistWeb.Plugs.RequestKindPlug
+  plug TuistWeb.Plugs.SCIMErrorFormatPlug
   plug Sentry.PlugContext
   plug TuistWeb.Plugs.CloseConnectionOnErrorPlug
 
@@ -91,12 +92,6 @@ defmodule TuistWeb.Endpoint do
   plug WebhookPlug,
     at: "/webhooks/gradle-cache",
     handler: TuistWeb.Webhooks.GradleCacheController,
-    secret: {Tuist.Environment, :cache_api_key, []},
-    signature_header: "x-cache-signature"
-
-  plug WebhookPlug,
-    at: "/webhooks/registry",
-    handler: TuistWeb.Webhooks.RegistryController,
     secret: {Tuist.Environment, :cache_api_key, []},
     signature_header: "x-cache-signature"
 

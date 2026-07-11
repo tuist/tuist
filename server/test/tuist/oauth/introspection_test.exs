@@ -42,6 +42,30 @@ defmodule Tuist.OAuth.IntrospectionTest do
       assert project_writes == ["#{organization.account.name}/#{project.name}"]
     end
 
+    test "returns read-only user grants for accounts that restrict cache writes to tokens" do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(name: "read-only-org", creator: user)
+      Accounts.add_user_to_organization(user, organization, role: :admin)
+      {:ok, account} = Accounts.update_account(organization.account, %{cache_write_policy: :tokens_only})
+      project = ProjectsFixtures.project_fixture(account: account)
+
+      assert %{
+               active: true,
+               principal_kind: "user",
+               cache_grants: %{
+                 "account" => %{"read" => account_reads, "write" => account_writes},
+                 "project" => %{"read" => project_reads, "write" => project_writes}
+               }
+             } = Introspection.token_response(user.token)
+
+      project_handle = "#{account.name}/#{project.name}"
+
+      assert account.name in account_reads
+      refute account.name in account_writes
+      assert project_handle in project_reads
+      refute project_handle in project_writes
+    end
+
     test "keeps project-only account tokens scoped to selected projects" do
       organization = AccountsFixtures.organization_fixture(name: "project-only-org")
       project = ProjectsFixtures.project_fixture(account: organization.account)
@@ -70,6 +94,39 @@ defmodule Tuist.OAuth.IntrospectionTest do
              } = Introspection.token_response(token_value)
 
       assert project_reads == ["#{organization.account.name}/#{project.name}"]
+    end
+
+    test "keeps write grants for scoped account tokens when cache writes are restricted to tokens" do
+      organization = AccountsFixtures.organization_fixture(name: "token-writer-org")
+      {:ok, account} = Accounts.update_account(organization.account, %{cache_write_policy: :tokens_only})
+      project = ProjectsFixtures.project_fixture(account: account)
+
+      {:ok, {_token, token_value}} =
+        Accounts.create_account_token(
+          %{
+            account: account,
+            name: "ci-cache",
+            scopes: ["project:cache:write"],
+            all_projects: false,
+            project_ids: [project.id]
+          },
+          preload: [:account]
+        )
+
+      assert %{
+               active: true,
+               principal_kind: "account",
+               scope: "project:cache:write",
+               cache_grants: %{
+                 "account" => %{"read" => [], "write" => []},
+                 "project" => %{"read" => project_reads, "write" => project_writes}
+               }
+             } = Introspection.token_response(token_value)
+
+      project_handle = "#{account.name}/#{project.name}"
+
+      assert project_reads == [project_handle]
+      assert project_writes == [project_handle]
     end
 
     test "returns account cache grants only when account cache scopes are present" do
@@ -150,6 +207,61 @@ defmodule Tuist.OAuth.IntrospectionTest do
       assert account_writes == [organization.account.name]
       assert project_reads == ["#{organization.account.name}/#{project.name}"]
       assert project_writes == ["#{organization.account.name}/#{project.name}"]
+    end
+
+    test "returns tenant-scoped read-only user grants when cache writes are restricted to tokens" do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(name: "scoped-read-only-org", creator: user)
+      Accounts.add_user_to_organization(user, organization, role: :admin)
+      {:ok, account} = Accounts.update_account(organization.account, %{cache_write_policy: :tokens_only})
+      project = ProjectsFixtures.project_fixture(account: account)
+
+      assert %{
+               active: true,
+               principal_kind: "user",
+               cache_grants: %{
+                 "account" => %{"read" => account_reads, "write" => account_writes},
+                 "project" => %{"read" => project_reads, "write" => project_writes}
+               }
+             } = Introspection.token_response(user.token, account)
+
+      assert account_reads == [account.name]
+      assert account_writes == []
+      assert project_reads == ["#{account.name}/#{project.name}"]
+      assert project_writes == []
+    end
+
+    test "returns tenant-scoped read-only user-issued OAuth grants when cache writes are restricted to tokens" do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(name: "oauth-read-only-org", creator: user)
+      {:ok, account} = Accounts.update_account(organization.account, %{cache_write_policy: :tokens_only})
+      project = ProjectsFixtures.project_fixture(account: account)
+
+      {:ok, token, _claims} =
+        Tuist.Guardian.encode_and_sign(
+          user.account,
+          %{
+            "type" => "account",
+            "scopes" => ["account:cache:write", "project:cache:write"],
+            "all_projects" => true,
+            "user_id" => user.id
+          },
+          token_type: :access
+        )
+
+      assert %{
+               active: true,
+               principal_kind: "account",
+               cache_grants: %{
+                 "account" => %{"read" => account_reads, "write" => account_writes},
+                 "project" => %{"read" => project_reads, "write" => project_writes}
+               }
+             } = Introspection.token_response(token, account)
+
+      assert account_reads == [account.name]
+      assert account_writes == []
+      assert project_reads == ["#{account.name}/#{project.name}"]
+      assert project_writes == []
     end
 
     test "returns inactive when the token has no grant for the account" do

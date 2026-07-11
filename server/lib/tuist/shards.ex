@@ -30,8 +30,8 @@ defmodule Tuist.Shards do
     granularity = Map.get(params, :granularity, "module")
     reference = Map.fetch!(params, :reference)
 
-    timing_data = fetch_timing_data(project, granularity)
-    units = resolve_units(project, params, granularity, timing_data)
+    units = resolve_units(project, params, granularity)
+    timing_data = fetch_timing_data(project, granularity, units)
     units_with_durations = assign_durations(units, timing_data, granularity)
 
     shard_count =
@@ -388,9 +388,9 @@ defmodule Tuist.Shards do
     )
   end
 
-  defp resolve_units(_project, params, "module", _timing_data), do: params_modules(params)
+  defp resolve_units(_project, params, "module"), do: params_modules(params)
 
-  defp resolve_units(project, params, "suite", _timing_data) do
+  defp resolve_units(project, params, "suite") do
     case Map.get(params, :test_suites) do
       [_ | _] = suites ->
         suites
@@ -509,38 +509,59 @@ defmodule Tuist.Shards do
     end
   end
 
-  defp fetch_timing_data(project, "module") do
+  defp fetch_timing_data(_project, _granularity, []), do: %{}
+
+  defp fetch_timing_data(project, "module", modules) do
     cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
 
     from(mr in TestModuleRun,
       where: mr.project_id == ^project.id,
       where: mr.is_ci == true,
       where: mr.ran_at >= ^cutoff,
+      where: mr.name in ^modules,
       group_by: mr.name,
       select: %{name: mr.name, duration: fragment("quantile(?)(?)", ^@timing_quantile, mr.duration)}
     )
     |> ClickHouseRepo.all()
-    |> Map.new(fn %{name: name, duration: duration} -> {name, round(duration)} end)
+    |> Map.new(fn %{name: name, duration: duration} -> {name, round_timing_duration(duration)} end)
   end
 
-  defp fetch_timing_data(project, "suite") do
+  defp fetch_timing_data(project, "suite", units) do
     cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
+    modules = units |> Enum.map(&suite_module/1) |> Enum.uniq()
 
-    from(sr in TestSuiteRun,
-      join: mr in TestModuleRun,
-      on: sr.test_module_run_id == mr.id,
-      where: sr.project_id == ^project.id,
-      where: sr.is_ci == true,
-      where: sr.ran_at >= ^cutoff,
-      group_by: fragment("concat(?, '/', ?)", mr.name, sr.name),
-      select: %{
-        name: fragment("concat(?, '/', ?)", mr.name, sr.name),
-        duration: fragment("quantile(?)(?)", ^@timing_quantile, sr.duration)
-      }
-    )
-    |> ClickHouseRepo.all()
-    |> Map.new(fn %{name: name, duration: duration} -> {name, round(duration)} end)
+    query = """
+    SELECT
+      concat(mr.name, '/', sr.name) AS name,
+      quantile({timing_quantile:Float64})(sr.duration) AS duration
+    FROM test_suite_runs AS sr
+    INNER JOIN test_module_runs AS mr ON sr.test_module_run_id = mr.id
+    WHERE sr.project_id = {project_id:Int64}
+      AND sr.is_ci = true
+      AND sr.ran_at >= {cutoff:DateTime64(6)}
+      AND mr.project_id = {project_id:Int64}
+      AND mr.is_ci = true
+      AND mr.ran_at >= {cutoff:DateTime64(6)}
+      AND mr.name IN {modules:Array(String)}
+      AND concat(mr.name, '/', sr.name) IN {units:Array(String)}
+    GROUP BY name
+    """
+
+    params = %{
+      project_id: project.id,
+      timing_quantile: @timing_quantile,
+      cutoff: cutoff,
+      modules: modules,
+      units: units
+    }
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
+
+    Map.new(rows, fn [name, duration] -> {name, round_timing_duration(duration)} end)
   end
+
+  defp round_timing_duration(%Decimal{} = duration), do: duration |> Decimal.to_float() |> round()
+  defp round_timing_duration(duration), do: round(duration)
 
   defp assign_durations(unit_names, timing_data, granularity) do
     known_durations = Map.values(timing_data)

@@ -15,6 +15,73 @@ defmodule Tuist.MCP.Components.Tools.GetTestCaseRun do
         }
       },
       "required" => ["test_case_run_id"]
+    },
+    output_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "id" => %{"type" => "string"},
+        "test_case_id" => %{"type" => ["string", "null"]},
+        "test_run_id" => %{"type" => "string"},
+        "name" => %{"type" => "string"},
+        "module_name" => %{"type" => "string"},
+        "suite_name" => %{"type" => "string"},
+        "status" => %{"type" => "string"},
+        "duration" => %{"type" => "integer"},
+        "is_ci" => %{"type" => "boolean"},
+        "is_flaky" => %{"type" => "boolean"},
+        "is_new" => %{"type" => "boolean"},
+        "scheme" => %{"type" => "string"},
+        "git_branch" => %{"type" => "string"},
+        "git_commit_sha" => %{"type" => "string"},
+        "ran_at" => %{"type" => "string"},
+        "failures" => %{
+          "type" => "array",
+          "items" => %{
+            "type" => "object",
+            "properties" => %{
+              "message" => %{"type" => ["string", "null"]},
+              "path" => %{"type" => ["string", "null"]},
+              "line_number" => %{"type" => "integer"},
+              "issue_type" => %{"type" => "string"}
+            },
+            "required" => ["message", "path", "line_number", "issue_type"],
+            "additionalProperties" => false
+          }
+        },
+        "repetitions" => %{
+          "type" => "array",
+          "items" => %{
+            "type" => "object",
+            "properties" => %{
+              "repetition_number" => %{"type" => "integer"},
+              "status" => %{"type" => "string"},
+              "duration" => %{"type" => "integer"}
+            },
+            "required" => ["repetition_number", "status", "duration"],
+            "additionalProperties" => false
+          }
+        }
+      },
+      "required" => [
+        "id",
+        "test_case_id",
+        "test_run_id",
+        "name",
+        "module_name",
+        "suite_name",
+        "status",
+        "duration",
+        "is_ci",
+        "is_flaky",
+        "is_new",
+        "scheme",
+        "git_branch",
+        "git_commit_sha",
+        "ran_at",
+        "failures",
+        "repetitions"
+      ],
+      "additionalProperties" => false
     }
 
   alias Tuist.MCP.Formatter

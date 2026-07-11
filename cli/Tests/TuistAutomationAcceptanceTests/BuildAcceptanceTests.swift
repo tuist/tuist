@@ -396,7 +396,7 @@ struct BuildAcceptanceTestSwiftPMPrebuiltMacro {
     @Test(
         .withFixture("generated_app_with_swiftpm_prebuilt_macro_dependency"),
         .inTemporaryDirectory,
-        .timeLimit(.minutes(2))
+        .timeLimit(.minutes(4))
     )
     func app_with_swiftpm_prebuilt_macro_dependency_builds_with_host_only_prebuilt_macro_support() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)

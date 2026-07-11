@@ -140,6 +140,44 @@ impl Usage {
         );
     }
 
+    pub fn record_public_grpc_download(
+        &self,
+        tenant_id: &str,
+        namespace_id: &str,
+        artifact_kind: &'static str,
+        bytes: u64,
+    ) {
+        self.record(
+            tenant_id,
+            namespace_id,
+            "public",
+            "egress",
+            "download",
+            "grpc",
+            artifact_kind,
+            bytes,
+        );
+    }
+
+    pub fn record_public_grpc_upload(
+        &self,
+        tenant_id: &str,
+        namespace_id: &str,
+        artifact_kind: &'static str,
+        bytes: u64,
+    ) {
+        self.record(
+            tenant_id,
+            namespace_id,
+            "public",
+            "ingress",
+            "upload",
+            "grpc",
+            artifact_kind,
+            bytes,
+        );
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn record(
         &self,

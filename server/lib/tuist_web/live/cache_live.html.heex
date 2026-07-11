@@ -10,6 +10,7 @@
   </div>
 
   <%= if @cache_enabled do %>
+    <.cache_write_policy_section cache_write_policy={@selected_account.cache_write_policy} />
     <.cache_servers_section
       :if={@managed_cache_visible?}
       servers={@servers}

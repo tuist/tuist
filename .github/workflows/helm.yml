@@ -2,7 +2,7 @@ name: Helm
 
 # Validate Helm charts at the PR stage so chart bugs
 # are caught before a deploy workflow tries to apply them to a real
-# cluster. Three layers of checks, each progressively stricter:
+# cluster. Four layers of checks, each progressively stricter:
 #
 #   1. `helm lint` — Chart.yaml well-formedness, template parse, value
 #      reference sanity.
@@ -15,8 +15,11 @@ name: Helm
 #      Catches typo'd field names and wrong apiVersion/kind combinations
 #      that `helm template` happily emits but the API server would
 #      reject.
+#   4. K3s smoke install — starts a disposable single-node K3s cluster,
+#      checks that the chart is accepted by the K3s control plane,
+#      and waits for the embedded storage dependencies to become ready.
 #
-# All charts run sequentially inside two jobs (lint, render) instead of
+# All charts run sequentially inside the lint and render jobs instead of
 # a per-chart matrix. Each per-chart pass takes seconds, so spinning up
 # a runner per chart was mostly setup overhead. Per-chart `::group::`
 # sections keep the GitHub Actions UI navigable.
@@ -27,12 +30,18 @@ on:
       - main
     paths:
       - infra/helm/**
+      - infra/mise.toml
+      - infra/mise.lock
+      - infra/mise/tasks/helm/**
       - kura/ops/helm/kura/**
       - .github/workflows/helm.yml
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - infra/helm/**
+      - infra/mise.toml
+      - infra/mise.lock
+      - infra/mise/tasks/helm/**
       - kura/ops/helm/kura/**
       - .github/workflows/helm.yml
   merge_group: {}
@@ -47,9 +56,8 @@ concurrency:
 env:
   MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ github.token }}
-  # Pinned in this workflow rather than `.mise.toml` to avoid pulling
-  # cluster tooling into the default dev shell. `mise use -g` activates
-  # them globally for the runner so the shims resolve.
+  # Helm is pinned here for the generic lint and render jobs. The K3s
+  # smoke job uses the infra mise tool pins instead.
   HELM_VERSION: "4.1.4"
   KUBECONFORM_VERSION: "0.7.0"
 
@@ -75,6 +83,7 @@ jobs:
             "infra/helm/slack|values-ci.yaml"
             "infra/helm/noora-storybook|values-ci.yaml"
             "infra/helm/tuist|values-ci.yaml"
+            "infra/helm/tuist|values-k3s-smoke.yaml"
             "infra/helm/k8s-monitoring|"
             "infra/helm/platform|"
           )
@@ -183,3 +192,19 @@ jobs:
             echo "::error::render/validation failed for: ${failed[*]}"
             exit 1
           fi
+
+  k3s:
+    name: K3s Smoke Install
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install: "false"
+      - name: Install smoke test tools
+        run: mise -C infra install helm kubectl k3d
+      - name: Smoke test Tuist chart on K3s
+        run: mise -C infra run helm:k3s-smoke

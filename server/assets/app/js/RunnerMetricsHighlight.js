@@ -1,6 +1,6 @@
-// Shades the hovered step's time window across every metric chart in
-// the runner-job Overview, correlating a CI step with the part of the
-// resource graphs it produced.
+// Shades the hovered step or insight row's time window across every
+// metric chart in the runner-job Overview, correlating CI work with
+// the part of the resource graphs it produced.
 //
 // The charts are owned by the NooraChart hook (one ECharts instance
 // each), which exposes its instance on the chart element as
@@ -37,14 +37,14 @@ export default {
     this.onPointerOut = (event) => {
       const row = event.target.closest("[data-step-start]");
       if (!row || !this.el.contains(row)) return;
-      // Ignore moves that stay inside the same step row.
+      // Ignore moves that stay inside the same highlighted row.
       if (row.contains(event.relatedTarget)) return;
       this.clear();
     };
 
     this.el.addEventListener("mouseover", this.onPointerOver);
     this.el.addEventListener("mouseout", this.onPointerOut);
-    // Keyboard parity: focusing a step row highlights too.
+    // Keyboard parity: focusing a highlighted row highlights too.
     this.el.addEventListener("focusin", this.onPointerOver);
     this.el.addEventListener("focusout", this.onPointerOut);
   },

@@ -10,6 +10,7 @@ defmodule Tuist.Authorization.Checks do
 
   @scope_groups %{
     "ci" => [
+      "account:cache:write",
       "project:cache:write",
       "project:previews:write",
       "project:bundles:write",
@@ -118,6 +119,18 @@ defmodule Tuist.Authorization.Checks do
     false
   end
 
+  def cache_write_policy_permits_subject(%User{}, resource) do
+    cache_write_policy_permits_members?(resource)
+  end
+
+  def cache_write_policy_permits_subject(%AuthenticatedAccount{issued_by: %User{}}, resource) do
+    cache_write_policy_permits_members?(resource)
+  end
+
+  def cache_write_policy_permits_subject(_, _) do
+    true
+  end
+
   def expand_scopes(scopes) do
     Enum.flat_map(scopes, fn scope ->
       Map.get(@scope_groups, scope, [scope])
@@ -158,6 +171,26 @@ defmodule Tuist.Authorization.Checks do
   def project_access_permitted(_, _) do
     false
   end
+
+  defp cache_write_policy_permits_members?(resource) do
+    case resource_account(resource) do
+      %Account{cache_write_policy: :tokens_only} -> false
+      %Account{} -> true
+      _ -> false
+    end
+  end
+
+  defp resource_account(%Account{} = account), do: account
+  defp resource_account(%Project{account: %Account{} = account}), do: account
+
+  defp resource_account(%Project{account_id: account_id}) when not is_nil(account_id) do
+    case Accounts.get_account_by_id(account_id) do
+      {:ok, account} -> account
+      _ -> nil
+    end
+  end
+
+  defp resource_account(_), do: nil
 
   def projects_match(%User{}, %Project{}) do
     false
@@ -280,19 +313,13 @@ defmodule Tuist.Authorization.Checks do
   end
 
   def project_command_event_access(%User{} = user, command_event) when is_struct(command_event) do
-    case Map.get(command_event, :project) do
-      %Project{} = project ->
+    case Map.get(command_event, :project_id) do
+      project_id when not is_nil(project_id) ->
+        project = Tuist.Projects.get_project_by_id(project_id)
         user_role(user, project, :user)
 
       _ ->
-        case Map.get(command_event, :project_id) do
-          project_id when not is_nil(project_id) ->
-            project = Tuist.Projects.get_project_by_id(project_id)
-            user_role(user, project, :user)
-
-          _ ->
-            false
-        end
+        false
     end
   end
 

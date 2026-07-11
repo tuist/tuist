@@ -69,7 +69,7 @@ defmodule Tuist.MixProject do
       # unconstrained transitive dep and every `mix deps.get` re-resolves it to
       # the latest, churning the lock and forcing full recompiles.
       {:plug, "1.19.2", override: true},
-      {:credo, "== 1.7.13", only: [:dev, :test], runtime: false},
+      {:credo, "== 1.7.19", only: [:dev, :test], runtime: false},
       {:sentry, "~> 11.0.4"},
       {:tower, "0.8.0"},
       {:tower_opentelemetry, "~> 0.2.0"},
@@ -125,6 +125,7 @@ defmodule Tuist.MixProject do
       # Pinned to the open upstream fix for intermittent missing tool-call
       # responses. Revert to a Hex version once the fix is released.
       {:emcp, github: "addstar34/emcp", ref: "c687e279cf4f550f69934549a1303312ed3a23b5", override: true},
+      {:ex_json_schema, "~> 0.11"},
       {:ua_parser, "~> 1.8"},
       {:money, "~> 1.12"},
       {:image, "~> 0.60"},

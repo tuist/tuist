@@ -9,7 +9,7 @@ defmodule Tuist.Environment do
   @compile_env Mix.env()
   @dev_all_locales Application.compile_env(:tuist, :dev_all_locales, false)
 
-  @runtime_envs ~w(prod can stag)
+  @runtime_envs ~w(prod can stag preview)
   @default_database_schema "public"
   @postgres_identifier_regex ~r/^[a-zA-Z_][a-zA-Z0-9_]*$/
   @agent_auth_default_trusted_providers [
@@ -18,13 +18,21 @@ defmodule Tuist.Environment do
       "jwks_uri" => "https://auth.openai.com/.well-known/jwks.json"
     }
   ]
+  @artifact_retention_environment_variables %{
+    cache_artifacts: "TUIST_CACHE_ARTIFACT_RETENTION_DAYS",
+    app_previews: "TUIST_APP_PREVIEW_RETENTION_DAYS",
+    build_archives: "TUIST_BUILD_ARCHIVE_RETENTION_DAYS",
+    run_artifacts: "TUIST_RUN_ARTIFACT_RETENTION_DAYS",
+    test_attachments: "TUIST_TEST_ATTACHMENT_RETENTION_DAYS",
+    shard_bundles: "TUIST_SHARD_BUNDLE_RETENTION_DAYS"
+  }
 
   # Every supported pod role. `mode/0` raises on any other value of
   # TUIST_MODE so a deployment-manifest typo (`processsor`, `ingest`,
   # ...) fails the pod fast at boot rather than landing it in `:web`
   # silently — exactly the failure mode that previously masked the
   # xcresult-processor leader-election bug.
-  @modes [:web, :processor, :xcresult_processor]
+  @modes [:web, :processor, :xcresult_processor, :swift_registry_sync]
 
   @doc """
   All pod roles `mode/0` may return. Stable list — used by
@@ -34,7 +42,12 @@ defmodule Tuist.Environment do
   def modes, do: @modes
 
   def env do
-    with :prod <- @compile_env,
+    # Gate on the stringified compile env rather than matching the `:prod`
+    # atom directly: `@compile_env` is a compile-time literal, so a
+    # `:prod <- @compile_env` match trips Elixir's type checker in test/dev
+    # builds (and narrowing `env/0` to that literal poisons every caller
+    # that compares `env()` against another env atom).
+    with "prod" <- Atom.to_string(@compile_env),
          deploy_env when deploy_env in @runtime_envs <- System.get_env("TUIST_DEPLOY_ENV") do
       String.to_existing_atom(deploy_env)
     else
@@ -55,7 +68,7 @@ defmodule Tuist.Environment do
   @doc ~S"""
   Returns an list with all the supported environments.
   """
-  def all_envs, do: [:dev, :test, :can, :stag, :prod]
+  def all_envs, do: [:dev, :test, :preview, :can, :stag, :prod]
 
   def test? do
     @compile_env == :test
@@ -112,6 +125,14 @@ defmodule Tuist.Environment do
       narrowed to `:process_xcresult`. Runs inside a Tart VM on the
       macOS Mac mini fleet (the only place the macOS-only xcresult NIF
       can load). Booted by xcresult-processor-deployment.yaml.
+    * `:swift_registry_sync` — no Phoenix listener, Oban queue set
+      narrowed to `:swift_registry_sync` + `:swift_registry_release`.
+      Consumes jobs enqueued by the `:web` pod's cron, fetches Swift
+      packages from GitHub, and writes archives + metadata into the
+      registry S3 bucket. The standalone `registry` Phoenix app reads
+      back from the same bucket. Booted by
+      swift-registry-sync-deployment.yaml. Future ecosystems get
+      their own mode (e.g. `:maven_registry_sync`) and Deployment.
 
   Read once from `TUIST_MODE`. Add new modes here when the supervision tree
   needs another shape (e.g. a future `:scheduler` or `:ingest`).
@@ -128,6 +149,7 @@ defmodule Tuist.Environment do
   def mode("web"), do: :web
   def mode("processor"), do: :processor
   def mode("xcresult_processor"), do: :xcresult_processor
+  def mode("swift_registry_sync"), do: :swift_registry_sync
 
   def mode(other) do
     raise """
@@ -141,6 +163,8 @@ defmodule Tuist.Environment do
   def processor_mode?, do: mode() == :processor
 
   def xcresult_processor_mode?, do: mode() == :xcresult_processor
+
+  def swift_registry_sync_mode?, do: mode() == :swift_registry_sync
 
   def database_url(secrets \\ secrets()) do
     System.get_env("DATABASE_URL") || get([:database_url], secrets)
@@ -221,18 +245,45 @@ defmodule Tuist.Environment do
       truthy?(System.get_env("TUIST_HOSTED", "0"))
   end
 
+  def artifact_retention_days(environment \\ System.get_env()) when is_map(environment) do
+    Enum.reduce(@artifact_retention_environment_variables, %{}, fn {resource_type, environment_variable}, acc ->
+      case parse_artifact_retention_days(Map.get(environment, environment_variable), environment_variable) do
+        nil -> acc
+        days -> Map.put(acc, resource_type, days)
+      end
+    end)
+  end
+
+  defp parse_artifact_retention_days(nil, _environment_variable), do: nil
+
+  defp parse_artifact_retention_days(value, environment_variable) when is_binary(value) do
+    value = String.trim(value)
+
+    case Integer.parse(value) do
+      _ when value == "" -> nil
+      {days, ""} when days > 0 -> days
+      _ -> raise_invalid_artifact_retention_days(environment_variable, value)
+    end
+  end
+
+  defp parse_artifact_retention_days(value, environment_variable) do
+    raise_invalid_artifact_retention_days(environment_variable, value)
+  end
+
+  defp raise_invalid_artifact_retention_days(environment_variable, value) do
+    raise "#{environment_variable} must be a positive integer number of days, got: #{inspect(value)}"
+  end
+
   def test_user_login_enabled? do
     dev?() or truthy?(System.get_env("TUIST_TEST_USER_LOGIN_ENABLED", "0"))
   end
 
   def dev_all_locales?, do: @dev_all_locales
 
-  # Both :dev and :test compile a single locale ("en") by default so the
-  # ex_cldr backend doesn't generate number/currency/datetime code for all
-  # ten locales on every cold compile. A fresh worktree's :test build paid
-  # that cost on the first `mix test`, dominating the compile time. Tests
-  # that genuinely exercise other locales are tagged `:locale` and only run
-  # when TUIST_DEV_ALL_LOCALES=1 flips this back to the full set.
+  # Both :dev and :test compile a single locale ("en") by default so Gettext
+  # doesn't generate all locale modules on every cold compile. Tests that
+  # genuinely exercise other locales are tagged `:locale` and only run when
+  # TUIST_DEV_ALL_LOCALES=1 flips this back to the full set.
   def single_locale?, do: (dev?() or test?()) and not dev_all_locales?()
 
   def log_level do
@@ -454,6 +505,52 @@ defmodule Tuist.Environment do
   def posthog_url(secrets \\ secrets()) do
     get([:posthog, :url], secrets)
   end
+
+  def object_storage_provider(secrets \\ secrets()) do
+    provider =
+      System.get_env("TUIST_OBJECT_STORAGE_PROVIDER") ||
+        get([:object_storage, :provider], secrets) ||
+        "s3"
+
+    case provider do
+      "s3" -> :s3
+      :s3 -> :s3
+      "azure_blob" -> :azure_blob
+      :azure_blob -> :azure_blob
+      other -> raise "Unsupported TUIST_OBJECT_STORAGE_PROVIDER=#{inspect(other)}. Expected \"s3\" or \"azure_blob\"."
+    end
+  end
+
+  def azure_storage_account_name(secrets \\ secrets()) do
+    System.get_env("TUIST_AZURE_STORAGE_ACCOUNT_NAME") ||
+      get([:azure_blob, :account_name], secrets)
+  end
+
+  def azure_storage_account_key(secrets \\ secrets()) do
+    System.get_env("TUIST_AZURE_STORAGE_ACCOUNT_KEY") ||
+      get([:azure_blob, :account_key], secrets)
+  end
+
+  def azure_blob_container_name(secrets \\ secrets()) do
+    System.get_env("TUIST_AZURE_BLOB_CONTAINER_NAME") ||
+      get([:azure_blob, :container_name], secrets)
+  end
+
+  def azure_blob_endpoint(secrets \\ secrets()) do
+    System.get_env("TUIST_AZURE_BLOB_ENDPOINT") ||
+      get([:azure_blob, :endpoint], secrets) ||
+      azure_blob_endpoint_from_account_name(azure_storage_account_name(secrets))
+  end
+
+  def azure_blob_service_version(secrets \\ secrets()) do
+    System.get_env("TUIST_AZURE_BLOB_SERVICE_VERSION") ||
+      get([:azure_blob, :service_version], secrets) ||
+      "2020-12-06"
+  end
+
+  defp azure_blob_endpoint_from_account_name(nil), do: nil
+  defp azure_blob_endpoint_from_account_name(""), do: nil
+  defp azure_blob_endpoint_from_account_name(account_name), do: "https://#{account_name}.blob.core.windows.net"
 
   def s3_authentication_method(secrets \\ secrets()) do
     case get([:s3, :authentication_method], secrets) do
@@ -840,10 +937,10 @@ defmodule Tuist.Environment do
     get([:clickhouse, :url], secrets)
   end
 
-  def clickhouse_pool_size(secrets \\ secrets()) do
-    case get([:clickhouse, :pool_size], secrets) do
+  def clickhouse_pool_size(_secrets \\ nil) do
+    case System.get_env("TUIST_CLICKHOUSE_POOL_SIZE") || System.get_env("TUIST_DATABASE_POOL_SIZE") do
       pool_size when is_binary(pool_size) -> String.to_integer(pool_size)
-      _ -> database_pool_size(secrets)
+      _ -> 10
     end
   end
 
@@ -922,8 +1019,8 @@ defmodule Tuist.Environment do
     end
   end
 
-  def clickhouse_buffer_pool_size(secrets \\ secrets()) do
-    case get([:clickhouse, :buffer_pool_size], secrets) do
+  def clickhouse_buffer_pool_size(_secrets \\ nil) do
+    case System.get_env("TUIST_CLICKHOUSE_BUFFER_POOL_SIZE") do
       buffer_pool_size when is_binary(buffer_pool_size) -> String.to_integer(buffer_pool_size)
       _ -> 5
     end
@@ -933,6 +1030,20 @@ defmodule Tuist.Environment do
     case get([:clickhouse, :max_threads], secrets) do
       max_threads when is_binary(max_threads) -> String.to_integer(max_threads)
       _ -> 4
+    end
+  end
+
+  def clickhouse_read_max_threads(secrets \\ secrets()) do
+    case get([:clickhouse, :read_max_threads], secrets) do
+      max_threads when is_binary(max_threads) -> String.to_integer(max_threads)
+      _ -> clickhouse_max_threads(secrets)
+    end
+  end
+
+  def clickhouse_write_max_threads(secrets \\ secrets()) do
+    case get([:clickhouse, :write_max_threads], secrets) do
+      max_threads when is_binary(max_threads) -> String.to_integer(max_threads)
+      _ -> clickhouse_max_threads(secrets)
     end
   end
 

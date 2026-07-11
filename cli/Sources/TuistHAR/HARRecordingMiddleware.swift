@@ -56,23 +56,13 @@ public struct HARRecordingMiddleware: ClientMiddleware {
 
             return (response, responseBodyForNext)
         } catch {
-            recorder.recordDetached { recorder in
-                let fullURL = Self.buildURL(baseURL: baseURL, path: request.path)
-                let harMetadata = await Self.retrieveHARMetadata(for: fullURL)
-
-                await recorder.recordError(
-                    url: fullURL,
-                    method: request.method.rawValue,
-                    requestHeaders: request.headerFields.map { HAR.Header(name: $0.name.rawName, value: $0.value) },
-                    requestBody: requestBodyData,
-                    error: error,
-                    startTime: harMetadata.startTime,
-                    endTime: harMetadata.endTime,
-                    timings: harMetadata.timings,
-                    httpVersion: harMetadata.httpVersion,
-                    requestHeadersSize: harMetadata.requestHeadersSize
-                )
-            }
+            await Self.recordError(
+                for: request,
+                requestBody: requestBodyData,
+                baseURL: baseURL,
+                error: error,
+                recorder: recorder
+            )
 
             throw error
         }
@@ -91,6 +81,30 @@ public struct HARRecordingMiddleware: ClientMiddleware {
             let bodyData = try await Data(collecting: body!, upTo: Int(length))
             return (bodyData, HTTPBody(bodyData))
         }
+    }
+
+    private static func recordError(
+        for request: HTTPRequest,
+        requestBody: Data?,
+        baseURL: URL,
+        error: Error,
+        recorder: HARRecorder
+    ) async {
+        let fullURL = Self.buildURL(baseURL: baseURL, path: request.path)
+        let harMetadata = await Self.retrieveHARMetadata(for: fullURL)
+
+        await recorder.recordError(
+            url: fullURL,
+            method: request.method.rawValue,
+            requestHeaders: request.headerFields.map { HAR.Header(name: $0.name.rawName, value: $0.value) },
+            requestBody: requestBody,
+            error: error,
+            startTime: harMetadata.startTime,
+            endTime: harMetadata.endTime,
+            timings: harMetadata.timings,
+            httpVersion: harMetadata.httpVersion,
+            requestHeadersSize: harMetadata.requestHeadersSize
+        )
     }
 
     private static func isBinaryContentType(_ contentType: String?) -> Bool {

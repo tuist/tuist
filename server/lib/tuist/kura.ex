@@ -309,6 +309,20 @@ defmodule Tuist.Kura do
     |> Repo.all()
   end
 
+  @doc """
+  The regions of the account's non-destroyed steady-state servers (the same
+  rows as `list_servers_for_account/1`). The slim variant for hot paths —
+  mesh heartbeats run this every minute per enrolled node and only need the
+  region strings, not the ever-growing deployment-history preload.
+  """
+  def server_regions_for_account(account_id) do
+    Server
+    |> where([s], s.account_id == ^account_id and s.status != :destroyed and s.move_phase == :none)
+    |> order_by([s], asc: s.region)
+    |> select([s], s.region)
+    |> Repo.all()
+  end
+
   @doc "Fetches a server scoped to the given account."
   def get_server(account_id, server_id) do
     Repo.get_by(Server, id: server_id, account_id: account_id)
@@ -489,25 +503,27 @@ defmodule Tuist.Kura do
 
   @doc """
   In-cluster Kura URL a runner-as-a-service build on a fleet of the
-  given platform should use, or `nil` when the account has no active
-  private (runner-cache) Kura node in a region that serves that
-  platform.
+  given platform should use, or `nil` when nothing serves it.
 
-  Builds executing on a runner pool resolve their cache through this so
-  traffic stays inside the cluster, next to the runners, instead of
-  crossing the public ingress dataplane. Auth is unchanged: the same
-  Guardian JWT is verified by the same `tuist.lua` hook on the private
-  node, which carries the same `tenantID`. This reads the active
-  private `Server` row directly — `account_cache_endpoints` is
-  CLI-facing and a developer machine can't reach the in-cluster
-  endpoint.
+  Two tiers, best first: the account's active private (runner-cache)
+  node in a region serving the platform, else the in-cluster Service
+  DNS form of the managed instance the CLI itself would resolve. The
+  fallback exists because runner pods cannot reach the public ingress
+  at all: its host resolves to a cluster node IP, which Cilium
+  classifies as `remote-node` and the runner egress policy's `ipBlock`
+  rules never match. Auth is identical in both tiers (same Guardian
+  JWT, same `tuist.lua` hook, same `tenantID`).
 
-  The platform filter is the locality half of the handoff (which
-  region's node may serve which fleet — `Regions.runner_platforms`);
-  whether the fleet can reach in-cluster URLs at all is the caller's
+  Whether the fleet can reach in-cluster URLs at all is the caller's
   gate (`Catalog.fleet_on_cluster_network?/1`).
   """
-  def runner_cache_endpoint_url(%Account{id: account_id}, platform) when platform in [:linux, :macos] do
+  def runner_cache_endpoint_url(%Account{} = account, platform) when platform in [:linux, :macos] do
+    private_runner_cache_url(account, platform) || public_in_cluster_runner_cache_url(account, platform)
+  end
+
+  def runner_cache_endpoint_url(%Account{}, _platform), do: nil
+
+  defp private_runner_cache_url(%Account{id: account_id}, platform) do
     # `available/0`, not `all/0`: if a private region is dropped from
     # `TUIST_KURA_AVAILABLE_REGIONS` the controller stops reconciling
     # it, and gating here too means dispatch stops handing out the now
@@ -548,7 +564,57 @@ defmodule Tuist.Kura do
     end
   end
 
-  def runner_cache_endpoint_url(%Account{}, _platform), do: nil
+  # Tier 2, interim until the Linux fleets get a node-local private
+  # region (tier 1). eu-central is hardcoded: every runner fleet is
+  # colocated with it today, so it's the instance the CLI's latency
+  # race would pick from a runner — and both URL forms route through
+  # the same pinned per-instance Service, so same pod. Without an
+  # eu-central instance the race is moot (every public form is
+  # unreachable from a runner), so the first candidate wins: a
+  # cross-region cache beats none. No readiness heartbeat needed — the
+  # in-cluster Service already drops not-ready pods. Linux-only because
+  # only cluster-CNI pods resolve Service DNS; macOS Tart VMs can't,
+  # and their public resolution works anyway.
+  defp public_in_cluster_runner_cache_url(%Account{} = account, :linux) do
+    servers = managed_cli_endpoint_servers(account)
+
+    server = Enum.find(servers, &(&1.region == "eu-central")) || List.first(servers)
+
+    in_cluster_url(server, account)
+  end
+
+  defp public_in_cluster_runner_cache_url(%Account{}, _platform), do: nil
+
+  # Candidates come from the CLI's own endpoint list so selection can't
+  # drift from what the CLI resolves. The URL match is exact by
+  # construction — the mirror writes `Server.url` verbatim
+  # (`activate_server_transaction/4`). URLs with no matching active
+  # server are registered self-hosted nodes and drop out deliberately:
+  # their hosts are external IPs the runner egress already reaches, so
+  # staging one would override the CLI's own working selection.
+  defp managed_cli_endpoint_servers(%Account{id: account_id} = account) do
+    case Accounts.kura_cache_endpoint_urls(account) do
+      [] ->
+        []
+
+      urls ->
+        Server
+        |> where([s], s.account_id == ^account_id and s.status == :active and s.url in ^urls)
+        |> order_by(asc: :region)
+        |> Repo.all()
+    end
+  end
+
+  defp in_cluster_url(nil, _account), do: nil
+
+  # The `Server.url` column holds the public URL for these rows, so the
+  # in-cluster form is rendered fresh from the region's template.
+  defp in_cluster_url(%Server{} = server, account) do
+    case Provisioner.internal_url(account, server) do
+      url when is_binary(url) and url != "" -> url
+      _ -> nil
+    end
+  end
 
   defp node_port_region_ids(private_region_ids) do
     Enum.filter(private_region_ids, fn id ->
@@ -768,28 +834,27 @@ defmodule Tuist.Kura do
   history is visible in /ops alongside the retry.
   """
   def retry_server(%Server{status: :failed, current_image_tag: nil} = server, image_tag) when is_binary(image_tag) do
-    with {:ok, region} <- Regions.fetch(server.region) do
-      case Repo.transaction(fn ->
-             with {:ok, server} <-
-                    server |> Server.status_changeset(%{status: :provisioning}) |> Repo.update(),
-                  {:ok, _deployment} <- insert_initial_deployment(server, region, image_tag) do
-               server
-             else
-               {:error, reason} -> Repo.rollback(reason)
-             end
-           end) do
-        {:ok, server} ->
-          server = Repo.preload(server, :deployments, force: true)
-          broadcast_server(server, :updated)
-          {:ok, server}
-
-        {:error, reason} ->
-          {:error, reason}
-      end
+    with {:ok, region} <- Regions.fetch(server.region),
+         {:ok, server} <- retry_server_transaction(server, region, image_tag) do
+      server = Repo.preload(server, :deployments, force: true)
+      broadcast_server(server, :updated)
+      {:ok, server}
     end
   end
 
   def retry_server(%Server{}, _image_tag), do: {:error, :not_retryable}
+
+  defp retry_server_transaction(server, region, image_tag) do
+    Repo.transaction(fn ->
+      with {:ok, server} <-
+             server |> Server.status_changeset(%{status: :provisioning}) |> Repo.update(),
+           {:ok, _deployment} <- insert_initial_deployment(server, region, image_tag) do
+        server
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
 
   @doc """
   Starts a warm-handoff move of a steady-state server onto `target_node`, a box

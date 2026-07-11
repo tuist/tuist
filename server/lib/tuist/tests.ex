@@ -1738,7 +1738,7 @@ defmodule Tuist.Tests do
           duration: Map.get(case_attrs, :duration, 0),
           inserted_at: NaiveDateTime.utc_now(),
           module_name: module_name,
-          suite_name: suite_name || "",
+          suite_name: suite_name,
           shard_id: if(shard_plan, do: shard_plan.id),
           shard_index: shard_index
         }
@@ -2012,7 +2012,17 @@ defmodule Tuist.Tests do
           apply_active_window(base_query, is_ci)
       end
 
-    Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCase)
+    flop = Tuist.ClickHouseFlop.validate!(attrs, for: TestCase)
+    total_count = test_cases_count(base_query, flop)
+
+    Tuist.ClickHouseFlop.run(base_query, flop, for: TestCase, count: total_count)
+  end
+
+  defp test_cases_count(query, flop) do
+    query
+    |> Tuist.ClickHouseFlop.filter(flop, for: TestCase)
+    |> select([test_case], count(test_case.id))
+    |> ClickHouseRepo.one()
   end
 
   defp quarantine_filter?(filters) do

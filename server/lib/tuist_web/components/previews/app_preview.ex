@@ -25,6 +25,7 @@ defmodule TuistWeb.Previews.AppPreview do
         data-part="icon"
         id={"tuist-app-preview-#{@preview.id}"}
         phx-hook="ImageFallback"
+        decoding="async"
       />
       <div data-part="metadata">
         <%= if assigns[:app_name] do %>

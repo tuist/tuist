@@ -140,15 +140,7 @@
     }
 
     & > [data-part="background"] {
-      display: none;
-      object-fit: contain;
-
-      @media (min-width: 1024px) {
-        display: block;
-      }
-    }
-
-    & > [data-part="background-mobile"] {
+      display: block;
       max-width: 500px;
       object-fit: contain;
 
@@ -157,7 +149,14 @@
       }
 
       @media (min-width: 1024px) {
-        display: none;
+        align-self: auto;
+        max-width: none;
+      }
+
+      & > img {
+        display: block;
+        width: 100%;
+        object-fit: contain;
       }
     }
 

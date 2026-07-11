@@ -61,8 +61,6 @@ defmodule Tuist.Runners.Claims do
   alias Tuist.Repo
   alias Tuist.Runners.Claim
 
-  require Logger
-
   # Postgres advisory locks accept a single 64-bit int or two
   # 32-bit ints. Using the two-int form lets us namespace by a
   # constant so we don't collide with other advisory-lock users
@@ -225,6 +223,17 @@ defmodule Tuist.Runners.Claims do
     )
     |> Repo.all()
     |> Map.new()
+  end
+
+  @doc """
+  Returns active claim workflow_job IDs for `fleet_name`.
+
+  Dispatch uses this as an anti-list when selecting queued ClickHouse
+  rows. If ClickHouse still says a job is queued while Postgres already
+  has a live claim for it, that row must not pin the fleet's queue head.
+  """
+  def workflow_job_ids_for_fleet(fleet_name) when is_binary(fleet_name) do
+    Repo.all(from(c in Claim, where: c.fleet_name == ^fleet_name, select: c.workflow_job_id))
   end
 
   @doc """

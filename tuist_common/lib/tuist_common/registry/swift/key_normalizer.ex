@@ -1,0 +1,176 @@
+defmodule TuistCommon.Registry.Swift.KeyNormalizer do
+  @moduledoc """
+  Normalizes Swift package registry keys.
+
+  The sync writer (server's `swift_registry_sync` pod) and the read
+  frontend (standalone `registry` app) both depend on this module to
+  agree on where each artifact lives in S3. It used to be duplicated in
+  both apps and was a documented drift hazard.
+
+  Key layout: `registry/swift/{scope}/{name}/{version}/{path}`. Scopes
+  and names are downcased; names also have `.` replaced with `_`.
+  Versions are normalized to `MAJOR.MINOR.PATCH[-prerelease][+build]`
+  with leading zeros stripped from each numeric component.
+  """
+
+  @source_tag_regex ~r/^v?\d+\.\d+(\.\d+)?(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/
+  @storage_version_regex ~r/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/
+
+  @doc """
+  Normalizes a scope by downcasing it.
+
+  ## Examples
+
+      iex> TuistCommon.Registry.Swift.KeyNormalizer.normalize_scope("Apple")
+      "apple"
+
+      iex> TuistCommon.Registry.Swift.KeyNormalizer.normalize_scope("SWIFT")
+      "swift"
+  """
+  def normalize_scope(scope) when is_binary(scope), do: String.downcase(scope)
+
+  @doc """
+  Normalizes a package name by replacing dots with underscores and downcasing.
+
+  ## Examples
+
+      iex> TuistCommon.Registry.Swift.KeyNormalizer.normalize_name("swift.argument.parser")
+      "swift_argument_parser"
+
+      iex> TuistCommon.Registry.Swift.KeyNormalizer.normalize_name("SwiftNIO")
+      "swiftnio"
+  """
+  def normalize_name(name) when is_binary(name) do
+    name |> String.replace(".", "_") |> String.downcase()
+  end
+
+  @doc """
+  Normalizes a scope and name pair.
+
+  ## Examples
+
+      iex> TuistCommon.Registry.Swift.KeyNormalizer.normalize_scope_name("Apple", "swift.argument.parser")
+      {"apple", "swift_argument_parser"}
+  """
+  def normalize_scope_name(scope, name) when is_binary(scope) and is_binary(name) do
+    {normalize_scope(scope), normalize_name(name)}
+  end
+
+  @doc """
+  Normalizes a version string to semantic version format.
+
+  - Strips leading "v" prefix
+  - Adds trailing zeros for incomplete versions (1 -> 1.0.0, 1.2 -> 1.2.0)
+  - Preserves pre-release and build metadata identifiers
+
+  ## Examples
+
+      iex> TuistCommon.Registry.Swift.KeyNormalizer.normalize_version("v1.2.3")
+      "1.2.3"
+
+      iex> TuistCommon.Registry.Swift.KeyNormalizer.normalize_version("1")
+      "1.0.0"
+
+      iex> TuistCommon.Registry.Swift.KeyNormalizer.normalize_version("1.2")
+      "1.2.0"
+
+      iex> TuistCommon.Registry.Swift.KeyNormalizer.normalize_version("1.0.0-alpha.1")
+      "1.0.0-alpha.1"
+
+      iex> TuistCommon.Registry.Swift.KeyNormalizer.normalize_version("v2.0.0-beta.2")
+      "2.0.0-beta.2"
+
+      iex> TuistCommon.Registry.Swift.KeyNormalizer.normalize_version("0.20.0-prerelease-5")
+      "0.20.0-prerelease-5"
+  """
+  def normalize_version(version) when is_binary(version) do
+    version = String.trim_leading(version, "v")
+    {core, suffix} = split_version_suffix(version)
+    add_trailing_semantic_version_zeros(core) <> suffix
+  end
+
+  @doc """
+  Returns whether a raw upstream tag matches the accepted source tag format.
+  """
+  def valid_source_tag?(version) when is_binary(version) do
+    Regex.match?(@source_tag_regex, version)
+  end
+
+  @doc """
+  Returns whether a normalized registry storage version matches the accepted format.
+  """
+  def valid_storage_version?(version) when is_binary(version) do
+    Regex.match?(@storage_version_regex, version)
+  end
+
+  defp add_trailing_semantic_version_zeros(version) do
+    case String.split(version, ".") do
+      [major] ->
+        "#{strip_leading_zeros(major)}.0.0"
+
+      [major, minor] ->
+        "#{strip_leading_zeros(major)}.#{strip_leading_zeros(minor)}.0"
+
+      [major, minor, patch] ->
+        "#{strip_leading_zeros(major)}.#{strip_leading_zeros(minor)}.#{strip_leading_zeros(patch)}"
+
+      _ ->
+        version
+    end
+  end
+
+  defp strip_leading_zeros(component) do
+    case Integer.parse(component) do
+      {int, ""} -> Integer.to_string(int)
+      _ -> component
+    end
+  end
+
+  defp split_version_suffix(version) do
+    case Regex.run(~r/^([^-+]+)(.*)$/, version, capture: :all_but_first) do
+      [core, suffix] -> {core, suffix}
+      _ -> {version, ""}
+    end
+  end
+
+  @doc """
+  Constructs an S3-compatible object key for a registry package artifact.
+
+  Key format: `registry/swift/{scope}/{name}/{version}/{path}`.
+
+  ## Options
+
+    * `:version` - The package version (will be normalized)
+    * `:path` - The file path within the package (e.g., "source_archive.zip")
+
+  ## Examples
+
+      iex> TuistCommon.Registry.Swift.KeyNormalizer.package_object_key(%{scope: "Apple", name: "Parser"}, version: "v1.2", path: "source_archive.zip")
+      "registry/swift/apple/parser/1.2.0/source_archive.zip"
+
+      iex> TuistCommon.Registry.Swift.KeyNormalizer.package_object_key(%{scope: "swift", name: "nio"}, version: "2.0.0", path: "Package.swift")
+      "registry/swift/swift/nio/2.0.0/Package.swift"
+
+      iex> TuistCommon.Registry.Swift.KeyNormalizer.package_object_key(%{scope: "Apple", name: "Parser"}, [])
+      "registry/swift/apple/parser"
+  """
+  def package_object_key(%{scope: scope, name: name}, opts \\ []) do
+    version = Keyword.get(opts, :version)
+    path = Keyword.get(opts, :path)
+
+    object_key = "registry/swift/#{normalize_scope(scope)}/#{normalize_name(name)}"
+
+    object_key =
+      if is_nil(version) do
+        object_key
+      else
+        object_key <> "/#{normalize_version(version)}"
+      end
+
+    if is_nil(path) do
+      object_key
+    else
+      object_key <> "/#{path}"
+    end
+  end
+end

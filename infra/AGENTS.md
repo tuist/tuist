@@ -54,6 +54,9 @@ Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph sta
 ### `kura-controller/` — Kura endpoint controller
 Go controller for `KuraInstance` and `KuraGateway` CRs (`kura.tuist.dev/v1alpha1`). It reconciles account-region Kura endpoint intent into Kubernetes workload resources and, when server policy requests it, dedicated ingress-nginx/LB gateway infrastructure on the Hetzner-backed cluster. Keep it separate from CAPI infrastructure providers; it manages product workload lifecycle, not cluster node lifecycle.
 
+### `tart-kubelet/` — Mac mini VM kubelet
+Go kubelet-shaped agent that registers a Mac mini as a Kubernetes Node and maps Pods to Tart VMs. Interactive runner VNC is host-controlled here: runner VMs start with Tart's host-owned experimental VNC enabled, generated VNC credentials stay in host-control state, and a relay opens only while either a legacy host-local `vnc-control-dir/requests/<namespace>_<pod>` file exists or the server stamps its session annotation on the runner Pod.
+
 ### `registry-router/` — Cloudflare Worker for `registry.tuist.dev`
 Geo-routes cache registry requests to the nearest healthy cache origin based on the requester's continent. Unrelated to the Kubernetes migration.
 
@@ -117,10 +120,11 @@ The previous "Tailscale ACL audit log" trail no longer applies — the ACL is no
 
 - **Tuist server** (managed) is deployed to our self-hosted CAPI Kubernetes clusters via the CI workflows:
   - `.github/workflows/server-deployment.yml` — build + deploy to one environment (workflow_dispatch or workflow_call).
-  - `.github/workflows/server-production-deployment.yml` — the monorepo release pipeline (push-on-main): releases the server + fleet/runtime images and, at its tail, runs the production deploy cascade (build → canary → acceptance tests → production, with hotfix fast-path). One serialized lane, no cross-workflow dispatch. Manual re-promotes/rollbacks of a pinned SHA go through `server-deployment.yml`'s own `workflow_dispatch`.
+- `.github/workflows/server-production-deployment.yml` — the monorepo release pipeline (push-on-main): releases the server + fleet/runtime images and, at its tail, runs the production deploy cascade (build → canary → acceptance tests → production, with hotfix fast-path). One serialized lane, no cross-workflow dispatch. Manual re-promotes/rollbacks of a pinned SHA go through `server-deployment.yml`'s own `workflow_dispatch`.
 - **Noora Storybook** (managed) is deployed via `.github/workflows/noora-storybook-deployment.yml` using the standalone `infra/helm/noora-storybook` chart.
 - **Slack invitation app** (managed) is deployed via `.github/workflows/slack-deployment.yml` using the standalone `infra/helm/slack` chart.
 - **kube-system add-ons** (HCCM, node CSI drivers) live in the per-workload bootstrap (`mgmt/bootstrap/`), but bootstrap only runs at cluster onboarding. Edits to their values reach existing clusters via dedicated re-apply workflows so they don't silently drift: `.github/workflows/hccm-deployment.yml` (HCCM) and `.github/workflows/csi-deployment.yml` (re-applies `hcloud-csi` with its pool-exclusion affinity and uninstalls the now-obsolete `scaleway-csi` on the Elastic Metal kura fleets). Both fan out over all envs in parallel and share the `server-deploy-<env>` concurrency lane.
+- **Swift Registry** (managed) is deployed as the `registry` component of the main `infra/helm/tuist` chart via `.github/workflows/server-deployment.yml`, so the read frontend and server-owned `swift-registry-sync` writer roll in the same Helm release.
 - **Registry Router** — `wrangler deploy` from `registry-router/`.
 - **Helm charts** under `helm/` target Kubernetes (managed + self-hosted).
 

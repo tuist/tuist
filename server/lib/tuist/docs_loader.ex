@@ -9,15 +9,17 @@ defmodule Tuist.Docs.Loader do
   alias Tuist.Docs.HTML
   alias Tuist.Docs.Page
   alias Tuist.Locale
+  alias Tuist.Markdown
+  alias Tuist.Runners.Catalog
+  alias Tuist.Runners.Profile
+  alias Tuist.Runners.Profiles
   alias Tuist.Webhooks.WebhookEndpoint
 
-  # Live doc pages reference these modules from HEEx templates at compile time.
-  require Noora.Alert
-
   # Paths
-  @docs_root Path.expand("../../priv/docs", __DIR__)
-  @locales Locale.supported_locales()
-  @examples_root Path.expand("../../../examples/xcode", __DIR__)
+  @source_docs_root Path.expand("../../priv/docs", __DIR__)
+  @locales if(Tuist.Environment.test?(), do: ["en"], else: Locale.supported_locales())
+  @source_examples_root Path.expand("../../../examples/xcode", __DIR__)
+  @priv_examples_root Path.expand("../../priv/examples/xcode", __DIR__)
 
   # Icons (rendered from Noora components at compile time)
   @copy_icon %{__changed__: nil} |> Noora.Icon.copy() |> Safe.to_iodata() |> IO.iodata_to_binary()
@@ -45,51 +47,74 @@ defmodule Tuist.Docs.Loader do
     "caution" => "error"
   }
 
+  @syntax_highlight_options (if Tuist.Environment.test?() do
+                               []
+                             else
+                               [
+                                 syntax_highlight: [
+                                   formatter:
+                                     {:html_multi_themes,
+                                      themes: [light: "github_light", dark: "github_dark"], default_theme: "light-dark()"}
+                                 ]
+                               ]
+                             end)
+
   @mdex_options [
-    extension: [
-      header_ids: "",
-      autolink: true,
-      table: true,
-      strikethrough: true,
-      tasklist: true,
-      alerts: true,
-      phoenix_heex: true
-    ],
-    render: [unsafe: true],
-    syntax_highlight: [
-      formatter: {:html_multi_themes, themes: [light: "github_light", dark: "github_dark"], default_theme: "light-dark()"}
-    ]
-  ]
+                  extension: [
+                    header_ids: "",
+                    autolink: true,
+                    table: true,
+                    strikethrough: true,
+                    tasklist: true,
+                    alerts: true,
+                    phoenix_heex: true
+                  ],
+                  render: [unsafe: true]
+                ] ++ @syntax_highlight_options
 
   def load_pages! do
-    source_paths =
-      @locales
-      |> Enum.flat_map(fn locale ->
-        @docs_root
-        |> Path.join(locale)
-        |> Path.join("**/*.md")
-        |> Path.wildcard()
-      end)
-      |> Enum.sort()
-      |> Enum.reject(&excluded_source?/1)
-
-    example_readmes =
-      @examples_root
-      |> Path.join("*/README.md")
-      |> Path.wildcard()
-      |> Enum.sort()
-
+    source_paths = source_paths()
+    example_readmes = example_readmes()
     pages = Enum.map(source_paths, &build_page!/1) ++ Enum.map(example_readmes, &build_example_page!/1)
     all_source_paths = source_paths ++ example_readmes
     {pages, all_source_paths}
   end
 
+  def load_slugs! do
+    docs_slugs =
+      Enum.map(source_paths(), fn source_path ->
+        source_path
+        |> Path.relative_to(docs_root())
+        |> source_to_slug()
+      end)
+
+    example_slugs = Enum.map(example_readmes(), &example_slug/1)
+
+    Enum.sort(docs_slugs ++ example_slugs)
+  end
+
+  def load_page!(slug) do
+    source_path =
+      Enum.find(source_paths(), fn source_path ->
+        source_path
+        |> Path.relative_to(docs_root())
+        |> source_to_slug() == slug
+      end)
+
+    cond do
+      source_path != nil ->
+        build_page!(source_path)
+
+      readme_path = Enum.find(example_readmes(), &(example_slug(&1) == slug)) ->
+        build_example_page!(readme_path)
+
+      true ->
+        nil
+    end
+  end
+
   def load_example_items! do
-    @examples_root
-    |> Path.join("*/README.md")
-    |> Path.wildcard()
-    |> Enum.sort()
-    |> Enum.map(fn readme_path ->
+    Enum.map(example_readmes(), fn readme_path ->
       dir_name = readme_path |> Path.dirname() |> Path.basename()
       markdown = File.read!(readme_path)
       title = title_from_markdown(markdown) || dir_name
@@ -106,8 +131,35 @@ defmodule Tuist.Docs.Loader do
     :ok
   end
 
+  defp source_paths do
+    docs_root = docs_root()
+
+    @locales
+    |> Enum.flat_map(fn locale ->
+      docs_root
+      |> Path.join(locale)
+      |> Path.join("**/*.md")
+      |> Path.wildcard()
+    end)
+    |> Enum.sort()
+    |> Enum.reject(&excluded_source?/1)
+  end
+
+  defp example_readmes do
+    case examples_root() do
+      nil ->
+        []
+
+      examples_root ->
+        examples_root
+        |> Path.join("*/README.md")
+        |> Path.wildcard()
+        |> Enum.sort()
+    end
+  end
+
   defp build_page!(source_path) do
-    relative_path = Path.relative_to(source_path, @docs_root)
+    relative_path = Path.relative_to(source_path, docs_root())
     slug = source_to_slug(relative_path)
     locale = relative_path |> String.split("/") |> List.first()
     contents = File.read!(source_path)
@@ -133,7 +185,7 @@ defmodule Tuist.Docs.Loader do
 
   defp build_example_page!(readme_path) do
     dir_name = readme_path |> Path.dirname() |> Path.basename()
-    slug = "/en/references/examples/generated-projects/#{String.downcase(dir_name)}"
+    slug = example_slug(readme_path)
     markdown = File.read!(readme_path)
     title = title_from_markdown(markdown) || dir_name
     github_url = "https://github.com/tuist/tuist/tree/main/examples/xcode/#{dir_name}"
@@ -156,6 +208,26 @@ defmodule Tuist.Docs.Loader do
     }
   end
 
+  defp example_slug(readme_path) do
+    dir_name = readme_path |> Path.dirname() |> Path.basename()
+    "/en/references/examples/generated-projects/#{String.downcase(dir_name)}"
+  end
+
+  defp docs_root do
+    if File.dir?(@source_docs_root) do
+      @source_docs_root
+    else
+      Application.app_dir(:tuist, "priv/docs")
+    end
+  end
+
+  defp examples_root do
+    Enum.find(
+      [@source_examples_root, @priv_examples_root, Application.app_dir(:tuist, "priv/examples/xcode")],
+      &File.dir?/1
+    )
+  end
+
   # Compile-time macros documentation pages can reference with
   # `{{macro_name}}` placeholders. Keeps content that mirrors a code-level
   # catalogue (event types, etc.) from drifting against the canonical
@@ -168,7 +240,75 @@ defmodule Tuist.Docs.Loader do
       "{{minimum_supported_cli_version}}",
       Tuist.CLIVersions.minimum_supported_version()
     )
+    |> String.replace("{{runner_default_profiles_table}}", runner_default_profiles_table())
+    |> String.replace("{{runner_linux_shapes_table}}", runner_shapes_table(:linux))
+    |> String.replace("{{runner_macos_shapes_table}}", runner_shapes_table(:macos))
+    |> String.replace("{{runner_macos_xcode_versions}}", runner_xcode_versions_list())
   end
+
+  defp runner_shapes_table(platform) do
+    rows =
+      platform
+      |> Catalog.shapes()
+      |> Enum.map_join("\n", fn shape ->
+        "| #{shape.vcpus} | #{shape.memory_gb} GB#{default_suffix(shape.default?)} |"
+      end)
+
+    """
+    | vCPUs | Memory |
+    | --- | --- |
+    #{rows}
+    """
+  end
+
+  defp runner_xcode_versions_list do
+    Enum.map_join(Catalog.xcode_versions(), "\n", fn version ->
+      "- `#{version.xcode_version}`#{default_suffix(version.default?)}"
+    end)
+  end
+
+  defp runner_default_profiles_table do
+    prefix = Profile.prefix()
+
+    rows =
+      Enum.map_join(default_profile_rows(prefix), "\n", fn row ->
+        "| `#{row.name}` | `#{row.label}` | #{row.shape} |"
+      end)
+
+    """
+    | Profile | Label | Default shape |
+    | --- | --- | --- |
+    #{rows}
+    """
+  end
+
+  defp default_profile_rows(prefix) do
+    linux_row =
+      case Catalog.default_shape(:linux) do
+        nil ->
+          []
+
+        shape ->
+          name = Profiles.default_linux_name()
+          [%{name: name, label: prefix <> name, shape: shape_label(shape)}]
+      end
+
+    macos_row =
+      with shape when not is_nil(shape) <- Catalog.default_shape(:macos),
+           xcode when not is_nil(xcode) <- Catalog.default_xcode_version() do
+        name = Profiles.default_macos_name()
+        [%{name: name, label: prefix <> name, shape: "#{shape_label(shape)}, Xcode #{xcode.xcode_version}"}]
+      else
+        _ -> []
+      end
+
+    linux_row ++ macos_row
+  end
+
+  defp shape_label(%{vcpus: vcpus, memory_gb: memory_gb}), do: "#{vcpus} vCPU / #{memory_gb} GB"
+
+  defp default_suffix(true), do: " (default)"
+  defp default_suffix(_), do: ""
 
   defp webhook_events_table do
     rows =
@@ -380,13 +520,15 @@ defmodule Tuist.Docs.Loader do
         |> Enum.with_index()
         |> Enum.map_join("", fn {[_, lang, _label, code], index} ->
           hidden = if index == 0, do: "", else: ~s( data-hidden="true")
+          copy_source = code |> String.trim() |> Markdown.html_escape() |> String.replace("\n", "&#10;")
 
           EEx.eval_string(
-            ~s(<div data-part="panel" data-index="<%= index %>"<%= hidden %>>\n\n```<%= lang %>\n<%= code %>```\n\n</div>),
+            ~s(<div data-part="panel" data-index="<%= index %>"<%= hidden %>><template data-part="copy-source"><%= copy_source %></template>\n\n```<%= lang %>\n<%= code %>```\n\n</div>),
             index: index,
             hidden: hidden,
             lang: lang,
-            code: code
+            code: code,
+            copy_source: copy_source
           )
         end)
 
@@ -493,7 +635,7 @@ defmodule Tuist.Docs.Loader do
   end
 
   defp excluded_source?(source_path) do
-    relative_path = Path.relative_to(source_path, @docs_root)
+    relative_path = Path.relative_to(source_path, docs_root())
 
     String.contains?(relative_path, "[") or
       String.starts_with?(relative_path, "en/references/project-description/")

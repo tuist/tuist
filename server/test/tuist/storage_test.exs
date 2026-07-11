@@ -7,6 +7,7 @@ defmodule Tuist.StorageTest do
   alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.Storage
+  alias Tuist.Storage.AzureBlob
 
   setup do
     # Mock ExAws.Config.new to return a proper config that won't try to access instance metadata
@@ -538,6 +539,31 @@ defmodule Tuist.StorageTest do
   end
 
   describe "delete_all_objects/1" do
+    test "returns Azure Blob deletion errors instead of hiding them" do
+      # Given
+      event_name =
+        Tuist.Telemetry.event_name_storage_delete_all_objects()
+
+      event_ref =
+        :telemetry_test.attach_event_handlers(self(), [event_name])
+
+      project_slug = UUIDv7.generate()
+
+      expect(Environment, :object_storage_provider, fn -> :azure_blob end)
+
+      expect(AzureBlob, :delete_all_objects, fn ^project_slug ->
+        {:error, :list_failed}
+      end)
+
+      # When
+      assert Storage.delete_all_objects(project_slug, :test) == {:error, :list_failed}
+
+      # Then
+      assert_received {^event_name, ^event_ref, %{duration: duration}, %{project_slug: ^project_slug}}
+
+      assert is_number(duration)
+    end
+
     test "deletes all objects using ExAws.S3 and sends the right telemetry event" do
       # Given
       event_name =
@@ -617,6 +643,38 @@ defmodule Tuist.StorageTest do
       assert_received {^event_name, ^event_ref, %{duration: duration}, %{}}
 
       assert is_number(duration)
+    end
+  end
+
+  describe "upload_file/4" do
+    test "normalizes Azure Blob successful uploads to the shared success tuple" do
+      # Given
+      file_path = "/tmp/build.zip"
+      object_key = UUIDv7.generate()
+
+      expect(Environment, :object_storage_provider, fn -> :azure_blob end)
+
+      expect(AzureBlob, :upload_file, fn ^file_path, ^object_key, [block_size: 10] ->
+        :ok
+      end)
+
+      # When/Then
+      assert Storage.upload_file(file_path, object_key, :test, block_size: 10) == {:ok, :done}
+    end
+
+    test "keeps Azure Blob upload errors unchanged" do
+      # Given
+      file_path = "/tmp/build.zip"
+      object_key = UUIDv7.generate()
+
+      expect(Environment, :object_storage_provider, fn -> :azure_blob end)
+
+      expect(AzureBlob, :upload_file, fn ^file_path, ^object_key, [] ->
+        {:error, :upload_failed}
+      end)
+
+      # When/Then
+      assert Storage.upload_file(file_path, object_key, :test) == {:error, :upload_failed}
     end
   end
 
@@ -775,6 +833,37 @@ defmodule Tuist.StorageTest do
 
       # When/Then
       assert Storage.delete_objects(object_keys, :test, max_concurrency: 2) == :ok
+    end
+  end
+
+  describe "bucket helpers" do
+    test "list_objects_from_bucket uses S3 by default" do
+      bucket_name = UUIDv7.generate()
+      operation = %S3{body: UUIDv7.generate()}
+
+      expect(ExAws.S3, :list_objects_v2, fn ^bucket_name, [prefix: "prefix", max_keys: 10] ->
+        operation
+      end)
+
+      expect(ExAws, :request, fn ^operation, config ->
+        assert config.access_key_id == "test-access-key"
+        {:ok, %{body: %{contents: []}}}
+      end)
+
+      assert Storage.list_objects_from_bucket(bucket_name, prefix: "prefix", max_keys: 10) ==
+               {:ok, %{body: %{contents: []}}}
+    end
+
+    test "list_objects_from_bucket can opt into Azure Blob" do
+      bucket_name = UUIDv7.generate()
+
+      expect(AzureBlob, :list_objects, fn ^bucket_name, opts ->
+        assert opts[:storage_provider] == :azure_blob
+        {:ok, %{body: %{contents: []}}}
+      end)
+
+      assert Storage.list_objects_from_bucket(bucket_name, storage_provider: :azure_blob) ==
+               {:ok, %{body: %{contents: []}}}
     end
   end
 
@@ -1263,6 +1352,36 @@ defmodule Tuist.StorageTest do
 
       # Then
       assert result == url
+    end
+  end
+
+  describe "azure blob provider" do
+    test "delegates generated download URLs to Azure Blob when configured as the default provider" do
+      object_key = UUIDv7.generate()
+      url = "https://tuiststorage.blob.core.windows.net/tuist/#{object_key}?sig=signature"
+
+      expect(Environment, :object_storage_provider, fn -> :azure_blob end)
+      expect(AzureBlob, :generate_download_url, fn ^object_key, _opts -> url end)
+
+      assert Storage.generate_download_url(object_key, :test) == url
+    end
+
+    test "custom S3 storage takes precedence over the Azure Blob default provider" do
+      account = %Account{
+        s3_bucket_name: "custom-bucket",
+        s3_access_key_id: "CUSTOM_ACCESS_KEY",
+        s3_secret_access_key: "CUSTOM_SECRET_KEY"
+      }
+
+      object_key = UUIDv7.generate()
+      url = "https://custom-bucket.s3.amazonaws.com/test-key"
+
+      expect(ExAws.S3, :presigned_url, fn config, :get, "custom-bucket", ^object_key, _opts ->
+        assert config.access_key_id == "CUSTOM_ACCESS_KEY"
+        {:ok, url}
+      end)
+
+      assert Storage.generate_download_url(object_key, account) == url
     end
   end
 end

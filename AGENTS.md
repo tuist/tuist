@@ -6,14 +6,15 @@ This file provides guidance to AI agents when working with code in this reposito
 - `cli/` - Tuist CLI (Swift) - see `cli/AGENTS.md`
 - `server/` - Tuist Server (Elixir/Phoenix) - see `server/AGENTS.md`
 - `cache/` - Tuist cache service (Elixir/Phoenix) - see `cache/AGENTS.md`
+- `registry/` - Swift package registry service (Elixir/Phoenix) - see `registry/AGENTS.md`
 - `slack/` - Tuist Slack invitation app (Elixir/Phoenix + SQLite) - see `slack/AGENTS.md`
 - `kura/` - Kura distributed cache mesh (Rust) - see `kura/AGENTS.md`
+- `cas-plugin/` - Xcode compilation-cache CAS plugin (Rust cdylib) wrapping Apple's libToolchainCASPlugin with Tuist-remote read/write-through - see `cas-plugin/AGENTS.md`
 - `tuist_common/` - Shared Elixir utilities used across services - see `tuist_common/AGENTS.md`
 - `app/` - Tuist iOS and macOS app - see `app/AGENTS.md`
 - `android/` - Tuist Android app (Kotlin/Compose) - see `android/AGENTS.md`
 - `handbook/` - Company handbook (VitePress) - see `handbook/AGENTS.md`
 - `noora/` - Noora design system (Elixir/Phoenix web components) - see `noora/AGENTS.md`
-- `mise/tasks/registry/` - Operational scripts for Swift package registry management (purge, sync)
 - `skills/` - Agent Skills (published to [tuist/agent-skills](https://github.com/tuist/agent-skills))
 - `swifterpm/` - SwifterPM Swift package restoration tool and Bazel/Buck integration helpers - see `swifterpm/AGENTS.md`
 - `server/native/xcactivitylog_nif/` - Swift NIF linked into the server release for xcactivitylog parsing. The build processor is no longer a standalone Elixir app; it's the same `ghcr.io/tuist/tuist` image booted with `TUIST_MODE=processor` to run the `:process_build` Oban queue consumer.
@@ -46,6 +47,7 @@ When creating commits and pull requests, use these conventional commit scopes:
 - `android` - Changes to the Tuist Android app
 - `server` - Changes to the Tuist server (Elixir/Phoenix)
 - `cache` - Changes to the Tuist cache service (Elixir/Phoenix)
+- `registry` - Changes to the Swift package registry service
 - `slack` - Changes to the Tuist Slack invitation app (Elixir/Phoenix)
 - `kura` - Changes to the Kura distributed cache mesh service
 - `cli` - Changes to the Tuist CLI (Swift)
@@ -62,6 +64,7 @@ Examples:
 - `feat(server): add new telemetry sanitizer module`
 - `fix(cli): resolve cache artifact upload issue`
 - `feat(cache): add new S3 transfer worker`
+- `feat(registry): add release sync allowlist`
 - `feat(kura): add peer discovery backoff handling`
 - `feat(skills): add new migration skill`
 - `docs(handbook): update project setup guide`

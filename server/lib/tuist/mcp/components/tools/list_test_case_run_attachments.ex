@@ -15,6 +15,28 @@ defmodule Tuist.MCP.Components.Tools.ListTestCaseRunAttachments do
         }
       },
       "required" => ["test_case_run_id"]
+    },
+    output_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "test_case_run_id" => %{"type" => "string"},
+        "attachments" => %{
+          "type" => "array",
+          "items" => %{
+            "type" => "object",
+            "properties" => %{
+              "id" => %{"type" => "string"},
+              "file_name" => %{"type" => "string"},
+              "type" => %{"type" => "string"},
+              "download_url" => %{"type" => "string"}
+            },
+            "required" => ["id", "file_name", "type", "download_url"],
+            "additionalProperties" => false
+          }
+        }
+      },
+      "required" => ["test_case_run_id", "attachments"],
+      "additionalProperties" => false
     }
 
   alias Tuist.MCP.Tool, as: MCPTool

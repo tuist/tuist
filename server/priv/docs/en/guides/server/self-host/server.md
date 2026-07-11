@@ -92,7 +92,7 @@ Tuist uses [ClickHouse](https://clickhouse.com/) for storing and querying large 
 
 ### Storage {#storage}
 
-You’ll also need a solution to store files (e.g. framework and library binaries). Currently we support any storage that's S3-compliant.
+You’ll also need a solution to store files (e.g. framework and library binaries). The Tuist server supports S3-compatible storage and Azure Blob Storage for server-owned artifacts.
 
 > [!TIP]
 > **Optimized Caching**
@@ -241,6 +241,12 @@ The number `1` needs to be replaced with your organization ID. This will typical
 
  Tuist needs storage to house artifacts uploaded through the API. It's **essential to configure one of the supported storage solutions** for Tuist to operate effectively.
 
+Set `TUIST_OBJECT_STORAGE_PROVIDER` to choose the server artifact backend:
+
+| Environment variable | Description | Required | Default | Example |
+| --- | --- | --- | --- | --- |
+| `TUIST_OBJECT_STORAGE_PROVIDER` | Server artifact storage backend. Use `s3` for S3-compatible storage or `azure_blob` for Azure Blob Storage | No | `s3` | `azure_blob` |
+
 #### S3-compliant storages {#s3compliant-storages}
 
 You can use any S3-compliant storage provider to store artifacts. The following environment variables are required to authenticate and configure the integration with the storage provider:
@@ -270,6 +276,61 @@ You can use any S3-compliant storage provider to store artifacts. The following 
 
 #### Google Cloud Storage {#google-cloud-storage}
 For Google Cloud Storage, follow [these docs](https://cloud.google.com/storage/docs/authentication/managing-hmackeys) to get the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` pair. The `AWS_ENDPOINT` should be set to `https://storage.googleapis.com`. Other environment variables are the same as for any other S3-compliant storage.
+
+#### Azure Blob Storage {#azure-blob-storage}
+
+For Azure Blob Storage, set `TUIST_OBJECT_STORAGE_PROVIDER=azure_blob` and configure the Azure storage account credentials:
+
+| Environment variable | Description | Required | Default | Example |
+| --- | --- | --- | --- | --- |
+| `TUIST_AZURE_STORAGE_ACCOUNT_NAME` | Azure Storage account name | Yes | | `tuiststorage` |
+| `TUIST_AZURE_STORAGE_ACCOUNT_KEY` | Storage account access key used to sign Azure Blob REST requests and SAS URLs | Yes | | `******` |
+| `TUIST_AZURE_BLOB_CONTAINER_NAME` | Container where server artifacts are stored | Yes | | `tuist-artifacts` |
+| `TUIST_AZURE_BLOB_ENDPOINT` | Blob service endpoint. Omit to use `https://<account>.blob.core.windows.net` | No | Derived from account name | `https://tuiststorage.blob.core.windows.net` |
+| `TUIST_AZURE_BLOB_SERVICE_VERSION` | Azure Blob REST API version used for signed requests and SAS URLs | No | `2020-12-06` | `2020-12-06` |
+
+When using the Helm chart, set `server.storage.provider=azure_blob` and fill `server.azureBlob.*`. The chart's top-level `objectStorage` settings remain S3-compatible because the optional cache and registry-mirror workloads still expect S3-compatible storage. If those workloads are disabled and the server uses Azure Blob, set `objectStorage.mode=external` and leave the external object-storage endpoint and credentials empty to avoid deploying the embedded MinIO service.
+
+#### Artifact retention {#artifact-retention}
+
+Artifact cleanup is disabled by default on self-hosted instances. Each supported artifact type has its own environment variable. Set a variable to a positive integer number of days to enable cleanup for that artifact type. Leaving a variable unset or blank disables cleanup only for its artifact type.
+
+```bash
+TUIST_CACHE_ARTIFACT_RETENTION_DAYS=30
+TUIST_APP_PREVIEW_RETENTION_DAYS=30
+TUIST_BUILD_ARCHIVE_RETENTION_DAYS=60
+TUIST_RUN_ARTIFACT_RETENTION_DAYS=30
+TUIST_TEST_ATTACHMENT_RETENTION_DAYS=30
+TUIST_SHARD_BUNDLE_RETENTION_DAYS=14
+```
+
+With the Helm chart, configure the same windows as a map:
+
+```yaml
+server:
+  artifactRetentionDays:
+    cacheArtifacts: 30
+    appPreviews: 30
+    buildArchives: 60
+    runArtifacts: 30
+    testAttachments: 30
+    shardBundles: 14
+```
+
+All six keys are optional. This example enables every supported artifact type with an independent retention window. Omit a key or leave its value blank to keep cleanup disabled for that artifact type. Self-hosted retention windows have no 30-day maximum. Configured values that are not positive integers cause the server to fail at startup.
+
+Restart the server after changing a retention variable. Every queued self-hosted cleanup batch checks the current configuration before deleting files, so unsetting or blanking a variable, or increasing its window, also protects files from pending jobs after the restart.
+
+| Environment variable | Artifact files removed from object storage |
+| --- | --- |
+| `TUIST_CACHE_ARTIFACT_RETENTION_DAYS` | Xcode cache, legacy content-addressable storage cache, module cache, and Gradle cache files |
+| `TUIST_APP_PREVIEW_RETENTION_DAYS` | App preview builds and icons |
+| `TUIST_BUILD_ARCHIVE_RETENTION_DAYS` | Current and legacy build archives |
+| `TUIST_RUN_ARTIFACT_RETENTION_DAYS` | All objects stored under an expired run's artifact prefix, including result bundles, invocation records, and session archives |
+| `TUIST_TEST_ATTACHMENT_RETENTION_DAYS` | Test run attachments |
+| `TUIST_SHARD_BUNDLE_RETENTION_DAYS` | Test shard bundles |
+
+The scheduled cleanup removes artifact blobs only. It preserves the corresponding PostgreSQL and ClickHouse rows, so build, test, run, preview, and shard metadata can remain visible in dashboards after their downloads expire. This configuration does not change ClickHouse table retention rules.
 
 ### Email configuration {#email-configuration}
 

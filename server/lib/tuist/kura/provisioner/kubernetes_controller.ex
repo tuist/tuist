@@ -19,7 +19,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Kura.Server
 
   @namespace "kura"
-  @manifest_revision "2026-07-02-per-account-public-dns-v1"
+  @manifest_revision "2026-07-09-mesh-peers-sync-v1"
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
   @impl true
   def provision(%{name: handle}, %Regions{} = region, %Server{}) do
@@ -92,6 +92,18 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
       true ->
         nil
+    end
+  end
+
+  @impl true
+  # The instance's Service is named after `provisioner_node_ref`
+  # (`rollout/2` sets `metadata.name = ref`), which diverges from
+  # `instance_name/2` after a warm-handoff move (`-m` suffix) — so the
+  # ref, not the handle, is the source of truth for the in-cluster name.
+  def internal_url(_handle, %Regions{provisioner_config: config}, ref) when is_binary(ref) do
+    case config[:private_url_template] do
+      template when is_binary(template) -> String.replace(template, "{instance}", ref)
+      _ -> nil
     end
   end
 
@@ -337,8 +349,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     end
   end
 
-  defp mesh_public_peer_lb_annotations(_region), do: nil
-
   # The peer plane is host-network exactly when the regional gateway is: on
   # bare metal there is no cloud LB, so the public peer endpoint is served by a
   # host-network SNI-passthrough demux on the box NIC instead of a per-instance
@@ -387,7 +397,20 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         "KURA_CONTROL_PLANE_CLIENT_ID",
         Environment.kura_control_plane_client_id()
       ) ++
+      mesh_peers_sync_env(region) ++
       telemetry_env(region)
+  end
+
+  # Managed pods fetch the account's self-hosted peer list from the control
+  # plane at boot and on cadence, so a self-hosted peer joining or leaving
+  # propagates without rolling the fleet. Once the whole fleet runs an image
+  # that fetches, the peers digest can be dropped from the manifest revision.
+  defp mesh_peers_sync_env(region) do
+    if mesh_enabled?(region) do
+      [env_var("KURA_MESH_PEERS_SYNC", "true")]
+    else
+      []
+    end
   end
 
   defp telemetry_env(%Regions{provisioner_config: %{otlp_traces_endpoint: endpoint}})

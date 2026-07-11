@@ -23,10 +23,10 @@ defmodule Cache.PromEx do
       Cache.KeyValue.PromExPlugin,
       Cache.XcodeModule.PromExPlugin,
       Cache.Repo.PromExPlugin,
-      Cache.Finch.PromExPlugin,
+      {TuistCommon.Finch.PromExPlugin, prefix: :cache, finch_name: Cache.Finch, pools_module: Cache.Finch.Pools},
       Cache.SQLiteBuffer.PromExPlugin,
       Cache.S3Transfers.PromExPlugin,
-      Cache.S3.PromExPlugin,
+      {TuistCommon.S3.PromExPlugin, prefix: :cache},
       Cache.Authentication.PromExPlugin,
       TuistCommon.HTTP.TransportPromExPlugin
     ]
