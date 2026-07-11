@@ -128,25 +128,47 @@ jobs:
       - name: Benchmark — tuist generate tuist (spec #76)
         if: ${{ inputs.mode == 'benchmark' }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
+          root="${TUIST_XDG_CACHE_HOME:-$HOME/.cache}"
+          man="${root}/tuist/Manifests"; bin="${root}/tuist/Binaries"
+          count() { ls -1 "$1" 2>/dev/null | wc -l | tr -d ' '; }
+          bytes() { du -sk "$1" 2>/dev/null | awk '{print $1}'; }
+
+          # Self-label the arm from the volume's pre-existing warmth: a warm
+          # volume already carries compiled manifests from a prior job.
+          man_before=$(count "$man"); bin_before=$(count "$bin")
+          arm="cold"; [ "${man_before:-0}" -gt 0 ] && arm="warm"
+          echo "BENCH_ARM=${arm}  (manifests_before=${man_before} binaries_before=${bin_before})"
+          echo "BENCH_XDG=${TUIST_XDG_CACHE_HOME:-<unset,ephemeral-disk>}"
+          echo "BENCH_GRANT=$([ -n "${TUIST_CACHE_SIGNING_GRANT:-}" ] && echo present || echo absent)"
+
           if ! command -v mise >/dev/null 2>&1; then
-            curl -fsSL https://mise.run | sh
-            export PATH="${HOME}/.local/bin:${PATH}"
+            curl -fsSL https://mise.run | sh; export PATH="${HOME}/.local/bin:${PATH}"
           fi
-          echo "mise $(mise --version)"
           rm -rf tuist-bench
-          git clone --filter=blob:none https://github.com/tuist/tuist tuist-bench
+          git clone --quiet --filter=blob:none https://github.com/tuist/tuist tuist-bench
           cd tuist-bench
-          mise install
-          echo "=== tuist install (package resolution) ==="
-          mise exec -- tuist install || true
-          echo "=== TIMED: tuist generate tuist ProjectDescription --no-open ==="
-          start=$(date +%s)
-          mise exec -- tuist generate tuist ProjectDescription --no-open
-          end=$(date +%s)
-          echo "GENERATE_SECONDS=$((end - start))"
-          root="${TUIST_XDG_CACHE_HOME:-}"
-          [ -n "${root}" ] && { echo "=== cache warmth captured ==="; du -sh "${root}/tuist/"* 2>/dev/null | sed 's/^/  /'; ls -1 "${root}/tuist/Manifests/" 2>/dev/null | head -3 | sed 's/^/  manifest: /'; } || true
+          mise install >/dev/null 2>&1 || mise install
+          echo "tuist $(mise exec -- tuist version 2>/dev/null || echo '?')"
+          echo "=== tuist install (SPM resolution, untimed setup) ==="
+          mise exec -- tuist install >/dev/null 2>&1 || mise exec -- tuist install || true
+
+          gen() { # $1=label
+            local s e
+            s=$(python3 -c 'import time;print(int(time.time()*1000))')
+            mise exec -- tuist generate tuist ProjectDescription --no-open >/tmp/gen_$1.log 2>&1
+            local rc=$?
+            e=$(python3 -c 'import time;print(int(time.time()*1000))')
+            echo "BENCH_GEN_$1_MS=$((e - s)) rc=${rc}"
+            grep -iE "downloaded|cache|xcframework" /tmp/gen_$1.log | tail -2 | sed "s/^/  gen_$1: /" || true
+          }
+          echo "=== TIMED gen1 (first generate this boot) ==="; gen gen1
+          echo "=== TIMED gen2 (same boot, warm page cache) ==="; gen gen2
+
+          man_after=$(count "$man"); bin_after=$(count "$bin")
+          echo "BENCH_MANIFESTS: before=${man_before} after=${man_after}"
+          echo "BENCH_BINARIES: before=${bin_before} after=${bin_after} bytes_after=$(bytes "$bin")k"
+          [ -n "${TUIST_XDG_CACHE_HOME:-}" ] && du -sh "${root}/tuist/"* 2>/dev/null | sed 's/^/  /' || true
 
       - name: Public reachability check
         run: |
