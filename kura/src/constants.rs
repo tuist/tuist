@@ -37,6 +37,14 @@ pub const ROCKSDB_HARD_PENDING_COMPACTION_BYTES: u64 = 256 * 1024 * 1024 * 1024;
 pub const DEFAULT_OUTBOX_MAX_DEPTH: usize = 100_000;
 pub const DEFAULT_MULTIPART_UPLOAD_TTL_MS: u64 = 24 * 60 * 60 * 1000;
 pub const DEFAULT_MULTIPART_JANITOR_INTERVAL_MS: u64 = 10 * 60 * 1000;
+// REAPI action-cache entries are append-only from the client's perspective
+// (every source change publishes new keys), so a recency sweep is what bounds
+// the namespace keyspace. An expired entry costs its next reader one
+// recompile + republish, which also refreshes it fleet-wide; the deletes-per-
+// sweep cap smooths the first sweep over a store that never expired anything.
+pub const REAPI_ACTION_CACHE_TTL_MS: u64 = 30 * 24 * 60 * 60 * 1000;
+pub const REAPI_ACTION_CACHE_EXPIRY_INTERVAL_MS: u64 = 6 * 60 * 60 * 1000;
+pub const REAPI_ACTION_CACHE_EXPIRY_MAX_DELETES: usize = 100_000;
 // Not a cap on total bootstrap runtime — it is the maximum time a bootstrap may
 // go *without forward progress* (a fetched page or applied artifact) before it
 // is abandoned and retried. A large cold pull that keeps making progress runs to

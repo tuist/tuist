@@ -514,6 +514,24 @@ impl Store {
         }
     }
 
+    /// Whether an artifact's manifest exists, without probing backing storage.
+    /// Manifest presence is the right gate for advertising content (eviction
+    /// removes the manifest together with the data), and skipping
+    /// `storage_exists` keeps it cheap enough to run per snapshot node and
+    /// immune to transient mid-promotion states.
+    pub fn artifact_manifest_exists(
+        &self,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        key: &str,
+    ) -> Result<bool, String> {
+        let artifact_id = artifact_storage_id(producer, &self.tenant_id, namespace_id, key);
+        if self.existence_cache_contains(&artifact_id) {
+            return Ok(true);
+        }
+        Ok(self.manifest(&artifact_id)?.is_some())
+    }
+
     pub fn manifest(&self, artifact_id: &str) -> Result<Option<ArtifactManifest>, String> {
         if let Some(manifest) = self.manifest_cache_get(artifact_id) {
             self.io.metrics().record_manifest_cache_lookup("hit");
@@ -2419,6 +2437,122 @@ impl Store {
         })
     }
 
+    /// Deletes artifact metadata: the manifest, its namespace and segment
+    /// index entries, and the lookup caches. Bytes already in segments are
+    /// left for segment reclamation — the records this serves (action-cache
+    /// expiry) are a few hundred bytes each. Deletion is node-local: peers
+    /// running the same policy over the replicated `version_ms` converge on
+    /// their own, and an entry re-copied by a later bootstrap just expires
+    /// again on the next sweep. A concurrent republish of the same key can
+    /// race the batch and lose its fresh manifest — benign, the client
+    /// recompiles and republishes.
+    pub fn delete_artifact_metadata(&self, manifests: &[ArtifactManifest]) -> Result<(), String> {
+        if manifests.is_empty() {
+            return Ok(());
+        }
+        let mut batch = WriteBatch::default();
+        let mut ids = Vec::with_capacity(manifests.len());
+        for manifest in manifests {
+            batch.delete_cf(
+                self.cf(ROCKSDB_CF_MANIFESTS),
+                manifest.artifact_id.as_bytes(),
+            );
+            batch.delete_cf(
+                self.cf(ROCKSDB_CF_NAMESPACE_ARTIFACTS),
+                namespace_artifact_index_key(&manifest.namespace_id, &manifest.artifact_id)
+                    .as_bytes(),
+            );
+            if let Some(segment_id) = &manifest.segment_id {
+                batch.delete_cf(
+                    self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS),
+                    segment_artifact_index_key(segment_id, &manifest.artifact_id).as_bytes(),
+                );
+            }
+            ids.push(manifest.artifact_id.clone());
+        }
+        self.write_batch_sync(batch, "artifact metadata deletes")?;
+        self.remove_manifest_cache_keys(&ids);
+        Ok(())
+    }
+
+    /// Walks the manifest keyspace and deletes REAPI action-cache entries
+    /// whose `version_ms` predates `cutoff_ms`, up to `max_deletes` per call
+    /// (the remainder ages out on later sweeps, which smooths the first sweep
+    /// after this ships over a store that never expired anything). Entries
+    /// are append-only otherwise — every source change publishes new keys and
+    /// nothing removed the stale ones, so an actively developed namespace
+    /// grew its keyspace, and with it the snapshot reconcile scan, without
+    /// bound.
+    pub fn expire_stale_action_cache_entries(
+        &self,
+        cutoff_ms: u64,
+        max_deletes: usize,
+    ) -> Result<usize, String> {
+        const SCAN_PAGE: usize = 4096;
+        let mut after: Option<String> = None;
+        let mut expired: Vec<ArtifactManifest> = Vec::new();
+        loop {
+            let page = self.manifests_page_scoped(after.as_deref(), None, SCAN_PAGE)?;
+            for manifest in page.manifests {
+                if manifest.producer == ArtifactProducer::Reapi
+                    && manifest.key.starts_with("action_cache/")
+                    && manifest.version_ms < cutoff_ms
+                {
+                    expired.push(manifest);
+                    if expired.len() >= max_deletes {
+                        break;
+                    }
+                }
+            }
+            if expired.len() >= max_deletes {
+                break;
+            }
+            match page.next_after {
+                Some(next) => after = Some(next),
+                None => break,
+            }
+        }
+        let count = expired.len();
+        for chunk in expired.chunks(1024) {
+            self.delete_artifact_metadata(chunk)?;
+        }
+        Ok(count)
+    }
+
+    /// Every REAPI action-cache manifest in a namespace, for the instance-wide
+    /// snapshot the REAPI layer serves (one round trip primes a cold client
+    /// with every key→value association). One ordered namespace-index scan
+    /// plus a manifest point-read per artifact.
+    pub fn action_cache_manifests(
+        &self,
+        namespace_id: &str,
+    ) -> Result<Vec<ArtifactManifest>, String> {
+        let prefix = format!("{namespace_id}\0");
+        let iter = self.db.iterator_cf(
+            self.cf(ROCKSDB_CF_NAMESPACE_ARTIFACTS),
+            IteratorMode::From(prefix.as_bytes(), rocksdb::Direction::Forward),
+        );
+        let mut manifests = Vec::new();
+        for item in iter {
+            let (index_key, _) =
+                item.map_err(|error| format!("failed to iterate namespace index: {error}"))?;
+            if !index_key.starts_with(prefix.as_bytes()) {
+                break;
+            }
+            let artifact_id = std::str::from_utf8(&index_key[prefix.len()..])
+                .map_err(|error| format!("invalid namespace index key: {error}"))?;
+            let Some(manifest) = self.manifest_from_db(artifact_id)? else {
+                continue;
+            };
+            if manifest.producer == ArtifactProducer::Reapi
+                && manifest.key.starts_with("action_cache/")
+            {
+                manifests.push(manifest);
+            }
+        }
+        Ok(manifests)
+    }
+
     /// Walk the manifest keyspace, optionally restricted to an `artifact_id`
     /// prefix. When `prefix` is set the walk starts at the prefix's lower bound
     /// (unless a later `after` cursor is supplied) and stops as soon as it
@@ -3756,6 +3890,119 @@ mod tests {
             segments_bytes <= (artifact_len as u64) * 2,
             "segment store held {segments_bytes} bytes, expected ~{artifact_len} (one copy); \
              concurrent same-key applies amplified on-disk data"
+        );
+    }
+
+    #[tokio::test]
+    async fn expiry_sweep_deletes_only_stale_action_cache_entries() {
+        let (_temp_dir, config, store) = temp_store();
+        async fn write(
+            store: &Store,
+            config: &Config,
+            key: &str,
+            producer: ArtifactProducer,
+            version_ms: u64,
+        ) {
+            let path = config.tmp_dir.join("uploads").join(key.replace('/', "-"));
+            std::fs::write(&path, b"payload").expect("source should write");
+            store
+                .apply_replicated_artifact_from_path(
+                    producer,
+                    "ios",
+                    key,
+                    "application/octet-stream",
+                    &path,
+                    version_ms,
+                )
+                .await
+                .expect("artifact should persist");
+        }
+        write(
+            &store,
+            &config,
+            "action_cache/aa/10",
+            ArtifactProducer::Reapi,
+            1_000,
+        )
+        .await;
+        write(
+            &store,
+            &config,
+            "action_cache/bb/10",
+            ArtifactProducer::Reapi,
+            9_000,
+        )
+        .await;
+        write(
+            &store,
+            &config,
+            "blob/cc/10",
+            ArtifactProducer::Reapi,
+            1_000,
+        )
+        .await;
+        write(&store, &config, "artifact", ArtifactProducer::Gradle, 1_000).await;
+
+        let expired = store
+            .expire_stale_action_cache_entries(5_000, 100)
+            .expect("sweep should succeed");
+        assert_eq!(expired, 1, "only the stale action-cache entry expires");
+
+        let exists = |producer, key| {
+            store
+                .artifact_manifest_exists(producer, "ios", key)
+                .expect("existence check should succeed")
+        };
+        assert!(!exists(ArtifactProducer::Reapi, "action_cache/aa/10"));
+        assert!(exists(ArtifactProducer::Reapi, "action_cache/bb/10"));
+        assert!(
+            exists(ArtifactProducer::Reapi, "blob/cc/10"),
+            "blobs are not the sweep's to delete, however old"
+        );
+        assert!(exists(ArtifactProducer::Gradle, "artifact"));
+        assert!(
+            store
+                .action_cache_manifests("ios")
+                .expect("namespace scan should succeed")
+                .iter()
+                .all(|manifest| manifest.key != "action_cache/aa/10"),
+            "the namespace index entry is deleted with the manifest"
+        );
+
+        // The per-sweep cap defers the remainder to the next sweep.
+        write(
+            &store,
+            &config,
+            "action_cache/dd/10",
+            ArtifactProducer::Reapi,
+            1_000,
+        )
+        .await;
+        write(
+            &store,
+            &config,
+            "action_cache/ee/10",
+            ArtifactProducer::Reapi,
+            1_000,
+        )
+        .await;
+        assert_eq!(
+            store
+                .expire_stale_action_cache_entries(5_000, 1)
+                .expect("capped sweep should succeed"),
+            1
+        );
+        assert_eq!(
+            store
+                .expire_stale_action_cache_entries(5_000, 100)
+                .expect("follow-up sweep should succeed"),
+            1
+        );
+        assert_eq!(
+            store
+                .expire_stale_action_cache_entries(5_000, 100)
+                .expect("idle sweep should succeed"),
+            0
         );
     }
 

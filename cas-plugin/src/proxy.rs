@@ -17,7 +17,8 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use crate::proxy_proto::{
-    read_request, write_response, Request, OP_INVALIDATE, OP_PUBLISH, OP_RESOLVE, STATUS_ERROR,
+    read_request, write_response, Request, OP_FETCH_OBJECT, OP_INVALIDATE, OP_PUBLISH, OP_RESOLVE,
+    STATUS_ERROR,
     STATUS_HIT, STATUS_MISS,
 };
 use crate::prefetch::Prefetcher;
@@ -37,6 +38,22 @@ use crate::PublishRecord;
 const MAX_RESOLVED: usize = 1_000_000;
 const MAX_KNOWN_LOCAL_PER_SHARD: usize = 250_000;
 const MAX_PUBLISH_CACHE: usize = 500_000;
+// Retained fetch instructions are ~100B each, so the cap is a ~100MB memory
+// backstop a real workload never reaches (the CLI fixture peaks at ~37k). A
+// cleared map self-heals per object through the snapshot fallback in
+// `fetch_object`.
+const MAX_PENDING_OBJECTS: usize = 1_000_000;
+
+// Snapshot refresh cadence and cache bounds (see `refresh_snapshots`).
+const SNAPSHOT_DELTA_INTERVAL: Duration = Duration::from_secs(120);
+// How long a FETCH_OBJECT with no registered instruction waits for the
+// instance's snapshot to arrive before answering not-found (it runs on a
+// compiler worker thread, which demand fetches already block on network I/O).
+const SNAPSHOT_FETCH_WAIT: Duration = Duration::from_secs(20);
+const SNAPSHOT_FULL_INTERVAL: Duration = Duration::from_secs(30 * 60);
+const SNAPSHOT_RETRY_INTERVAL: Duration = Duration::from_secs(60 * 60);
+const SNAPSHOT_IDLE_EVICT: Duration = Duration::from_secs(60 * 60);
+const SNAPSHOT_MAX_INSTANCES: usize = 8;
 
 /// How long a cached miss is served before it is re-resolved. Positive results
 /// are content-addressed and kept forever; only negatives expire, so a key
@@ -179,9 +196,27 @@ pub struct PathState {
     // idle reclamation. Bumped once per resolve/publish (per action key, not per
     // node), so the maintenance loop can free caches of projects nobody builds.
     last_used: AtomicU64,
+    // llcas digest -> how to fetch its frame blob, for every node of every
+    // value graph this proxy has answered. Inserted right after get_action
+    // (before the resolve replies); once a node is stored locally its inlined
+    // bytes are dropped but the digest-only instruction is RETAINED — the
+    // build system prunes the on-disk CAS mid-build, and a pruned object
+    // under an already-served Hit must stay producible through
+    // OP_FETCH_OBJECT (clang fails the build on a missing object). Entries
+    // are content-addressed (valid across invalidations and wipes), ~100B
+    // each, and capped at MAX_PENDING_OBJECTS by `enforce_cache_bounds`;
+    // anything dropped is reconstructible from the instance snapshot in
+    // `fetch_object`.
+    pending_objects: Mutex<HashMap<Vec<u8>, PendingFetch>>,
     pub stats_resolves: AtomicU64,
     pub stats_remote_hits: AtomicU64,
     pub stats_misses: AtomicU64,
+    // Keys answered from the instance's action-cache snapshot (no remote
+    // lookup at all).
+    pub stats_snapshot_hits: AtomicU64,
+    // Objects served through OP_FETCH_OBJECT because a demand load outran the
+    // background materializer (or a prune removed a node under a served Hit).
+    pub stats_demand_fetched: AtomicU64,
     pub stats_blobs_fetched: AtomicU64,
     // Blobs that arrived inlined in the GetActionResult response instead of
     // through a separate BatchReadBlobs round-trip (kura's
@@ -195,9 +230,184 @@ pub struct PathState {
     pub ms_store: AtomicU64,
 }
 
+/// Fetch instructions for one value-graph node: enough to produce the object
+/// on demand without re-resolving its action key.
+#[derive(Clone)]
+struct PendingFetch {
+    blob: reapi::Digest,
+    /// Frame bytes the server inlined into the action response; `None` means
+    /// the blob must be batch-read.
+    contents: Option<Vec<u8>>,
+}
+
+/// A value graph whose Hit was already answered; the fetch+store work runs on
+/// the materializer pool.
+struct MaterializeJob {
+    cas_path: String,
+    remote: Arc<Remote>,
+    manifest: Vec<ManifestEntry>,
+    observed: u64,
+}
+
+/// The instance's complete action-cache map, fetched from the remote in ONE
+/// round trip (the Bazel move — complete metadata up front — taken further:
+/// Bazel still pays a GetActionResult per action, this answers every one
+/// locally). Keys map to node-index lists into a deduplicated node table;
+/// index order preserves the ActionResult's output order, so a key's first
+/// node is its value root. Makes a completely cold machine — no keylog, no
+/// prior build, an agentic sandbox — resolve like a warm one.
+#[derive(Clone)]
+pub struct Snapshot {
+    nodes: Vec<(Vec<u8>, reapi::Digest)>,
+    // llcas digest -> index into `nodes`, kept so delta responses (which carry
+    // self-contained node tables) can be merged without duplicating nodes.
+    node_index: HashMap<Vec<u8>, u32>,
+    keys: HashMap<[u8; 32], Vec<u32>>,
+    /// Newest write time the server knew when this view was produced; passed
+    /// back as the delta watermark on refresh.
+    watermark: u64,
+}
+
+/// Per-instance snapshot lifecycle. The initial fetch happens in the
+/// background off every resolve path; the maintenance loop then keeps a Ready
+/// snapshot fresh with deltas, replaces it wholesale on a longer cadence
+/// (deltas only ADD — the periodic full fetch is what re-applies the server's
+/// presence gate after evictions), retries Absent occasionally (the server
+/// may have been upgraded under a long-lived proxy), and bounds the cache by
+/// evicting idle instances. While `Fetching` or `Absent`, resolves use the
+/// ordinary per-key path.
+enum SnapshotState {
+    Fetching,
+    Ready {
+        snapshot: Arc<Snapshot>,
+        full_at: Instant,
+        refreshed_at: Instant,
+        last_used: Instant,
+    },
+    Absent {
+        checked: Instant,
+    },
+}
+
+impl Snapshot {
+    /// Decodes the server's snapshot wire format: `"TSNP"` + version byte,
+    /// u64 write-time watermark, node table, per-key node-index lists. `None`
+    /// on any structural violation — the caller stays on the per-key path
+    /// rather than trusting a torn payload.
+    fn decode(bytes: &[u8]) -> Option<Snapshot> {
+        fn take<'a>(bytes: &mut &'a [u8], n: usize) -> Option<&'a [u8]> {
+            if bytes.len() < n {
+                return None;
+            }
+            let (head, tail) = bytes.split_at(n);
+            *bytes = tail;
+            Some(head)
+        }
+        fn take_u32(bytes: &mut &[u8]) -> Option<u32> {
+            Some(u32::from_le_bytes(take(bytes, 4)?.try_into().ok()?))
+        }
+        let mut bytes = bytes;
+        if take(&mut bytes, 4)? != b"TSNP" || take(&mut bytes, 1)? != [2] {
+            return None;
+        }
+        let watermark = u64::from_le_bytes(take(&mut bytes, 8)?.try_into().ok()?);
+        let node_count = take_u32(&mut bytes)? as usize;
+        let mut nodes = Vec::with_capacity(node_count);
+        for _ in 0..node_count {
+            let len = take(&mut bytes, 1)?[0] as usize;
+            let llcas = take(&mut bytes, len)?.to_vec();
+            let blob_hash = take(&mut bytes, 32)?;
+            let size = u64::from_le_bytes(take(&mut bytes, 8)?.try_into().ok()?);
+            nodes.push((
+                llcas,
+                reapi::Digest {
+                    hash: reapi::hex(blob_hash),
+                    size_bytes: size as i64,
+                },
+            ));
+        }
+        let key_count = take_u32(&mut bytes)? as usize;
+        let mut keys = HashMap::with_capacity(key_count);
+        for _ in 0..key_count {
+            let action_hash: [u8; 32] = take(&mut bytes, 32)?.try_into().ok()?;
+            let entry_count = take_u32(&mut bytes)? as usize;
+            let mut indexes = Vec::with_capacity(entry_count);
+            for _ in 0..entry_count {
+                let index = take_u32(&mut bytes)?;
+                if index as usize >= nodes.len() {
+                    return None;
+                }
+                indexes.push(index);
+            }
+            if indexes.is_empty() {
+                return None;
+            }
+            keys.insert(action_hash, indexes);
+        }
+        let node_index = nodes
+            .iter()
+            .enumerate()
+            .map(|(index, (llcas, _))| (llcas.clone(), index as u32))
+            .collect();
+        Some(Snapshot {
+            nodes,
+            node_index,
+            keys,
+            watermark,
+        })
+    }
+
+    /// Merges a delta view into this one: delta node tables are
+    /// self-contained, so nodes are interned by llcas digest and the delta's
+    /// keys are remapped onto this snapshot's table. Deltas only add or
+    /// replace keys — retraction happens through the periodic full refresh.
+    fn merge(&mut self, delta: &Snapshot) {
+        let mut remap = Vec::with_capacity(delta.nodes.len());
+        for (llcas, blob) in &delta.nodes {
+            let index = *self.node_index.entry(llcas.clone()).or_insert_with(|| {
+                self.nodes.push((llcas.clone(), blob.clone()));
+                (self.nodes.len() - 1) as u32
+            });
+            remap.push(index);
+        }
+        for (hash, indexes) in &delta.keys {
+            self.keys.insert(
+                *hash,
+                indexes.iter().map(|&index| remap[index as usize]).collect(),
+            );
+        }
+        self.watermark = self.watermark.max(delta.watermark);
+    }
+
+    /// The manifest for an action key's sha256, if the snapshot holds it.
+    fn manifest(&self, key_hash: &[u8; 32]) -> Option<Vec<ManifestEntry>> {
+        let indexes = self.keys.get(key_hash)?;
+        Some(
+            indexes
+                .iter()
+                .map(|&index| {
+                    let (llcas, blob) = &self.nodes[index as usize];
+                    ManifestEntry {
+                        llcas_digest: llcas.clone(),
+                        blob: blob.clone(),
+                        contents: None,
+                    }
+                })
+                .collect(),
+        )
+    }
+}
+
 impl PathState {
     fn shard(&self, digest: &[u8]) -> &Mutex<HashSet<Vec<u8>>> {
         &self.known_local[digest.first().copied().unwrap_or(0) as usize % 32]
+    }
+
+    /// Whether a demand load could still produce this digest even though it is
+    /// not (yet) on disk: its fetch instructions are registered, so serving a
+    /// Hit that references it is safe.
+    fn fetchable(&self, digest: &[u8]) -> bool {
+        self.pending_objects.lock().unwrap().contains_key(digest)
     }
 
     /// Drops all cached knowledge of the on-disk CAS for this path: the
@@ -216,10 +426,21 @@ impl PathState {
     /// stale mark that survives the clear.
     fn invalidate(&self) {
         self.gen_counter.fetch_add(1, Ordering::SeqCst);
-        self.resolved.lock().unwrap().clear();
+        // Only the known-local marks are cleared. They are trusted WITHOUT an
+        // on-disk probe (they make resolve skip fetching manifest nodes), so a
+        // stale mark hands a consumer a graph with missing objects. The
+        // `resolved` key->value map is deliberately KEPT: every cached Hit is
+        // re-verified on disk before it is served (see `fast_path`'s
+        // `load_present` guard), so pruned or wiped values self-heal per key.
+        // Clearing it wholesale meant one mid-build prune signal threw away
+        // the read-ahead wavefront's work and sent every later lookup back to
+        // the remote (measured: ~2x the remote round trips of the key set).
         for shard in &self.known_local {
             shard.lock().unwrap().clear();
         }
+        // `pending_objects` is also KEPT: entries are content-addressed fetch
+        // instructions, valid for any incarnation of the store — after a wipe
+        // they let demand loads refill exactly what is asked for.
     }
 }
 
@@ -254,6 +475,32 @@ pub struct Proxy {
     registry_path: Option<PathBuf>,
     paths: Mutex<HashMap<String, &'static PathState>>,
     publisher: Prefetcher,
+    // Resolves/publishes that arrived with no declared instance and no primed
+    // registry mapping. They answer a silent miss by design (an unprimed ⌘B
+    // build must degrade, not fail) — but a MISCONFIGURED build looks exactly
+    // the same, so the count is logged (first occurrence, then every 1000th)
+    // and surfaced in the stats line. A whole benchmark ran cache-less for a
+    // day because this path had no visibility.
+    unprimed: AtomicU64,
+    // Background materializer for demand-path resolves: a RESOLVE from a
+    // compiler answers with the value digest right after the action lookup
+    // and this pool fetches + stores the graph. Kept OFF the wavefront path —
+    // read-ahead workers materialize inline, which naturally bounds how much
+    // fetched-but-unstored data sits in memory. Items are 8-byte job ids into
+    // `materialize_jobs`.
+    materializer: Prefetcher,
+    // Bulk content warming straight from a freshly fetched snapshot, on its
+    // own small pool so demand-priority materialization is never queued
+    // behind it. Purely opportunistic: demand resolves answer from the
+    // snapshot regardless and their loads self-heal per object.
+    prematerializer: Prefetcher,
+    materialize_jobs: Mutex<HashMap<u64, MaterializeJob>>,
+    job_counter: AtomicU64,
+    // instance -> action-cache snapshot lifecycle. Kicked off in the
+    // background on an instance's first resolve; while it is in flight (or
+    // when the server has none) resolves use the per-key path.
+    snapshots: Mutex<HashMap<String, SnapshotState>>,
+
     // Per-node transfer analytics, written to cas_analytics.db for parity with
     // the Swift `CASAnalyticsDatabase`. `None` when no analytics path was configured.
     analytics: Option<crate::analytics::Analytics>,
@@ -278,12 +525,29 @@ impl Proxy {
             registry_path,
             paths: Mutex::new(HashMap::new()),
             publisher: Prefetcher::new(),
+            materializer: Prefetcher::new(),
+            prematerializer: Prefetcher::new(),
+            materialize_jobs: Mutex::new(HashMap::new()),
+            job_counter: AtomicU64::new(0),
+            snapshots: Mutex::new(HashMap::new()),
+            unprimed: AtomicU64::new(0),
+
             analytics,
         }));
         let proxy_addr = proxy as *const Proxy as usize;
         proxy.publisher.configure(8, move |item| {
             let proxy = unsafe { &*(proxy_addr as *const Proxy) };
             proxy.publish_item(&item);
+        });
+        // Demand jobs arrive at the build engine's serial rate, so a small
+        // pool keeps up; the wavefront's bulk work does not flow through here.
+        proxy.materializer.configure(16, move |item| {
+            let proxy = unsafe { &*(proxy_addr as *const Proxy) };
+            proxy.materialize_job(&item);
+        });
+        proxy.prematerializer.configure(8, move |item| {
+            let proxy = unsafe { &*(proxy_addr as *const Proxy) };
+            proxy.materialize_job(&item);
         });
         proxy
     }
@@ -362,9 +626,12 @@ impl Proxy {
             known_local: std::array::from_fn(|_| Mutex::new(HashSet::new())),
             publish_cache: Mutex::new(HashMap::new()),
             last_used: AtomicU64::new(self.epoch.elapsed().as_millis() as u64),
+            pending_objects: Mutex::new(HashMap::new()),
             stats_resolves: AtomicU64::new(0),
             stats_remote_hits: AtomicU64::new(0),
             stats_misses: AtomicU64::new(0),
+            stats_snapshot_hits: AtomicU64::new(0),
+            stats_demand_fetched: AtomicU64::new(0),
             stats_blobs_fetched: AtomicU64::new(0),
             stats_blobs_inlined: AtomicU64::new(0),
             stats_published: AtomicU64::new(0),
@@ -383,11 +650,19 @@ impl Proxy {
 
     /// Serves one RESOLVE: answer from the resolved map, else read-through
     /// (manifest + batched fetch of globally-missing blobs + local store).
+    ///
+    /// Every resolve is issued by a compiler over the unix socket and runs on
+    /// swift-build's SERIAL task-setup path — the llbuild engine thread that
+    /// schedules every task in the build — so it answers right after the
+    /// action lookup (or straight from the snapshot) and leaves graph
+    /// materialization to the background pools; a demand load that outruns
+    /// them self-heals through OP_FETCH_OBJECT.
     fn resolve(
         &self,
-        remote: &Remote,
+        remote: &Arc<Remote>,
         state: &'static PathState,
         key: &[u8],
+        snapshot: Option<&Snapshot>,
     ) -> Result<Option<Vec<u8>>, String> {
         state.stats_resolves.fetch_add(1, Ordering::Relaxed);
         state
@@ -405,32 +680,61 @@ impl Proxy {
         // across builds, but a wiped DerivedData removes the value graph; serving
         // the stale Hit then fails the compiler with `missing object`. On absence
         // the path's stale caches are dropped and we re-resolve below.
+        // A value that is not on disk but has registered fetch instructions is
+        // as good as present: the materializer is filling it in and demand
+        // loads self-heal through OP_FETCH_OBJECT, so don't force a re-resolve
+        // (a duplicate action lookup on the engine thread).
         match fast_path(
             &state.resolved,
             key,
-            |value| self.load_present(state, value),
+            |value| self.load_present(state, value) || state.fetchable(value),
             || state.invalidate(),
         ) {
             FastPath::Hit(value) => return Ok(Some(value)),
             FastPath::Miss => return Ok(None),
             FastPath::Resolve => {}
         }
+        // Snapshot path: the instance's complete action-cache map answers the
+        // key with its full manifest locally — no remote lookup at all, cold
+        // machine or not. Deliberately outside single-flight: there is no
+        // remote call to deduplicate, commit/pending registration are
+        // idempotent, and a raced duplicate materialize job no-ops against
+        // `is_local`. Keys the snapshot lacks (published after it was taken,
+        // or genuinely absent) fall through to the per-key path below.
+        if let Some(snapshot) = snapshot {
+            use sha2::{Digest, Sha256};
+            let key_hash: [u8; 32] = Sha256::digest(key).into();
+            if let Some(manifest) = snapshot.manifest(&key_hash) {
+                state.stats_snapshot_hits.fetch_add(1, Ordering::Relaxed);
+                let observed = state.gen_counter.load(Ordering::SeqCst);
+                return self.commit_and_materialize(remote, state, key, manifest, observed);
+            }
+        }
         // Single-flight: wait out a concurrent resolve of the same key.
         {
             let mut inflight = state.inflight.lock().unwrap();
             loop {
-                // Re-peek under the lock. A Hit that appears here was just
-                // materialized by the winning resolver (or a local publish), so
-                // its graph is on disk; serve it without another presence load.
-                match state.resolved.lock().unwrap().get(key) {
-                    Some(Resolution::Hit(value)) => return Ok(Some(value.clone())),
+                // Re-peek: clone under the map lock, probe outside it. A Hit
+                // here was usually just materialized by the winning resolver
+                // (or a local publish) — but `resolved` also survives
+                // invalidation now (see `invalidate`), so a waiter can wake
+                // across a prune/wipe and find a pre-invalidation entry.
+                // Verify presence before serving; on absence fall through and
+                // resolve it ourselves.
+                let peeked = match state.resolved.lock().unwrap().get(key) {
+                    Some(Resolution::Hit(value)) => Some(value.clone()),
                     // A fresh miss answers without a round-trip; a stale one
                     // falls through to re-resolve so a key published later
                     // (by another machine) can still land.
                     Some(Resolution::Miss(at)) if at.elapsed() < NEGATIVE_TTL => {
                         return Ok(None)
                     }
-                    _ => {}
+                    _ => None,
+                };
+                if let Some(value) = peeked {
+                    if self.load_present(state, &value) || state.fetchable(&value) {
+                        return Ok(Some(value));
+                    }
                 }
                 if !inflight.contains(key) {
                     inflight.insert(key.to_vec());
@@ -456,7 +760,7 @@ impl Proxy {
 
     fn resolve_uncached(
         &self,
-        remote: &Remote,
+        remote: &Arc<Remote>,
         state: &'static PathState,
         key: &[u8],
         observed: u64,
@@ -490,6 +794,75 @@ impl Proxy {
         let action_ms = phase.elapsed().as_millis() as u64;
         state.ms_action.fetch_add(action_ms, Ordering::Relaxed);
 
+        if let Some(analytics) = &self.analytics {
+            analytics.record_keyvalue(key, "read", op_start.elapsed().as_secs_f64());
+        }
+        self.commit_and_materialize(remote, state, key, manifest, observed)
+    }
+
+    /// Answers a resolve from a known manifest: commit the Hit, register every
+    /// node's fetch instructions, then materialize — in the background for a
+    /// the background — the caller is the build engine's serial task-setup
+    /// thread, where every millisecond spent here is a millisecond no other
+    /// task gets scheduled. Shared by the action-lookup path and the snapshot
+    /// path.
+    fn commit_and_materialize(
+        &self,
+        remote: &Arc<Remote>,
+        state: &'static PathState,
+        key: &[u8],
+        manifest: Vec<ManifestEntry>,
+        observed: u64,
+    ) -> Result<Option<Vec<u8>>, String> {
+        let value = manifest[0].llcas_digest.clone();
+        // Commit BEFORE materialization; only if no wipe/prune advanced the
+        // generation while the answer was being produced.
+        let committed = {
+            let mut resolved = state.resolved.lock().unwrap();
+            if committable(observed, state.gen_counter.load(Ordering::SeqCst)) {
+                resolved.insert(key.to_vec(), Resolution::Hit(value.clone()));
+                true
+            } else {
+                false
+            }
+        };
+        if !committed {
+            return Ok(None);
+        }
+        // Register fetch instructions for every graph node BEFORE answering, so
+        // a consumer can never observe a served Hit without a way to produce
+        // its objects: a demand load that runs ahead of the materializer
+        // fetches per object through OP_FETCH_OBJECT using these.
+        {
+            let mut pending = state.pending_objects.lock().unwrap();
+            for entry in &manifest {
+                pending
+                    .entry(entry.llcas_digest.clone())
+                    .or_insert_with(|| PendingFetch {
+                        blob: entry.blob.clone(),
+                        contents: entry.contents.clone(),
+                    });
+            }
+        }
+        self.enqueue_materialize(state, remote, manifest, observed);
+        Ok(Some(value))
+    }
+
+    /// Fetches and locally stores every node of `manifest` the on-disk CAS is
+    /// missing. Each node's fetch instructions stay registered afterwards with
+    /// their inlined bytes dropped (blob digest only): the build system prunes
+    /// the on-disk CAS several times per build, and a pruned object under an
+    /// already-served Hit must remain producible on demand — clang FAILS THE
+    /// BUILD on a missing object, it does not recompile. Blob-level problems
+    /// (a node absent on the server, a decode failure) skip that node; a
+    /// transport error aborts and leaves the remaining instructions intact.
+    fn materialize_manifest(
+        &self,
+        remote: &Remote,
+        state: &'static PathState,
+        manifest: &[ManifestEntry],
+        observed: u64,
+    ) -> Result<(), String> {
         let phase = Instant::now();
         let missing: Vec<&ManifestEntry> = manifest
             .iter()
@@ -498,6 +871,24 @@ impl Proxy {
         state
             .ms_filter
             .fetch_add(phase.elapsed().as_millis() as u64, Ordering::Relaxed);
+        // Nodes already on disk keep their instructions too, but shed any
+        // inlined bytes — the digest-only form is what bounds this map's
+        // memory (the bytes live in the local CAS now; a re-fetch after a
+        // prune goes to the remote by blob digest).
+        {
+            let missing_set: HashSet<&[u8]> = missing
+                .iter()
+                .map(|entry| entry.llcas_digest.as_slice())
+                .collect();
+            let mut pending = state.pending_objects.lock().unwrap();
+            for entry in manifest {
+                if !missing_set.contains(entry.llcas_digest.as_slice()) {
+                    if let Some(instruction) = pending.get_mut(&entry.llcas_digest) {
+                        instruction.contents = None;
+                    }
+                }
+            }
+        }
         if !missing.is_empty() {
             // Blobs the server inlined into the GetActionResult response (see
             // reapi::ManifestEntry::contents) need no second round-trip;
@@ -528,11 +919,10 @@ impl Proxy {
             if std::env::var_os("TUIST_CAS_LOG_RESOLVES").is_some() {
                 let bytes: i64 = digests.iter().map(|digest| digest.size_bytes).sum();
                 crate::log_line(&format!(
-                    "resolve manifest={} fetched={} bytes={} action_ms={} fetch_ms={}",
+                    "materialize manifest={} fetched={} bytes={} fetch_ms={}",
                     manifest.len(),
                     digests.len(),
                     bytes,
-                    action_ms,
                     fetch_elapsed.as_millis()
                 ));
             }
@@ -551,18 +941,20 @@ impl Proxy {
                     Some(bytes) => (bytes, true),
                     None => match contents.get(&entry.blob.hash) {
                         Some(bytes) => (bytes, false),
-                        // Incomplete graph on the server: degrade to a miss
-                        // (do not negative-cache; the writer may still be
-                        // uploading).
-                        None => return Ok(None),
+                        // Incomplete graph on the server (the writer may still
+                        // be uploading): skip the node, keeping its fetch
+                        // instructions registered so the demand load that
+                        // needs it retries — and surfaces the failure —
+                        // per object.
+                        None => continue,
                     },
                 };
                 let phase = Instant::now();
                 let Some(frame) = reapi::decompress_frame(blob) else {
-                    return Ok(None);
+                    continue;
                 };
                 let Some(node) = reapi::decode_frame(&frame) else {
-                    return Ok(None);
+                    continue;
                 };
                 let codec_elapsed = phase.elapsed();
                 state
@@ -613,32 +1005,159 @@ impl Proxy {
                 } else {
                     state.stats_blobs_fetched.fetch_add(1, Ordering::Relaxed);
                 }
+                if let Some(instruction) =
+                    state.pending_objects.lock().unwrap().get_mut(&entry.llcas_digest)
+                {
+                    instruction.contents = None;
+                }
             }
         }
-        let value = manifest[0].llcas_digest.clone();
-        // Commit the Hit only if no wipe/prune advanced the generation while we
-        // were fetching. If it did, the graph we just materialized targets a
-        // store that has been replaced, so caching this value (or returning it)
-        // could hand back a graph that is not on the current disk. Drop the write
-        // and answer a miss; the next resolve re-materializes against the new
-        // store. Checked under the resolved lock, against which invalidate's
-        // clear is serialized.
-        let committed = {
-            let mut resolved = state.resolved.lock().unwrap();
-            if committable(observed, state.gen_counter.load(Ordering::SeqCst)) {
-                resolved.insert(key.to_vec(), Resolution::Hit(value.clone()));
-                true
-            } else {
-                false
+        Ok(())
+    }
+
+    /// Queues a demand-path value graph for the materializer pool.
+    fn enqueue_materialize(
+        &self,
+        state: &PathState,
+        remote: &Arc<Remote>,
+        manifest: Vec<ManifestEntry>,
+        observed: u64,
+    ) {
+        let id = self.job_counter.fetch_add(1, Ordering::Relaxed);
+        self.materialize_jobs.lock().unwrap().insert(
+            id,
+            MaterializeJob {
+                cas_path: state.cas_path.clone(),
+                remote: remote.clone(),
+                manifest,
+                observed,
+            },
+        );
+        self.materializer.enqueue(id.to_be_bytes().to_vec());
+    }
+
+    fn materialize_job(&self, item: &[u8]) {
+        let Ok(id_bytes) = <[u8; 8]>::try_from(item) else { return };
+        let job = self
+            .materialize_jobs
+            .lock()
+            .unwrap()
+            .remove(&u64::from_be_bytes(id_bytes));
+        let Some(job) = job else { return };
+        let Ok(state) = self.path_state(&job.cas_path) else { return };
+        if let Err(message) =
+            self.materialize_manifest(&job.remote, state, &job.manifest, job.observed)
+        {
+            crate::log_line(&format!("background materialize failed: {message}"));
+        }
+    }
+
+    /// Serves one FETCH_OBJECT: a demand load found `digest` missing from the
+    /// local CAS. Present now (the materializer won the race) answers
+    /// immediately; a registered pending fetch is executed inline (this runs
+    /// on a compiler worker thread, never the build engine's serial path);
+    /// anything else is a genuine not-found.
+    fn fetch_object(
+        &self,
+        state: &'static PathState,
+        cas_path: &str,
+        declared_instance: &str,
+        digest: &[u8],
+    ) -> Result<bool, String> {
+        if self.load_present(state, digest) {
+            return Ok(true);
+        }
+        let pending = state.pending_objects.lock().unwrap().get(digest).cloned();
+        // Second source of fetch instructions: nodes this machine PUBLISHED.
+        // A Hit served for a locally-published entry never fetched a manifest
+        // (its objects were local), so a prune that removes them leaves no
+        // pending entry — but the publisher's node cache knows the uploaded
+        // blob digest, and the blob is on the remote by publish order.
+        let pending = pending.or_else(|| {
+            state
+                .publish_cache
+                .lock()
+                .unwrap()
+                .get(digest)
+                .map(|(blob, _refs)| PendingFetch { blob: blob.clone(), contents: None })
+        });
+        // Third source: the instance's snapshot node table. A restarted proxy
+        // has empty maps while Apple's persistent local action cache keeps
+        // serving associations that never pass through RESOLVE, so a prune of
+        // their objects lands here with no instruction anywhere — but the
+        // snapshot knows every advertised node's blob.
+        let pending = match pending {
+            Some(pending) => Some(pending),
+            None => self.snapshot_fetch_instruction(cas_path, declared_instance, digest),
+        };
+        let Some(pending) = pending else { return Ok(false) };
+        let blob = pending.blob.clone();
+        let blob_bytes = match pending.contents {
+            Some(bytes) => bytes,
+            None => {
+                let Some(instance) = self.resolve_instance(cas_path, declared_instance) else {
+                    return Ok(false);
+                };
+                let remote = self.remote_for(&instance);
+                let contents = remote.batch_read(&[blob.clone()])?;
+                match contents.get(&blob.hash) {
+                    Some(bytes) => bytes.clone(),
+                    None => return Ok(false),
+                }
             }
         };
-        if !committed {
-            return Ok(None);
-        }
-        if let Some(analytics) = &self.analytics {
-            analytics.record_keyvalue(key, "read", op_start.elapsed().as_secs_f64());
-        }
-        Ok(Some(value))
+        let Some(frame) = reapi::decompress_frame(&blob_bytes) else {
+            return Ok(false);
+        };
+        let Some(node) = reapi::decode_frame(&frame) else {
+            return Ok(false);
+        };
+        unsafe { store_node(state, &node)? };
+        // Retain the digest-only instruction — including one the snapshot
+        // fallback just reconstructed — so the next prune of this object is
+        // produced without another snapshot wait.
+        state
+            .pending_objects
+            .lock()
+            .unwrap()
+            .entry(digest.to_vec())
+            .and_modify(|instruction| instruction.contents = None)
+            .or_insert(PendingFetch { blob, contents: None });
+        state.stats_demand_fetched.fetch_add(1, Ordering::Relaxed);
+        Ok(true)
+    }
+
+    /// Fetch instructions reconstructed from the instance's snapshot, for a
+    /// digest neither `pending_objects` nor `publish_cache` knows. Kicks off
+    /// the snapshot fetch when the instance has none yet (after a restart,
+    /// FETCH_OBJECT can arrive before any RESOLVE) and waits briefly for it —
+    /// this path already blocks a compiler worker thread on network I/O.
+    fn snapshot_fetch_instruction(
+        &self,
+        cas_path: &str,
+        declared_instance: &str,
+        digest: &[u8],
+    ) -> Option<PendingFetch> {
+        let instance = self.resolve_instance(cas_path, declared_instance)?;
+        let remote = self.remote_for(&instance);
+        self.ensure_snapshot(&instance, &remote);
+        let deadline = Instant::now() + SNAPSHOT_FETCH_WAIT;
+        let snapshot = loop {
+            if let Some(snapshot) = self.snapshot_ready(&instance) {
+                break snapshot;
+            }
+            let fetching = matches!(
+                self.snapshots.lock().unwrap().get(&instance),
+                Some(SnapshotState::Fetching)
+            );
+            if !fetching || Instant::now() >= deadline {
+                return None;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        };
+        let index = *snapshot.node_index.get(digest)?;
+        let (_, blob) = &snapshot.nodes[index as usize];
+        Some(PendingFetch { blob: blob.clone(), contents: None })
     }
 
     /// Detects a wiped-and-recreated on-disk CAS (a deleted DerivedData under
@@ -693,11 +1212,16 @@ impl Proxy {
                 }
                 return false;
             }
-            let mut loaded = llcas_loaded_object_t { opaque: 0 };
-            let mut load_error: *mut std::ffi::c_char = std::ptr::null_mut();
-            let result = (state.up.llcas_cas_load_object)(state.cas, id, &mut loaded, &mut load_error);
-            if !load_error.is_null() {
-                (state.up.llcas_string_dispose)(load_error);
+            // Existence check, not a data load: this runs once per served hit
+            // and once per manifest-entry probe, so loading object bytes here
+            // put real I/O on the resolve path (thousands of loads per warm
+            // build). A wiped or pruned store answers NOTFOUND either way,
+            // which is all the stale-hit guard needs.
+            let mut contains_error: *mut std::ffi::c_char = std::ptr::null_mut();
+            let result =
+                (state.up.llcas_cas_contains_object)(state.cas, id, false, &mut contains_error);
+            if !contains_error.is_null() {
+                (state.up.llcas_string_dispose)(contains_error);
             }
             result == LLCAS_LOOKUP_RESULT_SUCCESS
         }
@@ -733,6 +1257,18 @@ impl Proxy {
             let _ = std::fs::remove_file(&record_path);
             return;
         };
+        // The client re-puts replayed results at the end of its job, so a warm
+        // build spools thousands of records whose (key, value) this proxy
+        // resolved FROM the remote minutes earlier. `publish` would discover
+        // that with a get_action round trip per record; the resolved map
+        // already knows, so drop those records here for free. A Hit with a
+        // DIFFERENT value (a genuine local recompute) still publishes.
+        if let Some(Resolution::Hit(value)) = state.resolved.lock().unwrap().get(&record.key) {
+            if value == &record.value_digest {
+                let _ = std::fs::remove_file(&record_path);
+                return;
+            }
+        }
         match self.publish(&remote, state, &record) {
             Ok(()) => {
                 let _ = std::fs::remove_file(&record_path);
@@ -864,6 +1400,9 @@ impl Proxy {
                     shard.lock().unwrap().clear();
                 }
             }
+            if state.pending_objects.lock().unwrap().len() > MAX_PENDING_OBJECTS {
+                state.pending_objects.lock().unwrap().clear();
+            }
         }
     }
 
@@ -934,16 +1473,268 @@ impl Proxy {
         self.tokens.refresh_if_expiring(lead);
     }
 
+    /// Kicks off the instance's snapshot fetch on first sight, in the
+    /// background — never on a resolve path. One fetch per proxy lifetime:
+    /// entries published later resolve through the ordinary per-key path.
+    fn ensure_snapshot(&self, instance: &str, remote: &Arc<Remote>) {
+        {
+            let mut snapshots = self.snapshots.lock().unwrap();
+            if snapshots.contains_key(instance) {
+                return;
+            }
+            snapshots.insert(instance.to_string(), SnapshotState::Fetching);
+        }
+        let proxy: &'static Proxy = unsafe { &*(self as *const Proxy) };
+        let instance = instance.to_string();
+        let remote = remote.clone();
+        std::thread::spawn(move || {
+            let outcome = proxy.fetch_full_snapshot(&instance, &remote);
+            proxy.snapshots.lock().unwrap().insert(instance, outcome);
+        });
+    }
+
+    /// One full snapshot fetch + decode, returning the resulting state.
+    fn fetch_full_snapshot(&self, instance: &str, remote: &Arc<Remote>) -> SnapshotState {
+        match remote.get_snapshot(None) {
+            Ok(Some(bytes)) => match Snapshot::decode(&bytes) {
+                Some(snapshot) => {
+                    crate::log_line(&format!(
+                        "snapshot: {} keys / {} nodes ({} bytes, watermark {}) for {instance}",
+                        snapshot.keys.len(),
+                        snapshot.nodes.len(),
+                        bytes.len(),
+                        snapshot.watermark,
+                    ));
+                    let snapshot = Arc::new(snapshot);
+                    self.prematerialize_snapshot(instance, &snapshot);
+                    SnapshotState::Ready {
+                        snapshot,
+                        full_at: Instant::now(),
+                        refreshed_at: Instant::now(),
+                        last_used: Instant::now(),
+                    }
+                }
+                None => {
+                    crate::log_line(&format!(
+                        "snapshot: undecodable payload for {instance}; staying on the per-key path"
+                    ));
+                    SnapshotState::Absent { checked: Instant::now() }
+                }
+            },
+            Ok(None) => SnapshotState::Absent { checked: Instant::now() },
+            Err(message) => {
+                crate::log_line(&format!("snapshot fetch failed for {instance}: {message}"));
+                SnapshotState::Absent { checked: Instant::now() }
+            }
+        }
+    }
+
+    /// Called from the maintenance loop: keeps Ready snapshots fresh with
+    /// deltas (SNAPSHOT_DELTA_INTERVAL), replaces them wholesale on
+    /// SNAPSHOT_FULL_INTERVAL (deltas only ADD; the full fetch re-applies the
+    /// server's blob-presence gate after evictions), retries Absent after
+    /// SNAPSHOT_RETRY_INTERVAL (the server may have been upgraded under this
+    /// long-lived proxy), and BOUNDS the cache: instances idle past
+    /// SNAPSHOT_IDLE_EVICT are dropped and the map is capped at
+    /// SNAPSHOT_MAX_INSTANCES by evicting the least recently used.
+    pub fn refresh_snapshots(&self) {
+        let now = Instant::now();
+        enum Plan {
+            Delta { instance: String, watermark: u64 },
+            Full { instance: String },
+        }
+        // Plan under the lock, fetch outside it.
+        let mut plans: Vec<Plan> = Vec::new();
+        {
+            let mut snapshots = self.snapshots.lock().unwrap();
+            snapshots.retain(|_, state| match state {
+                SnapshotState::Ready { last_used, .. } => {
+                    now.duration_since(*last_used) < SNAPSHOT_IDLE_EVICT
+                }
+                _ => true,
+            });
+            while snapshots.len() > SNAPSHOT_MAX_INSTANCES {
+                let oldest = snapshots
+                    .iter()
+                    .filter_map(|(instance, state)| match state {
+                        SnapshotState::Ready { last_used, .. } => {
+                            Some((instance.clone(), *last_used))
+                        }
+                        _ => None,
+                    })
+                    .min_by_key(|(_, last_used)| *last_used)
+                    .map(|(instance, _)| instance);
+                let Some(oldest) = oldest else { break };
+                snapshots.remove(&oldest);
+            }
+            for (instance, state) in snapshots.iter() {
+                match state {
+                    SnapshotState::Ready {
+                        snapshot,
+                        full_at,
+                        refreshed_at,
+                        ..
+                    } => {
+                        if now.duration_since(*full_at) > SNAPSHOT_FULL_INTERVAL {
+                            plans.push(Plan::Full { instance: instance.clone() });
+                        } else if now.duration_since(*refreshed_at) > SNAPSHOT_DELTA_INTERVAL {
+                            plans.push(Plan::Delta {
+                                instance: instance.clone(),
+                                watermark: snapshot.watermark,
+                            });
+                        }
+                    }
+                    SnapshotState::Absent { checked }
+                        if now.duration_since(*checked) > SNAPSHOT_RETRY_INTERVAL =>
+                    {
+                        plans.push(Plan::Full { instance: instance.clone() });
+                    }
+                    _ => {}
+                }
+            }
+        }
+        for plan in plans {
+            match plan {
+                Plan::Full { instance } => {
+                    let remote = self.remote_for(&instance);
+                    let outcome = self.fetch_full_snapshot(&instance, &remote);
+                    self.snapshots.lock().unwrap().insert(instance, outcome);
+                }
+                Plan::Delta { instance, watermark } => {
+                    let remote = self.remote_for(&instance);
+                    match remote.get_snapshot(Some(watermark)) {
+                        Ok(Some(bytes)) => {
+                            let Some(delta) = Snapshot::decode(&bytes) else { continue };
+                            let warm = {
+                                let mut snapshots = self.snapshots.lock().unwrap();
+                                let Some(SnapshotState::Ready {
+                                    snapshot,
+                                    refreshed_at,
+                                    ..
+                                }) = snapshots.get_mut(&instance)
+                                else {
+                                    continue;
+                                };
+                                *refreshed_at = now;
+                                let mut updated = (**snapshot).clone();
+                                // The server's delta cursor is inclusive (its
+                                // millisecond versions are not unique), so
+                                // boundary entries are re-sent every tick;
+                                // only keys we do not already hold with the
+                                // same manifest are new work.
+                                let fresh: Vec<[u8; 32]> = delta
+                                    .keys
+                                    .keys()
+                                    .filter(|hash| updated.manifest(hash) != delta.manifest(hash))
+                                    .copied()
+                                    .collect();
+                                if fresh.is_empty() {
+                                    // Still advance the echoed watermark.
+                                    updated.watermark = updated.watermark.max(delta.watermark);
+                                    *snapshot = Arc::new(updated);
+                                    None
+                                } else {
+                                    crate::log_line(&format!(
+                                        "snapshot delta: {} keys for {instance}",
+                                        fresh.len()
+                                    ));
+                                    updated.merge(&delta);
+                                    *snapshot = Arc::new(updated);
+                                    let mut warm = delta;
+                                    warm.keys.retain(|hash, _| fresh.contains(hash));
+                                    Some(warm)
+                                }
+                            };
+                            // Warm the new keys' content like the initial fetch.
+                            if let Some(delta) = warm {
+                                self.prematerialize_snapshot(&instance, &delta);
+                            }
+                        }
+                        Ok(None) => {}
+                        Err(message) => {
+                            crate::log_line(&format!(
+                                "snapshot delta fetch failed for {instance}: {message}"
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Queues materialization of every graph the snapshot describes: bulk
+    /// content warming with no keylog and no demand ordering — resolves
+    /// answer from the snapshot regardless and loads self-heal per object,
+    /// so this only keeps the link busy so most loads find bytes already
+    /// local. Once per snapshot fetch (i.e. per proxy lifetime per
+    /// instance); after a mid-day wipe, demand-driven jobs and per-object
+    /// self-heals carry re-materialization.
+    fn prematerialize_snapshot(&self, instance: &str, snapshot: &Snapshot) {
+        let cas_paths: Vec<String> = self
+            .path_instance
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(_, mapped)| mapped.as_str() == instance)
+            .map(|(cas_path, _)| cas_path.clone())
+            .collect();
+        let remote = self.remote_for(instance);
+        for cas_path in cas_paths {
+            let Ok(state) = self.path_state(&cas_path) else { continue };
+            let observed = state.gen_counter.load(Ordering::SeqCst);
+            for key_hash in snapshot.keys.keys() {
+                let Some(manifest) = snapshot.manifest(key_hash) else { continue };
+                let id = self.job_counter.fetch_add(1, Ordering::Relaxed);
+                self.materialize_jobs.lock().unwrap().insert(
+                    id,
+                    MaterializeJob {
+                        cas_path: cas_path.clone(),
+                        remote: remote.clone(),
+                        manifest,
+                        observed,
+                    },
+                );
+                self.prematerializer.enqueue(id.to_be_bytes().to_vec());
+            }
+        }
+    }
+
+    fn snapshot_ready(&self, instance: &str) -> Option<Arc<Snapshot>> {
+        match self.snapshots.lock().unwrap().get_mut(instance) {
+            Some(SnapshotState::Ready { snapshot, last_used, .. }) => {
+                *last_used = Instant::now();
+                Some(snapshot.clone())
+            }
+            _ => None,
+        }
+    }
+
+    /// Counts (and occasionally logs) a request that could not be routed to an
+    /// instance. Logged on the first occurrence and every 1000th after.
+    fn note_unprimed(&self, cas_path: &str) {
+        let count = self.unprimed.fetch_add(1, Ordering::Relaxed) + 1;
+        if count == 1 || count % 1000 == 0 {
+            crate::log_line(&format!(
+                "unprimed request #{count} for {cas_path}: no instance declared and none registered — \
+                 answering local-only misses (is the build carrying its tuist-instance option or \
+                 TUIST_CAS_ACCOUNT/TUIST_CAS_PROJECT?)"
+            ));
+        }
+    }
+
     pub fn stats_line(&self) -> String {
         let paths = self.paths.lock().unwrap();
         let mut parts = Vec::new();
         for (path, state) in paths.iter() {
             parts.push(format!(
-                "{}: resolves={} remote_hits={} misses={} blobs={} inlined={} published={} | ms action={} filter={} fetch={} decode={} store={}",
+                "{}: resolves={} remote_hits={} snapshot_hits={} misses={} demand_fetched={} pending={} blobs={} inlined={} published={} | ms action={} filter={} fetch={} decode={} store={}",
                 path,
                 state.stats_resolves.load(Ordering::Relaxed),
                 state.stats_remote_hits.load(Ordering::Relaxed),
+                state.stats_snapshot_hits.load(Ordering::Relaxed),
                 state.stats_misses.load(Ordering::Relaxed),
+                state.stats_demand_fetched.load(Ordering::Relaxed),
+                state.pending_objects.lock().unwrap().len(),
                 state.stats_blobs_fetched.load(Ordering::Relaxed),
                 state.stats_blobs_inlined.load(Ordering::Relaxed),
                 state.stats_published.load(Ordering::Relaxed),
@@ -978,13 +1769,20 @@ impl Proxy {
                 let Some(instance) = self.resolve_instance(&request.cas_path, &request.instance)
                 else {
                     // Unprimed ⌘B build: no instance to route to. Degrade to a
-                    // miss so the compiler proceeds on the local CAS.
+                    // miss so the compiler proceeds on the local CAS — but say
+                    // so, since a build that lost its instance configuration
+                    // looks identical and silently runs cache-less.
+                    self.note_unprimed(&request.cas_path);
                     return write_response(&mut stream, STATUS_MISS, &[]);
                 };
                 let remote = self.remote_for(&instance);
+                self.ensure_snapshot(&instance, &remote);
+                let snapshot = self.snapshot_ready(&instance);
                 let outcome = self
                     .path_state(&request.cas_path)
-                    .and_then(|state| self.resolve(&remote, state, &request.payload));
+                    .and_then(|state| {
+                        self.resolve(&remote, state, &request.payload, snapshot.as_deref())
+                    });
                 match outcome {
                     Ok(Some(value)) => write_response(&mut stream, STATUS_HIT, &value),
                     Ok(None) => write_response(&mut stream, STATUS_MISS, &[]),
@@ -1000,6 +1798,8 @@ impl Proxy {
                 if let Some(instance) = self.resolve_instance(&request.cas_path, &request.instance) {
                     let record_path = String::from_utf8_lossy(&request.payload).into_owned();
                     self.enqueue_publish(&request.cas_path, &instance, &record_path);
+                } else {
+                    self.note_unprimed(&request.cas_path);
                 }
                 write_response(&mut stream, STATUS_HIT, &[])
             }
@@ -1015,6 +1815,40 @@ impl Proxy {
                     state.publish_cache.lock().unwrap().clear();
                 }
                 write_response(&mut stream, STATUS_HIT, &[])
+            }
+            OP_FETCH_OBJECT => {
+                // Bind the path when the request is routable: a proxy that
+                // restarted under a persistent local action cache must still
+                // produce pruned objects (fetch_object reconstructs the
+                // instruction from the instance snapshot). An unroutable
+                // request stays a miss without opening a CAS handle.
+                let state = match self.paths.lock().unwrap().get(&request.cas_path).copied() {
+                    Some(state) => Ok(Some(state)),
+                    None if self
+                        .resolve_instance(&request.cas_path, &request.instance)
+                        .is_some() =>
+                    {
+                        self.path_state(&request.cas_path).map(Some)
+                    }
+                    None => Ok(None),
+                };
+                let outcome = state.and_then(|state| match state {
+                    Some(state) => self.fetch_object(
+                        state,
+                        &request.cas_path,
+                        &request.instance,
+                        &request.payload,
+                    ),
+                    None => Ok(false),
+                });
+                match outcome {
+                    Ok(true) => write_response(&mut stream, STATUS_HIT, &[]),
+                    Ok(false) => write_response(&mut stream, STATUS_MISS, &[]),
+                    Err(message) => {
+                        crate::log_line(&format!("proxy fetch_object failed: {message}"));
+                        write_response(&mut stream, STATUS_ERROR, message.as_bytes())
+                    }
+                }
             }
             _ => write_response(&mut stream, STATUS_ERROR, b"bad op"),
         }
@@ -1147,6 +1981,79 @@ unsafe fn encode_node_blob(
 mod tests {
     use super::*;
     use std::cell::Cell;
+
+    #[test]
+    fn snapshot_decodes_the_server_wire_format() {
+        // Hand-encode kura's format: two nodes, one key referencing both
+        // (root first).
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(b"TSNP");
+        bytes.push(2);
+        bytes.extend_from_slice(&777u64.to_le_bytes());
+        bytes.extend_from_slice(&2u32.to_le_bytes());
+        for (llcas, blob_byte, size) in [(vec![0xAAu8, 0xBB], 7u8, 10u64), (vec![0xCC], 8, 20)] {
+            bytes.push(llcas.len() as u8);
+            bytes.extend_from_slice(&llcas);
+            bytes.extend_from_slice(&[blob_byte; 32]);
+            bytes.extend_from_slice(&size.to_le_bytes());
+        }
+        bytes.extend_from_slice(&1u32.to_le_bytes());
+        bytes.extend_from_slice(&[5u8; 32]);
+        bytes.extend_from_slice(&2u32.to_le_bytes());
+        bytes.extend_from_slice(&1u32.to_le_bytes());
+        bytes.extend_from_slice(&0u32.to_le_bytes());
+
+        let snapshot = Snapshot::decode(&bytes).expect("decodes");
+        assert_eq!(snapshot.watermark, 777);
+        let manifest = snapshot.manifest(&[5u8; 32]).expect("key present");
+        assert_eq!(manifest.len(), 2);
+        // Root = the key's first node (index 1 = the [0xCC] node).
+        assert_eq!(manifest[0].llcas_digest, vec![0xCC]);
+        assert_eq!(manifest[0].blob.size_bytes, 20);
+        assert_eq!(manifest[1].llcas_digest, vec![0xAA, 0xBB]);
+        assert!(manifest.iter().all(|entry| entry.contents.is_none()));
+        assert!(snapshot.manifest(&[6u8; 32]).is_none());
+        // The per-node lookup fetch_object's snapshot fallback uses: llcas
+        // digest -> the node's blob digest.
+        let index = *snapshot.node_index.get(&vec![0xCCu8]).expect("node indexed");
+        assert_eq!(snapshot.nodes[index as usize].1.size_bytes, 20);
+        assert!(!snapshot.node_index.contains_key(&vec![0xFFu8]));
+
+        // Structural violations refuse to decode rather than misparse.
+        assert!(Snapshot::decode(&bytes[..bytes.len() - 1]).is_none());
+        let mut bad_index = bytes.clone();
+        let at = bad_index.len() - 4;
+        bad_index[at..].copy_from_slice(&9u32.to_le_bytes());
+        assert!(Snapshot::decode(&bad_index).is_none());
+
+        // A delta merges by llcas digest: shared nodes dedup, new keys land,
+        // the watermark advances.
+        let mut delta_bytes = Vec::new();
+        delta_bytes.extend_from_slice(b"TSNP");
+        delta_bytes.push(2);
+        delta_bytes.extend_from_slice(&900u64.to_le_bytes());
+        delta_bytes.extend_from_slice(&2u32.to_le_bytes());
+        for (llcas, blob_byte, size) in [(vec![0xEEu8], 3u8, 40u64), (vec![0xCC], 8, 20)] {
+            delta_bytes.push(llcas.len() as u8);
+            delta_bytes.extend_from_slice(&llcas);
+            delta_bytes.extend_from_slice(&[blob_byte; 32]);
+            delta_bytes.extend_from_slice(&size.to_le_bytes());
+        }
+        delta_bytes.extend_from_slice(&1u32.to_le_bytes());
+        delta_bytes.extend_from_slice(&[9u8; 32]);
+        delta_bytes.extend_from_slice(&2u32.to_le_bytes());
+        delta_bytes.extend_from_slice(&0u32.to_le_bytes());
+        delta_bytes.extend_from_slice(&1u32.to_le_bytes());
+        let delta = Snapshot::decode(&delta_bytes).expect("delta decodes");
+        let mut merged = snapshot.clone();
+        merged.merge(&delta);
+        assert_eq!(merged.watermark, 900);
+        assert_eq!(merged.nodes.len(), 3, "shared [0xCC] node deduplicated");
+        let new_key = merged.manifest(&[9u8; 32]).expect("delta key present");
+        assert_eq!(new_key[0].llcas_digest, vec![0xEE]);
+        assert_eq!(new_key[1].llcas_digest, vec![0xCC]);
+        assert!(merged.manifest(&[5u8; 32]).is_some(), "existing key kept");
+    }
 
     fn resolved_with(entries: Vec<(Vec<u8>, Resolution)>) -> Mutex<HashMap<Vec<u8>, Resolution>> {
         let mut map = HashMap::new();
@@ -1301,6 +2208,9 @@ mod tests {
         assert!(committable(7, 7));
         assert!(!committable(7, 8), "an advanced generation must drop stale writes");
     }
+
+    // Keylog lines round-trip: lowercase hex parses back to the raw key; blank
+    // and malformed lines are dropped rather than corrupting the wavefront.
 
     // Deleting and recreating a directory at the same path yields a different
     // generation, which is the signal check_generation invalidates on. This is
