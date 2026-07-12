@@ -106,7 +106,12 @@ pub struct ManifestEntry {
 
 // One request must stay under kura's 64MB decoding cap, with headroom.
 const MAX_BATCH_BYTES: i64 = 32 << 20;
-const RPC_TIMEOUT: Duration = Duration::from_secs(60);
+// Generous because it is a per-RPC ceiling, not the dead-link detector (h2
+// keepalive reaps dead connections in ~30s regardless): the snapshot fetch
+// legitimately carries tens of MB in one unary response — measured 40s for
+// 48MiB over a WAN link — and a 60s cap made slower links fail it
+// systematically.
+const RPC_TIMEOUT: Duration = Duration::from_secs(180);
 const ATTEMPTS: usize = 3;
 
 /// Delay between retries: the first retry is immediate -- the dominant
