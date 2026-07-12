@@ -511,7 +511,7 @@ defmodule Tuist.Environment do
   from 1Password via ESO; distinct from the artifact-signing key.
   """
   def cache_grant_private_key(secrets \\ secrets()) do
-    get([:cache_grant, :private_key], secrets)
+    System.get_env("TUIST_CACHE_GRANT_PRIVATE_KEY") || get([:cache_grant, :private_key], secrets)
   end
 
   @doc """
