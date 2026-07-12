@@ -566,6 +566,11 @@ impl ReapiService {
                 .min(state.memory.reapi_materialization_pool_bytes() / 2)
                 .max(1);
             let Ok(_permit) = state.memory.try_acquire_reapi_materialization(budget) else {
+                tracing::warn!(
+                    namespace_id = namespace.as_str(),
+                    budget,
+                    "action-cache snapshot build declined under memory pressure"
+                );
                 cache
                     .builds
                     .lock()
@@ -625,6 +630,7 @@ async fn reconcile_snapshot_index(
     namespace_id: &str,
     mut index: NamespaceSnapshotIndex,
 ) -> Result<NamespaceSnapshotIndex, (NamespaceSnapshotIndex, String)> {
+    let started = Instant::now();
     let manifests = match state
         .store
         .action_cache_manifests(namespace_id, SNAPSHOT_INDEX_MAX_ENTRIES)
@@ -768,6 +774,23 @@ async fn reconcile_snapshot_index(
     }
     index.compact_nodes();
 
+    // One line per reconcile: production served a stale snapshot for hours
+    // and nothing said whether builds were running, how much they scanned, or
+    // what the index held afterwards — this is the Loki breadcrumb that turns
+    // that from archaeology into a query.
+    tracing::info!(
+        namespace_id,
+        entries = index.entries.len(),
+        nodes = index.nodes.len(),
+        watermark = index
+            .entries
+            .values()
+            .map(|entry| entry.version_ms)
+            .max()
+            .unwrap_or(0),
+        elapsed_ms = started.elapsed().as_millis() as u64,
+        "action-cache snapshot index reconciled"
+    );
     Ok(index)
 }
 
@@ -2451,7 +2474,7 @@ mod tests {
         .encode_to_vec();
         for (key, bytes) in [
             (&blob_key_name, b"payload".to_vec()),
-            (&entry_key, entry_bytes),
+            (&entry_key, entry_bytes.clone()),
         ] {
             let path = uploads.join(key.replace('/', "-"));
             std::fs::write(&path, &bytes).expect("source should write");
@@ -2504,6 +2527,38 @@ mod tests {
             .await
             .expect("the follow-up request serves from the cached index");
         assert_eq!(&bytes[..4], b"TSNP");
+
+        // A later publish must reach the next serve: every serve reconciles
+        // afresh (a memoized index served forever is the production-staleness
+        // failure this guards against).
+        let late_key = format!("action_cache/{}/10", hex::encode([0x55u8; 32]));
+        let late_path = uploads.join("late");
+        std::fs::write(&late_path, &entry_bytes).expect("late entry should write");
+        store
+            .apply_replicated_artifact_from_path(
+                ArtifactProducer::Reapi,
+                "ios",
+                &late_key,
+                "application/octet-stream",
+                &late_path,
+                2_000,
+            )
+            .await
+            .expect("late entry should persist");
+        service
+            .serve_actioncache_snapshot("ios", 0)
+            .await
+            .expect("the post-publish serve succeeds");
+        let indexes = service.snapshot_cache.indexes.lock().unwrap();
+        let index = &indexes["ios"];
+        assert_eq!(index.entries.len(), 2, "the new entry was reconciled in");
+        assert!(
+            index
+                .entries
+                .values()
+                .any(|entry| entry.version_ms == 2_000),
+            "the serve picked up the later publish"
+        );
     }
 
     // Scale validation for the bounded index build: a namespace more than
