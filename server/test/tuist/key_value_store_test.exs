@@ -44,6 +44,18 @@ defmodule Tuist.KeyValueStoreTest do
       assert result == expected_value
     end
 
+    test "treats unsafe terms returned by redis as cache misses" do
+      stub(Tuist.Environment, :redis_url, fn -> "redis://localhost:6379" end)
+      atom_name = "uncached_atom_#{System.unique_integer([:positive])}"
+      encoded_atom = <<131, 118, byte_size(atom_name)::16, atom_name::binary>>
+
+      expect(Redix, :command, fn _conn, ["GET", "redis-unsafe_key"] ->
+        {:ok, encoded_atom}
+      end)
+
+      assert KeyValueStore.get([:redis, "unsafe_key"], persist_across_deployments: true) == nil
+    end
+
     test "returns nil from redis when key is not found" do
       # Given
       cache_key = [:redis, "missing_key"]
@@ -150,6 +162,43 @@ defmodule Tuist.KeyValueStoreTest do
 
       assert {:ok, true} = KeyValueStore.put(cache_key, value, persist_across_deployments: true)
       assert KeyValueStore.get(cache_key) == value
+    end
+  end
+
+  describe "get_or_update/3" do
+    test "rebuilds an unsafe redis value instead of crashing" do
+      stub(Tuist.Environment, :redis_url, fn -> "redis://localhost:6379" end)
+      atom_name = "uncached_atom_#{System.unique_integer([:positive])}"
+      encoded_atom = <<131, 118, byte_size(atom_name)::16, atom_name::binary>>
+
+      expect(Redix, :command, 2, fn
+        _conn, ["GET", "redis-unsafe_key"] ->
+          {:ok, encoded_atom}
+
+        _conn, ["SET", "redis-unsafe_key", encoded_value, "EX", 60] ->
+          assert :erlang.binary_to_term(encoded_value) == "rebuilt"
+          {:ok, "OK"}
+      end)
+
+      assert KeyValueStore.get_or_update(
+               [:redis, "unsafe_key"],
+               [persist_across_deployments: true, locking: false],
+               fn -> "rebuilt" end
+             ) == "rebuilt"
+    end
+
+    test "does not confuse a safely cached nil with an invalid value" do
+      stub(Tuist.Environment, :redis_url, fn -> "redis://localhost:6379" end)
+
+      expect(Redix, :command, fn _conn, ["GET", "redis-nil_key"] ->
+        {:ok, :erlang.term_to_binary(nil)}
+      end)
+
+      assert KeyValueStore.get_or_update(
+               [:redis, "nil_key"],
+               [persist_across_deployments: true, locking: false],
+               fn -> flunk("a valid cached nil must not be rebuilt") end
+             ) == nil
     end
   end
 end
