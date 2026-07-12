@@ -27,7 +27,7 @@ use bazel_remote_apis::{
     },
 };
 use bytes::Bytes;
-use futures_util::{StreamExt, future::BoxFuture};
+use futures_util::{FutureExt, StreamExt, future::BoxFuture};
 use http_body_util::{BodyExt, combinators::UnsyncBoxBody};
 use prost::Message;
 use sha2::{Digest as _, Sha256};
@@ -62,11 +62,26 @@ type GrpcAccountingBody = UnsyncBoxBody<Bytes, BoxError>;
 #[derive(Clone)]
 pub struct ReapiService {
     state: SharedState,
-    // namespace -> incrementally maintained action-cache snapshot index,
-    // shared across the service clones tonic hands each server. Bounded by
-    // SNAPSHOT_CACHE_MAX_NAMESPACES (LRU by last use).
-    snapshot_cache: std::sync::Arc<std::sync::Mutex<BTreeMap<String, NamespaceSnapshotIndex>>>,
+    // Per-namespace action-cache snapshot indexes and their in-flight
+    // builds, shared across the service clones tonic hands each server.
+    snapshot_cache: std::sync::Arc<SnapshotCache>,
 }
+
+/// Completed snapshot indexes (bounded by SNAPSHOT_CACHE_MAX_NAMESPACES, LRU
+/// by last use) plus the in-flight builds producing them. Builds run as
+/// DETACHED tasks shared by every concurrent request for a namespace: the
+/// first build of a large namespace can outlive a gateway's upstream timeout,
+/// and dropping the work with the aborted request meant every retry rebuilt
+/// from scratch and timed out the same way — the snapshot never became
+/// servable. A detached build completes and caches regardless of who is
+/// still waiting.
+#[derive(Default)]
+struct SnapshotCache {
+    indexes: std::sync::Mutex<BTreeMap<String, NamespaceSnapshotIndex>>,
+    builds: std::sync::Mutex<std::collections::HashMap<String, SharedIndexBuild>>,
+}
+
+type SharedIndexBuild = futures_util::future::Shared<BoxFuture<'static, Result<(), String>>>;
 
 #[derive(Clone)]
 struct GrpcExtensionSpec<'a> {
@@ -91,7 +106,7 @@ type ReapiServers = (
 fn reapi_servers(state: SharedState) -> ReapiServers {
     let service = ReapiService {
         state,
-        snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
+        snapshot_cache: Default::default(),
     };
     (
         CapabilitiesServer::new(service.clone())
@@ -501,158 +516,225 @@ impl ReapiService {
         namespace_id: &str,
         after: u64,
     ) -> Result<Vec<u8>, Status> {
-        // Own the index across the awaits below (a std mutex cannot be held
-        // there); concurrent requests for the same namespace just build
-        // independently and the last insert wins.
-        let mut index = self
-            .snapshot_cache
-            .lock()
-            .expect("snapshot cache lock poisoned")
-            .remove(namespace_id)
-            .unwrap_or_else(NamespaceSnapshotIndex::new);
-
-        let manifests = self
-            .state
-            .store
-            .action_cache_manifests(namespace_id)
+        self.ensure_index_build(namespace_id)
+            .await
             .map_err(|error| {
-                Status::internal(format!("failed to enumerate the action cache: {error}"))
+                Status::internal(format!(
+                    "failed to build the action-cache snapshot: {error}"
+                ))
             })?;
-        // Diff the cached entries against the manifest keyspace: load only
-        // new-or-changed entries, drop entries whose artifacts are gone.
-        let mut current: BTreeMap<[u8; 32], (u64, ArtifactManifest)> = BTreeMap::new();
-        for manifest in manifests {
-            let Some(hash) = manifest
-                .key
-                .strip_prefix("action_cache/")
-                .and_then(|rest| rest.split('/').next())
-                .and_then(|hash| hex::decode(hash).ok())
-                .and_then(|hash| <[u8; 32]>::try_from(hash.as_slice()).ok())
-            else {
-                continue;
-            };
-            let version = manifest.version_ms;
-            current.insert(hash, (version, manifest));
-        }
-        index.entries.retain(|hash, _| current.contains_key(hash));
-        let to_load: Vec<([u8; 32], ArtifactManifest)> = current
-            .iter()
-            .filter(|(hash, (version, _))| {
-                index
-                    .entries
-                    .get(*hash)
-                    .is_none_or(|entry| entry.version_ms != *version)
-            })
-            .map(|(hash, (_, manifest))| (*hash, manifest.clone()))
-            .collect();
-        let loaded: Vec<Option<([u8; 32], u64, reapi::ActionResult)>> =
-            futures_util::stream::iter(to_load.into_iter().map(|(hash, manifest)| {
-                let state = self.state.clone();
-                async move {
-                    let bytes = read_manifest_bytes(&state, &manifest).await.ok()?;
-                    let action_result = reapi::ActionResult::decode(bytes.as_slice()).ok()?;
-                    Some((hash, manifest.version_ms, action_result))
-                }
-            }))
-            .buffered(32)
-            .collect()
-            .await;
-        for (hash, version_ms, action_result) in loaded.into_iter().flatten() {
-            let mut nodes = Vec::with_capacity(action_result.output_files.len());
-            let mut valid = !action_result.output_files.is_empty();
-            for file in &action_result.output_files {
-                let (Ok(llcas), Some(digest)) = (hex::decode(&file.path), file.digest.as_ref())
-                else {
-                    valid = false;
-                    break;
-                };
-                let (Ok(blob_hash), true) = (
-                    hex::decode(&digest.hash)
-                        .map_err(|_| ())
-                        .and_then(|hash| <[u8; 32]>::try_from(hash.as_slice()).map_err(|_| ())),
-                    digest.size_bytes >= 0,
-                ) else {
-                    valid = false;
-                    break;
-                };
-                nodes.push(index.intern_node(llcas, blob_hash, digest.size_bytes as u64));
-            }
-            if valid {
-                index
-                    .entries
-                    .insert(hash, SnapshotIndexEntry { version_ms, nodes });
-            }
-        }
-
-        // Presence gate: an entry only stays advertised while every node's
-        // blob manifest exists (CAS eviction outlives action-cache entries,
-        // and clang fails the build on a missing object). Mostly
-        // existence-cache hits; a dead entry is dropped from the cache too —
-        // a republish bumps its version and reloads it.
-        let mut dead: Vec<[u8; 32]> = Vec::new();
-        for (hash, entry) in &index.entries {
-            let missing = entry.nodes.iter().any(|&node| {
-                !self
-                    .state
-                    .store
-                    .artifact_manifest_exists(
-                        ArtifactProducer::Reapi,
-                        namespace_id,
-                        &index.nodes[node as usize].blob_key,
-                    )
-                    .unwrap_or(false)
-            });
-            if missing {
-                dead.push(*hash);
-            }
-        }
-        // Cascade: an entry whose blobs were evicted is unserveable by
-        // construction (the per-key path would hand out a manifest whose
-        // batch_read then misses), so delete it from the store too, not just
-        // from the cached index. The grace window keeps this from fighting
-        // peer replication that delivers an entry before its blobs finish
-        // syncing.
-        let now = crate::utils::now_ms();
-        let cascade: Vec<ArtifactManifest> = dead
-            .iter()
-            .filter_map(|hash| current.get(hash))
-            .filter(|(version_ms, _)| now.saturating_sub(*version_ms) > SNAPSHOT_CASCADE_GRACE_MS)
-            .map(|(_, manifest)| manifest.clone())
-            .collect();
-        for hash in dead {
-            index.entries.remove(&hash);
-        }
-        if !cascade.is_empty() {
-            match self.state.store.delete_artifact_metadata(&cascade) {
-                Ok(()) => tracing::info!(
-                    deleted = cascade.len(),
-                    namespace_id,
-                    "deleted action-cache entries whose blobs were evicted"
-                ),
-                Err(error) => tracing::warn!("action-cache cascade delete failed: {error}"),
-            }
-        }
-        index.compact_nodes();
-
-        let bytes = index.encode(after);
+        let mut indexes = self
+            .snapshot_cache
+            .indexes
+            .lock()
+            .expect("snapshot cache lock poisoned");
+        let Some(index) = indexes.get_mut(namespace_id) else {
+            return Err(Status::internal("snapshot index missing after build"));
+        };
         index.last_used = Instant::now();
-        {
-            let mut cache = self
-                .snapshot_cache
-                .lock()
-                .expect("snapshot cache lock poisoned");
-            cache.insert(namespace_id.to_owned(), index);
-            while cache.len() > SNAPSHOT_CACHE_MAX_NAMESPACES {
-                let oldest = cache
-                    .iter()
-                    .min_by_key(|(_, index)| index.last_used)
-                    .map(|(namespace, _)| namespace.clone());
-                let Some(oldest) = oldest else { break };
-                cache.remove(&oldest);
-            }
-        }
-        Ok(bytes)
+        Ok(index.encode(after))
     }
+
+    /// The namespace's in-flight index build, starting one when none is
+    /// running. Requests share a single reconcile; the spawned task owns the
+    /// index for its duration and reinserts it (with the LRU bound applied)
+    /// whether the reconcile succeeded or failed, so accumulated progress
+    /// survives request aborts and transient store errors alike.
+    fn ensure_index_build(&self, namespace_id: &str) -> SharedIndexBuild {
+        let mut builds = self
+            .snapshot_cache
+            .builds
+            .lock()
+            .expect("snapshot builds lock poisoned");
+        if let Some(build) = builds.get(namespace_id) {
+            return build.clone();
+        }
+        let cache = self.snapshot_cache.clone();
+        let state = self.state.clone();
+        let namespace = namespace_id.to_owned();
+        // Spawned while holding the builds lock, so the task's terminal
+        // removal (which takes the same lock) cannot run before the insert
+        // below — the entry it removes is always its own.
+        let task = tokio::spawn(async move {
+            let index = cache
+                .indexes
+                .lock()
+                .expect("snapshot cache lock poisoned")
+                .remove(&namespace)
+                .unwrap_or_else(NamespaceSnapshotIndex::new);
+            let (mut index, result) =
+                match reconcile_snapshot_index(&state, &namespace, index).await {
+                    Ok(index) => (index, Ok(())),
+                    Err((index, error)) => (index, Err(error)),
+                };
+            index.last_used = Instant::now();
+            {
+                let mut indexes = cache.indexes.lock().expect("snapshot cache lock poisoned");
+                indexes.insert(namespace.clone(), index);
+                while indexes.len() > SNAPSHOT_CACHE_MAX_NAMESPACES {
+                    let oldest = indexes
+                        .iter()
+                        .min_by_key(|(_, index)| index.last_used)
+                        .map(|(namespace, _)| namespace.clone());
+                    let Some(oldest) = oldest else { break };
+                    indexes.remove(&oldest);
+                }
+            }
+            cache
+                .builds
+                .lock()
+                .expect("snapshot builds lock poisoned")
+                .remove(&namespace);
+            result
+        });
+        let build: SharedIndexBuild = async move {
+            task.await
+                .map_err(|error| format!("snapshot index build panicked: {error}"))?
+        }
+        .boxed()
+        .shared();
+        builds.insert(namespace_id.to_owned(), build.clone());
+        build
+    }
+}
+
+/// Reconciles a namespace's snapshot index against the manifest keyspace:
+/// one namespace-index scan, action-result reads only for new-or-changed
+/// entries, the manifest-existence presence gate with its cascade delete,
+/// and node-table compaction. On failure the caller gets the index back so
+/// progress survives transient store errors.
+async fn reconcile_snapshot_index(
+    state: &SharedState,
+    namespace_id: &str,
+    mut index: NamespaceSnapshotIndex,
+) -> Result<NamespaceSnapshotIndex, (NamespaceSnapshotIndex, String)> {
+    let manifests = match state
+        .store
+        .action_cache_manifests(namespace_id, SNAPSHOT_INDEX_MAX_ENTRIES)
+    {
+        Ok(manifests) => manifests,
+        Err(error) => {
+            return Err((
+                index,
+                format!("failed to enumerate the action cache: {error}"),
+            ));
+        }
+    };
+    // Diff the cached entries against the manifest keyspace: load only
+    // new-or-changed entries, drop entries whose artifacts are gone.
+    let mut current: BTreeMap<[u8; 32], (u64, ArtifactManifest)> = BTreeMap::new();
+    for manifest in manifests {
+        let Some(hash) = manifest
+            .key
+            .strip_prefix("action_cache/")
+            .and_then(|rest| rest.split('/').next())
+            .and_then(|hash| hex::decode(hash).ok())
+            .and_then(|hash| <[u8; 32]>::try_from(hash.as_slice()).ok())
+        else {
+            continue;
+        };
+        let version = manifest.version_ms;
+        current.insert(hash, (version, manifest));
+    }
+    index.entries.retain(|hash, _| current.contains_key(hash));
+    let to_load: Vec<([u8; 32], ArtifactManifest)> = current
+        .iter()
+        .filter(|(hash, (version, _))| {
+            index
+                .entries
+                .get(*hash)
+                .is_none_or(|entry| entry.version_ms != *version)
+        })
+        .map(|(hash, (_, manifest))| (*hash, manifest.clone()))
+        .collect();
+    let loaded: Vec<Option<([u8; 32], u64, reapi::ActionResult)>> =
+        futures_util::stream::iter(to_load.into_iter().map(|(hash, manifest)| {
+            let state = state.clone();
+            async move {
+                let bytes = read_manifest_bytes(&state, &manifest).await.ok()?;
+                let action_result = reapi::ActionResult::decode(bytes.as_slice()).ok()?;
+                Some((hash, manifest.version_ms, action_result))
+            }
+        }))
+        .buffered(32)
+        .collect()
+        .await;
+    for (hash, version_ms, action_result) in loaded.into_iter().flatten() {
+        let mut nodes = Vec::with_capacity(action_result.output_files.len());
+        let mut valid = !action_result.output_files.is_empty();
+        for file in &action_result.output_files {
+            let (Ok(llcas), Some(digest)) = (hex::decode(&file.path), file.digest.as_ref()) else {
+                valid = false;
+                break;
+            };
+            let (Ok(blob_hash), true) = (
+                hex::decode(&digest.hash)
+                    .map_err(|_| ())
+                    .and_then(|hash| <[u8; 32]>::try_from(hash.as_slice()).map_err(|_| ())),
+                digest.size_bytes >= 0,
+            ) else {
+                valid = false;
+                break;
+            };
+            nodes.push(index.intern_node(llcas, blob_hash, digest.size_bytes as u64));
+        }
+        if valid {
+            index
+                .entries
+                .insert(hash, SnapshotIndexEntry { version_ms, nodes });
+        }
+    }
+
+    // Presence gate: an entry only stays advertised while every node's
+    // blob manifest exists (CAS eviction outlives action-cache entries,
+    // and clang fails the build on a missing object). Mostly
+    // existence-cache hits; a dead entry is dropped from the cache too —
+    // a republish bumps its version and reloads it.
+    let mut dead: Vec<[u8; 32]> = Vec::new();
+    for (hash, entry) in &index.entries {
+        let missing = entry.nodes.iter().any(|&node| {
+            !state
+                .store
+                .artifact_manifest_exists(
+                    ArtifactProducer::Reapi,
+                    namespace_id,
+                    &index.nodes[node as usize].blob_key,
+                )
+                .unwrap_or(false)
+        });
+        if missing {
+            dead.push(*hash);
+        }
+    }
+    // Cascade: an entry whose blobs were evicted is unserveable by
+    // construction (the per-key path would hand out a manifest whose
+    // batch_read then misses), so delete it from the store too, not just
+    // from the cached index. The grace window keeps this from fighting
+    // peer replication that delivers an entry before its blobs finish
+    // syncing.
+    let now = crate::utils::now_ms();
+    let cascade: Vec<ArtifactManifest> = dead
+        .iter()
+        .filter_map(|hash| current.get(hash))
+        .filter(|(version_ms, _)| now.saturating_sub(*version_ms) > SNAPSHOT_CASCADE_GRACE_MS)
+        .map(|(_, manifest)| manifest.clone())
+        .collect();
+    for hash in dead {
+        index.entries.remove(&hash);
+    }
+    if !cascade.is_empty() {
+        match state.store.delete_artifact_metadata(&cascade) {
+            Ok(()) => tracing::info!(
+                deleted = cascade.len(),
+                namespace_id,
+                "deleted action-cache entries whose blobs were evicted"
+            ),
+            Err(error) => tracing::warn!("action-cache cascade delete failed: {error}"),
+        }
+    }
+    index.compact_nodes();
+
+    Ok(index)
 }
 
 #[tonic::async_trait]
@@ -1654,6 +1736,15 @@ pub const SNAPSHOT_AFTER_HINT: &str = "tuist-snapshot-after:";
 /// actually requests snapshots.
 const SNAPSHOT_CACHE_MAX_NAMESPACES: usize = 32;
 
+/// The most entries a snapshot index holds, counted from the newest write.
+/// This bounds the BUILD's memory the way SNAPSHOT_MAX_BYTES bounds the
+/// response: reconciling against an unbounded keyspace held every manifest
+/// in memory at once, and a namespace with weeks of un-expired CI churn
+/// OOM-killed the pod on its first serve. Sized past the response window
+/// (~110k keys at the byte ceiling) so the recency truncation, not this cap,
+/// decides what a full view carries.
+const SNAPSHOT_INDEX_MAX_ENTRIES: usize = 150_000;
+
 /// Stranded-node floor below which a cached snapshot index skips compacting
 /// its node table (the sweep rewrites every entry's index list).
 const SNAPSHOT_COMPACT_MIN_GARBAGE: usize = 1024;
@@ -2161,7 +2252,7 @@ mod tests {
     async fn snapshot_serve_cascade_deletes_stranded_entries_past_grace() {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
-            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
         let store = &context.state.store;
@@ -2245,7 +2336,9 @@ mod tests {
             .await
             .expect("first serve should succeed");
         assert_eq!(
-            service.snapshot_cache.lock().unwrap()["ios"].entries.len(),
+            service.snapshot_cache.indexes.lock().unwrap()["ios"]
+                .entries
+                .len(),
             3,
             "all three entries advertised while their blobs exist"
         );
@@ -2269,7 +2362,9 @@ mod tests {
             .await
             .expect("second serve should succeed");
         assert_eq!(
-            service.snapshot_cache.lock().unwrap()["ios"].entries.len(),
+            service.snapshot_cache.indexes.lock().unwrap()["ios"]
+                .entries
+                .len(),
             1,
             "both stranded entries leave the served view"
         );
@@ -2287,6 +2382,88 @@ mod tests {
             "a young stranded entry is kept — its blobs may still be mid-replication"
         );
         assert!(exists(&live_key));
+    }
+
+    #[tokio::test]
+    async fn snapshot_index_build_survives_an_aborted_request() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let store = &context.state.store;
+        let uploads = context.state.config.tmp_dir.join("uploads");
+        std::fs::create_dir_all(&uploads).expect("uploads dir should create");
+        let blob_hash = [0x11u8; 32];
+        let blob_key_name = blob_key(&format!("{}/7", hex::encode(blob_hash)));
+        let entry_key = format!("action_cache/{}/10", hex::encode([0x44u8; 32]));
+        let entry_bytes = reapi::ActionResult {
+            output_files: vec![reapi::OutputFile {
+                path: hex::encode([0xABu8, 0xCD]),
+                digest: Some(reapi::Digest {
+                    hash: hex::encode(blob_hash),
+                    size_bytes: 7,
+                }),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }
+        .encode_to_vec();
+        for (key, bytes) in [
+            (&blob_key_name, b"payload".to_vec()),
+            (&entry_key, entry_bytes),
+        ] {
+            let path = uploads.join(key.replace('/', "-"));
+            std::fs::write(&path, &bytes).expect("source should write");
+            store
+                .apply_replicated_artifact_from_path(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    key,
+                    "application/octet-stream",
+                    &path,
+                    100,
+                )
+                .await
+                .expect("artifact should persist");
+        }
+
+        // Abort the request before the build completes: one poll starts the
+        // detached build, then the request future is dropped — the build must
+        // keep running and cache the index anyway. Dropping it with the
+        // request meant every retry rebuilt from scratch, and a gateway
+        // timeout made the snapshot permanently unservable.
+        let mut serve = Box::pin(service.serve_actioncache_snapshot("ios", 0));
+        let first = futures_util::future::poll_immediate(serve.as_mut()).await;
+        assert!(first.is_none(), "the first poll leaves the build in flight");
+        drop(serve);
+        let mut cached = false;
+        for _ in 0..400 {
+            if service
+                .snapshot_cache
+                .indexes
+                .lock()
+                .unwrap()
+                .contains_key("ios")
+            {
+                cached = true;
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        assert!(
+            cached,
+            "the detached build cached the index after the abort"
+        );
+        assert!(
+            service.snapshot_cache.builds.lock().unwrap().is_empty(),
+            "the finished build removed itself from the in-flight map"
+        );
+        let bytes = service
+            .serve_actioncache_snapshot("ios", 0)
+            .await
+            .expect("the follow-up request serves from the cached index");
+        assert_eq!(&bytes[..4], b"TSNP");
     }
 
     use tokio::net::TcpListener;
@@ -2649,7 +2826,7 @@ end
         let extension = namespace_policy_extension().await;
         let context = test_context_with_extension(|_| {}, Some(extension)).await;
         let service = ReapiService {
-            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
 
@@ -2743,7 +2920,7 @@ end
     async fn action_cache_reads_emit_keyvalue_metrics() {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
-            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
         let action_result = reapi::ActionResult::default();
@@ -2787,7 +2964,7 @@ end
     async fn cas_batch_reads_emit_module_metrics() {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
-            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
         let bytes = b"blob-bytes";
@@ -2837,7 +3014,7 @@ end
         })
         .await;
         let service = ReapiService {
-            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
         let oversized_bytes = vec![b'x'; 9 * 1024 * 1024];
@@ -2916,15 +3093,15 @@ end
         })
         .await;
         let first_service = ReapiService {
-            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
         let second_service = ReapiService {
-            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
         let third_service = ReapiService {
-            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
         let bytes = vec![b'b'; 16 * 1024 * 1024];
@@ -3023,7 +3200,7 @@ end
     async fn cas_batch_reads_shed_under_critical_memory_pressure() {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
-            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
         let bytes = b"blob-bytes";
@@ -3077,7 +3254,7 @@ end
         })
         .await;
         let service = ReapiService {
-            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
         let stdout_bytes = vec![b's'; 9 * 1024 * 1024];
@@ -3192,7 +3369,7 @@ end
     async fn action_cache_wildcard_inlines_every_output_file() {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
-            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
         let first_bytes = b"first output".to_vec();
@@ -3240,7 +3417,7 @@ end
         })
         .await;
         let service = ReapiService {
-            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
         // Larger than the response budget under this memory config (the same
@@ -3291,7 +3468,7 @@ end
         })
         .await;
         let service = ReapiService {
-            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
         // Larger than the response budget; listed BOTH via "*" and explicitly.
@@ -3327,7 +3504,7 @@ end
     async fn draining_rejects_new_grpc_requests() {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
-            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
         context.state.enter_draining();
@@ -3408,7 +3585,7 @@ end
         })
         .await;
         let service = ReapiService {
-            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
 
@@ -3527,7 +3704,7 @@ end
         })
         .await;
         let service = ReapiService {
-            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
 
