@@ -1,0 +1,116 @@
+{{- if and (eq .Values.postgresql.mode "cnpg") .Values.swiftRegistrySync.enabled .Values.swiftRegistrySync.grantsJob.enabled }}
+{{- $role := .Values.postgresql.cnpg.roles.swiftRegistrySync.name -}}
+{{- $schema := .Values.postgresql.schema -}}
+{{- $database := .Values.postgresql.cnpg.database -}}
+# Applies the least-privilege Oban grants for the swift_registry_sync
+# role as part of the deploy, so enabling swiftRegistrySync carries its
+# own table privileges. CNPG creates the role declaratively from
+# managed.roles in the Cluster CR, but it does not apply per-table
+# grants, so without this the swift-registry-sync pod's Oban producers
+# crash-loop on `permission denied for table oban_jobs`.
+#
+# The SQL mirrors infra/cnpg/tuist-swift-registry-sync-grants.sql (the
+# re-runnable file kept for backup-restore recovery). Both must stay in
+# sync; a new PG read/write in the sync or release worker means updating
+# both. This template renders the schema/role/database from values so it
+# needs no psql meta-commands.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "swift-registry-sync-grants") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: swift-registry-sync-grants
+data:
+  grants.sql: |
+    BEGIN;
+    GRANT CONNECT ON DATABASE {{ $database }} TO {{ $role }};
+    GRANT USAGE ON SCHEMA {{ $schema }} TO {{ $role }};
+    -- Oban coordination. INSERT so the SyncWorker enqueues ReleaseWorker
+    -- jobs; DELETE for Oban.Plugins.Pruner.
+    GRANT SELECT, INSERT, UPDATE, DELETE ON {{ $schema }}.oban_jobs, {{ $schema }}.oban_peers TO {{ $role }};
+    GRANT USAGE, SELECT ON SEQUENCE {{ $schema }}.oban_jobs_id_seq TO {{ $role }};
+    -- Re-assert the intersection: any table added by a future migration
+    -- stays off-limits to this role until granted here explicitly.
+    REVOKE ALL ON ALL TABLES IN SCHEMA {{ $schema }} FROM {{ $role }};
+    GRANT SELECT, INSERT, UPDATE, DELETE ON {{ $schema }}.oban_jobs, {{ $schema }}.oban_peers TO {{ $role }};
+    COMMIT;
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  # Stable name so before-hook-creation deletes the prior Job before the
+  # new hook schedules.
+  name: {{ include "tuist.componentName" (dict "root" . "component" "swift-registry-sync-grants") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: swift-registry-sync-grants
+  annotations:
+    # post-* so it runs after the Cluster CR is applied and CNPG has had
+    # a chance to reconcile the role, and after the migration hook has
+    # created oban_jobs. The command retries regardless, since CNPG role
+    # reconciliation is asynchronous.
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "5"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.swiftRegistrySync.grantsJob.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "swift-registry-sync-grants") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      # The Job only talks to Postgres; it needs no Kubernetes API access.
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      {{- include "tuist.podScheduling" . | nindent 6 }}
+      {{- with .Values.swiftRegistrySync.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.swiftRegistrySync.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: grants-sql
+          configMap:
+            name: {{ include "tuist.componentName" (dict "root" . "component" "swift-registry-sync-grants") }}
+      containers:
+        - name: grants
+          image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.server.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              # The grants role is created asynchronously by CNPG; on a
+              # fresh cluster it may not exist the instant this hook runs.
+              # The SQL is idempotent, so retry until it applies.
+              attempts={{ .Values.swiftRegistrySync.grantsJob.retries }}
+              for i in $(seq 1 "$attempts"); do
+                if psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f /sql/grants.sql; then
+                  echo "swift_registry_sync grants applied"
+                  exit 0
+                fi
+                echo "attempt $i/$attempts failed (role may still be reconciling); retrying in 10s"
+                sleep 10
+              done
+              echo "swift_registry_sync grants did not apply after $attempts attempts"
+              exit 1
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.cnpgAppSecretName" . }}
+                  key: uri
+          volumeMounts:
+            - name: grants-sql
+              mountPath: /sql
+              readOnly: true
+          resources:
+            {{- toYaml .Values.swiftRegistrySync.grantsJob.resources | nindent 12 }}
+{{- end }}

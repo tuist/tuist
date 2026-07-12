@@ -495,6 +495,16 @@ swiftRegistrySync:
   replicaCount: 1
   resources: {}
   extraEnv: []
+  # Applies the role's Oban table grants as a post-upgrade hook Job when
+  # postgresql.mode == cnpg, so enabling this component carries its own
+  # privileges instead of relying on a manual psql run. Idempotent.
+  grantsJob:
+    enabled: true
+    backoffLimit: 6
+    # Retries inside the pod: CNPG reconciles the role asynchronously, so
+    # on a fresh cluster the role may not exist the instant the hook runs.
+    retries: 30
+    resources: {}
   # When true, the chart provisions an ExternalSecret pulling the
   # registry's Tigris credentials, GitHub PAT, and bucket name from
   # 1Password (the existing `REGISTRY` item used by the standalone
