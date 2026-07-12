@@ -99,6 +99,13 @@ server:
 
   appUrl: https://staging.tuist.dev
 
+  # Cache-signing grant key (spec #76): sync the Ed25519 PEM from the
+  # TUIST_CACHE_GRANT_PRIVATE_KEY 1Password item so dispatch mints
+  # account-scoped cache grants for runner jobs.
+  externalSecrets:
+    cacheGrant:
+      item: TUIST_CACHE_GRANT_PRIVATE_KEY
+
   # Stripe price IDs (identifiers, not secrets — the API keys live in the
   # STRIPE 1Password item). Staging's own (test-mode) IDs; the chart
   # JSON-encodes this into TUIST_STRIPE_PRICES.

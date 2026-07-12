@@ -345,6 +345,17 @@ spec:
             {{- with .Values.server.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+            {{- if ne (.Values.server.externalSecrets.cacheGrant.item | default "") "" }}
+            # Cache-signing grant key (spec #76): read as an env var because
+            # decrypt_secrets/0 is empty outside dev, so the getter takes it
+            # from TUIST_CACHE_GRANT_PRIVATE_KEY. Synced from 1Password by the
+            # server-external-secrets ExternalSecret.
+            - name: TUIST_CACHE_GRANT_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "server-external-secrets") }}
+                  key: cache-grant-private-key
+            {{- end }}
           {{- $serverConfigEnvFrom := include "tuist.serverConfigEnvFrom" . | trim }}
           {{- if or $serverConfigEnvFrom .Values.server.extraEnvFrom }}
           envFrom:

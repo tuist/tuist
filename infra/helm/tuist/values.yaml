@@ -146,6 +146,13 @@ server:
     license:
       item: ""
       field: password
+    # Cache-signing grant private key (spec #76): a PEM Ed25519 key the
+    # server signs runner cache grants with. Leave item empty to disable
+    # grant minting (dispatch omits the grant; CLI falls back to the MAC
+    # default). The 1Password item's `password` field holds the PEM.
+    cacheGrant:
+      item: ""
+      field: password
     # Dedicated OAuth client used by Kura to call /oauth2/introspect.
     # Leave item empty to skip syncing it into the server environment.
     kuraIntrospection:
