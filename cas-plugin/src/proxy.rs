@@ -1496,6 +1496,21 @@ impl Proxy {
         self.tokens.refresh_if_expiring(lead);
     }
 
+    /// Kicks off snapshot fetches for every instance the persisted registry
+    /// knows. Called once at proxy startup, so a machine's first build after
+    /// a restart already has the snapshot (and its bulk warm) in flight
+    /// instead of opening the fetch window mid-build — the fetch used to
+    /// start on the first resolve, which put the transfer and the server's
+    /// first index build inside the build the user was waiting on.
+    pub fn prefetch_known_snapshots(&self) {
+        let instances: std::collections::HashSet<String> =
+            self.path_instance.lock().unwrap().values().cloned().collect();
+        for instance in instances {
+            let remote = self.remote_for(&instance);
+            self.ensure_snapshot(&instance, &remote);
+        }
+    }
+
     /// Kicks off the instance's snapshot fetch on first sight, in the
     /// background — never on a resolve path. One fetch per proxy lifetime:
     /// entries published later resolve through the ordinary per-key path.
