@@ -646,8 +646,7 @@ fn spawn_action_cache_expiry_task(state: Arc<AppState>) {
             loop {
                 tokio::time::sleep(interval).await;
                 let sweep_state = state.clone();
-                let cutoff_ms =
-                    crate::utils::now_ms().saturating_sub(REAPI_ACTION_CACHE_TTL_MS);
+                let cutoff_ms = crate::utils::now_ms().saturating_sub(REAPI_ACTION_CACHE_TTL_MS);
                 let expired = tokio::task::spawn_blocking(move || {
                     sweep_state.store.expire_stale_action_cache_entries(
                         cutoff_ms,

@@ -2453,7 +2453,10 @@ impl Store {
         let mut batch = WriteBatch::default();
         let mut ids = Vec::with_capacity(manifests.len());
         for manifest in manifests {
-            batch.delete_cf(self.cf(ROCKSDB_CF_MANIFESTS), manifest.artifact_id.as_bytes());
+            batch.delete_cf(
+                self.cf(ROCKSDB_CF_MANIFESTS),
+                manifest.artifact_id.as_bytes(),
+            );
             batch.delete_cf(
                 self.cf(ROCKSDB_CF_NAMESPACE_ARTIFACTS),
                 namespace_artifact_index_key(&manifest.namespace_id, &manifest.artifact_id)
@@ -3914,9 +3917,30 @@ mod tests {
                 .await
                 .expect("artifact should persist");
         }
-        write(&store, &config, "action_cache/aa/10", ArtifactProducer::Reapi, 1_000).await;
-        write(&store, &config, "action_cache/bb/10", ArtifactProducer::Reapi, 9_000).await;
-        write(&store, &config, "blob/cc/10", ArtifactProducer::Reapi, 1_000).await;
+        write(
+            &store,
+            &config,
+            "action_cache/aa/10",
+            ArtifactProducer::Reapi,
+            1_000,
+        )
+        .await;
+        write(
+            &store,
+            &config,
+            "action_cache/bb/10",
+            ArtifactProducer::Reapi,
+            9_000,
+        )
+        .await;
+        write(
+            &store,
+            &config,
+            "blob/cc/10",
+            ArtifactProducer::Reapi,
+            1_000,
+        )
+        .await;
         write(&store, &config, "artifact", ArtifactProducer::Gradle, 1_000).await;
 
         let expired = store
@@ -3946,8 +3970,22 @@ mod tests {
         );
 
         // The per-sweep cap defers the remainder to the next sweep.
-        write(&store, &config, "action_cache/dd/10", ArtifactProducer::Reapi, 1_000).await;
-        write(&store, &config, "action_cache/ee/10", ArtifactProducer::Reapi, 1_000).await;
+        write(
+            &store,
+            &config,
+            "action_cache/dd/10",
+            ArtifactProducer::Reapi,
+            1_000,
+        )
+        .await;
+        write(
+            &store,
+            &config,
+            "action_cache/ee/10",
+            ArtifactProducer::Reapi,
+            1_000,
+        )
+        .await;
         assert_eq!(
             store
                 .expire_stale_action_cache_entries(5_000, 1)
