@@ -4064,6 +4064,34 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn action_cache_manifest_scan_sheds_mid_scan_at_twice_the_cap() {
+        let (_temp_dir, config, store) = temp_store();
+        let source = config.tmp_dir.join("uploads").join("payload");
+        for version in 1..=5u64 {
+            std::fs::write(&source, b"payload").expect("source should write");
+            store
+                .apply_replicated_artifact_from_path(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    &format!("action_cache/{version:064}/10"),
+                    "application/octet-stream",
+                    &source,
+                    version * 100,
+                )
+                .await
+                .expect("artifact should persist");
+        }
+        // Five entries against a cap of two crosses the in-scan shed
+        // threshold (2x cap) as well as the final truncation.
+        let manifests = store
+            .action_cache_manifests("ios", 2)
+            .expect("scan should succeed");
+        let mut versions: Vec<u64> = manifests.iter().map(|m| m.version_ms).collect();
+        versions.sort_unstable();
+        assert_eq!(versions, vec![400, 500], "newest two survive the shed");
+    }
+
+    #[tokio::test]
     async fn persist_reports_already_present_across_re_uploads() {
         // `already_present` must reflect presence, not the Applied/IgnoredStale
         // version outcome: a re-upload takes a newer version and still applies,
