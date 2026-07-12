@@ -30,10 +30,18 @@ metadata:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  # Stable name across revisions so the `before-hook-creation` delete
-  # policy below matches and deletes the prior Job (and its Pending pods)
-  # before the new hook schedules.
-  name: {{ include "tuist.componentName" (dict "root" . "component" "server-migrate") }}
+  # As a hook: a stable name across revisions, so the `before-hook-creation`
+  # delete policy below matches and deletes the prior Job (and its Pending
+  # pods) before the new hook schedules.
+  #
+  # As a regular Job (previews, where a pre-install hook would deadlock on the
+  # embedded databases): a name scoped to the release revision. A Job's
+  # `spec.template` is immutable, so reusing the name across upgrades fails
+  # with "field is immutable" whenever the image tag changes. Renaming per
+  # revision means Helm creates the new Job and prunes the previous one,
+  # because it is no longer in the release manifest. Without this, something
+  # has to `kubectl delete` the stale Job before every upgrade.
+  name: {{ include "tuist.serverMigrateJobName" . }}
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: server-migration

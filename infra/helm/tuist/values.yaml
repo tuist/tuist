@@ -376,6 +376,11 @@ server:
     # migrations complete before new pods roll out. Disable for self-hosted
     # topologies that prefer a post-install Job instead.
     asHook: false
+    # Only meaningful when asHook is false. Suffixes the Job name with the
+    # release revision so an upgrade creates a new Job and Helm prunes the old
+    # one, instead of failing on the immutable `spec.template`. Off by default
+    # to keep the Job name stable for existing self-hosted installs.
+    namePerRevision: false
 
 processor:
   # Oban-backed xcactivitylog processor. Runs the same Docker image as the

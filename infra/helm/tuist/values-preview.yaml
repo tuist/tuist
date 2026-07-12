@@ -37,12 +37,15 @@ server:
   # Postgres + ClickHouse, but preview ships with embedded ones, and the
   # Job's wait-for-dependencies init container then deadlocks: pre-install
   # hooks run before regular release resources, so the embedded Postgres
-  # / ClickHouse never come up during the hook window. The deploy
-  # workflow kubectl-deletes the stale Job before `helm upgrade` instead,
-  # which sidesteps the `spec.template field is immutable` issue without
-  # tripping the dependency wait.
+  # / ClickHouse never come up during the hook window.
+  #
+  # `spec.template` is immutable, so re-deploying with a new image tag would
+  # fail on a Job of the same name. namePerRevision scopes the Job name to the
+  # release revision, so Helm creates the new one and prunes the previous one
+  # itself. This replaces the deploy workflow's `kubectl delete job` step.
   migrationJob:
     asHook: false
+    namePerRevision: true
   # License is synced from 1Password via ESO into the chart's
   # server-external-secrets Secret. The 1P item must exist in the vault that
   # the ClusterSecretStore (default name: onepassword) is bound to. ESO and
