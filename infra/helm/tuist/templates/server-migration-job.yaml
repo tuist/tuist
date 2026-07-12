@@ -125,6 +125,8 @@ spec:
               value: {{ .Values.postgresql.cnpg.roles.web.name | quote }}
             - name: TUIST_DATABASE_PROCESSOR_ROLE
               value: {{ .Values.postgresql.cnpg.roles.processor.name | quote }}
+            - name: TUIST_DATABASE_SWIFT_REGISTRY_SYNC_ROLE
+              value: {{ .Values.postgresql.cnpg.roles.swiftRegistrySync.name | quote }}
             {{- end }}
             - name: TUIST_USE_SSL_FOR_DATABASE
               value: "0"

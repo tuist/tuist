@@ -38,6 +38,37 @@ defmodule Tuist.ReleaseTest do
     end
   end
 
+  describe "swift_registry_sync_role_grant_statements/3" do
+    test "grants only the Oban surface" do
+      role = ~s("tuist_swift_registry_sync")
+      database = ~s("tuist")
+      schema = ~s("public")
+
+      assert Release.swift_registry_sync_role_grant_statements(role, database, schema) == [
+               ~s(REVOKE ALL ON ALL TABLES IN SCHEMA "public" FROM "tuist_swift_registry_sync"),
+               ~s(GRANT CONNECT ON DATABASE "tuist" TO "tuist_swift_registry_sync"),
+               ~s(GRANT USAGE ON SCHEMA "public" TO "tuist_swift_registry_sync"),
+               ~s(GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "public".oban_jobs, "public".oban_peers TO "tuist_swift_registry_sync"),
+               ~s(GRANT USAGE, SELECT ON SEQUENCE "public".oban_jobs_id_seq TO "tuist_swift_registry_sync")
+             ]
+    end
+
+    test "keeps the CloudNativePG fallback grant list in sync" do
+      sql =
+        __DIR__
+        |> Path.join("../../../infra/cnpg/tuist-swift-registry-sync-grants.sql")
+        |> Path.expand()
+        |> File.read!()
+
+      assert sql =~
+               ~s(GRANT SELECT, INSERT, UPDATE, DELETE ON :"tuist_schema".oban_jobs, :"tuist_schema".oban_peers TO tuist_swift_registry_sync;)
+
+      assert sql =~ ~s(GRANT USAGE, SELECT ON SEQUENCE :"tuist_schema".oban_jobs_id_seq TO tuist_swift_registry_sync;)
+
+      assert sql =~ ~s(REVOKE ALL ON ALL TABLES IN SCHEMA :"tuist_schema" FROM tuist_swift_registry_sync;)
+    end
+  end
+
   defp occurrences(contents, pattern) do
     contents
     |> String.split(pattern)

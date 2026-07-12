@@ -210,6 +210,13 @@ defmodule Tuist.Environment do
     end
   end
 
+  def database_swift_registry_sync_role do
+    case System.get_env("TUIST_DATABASE_SWIFT_REGISTRY_SYNC_ROLE") do
+      role when is_binary(role) and role != "" -> role
+      _ -> nil
+    end
+  end
+
   def database_config_from_url(url) do
     parsed_url = URI.parse(url)
 

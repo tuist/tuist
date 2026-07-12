@@ -66,7 +66,7 @@ kubectl cnpg psql -n "$NAMESPACE" "$CLUSTER" -- -d postgres -f - \
 
 Each file ends with a sanity-check `SELECT … information_schema.role_table_grants …` query that prints the exact privilege set the role holds after the run. A clean run shows write privileges on the Oban tables and read-only privileges on the lookup tables the processors use.
 
-The Tuist server deploy creates the `tuist_swift_registry_sync` role password through the chart-managed role block, but it does not apply table-level grants. Run `tuist-swift-registry-sync-grants.sql` before enabling `swiftRegistrySync.enabled` in an existing environment, and re-run it after backup restores.
+The `tuist_swift_registry_sync` role's grants are applied at migrate time by `Tuist.Release.migrate` (keyed by `TUIST_DATABASE_SWIFT_REGISTRY_SYNC_ROLE`, passed by the migration job), the same way the runtime and processor roles are handled, so a normal deploy grants them and no manual step is needed. This file is the re-runnable fallback for a fresh cluster or a backup restore where migrations haven't run yet; keep it in sync with `Release.swift_registry_sync_role_grant_statements/3` (a test enforces this).
 
 ## Why not an Ecto migration
 
