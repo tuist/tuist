@@ -583,14 +583,24 @@ impl ReapiService {
         let task = tokio::spawn(async move {
             // A build's transient memory rides the response-materialization
             // pool: holding a byte-sized permit for its duration means a node
-            // already under memory pressure declines the build (the client
-            // falls back to per-key resolves) instead of being OOM-killed.
-            // The budget adapts to small pools so tests and tiny nodes still
-            // build; the streaming reconcile keeps the real peak near it.
+            // under memory pressure defers the build instead of being
+            // OOM-killed. The build WAITS for headroom rather than declining:
+            // a stale snapshot is what causes heavy per-key traffic, per-key
+            // responses draw on this same pool, and a try-acquire under that
+            // load refused every reconcile for exactly the reason one was
+            // needed — the index parked stale indefinitely. The bounded wait
+            // still fails closed if the pool never frees. The budget adapts
+            // to small pools so tests and tiny nodes still build; the
+            // streaming reconcile keeps the real peak near it.
             let budget = SNAPSHOT_BUILD_BUDGET_BYTES
                 .min(state.memory.reapi_materialization_pool_bytes() / 2)
                 .max(1);
-            let Ok(_permit) = state.memory.try_acquire_reapi_materialization(budget) else {
+            let permit = tokio::time::timeout(
+                SNAPSHOT_BUILD_PERMIT_WAIT,
+                state.memory.acquire_reapi_materialization(budget),
+            )
+            .await;
+            let Ok(Ok(_permit)) = permit else {
                 tracing::warn!(
                     namespace_id = namespace.as_str(),
                     budget,
@@ -1836,6 +1846,12 @@ const SNAPSHOT_INDEX_MAX_ENTRIES: usize = 100_000;
 /// at ~1KB per entry of scan-buffer + current-map peak, with headroom.
 const SNAPSHOT_BUILD_BUDGET_BYTES: usize = 192 << 20;
 
+/// How long a snapshot build waits for its memory-pool permit before
+/// declining. Generous: the build is background work, and the pool drains as
+/// in-flight responses complete — declining is only right when the node is
+/// pinned at capacity for this entire window.
+const SNAPSHOT_BUILD_PERMIT_WAIT: Duration = Duration::from_secs(600);
+
 /// How old a cached snapshot index may grow before a serve kicks a
 /// background reconcile. Requests never wait on it — they get the cached
 /// view — so this bounds staleness, not latency; it composes with the
@@ -2707,6 +2723,83 @@ mod tests {
                 .all(|entry| entry.version_ms > (ENTRIES - SNAPSHOT_INDEX_MAX_ENTRIES as u64)),
             "the cap kept the newest entries"
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn snapshot_build_waits_for_pool_headroom_instead_of_declining() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let store = &context.state.store;
+        let uploads = context.state.config.tmp_dir.join("uploads");
+        std::fs::create_dir_all(&uploads).expect("uploads dir should create");
+        let entry_key = format!("action_cache/{}/10", hex::encode([0x44u8; 32]));
+        let entry_path = uploads.join("entry");
+        let entry_bytes = reapi::ActionResult {
+            output_files: vec![reapi::OutputFile {
+                path: hex::encode([0xABu8, 0xCD]),
+                digest: Some(reapi::Digest {
+                    hash: hex::encode([0x11u8; 32]),
+                    size_bytes: 7,
+                }),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }
+        .encode_to_vec();
+        std::fs::write(&entry_path, &entry_bytes).expect("entry should write");
+        store
+            .apply_replicated_artifact_from_path(
+                ArtifactProducer::Reapi,
+                "ios",
+                &entry_key,
+                "application/octet-stream",
+                &entry_path,
+                100,
+            )
+            .await
+            .expect("entry should persist");
+        let blob_path = uploads.join("blob");
+        std::fs::write(&blob_path, b"payload").expect("blob should write");
+        store
+            .apply_replicated_artifact_from_path(
+                ArtifactProducer::Reapi,
+                "ios",
+                &blob_key(&format!("{}/7", hex::encode([0x11u8; 32]))),
+                "application/octet-stream",
+                &blob_path,
+                100,
+            )
+            .await
+            .expect("blob should persist");
+
+        // Exhaust the pool: the old try-acquire declined the build here —
+        // which, under the per-key load a stale snapshot causes, parked the
+        // index stale indefinitely. The build must wait instead.
+        let pool = context.state.memory.reapi_materialization_pool_bytes();
+        let hog = context
+            .state
+            .memory
+            .try_acquire_reapi_materialization(pool)
+            .expect("pool should be acquirable when idle");
+        let serve = tokio::spawn({
+            let service = service.clone();
+            async move { service.serve_actioncache_snapshot("ios", 0).await }
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        assert!(
+            !serve.is_finished(),
+            "the build waits for headroom rather than declining"
+        );
+        drop(hog);
+        let bytes = tokio::time::timeout(std::time::Duration::from_secs(30), serve)
+            .await
+            .expect("build should complete once the pool frees")
+            .expect("serve task should not panic")
+            .expect("serve should succeed");
+        assert_eq!(&bytes[..4], b"TSNP");
     }
 
     use tokio::net::TcpListener;
