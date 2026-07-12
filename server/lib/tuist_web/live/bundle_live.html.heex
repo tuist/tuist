@@ -11,6 +11,7 @@
       </:icon_left>
     </.button>
     <.button
+      :if={@can_delete_bundle}
       label={dgettext("dashboard_cache", "Delete bundle")}
       data-part="delete-button"
       variant="secondary"

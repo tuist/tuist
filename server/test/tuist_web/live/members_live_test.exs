@@ -241,6 +241,51 @@ defmodule TuistWeb.MembersLiveTest do
   end
 
   describe "members table" do
+    test "rejects a user who does not belong to the organization", %{conn: conn} do
+      victim_admin = AccountsFixtures.user_fixture()
+      victim_member = AccountsFixtures.user_fixture(email: "victim-member@example.com")
+
+      victim_organization =
+        AccountsFixtures.organization_fixture(creator: victim_admin, preload: [:account])
+
+      Accounts.add_user_to_organization(victim_member, victim_organization)
+
+      assert_raise TuistWeb.Errors.UnauthorizedError, fn ->
+        live(conn, ~p"/#{victim_organization.account.name}/members")
+      end
+    end
+
+    test "does not let a regular member forge member-management events", %{
+      organization: organization,
+      account: account
+    } do
+      regular_user = AccountsFixtures.user_fixture()
+      managed_user = AccountsFixtures.user_fixture()
+      Accounts.add_user_to_organization(regular_user, organization, role: :user)
+      Accounts.add_user_to_organization(managed_user, organization, role: :user)
+
+      conn = log_in_user(build_conn(), regular_user)
+      {:ok, live_view, _html} = live(conn, ~p"/#{account.name}/members")
+
+      render_hook(live_view, "select-member-role", %{"member_id" => to_string(managed_user.id), "role" => "admin"})
+      render_hook(live_view, "save-member-role", %{"member-id" => to_string(managed_user.id)})
+
+      assert Accounts.get_user_role_in_organization(managed_user, organization).name == "user"
+
+      render_hook(live_view, "confirm-remove-member", %{"member-id" => to_string(managed_user.id)})
+
+      assert Accounts.get_user_role_in_organization(managed_user, organization).name == "user"
+
+      render_submit(live_view, "invite-members", %{
+        "invitation" => %{"invitee_email" => "forged-invite@example.com"}
+      })
+
+      refute Accounts.get_invitation_by_invitee_email_and_organization(
+               "forged-invite@example.com",
+               organization
+             )
+    end
+
     test "renders members table with admin and regular users", %{
       conn: conn,
       user: admin_user,

@@ -518,7 +518,11 @@ defmodule TuistWeb.API.RunsControllerTest do
       end
 
       stub(Builds, :get_build, fn ^id -> get_build_response.() end)
-      stub(Builds, :get_build, fn ^id, _opts -> get_build_response.() end)
+
+      stub(Builds, :get_build, fn ^id, opts ->
+        assert opts == [project_id: project.id]
+        get_build_response.()
+      end)
 
       error_changeset = %Ecto.Changeset{
         errors: [id: {"has already been taken", [constraint: :unique]}],

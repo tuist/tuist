@@ -6,6 +6,7 @@ defmodule TuistWeb.BundleLiveTest do
   import Phoenix.LiveViewTest
 
   alias TuistTestSupport.Fixtures.BundlesFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Errors.NotFoundError
 
   test "it shows bundle metadata", %{
@@ -41,6 +42,31 @@ defmodule TuistWeb.BundleLiveTest do
     assert_raise NotFoundError, fn ->
       get(conn, ~p"/tuist/ios_app_with_frameworks/bundles/#{bundle.id}")
     end
+  end
+
+  test "raises not found when a bundle belongs to a different project", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    other_project = ProjectsFixtures.project_fixture()
+    bundle = BundlesFixtures.bundle_fixture(project: other_project)
+
+    assert_raise NotFoundError, fn ->
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles/#{bundle.id}")
+    end
+  end
+
+  test "does not expose deletion controls to anonymous readers of a public project", %{} do
+    project = ProjectsFixtures.project_fixture(visibility: :public)
+    project = Tuist.Repo.preload(project, :account)
+    bundle = BundlesFixtures.bundle_fixture(project: project)
+
+    {:ok, live_view, _html} = live(build_conn(), ~p"/#{project.account.name}/#{project.name}/bundles/#{bundle.id}")
+
+    refute has_element?(live_view, "[data-part='delete-button']")
+    render_hook(live_view, "delete_bundle", %{})
+    assert {:ok, _bundle} = Tuist.Bundles.get_bundle(bundle.id, project_id: project.id)
   end
 
   test "falls back to the first page when the bundle-size-analysis-table-page query param is not an integer",

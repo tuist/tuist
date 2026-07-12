@@ -184,9 +184,25 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
   )
 
   def create(%{assigns: %{selected_project: project}, body_params: body_params} = conn, _params) do
-    attachment_id = UUIDv7.generate()
+    with {:ok, test_case_run} <-
+           Tests.get_test_case_run_by_id(body_params.test_case_run_id,
+             project_id: project.id,
+             preload: [:arguments]
+           ),
+         true <- valid_test_run_id?(body_params, test_case_run),
+         true <- valid_argument_id?(body_params, test_case_run) do
+      create_attachment(conn, project, body_params, test_case_run)
+    else
+      _ ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Test case run not found."})
+    end
+  end
 
-    test_run_id = Map.get(body_params, :test_run_id)
+  defp create_attachment(conn, project, body_params, test_case_run) do
+    attachment_id = UUIDv7.generate()
+    test_run_id = test_case_run.test_run_id
 
     attrs =
       then(
@@ -235,5 +251,16 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
       upload_url: upload_url,
       expires_at: System.system_time(:second) + expires_in
     })
+  end
+
+  defp valid_test_run_id?(body_params, test_case_run) do
+    is_nil(body_params[:test_run_id]) or body_params.test_run_id == test_case_run.test_run_id
+  end
+
+  defp valid_argument_id?(body_params, test_case_run) do
+    case body_params[:test_case_run_argument_id] do
+      nil -> true
+      argument_id -> Enum.any?(test_case_run.arguments, &(&1.id == argument_id))
+    end
   end
 end

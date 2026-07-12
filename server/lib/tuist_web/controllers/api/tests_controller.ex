@@ -725,8 +725,11 @@ defmodule TuistWeb.API.TestsController do
     test_id = Map.get(params, :id, UUIDv7.generate())
 
     case Tests.get_test(test_id, preload: [test_case_runs: :arguments]) do
-      {:ok, test_run} ->
+      {:ok, %{project_id: project_id} = test_run} when project_id == params.project.id ->
         {:ok, test_run}
+
+      {:ok, _test_run} ->
+        {:error, :id_conflict}
 
       {:error, :not_found} ->
         Tests.create_test(%{

@@ -76,22 +76,34 @@ defmodule TuistWeb.API.CrashReportsController do
     }
   )
 
-  def create(%{body_params: body_params} = conn, _params) do
-    crash_report_params = %{
-      id: UUIDv7.generate(),
-      exception_type: Map.get(body_params, :exception_type),
-      signal: Map.get(body_params, :signal),
-      exception_subtype: Map.get(body_params, :exception_subtype),
-      triggered_thread_frames: Map.get(body_params, :triggered_thread_frames, ""),
-      test_case_run_id: body_params.test_case_run_id,
-      test_case_run_attachment_id: body_params.test_case_run_attachment_id,
-      inserted_at: NaiveDateTime.utc_now()
-    }
+  def create(%{assigns: %{selected_project: project}, body_params: body_params} = conn, _params) do
+    with {:ok, test_case_run} <-
+           Tests.get_test_case_run_by_id(body_params.test_case_run_id,
+             project_id: project.id,
+             preload: [:attachments]
+           ),
+         true <- Enum.any?(test_case_run.attachments, &(&1.id == body_params.test_case_run_attachment_id)) do
+      crash_report_params = %{
+        id: UUIDv7.generate(),
+        exception_type: Map.get(body_params, :exception_type),
+        signal: Map.get(body_params, :signal),
+        exception_subtype: Map.get(body_params, :exception_subtype),
+        triggered_thread_frames: Map.get(body_params, :triggered_thread_frames, ""),
+        test_case_run_id: test_case_run.id,
+        test_case_run_attachment_id: body_params.test_case_run_attachment_id,
+        inserted_at: NaiveDateTime.utc_now()
+      }
 
-    {:ok, _} = Tests.upload_crash_report(crash_report_params)
+      {:ok, _} = Tests.upload_crash_report(crash_report_params)
 
-    conn
-    |> put_status(:ok)
-    |> json(%{})
+      conn
+      |> put_status(:ok)
+      |> json(%{})
+    else
+      _ ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Test case run or attachment not found."})
+    end
   end
 end

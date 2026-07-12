@@ -5,7 +5,9 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Accounts
   alias Tuist.Automations
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AutomationsFixtures
 
   defp open(conn, organization, project) do
@@ -28,6 +30,29 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       assert html =~ "My automation"
       refute html =~ "No automations yet"
       assert html =~ automation.id
+    end
+
+    test "does not let a regular project member forge automation mutations", %{
+      organization: organization,
+      project: project
+    } do
+      regular_user = AccountsFixtures.user_fixture()
+      Accounts.add_user_to_organization(regular_user, organization, role: :user)
+      automation = AutomationsFixtures.automation_alert_fixture(project: project, name: "Protected automation")
+
+      conn = log_in_user(build_conn(), regular_user)
+      {:ok, live_view, html} = open(conn, organization, project)
+
+      refute html =~ "Add automation"
+      refute has_element?(live_view, "button[phx-click='delete_automation']")
+
+      render_hook(live_view, "open_create_automation_modal", %{})
+      render_hook(live_view, "update_create_automation_form_name", %{"value" => "Forged automation"})
+      render_hook(live_view, "save_automation", %{})
+      render_hook(live_view, "delete_automation", %{"id" => automation.id})
+
+      assert [%{id: id}] = Automations.list_alerts(project.id)
+      assert id == automation.id
     end
   end
 

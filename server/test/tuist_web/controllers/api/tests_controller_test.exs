@@ -8,6 +8,7 @@ defmodule TuistWeb.API.TestsControllerTest do
   alias Tuist.Tests.Workers.ProcessXcresultWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistWeb.Authentication
 
   describe "GET /api/projects/:account_handle/:project_handle/tests" do
@@ -595,6 +596,33 @@ defmodule TuistWeb.API.TestsControllerTest do
       assert [run] = response["test_case_runs"]
       assert run["id"] == existing_run_id
       assert run["name"] == "testExample"
+    end
+
+    test "rejects an existing test run identifier from another project", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      other_project = ProjectsFixtures.project_fixture()
+      {:ok, other_test_run} = RunsFixtures.test_fixture(project_id: other_project.id)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/projects/#{user.account.name}/#{project.name}/tests",
+          %{
+            id: other_test_run.id,
+            duration: 1000,
+            is_ci: false,
+            status: "success",
+            test_modules: []
+          }
+        )
+
+      assert json_response(conn, :bad_request) == %{
+               "message" => "The request parameters are invalid"
+             }
     end
 
     test "enqueues a VCS pull request comment", %{conn: conn, user: user, project: project} do
