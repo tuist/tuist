@@ -111,6 +111,11 @@ config :guardian, Guardian.DB,
   schema_name: "guardian_tokens",
   token_types: ["refresh"]
 
+# Hackney 4 prefers protocol version 2, but grpcbox currently loads an
+# incompatible module with the same connection name. Keep outbound Hackney
+# traffic on protocol version 1 until those dependencies no longer collide.
+config :hackney, default_protocols: [:http1]
+
 # Configures Elixir's Logger
 config :logger, :console,
   format: "$time $metadata[$level] $message\n",
@@ -181,6 +186,8 @@ config :logger, :console,
     :configured,
     :reconciling
   ]
+
+config :mdex_native, syntax_highlighter: :lumis
 
 config :mime, :types, %{
   "application/linkset+json" => ["linkset"],
@@ -412,6 +419,8 @@ config :tuist, :urls,
   shop: "https://shop.tuist.dev"
 
 config :tuist_common, finch_name: Tuist.Finch
+
+config :tzdata, :http_client, Tuist.Tzdata.HTTPClient
 
 config :ueberauth, Ueberauth,
   base_path: "/users/auth",

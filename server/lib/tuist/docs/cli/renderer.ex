@@ -101,7 +101,7 @@ defmodule Tuist.Docs.CLI.Renderer do
       [markdown: markdown]
       |> MDEx.new()
       |> MDEx.to_html!(
-        extension: [header_ids: "", table: true],
+        extension: [header_id_prefix: "", table: true],
         syntax_highlight: [
           formatter:
             {:html_multi_themes, themes: [light: "github_light", dark: "github_dark"], default_theme: "light-dark()"}

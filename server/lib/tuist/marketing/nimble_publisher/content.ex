@@ -27,11 +27,23 @@ defmodule Tuist.Marketing.NimblePublisher.Content do
           Tuist.Marketing.NimblePublisher.Cache.entries(__MODULE__, @content_opts)
         end
       else
-        use NimblePublisher, unquote(prod_opts)
+        @content_from Keyword.fetch!(unquote(prod_opts), :from)
+        @content_paths @content_from |> Path.wildcard() |> Enum.sort()
+        @content_paths_digest :erlang.md5(@content_paths)
 
-        @content_entries Module.get_attribute(__MODULE__, unquote(as))
+        for path <- @content_paths do
+          @external_resource Path.relative_to_cwd(path)
+        end
+
+        @content_entries Tuist.Marketing.NimblePublisher.Builder.build!(unquote(prod_opts))
 
         defp content_entries, do: @content_entries
+
+        def __mix_recompile__? do
+          @content_from |> Path.wildcard() |> Enum.sort() |> :erlang.md5() != @content_paths_digest
+        end
+
+        def __phoenix_recompile__?, do: __mix_recompile__?()
       end
     end
   end

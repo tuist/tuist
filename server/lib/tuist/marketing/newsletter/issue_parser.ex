@@ -107,17 +107,50 @@ defmodule Tuist.Marketing.Newsletter.IssueParser do
 
     # Gmail doesn't support styling through <style></style>, so when converting markdown to HTML, we have to apply the right
     # styling at the element level by using "style" attributes.
-    postprocessor =
-      {"a", &Earmark.AstTools.merge_atts_in_node(&1, style: "color: #{a_color};")}
-      |> Earmark.TagSpecificProcessors.new()
-      |> Earmark.TagSpecificProcessors.prepend_tag_function(
-        {"blockquote",
-         &Earmark.AstTools.merge_atts_in_node(&1,
-           style: "font-style: italic;"
-         )}
-      )
+    md
+    |> MDEx.to_html!(parse: [smart: false], render: [unsafe: true])
+    |> Floki.parse_fragment!()
+    |> style_email_nodes(a_color)
+    |> Floki.raw_html()
+  end
 
-    Earmark.as_html!(md, compact_output: true, smartypants: false, postprocessor: postprocessor)
+  defp style_email_nodes(nodes, a_color) do
+    Enum.map(nodes, &style_email_node(&1, a_color, false))
+  end
+
+  defp style_email_node({"pre", attrs, children}, a_color, _inside_pre) do
+    {"pre", attrs, Enum.map(children, &style_email_node(&1, a_color, true))}
+  end
+
+  defp style_email_node({"a", attrs, children}, a_color, inside_pre) do
+    {"a", put_attribute(attrs, "style", "color: #{a_color};"),
+     Enum.map(children, &style_email_node(&1, a_color, inside_pre))}
+  end
+
+  defp style_email_node({"blockquote", attrs, children}, a_color, inside_pre) do
+    {"blockquote", put_attribute(attrs, "style", "font-style: italic;"),
+     Enum.map(children, &style_email_node(&1, a_color, inside_pre))}
+  end
+
+  defp style_email_node({"code", attrs, children}, a_color, false) do
+    {"code", put_attribute(attrs, "class", "inline"), Enum.map(children, &style_email_node(&1, a_color, false))}
+  end
+
+  defp style_email_node({tag, attrs, children}, a_color, inside_pre) do
+    {tag, attrs, Enum.map(children, &style_email_node(&1, a_color, inside_pre))}
+  end
+
+  defp style_email_node(text, _a_color, false) when is_binary(text), do: String.replace(text, "\n", " ")
+  defp style_email_node(node, _a_color, _inside_pre), do: node
+
+  defp put_attribute(attrs, name, value) do
+    case List.keytake(attrs, name, 0) do
+      {{^name, existing_value}, remaining_attrs} ->
+        [{name, "#{value} #{existing_value}"} | remaining_attrs]
+
+      nil ->
+        [{name, value} | attrs]
+    end
   end
 
   defp map_hero(hero) do
