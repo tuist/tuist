@@ -33,6 +33,7 @@ on:
         options:
           - validate
           - benchmark
+          - populate
       run_label:
         description: "Short label for this run's cache-volume marker (e.g. a, b)"
         required: false
@@ -64,7 +65,7 @@ jobs:
     # to also list `self-hosted` (which is advertised on the
     # runner but isn't an authorization boundary).
     runs-on: tuist-staging-macos
-    timeout-minutes: 45
+    timeout-minutes: 150
     steps:
       - name: Show environment
         run: |
@@ -181,6 +182,27 @@ jobs:
           echo "BENCH_MANIFESTS: before=${man_before} after=${man_after}"
           echo "BENCH_BINARIES: before=${bin_before} after=${bin_after} bytes_after=$(bytes "$bin")k"
           [ -n "${TUIST_XDG_CACHE_HOME:-}" ] && du -sh "${root}/tuist/"* 2>/dev/null | sed 's/^/  /' || true
+
+      - name: Populate — tuist cache warm (spec #76)
+        if: ${{ inputs.mode == 'populate' }}
+        shell: bash --noprofile --norc {0}
+        env:
+          TUIST_URL: https://staging.tuist.dev
+          TUIST_TOKEN: ${{ secrets.TUIST_STAGING_CACHE_TOKEN }}
+        run: |
+          set +e -o pipefail
+          if ! command -v mise >/dev/null 2>&1; then curl -fsSL https://mise.run | sh; export PATH="${HOME}/.local/bin:${PATH}"; fi
+          rm -rf tuist-bench; git clone --quiet --filter=blob:none https://github.com/tuist/tuist tuist-bench; cd tuist-bench
+          mise install >/dev/null 2>&1 || mise install
+          echo "tuist $(mise exec -- tuist version 2>/dev/null)"
+          mise exec -- tuist install >/dev/null 2>&1 || mise exec -- tuist install || true
+          echo "=== tuist cache warm — build + upload the binary cache to staging ==="
+          s=$(python3 -c 'import time;print(int(time.time()))')
+          mise exec -- tuist cache warm > /tmp/warm.log 2>&1; rc=$?
+          tail -60 /tmp/warm.log
+          echo "POPULATE rc=${rc} seconds=$(( $(python3 -c 'import time;print(int(time.time()))') - s ))"
+          echo "=== cached artifacts now present in staging cache (config) ==="
+          mise exec -- tuist cache config 2>&1 | head -8 || true
 
       - name: Public reachability check
         run: |
