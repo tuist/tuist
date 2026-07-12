@@ -54,6 +54,10 @@ const SNAPSHOT_FULL_INTERVAL: Duration = Duration::from_secs(30 * 60);
 const SNAPSHOT_RETRY_INTERVAL: Duration = Duration::from_secs(60 * 60);
 const SNAPSHOT_IDLE_EVICT: Duration = Duration::from_secs(60 * 60);
 const SNAPSHOT_MAX_INSTANCES: usize = 8;
+// The bulk-warm budget, in value-graph nodes (each node is one blob fetch).
+// Sized past the largest closure a single build replays (~37.5k on the CLI
+// fixture) so a right-sized namespace still warms completely.
+const PREMATERIALIZE_MAX_NODES: usize = 60_000;
 
 /// How long a cached miss is served before it is re-resolved. Positive results
 /// are content-addressed and kept forever; only negatives expire, so a key
@@ -263,6 +267,12 @@ pub struct Snapshot {
     // self-contained node tables) can be merged without duplicating nodes.
     node_index: HashMap<Vec<u8>, u32>,
     keys: HashMap<[u8; 32], Vec<u32>>,
+    /// Key hashes in wire order. The server encodes full views newest-first,
+    /// so this is the pre-materialization priority: on a shared namespace the
+    /// snapshot carries every project's history, and warming it in hash order
+    /// pulled ~6x this build's content over the WAN before the keys the build
+    /// actually needed (the just-published ones, i.e. the newest) were warm.
+    key_order: Vec<[u8; 32]>,
     /// Newest write time the server knew when this view was produced; passed
     /// back as the delta watermark on refresh.
     watermark: u64,
@@ -328,6 +338,7 @@ impl Snapshot {
         }
         let key_count = take_u32(&mut bytes)? as usize;
         let mut keys = HashMap::with_capacity(key_count);
+        let mut key_order = Vec::with_capacity(key_count);
         for _ in 0..key_count {
             let action_hash: [u8; 32] = take(&mut bytes, 32)?.try_into().ok()?;
             let entry_count = take_u32(&mut bytes)? as usize;
@@ -343,6 +354,7 @@ impl Snapshot {
                 return None;
             }
             keys.insert(action_hash, indexes);
+            key_order.push(action_hash);
         }
         let node_index = nodes
             .iter()
@@ -353,6 +365,7 @@ impl Snapshot {
             nodes,
             node_index,
             keys,
+            key_order,
             watermark,
         })
     }
@@ -370,12 +383,22 @@ impl Snapshot {
             });
             remap.push(index);
         }
+        let mut fresh_order = Vec::new();
         for (hash, indexes) in &delta.keys {
-            self.keys.insert(
-                *hash,
-                indexes.iter().map(|&index| remap[index as usize]).collect(),
-            );
+            if self
+                .keys
+                .insert(
+                    *hash,
+                    indexes.iter().map(|&index| remap[index as usize]).collect(),
+                )
+                .is_none()
+            {
+                fresh_order.push(*hash);
+            }
         }
+        // Delta keys are the newest this snapshot knows; keep them at the
+        // front of the warm priority.
+        self.key_order.splice(0..0, fresh_order);
         self.watermark = self.watermark.max(delta.watermark);
     }
 
@@ -1473,6 +1496,21 @@ impl Proxy {
         self.tokens.refresh_if_expiring(lead);
     }
 
+    /// Kicks off snapshot fetches for every instance the persisted registry
+    /// knows. Called once at proxy startup, so a machine's first build after
+    /// a restart already has the snapshot (and its bulk warm) in flight
+    /// instead of opening the fetch window mid-build — the fetch used to
+    /// start on the first resolve, which put the transfer and the server's
+    /// first index build inside the build the user was waiting on.
+    pub fn prefetch_known_snapshots(&self) {
+        let instances: std::collections::HashSet<String> =
+            self.path_instance.lock().unwrap().values().cloned().collect();
+        for instance in instances {
+            let remote = self.remote_for(&instance);
+            self.ensure_snapshot(&instance, &remote);
+        }
+    }
+
     /// Kicks off the instance's snapshot fetch on first sight, in the
     /// background — never on a resolve path. One fetch per proxy lifetime:
     /// entries published later resolve through the ordinary per-key path.
@@ -1642,6 +1680,7 @@ impl Proxy {
                                     *snapshot = Arc::new(updated);
                                     let mut warm = delta;
                                     warm.keys.retain(|hash, _| fresh.contains(hash));
+                                    warm.key_order.retain(|hash| fresh.contains(hash));
                                     Some(warm)
                                 }
                             };
@@ -1682,8 +1721,17 @@ impl Proxy {
         for cas_path in cas_paths {
             let Ok(state) = self.path_state(&cas_path) else { continue };
             let observed = state.gen_counter.load(Ordering::SeqCst);
-            for key_hash in snapshot.keys.keys() {
+            // Warm newest-first (the wire order) and stop at the node budget:
+            // a shared namespace's snapshot carries every project's history,
+            // and warming all of it pulled ~6x this build's content over the
+            // link the demand loads share (562s vs the 134s a right-sized
+            // namespace measured). The budget covers a large build's closure;
+            // everything past it stays resolvable and self-heals on demand.
+            let mut budget = PREMATERIALIZE_MAX_NODES;
+            let mut enqueued = 0usize;
+            for key_hash in &snapshot.key_order {
                 let Some(manifest) = snapshot.manifest(key_hash) else { continue };
+                budget = budget.saturating_sub(manifest.len());
                 let id = self.job_counter.fetch_add(1, Ordering::Relaxed);
                 self.materialize_jobs.lock().unwrap().insert(
                     id,
@@ -1695,6 +1743,16 @@ impl Proxy {
                     },
                 );
                 self.prematerializer.enqueue(id.to_be_bytes().to_vec());
+                enqueued += 1;
+                if budget == 0 {
+                    break;
+                }
+            }
+            if enqueued < snapshot.key_order.len() {
+                crate::log_line(&format!(
+                    "snapshot warm capped for {instance}: {enqueued} newest of {} keys enqueued",
+                    snapshot.key_order.len()
+                ));
             }
         }
     }
@@ -2053,6 +2111,10 @@ mod tests {
         assert_eq!(new_key[0].llcas_digest, vec![0xEE]);
         assert_eq!(new_key[1].llcas_digest, vec![0xCC]);
         assert!(merged.manifest(&[5u8; 32]).is_some(), "existing key kept");
+        // Wire order is the warm priority (the server encodes newest-first),
+        // and merged delta keys — the newest — move to the front of it.
+        assert_eq!(snapshot.key_order, vec![[5u8; 32]]);
+        assert_eq!(merged.key_order, vec![[9u8; 32], [5u8; 32]]);
     }
 
     fn resolved_with(entries: Vec<(Vec<u8>, Resolution)>) -> Mutex<HashMap<Vec<u8>, Resolution>> {

@@ -80,6 +80,11 @@ fn main() {
         analytics,
     );
 
+    // Snapshots for every instance the persisted registry knows start
+    // fetching now, so the first build after a proxy restart begins with the
+    // snapshot (and its bulk warm) already in flight.
+    proxy.prefetch_known_snapshots();
+
     // Periodic sweep of orphaned publication records + token refresh + stats.
     std::thread::spawn(move || loop {
         std::thread::sleep(std::time::Duration::from_secs(10));

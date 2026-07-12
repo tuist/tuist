@@ -516,6 +516,31 @@ impl ReapiService {
         namespace_id: &str,
         after: u64,
     ) -> Result<Vec<u8>, Status> {
+        // Serve the cached index immediately, kicking the reconcile in the
+        // background once the view is older than the freshness window: a
+        // reconcile costs a namespace scan (tens of seconds on a large
+        // namespace), and running it inline made every fetch pay it — 40s
+        // measured for a serve whose encode and transfer account for a few
+        // seconds. Staleness is bounded by the window plus the client's own
+        // delta cadence; a build in flight has taken the index out of the
+        // cache, so those requests fall through and share its completion.
+        {
+            let mut indexes = self
+                .snapshot_cache
+                .indexes
+                .lock()
+                .expect("snapshot cache lock poisoned");
+            if let Some(index) = indexes.get_mut(namespace_id) {
+                let stale = index.reconciled_at.elapsed() >= SNAPSHOT_RECONCILE_INTERVAL;
+                index.last_used = Instant::now();
+                let bytes = index.encode(after);
+                drop(indexes);
+                if stale {
+                    let _build = self.ensure_index_build(namespace_id);
+                }
+                return Ok(bytes);
+            }
+        }
         self.ensure_index_build(namespace_id)
             .await
             .map_err(|error| {
@@ -586,7 +611,10 @@ impl ReapiService {
                 .unwrap_or_else(NamespaceSnapshotIndex::new);
             let (mut index, result) =
                 match reconcile_snapshot_index(&state, &namespace, index).await {
-                    Ok(index) => (index, Ok(())),
+                    Ok(mut index) => {
+                        index.reconciled_at = Instant::now();
+                        (index, Ok(()))
+                    }
                     Err((index, error)) => (index, Err(error)),
                 };
             index.last_used = Instant::now();
@@ -1808,6 +1836,12 @@ const SNAPSHOT_INDEX_MAX_ENTRIES: usize = 100_000;
 /// at ~1KB per entry of scan-buffer + current-map peak, with headroom.
 const SNAPSHOT_BUILD_BUDGET_BYTES: usize = 192 << 20;
 
+/// How old a cached snapshot index may grow before a serve kicks a
+/// background reconcile. Requests never wait on it — they get the cached
+/// view — so this bounds staleness, not latency; it composes with the
+/// client's ~2-minute delta cadence.
+const SNAPSHOT_RECONCILE_INTERVAL: Duration = Duration::from_secs(60);
+
 /// Stranded-node floor below which a cached snapshot index skips compacting
 /// its node table (the sweep rewrites every entry's index list).
 const SNAPSHOT_COMPACT_MIN_GARBAGE: usize = 1024;
@@ -1848,6 +1882,9 @@ struct NamespaceSnapshotIndex {
     node_index: BTreeMap<Vec<u8>, u32>,
     entries: BTreeMap<[u8; 32], SnapshotIndexEntry>,
     last_used: Instant,
+    /// When the last successful reconcile finished. Serving reads this to
+    /// decide whether the cached view is fresh enough to return as-is.
+    reconciled_at: Instant,
 }
 
 impl NamespaceSnapshotIndex {
@@ -1857,6 +1894,7 @@ impl NamespaceSnapshotIndex {
             node_index: BTreeMap::new(),
             entries: BTreeMap::new(),
             last_used: Instant::now(),
+            reconciled_at: Instant::now(),
         }
     }
 
@@ -2311,6 +2349,39 @@ mod tests {
         assert_eq!(u64::from_le_bytes(full[5..13].try_into().unwrap()), 100);
     }
 
+    /// Marks a cached index stale so the next serve kicks a reconcile
+    /// (serves return the cached view and reconcile in the background once
+    /// the freshness window lapses).
+    fn backdate_snapshot_index(service: &ReapiService, namespace_id: &str) {
+        if let Some(index) = service
+            .snapshot_cache
+            .indexes
+            .lock()
+            .unwrap()
+            .get_mut(namespace_id)
+        {
+            index.reconciled_at = Instant::now() - 2 * SNAPSHOT_RECONCILE_INTERVAL;
+        }
+    }
+
+    /// Waits until the namespace's cached index satisfies `done` (background
+    /// reconciles land asynchronously after a stale serve).
+    async fn wait_for_snapshot_index<F>(service: &ReapiService, namespace_id: &str, done: F)
+    where
+        F: Fn(&NamespaceSnapshotIndex) -> bool,
+    {
+        for _ in 0..400 {
+            {
+                let indexes = service.snapshot_cache.indexes.lock().unwrap();
+                if indexes.get(namespace_id).map(&done).unwrap_or(false) {
+                    return;
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        panic!("background reconcile did not reach the expected state");
+    }
+
     #[tokio::test]
     async fn snapshot_serve_cascade_deletes_stranded_entries_past_grace() {
         let context = test_context(|_| {}).await;
@@ -2420,17 +2491,12 @@ mod tests {
             .delete_artifact_metadata(&[blob_manifest])
             .expect("blob eviction should succeed");
 
+        backdate_snapshot_index(&service, "ios");
         service
             .serve_actioncache_snapshot("ios", 0)
             .await
             .expect("second serve should succeed");
-        assert_eq!(
-            service.snapshot_cache.indexes.lock().unwrap()["ios"]
-                .entries
-                .len(),
-            1,
-            "both stranded entries leave the served view"
-        );
+        wait_for_snapshot_index(&service, "ios", |index| index.entries.len() == 1).await;
         let exists = |key: &str| {
             store
                 .artifact_manifest_exists(ArtifactProducer::Reapi, "ios", key)
@@ -2545,20 +2611,19 @@ mod tests {
             )
             .await
             .expect("late entry should persist");
+        backdate_snapshot_index(&service, "ios");
         service
             .serve_actioncache_snapshot("ios", 0)
             .await
             .expect("the post-publish serve succeeds");
-        let indexes = service.snapshot_cache.indexes.lock().unwrap();
-        let index = &indexes["ios"];
-        assert_eq!(index.entries.len(), 2, "the new entry was reconciled in");
-        assert!(
-            index
-                .entries
-                .values()
-                .any(|entry| entry.version_ms == 2_000),
-            "the serve picked up the later publish"
-        );
+        wait_for_snapshot_index(&service, "ios", |index| {
+            index.entries.len() == 2
+                && index
+                    .entries
+                    .values()
+                    .any(|entry| entry.version_ms == 2_000)
+        })
+        .await;
     }
 
     // Scale validation for the bounded index build: a namespace more than
