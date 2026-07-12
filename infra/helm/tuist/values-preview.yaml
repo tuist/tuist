@@ -76,10 +76,10 @@ server:
   #      preview-* namespace and set tlsSecretName below to its name.
   #
   # The managed preview cluster uses option 1 through
-  # infra/helm/platform/values-tuist-preview.yaml. No external-dns annotations
-  # are needed: a single A record
-  #   *.preview.tuist.dev -> <preview ingress IP>
-  # already resolves every per-PR subdomain.
+  # infra/helm/platform/values-tuist-preview.yaml. The ingress controller's
+  # LoadBalancer Service owns the wildcard record through ExternalDNS, so it
+  # automatically follows the current preview ingress address and resolves
+  # every per-pull-request subdomain.
   ingress:
     enabled: false
     className: nginx

@@ -92,6 +92,37 @@ kuraRuntime:
   image:
     repository: ghcr.io/tuist/kura
     tag: ""
+  # An optional per-release KuraInstance, rendered into `instance.namespace`
+  # (the cluster-wide namespace the controller watches). Off by default:
+  # managed environments provision Kura through the server's reconciler, which
+  # authors the CR itself, so the chart must not also own one. Previews turn it
+  # on through values-preview-kura.yaml.
+  instance:
+    enabled: false
+    # Defaults to "<release>-kura".
+    name: ""
+    namespace: kura
+    # Own the CR by the release's namespace so that deleting the preview
+    # namespace garbage-collects it (and its controller-created children in the
+    # kura namespace). Self-healing cleanup for previews; keep off if the CR's
+    # namespace equals the release namespace or the CR should outlive it.
+    ownerReferenceToReleaseNamespace: true
+    accountHandle: ""
+    tenantID: ""
+    region: ""
+    replicas: 1
+    # When true, no public endpoint is reconciled and publicHost is not
+    # required: the cache is reachable only in-cluster.
+    private: false
+    publicHost: ""
+    ingressClassName: nginx
+    storageSize: 10Gi
+    labels: {}
+    nodeSelector: {}
+    tolerations: []
+    # Lua extension, normally supplied with
+    # `--set-file kuraRuntime.instance.extensionScript=<path>`.
+    extensionScript: ""
 
 server:
   enabled: true

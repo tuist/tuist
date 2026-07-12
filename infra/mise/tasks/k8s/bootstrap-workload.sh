@@ -476,15 +476,15 @@ Bootstrap of $CLUSTER_NAME complete.
   Workload kubeconfig: $WL_KUBECONFIG
   Ingress LB IP:       $LB_IP
 
-DNS cut: in Cloudflare, update the relevant CNAME / A record(s)
+Domain cut: in Cloudflare, update the relevant alias or address records
 to point at $LB_IP.
 
   staging   -> staging.tuist.dev
   canary    -> canary.tuist.dev
   production -> tuist.dev (and any apex aliases)
-  preview   -> *.preview.tuist.dev (or whatever wildcard pattern is used)
+  preview   -> ExternalDNS reconciles *.preview.tuist.dev from the ingress Service
 
-Verify cert + ingress on the new cluster (DNS cut not needed for this):
+Verify the certificate and ingress on the new cluster (domain cut not needed for this):
   curl -k --resolve "staging.tuist.dev:443:$LB_IP" https://staging.tuist.dev/health
 ================================================================
 DONE

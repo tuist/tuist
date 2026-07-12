@@ -1,0 +1,186 @@
+name: Preview Platform Reconcile
+
+# Reconciles the *cluster-wide* state of the `tuist-preview` workload cluster:
+# the platform chart (cert-manager, ingress-nginx, external-dns, ESO, CNPG)
+# and the single Kura controller in the `kura` namespace.
+#
+# Why this exists as its own workflow: these are cluster-scoped resources, and
+# `preview-deploy.yml` used to reconcile them on every per-PR deploy. That is
+# wrong twice over. A server-only PR would `helm upgrade` cert-manager, and two
+# previews deploying at once would race on the shared `platform` release, since
+# the deploy's concurrency group is keyed per preview. Reconciling here, under
+# one concurrency group, makes cluster-wide changes serial and independent of
+# preview churn.
+#
+# Consequence worth knowing: previews no longer run a per-PR build of the Kura
+# *controller*. They run whatever controller is reconciled here from `main`. A
+# controller is inherently cluster-wide, so a per-PR one was never safe to
+# install: two previews would fight over it, and a broken PR would take down
+# every other preview on the cluster. Controller changes are covered by
+# `kura-controller-image.yml` (go test + vet) and by staging. The Kura
+# *runtime* is still built per PR and pinned per preview, so PRs continue to
+# validate their own Kura bits.
+#
+# Triggers:
+#   push (main)   platform chart / install scripts / controller chart changed
+#   workflow_run  after `Kura Controller Image` publishes a new controller
+#                 image on main, so we never pin a tag before it is pushed
+#   dispatch      manual, and the bootstrap path for a fresh cluster
+#
+# Required GitHub Environment secret (server-k8s-preview):
+#   KUBECONFIG  - base64 kubeconfig for the preview workload cluster.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - infra/helm/platform/**
+      - infra/helm/tuist/templates/kura-controller.yaml
+      - infra/mise/tasks/k8s/install-platform.sh
+      - infra/mise/tasks/k8s/install-kura-platform.sh
+      - .github/workflows/preview-platform-reconcile.yml
+  workflow_run:
+    workflows: ["Kura Controller Image"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
+
+concurrency:
+  group: preview-platform-reconcile
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    name: Reconcile preview cluster platform
+    # `workflow_run` fires on completion regardless of outcome. Only reconcile
+    # when the controller image actually published, otherwise the tag we would
+    # resolve below does not exist yet.
+    if: |
+      github.event_name != 'workflow_run'
+      || github.event.workflow_run.conclusion == 'success'
+    runs-on: tuist-linux
+    environment:
+      name: server-k8s-preview
+    timeout-minutes: 30
+    env:
+      KUBECONFIG: /tmp/tuist-preview-kubeconfig-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "helm kubectl jq"
+          cache: "false"
+      - name: Load kubeconfig
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Verify cluster bootstrap
+        run: |
+          set -euo pipefail
+          if ! kubectl -n platform get secret cloudflare-api-token >/dev/null 2>&1; then
+            echo "::error::Missing platform/cloudflare-api-token in the preview cluster. Restore the cluster bootstrap secret before reconciling."
+            exit 1
+          fi
+      - name: Label preview worker nodes
+        run: |
+          set -euo pipefail
+          kubectl label nodes -l '!node-role.kubernetes.io/control-plane' role=preview --overwrite
+      - name: Resolve immutable Kura controller image tag
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # The controller image is published only on push-to-main, so a
+          # revision reachable from HEAD is not necessarily a pushed image
+          # (a `main` push that batches commits tags the image with the push
+          # tip, not the controller commit). Probe GHCR and walk back rather
+          # than pinning a tag that would ImagePullBackOff. Only a 404 means
+          # "never pushed"; any other status aborts instead of silently
+          # deploying an older controller.
+          manifest_status() {
+            local repository="$1" reference="$2" token
+            token="$(
+              curl -fsSL -u "${GITHUB_ACTOR}:${GITHUB_TOKEN}" \
+                "https://ghcr.io/token?service=ghcr.io&scope=repository:${repository}:pull" \
+                | jq -r '.token // empty'
+            )" || { echo "000"; return; }
+            [ -n "$token" ] || { echo "000"; return; }
+            curl -s -o /dev/null -I -w '%{http_code}' \
+              -H "Authorization: Bearer ${token}" \
+              -H "Accept: application/vnd.oci.image.index.v1+json,application/vnd.oci.image.manifest.v1+json,application/vnd.docker.distribution.manifest.list.v2+json,application/vnd.docker.distribution.manifest.v2+json" \
+              "https://ghcr.io/v2/${repository}/manifests/${reference}" \
+              || echo "000"
+          }
+
+          candidates=()
+          while IFS= read -r revision; do
+            [ -n "$revision" ] || continue
+            candidates+=("sha-${revision:0:12}")
+          done < <(
+            git log --format=%H --max-count=20 HEAD -- \
+              infra/kura-controller \
+              .github/workflows/kura-controller-image.yml
+          )
+
+          KURA_CONTROLLER_IMAGE_TAG=""
+          for candidate in "${candidates[@]:-}"; do
+            [ -n "$candidate" ] || continue
+            status="$(manifest_status "$KURA_CONTROLLER_IMAGE_NAME" "$candidate")"
+            case "$status" in
+              200) KURA_CONTROLLER_IMAGE_TAG="$candidate"; break ;;
+              404) echo "::notice::${KURA_CONTROLLER_IMAGE_NAME}:${candidate} is not in the registry; trying the preceding revision." ;;
+              *)
+                echo "::error::Registry lookup for ${KURA_CONTROLLER_IMAGE_NAME}:${candidate} failed with HTTP ${status}. Refusing to guess an older image."
+                exit 1
+                ;;
+            esac
+          done
+
+          if [ -z "$KURA_CONTROLLER_IMAGE_TAG" ]; then
+            echo "::error::None of the last 20 Kura controller revisions on main have a published image."
+            exit 1
+          fi
+
+          echo "KURA_CONTROLLER_IMAGE_TAG=$KURA_CONTROLLER_IMAGE_TAG" >> "$GITHUB_ENV"
+          echo "Using Kura controller $KURA_CONTROLLER_IMAGE_TAG"
+      - name: Reconcile platform chart
+        run: |
+          set -euo pipefail
+          mise -C infra run k8s:install-platform "$KUBECONFIG" tuist-preview
+      - name: Reconcile Kura platform (cluster-wide controller)
+        run: |
+          set -euo pipefail
+          mise -C infra run k8s:install-kura-platform "$KUBECONFIG"
+      - name: Wait for the Kura controller to become available
+        run: |
+          set -euo pipefail
+          # `rollout status` with a selector that matches nothing exits 0, so
+          # assert the Deployment exists before trusting the rollout.
+          found="$(
+            kubectl -n kura get deployment \
+              -l app.kubernetes.io/component=kura-controller -o name | wc -l | tr -d ' '
+          )"
+          if [ "$found" -lt 1 ]; then
+            echo "::error::No Kura controller Deployment in the kura namespace after reconcile."
+            exit 1
+          fi
+          kubectl -n kura rollout status deployment \
+            -l app.kubernetes.io/component=kura-controller --timeout=5m
+      - name: Summary
+        run: |
+          {
+            echo "## Preview platform reconciled"
+            echo "- Kura controller: \`$KURA_CONTROLLER_IMAGE_TAG\`"
+            echo "- Trigger: \`${{ github.event_name }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

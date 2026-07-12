@@ -1,0 +1,75 @@
+{{- if .Values.kuraRuntime.instance.enabled }}
+{{- $instance := .Values.kuraRuntime.instance }}
+{{- $serverName := include "tuist.componentName" (dict "root" . "component" "server") }}
+{{- $controlPlaneURL := printf "http://%s.%s.svc.cluster.local:80" $serverName .Release.Namespace }}
+{{- $image := printf "%s:%s" .Values.kuraRuntime.image.repository (required "kuraRuntime.image.tag is required when kuraRuntime.instance.enabled is true" .Values.kuraRuntime.image.tag) }}
+{{- /* Merge rather than concatenate: global.commonLabels and instance.labels
+       overlap (both carry tuist.dev/preview-source), and emitting both would
+       produce a duplicate YAML key. Per-instance labels win. */}}
+{{- $labels := merge (deepCopy ($instance.labels | default dict)) (fromYaml (include "tuist.labels" .)) }}
+{{- $releaseNamespace := lookup "v1" "Namespace" "" .Release.Namespace }}
+# A per-release KuraInstance, rendered into the cluster-wide `kura` namespace
+# where the controller watches (`--watch-namespace`). Helm owns it, so
+# `helm uninstall` reaps it and a re-deploy patches it in place. Managed
+# environments leave this disabled: there, the server's reconciler authors the
+# CR from the `kura_servers` intent rows instead of the chart.
+apiVersion: kura.tuist.dev/v1alpha1
+kind: KuraInstance
+metadata:
+  name: {{ $instance.name | default (printf "%s-kura" .Release.Name) }}
+  namespace: {{ required "kuraRuntime.instance.namespace is required" $instance.namespace }}
+  {{- if and $instance.ownerReferenceToReleaseNamespace $releaseNamespace $releaseNamespace.metadata.uid }}
+  # This CR lives in the `kura` namespace, not the preview's own namespace, so
+  # deleting the preview namespace would not reap it. Own it by that namespace
+  # (cluster-scoped owner, cross-namespace GC is allowed): when the preview
+  # namespace is deleted, Kubernetes garbage-collects this CR and, through its
+  # ownerReferences, the StatefulSet/PVC/Service/Ingress the controller created.
+  # This makes cleanup self-healing if any teardown path fails partway. `lookup`
+  # returns nothing during `helm template`/dry-run, so the block is skipped there.
+  ownerReferences:
+    - apiVersion: v1
+      kind: Namespace
+      name: {{ .Release.Namespace }}
+      uid: {{ $releaseNamespace.metadata.uid }}
+      # Never block the namespace's own deletion on this dependent.
+      blockOwnerDeletion: false
+      controller: false
+  {{- end }}
+  labels:
+    {{- toYaml $labels | nindent 4 }}
+spec:
+  # Single-tenant preview KuraInstance. The deploy's seed step runs the regular
+  # development seed, whose demo content lives under the `tuist` organization,
+  # so server tokens and the runtime hook agree on the same tenant.
+  accountHandle: {{ required "kuraRuntime.instance.accountHandle is required" $instance.accountHandle }}
+  tenantID: {{ required "kuraRuntime.instance.tenantID is required" $instance.tenantID }}
+  region: {{ required "kuraRuntime.instance.region is required" $instance.region }}
+  image: {{ $image }}
+  replicas: {{ $instance.replicas }}
+  {{- if $instance.private }}
+  # No public endpoint: the primary Service stays ClusterIP and no Ingress or
+  # Certificate is reconciled. Used by the local kind preview.
+  private: true
+  {{- else }}
+  publicHost: {{ required "kuraRuntime.instance.publicHost is required unless kuraRuntime.instance.private is true" $instance.publicHost }}
+  ingressClassName: {{ $instance.ingressClassName }}
+  {{- end }}
+  storageSize: {{ $instance.storageSize }}
+  extraEnv:
+    - name: KURA_CONTROL_PLANE_URL
+      value: {{ $controlPlaneURL }}
+    - name: KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL
+      value: {{ $controlPlaneURL }}
+  {{- with $instance.nodeSelector }}
+  nodeSelector:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $instance.tolerations }}
+  tolerations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $instance.extensionScript }}
+  extensionScript: |
+    {{- . | nindent 4 }}
+  {{- end }}
+{{- end }}

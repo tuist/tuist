@@ -30,6 +30,9 @@ ingress-nginx:
   controller:
     extraArgs:
       default-ssl-certificate: platform/preview-tuist-dev-wildcard-tls
+    service:
+      annotations:
+        external-dns.alpha.kubernetes.io/hostname: "*.preview.tuist.dev"
     tolerations: *previewTolerations
     admissionWebhooks:
       patch:
@@ -38,6 +41,8 @@ ingress-nginx:
     tolerations: *previewTolerations
 
 external-dns:
+  extraArgs:
+    - --txt-wildcard-replacement=_wildcard
   tolerations: *previewTolerations
 
 external-secrets:

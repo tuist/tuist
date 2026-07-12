@@ -183,6 +183,17 @@ HELM_KURA_ARGS=(
     --set "kuraRuntime.image.repository=${KURA_RUNTIME_REPO}"
     --set "kuraRuntime.image.tag=${KURA_IMAGE_TAG}"
     --set "server.kuraEndpointUrls[0]=${KURA_ENDPOINT_URL}"
+    # The KuraInstance is a chart resource (templates/kura-instance.yaml), the
+    # same one the deploy workflow renders, so the local and CI shapes cannot
+    # drift. kind has no ingress or public DNS, so this one is `private`.
+    --set "kuraRuntime.instance.name=${KURA_INSTANCE_NAME}"
+    --set "kuraRuntime.instance.private=true"
+    --set "kuraRuntime.instance.region=kind-local"
+    --set "kuraRuntime.instance.replicas=2"
+    --set "kuraRuntime.instance.storageSize=1Gi"
+    --set "kuraRuntime.instance.accountHandle=${PREVIEW_ACCOUNT_HANDLE}"
+    --set "kuraRuntime.instance.tenantID=${PREVIEW_ACCOUNT_HANDLE}"
+    --set-file "kuraRuntime.instance.extensionScript=${REPO_ROOT}/kura/ops/helm/kura/hooks/tuist.lua"
 )
 
 HELM_REGISTRY_ARGS=(
@@ -221,42 +232,6 @@ helm install "$RELEASE_NAME" "$REPO_ROOT/infra/helm/tuist" \
     "${HELM_LICENSE_ARGS[@]}" \
     "${HELM_KURA_ARGS[@]}" \
     --wait --timeout 5m
-
-echo "==> Creating KuraInstance '${KURA_INSTANCE_NAME}' for the '${PREVIEW_ACCOUNT_HANDLE}' tenant..."
-{
-    cat <<EOF
-apiVersion: kura.tuist.dev/v1alpha1
-kind: KuraInstance
-metadata:
-  name: ${KURA_INSTANCE_NAME}
-  namespace: kura
-  labels:
-    tuist.dev/preview-source: slack
-    app.kubernetes.io/instance: ${RELEASE_NAME}
-spec:
-  accountHandle: ${PREVIEW_ACCOUNT_HANDLE}
-  tenantID: ${PREVIEW_ACCOUNT_HANDLE}
-  region: kind-local
-  image: ${KURA_RUNTIME_REPO}:${KURA_IMAGE_TAG}
-  replicas: 2
-  private: true
-  storageSize: 1Gi
-  extraEnv:
-    - name: KURA_CONTROL_PLANE_URL
-      value: http://${RELEASE_NAME}-tuist-server.default.svc.cluster.local:80
-    - name: KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL
-      value: http://${RELEASE_NAME}-tuist-server.default.svc.cluster.local:80
-  nodeSelector:
-    role: preview
-  tolerations:
-    - key: role
-      operator: Equal
-      value: preview
-      effect: NoSchedule
-  extensionScript: |
-EOF
-    sed 's/^/    /' "$REPO_ROOT/kura/ops/helm/kura/hooks/tuist.lua"
-} | kubectl apply -f -
 
 echo "==> Waiting for the cluster-wide Kura controller to surface the StatefulSet..."
 kubectl -n kura wait --for=condition=Available deployment/kura-platform-tuist-kura-controller --timeout=3m
