@@ -556,6 +556,23 @@ impl ReapiService {
         // removal (which takes the same lock) cannot run before the insert
         // below — the entry it removes is always its own.
         let task = tokio::spawn(async move {
+            // A build's transient memory rides the response-materialization
+            // pool: holding a byte-sized permit for its duration means a node
+            // already under memory pressure declines the build (the client
+            // falls back to per-key resolves) instead of being OOM-killed.
+            // The budget adapts to small pools so tests and tiny nodes still
+            // build; the streaming reconcile keeps the real peak near it.
+            let budget = SNAPSHOT_BUILD_BUDGET_BYTES
+                .min(state.memory.reapi_materialization_pool_bytes() / 2)
+                .max(1);
+            let Ok(_permit) = state.memory.try_acquire_reapi_materialization(budget) else {
+                cache
+                    .builds
+                    .lock()
+                    .expect("snapshot builds lock poisoned")
+                    .remove(&namespace);
+                return Err("declined under memory pressure".to_owned());
+            };
             let index = cache
                 .indexes
                 .lock()
@@ -622,6 +639,10 @@ async fn reconcile_snapshot_index(
     };
     // Diff the cached entries against the manifest keyspace: load only
     // new-or-changed entries, drop entries whose artifacts are gone.
+    // Manifests are MOVED into the map (never cloned), and action results
+    // stream through a bounded window below instead of being collected —
+    // building the first index for a large namespace with layered full-size
+    // copies OOM-killed 2Gi production pods even with the scan capped.
     let mut current: BTreeMap<[u8; 32], (u64, ArtifactManifest)> = BTreeMap::new();
     for manifest in manifests {
         let Some(hash) = manifest
@@ -637,7 +658,7 @@ async fn reconcile_snapshot_index(
         current.insert(hash, (version, manifest));
     }
     index.entries.retain(|hash, _| current.contains_key(hash));
-    let to_load: Vec<([u8; 32], ArtifactManifest)> = current
+    let changed: Vec<[u8; 32]> = current
         .iter()
         .filter(|(hash, (version, _))| {
             index
@@ -645,21 +666,33 @@ async fn reconcile_snapshot_index(
                 .get(*hash)
                 .is_none_or(|entry| entry.version_ms != *version)
         })
-        .map(|(hash, (_, manifest))| (*hash, manifest.clone()))
+        .map(|(hash, _)| *hash)
         .collect();
-    let loaded: Vec<Option<([u8; 32], u64, reapi::ActionResult)>> =
-        futures_util::stream::iter(to_load.into_iter().map(|(hash, manifest)| {
+    // Manifests move out for the load and move back with the result, so the
+    // stream owns everything it captures (the whole reconcile runs inside a
+    // 'static spawned task) without duplicating a single manifest.
+    let mut to_load = Vec::with_capacity(changed.len());
+    for hash in changed {
+        if let Some((version, manifest)) = current.remove(&hash) {
+            to_load.push((hash, version, manifest));
+        }
+    }
+    let mut loading =
+        futures_util::stream::iter(to_load.into_iter().map(|(hash, version, manifest)| {
             let state = state.clone();
             async move {
-                let bytes = read_manifest_bytes(&state, &manifest).await.ok()?;
-                let action_result = reapi::ActionResult::decode(bytes.as_slice()).ok()?;
-                Some((hash, manifest.version_ms, action_result))
+                let bytes = read_manifest_bytes(&state, &manifest).await.ok();
+                let action_result =
+                    bytes.and_then(|bytes| reapi::ActionResult::decode(bytes.as_slice()).ok());
+                (hash, version, manifest, action_result)
             }
         }))
-        .buffered(32)
-        .collect()
-        .await;
-    for (hash, version_ms, action_result) in loaded.into_iter().flatten() {
+        .buffered(32);
+    while let Some((hash, version_ms, manifest, action_result)) = loading.next().await {
+        current.insert(hash, (version_ms, manifest));
+        let Some(action_result) = action_result else {
+            continue;
+        };
         let mut nodes = Vec::with_capacity(action_result.output_files.len());
         let mut valid = !action_result.output_files.is_empty();
         for file in &action_result.output_files {
@@ -684,6 +717,7 @@ async fn reconcile_snapshot_index(
                 .insert(hash, SnapshotIndexEntry { version_ms, nodes });
         }
     }
+    drop(loading);
 
     // Presence gate: an entry only stays advertised while every node's
     // blob manifest exists (CAS eviction outlives action-cache entries,
@@ -1740,10 +1774,16 @@ const SNAPSHOT_CACHE_MAX_NAMESPACES: usize = 32;
 /// This bounds the BUILD's memory the way SNAPSHOT_MAX_BYTES bounds the
 /// response: reconciling against an unbounded keyspace held every manifest
 /// in memory at once, and a namespace with weeks of un-expired CI churn
-/// OOM-killed the pod on its first serve. Sized past the response window
-/// (~110k keys at the byte ceiling) so the recency truncation, not this cap,
-/// decides what a full view carries.
-const SNAPSHOT_INDEX_MAX_ENTRIES: usize = 150_000;
+/// OOM-killed the pod on its first serve. With the cap, the scan buffer
+/// (≤2x cap of manifests) plus the moved `current` map dominate the build's
+/// transient memory — roughly cap x ~1KB.
+const SNAPSHOT_INDEX_MAX_ENTRIES: usize = 100_000;
+
+/// The transient memory a bounded index build is budgeted for, held as a
+/// response-materialization-pool permit for the build's duration (adapted
+/// down on nodes whose pool is smaller). Matches SNAPSHOT_INDEX_MAX_ENTRIES
+/// at ~1KB per entry of scan-buffer + current-map peak, with headroom.
+const SNAPSHOT_BUILD_BUDGET_BYTES: usize = 192 << 20;
 
 /// Stranded-node floor below which a cached snapshot index skips compacting
 /// its node table (the sweep rewrites every entry's index list).
@@ -2464,6 +2504,89 @@ mod tests {
             .await
             .expect("the follow-up request serves from the cached index");
         assert_eq!(&bytes[..4], b"TSNP");
+    }
+
+    // Scale validation for the bounded index build: a namespace more than
+    // twice the entry cap exercises the mid-scan shed, the cap, and the
+    // streaming loads end to end. Run manually (writes 220k artifacts):
+    //   /usr/bin/time -l cargo test --release -- --ignored snapshot_index_build_is_bounded
+    // and eyeball the max RSS — the serve must not add hundreds of MB.
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "scale validation; run manually with --ignored"]
+    async fn snapshot_index_build_is_bounded_on_a_large_namespace() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let store = &context.state.store;
+        let uploads = context.state.config.tmp_dir.join("uploads");
+        std::fs::create_dir_all(&uploads).expect("uploads dir should create");
+        let blob_hash = [0x11u8; 32];
+        let blob_key_name = blob_key(&format!("{}/7", hex::encode(blob_hash)));
+        let blob_path = uploads.join("blob");
+        std::fs::write(&blob_path, b"payload").expect("blob should write");
+        store
+            .apply_replicated_artifact_from_path(
+                ArtifactProducer::Reapi,
+                "ios",
+                &blob_key_name,
+                "application/octet-stream",
+                &blob_path,
+                1,
+            )
+            .await
+            .expect("blob should persist");
+        let entry_bytes = reapi::ActionResult {
+            output_files: vec![reapi::OutputFile {
+                path: hex::encode([0xABu8, 0xCD]),
+                digest: Some(reapi::Digest {
+                    hash: hex::encode(blob_hash),
+                    size_bytes: 7,
+                }),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }
+        .encode_to_vec();
+        let entry_path = uploads.join("entry");
+        const ENTRIES: u64 = 220_000;
+        for version in 1..=ENTRIES {
+            std::fs::write(&entry_path, &entry_bytes).expect("entry should write");
+            let mut hash = [0u8; 32];
+            hash[..8].copy_from_slice(&version.to_be_bytes());
+            store
+                .apply_replicated_artifact_from_path(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    &format!("action_cache/{}/10", hex::encode(hash)),
+                    "application/octet-stream",
+                    &entry_path,
+                    version,
+                )
+                .await
+                .expect("entry should persist");
+        }
+
+        let bytes = service
+            .serve_actioncache_snapshot("ios", 0)
+            .await
+            .expect("serve should succeed on the large namespace");
+        assert_eq!(&bytes[..4], b"TSNP");
+        let indexes = service.snapshot_cache.indexes.lock().unwrap();
+        let index = &indexes["ios"];
+        assert_eq!(
+            index.entries.len(),
+            SNAPSHOT_INDEX_MAX_ENTRIES,
+            "the index holds exactly the cap"
+        );
+        assert!(
+            index
+                .entries
+                .values()
+                .all(|entry| entry.version_ms > (ENTRIES - SNAPSHOT_INDEX_MAX_ENTRIES as u64)),
+            "the cap kept the newest entries"
+        );
     }
 
     use tokio::net::TcpListener;
