@@ -536,14 +536,14 @@ impl ReapiService {
         }
         index.entries.retain(|hash, _| current.contains_key(hash));
         let to_load: Vec<([u8; 32], ArtifactManifest)> = current
-            .into_iter()
+            .iter()
             .filter(|(hash, (version, _))| {
                 index
                     .entries
-                    .get(hash)
+                    .get(*hash)
                     .is_none_or(|entry| entry.version_ms != *version)
             })
-            .map(|(hash, (_, manifest))| (hash, manifest))
+            .map(|(hash, (_, manifest))| (*hash, manifest.clone()))
             .collect();
         let loaded: Vec<Option<([u8; 32], u64, reapi::ActionResult)>> =
             futures_util::stream::iter(to_load.into_iter().map(|(hash, manifest)| {
@@ -606,8 +606,31 @@ impl ReapiService {
                 dead.push(*hash);
             }
         }
+        // Cascade: an entry whose blobs were evicted is unserveable by
+        // construction (the per-key path would hand out a manifest whose
+        // batch_read then misses), so delete it from the store too, not just
+        // from the cached index. The grace window keeps this from fighting
+        // peer replication that delivers an entry before its blobs finish
+        // syncing.
+        let now = crate::utils::now_ms();
+        let cascade: Vec<ArtifactManifest> = dead
+            .iter()
+            .filter_map(|hash| current.get(hash))
+            .filter(|(version_ms, _)| now.saturating_sub(*version_ms) > SNAPSHOT_CASCADE_GRACE_MS)
+            .map(|(_, manifest)| manifest.clone())
+            .collect();
         for hash in dead {
             index.entries.remove(&hash);
+        }
+        if !cascade.is_empty() {
+            match self.state.store.delete_artifact_metadata(&cascade) {
+                Ok(()) => tracing::info!(
+                    deleted = cascade.len(),
+                    namespace_id,
+                    "deleted action-cache entries whose blobs were evicted"
+                ),
+                Err(error) => tracing::warn!("action-cache cascade delete failed: {error}"),
+            }
         }
         index.compact_nodes();
 
@@ -1635,6 +1658,12 @@ const SNAPSHOT_CACHE_MAX_NAMESPACES: usize = 32;
 /// its node table (the sweep rewrites every entry's index list).
 const SNAPSHOT_COMPACT_MIN_GARBAGE: usize = 1024;
 
+/// Minimum age before the presence gate's dead entries are cascade-deleted
+/// from the store. Client publication orders blobs before the entry, but peer
+/// replication and bootstrap may deliver an entry before its blobs — a young
+/// entry with missing blobs is more likely mid-sync than stranded.
+const SNAPSHOT_CASCADE_GRACE_MS: u64 = 60 * 60 * 1000;
+
 fn snapshot_action_hash() -> &'static str {
     static HASH: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     HASH.get_or_init(|| hex::encode(Sha256::digest(SNAPSHOT_ACTION_KEY)))
@@ -2126,6 +2155,138 @@ mod tests {
         // The rebuilt table keeps serving: the full view carries the live key.
         let full = index.encode(0);
         assert_eq!(u64::from_le_bytes(full[5..13].try_into().unwrap()), 100);
+    }
+
+    #[tokio::test]
+    async fn snapshot_serve_cascade_deletes_stranded_entries_past_grace() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: std::sync::Arc::new(std::sync::Mutex::new(BTreeMap::new())),
+            state: context.state.clone(),
+        };
+        let store = &context.state.store;
+        let uploads = context.state.config.tmp_dir.join("uploads");
+        std::fs::create_dir_all(&uploads).expect("uploads dir should create");
+
+        async fn write_artifact(
+            store: &crate::store::Store,
+            uploads: &std::path::Path,
+            key: &str,
+            bytes: &[u8],
+            version_ms: u64,
+        ) {
+            let path = uploads.join(key.replace('/', "-"));
+            std::fs::write(&path, bytes).expect("source should write");
+            store
+                .apply_replicated_artifact_from_path(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    key,
+                    "application/octet-stream",
+                    &path,
+                    version_ms,
+                )
+                .await
+                .expect("artifact should persist");
+        }
+        fn entry_bytes(llcas: &[u8], blob_hash: [u8; 32]) -> Vec<u8> {
+            reapi::ActionResult {
+                output_files: vec![reapi::OutputFile {
+                    path: hex::encode(llcas),
+                    digest: Some(reapi::Digest {
+                        hash: hex::encode(blob_hash),
+                        size_bytes: 7,
+                    }),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }
+            .encode_to_vec()
+        }
+
+        let now = crate::utils::now_ms();
+        let old = now - 2 * SNAPSHOT_CASCADE_GRACE_MS;
+        let evicted_blob = [0x11u8; 32];
+        let live_blob = [0x22u8; 32];
+        let evicted_blob_key = blob_key(&format!("{}/7", hex::encode(evicted_blob)));
+        let live_blob_key = blob_key(&format!("{}/7", hex::encode(live_blob)));
+        let stranded_key = format!("action_cache/{}/10", hex::encode([0x44u8; 32]));
+        let young_key = format!("action_cache/{}/10", hex::encode([0x55u8; 32]));
+        let live_key = format!("action_cache/{}/10", hex::encode([0x66u8; 32]));
+        write_artifact(store, &uploads, &evicted_blob_key, b"payload", old).await;
+        write_artifact(store, &uploads, &live_blob_key, b"payload", old).await;
+        write_artifact(
+            store,
+            &uploads,
+            &stranded_key,
+            &entry_bytes(&[0xAB, 0xCD], evicted_blob),
+            old,
+        )
+        .await;
+        write_artifact(
+            store,
+            &uploads,
+            &young_key,
+            &entry_bytes(&[0xAB, 0xCD], evicted_blob),
+            now,
+        )
+        .await;
+        write_artifact(
+            store,
+            &uploads,
+            &live_key,
+            &entry_bytes(&[0xEE, 0xFF], live_blob),
+            old,
+        )
+        .await;
+
+        service
+            .serve_actioncache_snapshot("ios", 0)
+            .await
+            .expect("first serve should succeed");
+        assert_eq!(
+            service.snapshot_cache.lock().unwrap()["ios"].entries.len(),
+            3,
+            "all three entries advertised while their blobs exist"
+        );
+
+        // Evict the shared blob the way segment eviction would: manifest gone.
+        let blob_manifest = store
+            .manifest(&crate::utils::artifact_storage_id(
+                ArtifactProducer::Reapi,
+                "test-tenant",
+                "ios",
+                &evicted_blob_key,
+            ))
+            .expect("manifest read should succeed")
+            .expect("blob manifest should exist");
+        store
+            .delete_artifact_metadata(&[blob_manifest])
+            .expect("blob eviction should succeed");
+
+        service
+            .serve_actioncache_snapshot("ios", 0)
+            .await
+            .expect("second serve should succeed");
+        assert_eq!(
+            service.snapshot_cache.lock().unwrap()["ios"].entries.len(),
+            1,
+            "both stranded entries leave the served view"
+        );
+        let exists = |key: &str| {
+            store
+                .artifact_manifest_exists(ArtifactProducer::Reapi, "ios", key)
+                .expect("existence check should succeed")
+        };
+        assert!(
+            !exists(&stranded_key),
+            "the stranded entry past the grace window is cascade-deleted"
+        );
+        assert!(
+            exists(&young_key),
+            "a young stranded entry is kept — its blobs may still be mid-replication"
+        );
+        assert!(exists(&live_key));
     }
 
     use tokio::net::TcpListener;
