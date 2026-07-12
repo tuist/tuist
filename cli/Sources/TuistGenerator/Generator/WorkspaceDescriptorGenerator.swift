@@ -49,7 +49,7 @@ struct WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
     private let workspaceStructureGenerator: WorkspaceStructureGenerating
     private let schemeDescriptorsGenerator: SchemeDescriptorsGenerating
     private let workspaceSettingsGenerator: WorkspaceSettingsDescriptorGenerating
-    private let foreignBuildCrossProjectDependencyGenerator: ForeignBuildCrossProjectDependencyGenerating
+    private let crossProjectDependencyGenerator: CrossProjectDependencyGenerating
     private let fileSystem: FileSysteming
     private let config: Config
 
@@ -71,7 +71,7 @@ struct WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
             workspaceStructureGenerator: WorkspaceStructureGenerator(),
             schemeDescriptorsGenerator: SchemeDescriptorsGenerator(),
             workspaceSettingsGenerator: WorkspaceSettingsDescriptorGenerator(),
-            foreignBuildCrossProjectDependencyGenerator: ForeignBuildCrossProjectDependencyGenerator(),
+            crossProjectDependencyGenerator: CrossProjectDependencyGenerator(),
             config: config,
             fileSystem: fileSystem
         )
@@ -82,8 +82,8 @@ struct WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         workspaceStructureGenerator: WorkspaceStructureGenerating,
         schemeDescriptorsGenerator: SchemeDescriptorsGenerating,
         workspaceSettingsGenerator: WorkspaceSettingsDescriptorGenerating,
-        foreignBuildCrossProjectDependencyGenerator: ForeignBuildCrossProjectDependencyGenerating =
-            ForeignBuildCrossProjectDependencyGenerator(),
+        crossProjectDependencyGenerator: CrossProjectDependencyGenerating =
+            CrossProjectDependencyGenerator(),
         config: Config = .default,
         fileSystem: FileSysteming = FileSystem()
     ) {
@@ -91,7 +91,7 @@ struct WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         self.workspaceStructureGenerator = workspaceStructureGenerator
         self.schemeDescriptorsGenerator = schemeDescriptorsGenerator
         self.workspaceSettingsGenerator = workspaceSettingsGenerator
-        self.foreignBuildCrossProjectDependencyGenerator = foreignBuildCrossProjectDependencyGenerator
+        self.crossProjectDependencyGenerator = crossProjectDependencyGenerator
         self.fileSystem = fileSystem
         self.config = config
     }
@@ -118,8 +118,8 @@ struct WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
             .sorted(by: { $0.path < $1.path })
         Logger.current.debug("Finished concurrent generation of \(projects.count) projects")
 
-        Logger.current.debug("Wiring cross-project foreign build dependencies")
-        try foreignBuildCrossProjectDependencyGenerator.generate(
+        Logger.current.debug("Wiring cross-project target dependencies")
+        try crossProjectDependencyGenerator.generate(
             graphTraverser: graphTraverser,
             projectDescriptors: projects
         )

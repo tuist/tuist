@@ -6,8 +6,8 @@ import XcodeGraph
 import XcodeProj
 @testable import TuistGenerator
 
-struct ForeignBuildCrossProjectDependencyGeneratorTests {
-    private let subject = ForeignBuildCrossProjectDependencyGenerator()
+struct CrossProjectDependencyGeneratorTests {
+    private let subject = CrossProjectDependencyGenerator()
 
     @Test func generate_wiresCrossProjectDependencyOnConsumer() async throws {
         let consumerPath = try AbsolutePath(validating: "/Workspace/Consumer")
@@ -94,6 +94,99 @@ struct ForeignBuildCrossProjectDependencyGeneratorTests {
         )
         #expect(productsGroup.name == "Products")
         #expect(consumerPbxProject.mainGroup.children.contains(remoteRef))
+    }
+
+    @Test func generate_wiresCrossPackageProductDependency() async throws {
+        // Two SPM packages generated as separate external projects: package B links a product of
+        // package A. Without an explicit cross-project PBXTargetDependency the build description has
+        // no ordering edge and warm cached builds race on the missing .swiftmodule.
+        let packageAPath = try AbsolutePath(validating: "/Workspace/.build/checkouts/PackageA")
+        let packageBPath = try AbsolutePath(validating: "/Workspace/.build/checkouts/PackageB")
+
+        let libraryA = Target.test(name: "LibraryA", product: .framework)
+        let libraryB = Target.test(
+            name: "LibraryB",
+            product: .framework,
+            dependencies: [.project(target: "LibraryA", path: packageAPath)]
+        )
+        let packageAModel = Project.test(path: packageAPath, targets: [libraryA], type: .external(hash: "a"))
+        let packageBModel = Project.test(path: packageBPath, targets: [libraryB], type: .external(hash: "b"))
+        let graph = Graph.test(
+            projects: [
+                packageAPath: packageAModel,
+                packageBPath: packageBModel,
+            ],
+            dependencies: [
+                .target(name: "LibraryB", path: packageBPath):
+                    Set([.target(name: "LibraryA", path: packageAPath)]),
+            ]
+        )
+
+        let packageADescriptor = makeDescriptor(path: packageAPath, nativeTargets: ["LibraryA"])
+        let packageBDescriptor = makeDescriptor(path: packageBPath, nativeTargets: ["LibraryB"])
+
+        try subject.generate(
+            graphTraverser: GraphTraverser(graph: graph),
+            projectDescriptors: [packageADescriptor, packageBDescriptor]
+        )
+
+        let consumerPbxproj = packageBDescriptor.xcodeProj.pbxproj
+        let consumerTarget = try #require(consumerPbxproj.nativeTargets.first(where: { $0.name == "LibraryB" }))
+        let dependency = try #require(consumerTarget.dependencies.first)
+        let proxy = try #require(dependency.targetProxy)
+
+        #expect(dependency.name == "LibraryA")
+        #expect(proxy.proxyType == .nativeTarget)
+        #expect(proxy.remoteInfo == "LibraryA")
+
+        let remoteTarget = try #require(
+            packageADescriptor.xcodeProj.pbxproj.nativeTargets.first(where: { $0.name == "LibraryA" })
+        )
+        guard case let .object(remoteObject) = proxy.remoteGlobalID else {
+            Issue.record("Expected remoteGlobalID to point at the remote target object")
+            return
+        }
+        #expect(remoteObject.uuid == remoteTarget.uuid)
+        #expect(!remoteTarget.uuid.hasPrefix("TEMP_"))
+    }
+
+    @Test func generate_skipsLocalCrossProjectDependency() async throws {
+        // Cross-project edges between hand-written local projects keep relying on Xcode implicit
+        // dependency resolution; only package (external) product edges are wired explicitly.
+        let appPath = try AbsolutePath(validating: "/Workspace/App")
+        let featurePath = try AbsolutePath(validating: "/Workspace/Feature")
+
+        let feature = Target.test(name: "Feature", product: .framework)
+        let app = Target.test(
+            name: "App",
+            dependencies: [.project(target: "Feature", path: featurePath)]
+        )
+        let appModel = Project.test(path: appPath, targets: [app], type: .local)
+        let featureModel = Project.test(path: featurePath, targets: [feature], type: .local)
+        let graph = Graph.test(
+            projects: [
+                appPath: appModel,
+                featurePath: featureModel,
+            ],
+            dependencies: [
+                .target(name: "App", path: appPath):
+                    Set([.target(name: "Feature", path: featurePath)]),
+            ]
+        )
+
+        let appDescriptor = makeDescriptor(path: appPath, nativeTargets: ["App"])
+        let featureDescriptor = makeDescriptor(path: featurePath, nativeTargets: ["Feature"])
+
+        try subject.generate(
+            graphTraverser: GraphTraverser(graph: graph),
+            projectDescriptors: [appDescriptor, featureDescriptor]
+        )
+
+        let appTarget = try #require(
+            appDescriptor.xcodeProj.pbxproj.nativeTargets.first(where: { $0.name == "App" })
+        )
+        #expect(appTarget.dependencies.isEmpty)
+        #expect(appDescriptor.xcodeProj.pbxproj.projects.first?.projects.isEmpty == true)
     }
 
     @Test func generate_dedupesFileReferenceWhenMultipleConsumersShareAggregate() async throws {
