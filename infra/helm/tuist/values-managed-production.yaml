@@ -76,9 +76,11 @@ server:
     # env's config the release runs as.
     - name: TUIST_DEPLOY_ENV
       value: prod
-    # Cache remains the sole registry writer until the managed cutover.
+    # Enables the server-owned registry sync writer. Cache still writes
+    # too until it is turned off as a separate step; the two coordinate
+    # through the shared S3 sync lock, so dual-writing is safe.
     - name: SWIFT_REGISTRY_SYNC_ENABLED
-      value: "false"
+      value: "true"
     - name: TUIST_DATABASE_POOL_SIZE
       value: "15"
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
@@ -384,7 +386,7 @@ processor:
   affinity: {}
 
 swiftRegistrySync:
-  enabled: false
+  enabled: true
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: prod
