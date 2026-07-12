@@ -134,7 +134,7 @@ jobs:
           # volume warms). Without this, generate skips the remote cache and the
           # metadata phase never runs — see the earlier binary-less runs.
           TUIST_URL: https://staging.tuist.dev
-          TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_STAGING_CACHE_TOKEN }}
+          TUIST_TOKEN: ${{ secrets.TUIST_STAGING_CACHE_TOKEN }}
         run: |
           # No errexit: this step captures rc explicitly and tolerates
           # missing dirs (cold volume) in its count() helper. GitHub's
