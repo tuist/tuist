@@ -1,0 +1,34 @@
+global:
+  commonLabels:
+    tuist.dev/service: typesense
+    tuist.dev/stack: managed
+
+ingress:
+  enabled: true
+  className: nginx
+  host: search.tuist.dev
+  tlsSecretName: typesense-tls
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+
+runtimeSecrets:
+  externalSecret:
+    enabled: true
+    item: SEARCH
+
+networkPolicy:
+  enabled: true
+
+persistence:
+  size: 10Gi
+
+resources:
+  requests:
+    cpu: "250m"
+    memory: "512Mi"
+  limits:
+    cpu: "1"
+    memory: "1Gi"
+
+nodeSelector:
+  node.cluster.x-k8s.io/pool: general

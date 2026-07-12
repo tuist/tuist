@@ -80,6 +80,7 @@ jobs:
           set -uo pipefail
           configs=(
             "kura/ops/helm/kura|"
+            "infra/helm/typesense|values-ci.yaml"
             "infra/helm/slack|values-ci.yaml"
             "infra/helm/noora-storybook|values-ci.yaml"
             "infra/helm/tuist|values-ci.yaml"
@@ -146,6 +147,7 @@ jobs:
           set -uo pipefail
           configs=(
             "kura|kura/ops/helm/kura|kura|"
+            "typesense (production)|infra/helm/typesense|typesense|values-production.yaml values-ci.yaml"
             "slack (production)|infra/helm/slack|slack|values-production.yaml values-ci.yaml"
             "noora-storybook (production)|infra/helm/noora-storybook|noora-storybook|values-production.yaml values-ci.yaml"
             "tuist (production)|infra/helm/tuist|tuist|values-managed-common.yaml values-managed-production.yaml values-ci.yaml"

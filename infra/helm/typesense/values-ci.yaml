@@ -1,0 +1,7 @@
+image:
+  tag: validation
+
+runtimeSecrets:
+  inline:
+    apiKey: validation-api-key
+    githubToken: validation-github-token

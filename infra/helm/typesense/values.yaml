@@ -1,0 +1,135 @@
+global:
+  commonLabels: {}
+  podLabels: {}
+  imagePullSecrets: []
+  nodeSelector: {}
+  tolerations: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+# The image is the search wrapper (Typesense 27.1 plus the DocC and GitHub
+# indexer scripts). The Deployment runs the Typesense server directly; the
+# indexers run as a separate CronJob rather than the wrapper's in-container cron.
+image:
+  repository: ghcr.io/tuist/search
+  tag: ""
+  pullPolicy: IfNotPresent
+
+deploymentStrategy:
+  # Recreate because the data directory is a single ReadWriteOnce volume that
+  # only one pod may mount at a time.
+  type: Recreate
+
+service:
+  type: ClusterIP
+  port: 8108
+  targetPort: 8108
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+automountServiceAccountToken: false
+
+typesense:
+  dataDir: /data
+  enableCors: true
+
+# TYPESENSE_API_KEY and GITHUB_TOKEN. Provided inline for CI and dev, or synced
+# from 1Password via an ExternalSecret in production.
+runtimeSecrets:
+  secretName: ""
+  inline:
+    apiKey: ""
+    githubToken: ""
+  externalSecret:
+    enabled: false
+    refreshInterval: "1h"
+    storeRef:
+      kind: ClusterSecretStore
+      name: onepassword
+    item: ""
+    fields:
+      apiKey: api-key
+      githubToken: github-token
+
+persistence:
+  create: true
+  existingClaim: ""
+  storageClassName: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 10Gi
+
+ingress:
+  enabled: false
+  className: ""
+  host: ""
+  tlsSecretName: ""
+  annotations: {}
+
+# Daily DocC and GitHub reindex. The DocSearch website scraper is not included;
+# like the current deployment, it runs separately because it needs to crawl the
+# public site from its own container.
+indexers:
+  enabled: true
+  schedule: "0 4 * * *"
+  concurrencyPolicy: Forbid
+  restartPolicy: Never
+  backoffLimit: 1
+  activeDeadlineSeconds: 3600
+  resources: {}
+
+resources: {}
+podSecurityContext:
+  fsGroup: 65534
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 65534
+extraEnv: []
+podAnnotations: {}
+podLabels: {}
+affinity: {}
+nodeSelector: {}
+tolerations: []
+terminationGracePeriodSeconds: 30
+
+networkPolicy:
+  enabled: false
+  ingressControllerNamespace: platform
+  ingressControllerPodLabels:
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/component: controller
+  dnsNamespace: kube-system
+
+probes:
+  readiness:
+    path: /health
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  liveness:
+    path: /health
+    initialDelaySeconds: 30
+    periodSeconds: 20
+    timeoutSeconds: 3
+    failureThreshold: 3
+  startup:
+    path: /health
+    initialDelaySeconds: 0
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 60
