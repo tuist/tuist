@@ -19,16 +19,3 @@ env:
     DEPLOY_ENV: prod
     XCODE_DATABASE_INTERACTIONS_ENABLED: "false"
     POOL_SIZE: "10"
-    # Disables cache's scheduled registry sync without touching its read
-    # path: `registry_enabled?` gates both, so unsetting the bucket or the
-    # GitHub token would take reads down with it. The allowlist is matched
-    # against `owner/repo` exactly (a trailing `*` would make it a prefix),
-    # so a handle no package can have filters every package out and the
-    # SyncWorker no-ops. Same mechanism canary already uses to scope sync
-    # to one package.
-    #
-    # This is the guard for the cutover window: `main` has already removed
-    # the sync cron, but the running image predates that, so until the
-    # server-owned writer is enabled this keeps cache from being a second
-    # writer and keeps a re-added cron from silently resuming.
-    REGISTRY_SYNC_ALLOWLIST: tuist/__sync-disabled__
