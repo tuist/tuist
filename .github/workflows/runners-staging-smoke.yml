@@ -34,6 +34,7 @@ on:
           - validate
           - benchmark
           - populate
+          - warm-bench
       run_label:
         description: "Short label for this run's cache-volume marker (e.g. a, b)"
         required: false
@@ -182,6 +183,47 @@ jobs:
           echo "BENCH_MANIFESTS: before=${man_before} after=${man_after}"
           echo "BENCH_BINARIES: before=${bin_before} after=${bin_after} bytes_after=$(bytes "$bin")k"
           [ -n "${TUIST_XDG_CACHE_HOME:-}" ] && du -sh "${root}/tuist/"* 2>/dev/null | sed 's/^/  /' || true
+
+      - name: Warm-bench — build EE CLI + generate (spec #76)
+        if: ${{ inputs.mode == 'warm-bench' }}
+        shell: bash --noprofile --norc {0}
+        env:
+          TUIST_URL: https://staging.tuist.dev
+          TUIST_TOKEN: ${{ secrets.TUIST_STAGING_CACHE_TOKEN }}
+          TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+        run: |
+          set +e -o pipefail
+          root="${TUIST_XDG_CACHE_HOME:-$HOME/.cache}"
+          man="${root}/tuist/Manifests"; bin="${root}/tuist/Binaries"
+          count(){ ls -1 "$1" 2>/dev/null | wc -l | tr -d ' '; }
+          arm="cold"; [ "$(count "$man")" -gt 0 ] && arm="warm"
+          echo "WBENCH_ARM=${arm} manifests_before=$(count "$man") binaries_before=$(count "$bin")"
+          echo "WBENCH_GRANT=$([ -n "${TUIST_CACHE_SIGNING_GRANT:-}" ] && echo present || echo absent)"
+          echo "WBENCH_XDG=${TUIST_XDG_CACHE_HOME:-<unset>}"
+          if ! command -v mise >/dev/null 2>&1; then curl -fsSL https://mise.run|sh; export PATH="$HOME/.local/bin:$PATH"; fi
+          # Build the EE tuist from THIS branch (gitlink points at my EE commit).
+          rm -rf tuist-src; git clone --quiet https://github.com/tuist/tuist tuist-src; cd tuist-src
+          git checkout -q ${{ github.sha }} 2>/dev/null || true
+          mise install >/dev/null 2>&1
+          echo "=== init private EE submodule (my branch @ gitlink) ==="
+          mise run --no-deps --skip-tools cli:ee 2>&1 | tail -2
+          (cd cli/TuistCacheEE && echo "EE checked out at $(git rev-parse --short HEAD)")
+          echo "=== build EE tuist (arm64, unsigned) ==="
+          bs=$(python3 -c 'import time;print(int(time.time()))')
+          TUIST_EE=1 mise exec -- tuist install >/tmp/inst.log 2>&1
+          TUIST_EE=1 mise exec -- tuist generate tuist --no-open >/tmp/genws.log 2>&1 || { echo "GENWS rc=$?"; tail -15 /tmp/genws.log; }
+          xcrun xcodebuild build -workspace Tuist.xcworkspace -scheme tuist -configuration Release \
+            -derivedDataPath /tmp/eedd CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" ARCHS=arm64 ONLY_ACTIVE_ARCH=YES > /tmp/xcb.log 2>&1
+          echo "BUILD rc=$? seconds=$(( $(python3 -c 'import time;print(int(time.time()))') - bs ))"
+          EE=$(find /tmp/eedd/Build/Products -name tuist -type f -perm +111 2>/dev/null | head -1)
+          if [ -z "$EE" ] || [ ! -x "$EE" ]; then echo "NO EE BINARY — build failed"; tail -40 /tmp/xcb.log; exit 0; fi
+          echo "EE binary: $EE"; file "$EE" | cut -c1-80
+          "$EE" version 2>&1 | head -1 | sed 's/^/EE tuist version: /'
+          strings "$EE" 2>/dev/null | grep -qiE "tuist-runner-cache|CacheSigningGrant" && echo "EE grant code: present in binary" || echo "EE grant code: NOT found"
+          echo "=== timed generate with the EE tuist ==="
+          g(){ s=$(python3 -c 'import time;print(int(time.time()*1000))'); "$EE" generate tuist ProjectDescription --no-open >/tmp/g_$1.log 2>&1; r=$?; e=$(python3 -c 'import time;print(int(time.time()*1000))'); echo "WBENCH_GEN_$1_MS=$((e-s)) rc=$r"; grep -iE "cache binaries|authentication|requires using|downloaded" /tmp/g_$1.log | tail -1 | sed "s/^/  $1: /"; }
+          g gen1; g gen2
+          echo "WBENCH_BINARIES after=$(count "$bin")"
 
       - name: Populate — tuist cache warm (spec #76)
         if: ${{ inputs.mode == 'populate' }}
