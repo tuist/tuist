@@ -8,13 +8,51 @@ on:
 jobs:
   introspect-macos:
     name: Introspect Namespace macOS VM
-    runs-on: namespace-profile-default-macos
+    runs-on: namespace-profile-default-macos-with-volume
     steps:
       - uses: actions/checkout@v4
+      - name: Attach Namespace cache volume
+        uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          path: ~/namespace-cache-probe
+      - name: Inspect Namespace cache volume
+        run: |
+          set -euo pipefail
+          probe="$HOME/namespace-cache-probe"
+          {
+            echo "hostname=$(hostname)"
+            echo "runner_name=${RUNNER_NAME:-}"
+            echo "cache_path=${NSC_CACHE_PATH:-}"
+            echo "probe_path=$probe"
+            echo "--- path ---"
+            ls -ladOe "$probe"
+            echo "--- filesystem ---"
+            df -h "$probe"
+            mount | grep -E "namespace|cache|$(df "$probe" | tail -1 | awk '{print $1}')" || true
+            echo "--- disks ---"
+            diskutil info "$probe" || true
+            diskutil apfs list || true
+            echo "--- contents before ---"
+            find "$probe" -maxdepth 2 -print | sort | head -100
+            echo "--- marker ---"
+            if [ -f "$probe/namespace-probe-marker" ]; then
+              cat "$probe/namespace-probe-marker"
+            else
+              echo "<missing>"
+            fi
+          } | tee namespace-cache-report.txt
+          {
+            echo "run_id=$GITHUB_RUN_ID"
+            echo "run_attempt=$GITHUB_RUN_ATTEMPT"
+            echo "hostname=$(hostname)"
+            date -u
+          } > "$probe/namespace-probe-marker"
       - name: Run introspection
         run: bash introspect-macos.sh | tee report.json
       - name: Upload report
         uses: actions/upload-artifact@v4
         with:
-          name: namespace-macos-introspection
-          path: report.json
+          name: namespace-macos-introspection-${{ github.run_id }}
+          path: |
+            report.json
+            namespace-cache-report.txt
