@@ -31,19 +31,25 @@ defmodule TuistWeb.WellKnownController do
   end
 
   @doc """
-  Advertises the Swift package registry base URL for this deployment so
-  the CLI can configure SwiftPM against `registry.tuist.dev` instead of
-  hardcoding the legacy `<server>/api/registry/swift` path. 404s when the
+  Advertises the package registry for this deployment so the CLI can
+  configure clients against `registry.tuist.dev` instead of hardcoding a
+  `<server>/api/registry/swift` path. Keyed by ecosystem so future ones
+  (e.g. Gradle) are additive rather than a breaking reshape. 404s when the
   deployment exposes no registry (self-hosted).
   """
-  def swift_registry(conn, _params) do
+  def registry_discovery(conn, _params) do
     case Tuist.Registry.url() do
       nil ->
         send_resp(conn, :not_found, "")
 
       url ->
         login_path = (URI.parse(url).path || "") <> "/login"
-        json(conn, %{"url" => url, "loginAPIPath" => login_path})
+
+        json(conn, %{
+          "ecosystems" => %{
+            "swift" => %{"url" => url, "loginAPIPath" => login_path}
+          }
+        })
     end
   end
 

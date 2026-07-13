@@ -103,14 +103,18 @@ defmodule TuistWeb.WellKnownControllerTest do
   end
 
   describe "GET /.well-known/registry.json" do
-    test "returns the registry URL and derives the login path", %{conn: conn} do
+    test "advertises the swift ecosystem and derives its login path", %{conn: conn} do
       stub(Tuist.Registry, :url, fn -> "https://registry.tuist.dev/api/registry/swift" end)
 
       conn = get(conn, "/.well-known/registry.json")
 
       assert json_response(conn, 200) == %{
-               "url" => "https://registry.tuist.dev/api/registry/swift",
-               "loginAPIPath" => "/api/registry/swift/login"
+               "ecosystems" => %{
+                 "swift" => %{
+                   "url" => "https://registry.tuist.dev/api/registry/swift",
+                   "loginAPIPath" => "/api/registry/swift/login"
+                 }
+               }
              }
     end
 
@@ -123,8 +127,12 @@ defmodule TuistWeb.WellKnownControllerTest do
         |> get("/.well-known/registry.json")
 
       assert json_response(conn, 200) == %{
-               "url" => "https://registry.tuist.dev/swift",
-               "loginAPIPath" => "/swift/login"
+               "ecosystems" => %{
+                 "swift" => %{
+                   "url" => "https://registry.tuist.dev/swift",
+                   "loginAPIPath" => "/swift/login"
+                 }
+               }
              }
     end
 
