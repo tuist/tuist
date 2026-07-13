@@ -625,7 +625,17 @@ impl ReapiService {
                         index.reconciled_at = Instant::now();
                         (index, Ok(()))
                     }
-                    Err((index, error)) => (index, Err(error)),
+                    Err((index, error)) => {
+                        // Background kicks drop the shared future without
+                        // awaiting it, so this is the only place a repeated
+                        // reconcile failure becomes visible.
+                        tracing::warn!(
+                            namespace_id = namespace.as_str(),
+                            error = error.as_str(),
+                            "action-cache snapshot reconcile failed"
+                        );
+                        (index, Err(error))
+                    }
                 };
             index.last_used = Instant::now();
             {
