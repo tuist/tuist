@@ -136,8 +136,8 @@
             }
 
             if try await manifestFilesLocator.locatePackageManifest(at: path) == nil {
-                guard let host = serverURL.host else {
-                    throw RegistryLoginCommandServiceError.missingHost(serverURL)
+                guard let host = registryURL.host else {
+                    throw RegistryLoginCommandServiceError.missingHost(registryURL)
                 }
                 let xcode = try await xcodeController.selected()
                 try await securityController.addInternetPassword(

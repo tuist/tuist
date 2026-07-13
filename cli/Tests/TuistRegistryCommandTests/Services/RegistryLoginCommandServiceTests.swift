@@ -175,7 +175,7 @@
                 verify(securityController)
                     .addInternetPassword(
                         accountName: .any,
-                        serverName: .any,
+                        serverName: .value("registry.test.tuist.io"),
                         password: .any,
                         securityProtocol: .any,
                         update: .any,
@@ -269,7 +269,7 @@
                 verify(securityController)
                     .addInternetPassword(
                         accountName: .any,
-                        serverName: .any,
+                        serverName: .value("registry.test.tuist.io"),
                         password: .any,
                         securityProtocol: .any,
                         update: .any,
