@@ -60,6 +60,12 @@ type Collector struct {
 	// Now is overridable in tests; defaults to time.Now.
 	Now func() time.Time
 
+	// IsRunning probes whether a VM has a live `tart run` process, gating
+	// every reap so an in-use VM is never deleted mid-session. Overridable
+	// in tests (pgrep isn't stubbable via the Tart binary); defaults to
+	// Tart.IsRunning.
+	IsRunning func(ctx context.Context, name string) (bool, error)
+
 	mu sync.Mutex
 
 	// goldenSeen tracks the last time each golden base VM was seen
@@ -140,6 +146,10 @@ func (c *Collector) runOnce(ctx context.Context, aggressive bool) {
 				if c.keepGolden(vm.Name, expected, now, retention, aggressive) {
 					continue
 				}
+				if c.live(ctx, vm.Name) {
+					logger.Info("spared golden base: a tart run process is live", "name", vm.Name)
+					continue
+				}
 				if err := c.Tart.Delete(ctx, vm.Name); err != nil {
 					logger.Error(err, "delete stale golden base", "name", vm.Name)
 					continue
@@ -149,6 +159,10 @@ func (c *Collector) runOnce(ctx context.Context, aggressive bool) {
 				continue
 			}
 			if _, want := expected.vms[vm.Name]; want {
+				continue
+			}
+			if c.live(ctx, vm.Name) {
+				logger.Info("spared orphan VM: a tart run process is live", "name", vm.Name)
 				continue
 			}
 			if err := c.Tart.Delete(ctx, vm.Name); err != nil {
@@ -228,6 +242,27 @@ func (c *Collector) now() time.Time {
 		return c.Now()
 	}
 	return time.Now()
+}
+
+// live reports whether a VM must be spared this pass because a `tart run`
+// process is currently executing for it. A probe error counts as live
+// (fail-safe): deleting a VM that might be running is the harmful outcome,
+// so an unreadable liveness signal skips the reap and lets the next pass
+// retry — matching the reconciler, which treats an IsRunning error as
+// "assume alive." Golden bases are meant to be inert copy-on-write sources
+// that are never run in production, but the GC must not bank on that: a
+// benchmark or operator that boots one directly must not have it deleted
+// out from under a live session.
+func (c *Collector) live(ctx context.Context, name string) bool {
+	probe := c.IsRunning
+	if probe == nil {
+		probe = c.Tart.IsRunning
+	}
+	running, err := probe(ctx, name)
+	if err != nil {
+		return true
+	}
+	return running
 }
 
 // IsNoSpaceError matches the stderr signature Tart returns when a
