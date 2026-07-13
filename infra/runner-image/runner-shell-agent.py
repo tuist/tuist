@@ -262,10 +262,16 @@ def handle_text_frame(payload, pty_fd):
     try:
         message = json.loads(payload.decode("utf-8"))
     except Exception:
-        return
+        return None
 
     if message.get("type") == "resize":
         resize_pty(pty_fd, int(message.get("columns", 0)), int(message.get("rows", 0)))
+        return None
+
+    if message.get("type") == "client" and message.get("status") == "disconnected":
+        return "client_disconnected"
+
+    return None
 
 
 def bridge_session(session, token, discovery):
@@ -281,7 +287,9 @@ def bridge_session(session, token, discovery):
             if sock in readable:
                 opcode, payload = recv_ws_frame(sock)
                 if opcode == 0x1:
-                    handle_text_frame(payload, pty_fd)
+                    if handle_text_frame(payload, pty_fd) == "client_disconnected":
+                        log(f"client disconnected; closing shell tunnel for session {session.get('session_id')}")
+                        break
                 elif opcode == 0x2:
                     os.write(pty_fd, payload)
                 elif opcode == 0x8:

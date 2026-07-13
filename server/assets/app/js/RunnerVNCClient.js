@@ -81,6 +81,7 @@ export default {
   mounted() {
     this.viewport = this.el.closest('[data-part="interactive-viewport"]');
     this.desktopAspectRatio = defaultAspectRatio;
+    this.intentionalDisconnect = false;
     this.onViewportResize = () => this.syncViewportSize();
     this.onFullscreenChange = () => this.syncViewportSize();
 
@@ -107,6 +108,7 @@ export default {
     const token = this.el.dataset.vncToken;
     if (!path) return;
 
+    this.intentionalDisconnect = false;
     this.el.dataset.connection = "connecting";
     this.setStatus("Connecting to runner screen...");
     this.rfb = new RFB(this.el, websocketURL(path), { wsProtocols: token ? [token] : [] });
@@ -128,6 +130,7 @@ export default {
     this.onDisconnect = () => {
       this.el.dataset.connection = "disconnected";
       this.setStatus("Runner screen disconnected");
+      if (!this.intentionalDisconnect) this.pushEvent("interactive_vnc_disconnected", {});
     };
     this.onSecurityFailure = () => {
       this.el.dataset.connection = "security-failure";
@@ -142,6 +145,7 @@ export default {
   },
 
   disconnect() {
+    this.intentionalDisconnect = true;
     if (!this.rfb) return;
 
     this.canvasObserver?.disconnect();

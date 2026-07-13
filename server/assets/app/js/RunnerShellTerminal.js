@@ -449,6 +449,7 @@ export default {
     this.output = this.el.querySelector('[data-part="interactive-terminal-output"]');
     this.screen = new TerminalScreen(this.output);
     this.simulation = null;
+    this.intentionalDisconnect = false;
     this.onKeyDown = (event) => this.handleKeyDown(event);
     this.onPaste = (event) => this.handlePaste(event);
     this.onResize = () => this.sendResize();
@@ -485,6 +486,7 @@ export default {
       return;
     }
 
+    this.intentionalDisconnect = false;
     this.el.dataset.connection = "connecting";
     this.socket = new WebSocket(websocketURL(path), [token]);
     this.socket.binaryType = "arraybuffer";
@@ -498,6 +500,7 @@ export default {
     this.socket.addEventListener("message", (event) => this.handleMessage(event));
     this.socket.addEventListener("close", () => {
       this.el.dataset.connection = "closed";
+      if (!this.intentionalDisconnect) this.pushEvent("interactive_shell_disconnected", {});
     });
     this.socket.addEventListener("error", () => {
       this.el.dataset.connection = "error";
@@ -505,6 +508,7 @@ export default {
   },
 
   disconnect() {
+    this.intentionalDisconnect = true;
     this.simulation = null;
     if (!this.socket) return;
 

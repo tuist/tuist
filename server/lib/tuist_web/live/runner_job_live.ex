@@ -658,6 +658,14 @@ defmodule TuistWeb.RunnerJobLive do
     {:noreply, request_shell_session(socket)}
   end
 
+  def handle_event("interactive_vnc_disconnected", _params, socket) do
+    {:noreply, close_interactive_session(socket, :vnc)}
+  end
+
+  def handle_event("interactive_shell_disconnected", _params, socket) do
+    {:noreply, close_interactive_session(socket, :shell)}
+  end
+
   def handle_event("load_older", _params, %{assigns: %{oldest_line: nil}} = socket), do: {:noreply, socket}
 
   def handle_event("load_older", _params, socket) do
@@ -760,6 +768,18 @@ defmodule TuistWeb.RunnerJobLive do
   end
 
   defp maybe_auto_request_interactive_sessions(socket), do: socket
+
+  defp close_interactive_session(socket, kind) when kind in [:vnc, :shell] do
+    %{selected_account: selected_account, job: job} = socket.assigns
+    _ = InteractiveSessions.close_for_job(selected_account.id, job.workflow_job_id, kind, "browser_disconnect")
+
+    socket
+    |> clear_interactive_session_token(kind)
+    |> refresh_interactive_state()
+  end
+
+  defp clear_interactive_session_token(socket, :vnc), do: assign(socket, :vnc_session_token, nil)
+  defp clear_interactive_session_token(socket, :shell), do: assign(socket, :shell_session_token, nil)
 
   defp request_vnc_relay(session, %{vnc_dev_placeholder?: true}) do
     InteractiveSessions.mark_vnc_relay_ready(session, "127.0.0.1", 5900)

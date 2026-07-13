@@ -284,6 +284,23 @@ defmodule Tuist.Runners.InteractiveSessions do
 
   def schedule_disconnect_close(%InteractiveSession{}, _connection_id, _opts), do: {:ok, :inactive_session}
 
+  def close_disconnected_connection(%InteractiveSession{id: id}, connection_id)
+      when is_binary(connection_id) and connection_id != "" do
+    now = now()
+
+    InteractiveSessionConnection
+    |> where(
+      [connection],
+      connection.interactive_session_id == ^id and connection.connection_id == ^connection_id and
+        is_nil(connection.disconnected_at)
+    )
+    |> Repo.update_all(set: [disconnected_at: now, updated_at: now])
+
+    close_if_disconnected(id, connection_id)
+  end
+
+  def close_disconnected_connection(%InteractiveSession{}, _connection_id), do: {:ok, :inactive_session}
+
   def close_if_disconnected(session_id, connection_id)
       when is_integer(session_id) and is_binary(connection_id) and connection_id != "" do
     case close_disconnected(session_id, connection_id) do
@@ -307,8 +324,13 @@ defmodule Tuist.Runners.InteractiveSessions do
   def close_for_job(account_id, workflow_job_id, kind, reason \\ "user")
       when is_integer(account_id) and is_integer(workflow_job_id) and kind in [:vnc, :shell] do
     case current_for_job(account_id, workflow_job_id, kind) do
-      nil -> {:ok, :no_open_session}
-      %InteractiveSession{} = session -> close(session, reason)
+      nil ->
+        {:ok, :no_open_session}
+
+      %InteractiveSession{} = session ->
+        with :ok <- clear_vnc_relay_request(session) do
+          close(session, reason)
+        end
     end
   end
 

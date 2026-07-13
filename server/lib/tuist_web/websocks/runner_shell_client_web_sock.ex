@@ -43,7 +43,7 @@ defmodule TuistWeb.RunnerShellClientWebSock do
         :ok = InteractiveShellBroker.broadcast_to_runner(session.id, {:resize, columns, rows})
 
       {:ok, %{"type" => "close"}} ->
-        :ok = InteractiveShellBroker.broadcast_to_runner(session.id, :client_disconnected)
+        disconnect_client(state)
 
       _ ->
         :ok
@@ -73,10 +73,14 @@ defmodule TuistWeb.RunnerShellClientWebSock do
 
   @impl WebSock
   def terminate(_reason, %{session: session, connection_id: connection_id}) do
-    _ = InteractiveSessions.schedule_disconnect_close(session, connection_id)
-    :ok = InteractiveShellBroker.broadcast_to_runner(session.id, :client_disconnected)
+    disconnect_client(%{session: session, connection_id: connection_id})
     :ok
   end
 
   def terminate(_reason, _state), do: :ok
+
+  defp disconnect_client(%{session: session, connection_id: connection_id}) do
+    _ = InteractiveSessions.close_disconnected_connection(session, connection_id)
+    :ok = InteractiveShellBroker.broadcast_to_runner(session.id, :client_disconnected)
+  end
 end

@@ -877,6 +877,52 @@ defmodule TuistWeb.RunnerJobLiveTest do
     refute html =~ "/runners/interactive/vnc/"
   end
 
+  test "closes the VNC session when the browser client disconnects", %{
+    conn: conn,
+    account: account,
+    user: user
+  } do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_757,
+        account_id: account.id,
+        fleet_name: Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}),
+        repository: "tuist/tuist",
+        workflow_run_id: 317_570,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Disconnecting VNC",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} =
+      Jobs.pick_queued(Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}), [])
+
+    :ok = Jobs.record_claimed(candidate, "macos-pod-disconnecting-vnc", DateTime.utc_now())
+    :ok = Jobs.record_running(31_757, "tuist-runner-disconnecting-vnc")
+
+    {:ok, job} = Jobs.get_for_account(account.id, 31_757)
+    {:ok, session} = InteractiveSessions.request_vnc(job, account, user)
+
+    session
+    |> InteractiveSession.changeset(%{state: :ready})
+    |> Repo.update!()
+
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{account.name}/runners/runs/317570/jobs/31757?tab=vnc")
+
+    lv
+    |> element(~s{#runner-vnc-client})
+    |> render_hook("interactive_vnc_disconnected", %{})
+
+    closed = Repo.reload!(session)
+    assert closed.state == :closed
+    assert closed.close_reason == "browser_disconnect"
+    refute has_element?(lv, ~s{#runner-vnc-client})
+    assert has_element?(lv, ~s{#request-vnc-session-button})
+  end
+
   test "renders a local development VNC placeholder with a fake ready session", %{
     conn: conn,
     account: account
@@ -1020,6 +1066,47 @@ defmodule TuistWeb.RunnerJobLiveTest do
              lv,
              ~s{#runner-shell-terminal[phx-hook="RunnerShellTerminal"][data-shell-path="/#{account.name}/runners/interactive/shell"][data-shell-token]}
            )
+  end
+
+  test "closes the shell session when the browser terminal disconnects", %{
+    conn: conn,
+    account: account,
+    user: user
+  } do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_758,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 317_580,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Disconnecting Linux shell",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
+    :ok = Jobs.record_claimed(candidate, "linux-pod-shell-disconnecting", DateTime.utc_now())
+    :ok = Jobs.record_running(31_758, "tuist-runner-linux-shell-disconnecting")
+
+    {:ok, job} = Jobs.get_for_account(account.id, 31_758)
+    {:ok, session} = InteractiveSessions.request_shell(job, account, user)
+    {:ok, _session} = InteractiveSessions.mark_shell_ready(session)
+
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{account.name}/runners/runs/317580/jobs/31758?tab=terminal")
+
+    lv
+    |> element(~s{#runner-shell-terminal})
+    |> render_hook("interactive_shell_disconnected", %{})
+
+    closed = Repo.reload!(session)
+    assert closed.state == :closed
+    assert closed.close_reason == "browser_disconnect"
+    refute has_element?(lv, ~s{#runner-shell-terminal})
+    assert has_element?(lv, ~s{#request-shell-session-button})
   end
 
   test "renders a local terminal simulation without requesting a shell session", %{
