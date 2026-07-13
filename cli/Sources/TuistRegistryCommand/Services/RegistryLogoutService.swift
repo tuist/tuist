@@ -13,18 +13,21 @@
         private let configLoader: ConfigLoading
         private let swiftPackageManagerController: SwiftPackageManagerControlling
         private let fileSystem: FileSysteming
+        private let registryURLService: RegistryURLServicing
 
         init(
             serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
             configLoader: ConfigLoading = ConfigLoader(),
             swiftPackageManagerController: SwiftPackageManagerControlling =
                 SwiftPackageManagerController(),
-            fileSystem: FileSysteming = FileSystem()
+            fileSystem: FileSysteming = FileSystem(),
+            registryURLService: RegistryURLServicing = RegistryURLService()
         ) {
             self.serverEnvironmentService = serverEnvironmentService
             self.configLoader = configLoader
             self.swiftPackageManagerController = swiftPackageManagerController
             self.fileSystem = fileSystem
+            self.registryURLService = registryURLService
         }
 
         func run(
@@ -35,9 +38,11 @@
 
             Logger.current.info("Logging out of the registry...")
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+            let registryURL =
+                try await registryURLService.registryConfiguration(serverURL: serverURL)?.url ?? serverURL
 
             try await swiftPackageManagerController.packageRegistryLogout(
-                registryURL: serverURL
+                registryURL: registryURL
             )
 
             Logger.current.info("Successfully logged out of the registry.")

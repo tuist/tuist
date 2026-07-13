@@ -26,6 +26,7 @@
         private let securityController = MockSecurityControlling()
         private let manifestFilesLocator = MockManifestFilesLocating()
         private let defaultsController = MockDefaultsControlling()
+        private let registryURLService = MockRegistryURLServicing()
 
         init() {
             subject = RegistryLoginCommandService(
@@ -38,12 +39,22 @@
                 serverAuthenticationController: serverAuthenticationController,
                 securityController: securityController,
                 manifestFilesLocator: manifestFilesLocator,
-                defaultsController: defaultsController
+                defaultsController: defaultsController,
+                registryURLService: registryURLService
             )
 
             given(defaultsController)
                 .setPackageDendencySCMToRegistryTransformation(.any)
                 .willReturn()
+
+            given(registryURLService)
+                .registryConfiguration(serverURL: .any)
+                .willReturn(
+                    RegistryConfiguration(
+                        url: URL(string: "https://registry.test.tuist.io/swift")!,
+                        loginAPIPath: "/swift/login"
+                    )
+                )
         }
 
         @Test(.withMockedEnvironment()) func login() async throws {

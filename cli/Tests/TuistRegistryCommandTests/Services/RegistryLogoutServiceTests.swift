@@ -15,6 +15,7 @@
         private let configLoader = MockConfigLoading()
         private let fileSystem = FileSystem()
         private let swiftPackageManagerController = MockSwiftPackageManagerControlling()
+        private let registryURLService = MockRegistryURLServicing()
         private let subject: RegistryLogoutService
 
         init() {
@@ -22,8 +23,18 @@
                 serverEnvironmentService: serverEnvironmentService,
                 configLoader: configLoader,
                 swiftPackageManagerController: swiftPackageManagerController,
-                fileSystem: fileSystem
+                fileSystem: fileSystem,
+                registryURLService: registryURLService
             )
+
+            given(registryURLService)
+                .registryConfiguration(serverURL: .any)
+                .willReturn(
+                    RegistryConfiguration(
+                        url: URL(string: "https://registry.test.tuist.io/swift")!,
+                        loginAPIPath: "/swift/login"
+                    )
+                )
         }
 
         @Test func logout() async throws {
