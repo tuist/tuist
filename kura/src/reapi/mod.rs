@@ -541,13 +541,27 @@ impl ReapiService {
                 return Ok(bytes);
             }
         }
-        self.ensure_index_build(namespace_id)
-            .await
-            .map_err(|error| {
+        // Cold path: wait briefly for the build so small (and already
+        // backfilled) namespaces keep their one-round-trip semantics, but
+        // never pin the request to it — a first-ever backfill of a large
+        // namespace runs for minutes, and holding the RPC open just walks
+        // every client into its deadline (production clients timed out on
+        // every fetch for as long as the build ran). Past the bound the
+        // client gets UNAVAILABLE, stays on the per-key path, and a later
+        // fetch is served from the completed index.
+        let build = self.ensure_index_build(namespace_id);
+        match tokio::time::timeout(SNAPSHOT_COLD_SERVE_WAIT, build).await {
+            Ok(result) => result.map_err(|error| {
                 Status::internal(format!(
                     "failed to build the action-cache snapshot: {error}"
                 ))
-            })?;
+            })?,
+            Err(_elapsed) => {
+                return Err(Status::unavailable(
+                    "action-cache snapshot index is building; retry shortly",
+                ));
+            }
+        }
         let mut indexes = self
             .snapshot_cache
             .indexes
@@ -579,83 +593,33 @@ impl ReapiService {
         let namespace = namespace_id.to_owned();
         // Spawned while holding the builds lock, so the task's terminal
         // removal (which takes the same lock) cannot run before the insert
-        // below — the entry it removes is always its own.
+        // below — the entry it removes is always its own. The body is
+        // panic-guarded and the removal sits OUTSIDE it: a reconcile panic
+        // that leaked the entry left a dead shared future in the map, and
+        // every later build request for the namespace resolved to that
+        // corpse — snapshots stayed bricked until the pod restarted.
+        let cleanup_namespace = namespace.clone();
+        let cleanup_cache = cache.clone();
         let task = tokio::spawn(async move {
-            // A build's transient memory rides the response-materialization
-            // pool: holding a byte-sized permit for its duration means a node
-            // under memory pressure defers the build instead of being
-            // OOM-killed. The build WAITS for headroom rather than declining:
-            // a stale snapshot is what causes heavy per-key traffic, per-key
-            // responses draw on this same pool, and a try-acquire under that
-            // load refused every reconcile for exactly the reason one was
-            // needed — the index parked stale indefinitely. The bounded wait
-            // still fails closed if the pool never frees. The budget adapts
-            // to small pools so tests and tiny nodes still build; the
-            // streaming reconcile keeps the real peak near it.
-            let budget = SNAPSHOT_BUILD_BUDGET_BYTES
-                .min(state.memory.reapi_materialization_pool_bytes() / 2)
-                .max(1);
-            let permit = tokio::time::timeout(
-                SNAPSHOT_BUILD_PERMIT_WAIT,
-                state.memory.acquire_reapi_materialization(budget),
-            )
+            let outcome = futures_util::FutureExt::catch_unwind(std::panic::AssertUnwindSafe(
+                Self::run_index_build(cache, state, namespace),
+            ))
             .await;
-            let Ok(Ok(_permit)) = permit else {
-                tracing::warn!(
-                    namespace_id = namespace.as_str(),
-                    budget,
-                    "action-cache snapshot build declined under memory pressure"
-                );
-                cache
-                    .builds
-                    .lock()
-                    .expect("snapshot builds lock poisoned")
-                    .remove(&namespace);
-                return Err("declined under memory pressure".to_owned());
-            };
-            let index = cache
-                .indexes
-                .lock()
-                .expect("snapshot cache lock poisoned")
-                .remove(&namespace)
-                .unwrap_or_else(NamespaceSnapshotIndex::new);
-            let (mut index, result) =
-                match reconcile_snapshot_index(&state, &namespace, index).await {
-                    Ok(mut index) => {
-                        index.reconciled_at = Instant::now();
-                        (index, Ok(()))
-                    }
-                    Err((index, error)) => {
-                        // Background kicks drop the shared future without
-                        // awaiting it, so this is the only place a repeated
-                        // reconcile failure becomes visible.
-                        tracing::warn!(
-                            namespace_id = namespace.as_str(),
-                            error = error.as_str(),
-                            "action-cache snapshot reconcile failed"
-                        );
-                        (index, Err(error))
-                    }
-                };
-            index.last_used = Instant::now();
-            {
-                let mut indexes = cache.indexes.lock().expect("snapshot cache lock poisoned");
-                indexes.insert(namespace.clone(), index);
-                while indexes.len() > SNAPSHOT_CACHE_MAX_NAMESPACES {
-                    let oldest = indexes
-                        .iter()
-                        .min_by_key(|(_, index)| index.last_used)
-                        .map(|(namespace, _)| namespace.clone());
-                    let Some(oldest) = oldest else { break };
-                    indexes.remove(&oldest);
-                }
-            }
-            cache
+            cleanup_cache
                 .builds
                 .lock()
                 .expect("snapshot builds lock poisoned")
-                .remove(&namespace);
-            result
+                .remove(&cleanup_namespace);
+            match outcome {
+                Ok(result) => result,
+                Err(_panic) => {
+                    tracing::warn!(
+                        namespace_id = cleanup_namespace.as_str(),
+                        "action-cache snapshot index build panicked"
+                    );
+                    Err("snapshot index build panicked".to_owned())
+                }
+            }
         });
         let build: SharedIndexBuild = async move {
             task.await
@@ -665,6 +629,84 @@ impl ReapiService {
         .shared();
         builds.insert(namespace_id.to_owned(), build.clone());
         build
+    }
+
+    /// The build task's body: permit, reconcile, reinsert. The caller owns
+    /// the builds-map entry cleanup, which must run whether this returns or
+    /// panics.
+    async fn run_index_build(
+        cache: std::sync::Arc<SnapshotCache>,
+        state: SharedState,
+        namespace: String,
+    ) -> Result<(), String> {
+        tracing::info!(
+            namespace_id = namespace.as_str(),
+            "action-cache snapshot index build started"
+        );
+        // A build's transient memory rides the response-materialization
+        // pool: holding a byte-sized permit for its duration means a node
+        // under memory pressure defers the build instead of being
+        // OOM-killed. The build WAITS for headroom rather than declining:
+        // a stale snapshot is what causes heavy per-key traffic, per-key
+        // responses draw on this same pool, and a try-acquire under that
+        // load refused every reconcile for exactly the reason one was
+        // needed — the index parked stale indefinitely. The bounded wait
+        // still fails closed if the pool never frees. The budget adapts
+        // to small pools so tests and tiny nodes still build; the
+        // streaming reconcile keeps the real peak near it.
+        let budget = SNAPSHOT_BUILD_BUDGET_BYTES
+            .min(state.memory.reapi_materialization_pool_bytes() / 2)
+            .max(1);
+        let permit = tokio::time::timeout(
+            SNAPSHOT_BUILD_PERMIT_WAIT,
+            state.memory.acquire_reapi_materialization(budget),
+        )
+        .await;
+        let Ok(Ok(_permit)) = permit else {
+            tracing::warn!(
+                namespace_id = namespace.as_str(),
+                budget,
+                "action-cache snapshot build declined under memory pressure"
+            );
+            return Err("declined under memory pressure".to_owned());
+        };
+        let index = cache
+            .indexes
+            .lock()
+            .expect("snapshot cache lock poisoned")
+            .remove(&namespace)
+            .unwrap_or_else(NamespaceSnapshotIndex::new);
+        let (mut index, result) = match reconcile_snapshot_index(&state, &namespace, index).await {
+            Ok(mut index) => {
+                index.reconciled_at = Instant::now();
+                (index, Ok(()))
+            }
+            Err((index, error)) => {
+                // Background kicks drop the shared future without
+                // awaiting it, so this is the only place a repeated
+                // reconcile failure becomes visible.
+                tracing::warn!(
+                    namespace_id = namespace.as_str(),
+                    error = error.as_str(),
+                    "action-cache snapshot reconcile failed"
+                );
+                (index, Err(error))
+            }
+        };
+        index.last_used = Instant::now();
+        {
+            let mut indexes = cache.indexes.lock().expect("snapshot cache lock poisoned");
+            indexes.insert(namespace.clone(), index);
+            while indexes.len() > SNAPSHOT_CACHE_MAX_NAMESPACES {
+                let oldest = indexes
+                    .iter()
+                    .min_by_key(|(_, index)| index.last_used)
+                    .map(|(namespace, _)| namespace.clone());
+                let Some(oldest) = oldest else { break };
+                indexes.remove(&oldest);
+            }
+        }
+        result
     }
 }
 
@@ -691,6 +733,7 @@ async fn reconcile_snapshot_index(
             ));
         }
     };
+    let scan_ms = started.elapsed().as_millis() as u64;
     // Diff the cached entries against the manifest keyspace: load only
     // new-or-changed entries, drop entries whose artifacts are gone.
     // Manifests are MOVED into the map (never cloned), and action results
@@ -778,14 +821,21 @@ async fn reconcile_snapshot_index(
         }
     }
     drop(loading);
+    let load_ms = started.elapsed().as_millis() as u64 - scan_ms;
 
     // Presence gate: an entry only stays advertised while every node's
     // blob manifest exists (CAS eviction outlives action-cache entries,
     // and clang fails the build on a missing object). Mostly
     // existence-cache hits; a dead entry is dropped from the cache too —
-    // a republish bumps its version and reloads it.
+    // a republish bumps its version and reloads it. The store reads are
+    // synchronous, so yield periodically: on a cold cache this loop is
+    // hundreds of thousands of point reads, and unbroken it parks a whole
+    // runtime worker for their duration.
     let mut dead: Vec<[u8; 32]> = Vec::new();
-    for (hash, entry) in &index.entries {
+    for (gated, (hash, entry)) in index.entries.iter().enumerate() {
+        if gated % 1024 == 1023 {
+            tokio::task::yield_now().await;
+        }
         let missing = entry.nodes.iter().any(|&node| {
             !state
                 .store
@@ -850,6 +900,9 @@ async fn reconcile_snapshot_index(
         changed = changed_count,
         loads_failed,
         invalid,
+        scan_ms,
+        load_ms,
+        gate_ms = started.elapsed().as_millis() as u64 - scan_ms - load_ms,
         elapsed_ms = started.elapsed().as_millis() as u64,
         "action-cache snapshot index reconciled"
     );
@@ -1933,6 +1986,13 @@ const SNAPSHOT_BUILD_PERMIT_WAIT: Duration = Duration::from_secs(600);
 /// client's ~2-minute delta cadence.
 const SNAPSHOT_RECONCILE_INTERVAL: Duration = Duration::from_secs(60);
 
+/// How long a COLD serve (no cached index) waits for the build before
+/// answering UNAVAILABLE. Long enough that an already-indexed namespace's
+/// reconcile completes inline and small namespaces keep one-round-trip
+/// semantics; far shorter than any client deadline, so a first-ever backfill
+/// of a large namespace sheds requests fast instead of timing them all out.
+const SNAPSHOT_COLD_SERVE_WAIT: Duration = Duration::from_secs(15);
+
 /// Stranded-node floor below which a cached snapshot index skips compacting
 /// its node table (the sweep rewrites every entry's index list).
 const SNAPSHOT_COMPACT_MIN_GARBAGE: usize = 1024;
@@ -2985,6 +3045,41 @@ mod tests {
             .expect("build should complete once the pool frees")
             .expect("serve task should not panic")
             .expect("serve should succeed");
+        assert_eq!(&bytes[..4], b"TSNP");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn snapshot_cold_serve_sheds_to_unavailable_while_the_build_runs() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        // Stall the build at its memory permit: with no cached index the
+        // serve must answer UNAVAILABLE within its bound instead of pinning
+        // the request to the build — production builds ran for tens of
+        // minutes and walked every client fetch into its deadline.
+        let pool = context.state.memory.reapi_materialization_pool_bytes();
+        let hog = context
+            .state
+            .memory
+            .try_acquire_reapi_materialization(pool)
+            .expect("pool should be acquirable when idle");
+        let status = service
+            .serve_actioncache_snapshot("ios", 0)
+            .await
+            .expect_err("cold serve should shed while the build is stuck");
+        assert_eq!(status.code(), tonic::Code::Unavailable);
+        // Once the pool frees the same build completes in the background and
+        // the next fetch is served from the index it produced.
+        drop(hog);
+        let bytes = tokio::time::timeout(
+            std::time::Duration::from_secs(120),
+            service.serve_actioncache_snapshot("ios", 0),
+        )
+        .await
+        .expect("serve should not hang once the pool frees")
+        .expect("serve should succeed after the build completes");
         assert_eq!(&bytes[..4], b"TSNP");
     }
 
