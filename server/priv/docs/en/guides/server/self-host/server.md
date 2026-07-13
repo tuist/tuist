@@ -210,9 +210,6 @@ By default, a provider appears as a sign-in option whenever it is configured. To
 | `TUIST_OKTA_AUTH_ENABLED` | Whether the configured Okta provider appears as a sign-in option | No | `1` | `0` |
 | `TUIST_APPLE_AUTH_ENABLED` | Whether Apple can be used to sign in | No | `1` | `0` |
 
-> [!NOTE]
-> `TUIST_OKTA_AUTH_ENABLED` hides Okta from the login and sign-up pages. Organizations that have configured Okta as their SSO provider in their settings continue to use it, including when SSO is enforced.
-
 #### GitHub {#github}
 
 We recommend authenticating using a [GitHub App](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps) but you can also use the [OAuth App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app). Make sure to include all essential environment variables specified by GitHub in the server environment. Absent variables will cause Tuist to overlook the GitHub authentication. To properly set up the GitHub app:
