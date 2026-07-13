@@ -83,8 +83,11 @@ metadata:
     app.kubernetes.io/component: released-pv-reaper
 data:
   reap.sh: |-
-    #!/bin/sh
-    set -eu
+    #!/usr/bin/env bash
+    # pipefail so a failed `kubectl get pv` in a pipeline aborts the run instead
+    # of feeding jq empty input and logging a healthy-looking "0 PV(s)" — the
+    # logs are this job's only observability channel.
+    set -euo pipefail
     grace_seconds=$(( GRACE_HOURS * 3600 ))
     echo "released-pv-reaper: storageClass=${STORAGE_CLASS} graceHours=${GRACE_HOURS} dryRun=${DRY_RUN}"
     # A PV is reapable only if it is Released (its PVC was deleted), still Retain
@@ -127,13 +130,17 @@ data:
         echo "released-pv-reaper: skip ${pv} (changed since scan)"
         continue
       fi
-      claim=$(printf '%s' "$current" | jq -r '((.spec.claimRef.namespace // "?") + "/" + (.spec.claimRef.name // "?"))')
+      claim=$(printf '%s' "$current" | jq -r '((.spec.claimRef.namespace // "?") + "/" + (.spec.claimRef.name // "?"))' 2>/dev/null || echo '?/?')
       if [ "$DRY_RUN" = "true" ]; then
         echo "released-pv-reaper: [dry-run] would reap ${pv} (was ${claim})"
       else
         echo "released-pv-reaper: reaping ${pv} (was ${claim})"
+        # Order matters: set Delete BEFORE deleting the PV, otherwise a Retain PV
+        # deletion would strand the volume with no PV referencing it. Once the PV
+        # is Released + Delete the reclaim controller may remove it on its own, so
+        # the explicit delete is best-effort and idempotent (--ignore-not-found).
         kubectl patch pv "$pv" --type merge -p '{"spec":{"persistentVolumeReclaimPolicy":"Delete"}}'
-        kubectl delete pv "$pv" --wait=false
+        kubectl delete pv "$pv" --ignore-not-found --wait=false
       fi
     done
 ---
@@ -171,7 +178,7 @@ spec:
             - name: reaper
               image: {{ .Values.pvReaper.image | quote }}
               imagePullPolicy: IfNotPresent
-              command: ["/bin/sh", "/scripts/reap.sh"]
+              command: ["/bin/bash", "/scripts/reap.sh"]
               env:
                 - name: GRACE_HOURS
                   value: {{ .Values.pvReaper.graceHours | quote }}
