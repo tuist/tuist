@@ -603,7 +603,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert :ok = run(automation.id)
   end
 
-  describe "test_case_states precondition" do
+  describe "conditions scope" do
     test "trigger fires only for test cases whose current state is allowed" do
       automation =
         AutomationsFixtures.automation_alert_fixture(
@@ -611,7 +611,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
             "threshold" => 5,
             "window_type" => "rolling",
             "rolling_window_size" => 100,
-            "test_case_states" => ["enabled"]
+            "conditions" => [%{"type" => "test_case_state", "states" => ["enabled"]}]
           },
           trigger_actions: [%{"type" => "change_state", "state" => "muted"}]
         )
@@ -646,7 +646,11 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       automation =
         AutomationsFixtures.automation_alert_fixture(
           recovery_enabled: true,
-          recovery_config: %{"window_type" => "last_days", "window" => "1d", "test_case_states" => ["muted"]},
+          recovery_config: %{
+            "window_type" => "last_days",
+            "window" => "1d",
+            "conditions" => [%{"type" => "test_case_state", "states" => ["muted"]}]
+          },
           recovery_actions: [
             %{"type" => "change_state", "state" => "enabled"},
             %{"type" => "remove_label", "label" => "flaky"}
@@ -686,7 +690,11 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       automation =
         AutomationsFixtures.automation_alert_fixture(
           recovery_enabled: true,
-          recovery_config: %{"window_type" => "last_days", "window" => "1d", "test_case_states" => ["muted"]},
+          recovery_config: %{
+            "window_type" => "last_days",
+            "window" => "1d",
+            "conditions" => [%{"type" => "test_case_state", "states" => ["muted"]}]
+          },
           recovery_actions: [%{"type" => "change_state", "state" => "enabled"}]
         )
 

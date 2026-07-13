@@ -137,7 +137,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   defp eligible_triggered_ids(alert, triggered_ids) do
     alert
     |> reject_unvalidated_test_cases(triggered_ids)
-    |> then(&reject_test_cases_outside_states(alert, &1, state_filter(alert.trigger_config)))
+    |> then(&filter_by_conditions(alert, &1, conditions(alert.trigger_config)))
   end
 
   # A test case that has never had a successful, non-flaky run on the project's
@@ -150,8 +150,8 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   # trigger window) so an established test that passed long ago stays eligible.
   #
   # Recovery is not subject to this default-branch validation gate; recovery is
-  # instead constrained (when the user opts in) by the `test_case_states`
-  # precondition in `handle_recovery`.
+  # instead constrained (when the user opts in) by the `conditions` scope in
+  # `handle_recovery`.
   defp reject_unvalidated_test_cases(_alert, []), do: []
 
   defp reject_unvalidated_test_cases(alert, triggered_ids) do
@@ -163,38 +163,45 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     Enum.filter(triggered_ids, &MapSet.member?(validated, &1))
   end
 
-  # `trigger_config.test_case_states` / `recovery_config.test_case_states` are an
-  # optional precondition: only act on a test case whose CURRENT state is one of
-  # the listed values. Absent (the default) means "any state" and keeps the
-  # legacy behaviour. Example: a mute automation set to trigger only on
+  # `trigger_config.conditions` / `recovery_config.conditions` are an optional
+  # list of filters scoping which test cases the automation acts on. Absent (the
+  # default) means "no scoping" and keeps the legacy behaviour. Every condition
+  # must hold (they AND together). The only condition type today is
+  # `test_case_state` — the test's CURRENT state is one of a `states` list.
+  # Example: a mute automation scoped to trigger only on `test_case_state`
   # `["enabled"]` and recover only on `["muted"]` won't re-mute an
   # already-quarantined test, and won't revert a state (a manual skip, or
   # another automation's change) it doesn't own.
-  defp state_filter(config) when is_map(config) do
-    case Map.get(config, "test_case_states") do
-      states when is_list(states) and states != [] -> states
-      _ -> nil
+  defp conditions(config) when is_map(config) do
+    case Map.get(config, "conditions") do
+      conditions when is_list(conditions) -> conditions
+      _ -> []
     end
   end
 
-  defp state_filter(_), do: nil
+  defp conditions(_), do: []
 
-  defp reject_test_cases_outside_states(_alert, ids, nil), do: ids
-  defp reject_test_cases_outside_states(_alert, [], _states), do: []
+  defp filter_by_conditions(_alert, ids, []), do: ids
+  defp filter_by_conditions(_alert, [], _conditions), do: []
 
-  defp reject_test_cases_outside_states(alert, ids, states) do
-    eligible = state_eligible_id_set(alert.project_id, ids, states)
-    Enum.filter(ids, &MapSet.member?(eligible, &1))
+  defp filter_by_conditions(alert, ids, conditions) do
+    Enum.reduce(conditions, ids, fn condition, acc ->
+      apply_condition(alert.project_id, acc, condition)
+    end)
   end
 
-  defp state_eligible_id_set(project_id, ids, states) do
+  defp apply_condition(_project_id, [], _condition), do: []
+
+  defp apply_condition(project_id, ids, %{"type" => "test_case_state", "states" => states}) do
     allowed = MapSet.new(states)
     current = Tests.test_case_states(project_id, ids)
-
-    ids
-    |> Enum.filter(fn id -> MapSet.member?(allowed, Map.get(current, id)) end)
-    |> MapSet.new()
+    Enum.filter(ids, fn id -> MapSet.member?(allowed, Map.get(current, id)) end)
   end
+
+  # An unknown condition type is dropped by changeset validation before it can
+  # be persisted, so it should never reach here; treat it as a no-op rather than
+  # silently excluding every candidate.
+  defp apply_condition(_project_id, ids, _condition), do: ids
 
   # First evaluation after the alert was created: every test case currently
   # matching the condition is part of the established state. Record them as
@@ -278,13 +285,13 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
         {candidates, []}
       end
 
-    # A `recovery_config.test_case_states` precondition withholds the recovery
-    # ACTIONS from candidates whose current state isn't one it's configured to
-    # own (e.g. a mute automation that only recovers `muted` tests skips one a
-    # human has since skipped or unmuted). Those candidates still re-arm below —
-    # their `recovered` event is appended so the next rising edge can fire — they
-    # just don't get their state/label reverted. Only consulted when recovery is
-    # enabled; the disabled path already runs no actions.
+    # A `recovery_config.conditions` scope withholds the recovery ACTIONS from
+    # candidates that no longer match (e.g. a mute automation that only recovers
+    # `muted` tests skips one a human has since skipped or unmuted). Those
+    # candidates still re-arm below — their `recovered` event is appended so the
+    # next rising edge can fire — they just don't get their state/label reverted.
+    # Only consulted when recovery is enabled; the disabled path already runs no
+    # actions.
     action_eligible_ids =
       if alert.recovery_enabled do
         recovery_action_eligible_ids(alert, recovered)
@@ -323,9 +330,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   defp recovery_action_eligible_ids(alert, recovered) do
     ids = Enum.map(recovered, & &1.test_case_id)
 
-    case state_filter(alert.recovery_config) do
-      nil -> MapSet.new(ids)
-      states -> state_eligible_id_set(alert.project_id, ids, states)
+    case conditions(alert.recovery_config) do
+      [] -> MapSet.new(ids)
+      conditions -> MapSet.new(filter_by_conditions(alert, ids, conditions))
     end
   end
 

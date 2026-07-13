@@ -435,8 +435,8 @@ defmodule Tuist.Automations.Alerts.AlertTest do
     end
   end
 
-  describe "test_case_states precondition" do
-    test "accepts a trigger_config test_case_states list of valid states" do
+  describe "conditions scope" do
+    test "accepts a trigger_config with a valid test_case_state condition" do
       project = ProjectsFixtures.project_fixture()
 
       changeset =
@@ -447,7 +447,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
               "threshold" => 10,
               "window_type" => "last_days",
               "window" => "30d",
-              "test_case_states" => ["enabled"]
+              "conditions" => [%{"type" => "test_case_state", "states" => ["enabled"]}]
             }
           })
         )
@@ -455,7 +455,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       assert changeset.valid?
     end
 
-    test "rejects a trigger_config test_case_states with an unknown state" do
+    test "rejects a test_case_state condition with an unknown state" do
       project = ProjectsFixtures.project_fixture()
 
       changeset =
@@ -466,7 +466,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
               "threshold" => 10,
               "window_type" => "last_days",
               "window" => "30d",
-              "test_case_states" => ["enabled", "bogus"]
+              "conditions" => [%{"type" => "test_case_state", "states" => ["enabled", "bogus"]}]
             }
           })
         )
@@ -475,7 +475,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       assert errors_on(changeset).trigger_config
     end
 
-    test "rejects an empty trigger_config test_case_states list" do
+    test "rejects a test_case_state condition with an empty states list" do
       project = ProjectsFixtures.project_fixture()
 
       changeset =
@@ -486,7 +486,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
               "threshold" => 10,
               "window_type" => "last_days",
               "window" => "30d",
-              "test_case_states" => []
+              "conditions" => [%{"type" => "test_case_state", "states" => []}]
             }
           })
         )
@@ -495,7 +495,47 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       assert errors_on(changeset).trigger_config
     end
 
-    test "accepts a recovery_config test_case_states list of valid states" do
+    test "rejects a condition with an unknown type" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 10,
+              "window_type" => "last_days",
+              "window" => "30d",
+              "conditions" => [%{"type" => "bogus", "states" => ["enabled"]}]
+            }
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "rejects conditions that are not a list" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 10,
+              "window_type" => "last_days",
+              "window" => "30d",
+              "conditions" => %{"type" => "test_case_state", "states" => ["enabled"]}
+            }
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "accepts a recovery_config with a valid test_case_state condition" do
       project = ProjectsFixtures.project_fixture()
 
       changeset =
@@ -506,7 +546,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
             "recovery_config" => %{
               "window_type" => "rolling",
               "rolling_window_size" => 50,
-              "test_case_states" => ["muted"]
+              "conditions" => [%{"type" => "test_case_state", "states" => ["muted"]}]
             },
             "recovery_actions" => [%{"type" => "change_state", "state" => "enabled"}]
           })
@@ -515,7 +555,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       assert changeset.valid?
     end
 
-    test "rejects a recovery_config test_case_states with an unknown state" do
+    test "rejects an invalid recovery_config condition" do
       project = ProjectsFixtures.project_fixture()
 
       changeset =
@@ -526,7 +566,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
             "recovery_config" => %{
               "window_type" => "rolling",
               "rolling_window_size" => 50,
-              "test_case_states" => ["nope"]
+              "conditions" => [%{"type" => "test_case_state", "states" => ["nope"]}]
             },
             "recovery_actions" => [%{"type" => "change_state", "state" => "enabled"}]
           })
@@ -536,7 +576,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       assert errors_on(changeset).recovery_config
     end
 
-    test "ignores recovery_config test_case_states when recovery is disabled" do
+    test "ignores recovery_config conditions when recovery is disabled" do
       project = ProjectsFixtures.project_fixture()
 
       changeset =
@@ -544,7 +584,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
           %Alert{},
           valid_attrs(project, %{
             "recovery_enabled" => false,
-            "recovery_config" => %{"test_case_states" => ["nonsense"]}
+            "recovery_config" => %{"conditions" => [%{"type" => "bogus"}]}
           })
         )
 

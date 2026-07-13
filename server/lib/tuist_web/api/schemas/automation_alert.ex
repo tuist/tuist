@@ -23,9 +23,9 @@ defmodule TuistWeb.API.Schemas.AutomationAlert do
       trigger_config: %Schema{
         type: :object,
         description:
-          "Monitor-specific trigger parameters (e.g. threshold, window). May include an optional " <>
-            "\"test_case_states\" list (subset of enabled/muted/skipped) that gates trigger actions to " <>
-            "test cases currently in one of those states."
+          "Monitor-specific trigger parameters such as threshold and window. May include an optional " <>
+            "conditions list that scopes which test cases the automation acts on; every condition must match. " <>
+            "The only condition type today is test_case_state, whose states is a subset of enabled/muted/skipped."
       },
       cadence: %Schema{type: :string, description: "Evaluation cadence (e.g. \"5m\")."},
       trigger_actions: %Schema{type: :array, items: AutomationAlertAction},
@@ -33,9 +33,9 @@ defmodule TuistWeb.API.Schemas.AutomationAlert do
       recovery_config: %Schema{
         type: :object,
         description:
-          "Recovery parameters (e.g. window). May include an optional \"test_case_states\" list (subset of " <>
-            "enabled/muted/skipped) that gates recovery actions to test cases currently in one of those states; " <>
-            "candidates outside it still re-arm but keep their state."
+          "Recovery parameters (e.g. window). May include an optional \"conditions\" list (same shape as " <>
+            "trigger_config.conditions) scoping recovery actions; candidates that no longer match still re-arm " <>
+            "but keep their state."
       },
       recovery_actions: %Schema{type: :array, items: AutomationAlertAction}
     },
