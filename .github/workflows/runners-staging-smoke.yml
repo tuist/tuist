@@ -208,20 +208,22 @@ jobs:
           echo "=== init private EE submodule (my branch @ gitlink) ==="
           mise run --no-deps --skip-tools cli:ee 2>&1 | tail -2
           (cd cli/TuistCacheEE && echo "EE checked out at $(git rev-parse --short HEAD)")
-          echo "=== build EE tuist (arm64, unsigned) ==="
+          echo "=== build EE tuist (release recipe: full generate, static linking, tuist xcodebuild) ==="
           bs=$(python3 -c 'import time;print(int(time.time()))')
-          TUIST_EE=1 mise exec -- tuist install >/tmp/inst.log 2>&1
-          TUIST_EE=1 mise exec -- tuist generate tuist --no-open >/tmp/genws.log 2>&1 || { echo "GENWS rc=$?"; tail -15 /tmp/genws.log; }
-          xcrun xcodebuild build -workspace Tuist.xcworkspace -scheme tuist -configuration Release \
-            -derivedDataPath /tmp/eedd CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" ARCHS=arm64 ONLY_ACTIVE_ARCH=YES > /tmp/xcb.log 2>&1
-          echo "BUILD rc=$? seconds=$(( $(python3 -c 'import time;print(int(time.time()))') - bs ))"
-          EE=$(find /tmp/eedd/Build/Products -name tuist -type f -perm +111 2>/dev/null | head -1)
-          if [ -z "$EE" ] || [ ! -x "$EE" ]; then echo "NO EE BINARY — build failed"; tail -40 /tmp/xcb.log; exit 0; fi
-          echo "EE binary: $EE"; file "$EE" | cut -c1-80
-          "$EE" version 2>&1 | head -1 | sed 's/^/EE tuist version: /'
-          strings "$EE" 2>/dev/null | grep -qiE "tuist-runner-cache|CacheSigningGrant" && echo "EE grant code: present in binary" || echo "EE grant code: NOT found"
-          echo "=== timed generate with the EE tuist ==="
-          g(){ s=$(python3 -c 'import time;print(int(time.time()*1000))'); "$EE" generate tuist ProjectDescription --no-open >/tmp/g_$1.log 2>&1; r=$?; e=$(python3 -c 'import time;print(int(time.time()*1000))'); echo "WBENCH_GEN_$1_MS=$((e-s)) rc=$r"; grep -iE "cache binaries|authentication|requires using|downloaded" /tmp/g_$1.log | tail -1 | sed "s/^/  $1: /"; }
+          DD=/tmp/eedd; rm -rf "$DD"
+          TUIST_EE=1 mise exec -- tuist install >/tmp/inst.log 2>&1; echo "install rc=$?"
+          TUIST_EE=1 TUIST_FORCE_STATIC_LINKING=1 mise exec -- tuist generate --no-binary-cache --no-open >/tmp/genws.log 2>&1; echo "GENWS rc=$?"; tail -4 /tmp/genws.log
+          TUIST_EE=1 mise exec -- tuist xcodebuild build -configuration Release -workspace Tuist.xcworkspace -scheme tuist -derivedDataPath "$DD" -destination "platform=macOS" ARCHS=arm64 ONLY_ACTIVE_ARCH=YES SKIP_INSTALL=NO CODE_SIGN_IDENTITY="" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO > /tmp/xcb.log 2>&1; brc=$?
+          echo "BUILD rc=${brc} seconds=$(( $(python3 -c 'import time;print(int(time.time()))') - bs ))"
+          if [ "$brc" != 0 ]; then echo "=== xcodebuild error lines ==="; grep -iE "error:|BUILD FAILED|No such module|Undefined symbol|Command .* failed|linker command failed|cannot find" /tmp/xcb.log | head -20; echo "=== xcb log tail ==="; tail -25 /tmp/xcb.log; fi
+          EE="$DD/Build/Products/Release/tuist"
+          if [ ! -x "$EE" ]; then echo "NO EE BINARY at $EE"; ls -la "$DD/Build/Products/Release/" 2>/dev/null | head -20; exit 0; fi
+          echo "=== EE binary verification ==="; file "$EE" | cut -c1-90
+          [ -d "$DD/Build/Products/Release/ProjectDescription.framework" ] && echo "ProjectDescription.framework: present" || echo "ProjectDescription.framework: MISSING (manifest load may fail)"
+          "$EE" version 2>&1 | head -2 | sed 's/^/  version: /'
+          strings "$EE" 2>/dev/null | grep -qE "CacheSigningGrant|tuist-runner-cache" && echo "EE grant code: PRESENT in binary" || echo "EE grant code: NOT in strings"
+          echo "=== timed generate with the EE tuist (cwd=tuist-src) ==="
+          g(){ s=$(python3 -c 'import time;print(int(time.time()*1000))'); "$EE" generate tuist ProjectDescription --no-open >/tmp/g_$1.log 2>&1; r=$?; e=$(python3 -c 'import time;print(int(time.time()*1000))'); echo "WBENCH_GEN_$1_MS=$((e-s)) rc=$r"; grep -iE "requires using|cache binaries|authentication|downloaded" /tmp/g_$1.log | tail -2 | sed "s/^/  $1: /"; [ "$r" != 0 ] && tail -8 /tmp/g_$1.log | sed "s/^/  $1-err: /"; }
           g gen1; g gen2
           echo "WBENCH_BINARIES after=$(count "$bin")"
 
