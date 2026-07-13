@@ -538,7 +538,8 @@ struct GenerateAcceptanceTestiOSAppWithLocalSwiftPackage {
         let coverageBuildables = try #require(scheme.testAction?.codeCoverageTargets)
 
         // The product name is a valid coverage buildable and is kept. The name of the
-        // package target backing it is not, so it is dropped.
+        // package target backing it and a product of another package referenced through
+        // this package's path are not, so they are dropped.
         #expect(coverageBuildables.count == 1)
         let reference = try #require(coverageBuildables.first)
         #expect(reference.blueprintName == "LibraryC")
