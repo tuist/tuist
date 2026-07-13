@@ -38,10 +38,17 @@ enum CacheVersion: String, Equatable, Hashable {
     /// the new artifacts into a namespace those clients never resolve, so they fall back to a cache
     /// miss instead of downloading an archive they can't decompress.
     case version6 = "6"
+
+    /// Cached resource `.bundle`s are now stripped of their `CFBundleSupportedPlatforms` key, which was
+    /// stamped `[iPhoneSimulator]` because bundles are built for the simulator SDK and caused App Store
+    /// Connect to reject device archives with error 90542. Existing artifacts still carry the key, and
+    /// since the fix changes the stored bundle rather than its content hash, they must be invalidated so
+    /// they get re-warmed and normalized.
+    case version7 = "7"
 }
 
 struct CacheVersionFetcher: CacheVersionFetching {
     func version() -> CacheVersion {
-        .version6
+        .version7
     }
 }
