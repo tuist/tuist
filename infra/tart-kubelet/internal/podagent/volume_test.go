@@ -1,6 +1,8 @@
 package podagent
 
 import (
+	"crypto/sha1"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"testing"
@@ -367,6 +369,72 @@ func TestSweepBranches(t *testing.T) {
 	}
 	if !masterExists(m, "42") {
 		t.Fatal("sweep must not remove masters")
+	}
+}
+
+// MasterDigest must match dispatch-poll.sh's cache_inventory (sorted, subtree-
+// prefixed entry names joined by newlines, SHA-1'd) so a host can compare its
+// local master against the HEAD digest the guest reports.
+func TestMasterDigestMatchesInventory(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+
+	// No master: digest of the empty inventory is SHA-1 of the empty string.
+	d0, err := m.MasterDigest("42", ReservedTuistCacheVolume)
+	if err != nil {
+		t.Fatalf("MasterDigest: %v", err)
+	}
+	if d0 != "da39a3ee5e6b4b0d3255bfef95601890afd80709" {
+		t.Fatalf("empty digest = %q; want sha1(\"\")", d0)
+	}
+
+	// Two Binaries entries → SHA-1 over the sorted, prefixed, newline-joined
+	// lines, independent of creation order.
+	binaries := filepath.Join(m.masterDir("42", ReservedTuistCacheVolume), cacheHomeSubdir, "Binaries")
+	if err := os.MkdirAll(filepath.Join(binaries, "hashB"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(binaries, "hashA"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := m.MasterDigest("42", ReservedTuistCacheVolume)
+	if err != nil {
+		t.Fatalf("MasterDigest: %v", err)
+	}
+	h := sha1.New()
+	for _, l := range []string{"Binaries/hashA", "Binaries/hashB"} {
+		h.Write([]byte(l))
+		h.Write([]byte("\n"))
+	}
+	if want := hex.EncodeToString(h.Sum(nil)); got != want {
+		t.Fatalf("digest = %q; want %q", got, want)
+	}
+}
+
+func TestReplaceMasterFastForwards(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	seedMaster(t, m, "42") // master/tuist/Binaries/marker
+
+	// A converged staging tree with different content, on the runner-cache volume.
+	staging := m.ConvergeStagingDir("vmX")
+	dir := filepath.Join(staging, cacheHomeSubdir, "Binaries", "newhash")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "artifact"), []byte("fresh"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := m.ReplaceMaster("42", ReservedTuistCacheVolume, staging); err != nil {
+		t.Fatalf("ReplaceMaster: %v", err)
+	}
+
+	master := filepath.Join(m.masterDir("42", ReservedTuistCacheVolume), cacheHomeSubdir)
+	if _, err := os.Stat(filepath.Join(master, "Binaries", "newhash", "artifact")); err != nil {
+		t.Fatal("master should hold the converged artifact after fast-forward")
+	}
+	if _, err := os.Stat(filepath.Join(master, "Binaries", "marker")); !os.IsNotExist(err) {
+		t.Fatal("stale master content should be replaced by the fast-forward")
 	}
 }
 

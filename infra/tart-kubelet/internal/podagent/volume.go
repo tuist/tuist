@@ -2,6 +2,8 @@ package podagent
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -178,6 +180,13 @@ func (m *VolumeManager) branchDir(vm string) string {
 
 func (m *VolumeManager) branchesRoot() string { return filepath.Join(m.Root, "branches") }
 
+// ConvergeStagingDir is scratch on the runner-cache volume where a downloaded
+// HEAD archive is extracted before ReplaceMaster swaps it in — on the same
+// volume as the masters so the swap stays a same-volume CoW op.
+func (m *VolumeManager) ConvergeStagingDir(vm string) string {
+	return filepath.Join(m.Root, "_converge", vm)
+}
+
 // AllocateBranch prepares an empty per-VM branch directory for a booting warm-
 // pool VM and reserves its worst-case growth against the quota volume. It
 // clones nothing and predicts nothing — the branch is filled later by
@@ -274,6 +283,89 @@ func (m *VolumeManager) Materialize(att VolumeAttachment, account string) (warm 
 	return true, nil
 }
 
+// MasterDigest returns the inventory digest of an account's on-disk master —
+// the same fingerprint the guest reports as the volume HEAD (sorted entry names
+// under the cache subtrees, SHA-1'd). Empty when the account has no master here.
+// Compared against the HEAD to decide whether this host is behind and should
+// converge before materializing.
+func (m *VolumeManager) MasterDigest(account, volume string) (string, error) {
+	if volume == "" {
+		volume = ReservedTuistCacheVolume
+	}
+	return inventoryDigest(filepath.Join(m.masterDir(account, volume), cacheHomeSubdir))
+}
+
+// cacheInventorySubdirs mirror dispatch-poll.sh's cache_inventory so host and
+// guest compute the same digest over the cache subtrees whose entry-name churn
+// means the cache actually changed.
+var cacheInventorySubdirs = []string{"Binaries", "Manifests", "ProjectDescriptionHelpers", "Plugins"}
+
+func inventoryDigest(cacheRoot string) (string, error) {
+	var lines []string
+	for _, sub := range cacheInventorySubdirs {
+		entries, err := os.ReadDir(filepath.Join(cacheRoot, sub))
+		if err != nil {
+			continue // a missing subtree contributes no entries, like `ls` on a missing dir
+		}
+		for _, e := range entries {
+			lines = append(lines, sub+"/"+e.Name())
+		}
+	}
+	sort.Strings(lines)
+	h := sha1.New()
+	for _, l := range lines {
+		_, _ = h.Write([]byte(l))
+		_, _ = h.Write([]byte("\n"))
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// ReplaceMaster fast-forwards an account's master to the tree at src (an
+// extracted archive of a fresher master pulled from the volume HEAD), then the
+// caller materializes from it. src must live on the runner-cache volume so the
+// clone stays a same-volume CoW op, and must contain the cache home subtree.
+func (m *VolumeManager) ReplaceMaster(account, volume, src string) error {
+	if !m.Enabled() {
+		return nil
+	}
+	if volume == "" {
+		volume = ReservedTuistCacheVolume
+	}
+	srcTree := filepath.Join(src, cacheHomeSubdir)
+	if _, err := os.Stat(srcTree); err != nil {
+		return fmt.Errorf("converged tree missing cache home: %w", err)
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	master := m.masterDir(account, volume)
+	staged := master + ".converge"
+	_ = os.RemoveAll(staged)
+	if err := os.MkdirAll(staged, 0o755); err != nil {
+		return fmt.Errorf("mkdir staged master: %w", err)
+	}
+	if err := m.backend.cloneTree(srcTree, filepath.Join(staged, cacheHomeSubdir)); err != nil {
+		_ = os.RemoveAll(staged)
+		return fmt.Errorf("clone converged tree: %w", err)
+	}
+	old := master + ".old"
+	_ = os.RemoveAll(old)
+	if _, err := os.Stat(master); err == nil {
+		if err := os.Rename(master, old); err != nil {
+			_ = os.RemoveAll(staged)
+			return fmt.Errorf("stash old master: %w", err)
+		}
+	}
+	if err := os.Rename(staged, master); err != nil {
+		_ = os.Rename(old, master)
+		return fmt.Errorf("swap converged master: %w", err)
+	}
+	_ = os.RemoveAll(old)
+	_ = os.Chtimes(master, m.now(), m.now())
+	return nil
+}
+
 // Finalize promotes or discards a branch after the job ends and releases its
 // reservation. Promotion is last-writer-wins and happens only when the job
 // succeeded, the guest reported the cache actually changed (dirty), and the
@@ -351,6 +443,8 @@ func (m *VolumeManager) SweepBranches() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.liveBranches = 0
+	// Convergence scratch is per-job too, so it can't survive a restart either.
+	_ = os.RemoveAll(filepath.Join(m.Root, "_converge"))
 	entries, err := os.ReadDir(m.branchesRoot())
 	if err != nil {
 		if os.IsNotExist(err) {

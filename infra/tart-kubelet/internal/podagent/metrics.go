@@ -151,6 +151,17 @@ var cacheVolumeMaterializeTotal = prometheus.NewCounterVec(
 	[]string{"result"},
 )
 
+// cacheVolumeConvergedTotal counts materialize-time fast-forwards of this host's
+// master to the account's HEAD — a host that was behind pulling the latest
+// master before running. A high rate relative to materialize means hosts are
+// frequently stale (jobs spread thin across hosts, or the cache churns fast).
+var cacheVolumeConvergedTotal = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Name: "tart_kubelet_cache_volume_converged_total",
+		Help: "Materialize-time master fast-forwards to the account's HEAD.",
+	},
+)
+
 // cacheVolumeResidentCount is the number of resident master images on this
 // host (all accounts, all volume names). Divided by the quota, it's the "how
 // many accounts does this host keep hot" signal.
@@ -182,6 +193,7 @@ func init() {
 		vmProvisionWorkSeconds,
 		cacheVolumeOutcomeTotal,
 		cacheVolumeMaterializeTotal,
+		cacheVolumeConvergedTotal,
 		cacheVolumeResidentCount,
 		cacheVolumeRootFreeBytes,
 	)
@@ -204,6 +216,12 @@ func RecordVolumeMaterialized(warm bool) {
 		result = "warm"
 	}
 	cacheVolumeMaterializeTotal.WithLabelValues(result).Inc()
+}
+
+// RecordVolumeConverged increments the count of materialize-time master
+// fast-forwards to the account's HEAD.
+func RecordVolumeConverged() {
+	cacheVolumeConvergedTotal.Inc()
 }
 
 // RecordVolumeResident publishes the resident master count and root free

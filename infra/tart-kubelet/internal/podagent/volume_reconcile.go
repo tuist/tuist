@@ -1,10 +1,15 @@
 package podagent
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -67,6 +72,12 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	if account == "" {
 		return // not dispatched yet — nothing to materialize
 	}
+	// Fast-forward this host's master toward the account's HEAD before
+	// materializing, so the job gets the account's current warm set rather than
+	// whatever this host last ran. Best-effort — a failure leaves the local
+	// master in place (the status quo).
+	r.convergeMaster(entry, account)
+
 	warm, err := r.Volumes.Materialize(entry.Volume, account)
 	if err != nil {
 		log.Log.WithName("volume").Error(err, "materialize cache volume", "vm", entry.VMName, "account", account)
@@ -98,6 +109,89 @@ func writeCacheBudget(statusDir string, capGiB int) {
 	}
 	budget := uint64(capGiB) * 1024 * 1024 * 1024 * 8 / 10
 	_ = os.WriteFile(filepath.Join(statusDir, cacheBudgetFile), []byte(strconv.FormatUint(budget, 10)), 0o644)
+}
+
+// volumeHeadFile carries the account's cache-volume HEAD (generation, inventory
+// digest, presigned download URL for the latest master archive) that the guest
+// echoes from its dispatch response into the status share, so the host can
+// converge a stale master toward it before materializing.
+const volumeHeadFile = "volume-head.json"
+
+type volumeHead struct {
+	Generation  int    `json:"generation"`
+	Digest      string `json:"digest"`
+	DownloadURL string `json:"download_url"`
+}
+
+func readVolumeHead(statusDir string) *volumeHead {
+	if statusDir == "" {
+		return nil
+	}
+	b, err := os.ReadFile(filepath.Join(statusDir, volumeHeadFile))
+	if err != nil {
+		return nil
+	}
+	var h volumeHead
+	if err := json.Unmarshal(b, &h); err != nil {
+		return nil
+	}
+	return &h
+}
+
+// convergeMaster fast-forwards this host's master for the account to the
+// account's HEAD when the host is behind, by downloading the latest master
+// archive and swapping it in before materialize. Best-effort and bounded: no
+// HEAD, already-current, or any download/extract failure leaves the local
+// master untouched (the status quo — the job just pays a few remote misses).
+func (r *Reconciler) convergeMaster(entry *Entry, account string) {
+	if r.Volumes == nil || !entry.Volume.Attached {
+		return
+	}
+	head := readVolumeHead(entry.VolumeStatusDir)
+	if head == nil || head.Digest == "" || head.DownloadURL == "" {
+		return
+	}
+	if local, err := r.Volumes.MasterDigest(account, entry.Volume.VolumeName); err == nil && local == head.Digest {
+		return // already at HEAD
+	}
+
+	logger := log.Log.WithName("volume")
+	staging := r.Volumes.ConvergeStagingDir(entry.VMName)
+	_ = os.RemoveAll(staging)
+	if err := os.MkdirAll(staging, 0o755); err != nil {
+		logger.Error(err, "converge: mkdir staging", "vm", entry.VMName)
+		return
+	}
+	defer os.RemoveAll(staging)
+
+	if err := downloadAndExtract(head.DownloadURL, staging); err != nil {
+		logger.Error(err, "converge: download master", "vm", entry.VMName, "account", account)
+		return
+	}
+	if err := r.Volumes.ReplaceMaster(account, entry.Volume.VolumeName, staging); err != nil {
+		logger.Error(err, "converge: replace master", "vm", entry.VMName, "account", account)
+		return
+	}
+	RecordVolumeConverged()
+	logger.Info("converged master to HEAD", "vm", entry.VMName, "account", account, "generation", head.Generation)
+}
+
+// downloadAndExtract fetches the master archive from a presigned URL and expands
+// it (xattr-preserving, via ditto) into dst, which then contains the cache home
+// subtree. macOS host tooling; bounded so a slow fetch never blocks materialize.
+func downloadAndExtract(url, dst string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	archive := filepath.Join(dst, ".master.zip")
+	if out, err := exec.CommandContext(ctx, "curl", "-fsSL", "-o", archive, url).CombinedOutput(); err != nil {
+		return fmt.Errorf("curl master: %w (%s)", err, strings.TrimSpace(string(out)))
+	}
+	defer os.Remove(archive)
+	if out, err := exec.CommandContext(ctx, "ditto", "-x", "-k", archive, dst).CombinedOutput(); err != nil {
+		return fmt.Errorf("ditto extract master: %w (%s)", err, strings.TrimSpace(string(out)))
+	}
+	return nil
 }
 
 // finalizeVolume promotes or discards the entry's cache-volume branch and
