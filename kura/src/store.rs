@@ -2523,9 +2523,15 @@ impl Store {
     /// snapshot the REAPI layer serves (one round trip primes a cold client
     /// with every key→value association). One ordered namespace-index scan
     /// plus a manifest point-read per artifact.
+    /// Callers must bound `max_entries`: the scan is O(namespace) but the
+    /// returned set — and therefore the caller's memory — is capped at the
+    /// NEWEST `max_entries` manifests by write time. An unbounded collect over
+    /// a namespace that never expired anything OOM-killed production pods on
+    /// the first snapshot serve.
     pub fn action_cache_manifests(
         &self,
         namespace_id: &str,
+        max_entries: usize,
     ) -> Result<Vec<ArtifactManifest>, String> {
         let prefix = format!("{namespace_id}\0");
         let iter = self.db.iterator_cf(
@@ -2548,7 +2554,17 @@ impl Store {
                 && manifest.key.starts_with("action_cache/")
             {
                 manifests.push(manifest);
+                // Keep the working set bounded while scanning: shed the
+                // oldest half whenever the buffer doubles the cap.
+                if manifests.len() >= max_entries.saturating_mul(2).max(2) {
+                    manifests.sort_unstable_by(|a, b| b.version_ms.cmp(&a.version_ms));
+                    manifests.truncate(max_entries);
+                }
             }
+        }
+        if manifests.len() > max_entries {
+            manifests.sort_unstable_by(|a, b| b.version_ms.cmp(&a.version_ms));
+            manifests.truncate(max_entries);
         }
         Ok(manifests)
     }
@@ -3962,7 +3978,7 @@ mod tests {
         assert!(exists(ArtifactProducer::Gradle, "artifact"));
         assert!(
             store
-                .action_cache_manifests("ios")
+                .action_cache_manifests("ios", 1_000)
                 .expect("namespace scan should succeed")
                 .iter()
                 .all(|manifest| manifest.key != "action_cache/aa/10"),
@@ -4004,6 +4020,75 @@ mod tests {
                 .expect("idle sweep should succeed"),
             0
         );
+    }
+
+    #[tokio::test]
+    async fn action_cache_manifest_scan_keeps_only_the_newest_entries() {
+        let (_temp_dir, config, store) = temp_store();
+        async fn write(store: &Store, config: &Config, key: &str, version_ms: u64) {
+            let path = config.tmp_dir.join("uploads").join(key.replace('/', "-"));
+            std::fs::write(&path, b"payload").expect("source should write");
+            store
+                .apply_replicated_artifact_from_path(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    key,
+                    "application/octet-stream",
+                    &path,
+                    version_ms,
+                )
+                .await
+                .expect("artifact should persist");
+        }
+        write(&store, &config, "action_cache/aa/10", 1_000).await;
+        write(&store, &config, "action_cache/bb/10", 3_000).await;
+        write(&store, &config, "action_cache/cc/10", 2_000).await;
+
+        let manifests = store
+            .action_cache_manifests("ios", 2)
+            .expect("scan should succeed");
+        let mut keys: Vec<&str> = manifests.iter().map(|m| m.key.as_str()).collect();
+        keys.sort_unstable();
+        assert_eq!(
+            keys,
+            vec!["action_cache/bb/10", "action_cache/cc/10"],
+            "the cap keeps the newest entries by write time"
+        );
+        assert_eq!(
+            store
+                .action_cache_manifests("ios", 10)
+                .expect("scan should succeed")
+                .len(),
+            3
+        );
+    }
+
+    #[tokio::test]
+    async fn action_cache_manifest_scan_sheds_mid_scan_at_twice_the_cap() {
+        let (_temp_dir, config, store) = temp_store();
+        let source = config.tmp_dir.join("uploads").join("payload");
+        for version in 1..=5u64 {
+            std::fs::write(&source, b"payload").expect("source should write");
+            store
+                .apply_replicated_artifact_from_path(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    &format!("action_cache/{version:064}/10"),
+                    "application/octet-stream",
+                    &source,
+                    version * 100,
+                )
+                .await
+                .expect("artifact should persist");
+        }
+        // Five entries against a cap of two crosses the in-scan shed
+        // threshold (2x cap) as well as the final truncation.
+        let manifests = store
+            .action_cache_manifests("ios", 2)
+            .expect("scan should succeed");
+        let mut versions: Vec<u64> = manifests.iter().map(|m| m.version_ms).collect();
+        versions.sort_unstable();
+        assert_eq!(versions, vec![400, 500], "newest two survive the shed");
     }
 
     #[tokio::test]
