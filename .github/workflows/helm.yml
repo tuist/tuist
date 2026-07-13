@@ -84,6 +84,7 @@ jobs:
             "infra/helm/slack|values-ci.yaml"
             "infra/helm/noora-storybook|values-ci.yaml"
             "infra/helm/tuist|values-ci.yaml"
+            "infra/helm/tuist|values-preview.yaml values-preview-kura.yaml values-preview-ci.yaml values-ci.yaml"
             "infra/helm/tuist|values-k3s-smoke.yaml"
             "infra/helm/k8s-monitoring|"
             "infra/helm/platform|"
@@ -151,6 +152,7 @@ jobs:
             "slack (production)|infra/helm/slack|slack|values-production.yaml values-ci.yaml"
             "noora-storybook (production)|infra/helm/noora-storybook|noora-storybook|values-production.yaml values-ci.yaml"
             "tuist (production)|infra/helm/tuist|tuist|values-managed-common.yaml values-managed-production.yaml values-ci.yaml"
+            "tuist (preview)|infra/helm/tuist|preview-validation|values-preview.yaml values-preview-kura.yaml values-preview-ci.yaml values-ci.yaml"
             "k8s-monitoring (production)|infra/helm/k8s-monitoring|k8s-monitoring|values-production.yaml"
             "platform (hetzner)|infra/helm/platform|platform|values-hetzner.yaml"
             "platform (preview)|infra/helm/platform|platform|values-hetzner.yaml values-tuist-preview.yaml"
@@ -172,6 +174,20 @@ jobs:
               continue
             fi
             echo "Rendered $(wc -l <rendered.yaml) lines of manifests."
+            if [ "$name" = "tuist (preview)" ]; then
+              hosted_values="$(
+                awk '
+                  /name: TUIST_HOSTED/ {
+                    getline
+                    print
+                  }
+                ' rendered.yaml
+              )"
+              if [ -z "$hosted_values" ] || echo "$hosted_values" | grep -qv 'value: "1"'; then
+                echo "::error::The preview render must set every TUIST_HOSTED value to 1."
+                failed+=("$name (hosted configuration)")
+              fi
+            fi
             # `-strict` rejects unknown fields so typo'd keys in resource
             # specs fail the build. Built-in resources validate against
             # the upstream Kubernetes JSON schemas; CRDs (ExternalSecret,
