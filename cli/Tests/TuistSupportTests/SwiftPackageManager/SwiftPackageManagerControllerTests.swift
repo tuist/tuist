@@ -45,7 +45,8 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         subject = SwiftPackageManagerController(
             fileSystem: fileSystem,
             commandRunner: { self.mockCommandRunner },
-            swifterPM: swifterPM
+            swifterPM: swifterPM,
+            environmentVariables: { [:] }
         )
     }
 
@@ -56,17 +57,9 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_resolve() async throws {
+    func test_resolve_usesSwifterPMByDefault() async throws {
         // Given
         let path = try temporaryPath()
-        mockCommandRunner.succeedCommand([
-            "swift",
-            "package",
-            "--package-path",
-            path.pathString,
-            "--replace-scm-with-registry",
-            "resolve",
-        ])
 
         // When
         try await subject.resolve(
@@ -74,6 +67,12 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             arguments: ["--replace-scm-with-registry"],
             printOutput: false
         )
+
+        // Then
+        XCTAssertEqual(mockCommandRunner.calls, [])
+        let request = try XCTUnwrap(swifterPM.resolveRequests.first)
+        XCTAssertEqual(request.scmToRegistryTransformation, .replaceSCMWithRegistry)
+        XCTAssertTrue(request.quiet)
     }
 
     func test_resolve_when_swifterpm_is_enabled() async throws {
@@ -128,7 +127,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         XCTAssertNil(request.cachedDirectoryMaterialization)
     }
 
-    func test_resolve_when_swifterpm_is_not_truthy_usesSwiftPackageManager() async throws {
+    func test_resolve_when_swifterpm_is_disabled_usesSwiftPackageManager() async throws {
         // Given
         let path = try temporaryPath()
         subject = SwiftPackageManagerController(
@@ -308,9 +307,15 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         XCTAssertNil(request.cachedDirectoryMaterialization)
     }
 
-    func test_update() async throws {
+    func test_update_when_swifterpm_is_disabled_usesSwiftPackageManager() async throws {
         // Given
         let path = try temporaryPath()
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            swifterPM: swifterPM,
+            environmentVariables: { ["TUIST_USE_SWIFTERPM": "0"] }
+        )
         mockCommandRunner.succeedCommand([
             "swift",
             "package",
@@ -326,6 +331,9 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             arguments: ["--replace-scm-with-registry"],
             printOutput: false
         )
+
+        // Then
+        XCTAssertTrue(swifterPM.updateRequests.isEmpty)
     }
 
     func test_setToolsVersion_specificVersion() async throws {
