@@ -6228,7 +6228,7 @@
     ],
     "timeSettings": {
       "timezone": "browser",
-      "from": "now-6h",
+      "from": "now-30d",
       "to": "now",
       "autoRefresh": "",
       "autoRefreshIntervals": [
