@@ -309,6 +309,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
+	// The server stamps the runner-account label when it claims a job for this
+	// VM (this reconcile is often triggered by that very label patch). Once the
+	// account is known, clonefile its cache master into the VM's branch and
+	// signal the guest. Idempotent: runs at most once per VM.
+	r.maybeMaterializeVolume(pod)
+
 	status, err := r.podStatus(ctx, pod)
 	if err != nil || status == nil {
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
@@ -448,15 +454,17 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	// pull/clone time the boot histogram (which starts at `tart run`) can't.
 	podProvisionDelaySeconds.WithLabelValues(pool).Observe(time.Since(pod.CreationTimestamp.Time).Seconds())
 
-	// Per-account cache volume (spec #76). Predict the account from the
-	// host's most-recently-used master, CoW-clone it into a per-VM branch,
-	// and attach it as a block device. Done here — after the adoption
-	// early-return above — so a restart-adopted VM doesn't leak a freshly
-	// cloned branch. A declined admission or a disabled feature leaves
-	// att.Attached false and the VM boots on the cold path.
+	// Per-account cache volume (spec #76). Allocate an EMPTY per-VM branch dir
+	// and share it into the guest as a writable virtio-fs mount at the cache
+	// root — no account data, no prediction. The dispatched account's master
+	// is clonefiled into the branch after the server stamps the runner-account
+	// label (maybeMaterializeVolume), so one account's cache can never reach a
+	// VM that runs another account's job. Done here — after the adoption
+	// early-return above — so a restart-adopted VM doesn't get a stray branch.
+	// A declined admission or a disabled feature leaves att.Attached false and
+	// the VM boots on the cold path.
 	sharedDirs := []string{"env:" + envDir + ":ro"}
-	var runDisks []string
-	att, err := r.attachVolume(vmName)
+	att, err := r.allocateVolumeBranch(vmName)
 	if err != nil {
 		// A volume failure must never fail the job: it is best-effort warm
 		// state. Log via an Event and fall through to the cold path.
@@ -467,17 +475,18 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	}
 	var statusDir string
 	if att.Attached {
-		runDisks = append(runDisks, att.BranchPath)
+		// tart's --dir mounts read-write by default and only accepts a `:ro`
+		// modifier; a `:rw` suffix is parsed as part of the path and fails the
+		// VM config. Omit it — the guest needs rw to write the cache and the
+		// dirty marker, which is the default. The guest mounts the cache share
+		// at /Volumes/My Shared Files/cache and points its cache root there.
+		sharedDirs = append(sharedDirs, "cache:"+att.BranchPath)
 		if statusDir, err = r.Tart.StatusDir(vmName); err == nil {
-			// tart's --dir mounts read-write by default and only accepts a
-			// `:ro` modifier; a `:rw` suffix is parsed as part of the path
-			// and fails the VM config with "directory sharing device
-			// configuration is invalid". Omit it — the guest needs rw to
-			// write the dirty marker, which is the default.
 			sharedDirs = append(sharedDirs, "status:"+statusDir)
-			if err := r.Tart.StageVolumeManifest(vmName, volumeManifestJSON(att.VolumeName)); err != nil {
-				statusDir = ""
-			}
+			// Stage the per-branch byte budget for the guest's cache LRU prune
+			// before the VM boots (the whole shared quota volume's free space
+			// would be the wrong, far-too-large budget over a virtio-fs share).
+			writeCacheBudget(statusDir, r.Volumes.CapGiB)
 		} else {
 			statusDir = ""
 		}
@@ -499,7 +508,6 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 
 	handle, err := r.Tart.RunWithOptions(ctx, vmName, tart.RunOptions{
 		SharedDirs: sharedDirs,
-		Disks:      runDisks,
 		VNC:        vncCapableRunnerPod(pod),
 	})
 	if err != nil {

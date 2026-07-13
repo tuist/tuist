@@ -3,8 +3,10 @@ package podagent
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
+	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -21,13 +23,81 @@ const runnerAccountLabel = "tuist.dev/runner-account"
 // discarded.
 const dirtyMarkerFile = "cache-dirty"
 
-// attachVolume prepares a cache-volume branch for a booting VM, or returns an
-// un-attached zero value when the feature is off on this host.
-func (r *Reconciler) attachVolume(vmName string) (VolumeAttachment, error) {
+// cacheReadyFile is the marker the host writes into the writable status share
+// once it has materialized the dispatched account's cache into the VM's branch
+// (or determined there is no master to materialize — a cold first job).
+// dispatch-poll.sh waits (bounded) for it before starting the runner so the
+// guest never reads or writes the cache while the host is still clonefiling it.
+const cacheReadyFile = "cache-ready"
+
+// cacheBudgetFile carries the per-branch byte budget the guest exports as
+// TUIST_CACHE_MAX_BYTES for the CLI's LRU self-prune. Staged by the host
+// because the guest sees the whole shared quota volume's free space over the
+// virtio-fs share, which would be a far-too-large budget.
+const cacheBudgetFile = "cache-max-bytes"
+
+// allocateVolumeBranch prepares an empty per-VM cache branch directory for a
+// booting VM (shared into the guest as a virtio-fs mount), or returns an
+// un-attached zero value when the feature is off or admission declines. The
+// branch is filled later by maybeMaterializeVolume, once dispatch has bound
+// the VM to an account.
+func (r *Reconciler) allocateVolumeBranch(vmName string) (VolumeAttachment, error) {
 	if r.Volumes == nil || !r.Volumes.Enabled() {
 		return VolumeAttachment{}, nil
 	}
-	return r.Volumes.AttachForBoot(ReservedTuistCacheVolume, vmName)
+	return r.Volumes.AllocateBranch(ReservedTuistCacheVolume, vmName)
+}
+
+// maybeMaterializeVolume clonefiles the dispatched account's cache master into
+// this VM's branch and signals the guest, exactly once per VM. The Tuist
+// server stamps the pod's runner-account label when it claims a job, so this
+// runs on the reconcile that observes that label — the account is known before
+// any cache bytes reach the VM, which is what makes the shared-host model safe.
+// A cold first job (no master yet) still writes cache-ready so the guest stops
+// waiting; its writes become the account's first master at Finalize.
+func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
+	if r.Volumes == nil {
+		return
+	}
+	entry := r.Store.Get(pod.Namespace, pod.Name)
+	if entry == nil || !entry.Volume.Attached || entry.Volume.Materialized {
+		return
+	}
+	account := pod.Labels[runnerAccountLabel]
+	if account == "" {
+		return // not dispatched yet — nothing to materialize
+	}
+	warm, err := r.Volumes.Materialize(entry.Volume, account)
+	if err != nil {
+		log.Log.WithName("volume").Error(err, "materialize cache volume", "vm", entry.VMName, "account", account)
+	}
+	entry.Volume.SourceAccount = account
+	entry.Volume.Materialized = true
+	// Signal the guest the cache is ready (warm or cold) so its bounded wait
+	// releases and the job runs.
+	writeCacheReady(entry.VolumeStatusDir)
+	RecordVolumeMaterialized(warm)
+}
+
+// writeCacheReady drops the cache-ready marker into the writable status share.
+// dispatch-poll.sh blocks (bounded) on this file before starting the runner so
+// the guest never touches the cache mid-materialization.
+func writeCacheReady(statusDir string) {
+	if statusDir == "" {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(statusDir, cacheReadyFile), []byte("1"), 0o644)
+}
+
+// writeCacheBudget stages the per-branch byte budget (≈80% of a master's
+// provisioned cap) into the status share before the VM boots, for the guest's
+// TUIST_CACHE_MAX_BYTES.
+func writeCacheBudget(statusDir string, capGiB int) {
+	if statusDir == "" || capGiB <= 0 {
+		return
+	}
+	budget := uint64(capGiB) * 1024 * 1024 * 1024 * 8 / 10
+	_ = os.WriteFile(filepath.Join(statusDir, cacheBudgetFile), []byte(strconv.FormatUint(budget, 10)), 0o644)
 }
 
 // finalizeVolume promotes or discards the entry's cache-volume branch and
@@ -66,15 +136,4 @@ func readDirtyMarker(statusDir string) (present, dirty bool) {
 		return false, false
 	}
 	return true, strings.TrimSpace(string(b)) == "1"
-}
-
-// volumeManifestJSON is the volumes.json the guest reads (from the ro env
-// share) to learn which attached block device carries the cache and where to
-// point the cache root. Plural and label-keyed from day one so generic
-// volumes (spec #69) are additive; v1 emits exactly one entry.
-func volumeManifestJSON(volumeName string) string {
-	if volumeName == "" {
-		volumeName = ReservedTuistCacheVolume
-	}
-	return `[{"label":"` + volumeName + `","cache_root":true}]`
 }

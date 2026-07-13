@@ -3,35 +3,46 @@ package podagent
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 )
 
-// fakeBackend models the disk-image mechanics against real files under a temp
-// root so the manager's os-based master scanning works unchanged. Free space
-// is modelled as total minus one provisioned cap per resident .img file,
-// mirroring the conservative admission accounting.
+// fakeBackend models APFS clonefile + statfs against real files under a temp
+// root so the manager's os-based master scanning works unchanged. Free space is
+// total minus one provisioned cap per resident master directory; branches are
+// CoW-sparse and don't count, mirroring the real backend.
 type fakeBackend struct {
 	totalBytes uint64
-	perImage   uint64
-	failCreate bool
+	perMaster  uint64
 	root       string
 }
 
-func (f *fakeBackend) createMaster(path string, _ int, _ string) error {
-	if f.failCreate {
-		return os.ErrPermission
+func (f *fakeBackend) cloneTree(src, dst string) error {
+	if _, err := os.Stat(dst); err == nil {
+		return os.ErrExist
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(path, []byte("img"), 0o644)
+	return copyTree(src, dst)
 }
 
-func (f *fakeBackend) clone(src, dst string) error {
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+func copyTree(src, dst string) error {
+	info, err := os.Stat(src)
+	if err != nil {
 		return err
+	}
+	if info.IsDir() {
+		if err := os.MkdirAll(dst, 0o777); err != nil {
+			return err
+		}
+		entries, err := os.ReadDir(src)
+		if err != nil {
+			return err
+		}
+		for _, e := range entries {
+			if err := copyTree(filepath.Join(src, e.Name()), filepath.Join(dst, e.Name())); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 	b, err := os.ReadFile(src)
 	if err != nil {
@@ -40,20 +51,19 @@ func (f *fakeBackend) clone(src, dst string) error {
 	return os.WriteFile(dst, b, 0o644)
 }
 
-func (f *fakeBackend) remove(path string) error { return os.RemoveAll(path) }
-
 func (f *fakeBackend) freeBytes(root string) (uint64, error) {
-	var count uint64
+	var masters uint64
 	_ = filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
-		if err != nil {
+		if err != nil || !info.IsDir() || filepath.Base(p) != "master" {
 			return nil
 		}
-		if !info.IsDir() && strings.HasSuffix(p, ".img") {
-			count++
+		// <root>/<account>/<volume>/master — a real master, not the branches dir.
+		if filepath.Base(filepath.Dir(filepath.Dir(filepath.Dir(p)))) == filepath.Base(root) {
+			masters++
 		}
 		return nil
 	})
-	used := count * f.perImage
+	used := masters * f.perMaster
 	if used > f.totalBytes {
 		return 0, nil
 	}
@@ -65,30 +75,50 @@ const gib = uint64(1024 * 1024 * 1024)
 func newTestManager(t *testing.T, totalGiB int) (*VolumeManager, *fakeBackend) {
 	t.Helper()
 	root := t.TempDir()
-	be := &fakeBackend{totalBytes: uint64(totalGiB) * gib, perImage: gib, root: root}
-	m := NewVolumeManager(root, 1, be) // 1 GiB provisioned cap
-	return m, be
+	be := &fakeBackend{totalBytes: uint64(totalGiB) * gib, perMaster: gib, root: root}
+	return NewVolumeManager(root, 1, be), be // 1 GiB provisioned cap
 }
 
-func mustAttach(t *testing.T, m *VolumeManager, vm string) VolumeAttachment {
+func mustAllocate(t *testing.T, m *VolumeManager, vm string) VolumeAttachment {
 	t.Helper()
-	att, err := m.AttachForBoot(ReservedTuistCacheVolume, vm)
+	att, err := m.AllocateBranch(ReservedTuistCacheVolume, vm)
 	if err != nil {
-		t.Fatalf("AttachForBoot: %v", err)
+		t.Fatalf("AllocateBranch: %v", err)
 	}
 	return att
 }
 
+// writeBranchCache simulates a job writing cache artifacts into the branch's
+// tuist subtree (what the guest does during a job before promote).
+func writeBranchCache(t *testing.T, att VolumeAttachment, marker string) {
+	t.Helper()
+	dir := filepath.Join(att.BranchPath, cacheHomeSubdir, "Binaries")
+	if err := os.MkdirAll(dir, 0o777); err != nil {
+		t.Fatalf("write branch cache: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "artifact"), []byte(marker), 0o644); err != nil {
+		t.Fatalf("write branch cache: %v", err)
+	}
+}
+
 func masterExists(m *VolumeManager, account string) bool {
-	_, err := os.Stat(m.masterPath(account, ReservedTuistCacheVolume))
+	_, err := os.Stat(m.masterDir(account, ReservedTuistCacheVolume))
+	return err == nil
+}
+
+func branchTuistExists(att VolumeAttachment) bool {
+	_, err := os.Stat(filepath.Join(att.BranchPath, cacheHomeSubdir))
 	return err == nil
 }
 
 func TestVolumeDisabled(t *testing.T) {
 	m := NewVolumeManager("", 1, &fakeBackend{})
-	att, err := m.AttachForBoot(ReservedTuistCacheVolume, "vm1")
+	att, err := m.AllocateBranch(ReservedTuistCacheVolume, "vm1")
 	if err != nil || att.Attached {
 		t.Fatalf("disabled manager should not attach: att=%+v err=%v", att, err)
+	}
+	if warm, err := m.Materialize(att, "42"); err != nil || warm {
+		t.Fatalf("disabled Materialize = %v, %v; want false, nil", warm, err)
 	}
 	out, err := m.Finalize(att, "42", true, true)
 	if err != nil || out != VolumeOutcomeNone {
@@ -96,15 +126,22 @@ func TestVolumeDisabled(t *testing.T) {
 	}
 }
 
-func TestFirstContactEmptySeedPromotes(t *testing.T) {
+func TestColdFirstJobSeedsMaster(t *testing.T) {
 	m, _ := newTestManager(t, 100)
-	att := mustAttach(t, m, "vm1")
-	if !att.Attached || att.SourceAccount != "" {
-		t.Fatalf("first contact should empty-seed: %+v", att)
+	att := mustAllocate(t, m, "vm1")
+	if !att.Attached {
+		t.Fatalf("branch should attach: %+v", att)
 	}
-	if !strings.Contains(att.BranchPath, "_staging") {
-		t.Fatalf("empty-seed branch should live in _staging: %s", att.BranchPath)
+	// No master for account 42 yet: cold materialize.
+	warm, err := m.Materialize(att, "42")
+	if err != nil || warm {
+		t.Fatalf("cold Materialize = %v, %v; want false, nil", warm, err)
 	}
+	if branchTuistExists(att) {
+		t.Fatal("cold branch should have no materialized cache")
+	}
+	// The job pulls + writes the cache, then promotes.
+	writeBranchCache(t, att, "from-42")
 	out, err := m.Finalize(att, "42", true, true)
 	if err != nil || out != VolumeOutcomePromoted {
 		t.Fatalf("Finalize = %s, %v; want promoted", out, err)
@@ -113,24 +150,24 @@ func TestFirstContactEmptySeedPromotes(t *testing.T) {
 		t.Fatal("account 42 master should exist after promote")
 	}
 	if _, err := os.Stat(att.BranchPath); !os.IsNotExist(err) {
-		t.Fatal("branch should be gone after promote (renamed)")
+		t.Fatal("branch should be gone after promote")
 	}
 }
 
-func TestWarmHitPredictsAndPromotes(t *testing.T) {
+func TestWarmMaterializeAndPromote(t *testing.T) {
 	m, _ := newTestManager(t, 100)
-	// Seed account 42's master.
-	out, _ := m.Finalize(mustAttach(t, m, "seed"), "42", true, true)
-	if out != VolumeOutcomePromoted {
-		t.Fatalf("seed promote = %s", out)
-	}
+	// Seed account 42's master with a known artifact.
+	seedMaster(t, m, "42")
 
-	att := mustAttach(t, m, "vm2")
-	if att.SourceAccount != "42" {
-		t.Fatalf("should predict account 42: %+v", att)
+	att := mustAllocate(t, m, "vm2")
+	warm, err := m.Materialize(att, "42")
+	if err != nil || !warm {
+		t.Fatalf("warm Materialize = %v, %v; want true, nil", warm, err)
 	}
-	if !strings.Contains(att.BranchPath, filepath.Join("42", ReservedTuistCacheVolume, "branches")) {
-		t.Fatalf("branch path unexpected: %s", att.BranchPath)
+	// The account's cached artifact is now visible in the branch.
+	got, err := os.ReadFile(filepath.Join(att.BranchPath, cacheHomeSubdir, "Binaries", "marker"))
+	if err != nil || string(got) != "42" {
+		t.Fatalf("materialized branch marker = %q, %v; want \"42\"", got, err)
 	}
 	if out, err := m.Finalize(att, "42", true, true); err != nil || out != VolumeOutcomePromoted {
 		t.Fatalf("warm Finalize = %s, %v; want promoted", out, err)
@@ -140,24 +177,30 @@ func TestWarmHitPredictsAndPromotes(t *testing.T) {
 	}
 }
 
-func TestMispredictionDiscardsNoContamination(t *testing.T) {
+// A VM dispatched to account 99 only ever materializes account 99's master —
+// account 42's cache is structurally unreachable, so there is no cross-account
+// exposure and no misprediction to guard.
+func TestMaterializeIsAccountScoped(t *testing.T) {
 	m, _ := newTestManager(t, 100)
-	m.Finalize(mustAttach(t, m, "seed"), "42", true, true) // seed account 42
+	seedMaster(t, m, "42")
 
-	att := mustAttach(t, m, "vm3")
-	if att.SourceAccount != "42" {
-		t.Fatalf("expected prediction 42, got %q", att.SourceAccount)
+	att := mustAllocate(t, m, "vm3")
+	warm, err := m.Materialize(att, "99") // dispatched to 99, which has no master here
+	if err != nil || warm {
+		t.Fatalf("Materialize(99) = %v, %v; want cold (false), nil", warm, err)
 	}
-	// Dispatch actually assigned account 99.
-	out, err := m.Finalize(att, "99", true, true)
-	if err != nil || out != VolumeOutcomeMispredicted {
-		t.Fatalf("Finalize = %s, %v; want mispredicted", out, err)
+	if branchTuistExists(att) {
+		t.Fatal("account 99's VM must not see account 42's cache")
 	}
-	if masterExists(m, "99") {
-		t.Fatal("mispredicted branch must NOT become account 99's master")
+	writeBranchCache(t, att, "from-99")
+	if out, err := m.Finalize(att, "99", true, true); err != nil || out != VolumeOutcomePromoted {
+		t.Fatalf("Finalize(99) = %s, %v; want promoted", out, err)
+	}
+	if !masterExists(m, "99") {
+		t.Fatal("account 99's master should be created")
 	}
 	if !masterExists(m, "42") {
-		t.Fatal("account 42's master must survive a misprediction")
+		t.Fatal("account 42's master must survive untouched")
 	}
 }
 
@@ -165,7 +208,8 @@ func TestReadOnlyAndFailedDiscard(t *testing.T) {
 	m, _ := newTestManager(t, 100)
 
 	// Clean/read-only job: success but not dirty.
-	att := mustAttach(t, m, "vm-ro")
+	att := mustAllocate(t, m, "vm-ro")
+	_, _ = m.Materialize(att, "42")
 	if out, _ := m.Finalize(att, "42", true, false); out != VolumeOutcomeDiscarded {
 		t.Fatalf("read-only job should discard, got %s", out)
 	}
@@ -174,7 +218,9 @@ func TestReadOnlyAndFailedDiscard(t *testing.T) {
 	}
 
 	// Failed job: dirty but not successful.
-	att = mustAttach(t, m, "vm-fail")
+	att = mustAllocate(t, m, "vm-fail")
+	_, _ = m.Materialize(att, "42")
+	writeBranchCache(t, att, "half")
 	if out, _ := m.Finalize(att, "42", false, true); out != VolumeOutcomeDiscarded {
 		t.Fatalf("failed job should discard, got %s", out)
 	}
@@ -183,15 +229,25 @@ func TestReadOnlyAndFailedDiscard(t *testing.T) {
 	}
 }
 
+func TestNeverDispatchedDiscards(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	att := mustAllocate(t, m, "idle-vm")
+	// VM was never dispatched: no account, no materialize. Finalize with an
+	// empty account discards and releases the reservation.
+	if out, _ := m.Finalize(att, "", false, false); out != VolumeOutcomeDiscarded {
+		t.Fatalf("never-dispatched VM should discard, got %s", out)
+	}
+}
+
 func TestAdmissionDeclinesToColdPath(t *testing.T) {
 	// Total capacity below one provisioned cap: no room even after eviction.
 	root := t.TempDir()
-	be := &fakeBackend{totalBytes: gib / 2, perImage: gib, root: root}
+	be := &fakeBackend{totalBytes: gib / 2, perMaster: gib, root: root}
 	m := NewVolumeManager(root, 1, be)
 
-	att, err := m.AttachForBoot(ReservedTuistCacheVolume, "vm1")
+	att, err := m.AllocateBranch(ReservedTuistCacheVolume, "vm1")
 	if err != nil {
-		t.Fatalf("AttachForBoot err: %v", err)
+		t.Fatalf("AllocateBranch err: %v", err)
 	}
 	if att.Attached {
 		t.Fatal("admission should decline (cold path) when the root cannot fit a cap")
@@ -201,14 +257,13 @@ func TestAdmissionDeclinesToColdPath(t *testing.T) {
 func TestAdmissionEvictsThenAdmits(t *testing.T) {
 	// 3 GiB total, 1 GiB cap. Seed 3 masters (free -> 0), then a new attach
 	// must evict an LRU master to make room and still admit.
-	m, _ := newTestManagerBig(t, 3)
+	m, _ := newTestManager(t, 3)
 	for i, acct := range []string{"a", "b", "c"} {
 		seedMaster(t, m, acct)
-		// Stagger mtimes so LRU order is a (oldest) .. c (newest).
-		setMtime(t, m.masterPath(acct, ReservedTuistCacheVolume), time.Now().Add(time.Duration(i)*time.Minute))
+		setMtime(t, m.masterDir(acct, ReservedTuistCacheVolume), time.Now().Add(time.Duration(i)*time.Minute))
 	}
 
-	att := mustAttach(t, m, "vmX")
+	att := mustAllocate(t, m, "vmX")
 	if !att.Attached {
 		t.Fatal("attach should admit after evicting an LRU master")
 	}
@@ -217,12 +272,55 @@ func TestAdmissionEvictsThenAdmits(t *testing.T) {
 	}
 }
 
+// Reservation (review finding 3): CoW branches start ~0 bytes, so instantaneous
+// free space would let N concurrent branches all pass a per-branch check and
+// later exhaust the quota. AllocateBranch reserves cap per live branch, so a
+// second concurrent branch is declined when only ~1 cap fits.
+func TestReservationPreventsOvercommit(t *testing.T) {
+	root := t.TempDir()
+	be := &fakeBackend{totalBytes: gib + gib/2, perMaster: gib, root: root} // 1.5 GiB
+	m := NewVolumeManager(root, 1, be)                                      // 1 GiB cap
+
+	a1, _ := m.AllocateBranch(ReservedTuistCacheVolume, "vm1")
+	if !a1.Attached {
+		t.Fatal("first branch should attach (needs 1 cap, 1.5 free)")
+	}
+	a2, _ := m.AllocateBranch(ReservedTuistCacheVolume, "vm2")
+	if a2.Attached {
+		t.Fatal("second concurrent branch should decline: 2 caps reserved > 1.5 free")
+	}
+}
+
+// Finalize releases the reservation so the freed headroom is reusable without
+// evicting a just-promoted master.
+func TestFinalizeReleasesReservation(t *testing.T) {
+	root := t.TempDir()
+	be := &fakeBackend{totalBytes: 2 * gib, perMaster: gib, root: root} // 2 GiB
+	m := NewVolumeManager(root, 1, be)                                  // 1 GiB cap
+
+	a1 := mustAllocate(t, m, "vm1")
+	writeBranchCache(t, a1, "x")
+	if out, _ := m.Finalize(a1, "42", true, true); out != VolumeOutcomePromoted {
+		t.Fatalf("promote = %s", out)
+	}
+	// Free is now 1 GiB (2 - one master). With the reservation released
+	// (liveBranches back to 0) a new branch needs only 1 cap and fits without
+	// evicting account 42's fresh master.
+	a2 := mustAllocate(t, m, "vm2")
+	if !a2.Attached {
+		t.Fatal("second branch should attach after the first's reservation is released")
+	}
+	if !masterExists(m, "42") {
+		t.Fatal("account 42's master must not be evicted to admit vm2")
+	}
+}
+
 func TestEvictToWatermark(t *testing.T) {
 	// 3 GiB total, 1 GiB cap; low watermark = 1 + 0.2 = 1.2 GiB.
-	m, _ := newTestManagerBig(t, 3)
+	m, _ := newTestManager(t, 3)
 	for i, acct := range []string{"a", "b", "c"} {
 		seedMaster(t, m, acct)
-		setMtime(t, m.masterPath(acct, ReservedTuistCacheVolume), time.Now().Add(time.Duration(i)*time.Minute))
+		setMtime(t, m.masterDir(acct, ReservedTuistCacheVolume), time.Now().Add(time.Duration(i)*time.Minute))
 	}
 	// free = 3 - 3 = 0 < 1.2 -> evict oldest until free >= 1.2 (need <= 1 master).
 	evicted, err := m.EvictToWatermark()
@@ -240,16 +338,35 @@ func TestEvictToWatermark(t *testing.T) {
 	}
 }
 
-func TestHottestMasterPrediction(t *testing.T) {
+// SweepBranches (review finding 4): branches are per-job scratch, so any that
+// survive a kubelet restart are orphans that must be removed on startup, and
+// the reservation counter reset.
+func TestSweepBranches(t *testing.T) {
 	m, _ := newTestManager(t, 100)
-	seedMaster(t, m, "old")
-	seedMaster(t, m, "new")
-	setMtime(t, m.masterPath("old", ReservedTuistCacheVolume), time.Now().Add(-time.Hour))
-	setMtime(t, m.masterPath("new", ReservedTuistCacheVolume), time.Now())
+	a1 := mustAllocate(t, m, "vm1")
+	a2 := mustAllocate(t, m, "vm2")
+	writeBranchCache(t, a1, "x")
+	writeBranchCache(t, a2, "y")
 
-	att := mustAttach(t, m, "vm")
-	if att.SourceAccount != "new" {
-		t.Fatalf("hottest master should be 'new', predicted %q", att.SourceAccount)
+	if err := m.SweepBranches(); err != nil {
+		t.Fatalf("SweepBranches: %v", err)
+	}
+	if _, err := os.Stat(a1.BranchPath); !os.IsNotExist(err) {
+		t.Fatal("branch vm1 should be swept")
+	}
+	if _, err := os.Stat(a2.BranchPath); !os.IsNotExist(err) {
+		t.Fatal("branch vm2 should be swept")
+	}
+	if m.liveBranches != 0 {
+		t.Fatalf("liveBranches after sweep = %d; want 0", m.liveBranches)
+	}
+	// A master must survive the sweep (only branches are removed).
+	seedMaster(t, m, "42")
+	if err := m.SweepBranches(); err != nil {
+		t.Fatalf("SweepBranches: %v", err)
+	}
+	if !masterExists(m, "42") {
+		t.Fatal("sweep must not remove masters")
 	}
 }
 
@@ -262,38 +379,18 @@ func TestReadDirtyMarker(t *testing.T) {
 	if present, _ := readDirtyMarker(dir); present {
 		t.Fatalf("missing marker file should be absent")
 	}
-	// dirty=1
 	if err := os.WriteFile(filepath.Join(dir, dirtyMarkerFile), []byte("1\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if present, dirty := readDirtyMarker(dir); !present || !dirty {
 		t.Fatalf("marker '1' => present+dirty; got present=%v dirty=%v", present, dirty)
 	}
-	// dirty=0 (clean read-only job)
 	if err := os.WriteFile(filepath.Join(dir, dirtyMarkerFile), []byte("0"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if present, dirty := readDirtyMarker(dir); !present || dirty {
 		t.Fatalf("marker '0' => present, not dirty; got present=%v dirty=%v", present, dirty)
 	}
-}
-
-func TestVolumeManifestJSON(t *testing.T) {
-	got := volumeManifestJSON(ReservedTuistCacheVolume)
-	want := `[{"label":"tuist-cache","cache_root":true}]`
-	if got != want {
-		t.Fatalf("manifest = %s; want %s", got, want)
-	}
-	if volumeManifestJSON("") != want {
-		t.Fatalf("empty volume name should default to tuist-cache")
-	}
-}
-
-func newTestManagerBig(t *testing.T, totalGiB int) (*VolumeManager, *fakeBackend) {
-	t.Helper()
-	root := t.TempDir()
-	be := &fakeBackend{totalBytes: uint64(totalGiB) * gib, perImage: gib, root: root}
-	return NewVolumeManager(root, 1, be), be
 }
 
 func setMtime(t *testing.T, path string, at time.Time) {
@@ -303,17 +400,16 @@ func setMtime(t *testing.T, path string, at time.Time) {
 	}
 }
 
-// seedMaster writes a resident master image for an account directly, bypassing
-// the attach/promote flow. Needed to set up hosts holding several distinct
-// accounts' masters — the normal attach path predicts the first master and its
-// contamination guard would (correctly) refuse to promote a second account.
+// seedMaster writes a resident master tree for an account directly (with a
+// known artifact under tuist/Binaries), bypassing the allocate/promote flow so
+// tests can set up hosts holding several distinct accounts' masters.
 func seedMaster(t *testing.T, m *VolumeManager, account string) {
 	t.Helper()
-	p := m.masterPath(account, ReservedTuistCacheVolume)
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+	dir := filepath.Join(m.masterDir(account, ReservedTuistCacheVolume), cacheHomeSubdir, "Binaries")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("mkdir master dir: %v", err)
 	}
-	if err := os.WriteFile(p, []byte("img"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "marker"), []byte(account), 0o644); err != nil {
 		t.Fatalf("seed master: %v", err)
 	}
 }

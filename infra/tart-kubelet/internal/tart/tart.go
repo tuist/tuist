@@ -669,21 +669,6 @@ func (c *Client) StageServiceAccountToken(name, token string) error {
 	return nil
 }
 
-// StageVolumeManifest writes volumes.json into the VM's env dir so the guest
-// (which reads the ro `env` share) learns which attached block device carries
-// the Tuist cache and where to point the cache root. Absent file means "no
-// cache volume this boot" and the guest runs the cold path unchanged.
-func (c *Client) StageVolumeManifest(name, contents string) error {
-	dir := filepath.Join(c.UserDataDir, name)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return fmt.Errorf("mkdir userdata: %w", err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "volumes.json"), []byte(contents), 0o600); err != nil {
-		return fmt.Errorf("write volumes.json: %w", err)
-	}
-	return nil
-}
-
 // StatusDir creates and returns the per-VM writable status directory
 // (<UserDataDir>/<vm>/status), shared into the guest rw so the guest can
 // report the cache dirty marker back to the host. World-writable because the

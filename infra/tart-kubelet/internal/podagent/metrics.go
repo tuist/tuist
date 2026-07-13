@@ -125,17 +125,30 @@ var vmProvisionWorkSeconds = prometheus.NewHistogramVec(
 
 // cacheVolumeOutcomeTotal counts how per-account cache-volume branches end
 // their lives (spec #76): promoted (became the account's new master),
-// discarded (read-only/clean/failed job), mispredicted (cloned from account A
-// but the job ran B; dropped to avoid contamination), or none (no volume was
-// attached — feature off or admission declined). promoted/(promoted+discarded)
-// is the warmth-capture rate; a climbing mispredicted rate means dispatch
-// affinity is landing the wrong account's jobs on warm hosts.
+// discarded (read-only/clean/failed/never-dispatched job), or none (no volume
+// was attached — feature off or admission declined). promoted/(promoted+
+// discarded) is the warmth-capture rate.
 var cacheVolumeOutcomeTotal = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
 		Name: "tart_kubelet_cache_volume_outcome_total",
 		Help: "Terminal disposition of per-account cache-volume branches, by outcome.",
 	},
 	[]string{"outcome"},
+)
+
+// cacheVolumeMaterializeTotal counts post-dispatch materializations by whether
+// a master existed for the dispatched account on this host: "warm" (the
+// account's master was clonefiled into the VM's branch) or "cold" (no master
+// yet — a first job for that account here, whose writes seed the master).
+// warm/(warm+cold) is the hit rate of the local warm set against dispatched
+// demand — the signal for whether affinity is routing jobs to hosts that hold
+// their account's master.
+var cacheVolumeMaterializeTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "tart_kubelet_cache_volume_materialize_total",
+		Help: "Post-dispatch cache materializations, by warm/cold.",
+	},
+	[]string{"result"},
 )
 
 // cacheVolumeResidentCount is the number of resident master images on this
@@ -168,6 +181,7 @@ func init() {
 		goldenBaseReusedTotal,
 		vmProvisionWorkSeconds,
 		cacheVolumeOutcomeTotal,
+		cacheVolumeMaterializeTotal,
 		cacheVolumeResidentCount,
 		cacheVolumeRootFreeBytes,
 	)
@@ -180,6 +194,16 @@ func RecordVolumeOutcome(outcome string) {
 		outcome = string(VolumeOutcomeNone)
 	}
 	cacheVolumeOutcomeTotal.WithLabelValues(outcome).Inc()
+}
+
+// RecordVolumeMaterialized increments the warm/cold count of post-dispatch
+// cache materializations.
+func RecordVolumeMaterialized(warm bool) {
+	result := "cold"
+	if warm {
+		result = "warm"
+	}
+	cacheVolumeMaterializeTotal.WithLabelValues(result).Inc()
 }
 
 // RecordVolumeResident publishes the resident master count and root free

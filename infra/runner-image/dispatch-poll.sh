@@ -83,16 +83,17 @@ if [ -z "${SA_TOKEN}" ]; then
   exit 1
 fi
 
-# Per-account cache volume (spec #76). tart-kubelet attaches a CoW branch of an
-# account's cache master as a block device at boot and stages a volumes.json
-# manifest into the ro env share; the guest mounts it and points the Tuist
-# cache root at it. Absent manifest => no volume this boot => cold path,
-# unchanged. Set by mount_cache_volume, consumed by report_cache_dirty.
-CACHE_VOLUME_LABEL=""
+# Per-account cache volume (spec #76, Approach B). tart-kubelet attaches an
+# EMPTY per-VM branch directory as a writable virtio-fs share at boot; after
+# dispatch binds this VM to an account, the host clonefiles that account's cache
+# master into the branch and writes a cache-ready marker. The guest points the
+# Tuist cache root at the share and waits for cache-ready before running so it
+# never touches the cache mid-materialization. Absent share => feature off /
+# admission declined => cold path, unchanged.
+CACHE_SHARE="/Volumes/My Shared Files/cache"
 CACHE_MOUNT=""
 CACHE_INVENTORY_BEFORE=""
 STATUS_SHARE="/Volumes/My Shared Files/status"
-VOLUME_MANIFEST="/Volumes/My Shared Files/env/volumes.json"
 
 # cache_inventory hashes the SORTED ENTRY NAMES (not mtimes) under the cache
 # subtrees whose churn means the job actually changed the cache: binaries
@@ -110,52 +111,51 @@ cache_inventory() {
   } | sort | shasum | awk '{print $1}'
 }
 
-# mount_cache_volume waits (bounded) for the attached cache block device to
-# auto-mount by its APFS label, points TUIST_XDG_CACHE_HOME at it so the whole
-# Tuist cache directory (Binaries, Manifests, ProjectDescriptionHelpers,
-# Plugins, ...) is a local hit, and snapshots the pre-job inventory. A missing
-# manifest or a mount that never appears degrades silently to the cold path —
-# never blocks the job.
+# mount_cache_volume points TUIST_XDG_CACHE_HOME at the virtio-fs branch share
+# the host attached at boot, so the whole Tuist cache directory (Binaries,
+# Manifests, ProjectDescriptionHelpers, Plugins, ...) resolves against it. The
+# share is EMPTY at this point — the host fills it after dispatch, gated by
+# wait_for_cache_ready. Absent share => feature off / admission declined => cold
+# path. Never blocks.
 mount_cache_volume() {
-  [ -f "${VOLUME_MANIFEST}" ] || return 0
-  CACHE_VOLUME_LABEL=$(sed -n 's/.*"label"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${VOLUME_MANIFEST}" | head -n1)
-  [ -n "${CACHE_VOLUME_LABEL}" ] || return 0
-  local mount="/Volumes/${CACHE_VOLUME_LABEL}"
-  # The attached volume auto-mounts a few seconds after boot; gate on it before
-  # the first tuist invocation. 30s is generous — validation saw it appear in a
-  # few seconds.
+  [ -d "${CACHE_SHARE}" ] || return 0
+  CACHE_MOUNT="${CACHE_SHARE}"
+  mkdir -p "${CACHE_MOUNT}/tuist" 2>/dev/null || true
+  export TUIST_XDG_CACHE_HOME="${CACHE_MOUNT}"
+  # Byte budget for the CLI's per-generate LRU self-prune: the host stages the
+  # per-branch cap (≈80% of a master's provisioned size) into the status share
+  # so a full working set degrades to a hot tier (LRU keeps the most-used
+  # artifacts local, the tail misses to the remote) instead of churning at
+  # ENOSPC on the shared quota volume.
+  local budget
+  budget=$(cat "${STATUS_SHARE}/cache-max-bytes" 2>/dev/null)
+  if [ -n "${budget}" ] && [ "${budget}" -gt 0 ] 2>/dev/null; then
+    export TUIST_CACHE_MAX_BYTES="${budget}"
+  fi
+  echo "$(date -u +%FT%TZ) dispatch-poll: cache share at ${CACHE_MOUNT}; TUIST_XDG_CACHE_HOME set (budget=${TUIST_CACHE_MAX_BYTES:-none})"
+}
+
+# wait_for_cache_ready blocks (bounded) until the host signals it has
+# materialized the dispatched account's cache master into the branch share (or
+# determined there is none — a cold first job). Called after dispatch, before
+# the runner starts, so the guest never reads or writes the cache while the host
+# is still clonefiling into it. A timeout degrades to whatever is in the share
+# (cold path) — it never blocks the job. Also snapshots the pre-job inventory
+# once the cache is in place so report_cache_dirty can tell a real change from a
+# pure-hit run.
+wait_for_cache_ready() {
+  [ -n "${CACHE_MOUNT}" ] || return 0
   local waited=0
   while [ "${waited}" -lt 30 ]; do
-    if [ -d "${mount}" ] && /usr/sbin/diskutil info "${mount}" >/dev/null 2>&1; then
-      CACHE_MOUNT="${mount}"
+    if [ -f "${STATUS_SHARE}/cache-ready" ]; then
+      echo "$(date -u +%FT%TZ) dispatch-poll: cache-ready after ${waited}s"
       break
     fi
     sleep 1
     waited=$((waited + 1))
   done
-  if [ -z "${CACHE_MOUNT}" ]; then
-    echo "$(date -u +%FT%TZ) dispatch-poll: cache volume ${CACHE_VOLUME_LABEL} did not mount within 30s; cold path"
-    return 0
-  fi
-  # The volume root is root-owned from host formatting; hand it to the
-  # unprivileged runner user so the Tuist CLI (which runs the job) can write
-  # cache artifacts into it. Idempotent on a warm clone (already runner-owned).
-  sudo chown runner "${CACHE_MOUNT}" 2>/dev/null || true
-  mkdir -p "${CACHE_MOUNT}/tuist" 2>/dev/null || sudo mkdir -p "${CACHE_MOUNT}/tuist"
-  sudo chown runner "${CACHE_MOUNT}/tuist" 2>/dev/null || true
-  export TUIST_XDG_CACHE_HOME="${CACHE_MOUNT}"
-  # Byte budget for the CLI's per-generate LRU self-prune: ~80% of the volume's
-  # capacity, leaving one job's write headroom so a full working set degrades
-  # to a hot tier (LRU keeps the most-used artifacts local, the tail misses to
-  # the remote) instead of churning at ENOSPC. Self-derived from the mounted
-  # volume so it tracks the provisioned cap with no extra config.
-  local total_kb
-  total_kb=$(df -P -k "${CACHE_MOUNT}" 2>/dev/null | awk 'NR==2{print $2}')
-  if [ -n "${total_kb}" ] && [ "${total_kb}" -gt 0 ] 2>/dev/null; then
-    export TUIST_CACHE_MAX_BYTES=$(( total_kb * 1024 * 8 / 10 ))
-  fi
+  [ -f "${STATUS_SHARE}/cache-ready" ] || echo "$(date -u +%FT%TZ) dispatch-poll: cache-ready not signalled within 30s; cold path"
   CACHE_INVENTORY_BEFORE=$(cache_inventory)
-  echo "$(date -u +%FT%TZ) dispatch-poll: cache volume mounted at ${CACHE_MOUNT}; TUIST_XDG_CACHE_HOME set (budget=${TUIST_CACHE_MAX_BYTES:-none})"
 }
 
 # report_cache_dirty writes the guest's dirty marker into the writable status
@@ -242,6 +242,11 @@ while true; do
         export TUIST_CACHE_SIGNING_GRANT="${cache_grant}"
       fi
       echo "$(date -u +%FT%TZ) dispatch-poll: dispatched, starting runner"
+      # Dispatch bound this VM to an account; the host is clonefiling that
+      # account's cache master into the branch share now. Wait (bounded) for
+      # the cache-ready signal before the runner touches the cache, then
+      # snapshot the pre-job inventory. Cold path on timeout; never blocks.
+      wait_for_cache_ready
       # Force an NTP step before the job runs. A golden-base VM can be
       # handed a job within seconds of boot — before macOS `timed` has
       # synced the guest clock, which can start minutes behind. The
