@@ -216,8 +216,8 @@ defmodule Tuist.CommandEventsTest do
     end
   end
 
-  describe "get_result_bundle_url/1" do
-    test "returns the result bundle URL" do
+  describe "generate_result_bundle_url/1" do
+    test "downloads Apple Archives with an aar extension" do
       # Given
       project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
 
@@ -226,13 +226,37 @@ defmodule Tuist.CommandEventsTest do
       object_key =
         "#{project.account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
 
-      stub(Storage, :generate_download_url, fn ^object_key, _actor -> "https://tuist.io" end)
+      stub(Storage, :get_object_range, fn ^object_key, 0..1, _actor -> {:ok, "pb"} end)
+
+      stub(Storage, :generate_download_url, fn ^object_key,
+                                               _actor,
+                                               [content_disposition: ~s(attachment; filename="result_bundle.aar")] ->
+        "https://tuist.io"
+      end)
 
       # When
       got = CommandEvents.generate_result_bundle_url(command_event)
 
       # Then
       assert got == "https://tuist.io"
+    end
+
+    test "downloads Zip archives with a zip extension" do
+      project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      object_key =
+        "#{project.account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
+
+      stub(Storage, :get_object_range, fn ^object_key, 0..1, _actor -> {:ok, "PK"} end)
+
+      stub(Storage, :generate_download_url, fn ^object_key,
+                                               _actor,
+                                               [content_disposition: ~s(attachment; filename="result_bundle.zip")] ->
+        "https://tuist.io"
+      end)
+
+      assert CommandEvents.generate_result_bundle_url(command_event) == "https://tuist.io"
     end
   end
 
