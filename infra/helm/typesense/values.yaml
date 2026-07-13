@@ -52,10 +52,11 @@ runtimeSecrets:
     storeRef:
       kind: ClusterSecretStore
       name: onepassword
-    item: ""
-    fields:
-      apiKey: api-key
-      githubToken: github-token
+    # 1Password item/field paths. The vault comes from the store (the per-env
+    # `tuist-k8s-<env>` vault), so these mirror the item names already used in
+    # the `cache` vault: two items, each with a `password` field.
+    apiKeyRef: "TYPESENSE_API_KEY/password"
+    githubTokenRef: "SEARCH_GITHUB_TOKEN/password"
 
 persistence:
   create: true
