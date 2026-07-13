@@ -62,7 +62,7 @@ struct RegistryURLServiceTests {
     }
 }
 
-private final class RegistryDiscoveryURLProtocolServer: @unchecked Sendable {
+private final class RegistryDiscoveryURLProtocolServer: Sendable {
     private let id = UUID().uuidString
 
     init(statusCode: Int, responseData: Data) {
