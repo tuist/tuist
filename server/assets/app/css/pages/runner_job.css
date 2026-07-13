@@ -971,11 +971,31 @@
 
   & [data-part="interactive-client"] {
     display: flex;
+    position: relative;
     flex: 1;
     align-self: stretch;
+    justify-content: center;
+    align-items: center;
     background: var(--noora-surface-background-primary);
     min-width: 0;
     min-height: 0;
+  }
+
+  & [data-part="interactive-client-status"] {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: var(--noora-spacing-6);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    text-align: center;
+    pointer-events: none;
+
+    &[hidden] {
+      display: none;
+    }
   }
 
   & [data-part="interactive-viewport-frame"] {

@@ -90,6 +90,7 @@ export default {
     document.addEventListener("fullscreenchange", this.onFullscreenChange);
     document.addEventListener("webkitfullscreenchange", this.onFullscreenChange);
 
+    this.installStatus();
     this.connect();
   },
 
@@ -107,6 +108,7 @@ export default {
     if (!path) return;
 
     this.el.dataset.connection = "connecting";
+    this.setStatus("Connecting to runner screen...");
     this.rfb = new RFB(this.el, websocketURL(path), { wsProtocols: token ? [token] : [] });
     this.rfb.background = "transparent";
     this.rfb.scaleViewport = true;
@@ -119,14 +121,17 @@ export default {
 
     this.onConnect = () => {
       this.el.dataset.connection = "connected";
+      this.setStatus("");
       this.installCanvasObserver();
       this.syncDesktopSize();
     };
     this.onDisconnect = () => {
       this.el.dataset.connection = "disconnected";
+      this.setStatus("Runner screen disconnected");
     };
     this.onSecurityFailure = () => {
       this.el.dataset.connection = "security-failure";
+      this.setStatus("Runner screen authentication failed");
     };
 
     this.rfb.addEventListener("connect", this.onConnect);
@@ -204,5 +209,20 @@ export default {
     this.viewport.style.setProperty("--runner-vnc-width", `${Math.floor(width)}px`);
     this.viewport.style.setProperty("--runner-vnc-height", `${Math.floor(height)}px`);
     this.rfb?._handleResize?.();
+  },
+
+  installStatus() {
+    this.status = document.createElement("div");
+    this.status.dataset.part = "interactive-client-status";
+    this.status.setAttribute("aria-live", "polite");
+    this.status.hidden = true;
+    this.el.append(this.status);
+  },
+
+  setStatus(message) {
+    if (!this.status) return;
+
+    this.status.textContent = message;
+    this.status.hidden = message === "";
   },
 };

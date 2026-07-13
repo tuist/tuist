@@ -608,6 +608,7 @@ defmodule TuistWeb.RunnerJobLive do
     socket =
       socket
       |> refresh_vnc_relay_state()
+      |> refresh_interactive_state()
       |> schedule_interactive_refresh()
 
     {:noreply, socket}
@@ -730,6 +731,7 @@ defmodule TuistWeb.RunnerJobLive do
             socket
             |> assign(:shell_session_token, session.token)
             |> refresh_interactive_state()
+            |> schedule_interactive_refresh()
 
           {:error, _reason} ->
             socket
@@ -769,6 +771,14 @@ defmodule TuistWeb.RunnerJobLive do
 
   defp schedule_interactive_refresh(%{assigns: %{selected_tab: "vnc", interactive: interactive}} = socket) do
     if connected?(socket) and match?(%{state: :requested}, interactive.vnc_session) do
+      Process.send_after(self(), :refresh_interactive_access, @interactive_refresh_ms)
+    end
+
+    socket
+  end
+
+  defp schedule_interactive_refresh(%{assigns: %{selected_tab: "terminal", interactive: interactive}} = socket) do
+    if connected?(socket) and match?(%{state: :requested}, interactive.shell_session) do
       Process.send_after(self(), :refresh_interactive_access, @interactive_refresh_ms)
     end
 
@@ -1018,6 +1028,6 @@ defmodule TuistWeb.RunnerJobLive do
   defp vnc_session_ready?(%{state: state}) when state in [:ready, :active], do: true
   defp vnc_session_ready?(_), do: false
 
-  defp shell_session_connectable?(%{state: state}) when state in [:requested, :ready, :active], do: true
+  defp shell_session_connectable?(%{state: state}) when state in [:ready, :active], do: true
   defp shell_session_connectable?(_), do: false
 end

@@ -945,7 +945,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert has_element?(lv, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Overview")
   end
 
-  test "automatically requests a shell session from the Terminal tab for Linux jobs", %{
+  test "automatically requests a shell session from the Terminal tab for Linux jobs and waits for the runner", %{
     conn: conn,
     account: account
   } do
@@ -971,12 +971,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
       live(conn, ~p"/#{account.name}/runners/runs/317540/jobs/31754?tab=terminal")
 
     assert html =~ "Terminal"
+    assert html =~ "Waiting for runner shell"
     assert has_element?(lv, ~s{#runner-shell-session})
-
-    assert has_element?(
-             lv,
-             ~s{#runner-shell-terminal[phx-hook="RunnerShellTerminal"][data-shell-path="/#{account.name}/runners/interactive/shell"][data-shell-token]}
-           )
+    refute has_element?(lv, ~s{#runner-shell-terminal[phx-hook="RunnerShellTerminal"]})
 
     refute has_element?(lv, ~s{#runner-vnc-session})
     refute has_element?(lv, ~s{#request-vnc-session-button})
@@ -985,6 +982,44 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert session.state == :requested
     assert session.pod_name == "linux-pod-shell"
     assert session.requested_by_user_id
+  end
+
+  test "renders the shell terminal once the runner shell is ready", %{
+    conn: conn,
+    account: account,
+    user: user
+  } do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_756,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 317_560,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Ready Linux shell",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
+    :ok = Jobs.record_claimed(candidate, "linux-pod-shell-ready", DateTime.utc_now())
+    :ok = Jobs.record_running(31_756, "tuist-runner-linux-shell-ready")
+
+    {:ok, job} = Jobs.get_for_account(account.id, 31_756)
+    {:ok, session} = InteractiveSessions.request_shell(job, account, user)
+    {:ok, _session} = InteractiveSessions.mark_shell_ready(session)
+
+    {:ok, lv, html} =
+      live(conn, ~p"/#{account.name}/runners/runs/317560/jobs/31756?tab=terminal")
+
+    refute html =~ "Waiting for runner shell"
+
+    assert has_element?(
+             lv,
+             ~s{#runner-shell-terminal[phx-hook="RunnerShellTerminal"][data-shell-path="/#{account.name}/runners/interactive/shell"][data-shell-token]}
+           )
   end
 
   test "renders a local terminal simulation without requesting a shell session", %{

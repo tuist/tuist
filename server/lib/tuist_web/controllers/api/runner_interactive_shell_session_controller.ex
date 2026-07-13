@@ -67,9 +67,18 @@ defmodule TuistWeb.API.RunnerInteractiveShellSessionController do
         end
 
       :error ->
-        case Integer.parse(job_ref) do
-          {workflow_job_id, ""} -> Jobs.get(workflow_job_id)
-          _ -> {:error, :not_found}
+        case parse_github_job_url(job_ref) do
+          {:ok, repository, workflow_run_id, workflow_job_id} ->
+            case Jobs.get(workflow_job_id) do
+              {:ok, %{repository: ^repository, workflow_run_id: ^workflow_run_id} = job} -> {:ok, job}
+              _ -> {:error, :not_found}
+            end
+
+          :error ->
+            case Integer.parse(job_ref) do
+              {workflow_job_id, ""} -> Jobs.get(workflow_job_id)
+              _ -> {:error, :not_found}
+            end
         end
     end
   end
@@ -86,6 +95,27 @@ defmodule TuistWeb.API.RunnerInteractiveShellSessionController do
         with {workflow_run_id, ""} <- Integer.parse(workflow_run_id),
              {workflow_job_id, ""} <- Integer.parse(workflow_job_id) do
           {:ok, account_handle, workflow_run_id, workflow_job_id}
+        else
+          _ -> :error
+        end
+
+      _ ->
+        :error
+    end
+  end
+
+  defp parse_github_job_url(job_ref) do
+    path =
+      case URI.parse(job_ref) do
+        %URI{path: path} when is_binary(path) -> path
+        _ -> job_ref
+      end
+
+    case Regex.run(~r{^/([^/]+/[^/]+)/actions/runs/(\d+)/job/(\d+)$}, path) do
+      [_, repository, workflow_run_id, workflow_job_id] ->
+        with {workflow_run_id, ""} <- Integer.parse(workflow_run_id),
+             {workflow_job_id, ""} <- Integer.parse(workflow_job_id) do
+          {:ok, repository, workflow_run_id, workflow_job_id}
         else
           _ -> :error
         end

@@ -65,6 +65,24 @@ defmodule TuistWeb.API.RunnerInteractiveShellSessionControllerTest do
     assert is_binary(response["websocket_protocol"])
   end
 
+  test "creates a shell session from a GitHub Actions job URL", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    account = user.account
+    running_job(account, 72_004, 720_040, "pod-api-shell-github-url")
+
+    job_url = "https://github.com/tuist/tuist/actions/runs/720040/job/72004"
+
+    conn =
+      conn
+      |> put_req_header("authorization", "Bearer #{user.token}")
+      |> post(~p"/api/runners/interactive/shell", %{job_ref: job_url})
+
+    response = json_response(conn, 200)
+
+    assert response["workflow_job_id"] == 72_004
+    assert is_binary(response["websocket_protocol"])
+  end
+
   test "rejects completed jobs", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
     account = user.account
