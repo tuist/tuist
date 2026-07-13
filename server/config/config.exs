@@ -111,11 +111,6 @@ config :guardian, Guardian.DB,
   schema_name: "guardian_tokens",
   token_types: ["refresh"]
 
-# Hackney 4 prefers protocol version 2, but grpcbox currently loads an
-# incompatible module with the same connection name. Keep outbound Hackney
-# traffic on protocol version 1 until those dependencies no longer collide.
-config :hackney, default_protocols: [:http1]
-
 # Configures Elixir's Logger
 config :logger, :console,
   format: "$time $metadata[$level] $message\n",

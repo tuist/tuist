@@ -166,6 +166,12 @@ defmodule Tuist.MixProject do
       {:opentelemetry_api, "~> 1.4"},
       {:opentelemetry, "~> 1.5"},
       {:opentelemetry_exporter, "~> 1.8"},
+      # grpcbox is transitive (opentelemetry_exporter) but pinned here: <= 0.17
+      # pulls chatterbox 0.15, whose h2_client/h2_connection/h2_frame/h2_settings
+      # modules collide with the :h2 app that hackney 4 depends on, and
+      # `mix release` refuses to assemble a release with duplicated modules.
+      # grpcbox 0.18 requires chatterbox 0.16, which prefixes them chatterbox_h2_*.
+      {:grpcbox, "~> 0.18.0", override: true},
       {:opentelemetry_phoenix, "~> 2.0"},
       {:opentelemetry_ecto,
        github: "open-telemetry/opentelemetry-erlang-contrib", sparse: "instrumentation/opentelemetry_ecto"},
