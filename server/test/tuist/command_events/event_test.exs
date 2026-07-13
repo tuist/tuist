@@ -96,6 +96,39 @@ defmodule Tuist.CommandEvents.EventTest do
       assert result.command_arguments == ""
     end
 
+    test "keeps TUIST environment variables and redacts sensitive values" do
+      attrs = %{
+        environment: %{
+          "CI" => "true",
+          "OTHER" => "ignored",
+          "TUIST_AUTH_PASSWORD" => "password",
+          "TUIST_LICENSE" => "license",
+          "TUIST_CONFIG_GITHUB_API_TOKEN" => "token",
+          "TUIST_ACCOUNT_TOKENS_NAME" => "tokens",
+          "TUIST_SIGNING_KEY" => "key",
+          "TUIST_lowercase_secret" => "secret",
+          "TUIST_USE_SWIFTERPM" => "1"
+        }
+      }
+
+      result = Event.changeset(attrs)
+
+      assert result.environment == %{
+               "TUIST_AUTH_PASSWORD" => "[redacted]",
+               "TUIST_LICENSE" => "[redacted]",
+               "TUIST_CONFIG_GITHUB_API_TOKEN" => "[redacted]",
+               "TUIST_ACCOUNT_TOKENS_NAME" => "[redacted]",
+               "TUIST_SIGNING_KEY" => "[redacted]",
+               "TUIST_lowercase_secret" => "[redacted]",
+               "TUIST_USE_SWIFTERPM" => "1"
+             }
+    end
+
+    test "defaults environment to an empty map" do
+      assert Event.changeset(%{}).environment == %{}
+      assert Event.changeset(%{environment: nil}).environment == %{}
+    end
+
     test "sets updated_at to created_at when updated_at not provided" do
       created_at = ~U[2024-03-04 01:00:00Z]
       attrs = %{created_at: created_at}

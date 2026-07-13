@@ -4,6 +4,10 @@ defmodule Tuist.CommandEvents.Event do
   use Ecto.Schema
   use Tuist.Ingestion.Bufferable
 
+  @sensitive_environment_variable_name_components ~w(
+    CREDENTIAL CREDENTIALS KEY KEYS LICENSE PASSPHRASE PASSPHRASES PASSWORD PASSWORDS SECRET SECRETS TOKEN TOKENS
+  )
+
   @derive {
     Flop.Schema,
     filterable: [
@@ -53,6 +57,7 @@ defmodule Tuist.CommandEvents.Event do
     field :build_run_id, Ch, type: "Nullable(UUID)"
     field :test_run_id, Ch, type: "Nullable(UUID)"
     field :cache_endpoint, Ch, type: "String", default: ""
+    field :environment, Ch, type: "Map(String, String)", default: %{}
 
     # When the command was run - provided by the CLI, defaulting to current server time when missing.
     field :ran_at, Ch, type: "DateTime64(6)"
@@ -93,6 +98,7 @@ defmodule Tuist.CommandEvents.Event do
         nil -> ""
         _ -> ""
       end)
+      |> Map.update(:environment, %{}, &sanitize_environment/1)
       |> Map.put_new(:updated_at, Map.get(event_attrs, :created_at))
       |> convert_datetime_field(:ran_at)
       |> convert_datetime_field(:created_at)
@@ -100,6 +106,26 @@ defmodule Tuist.CommandEvents.Event do
 
     event_attrs
   end
+
+  defp sanitize_environment(environment) when is_map(environment) do
+    environment
+    |> Enum.filter(fn {name, _value} -> String.starts_with?(to_string(name), "TUIST_") end)
+    |> Map.new(fn {name, value} ->
+      name = to_string(name)
+      name_components = name |> String.upcase() |> String.split("_")
+
+      value =
+        if Enum.any?(@sensitive_environment_variable_name_components, &(&1 in name_components)) do
+          "[redacted]"
+        else
+          to_string(value)
+        end
+
+      {name, value}
+    end)
+  end
+
+  defp sanitize_environment(_environment), do: %{}
 
   defp normalize_status(attrs) do
     if Map.has_key?(attrs, :status) do

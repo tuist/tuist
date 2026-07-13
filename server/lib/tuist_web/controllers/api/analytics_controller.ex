@@ -190,6 +190,11 @@ defmodule TuistWeb.API.AnalyticsController do
              type: :string,
              description: "The cache endpoint URL used for this command (regional module cache)."
            },
+           environment: %Schema{
+             type: :object,
+             description: "The redacted TUIST_* environment variables present when the command ran.",
+             additionalProperties: %Schema{type: :string}
+           },
            module_cache_outputs: %Schema{
              type: :array,
              description:
@@ -514,6 +519,7 @@ defmodule TuistWeb.API.AnalyticsController do
         git_remote_url_origin: git_remote_url_origin,
         git_branch: Map.get(body_params, :git_branch),
         cache_endpoint: Map.get(body_params, :cache_endpoint, ""),
+        environment: Map.get(body_params, :environment, %{}),
         ran_at: date(body_params),
         build_run_id: build_run_id,
         test_run_id: test_run_id

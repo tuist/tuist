@@ -95,6 +95,10 @@ defmodule TuistWeb.AnalyticsControllerTest do
             tuist_version: "1.0.0",
             swift_version: "5.0",
             macos_version: "10.15",
+            environment: %{
+              "TUIST_TOKEN" => "secret-token",
+              "TUIST_USE_SWIFTERPM" => "1"
+            },
             params: %{},
             is_ci: false,
             client_id: "client-id"
@@ -117,6 +121,11 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       assert command_event.is_ci == false
       assert command_event.client_id == "client-id"
+
+      assert command_event.environment == %{
+               "TUIST_TOKEN" => "[redacted]",
+               "TUIST_USE_SWIFTERPM" => "1"
+             }
     end
 
     test "returns newly created command event with status failure and error message", %{

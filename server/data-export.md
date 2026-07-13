@@ -35,7 +35,7 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 
 ### Projects & Development
 - Project information (account relationship, handle/name, build system, default branch, visibility/settings, repositories, and timestamps)
-- Command events (CLI usage, build data, performance metrics)
+- Command events (command-line usage, build data, performance metrics, and `TUIST_*` environment variables; values whose names indicate credentials are stored as `[redacted]`)
 - Cache events and cache action items
 - Test cases and test execution results
 - Build system data (Xcode graphs, projects, targets)
